@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# The API schema. See docs/adr/0003-one-schema-protobuf-connect.md.
+version: v2
+modules:
+  - path: proto
+lint:
+  use:
+    - STANDARD
+    - COMMENT_ENUM
+    - COMMENT_MESSAGE
+    - COMMENT_RPC
+    - COMMENT_SERVICE
+breaking:
+  use:
+    - FILE

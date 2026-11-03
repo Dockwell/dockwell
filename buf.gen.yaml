@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Code generated from proto/. Run `make generate`; never edit the output by hand.
+version: v2
+clean: true
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/dockwell/dockwell/gen
+plugins:
+  - local: [go, tool, -modfile=tools/go.mod, protoc-gen-go]
+    out: gen
+    opt: paths=source_relative
+  - local: [go, tool, -modfile=tools/go.mod, protoc-gen-connect-go]
+    out: gen
+    opt: paths=source_relative
+  - local: packages/api/node_modules/.bin/protoc-gen-es
+    out: packages/api/src/gen
+    opt: target=ts
