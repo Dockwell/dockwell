@@ -1,0 +1,21 @@
+<!-- @dsCard group="Inputs" height=336 subtitle="Labels above, hints below, errors that say how to fix them" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>TextField</title>
+<style>
+  .demo { padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px 24px; max-width: 760px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement, F = H.TextField;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'demo' },
+    h(F, { label: 'Repository', prefix: 'github.com/', mono: true, defaultValue: 'acme/storefront' }),
+    h(F, { label: 'Health check path', mono: true, defaultValue: '/healthz', hint: 'Dockwell waits for 200 before sending traffic to a new replica.' }),
+    h(F, { label: 'Domain', defaultValue: 'api.acme.dev', mono: true, error: 'api.acme.dev already routes to another project. Remove it there, or use a different subdomain.' }),
+    h(F, { label: 'Preview subdomain', suffix: '.preview.acme.dev', mono: true, placeholder: 'pr-142', optional: true }),
+    h(F, { label: 'Search services', icon: 'search', placeholder: 'Name, image or domain', size: 'sm' })));
+</script>
+</body>
+</html>

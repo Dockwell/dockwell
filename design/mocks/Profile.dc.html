@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Profile and security</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="profile" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px 32px;">
+
+<nav aria-label="Settings" style="flex: 1 1 200px; max-width: 200px; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; height: 24px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Organization</div>
+<a href="Settings-General.dc.html" class="dw-rail-item">General</a>
+<a href="Members.dc.html" class="dw-rail-item">Members</a>
+<a href="API-Tokens.dc.html" class="dw-rail-item">API tokens</a>
+<a href="Audit-Log.dc.html" class="dw-rail-item">Audit log</a>
+<a href="Billing.dc.html" class="dw-rail-item">Billing</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Platform</div>
+<a href="Settings-ControlPlane.dc.html" class="dw-rail-item">Control plane</a>
+<a href="Settings-Integrations.dc.html" class="dw-rail-item">Integrations</a>
+<a href="Alerts-Channels.dc.html" class="dw-rail-item">Notifications</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Account</div>
+<a href="Profile.dc.html" class="dw-rail-item is-active" aria-current="page">Profile and security</a>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Profile and security</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Your account, passkeys and sessions · signed in with a passkey</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 16px;">
+
+<section class="dw-panel" style="display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Account</h2></div>
+<div class="dw-panel-body" style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; align-items: center; gap: 14px;">
+<span aria-hidden="true" style="display: grid; place-items: center; flex: none; width: 48px; height: 48px; box-sizing: border-box; border-radius: 50%; background: var(--surface-sunken); border: 1px solid var(--line); font-size: 16px; font-weight: 600;">MC</span>
+<div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 16px; line-height: 24px; font-weight: 600;">Mira Chen</span><span style="font-size: 13px; color: var(--ink-muted);">Admin at Acme · member since 12 Mar</span></div>
+</div>
+<x-import component-from-global-scope="Dockwell.TextField" label="Name" default-value="Mira Chen"></x-import>
+<x-import component-from-global-scope="Dockwell.TextField" label="Email" type="email" mono="{{yes}}" default-value="mira@acme.dev" hint="Alerts and sign-in links go here."></x-import>
+<div style="margin-top: auto;"><x-import component-from-global-scope="Dockwell.Button" size="sm" icon="check">Save</x-import></div>
+</div>
+</section>
+
+<section class="dw-panel" style="display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Preferences</h2></div>
+<div style="display: flex; flex-direction: column; padding: 0 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; min-height: 72px; padding: 12px 0; box-sizing: border-box; border-bottom: 1px solid var(--line);">
+<div style="display: flex; flex-direction: column; gap: 2px;"><span id="pref-theme" class="label">Theme</span><span style="font-size: 12.5px; color: var(--ink-muted);">System follows your computer</span></div>
+<x-import component-from-global-scope="Dockwell.SegmentedControl" size="sm" label="Theme" options="{{themes}}" default-value="system"></x-import>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; min-height: 72px; padding: 12px 0; box-sizing: border-box; border-bottom: 1px solid var(--line);">
+<div style="display: flex; flex-direction: column; gap: 2px;"><label for="pref-lang" class="label">Language</label><span style="font-size: 12.5px; color: var(--ink-muted);">Machine values stay as they are</span></div>
+<div class="dw-input dw-input-sm" style="position: relative; width: 180px;">
+<select id="pref-lang" class="dw-input-el" style="appearance: none; -webkit-appearance: none; padding-right: 32px; font-size: 13px; cursor: pointer;">
+<option lang="en">English</option>
+<option lang="zh-Hans">简体中文</option>
+</select>
+<span style="position: absolute; right: 10px; top: 6px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; min-height: 72px; padding: 12px 0; box-sizing: border-box; border-bottom: 1px solid var(--line);">
+<div style="display: flex; flex-direction: column; gap: 2px;"><label for="pref-tz" class="label">Time zone</label><span style="font-size: 12.5px; color: var(--ink-muted);">For times in the panel and alerts</span></div>
+<div class="dw-input dw-input-sm" style="position: relative; width: 180px;">
+<select id="pref-tz" class="dw-input-el" style="appearance: none; -webkit-appearance: none; padding-right: 32px; font-size: 13px; cursor: pointer;">
+<option>Vancouver · UTC−8</option>
+<option>UTC</option>
+</select>
+<span style="position: absolute; right: 10px; top: 6px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; min-height: 72px; padding: 12px 0; box-sizing: border-box;">
+<div style="display: flex; flex-direction: column; gap: 2px;"><span class="label">Notifications</span><span style="font-size: 12.5px; color: var(--ink-muted);">Which alerts reach you, and where</span></div>
+<a href="Alerts-Channels.dc.html" class="dw-btn dw-btn-secondary dw-btn-sm" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="bell" size="{{14}}"></x-import><span>Alert channels</span></a>
+</div>
+</div>
+</section>
+
+<section class="dw-panel" style="display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Passkeys</h2><x-import component-from-global-scope="Dockwell.Button" size="sm" icon="plus">Add passkey</x-import></div>
+<ul style="margin: 0; padding: 0 16px; list-style: none; display: flex; flex-direction: column;">
+<sc-for list="{{passkeys}}" as="k">
+<li style="display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 10px 0; box-sizing: border-box; border-bottom: 1px solid var(--line);">
+<span aria-hidden="true" style="display: grid; place-items: center; flex: none; width: 32px; height: 32px; box-sizing: border-box; border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--line); color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="key" size="{{16}}"></x-import></span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; font-weight: 500;">{{k.name}}</span><span style="font-size: 12.5px; color: var(--ink-muted);">{{k.meta}}</span></div>
+{{k.remove}}
+</li>
+</sc-for>
+</ul>
+<p style="margin: 0; padding: 12px 16px; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Keep at least two, so losing one device never locks you out.</p>
+</section>
+
+<section class="dw-panel" style="display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Sessions</h2><x-import component-from-global-scope="Dockwell.Button" size="sm" icon="logout">Sign out everywhere</x-import></div>
+<ul style="margin: 0; padding: 0 16px; list-style: none; display: flex; flex-direction: column;">
+<sc-for list="{{sessions}}" as="s">
+<li style="display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 10px 0; box-sizing: border-box; border-bottom: 1px solid var(--line);">
+<span aria-hidden="true" style="display: grid; place-items: center; flex: none; width: 32px; height: 32px; box-sizing: border-box; border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--line); color: var(--ink);">{{s.icon}}</span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; align-items: center; height: 20px; font-size: 14px; font-weight: 500;">{{s.name}}</span><span style="font-size: 12.5px; color: var(--ink-muted);">{{s.meta}}</span></div>
+{{s.end}}
+</li>
+</sc-for>
+</ul>
+<p style="margin: 0; padding: 12px 16px; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Signing out everywhere keeps this browser and revokes your CLI token.</p>
+</section>
+
+</div>
+
+</div>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const muted = (t) => h('span', { style: { color: 'var(--ink-muted)' } }, t);
+    const remove = (name) => h(DW.Button, { variant: 'ghost', size: 'sm', 'aria-label': 'Remove ' + name }, 'Remove');
+    const passkeys = [
+      { name: 'MacBook Pro Touch ID', meta: 'Added 12 Mar · used just now', remove: remove('MacBook Pro Touch ID') },
+      { name: 'iPhone', meta: 'Added 12 Mar · used 2 h ago', remove: remove('iPhone') },
+      { name: 'YubiKey 5C', meta: 'Added 4 Jun · used 9 Oct · kept as a backup', remove: remove('YubiKey 5C') }
+    ];
+    const ip = (t) => h('code', { style: { fontSize: 12 } }, t);
+    const sessions = [
+      { icon: h(DW.Icon, { name: 'browser', size: 16 }), name: h(React.Fragment, null, 'This browser', h('span', { className: 'dw-tag', style: { marginLeft: 8, height: 20, fontFamily: 'var(--font-sans)', fontWeight: 500, fontSize: 11.5 } }, 'Current')), meta: h(React.Fragment, null, 'Chrome on macOS · Vancouver · ', ip('198.51.100.23'), ' · now'), end: null },
+      { icon: h(DW.Icon, { name: 'browser', size: 16 }), name: 'iPhone', meta: h(React.Fragment, null, 'Safari on iOS · Vancouver · 2 h ago'), end: h(DW.Button, { variant: 'ghost', size: 'sm', 'aria-label': 'Sign out iPhone' }, 'Sign out') },
+      { icon: h(DW.Icon, { name: 'terminal', size: 16 }), name: 'CLI token on a laptop', meta: h(React.Fragment, null, ip('dw'), ' 0.9.4 · Vancouver · 39 min ago'), end: h(DW.Button, { variant: 'ghost', size: 'sm', 'aria-label': 'Revoke CLI token' }, 'Revoke') }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      passkeys, sessions,
+      themes: [{ value: 'system', label: 'System' }, { value: 'light', label: 'Light', icon: 'sun' }, { value: 'dark', label: 'Dark', icon: 'moon' }],
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

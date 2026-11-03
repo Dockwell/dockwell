@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dockwell screens</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--ink)}a:hover{color:var(--link)}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<div style="max-width: 1360px; margin: 0 auto; padding: 56px 40px 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 40px;">
+
+<header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px; padding-bottom: 32px; border-bottom: 1px solid var(--line);">
+<div style="display: flex; flex-direction: column; gap: 10px; max-width: 820px;">
+<x-import component-from-global-scope="Dockwell.Logo" variant="logotype" height="14"></x-import>
+<h1 style="margin: 0; font-size: 44px; line-height: 48px; font-weight: 600; letter-spacing: -0.03em;">Every screen, one server to a fleet</h1>
+<p style="margin: 0; font-size: 15px; line-height: 22px; color: var(--ink-muted);">Desktop and phone, light and dark, built from the Dockwell design system. Open any screen below; links inside the screens move between them.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<a href="Overview-Single.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none; color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{16}}"></x-import><span>Start with one server</span></a>
+<a href="Overview-Fleet.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none; color: var(--on-action);"><x-import component-from-global-scope="Dockwell.Icon" name="network" size="{{16}}"></x-import><span>Start with a fleet</span></a>
+</div>
+</header>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 32px 40px; align-items: start;">
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="10">
+<section style="display: flex; flex-direction: column; gap: 4px;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 10px; margin-bottom: 4px; border-bottom: 1px solid var(--line);">
+<h2 style="margin: 0; font-size: 16px; line-height: 24px; font-weight: 600;">{{g.name}}</h2>
+<span style="font-size: 12px; color: var(--ink-muted);">{{g.count}}</span>
+</div>
+<sc-for list="{{g.items}}" as="s" hint-placeholder-count="5">
+<a href="{{s.file}}" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; margin: 0 -10px; border-radius: var(--radius-sm); text-decoration: none;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">{{s.title}}</span>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">{{s.desc}}</span>
+</a>
+</sc-for>
+</section>
+</sc-for>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 4px;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 10px; margin-bottom: 4px; border-bottom: 1px solid var(--line);">
+<h2 style="margin: 0; font-size: 16px; line-height: 24px; font-weight: 600;">{{phone.name}}</h2>
+<span style="font-size: 12px; color: var(--ink-muted);">{{phone.count}} · 390 × 844</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 4px 40px;">
+<sc-for list="{{phone.items}}" as="s" hint-placeholder-count="12">
+<a href="{{s.file}}" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; margin: 0 -10px; border-radius: var(--radius-sm); text-decoration: none;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">{{s.title}}</span>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">{{s.desc}}</span>
+</a>
+</sc-for>
+</div>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":2700}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const G = (name, items) => ({ name, count: items.length + (items.length === 1 ? ' screen' : ' screens'), items: items.map(([file, title, desc, phone]) => ({ file: file + '.dc.html', title, desc, phone: !!phone })) });
+    const groups = [
+      G('Brand', [
+        ['Logo', 'Logo', 'Construction, colour, app icon and use in the product']
+      ]),
+      G('Get started', [
+        ['Onboarding-Claim', 'Claim this server', 'First visit after install: owner account with a passkey'],
+        ['Onboarding-FirstDeploy', 'First deploy', 'Pick a repo, image, Compose file, catalog app or website'],
+        ['Onboarding-Live', 'It’s live', 'Build steps, logs and the HTTPS URL in about 90 seconds'],
+        ['Sign-In', 'Sign in', 'Returning user with a passkey']
+      ]),
+      G('Overview', [
+        ['Overview-Single', 'One server', 'hz-1 at a glance: health, apps, websites, backups, updates'],
+        ['Overview-Fleet', 'A fleet', '52 servers, metrics, fleet grid, recent changes']
+      ]),
+      G('Apps', [
+        ['Apps-List', 'Apps', 'Every app across servers, by environment'],
+        ['Apps-New', 'New app', 'Source, placement and domain, then a plan'],
+        ['App-Overview', 'App overview', 'Replicas, domains, metrics and source of api'],
+        ['App-Deployments', 'Deployments', 'Revisions, what changed and rollback'],
+        ['App-Logs', 'Logs', 'Live, filterable logs across replicas'],
+        ['App-Environment', 'Environment', 'Variables, secrets and references per environment'],
+        ['App-Settings', 'Settings', 'Scaling, placement, build and health checks'],
+        ['App-Previews', 'Previews', 'An environment for every pull request']
+      ]),
+      G('Websites and catalog', [
+        ['Websites-List', 'Websites', 'Static, PHP and proxy sites with one-click runtimes'],
+        ['Website-Detail', 'Website configuration', 'Server block editor with validation and a plan'],
+        ['Catalog', 'Catalog', 'Open-source apps to install in one step'],
+        ['Catalog-Install', 'Install from catalog', 'Ghost with its database, domain and backups']
+      ]),
+      G('Data', [
+        ['Databases-List', 'Databases', 'Engines, size, connections and backups'],
+        ['Database-Detail', 'Database', 'Connection, metrics and point-in-time recovery'],
+        ['Domains-List', 'Domains', 'Routing, DNS and certificates'],
+        ['Domain-Add', 'Add a domain', 'Records created for you, certificate issued live'],
+        ['Backups', 'Backups', 'Policies, runs, destinations and restore drills'],
+        ['Backup-Restore', 'Restore', 'Pick a point in time and a target']
+      ]),
+      G('Connections', [
+        ['Connections-List', 'Connections', 'External services your apps use'],
+        ['Connection-New', 'Add a connection', 'An R2 bucket and a scoped token, created for you'],
+        ['Connection-Detail', 'Connection', 'Fields, environments and how each app uses them'],
+        ['Connection-Bind', 'Use in an app', 'Map fields to the names an app expects']
+      ]),
+      G('Server', [
+        ['Server-Overview', 'Server', 'hz-1 system, network, agent and disk'],
+        ['Server-Files', 'Files', 'File manager with a diff before every save'],
+        ['Server-Terminal', 'Terminal', 'Shared sessions through the agent'],
+        ['Server-Firewall', 'Firewall', 'Rules, fail2ban and SSH with a safety timer'],
+        ['Server-Processes', 'Processes', 'Processes, services and containers'],
+        ['Server-Updates', 'Updates', 'OS, Docker and agent updates as a plan']
+      ]),
+      G('Fleet', [
+        ['Add-Server', 'Add a server', 'One command or a provider; nothing on hz-1 changes'],
+        ['Second-Server', 'Second server joined', 'What changed, and optional next steps'],
+        ['Servers-List', 'Servers', 'Selectors, fleet grid and an inspector'],
+        ['Fleet-Action', 'New fleet action', 'Target, action and rollout in waves'],
+        ['Fleet-Action-Running', 'Fleet action running', 'Waves, stop conditions and live events'],
+        ['Merge-Install', 'Connect another Dockwell', 'Adopt a standalone install without restarts']
+      ]),
+      G('Fleet routing', [
+        ['Domains-Fleet', 'Domains', '23 domains, DNS records and ingress health'],
+        ['Domain-Traffic', 'Traffic path', 'acme.dev from DNS to replicas, with a trace'],
+        ['Ingress', 'Ingress', 'Where public traffic enters, and how']
+      ]),
+      G('Operate', [
+        ['Activity', 'Activity', 'Every change and alert on one line of time'],
+        ['Plan-Review', 'Review plan', 'Exactly what will change before it runs'],
+        ['Incident', 'Incident', 'What changed, the signal and the fix'],
+        ['Alerts', 'Alerts', 'Open alerts, resolved and rules'],
+        ['Alerts-Channels', 'Notification channels', 'Where alerts go and when'],
+        ['Scheduled-Tasks', 'Scheduled tasks', 'Cron jobs with run history'],
+        ['Global-CommandBar', 'Command bar', 'Reach anything with ⌘K'],
+        ['Global-Assistant', 'Ops assistant', 'Explains problems, proposes plans']
+      ]),
+      G('Access and settings', [
+        ['Settings-General', 'Organization', 'Projects, environments and who approves'],
+        ['Members', 'Members', 'Roles, projects and single sign-on'],
+        ['API-Tokens', 'API tokens', 'Scoped tokens for CI, MCP and tools'],
+        ['Audit-Log', 'Audit log', 'Who did what, from where'],
+        ['Settings-ControlPlane', 'Control plane', 'Replicas, backups, updates and agents'],
+        ['Move-ControlPlane', 'Move control plane', 'To Cloud or a small dedicated server'],
+        ['Settings-Integrations', 'Integrations', 'Git, registries, DNS, providers and storage'],
+        ['Billing', 'Billing', 'Plan, usage and invoices'],
+        ['Profile', 'Profile and security', 'Passkeys, sessions and preferences']
+      ]),
+      G('Phone', [
+        ['M-Overview-Single', 'Overview, one server', 'hz-1 in your pocket', 1],
+        ['M-Overview-Fleet', 'Overview, fleet', 'The fleet at a glance', 1],
+        ['M-Apps', 'Apps', 'Stacked rows by environment', 1],
+        ['M-App', 'App', 'Status, replicas and deploy', 1],
+        ['M-Logs', 'Logs', 'Full-screen live logs', 1],
+        ['M-Servers', 'Servers', 'Tap a tile to inspect', 1],
+        ['M-Server', 'Server', 'fra-1-07 with terminal and drain', 1],
+        ['M-Terminal', 'Terminal', 'With a key bar for Esc, Tab and Ctrl', 1],
+        ['M-Plan-Approve', 'Approve a plan', 'From a notification, with a passkey', 1],
+        ['M-Incident', 'Incident', 'Respond with one hand', 1],
+        ['M-CommandBar', 'Search', 'The command bar on a phone', 1],
+        ['M-More', 'More', 'Everything else, and the scope switcher', 1],
+        ['M-Files', 'Edit a file', 'Diff before save', 1],
+        ['M-Connection', 'Connection', 'Test and fix from your phone', 1],
+        ['M-Domain', 'Domain', 'Traffic path for acme.dev', 1]
+      ])
+    ];
+    const phone = groups.pop();
+    return { theme: this.props.theme ?? 'light', groups, phone };
+  }
+}
+</script>
+</body>
+</html>

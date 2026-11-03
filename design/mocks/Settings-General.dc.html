@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>General settings</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="settings" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px 32px;">
+
+<nav aria-label="Settings" style="flex: 1 1 200px; max-width: 200px; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; height: 24px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Organization</div>
+<a href="Settings-General.dc.html" class="dw-rail-item is-active" aria-current="page">General</a>
+<a href="Members.dc.html" class="dw-rail-item">Members</a>
+<a href="API-Tokens.dc.html" class="dw-rail-item">API tokens</a>
+<a href="Audit-Log.dc.html" class="dw-rail-item">Audit log</a>
+<a href="Billing.dc.html" class="dw-rail-item">Billing</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Platform</div>
+<a href="Settings-ControlPlane.dc.html" class="dw-rail-item">Control plane</a>
+<a href="Settings-Integrations.dc.html" class="dw-rail-item">Integrations</a>
+<a href="Alerts-Channels.dc.html" class="dw-rail-item">Notifications</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Account</div>
+<a href="Profile.dc.html" class="dw-rail-item">Profile and security</a>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">General</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Name, projects and defaults for Acme · owned by Dana Whitfield</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 16px;">
+
+<section class="dw-panel" aria-labelledby="org-t" style="display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 id="org-t" class="dw-panel-title">Organization</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Organization plan · 52 servers</span></div>
+<div class="dw-panel-body" style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; align-items: center; gap: 14px;">
+<span aria-hidden="true" style="display: grid; place-items: center; flex: none; width: 48px; height: 48px; box-sizing: border-box; border-radius: var(--radius-md); background: var(--surface-sunken); border: 1px solid var(--line); font-size: 18px; font-weight: 600;">A</span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 16px; line-height: 24px; font-weight: 600;">Acme</span><span style="font-size: 12.5px; color: var(--ink-muted);">Initials until you upload a logo</span></div>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="upload">Upload logo</x-import>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+<x-import component-from-global-scope="Dockwell.TextField" label="Name" default-value="Acme"></x-import>
+<x-import component-from-global-scope="Dockwell.TextField" label="Slug" default-value="acme" mono="{{yes}}" hint="In CLI and API paths"></x-import>
+</div>
+<x-import component-from-global-scope="Dockwell.TextField" label="Panel URL" prefix="https://" default-value="panel.acme.dev" mono="{{yes}}" hint="Sign-in links and alert messages point here."></x-import>
+<div class="dw-field">
+<label class="dw-field-label" for="org-tz">Default time zone</label>
+<div class="dw-input" style="position: relative;">
+<select id="org-tz" class="dw-input-el" aria-describedby="org-tz-hint" style="appearance: none; -webkit-appearance: none; padding-right: 32px; cursor: pointer;">
+<option>UTC</option>
+<option>Berlin · UTC+1</option>
+<option>Vancouver · UTC−8</option>
+</select>
+<span style="position: absolute; right: 10px; top: 8px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div>
+<div id="org-tz-hint" class="dw-field-hint"><span>For schedules, maintenance windows and reports. People can set their own in their profile.</span></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line);">
+<div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+<span aria-hidden="true" style="display: grid; place-items: center; flex: none; width: 28px; height: 28px; box-sizing: border-box; border-radius: 50%; background: var(--surface-sunken); border: 1px solid var(--line); font-size: 11px; font-weight: 600;">DW</span>
+<span style="font-size: 13px; line-height: 18px;"><span style="font-weight: 550;">Dana Whitfield</span> <span style="color: var(--ink-muted);">· Owner · billing contact</span></span>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="check">Save</x-import>
+</div>
+</div>
+</section>
+
+<section class="dw-panel" aria-labelledby="def-t" style="display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 id="def-t" class="dw-panel-title">Defaults</h2><span style="font-size: 12.5px; color: var(--ink-muted);">For new projects and apps</span></div>
+<div class="dw-panel-body" style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span class="label">Placement for new apps</span>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 32px;">
+<x-import component-from-global-scope="Dockwell.Tag" label="region" value="eu" on-remove="{{noop}}"></x-import>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="plus">Add label</x-import>
+</div>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Matches 40 servers in fra-1 and ams-1. Each environment can set its own.</span>
+</div>
+<div style="padding-top: 16px; border-top: 1px solid var(--line);">
+<x-import component-from-global-scope="Dockwell.Switch" default-checked="{{yes}}" label="Protect production in new projects" description="Needs 1 approval from an Admin or Owner."></x-import>
+</div>
+<div style="display: flex; flex-direction: column; padding-top: 16px; border-top: 1px solid var(--line);">
+<span class="label" style="padding-bottom: 4px;">Retention</span>
+<sc-for list="{{retention}}" as="r">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 7px 0; box-sizing: border-box; border-bottom: {{r.sep}};">
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;"><label for="{{r.id}}" style="font-size: 13.5px; line-height: 20px; font-weight: 500;">{{r.name}}</label><span style="font-size: 12.5px; line-height: 16px; color: var(--ink-muted);">{{r.sub}}</span></div>
+<div class="dw-input dw-input-sm" style="position: relative; flex: none; width: 132px;">
+<select id="{{r.id}}" class="dw-input-el" style="appearance: none; -webkit-appearance: none; padding-right: 32px; font-size: 13px; cursor: pointer;">
+<option>{{r.value}}</option>
+<option>{{r.alt1}}</option>
+<option>{{r.alt2}}</option>
+</select>
+<span style="position: absolute; right: 10px; top: 6px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line);">
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="check">Save</x-import>
+</div>
+</div>
+</section>
+
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 12px;" aria-labelledby="proj-t">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 id="proj-t" class="heading" style="margin: 0;">Projects and environments</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">3 projects · 5 environments · 3 protected</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="plus">New project</x-import>
+</div>
+<div class="dw-table-wrap">
+<table class="dw-table">
+<caption class="dw-sr">Projects and environments in Acme, with approval rules and default placement</caption>
+<thead>
+<tr><th scope="col" style="width: 190px;">Environment</th><th scope="col" style="width: 290px;">Protection</th><th scope="col">Default placement</th><th scope="col" style="width: 64px; text-align: right;">Apps</th><th scope="col" style="width: 44px;"><span class="dw-sr">Actions</span></th></tr>
+</thead>
+<tbody>
+
+<tr><td colspan="5" style="height: 44px; padding-right: 8px; background: var(--canvas);">
+<div style="display: flex; align-items: center; gap: 8px;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="folder" size="{{16}}"></x-import></span>
+<span style="font-size: 14px; font-weight: 600;">storefront</span>
+<span style="font-size: 12.5px; color: var(--ink-muted);">Leo Park and Sam Okafor can deploy</span>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="plus" aria-label="Add environment to storefront">Add environment</x-import>
+</div>
+</td></tr>
+<sc-for list="{{storefront}}" as="e">
+<tr>
+<td style="padding-left: 40px;">{{e.nameEl}}</td>
+<td>{{e.guardEl}}</td>
+<td>{{e.placeEl}}</td>
+<td style="text-align: right;">{{e.apps}}</td>
+<td style="padding-left: 0; padding-right: 8px; text-align: right;">{{e.more}}</td>
+</tr>
+</sc-for>
+
+<tr><td colspan="5" style="height: 44px; padding-right: 8px; background: var(--canvas); border-bottom: 1px solid var(--line);">
+<div style="display: flex; align-items: center; gap: 8px;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="folder" size="{{16}}"></x-import></span>
+<span style="font-size: 14px; font-weight: 600;">internal-tools</span>
+<span style="font-size: 12.5px; color: var(--ink-muted);">Owners and admins can deploy</span>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="plus" aria-label="Add environment to internal-tools">Add environment</x-import>
+</div>
+</td></tr>
+<sc-for list="{{tools}}" as="e">
+<tr>
+<td style="padding-left: 40px;">{{e.nameEl}}</td>
+<td>{{e.guardEl}}</td>
+<td>{{e.placeEl}}</td>
+<td style="text-align: right;">{{e.apps}}</td>
+<td style="padding-left: 0; padding-right: 8px; text-align: right;">{{e.more}}</td>
+</tr>
+</sc-for>
+
+<tr><td colspan="5" style="height: 44px; padding-right: 8px; background: var(--canvas); border-bottom: 1px solid var(--line);">
+<div style="display: flex; align-items: center; gap: 8px;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="folder" size="{{16}}"></x-import></span>
+<span style="font-size: 14px; font-weight: 600;">data</span>
+<span style="font-size: 12.5px; color: var(--ink-muted);">Owners and admins can deploy</span>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="plus" aria-label="Add environment to data">Add environment</x-import>
+</div>
+</td></tr>
+<sc-for list="{{data}}" as="e">
+<tr>
+<td style="padding-left: 40px;">{{e.nameEl}}</td>
+<td>{{e.guardEl}}</td>
+<td>{{e.placeEl}}</td>
+<td style="text-align: right;">{{e.apps}}</td>
+<td style="padding-left: 0; padding-right: 8px; text-align: right;">{{e.more}}</td>
+</tr>
+</sc-for>
+
+</tbody>
+</table>
+</div>
+<p style="margin: 0; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Changes to a protected environment open a plan that waits for approval.</p>
+</section>
+
+<section class="dw-panel" aria-labelledby="danger-t">
+<div class="dw-panel-head">
+<h2 id="danger-t" class="dw-panel-title">Danger zone</h2>
+<span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="lock" size="{{14}}"></x-import>Only the owner, Dana Whitfield, can do these. You are an Admin.</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));">
+<div style="display: flex; align-items: center; gap: 16px; padding: 16px;">
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+<span style="font-size: 14px; font-weight: 550;">Transfer ownership</span>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">The new owner gets billing. Dana Whitfield stays on as an Admin.</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" icon="users" disabled="{{yes}}">Transfer</x-import>
+</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 16px; border-left: 1px solid var(--line);">
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+<span style="font-size: 14px; font-weight: 550;">Delete organization</span>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">Stops 14 apps, disconnects 52 servers and deletes 3 projects.</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" variant="danger" icon="trash" disabled="{{yes}}">Delete Acme</x-import>
+</div>
+</div>
+</section>
+
+</div>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1380}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const nameEl = (n) => h('span', { style: { fontSize: 14, fontWeight: 550 } }, n);
+    const guardEl = (on, text) => h(DW.Switch, { defaultChecked: on, label: on ? 'Protected' : 'Not protected', description: text });
+    const placeEl = (tags, count) => h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
+      tags.map((t) => h(DW.Tag, { key: t[0], label: t[0], value: t[1] })),
+      h('span', { style: { marginLeft: 4, fontSize: 12.5, color: 'var(--ink-muted)' } }, count));
+    const more = (label) => h(DW.Button, { variant: 'ghost', size: 'sm', icon: 'more', 'aria-label': 'More for ' + label });
+    const env = (project, name, on, rule, tags, count, apps) => ({
+      nameEl: nameEl(name), guardEl: guardEl(on, rule), placeEl: placeEl(tags, count), apps, more: more(project + ' / ' + name)
+    });
+    const eu = [['region', 'eu']], hz = [['region', 'eu'], ['provider', 'hetzner']];
+    const storefront = [
+      env('storefront', 'production', true, '1 approval from an Admin or Owner', eu, '40 servers', 8),
+      env('storefront', 'staging', false, 'Changes apply right away', hz, '24 servers', 8),
+      env('storefront', 'previews', false, 'One per pull request, applies right away', hz, '24 servers', 3)
+    ];
+    const tools = [
+      env('internal-tools', 'production', true, '1 approval from an Admin or Owner', [['pool', 'web']], '38 servers', 4)
+    ];
+    const data = [
+      env('data', 'production', true, '2 approvals from Admins or Owners', [['pool', 'data']], '8 servers', 2)
+    ];
+    const retention = [
+      { id: 'ret-audit', name: 'Activity and audit log', sub: 'Your plan allows unlimited', value: '1 year', alt1: '2 years', alt2: 'Unlimited' },
+      { id: 'ret-metrics', name: 'Metrics', sub: 'Server and app charts', value: '30 days', alt1: '90 days', alt2: '1 year' },
+      { id: 'ret-logs', name: 'Logs', sub: 'App, website and agent logs', value: '14 days', alt1: '30 days', alt2: '90 days' }
+    ].map((r, i, a) => Object.assign(r, { sep: i < a.length - 1 ? '1px solid var(--line)' : '0' }));
+    return {
+      theme: this.props.theme ?? 'light',
+      storefront, tools, data, retention,
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

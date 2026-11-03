@@ -1,0 +1,32 @@
+<!-- @dsCard group="Navigation" height=560 subtitle="⌘K reaches every server, app, page and action. Type to filter." -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>CommandBar</title>
+<style>
+  .stage { position: relative; padding: 40px 24px; min-height: 560px; box-sizing: border-box; background: var(--canvas); }
+  .stage::before { content: ""; position: absolute; inset: 0; background: var(--scrim); }
+  .stage > * { position: relative; max-width: 620px; margin: 0 auto; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement;
+  var items = [
+    { id: 'd1', group: 'Actions', icon: 'deploy', label: 'Deploy api-gateway to production', hint: 'main · 8be41d2' },
+    { id: 'd2', group: 'Actions', icon: 'refresh', label: 'Restart api-gateway in staging' },
+    { id: 'd3', group: 'Actions', icon: 'undo', label: 'Roll back web to r63', hint: 'deployed 2 h ago' },
+    { id: 'd4', group: 'Actions', icon: 'plus', label: 'Add a server' },
+    { id: 'd5', group: 'Actions', icon: 'terminal', label: 'Open terminal on fra-1-07' },
+    { id: 'n1', group: 'Go to', icon: 'server', label: 'Fleet', kbd: 'G F' },
+    { id: 'n2', group: 'Go to', icon: 'service', label: 'Apps', kbd: 'G S' },
+    { id: 'n3', group: 'Go to', icon: 'globe', label: 'Domains', kbd: 'G D' },
+    { id: 'n4', group: 'Go to', icon: 'archive', label: 'Backups' },
+    { id: 'x1', group: 'Servers', icon: 'server', label: 'fra-1-07', hint: 'Degraded · 10.210.4.17' },
+    { id: 'x2', group: 'Servers', icon: 'server', label: 'ams-1-03', hint: 'Down · 10.210.5.13' }
+  ];
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'stage' },
+    h(H.CommandBar, { inline: true, items: items, scope: 'Acme / storefront', onSelect: function (it) { console.log('run', it.id); } })));
+</script>
+</body>
+</html>

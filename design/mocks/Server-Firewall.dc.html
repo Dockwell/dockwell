@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Firewall, hz-1</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="servers" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 12px;">
+<h1 class="title" style="margin: 0; font-family: var(--font-mono); letter-spacing: -0.02em;">hz-1</h1>
+<x-import component-from-global-scope="Dockwell.Tag">Runs the control plane</x-import>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Hetzner CX32 · Falkenstein · <span style="font-family: var(--font-mono); font-size: 12.5px;">49.12.33.7</span> · up 41 days</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="Add-Server.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>Add server</span></a>
+<x-import component-from-global-scope="Dockwell.Button" icon="refresh">Restart agent</x-import>
+</div>
+</div>
+<nav class="dw-tabs" aria-label="Server hz-1">
+<a href="Server-Overview.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Overview</a>
+<a href="Server-Files.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Files</a>
+<a href="Server-Terminal.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Terminal</a>
+<a href="Server-Firewall.dc.html" class="dw-tab" aria-selected="true" aria-current="page" style="text-decoration: none;">Firewall</a>
+<a href="Server-Processes.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Processes</a>
+<a href="Server-Updates.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Updates <span class="dw-tab-count dw-tone-warning">3</span></a>
+</nav>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<div style="flex: 1 1 600px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Inbound rules</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">3 ports open · IPv4 and IPv6 · outbound traffic allowed</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{ruleCols}}" rows="{{rules}}" caption="Inbound firewall rules on hz-1"></x-import>
+</section>
+
+<x-import component-from-global-scope="Dockwell.Callout" tone="info" title="Firewall changes can’t lock you out">Each change goes through a plan. After it applies, a 60 s timer rolls it back unless you confirm you still have access.</x-import>
+
+<section class="dw-panel" style="margin-top: 8px;">
+<div class="dw-panel-head" style="padding-right: 12px;"><h2 class="dw-panel-title">SSH</h2><x-import component-from-global-scope="Dockwell.Button" size="sm" icon="edit">Edit</x-import></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<dl style="margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)); gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;"><dt style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Password login</dt><dd style="margin: 0; font-size: 14px; line-height: 20px; font-weight: 550;">Off</dd></div>
+<div style="display: flex; flex-direction: column; gap: 4px;"><dt style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Root login</dt><dd style="margin: 0; font-size: 14px; line-height: 20px; font-weight: 550;">Keys only</dd></div>
+<div style="display: flex; flex-direction: column; gap: 4px;"><dt style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Port</dt><dd style="margin: 0; font: 550 13px/20px var(--font-mono);">22</dd></div>
+<div style="display: flex; flex-direction: column; gap: 4px;"><dt style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Reachable from</dt><dd style="margin: 0; font-size: 14px; line-height: 20px; font-weight: 550;">Office only</dd></div>
+</dl>
+<p style="margin: 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; line-height: 20px; color: var(--ink-muted);">The <a href="Server-Terminal.dc.html" style="text-decoration: none;">terminal</a> reaches hz-1 through the agent, so you can close port 22 without losing a shell.</p>
+</div>
+</section>
+</div>
+
+<section class="dw-panel" style="flex: 0 1 352px; min-width: 300px; align-self: stretch;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Fail2ban</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Running"></x-import></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 20px;">
+<x-import component-from-global-scope="Dockwell.Metric" label="Banned in the last 24 h" value="37" unit="IPs" data="{{bans}}" min="{{0}}" caption="Each ban lasts 24 h"></x-import>
+
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<h3 style="margin: 0; font-size: 12px; line-height: 16px; font-weight: 500; color: var(--ink-muted);">Jails</h3>
+<ul style="margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 8px;">
+<li style="display: flex; align-items: center; gap: 12px; padding: 10px 12px;">
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto;"><code style="font-size: 12.5px; line-height: 18px; font-weight: 550;">openresty-auth</code><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">10 failed sign-ins in 10 min</span></div>
+<span style="font-size: 14px; font-weight: 550;">37</span>
+</li>
+<li style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--line);">
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto;"><code style="font-size: 12.5px; line-height: 18px; font-weight: 550;">sshd</code><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">5 failed logins in 10 min · port 22 is office only</span></div>
+<span style="font-size: 14px; font-weight: 550; color: var(--ink-muted);">0</span>
+</li>
+</ul>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<div style="display: flex; align-items: baseline; justify-content: space-between;"><h3 style="margin: 0; font-size: 12px; line-height: 16px; font-weight: 500; color: var(--ink-muted);">Recent bans</h3><a href="Activity.dc.html" style="font-size: 12.5px; font-weight: 500; text-decoration: none;">All 37</a></div>
+<ul style="margin: 0; padding: 0; list-style: none;">
+{{recent}}
+</ul>
+</div>
+</div>
+</section>
+
+</div>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":830}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const mono = (t, extra) => h('span', { style: Object.assign({ fontFamily: 'var(--font-mono)', fontSize: 12.5 }, extra) }, t);
+    const two = (a, b) => h('div', { style: { display: 'flex', flexDirection: 'column', gap: 1 } }, a, h('span', { style: { fontSize: 12, lineHeight: '16px', color: 'var(--ink-muted)' } }, b));
+    const field = (props, width) => h('div', { style: { width } }, h(DW.TextField, Object.assign({ size: 'sm' }, props)));
+
+    const rules = [
+      { id: 'http', action: 'Allow', port: '80/tcp', from: 'Anywhere', use: 'OpenResty', useSub: 'HTTP, redirects to HTTPS' },
+      { id: 'https', action: 'Allow', port: '443/tcp', from: 'Anywhere', use: 'OpenResty', useSub: '8 domains' },
+      { id: 'ssh', action: 'Allow', port: '22/tcp', from: '203.0.113.0/24', fromSub: 'Office', use: 'SSH', useSub: 'Keys only' },
+      { id: 'deny', action: 'Deny', port: 'Everything else', from: 'Anywhere', use: 'Default policy', useSub: 'All other inbound traffic', locked: true },
+      { id: 'add', add: true }
+    ];
+    const ruleCols = [
+      { key: 'action', header: 'Action', width: 104, render: (r) => r.add
+        ? h('div', { className: 'dw-input dw-input-sm', style: { width: 88, position: 'relative' } },
+            h('select', { className: 'dw-input-el', 'aria-label': 'Action', defaultValue: 'allow', style: { appearance: 'none', WebkitAppearance: 'none', paddingRight: 24, fontSize: 13, cursor: 'pointer' } },
+              h('option', { value: 'allow' }, 'Allow'), h('option', { value: 'deny' }, 'Deny')),
+            h('span', { style: { position: 'absolute', right: 6, top: 6, display: 'flex', color: 'var(--ink-muted)', pointerEvents: 'none' } }, h(DW.Icon, { name: 'chevron-up-down', size: 14 })))
+        : h('span', { style: { fontWeight: 550 } }, r.action) },
+      { key: 'port', header: 'Port', width: 124, render: (r) => r.add
+        ? field({ mono: true, placeholder: '8080/tcp', 'aria-label': 'Port and protocol' }, 100)
+        : (r.locked ? h('span', null, r.port) : mono(r.port, { fontWeight: 500 })) },
+      { key: 'from', header: 'From', width: 196, render: (r) => r.add
+        ? field({ mono: true, placeholder: 'Anywhere or a CIDR', 'aria-label': 'Source address' }, 172)
+        : (r.fromSub ? two(mono(r.from), r.fromSub) : h('span', null, r.from)) },
+      { key: 'use', header: 'Used by', render: (r) => r.add
+        ? field({ placeholder: 'Label, optional', 'aria-label': 'Label' }, '100%')
+        : two(h('span', null, r.use), r.useSub) },
+      { key: 'act', header: h('span', { className: 'dw-sr' }, 'Actions'), width: 116, align: 'right', render: (r) => r.add
+        ? h(DW.Button, { size: 'sm', icon: 'plus' }, 'Add rule')
+        : r.locked
+          ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--ink-muted)' } }, h(DW.Icon, { name: 'lock', size: 13 }), 'Always last')
+          : h(DW.Button, { size: 'sm', variant: 'ghost', icon: 'more', 'aria-label': 'Options for ' + r.port }) }
+    ];
+
+    const recent = [
+      ['198.51.100.77', '6 min ago'], ['192.0.2.211', '14 min ago'], ['198.51.100.12', '38 min ago'],
+      ['192.0.2.38', '1 h ago']
+    ].map(([ip, t], i) => h('li', { key: ip, style: { display: 'flex', alignItems: 'center', gap: 12, minHeight: 44, borderTop: i ? '1px solid var(--line)' : undefined } },
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, flex: '1 1 auto' } },
+        mono(ip, { color: 'var(--ink)', lineHeight: '18px' }),
+        h('span', { style: { fontSize: 12, lineHeight: '16px', color: 'var(--ink-muted)' } }, 'openresty-auth · ' + t)),
+      h(DW.Button, { size: 'sm', variant: 'ghost', 'aria-label': 'Unban ' + ip }, 'Unban')));
+
+    return {
+      theme: this.props.theme ?? 'light',
+      rules, ruleCols, recent,
+      bans: [0, 1, 0, 2, 3, 1, 0, 0, 1, 2, 4, 1, 0, 1, 2, 5, 3, 1, 0, 2, 3, 1, 2, 2],
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

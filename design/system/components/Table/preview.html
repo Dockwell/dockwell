@@ -1,0 +1,36 @@
+<!-- @dsCard group="Data" height=400 width=1000 subtitle="Dense rows, tabular numbers, machine values in mono" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Table</title>
+<style> .demo { padding: 24px; } </style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement;
+  function sp(seed, base, amp) { var o = []; for (var i = 0; i < 20; i++) o.push(base + amp * Math.sin((i + seed) / 2.4) + amp * 0.4 * Math.cos(i * seed)); return o; }
+  var rows = [
+    { id: 'api', name: 'api-gateway', image: 'ghcr.io/acme/api:8be41d2', status: 'healthy', replicas: '3/3', cpu: sp(1, 30, 6), domain: 'api.acme.dev', at: '4 min ago' },
+    { id: 'web', name: 'web', image: 'ghcr.io/acme/web:2c71f09', status: 'deploying', replicas: '2/3', cpu: sp(2, 22, 4), domain: 'acme.dev', at: 'now' },
+    { id: 'worker', name: 'worker', image: 'ghcr.io/acme/worker:9a03e1b', status: 'degraded', replicas: '4/4', cpu: sp(3, 82, 6), domain: '—', at: '2 h ago' },
+    { id: 'pg', name: 'postgres', image: 'postgres:17.2', status: 'healthy', replicas: '1/1', cpu: sp(4, 18, 3), domain: 'private', at: '12 days ago' },
+    { id: 'cache', name: 'cache', image: 'valkey/valkey:8.1', status: 'healthy', replicas: '1/1', cpu: sp(5, 6, 2), domain: 'private', at: '12 days ago' },
+    { id: 'reports', name: 'nightly-reports', image: 'job · 0 3 * * *', status: 'stopped', replicas: '0/1', cpu: [0, 0], domain: '—', at: 'yesterday' }
+  ];
+  var tone = { healthy: 'ink', deploying: 'cobalt', degraded: 'warning', stopped: 'idle' };
+  var cols = [
+    { key: 'name', header: 'App', render: function (r) { return h('div', { className: 'dw-cell' }, h('span', { className: 'dw-cell-title' }, r.name), h('span', { className: 'dw-cell-sub' }, r.image)); } },
+    { key: 'status', header: 'Status', width: 140, render: function (r) { return h(H.StatusBadge, { status: r.status }); } },
+    { key: 'replicas', header: 'Replicas', width: 88, align: 'right' },
+    { key: 'cpu', header: 'CPU, last hour', width: 140, render: function (r) { return h(H.Sparkline, { data: r.cpu, width: 104, height: 20, min: 0, max: 100, tone: tone[r.status] }); } },
+    { key: 'domain', header: 'Domain', mono: true, muted: true, width: 140 },
+    { key: 'at', header: 'Deployed', align: 'right', muted: true, width: 108 }
+  ];
+  function Demo() {
+    var s = React.useState('worker'), sel = s[0], set = s[1];
+    return h('div', { className: 'demo' }, h(H.Table, { caption: 'Apps in production', columns: cols, rows: rows, selectedKey: sel, onRowClick: function (r) { set(r.id); } }));
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

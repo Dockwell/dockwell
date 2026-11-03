@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Domains</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="domains" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Domains</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">8 domains · DNS at Cloudflare</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="Domain-Add.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>Add domain</span></a>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<section style="flex: 2 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; gap: 8px; min-height: 28px;">
+<h2 class="heading" style="margin: 0;">All domains</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">5 to apps · 3 to websites · all certificates valid</span>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.TextField" size="sm" icon="search" placeholder="Filter domains" aria-label="Filter domains" style="width: 200px;"></x-import>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{cols}}" rows="{{domains}}" caption="Domains on hz-1" on-row-click="{{noop}}"></x-import>
+</section>
+
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Cloudflare</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Connected"></x-import></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px;">
+<dt style="color: var(--ink-muted);">Zone</dt><dd style="margin: 0;"><code style="font-size: 12.5px;">acme.dev</code></dd>
+<dt style="color: var(--ink-muted);">Records</dt><dd style="margin: 0;">9 managed by Dockwell</dd>
+<dt style="color: var(--ink-muted);">API token</dt><dd style="margin: 0;">Edit DNS, this zone only</dd>
+<dt style="color: var(--ink-muted);">Last sync</dt><dd style="margin: 0;">3 min ago</dd>
+</dl>
+<div style="padding-top: 16px; border-top: 1px solid var(--line);">
+<x-import component-from-global-scope="Dockwell.Switch" checked="{{yes}}" label="DNS-01 for wildcards" description="{{wildDesc}}"></x-import>
+</div>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="refresh">Sync now</x-import>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost">Replace token</x-import>
+</div>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Certificates</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Let’s Encrypt · automatic</span></div>
+<div class="dw-panel-body">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px;">
+<dt style="color: var(--ink-muted);">Next renewal</dt><dd style="margin: 0;"><code style="font-size: 12.5px;">status.acme.dev</code> in 2 days</dd>
+<dt style="color: var(--ink-muted);">Last renewal</dt><dd style="margin: 0;"><code style="font-size: 12.5px;">docs.acme.dev</code> 2 h ago</dd>
+<dt style="color: var(--ink-muted);">Challenge</dt><dd style="margin: 0;">HTTP-01, DNS-01 for wildcards</dd>
+</dl>
+</div>
+</section>
+</div>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":680}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const muted = { color: 'var(--ink-muted)' };
+    const monoS = { fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: '16px' };
+    const sub = (t, mono) => h('span', { style: Object.assign({ fontSize: 12.5, lineHeight: '16px' }, muted, mono ? monoS : null) }, t);
+    const routeCell = (r) => h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+      h('span', { style: Object.assign({ display: 'flex' }, muted) }, h(DW.Icon, { name: r.kind === 'app' ? 'service' : 'browser', size: 16 })),
+      h('div', { className: 'dw-cell' }, h('span', { className: 'dw-cell-title' }, r.target), sub(r.targetSub, r.subMono)));
+    const dnsCell = (r) => r.proxied
+      ? h('span', null, 'Proxied by Cloudflare')
+      : h('span', null, 'Points to ', h('code', { style: { fontSize: 12.5 } }, '49.12.33.7'));
+    const certCell = (r) => r.note
+      ? h('div', { className: 'dw-cell' }, h(DW.StatusBadge, { status: 'healthy', label: 'Valid', meta: r.days + ' days left' }), h('span', { style: { paddingLeft: 16, fontSize: 12.5, lineHeight: '16px', color: 'var(--ink-muted)' } }, r.note))
+      : h(DW.StatusBadge, { status: 'healthy', label: 'Valid', meta: r.days + ' days left' });
+    const domains = [
+      { id: 'apex', name: 'acme.dev', kind: 'app', target: 'storefront-web', targetSub: 'App · r64', proxied: true, days: 47, redirect: true },
+      { id: 'api', name: 'api.acme.dev', kind: 'app', target: 'api', targetSub: 'App · r128', proxied: false, days: 83 },
+      { id: 'stats', name: 'stats.acme.dev', kind: 'app', target: 'plausible', targetSub: 'App · Catalog', proxied: false, days: 38 },
+      { id: 'status', name: 'status.acme.dev', kind: 'app', target: 'uptime-kuma', targetSub: 'App · port 3001', proxied: false, days: 32, note: 'Renews in 2 days' },
+      { id: 'flows', name: 'flows.acme.dev', kind: 'app', target: 'n8n', targetSub: 'App · Catalog', proxied: false, days: 66 },
+      { id: 'blog', name: 'blog.acme.dev', kind: 'site', target: 'Static files', targetSub: '/var/www/blog', subMono: true, proxied: true, days: 61 },
+      { id: 'docs', name: 'docs.acme.dev', kind: 'site', target: 'Static files', targetSub: '/var/www/docs', subMono: true, proxied: true, days: 90, note: 'Renewed 2 h ago' },
+      { id: 'legacy', name: 'shop-legacy.acme.dev', kind: 'site', target: 'WordPress', targetSub: 'Website · PHP 8.3', proxied: true, days: 74 }
+    ];
+    const cols = [
+      { key: 'name', header: 'Domain', render: (r) => h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500 } }, r.name) },
+      { key: 'target', header: 'Routes to', width: 190, render: routeCell },
+      { key: 'dns', header: 'DNS', width: 190, render: dnsCell },
+      { key: 'cert', header: 'Certificate', width: 190, render: certCell },
+      { key: 'redirect', header: 'Redirects', width: 104, render: (r) => r.redirect ? h('span', null, h('code', { style: { fontSize: 12.5 } }, 'www'), ' → apex') : h('span', { style: muted }, '—') }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      domains, cols, yes: true,
+      wildDesc: h('span', null, 'Issue certificates for ', h('code', { style: { fontSize: 12 } }, '*.acme.dev'), ' through DNS.'),
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

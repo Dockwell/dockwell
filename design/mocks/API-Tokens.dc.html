@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>API tokens</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="settings" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px 32px;">
+
+<nav aria-label="Settings" style="flex: 1 1 200px; max-width: 200px; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; height: 24px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Organization</div>
+<a href="Settings-General.dc.html" class="dw-rail-item">General</a>
+<a href="Members.dc.html" class="dw-rail-item">Members</a>
+<a href="API-Tokens.dc.html" class="dw-rail-item is-active" aria-current="page">API tokens</a>
+<a href="Audit-Log.dc.html" class="dw-rail-item">Audit log</a>
+<a href="Billing.dc.html" class="dw-rail-item">Billing</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Platform</div>
+<a href="Settings-ControlPlane.dc.html" class="dw-rail-item">Control plane</a>
+<a href="Settings-Integrations.dc.html" class="dw-rail-item">Integrations</a>
+<a href="Alerts-Channels.dc.html" class="dw-rail-item">Notifications</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Account</div>
+<a href="Profile.dc.html" class="dw-rail-item">Profile and security</a>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">API tokens</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Tokens act for Acme from CI, scripts and agents, with only the scopes you give them</p>
+</div>
+
+<x-import component-from-global-scope="Dockwell.Callout" tone="healthy" title="Copy this token now. It won’t be shown again.">
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<span>Created <b style="font-weight: 550;">MCP — Claude Desktop</b>. Paste it into the MCP server settings in Claude Desktop. It expires 1 Feb 2027.</span>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+<div style="flex: 0 1 460px; min-width: 0; display: flex; align-items: center; height: 32px; padding: 0 4px 0 12px; box-sizing: border-box; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);">
+<code style="flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 13px; color: var(--ink);" aria-label="New token, partly hidden">dwt_4f9K2xQ7Lr8e<span style="color: var(--ink-muted); letter-spacing: 1px;">••••••••••••••••••••</span>x9Ta</code>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="eye" aria-label="Show the whole token"></x-import>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" icon="copy">Copy token</x-import>
+</div>
+</div>
+</x-import>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Active tokens</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">4 tokens · 1 expires in 9 days</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{tokenCols}}" rows="{{tokens}}" selected-key="mcp" caption="API tokens for Acme"></x-import>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Create a token</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Every use shows up in the <a href="Audit-Log.dc.html" style="text-decoration: none;">audit log</a></span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; gap: 12px;">
+<div style="flex: 1 1 280px; min-width: 0;"><x-import component-from-global-scope="Dockwell.TextField" label="Name" placeholder="What will use this token?"></x-import></div>
+<div class="dw-field" style="flex: 0 1 200px;">
+<label class="dw-field-label" for="token-expiry">Expires</label>
+<div class="dw-input" style="position: relative;">
+<select id="token-expiry" class="dw-input-el" style="appearance: none; -webkit-appearance: none; padding-right: 32px; cursor: pointer;">
+<option>In 90 days</option>
+<option>In 30 days</option>
+<option>In 1 year</option>
+</select>
+<span style="position: absolute; right: 10px; top: 8px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div>
+</div>
+</div>
+<fieldset style="margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+<legend class="dw-field-label" style="padding: 0; margin-bottom: 6px;">Scopes</legend>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 8px;">
+<sc-for list="{{scopeOptions}}" as="o">
+<label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer;">
+<sc-if value="{{o.on}}"><input type="checkbox" class="dw-sr" checked aria-label="{{o.scope}}"><span aria-hidden="true" style="display: grid; place-items: center; flex: none; width: 16px; height: 16px; margin-top: 3px; box-sizing: border-box; border-radius: 4px; background: var(--action); color: var(--on-action);"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{12}}" stroke-width="{{2.2}}"></x-import></span></sc-if>
+<sc-if value="{{o.off}}"><input type="checkbox" class="dw-sr" aria-label="{{o.scope}}"><span aria-hidden="true" style="flex: none; width: 16px; height: 16px; margin-top: 3px; box-sizing: border-box; border-radius: 4px; border: 1.5px solid var(--line-strong); background: var(--surface);"></span></sc-if>
+<span style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+<span style="display: flex;"><x-import component-from-global-scope="Dockwell.Tag" label="{{o.k}}" value="{{o.v}}"></x-import></span>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">{{o.text}}</span>
+</span>
+</label>
+</sc-for>
+</div>
+<span class="dw-field-hint" style="margin-top: 4px;">Start with read access and add only what the job needs.</span>
+</fieldset>
+<div style="display: flex; align-items: center; gap: 12px; padding-top: 16px; border-top: 1px solid var(--line);">
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="key">Create token</x-import>
+<span style="font-size: 12.5px; color: var(--ink-muted);">You see the token once, right after you create it.</span>
+</div>
+</div>
+</section>
+
+
+</div>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1030}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const sansSub = { fontFamily: 'var(--font-sans)', fontSize: 12.5 };
+    const name = (r) => h('div', { className: 'dw-cell' },
+      h('span', { className: 'dw-cell-title' }, r.name, r.isNew ? h('span', { style: { marginLeft: 8, fontSize: 12.5, fontWeight: 500, color: 'var(--cobalt)' } }, 'New') : null),
+      h('span', { className: 'dw-cell-sub' }, r.prefix));
+    const scopes = (r) => h('div', { style: { display: 'flex', gap: 4 } }, r.scopes.map((s) => { const [k, v] = s.split(':'); return h(DW.Tag, { key: s, label: k, value: v }); }));
+    const by = (r) => h('div', { className: 'dw-cell' }, h('span', null, r.by), h('span', { className: 'dw-cell-sub', style: sansSub }, r.created));
+    const used = (r) => h('div', { className: 'dw-cell' }, h('span', { style: r.used === 'Never' ? { color: 'var(--ink-muted)' } : undefined }, r.used), r.from ? h('span', { className: 'dw-cell-sub', style: sansSub }, r.from) : null);
+    const expires = (r) => r.soon
+      ? h(DW.StatusBadge, { status: 'degraded', label: r.expires, meta: 'in 9 days' })
+      : h('span', null, r.expires);
+    const tokens = [
+      { id: 'mcp', isNew: true, name: 'MCP — Claude Desktop', prefix: 'dwt_4f9K…x9Ta', scopes: ['read:*', 'plan:propose'], by: 'Mira Chen', created: 'Just now', used: 'Never', expires: '1 Feb 2027' },
+      { id: 'gha', name: 'GitHub Actions deploy', prefix: 'dwt_Tm2c…a41c', scopes: ['deploy:storefront', 'plan:propose'], by: 'Leo Park', created: '12 Aug', used: '8 min ago', from: 'GitHub', expires: '12 Feb 2027' },
+      { id: 'tf', name: 'Terraform', prefix: 'dwt_9bQe…7d2e', scopes: ['servers:write', 'read:*'], by: 'Mira Chen', created: '3 Sep', used: 'Yesterday', from: 'API', expires: '2 Mar 2027' },
+      { id: 'graf', name: 'Grafana read', prefix: 'dwt_Ld7w…c08b', scopes: ['read:*'], by: 'Priya Raman', created: '14 Aug', used: '1 min ago', from: 'API', expires: '12 Nov', soon: true }
+    ];
+    const tokenCols = [
+      { key: 'name', header: 'Token', render: name },
+      { key: 'scopes', header: 'Scopes', width: 272, render: scopes },
+      { key: 'by', header: 'Created by', width: 120, render: by },
+      { key: 'used', header: 'Last used', width: 112, render: used },
+      { key: 'expires', header: 'Expires', width: 148, render: expires },
+      { key: 'act', header: h('span', { className: 'dw-sr' }, 'Actions'), width: 80, align: 'right', render: (r) => h(DW.Button, { variant: 'ghost', size: 'sm', 'aria-label': 'Revoke ' + r.name }, 'Revoke') }
+    ];
+    const scopeOptions = [
+      { k: 'read', v: '*', on: true, text: 'Read apps, servers, logs and activity everywhere in Acme.' },
+      { k: 'plan', v: 'propose', text: 'Propose plans. Production plans wait for an owner or admin.' },
+      { k: 'deploy', v: 'storefront', text: 'Deploy apps in storefront. Add one scope per project.' },
+      { k: 'servers', v: 'write', text: 'Create, reboot and replace servers. Owners and admins only.' }
+    ].map((o) => Object.assign(o, { off: !o.on, scope: o.k + ':' + o.v }));
+    return {
+      theme: this.props.theme ?? 'light',
+      tokens, tokenCols, scopeOptions,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

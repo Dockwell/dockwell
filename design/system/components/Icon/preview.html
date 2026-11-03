@@ -1,0 +1,20 @@
+<!-- @dsCard group="Iconography" height=730 subtitle="24-unit grid, 1.5 stroke, round joins; 16 px by default" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Icon</title>
+<style>
+  .grid { padding: 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+  .cell { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px 10px; border-radius: var(--radius-sm); color: var(--ink); }
+  .cell:hover { background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
+  .cell span { font: 11px/1 var(--font-mono); color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'grid' },
+    H.Icon.names.map(function (n) { return h('div', { key: n, className: 'cell', title: n }, h(H.Icon, { name: n, size: 20 }), h('span', null, n)); })));
+</script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New fleet action</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="fleet" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box; color-scheme: {{scheme}};">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">New fleet action</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Pick servers, an action and a rollout. Nothing runs until you apply the plan.</p>
+</div>
+<a href="Servers-List.dc.html" class="dw-btn dw-btn-ghost dw-btn-md" style="text-decoration: none;">Cancel</a>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<div style="flex: 2 1 600px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+
+<section class="dw-panel" aria-labelledby="s-target">
+<div class="dw-panel-head" style="justify-content: flex-start;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: 12px; font-weight: 600;">1</span>
+<h2 id="s-target" class="dw-panel-title">Target</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">Servers whose labels match</span>
+</div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<div class="dw-input" style="align-items: center; gap: 6px; padding: 0 12px 0 10px;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="filter" size="{{16}}"></x-import></span>
+<x-import component-from-global-scope="Dockwell.Tag" label="pool" value="web" on-remove="{{noop}}"></x-import>
+<x-import component-from-global-scope="Dockwell.Tag" label="region" value="eu" on-remove="{{noop}}"></x-import>
+<label for="selector" class="dw-sr">Add a label to the selector</label>
+<input id="selector" class="dw-input-el is-mono" style="padding: 0 4px;" placeholder="label:value">
+<span style="font-size: 13px; font-weight: 550; white-space: nowrap;">38 servers match</span>
+</div>
+<x-import component-from-global-scope="Dockwell.FleetGrid" groups="{{groups}}" size="sm" legend="{{no}}" readout="{{no}}"></x-import>
+<p style="margin: 0; display: flex; align-items: center; gap: 8px; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="clock" size="{{14}}"></x-import><span>ams-1-03 is down and fra-1-22 is stopped. They get the updates when they are back.</span></p>
+</div>
+</section>
+
+<section class="dw-panel" aria-labelledby="s-action">
+<div class="dw-panel-head" style="justify-content: flex-start;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: 12px; font-weight: 600;">2</span>
+<h2 id="s-action" class="dw-panel-title">Action</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">What runs on each server</span>
+</div>
+<fieldset class="dw-panel-body" style="margin: 0; border: 0; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 8px;">
+<legend class="dw-sr">Action</legend>
+<sc-for list="{{actions}}" as="a">
+<label style="{{a.style}}">
+<input type="radio" name="action" checked="{{a.on}}" readonly style="flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--action);">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">{{a.title}}</span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">{{a.sub}}</span>
+</span>
+</label>
+</sc-for>
+</fieldset>
+</section>
+
+<section class="dw-panel" aria-labelledby="s-rollout">
+<div class="dw-panel-head" style="justify-content: flex-start;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: 12px; font-weight: 600;">3</span>
+<h2 id="s-rollout" class="dw-panel-title">Rollout</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">How fast, and when to stop</span>
+</div>
+<div class="dw-panel-body" style="display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 20px 16px; align-items: center; font-size: 13.5px;">
+
+<span style="align-self: start; padding-top: 8px; font-size: 13px; font-weight: 550;">Waves</span>
+<div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+<div style="display: flex; gap: 4px;">
+<sc-for list="{{waves}}" as="w">
+<div style="{{w.style}}">
+<span style="font-size: 13.5px; line-height: 18px; font-weight: 600;">{{w.rule}}</span>
+<span style="{{w.subStyle}}">{{w.sub}}</span>
+</div>
+</sc-for>
+</div>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Wave 1 is a single canary. Each later wave adds a share of the 38 servers.</span>
+</div>
+
+<label for="pause" style="font-size: 13px; font-weight: 550;">Pause</label>
+<div style="display: flex; align-items: center; gap: 8px;">
+<span class="dw-input dw-input-sm" style="width: 56px;"><input id="pause" class="dw-input-el" value="5" style="padding: 0 8px; text-align: right; font-size: 13.5px;"></span>
+<span>min between waves</span>
+</div>
+
+<span style="align-self: start; padding-top: 5px; font-size: 13px; font-weight: 550;">Stop if</span>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+<span>any server is unhealthy after</span>
+<span class="dw-input dw-input-sm" style="width: 56px;"><input class="dw-input-el" value="3" aria-label="Health check delay, minutes" style="padding: 0 8px; text-align: right; font-size: 13.5px;"></span>
+<span>min</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+<span>the error rate is above</span>
+<span class="dw-input dw-input-sm" style="width: 64px;"><input class="dw-input-el" value="0.25" aria-label="Error rate limit, percent" style="padding: 0 8px; text-align: right; font-size: 13.5px;"></span>
+<span>%</span>
+<span style="font-size: 12.5px; color: var(--ink-muted);">· measured on the targeted servers</span>
+</div>
+</div>
+
+<span style="align-self: start; padding-top: 1px; font-size: 13px; font-weight: 550;">Before reboot</span>
+<x-import component-from-global-scope="Dockwell.Switch" default-checked="{{yes}}" label="Drain apps first" description="Moves replicas to other servers in the pool, so no requests are dropped."></x-import>
+
+</div>
+</section>
+
+</div>
+
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px; position: sticky; top: 24px;">
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Summary</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Draft</span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<span class="heading">38 servers in 4 waves</span>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">About 46 min · one server per pool at a time</span>
+</div>
+<dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; font-size: 13px; line-height: 20px;">
+<dt style="color: var(--ink-muted);">Target</dt><dd style="margin: 0;"><code class="code-sm">pool:web region:eu</code></dd>
+<dt style="color: var(--ink-muted);">Action</dt><dd style="margin: 0;">Apply OS security updates</dd>
+<dt style="color: var(--ink-muted);">Waves</dt><dd style="margin: 0;">1 → 4 → 15 → 18 servers</dd>
+<dt style="color: var(--ink-muted);">Pause</dt><dd style="margin: 0;">5 min between waves</dd>
+<dt style="color: var(--ink-muted);">Stops on</dt><dd style="margin: 0;">Unhealthy after 3 min, errors above 0.25%</dd>
+<dt style="color: var(--ink-muted);">Reboots</dt><dd style="margin: 0;">Drained first</dd>
+</dl>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<a href="Plan-Review.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none; width: 100%;"><x-import component-from-global-scope="Dockwell.Icon" name="commit" size="{{16}}"></x-import><span>Review plan</span><x-import component-from-global-scope="Dockwell.Kbd">⌘↵</x-import></a>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted); text-align: center;">You can pause or roll back while it runs.</span>
+</div>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Recent fleet actions</h2><a href="Activity.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Activity</a></div>
+<div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.Timeline" events="{{history}}"></x-import></div>
+</section>
+</div>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1130}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const special = {
+      'fra-1-07': { status: 'degraded', cpu: 92 }, 'fra-1-15': { status: 'deploying' }, 'fra-1-16': { status: 'deploying' }, 'fra-1-22': { status: 'stopped' },
+      'ams-1-03': { status: 'down' }, 'ams-1-09': { status: 'deploying' }, 'ams-1-12': { status: 'degraded', cpu: 88 }
+    };
+    const region = (r, net, from, to) => Array.from({ length: to - from + 1 }, (_, k) => {
+      const i = from + k, id = r + '-' + String(i).padStart(2, '0'), s = special[id] || {}, st = s.status || 'healthy';
+      return { id, name: id, status: st, cpu: s.cpu ?? 14 + (i * 37) % 52, ip: '10.210.' + net + '.' + i };
+    });
+    const groups = [
+      { label: 'fra-1', meta: '22 servers', servers: region('fra-1', 4, 3, 24) },
+      { label: 'ams-1', meta: '16 servers', servers: region('ams-1', 5, 1, 16) }
+    ];
+    const card = 'display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: var(--radius-sm); cursor: pointer; ';
+    const actions = [
+      { title: 'Apply OS security updates', sub: 'openssl, libssh, linux-image · reboot about 40 s', on: true },
+      { title: 'Upgrade agent', sub: 'All 38 already run 0.9.4, the latest' },
+      { title: 'Upgrade Docker', sub: 'Restarts containers on each server' },
+      { title: 'Rotate SSH keys', sub: 'New keys for everyone with server access' },
+      { title: 'Run a command', sub: 'Any shell command, output kept per server' },
+      { title: 'Restart servers', sub: 'Drain, reboot, then wait for health' }
+    ].map((a) => Object.assign(a, { on: !!a.on, style: card + (a.on ? 'border: 1px solid var(--ink); box-shadow: 0 0 0 1px var(--ink); background: var(--surface);' : 'border: 1px solid var(--line); background: var(--surface);') }));
+    const seg = 'display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 10px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunken); ';
+    const sub = 'font-size: 12px; line-height: 16px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+    const waves = [
+      { rule: '1 server', sub: 'fra-1-03', grow: 1, mono: true },
+      { rule: '10%', sub: '4 servers', grow: 4 },
+      { rule: '50%', sub: '15 servers', grow: 15 },
+      { rule: 'Rest', sub: '18 servers', grow: 18 }
+    ].map((w) => Object.assign(w, { style: seg + 'flex: ' + w.grow + ' 1 76px;', subStyle: sub + (w.mono ? ' font-family: var(--font-mono);' : '') }));
+    const history = [
+      { id: 1, kind: 'server', title: 'Upgraded agents to 0.9.4', meta: '52 servers · with the control plane', actor: 'Mira Chen', time: '1 Nov' },
+      { id: 2, kind: 'server', tone: 'warning', title: 'Stopped OS updates in wave 2', meta: 'Error rate passed 0.25%, rolled back 4 servers', time: '14 Oct' },
+      { id: 3, kind: 'server', title: 'Rotated SSH keys', meta: '52 servers', actor: 'Sam Okafor', time: '2 Oct' }
+    ];
+    return {
+      theme, scheme: theme === 'dark' ? 'dark' : 'light',
+      groups, actions, waves, history,
+      yes: true, no: false,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

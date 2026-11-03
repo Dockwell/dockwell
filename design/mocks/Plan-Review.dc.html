@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Review plan</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="servers" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Updates</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">hz-1 · Ubuntu 24.04 LTS · checked 20 min ago</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" icon="refresh">Check now</x-import>
+<x-import component-from-global-scope="Dockwell.Button" icon="commit">Review plan</x-import>
+</div>
+</div>
+
+<x-import component-from-global-scope="Dockwell.Callout" tone="warning" title="3 security updates for Ubuntu">The kernel update needs a reboot. hz-1 is offline for about 40 s while it restarts.</x-import>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Ubuntu packages</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">3 updates · 412 packages current</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{pkgCols}}" rows="{{pkgs}}" caption="Pending package updates on hz-1"></x-import>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px;">
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Maintenance window</h2></div>
+<div class="dw-panel-body">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px;">
+<dt style="color: var(--ink-muted);">Window</dt><dd style="margin: 0;">Sunday 05:00 · 1 hour</dd>
+<dt style="color: var(--ink-muted);">Security updates</dt><dd style="margin: 0;">Nightly at 04:30</dd>
+</dl>
+</div>
+</section>
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Kernel</h2></div>
+<div class="dw-panel-body">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px;">
+<dt style="color: var(--ink-muted);">Running</dt><dd style="margin: 0;"><code class="code-sm">6.8.0-48-generic</code></dd>
+<dt style="color: var(--ink-muted);">Last reboot</dt><dd style="margin: 0;">41 days ago</dd>
+</dl>
+</div>
+</section>
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Dockwell</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Current"></x-import></div>
+<div class="dw-panel-body" style="font-size: 13px; color: var(--ink-muted);">Agent and control plane run 0.9.4.</div>
+</section>
+</div>
+
+</div>
+</main>
+
+<div style="position: absolute; inset: 0; z-index: var(--z-sheet); background: var(--scrim); display: flex; justify-content: flex-end; padding: 8px; box-sizing: border-box;">
+<div style="width: 560px; max-width: 100%; height: 100%;">
+<x-import component-from-global-scope="Dockwell.Sheet" inline="{{yes}}" title="Review plan" subtitle="Apply 3 security updates to hz-1" footer="{{footer}}" on-close="{{noop}}">
+<div style="display: flex; flex-direction: column; gap: 24px;">
+<x-import component-from-global-scope="Dockwell.PlanDiff" resources="{{plan}}" impact="hz-1 · about 40 s offline during reboot"></x-import>
+<div style="display: flex; flex-direction: column; gap: 20px; padding-top: 20px; border-top: 1px solid var(--line);">
+<div role="group" aria-labelledby="when-label" style="display: flex; flex-direction: column; gap: 8px;">
+<span id="when-label" class="dw-field-label">When</span>
+<div><x-import component-from-global-scope="Dockwell.SegmentedControl" options="{{when}}" value="now" label="When to apply"></x-import></div>
+</div>
+<x-import component-from-global-scope="Dockwell.Switch" checked="{{yes}}" label="Take a snapshot first" description="A Hetzner snapshot of hz-1, taken just before the first package changes."></x-import>
+</div>
+</div>
+</x-import>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const mono = (v) => h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, v);
+    const pkgs = [
+      { id: 'openssl', name: 'openssl', from: '3.0.13-0ubuntu3.4', to: '3.0.13-0ubuntu3.5', note: 'Security' },
+      { id: 'libssh', name: 'libssh-4', from: '0.10.6-2build2', to: '0.10.6-2ubuntu0.1', note: 'Security' },
+      { id: 'linux', name: 'linux-image-generic', from: '6.8.0-48.48', to: '6.8.0-49.49', note: 'Security · needs a reboot' }
+    ];
+    const pkgCols = [
+      { key: 'name', header: 'Package', width: 240, render: (r) => h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500 } }, r.name) },
+      { key: 'from', header: 'Installed', width: 180, render: (r) => mono(r.from) },
+      { key: 'to', header: 'Available', width: 180, render: (r) => mono(r.to) },
+      { key: 'note', header: 'Type', muted: true }
+    ];
+    const plan = [
+      { id: 'openssl', action: 'update', kind: 'volume', kindLabel: 'Package', name: 'openssl', changes: [{ path: 'version', from: '3.0.13-0ubuntu3.4', to: '3.0.13-0ubuntu3.5' }] },
+      { id: 'libssh', action: 'update', kind: 'volume', kindLabel: 'Package', name: 'libssh', changes: [{ path: 'version', from: '0.10.6-2build2', to: '0.10.6-2ubuntu0.1' }] },
+      { id: 'linux', action: 'update', kind: 'volume', kindLabel: 'Package', name: 'linux-image', changes: [{ path: 'version', from: '6.8.0-48.48', to: '6.8.0-49.49' }] },
+      { id: 'kernel', action: 'replace', kind: 'server', kindLabel: 'Kernel', name: 'hz-1', note: 'Replace · reboot', changes: [{ path: 'running', from: '6.8.0-48-generic', to: '6.8.0-49-generic' }] },
+      { id: 'apps', action: 'update', kind: 'app', kindLabel: '6 apps', name: 'storefront-web, api, worker, plausible, uptime-kuma, n8n', note: 'Restart' },
+      { id: 'sites', action: 'update', kind: 'domain', kindLabel: '3 websites', name: 'blog.acme.dev, docs.acme.dev, shop-legacy.acme.dev', note: 'Restart' }
+    ];
+    const when = [
+      { value: 'now', label: 'Now' },
+      { value: 'window', label: 'In the maintenance window, Sunday 05:00' }
+    ];
+    const footer = h(React.Fragment, null,
+      h('span', { className: 'dw-sheet-note' }, h(DW.Icon, { name: 'undo', size: 14 }), 'Undo for 7 days'),
+      h(DW.Button, { variant: 'ghost' }, 'Cancel'),
+      h(DW.Button, { variant: 'primary', icon: 'check', kbd: '⌘↵' }, 'Apply plan'));
+    return {
+      theme: this.props.theme ?? 'light',
+      pkgs, pkgCols, plan, when, footer,
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scheduled tasks</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="tasks" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Scheduled tasks</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">4 tasks on hz-1 · no failures in the last 24 h</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="plus">New task</x-import>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<div style="flex: 2 1 680px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">All tasks</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">Next: Ping uptime in 5 min</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{cols}}" rows="{{tasks}}" selected-key="report" caption="Scheduled tasks on hz-1" on-row-click="{{noop}}"></x-import>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Next 24 hours</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Tuesday 14:20 to Wednesday 14:20</span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 12px;">
+<sc-for list="{{lanes}}" as="l">
+<div style="display: grid; grid-template-columns: 200px minmax(0, 1fr); align-items: center; gap: 16px; height: 28px;">
+<span style="display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 13px; font-weight: {{l.weight}}; white-space: nowrap;">{{l.name}}<span style="font-size: 12px; font-weight: 400; color: var(--ink-muted);">{{l.count}}</span></span>
+<div style="position: relative; height: 20px; border-radius: var(--radius-xs); background: var(--surface-sunken);">
+<span style="position: absolute; top: 0; bottom: 0; left: 40.28%; width: 1px; background: var(--line-strong);"></span>
+<sc-if value="{{l.band}}"><span style="position: absolute; top: 7px; height: 6px; left: 0; right: 0; border-radius: 3px; background: repeating-linear-gradient(90deg, var(--ink-muted) 0 1px, transparent 1px 3px);"></span></sc-if>
+<sc-for list="{{l.marks}}" as="m"><span style="position: absolute; top: 4px; left: {{m}}%; width: 3px; height: 12px; margin-left: -1.5px; border-radius: 1px; background: {{l.color}};"></span></sc-for>
+<sc-if value="{{l.label}}"><span style="position: absolute; top: 0; left: {{l.labelAt}}%; margin-left: 8px; font-size: 12px; line-height: 20px; color: {{l.labelColor}}; white-space: nowrap;">{{l.label}}</span></sc-if>
+</div>
+</div>
+</sc-for>
+<div style="display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px;">
+<span></span>
+<div style="position: relative; height: 16px; font-size: 12px; line-height: 16px; color: var(--ink-muted);">
+<span style="position: absolute; left: 0;">Now</span>
+<sc-for list="{{axis}}" as="a"><span style="position: absolute; left: {{a.at}}%; transform: translateX(-50%); white-space: nowrap; color: {{a.color}};">{{a.label}}</span></sc-for>
+</div>
+</div>
+</div>
+</section>
+</div>
+
+<section class="dw-panel" style="flex: 1 1 320px; min-width: 0;" aria-label="Nightly sales report">
+<div class="dw-panel-head">
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<h2 class="dw-panel-title">Nightly sales report</h2>
+<span style="font-size: 12.5px; line-height: 16px; color: var(--ink-muted);">Script in api · every day at 04:00</span>
+</div>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Enabled"></x-import>
+</div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Command</span>
+<div style="display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunken);">
+<code style="flex: 1 1 auto; min-width: 0; font-size: 12.5px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">/app/api report sales --day=yesterday</code>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="copy" aria-label="Copy command"></x-import>
+</div>
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 13px; line-height: 18px;">
+<dt style="color: var(--ink-muted);">Schedule</dt><dd style="margin: 0;"><code style="font-size: 12px;">0 4 * * *</code> · server time</dd>
+<dt style="color: var(--ink-muted);">Runs in</dt><dd style="margin: 0;">App api, image <code style="font-size: 12px;">8be41d2</code></dd>
+<dt style="color: var(--ink-muted);">Timeout</dt><dd style="margin: 0;">10 min, then retry once</dd>
+</dl>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Last 14 runs</span>
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">13 succeeded · 1 failed</span>
+</div>
+<ol aria-label="Last 14 runs, oldest first" style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 3px;">
+<sc-for list="{{strip}}" as="r">
+<li title="{{r.title}}" style="display: grid; place-items: center; height: 28px; border-radius: var(--radius-xs); background: {{r.bg}};"><span style="display: flex; color: {{r.color}};"><x-import component-from-global-scope="Dockwell.Glyph" shape="{{r.shape}}" size="{{10}}"></x-import></span><span class="dw-sr">{{r.title}}</span></li>
+</sc-for>
+</ol>
+<div style="display: flex; justify-content: space-between; font-size: 12px; line-height: 16px; color: var(--ink-muted);"><span>21 Oct</span><span style="color: var(--critical);">27 Oct failed: timed out after 10 min</span><span>Today</span></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Last output</span>
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Today 04:00 · 1 min 48 s · exit 0</span>
+</div>
+<pre style="margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunken); font: 400 12px/19px var(--font-mono); color: var(--ink); white-space: pre-wrap; word-break: break-word;"><sc-for list="{{output}}" as="o"><span style="display: grid; grid-template-columns: 64px minmax(0, 1fr);"><span style="color: var(--ink-muted);">{{o.t}}</span><span>{{o.x}}</span></span></sc-for></pre>
+</div>
+
+<div style="display: flex; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line);">
+<x-import component-from-global-scope="Dockwell.Button" icon="play">Run now</x-import>
+<x-import component-from-global-scope="Dockwell.Button" icon="edit">Edit</x-import>
+<span style="flex: 1 1 auto;"></span>
+<a href="Activity.dc.html" class="dw-btn dw-btn-ghost dw-btn-md" style="text-decoration: none;">All runs</a>
+</div>
+</div>
+</section>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":740}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const muted = 'var(--ink-muted)';
+    const two = (title, sub, opts = {}) => h('div', { className: 'dw-cell' },
+      h('span', { style: Object.assign({ fontWeight: opts.strong ? 550 : 400 }, opts.monoTitle ? { fontFamily: 'var(--font-mono)', fontSize: 12.5 } : null) }, title),
+      h('span', { style: Object.assign({ fontSize: 12.5, lineHeight: '16px', color: muted }, opts.monoSub ? { fontFamily: 'var(--font-mono)', fontSize: 12 } : null) }, sub));
+    const target = (r) => h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+      h('span', { style: { display: 'flex', color: muted } }, h(DW.Icon, { name: r.icon, size: 16 })),
+      two(r.target, r.targetKind, { monoTitle: r.targetMono }));
+    const tasks = [
+      { id: 'logs', name: 'Rotate logs', kind: 'Shell command', cron: '30 2 * * *', every: 'Every day at 02:30', icon: 'server', target: 'hz-1', targetKind: 'Server', targetMono: true, last: '3 s', next: 'Tomorrow 02:30', nextIn: 'in 12 h' },
+      { id: 'report', name: 'Nightly sales report', kind: 'Script in api', cron: '0 4 * * *', every: 'Every day at 04:00', icon: 'service', target: 'api', targetKind: 'App', last: '1 min 48 s', next: 'Tomorrow 04:00', nextIn: 'in 14 h' },
+      { id: 'purge', name: 'Purge expired sessions', kind: 'SQL', cron: '0 * * * *', every: 'Every hour', icon: 'database', target: 'postgres', targetKind: 'Database', last: '2 s', next: 'Today 15:00', nextIn: 'in 40 min' },
+      { id: 'ping', name: 'Ping uptime', kind: 'HTTP request', cron: '*/5 * * * *', every: 'Every 5 minutes', icon: 'globe', target: 'status.acme.dev', targetKind: 'URL', targetMono: true, last: '180 ms', next: 'Today 14:25', nextIn: 'in 5 min' }
+    ];
+    const cols = [
+      { key: 'name', header: 'Task', render: (r) => two(r.name, r.kind, { strong: true }) },
+      { key: 'cron', header: 'Schedule', width: 148, render: (r) => two(r.every, r.cron, { monoSub: true }) },
+      { key: 'target', header: 'Runs in', width: 164, render: target },
+      { key: 'last', header: 'Last run', width: 120, render: (r) => h('div', { className: 'dw-cell' }, h(DW.StatusBadge, { status: 'healthy', label: 'Succeeded' }), h('span', { style: { paddingLeft: 16, fontSize: 12.5, lineHeight: '16px', color: muted } }, r.last)) },
+      { key: 'next', header: 'Next run', width: 128, render: (r) => two(r.next, r.nextIn) }
+    ];
+    const pos = (hh, mm) => { let m = hh * 60 + mm - (14 * 60 + 20); if (m <= 0) m += 1440; return +(m / 14.4).toFixed(2); };
+    const hourly = Array.from({ length: 24 }, (_, i) => pos((15 + i) % 24, 0));
+    const lanes = [
+      { name: 'Ping uptime', count: '288 runs', band: true, marks: [], color: 'var(--ink-muted)', weight: 400 },
+      { name: 'Purge expired sessions', count: '24 runs', marks: hourly, color: 'var(--ink-muted)', weight: 400 },
+      { name: 'Rotate logs', count: '', marks: [pos(2, 30)], color: 'var(--ink)', label: '02:30', labelAt: pos(2, 30), labelColor: 'var(--ink-muted)', weight: 400 },
+      { name: 'Nightly sales report', count: '', marks: [pos(4, 0)], color: 'var(--cobalt)', label: '04:00', labelAt: pos(4, 0), labelColor: 'var(--cobalt)', weight: 550 }
+    ];
+    const axis = [
+      { at: pos(18, 0), label: '18:00', color: muted }, { at: pos(0, 0), label: 'Wed 4 Nov', color: 'var(--ink)' },
+      { at: pos(6, 0), label: '06:00', color: muted }, { at: pos(12, 0), label: '12:00', color: muted }
+    ];
+    const days = ['21 Oct', '22 Oct', '23 Oct', '24 Oct', '25 Oct', '26 Oct', '27 Oct', '28 Oct', '29 Oct', '30 Oct', '31 Oct', '1 Nov', '2 Nov', 'Today'];
+    const strip = days.map((d, i) => i === 6
+      ? { title: d + ', failed: timed out after 10 min', shape: 'square', color: 'var(--critical)', bg: 'var(--critical-soft)' }
+      : { title: d + ', succeeded', shape: 'circle', color: 'var(--healthy)', bg: 'var(--surface-sunken)' });
+    const output = [
+      { t: '04:00:02', x: 'Collecting orders for 2 Nov' },
+      { t: '04:00:41', x: '412 orders, 18,240.50 EUR gross' },
+      { t: '04:01:37', x: 'Wrote sales-2026-11-02.csv (38 KB)' },
+      { t: '04:01:49', x: 'Sent to reports@acme.dev' },
+      { t: '04:01:50', x: 'Done' }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      tasks, cols, lanes, axis, strip, output,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

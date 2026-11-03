@@ -1,0 +1,15 @@
+<!-- @dsCard group="Navigation" height=84 subtitle="Organization, project and environment: where every action applies" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>ScopeBar</title>
+<style> .demo { padding: 24px; display: flex; flex-direction: column; gap: 8px; } </style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'demo' },
+    h(H.ScopeBar, { org: 'Acme', project: 'storefront', environment: 'production', protected: true })));
+</script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Install from catalog</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="catalog" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Catalog</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Open-source apps you can install in one step</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="Apps-List.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="service" size="{{16}}"></x-import><span>3 installed</span></a>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px;">
+<div style="flex: 0 1 300px; min-width: 220px;">
+<x-import component-from-global-scope="Dockwell.TextField" icon="search" placeholder="Search apps" aria-label="Search apps"></x-import>
+</div>
+<div role="group" aria-label="Categories" style="display: flex; flex-wrap: wrap; gap: 6px;">
+<sc-for list="{{cats}}" as="c">
+<button type="button" aria-pressed="{{c.on}}" style="{{c.st}}">{{c.label}}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr)); gap: 12px;">
+<sc-for list="{{apps}}" as="app">
+<a href="{{app.href}}" class="dw-panel" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; color: var(--ink); text-decoration: none; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 12px; min-width: 0;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--line); font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink);">{{app.mono}}</span>
+<span style="display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto;"><span style="font-size: 14px; line-height: 20px; font-weight: 600;">{{app.name}}</span><span style="font-size: 12.5px; line-height: 16px; color: var(--ink-muted);">{{app.cat}}</span></span>
+<sc-if value="{{app.installed}}">
+<span style="display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px 0 6px; border-radius: var(--radius-full); background: var(--surface-sunken); color: var(--ink-muted); font-size: 12px; font-weight: 550; flex: none;"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{12}}"></x-import>Installed</span>
+</sc-if>
+</div>
+<p style="margin: 0; font-size: 13px; line-height: 18px; color: var(--ink);">{{app.desc}}</p>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; font: 400 12px/16px var(--font-mono); color: var(--ink-muted);">
+<span>{{app.ver}}</span>
+<sc-if value="{{app.installed}}"><span style="color: var(--ink);">{{app.domain}}</span></sc-if>
+</div>
+</a>
+</sc-for>
+</div>
+</div>
+
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Not listed? Deploy any image or Compose file as an app. <a href="Apps-New.dc.html" style="font-weight: 500; text-decoration: none;">New app</a></p>
+
+</div>
+</main>
+
+<div style="position: absolute; inset: 0; z-index: var(--z-sheet); background: var(--scrim); display: flex; justify-content: flex-end; padding: 8px; box-sizing: border-box;">
+<div style="width: 560px; max-width: 100%; height: 100%;">
+<x-import component-from-global-scope="Dockwell.Sheet" inline="{{yes}}" title="Install Ghost" subtitle="Version 5.101.3 · blogs, newsletters and memberships" footer="{{footer}}" on-close="{{noop}}">
+<div style="display: flex; flex-direction: column; gap: 20px;">
+
+<x-import component-from-global-scope="Dockwell.TextField" label="Domain" default-value="journal.acme.dev" mono="{{yes}}" hint="{{domainHint}}"></x-import>
+
+<div role="radiogroup" aria-labelledby="db-label" style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px;"><span id="db-label" class="dw-field-label">Database</span><span style="font-size: 12.5px; color: var(--ink-muted);">Ghost needs MySQL 8</span></div>
+<label style="display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1px solid var(--cobalt); border-radius: var(--radius-sm); background: var(--selection); cursor: pointer;">
+<input type="radio" name="db" checked style="width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--cobalt); flex: none;">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">Create <code style="font-size: 13px; font-weight: 500;">ghost-mysql</code></span><span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">New MySQL 8.4 database on hz-1. Ghost gets its password as a secret.</span></span>
+</label>
+<label style="display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-raised); cursor: not-allowed;">
+<input type="radio" name="db" disabled style="{{offRadio}}">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;"><span style="font-size: 14px; line-height: 20px; font-weight: 500; color: var(--ink-muted);">Use an existing database</span><span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">No MySQL database on hz-1 yet. <code style="font-size: 12px;">postgres</code> runs PostgreSQL, which Ghost does not support.</span></span>
+</label>
+</div>
+
+<x-import component-from-global-scope="Dockwell.TextField" label="Admin email" type="email" default-value="mira@acme.dev" hint="Ghost sends the link to finish setup here"></x-import>
+
+<x-import component-from-global-scope="Dockwell.TextField" label="Memory limit" default-value="512" suffix="MB" hint="Ghost uses about 300 MB when idle. hz-1 has 4.9 GB free."></x-import>
+
+<x-import component-from-global-scope="Dockwell.Switch" label="Include in nightly backups" description="Backs up Ghost content and ghost-mysql daily at 03:00 to R2" default-checked="{{yes}}"></x-import>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 20px; border-top: 1px solid var(--line);">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;"><h3 class="label" style="margin: 0;">Plan</h3><span style="font-size: 12.5px; color: var(--ink-muted);">What Install changes on hz-1</span></div>
+<x-import component-from-global-scope="Dockwell.PlanDiff" resources="{{plan}}" impact="Other apps keep running"></x-import>
+</div>
+
+</div>
+</x-import>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1130}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const chip = 'display: inline-flex; align-items: center; height: 28px; padding: 0 12px; box-sizing: border-box; border-radius: var(--radius-full); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; ';
+    const cats = ['All', 'Analytics', 'Automation', 'CMS', 'Databases', 'Monitoring', 'Storage', 'AI', 'Developer tools'].map((label, i) => ({
+      label, on: i === 0 ? 'true' : 'false',
+      st: chip + (i === 0 ? 'border: 1px solid transparent; background: var(--selection); color: var(--cobalt);' : 'border: 1px solid var(--line); background: var(--surface); color: var(--ink-muted);')
+    }));
+    const raw = [
+      ['Pl', 'Plausible', 'Analytics', 'Cookie-free web analytics', '2.1.4', 'stats.acme.dev'],
+      ['UK', 'Uptime Kuma', 'Monitoring', 'Uptime checks and status pages', '1.23.16', 'status.acme.dev'],
+      ['N8', 'n8n', 'Automation', 'Automate workflows across your tools', '1.72.1', 'flows.acme.dev'],
+      ['Gh', 'Ghost', 'CMS', 'Blogs, newsletters and memberships', '5.101.3'],
+      ['Gi', 'Gitea', 'Developer tools', 'Git hosting with code review', '1.22.3'],
+      ['Um', 'Umami', 'Analytics', 'Simple, fast website analytics', '2.13.2'],
+      ['Mb', 'Metabase', 'Analytics', 'Dashboards on top of your databases', '0.51.4'],
+      ['Vw', 'Vaultwarden', 'Developer tools', 'Passwords, Bitwarden-compatible', '1.32.4'],
+      ['Nc', 'Nextcloud', 'Storage', 'Files, calendars and contacts', '30.0.2'],
+      ['Gr', 'Grafana', 'Monitoring', 'Dashboards for metrics and logs', '11.3.1'],
+      ['Ou', 'Outline', 'CMS', 'Team wiki and knowledge base', '0.81.1'],
+      ['Ms', 'Meilisearch', 'Databases', 'Typo-tolerant search for your apps', '1.11.3'],
+      ['Ol', 'Ollama', 'AI', 'Run open language models locally', '0.4.2'],
+      ['Im', 'Immich', 'Storage', 'Photo and video backup', '1.120.2'],
+      ['Mi', 'MinIO', 'Storage', 'S3-compatible object storage', '2024-11-07'],
+      ['Lm', 'Listmonk', 'Automation', 'Newsletters and mailing lists', '4.1.0']
+    ];
+    const apps = raw.map(([mono, name, cat, desc, ver, domain]) => ({
+      mono, name, cat, desc, ver, domain: domain || '', installed: !!domain,
+      href: domain ? 'Apps-List.dc.html' : 'Catalog-Install.dc.html'
+    }));
+    const h = React.createElement, DW = window.Dockwell;
+    const domainHint = h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } },
+      h('span', { style: { display: 'flex', color: 'var(--healthy)' } }, h(DW.Glyph, { shape: 'circle', size: 8 })),
+      h('span', null, 'DNS check passed · points to ', h('code', { style: { fontSize: 12 } }, '49.12.33.7')));
+    const plan = [
+      { id: 'app', action: 'create', kind: 'app', kindLabel: 'App', name: 'ghost', changes: [{ path: 'image', to: 'ghost:5.101.3-alpine' }, { path: 'memory', to: '512 MB' }] },
+      { id: 'db', action: 'create', kind: 'database', kindLabel: 'Database', name: 'ghost-mysql', expanded: false, changes: [{ path: 'engine', to: 'MySQL 8.4' }, { path: 'password', to: { secret: true } }] },
+      { id: 'dom', action: 'create', kind: 'domain', kindLabel: 'Domain', name: 'journal.acme.dev', expanded: false, changes: [{ path: 'routes to', to: 'ghost:2368' }, { path: 'certificate', to: 'Let’s Encrypt' }] },
+      { id: 'bk', action: 'update', kind: 'volume', kindLabel: 'Backup policy', name: 'nightly', changes: [{ path: 'covers', from: '6 apps, 2 databases', to: '7 apps, 3 databases' }] }
+    ];
+    const footer = h(React.Fragment, null,
+      h('span', { className: 'dw-sheet-note' }, h(DW.Icon, { name: 'clock', size: 14 }), 'About 2 min'),
+      h(DW.Button, { variant: 'ghost' }, 'Cancel'),
+      h(DW.Button, { variant: 'primary', icon: 'download', kbd: '⌘↵' }, 'Install'));
+    return {
+      theme: this.props.theme ?? 'light',
+      cats, apps, domainHint, plan, footer, yes: true,
+      offRadio: 'width: 16px; height: 16px; margin: 2px 0 0; flex: none; color-scheme: ' + ((this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light') + ';',
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

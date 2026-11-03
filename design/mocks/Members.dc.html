@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Members</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="settings" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px 32px;">
+
+<nav aria-label="Settings" style="flex: 1 1 200px; max-width: 200px; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; height: 24px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Organization</div>
+<a href="Settings-General.dc.html" class="dw-rail-item">General</a>
+<a href="Members.dc.html" class="dw-rail-item is-active" aria-current="page">Members</a>
+<a href="API-Tokens.dc.html" class="dw-rail-item">API tokens</a>
+<a href="Audit-Log.dc.html" class="dw-rail-item">Audit log</a>
+<a href="Billing.dc.html" class="dw-rail-item">Billing</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Platform</div>
+<a href="Settings-ControlPlane.dc.html" class="dw-rail-item">Control plane</a>
+<a href="Settings-Integrations.dc.html" class="dw-rail-item">Integrations</a>
+<a href="Alerts-Channels.dc.html" class="dw-rail-item">Notifications</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Account</div>
+<a href="Profile.dc.html" class="dw-rail-item">Profile and security</a>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Members</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">5 people and 1 pending invite in Acme · Okta adds and removes people through SCIM</p>
+</div>
+
+<section class="dw-panel" aria-label="Invite people">
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px;">
+<div style="flex: 1 1 260px; min-width: 0;"><x-import component-from-global-scope="Dockwell.TextField" label="Invite by email" type="email" placeholder="name@company.com" icon="mail"></x-import></div>
+<div class="dw-field" style="flex: 0 1 160px;">
+<label class="dw-field-label" for="invite-role">Role</label>
+<div class="dw-input" style="position: relative;">
+<select id="invite-role" class="dw-input-el" style="appearance: none; -webkit-appearance: none; padding-right: 32px; cursor: pointer;">
+<option>Developer</option>
+<option>Viewer</option>
+<option>Admin</option>
+<option>Owner</option>
+</select>
+<span style="position: absolute; right: 10px; top: 8px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div>
+</div>
+<div class="dw-field" style="flex: 0 1 180px;">
+<label class="dw-field-label" for="invite-projects">Projects</label>
+<div class="dw-input" style="position: relative;">
+<select id="invite-projects" class="dw-input-el" style="appearance: none; -webkit-appearance: none; padding-right: 32px; cursor: pointer;">
+<option>storefront</option>
+<option>internal-tools</option>
+<option>data</option>
+<option>All projects</option>
+</select>
+<span style="position: absolute; right: 10px; top: 8px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="plus">Invite</x-import>
+</div>
+<p style="margin: 0; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">People assigned to Dockwell in Okta join on their own. Invite anyone else here; they sign in with a passkey.</p>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">People</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">2 sign in with a passkey · 3 with Okta</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{memberCols}}" rows="{{members}}" caption="Members of Acme"></x-import>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 16px;">
+
+<section class="dw-panel" style="display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">What each role can do</h2></div>
+<table class="dw-table dw-table-compact" style="font-size: 13px;">
+<caption class="dw-sr">Permissions by role</caption>
+<thead>
+<tr><th scope="col">Permission</th><th scope="col" style="width: 64px; text-align: center;">Owner</th><th scope="col" style="width: 64px; text-align: center;">Admin</th><th scope="col" style="width: 76px; text-align: center;">Developer</th><th scope="col" style="width: 64px; text-align: center;">Viewer</th></tr>
+</thead>
+<tbody>
+<tr><th scope="row" style="position: static; height: 36px; font-size: 13px; font-weight: 400; color: var(--ink); background: none;">Deploy</th><td style="text-align: center;"><span style="display: inline-flex; color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{16}}" label="Yes"></x-import></span></td><td style="text-align: center;"><span style="display: inline-flex; color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{16}}" label="Yes"></x-import></span></td><td style="text-align: center; font-size: 12.5px; color: var(--ink-muted);">Own projects</td><td style="text-align: center; color: var(--ink-muted);"><span aria-hidden="true">—</span><span class="dw-sr">No</span></td></tr>
+<tr><th scope="row" style="position: static; height: 36px; font-size: 13px; font-weight: 400; color: var(--ink); background: none;">Approve production plans</th><td style="text-align: center;"><span style="display: inline-flex; color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{16}}" label="Yes"></x-import></span></td><td style="text-align: center;"><span style="display: inline-flex; color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{16}}" label="Yes"></x-import></span></td><td style="text-align: center; color: var(--ink-muted);"><span aria-hidden="true">—</span><span class="dw-sr">No</span></td><td style="text-align: center; color: var(--ink-muted);"><span aria-hidden="true">—</span><span class="dw-sr">No</span></td></tr>
+<tr><th scope="row" style="position: static; height: 36px; font-size: 13px; font-weight: 400; color: var(--ink); background: none;">Manage servers</th><td style="text-align: center;"><span style="display: inline-flex; color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{16}}" label="Yes"></x-import></span></td><td style="text-align: center;"><span style="display: inline-flex; color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{16}}" label="Yes"></x-import></span></td><td style="text-align: center; color: var(--ink-muted);"><span aria-hidden="true">—</span><span class="dw-sr">No</span></td><td style="text-align: center; color: var(--ink-muted);"><span aria-hidden="true">—</span><span class="dw-sr">No</span></td></tr>
+<tr><th scope="row" style="position: static; height: 36px; font-size: 13px; font-weight: 400; color: var(--ink); background: none; border-bottom: 0;">Billing</th><td style="text-align: center;"><span style="display: inline-flex; color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{16}}" label="Yes"></x-import></span></td><td style="text-align: center; font-size: 12.5px; color: var(--ink-muted);">View</td><td style="text-align: center; color: var(--ink-muted);"><span aria-hidden="true">—</span><span class="dw-sr">No</span></td><td style="text-align: center; color: var(--ink-muted);"><span aria-hidden="true">—</span><span class="dw-sr">No</span></td></tr>
+</tbody>
+</table>
+<p style="margin: 0; padding: 12px 16px; border-top: 1px solid var(--line); font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Everyone can read apps, logs and activity. Plans for production wait for an owner or admin.</p>
+</section>
+
+<section class="dw-panel" style="display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Single sign-on</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="SAML via Okta · SCIM on"></x-import></div>
+<div class="dw-panel-body" style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 16px;">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; font-size: 13px; line-height: 18px;">
+<dt style="color: var(--ink-muted);">Identity provider</dt><dd style="margin: 0;">Okta · SAML 2.0</dd>
+<dt style="color: var(--ink-muted);">Verified domain</dt><dd style="margin: 0;"><code style="font-size: 12px;">acme.dev</code></dd>
+<dt style="color: var(--ink-muted);">Provisioning</dt><dd style="margin: 0;">SCIM · last sync 12 min ago</dd>
+</dl>
+<div style="padding-top: 16px; border-top: 1px solid var(--line);">
+<x-import component-from-global-scope="Dockwell.Switch" default-checked="{{yes}}" label="Passkey fallback for owners and admins" description="So Dana and you can still sign in if Okta is down."></x-import>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: auto;">
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="settings">Manage</x-import>
+<span style="font-size: 12.5px; color: var(--ink-muted);">Included in the Organization plan</span>
+</div>
+</div>
+</section>
+
+</div>
+
+</div>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const avatar = (r) => r.pending
+      ? h('span', { 'aria-hidden': true, style: { display: 'grid', placeItems: 'center', width: 28, height: 28, boxSizing: 'border-box', borderRadius: '50%', border: '1px dashed var(--line-strong)', color: 'var(--ink-muted)', flex: 'none' } }, h(DW.Icon, { name: 'mail', size: 14 }))
+      : h('span', { 'aria-hidden': true, style: { display: 'grid', placeItems: 'center', width: 28, height: 28, boxSizing: 'border-box', borderRadius: '50%', background: 'var(--surface-sunken)', border: '1px solid var(--line)', fontSize: 11, fontWeight: 600, color: 'var(--ink)', flex: 'none' } }, r.initials);
+    const person = (r) => h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 } },
+      avatar(r),
+      h('div', { className: 'dw-cell' },
+        h('span', { className: 'dw-cell-title' }, r.name, r.note ? h('span', { style: { marginLeft: 8, fontSize: 12.5, fontWeight: 400, color: 'var(--ink-muted)' } }, r.note) : null),
+        h('span', { className: 'dw-cell-sub', style: r.pending ? { fontFamily: 'var(--font-sans)', fontSize: 12.5 } : undefined }, r.email)));
+    const role = (t) => h('span', { className: 'dw-tag', style: { fontFamily: 'var(--font-sans)', fontWeight: 500 } }, t);
+    const projects = (r) => r.projects === 'all'
+      ? h('span', null, 'All projects')
+      : h('code', { style: { fontSize: 12 } }, r.projects);
+    const signin = (r) => r.pending
+      ? h('span', { style: { color: 'var(--ink-muted)' } }, 'Invite sent')
+      : h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6 } },
+          h('span', { style: { display: 'flex', color: 'var(--ink-muted)' } }, h(DW.Icon, { name: r.signin === 'passkey' ? 'key' : 'org', size: 14 })),
+          r.signin === 'passkey' ? 'Passkey' : 'Okta SAML');
+    const action = (r) => r.pending
+      ? h(DW.Button, { variant: 'ghost', size: 'sm', icon: 'refresh' }, 'Resend')
+      : h(DW.Button, { variant: 'ghost', size: 'sm', icon: 'more', 'aria-label': 'More for ' + r.name });
+    const members = [
+      { id: 'dana', initials: 'DW', name: 'Dana Whitfield', email: 'dana@acme.dev', role: 'Owner', projects: 'all', signin: 'passkey', active: 'Yesterday' },
+      { id: 'mira', initials: 'MC', name: 'Mira Chen', note: 'You', email: 'mira@acme.dev', role: 'Admin', projects: 'all', signin: 'passkey', active: 'Now' },
+      { id: 'leo', initials: 'LP', name: 'Leo Park', email: 'leo@acme.dev', role: 'Developer', projects: 'storefront', signin: 'saml', active: '12 min ago' },
+      { id: 'sam', initials: 'SO', name: 'Sam Okafor', email: 'sam@acme.dev', role: 'Developer', projects: 'storefront', signin: 'saml', active: '28 min ago' },
+      { id: 'priya', initials: 'PR', name: 'Priya Raman', note: 'On call', email: 'priya@acme.dev', role: 'Viewer', projects: 'all', signin: 'saml', active: '3 h ago' },
+      { id: 'jordan', pending: true, name: 'jordan@fieldwork.dev', email: 'Invited by Dana Whitfield yesterday', role: 'Developer', projects: 'storefront', active: 'Expires in 6 days' }
+    ];
+    const memberCols = [
+      { key: 'name', header: 'Member', render: person },
+      { key: 'role', header: 'Role', width: 112, render: (r) => role(r.role) },
+      { key: 'projects', header: 'Projects', width: 128, render: projects },
+      { key: 'signin', header: 'Sign-in', width: 128, render: signin },
+      { key: 'active', header: 'Last active', width: 128, align: 'right', muted: true },
+      { key: 'act', header: h('span', { className: 'dw-sr' }, 'Actions'), width: 96, align: 'right', render: action }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      members, memberCols,
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

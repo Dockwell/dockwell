@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Processes, hz-1</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="servers" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 12px;">
+<h1 class="title" style="margin: 0; font-family: var(--font-mono); letter-spacing: -0.02em;">hz-1</h1>
+<x-import component-from-global-scope="Dockwell.Tag">Runs the control plane</x-import>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Hetzner CX32 · Falkenstein · <span style="font-family: var(--font-mono); font-size: 12.5px;">49.12.33.7</span> · up 41 days</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="Add-Server.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>Add server</span></a>
+<x-import component-from-global-scope="Dockwell.Button" icon="refresh">Restart agent</x-import>
+</div>
+</div>
+<nav class="dw-tabs" aria-label="Server hz-1">
+<a href="Server-Overview.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Overview</a>
+<a href="Server-Files.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Files</a>
+<a href="Server-Terminal.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Terminal</a>
+<a href="Server-Firewall.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Firewall</a>
+<a href="Server-Processes.dc.html" class="dw-tab" aria-selected="true" aria-current="page" style="text-decoration: none;">Processes</a>
+<a href="Server-Updates.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Updates <span class="dw-tab-count dw-tone-warning">3</span></a>
+</nav>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<section style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<h2 class="dw-sr">Processes</h2>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+<x-import component-from-global-scope="Dockwell.SegmentedControl" options="{{views}}" value="processes" label="Show" size="sm"></x-import>
+<span style="flex: 1 1 auto;"></span>
+<span style="display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-muted);"><span class="dw-live"><span class="dw-live-dot"></span>Live</span>every 2 s</span>
+<div style="width: 260px;"><x-import component-from-global-scope="Dockwell.TextField" size="sm" icon="search" placeholder="Filter by name, PID or user" aria-label="Filter processes"></x-import></div>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{cols}}" rows="{{procs}}" caption="Processes on hz-1, sorted by CPU"></x-import>
+<p style="margin: 0; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Showing the top 12 of 187 by CPU. Stopping an app’s process restarts it unless you stop the app itself.</p>
+</section>
+
+<div style="flex: 0 1 352px; min-width: 300px; display: flex; flex-direction: column; gap: 16px;">
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Services</h2><span style="font-size: 12.5px; color: var(--ink-muted);">7 of 42 systemd units</span></div>
+<ul style="margin: 0; padding: 0; list-style: none;">
+{{services}}
+</ul>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Totals</h2><span style="font-size: 12.5px; color: var(--ink-muted);">187 processes</span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 12px;">
+{{meters}}
+<p style="margin: 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; line-height: 18px; color: var(--ink-muted);">Load average <span style="color: var(--ink);">0.84 / 0.91 / 0.88</span> on 4 vCPU</p>
+</div>
+</section>
+</div>
+
+</div>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":930}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const mono = (t, extra) => h('span', { style: Object.assign({ fontFamily: 'var(--font-mono)' }, extra) }, t);
+
+    const views = [
+      { value: 'processes', label: 'Processes', count: 187 },
+      { value: 'services', label: 'Services', count: 42 },
+      { value: 'containers', label: 'Containers', count: 8 }
+    ];
+
+    const procs = [
+      ['postgres', 'Database postgres', 1184, 'postgres', '6.1', '312 MB', '41 days'],
+      ['node', 'App storefront-web', 31877, 'node', '4.8', '412 MB', '2 days'],
+      ['api', 'App api', 47702, 'nonroot', '3.9', '688 MB', '4 min'],
+      ['dockerd', 'Service docker', 812, 'root', '2.2', '72 MB', '41 days'],
+      ['openresty', 'Service openresty · 4 workers', 903, 'root', '1.4', '48 MB', '41 days'],
+      ['dockwell-agent', 'Service dockwell', 731, 'root', '1.1', '38 MB', '41 days', true],
+      ['n8n', 'App n8n', 1477, 'node', '0.9', '356 MB', '41 days'],
+      ['valkey-server', 'Database valkey', 1302, 'valkey', '0.6', '96 MB', '41 days'],
+      ['dockwell', 'Control plane', 728, 'dockwell', '0.5', '96 MB', '41 days', true],
+      ['beam.smp', 'App plausible', 1530, 'plausible', '0.4', '520 MB', '41 days'],
+      ['worker', 'App worker · r57 starting', 48213, 'nonroot', '0.3', '301 MB', '12 s'],
+      ['node', 'App uptime-kuma', 1611, 'node', '0.2', '142 MB', '41 days']
+    ].map(([name, sub, pid, user, cpu, mem, up, prot]) => ({ id: pid, name, sub, pid, user, cpu, mem, up, prot }));
+
+    const cols = [
+      { key: 'name', header: 'Process', render: (r) => h('div', { className: 'dw-cell' },
+          mono(r.name, { fontSize: 13, lineHeight: '18px', fontWeight: 550 }),
+          h('span', { style: { fontSize: 12, lineHeight: '16px', color: 'var(--ink-muted)' } }, r.sub)) },
+      { key: 'pid', header: 'PID', width: 84, align: 'right', mono: true, muted: true },
+      { key: 'user', header: 'User', width: 112, mono: true, muted: true },
+      { key: 'cpu', header: h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--ink)' } }, 'CPU', h(DW.Icon, { name: 'chevron-down', size: 12, label: 'sorted high to low' })), width: 80, align: 'right', render: (r) => r.cpu + '%' },
+      { key: 'mem', header: 'Memory', width: 92, align: 'right' },
+      { key: 'up', header: 'Uptime', width: 92, muted: true },
+      { key: 'act', header: h('span', { className: 'dw-sr' }, 'Actions'), width: 108, align: 'right', render: (r) => r.prot
+          ? h('span', { title: 'Dockwell needs this process. Use Restart agent instead.', style: { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--ink-muted)' } }, h(DW.Icon, { name: 'lock', size: 13 }), 'Protected')
+          : h(DW.Button, { size: 'sm', variant: 'ghost', icon: 'stop', 'aria-label': 'Stop ' + r.name + ' (PID ' + r.pid + ')' }, 'Stop') }
+    ];
+
+    const services = [
+      ['docker', 'Docker Engine 27.3.1'],
+      ['dockwell', 'Control plane and agent 0.9.4'],
+      ['openresty', 'Web server for 8 domains'],
+      ['fail2ban', '37 IPs banned in 24 h'],
+      ['ssh', 'OpenSSH on port 22, office only'],
+      ['unattended-upgrades', 'Security updates nightly at 04:30'],
+      ['cron', 'Rotates logs daily at 02:30']
+    ].map(([unit, desc], i) => h('li', { key: unit, style: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 8px 10px 16px', borderTop: i ? '1px solid var(--line)' : undefined } },
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: '1 1 auto' } },
+        mono(unit, { fontSize: 13, lineHeight: '18px', fontWeight: 550 }),
+        h('span', { style: { fontSize: 12.5, lineHeight: '18px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, desc)),
+      h(DW.StatusBadge, { status: 'healthy', label: 'Active' }),
+      h(DW.Button, { size: 'sm', variant: 'ghost', icon: 'refresh', 'aria-label': 'Restart ' + unit })));
+
+    const meter = (label, pct, value) => h('div', { key: label, style: { display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr) auto', alignItems: 'center', gap: 12, fontSize: 13, lineHeight: '18px' } },
+      h('span', { style: { color: 'var(--ink-muted)' } }, label),
+      h('span', { role: 'img', 'aria-label': label + ' ' + value, style: { position: 'relative', height: 6, borderRadius: 3, background: 'var(--surface-sunken)', boxShadow: 'inset 0 0 0 1px var(--line)', overflow: 'hidden' } },
+        h('span', { style: { position: 'absolute', left: 0, top: 0, bottom: 0, width: pct + '%', background: 'var(--ink)', borderRadius: 3 } })),
+      h('span', { style: { textAlign: 'right', minWidth: 84 } }, value));
+    const meters = [meter('CPU', 23.4, '23.4%'), meter('Memory', 38.75, '3.1 of 8 GB'), meter('Swap', 0, '0 of 2 GB')];
+
+    return {
+      theme: this.props.theme ?? 'light',
+      views, procs, cols, services, meters,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

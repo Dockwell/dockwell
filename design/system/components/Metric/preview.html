@@ -1,0 +1,30 @@
+<!-- @dsCard group="Data" height=368 subtitle="A live number, its unit and its recent shape" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Metric</title>
+<style>
+  .demo { padding: 24px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .demo > div { padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement, M = H.Metric;
+  function wave(n, base, amp, seed) { var out = []; for (var i = 0; i < n; i++) out.push(+(base + amp * Math.sin((i + seed) / 3.1) + amp * 0.5 * Math.sin((i * 7 + seed) / 5.3)).toFixed(1)); return out; }
+  function Demo() {
+    var s = React.useState(wave(40, 38, 6, 1)), cpu = s[0], setCpu = s[1];
+    React.useEffect(function () {
+      var t = setInterval(function () { setCpu(function (d) { var last = d[d.length - 1]; var nx = Math.max(12, Math.min(70, +(last + (Math.random() - 0.5) * 5).toFixed(1))); return d.slice(1).concat(nx); }); }, 1500);
+      return function () { clearInterval(t); };
+    }, []);
+    return h('div', { className: 'demo' },
+      h('div', null, h(M, { label: 'CPU', icon: 'cpu', value: cpu[cpu.length - 1].toFixed(1), unit: '%', data: cpu, min: 0, max: 100, caption: 'Average across 52 servers' })),
+      h('div', null, h(M, { label: 'Memory', value: '61', unit: '%', data: wave(40, 61, 4, 9), threshold: 80, min: 0, max: 100, delta: 'Limit 80%', caption: '204 GB of 336 GB' })),
+      h('div', null, h(M, { label: 'Requests', value: '11.2k', unit: '/min', data: wave(40, 11, 2, 4), tone: 'cobalt', delta: '+8% vs last week', caption: 'Across 9 domains' })),
+      h('div', null, h(M, { label: 'Error rate', value: '0.42', unit: '%', data: [0.1,0.1,0.12,0.1,0.11,0.1,0.13,0.12,0.1,0.14,0.2,0.31,0.38,0.42], tone: 'warning', delta: 'Up from 0.10%', deltaTone: 'warning', caption: '5xx responses, last hour' })));
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

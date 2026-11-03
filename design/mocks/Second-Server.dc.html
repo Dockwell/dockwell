@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Second server joined</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="servers" mode="fleet" servers="2" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="solo" servers="2" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Servers</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">2 servers in Falkenstein · private network <code class="code-sm">10.210.0.0/16</code></p>
+</div>
+<a href="Add-Server.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>Add server</span></a>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 16px;">
+<sc-for list="{{servers}}" as="s">
+<section class="dw-panel" style="display: flex; flex-direction: column;">
+<div class="dw-panel-head">
+<div style="display: flex; align-items: center; gap: 10px;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{16}}"></x-import></span>
+<h2 class="dw-panel-title" style="font-family: var(--font-mono); font-size: 14px;">{{s.name}}</h2>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" meta="{{s.since}}"></x-import>
+</div>
+<span style="font-size: 12.5px; color: var(--ink-muted);">{{s.role}}</span>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; border-bottom: 1px solid var(--line);">
+<x-import component-from-global-scope="Dockwell.Metric" label="CPU" value="{{s.cpu}}" unit="%" data="{{s.cpuData}}" min="{{0}}" max="{{100}}"></x-import>
+<x-import component-from-global-scope="Dockwell.Metric" label="Memory" value="{{s.mem}}" unit="of 8 GB" data="{{s.memData}}" min="{{0}}" max="{{100}}"></x-import>
+</div>
+<dl style="margin: 0; padding: 16px; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px; line-height: 20px;">
+<dt style="color: var(--ink-muted);">Public IP</dt><dd style="margin: 0;"><code class="code-sm">{{s.ip}}</code></dd>
+<dt style="color: var(--ink-muted);">Private IP</dt><dd style="margin: 0;"><code class="code-sm">{{s.private}}</code></dd>
+<dt style="color: var(--ink-muted);">Type</dt><dd style="margin: 0;">Hetzner CX32 · 4 vCPU · 8 GB · Ubuntu 24.04</dd>
+<dt style="color: var(--ink-muted);">Runs</dt><dd style="margin: 0;">{{s.runs}}</dd>
+</dl>
+</section>
+</sc-for>
+</div>
+
+</div>
+</main>
+
+<div style="position: absolute; inset: 0; z-index: var(--z-sheet); background: var(--scrim); display: flex; justify-content: flex-end; padding: 8px; box-sizing: border-box;">
+<div style="width: 560px; max-width: 100%; height: 100%;">
+<x-import component-from-global-scope="Dockwell.Sheet" inline="{{yes}}" title="hz-2 joined" subtitle="Hetzner CX32 · Falkenstein · agent 0.9.4 · just now" footer="{{footer}}" on-close="{{noop}}">
+<div style="display: flex; flex-direction: column; gap: 24px;">
+
+<div style="display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: var(--radius-md); background: var(--healthy-soft);">
+<span style="display: flex; padding-top: 6px; color: var(--healthy);"><x-import component-from-global-scope="Dockwell.Glyph" shape="circle" size="{{10}}"></x-import></span>
+<p style="margin: 0; font-size: 15px; line-height: 22px; font-weight: 550;">Nothing moved. Your 6 apps still run on hz-1.</p>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<h3 class="label" style="margin: 0;">What changed</h3>
+<div style="display: flex; gap: 12px; align-items: flex-start;">
+<span style="display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 50%; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="network" size="{{14}}"></x-import></span>
+<div style="display: flex; flex-direction: column; gap: 6px; padding-top: 4px; min-width: 0;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">A private network on <code class="code" style="font-weight: 400;">10.210.0.0/16</code></span>
+<dl class="code-sm" style="margin: 0; display: grid; grid-template-columns: max-content max-content; gap: 2px 16px;">
+<dt style="color: var(--ink-muted);">hz-1</dt><dd style="margin: 0;">10.210.0.1</dd>
+<dt style="color: var(--ink-muted);">hz-2</dt><dd style="margin: 0;">10.210.0.2</dd>
+</dl>
+</div>
+</div>
+<div style="display: flex; gap: 12px; align-items: flex-start;">
+<span style="display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 50%; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="service" size="{{14}}"></x-import></span>
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 4px;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">New apps ask where to run</span>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">The default is Auto, which picks the server with the most room.</span>
+</div>
+</div>
+<div style="display: flex; gap: 12px; align-items: flex-start;">
+<span style="display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 50%; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{14}}"></x-import></span>
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 4px;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">The Server page is now Servers</span>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">Each server keeps its own page, terminal and files.</span>
+</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+<h3 class="label" style="margin: 0;">Optional next steps</h3>
+<span style="font-size: 12.5px; color: var(--ink-muted);">Each opens a plan first</span>
+</div>
+<div style="display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); overflow: hidden;">
+<sc-for list="{{steps}}" as="st">
+<a href="Plan-Review.dc.html" style="{{st.style}}">
+<span style="display: flex; flex: none; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="{{st.icon}}" size="{{16}}"></x-import></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550; color: var(--ink);">{{st.title}}</span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">{{st.sub}}</span>
+</span>
+<span style="display: flex; flex: none; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-right" size="{{16}}"></x-import></span>
+</a>
+</sc-for>
+</div>
+</section>
+
+</div>
+</x-import>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const wave = (n, base, amp, seed) => Array.from({ length: n }, (_, i) => +(base + amp * Math.sin((i + seed) / 3.1) + amp * 0.5 * Math.sin((i * 7 + seed) / 5.3)).toFixed(1));
+    const row = 'display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; text-decoration: none; color: var(--ink);';
+    const steps = [
+      { icon: 'layers', title: 'Run storefront-web on both servers', sub: '2 replicas behind acme.dev, no downtime to switch' },
+      { icon: 'branch', title: 'Use hz-2 for builds', sub: 'Builds stop competing with your apps for CPU' },
+      { icon: 'arrow-right', title: 'Move n8n to hz-2', sub: 'Moves the container and its data, about 30 s offline' },
+      { icon: 'globe', title: 'Create a staging environment on hz-2', sub: 'A copy of your apps on their own subdomains' }
+    ].map((s, i) => Object.assign(s, { style: row + (i ? ' border-top: 1px solid var(--line);' : '') }));
+    const footer = h(React.Fragment, null,
+      h('span', { style: { marginRight: 'auto' } }, h(DW.Button, { variant: 'ghost', icon: 'trash' }, 'Remove hz-2')),
+      h(DW.Button, { variant: 'primary', kbd: '⌘↵' }, 'Done'));
+    return {
+      theme: this.props.theme ?? 'light',
+      servers: [
+        { name: 'hz-1', since: 'up 41 days', role: 'Runs the control plane', ip: '49.12.33.7', private: '10.210.0.1', runs: '6 apps · 3 websites · 2 databases', cpu: '23.4', mem: '3.1', cpuData: wave(30, 23, 5, 1), memData: wave(30, 39, 2, 7) },
+        { name: 'hz-2', since: 'joined just now', role: 'Agent 0.9.4', ip: '49.12.97.214', private: '10.210.0.2', runs: 'Nothing yet', cpu: '1.2', mem: '0.4', cpuData: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 9, 6, 2, 1.5, 1.2, 1.1, 1.2], memData: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 5, 5, 5, 5, 5, 5, 5] }
+      ],
+      steps, footer,
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

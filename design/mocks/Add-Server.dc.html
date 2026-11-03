@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Add a server</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="servers" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box; color-scheme: {{scheme}};">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Add a server</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">It joins in seconds. Nothing on hz-1 changes.</p>
+</div>
+<a href="Server-Overview.dc.html" class="dw-btn dw-btn-ghost dw-btn-md" style="text-decoration: none;">Cancel</a>
+</div>
+
+<fieldset style="margin: 0; padding: 0; border: 0; min-width: 0;">
+<legend class="dw-sr">How to add the server</legend>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch;">
+
+<section class="dw-panel" style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink);">
+<div style="display: flex; align-items: flex-start; gap: 12px; padding: 16px 16px 0;">
+<input type="radio" name="how" id="how-command" checked style="flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--action);">
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<label for="how-command" class="body-strong" style="cursor: pointer;">Run one command</label>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">Paste it on any Linux server where you have root: another provider, a home lab, a VM.</span>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 16px;">
+<div style="position: relative; padding: 14px 92px 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunken);">
+<code class="code" style="display: block; white-space: pre-wrap; line-height: 22px;">curl -fsSL https://get.dockwell.dev | sh -s -- join hwj_7Kq2Vx9LmP3</code>
+<div style="position: absolute; top: 10px; right: 10px;"><x-import component-from-global-scope="Dockwell.Button" size="sm" icon="copy">Copy</x-import></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">
+<span style="display: inline-flex; align-items: center; gap: 6px;"><x-import component-from-global-scope="Dockwell.Icon" name="clock" size="{{14}}"></x-import>Expires in 15 min</span>
+<span aria-hidden="true">·</span><span>needs outbound 443 only</span>
+<span aria-hidden="true">·</span><span>works behind NAT</span>
+</div>
+</div>
+<div style="margin-top: auto; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line); background: var(--cobalt-soft); border-radius: 0 0 var(--radius-md) var(--radius-md);" role="status">
+<span style="display: flex; color: var(--cobalt);"><x-import component-from-global-scope="Dockwell.Glyph" shape="spinner" size="{{14}}"></x-import></span>
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">Waiting for the server to connect</span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink);">It appears here as soon as the agent starts. You can leave this page.</span>
+</div>
+</div>
+</section>
+
+<section class="dw-panel" style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column;">
+<div style="display: flex; align-items: flex-start; gap: 12px; padding: 16px 16px 0;">
+<input type="radio" name="how" id="how-provider" style="flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--action);">
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto;">
+<label for="how-provider" class="body-strong" style="cursor: pointer;">Create one at a provider</label>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">Dockwell orders it with your Hetzner token and installs the agent.</span>
+</div>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Hetzner connected"></x-import>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px 16px; padding: 16px;">
+<div class="dw-field">
+<label class="dw-field-label" for="type">Type</label>
+<div class="dw-input" style="position: relative;">
+<select id="type" class="dw-input-el" style="appearance: none; -webkit-appearance: none; padding-right: 32px; cursor: pointer;"><option>CX32 · 4 vCPU · 8 GB</option><option>CX22 · 2 vCPU · 4 GB</option><option>CX42 · 8 vCPU · 16 GB</option></select>
+<span style="position: absolute; right: 10px; top: 8px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div>
+</div>
+<div class="dw-field">
+<label class="dw-field-label" for="location">Location</label>
+<div class="dw-input" style="position: relative;">
+<select id="location" class="dw-input-el" style="appearance: none; -webkit-appearance: none; padding-right: 32px; cursor: pointer;"><option>Falkenstein</option><option>Nuremberg</option><option>Helsinki</option></select>
+<span style="position: absolute; right: 10px; top: 8px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div>
+</div>
+<div class="dw-field">
+<label class="dw-field-label" for="image">Image</label>
+<div class="dw-input" style="position: relative;">
+<select id="image" class="dw-input-el" style="appearance: none; -webkit-appearance: none; padding-right: 32px; cursor: pointer;"><option>Ubuntu 24.04 LTS</option><option>Debian 12</option></select>
+<span style="position: absolute; right: 10px; top: 8px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div>
+</div>
+<x-import component-from-global-scope="Dockwell.TextField" label="Name" default-value="hz-2" mono="{{yes}}"></x-import>
+</div>
+<div style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line);">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">[PRICE]/month</span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Billed by Hetzner, same network zone as hz-1</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" icon="plus">Create server</x-import>
+</div>
+</section>
+
+</div>
+</fieldset>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">When it joins</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Nothing is moved for you</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px 24px; padding: 16px;">
+<div style="display: flex; gap: 12px; align-items: flex-start;">
+<span style="display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 50%; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="network" size="{{14}}"></x-import></span>
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 4px;"><span style="font-size: 14px; font-weight: 550;">A private network</span><span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">The two servers talk over <code class="code-sm" style="color: var(--ink);">10.210.0.0/16</code>, not the public internet.</span></div>
+</div>
+<div style="display: flex; gap: 12px; align-items: flex-start;">
+<span style="display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 50%; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="service" size="{{14}}"></x-import></span>
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 4px;"><span style="font-size: 14px; font-weight: 550;">Your apps stay on hz-1</span><span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">All 6 keep running. An app moves only when you apply a plan for it.</span></div>
+</div>
+<div style="display: flex; gap: 12px; align-items: flex-start;">
+<span style="display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 50%; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{14}}"></x-import></span>
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 4px;"><span style="font-size: 14px; font-weight: 550;">New apps ask where to run</span><span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">Auto picks the server with the most room. You can always choose.</span></div>
+</div>
+</div>
+</section>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":680}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    return {
+      theme,
+      scheme: theme === 'dark' ? 'dark' : 'light',
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

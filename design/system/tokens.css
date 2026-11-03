@@ -1,0 +1,116 @@
+/* Dockwell — generated from tokens.json */
+@font-face { font-family: 'Host Grotesk'; src: url('fonts/HostGrotesk-Variable.woff2') format('woff2'); font-weight: 300 800; font-style: normal; font-display: swap; }
+@font-face { font-family: 'JetBrains Mono'; src: url('fonts/JetBrainsMono-Variable.woff2') format('woff2'); font-weight: 100 800; font-style: normal; font-display: swap; }
+:root, [data-theme="light"] {
+  color-scheme: light;
+  --canvas: #f3f4f1;
+  --surface: #ffffff;
+  --surface-sunken: #ebede9;
+  --surface-raised: #ffffff;
+  --line: #dfe2dd;
+  --line-strong: #878d86;
+  --ink: #191c1a;
+  --ink-muted: #575e58;
+  --ink-faint: #a3a8a1;
+  --action: #191c1a;
+  --action-hover: #2f3531;
+  --on-action: #ffffff;
+  --cobalt: #2450d6;
+  --cobalt-soft: #e8edfc;
+  --on-cobalt: #ffffff;
+  --healthy: #0a7653;
+  --healthy-soft: #e2f3ea;
+  --warning: #975700;
+  --warning-soft: #faefd9;
+  --critical: #c0390e;
+  --critical-soft: #fbe8e0;
+  --on-critical: #ffffff;
+  --idle: var(--ink-muted);
+  --diff-add: var(--healthy);
+  --diff-add-soft: var(--healthy-soft);
+  --diff-change: var(--warning);
+  --diff-change-soft: var(--warning-soft);
+  --diff-remove: var(--critical);
+  --diff-remove-soft: var(--critical-soft);
+  --link: var(--cobalt);
+  --selection: var(--cobalt-soft);
+  --scrim: #191c1a59;
+  --shadow-float: 0 0 0 1px #191c1a14, 0 2px 4px #191c1a0d, 0 8px 24px -6px #191c1a29;
+  --shadow-sheet: 0 0 0 1px #191c1a14, 0 4px 8px #191c1a0f, 0 24px 64px -16px #191c1a4d;
+  --focus-ring: 0 0 0 2px #ffffff, 0 0 0 4px #2450d6;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #0f1110;
+  --surface: #161917;
+  --surface-sunken: #0b0d0c;
+  --surface-raised: #1d211f;
+  --line: #272c29;
+  --line-strong: #68716b;
+  --ink: #e8ece8;
+  --ink-muted: #9aa39c;
+  --ink-faint: #4a524d;
+  --action: #e8ece8;
+  --action-hover: #ffffff;
+  --on-action: #121413;
+  --cobalt: #809dff;
+  --cobalt-soft: #19244a;
+  --on-cobalt: #0f1110;
+  --healthy: #3fcb95;
+  --healthy-soft: #0f2a20;
+  --warning: #efb24a;
+  --warning-soft: #2e2411;
+  --critical: #ff7d5a;
+  --critical-soft: #36190f;
+  --on-critical: #0f1110;
+  --idle: var(--ink-muted);
+  --diff-add: var(--healthy);
+  --diff-add-soft: var(--healthy-soft);
+  --diff-change: var(--warning);
+  --diff-change-soft: var(--warning-soft);
+  --diff-remove: var(--critical);
+  --diff-remove-soft: var(--critical-soft);
+  --link: var(--cobalt);
+  --selection: var(--cobalt-soft);
+  --scrim: #000000a6;
+  --shadow-float: 0 0 0 1px #ffffff14, 0 8px 24px -6px #000000cc;
+  --shadow-sheet: 0 0 0 1px #ffffff17, 0 24px 64px -16px #000000f2;
+  --focus-ring: 0 0 0 2px #161917, 0 0 0 4px #809dff;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+  --control-sm: 28px;
+  --control-md: 32px;
+  --control-lg: 40px;
+  --rail-width: 232px;
+  --scopebar-height: 52px;
+  --sheet-width: 560px;
+  --z-sticky: 10;
+  --z-sheet: 40;
+  --z-command: 50;
+  --z-toast: 60;
+  --font-sans: "Host Grotesk", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+.display { font-family: var(--font-sans); font-size: 32px; line-height: 36px; font-weight: 600; letter-spacing: -0.025em; }
+.title { font-family: var(--font-sans); font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.015em; }
+.heading { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: -0.005em; }
+.body { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 400; }
+.body-strong { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 550; }
+.label { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 550; }
+.caption { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 500; }
+.metric { font-family: var(--font-sans); font-size: 28px; line-height: 32px; font-weight: 550; letter-spacing: -0.02em; }
+.code { font-family: var(--font-mono); font-size: 13px; line-height: 20px; font-weight: 400; }
+.code-sm { font-family: var(--font-mono); font-size: 12px; line-height: 18px; font-weight: 400; }

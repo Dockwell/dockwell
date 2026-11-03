@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Connection, supabase</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="connections" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 18px;">
+<a href="Connections-List.dc.html" style="color: var(--ink-muted); text-decoration: none;">Connections</a>
+<span aria-hidden="true" style="color: var(--line-strong);">/</span>
+<span aria-current="page" style="font: 400 12.5px/18px var(--font-mono); color: var(--ink);">supabase</span>
+</nav>
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+<h1 class="title" style="margin: 0; font-family: var(--font-mono); font-size: 21px; font-weight: 550; letter-spacing: -0.02em;">supabase</h1>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="degraded" label="1 test failing" meta="9 of 10 servers pass"></x-import>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Supabase · production and staging · in storefront, shared with internal-tools</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" icon="refresh">Test all</x-import>
+<a href="Connection-Bind.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>Use in an app</span></a>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px;">
+<x-import component-from-global-scope="Dockwell.SegmentedControl" label="Environment" options="{{envs}}" default-value="production"></x-import>
+<span style="font-size: 13px; color: var(--ink-muted);">Project <code style="font-size: 12px; color: var(--ink);">qzvbtxkmfhpw</code> · Frankfurt (eu-central-1)</span>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Used by</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">4 apps on 10 servers · tested from each server every 15 min</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{useCols}}" rows="{{uses}}" caption="Apps that use supabase in production"></x-import>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<section style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 28px;">
+<h2 class="heading" style="margin: 0;">Fields</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">9 in production · 3 secret · reveals are audited</span>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="edit">Edit values</x-import>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{fieldCols}}" rows="{{fields}}" caption="Fields of supabase in production"></x-import>
+</section>
+
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Rotation</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Every 90 days</span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px;">
+<dt style="color: var(--ink-muted);">Last rotated</dt><dd style="margin: 0;">21 Sep · <code style="font-size: 12px;">service_key</code> by Dana Whitfield</dd>
+<dt style="color: var(--ink-muted);">Next due</dt><dd style="margin: 0;">20 Dec</dd>
+<dt style="color: var(--ink-muted);">Restarts</dt><dd style="margin: 0;">4 apps, one replica at a time</dd>
+</dl>
+<div style="display: flex; gap: 8px;">
+<a href="Plan-Review.dc.html" class="dw-btn dw-btn-secondary dw-btn-sm" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="refresh" size="{{14}}"></x-import><span>Rotate</span></a>
+</div>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Recent activity</h2><a href="Audit-Log.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Audit log</a></div>
+<div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.Timeline" events="{{events}}"></x-import></div>
+</section>
+</div>
+
+</div>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1230}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const muted = { color: 'var(--ink-muted)' };
+    const mono12 = { fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: '18px' };
+    const chip = (t) => h('code', { style: Object.assign({ padding: '0 5px', borderRadius: 3, background: 'var(--surface-sunken)', color: 'var(--ink)' }, mono12) }, t);
+
+    /* Mapping: container variable <- field, with transforms */
+    const mapCell = (r) => {
+      const kids = [];
+      r.map.forEach((m, i) => {
+        kids.push(h('span', { key: 'v' + i, style: Object.assign({ color: 'var(--ink)', fontWeight: 500 }, mono12) }, m.v));
+        kids.push(m.lit
+          ? h('span', { key: 'a' + i, 'aria-label': 'set to', style: Object.assign({ textAlign: 'center', fontWeight: 600 }, mono12, muted) }, '=')
+          : h('span', { key: 'a' + i, style: { display: 'flex', justifyContent: 'center', color: 'var(--ink-muted)' } }, h(DW.Icon, { name: 'arrow-left', size: 12, label: 'from' })));
+        kids.push(h('span', { key: 'f' + i, style: { display: 'flex' } }, m.lit ? h('code', { style: Object.assign({ color: 'var(--ink)' }, mono12) }, '"' + m.lit + '"') : chip(m.f)));
+        if (m.note) kids.push(h('span', { key: 'n' + i, style: { fontSize: 12, lineHeight: '18px', color: 'var(--ink-muted)', paddingLeft: 10 } }, m.note));
+        else if (!m.split) kids.push(h('span', { key: 'n' + i }));
+      });
+      if (r.split) kids.push(h('span', { key: 'split', style: { gridColumn: 4, gridRow: r.split[0] + ' / span ' + r.split[1], alignSelf: 'stretch', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 4, paddingLeft: 10, borderLeft: '1px solid var(--line-strong)', fontSize: 12, lineHeight: '16px', color: 'var(--ink-muted)', whiteSpace: 'nowrap' } }, 'split from ', h('code', { style: { fontSize: 11.5, color: 'var(--ink)' } }, 'pooled_url')));
+      return h('div', { style: { display: 'grid', gridTemplateColumns: 'max-content 14px max-content auto', columnGap: 8, rowGap: 4, alignItems: 'center', padding: '6px 0' } }, kids);
+    };
+    const appCell = (r) => h('div', { className: 'dw-cell' },
+      h('span', { className: 'dw-cell-title' }, r.app),
+      h('span', { style: Object.assign({ fontSize: 12.5, lineHeight: '16px' }, muted) }, r.where));
+    const placeCell = (r) => h('div', { className: 'dw-cell' },
+      h('span', null, r.files ? 'Files' : 'Environment'),
+      r.files
+        ? h('code', { style: Object.assign({ fontSize: 12, lineHeight: '16px' }, muted) }, '/run/secrets')
+        : h('span', { style: Object.assign({ fontSize: 12.5, lineHeight: '16px' }, muted) }, r.map.length + ' variables'));
+    const testCell = (r) => {
+      if (r.fail) return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, whiteSpace: 'normal', padding: '6px 0' } },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+          h(DW.StatusBadge, { status: 'degraded', label: h('span', null, 'Refused from ', h('code', { style: { fontSize: 12.5 } }, 'sfo-2-10')) }),
+          h('span', { style: { fontSize: 12.5, color: 'var(--ink-muted)' } }, '3 min ago')),
+        h('p', { style: { margin: 0, paddingLeft: 16, fontSize: 13, lineHeight: '18px', color: 'var(--ink)' } },
+          'Supabase network restrictions block ', h('code', { style: { fontSize: 12 } }, '203.0.113.40'), ', the outgoing IP of sfo-2. Add ', h('code', { style: { fontSize: 12 } }, '203.0.113.40/32'), ' in ',
+          h('a', { href: 'https://supabase.com/dashboard/project/qzvbtxkmfhpw/settings/database', style: { textDecoration: 'none', fontWeight: 500 } }, 'Supabase database settings'), ', then test again.'),
+        h('div', { style: { display: 'flex', gap: 8, paddingLeft: 16 } },
+          h(DW.Button, { size: 'sm', icon: 'copy', 'aria-label': 'Copy 203.0.113.40/32' }, 'Copy IP'),
+          h(DW.Button, { size: 'sm', icon: 'refresh' }, 'Test again')));
+      return h('div', { className: 'dw-cell', style: { gap: 2 } },
+        h(DW.StatusBadge, { status: 'healthy', label: 'Passed on ' + r.tests.length + ' servers', meta: '3 min ago' }),
+        h('span', { style: { paddingLeft: 16, fontSize: 12.5, lineHeight: '16px', color: 'var(--ink-muted)' } },
+          r.tests.map((t, i) => h(React.Fragment, { key: t[0] }, i ? ' · ' : null, h('code', { style: { fontSize: 12 } }, t[0]), ' ' + t[1]))));
+    };
+    const uses = [
+      { id: 'web', app: 'storefront-web', where: 'storefront · 3 replicas', map: [{ v: 'NEXT_PUBLIC_SUPABASE_URL', f: 'url' }, { v: 'NEXT_PUBLIC_SUPABASE_ANON_KEY', f: 'anon_key' }], tests: [['fra-1-15', '21 ms'], ['fra-1-16', '22 ms'], ['ams-1-09', '31 ms']] },
+      { id: 'api', app: 'api', where: 'storefront · 3 replicas', files: true, map: [{ v: 'SUPABASE_URL', f: 'url' }, { v: 'SUPABASE_SERVICE_ROLE_KEY', f: 'service_key' }], tests: [['fra-1-04', '18 ms'], ['fra-1-11', '19 ms'], ['ams-1-02', '29 ms']] },
+      { id: 'worker', app: 'worker', where: 'storefront · 4 replicas', map: [{ v: 'SB_URL', f: 'url' }, { v: 'SB_SERVICE_KEY', f: 'service_key' }], tests: [['fra-1-05', '20 ms'], ['fra-1-07', '24 ms'], ['ams-1-08', '30 ms']] },
+      { id: 'metabase', app: 'metabase', where: 'internal-tools · 1 replica', fail: true, split: [2, 5], map: [
+        { v: 'MB_DB_TYPE', lit: 'postgres', note: 'literal' },
+        { v: 'MB_DB_HOST', f: 'host', split: true }, { v: 'MB_DB_PORT', f: 'port', split: true }, { v: 'MB_DB_DBNAME', f: 'database', split: true },
+        { v: 'MB_DB_USER', f: 'user', split: true }, { v: 'MB_DB_PASS', f: 'password', split: true }] }
+    ];
+    const useCols = [
+      { key: 'app', header: 'App', width: 184, render: appCell },
+      { key: 'map', header: 'Container variable ← field', render: mapCell },
+      { key: 'place', header: 'Delivered as', width: 136, render: placeCell },
+      { key: 'test', header: 'Test, per server', width: 344, render: testCell }
+    ];
+
+    /* Fields */
+    const dots = h('span', { style: Object.assign({ letterSpacing: 1 }, mono12, muted) }, '••••••••••••••••');
+    const valueCell = (r) => {
+      if (r.secret) return h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 8 } }, dots,
+        h(DW.Button, { size: 'sm', variant: 'ghost', icon: 'key', 'aria-label': 'Reveal ' + r.id + ', needs your passkey' }, 'Reveal with passkey'));
+      return h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' } },
+        h('code', { style: Object.assign({ overflow: 'hidden', textOverflow: 'ellipsis' }, mono12) }, r.value),
+        h(DW.Button, { size: 'sm', variant: 'ghost', icon: 'copy', 'aria-label': 'Copy ' + r.id }));
+    };
+    const fieldCell = (r) => h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, paddingLeft: r.part ? 16 : 0 } },
+      r.part ? h('span', { 'aria-hidden': true, style: { width: 8, height: 10, marginTop: -8, borderLeft: '1px solid var(--line-strong)', borderBottom: '1px solid var(--line-strong)', borderBottomLeftRadius: 3, flex: 'none' } }) : null,
+      h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500 } }, r.id),
+      r.secret ? h('span', { style: { display: 'flex', color: 'var(--ink-muted)' }, title: 'Secret' }, h(DW.Icon, { name: 'lock', size: 12, label: 'Secret' })) : null);
+    const fields = [
+      { id: 'url', value: 'https://qzvbtxkmfhpw.supabase.co', kind: 'Public', used: 'storefront-web, api, worker' },
+      { id: 'anon_key', value: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi…', kind: 'Public', used: 'storefront-web' },
+      { id: 'service_key', secret: true, kind: 'Secret', used: 'api, worker' },
+      { id: 'pooled_url', secret: true, kind: 'Secret', used: 'Split into the 5 below' },
+      { id: 'host', part: true, value: 'aws-0-eu-central-1.pooler.supabase.com', kind: 'Part of pooled_url', used: 'metabase' },
+      { id: 'port', part: true, value: '6543', kind: 'Part of pooled_url', used: 'metabase' },
+      { id: 'database', part: true, value: 'postgres', kind: 'Part of pooled_url', used: 'metabase' },
+      { id: 'user', part: true, value: 'postgres.qzvbtxkmfhpw', kind: 'Part of pooled_url', used: 'metabase' },
+      { id: 'password', part: true, secret: true, kind: 'Secret', used: 'metabase' }
+    ];
+    const fieldCols = [
+      { key: 'id', header: 'Field', width: 168, render: fieldCell },
+      { key: 'value', header: 'Value', render: valueCell },
+      { key: 'used', header: 'Used by', width: 208, render: (r) => h('span', { style: Object.assign({}, r.used.indexOf(' ') > 0 && r.used.indexOf(',') < 0 ? { fontSize: 13 } : mono12, muted) }, r.used) }
+    ];
+
+    const events = [
+      { id: 1, kind: 'alert', tone: 'warning', title: 'Test failed from sfo-2-10', meta: 'metabase · refused by network restrictions', time: '3 min ago' },
+      { id: 5, kind: 'config', title: 'Bound to worker', actor: 'Leo Park', meta: 'storefront · 2 variables', time: '12 min ago' },
+      { id: 2, kind: 'config', title: 'Bound to metabase', actor: 'Mira Chen', meta: 'internal-tools · 6 variables', time: '26 min ago' },
+      { id: 3, kind: 'config', title: 'Revealed service_key', actor: 'Mira Chen', meta: 'Production · passkey', time: '2 Nov' }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      envs: [{ value: 'production', label: 'Production' }, { value: 'staging', label: 'Staging' }],
+      uses, useCols, fields, fieldCols, events,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

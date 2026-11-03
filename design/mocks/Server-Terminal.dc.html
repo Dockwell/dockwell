@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Terminal, hz-1</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="servers" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 12px;">
+<h1 class="title" style="margin: 0; font-family: var(--font-mono); letter-spacing: -0.02em;">hz-1</h1>
+<x-import component-from-global-scope="Dockwell.Tag">Runs the control plane</x-import>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Hetzner CX32 · Falkenstein · <span style="font-family: var(--font-mono); font-size: 12.5px;">49.12.33.7</span> · up 41 days</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="Add-Server.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>Add server</span></a>
+<x-import component-from-global-scope="Dockwell.Button" icon="refresh">Restart agent</x-import>
+</div>
+</div>
+<nav class="dw-tabs" aria-label="Server hz-1">
+<a href="Server-Overview.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Overview</a>
+<a href="Server-Files.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Files</a>
+<a href="Server-Terminal.dc.html" class="dw-tab" aria-selected="true" aria-current="page" style="text-decoration: none;">Terminal</a>
+<a href="Server-Firewall.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Firewall</a>
+<a href="Server-Processes.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Processes</a>
+<a href="Server-Updates.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Updates <span class="dw-tab-count dw-tone-warning">3</span></a>
+</nav>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch;">
+
+<section class="dw-panel" aria-label="Terminal sessions" style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; overflow: hidden;">
+<div style="display: flex; align-items: flex-end; gap: 4px; padding: 8px 8px 0; border-bottom: 1px solid var(--line);">
+<div role="tablist" aria-label="Sessions" style="display: flex; align-items: flex-end; gap: 4px; min-width: 0;">
+<button type="button" role="tab" aria-selected="true" style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px 0 12px; margin-bottom: -1px; border: 1px solid var(--line); border-bottom: 0; border-radius: 6px 6px 0 0; background: var(--surface-sunken); color: var(--ink); font: 550 12.5px/1 var(--font-mono); cursor: pointer;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="terminal" size="{{14}}"></x-import></span>
+<span>root@hz-1</span>
+<span aria-hidden="true" style="display: flex; padding: 3px; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="x" size="{{12}}"></x-import></span>
+</button>
+<button type="button" role="tab" aria-selected="false" style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0; background: transparent; color: var(--ink-muted); font: 500 13px/1 var(--font-sans); cursor: pointer;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface-sunken); border: 1px solid var(--line); font-size: 9.5px; font-weight: 600; color: var(--ink); box-sizing: border-box;">LP</span>
+<span><span style="color: var(--ink);">logs</span> — shared with Leo Park</span>
+</button>
+</div>
+<span style="display: flex; align-items: center; height: 36px;"><x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="plus" aria-label="New session"></x-import></span>
+<span style="flex: 1 1 auto;"></span>
+<span style="display: flex; align-items: center; gap: 2px; height: 36px;">
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="search" aria-label="Find in scrollback"></x-import>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="copy" aria-label="Copy selection"></x-import>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="more" aria-label="Session options"></x-import>
+</span>
+</div>
+<div role="log" aria-label="root@hz-1 output" style="flex: 1 1 auto; padding: 16px 20px; background: var(--surface-sunken); color: var(--ink); font: 400 12.5px/20px var(--font-mono); white-space: pre; overflow: auto;">{{term}}</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 9px 16px; border-top: 1px solid var(--line); font-size: 13px; line-height: 18px; color: var(--ink-muted);">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Connected through the agent"></x-import>
+<span>· no SSH port needed · session recorded to the <a href="Activity.dc.html" style="text-decoration: none;">audit log</a></span>
+<span style="flex: 1 1 auto;"></span>
+<span style="font: 400 12px/18px var(--font-mono);">104 × 30</span>
+</div>
+</section>
+
+<div style="flex: 0 1 320px; min-width: 280px; display: flex; flex-direction: column; gap: 16px;">
+<section class="dw-panel">
+<div class="dw-panel-head" style="padding-right: 8px;"><h2 class="dw-panel-title">Saved commands</h2><x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="plus">Add</x-import></div>
+<ul style="margin: 0; padding: 0; list-style: none;">
+{{saved}}
+</ul>
+<p style="margin: 0; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Runs in the open session, <code style="font-size: 12px; color: var(--ink);">root@hz-1</code></p>
+</section>
+
+<section class="dw-panel" style="flex: 1 1 auto; display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Share session</h2></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<p style="margin: 0; font-size: 13px; line-height: 20px; color: var(--ink-muted);">Let a teammate watch <code style="font-size: 12px; color: var(--ink);">root@hz-1</code> live. They can type only if you allow it.</p>
+<div><x-import component-from-global-scope="Dockwell.Button" icon="users">Share session</x-import></div>
+<div style="display: flex; flex-direction: column; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line);">
+<span style="font-size: 12px; font-weight: 500; color: var(--ink-muted);">Shared now</span>
+<div style="display: flex; align-items: center; gap: 10px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--surface-sunken); border: 1px solid var(--line); font-size: 11px; font-weight: 600; box-sizing: border-box;">LP</span>
+<span style="display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto;"><span style="font-size: 13.5px; line-height: 18px; font-weight: 500;">Leo Park</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Watching logs</span></span>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm">Stop sharing</x-import>
+</div>
+</div>
+</div>
+</section>
+</div>
+
+</div>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark"},"$preview":{"width":1440,"height":930}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const muted = { color: 'var(--ink-muted)' };
+    const prompt = (cmd, cursor) => [
+      h('span', { key: 'u', style: { fontWeight: 600 } }, 'root@hz-1'),
+      h('span', { key: 'p', style: muted }, ':~# '),
+      cmd ? h('span', { key: 'c' }, cmd) : null,
+      cursor ? h('span', { key: 'k', 'aria-hidden': true, style: { display: 'inline-block', width: '0.6em', height: 17, verticalAlign: '-4px', background: 'var(--ink)' } }) : null
+    ];
+    const pad = (s, n) => s + ' '.repeat(Math.max(1, n - s.length));
+    const ps = [
+      ['storefront-web', 'ghcr.io/acme/storefront:2c71f09', 'Up 2 days (healthy)'],
+      ['api', 'ghcr.io/acme/api:8be41d2', 'Up 4 minutes (healthy)'],
+      ['worker', 'ghcr.io/acme/worker:9a03e1b', 'Up 12 seconds (health: starting)'],
+      ['plausible', 'ghcr.io/plausible/community-edition:v2.1.4', 'Up 5 weeks (healthy)'],
+      ['uptime-kuma', 'louislam/uptime-kuma:1.23.16', 'Up 5 weeks (healthy)'],
+      ['n8n', 'n8nio/n8n:1.72.1', 'Up 5 weeks'],
+      ['postgres', 'postgres:17.2', 'Up 5 weeks (healthy)'],
+      ['valkey', 'valkey/valkey:8.1', 'Up 5 weeks (healthy)']
+    ];
+    const lines = [
+      'Welcome to Ubuntu 24.04.1 LTS (GNU/Linux 6.8.0-48-generic x86_64)',
+      '',
+      '  System load:  0.84               Processes:             187',
+      '  Usage of /:   38.1% of 160GB     Users logged in:       0',
+      '  Memory usage: 39%                IPv4 address for eth0: 49.12.33.7',
+      '  Swap usage:   0%',
+      '',
+      '3 updates can be applied immediately.',
+      '3 of these updates are standard security updates.',
+      '',
+      prompt('docker ps --format "table {{.Names}}\\t{{.Image}}\\t{{.Status}}"'),
+      pad('NAMES', 17) + pad('IMAGE', 45) + 'STATUS'
+    ].concat(ps.map(([n, i, s]) => pad(n, 17) + pad(i, 45) + s)).concat([
+      prompt('df -h'),
+      'Filesystem      Size  Used Avail Use% Mounted on',
+      'tmpfs           781M  1.4M  780M   1% /run',
+      '/dev/sda1       160G   61G   99G  39% /',
+      'tmpfs           3.9G     0  3.9G   0% /dev/shm',
+      'tmpfs           5.0M     0  5.0M   0% /run/lock',
+      '/dev/sda15      253M  146K  252M   1% /boot/efi',
+      'tmpfs           781M   12K  781M   1% /run/user/0',
+      prompt(null, true)
+    ]);
+    const term = lines.map((l, i) => h('div', { key: i, style: { minHeight: 20 } }, l));
+
+    const saved = [
+      ['Restart OpenResty', 'systemctl restart openresty'],
+      ['Tail api logs', 'docker logs -f --tail 200 api'],
+      ['Free disk space', 'docker system prune -f'],
+      ['Renew certificates', 'dockwell certs renew --all']
+    ].map(([name, cmd], i) => h('li', { key: i, style: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 8px 10px 16px', borderTop: i ? '1px solid var(--line)' : undefined } },
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: '1 1 auto' } },
+        h('span', { style: { fontSize: 13.5, lineHeight: '18px', fontWeight: 550 } }, name),
+        h('code', { style: { fontSize: 12, lineHeight: '18px', color: 'var(--ink-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, cmd)),
+      h(DW.Button, { variant: 'ghost', size: 'sm', icon: 'play', 'aria-label': 'Run ' + name }, 'Run')));
+
+    return {
+      theme: this.props.theme ?? 'dark',
+      term, saved,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

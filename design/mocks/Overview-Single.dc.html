@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Overview, one server</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="overview" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Overview</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Hetzner CX32 · 4 vCPU · 8 GB · Ubuntu 24.04 · up 41 days</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="Server-Files.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="folder" size="{{16}}"></x-import><span>Files</span></a>
+<a href="Server-Terminal.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="terminal" size="{{16}}"></x-import><span>Terminal</span></a>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px;">
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="CPU" value="23.4" unit="%" data="{{cpu}}" min="{{0}}" max="{{100}}" caption="Average over the last hour"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Memory" value="3.1" unit="of 8 GB" data="{{mem}}" min="{{0}}" max="{{100}}" threshold="{{85}}" caption="Alert above 85%"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Disk" value="61" unit="of 160 GB" data="{{disk}}" min="{{0}}" max="{{100}}" caption="Grows about 0.4 GB a day"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Network" value="12.4" unit="Mbit/s" data="{{net}}" tone="cobalt" caption="In and out, all apps"></x-import></div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<div style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Apps</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">6 apps · 5 healthy · 1 deploying</span>
+<span style="flex: 1 1 auto;"></span>
+<a href="Apps-List.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">View all</a>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{appCols}}" rows="{{apps}}" density="compact" caption="Apps on hz-1" on-row-click="{{noop}}"></x-import>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Websites</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">3 sites</span>
+<span style="flex: 1 1 auto;"></span>
+<a href="Websites-List.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">View all</a>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{siteCols}}" rows="{{sites}}" density="compact" caption="Websites on hz-1" on-row-click="{{noop}}"></x-import>
+</section>
+</div>
+
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Recent changes</h2><a href="Activity.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Activity</a></div>
+<div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.Timeline" events="{{events}}" on-undo="{{noop}}"></x-import></div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Backups</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="On schedule"></x-import></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 12px;">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px;">
+<dt style="color: var(--ink-muted);">Last run</dt><dd style="margin: 0;">Today 03:00 · 2.4 GB · 4 min</dd>
+<dt style="color: var(--ink-muted);">Next run</dt><dd style="margin: 0;">Tomorrow 03:00</dd>
+<dt style="color: var(--ink-muted);">Destination</dt><dd style="margin: 0;">Cloudflare R2 · <code style="font-size: 12px;">acme-backups</code></dd>
+<dt style="color: var(--ink-muted);">Restore drill</dt><dd style="margin: 0;">Passed Sunday · postgres in 3 min 12 s</dd>
+</dl>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="archive">Back up now</x-import>
+<a href="Backups.dc.html" class="dw-btn dw-btn-ghost dw-btn-sm" style="text-decoration: none;">Restore</a>
+</div>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Updates</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Checked 20 min ago</span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; gap: 10px; align-items: flex-start;">
+<span style="display: flex; padding-top: 5px; color: var(--warning);"><x-import component-from-global-scope="Dockwell.Glyph" shape="triangle" size="{{10}}"></x-import></span>
+<div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; font-weight: 500;">3 security updates for Ubuntu</span><span style="font-size: 12.5px; color: var(--ink-muted);">openssl, libssh, linux-image. Reboot needed, about 40 s.</span></div>
+</div>
+<div style="display: flex; gap: 10px; align-items: flex-start;">
+<span style="display: flex; padding-top: 5px; color: var(--healthy);"><x-import component-from-global-scope="Dockwell.Glyph" shape="circle" size="{{10}}"></x-import></span>
+<div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; font-weight: 500;">Dockwell 0.9.4 is current</span><span style="font-size: 12.5px; color: var(--ink-muted);">Agent and control plane</span></div>
+</div>
+<div><a href="Server-Updates.dc.html" class="dw-btn dw-btn-secondary dw-btn-sm" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="commit" size="{{14}}"></x-import><span>Review plan</span></a></div>
+</div>
+</section>
+</div>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1140}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const wave = (n, base, amp, seed) => Array.from({ length: n }, (_, i) => +(base + amp * Math.sin((i + seed) / 3.1) + amp * 0.5 * Math.sin((i * 7 + seed) / 5.3)).toFixed(1));
+    const tone = { healthy: 'ink', deploying: 'cobalt', degraded: 'warning', stopped: 'idle', down: 'critical' };
+    const cell = (t, s) => h('div', { className: 'dw-cell' }, h('span', { className: 'dw-cell-title' }, t), h('span', { className: 'dw-cell-sub' }, s));
+    const apps = [
+      { id: 'web', name: 'storefront-web', image: 'ghcr.io/acme/storefront:2c71f09', status: 'healthy', cpu: wave(20, 18, 4, 1), mem: '412 MB', domain: 'acme.dev' },
+      { id: 'api', name: 'api', image: 'ghcr.io/acme/api:8be41d2', status: 'healthy', cpu: wave(20, 26, 5, 2), mem: '688 MB', domain: 'api.acme.dev' },
+      { id: 'worker', name: 'worker', image: 'ghcr.io/acme/worker:9a03e1b', status: 'deploying', cpu: wave(20, 34, 6, 3), mem: '301 MB', domain: '—' },
+      { id: 'kuma', name: 'uptime-kuma', image: 'louislam/uptime-kuma:1.23.16', status: 'healthy', cpu: wave(20, 5, 1.5, 4), mem: '142 MB', domain: 'status.acme.dev' },
+      { id: 'n8n', name: 'n8n', image: 'n8nio/n8n:1.72.1', status: 'healthy', cpu: wave(20, 9, 2.5, 5), mem: '356 MB', domain: 'flows.acme.dev' },
+      { id: 'plausible', name: 'plausible', image: 'ghcr.io/plausible/community-edition:v2.1.4', status: 'healthy', cpu: wave(20, 8, 2, 6), mem: '520 MB', domain: 'stats.acme.dev' }
+    ];
+    const appCols = [
+      { key: 'name', header: 'App', render: (r) => cell(r.name, r.image) },
+      { key: 'status', header: 'Status', width: 128, render: (r) => h(DW.StatusBadge, { status: r.status }) },
+      { key: 'cpu', header: 'CPU, last hour', width: 128, render: (r) => h(DW.Sparkline, { data: r.cpu, width: 96, height: 20, min: 0, max: 100, tone: tone[r.status] }) },
+      { key: 'mem', header: 'Memory', width: 88, align: 'right' },
+      { key: 'domain', header: 'Domain', width: 136, mono: true, muted: true }
+    ];
+    const sites = [
+      { id: 'blog', name: 'blog.acme.dev', kind: 'Static files', cert: 'Valid · 61 days', status: 'healthy', at: '2 days ago' },
+      { id: 'legacy', name: 'shop-legacy.acme.dev', kind: 'PHP 8.3', cert: 'Valid · 74 days', status: 'healthy', at: '3 weeks ago' },
+      { id: 'docs', name: 'docs.acme.dev', kind: 'Static files', cert: 'Valid · 90 days', status: 'healthy', at: '5 days ago' }
+    ];
+    const siteCols = [
+      { key: 'name', header: 'Website', render: (r) => h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 13 } }, r.name) },
+      { key: 'kind', header: 'Type', width: 180, muted: true },
+      { key: 'status', header: 'Status', width: 128, render: (r) => h(DW.StatusBadge, { status: r.status }) },
+      { key: 'cert', header: 'Certificate', width: 136, muted: true },
+      { key: 'at', header: 'Changed', width: 104, align: 'right', muted: true }
+    ];
+    const events = [
+      { id: 1, kind: 'deploy', status: 'deploying', title: 'Deploying worker', revision: 'r57', actor: 'Push to main', time: 'now' },
+      { id: 2, kind: 'deploy', status: 'healthy', title: 'Deployed api', revision: 'r128', actor: 'Mira Chen', time: '4 min ago', undoable: true, undoLabel: 'Roll back' },
+      { id: 3, kind: 'config', title: 'Renewed certificate for docs.acme.dev', meta: 'Let’s Encrypt · 90 days', time: '2 h ago' },
+      { id: 4, kind: 'backup', tone: 'healthy', title: 'Backed up postgres to R2', meta: '2.4 GB · test restore passed', time: '11 h ago' }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      cpu: wave(40, 23, 5, 1), mem: wave(40, 39, 2, 7), disk: wave(40, 38, 0.6, 2), net: wave(24, 12, 1.6, 4),
+      apps, appCols, sites, siteCols, events,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

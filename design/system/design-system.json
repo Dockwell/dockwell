@@ -1,0 +1,38 @@
+{
+  "v": 3,
+  "layout": "files",
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-03T06:29:41Z"
+  },
+  "title": "Dockwell",
+  "namespace": "Dockwell",
+  "libraries": [
+    {
+      "name": "react",
+      "version": "18.3.1",
+      "global": "React",
+      "file": "components/lib/react.production.min.js"
+    },
+    {
+      "name": "react-dom",
+      "version": "18.3.1",
+      "global": "ReactDOM",
+      "file": "components/lib/react-dom.production.min.js"
+    }
+  ],
+  "sections": {},
+  "groups": [],
+  "assetGroups": {},
+  "blobs": {},
+  "docs": {
+    "readme": "project/README.md",
+    "sections": []
+  },
+  "lastChange": {
+    "by": "Ziyang",
+    "at": "2026-11-03T21:40:00Z",
+    "via": "Claude",
+    "note": "Add the Dockwell logo: Logo component, cover, brand/ SVG files"
+  }
+}

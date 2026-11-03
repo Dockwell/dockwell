@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>storefront-web is live</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-direction: column; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-height: 52px; padding: 10px 24px; border-bottom: 1px solid var(--line); box-sizing: border-box;">
+<x-import component-from-global-scope="Dockwell.Logo" variant="logotype" height="14"></x-import>
+<span aria-hidden="true" style="width: 1px; height: 16px; background: var(--line);"></span>
+<div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{16}}"></x-import></span>
+<span style="font: 500 13px/1 var(--font-mono);">hz-1</span>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+<span style="font: 400 12px/1 var(--font-mono); color: var(--ink-muted);">49.12.33.7</span>
+</div>
+<span style="flex: 1 1 auto;"></span>
+<a href="Overview-Single.dc.html" style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; text-decoration: none;"><span>Go to dashboard</span><x-import component-from-global-scope="Dockwell.Icon" name="arrow-right" size="{{14}}"></x-import></a>
+</header>
+
+<main style="flex: 1 1 auto; display: flex; justify-content: center; padding: 64px 24px 64px; box-sizing: border-box;">
+<div style="width: 100%; max-width: 1040px; display: flex; flex-direction: column; gap: 24px;">
+
+<div style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding-bottom: 24px;">
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">First deploy on hz-1</span>
+<h1 class="display" style="margin: 0;">storefront-web is live</h1>
+<a href="https://acme.dev" style="font: 500 20px/28px var(--font-mono); letter-spacing: -0.01em; text-decoration: none;">https://acme.dev</a>
+<div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px;">
+<a href="https://acme.dev" class="dw-btn dw-btn-primary dw-btn-lg" style="text-decoration: none;"><span>Open acme.dev</span><x-import component-from-global-scope="Dockwell.Icon" name="external" size="{{16}}"></x-import></a>
+<x-import component-from-global-scope="Dockwell.Button" size="lg" icon="copy">Copy URL</x-import>
+</div>
+<div style="display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 12px; margin-top: 8px; font-size: 13px; color: var(--ink-muted);">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" meta="1 replica"></x-import>
+<span aria-hidden="true">·</span>
+<span><code style="font-size: 12px; color: var(--ink);">r1</code> · <code style="font-size: 12px;">7d2e4f1</code> from <code style="font-size: 12px;">main</code></span>
+<span aria-hidden="true">·</span>
+<span>Certificate valid 90 days</span>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch;">
+
+<section class="dw-panel" style="flex: 3 1 460px; min-width: 0;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Steps</h2><span style="font-size: 13px; color: var(--ink-muted);">1 min 24 s in total</span></div>
+<ol style="margin: 0; padding: 4px 0; list-style: none;">
+<sc-for list="{{steps}}" as="s">
+<li style="{{s.style}}">
+<span style="display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--healthy-soft); color: var(--healthy);"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{12}}" stroke-width="{{2.25}}" label="Done"></x-import></span>
+<span style="flex: none; width: 104px; font-size: 14px; font-weight: 500;">{{s.name}}</span>
+<span style="flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--ink-muted);">{{s.detail}}</span>
+<span style="flex: none; font-size: 13px; color: var(--ink);">{{s.time}}</span>
+</li>
+</sc-for>
+</ol>
+</section>
+
+<section class="dw-panel" style="flex: 2 1 320px; min-width: 0; display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Next</h2></div>
+<ul style="flex: 1 1 auto; margin: 0; padding: 4px 0; list-style: none; display: flex; flex-direction: column;">
+<li style="flex: 1 1 auto; display: flex; border-bottom: 1px solid var(--line);">
+<a href="Databases-List.dc.html" style="flex: 1 1 auto; display: flex; align-items: center; gap: 12px; padding: 12px 16px; color: var(--ink); text-decoration: none;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="database" size="{{16}}"></x-import></span>
+<span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; line-height: 20px; font-weight: 500;">Add a database</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">PostgreSQL or Valkey on hz-1</span></span>
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-right" size="{{16}}"></x-import></span>
+</a>
+</li>
+<li style="flex: 1 1 auto; display: flex; border-bottom: 1px solid var(--line);">
+<a href="Backups.dc.html" style="flex: 1 1 auto; display: flex; align-items: center; gap: 12px; padding: 12px 16px; color: var(--ink); text-decoration: none;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="archive" size="{{16}}"></x-import></span>
+<span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; line-height: 20px; font-weight: 500;">Turn on backups</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Daily, to any S3-compatible bucket</span></span>
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-right" size="{{16}}"></x-import></span>
+</a>
+</li>
+<li style="flex: 1 1 auto; display: flex;">
+<a href="App-Settings.dc.html" style="flex: 1 1 auto; display: flex; align-items: center; gap: 12px; padding: 12px 16px; color: var(--ink); text-decoration: none;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="branch" size="{{16}}"></x-import></span>
+<span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; line-height: 20px; font-weight: 500;">Deploy on every push</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Pushes to main redeploy storefront-web</span></span>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="On"></x-import>
+</a>
+</li>
+</ul>
+</section>
+
+</div>
+
+<x-import component-from-global-scope="Dockwell.LogStream" title="Build log" lines="{{log}}" height="{{152}}" follow="{{no}}" toolbar="{{logTools}}"></x-import>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement;
+    const steps = [
+      { name: 'Clone', detail: 'acme/storefront at 7d2e4f1', time: '3 s' },
+      { name: 'Build', detail: 'Dockerfile · Next.js · image 184 MB', time: '52 s' },
+      { name: 'Start', detail: '1 replica on port 3000', time: '4 s' },
+      { name: 'Health check', detail: 'GET / returned 200', time: '6 s' },
+      { name: 'Certificate', detail: 'Let’s Encrypt for acme.dev and www.acme.dev', time: '19 s' }
+    ].map((s, i, all) => Object.assign(s, {
+      style: 'display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 16px;' + (i < all.length - 1 ? ' border-bottom: 1px solid var(--line);' : '')
+    }));
+    const log = [
+      { time: '14:18:36.204', source: 'clone', text: 'Cloning acme/storefront at main (7d2e4f1)' },
+      { time: '14:18:39.087', source: 'build', text: 'Found Dockerfile · Next.js 15' },
+      { time: '14:18:41.530', source: 'build', text: '[deps 3/6] RUN npm ci · added 412 packages in 18 s' },
+      { time: '14:19:12.906', source: 'build', text: '[build 5/6] RUN npm run build · compiled in 11.4 s' },
+      { time: '14:19:31.022', source: 'build', text: 'Image storefront-web:r1 ready · 184 MB' },
+      { time: '14:19:35.140', source: 'start', text: 'Started 1 replica on port 3000' },
+      { time: '14:19:41.377', source: 'health', text: 'GET / returned 200 in 38 ms · sending traffic' },
+      { time: '14:20:00.215', source: 'cert', text: 'Issued Let’s Encrypt certificate for acme.dev, www.acme.dev' }
+    ].map((l, i) => Object.assign({ id: i }, l));
+    const logTools = h('a', { href: 'App-Deployments.dc.html', className: 'dw-btn dw-btn-ghost dw-btn-sm', style: { textDecoration: 'none' } }, h('span', null, 'Full log'));
+    return {
+      theme: this.props.theme ?? 'light',
+      no: false,
+      steps, log, logTools
+    };
+  }
+}
+</script>
+</body>
+</html>

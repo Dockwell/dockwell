@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>App api, previews</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="apps" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: var(--ink-muted);"><a href="Apps-List.dc.html" style="color: var(--ink-muted); text-decoration: none;">Apps</a><span aria-hidden="true">/</span><span aria-current="page">api</span></nav>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;">
+<h1 class="title" style="margin: 0;">api</h1>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+<x-import component-from-global-scope="Dockwell.Tag" icon="branch">main</x-import>
+<code class="code-sm" style="color: var(--ink-muted);">r128</code>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Go · 3 replicas in fra-1 and ams-1 · deployed 4 min ago by Mira Chen</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" icon="refresh">Restart</x-import>
+<a href="App-Logs.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="terminal" size="{{16}}"></x-import><span>Logs</span></a>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="deploy">Deploy</x-import>
+</div>
+</div>
+<div class="dw-tabs" role="tablist" aria-label="App sections">
+<a href="App-Overview.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Overview</span></a>
+<a href="App-Deployments.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Deployments</span><span class="dw-tab-count">128</span></a>
+<a href="App-Logs.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Logs</span></a>
+<a href="App-Environment.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Environment</span></a>
+<a href="App-Settings.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Settings</span></a>
+<a href="App-Previews.dc.html" class="dw-tab" role="tab" aria-selected="true" style="text-decoration: none;"><span>Previews</span><span class="dw-tab-count">3</span></a>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<section style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Pull request previews</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">3 open · 1 awake · 2 of 5 slots free</span>
+</div>
+
+<article class="dw-panel" aria-labelledby="pr482">
+<div style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line);">
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;"><h3 id="pr482" style="margin: 0; font-size: 14px; line-height: 20px; font-weight: 550;"><span style="color: var(--ink-muted); font-weight: 500;">#482</span> Add saved carts</h3><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import></div>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);"><code class="code-sm">leo/saved-carts</code> · Leo Park · opened 1 Nov</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon-after="external">Open</x-import>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="more" aria-label="More actions for pull request 482"></x-import>
+</div>
+<dl style="margin: 0; padding: 12px 16px 16px; display: flex; flex-wrap: wrap; gap: 12px 24px;">
+<div style="flex: 1.3 1 200px; display: flex; flex-direction: column; gap: 2px; min-width: 0;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">URL</dt><dd style="margin: 0; font-size: 13px; line-height: 20px; white-space: nowrap;"><a href="https://pr-482.preview.acme.dev" style="font-family: var(--font-mono); font-size: 12.5px; text-decoration: none;">pr-482.preview.acme.dev</a></dd></div>
+<div style="flex: 1 1 150px; display: flex; flex-direction: column; gap: 2px;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Database</dt><dd style="margin: 0; font-size: 13px; line-height: 20px; display: flex; flex-direction: column;"><span>Staging snapshot</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Taken 13:40</span></dd></div>
+<div style="flex: 1 1 150px; display: flex; flex-direction: column; gap: 2px;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Last activity</dt><dd style="margin: 0; font-size: 13px; line-height: 20px; display: flex; flex-direction: column;"><span>2 min ago</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Awake, sleeps at 14:48</span></dd></div>
+<div style="flex: 0.6 1 80px; display: flex; flex-direction: column; gap: 2px;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Closes</dt><dd style="margin: 0; font-size: 13px; line-height: 20px;">On merge</dd></div>
+</dl>
+</article>
+
+<article class="dw-panel" aria-labelledby="pr479">
+<div style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line);">
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;"><h3 id="pr479" style="margin: 0; font-size: 14px; line-height: 20px; font-weight: 550;"><span style="color: var(--ink-muted); font-weight: 500;">#479</span> Paginate order history</h3><x-import component-from-global-scope="Dockwell.StatusBadge" status="stopped" label="Asleep"></x-import></div>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);"><code class="code-sm">sam/order-history-pages</code> · Sam Okafor · opened 30 Oct</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon-after="external">Open</x-import>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="more" aria-label="More actions for pull request 479"></x-import>
+</div>
+<dl style="margin: 0; padding: 12px 16px 16px; display: flex; flex-wrap: wrap; gap: 12px 24px;">
+<div style="flex: 1.3 1 200px; display: flex; flex-direction: column; gap: 2px; min-width: 0;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">URL</dt><dd style="margin: 0; font-size: 13px; line-height: 20px; white-space: nowrap;"><a href="https://pr-479.preview.acme.dev" style="font-family: var(--font-mono); font-size: 12.5px; text-decoration: none;">pr-479.preview.acme.dev</a></dd></div>
+<div style="flex: 1 1 150px; display: flex; flex-direction: column; gap: 2px;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Database</dt><dd style="margin: 0; font-size: 13px; line-height: 20px; display: flex; flex-direction: column;"><span>Staging snapshot</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Taken 09:10</span></dd></div>
+<div style="flex: 1 1 150px; display: flex; flex-direction: column; gap: 2px;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Last activity</dt><dd style="margin: 0; font-size: 13px; line-height: 20px; display: flex; flex-direction: column;"><span>1 h ago</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Asleep, wakes on request</span></dd></div>
+<div style="flex: 0.6 1 80px; display: flex; flex-direction: column; gap: 2px;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Closes</dt><dd style="margin: 0; font-size: 13px; line-height: 20px;">On merge</dd></div>
+</dl>
+</article>
+
+<article class="dw-panel" aria-labelledby="pr475">
+<div style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line);">
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;"><h3 id="pr475" style="margin: 0; font-size: 14px; line-height: 20px; font-weight: 550;"><span style="color: var(--ink-muted); font-weight: 500;">#475</span> Rate limit by API key</h3><x-import component-from-global-scope="Dockwell.StatusBadge" status="deploying" label="Building" meta="31 s"></x-import></div>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);"><code class="code-sm">leo/key-rate-limits</code> · Leo Park · pushed 1 min ago</span>
+</div>
+<a href="App-Logs.dc.html" class="dw-btn dw-btn-secondary dw-btn-sm" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="terminal" size="{{14}}"></x-import><span>Build log</span></a>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="more" aria-label="More actions for pull request 475"></x-import>
+</div>
+<dl style="margin: 0; padding: 12px 16px 16px; display: flex; flex-wrap: wrap; gap: 12px 24px;">
+<div style="flex: 1.3 1 200px; display: flex; flex-direction: column; gap: 2px; min-width: 0;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">URL</dt><dd style="margin: 0; font-size: 13px; line-height: 20px; white-space: nowrap;"><code style="font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-muted);">pr-475.preview.acme.dev</code></dd></div>
+<div style="flex: 1 1 150px; display: flex; flex-direction: column; gap: 2px;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Database</dt><dd style="margin: 0; font-size: 13px; line-height: 20px; display: flex; flex-direction: column;"><span>Staging snapshot</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Taken 13:40</span></dd></div>
+<div style="flex: 1 1 150px; display: flex; flex-direction: column; gap: 2px;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Last activity</dt><dd style="margin: 0; font-size: 13px; line-height: 20px; display: flex; flex-direction: column;"><span>1 min ago</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Building on <code class="code-sm">sfo-2-03</code></span></dd></div>
+<div style="flex: 0.6 1 80px; display: flex; flex-direction: column; gap: 2px;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Closes</dt><dd style="margin: 0; font-size: 13px; line-height: 20px;">On merge</dd></div>
+</dl>
+</article>
+</section>
+
+<aside style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section class="dw-panel" aria-labelledby="rules-t">
+<div class="dw-panel-head"><h2 id="rules-t" class="dw-panel-title">Preview rules</h2><a href="App-Settings.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Edit</a></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 12px 16px; font-size: 13px; line-height: 20px;">
+<dt style="color: var(--ink-muted); line-height: 22px;">Create for</dt><dd style="margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">Pull requests labelled <x-import component-from-global-scope="Dockwell.Tag" icon="pin">preview</x-import></dd>
+<dt style="color: var(--ink-muted);">Limit</dt><dd style="margin: 0; display: flex; flex-direction: column; gap: 6px;"><span>At most 5 at a time</span>
+<span aria-hidden="true" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; width: 100%; max-width: 160px;"><span style="height: 6px; border-radius: 2px; background: var(--ink);"></span><span style="height: 6px; border-radius: 2px; background: var(--ink);"></span><span style="height: 6px; border-radius: 2px; background: var(--ink);"></span><span style="height: 6px; border-radius: 2px; background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--line);"></span><span style="height: 6px; border-radius: 2px; background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--line);"></span></span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">3 in use. Newer pull requests wait for a free slot.</span></dd>
+<dt style="color: var(--ink-muted);">Database</dt><dd style="margin: 0;">Seed from the latest staging snapshot of <span style="font-weight: 500;">postgres</span></dd>
+<dt style="color: var(--ink-muted);">Sleep</dt><dd style="margin: 0;">After 30 min without requests. The next request wakes it in about 4 s.</dd>
+<dt style="color: var(--ink-muted);">Domain</dt><dd style="margin: 0;"><code class="code-sm">*.preview.acme.dev</code>, wildcard certificate</dd>
+<dt style="color: var(--ink-muted);">Close</dt><dd style="margin: 0;">When the pull request merges or closes. The database copy is deleted.</dd>
+</dl>
+</div>
+</section>
+<section class="dw-panel" aria-labelledby="closed-t">
+<div class="dw-panel-head"><h2 id="closed-t" class="dw-panel-title">Recently closed</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Databases deleted</span></div>
+<ul style="margin: 0; padding: 4px 0; list-style: none;">
+<li style="display: flex; align-items: baseline; gap: 12px; padding: 8px 16px; font-size: 13px; line-height: 20px;"><span style="color: var(--ink-muted); font-weight: 500;">#471</span><span style="flex: 1 1 auto; min-width: 0;">Add gift card balance</span><span style="color: var(--ink-muted); white-space: nowrap;">Merged 2 Nov</span></li>
+<li style="display: flex; align-items: baseline; gap: 12px; padding: 8px 16px; font-size: 13px; line-height: 20px;"><span style="color: var(--ink-muted); font-weight: 500;">#468</span><span style="flex: 1 1 auto; min-width: 0;">Retry Stripe webhooks with backoff</span><span style="color: var(--ink-muted); white-space: nowrap;">Merged 1 Nov</span></li>
+<li style="display: flex; align-items: baseline; gap: 12px; padding: 8px 16px; font-size: 13px; line-height: 20px;"><span style="color: var(--ink-muted); font-weight: 500;">#466</span><span style="flex: 1 1 auto; min-width: 0;">Try pgx batch inserts</span><span style="color: var(--ink-muted); white-space: nowrap;">Closed 30 Oct</span></li>
+</ul>
+</section>
+</aside>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":780}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      theme: this.props.theme ?? 'light',
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

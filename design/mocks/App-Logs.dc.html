@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>App api, logs</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="apps" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: var(--ink-muted);"><a href="Apps-List.dc.html" style="color: var(--ink-muted); text-decoration: none;">Apps</a><span aria-hidden="true">/</span><span aria-current="page">api</span></nav>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;">
+<h1 class="title" style="margin: 0;">api</h1>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+<x-import component-from-global-scope="Dockwell.Tag" icon="branch">main</x-import>
+<code class="code-sm" style="color: var(--ink-muted);">r128</code>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Go · 3 replicas in fra-1 and ams-1 · deployed 4 min ago by Mira Chen</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" icon="refresh">Restart</x-import>
+<a href="App-Logs.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="terminal" size="{{16}}"></x-import><span>Logs</span></a>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="deploy">Deploy</x-import>
+</div>
+</div>
+<div class="dw-tabs" role="tablist" aria-label="App sections">
+<a href="App-Overview.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Overview</span></a>
+<a href="App-Deployments.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Deployments</span><span class="dw-tab-count">128</span></a>
+<a href="App-Logs.dc.html" class="dw-tab" role="tab" aria-selected="true" style="text-decoration: none;"><span>Logs</span></a>
+<a href="App-Environment.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Environment</span></a>
+<a href="App-Settings.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Settings</span></a>
+<a href="App-Previews.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Previews</span><span class="dw-tab-count">3</span></a>
+</div>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div role="toolbar" aria-label="Log filters" style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+<div style="flex: 1 1 240px; max-width: 320px; min-width: 200px;"><x-import component-from-global-scope="Dockwell.TextField" size="sm" icon="search" mono="{{yes}}" placeholder="status:5xx" aria-label="Search logs"></x-import></div>
+<div role="group" aria-label="Levels" style="display: flex; align-items: center; gap: 6px;">
+<button type="button" aria-pressed="true" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--surface); color: var(--ink); font: 550 12.5px/1 var(--font-sans); cursor: pointer;">Info</button>
+<button type="button" aria-pressed="true" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--surface); color: var(--ink); font: 550 12.5px/1 var(--font-sans); cursor: pointer;"><span style="display: flex; color: var(--warning);"><x-import component-from-global-scope="Dockwell.Glyph" shape="triangle" size="{{9}}"></x-import></span>Warn</button>
+<button type="button" aria-pressed="true" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--surface); color: var(--ink); font: 550 12.5px/1 var(--font-sans); cursor: pointer;"><span style="display: flex; color: var(--critical);"><x-import component-from-global-scope="Dockwell.Glyph" shape="square" size="{{9}}"></x-import></span>Error</button>
+</div>
+<span style="flex: 1 1 0;"></span>
+<x-import component-from-global-scope="Dockwell.SegmentedControl" size="sm" label="Replica" options="{{replicas}}" default-value="all"></x-import>
+<x-import component-from-global-scope="Dockwell.SegmentedControl" size="sm" label="Time range" options="{{ranges}}" default-value="live"></x-import>
+</div>
+<x-import component-from-global-scope="Dockwell.LogStream" title="api · production · 3 replicas" live="{{yes}}" height="{{560}}" lines="{{lines}}" toolbar="{{toolbar}}"></x-import>
+</section>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark"},"$preview":{"width":1440,"height":970}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const mono = (t) => h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, t);
+    const raw = [
+      ['58.012', 'fra-1-04', 'info', 'GET /v1/products/8812 200 9 ms'],
+      ['58.047', 'ams-1-02', 'info', 'GET /v1/cart/c_7f3a91 200 6 ms'],
+      ['58.090', 'fra-1-11', 'info', 'POST /v1/cart/c_7f3a91/items 201 23 ms'],
+      ['58.133', 'fra-1-04', 'info', 'GET /v1/orders?status=open&limit=50 200 31 ms'],
+      ['58.171', 'fra-1-11', 'info', 'GET /healthz 200 1 ms'],
+      ['58.214', 'ams-1-02', 'info', 'GET /v1/products?category=bags 200 18 ms'],
+      ['58.262', 'fra-1-04', 'info', 'POST /v1/orders/export 202 44 ms export=exp_2Qd8 rows=1840'],
+      ['58.309', 'fra-1-11', 'info', 'GET /v1/customers/cus_19ab/addresses 200 12 ms'],
+      ['58.355', 'ams-1-02', 'info', 'GET /v1/products/4471 200 7 ms'],
+      ['58.402', 'fra-1-04', 'info', 'GET /v1/cart/c_02be14 200 5 ms'],
+      ['58.451', 'ams-1-02', 'info', 'POST /v1/checkout/quote 200 412 ms'],
+      ['58.497', 'fra-1-11', 'info', 'GET /v1/orders/ord_88213 200 14 ms'],
+      ['58.538', 'fra-1-04', 'info', 'GET /v1/products?category=shoes&page=2 200 21 ms'],
+      ['58.590', 'ams-1-02', 'info', 'GET /healthz 200 1 ms'],
+      ['58.641', 'fra-1-11', 'info', 'PATCH /v1/cart/c_7f3a91/items/it_31 200 17 ms'],
+      ['58.703', 'fra-1-04', 'info', 'GET /v1/orders/export/exp_2Qd8 200 8 ms status=running'],
+      ['58.757', 'ams-1-02', 'info', 'GET /v1/products/1209 200 6 ms'],
+      ['58.806', 'fra-1-11', 'info', 'POST /v1/sessions 201 29 ms'],
+      ['58.862', 'fra-1-04', 'warn', 'slow upstream checkout: POST /quote took 2.41 s (limit 1 s)'],
+      ['58.866', 'fra-1-04', 'info', 'POST /v1/checkout/quote 200 2.43 s'],
+      ['58.918', 'ams-1-02', 'info', 'GET /v1/cart/c_5d10e2 200 5 ms'],
+      ['58.977', 'fra-1-11', 'info', 'GET /v1/orders?status=shipped&limit=20 200 26 ms'],
+      ['59.034', 'fra-1-04', 'info', 'GET /healthz 200 1 ms'],
+      ['59.088', 'ams-1-02', 'info', 'DELETE /v1/cart/c_5d10e2/items/it_07 204 11 ms'],
+      ['59.141', 'fra-1-11', 'info', 'GET /v1/products/8812/stock 200 4 ms cache=hit'],
+      ['59.203', 'ams-1-02', 'error', 'POST /v1/checkout/quote 502 3.00 s upstream checkout: connection reset by peer (attempt 1 of 2)'],
+      ['59.247', 'fra-1-04', 'info', 'GET /v1/products?category=bags 200 15 ms'],
+      ['59.296', 'fra-1-11', 'info', 'POST /v1/cart/c_91fa03/items 201 21 ms'],
+      ['59.352', 'ams-1-02', 'info', 'POST /v1/checkout/quote 200 388 ms retry=2'],
+      ['59.410', 'fra-1-04', 'info', 'GET /v1/orders/ord_88197 200 13 ms'],
+      ['59.466', 'fra-1-11', 'info', 'GET /v1/customers/cus_07c2 200 9 ms'],
+      ['59.519', 'ams-1-02', 'info', 'GET /v1/products/2290 200 6 ms'],
+      ['59.574', 'fra-1-04', 'info', 'GET /v1/orders/export/exp_2Qd8 200 7 ms status=done url=r2://acme-exports/exp_2Qd8.csv'],
+      ['59.630', 'fra-1-11', 'info', 'GET /healthz 200 1 ms']
+    ];
+    const lines = raw.map((l, i) => ({ id: i, time: '14:19:' + l[0], source: l[1], level: l[2], text: l[3] }));
+    const toolbar = h(React.Fragment, null,
+      h('a', { href: 'Global-Assistant.dc.html', className: 'dw-btn dw-btn-ghost dw-btn-sm', style: { textDecoration: 'none' } }, h(DW.Icon, { name: 'chat', size: 14 }), h('span', null, 'Explain errors')),
+      h(DW.Button, { size: 'sm', variant: 'ghost', icon: 'download', 'aria-label': 'Download these lines' }));
+    return {
+      theme: this.props.theme ?? 'dark',
+      lines, toolbar,
+      replicas: [
+        { value: 'all', label: 'All replicas' },
+        { value: 'fra-1-04', label: mono('fra-1-04') },
+        { value: 'fra-1-11', label: mono('fra-1-11') },
+        { value: 'ams-1-02', label: mono('ams-1-02') }
+      ],
+      ranges: [{ value: 'live', label: 'Live' }, { value: '15m', label: '15 min' }, { value: '1h', label: '1 h' }, { value: '24h', label: '24 h' }],
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

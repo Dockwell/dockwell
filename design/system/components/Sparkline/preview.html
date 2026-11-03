@@ -1,0 +1,23 @@
+<!-- @dsCard group="Data" height=112 subtitle="Shape without axes, inline with text or in table cells" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sparkline</title>
+<style>
+  .demo { padding: 24px; display: grid; grid-template-columns: repeat(3, auto); gap: 14px 40px; justify-content: start; align-items: center; font-size: 13px; color: var(--ink-muted); }
+  .demo span { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement, S = H.Sparkline;
+  var a = [12,14,13,18,17,21,19,24,22,26,25,29,27,31];
+  var b = [52,55,54,58,63,61,67,72,70,76,81,84,83,88];
+  var c = [9,11,10,12,11,10,12,13,11,12,14,13,12,13];
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'demo' },
+    h('span', null, h(S, { data: a, width: 96, height: 24 }), 'Ink, the default'),
+    h('span', null, h(S, { data: c, width: 96, height: 24, tone: 'cobalt' }), 'Cobalt for live traffic'),
+    h('span', null, h(S, { data: b, width: 96, height: 24, tone: 'warning', threshold: 80, area: false }), 'Warning with an 80% line')));
+</script>
+</body>
+</html>

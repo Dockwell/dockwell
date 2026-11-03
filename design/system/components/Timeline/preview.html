@@ -1,0 +1,22 @@
+<!-- @dsCard group="Changes" height=392 subtitle="Deploys, config changes, alerts and servers on one line of time" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Timeline</title>
+<style> .demo { margin: 24px; padding: 16px 16px 16px 16px; max-width: 560px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); } </style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement;
+  var events = [
+    { id: 1, kind: 'deploy', title: 'Deployed api-gateway to production', status: 'healthy', revision: 'r128', actor: 'Mira Chen', time: '4 min ago', undoable: true, undoLabel: 'Roll back' },
+    { id: 2, kind: 'alert', tone: 'warning', title: 'Memory above 90% on fra-1-07', meta: 'Degraded for 6 min', time: '9 min ago' },
+    { id: 3, kind: 'config', title: 'Changed LOG_LEVEL in staging', revision: 'r41', actor: 'Leo Park', time: '32 min ago', undoable: true },
+    { id: 4, kind: 'server', title: 'ams-1-16 joined the fleet', meta: 'DigitalOcean · 4 vCPU · arm64', time: '1 h ago' },
+    { id: 5, kind: 'backup', tone: 'healthy', title: 'Backed up postgres to R2', meta: '2.4 GB · test restore passed', time: '3 h ago' }
+  ];
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'demo' },
+    h(H.Timeline, { events: events, onUndo: function (e) { console.log('undo', e.id); } })));
+</script>
+</body>
+</html>

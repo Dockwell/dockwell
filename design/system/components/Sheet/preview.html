@@ -1,0 +1,41 @@
+<!-- @dsCard group="Overlays" height=640 subtitle="Side sheet for plans and settings; the page stays visible behind it" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sheet</title>
+<style>
+  .stage { position: relative; height: 640px; box-sizing: border-box; padding: 8px; display: flex; justify-content: flex-end; background: var(--canvas); overflow: hidden; }
+  .stage::before { content: ""; position: absolute; inset: 0; background: var(--scrim); }
+  .ghost { position: absolute; left: 24px; top: 24px; right: 600px; display: flex; flex-direction: column; gap: 12px; }
+  .ghost i { display: block; height: 14px; border-radius: 4px; background: var(--line); }
+  .slot { position: relative; width: 560px; max-width: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement, B = H.Button;
+  var resources = [
+    { id: 'svc', action: 'update', kind: 'service', kindLabel: 'App', name: 'api-gateway', note: 'Rolling update', changes: [
+      { path: 'image', from: 'ghcr.io/acme/api:3f9c0a1', to: 'ghcr.io/acme/api:8be41d2' },
+      { path: 'replicas', from: 2, to: 3 }] },
+    { id: 'dom', action: 'create', kind: 'domain', kindLabel: 'Domain', name: 'eu.api.acme.dev', changes: [
+      { path: 'routes to', to: 'api-gateway:8080' }] },
+    { id: 'job', action: 'destroy', kind: 'job', kindLabel: 'Job', name: 'cleanup-legacy-sessions', changes: [{ path: 'schedule', from: '*/15 * * * *' }] }
+  ];
+  function Demo() {
+    var s = React.useState(false), busy = s[0], set = s[1];
+    return h('div', { className: 'stage' },
+      h('div', { className: 'ghost', 'aria-hidden': true }, h('i', { style: { width: '40%', height: '22px' } }), h('i', { style: { width: '70%' } }), h('i', { style: { width: '55%' } })),
+      h('div', { className: 'slot' }, h(H.Sheet, { inline: true, title: 'Review plan', subtitle: 'Deploy api-gateway r128 to production', onClose: function () {},
+        footer: h(React.Fragment, null,
+          h('span', { className: 'dw-sheet-note' }, h(H.Icon, { name: 'clock', size: 14 }), 'About 40 s · undo for 7 days'),
+          h(B, { variant: 'ghost' }, 'Cancel'),
+          h(B, { variant: 'primary', icon: 'check', kbd: '⌘↵', loading: busy, onClick: function () { set(true); setTimeout(function () { set(false); }, 2500); } }, busy ? 'Applying' : 'Apply plan')) },
+        h(H.Callout, { tone: 'info', title: 'Production is protected', className: 'mb' }, 'Applying needs one more approval from an admin in Acme.'),
+        h('div', { style: { height: 16 } }),
+        h(H.PlanDiff, { resources: resources, impact: 'No downtime expected' }))));
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

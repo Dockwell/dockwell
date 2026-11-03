@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Websites</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="websites" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Websites</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">3 sites on hz-1</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="Server-Files.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="folder" size="{{16}}"></x-import><span>Files</span></a>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="plus">New website</x-import>
+</div>
+</div>
+
+<x-import component-from-global-scope="Dockwell.Table" columns="{{siteCols}}" rows="{{sites}}" caption="Websites on hz-1" on-row-click="{{noop}}"></x-import>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Runtimes</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">2 installed · shared by every website on hz-1</span>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 12px;">
+
+<article class="dw-panel" style="display: flex; flex-direction: column;">
+<div style="display: flex; align-items: center; gap: 12px; padding: 16px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--line); font-size: 14px; font-weight: 600; letter-spacing: -0.01em;">Ph</span>
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto;">
+<h3 style="margin: 0; font-size: 14px; line-height: 20px; font-weight: 600;">PHP 8.3</h3>
+<span class="code-sm" style="color: var(--ink-muted);">8.3.13 · php-fpm</span>
+</div>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Running"></x-import>
+</div>
+<dl style="margin: 0; padding: 12px 16px; display: grid; grid-template-columns: 96px 1fr; gap: 8px 16px; font-size: 13px; border-top: 1px solid var(--line); flex: 1 1 auto;">
+<dt style="color: var(--ink-muted);">Used by</dt><dd style="margin: 0;">1 website · <a href="Website-Detail.dc.html" style="font: 400 12.5px/1 var(--font-mono); text-decoration: none;">shop-legacy.acme.dev</a></dd>
+<dt style="color: var(--ink-muted);">Extensions</dt><dd style="margin: 0; font: 400 12px/18px var(--font-mono);">opcache, mysqli, gd, intl, imagick <span style="font-family: var(--font-sans); color: var(--ink-muted);">and 9 more</span></dd>
+</dl>
+<div style="display: flex; gap: 8px; padding: 0 16px 16px;">
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="settings">Settings</x-import>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="layers">Extensions</x-import>
+</div>
+</article>
+
+<article class="dw-panel" style="display: flex; flex-direction: column;">
+<div style="display: flex; align-items: center; gap: 12px; padding: 16px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--line); font-size: 14px; font-weight: 600; letter-spacing: -0.01em;">No</span>
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto;">
+<h3 style="margin: 0; font-size: 14px; line-height: 20px; font-weight: 600;">Node.js 22</h3>
+<span class="code-sm" style="color: var(--ink-muted);">22.11.0 LTS</span>
+</div>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="stopped" label="Idle"></x-import>
+</div>
+<dl style="margin: 0; padding: 12px 16px; display: grid; grid-template-columns: 96px 1fr; gap: 8px 16px; font-size: 13px; border-top: 1px solid var(--line); flex: 1 1 auto;">
+<dt style="color: var(--ink-muted);">Used by</dt><dd style="margin: 0;">0 websites</dd>
+<dt style="color: var(--ink-muted);">Package tools</dt><dd style="margin: 0; font: 400 12px/18px var(--font-mono);">npm 10.9, pnpm 9.12</dd>
+</dl>
+<div style="display: flex; gap: 8px; padding: 0 16px 16px;">
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="settings">Settings</x-import>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="trash">Remove</x-import>
+</div>
+</article>
+
+</div>
+
+<section class="dw-panel" aria-labelledby="add-runtime">
+<div class="dw-panel-head"><h3 id="add-runtime" class="dw-panel-title">Add runtime</h3><span style="font-size: 12.5px; color: var(--ink-muted);">Pick a language, then a version</span></div>
+<div class="dw-panel-body" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(176px, 100%), 1fr)); gap: 8px;">
+<sc-for list="{{choices}}" as="rt">
+<button type="button" class="dw-btn dw-btn-secondary" style="height: 56px; justify-content: flex-start; gap: 12px; padding: 0 12px; text-align: left;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--radius-xs); background: var(--surface-sunken); border: 1px solid var(--line); font-size: 12.5px; font-weight: 600; color: var(--ink);">{{rt.mono}}</span>
+<span style="display: flex; flex-direction: column; gap: 3px; min-width: 0;"><span style="font-size: 13.5px; font-weight: 550; color: var(--ink);">{{rt.name}}</span><span style="font-size: 12px; font-weight: 400; color: var(--ink-muted);">{{rt.versions}}</span></span>
+<span style="flex: 1 1 auto;"></span>
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import></span>
+</button>
+</sc-for>
+</div>
+</section>
+</section>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":770}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const mono = { fontFamily: 'var(--font-mono)' };
+    const sites = [
+      { id: 'blog', name: 'blog.acme.dev', root: '/var/www/blog', kind: 'Static files', status: 'healthy', days: 61, size: '186 MB', at: '1 Nov' },
+      { id: 'docs', name: 'docs.acme.dev', root: '/var/www/docs', kind: 'Static files', status: 'healthy', days: 90, size: '42 MB', at: '29 Oct' },
+      { id: 'legacy', name: 'shop-legacy.acme.dev', root: '/var/www/shop-legacy', kind: 'PHP 8.3 · WordPress', status: 'healthy', days: 74, size: '3.2 GB', at: '13 Oct' }
+    ];
+    const siteCols = [
+      { key: 'name', header: 'Website', render: (r) => h('div', { className: 'dw-cell' }, h('span', { className: 'dw-cell-title', style: Object.assign({ fontSize: 13, fontWeight: 500 }, mono) }, r.name), h('span', { className: 'dw-cell-sub' }, r.root)) },
+      { key: 'kind', header: 'Type', width: 200 },
+      { key: 'status', header: 'Status', width: 128, render: (r) => h(DW.StatusBadge, { status: r.status }) },
+      { key: 'cert', header: 'Certificate', width: 184, render: (r) => h('span', null, 'Valid', h('span', { style: { color: 'var(--ink-muted)' } }, ' · ' + r.days + ' days left')) },
+      { key: 'size', header: 'Size on disk', width: 120, align: 'right' },
+      { key: 'at', header: 'Changed', width: 104, align: 'right', muted: true }
+    ];
+    const choices = [
+      { mono: 'Ph', name: 'PHP', versions: '7.4 to 8.4' },
+      { mono: 'No', name: 'Node.js', versions: '18, 20, 22' },
+      { mono: 'Py', name: 'Python', versions: '3.10 to 3.13' },
+      { mono: 'Go', name: 'Go', versions: '1.22, 1.23' },
+      { mono: 'Ja', name: 'Java', versions: '17, 21' }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      sites, siteCols, choices,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

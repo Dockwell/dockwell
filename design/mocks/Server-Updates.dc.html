@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Updates, hz-1</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="servers" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 12px;">
+<h1 class="title" style="margin: 0; font-family: var(--font-mono); letter-spacing: -0.02em;">hz-1</h1>
+<x-import component-from-global-scope="Dockwell.Tag">Runs the control plane</x-import>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Hetzner CX32 · Falkenstein · <span style="font-family: var(--font-mono); font-size: 12.5px;">49.12.33.7</span> · up 41 days</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="Add-Server.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>Add server</span></a>
+<x-import component-from-global-scope="Dockwell.Button" icon="refresh">Restart agent</x-import>
+</div>
+</div>
+<nav class="dw-tabs" aria-label="Server hz-1">
+<a href="Server-Overview.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Overview</a>
+<a href="Server-Files.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Files</a>
+<a href="Server-Terminal.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Terminal</a>
+<a href="Server-Firewall.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Firewall</a>
+<a href="Server-Processes.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Processes</a>
+<a href="Server-Updates.dc.html" class="dw-tab" aria-selected="true" aria-current="page" style="text-decoration: none;">Updates <span class="dw-tab-count dw-tone-warning">3</span></a>
+</nav>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<div style="flex: 1 1 600px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+<x-import component-from-global-scope="Dockwell.Callout" tone="warning" title="3 security updates are ready to install" actions="{{review}}">The kernel update needs a reboot: apps and websites are offline for about 40 s. If you do nothing, they install tonight at 04:30 and hz-1 reboots Sunday at 05:00.</x-import>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Security updates</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">3 from <code style="font-size: 12px;">noble-security</code> · checked 20 min ago</span>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="refresh">Check now</x-import>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{cols}}" rows="{{security}}" caption="Security updates for hz-1"></x-import>
+</section>
+
+<section class="dw-panel">
+<button type="button" aria-expanded="false" aria-controls="other-updates" style="display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; box-sizing: border-box; border: 0; border-radius: 10px; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-right" size="{{16}}"></x-import></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto;">
+<span style="display: flex; align-items: center; gap: 8px;"><span style="font-size: 14px; line-height: 20px; font-weight: 600;">Other updates</span><span class="dw-tab-count">12</span></span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Bug fixes from <code style="font-size: 12px;">noble-updates</code>, none need a reboot · <code style="font-size: 12px;">systemd</code>, <code style="font-size: 12px;">udev</code>, <code style="font-size: 12px;">git</code>, <code style="font-size: 12px;">curl</code> and 8 more</span>
+</span>
+<span style="font-size: 13px; font-weight: 500; color: var(--ink-muted);">Show all</span>
+</button>
+<div id="other-updates" hidden></div>
+</section>
+</div>
+
+<div style="flex: 0 1 352px; min-width: 300px; display: flex; flex-direction: column; gap: 16px;">
+<section class="dw-panel">
+<div class="dw-panel-head" style="padding-right: 12px;"><h2 class="dw-panel-title">Automatic updates</h2><x-import component-from-global-scope="Dockwell.Button" size="sm" icon="edit">Edit</x-import></div>
+<div class="dw-panel-body">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; font-size: 13px; line-height: 20px;">
+<dt style="color: var(--ink-muted);">Security updates</dt><dd style="margin: 0;">Nightly at 04:30</dd>
+<dt style="color: var(--ink-muted);">Reboots</dt><dd style="margin: 0;">Sunday at 05:00, if needed</dd>
+<dt style="color: var(--ink-muted);">Other updates</dt><dd style="margin: 0;">You install them</dd>
+<dt style="color: var(--ink-muted);">Next run</dt><dd style="margin: 0;">Tonight at 04:30, in 14 h</dd>
+</dl>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Docker and Dockwell</h2></div>
+<ul style="margin: 0; padding: 0; list-style: none;">
+<li style="display: flex; align-items: flex-start; gap: 12px; padding: 14px 12px 14px 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 auto;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">Docker Engine</span>
+<span class="dw-plan-val" style="font: 400 12px/20px var(--font-mono);"><span style="color: var(--ink-muted);">27.3.1</span><span class="dw-plan-arrow">→</span><span style="color: var(--ink); font-weight: 550;">27.4.0</span><span style="font: 400 12.5px/20px var(--font-sans); color: var(--ink-muted);">available</span></span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Containers keep running</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="plus">Add to plan</x-import>
+</li>
+<li style="display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line);">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 auto;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">Dockwell</span>
+<span style="font-size: 12.5px; line-height: 20px; color: var(--ink-muted);"><code style="font-size: 12px; color: var(--ink);">0.9.4</code> · agent and control plane</span>
+</div>
+<span style="padding-top: 1px;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Current"></x-import></span>
+</li>
+</ul>
+</section>
+</div>
+
+</div>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":680}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const mono = { fontFamily: 'var(--font-mono)', fontSize: 12 };
+    const split = (a, b) => {
+      let i = 0; while (i < a.length && a[i] === b[i]) i++;
+      while (i > 0 && !/[.\-~+]/.test(b[i - 1])) i--;
+      return [b.slice(0, i), b.slice(i)];
+    };
+    const security = [
+      { id: 'openssl', pkg: 'openssl', what: 'TLS and crypto library', from: '3.0.13-0ubuntu3.4', to: '3.0.13-0ubuntu3.5', effect: 'Reloads openresty and ssh', effectSub: 'No downtime' },
+      { id: 'libssh', pkg: 'libssh', what: 'SSH client library', from: '0.10.6-2build2', to: '0.10.6-2ubuntu0.1', effect: 'No restart', effectSub: 'Used by curl and git' },
+      { id: 'linux', pkg: 'linux-image', what: 'Linux kernel', from: '6.8.0-48', to: '6.8.0-49', effect: 'Reboot, about 40 s', effectSub: 'Apps and websites go offline', reboot: true }
+    ];
+    const cols = [
+      { key: 'pkg', header: 'Package', render: (r) => h('div', { className: 'dw-cell' },
+          h('span', { style: Object.assign({}, mono, { fontSize: 13, lineHeight: '18px', fontWeight: 550, color: 'var(--ink)' }) }, r.pkg),
+          h('span', { style: { fontSize: 12, lineHeight: '16px', color: 'var(--ink-muted)' } }, r.what)) },
+      { key: 'from', header: 'Installed', width: 168, mono: true, muted: true },
+      { key: 'to', header: 'Available', width: 184, render: (r) => {
+          const [same, diff] = split(r.from, r.to);
+          return h('span', { style: mono }, same, h('mark', { style: { background: 'var(--diff-add-soft)', color: 'var(--diff-add)', borderRadius: 3, padding: '1px 2px', margin: '0 -2px' } }, diff));
+        } },
+      { key: 'effect', header: 'When applied', width: 232, render: (r) => h('div', { className: 'dw-cell' },
+          h('span', { style: { fontWeight: r.reboot ? 550 : 400 } }, r.effect),
+          h('span', { style: { fontSize: 12, lineHeight: '16px', color: 'var(--ink-muted)' } }, r.effectSub)) }
+    ];
+    const review = h('a', { href: 'Plan-Review.dc.html', className: 'dw-btn dw-btn-primary dw-btn-md', style: { textDecoration: 'none' } },
+      h(DW.Icon, { name: 'commit', size: 16 }), h('span', null, 'Review plan'));
+    return {
+      theme: this.props.theme ?? 'light',
+      security, cols, review,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

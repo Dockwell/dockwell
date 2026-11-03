@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Domains, ingress</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="domains" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box; color-scheme: {{scheme}};">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Domains</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">23 domains in Acme · DNS at Cloudflare · traffic enters through 5 ingress servers</p>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="plus">Add domain</x-import>
+</div>
+<div class="dw-tabs" role="tablist" aria-label="Domains sections">
+<a href="Domains-Fleet.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Domains</span><span class="dw-tab-count">23</span></a>
+<a href="Ingress.dc.html" class="dw-tab" role="tab" aria-selected="true" style="text-decoration: none;"><span>Ingress</span><span class="dw-tab-count">6</span></a>
+</div>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 16px;" aria-labelledby="servers-title">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 28px;">
+<h2 id="servers-title" class="heading" style="margin: 0;">Ingress servers</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">5 of 6 healthy · servers labelled <code class="code-sm">role:ingress</code> · 11.2k requests /min</span>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="plus">Add ingress server</x-import>
+</div>
+
+<sc-for list="{{regions}}" as="g">
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; align-items: baseline; gap: 8px; padding: 0 2px;">
+<code style="font-size: 13px; font-weight: 600;">{{g.name}}</code>
+<span style="font-size: 12.5px; color: var(--ink-muted);">{{g.meta}}</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 12px;">
+<sc-for list="{{g.cards}}" as="c">
+<article class="dw-panel" aria-label="{{c.name}}" style="{{c.style}}">
+<div style="display: flex; align-items: center; gap: 8px; min-width: 0; height: 22px;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{16}}"></x-import></span>
+<span style="font: 500 14px/20px var(--font-mono);">{{c.name}}</span>
+<span style="flex: 1 1 auto;"></span>
+<sc-if value="{{c.cp}}"><span class="dw-tag" style="font-family: var(--font-sans); font-weight: 500;">Control plane</span></sc-if>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="{{c.status}}"></x-import>
+</div>
+<div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<span style="display: flex; align-items: baseline; gap: 4px;"><span style="font-size: 22px; line-height: 28px; font-weight: 550; letter-spacing: -0.02em;">{{c.rate}}</span><span style="font-size: 13px; color: var(--ink-muted);">/min</span></span>
+<span style="{{c.capStyle}}">{{c.cap}}</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Sparkline" data="{{c.spark}}" width="{{128}}" height="{{32}}" min="{{0}}" max="{{3}}" tone="{{c.tone}}" area="{{yes}}" label="{{c.sparkLabel}}"></x-import>
+</div>
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; line-height: 18px;">
+<dt style="color: var(--ink-muted);">Public IP</dt><dd style="margin: 0; display: flex; align-items: baseline; gap: 8px; min-width: 0;"><code style="{{c.ipStyle}}">{{c.ip}}</code><span style="{{c.ipNoteStyle}}">{{c.ipNote}}</span></dd>
+<dt style="color: var(--ink-muted);">Private IP</dt><dd style="margin: 0;"><code style="font-size: 12px;">{{c.priv}}</code></dd>
+<dt style="color: var(--ink-muted);">Certificates</dt><dd style="margin: 0;">{{c.certs}}</dd>
+</dl>
+<sc-if value="{{c.down}}">
+<div style="display: flex; gap: 8px;">
+<a href="Plan-Review.dc.html" class="dw-btn dw-btn-secondary dw-btn-sm" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{14}}"></x-import><span>Replace server</span></a>
+<a href="Servers-List.dc.html" class="dw-btn dw-btn-ghost dw-btn-sm" style="text-decoration: none; color: var(--ink);">Inspect</a>
+</div>
+</sc-if>
+</article>
+</sc-for>
+</div>
+</div>
+</sc-for>
+
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1px dashed var(--line-strong); border-radius: var(--radius-md);">
+<span style="display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: var(--radius-sm); background: var(--surface-sunken); color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="network" size="{{16}}"></x-import></span>
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;"><code style="font-size: 13px; font-weight: 600;">sfo-2</code> has no public ingress</span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">On-prem rack B. Its apps are reached from fra-1 and ams-1 ingress over the private network <code class="code-sm">10.210.6.x</code>.</span>
+</div>
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch;">
+
+<section class="dw-panel" aria-labelledby="entry-title" style="flex: 2 1 560px; min-width: 0;">
+<div class="dw-panel-head" style="flex-wrap: wrap; row-gap: 4px;"><h2 id="entry-title" class="dw-panel-title">How traffic gets in</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Choosing another opens a plan. Nothing changes until you apply it.</span></div>
+<fieldset class="dw-panel-body" style="margin: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+<legend class="dw-sr">How traffic gets in</legend>
+<sc-for list="{{entries}}" as="o">
+<label style="{{o.style}}">
+<input type="radio" name="entry" checked="{{o.on}}" disabled="{{o.off}}" readonly style="flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--action);">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto;">
+<span style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">{{o.title}}</span><sc-if value="{{o.tag}}"><span class="dw-tag" style="font-family: var(--font-sans); font-weight: 500;">{{o.tag}}</span></sc-if></span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted); max-width: 72ch;">{{o.desc}}</span>
+</span>
+<span style="{{o.metaStyle}}">{{o.meta}}</span>
+</label>
+</sc-for>
+</fieldset>
+</section>
+
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Balancing defaults</h2><x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="edit">Edit</x-import></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 12px;">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 16px; font-size: 13px; line-height: 18px;">
+<dt style="color: var(--ink-muted);">Method</dt><dd style="margin: 0;">Least connections</dd>
+<dt style="color: var(--ink-muted);">Order</dt><dd style="margin: 0;">Same region first</dd>
+<dt style="color: var(--ink-muted);">Health checks</dt><dd style="margin: 0;">Every 2 s</dd>
+<dt style="color: var(--ink-muted);">Draining</dt><dd style="margin: 0;">30 s before a replica stops</dd>
+</dl>
+<p style="margin: 0; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Every route starts with these. A route can override them on its domain.</p>
+</div>
+</section>
+
+<section class="dw-panel" style="flex: 1 1 auto; display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">TCP and UDP routes</h2><span style="font-size: 12.5px; color: var(--ink-muted);">None</span></div>
+<div class="dw-panel-body" style="flex: 1 1 auto; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 12px;">
+<span style="display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius-sm); background: var(--surface-sunken); color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="network" size="{{20}}"></x-import></span>
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">No TCP or UDP routes yet</span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Open a port on every ingress server and forward it to a service, such as a database or an MQTT broker.</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="plus">Add TCP route</x-import>
+</div>
+</section>
+</div>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1460}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const h = React.createElement;
+    const code = (t) => h('code', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, t);
+    // Last hour, one point per 2 min; ams-1-03 lost its heartbeat at 14:02 (index 21 of 30).
+    const series = (before, after, seed) => Array.from({ length: 30 }, (_, i) => +((i < 21 ? before : after) + 0.07 * Math.sin((i + seed) / 2.3) + 0.04 * Math.sin((i * 5 + seed) / 3.7)).toFixed(3));
+    const card = 'padding: 16px; display: flex; flex-direction: column; gap: 14px; ';
+    const mk = (c) => {
+      const down = c.status === 'down';
+      return Object.assign(c, {
+        down, cp: !!c.cp,
+        spark: down ? series(1.86, 0, c.seed).map((v, i) => i < 21 ? v : 0) : series(1.86, c.now, c.seed),
+        tone: down ? 'critical' : 'ink',
+        sparkLabel: down ? 'Requests per minute, last hour: none since 14:02' : 'Requests per minute, last hour: up from 1.9k to ' + c.rate + ' at 14:02',
+        cap: down ? 'No requests dropped' : c.cap,
+        capStyle: 'font-size: 12.5px; line-height: 16px; color: var(--ink-muted);',
+        ipStyle: 'font-size: 12px;' + (down ? ' color: var(--critical); text-decoration: line-through;' : ''),
+        ipNote: down ? 'out of DNS at 14:02:31' : '',
+        ipNoteStyle: 'font-size: 12.5px; color: var(--critical); white-space: nowrap;',
+        certs: down ? 'Not reachable since 14:02' : 'All 23 domains',
+        style: card + (down ? 'border-color: var(--critical);' : '')
+      });
+    };
+    const regions = [
+      { name: 'fra-1', meta: 'Hetzner Falkenstein · 3 ingress servers · 6.8k /min', cards: [
+        { name: 'fra-1-01', status: 'healthy', cp: true, ip: '49.12.118.36', priv: '10.210.4.1', rate: '2.3k', now: 2.3, cap: 'Up from 1.9k at 14:02', seed: 1 },
+        { name: 'fra-1-02', status: 'healthy', cp: true, ip: '49.12.118.37', priv: '10.210.4.2', rate: '2.2k', now: 2.2, cap: 'Up from 1.9k at 14:02', seed: 4 },
+        { name: 'fra-1-03', status: 'healthy', ip: '49.12.118.38', priv: '10.210.4.3', rate: '2.3k', now: 2.3, cap: 'Up from 1.9k at 14:02', seed: 7 }
+      ].map(mk) },
+      { name: 'ams-1', meta: 'DigitalOcean Amsterdam · 2 of 3 serving · 4.4k /min', cards: [
+        { name: 'ams-1-01', status: 'healthy', cp: true, ip: '164.92.140.21', priv: '10.210.5.1', rate: '2.2k', now: 2.2, cap: 'Up from 1.9k at 14:02', seed: 2 },
+        { name: 'ams-1-02', status: 'healthy', ip: '164.92.140.22', priv: '10.210.5.2', rate: '2.2k', now: 2.2, cap: 'Up from 1.9k at 14:02', seed: 5 },
+        { name: 'ams-1-03', status: 'down', ip: '164.92.140.23', priv: '10.210.5.3', rate: '0', seed: 8 }
+      ].map(mk) }
+    ];
+    const opt = 'display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: var(--radius-sm); ';
+    const entries = [
+      { title: 'DNS records at Cloudflare', tag: 'Recommended at this size', on: true, meta: 'Current',
+        desc: 'Dockwell keeps A and AAAA records pointing at healthy ingress servers and removes an unhealthy one within 30 s.' },
+      { title: 'Provider load balancer', meta: '[PRICE] /month',
+        desc: 'A Hetzner Load Balancer in front of fra-1’s ingress servers. One stable IP, with health checks run by Hetzner.' },
+      { title: 'Floating IP', meta: 'Per region',
+        desc: 'One IP per region that moves to a healthy ingress server when one fails. Failover only, so one server takes the region’s traffic.' },
+      { title: 'Cloudflare Tunnel', meta: 'Proxied only',
+        desc: h(React.Fragment, null, 'Ingress servers connect out to Cloudflare, so ports 80 and 443 stay closed. ', code('api.acme.dev'), ' and ', code('status.acme.dev'), ' would become proxied.') },
+      { title: 'Dockwell nameserver', tag: 'Opt-in · later', off: true, meta: '',
+        desc: h(React.Fragment, null, 'Dockwell answers DNS for ', code('acme.dev'), ' itself. Off by default: name resolution for your whole zone would then depend on your own fleet.') }
+    ].map((o) => Object.assign(o, {
+      on: !!o.on, off: !!o.off, tag: o.tag || '',
+      style: opt + (o.on ? 'border: 1px solid var(--ink); box-shadow: 0 0 0 1px var(--ink); background: var(--surface); cursor: pointer;'
+        : o.off ? 'border: 1px dashed var(--line-strong); background: transparent; cursor: not-allowed;'
+        : 'border: 1px solid var(--line); background: var(--surface); cursor: pointer;'),
+      metaStyle: 'flex: none; padding-top: 1px; font-size: 13px; line-height: 18px; white-space: nowrap; ' + (o.on ? 'font-weight: 550; color: var(--ink);' : 'color: var(--ink-muted);')
+    }));
+    return {
+      theme, scheme: theme === 'dark' ? 'dark' : 'light',
+      regions, entries,
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!-- @dsCard group="Status" height=120 subtitle="Labels and selectors, set in mono because machines read them" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Tag</title>
+<style>
+  .demo { padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .sel { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 32px; padding: 4px 6px; box-sizing: border-box; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); max-width: 520px; }
+  .sel input { flex: 1; min-width: 120px; border: 0; outline: 0; background: none; font: 13px var(--font-mono); color: var(--ink); }
+  .sel input::placeholder { color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement, T = H.Tag;
+  function Demo() {
+    var s = React.useState([['env', 'prod'], ['region', 'eu'], ['arch', 'arm64']]), tags = s[0], set = s[1];
+    return h('div', { className: 'demo' },
+      h('div', { className: 'row' },
+        h(T, { label: 'region', value: 'eu-central' }),
+        h(T, { label: 'provider', value: 'hetzner' }),
+        h(T, { icon: 'branch', value: 'main' }),
+        h(T, { tone: 'cobalt', label: 'pool', value: 'builders' }),
+        h(T, { value: '10.210.4.17' })),
+      h('div', { className: 'sel', role: 'group', 'aria-label': 'Server selector' },
+        tags.map(function (t, i) {
+          return h(T, { key: t.join(':'), label: t[0], value: t[1], onRemove: function () { set(tags.filter(function (_, j) { return j !== i; })); } });
+        }),
+        h('input', { placeholder: tags.length ? 'Add selector' : 'Filter servers, e.g. region:eu', 'aria-label': 'Add selector' })));
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

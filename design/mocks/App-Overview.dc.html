@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>App api, overview</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="apps" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: var(--ink-muted);"><a href="Apps-List.dc.html" style="color: var(--ink-muted); text-decoration: none;">Apps</a><span aria-hidden="true">/</span><span aria-current="page">api</span></nav>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;">
+<h1 class="title" style="margin: 0;">api</h1>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+<x-import component-from-global-scope="Dockwell.Tag" icon="branch">main</x-import>
+<code class="code-sm" style="color: var(--ink-muted);">r128</code>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Go · 3 replicas in fra-1 and ams-1 · deployed 4 min ago by Mira Chen</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" icon="refresh">Restart</x-import>
+<a href="App-Logs.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="terminal" size="{{16}}"></x-import><span>Logs</span></a>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="deploy">Deploy</x-import>
+</div>
+</div>
+<div class="dw-tabs" role="tablist" aria-label="App sections">
+<a href="App-Overview.dc.html" class="dw-tab" role="tab" aria-selected="true" style="text-decoration: none;"><span>Overview</span></a>
+<a href="App-Deployments.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Deployments</span><span class="dw-tab-count">128</span></a>
+<a href="App-Logs.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Logs</span></a>
+<a href="App-Environment.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Environment</span></a>
+<a href="App-Settings.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Settings</span></a>
+<a href="App-Previews.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Previews</span><span class="dw-tab-count">3</span></a>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<div style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Replicas</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">3 of 3 healthy · one per server · limit 1 vCPU and 512 MB each</span>
+<span style="flex: 1 1 auto;"></span>
+<a href="App-Settings.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Scaling</a>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{replicaCols}}" rows="{{replicas}}" caption="Replicas of api"></x-import>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Domains</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">1 domain</span>
+<span style="flex: 1 1 auto;"></span>
+<a href="Domains-List.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Add domain</a>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{domainCols}}" rows="{{domains}}" caption="Domains routed to api"></x-import>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Recent deployments</h2><a href="App-Deployments.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">All deployments</a></div>
+<div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.Timeline" events="{{events}}" on-undo="{{noop}}"></x-import></div>
+</section>
+</div>
+
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Metrics</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Last hour, all replicas</span></div>
+<div class="dw-panel-body" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)); gap: 20px 24px;">
+<x-import component-from-global-scope="Dockwell.Metric" label="Requests" value="3.4k" unit="/min" data="{{reqs}}" tone="cobalt"></x-import>
+<x-import component-from-global-scope="Dockwell.Metric" label="Latency, p95" value="84" unit="ms" data="{{lat}}"></x-import>
+<x-import component-from-global-scope="Dockwell.Metric" label="Error rate" value="0.08" unit="%" data="{{err}}" min="{{0}}" max="{{0.5}}"></x-import>
+<x-import component-from-global-scope="Dockwell.Metric" label="CPU" value="31" unit="% of limit" data="{{cpu}}" min="{{0}}" max="{{100}}"></x-import>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Source</h2><a href="App-Settings.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Edit</a></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 12px 16px; font-size: 13px; line-height: 20px;">
+<dt style="color: var(--ink-muted); line-height: 22px;">Repository</dt><dd style="margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;"><span>GitHub <code class="code-sm">acme/api</code></span><x-import component-from-global-scope="Dockwell.Tag" icon="branch">main</x-import></dd>
+<dt style="color: var(--ink-muted);">Last commit</dt><dd style="margin: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0;"><span style="font-weight: 500;">Add order export endpoint</span><span style="color: var(--ink-muted);"><code class="code-sm">8be41d2</code> · Leo Park · 22 min ago</span></dd>
+</dl>
+<x-import component-from-global-scope="Dockwell.Switch" default-checked="{{yes}}" label="Deploy on push" description="Each push to main opens a plan for production."></x-import>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Health check</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="3 of 3 passing"></x-import></div>
+<div class="dw-panel-body">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 16px; font-size: 13px; line-height: 20px;">
+<dt style="color: var(--ink-muted);">Request</dt><dd style="margin: 0;"><code class="code-sm">GET /healthz</code> every 10 s</dd>
+<dt style="color: var(--ink-muted);">Last result</dt><dd style="margin: 0;">200 in 3 ms · 4 s ago</dd>
+</dl>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Connected to</h2><a href="App-Environment.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Variables</a></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; gap: 12px;">
+<span style="display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius-sm); background: var(--surface-sunken); color: var(--ink-muted); flex: none;"><x-import component-from-global-scope="Dockwell.Icon" name="database" size="{{16}}"></x-import></span>
+<div style="display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto;"><span style="font-size: 14px; font-weight: 550;">postgres</span><span style="font-size: 12.5px; color: var(--ink-muted);">PostgreSQL 17.2 · as <code class="code-sm">DATABASE_URL</code></span></div>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+</div>
+<div style="display: flex; align-items: center; gap: 12px;">
+<span style="display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius-sm); background: var(--surface-sunken); color: var(--ink-muted); flex: none;"><x-import component-from-global-scope="Dockwell.Icon" name="database" size="{{16}}"></x-import></span>
+<div style="display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto;"><span style="font-size: 14px; font-weight: 550;">valkey</span><span style="font-size: 12.5px; color: var(--ink-muted);">Valkey 8.1 cache · as <code class="code-sm">VALKEY_URL</code></span></div>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+</div>
+</div>
+</section>
+</div>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1110}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const wave = (n, base, amp, seed) => Array.from({ length: n }, (_, i) => +(base + amp * Math.sin((i + seed) / 3.1) + amp * 0.5 * Math.sin((i * 7 + seed) / 5.3)).toFixed(2));
+    const code = (t) => h('code', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, t);
+    const replicas = [
+      { id: 'fra-1-04', ip: '10.210.4.4', where: 'Hetzner Falkenstein', status: 'healthy', cpu: wave(24, 31, 5, 1), mem: '214 MB', started: '5 min ago' },
+      { id: 'fra-1-11', ip: '10.210.4.11', where: 'Hetzner Falkenstein', status: 'healthy', cpu: wave(24, 28, 4, 4), mem: '198 MB', started: '5 min ago' },
+      { id: 'ams-1-02', ip: '10.210.5.2', where: 'DigitalOcean Amsterdam', status: 'healthy', cpu: wave(24, 34, 5, 7), mem: '221 MB', started: '4 min ago' }
+    ];
+    const replicaCols = [
+      { key: 'id', header: 'Server', render: (r) => h('div', { className: 'dw-cell' },
+        h('span', { className: 'dw-cell-title', style: { fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500 } }, r.id),
+        h('span', { className: 'dw-cell-sub', style: { fontFamily: 'var(--font-sans)' } }, code(r.ip), ' · ' + r.where)) },
+      { key: 'status', header: 'Status', width: 120, render: (r) => h(DW.StatusBadge, { status: r.status }) },
+      { key: 'cpu', header: 'CPU, last hour', width: 128, render: (r) => h(DW.Sparkline, { data: r.cpu, width: 96, height: 20, min: 0, max: 100 }) },
+      { key: 'mem', header: 'Memory', width: 88, align: 'right' },
+      { key: 'started', header: 'Started', width: 96, align: 'right', muted: true }
+    ];
+    const domains = [{ id: 'api', host: 'api.acme.dev' }];
+    const domainCols = [
+      { key: 'host', header: 'Domain', render: (r) => h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 13 } }, r.host) },
+      { key: 'to', header: 'Routes to', width: 120, render: () => h('span', null, 'Port ', code('8080')) },
+      { key: 'cert', header: 'Certificate', width: 168, render: () => h(DW.StatusBadge, { status: 'healthy', label: 'Valid for 61 days' }) },
+      { key: 'issuer', header: 'Issuer', width: 184, align: 'right', muted: true, render: () => 'Let’s Encrypt, automatic' }
+    ];
+    const events = [
+      { id: 1, kind: 'deploy', status: 'healthy', title: 'Add order export endpoint', revision: 'r128', actor: 'Mira Chen', time: '4 min ago', undoable: true, undoLabel: 'Roll back' },
+      { id: 2, kind: 'deploy', title: 'Cache product lookups in valkey', revision: 'r127', actor: 'Sam Okafor', time: '3 h ago' },
+      { id: 3, kind: 'deploy', title: 'Batch inventory sync with smaller pages', revision: 'r126', actor: 'Leo Park', time: '21 h ago' },
+      { id: 4, kind: 'rollback', title: 'Rolled back to r123', revision: 'r125', actor: 'Mira Chen', time: '2 Nov' },
+      { id: 5, kind: 'deploy', title: 'Batch inventory sync', revision: 'r124', actor: 'Leo Park', time: '2 Nov' }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      replicas, replicaCols, domains, domainCols, events,
+      reqs: wave(30, 3.4, 0.35, 2), lat: wave(30, 84, 7, 5), err: wave(30, 0.09, 0.03, 3), cpu: wave(30, 31, 5, 6),
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

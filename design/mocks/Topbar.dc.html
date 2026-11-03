@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Top bar</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<header class="dw-topbar" style="position: relative; flex-wrap: wrap; row-gap: 8px; height: auto; min-height: 52px; padding: 10px 24px 10px 16px; box-sizing: border-box; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<sc-if value="{{single}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; align-items: center; gap: 10px; min-width: 0; padding-left: 8px;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{16}}"></x-import></span>
+<span style="font: 500 13px/1 var(--font-mono);">hz-1</span>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+<span style="font: 400 12px/1 var(--font-mono); color: var(--ink-muted);">49.12.33.7</span>
+</div>
+</sc-if>
+<sc-if value="{{solo}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; align-items: center; gap: 10px; min-width: 0; padding-left: 8px;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{16}}"></x-import></span>
+<span style="font-size: 13px; font-weight: 550;">{{servers}} servers</span>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="All healthy"></x-import>
+</div>
+</sc-if>
+<sc-if value="{{fleet}}" hint-placeholder-val="{{false}}">
+<x-import component-from-global-scope="Dockwell.ScopeBar" org="Acme" project="storefront" environment="production" protected="{{true}}"></x-import>
+</sc-if>
+<div style="flex: 1 1 24px;"></div>
+<a href="Global-CommandBar.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="width: 300px; max-width: 100%; justify-content: flex-start; color: var(--ink-muted); font-weight: 450; text-decoration: none;">
+<x-import component-from-global-scope="Dockwell.Icon" name="search" size="{{16}}"></x-import>
+<span>Search or run a command</span>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.Kbd">⌘K</x-import>
+</a>
+<a href="Global-Assistant.dc.html" class="dw-btn dw-btn-ghost dw-btn-md dw-btn-icon" aria-label="Ask the ops assistant"><x-import component-from-global-scope="Dockwell.Icon" name="chat" size="{{16}}"></x-import></a>
+<a href="Alerts.dc.html" class="dw-btn dw-btn-ghost dw-btn-md dw-btn-icon" aria-label="Alerts" style="position: relative;"><x-import component-from-global-scope="Dockwell.Icon" name="bell" size="{{16}}"></x-import>
+<sc-if value="{{fleet}}" hint-placeholder-val="{{false}}"><span aria-hidden="true" style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 2px var(--canvas);"></span></sc-if>
+</a>
+<a href="Apps-New.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>New</span></a>
+</header>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"mode":{"editor":"enum","options":["single","solo","fleet"],"default":"single"},"servers":{"editor":"text","default":"2"},"$preview":{"width":1208,"height":52}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const mode = this.props.mode ?? 'single';
+    return { fleet: mode === 'fleet', solo: mode === 'solo', single: mode === 'single', servers: this.props.servers ?? '2' };
+  }
+}
+</script>
+</body>
+</html>

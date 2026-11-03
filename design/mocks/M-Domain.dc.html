@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Domain, phone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="width: 390px; height: 844px; overflow: hidden; position: relative; display: flex; flex-direction: column; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="MobileHeader" title="acme.dev" sub="storefront-web · proxied by Cloudflare" back="M-More.dc.html" hint-size="390px,56px"></dc-import>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+
+<section class="dw-panel" aria-label="Last 5 minutes" style="flex: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden;">
+<sc-for list="{{stats}}" as="m">
+<div style="{{m.style}}">
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">{{m.label}}</span>
+<span style="display: flex; align-items: baseline; gap: 3px; white-space: nowrap;"><span style="font-size: 20px; line-height: 26px; font-weight: 550; letter-spacing: -0.02em;">{{m.value}}</span><span style="font-size: 12px; color: var(--ink-muted);">{{m.unit}}</span></span>
+</div>
+</sc-for>
+</section>
+
+<section style="flex: none; display: flex; flex-direction: column; gap: 8px;" aria-labelledby="path-title">
+<div style="display: flex; align-items: baseline; gap: 8px; padding: 0 2px;">
+<h2 id="path-title" class="heading" style="margin: 0;">Traffic path</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">share of requests</span>
+</div>
+<ol class="dw-panel" style="margin: 0; padding: 14px 16px 2px; list-style: none; display: flex; flex-direction: column;">
+
+<li style="display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 12px;">
+<span style="display: flex; flex-direction: column; align-items: center;"><span style="{{markStyle}}"><x-import component-from-global-scope="Dockwell.Icon" name="globe" size="{{14}}"></x-import></span><span aria-hidden="true" style="{{spine}}"></span></span>
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 4px 0 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">Cloudflare</span><span style="flex: 1 1 auto;"></span><span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">5 A records</span></div>
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Proxied · synced 1 min ago</span>
+</div>
+</li>
+
+<li style="display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 12px;">
+<span style="display: flex; flex-direction: column; align-items: center;"><span style="{{markStyle}}"><x-import component-from-global-scope="Dockwell.Icon" name="network" size="{{14}}"></x-import></span><span aria-hidden="true" style="{{spine}}"></span></span>
+<div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 4px 0 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">Ingress</span><span style="flex: 1 1 auto;"></span><span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">5 of 6 serving</span></div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;">
+<sc-for list="{{regions}}" as="g">
+<div style="display: flex; justify-content: space-between; padding: 0 2px; font-size: 12px; line-height: 16px; color: var(--ink-muted);"><code style="font-size: 11.5px; color: var(--ink);">{{g.name}}</code><span>{{g.share}}</span></div>
+</sc-for>
+<sc-for list="{{ingress}}" as="r">
+<div style="{{r.style}}">
+<div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+<span style="{{r.glyphStyle}}"><x-import component-from-global-scope="Dockwell.Glyph" shape="{{r.shape}}" size="{{8}}"></x-import></span>
+<code style="font-size: 12px; line-height: 16px;">{{r.id}}</code>
+<span style="flex: 1 1 auto;"></span>
+<sc-if value="{{r.up}}"><span style="{{r.pctStyle}}">{{r.pct}}</span></sc-if>
+</div>
+<sc-if value="{{r.up}}"><span aria-hidden="true" style="{{r.track}}"><span style="{{r.fill}}"></span></span></sc-if>
+<sc-if value="{{r.down}}"><span style="font-size: 11.5px; line-height: 14px; font-weight: 550; color: var(--critical);">Down</span></sc-if>
+</div>
+</sc-for>
+</div>
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted); white-space: nowrap;">Out of DNS at 14:02:31 · no requests dropped</span>
+</div>
+</li>
+
+<li style="display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 12px;">
+<span style="display: flex; flex-direction: column; align-items: center;"><span style="{{markStyle}}"><x-import component-from-global-scope="Dockwell.Icon" name="link" size="{{14}}"></x-import></span><span aria-hidden="true" style="{{spine}}"></span></span>
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 4px 0 12px;">
+<div style="display: flex; align-items: center; gap: 6px;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">Route</span><code style="padding: 0 5px; border-radius: 3px; background: var(--surface-sunken); font-size: 12px; line-height: 18px; font-weight: 600;">/</code><span style="font-size: 13px; color: var(--ink-muted);">to storefront-web</span></div>
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">storefront / production · least connections</span>
+</div>
+</li>
+
+<li style="display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 12px;">
+<span style="display: flex; flex-direction: column; align-items: center;"><span style="{{markStyle}}"><x-import component-from-global-scope="Dockwell.Icon" name="service" size="{{14}}"></x-import></span></span>
+<div style="display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 4px 0 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">Replicas</span><span style="flex: 1 1 auto;"></span><span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">r64 on 1 of 3</span></div>
+<div style="display: flex; flex-direction: column;">
+<sc-for list="{{replicas}}" as="r">
+<div style="{{r.style}}">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="{{r.status}}" label="{{r.label}}"></x-import>
+<code class="code-sm" style="padding: 0 5px; border-radius: 3px; background: var(--surface-sunken);">{{r.rev}}</code>
+<span style="flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{r.meta}}</span>
+<span style="{{r.pctStyle}}">{{r.pct}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</li>
+
+</ol>
+</section>
+
+</div>
+<div style="flex: none; display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); background: var(--canvas); --control-md: 48px;">
+<x-import component-from-global-scope="Dockwell.Button" icon="external" dc-props="{{openBtn}}">Open site</x-import>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="activity" dc-props="{{traceBtn}}">Trace a request</x-import>
+</div>
+<dc-import name="MobileTabBar" active="more" mode="fleet" hint-size="390px,78px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement;
+    const code = (t) => h('code', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, t);
+    const stats = [
+      { label: 'Requests', value: '6.1k', unit: '/min' },
+      { label: 'Errors', value: '0.02', unit: '%' },
+      { label: 'Latency, p95', value: '120', unit: 'ms' }
+    ].map((m, i) => Object.assign(m, { style: 'display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 12px 12px 14px;' + (i ? ' border-left: 1px solid var(--line);' : '') }));
+    const regions = [{ name: 'fra-1', share: '61%' }, { name: 'ams-1', share: '39%' }];
+    // Two columns, filled row by row: fra-1 on the left, ams-1 on the right.
+    const fra = [{ id: 'fra-1-01', pct: 21 }, { id: 'fra-1-02', pct: 20 }, { id: 'fra-1-03', pct: 20 }];
+    const ams = [{ id: 'ams-1-01', pct: 20 }, { id: 'ams-1-02', pct: 19 }, { id: 'ams-1-03', down: true }];
+    const ingress = [fra[0], ams[0], fra[1], ams[1], fra[2], ams[2]].map((r) => Object.assign({}, r, {
+      up: !r.down, down: !!r.down,
+      shape: r.down ? 'square' : 'circle',
+      glyphStyle: 'display: flex; color: ' + (r.down ? 'var(--critical)' : 'var(--healthy)') + ';',
+      pct: r.down ? 'Removed' : r.pct + '%',
+      pctStyle: 'font-size: 12.5px; line-height: 16px; font-weight: 550; color: ' + (r.down ? 'var(--critical)' : 'var(--ink)') + ';',
+      track: 'display: block; height: 3px; border-radius: 2px; overflow: hidden; background: ' + (r.down ? 'transparent' : 'var(--surface-sunken)') + ';',
+      fill: 'display: block; height: 100%; width: ' + (r.pct || 0) + '%; background: var(--ink-muted);',
+      style: 'display: flex; flex-direction: column; justify-content: center; gap: ' + (r.down ? 2 : 5) + 'px; height: 40px; padding: 0 10px; box-sizing: border-box; border-radius: var(--radius-sm); '
+        + (r.down ? 'border: 1px dashed var(--critical); background: var(--critical-soft);' : 'border: 1px solid var(--line); background: var(--surface);')
+    }));
+    const replicas = [
+      { id: 'fra-1-15', status: 'deploying', rev: 'r64', meta: 'starting', pct: '0%' },
+      { id: 'fra-1-16', status: 'healthy', rev: 'r63', meta: '', pct: '61%' },
+      { id: 'ams-1-09', status: 'healthy', rev: 'r64', meta: '', pct: '39%' }
+    ].map((r, i) => Object.assign(r, {
+      label: code(r.id),
+      pctStyle: 'font-size: 12.5px; font-weight: 550; color: ' + (r.pct === '0%' ? 'var(--ink-muted)' : 'var(--ink)') + ';',
+      style: 'display: flex; align-items: center; gap: 8px; height: 32px;' + (i ? ' border-top: 1px solid var(--line);' : '')
+    }));
+    return {
+      theme: this.props.theme ?? 'light',
+      stats, regions, ingress, replicas,
+      markStyle: 'display: grid; place-items: center; flex: none; width: 28px; height: 28px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-muted);',
+      spine: 'flex: 1 1 auto; width: 1.5px; min-height: 8px; background: var(--line-strong);',
+      openBtn: { style: { flex: '1 1 0', fontSize: 14 } },
+      traceBtn: { style: { flex: '1.4 1 0', fontSize: 14 } },
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

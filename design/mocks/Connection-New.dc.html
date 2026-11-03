@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Add connection</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="connections" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Connections</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">6 external services used by 7 apps · values set per environment</p>
+</div>
+<a href="Connection-New.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>Add connection</span></a>
+</div>
+
+<section aria-label="All connections" style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 28px;">
+<h2 class="heading" style="margin: 0;">All connections</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">1 test failing · 5 passing</span>
+<span style="flex: 1 1 24px;"></span>
+<div style="flex: 0 1 280px; min-width: 200px;"><x-import component-from-global-scope="Dockwell.TextField" size="sm" icon="search" placeholder="Filter by name, provider or app" aria-label="Filter connections"></x-import></div>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{cols}}" rows="{{conns}}" caption="Connections in Acme" on-row-click="{{noop}}"></x-import>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px 10px 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface);">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="settings" size="{{16}}"></x-import></span>
+<p style="margin: 0; flex: 1 1 480px; font-size: 13px; line-height: 18px; color: var(--ink-muted);">Connections are credentials your apps use. Accounts Dockwell itself uses, like GitHub, Cloudflare and Hetzner, are integrations.</p>
+<a href="Settings-Integrations.dc.html" class="dw-btn dw-btn-ghost dw-btn-sm" style="text-decoration: none;"><span>Settings</span><span style="color: var(--ink-muted); font-weight: 400;">/</span><span>Integrations</span><x-import component-from-global-scope="Dockwell.Icon" name="arrow-right" size="{{14}}"></x-import></a>
+</div>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 16px; align-items: stretch;">
+
+<section class="dw-panel" style="display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Add from a template</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Fields and variable names filled in</span></div>
+<div class="dw-panel-body" role="group" aria-label="Templates" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px; align-content: start; --control-md: 36px;">
+<sc-for list="{{templates}}" as="t">
+<a href="Connection-New.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="justify-content: flex-start; gap: 10px; padding: 0 12px 0 6px; text-decoration: none;"><span aria-hidden="true" style="display: grid; place-items: center; width: 22px; height: 22px; flex: none; border-radius: var(--radius-xs); background: var(--surface-sunken); border: 1px solid var(--line); box-sizing: border-box; font-size: 10.5px; font-weight: 600; color: var(--ink);">{{t.mono}}</span><span>{{t.name}}</span><span style="flex: 1 1 auto;"></span><span style="font-size: 12.5px; font-weight: 400; color: var(--ink-muted);">{{t.note}}</span></a>
+</sc-for>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Recent activity</h2><a href="Audit-Log.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Audit log</a></div>
+<div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.Timeline" events="{{events}}"></x-import></div>
+</section>
+
+</div>
+
+</div>
+</main>
+
+<div style="position: absolute; inset: 0; z-index: var(--z-sheet); background: var(--scrim); display: flex; justify-content: flex-end; padding: 8px; box-sizing: border-box;">
+<div style="width: 560px; max-width: 100%; height: 100%;">
+<x-import component-from-global-scope="Dockwell.Sheet" inline="{{yes}}" title="Add connection" subtitle="An external service your apps use, with values for each environment" footer="{{footer}}" on-close="{{noop}}">
+<div style="display: flex; flex-direction: column; gap: 20px;">
+
+<div role="radiogroup" aria-labelledby="svc-label" style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px;"><span id="svc-label" class="dw-field-label">Service</span><span style="font-size: 12.5px; color: var(--ink-muted);">Templates name the fields for you</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+<sc-for list="{{svcs}}" as="c">
+<button type="button" role="radio" aria-checked="{{c.on}}" style="{{c.st}}">{{c.label}}</button>
+</sc-for>
+</div>
+</div>
+
+<div role="radiogroup" aria-labelledby="cred-label" style="display: flex; flex-direction: column; gap: 8px;">
+<span id="cred-label" class="dw-field-label">Credentials</span>
+<label style="display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--cobalt); box-shadow: inset 0 0 0 1px var(--cobalt); border-radius: var(--radius-md); background: var(--selection); cursor: pointer;">
+<input type="radio" name="cred" value="create" checked class="dw-sr">
+<span aria-hidden="true" style="flex: none; width: 16px; height: 16px; margin-top: 2px; box-sizing: border-box; border-radius: 50%; border: 5px solid var(--cobalt); background: var(--surface);"></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">Create a bucket with your Cloudflare integration</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">With a token scoped to it for each app</span></span>
+<span style="flex: none; display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: var(--radius-full); background: var(--surface-raised); border: 1px solid var(--line); box-sizing: border-box; color: var(--ink-muted); font-size: 12px; font-weight: 550;">Recommended</span>
+</label>
+<label style="display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--surface); cursor: pointer;">
+<input type="radio" name="cred" value="paste" class="dw-sr">
+<span aria-hidden="true" style="flex: none; width: 16px; height: 16px; margin-top: 2px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--line-strong); background: var(--surface);"></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">Paste existing keys</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">An R2 access key you made in Cloudflare yourself</span></span>
+</label>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 16px 12px;">
+<x-import component-from-global-scope="Dockwell.TextField" label="Bucket" mono="{{yes}}" default-value="acme-exports" hint="{{bucketHint}}"></x-import>
+<x-import component-from-global-scope="Dockwell.TextField" label="Name" mono="{{yes}}" default-value="r2-exports" hint="{{nameHint}}"></x-import>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+<div class="dw-field" style="flex: 1 1 200px;">
+<label class="dw-field-label" for="use-app"><span>Use in</span></label>
+<button id="use-app" type="button" class="dw-input" aria-haspopup="listbox" style="width: 100%; align-items: center; gap: 8px; padding: 0 10px 0 12px; font: inherit; font-size: 14px; color: var(--ink); text-align: left; cursor: pointer;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="service" size="{{16}}"></x-import></span>
+<span>api</span>
+<span style="font-size: 13px; color: var(--ink-muted);">App · r128</span>
+<span style="flex: 1 1 auto;"></span>
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{16}}"></x-import></span>
+</button>
+</div>
+<div role="group" aria-labelledby="access-label" class="dw-field" style="flex: none;">
+<span id="access-label" class="dw-field-label">Access</span>
+<x-import component-from-global-scope="Dockwell.SegmentedControl" options="{{access}}" value="rw" label="Access"></x-import>
+</div>
+</div>
+<div class="dw-field-hint"><span>{{useHint}}</span></div>
+</div>
+
+<div role="group" aria-labelledby="env-label" style="display: flex; flex-direction: column; gap: 8px;">
+<span id="env-label" class="dw-field-label">Environments</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<sc-for list="{{envChecks}}" as="e">
+<label style="{{e.st}}"><input type="checkbox" checked="{{e.on}}" style="{{chk}}"><span>{{e.label}}</span></label>
+</sc-for>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 20px; border-top: 1px solid var(--line);">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;"><h3 class="label" style="margin: 0;">Plan</h3><span style="font-size: 12.5px; color: var(--ink-muted);">Production needs approval</span></div>
+<x-import component-from-global-scope="Dockwell.PlanDiff" resources="{{plan}}" impact="api keeps serving"></x-import>
+</div>
+
+</div>
+</x-import>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1220}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const muted = { color: 'var(--ink-muted)' };
+    const tile = (m) => h('span', { 'aria-hidden': true, style: { display: 'grid', placeItems: 'center', width: 32, height: 32, flex: 'none', boxSizing: 'border-box', borderRadius: 'var(--radius-sm)', background: 'var(--surface-sunken)', border: '1px solid var(--line)', fontSize: 12, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--ink)' } }, m);
+    const nameCell = (r) => h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 } },
+      tile(r.mono),
+      h('div', { className: 'dw-cell' },
+        r.href
+          ? h('a', { href: r.href, style: { fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: '18px', fontWeight: 500, color: 'var(--ink)', textDecoration: 'none' } }, r.name)
+          : h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: '18px', fontWeight: 500 } }, r.name),
+        h('span', { style: Object.assign({ fontSize: 12.5, lineHeight: '16px' }, muted) }, r.provider)));
+    const usedCell = (r) => h('div', { className: 'dw-cell' },
+      h('span', null, r.apps.length + (r.apps.length === 1 ? ' app' : ' apps')),
+      h('span', { style: Object.assign({ fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, muted) }, r.apps.join(', ')));
+    const rotCell = (r) => h('div', { className: 'dw-cell' },
+      h('span', { style: r.rotated ? null : muted }, r.rotated || 'Never'),
+      h('span', { style: Object.assign({ fontSize: 12.5, lineHeight: '16px' }, muted) }, r.rotBy));
+    const testCell = (r) => r.fail
+      ? h('div', { className: 'dw-cell' },
+          h(DW.StatusBadge, { status: 'degraded', label: h('span', null, 'Fails from ', h('code', { style: { fontSize: 12.5 } }, 'sfo-2-10')) }),
+          h('span', { style: Object.assign({ paddingLeft: 16, fontSize: 12.5, lineHeight: '16px' }, muted) }, r.fail))
+      : h(DW.StatusBadge, { status: 'healthy', label: 'Passed', meta: r.servers });
+    const conns = [
+      { id: 'supabase', name: 'supabase', mono: 'Sb', provider: 'Supabase · Frankfurt', href: 'Connection-Detail.dc.html', apps: ['storefront-web', 'api', 'worker', 'metabase'], envs: 'Production, Staging', rotated: '21 Sep', rotBy: 'Dana Whitfield', fail: 'metabase · blocked by network restrictions' },
+      { id: 'r2-uploads', name: 'r2-uploads', mono: 'R2', provider: 'Cloudflare R2 · created by Dockwell', apps: ['images', 'api'], envs: 'Production', rotated: '', rotBy: 'Created 1 Sep', servers: 'on 5 servers' },
+      { id: 'stripe', name: 'stripe', mono: 'St', provider: 'Stripe', apps: ['checkout', 'api'], envs: 'Production, Staging', rotated: '14 Oct', rotBy: 'Dana Whitfield', servers: 'on 6 servers' },
+      { id: 'resend', name: 'resend', mono: 'Re', provider: 'Resend', apps: ['worker', 'checkout'], envs: 'Production, Staging', rotated: '', rotBy: 'Created 12 Aug', servers: 'on 6 servers' },
+      { id: 'sentry', name: 'sentry', mono: 'Se', provider: 'Sentry', apps: ['api', 'worker', 'checkout', 'storefront-web'], envs: 'Production, Staging', rotated: '', rotBy: 'Created 21 Sep', servers: 'on 12 servers' },
+      { id: 'openai', name: 'openai', mono: 'Oa', provider: 'OpenAI', apps: ['search-ui'], envs: 'Staging', rotated: '', rotBy: 'Created 3 Oct', servers: 'on 1 server' }
+    ];
+    const cols = [
+      { key: 'name', header: 'Connection', render: nameCell },
+      { key: 'apps', header: 'Used by', width: 296, render: usedCell },
+      { key: 'envs', header: 'Environments', width: 168, muted: true },
+      { key: 'rotated', header: 'Last rotated', width: 148, render: rotCell },
+      { key: 'test', header: 'Last test', width: 284, render: testCell }
+    ];
+    const templates = [
+      { mono: 'Sb', name: 'Supabase', note: '' },
+      { mono: 'R2', name: 'Cloudflare R2', note: 'Can create for you' },
+      { mono: 'S3', name: 'Amazon S3', note: '' },
+      { mono: 'St', name: 'Stripe', note: '' },
+      { mono: 'Re', name: 'Resend', note: '' },
+      { mono: 'Pm', name: 'Postmark', note: '' },
+      { mono: 'Sm', name: 'SMTP', note: '' },
+      { mono: 'Oa', name: 'OpenAI', note: '' },
+      { mono: 'Se', name: 'Sentry', note: '' },
+      { mono: '+', name: 'Custom', note: 'Your own fields' }
+    ];
+    const events = [
+      { id: 1, kind: 'alert', tone: 'warning', title: 'supabase test failed from sfo-2-10', meta: 'metabase · refused by network restrictions', time: '3 min ago' },
+      { id: 2, kind: 'config', title: 'Bound supabase to metabase', actor: 'Mira Chen', meta: 'internal-tools', time: '26 min ago' },
+      { id: 3, kind: 'plan', title: 'Rotated stripe secret_key', actor: 'Dana Whitfield', meta: 'checkout and api restarted', time: '14 Oct' },
+      { id: 4, kind: 'config', title: 'Added openai', actor: 'Leo Park', meta: 'Staging · search-ui', time: '3 Oct' }
+    ];
+    const theme = this.props.theme ?? 'light';
+    const pill = 'display: inline-flex; align-items: center; height: 28px; padding: 0 12px; box-sizing: border-box; border-radius: var(--radius-full); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; ';
+    const svcs = ['Supabase', 'Cloudflare R2', 'Amazon S3', 'Stripe', 'Resend', 'Postmark', 'SMTP', 'OpenAI', 'Sentry', 'Custom'].map((label) => ({
+      label, on: label === 'Cloudflare R2' ? 'true' : 'false',
+      st: pill + (label === 'Cloudflare R2' ? 'border: 1px solid var(--cobalt); background: var(--selection); color: var(--cobalt);' : 'border: 1px solid var(--line); background: var(--surface); color: var(--ink);')
+    }));
+    const box = 'display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 10px; box-sizing: border-box; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; ';
+    const envChecks = [{ label: 'Production', on: true }, { label: 'Staging', on: false }, { label: 'Previews', on: false }].map((e) => Object.assign(e, {
+      st: box + (e.on ? 'border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);' : 'border: 1px solid var(--line); background: var(--surface); color: var(--ink-muted);')
+    }));
+    const code = (t) => h('code', { style: { fontSize: 12, color: 'var(--ink)' } }, t);
+    const bucketHint = h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } },
+      h('span', { style: { display: 'flex', color: 'var(--healthy)' } }, h(DW.Glyph, { shape: 'circle', size: 8 })),
+      h('span', null, 'Available in account ', code('8f2c41e07b9d')));
+    const nameHint = h('span', null, 'Apps read ', code('r2-exports.bucket'), ' and so on');
+    const useHint = h('span', null, 'api already gets ', code('S3_ACCESS_KEY'), ' from r2-uploads, so these names start with ', code('EXPORT_'), '.');
+    const plan = [
+      { id: 'bucket', action: 'create', kind: 'volume', kindLabel: 'R2 bucket', name: 'acme-exports', expanded: false, changes: [{ path: 'account', to: '8f2c41e07b9d' }, { path: 'access', to: 'private' }] },
+      { id: 'token', action: 'create', kind: 'secret', kindLabel: 'R2 token', name: 'api-acme-exports', changes: [{ path: 'scope', to: 'acme-exports only' }, { path: 'permission', to: 'object read and write' }] },
+      { id: 'conn', action: 'create', kind: 'secret', kindLabel: 'Connection', name: 'r2-exports', expanded: false, changes: [{ path: 'environments', to: 'production' }, { path: 'fields', to: 'bucket, endpoint, access_key_id, secret' }] },
+      { id: 'api', action: 'update', kind: 'app', kindLabel: 'App', name: 'api', note: 'Rolling restart', changes: [
+        { path: 'ORDER_EXPORT_BUCKET', from: 'acme-exports', to: 'r2-exports.bucket' },
+        { path: 'EXPORT_S3_ENDPOINT', to: 'r2-exports.endpoint' },
+        { path: 'EXPORT_S3_ACCESS_KEY', to: 'r2-exports.access_key_id' },
+        { path: 'EXPORT_S3_SECRET_KEY', to: 'r2-exports.secret' }] }
+    ];
+    const footer = h(React.Fragment, null,
+      h('span', { className: 'dw-sheet-note' }, h(DW.Icon, { name: 'archive', size: 14 }), 'Creates 1 bucket and 1 token in Cloudflare'),
+      h(DW.Button, { variant: 'ghost' }, 'Cancel'),
+      h('a', { href: 'Plan-Review.dc.html', className: 'dw-btn dw-btn-primary dw-btn-md', style: { textDecoration: 'none' } }, h(DW.Icon, { name: 'commit', size: 16 }), h('span', null, 'Review plan'), h(DW.Kbd, null, '⌘↵')));
+    return {
+      theme,
+      svcs, envChecks, bucketHint, nameHint, useHint, plan, footer, yes: true,
+      access: [{ value: 'rw', label: 'Read and write' }, { value: 'ro', label: 'Read only' }],
+      chk: 'width: 16px; height: 16px; margin: 0; accent-color: var(--cobalt); color-scheme: ' + (theme === 'dark' ? 'dark' : 'light') + ';',
+      conns, cols, templates, events,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

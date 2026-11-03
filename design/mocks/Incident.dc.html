@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Incident</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="alerts" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="degraded" variant="pill" label="Warning"></x-import>
+<h1 class="title" style="margin: 0;">worker memory above 90%</h1>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Open 22 min · acknowledged by Priya Raman · 4 servers affected</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" icon="bell">Mute 1 h</x-import>
+<x-import component-from-global-scope="Dockwell.Button" icon="check">Resolve</x-import>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<div style="flex: 2 1 600px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">What changed</h2><span style="font-size: 12.5px; color: var(--ink-muted);">storefront / production, since 13:20</span></div>
+<div style="display: flex; flex-direction: column;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 16px; background: var(--warning-soft); border-bottom: 1px solid var(--line);">
+<span class="dw-tl-mark" aria-hidden="true" style="flex: none;"><x-import component-from-global-scope="Dockwell.Icon" name="deploy" size="{{14}}"></x-import></span>
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 14px; line-height: 20px; font-weight: 550;">Deployed worker <code class="dw-tl-rev">r57</code><span style="display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; font-size: 12.5px; font-weight: 600; color: var(--warning);"><x-import component-from-global-scope="Dockwell.Glyph" shape="triangle" size="{{8}}"></x-import>Likely trigger</span></div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);"><span style="color: var(--ink);">13:56, 2 min before memory started climbing</span><span>·</span><span>Sam Okafor</span><span>·</span><code class="code-sm" style="color: var(--ink);">9a03e1b</code></div>
+</div>
+<a href="App-Deployments.dc.html" class="dw-btn dw-btn-secondary dw-btn-sm" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="commit" size="{{14}}"></x-import><span>Compare with r56</span></a>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 16px;">
+<span class="dw-tl-mark dw-tone-critical" aria-hidden="true" style="flex: none;"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{14}}"></x-import></span>
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 14px; line-height: 20px; font-weight: 500;">ams-1-03 went down<span style="margin-left: 4px; font-size: 12.5px; font-weight: 550; color: var(--ink-muted);">Not related</span></div>
+<div style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">14:02 · no heartbeat · runs no worker replicas</div>
+</div>
+<a href="Servers-List.dc.html" class="dw-btn dw-btn-ghost dw-btn-sm" style="text-decoration: none;"><span>Open server</span></a>
+</div>
+
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch;">
+
+<section class="dw-panel" style="flex: 2 1 400px; min-width: 0; display: flex; flex-direction: column;">
+<div class="dw-panel-head">
+<div style="display: flex; align-items: baseline; gap: 8px;"><h2 class="dw-panel-title">Memory, last hour</h2><span style="font: 400 12px/1 var(--font-mono); color: var(--ink-muted);">fra-1-07</span></div>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="degraded" label="93%" meta="now"></x-import>
+</div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto;">
+<div style="position: relative; padding-top: 28px;">
+<span aria-hidden="true" style="position: absolute; left: 60%; top: 0; bottom: 0; border-left: 1px dashed var(--ink-muted);"></span>
+<span style="position: absolute; left: calc(60% + 8px); top: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 18px; color: var(--ink);"><code class="dw-tl-rev">r57</code><span style="color: var(--ink-muted);">deployed 13:56</span></span>
+<span style="position: absolute; left: 0; top: 26px; font-size: 12px; line-height: 16px; color: var(--warning); font-weight: 550;">90%</span>
+<x-import component-from-global-scope="Dockwell.Sparkline" data="{{memory}}" width="100%" height="{{196}}" min="{{0}}" max="{{100}}" threshold="{{90}}" tone="warning" label="Memory on fra-1-07 over the last hour: flat near 64% until 13:56, 91% by 13:58, 93% now"></x-import>
+</div>
+<div aria-hidden="true" style="display: flex; justify-content: space-between; font-size: 12px; line-height: 16px; color: var(--ink-muted);"><span>13:20</span><span>13:35</span><span>13:50</span><span>14:05</span><span>now</span></div>
+</div>
+</section>
+
+<section class="dw-panel" style="flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column;">
+<div style="flex: 1 1 0; padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Error rate" value="0.42" unit="%" delta="from 0.10%" delta-tone="warning" data="{{errors}}" tone="warning" min="{{0}}" caption="All storefront apps, rising since 13:58"></x-import></div>
+<div style="flex: 1 1 0; padding: 16px; border-top: 1px solid var(--line);"><x-import component-from-global-scope="Dockwell.Metric" label="Restarts" value="2" unit="out of memory" caption="worker on fra-1-07, since 14:16"></x-import></div>
+</section>
+
+</div>
+
+<x-import component-from-global-scope="Dockwell.LogStream" title="Matching log lines" lines="{{logs}}" live="{{yes}}" height="{{331}}" toolbar="{{logTools}}"></x-import>
+
+</div>
+
+<div style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+
+<section class="dw-panel" aria-labelledby="assist-title">
+<div class="dw-panel-head">
+<div style="display: flex; align-items: center; gap: 8px;"><span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="chat" size="{{16}}"></x-import></span><h2 id="assist-title" class="dw-panel-title">Ops assistant</h2></div>
+<span style="font-size: 12.5px; color: var(--ink-muted);">Updated 1 min ago</span>
+</div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<span class="caption" style="color: var(--ink-muted);">Likely cause</span>
+<p style="margin: 0; font-size: 15px; line-height: 22px; font-weight: 600;">worker r57 leaks memory.</p>
+<p style="margin: 0; font-size: 13.5px; line-height: 20px;">Memory on fra-1-07 rose from 64% to 91% in the two minutes after r57 deployed. It has stayed above 90% since, apart from one restart.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span class="caption" style="color: var(--ink-muted);">Evidence</span>
+<ul style="margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 20px;">
+<li>Memory flat near <code class="code-sm">64%</code> on r56 for 36 min, then <code class="code-sm">93%</code> now</li>
+<li><code class="code-sm">2</code> out-of-memory restarts, both on <code class="code-sm">9a03e1b</code></li>
+<li>Error rate <code class="code-sm">0.10%</code> to <code class="code-sm">0.42%</code> from 13:58; no other change before it</li>
+</ul>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<span class="caption" style="color: var(--ink-muted);">Suggested fix</span>
+<p style="margin: 0; font-size: 13.5px; line-height: 20px;">Roll back worker to r56 (<code class="code-sm">51d0c7e</code>). Rolling, one replica at a time, no downtime expected.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<a href="Plan-Review.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="undo" size="{{16}}"></x-import><span>Review rollback plan</span></a>
+<a href="Global-Assistant.dc.html" class="dw-btn dw-btn-ghost dw-btn-md" style="text-decoration: none;"><span>Ask a follow-up</span></a>
+</div>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Responders</h2><x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="plus">Add</x-import></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 10px;">
+<sc-for list="{{responders}}" as="r">
+<div style="display: flex; align-items: center; gap: 10px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; background: var(--surface-sunken); border: 1px solid var(--line); font-size: 10px; font-weight: 600; flex: none;">{{r.initials}}</span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 8px; white-space: nowrap;"><span style="font-size: 13.5px; line-height: 20px; font-weight: 500;">{{r.name}}</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">{{r.role}}</span></div>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted); white-space: nowrap;">{{r.state}}</span>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Timeline</h2><a href="Activity.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Activity</a></div>
+<div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.Timeline" events="{{timeline}}"></x-import></div>
+</section>
+
+</div>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark"},"$preview":{"width":1440,"height":1130}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const jitter = (i, a) => +(a * Math.sin(i * 1.7) * 0.6 + a * Math.sin(i * 0.53) * 0.4).toFixed(1);
+    // one sample a minute, 13:20 to 14:20; r57 deployed at sample 36 (13:56)
+    // out-of-memory restart at 14:16 shows as one dip
+    const memory = Array.from({ length: 61 }, (_, i) => {
+      if (i <= 36) return +(64 + jitter(i, 1.4)).toFixed(1);
+      if (i === 37) return 78.4;
+      if (i === 38) return 90.6;
+      if (i === 57) return 84.2;
+      if (i >= 58) return [92.6, 93.5, 94][i - 58];
+      return +(90.9 + (i - 38) * 0.2 + jitter(i, 0.4)).toFixed(1);
+    });
+    const errors = Array.from({ length: 61 }, (_, i) => {
+      if (i < 38) return +(0.1 + jitter(i, 0.015)).toFixed(3);
+      return +(Math.min(0.42, 0.1 + (i - 37) * 0.05) + jitter(i, 0.012)).toFixed(3);
+    });
+    const logs = [
+      { id: 1, time: '13:56:31', source: 'fra-1-07/worker', level: 'info', text: 'replica started on r57 (9a03e1b), heap 0.62 GB' },
+      { id: 2, time: '13:57:15', source: 'fra-1-07/worker', level: 'warn', text: 'heap 1.48 GB of 2 GB limit, 44 s after start' },
+      { id: 3, time: '13:58:04', source: 'fra-1-07/worker', level: 'warn', text: 'heap 1.81 GB of 2 GB limit, gc pause 0.4 s' },
+      { id: 4, time: '14:01:10', source: 'fra-1-07/worker', level: 'warn', text: 'heap 1.84 GB of 2 GB limit, gc pause 0.6 s' },
+      { id: 16, time: '14:02:39', source: 'fra-1-07/worker', level: 'warn', text: 'heap 1.85 GB of 2 GB limit, gc pause 0.7 s' },
+      { id: 5, time: '14:04:22', source: 'fra-1-07/worker', level: 'warn', text: 'heap 1.86 GB of 2 GB limit, gc pause 0.8 s' },
+      { id: 6, time: '14:06:58', source: 'fra-1-07/worker', level: 'warn', text: 'heap 1.88 GB of 2 GB limit, gc pause 1.0 s' },
+      { id: 7, time: '14:09:47', source: 'fra-1-07/worker', level: 'warn', text: 'heap 1.90 GB of 2 GB limit, gc pause 1.2 s' },
+      { id: 8, time: '14:11:55', source: 'fra-1-07/worker', level: 'warn', text: 'heap 1.92 GB of 2 GB limit, gc pause 1.5 s' },
+      { id: 9, time: '14:13:30', source: 'fra-1-07/worker', level: 'warn', text: 'heap 1.95 GB of 2 GB limit, gc pause 1.9 s' },
+      { id: 10, time: '14:15:02', source: 'fra-1-07/worker', level: 'warn', text: 'heap 1.97 GB of 2 GB limit, gc pause 2.3 s' },
+      { id: 11, time: '14:16:47', source: 'fra-1-07/worker', level: 'error', text: 'out of memory: process 48211 killed, replica restarting' },
+      { id: 12, time: '14:17:02', source: 'fra-1-07/worker', level: 'info', text: 'replica restarted on r57 (9a03e1b)' },
+      { id: 13, time: '14:18:10', source: 'fra-1-07/worker', level: 'warn', text: 'heap 1.84 GB of 2 GB limit, 68 s after restart' },
+      { id: 14, time: '14:19:31', source: 'fra-1-07/worker', level: 'error', text: 'out of memory: process 48907 killed, replica restarting' },
+      { id: 15, time: '14:19:46', source: 'fra-1-07/worker', level: 'info', text: 'replica restarted on r57 (9a03e1b), second restart in 3 min' }
+    ];
+    const logTools = h('a', { href: 'App-Logs.dc.html', className: 'dw-btn dw-btn-ghost dw-btn-sm', style: { textDecoration: 'none' } }, h(DW.Icon, { name: 'external', size: 14 }), h('span', null, 'Open in logs'));
+    const responders = [
+      { initials: 'PR', name: 'Priya Raman', role: 'On call · Viewer', state: 'Acknowledged 14:03' },
+      { initials: 'SO', name: 'Sam Okafor', role: 'Pushed r57 · Developer', state: 'Notified 14:04' },
+      { initials: 'MC', name: 'Mira Chen', role: 'Admin · you', state: 'Joined 14:12' }
+    ];
+    const timeline = [
+      { id: 5, kind: 'alert', title: '2 out-of-memory restarts on fra-1-07', meta: 'worker replica', time: '14:19' },
+      { id: 4, kind: 'alert', title: 'Acknowledged', actor: 'Priya Raman', time: '14:03' },
+      { id: 3, kind: 'alert', tone: 'warning', title: 'Alert opened', meta: 'worker memory above 90%', time: '13:58' },
+      { id: 2, kind: 'deploy', title: 'Deployed worker', revision: 'r57', actor: 'Sam Okafor', time: '13:56' }
+    ];
+    return {
+      theme: this.props.theme ?? 'dark',
+      memory, errors, logs, logTools, responders, timeline,
+      yes: true
+    };
+  }
+}
+</script>
+</body>
+</html>

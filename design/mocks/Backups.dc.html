@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Backups</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="backups" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Backups</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Daily at 03:00 to Cloudflare R2</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="Backup-Restore.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="undo" size="{{16}}"></x-import><span>Restore</span></a>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="archive">Back up now</x-import>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch;">
+
+<section class="dw-panel" style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Policies</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Next run tomorrow 03:00</span></div>
+<sc-for list="{{policies}}" as="p">
+<div style="display: grid; grid-template-columns: 32px minmax(0, 1fr) minmax(0, 240px) 124px; align-items: center; gap: 12px; flex: 1 1 auto; padding: 16px; border-top: {{p.border}};">
+<span style="display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--line); box-sizing: border-box; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="{{p.icon}}" size="{{16}}"></x-import></span>
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">{{p.name}}</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">{{p.what}}</span></div>
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; font-size: 13px; line-height: 18px;">
+<dt style="color: var(--ink-muted);">Runs</dt><dd style="margin: 0;">{{p.schedule}}</dd>
+<dt style="color: var(--ink-muted);">Keep</dt><dd style="margin: 0;">{{p.keep}}</dd>
+</dl>
+<div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-end;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="{{p.state}}"></x-import><span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">{{p.meta}}</span></div>
+</div>
+</sc-for>
+</section>
+
+<section class="dw-panel" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Destinations</h2><span style="display: flex; margin: -4px -8px;"><x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="plus">Add</x-import></span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 12px; flex: 1 1 auto;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">Cloudflare R2</span>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Connected"></x-import>
+</div>
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px;">
+<dt style="color: var(--ink-muted);">Bucket</dt><dd style="margin: 0;"><code style="font-size: 12.5px;">acme-backups</code></dd>
+<dt style="color: var(--ink-muted);">Used</dt><dd style="margin: 0;">38.2 GB · 28 snapshots</dd>
+<dt style="color: var(--ink-muted);">Last upload</dt><dd style="margin: 0;">Today 03:04 · 312 MB new data</dd>
+<dt style="color: var(--ink-muted);">Encryption</dt><dd style="margin: 0; display: flex; align-items: center; gap: 6px;"><span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="lock" size="{{14}}"></x-import></span>Encrypted on hz-1 before upload</dd>
+</dl>
+</div>
+</section>
+
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<section style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Recent runs</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">Last 7 days · 7 completed · 1 warning</span>
+<span style="flex: 1 1 auto;"></span>
+<a href="Activity.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">All runs</a>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{runCols}}" rows="{{runs}}" caption="Backup runs in the last 7 days" on-row-click="{{noop}}"></x-import>
+</section>
+
+<section class="dw-panel" style="flex: 1 1 300px; min-width: 0;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Restore drills</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Weekly, Sunday 04:00</span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Passed" meta="Sunday 04:00"></x-import>
+<span style="font-size: 13px; font-weight: 550;">3 min 12 s</span>
+</div>
+<p style="margin: 0; font-size: 13px; line-height: 20px;">Restored postgres to a scratch container from the Sunday 03:00 snapshot.</p>
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 18px; color: var(--ink-muted);">
+<sc-for list="{{checks}}" as="c">
+<li style="display: flex; align-items: center; gap: 8px;"><span style="display: flex; color: var(--healthy);"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{14}}"></x-import></span>{{c}}</li>
+</sc-for>
+</ul>
+</div>
+<div style="border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Earlier drills</span>
+<sc-for list="{{drills}}" as="d">
+<div style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="{{d.date}}"></x-import>
+<span style="flex: 1 1 auto;"></span>
+<span style="color: var(--ink-muted);">{{d.time}}</span>
+</div>
+</sc-for>
+</div>
+<div style="border-top: 1px solid var(--line); padding-top: 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<span style="font-size: 13px;"><span style="color: var(--ink-muted);">Next</span> Sunday 8 Nov, 04:00</span>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="play">Run drill now</x-import>
+</div>
+</div>
+</section>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":840}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const policies = [
+      { name: 'Everything on hz-1', what: 'Apps’ volumes, websites, databases, server config', icon: 'server', schedule: 'Daily at 03:00', keep: '14 daily · 8 weekly · 6 monthly', state: 'On schedule', meta: 'Last run 11 h ago', border: '0' },
+      { name: 'postgres point-in-time', what: 'Write-ahead log streamed to R2 as it is written', icon: 'database', schedule: 'Continuous', keep: '7 days, any second', state: 'Current', meta: 'Last write 12 s ago', border: '1px solid var(--line)' }
+    ];
+    const statusCell = (r) => r.warn
+      ? h('div', { className: 'dw-cell' }, h(DW.StatusBadge, { status: 'degraded', label: 'Completed with 1 warning' }), h('span', { style: { paddingLeft: 16, fontSize: 12.5, lineHeight: '16px', color: 'var(--ink-muted)' } }, r.warn))
+      : h(DW.StatusBadge, { status: 'healthy', label: 'Completed' });
+    const runs = [
+      { id: 1, at: 'Today 03:00', snap: '7c2e91d4', up: '312 MB', size: '2.4 GB', dur: '4 min' },
+      { id: 2, at: '2 Nov 03:00', snap: 'e05b13a8', up: '288 MB', size: '2.4 GB', dur: '4 min' },
+      { id: 3, at: '1 Nov 03:00', snap: '91fa6c02', up: '301 MB', size: '2.4 GB', dur: '4 min' },
+      { id: 4, at: '31 Oct 03:00', snap: '3d8e7b55', up: '296 MB', size: '2.3 GB', dur: '6 min', warn: '1 file changed during backup, retried' },
+      { id: 5, at: '30 Oct 03:00', snap: 'b46c0f19', up: '274 MB', size: '2.3 GB', dur: '4 min' },
+      { id: 6, at: '29 Oct 03:00', snap: '58a1d7e3', up: '280 MB', size: '2.3 GB', dur: '3 min' },
+      { id: 7, at: '28 Oct 03:00', snap: 'c9e24b70', up: '265 MB', size: '2.2 GB', dur: '3 min' }
+    ];
+    const runCols = [
+      { key: 'at', header: 'Started', width: 132, render: (r) => h('span', { style: { fontWeight: 500 } }, r.at) },
+      { key: 'status', header: 'Status', render: statusCell },
+      { key: 'snap', header: 'Snapshot', width: 112, mono: true, muted: true },
+      { key: 'size', header: 'Size', width: 80, align: 'right' },
+      { key: 'up', header: 'New data', width: 96, align: 'right', muted: true },
+      { key: 'dur', header: 'Duration', width: 88, align: 'right', muted: true }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      policies, runs, runCols,
+      checks: ['Database starts and accepts connections', 'Row counts match the source', 'Scratch container removed'],
+      drills: [{ date: '25 Oct', time: '3 min 4 s' }, { date: '18 Oct', time: '3 min 20 s' }, { date: '11 Oct', time: '2 min 58 s' }],
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

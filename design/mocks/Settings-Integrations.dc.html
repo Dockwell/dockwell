@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Integrations</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="settings" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px 32px;">
+
+<nav aria-label="Settings" style="flex: 1 1 200px; max-width: 200px; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; height: 24px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Organization</div>
+<a href="Settings-General.dc.html" class="dw-rail-item">General</a>
+<a href="Members.dc.html" class="dw-rail-item">Members</a>
+<a href="API-Tokens.dc.html" class="dw-rail-item">API tokens</a>
+<a href="Audit-Log.dc.html" class="dw-rail-item">Audit log</a>
+<a href="Billing.dc.html" class="dw-rail-item">Billing</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Platform</div>
+<a href="Settings-ControlPlane.dc.html" class="dw-rail-item">Control plane</a>
+<a href="Settings-Integrations.dc.html" class="dw-rail-item is-active" aria-current="page">Integrations</a>
+<a href="Alerts-Channels.dc.html" class="dw-rail-item">Notifications</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Account</div>
+<a href="Profile.dc.html" class="dw-rail-item">Profile and security</a>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Integrations</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">7 connected · the services Dockwell builds from, deploys with, routes through and backs up to</p>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Credentials your apps use live in <a href="Connections-List.dc.html" style="font-weight: 500; text-decoration: none;">Connections</a></p>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px 12px;">
+
+<section style="flex: 3 1 624px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;"><h2 class="heading" style="margin: 0;">Git</h2><span style="font-size: 13px; color: var(--ink-muted);">1 of 3 connected</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px;">
+<sc-for list="{{git}}" as="c">
+<article class="dw-panel" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 32px; height: 32px; box-sizing: border-box; border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--line); color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="branch" size="{{16}}"></x-import></span>
+{{c.status}}
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px; min-height: 58px;">
+<h3 class="body-strong" style="margin: 0;">{{c.name}}</h3>
+<p style="margin: 0; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">{{c.desc}}</p>
+</div>
+<div>{{c.action}}</div>
+</article>
+</sc-for>
+</div>
+</section>
+
+<section style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;"><h2 class="heading" style="margin: 0;">DNS</h2><span style="font-size: 13px; color: var(--ink-muted);">1 zone</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px;">
+<sc-for list="{{dns}}" as="c">
+<article class="dw-panel" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 32px; height: 32px; box-sizing: border-box; border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--line); color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="globe" size="{{16}}"></x-import></span>
+{{c.status}}
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px; min-height: 58px;">
+<h3 class="body-strong" style="margin: 0;">{{c.name}}</h3>
+<p style="margin: 0; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">{{c.desc}}</p>
+</div>
+<div>{{c.action}}</div>
+</article>
+</sc-for>
+</div>
+</section>
+
+<section style="flex: 2 1 412px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;"><h2 class="heading" style="margin: 0;">Registries</h2><span style="font-size: 13px; color: var(--ink-muted);">2 of 2 connected</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px;">
+<sc-for list="{{registries}}" as="c">
+<article class="dw-panel" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 32px; height: 32px; box-sizing: border-box; border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--line); color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="layers" size="{{16}}"></x-import></span>
+{{c.status}}
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px; min-height: 58px;">
+<h3 class="body-strong" style="margin: 0;">{{c.name}}</h3>
+<p style="margin: 0; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">{{c.desc}}</p>
+</div>
+<div>{{c.action}}</div>
+</article>
+</sc-for>
+</div>
+</section>
+
+<section style="flex: 2 1 412px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;"><h2 class="heading" style="margin: 0;">Object storage</h2><span style="font-size: 13px; color: var(--ink-muted);">1 of 2 connected</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px;">
+<sc-for list="{{storage}}" as="c">
+<article class="dw-panel" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 32px; height: 32px; box-sizing: border-box; border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--line); color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="archive" size="{{16}}"></x-import></span>
+{{c.status}}
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px; min-height: 58px;">
+<h3 class="body-strong" style="margin: 0;">{{c.name}}</h3>
+<p style="margin: 0; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">{{c.desc}}</p>
+</div>
+<div>{{c.action}}</div>
+</article>
+</sc-for>
+</div>
+</section>
+
+<section style="flex: 4 1 836px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;"><h2 class="heading" style="margin: 0;">Cloud providers</h2><span style="font-size: 13px; color: var(--ink-muted);">2 of 4 connected · Dockwell creates and replaces servers through them</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px;">
+<sc-for list="{{clouds}}" as="c">
+<article class="dw-panel" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 32px; height: 32px; box-sizing: border-box; border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--line); color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{16}}"></x-import></span>
+{{c.status}}
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px; min-height: 58px;">
+<h3 class="body-strong" style="margin: 0;">{{c.name}}</h3>
+<p style="margin: 0; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">{{c.desc}}</p>
+</div>
+<div>{{c.action}}</div>
+</article>
+</sc-for>
+</div>
+</section>
+
+</div>
+
+</div>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":870}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const code = (t) => h('code', { style: { fontSize: 12, color: 'var(--ink)' } }, t);
+    const card = (name, on, desc) => ({
+      name, desc,
+      status: on
+        ? h(DW.StatusBadge, { status: 'healthy', label: 'Connected' })
+        : h('span', { style: { fontSize: 13, color: 'var(--ink-muted)' } }, 'Not connected'),
+      action: h(DW.Button, { size: 'sm', icon: on ? 'settings' : 'plus', 'aria-label': (on ? 'Manage ' : 'Connect ') + name }, on ? 'Manage' : 'Connect')
+    });
+    return {
+      theme: this.props.theme ?? 'light',
+      git: [
+        card('GitHub', true, h(React.Fragment, null, 'GitHub app on ', code('acme'), ' · 23 repositories')),
+        card('GitLab', false, 'Deploy from gitlab.com or your own GitLab.'),
+        card('Gitea', false, 'Self-hosted. Connect it by URL and an access token.')
+      ],
+      dns: [
+        card('Cloudflare', true, h(React.Fragment, null, 'Zone ', code('acme.dev'), ' · records and certificates for 23 domains'))
+      ],
+      registries: [
+        card('GitHub Container Registry', true, h(React.Fragment, null, code('ghcr.io/acme'), ' · images from GitHub Actions')),
+        card('Docker Hub', true, 'Authenticated pulls, so rate limits never stall a deploy.')
+      ],
+      storage: [
+        card('Cloudflare R2', true, h(React.Fragment, null, 'Bucket ', code('acme-backups'), ' · backups and control plane')),
+        card('S3-compatible', false, 'Amazon S3, Backblaze B2, MinIO or any S3 API.')
+      ],
+      clouds: [
+        card('Hetzner', true, h(React.Fragment, null, '24 servers in ', code('fra-1'))),
+        card('DigitalOcean', true, h(React.Fragment, null, '16 servers in ', code('ams-1'))),
+        card('Vultr', false, 'Create and replace servers in your Vultr account.'),
+        card('AWS', false, 'EC2 servers in your account, through an IAM role.')
+      ],
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

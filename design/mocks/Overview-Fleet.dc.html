@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Overview, fleet</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="overview" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Overview</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">52 servers in 3 regions · agent 0.9.4 everywhere</p>
+</div>
+<x-import component-from-global-scope="Dockwell.SegmentedControl" label="Region" size="sm" default-value="all" options="{{regions}}"></x-import>
+</div>
+
+<x-import component-from-global-scope="Dockwell.Callout" tone="critical" title="ams-1-03 is down" actions="{{calloutActions}}">Its 2 replicas moved to ams-1-04 and ams-1-05. No requests were dropped.</x-import>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px;">
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Servers serving" value="49" unit="of 52" data="{{serving}}" min="{{40}}" max="{{53}}" caption="1 down · 2 stopped · 2 degraded"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="CPU" value="38.4" unit="%" data="{{cpu}}" min="{{0}}" max="{{100}}" caption="Average over the last hour"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Memory" value="61" unit="%" data="{{mem}}" min="{{0}}" max="{{100}}" threshold="{{80}}" caption="204 of 336 GB · alert above 80%"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Requests" value="11.2k" unit="/min" data="{{req}}" tone="cobalt" delta="0.42% errors" delta-tone="warning" caption="23 domains · errors up from 0.10% at 13:58"></x-import></div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch;">
+<section class="dw-panel" style="flex: 3 1 560px; min-width: 0; display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Servers</h2><a href="Servers-List.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">View all</a></div>
+<div class="dw-panel-body" style="flex: 1 1 auto;"><x-import component-from-global-scope="Dockwell.FleetGrid" groups="{{groups}}" selected-id="ams-1-03" on-select="{{noop}}"></x-import></div>
+</section>
+<section class="dw-panel" style="flex: 2 1 340px; min-width: 0;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Recent changes</h2><a href="Activity.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Activity</a></div>
+<div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.Timeline" events="{{events}}" on-undo="{{noop}}"></x-import></div>
+</section>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Apps</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">8 in storefront / production · 6 healthy · 1 deploying · 1 degraded</span>
+<span style="flex: 1 1 auto;"></span>
+<a href="Apps-List.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">All 14 apps</a>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{appCols}}" rows="{{apps}}" density="compact" caption="Apps in storefront / production" on-row-click="{{noop}}"></x-import>
+</section>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1250}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const wave = (n, base, amp, seed) => Array.from({ length: n }, (_, i) => +(base + amp * Math.sin((i + seed) / 3.1) + amp * 0.5 * Math.sin((i * 7 + seed) / 5.3)).toFixed(1));
+    const tone = { healthy: 'ink', deploying: 'cobalt', degraded: 'warning', stopped: 'idle', down: 'critical' };
+    const cell = (t, s) => h('div', { className: 'dw-cell' }, h('span', { className: 'dw-cell-title' }, t), h('span', { className: 'dw-cell-sub' }, s));
+    const special = {
+      'fra-1-07': { status: 'degraded', cpu: 92, mem: 93, note: 'Memory above 90% since 13:58' },
+      'fra-1-15': { status: 'deploying', note: 'storefront-web r64 rolling out' },
+      'fra-1-16': { status: 'deploying', note: 'storefront-web r64 rolling out' },
+      'fra-1-22': { status: 'stopped' },
+      'ams-1-03': { status: 'down', note: 'No heartbeat since 14:02' },
+      'ams-1-09': { status: 'deploying', note: 'storefront-web r64 rolling out' },
+      'ams-1-12': { status: 'degraded', cpu: 88, note: 'CPU above 85% for 11 min' },
+      'sfo-2-05': { status: 'stopped' }
+    };
+    const region = (r, net, n) => Array.from({ length: n }, (_, k) => {
+      const i = k + 1, id = r + '-' + String(i).padStart(2, '0'), s = special[id] || {}, st = s.status || 'healthy', off = st === 'stopped' || st === 'down';
+      return { id, name: id, status: st, cpu: off ? null : (s.cpu ?? 14 + (i * 37) % 52), mem: off ? null : (s.mem ?? 28 + (i * 23) % 50), ip: '10.210.' + net + '.' + i, note: s.note };
+    });
+    const groups = [
+      { label: 'fra-1', meta: 'Hetzner Falkenstein · 24 servers', servers: region('fra-1', 4, 24) },
+      { label: 'ams-1', meta: 'DigitalOcean Amsterdam · 16 servers', servers: region('ams-1', 5, 16) },
+      { label: 'sfo-2', meta: 'On-prem rack B · 12 servers', servers: region('sfo-2', 6, 12) }
+    ];
+    const events = [
+      { id: 1, kind: 'deploy', status: 'deploying', title: 'Rolling out storefront-web', revision: 'r64', actor: 'GitHub Actions', time: 'now' },
+      { id: 3, kind: 'alert', tone: 'critical', title: 'ams-1-03 went down', meta: '2 replicas moved, no requests dropped', time: '18 min ago' },
+      { id: 2, kind: 'alert', tone: 'warning', title: 'High memory on fra-1-07', meta: 'Above 90% since 13:58', time: '22 min ago' },
+      { id: 4, kind: 'deploy', status: 'degraded', title: 'Deployed worker, error rate up to 0.42%', revision: 'r57', actor: 'Push to main', time: '24 min ago', undoable: true, undoLabel: 'Roll back' }
+    ];
+    const apps = [
+      { id: 'web', name: 'storefront-web', image: 'ghcr.io/acme/storefront:2c71f09', status: 'deploying', meta: 'r64', replicas: '2/3', servers: '3', where: 'fra-1, ams-1', cpu: wave(20, 22, 4, 1), domain: 'acme.dev' },
+      { id: 'api', name: 'api', image: 'ghcr.io/acme/api:8be41d2', status: 'healthy', replicas: '3/3', servers: '3', where: 'fra-1, ams-1', cpu: wave(20, 30, 5, 2), domain: 'api.acme.dev' },
+      { id: 'worker', name: 'worker', image: 'ghcr.io/acme/worker:9a03e1b', status: 'degraded', meta: 'since r57', replicas: '4/4', servers: '3', where: 'fra-1, ams-1', cpu: wave(20, 78, 6, 3), domain: '—' },
+      { id: 'checkout', name: 'checkout', image: 'ghcr.io/acme/checkout:e19b2c4', status: 'healthy', replicas: '3/3', servers: '3', where: 'fra-1, ams-1', cpu: wave(20, 18, 4, 4), domain: 'checkout.acme.dev' },
+      { id: 'search', name: 'search', image: 'getmeili/meilisearch:v1.11', status: 'healthy', replicas: '1/1', servers: '1', where: 'sfo-2', cpu: wave(20, 12, 3, 5), domain: 'private' },
+      { id: 'images', name: 'images', image: 'darthsim/imgproxy:v3.27', status: 'healthy', replicas: '2/2', servers: '2', where: 'fra-1, ams-1', cpu: wave(20, 24, 6, 6), domain: 'img.acme.dev' },
+      { id: 'plausible', name: 'plausible', image: 'ghcr.io/plausible/community-edition:v2.1.4', status: 'healthy', replicas: '1/1', servers: '1', where: 'ams-1', cpu: wave(20, 9, 2, 7), domain: 'stats.acme.dev' },
+      { id: 'kuma', name: 'uptime-kuma', image: 'louislam/uptime-kuma:1.23.16', status: 'healthy', replicas: '1/1', servers: '1', where: 'fra-1', cpu: wave(20, 5, 1.5, 8), domain: 'status.acme.dev' }
+    ];
+    const appCols = [
+      { key: 'name', header: 'App', render: (r) => cell(r.name, r.image) },
+      { key: 'status', header: 'Status', width: 168, render: (r) => h(DW.StatusBadge, { status: r.status, meta: r.meta }) },
+      { key: 'replicas', header: 'Replicas', width: 80, align: 'right' },
+      { key: 'servers', header: 'Runs on', width: 150, render: (r) => h('span', { style: { display: 'inline-flex', alignItems: 'baseline', gap: 6 } }, h('span', null, r.servers + (r.servers === '1' ? ' server' : ' servers')), h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-muted)' } }, r.where)) },
+      { key: 'cpu', header: 'CPU, last hour', width: 128, render: (r) => h(DW.Sparkline, { data: r.cpu, width: 96, height: 20, min: 0, max: 100, tone: tone[r.status] }) },
+      { key: 'domain', header: 'Domain', width: 156, mono: true, muted: true }
+    ];
+    const calloutActions = h(React.Fragment, null,
+      h('a', { href: 'Servers-List.dc.html', className: 'dw-btn dw-btn-ghost dw-btn-sm', style: { textDecoration: 'none', color: 'var(--ink)' } }, 'Inspect'),
+      h('a', { href: 'Plan-Review.dc.html', className: 'dw-btn dw-btn-primary dw-btn-sm', style: { textDecoration: 'none' } }, 'Replace server'));
+    return {
+      theme: this.props.theme ?? 'light',
+      regions: [{ value: 'all', label: 'All regions', count: 52 }, { value: 'fra-1', label: 'fra-1', count: 24 }, { value: 'ams-1', label: 'ams-1', count: 16 }, { value: 'sfo-2', label: 'sfo-2', count: 12 }],
+      serving: [52, 52, 51, 52, 52, 52, 51, 51, 52, 52, 51, 50, 49, 49],
+      cpu: wave(40, 38, 6, 1), mem: wave(40, 61, 4, 9), req: wave(28, 11, 1.1, 4),
+      groups, events, apps, appCols, calloutActions,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

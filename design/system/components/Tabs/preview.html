@@ -1,0 +1,21 @@
+<!-- @dsCard group="Navigation" height=96 subtitle="Sections of one resource" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Tabs</title>
+<style> .demo { padding: 16px 24px 24px; } </style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'demo' },
+    h(H.Tabs, { label: 'api-gateway', defaultValue: 'deployments', tabs: [
+      { id: 'overview', label: 'Overview' },
+      { id: 'deployments', label: 'Deployments', count: 128 },
+      { id: 'logs', label: 'Logs' },
+      { id: 'metrics', label: 'Metrics' },
+      { id: 'alerts', label: 'Alerts', count: 2, countTone: 'warning' },
+      { id: 'settings', label: 'Settings' }] })));
+</script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Phone servers</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="width: 390px; height: 844px; overflow: hidden; position: relative; display: flex; flex-direction: column; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="MobileHeader" title="Servers" sub="52 in 3 regions" back="" hint-size="390px,56px"></dc-import>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+
+<div style="display: flex; --control-md: 50px;">
+<x-import component-from-global-scope="Dockwell.SegmentedControl" label="Group servers by" options="{{groupBy}}" value="region" on-change="{{noop}}"></x-import>
+</div>
+
+<div class="dw-panel" style="padding: 16px;">
+<x-import component-from-global-scope="Dockwell.FleetGrid" groups="{{groups}}" size="sm" legend="{{yes}}" readout="{{no}}" selected-id="fra-1-07" on-select="{{noop}}"></x-import>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; align-items: baseline; gap: 8px; padding: 0 2px;">
+<h2 class="heading" style="margin: 0;">Needs attention</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">3 servers</span>
+</div>
+<div class="dw-panel" role="list" style="display: flex; flex-direction: column; overflow: hidden;">
+<sc-for list="{{attention}}" as="s">
+<button type="button" role="listitem" aria-pressed="{{s.on}}" style="display: grid; grid-template-columns: 10px minmax(0, 1fr); align-items: center; column-gap: 12px; width: 100%; min-height: 56px; padding: 8px 16px; box-sizing: border-box; border: 0; border-top: {{s.sep}}; background: {{s.bg}}; color: var(--ink); font: inherit; text-align: left; cursor: pointer;">
+<span style="align-self: start; display: flex; padding-top: 6px;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="{{s.status}}" label=""></x-import></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 15px; line-height: 20px; font-weight: 550;">{{s.name}}</span>
+<span style="font-size: 12.5px; line-height: 16px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="color: {{s.tone}};">{{s.word}}</span> · {{s.why}}</span>
+</span>
+</button>
+</sc-for>
+</div>
+</section>
+
+<section aria-label="Selected server" style="margin-top: auto; display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--radius-lg); background: var(--surface-raised); box-shadow: var(--shadow-float); --control-md: 44px;">
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+<span style="display: flex; align-items: center; gap: 8px;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="degraded" label=""></x-import><span style="font-size: 15px; line-height: 20px; font-weight: 550;">fra-1-07</span><span style="font-size: 12.5px; color: var(--ink-muted);">Hetzner · Falkenstein</span></span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted); white-space: nowrap;">Degraded · CPU <b style="font-weight: 550; color: var(--ink);">92%</b> · <code style="font-family: var(--font-mono); font-size: 12px; color: var(--ink);">10.210.4.7</code></span>
+</div>
+<a href="M-Server.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><span class="dw-btn-label">Open</span><x-import component-from-global-scope="Dockwell.Icon" name="arrow-right" size="{{14}}"></x-import></a>
+</section>
+
+</div>
+<dc-import name="MobileTabBar" active="servers" mode="fleet" hint-size="390px,78px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement;
+    const servers = (region, net, n, special) => Array.from({ length: n }, (_, k) => {
+      const i = k + 1, id = region + '-' + String(i).padStart(2, '0'), sp = special[i] || {}, st = sp.status || 'healthy';
+      return { id, name: id, status: st, cpu: st === 'stopped' || st === 'down' ? null : (sp.cpu || 14 + (i * 37) % 52), ip: '10.210.' + net + '.' + i, note: sp.note };
+    });
+    const groups = [
+      { label: 'fra-1', meta: 'Hetzner · Falkenstein · 24', servers: servers('fra-1', 4, 24, { 7: { status: 'degraded', cpu: 92, note: 'Memory above 90% since 13:58' }, 15: { status: 'deploying' }, 16: { status: 'deploying' }, 22: { status: 'stopped' } }) },
+      { label: 'ams-1', meta: 'DigitalOcean · Amsterdam · 16', servers: servers('ams-1', 5, 16, { 3: { status: 'down', note: 'No heartbeat since 14:02' }, 9: { status: 'deploying' }, 12: { status: 'degraded', cpu: 88 } }) },
+      { label: 'sfo-2', meta: 'On-prem rack B · 12', servers: servers('sfo-2', 6, 12, { 5: { status: 'stopped' } }) }
+    ];
+    const word = { degraded: 'Degraded', down: 'Down' };
+    const tone = { degraded: 'var(--warning)', down: 'var(--critical)' };
+    const attention = [
+      { id: 'ams-1-03', name: 'ams-1-03', status: 'down', why: 'no heartbeat since 14:02', region: 'Amsterdam' },
+      { id: 'fra-1-07', name: 'fra-1-07', status: 'degraded', why: 'memory above 90% since 13:58', region: 'Falkenstein' },
+      { id: 'ams-1-12', name: 'ams-1-12', status: 'degraded', why: 'CPU 88%', region: 'Amsterdam' }
+    ].map((s, i) => Object.assign(s, {
+      word: word[s.status], tone: tone[s.status], sep: i ? '1px solid var(--line)' : '0',
+      on: s.id === 'fra-1-07' ? 'true' : 'false', bg: s.id === 'fra-1-07' ? 'var(--selection)' : 'transparent'
+    }));
+    const half = (label) => h('span', { style: { display: 'block', width: 151, textAlign: 'center' } }, label);
+    return {
+      theme: this.props.theme ?? 'light',
+      groups, attention,
+      groupBy: [{ value: 'region', label: half('Region') }, { value: 'pool', label: half('Pool') }],
+      yes: true, no: false,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

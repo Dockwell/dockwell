@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Servers</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="servers" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box; color-scheme: {{scheme}};">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Servers</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">52 in 3 regions</p>
+</div>
+<a href="Add-Server.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>Add server</span></a>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+<div class="dw-input" style="flex: 1 1 420px; min-width: 0; align-items: center; gap: 6px; padding: 0 12px 0 10px;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="filter" size="{{16}}"></x-import></span>
+<x-import component-from-global-scope="Dockwell.Tag" label="pool" value="web" on-remove="{{noop}}"></x-import>
+<x-import component-from-global-scope="Dockwell.Tag" label="region" value="eu" on-remove="{{noop}}"></x-import>
+<label for="selector" class="dw-sr">Add a label to the selector</label>
+<input id="selector" class="dw-input-el is-mono" style="padding: 0 4px;" placeholder="label:value">
+<span style="font-size: 13px; font-weight: 550; white-space: nowrap;">38 match</span>
+</div>
+<x-import component-from-global-scope="Dockwell.SegmentedControl" label="View" default-value="tiles" options="{{views}}"></x-import>
+<x-import component-from-global-scope="Dockwell.Button" icon="layers" icon-after="chevron-down">Group by region</x-import>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<div style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+<section class="dw-panel" style="padding: 16px;" aria-label="Matching servers">
+<x-import component-from-global-scope="Dockwell.FleetGrid" groups="{{groups}}" selected-id="fra-1-07" on-select="{{noop}}"></x-import>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 44px; padding: 6px 8px 6px 16px; box-sizing: border-box; border-radius: var(--radius-md); background: var(--selection);">
+<span style="font-size: 13.5px; font-weight: 600;">3 selected</span>
+<span class="code-sm" style="color: var(--ink);">fra-1-03, fra-1-04, fra-1-05</span>
+<span style="flex: 1 1 auto;"></span>
+<button type="button" class="dw-btn dw-btn-ghost dw-btn-sm" style="color: var(--ink);">Clear</button>
+<a href="Fleet-Action.dc.html" class="dw-btn dw-btn-secondary dw-btn-sm" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="play" size="{{14}}"></x-import><span>Run fleet action</span></a>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{cols}}" rows="{{rows}}" density="compact" caption="Servers matching pool:web region:eu, sorted by name"></x-import>
+<div style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--ink-muted);">
+<span>Showing 8 of 38 · sorted by name</span>
+<a href="Servers-List.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Show all 38</a>
+</div>
+</section>
+</div>
+
+<aside class="dw-panel" aria-label="fra-1-07" style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column;">
+<div class="dw-panel-head" style="padding-right: 8px;">
+<div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{16}}"></x-import></span>
+<h2 class="dw-panel-title" style="font-family: var(--font-mono); font-size: 14px; font-weight: 600;">fra-1-07</h2>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="degraded" variant="pill" meta="for 22 min"></x-import>
+</div>
+<button type="button" class="dw-btn dw-btn-ghost dw-btn-sm dw-btn-icon" aria-label="Close inspector"><x-import component-from-global-scope="Dockwell.Icon" name="x" size="{{14}}"></x-import></button>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border-bottom: 1px solid var(--line);">
+<p style="margin: 0; font-size: 13.5px; line-height: 20px;">Memory above 90% since 13:58, CPU at 92%. 2 of the 4 worker r57 replicas run here.</p>
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px; line-height: 20px;">
+<dt style="color: var(--ink-muted);">Public IP</dt><dd style="margin: 0;"><code class="code-sm">49.12.118.42</code></dd>
+<dt style="color: var(--ink-muted);">Private IP</dt><dd style="margin: 0;"><code class="code-sm">10.210.4.7</code></dd>
+<dt style="color: var(--ink-muted);">Provider</dt><dd style="margin: 0;">Hetzner · Falkenstein · CX32</dd>
+<dt style="color: var(--ink-muted);">Pool</dt><dd style="margin: 0;">web</dd>
+<dt style="color: var(--ink-muted);">Labels</dt><dd style="margin: 0; display: flex; flex-wrap: wrap; gap: 4px;"><x-import component-from-global-scope="Dockwell.Tag" label="region" value="eu"></x-import><x-import component-from-global-scope="Dockwell.Tag" label="provider" value="hetzner"></x-import><x-import component-from-global-scope="Dockwell.Tag" label="arch" value="amd64"></x-import></dd>
+</dl>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; border-bottom: 1px solid var(--line);">
+<x-import component-from-global-scope="Dockwell.Metric" label="CPU" value="92" unit="%" data="{{cpu}}" tone="warning" min="{{0}}" max="{{100}}" caption="Last hour"></x-import>
+<x-import component-from-global-scope="Dockwell.Metric" label="Memory" value="7.4" unit="of 8 GB" data="{{mem}}" tone="warning" threshold="{{90}}" min="{{0}}" max="{{100}}" caption="Alert above 90%"></x-import>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-bottom: 1px solid var(--line);">
+<h3 class="label" style="margin: 0; color: var(--ink-muted); font-weight: 500;">Runs here</h3>
+<div style="display: flex; align-items: center; gap: 10px;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="service" size="{{16}}"></x-import></span>
+<span style="font-size: 14px; font-weight: 550;">worker</span><span style="font-size: 13px; color: var(--ink-muted);">×2</span><code class="code-sm" style="padding: 0 5px; border-radius: 3px; background: var(--surface-sunken);">r57</code>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="degraded"></x-import>
+</div>
+<div style="display: flex; align-items: center; gap: 10px;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="service" size="{{16}}"></x-import></span>
+<span style="font-size: 14px; font-weight: 550;">uptime-kuma</span><span style="font-size: 13px; color: var(--ink-muted);">×1</span><code class="code-sm" style="padding: 0 5px; border-radius: 3px; background: var(--surface-sunken);">r3</code>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border-bottom: 1px solid var(--line);">
+<h3 class="label" style="margin: 0; color: var(--ink-muted); font-weight: 500;">Recent</h3>
+<x-import component-from-global-scope="Dockwell.Timeline" events="{{events}}"></x-import>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 8px; padding: 16px;">
+<a href="Server-Terminal.dc.html" class="dw-btn dw-btn-secondary dw-btn-sm" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="terminal" size="{{14}}"></x-import><span>Terminal</span></a>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="layers">Drain</x-import>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="refresh">Restart agent</x-import>
+</div>
+</aside>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const wave = (n, base, amp, seed) => Array.from({ length: n }, (_, i) => +(base + amp * Math.sin((i + seed) / 3.1) + amp * 0.5 * Math.sin((i * 7 + seed) / 5.3)).toFixed(1));
+    const special = {
+      'fra-1-07': { status: 'degraded', cpu: 92, mem: 93, note: 'Memory above 90% since 13:58' },
+      'fra-1-15': { status: 'deploying', note: 'storefront-web r64 rolling out' },
+      'fra-1-16': { status: 'deploying', note: 'storefront-web r64 rolling out' },
+      'fra-1-22': { status: 'stopped' },
+      'ams-1-03': { status: 'down', note: 'No heartbeat since 14:02' },
+      'ams-1-09': { status: 'deploying', note: 'storefront-web r64 rolling out' },
+      'ams-1-12': { status: 'degraded', cpu: 88, note: 'CPU above 85% for 11 min' }
+    };
+    const region = (r, net, from, to) => Array.from({ length: to - from + 1 }, (_, k) => {
+      const i = from + k, id = r + '-' + String(i).padStart(2, '0'), s = special[id] || {}, st = s.status || 'healthy', off = st === 'stopped' || st === 'down';
+      return { id, name: id, status: st, cpu: off ? null : (s.cpu ?? 14 + (i * 37) % 52), mem: off ? null : (s.mem ?? 28 + (i * 23) % 50), ip: '10.210.' + net + '.' + i, note: s.note };
+    });
+    const fra = region('fra-1', 4, 3, 24), ams = region('ams-1', 5, 1, 16);
+    const groups = [
+      { label: 'fra-1', meta: 'Hetzner Falkenstein · 22 of 24 match', servers: fra },
+      { label: 'ams-1', meta: 'DigitalOcean Amsterdam · 16 of 16 match', servers: ams }
+    ];
+    const runs = { 'fra-1-03': 'staging: storefront-web', 'fra-1-04': 'api', 'fra-1-05': 'worker', 'fra-1-06': 'checkout', 'fra-1-07': 'worker ×2, uptime-kuma', 'fra-1-08': 'staging: api, worker', 'fra-1-09': 'images', 'fra-1-10': 'staging: checkout' };
+    const checked = { 'fra-1-03': true, 'fra-1-04': true, 'fra-1-05': true };
+    const rows = fra.slice(0, 8).map((s) => Object.assign({}, s, { runs: runs[s.id], on: !!checked[s.id] }));
+    const box = (on, label) => h('input', { type: 'checkbox', checked: on, readOnly: true, 'aria-label': label, style: { width: 16, height: 16, margin: 0, display: 'block', accentColor: 'var(--action)' } });
+    const head = h('input', { type: 'checkbox', readOnly: true, 'aria-label': 'Select all 38 servers', ref: (el) => { if (el) el.indeterminate = true; }, style: { width: 16, height: 16, margin: 0, display: 'block', accentColor: 'var(--action)' } });
+    const cols = [
+      { key: 'on', header: head, width: 32, render: (r) => box(r.on, 'Select ' + r.name) },
+      { key: 'name', header: 'Server', width: 168, render: (r) => h('div', { className: 'dw-cell' }, h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500 } }, r.name), h('span', { className: 'dw-cell-sub' }, r.ip)) },
+      { key: 'status', header: 'Status', width: 120, render: (r) => h(DW.StatusBadge, { status: r.status }) },
+      { key: 'cpu', header: 'CPU', width: 64, align: 'right', render: (r) => r.cpu + '%' },
+      { key: 'mem', header: 'Memory', width: 76, align: 'right', render: (r) => r.mem + '%' },
+      { key: 'runs', header: 'Runs', muted: true }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      scheme: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light',
+      events: [
+        { id: 1, kind: 'alert', tone: 'warning', title: 'Memory above 90%', meta: 'Alert open, Priya Raman notified', time: '22 min ago' },
+        { id: 2, kind: 'deploy', title: 'worker r57 started 2 replicas here', actor: 'Push to main', time: '24 min ago' }
+      ],
+      views: [{ value: 'tiles', label: 'Tiles', icon: 'grid' }, { value: 'table', label: 'Table', icon: 'menu' }],
+      groups, rows, cols,
+      cpu: wave(30, 70, 6, 2).map((v, i) => +(v + i * 0.8).toFixed(1)),
+      mem: wave(30, 74, 2, 5).map((v, i) => +(v + i * 0.62).toFixed(1)),
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

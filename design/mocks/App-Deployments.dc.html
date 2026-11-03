@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>App api, deployments</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="apps" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: var(--ink-muted);"><a href="Apps-List.dc.html" style="color: var(--ink-muted); text-decoration: none;">Apps</a><span aria-hidden="true">/</span><span aria-current="page">api</span></nav>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;">
+<h1 class="title" style="margin: 0;">api</h1>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+<x-import component-from-global-scope="Dockwell.Tag" icon="branch">main</x-import>
+<code class="code-sm" style="color: var(--ink-muted);">r128</code>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Go · 3 replicas in fra-1 and ams-1 · deployed 4 min ago by Mira Chen</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" icon="refresh">Restart</x-import>
+<a href="App-Logs.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="terminal" size="{{16}}"></x-import><span>Logs</span></a>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="deploy">Deploy</x-import>
+</div>
+</div>
+<div class="dw-tabs" role="tablist" aria-label="App sections">
+<a href="App-Overview.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Overview</span></a>
+<a href="App-Deployments.dc.html" class="dw-tab" role="tab" aria-selected="true" style="text-decoration: none;"><span>Deployments</span><span class="dw-tab-count">128</span></a>
+<a href="App-Logs.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Logs</span></a>
+<a href="App-Environment.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Environment</span></a>
+<a href="App-Settings.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Settings</span></a>
+<a href="App-Previews.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Previews</span><span class="dw-tab-count">3</span></a>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Revisions</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">128 in production · newest first</span>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.SegmentedControl" size="sm" label="Filter by trigger" options="{{triggers}}" default-value="all"></x-import>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{cols}}" rows="{{revs}}" selected-key="r128" on-row-click="{{noop}}" caption="Revisions of api"></x-import>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+<span style="font-size: 12.5px; color: var(--ink-muted);">Showing r121 to r128 of 128</span>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="chevron-down">Show older revisions</x-import>
+</div>
+</section>
+
+<section class="dw-panel" aria-label="Revision r128" style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column;">
+<div class="dw-panel-head">
+<div style="display: flex; align-items: center; gap: 10px;"><h2 class="dw-panel-title" style="font-family: var(--font-mono); font-size: 14px; font-weight: 600;">r128</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Live"></x-import></div>
+<span style="font-size: 12.5px; color: var(--ink-muted);">Today 14:16 · 4 min ago</span>
+</div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<h3 class="label" style="margin: 0;">What changed</h3>
+<x-import component-from-global-scope="Dockwell.PlanDiff" resources="{{changes}}"></x-import>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;"><h3 class="label" style="margin: 0;">Rollout</h3><span style="font-size: 12.5px; color: var(--ink-muted);">One replica at a time · 1 min 6 s</span></div>
+<dl style="margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto 72px; align-items: center; gap: 8px 16px; font-size: 13px; line-height: 20px;">
+<dt><code style="font: 500 13px/20px var(--font-mono);">fra-1-04</code></dt><dd style="margin: 0; display: flex;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Done"></x-import></dd><dd style="margin: 0; text-align: right; color: var(--ink-muted);">14:15:25</dd>
+<dt><code style="font: 500 13px/20px var(--font-mono);">fra-1-11</code></dt><dd style="margin: 0; display: flex;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Done"></x-import></dd><dd style="margin: 0; text-align: right; color: var(--ink-muted);">14:15:44</dd>
+<dt><code style="font: 500 13px/20px var(--font-mono);">ams-1-02</code></dt><dd style="margin: 0; display: flex;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Done"></x-import></dd><dd style="margin: 0; text-align: right; color: var(--ink-muted);">14:16:03</dd>
+</dl>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;"><h3 class="label" style="margin: 0;">Build</h3><span style="font-size: 12.5px; color: var(--ink-muted);">Builders pool</span></div>
+<dl style="margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Duration</dt><dd style="margin: 0; font-size: 15px; line-height: 22px; font-weight: 550;">52 s</dd></div>
+<div style="display: flex; flex-direction: column; gap: 2px;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Cache hit</dt><dd style="margin: 0; font-size: 15px; line-height: 22px; font-weight: 550;">87%</dd></div>
+<div style="display: flex; flex-direction: column; gap: 2px;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Built on</dt><dd style="margin: 0; font: 500 13px/22px var(--font-mono);">sfo-2-02</dd></div>
+<div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 2px;"><dt style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Image</dt><dd style="margin: 0; min-width: 0; overflow-wrap: anywhere;"><code class="code-sm">ghcr.io/acme/api:8be41d2</code></dd></div>
+</dl>
+</div>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; padding: 12px 16px; border-top: 1px solid var(--line);">
+<span style="font-size: 12.5px; color: var(--ink-muted);">Opens a plan to review first</span>
+<a href="Plan-Review.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="undo" size="{{16}}"></x-import><span>Roll back to r127</span></a>
+</div>
+</section>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":830}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const code = (t) => h('code', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, t);
+    const clip = { display: 'block', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+    const revs = [
+      { id: 'r128', status: 'healthy', label: 'Live', msg: 'Add order export endpoint', sha: '8be41d2', author: 'Leo Park', trigger: 'Manual', by: 'Mira Chen', icon: 'user', dur: '1 min 58 s', at: '4 min ago' },
+      { id: 'r127', status: 'stopped', label: 'Replaced', msg: 'Cache product lookups in valkey', sha: '3f9c0a1', author: 'Sam Okafor', trigger: 'Push', icon: 'commit', dur: '1 min 46 s', at: '3 h ago' },
+      { id: 'r126', status: 'stopped', label: 'Replaced', msg: 'Batch inventory sync with smaller pages', sha: 'e41b7c9', author: 'Leo Park', trigger: 'Push', icon: 'commit', dur: '2 min 4 s', at: '21 h ago' },
+      { id: 'r125', status: 'stopped', label: 'Replaced', msg: 'Roll back to r123', sha: 'c19e8f4', author: 'Sam Okafor', trigger: 'Rollback', by: 'Mira Chen', icon: 'undo', dur: '41 s', at: '2 Nov' },
+      { id: 'r124', status: 'stopped', label: 'Rolled back', msg: 'Batch inventory sync', sha: '92b7d5e', author: 'Leo Park', trigger: 'Push', icon: 'commit', dur: '1 min 58 s', at: '2 Nov' },
+      { id: 'r123', status: 'stopped', label: 'Replaced', msg: 'Fix valkey connection pool size', sha: 'c19e8f4', author: 'Sam Okafor', trigger: 'Push', icon: 'commit', dur: '1 min 55 s', at: '1 Nov' },
+      { id: 'r122', status: 'down', label: 'Failed', msg: 'Move sessions to valkey', sha: '7a0e5d3', author: 'Sam Okafor', trigger: 'Push', icon: 'commit', dur: '1 min 12 s', at: '31 Oct' },
+      { id: 'r121', status: 'stopped', label: 'Replaced', msg: 'Add rate limits to public endpoints', sha: '5a2e913', author: 'Leo Park', trigger: 'Push', icon: 'commit', dur: '1 min 49 s', at: '30 Oct' }
+    ];
+    const cols = [
+      { key: 'id', header: 'Revision', width: 84, render: (r) => h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500 } }, r.id) },
+      { key: 'status', header: 'Status', width: 124, render: (r) => h(DW.StatusBadge, { status: r.status, label: r.label }) },
+      { key: 'msg', header: 'Commit', render: (r) => h('div', { className: 'dw-cell' },
+        h('span', { className: 'dw-cell-title', style: clip }, r.msg),
+        h('span', { className: 'dw-cell-sub', style: { fontFamily: 'var(--font-sans)' } }, code(r.sha), ' · ' + r.author)) },
+      { key: 'trigger', header: 'Trigger', width: 116, render: (r) => h('div', { className: 'dw-cell' },
+        h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6 } }, h('span', { style: { display: 'flex', color: 'var(--ink-muted)' } }, h(DW.Icon, { name: r.icon, size: 14 })), r.trigger),
+        r.by ? h('span', { style: { fontSize: 12, lineHeight: '16px', color: 'var(--ink-muted)', paddingLeft: 20 } }, r.by) : null) },
+      { key: 'dur', header: 'Duration', width: 96, align: 'right', muted: true },
+      { key: 'at', header: 'Deployed', width: 92, align: 'right', muted: true }
+    ];
+    const changes = [
+      { id: 'api', action: 'update', kind: 'app', name: 'api', note: 'Rolling update', changes: [
+        { path: 'image', from: '3f9c0a1', to: '8be41d2' },
+        { path: 'env.LOG_LEVEL', from: 'info', to: 'warn' }
+      ] }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      revs, cols, changes,
+      triggers: [{ value: 'all', label: 'All' }, { value: 'push', label: 'Push' }, { value: 'manual', label: 'Manual' }, { value: 'rollback', label: 'Rollback' }],
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Domains, fleet</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="domains" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Domains</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">23 domains in Acme · DNS at Cloudflare · traffic enters through 5 ingress servers</p>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="plus">Add domain</x-import>
+</div>
+<div class="dw-tabs" role="tablist" aria-label="Domains sections">
+<a href="Domains-Fleet.dc.html" class="dw-tab" role="tab" aria-selected="true" style="text-decoration: none;"><span>Domains</span><span class="dw-tab-count">23</span></a>
+<a href="Ingress.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Ingress</span><span class="dw-tab-count">6</span></a>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<section style="flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; gap: 8px; min-height: 28px;">
+<h2 class="heading" style="margin: 0;">All domains</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">21 proxied · 2 direct · all certificates valid</span>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.TextField" size="sm" icon="search" placeholder="Filter domains" aria-label="Filter domains" style="width: 200px;"></x-import>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{cols}}" rows="{{domains}}" caption="Domains in Acme, sorted by requests" on-row-click="{{noop}}"></x-import>
+<div style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--ink-muted);">
+<span>Showing 10 of 23 · sorted by requests</span>
+<a href="Domains-Fleet.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Show all 23</a>
+</div>
+</section>
+
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Cloudflare</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Connected"></x-import></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px; line-height: 18px;">
+<dt style="color: var(--ink-muted);">Zone</dt><dd style="margin: 0;"><code style="font-size: 12.5px;">acme.dev</code></dd>
+<dt style="color: var(--ink-muted);">Records</dt><dd style="margin: 0;">31 managed by Dockwell</dd>
+<dt style="color: var(--ink-muted);">Point at</dt><dd style="margin: 0;">5 healthy ingress servers</dd>
+<dt style="color: var(--ink-muted);">API token</dt><dd style="margin: 0;">Edit DNS, this zone only</dd>
+<dt style="color: var(--ink-muted);">Last sync</dt><dd style="margin: 0;">1 min ago</dd>
+</dl>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="refresh">Sync now</x-import>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost">Replace token</x-import>
+</div>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head">
+<div style="display: flex; align-items: center; gap: 10px;"><h2 class="dw-panel-title">Ingress</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="degraded" label="5 of 6 healthy"></x-import></div>
+<a href="Ingress.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Manage</a>
+</div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 18px;">
+<sc-for list="{{ingress}}" as="s">
+<li style="display: flex; align-items: center; gap: 8px; min-height: 20px;">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="{{s.status}}" label="{{s.label}}"></x-import>
+<code style="font-size: 12px; color: var(--ink-muted);">{{s.ip}}</code>
+<span style="flex: 1 1 auto;"></span>
+<span style="{{s.rateStyle}}">{{s.rate}}</span>
+</li>
+</sc-for>
+</ul>
+<p style="margin: 0; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; line-height: 20px;"><code class="code-sm">ams-1-03</code> lost its heartbeat at 14:02. Dockwell took it out of all 23 domains’ records at 14:02:31. No requests were dropped.</p>
+</div>
+</section>
+</div>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":850}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const muted = { color: 'var(--ink-muted)' };
+    const sub = (t) => h('span', { style: Object.assign({ fontSize: 12.5, lineHeight: '16px' }, muted) }, t);
+    const mono = { fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500, color: 'var(--ink)', textDecoration: 'none' };
+    const domainCell = (r) => h('div', { className: 'dw-cell' },
+      r.href ? h('a', { href: r.href, style: mono }, r.name) : h('span', { style: mono }, r.name),
+      r.sub ? sub(r.sub) : null);
+    const routeCell = (r) => h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+      h('span', { style: Object.assign({ display: 'flex' }, muted) }, h(DW.Icon, { name: 'service', size: 16 })),
+      h('div', { className: 'dw-cell' }, h('span', { className: 'dw-cell-title' }, r.app), sub(r.env)));
+    const entryCell = (r) => h('div', { className: 'dw-cell' },
+      h('span', null, r.proxied ? 'Proxied' : 'Direct'),
+      sub(r.proxied ? 'Cloudflare' : '5 ingress IPs'));
+    const rateCell = (r) => h('span', null, r.rate, h('span', { style: Object.assign({ fontSize: 12.5 }, muted) }, ' /min'));
+    const certCell = (r) => r.note
+      ? h('div', { className: 'dw-cell' }, h(DW.StatusBadge, { status: 'healthy', label: 'Valid', meta: r.days + ' days' }), h('span', { style: { paddingLeft: 16, fontSize: 12.5, lineHeight: '16px', color: 'var(--ink-muted)' } }, r.note))
+      : h(DW.StatusBadge, { status: 'healthy', label: 'Valid', meta: r.days + ' days' });
+    const domains = [
+      { id: 'apex', name: 'acme.dev', href: 'Domain-Traffic.dc.html', sub: 'www redirects here', app: 'storefront-web', env: 'storefront / production', proxied: true, rate: '6.1k', days: 47 },
+      { id: 'api', name: 'api.acme.dev', app: 'api', env: 'storefront / production', proxied: false, rate: '3.4k', days: 83 },
+      { id: 'img', name: 'img.acme.dev', app: 'images', env: 'storefront / production', proxied: true, rate: '720', days: 54 },
+      { id: 'checkout', name: 'checkout.acme.dev', app: 'checkout', env: 'storefront / production', proxied: true, rate: '410', days: 61 },
+      { id: 'stats', name: 'stats.acme.dev', app: 'plausible', env: 'storefront / production', proxied: true, rate: '260', days: 38 },
+      { id: 'staging', name: 'staging.acme.dev', app: 'storefront-web', env: 'storefront / staging', proxied: true, rate: '60', days: 72 },
+      { id: 'status', name: 'status.acme.dev', app: 'uptime-kuma', env: 'storefront / production', proxied: false, rate: '40', days: 32, note: 'Renews in 2 days' },
+      { id: 'preview', name: '*.preview.acme.dev', sub: 'Wildcard, 3 previews', app: 'api', env: 'storefront / previews', proxied: true, rate: '30', days: 64 },
+      { id: 'apistg', name: 'api.staging.acme.dev', app: 'api', env: 'storefront / staging', proxied: true, rate: '25', days: 72 },
+      { id: 'metabase', name: 'metabase.acme.dev', app: 'metabase', env: 'internal-tools / production', proxied: true, rate: '20', days: 58 }
+    ];
+    const cols = [
+      { key: 'name', header: 'Domain', render: domainCell },
+      { key: 'app', header: 'Routes to', width: 200, render: routeCell },
+      { key: 'entry', header: 'Entry', width: 100, render: entryCell },
+      { key: 'rate', header: 'Requests', width: 96, align: 'right', render: rateCell },
+      { key: 'cert', header: 'Certificate', width: 140, render: certCell },
+      { key: 'status', header: 'Status', width: 104, render: () => h(DW.StatusBadge, { status: 'healthy' }) }
+    ];
+    const code = (t) => h('code', { style: { fontFamily: 'var(--font-mono)', fontSize: 12.5 } }, t);
+    const ingress = [
+      { id: 'fra-1-01', ip: '49.12.118.36', status: 'healthy', rate: '2.3k /min' },
+      { id: 'fra-1-02', ip: '49.12.118.37', status: 'healthy', rate: '2.2k /min' },
+      { id: 'fra-1-03', ip: '49.12.118.38', status: 'healthy', rate: '2.3k /min' },
+      { id: 'ams-1-01', ip: '164.92.140.21', status: 'healthy', rate: '2.2k /min' },
+      { id: 'ams-1-02', ip: '164.92.140.22', status: 'healthy', rate: '2.2k /min' },
+      { id: 'ams-1-03', ip: '164.92.140.23', status: 'down', rate: 'Removed', down: true }
+    ].map((s) => Object.assign(s, {
+      label: code(s.id),
+      rateStyle: s.down ? 'font-size: 13px; font-weight: 550; color: var(--critical); white-space: nowrap;' : 'font-size: 13px; color: var(--ink); white-space: nowrap;'
+    }));
+    return {
+      theme: this.props.theme ?? 'light',
+      domains, cols, ingress,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

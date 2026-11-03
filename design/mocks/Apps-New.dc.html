@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New app</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="apps" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Apps</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">8 apps in storefront / production</p>
+</div>
+<a href="Apps-New.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>New app</span></a>
+</div>
+
+<x-import component-from-global-scope="Dockwell.Table" columns="{{cols}}" rows="{{apps}}" caption="Apps in storefront / production"></x-import>
+
+</div>
+</main>
+
+<div style="position: absolute; inset: 0; z-index: var(--z-sheet); background: var(--scrim); display: flex; justify-content: flex-end; padding: 8px; box-sizing: border-box;">
+<div style="width: 560px; max-width: 100%; height: 100%;">
+<x-import component-from-global-scope="Dockwell.Sheet" inline="{{yes}}" title="New app" subtitle="In storefront / production" footer="{{footer}}" on-close="{{noop}}">
+<div style="display: flex; flex-direction: column; gap: 20px;">
+
+<div role="group" aria-labelledby="source-label" style="display: flex; flex-direction: column; gap: 6px;">
+<span id="source-label" style="font-size: 13px; line-height: 18px; font-weight: 550;">Source</span>
+<div><x-import component-from-global-scope="Dockwell.SegmentedControl" options="{{sources}}" default-value="git" label="Source"></x-import></div>
+</div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 168px; gap: 12px;">
+<x-import component-from-global-scope="Dockwell.TextField" label="Repository" prefix="github.com/" default-value="acme/search-ui" mono="{{yes}}"></x-import>
+<x-import component-from-global-scope="Dockwell.TextField" label="Branch" icon="branch" default-value="main" mono="{{yes}}"></x-import>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 13px; line-height: 18px; font-weight: 550;">Build</span>
+<div style="display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 4px 0 12px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunken);">
+<span style="display: flex; color: var(--healthy);"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{16}}"></x-import></span>
+<span style="font-size: 14px;">Dockerfile · Node 22</span>
+<span style="font-size: 12.5px; color: var(--ink-muted);">detected</span>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm">Change</x-import>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span id="runs-label" style="font-size: 13px; line-height: 18px; font-weight: 550;">Runs on</span>
+<button type="button" class="dw-input" aria-haspopup="listbox" aria-labelledby="runs-label runs-value" style="width: 100%; align-items: center; gap: 8px; padding: 0 10px 0 12px; font: inherit; font-size: 14px; color: var(--ink); text-align: left; cursor: pointer;">
+<span id="runs-value" style="flex: 1 1 auto;"><span style="font-weight: 550;">Auto</span><span style="color: var(--ink-muted);"> · 2 replicas</span></span>
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{16}}"></x-import></span>
+</button>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);"><code style="font-size: 12px; color: var(--ink);">fra-1-09</code> and <code style="font-size: 12px; color: var(--ink);">ams-1-06</code> have the most free memory.</span>
+</div>
+
+<x-import component-from-global-scope="Dockwell.TextField" label="Domain" icon="globe" default-value="search.acme.dev" mono="{{yes}}" hint="HTTPS certificate from Let’s Encrypt, renewed automatically."></x-import>
+
+<div style="height: 1px; background: var(--line);"></div>
+
+<div role="group" aria-labelledby="env-label" style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<span id="env-label" style="font-size: 13px; line-height: 18px; font-weight: 550;">Environment variables</span>
+<span style="display: flex; margin-right: -10px;"><x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="plus">Add variable</x-import></span>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm);">
+<span style="flex: 1 1 auto; min-width: 0; font-size: 13px; line-height: 18px; color: var(--ink-muted);">None yet. Staging has 9 variables and 2 secrets.</span>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="copy">Copy from staging</x-import>
+</div>
+</div>
+
+<x-import component-from-global-scope="Dockwell.Switch" label="Preview per pull request" description="Each pull request gets its own app in previews, removed when it closes." default-checked="{{yes}}"></x-import>
+
+</div>
+</x-import>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const cell = (t, s) => h('div', { className: 'dw-cell' }, h('span', { className: 'dw-cell-title' }, t), h('span', { className: 'dw-cell-sub' }, s));
+    const apps = [
+      { id: 'web', name: 'storefront-web', image: 'ghcr.io/acme/storefront:2c71f09', status: 'deploying', rev: 'r64', domain: 'acme.dev', at: 'now' },
+      { id: 'api', name: 'api', image: 'ghcr.io/acme/api:8be41d2', status: 'healthy', rev: 'r128', domain: 'api.acme.dev', at: '4 min ago' },
+      { id: 'worker', name: 'worker', image: 'ghcr.io/acme/worker:9a03e1b', status: 'degraded', rev: 'r57', domain: '—', at: '24 min ago' },
+      { id: 'checkout', name: 'checkout', image: 'ghcr.io/acme/checkout:e19b2c4', status: 'healthy', rev: 'r212', domain: 'checkout.acme.dev', at: '6 h ago' },
+      { id: 'search', name: 'search', image: 'getmeili/meilisearch:v1.11', status: 'healthy', rev: 'r9', domain: '—', at: '28 Oct' },
+      { id: 'images', name: 'images', image: 'darthsim/imgproxy:v3.27', status: 'healthy', rev: 'r14', domain: 'img.acme.dev', at: '21 Oct' },
+      { id: 'plausible', name: 'plausible', image: 'ghcr.io/plausible/community-edition:v2.1.4', status: 'healthy', rev: 'r6', domain: 'stats.acme.dev', at: '12 Oct' },
+      { id: 'kuma', name: 'uptime-kuma', image: 'louislam/uptime-kuma:1.23.16', status: 'healthy', rev: 'r3', domain: 'status.acme.dev', at: '9 Oct' }
+    ];
+    const cols = [
+      { key: 'name', header: 'App', render: (r) => cell(r.name, r.image) },
+      { key: 'status', header: 'Status', width: 140, render: (r) => h(DW.StatusBadge, { status: r.status }) },
+      { key: 'rev', header: 'Revision', width: 96, mono: true },
+      { key: 'domain', header: 'Domain', width: 180, mono: true, muted: true },
+      { key: 'at', header: 'Deployed', width: 112, align: 'right', muted: true }
+    ];
+    const sources = [
+      { value: 'git', label: 'Git', icon: 'branch' },
+      { value: 'image', label: 'Image', icon: 'layers' },
+      { value: 'compose', label: 'Compose', icon: 'file' },
+      { value: 'catalog', label: 'Catalog', icon: 'grid' }
+    ];
+    const footer = h(React.Fragment, null,
+      h('span', { className: 'dw-sheet-note' }, h(DW.Icon, { name: 'commit', size: 14 }), 'Nothing runs until you apply the plan'),
+      h(DW.Button, { variant: 'ghost' }, 'Cancel'),
+      h('a', { href: 'Plan-Review.dc.html', className: 'dw-btn dw-btn-primary dw-btn-md', style: { textDecoration: 'none' } }, h('span', null, 'Review plan'), h(DW.Kbd, null, '⌘↵')));
+    return {
+      theme: this.props.theme ?? 'light',
+      yes: true,
+      apps, cols, sources, footer,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

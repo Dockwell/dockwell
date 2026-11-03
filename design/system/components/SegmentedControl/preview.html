@@ -1,0 +1,24 @@
+<!-- @dsCard group="Inputs" height=120 subtitle="Switch between a few views of the same thing" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SegmentedControl</title>
+<style>
+  .demo { padding: 24px; display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: center; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement, S = H.SegmentedControl;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'demo' },
+    h(S, { label: 'Environment', defaultValue: 'production', options: [
+      { value: 'production', label: 'Production', count: 14 },
+      { value: 'staging', label: 'Staging', count: 12 },
+      { value: 'previews', label: 'Previews', count: 3 }] }),
+    h(S, { label: 'Time range', size: 'sm', defaultValue: '24h', options: [
+      { value: '1h', label: '1h' }, { value: '24h', label: '24h' }, { value: '7d', label: '7d' }, { value: '30d', label: '30d' }] }),
+    h(S, { label: 'View', size: 'sm', defaultValue: 'grid', options: [
+      { value: 'grid', label: 'Tiles', icon: 'cpu' }, { value: 'list', label: 'List', icon: 'filter' }] })));
+</script>
+</body>
+</html>

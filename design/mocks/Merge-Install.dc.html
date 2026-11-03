@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Connect another Dockwell</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="servers" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box; color-scheme: {{scheme}};">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Connect another Dockwell</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">You also run a standalone install on vps-old (Vultr, <code class="code-sm">45.32.110.8</code>). Bring it in as your second server.</p>
+</div>
+<a href="Server-Overview.dc.html" class="dw-btn dw-btn-ghost dw-btn-md" style="text-decoration: none;">Cancel</a>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<div style="flex: 3 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+
+<section class="dw-panel" aria-labelledby="s-connect">
+<div class="dw-panel-head" style="justify-content: flex-start;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: 12px; font-weight: 600;">1</span>
+<h2 id="s-connect" class="dw-panel-title">Connect to the other panel</h2>
+</div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 12px;">
+<x-import component-from-global-scope="Dockwell.TextField" label="Panel URL or connect code" default-value="hwc_R4tN8sW2xQ" mono="{{yes}}" hint="On vps-old, open Settings, then Connect to another panel, to get a code."></x-import>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-sunken); font-size: 13px;">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Connected to vps-old"></x-import>
+<span style="color: var(--ink-muted);">Dockwell 0.9.4 · Vultr · Ubuntu 22.04 · read-only until you apply</span>
+</div>
+</div>
+</section>
+
+<section class="dw-panel" aria-labelledby="s-preview">
+<div class="dw-panel-head" style="justify-content: flex-start;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: 12px; font-weight: 600;">2</span>
+<h2 id="s-preview" class="dw-panel-title">What vps-old runs</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">All of it comes along, untouched</span>
+</div>
+<ul style="margin: 0; padding: 0; list-style: none;">
+<sc-for list="{{items}}" as="it">
+<li style="{{it.style}}">
+<span style="display: flex; flex: none; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="{{it.icon}}" size="{{16}}"></x-import></span>
+<div class="dw-cell" style="flex: 1 1 280px;">
+<span class="dw-cell-title" style="font-size: 14px;">{{it.name}}</span>
+<span class="dw-cell-sub">{{it.source}}</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px; flex: 0 1 196px; min-width: 0; font-size: 13px; line-height: 18px;">
+<span>{{it.kind}}</span>
+<span style="{{it.detailStyle}}">{{it.detail}}</span>
+</div>
+<div style="flex: 0 0 88px; display: flex; justify-content: flex-end;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="{{it.status}}"></x-import></div>
+</li>
+</sc-for>
+</ul>
+</section>
+
+<section class="dw-panel" aria-labelledby="s-conflicts">
+<div class="dw-panel-head">
+<div style="display: flex; align-items: center; gap: 12px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: 12px; font-weight: 600;">3</span>
+<h2 id="s-conflicts" class="dw-panel-title">Conflicts</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">1 found, resolved</span>
+</div>
+</div>
+<fieldset class="dw-panel-body" style="margin: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<legend class="dw-sr">blog.acme.dev exists on both servers</legend>
+<p style="margin: 0; font-size: 14px; line-height: 20px;"><code class="code">blog.acme.dev</code> exists on both servers. Choose which one serves it.</p>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 8px;">
+<label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 1px solid var(--ink); box-shadow: 0 0 0 1px var(--ink); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer;">
+<input type="radio" name="blog" checked style="flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--action);">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">Keep hz-1’s</span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">The Hugo site in <code class="code-sm">/var/www/blog</code> keeps serving. ghost runs without a domain until you give it one.</span>
+</span>
+</label>
+<label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer;">
+<input type="radio" name="blog" style="flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--action);">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">Use vps-old’s</span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">ghost serves the domain. The static site on hz-1 stays on disk but stops being served.</span>
+</span>
+</label>
+</div>
+</fieldset>
+</section>
+
+</div>
+
+<section class="dw-panel" style="flex: 2 1 380px; min-width: 0; position: sticky; top: 24px;" aria-labelledby="s-plan">
+<div class="dw-panel-head"><h2 id="s-plan" class="dw-panel-title">Plan</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Nothing restarts</span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<x-import component-from-global-scope="Dockwell.PlanDiff" resources="{{plan}}"></x-import>
+<dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; font-size: 13px; line-height: 20px;">
+<dt style="color: var(--ink-muted);">Takes</dt><dd style="margin: 0;">About 2 min</dd>
+<dt style="color: var(--ink-muted);">Downtime</dt><dd style="margin: 0;">None, containers keep running</dd>
+<dt style="color: var(--ink-muted);">Undo</dt><dd style="margin: 0;">Detach vps-old to restore its own panel</dd>
+</dl>
+<a href="Plan-Review.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none; width: 100%;"><x-import component-from-global-scope="Dockwell.Icon" name="commit" size="{{16}}"></x-import><span>Review plan</span><x-import component-from-global-scope="Dockwell.Kbd">⌘↵</x-import></a>
+</div>
+</section>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":950}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const row = 'display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 16px; ';
+    const items = [
+      { icon: 'service', name: 'ghost', source: 'ghost:5.96', kind: 'App', detail: 'blog.acme.dev', mono: true, status: 'Healthy' },
+      { icon: 'service', name: 'umami', source: 'ghcr.io/umami-software/umami:mysql-v2.13', kind: 'App', detail: 'analytics.acme.dev', mono: true, status: 'Healthy' },
+      { icon: 'calendar', name: 'Nightly backup', source: 'mysqldump --all-databases', kind: 'Scheduled task', detail: 'Daily at 02:00', status: 'Ran today' },
+      { icon: 'database', name: 'mysql', source: 'MySQL 8.4 · 1.1 GB', kind: 'Database', detail: 'Used by ghost and umami', status: 'Healthy' }
+    ].map((it, i) => Object.assign(it, {
+      style: row + (i ? 'border-top: 1px solid var(--line);' : ''),
+      detailStyle: 'color: var(--ink-muted);' + (it.mono ? ' font-family: var(--font-mono); font-size: 12px;' : '')
+    }));
+    const plan = [
+      { id: 'ghost', action: 'update', kind: 'app', name: 'ghost', note: 'Adopt, no restart', changes: [{ path: 'domain', from: 'blog.acme.dev' }] },
+      { id: 'umami', action: 'update', kind: 'app', name: 'umami', note: 'Adopt, no restart', expanded: false },
+      { id: 'backup', action: 'update', kind: 'job', kindLabel: 'task', name: 'nightly-backup', note: 'Adopt', expanded: false },
+      { id: 'mysql', action: 'update', kind: 'database', name: 'mysql', note: 'Adopt, no restart', expanded: false },
+      { id: 'panel', action: 'destroy', kind: 'service', kindLabel: 'panel', name: 'vps-old', note: 'Retires' },
+      { id: 'agent', action: 'create', kind: 'server', name: 'vps-old', note: 'Becomes an agent', changes: [{ path: 'private_ip', to: '10.210.0.2' }, { path: 'agent', to: '0.9.4' }] }
+    ];
+    return {
+      theme, scheme: theme === 'dark' ? 'dark' : 'light',
+      items, plan,
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

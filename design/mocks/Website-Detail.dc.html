@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Website, configuration</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="websites" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 18px;">
+<a href="Websites-List.dc.html" style="color: var(--ink-muted); text-decoration: none;">Websites</a>
+<span aria-hidden="true" style="color: var(--line-strong);">/</span>
+<span aria-current="page" style="font: 400 12.5px/18px var(--font-mono); color: var(--ink);">shop-legacy.acme.dev</span>
+</nav>
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+<h1 class="title" style="margin: 0; font-family: var(--font-mono); font-size: 21px; font-weight: 550; letter-spacing: -0.02em;">shop-legacy.acme.dev</h1>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">PHP 8.3 · WordPress 6.6 + WooCommerce · OpenResty · certificate valid for 74 days</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="https://shop-legacy.acme.dev" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><span>Visit site</span><x-import component-from-global-scope="Dockwell.Icon" name="external" size="{{14}}"></x-import></a>
+</div>
+</div>
+<x-import component-from-global-scope="Dockwell.Tabs" tabs="{{tabs}}" value="configuration" label="Website sections"></x-import>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch;">
+
+<div style="flex: 1 1 340px; max-width: 400px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Runtime and routing</h2></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<div class="dw-field">
+<label class="dw-field-label" for="php-version">PHP version</label>
+<div class="dw-input" style="position: relative;">
+<select id="php-version" class="dw-input-el" style="appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 36px;"><option>PHP 8.3</option><option>PHP 8.2</option><option>PHP 8.1</option></select>
+<span style="position: absolute; right: 10px; top: 7px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{16}}"></x-import></span>
+</div>
+<div class="dw-field-hint"><span>Runs in its own php-fpm pool</span></div>
+</div>
+<x-import component-from-global-scope="Dockwell.TextField" label="Document root" default-value="/var/www/shop-legacy" mono="{{yes}}"></x-import>
+<x-import component-from-global-scope="Dockwell.TextField" label="Index files" default-value="index.php index.html" mono="{{yes}}"></x-import>
+<div class="dw-field">
+<label class="dw-field-label" for="rewrite">Rewrite rules</label>
+<div class="dw-input" style="position: relative;">
+<select id="rewrite" class="dw-input-el" style="appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 36px;"><option>WordPress</option><option>Laravel</option><option>Drupal</option><option>Custom</option></select>
+<span style="position: absolute; right: 10px; top: 7px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{16}}"></x-import></span>
+</div>
+<div class="dw-field-hint"><span>Preset · sends permalinks to index.php</span></div>
+</div>
+</div>
+</section>
+
+<section class="dw-panel" style="flex: 1 1 auto;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Limits and caching</h2><span style="font-size: 12.5px; color: var(--ink-muted);">2 changed</span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<label style="display: flex; gap: 12px; align-items: flex-start; cursor: pointer;">
+<input type="checkbox" checked style="width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--action); flex: none;">
+<span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; line-height: 20px; font-weight: 500;">Page cache</span><span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">Caches pages for signed-out visitors for 10 min</span></span>
+</label>
+<x-import component-from-global-scope="Dockwell.TextField" label="Upload limit" default-value="64" suffix="MB" hint="{{uploadHint}}"></x-import>
+<x-import component-from-global-scope="Dockwell.TextField" label="Rate limit" default-value="30" suffix="req/s per IP" hint="{{rateHint}}"></x-import>
+</div>
+</section>
+
+</div>
+
+<section class="dw-panel" style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column; overflow: hidden;">
+<div class="dw-panel-head" style="padding-top: 10px; padding-bottom: 10px;">
+<div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="file" size="{{16}}"></x-import></span>
+<h2 style="margin: 0; font: 500 12.5px/20px var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">/etc/openresty/sites/shop-legacy.acme.dev.conf</h2>
+</div>
+<div style="display: flex; align-items: center; gap: 4px;">
+<span style="font-size: 12.5px; color: var(--ink-muted); margin-right: 4px;">Server block</span>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="copy" aria-label="Copy server block"></x-import>
+</div>
+</div>
+<div role="region" aria-label="OpenResty server block" style="flex: 1 1 auto; background: var(--surface-sunken); padding: 12px 0; overflow: auto; font: 400 12px/20px var(--font-mono);">
+<sc-for list="{{code}}" as="ln">
+<div style="{{ln.row}}"><span style="{{ln.gut}}">{{ln.n}}</span><span style="white-space: pre; padding-left: 16px;"><sc-for list="{{ln.t}}" as="tk"><span class="{{tk.c}}" style="{{tk.st}}">{{tk.s}}</span></sc-for></span></div>
+</sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line);">
+<span style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
+<span style="display: flex; color: var(--healthy);"><x-import component-from-global-scope="Dockwell.Glyph" shape="circle" size="{{10}}"></x-import></span>
+<span style="font-weight: 550;">Valid</span><span style="color: var(--ink-muted);">·</span><code style="font-size: 12px;">openresty -t</code><span style="color: var(--ink-muted);">passed</span>
+</span>
+<span style="flex: 1 1 auto;"></span>
+<span style="font-size: 13px; color: var(--ink-muted);">2 changes</span>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost">Discard</x-import>
+<a href="Plan-Review.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="commit" size="{{16}}"></x-import><span>Review plan</span></a>
+</div>
+</section>
+
+</div>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const was = (t) => h('span', { style: { display: 'inline-flex', alignItems: 'baseline', gap: 6 } }, h('span', { className: 'dw-plan-sym is-change', 'aria-hidden': true }, '~'), h('span', null, t));
+    const src = [
+      'limit_req_zone $binary_remote_addr zone=shop_legacy:10m rate=30r/s;',
+      '',
+      'server {',
+      '    listen 443 ssl;',
+      '    http2 on;',
+      '    server_name shop-legacy.acme.dev;',
+      '    root /var/www/shop-legacy;',
+      '    index index.php index.html;',
+      '',
+      '    ssl_certificate     /etc/dockwell/certs/shop-legacy.acme.dev/fullchain.pem;',
+      '    ssl_certificate_key /etc/dockwell/certs/shop-legacy.acme.dev/privkey.pem;',
+      '',
+      '    client_max_body_size 64m;',
+      '    limit_req zone=shop_legacy burst=60 nodelay;',
+      '',
+      '    # Rewrite rules: WordPress preset',
+      '    location / {',
+      '        try_files $uri $uri/ /index.php?$args;',
+      '    }',
+      '',
+      '    # Page cache',
+      '    location ~ \\.php$ {',
+      '        include fastcgi_params;',
+      '        fastcgi_pass unix:/run/php/php8.3-fpm-shop-legacy.sock;',
+      '        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;',
+      '        fastcgi_cache shop_legacy;',
+      '        fastcgi_cache_valid 200 301 10m;',
+      '        fastcgi_cache_bypass $skip_cache;',
+      '    }',
+      '}'
+    ];
+    const changed = { 1: true, 13: true };
+    const tok = (line) => {
+      const out = [];
+      const push = (s, c, st) => { if (s) out.push({ s, c: c || 'dw-tone-ink', st: st || '' }); };
+      const m = /^(\s*)(.*)$/.exec(line); push(m[1]);
+      let rest = m[2];
+      if (rest.startsWith('#')) { push(rest, 'dw-tone-muted'); return out; }
+      const d = /^([a-z_]+)(.*)$/.exec(rest);
+      if (d) { push(d[1], 'dw-tone-ink', 'font-weight: 550'); rest = d[2]; }
+      const parts = rest.split(/(\$[a-z_]+|[{};])/);
+      parts.forEach((p) => { if (!p) return; if (p[0] === '$' && p.length > 1) push(p, 'dw-tone-cobalt'); else if (/^[{};]$/.test(p)) push(p, 'dw-tone-muted'); else push(p, 'dw-tone-ink'); });
+      return out;
+    };
+    const code = src.map((line, i) => {
+      const n = i + 1, ch = !!changed[n];
+      return {
+        n,
+        t: tok(line),
+        row: 'display: flex; min-height: 20px; ' + (ch ? 'background: var(--diff-change-soft); box-shadow: inset 2px 0 0 var(--diff-change);' : ''),
+        gut: 'flex: none; width: 48px; box-sizing: border-box; padding-right: 12px; text-align: right; user-select: none; border-right: 1px solid var(--line); color: ' + (ch ? 'var(--diff-change)' : 'var(--ink-muted)') + ';'
+      };
+    });
+    return {
+      theme: this.props.theme ?? 'light',
+      tabs: [
+        { id: 'overview', label: 'Overview' },
+        { id: 'configuration', label: 'Configuration' },
+        { id: 'files', label: 'Files' },
+        { id: 'logs', label: 'Logs' },
+        { id: 'certificate', label: 'Certificate' },
+        { id: 'backups', label: 'Backups' }
+      ],
+      uploadHint: was('Was 32 MB · largest WooCommerce upload is 48 MB'),
+      rateHint: was('Was 20 req/s · requests above it get 429'),
+      code,
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

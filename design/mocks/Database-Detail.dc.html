@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Database, postgres</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="databases" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 18px;">
+<a href="Databases-List.dc.html" style="color: var(--ink-muted); text-decoration: none;">Databases</a>
+<span aria-hidden="true" style="color: var(--line-strong);">/</span>
+<span aria-current="page" style="font: 400 12.5px/18px var(--font-mono); color: var(--ink);">postgres</span>
+</nav>
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+<h1 class="title" style="margin: 0; font-family: var(--font-mono); font-size: 21px; font-weight: 550; letter-spacing: -0.02em;">postgres</h1>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">PostgreSQL 17.2 · used by api and storefront-web · backed up continuously to R2</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="Server-Terminal.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="terminal" size="{{16}}"></x-import><span>Open psql</span></a>
+</div>
+</div>
+<x-import component-from-global-scope="Dockwell.Tabs" tabs="{{tabs}}" value="overview" label="Database sections"></x-import>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px;">
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Connections" value="24" unit="of 100" data="{{connData}}" min="{{0}}" max="{{100}}" threshold="{{80}}" caption="Alert above 80"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Size" value="4.8" unit="GB" data="{{sizeData}}" min="{{4.2}}" max="{{5}}" caption="Grows about 30 MB a day"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Cache hit" value="99.2" unit="%" data="{{hitData}}" min="{{96}}" max="{{100}}" caption="Reads served from memory"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Slow queries" value="3" unit="today" data="{{slowData}}" min="{{0}}" max="{{6}}" caption="Slower than 500 ms"></x-import></div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch;">
+
+<section class="dw-panel" style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Point-in-time recovery</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="7-day window" meta="since 27 Oct 14:20"></x-import></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 20px; flex: 1 1 auto;">
+
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 12.5px; line-height: 16px;"><span style="font-weight: 550;">Last 7 days</span><span style="display: inline-flex; align-items: center; gap: 6px; color: var(--ink-muted);"><span aria-hidden="true" style="display: block; width: 7px; height: 7px; transform: rotate(45deg); background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--ink);"></span>Daily snapshot at 03:00</span></div>
+<div role="img" aria-label="Restore window from 27 Oct 14:20 to now, with a snapshot every day at 03:00" style="position: relative; height: 44px;">
+<span style="position: absolute; left: 0; right: 0; top: 4px; height: 16px; border-radius: 3px; background: var(--healthy-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--healthy) 40%, var(--surface));"></span>
+<sc-for list="{{wk.seps}}" as="x"><span style="{{x}}"></span></sc-for>
+<span style="{{wk.today}}"></span>
+<sc-for list="{{wk.snaps}}" as="x"><span style="{{x}}"></span></sc-for>
+<span style="{{wk.pick}}"></span>
+<sc-for list="{{wk.days}}" as="d"><span style="{{d.st}}">{{d.label}}</span></sc-for>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 12.5px; line-height: 16px;"><span style="font-weight: 550;">Today</span><span style="color: var(--ink-muted);">Drag the marker to pick any second</span></div>
+<div role="slider" aria-label="Restore point" aria-valuetext="Today 13:55" tabindex="0" style="position: relative; height: 60px; outline: none;">
+<span style="position: absolute; left: 0; right: 0; top: 22px; height: 16px; border-radius: 3px; background: var(--healthy-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--healthy) 40%, var(--surface));"></span>
+<sc-for list="{{day.ticks}}" as="t"><span style="{{t.line}}"></span><span style="{{t.st}}">{{t.label}}</span></sc-for>
+<span style="{{day.snap}}"></span>
+<span style="{{day.now}}"></span>
+<span style="{{day.nowLabel}}">Now</span>
+<span style="{{day.pickLine}}"></span>
+<span style="{{day.pickKnob}}"></span>
+<span style="{{day.pickLabel}}">13:55</span>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line);">
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 320px;">
+<span style="font-size: 12.5px; line-height: 16px; color: var(--ink-muted);">Restore point</span>
+<span style="font-size: 16px; line-height: 22px; font-weight: 600;">Today 13:55 <span style="font-size: 13px; font-weight: 400; color: var(--ink-muted);">25 min ago</span></span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">03:00 snapshot plus 10 h 55 min of changes · about 3 min</span>
+</div>
+<a href="Backup-Restore.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="undo" size="{{16}}"></x-import><span>Restore to a new database</span></a>
+</div>
+
+</div>
+</section>
+
+<section class="dw-panel" style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Connection</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Port <code style="font-size: 12px;">5432</code></span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<x-import component-from-global-scope="Dockwell.TextField" label="Internal URL" default-value="postgres://api:••••@postgres:5432/acme" read-only="{{yes}}" mono="{{yes}}" action="{{copyBtn}}" hint="Apps on hz-1 reach postgres by this name"></x-import>
+<div style="height: 1px; background: var(--line);"></div>
+<x-import component-from-global-scope="Dockwell.Switch" label="External access" description="Off. Only apps on hz-1 can connect."></x-import>
+<x-import component-from-global-scope="Dockwell.TextField" label="Allow from IPs" placeholder="203.0.113.0/24" mono="{{yes}}" disabled="{{yes}}" hint="Turn on external access first. Port 5432 then opens to these addresses only."></x-import>
+</div>
+</section>
+
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Users</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">3 users on <code style="font-size: 12px;">acme</code></span>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{userCols}}" rows="{{users}}" density="compact" caption="Users of postgres"></x-import>
+</section>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const wave = (n, base, amp, seed) => Array.from({ length: n }, (_, i) => +(base + amp * Math.sin((i + seed) / 3.1) + amp * 0.5 * Math.sin((i * 7 + seed) / 5.3)).toFixed(2));
+    const pct = (v) => (Math.round(v * 1000) / 1000) + '%';
+
+    /* Last 7 days: 27 Oct 14:20 to 3 Nov 14:20 = 168 h. Midnights fall 9 h 40 min after the start, then every 24 h. */
+    const W = 168, first = 9 + 40 / 60;
+    const wk = { seps: [], snaps: [], days: [] };
+    const names = ['Wed 28', 'Thu 29', 'Fri 30', 'Sat 31', 'Sun 1', 'Mon 2', 'Today'];
+    for (let i = 0; i < 7; i++) {
+      const mid = first + 24 * i;
+      wk.seps.push('position: absolute; top: 4px; height: 16px; width: 1px; left: ' + pct(mid / W * 100) + '; background: var(--surface);');
+      const snap = mid + 3;
+      wk.snaps.push('position: absolute; top: 8px; width: 8px; height: 8px; margin-left: -4px; left: ' + pct(snap / W * 100) + '; transform: rotate(45deg); background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--ink);');
+      const end = i < 6 ? mid + 24 : W;
+      const c = (mid + end) / 2 / W * 100;
+      wk.days.push({ label: names[i], st: 'position: absolute; top: 28px; transform: translateX(-50%); left: ' + pct(c) + '; font-size: 12px; line-height: 16px; white-space: nowrap; color: ' + (i === 6 ? 'var(--cobalt); font-weight: 550;' : 'var(--ink-muted);') });
+    }
+    const todayL = (first + 144) / W * 100;
+    wk.today = 'position: absolute; top: 2px; height: 20px; left: ' + pct(todayL) + '; right: 0; box-sizing: border-box; border-radius: 4px; background: color-mix(in srgb, var(--cobalt) 18%, transparent); box-shadow: inset 0 0 0 1.5px var(--cobalt);';
+    wk.pick = 'position: absolute; top: 0; height: 24px; width: 2px; margin-left: -1px; border-radius: 1px; left: ' + pct((W - 25 / 60) / W * 100) + '; background: var(--cobalt);';
+
+    /* Today: 00:00 to 14:20 = 860 min */
+    const D = 860;
+    const day = { ticks: [] };
+    [0, 3, 6, 9, 12].forEach((hr) => {
+      const x = hr * 60 / D * 100;
+      day.ticks.push({
+        label: String(hr).padStart(2, '0') + ':00',
+        line: 'position: absolute; top: 22px; height: 16px; width: 1px; left: ' + pct(x) + '; background: ' + (hr === 0 ? 'transparent' : 'var(--surface)') + ';',
+        st: 'position: absolute; top: 44px; left: ' + pct(x) + '; transform: translateX(' + (hr === 0 ? '0' : '-50%') + '); font-size: 12px; line-height: 16px; color: var(--ink-muted); white-space: nowrap;'
+      });
+    });
+    day.snap = 'position: absolute; top: 26px; width: 8px; height: 8px; margin-left: -4px; left: ' + pct(180 / D * 100) + '; transform: rotate(45deg); background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--ink);';
+    day.now = 'position: absolute; top: 18px; height: 24px; width: 2px; right: 0; border-radius: 1px; background: var(--ink);';
+    day.nowLabel = 'position: absolute; top: 44px; right: 0; font-size: 12px; line-height: 16px; font-weight: 550; color: var(--ink);';
+    const px = pct(835 / D * 100);
+    day.pickLine = 'position: absolute; top: 18px; height: 24px; width: 2px; margin-left: -1px; border-radius: 1px; left: ' + px + '; background: var(--cobalt);';
+    day.pickKnob = 'position: absolute; top: 24px; width: 12px; height: 12px; margin-left: -6px; box-sizing: border-box; border-radius: 50%; left: ' + px + '; background: var(--surface); border: 2px solid var(--cobalt); box-shadow: var(--shadow-float);';
+    day.pickLabel = 'position: absolute; top: -2px; left: ' + px + '; transform: translateX(-50%); padding: 1px 6px; border-radius: 4px; background: var(--cobalt); color: var(--on-cobalt); font-size: 11.5px; line-height: 16px; font-weight: 600; white-space: nowrap;';
+
+    const users = [
+      { id: 'api', name: 'api', role: 'Owner', access: 'Read and write', app: 'api', pw: '12 Oct' },
+      { id: 'storefront', name: 'storefront', role: 'Member', access: 'Read and write', app: 'storefront-web', pw: '12 Oct' },
+      { id: 'readonly', name: 'readonly', role: 'Member', access: 'Read only', app: '', pw: '29 Oct' }
+    ];
+    const userCols = [
+      { key: 'name', header: 'User', render: (r) => h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500 } }, r.name) },
+      { key: 'role', header: 'Role', width: 160 },
+      { key: 'access', header: 'Access to acme', width: 200, muted: true },
+      { key: 'app', header: 'Used by', width: 200, render: (r) => r.app ? h(DW.Tag, null, r.app) : h('span', { style: { color: 'var(--ink-muted)' } }, 'No app') },
+      { key: 'pw', header: 'Password changed', width: 140, align: 'right', muted: true }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      tabs: [
+        { id: 'overview', label: 'Overview' },
+        { id: 'backups', label: 'Backups' },
+        { id: 'users', label: 'Users', count: 3 },
+        { id: 'settings', label: 'Settings' }
+      ],
+      connData: wave(40, 24, 4, 2), sizeData: Array.from({ length: 40 }, (_, i) => +(4.55 + i * 0.0065 + 0.01 * Math.sin(i / 2)).toFixed(3)),
+      hitData: wave(40, 99.1, 0.35, 5), slowData: [0, 0, 1, 0, 0, 0, 2, 0, 0, 1, 0, 0, 0, 0, 3, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 1, 0, 0, 3],
+      wk, day,
+      copyBtn: h(DW.Button, { variant: 'ghost', size: 'sm', icon: 'copy', 'aria-label': 'Copy internal URL', style: { alignSelf: 'center', marginRight: 2 } }),
+      users, userCols,
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

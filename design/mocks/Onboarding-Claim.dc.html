@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Claim hz-1</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-direction: column; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+
+<header style="display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 24px; border-bottom: 1px solid var(--line); box-sizing: border-box;">
+<x-import component-from-global-scope="Dockwell.Logo" variant="logotype" height="14"></x-import>
+<span style="font: 400 11.5px/1 var(--font-mono); color: var(--ink-muted);">0.9.4</span>
+</header>
+
+<main style="flex: 1 1 auto; display: flex; justify-content: center; padding: 64px 24px 72px; box-sizing: border-box;">
+<div style="width: 100%; max-width: 1040px; display: flex; flex-direction: column; gap: 32px;">
+
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<h1 class="display" style="margin: 0;">Claim hz-1</h1>
+<p style="margin: 0; font-size: 15px; line-height: 22px; color: var(--ink-muted);">This panel controls hz-1. Create the owner account with a passkey.</p>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch;">
+
+<form class="dw-panel" aria-label="Owner account" style="flex: 3 1 420px; min-width: 0; display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Owner account</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Full access to hz-1</span></div>
+<div style="display: flex; flex-direction: column; gap: 20px; padding: 24px; flex: 1 1 auto;">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 20px 16px;">
+<x-import component-from-global-scope="Dockwell.TextField" label="Your name" default-value="Mira Chen" auto-complete="name" size="lg"></x-import>
+<x-import component-from-global-scope="Dockwell.TextField" label="Email" type="email" default-value="mira@acme.dev" auto-complete="email" size="lg"></x-import>
+</div>
+<x-import component-from-global-scope="Dockwell.TextField" label="Claim code" default-value="K7Q-4ZP" mono="{{yes}}" icon="key" size="lg" auto-complete="off" hint="{{codeHint}}"></x-import>
+<div style="height: 1px; background: var(--line);"></div>
+<x-import component-from-global-scope="Dockwell.TextField" label="Panel domain" optional="{{yes}}" prefix="https://" default-value="panel.acme.dev" mono="{{yes}}" size="lg" hint="{{domainHint}}"></x-import>
+<div style="flex: 1 1 auto;"></div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px;">
+<a href="Onboarding-FirstDeploy.dc.html" class="dw-btn dw-btn-primary dw-btn-lg" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="key" size="{{16}}"></x-import><span>Create passkey</span></a>
+<span style="font-size: 13px; color: var(--ink-muted);">Confirm with Touch ID, Windows Hello or a security key.</span>
+</div>
+</div>
+</form>
+
+<div style="flex: 2 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">This server</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Agent connected"></x-import></div>
+<div class="dw-panel-body">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 10px 20px; font-size: 13px; line-height: 18px;">
+<dt style="color: var(--ink-muted);">Name</dt><dd style="margin: 0;"><code style="font-size: 12.5px;">hz-1</code></dd>
+<dt style="color: var(--ink-muted);">Public IP</dt><dd style="margin: 0;"><code style="font-size: 12.5px;">49.12.33.7</code></dd>
+<dt style="color: var(--ink-muted);">System</dt><dd style="margin: 0;">Ubuntu 24.04 LTS</dd>
+<dt style="color: var(--ink-muted);">Size</dt><dd style="margin: 0;">4 vCPU · 8 GB · 160 GB disk</dd>
+<dt style="color: var(--ink-muted);">Agent</dt><dd style="margin: 0;"><code style="font-size: 12.5px;">0.9.4</code></dd>
+<dt style="color: var(--ink-muted);">Installed</dt><dd style="margin: 0;">2 min ago</dd>
+</dl>
+</div>
+</section>
+
+<section class="dw-panel" style="flex: 1 1 auto;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">What happens next</h2></div>
+<div class="dw-panel-body">
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 16px;">
+<li style="display: flex; gap: 12px; align-items: flex-start;">
+<span aria-hidden="true" style="flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--action); color: var(--on-action); font-size: 12px; font-weight: 600;">1</span>
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 1px;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">Claim this server</span><span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">You become the owner. Nobody else can sign in.</span></div>
+</li>
+<li style="display: flex; gap: 12px; align-items: flex-start;">
+<span aria-hidden="true" style="flex: none; display: grid; place-items: center; width: 22px; height: 22px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--line-strong); color: var(--ink-muted); font-size: 12px; font-weight: 600;">2</span>
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 1px;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">Deploy your first app</span><span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">From Git, a Docker image, a Compose file or the catalog.</span></div>
+</li>
+<li style="display: flex; gap: 12px; align-items: flex-start;">
+<span aria-hidden="true" style="flex: none; display: grid; place-items: center; width: 22px; height: 22px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--line-strong); color: var(--ink-muted); font-size: 12px; font-weight: 600;">3</span>
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 1px;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">It’s live with HTTPS</span><span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">Your domain gets a certificate automatically.</span></div>
+</li>
+</ol>
+</div>
+</section>
+</div>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":780}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement;
+    const code = (t) => h('code', { style: { fontSize: 12, color: 'var(--ink)' } }, t);
+    const codeHint = h('span', null, 'Printed at the end of ', code('install.sh'), '. Run ', code('dockwell claim-code'), ' on hz-1 to see it again.');
+    const domainHint = h('span', null, 'Point its A record to ', code('49.12.33.7'), ' first. HTTPS is automatic. Leave empty to use the IP.');
+    return {
+      theme: this.props.theme ?? 'light',
+      yes: true,
+      codeHint, domainHint
+    };
+  }
+}
+</script>
+</body>
+</html>

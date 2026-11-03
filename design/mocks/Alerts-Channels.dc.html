@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Alert channels</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="alerts" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Alerts</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">2 open · 1 acknowledged · across 52 servers in Acme</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="plus">Add channel</x-import>
+</div>
+</div>
+<div class="dw-tabs" role="tablist" aria-label="Alerts sections">
+<a role="tab" aria-selected="false" href="Alerts.dc.html" class="dw-tab" style="text-decoration: none;"><span>Alerts</span><span class="dw-tab-count dw-tone-warning">2</span></a>
+<a role="tab" aria-selected="false" href="Alerts.dc.html#rules" class="dw-tab" style="text-decoration: none;"><span>Rules</span><span class="dw-tab-count">7</span></a>
+<a role="tab" aria-selected="true" href="Alerts-Channels.dc.html" class="dw-tab" style="text-decoration: none;"><span>Channels</span><span class="dw-tab-count">5</span></a>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<section style="flex: 2 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Channels</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">5 channels · all reachable · last delivery 14:08</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{cols}}" rows="{{channels}}" caption="Alert channels"></x-import>
+<div style="display: flex; align-items: baseline; gap: 8px; margin-top: 12px;">
+<h2 class="heading" style="margin: 0;">Recent deliveries</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">Today · none failed</span>
+<span style="flex: 1 1 auto;"></span>
+<a href="Activity.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">All deliveries</a>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{delCols}}" rows="{{deliveries}}" density="compact" caption="Notifications sent today"></x-import>
+</section>
+
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Routing</h2><span style="display: flex; margin: -4px -8px;"><x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="edit">Edit</x-import></span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<sc-for list="{{routes}}" as="r">
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; align-items: baseline; gap: 8px;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="{{r.status}}" label="{{r.label}}"></x-import><span style="font-size: 12.5px; color: var(--ink-muted);">{{r.note}}</span></div>
+<span style="display: flex; flex-wrap: wrap; gap: 6px; padding-left: 16px;">{{r.chips}}</span>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Quiet hours</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Warnings only</span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 14px;">
+<x-import component-from-global-scope="Dockwell.Switch" checked="{{yes}}" label="Hold warnings from 22:00 to 07:00" description="Critical alerts still go out at once."></x-import>
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<div role="img" aria-label="Quiet from 22:00 to 07:00; now 14:20" style="position: relative; height: 16px; border-radius: var(--radius-xs); background: var(--surface-sunken); overflow: hidden;">
+<span style="position: absolute; top: 0; bottom: 0; left: 0; width: 29.17%; background: repeating-linear-gradient(135deg, var(--line-strong) 0 1px, transparent 1px 5px);"></span>
+<span style="position: absolute; top: 0; bottom: 0; left: 91.67%; right: 0; background: repeating-linear-gradient(135deg, var(--line-strong) 0 1px, transparent 1px 5px);"></span>
+<span style="position: absolute; top: 0; bottom: 0; left: 59.72%; width: 2px; margin-left: -1px; background: var(--ink);"></span>
+</div>
+<div style="position: relative; height: 16px; font-size: 12px; line-height: 16px; color: var(--ink-muted);">
+<span style="position: absolute; left: 0;">00:00</span>
+<span style="position: absolute; left: 29.17%; transform: translateX(-50%);">07:00</span>
+<span style="position: absolute; left: 59.72%; transform: translateX(-50%); color: var(--ink); font-weight: 550;">Now</span>
+<span style="position: absolute; left: 91.67%; transform: translateX(-50%);">22:00</span>
+</div>
+</div>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">On call</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Weekly, Monday 09:00</span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; gap: 10px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--surface-sunken); border: 1px solid var(--line); font-size: 11px; font-weight: 600; flex: none; box-sizing: border-box;">PR</span>
+<span style="display: flex; flex-direction: column; min-width: 0;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">Priya Raman</span><span style="font-size: 12.5px; line-height: 16px; color: var(--ink-muted);">On call this week, until Monday 09:00</span></span>
+</div>
+<div style="display: flex; align-items: center; gap: 10px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 1px dashed var(--line-strong); font-size: 11px; font-weight: 600; color: var(--ink-muted); flex: none; box-sizing: border-box;">LP</span>
+<span style="display: flex; flex-direction: column; min-width: 0;"><span style="font-size: 13.5px; line-height: 20px;">Leo Park</span><span style="font-size: 12.5px; line-height: 16px; color: var(--ink-muted);">Next, from Monday 9 Nov</span></span>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);"><span style="display: flex;"><x-import component-from-global-scope="Dockwell.Icon" name="clock" size="{{14}}"></x-import></span>Not acknowledged in 15 min: Leo Park is paged</div>
+</div>
+</section>
+</div>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":840}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const muted = 'var(--ink-muted)';
+    const mono = (t) => h('code', { style: { fontSize: 12 } }, t);
+    const chip = (icon, label) => h('span', { key: label, style: { display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 8px', border: '1px solid var(--line)', borderRadius: 'var(--radius-sm)', background: 'var(--surface-sunken)', fontSize: 13, whiteSpace: 'nowrap' } },
+      h('span', { style: { display: 'flex', color: muted } }, h(DW.Icon, { name: icon, size: 14 })), label);
+    const routes = [
+      { status: 'down', label: 'Critical', note: 'Pages the person on call', chips: [chip('chat', 'Slack #ops'), chip('bell', 'Push'), chip('link', 'PagerDuty')] },
+      { status: 'degraded', label: 'Warning', note: 'Held during quiet hours', chips: [chip('chat', 'Slack #ops')] }
+    ];
+    const chanCell = (r) => h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+      h('span', { 'aria-hidden': true, style: { display: 'grid', placeItems: 'center', width: 32, height: 32, flex: 'none', boxSizing: 'border-box', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', background: 'var(--surface-sunken)', color: muted } }, h(DW.Icon, { name: r.icon, size: 16 })),
+      h('div', { className: 'dw-cell' }, h('span', { className: 'dw-cell-title' }, r.name), h('span', { style: { fontSize: 12.5, lineHeight: '16px', color: muted, fontFamily: r.subMono ? 'var(--font-mono)' : undefined } }, r.sub)));
+    const usedCell = (r) => r.used ? h('span', null, r.used) : h('span', { style: { color: muted } }, 'No routes yet');
+    const lastCell = (r) => h('div', { className: 'dw-cell' }, h('span', null, r.last), h('span', { style: { fontSize: 12.5, lineHeight: '16px', color: muted } }, r.lastMeta));
+    const channels = [
+      { id: 'slack', icon: 'chat', name: 'Slack #ops', sub: 'acme.slack.com', subMono: true, state: 'Connected', used: 'Critical, warning', last: '14:08', lastMeta: h('span', null, 'Acknowledged ', mono('ams-1-03')) },
+      { id: 'email', icon: 'mail', name: 'Email', sub: 'team@acme.dev', subMono: true, state: 'Verified', used: '2 rules', last: '09:14', lastMeta: 'Disk above 85%' },
+      { id: 'push', icon: 'bell', name: 'Push to phones', sub: '3 devices', state: 'Connected', used: 'Critical', last: '14:02', lastMeta: 'Heartbeat lost' },
+      { id: 'ntfy', icon: 'bell', name: 'ntfy', sub: 'dockwell-acme', subMono: true, state: 'Connected', used: '', last: '12 Oct', lastMeta: 'Test message' },
+      { id: 'pd', icon: 'link', name: 'Webhook, PagerDuty', sub: 'events.pagerduty.com', subMono: true, state: 'Connected', used: 'Critical', last: '14:02', lastMeta: 'Accepted, 202' }
+    ];
+    const cols = [
+      { key: 'name', header: 'Channel', render: chanCell },
+      { key: 'state', header: 'Status', width: 124, render: (r) => h(DW.StatusBadge, { status: 'healthy', label: r.state }) },
+      { key: 'used', header: 'Used by', width: 132, render: usedCell },
+      { key: 'last', header: 'Last sent', width: 172, render: lastCell },
+      { key: 'test', header: h('span', { className: 'dw-sr' }, 'Actions'), width: 112, align: 'right', render: (r) => h(DW.Button, { size: 'sm', 'aria-label': 'Send test to ' + r.name }, 'Send test') }
+    ];
+    const deliveries = [
+      { id: 1, at: '14:08', what: h('span', null, mono('ams-1-03'), ' heartbeat lost, acknowledged'), to: 'Slack #ops' },
+      { id: 2, at: '14:02', what: h('span', null, mono('ams-1-03'), ' heartbeat lost'), to: 'Slack #ops, Push to 3 devices, PagerDuty' },
+      { id: 3, at: '13:58', what: h('span', null, 'worker memory above 90% on ', mono('fra-1-07')), to: 'Slack #ops' },
+      { id: 4, at: '10:43', what: h('span', null, 'CPU above 85% on ', mono('sfo-2-02'), ', resolved'), to: 'Slack #ops' },
+      { id: 5, at: '09:14', what: h('span', null, 'Disk above 85% on ', mono('sfo-2-09')), to: 'Slack #ops, Email' }
+    ];
+    const delCols = [
+      { key: 'at', header: 'Time', width: 72, muted: true },
+      { key: 'what', header: 'Alert' },
+      { key: 'to', header: 'Sent to', width: 280, muted: true },
+      { key: 'ok', header: 'Result', width: 104, align: 'right', render: () => h(DW.StatusBadge, { status: 'healthy', label: 'Delivered' }) }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      routes, channels, cols, deliveries, delCols, yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

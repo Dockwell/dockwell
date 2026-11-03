@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fleet action running</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="fleet" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<div style="display: flex; align-items: center; gap: 12px;">
+<h1 class="title" style="margin: 0;">Applying OS security updates</h1>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="deploying" variant="pill" label="Running"></x-import>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">38 servers · started 14:23 by Mira Chen</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="Plan-Review.dc.html" class="dw-btn dw-btn-ghost dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="commit" size="{{16}}"></x-import><span>View plan</span></a>
+<x-import component-from-global-scope="Dockwell.Button" icon="pause">Pause rollout</x-import>
+<x-import component-from-global-scope="Dockwell.Button" variant="danger" icon="undo">Stop and roll back</x-import>
+</div>
+</div>
+
+<section class="dw-panel" aria-labelledby="h-waves">
+<div class="dw-panel-head">
+<h2 id="h-waves" class="dw-panel-title">Waves</h2>
+<span style="font-size: 13px; color: var(--ink-muted);"><b style="font-weight: 600; color: var(--ink);">14 of 38</b> servers updated · about 25 min left</span>
+</div>
+<ol style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));">
+<sc-for list="{{waves}}" as="w">
+<li style="{{w.style}}">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 600;">{{w.name}}</span>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="{{w.status}}" label="{{w.label}}"></x-import>
+</div>
+<span style="{{w.whoStyle}}">{{w.who}}</span>
+<div role="progressbar" aria-label="{{w.aria}}" aria-valuemin="0" aria-valuemax="{{w.total}}" aria-valuenow="{{w.done}}" style="display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--line);">
+<span style="{{w.doneStyle}}"></span><span style="{{w.runStyle}}"></span>
+</div>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">{{w.note}}</span>
+</li>
+</sc-for>
+</ol>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch;">
+<section class="dw-panel" style="flex: 3 1 560px; min-width: 0;" aria-labelledby="h-targets">
+<div class="dw-panel-head">
+<h2 id="h-targets" class="dw-panel-title">Targets</h2>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; font-size: 13px;">
+<span style="display: inline-flex; align-items: center; gap: 6px;"><span class="dw-tile dw-tile-healthy" aria-hidden="true" style="--s: 12px; cursor: default; border-radius: 3px;"></span>14 done</span>
+<span style="display: inline-flex; align-items: center; gap: 6px;"><span class="dw-tile dw-tile-deploying" aria-hidden="true" style="--s: 12px; cursor: default; border-radius: 3px;"></span>2 running</span>
+<span style="display: inline-flex; align-items: center; gap: 6px;"><span class="dw-tile dw-tile-stopped" aria-hidden="true" style="--s: 12px; cursor: default; border-radius: 3px;"></span>22 waiting</span>
+</div>
+</div>
+<div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.FleetGrid" groups="{{groups}}" legend="{{no}}" selected-id="fra-1-12" hint="Hover a server to see its step."></x-import></div>
+</section>
+
+<section class="dw-panel" style="flex: 2 1 340px; min-width: 0; display: flex; flex-direction: column;" aria-labelledby="h-stop">
+<div class="dw-panel-head">
+<h2 id="h-stop" class="dw-panel-title">Stop conditions</h2>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Within limits"></x-import>
+</div>
+<div class="dw-panel-body" style="flex: 1 1 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+<x-import component-from-global-scope="Dockwell.Metric" label="Error rate" value="0.11" unit="%" data="{{errors}}" threshold="{{0.25}}" min="{{0}}" max="{{0.3}}" caption="Limit 0.25%, targeted servers"></x-import>
+<x-import component-from-global-scope="Dockwell.Metric" label="Unhealthy servers" value="0" unit="of 38" data="{{unhealthy}}" min="{{0}}" max="{{4}}" caption="All servers healthy"></x-import>
+</div>
+<p style="margin: 0; padding: 12px 16px; border-top: 1px solid var(--line); font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Each server is checked 3 min after its reboot. If a limit is crossed, the rollout stops and the running wave rolls back.</p>
+</section>
+</div>
+
+<x-import component-from-global-scope="Dockwell.LogStream" title="Events" live="{{yes}}" lines="{{lines}}" height="{{264}}"></x-import>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const pad = (n) => String(n).padStart(2, '0');
+    const done = new Set(['fra-1-03', 'fra-1-04', 'fra-1-05', 'ams-1-04', 'ams-1-05', 'fra-1-06', 'ams-1-02', 'fra-1-08', 'ams-1-06', 'fra-1-09', 'ams-1-07', 'fra-1-10', 'ams-1-08', 'fra-1-11']);
+    const running = new Set(['fra-1-12', 'ams-1-10']);
+    const step = (id) => done.has(id) ? 'healthy' : running.has(id) ? 'deploying' : 'stopped';
+    const noteOf = { healthy: 'Updated, health checks passing', deploying: 'Applying updates', stopped: 'Waiting' };
+    const region = (r, net, from, to) => Array.from({ length: to - from + 1 }, (_, k) => {
+      const i = from + k, id = r + '-' + pad(i), st = step(id);
+      return { id, name: id, status: st, ip: '10.210.' + net + '.' + i, note: noteOf[st] };
+    });
+    const groups = [
+      { label: 'fra-1', meta: '22 servers', servers: region('fra-1', 4, 3, 24) },
+      { label: 'ams-1', meta: '16 servers', servers: region('ams-1', 5, 1, 16) }
+    ];
+    const cellBase = 'display: flex; flex-direction: column; gap: 8px; padding: 16px; min-width: 0; ';
+    const waves = [
+      { name: 'Wave 1', status: 'healthy', label: 'Done', who: 'fra-1-03', mono: true, total: 1, d: 1, r: 0, note: 'Done in 4 min' },
+      { name: 'Wave 2', status: 'healthy', label: 'Done', who: '4 servers', total: 4, d: 4, r: 0, note: 'Done in 5 min' },
+      { name: 'Wave 3', status: 'deploying', label: 'Running', who: '15 servers', total: 15, d: 9, r: 2, note: '9 of 15 done · 2 running' },
+      { name: 'Wave 4', status: 'stopped', label: 'Waiting', who: '18 servers', total: 18, d: 0, r: 0, note: 'Starts after a 5 min pause' }
+    ].map((w, i) => Object.assign(w, {
+      done: w.d,
+      aria: w.name + ', ' + w.d + ' of ' + w.total + ' done',
+      style: cellBase + (i ? 'border-left: 1px solid var(--line);' : '') + (w.status === 'deploying' ? ' background: color-mix(in srgb, var(--cobalt-soft) 45%, var(--surface));' : ''),
+      whoStyle: 'font-size: 13px; line-height: 18px; color: var(--ink-muted);' + (w.mono ? ' font-family: var(--font-mono); font-size: 12.5px;' : ''),
+      doneStyle: 'width: ' + (100 * w.d / w.total) + '%; background: var(--healthy);',
+      runStyle: 'width: ' + (100 * w.r / w.total) + '%; background: var(--cobalt);'
+    }));
+    const lines = [
+      { time: '14:23:04', source: 'rollout', text: 'Started by Mira Chen · 38 servers in 4 waves' },
+      { time: '14:23:06', source: 'fra-1-03', text: 'Draining · 3 replicas moved to fra-1-04 and fra-1-05' },
+      { time: '14:23:31', source: 'fra-1-03', text: 'Applied openssl, libssh, linux-image · rebooting' },
+      { time: '14:24:13', source: 'fra-1-03', text: 'Back after 42 s · health checks passing' },
+      { time: '14:27:13', source: 'rollout', text: 'Wave 1 done in 4 min · pausing 5 min' },
+      { time: '14:32:13', source: 'rollout', text: 'Wave 2 started · fra-1-04, fra-1-05, ams-1-04, ams-1-05' },
+      { time: '14:37:20', source: 'rollout', text: 'Wave 2 done in 5 min · pausing 5 min' },
+      { time: '14:42:20', source: 'rollout', text: 'Wave 3 started · 15 servers' },
+      { time: '14:44:02', source: 'ams-1-06', level: 'warn', text: 'Reboot took 71 s, slower than usual · health checks passing' },
+      { time: '14:49:40', source: 'fra-1-11', text: 'Back after 40 s · health checks passing · 9 of 15' },
+      { time: '14:49:44', source: 'fra-1-12', text: 'Draining · 2 replicas moved to fra-1-13' },
+      { time: '14:49:45', source: 'ams-1-10', text: 'Draining · 2 replicas moved to ams-1-11' },
+      { time: '14:50:08', source: 'ams-1-10', text: 'Applied openssl, libssh, linux-image · rebooting' }
+    ].map((l, i) => Object.assign(l, { id: i }));
+    const errors = [0.09, 0.1, 0.11, 0.1, 0.09, 0.1, 0.12, 0.11, 0.1, 0.1, 0.13, 0.12, 0.1, 0.09, 0.1, 0.11, 0.12, 0.11, 0.1, 0.11, 0.12, 0.1, 0.11, 0.11];
+    return {
+      theme: this.props.theme ?? 'light',
+      groups, waves, lines, errors,
+      unhealthy: Array(24).fill(0),
+      yes: true, no: false
+    };
+  }
+}
+</script>
+</body>
+</html>

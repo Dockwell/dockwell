@@ -1,0 +1,39 @@
+<!-- @dsCard group="Actions" height=196 subtitle="Ink for the one primary action; colour only for danger" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Button</title>
+<style>
+  .demo { padding: 24px; display: grid; grid-template-columns: 72px 1fr; gap: 16px 12px; align-items: center; }
+  .k { font-size: 12px; color: var(--ink-muted); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement, B = H.Button;
+  function Demo() {
+    var s = React.useState(false), busy = s[0], setBusy = s[1];
+    return h('div', { className: 'demo' },
+      h('span', { className: 'k' }, 'Variants'),
+      h('div', { className: 'row' },
+        h(B, { variant: 'primary', icon: 'check', kbd: '⌘↵' }, 'Apply plan'),
+        h(B, { variant: 'secondary', icon: 'commit' }, 'Review plan'),
+        h(B, { variant: 'ghost' }, 'Cancel'),
+        h(B, { variant: 'danger', icon: 'x' }, 'Remove server')),
+      h('span', { className: 'k' }, 'Sizes'),
+      h('div', { className: 'row' },
+        h(B, { size: 'sm', icon: 'refresh' }, 'Restart'),
+        h(B, { size: 'md', icon: 'refresh' }, 'Restart'),
+        h(B, { size: 'lg', variant: 'primary', icon: 'deploy' }, 'Deploy your first app')),
+      h('span', { className: 'k' }, 'States'),
+      h('div', { className: 'row' },
+        h(B, { variant: 'primary', icon: 'deploy', loading: busy, onClick: function () { setBusy(true); setTimeout(function () { setBusy(false); }, 2400); } }, busy ? 'Deploying' : 'Deploy'),
+        h(B, { disabled: true }, 'Roll back'),
+        h(B, { icon: 'more', 'aria-label': 'More actions' }),
+        h(B, { variant: 'ghost', icon: 'copy', size: 'sm' }, 'Copy URL')));
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

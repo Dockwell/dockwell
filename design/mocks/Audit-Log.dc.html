@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Audit log</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="settings" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px 32px;">
+
+<nav aria-label="Settings" style="flex: 1 1 200px; max-width: 200px; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; height: 24px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Organization</div>
+<a href="Settings-General.dc.html" class="dw-rail-item">General</a>
+<a href="Members.dc.html" class="dw-rail-item">Members</a>
+<a href="API-Tokens.dc.html" class="dw-rail-item">API tokens</a>
+<a href="Audit-Log.dc.html" class="dw-rail-item is-active" aria-current="page">Audit log</a>
+<a href="Billing.dc.html" class="dw-rail-item">Billing</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Platform</div>
+<a href="Settings-ControlPlane.dc.html" class="dw-rail-item">Control plane</a>
+<a href="Settings-Integrations.dc.html" class="dw-rail-item">Integrations</a>
+<a href="Alerts-Channels.dc.html" class="dw-rail-item">Notifications</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Account</div>
+<a href="Profile.dc.html" class="dw-rail-item">Profile and security</a>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Audit log</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Every change in Acme by people, tokens and Dockwell · kept for 1 year</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" icon="download">Export</x-import>
+</div>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div role="search" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+<div style="flex: 1 1 280px; min-width: 0;"><x-import component-from-global-scope="Dockwell.TextField" icon="search" placeholder="Filter by actor, action, target or IP" aria-label="Filter events"></x-import></div>
+<div class="dw-input" style="position: relative; flex: 0 0 auto;">
+<select class="dw-input-el" aria-label="Time range" style="appearance: none; -webkit-appearance: none; padding-right: 32px; cursor: pointer;">
+<option>Last 24 hours</option>
+<option>Last 7 days</option>
+<option>Last 30 days</option>
+<option>Custom range</option>
+</select>
+<span style="position: absolute; right: 10px; top: 8px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div>
+<div class="dw-input" style="position: relative; flex: 0 0 auto;">
+<select class="dw-input-el" aria-label="Actor" style="appearance: none; -webkit-appearance: none; padding-right: 32px; cursor: pointer;">
+<option>All actors</option>
+<option>People</option>
+<option>Tokens</option>
+<option>Dockwell</option>
+</select>
+<span style="position: absolute; right: 10px; top: 8px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div>
+<div class="dw-input" style="position: relative; flex: 0 0 auto;">
+<select class="dw-input-el" aria-label="Source" style="appearance: none; -webkit-appearance: none; padding-right: 32px; cursor: pointer;">
+<option>All sources</option>
+<option>UI</option>
+<option>CLI</option>
+<option>API</option>
+<option>MCP</option>
+<option>GitHub</option>
+</select>
+<span style="position: absolute; right: 10px; top: 8px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div>
+</div>
+
+<div class="dw-table-wrap">
+<table class="dw-table dw-table-compact">
+<caption class="dw-sr">Audit log events for Acme, last 24 hours</caption>
+<thead>
+<tr><th scope="col" style="width: 56px;">Time</th><th scope="col" style="width: 196px;">Actor</th><th scope="col" style="width: 128px;">Action</th><th scope="col">Target</th><th scope="col" style="width: 84px;">Source</th><th scope="col" style="width: 112px;">IP</th><th scope="col" style="width: 28px;"><span class="dw-sr">Details</span></th></tr>
+</thead>
+<tbody>
+<tr><td colspan="7" style="height: 32px; background: var(--canvas); font-size: 12px; font-weight: 500; color: var(--ink-muted);">Today · Tuesday 3 Nov</td></tr>
+
+<sc-for list="{{before}}" as="r">
+<tr>
+<td>{{r.time}}</td>
+<td>{{r.actorEl}}</td>
+<td class="is-mono">{{r.action}}</td>
+<td>{{r.targetEl}}</td>
+<td>{{r.sourceEl}}</td>
+<td class="is-mono is-muted">{{r.ip}}</td>
+<td style="padding-left: 0; text-align: right;">{{r.toggle}}</td>
+</tr>
+</sc-for>
+
+<tr>
+<td style="background: var(--canvas); border-bottom: 0;">14:16</td>
+<td style="background: var(--canvas); border-bottom: 0;">{{open.actorEl}}</td>
+<td class="is-mono" style="background: var(--canvas); border-bottom: 0; font-weight: 500;">plan.apply</td>
+<td style="background: var(--canvas); border-bottom: 0;">{{open.targetEl}}</td>
+<td style="background: var(--canvas); border-bottom: 0;">{{open.sourceEl}}</td>
+<td class="is-mono is-muted" style="background: var(--canvas); border-bottom: 0;">198.51.100.23</td>
+<td style="background: var(--canvas); border-bottom: 0; padding-left: 0; text-align: right;">{{open.toggle}}</td>
+</tr>
+<tr>
+<td colspan="7" style="height: auto; padding: 4px 16px 20px; background: var(--canvas); white-space: normal;">
+<div style="display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-start; padding-left: 63px;">
+<div style="flex: 0 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px; line-height: 18px;">
+<dt style="color: var(--ink-muted);">Plan</dt><dd style="margin: 0;"><code style="font-size: 12px;">plan_7Hc2Qa</code></dd>
+<dt style="color: var(--ink-muted);">Proposed</dt><dd style="margin: 0;">GitHub Actions deploy · 14:12</dd>
+<dt style="color: var(--ink-muted);">Approved</dt><dd style="margin: 0;">Mira Chen · 14:16</dd>
+<dt style="color: var(--ink-muted);">Where</dt><dd style="margin: 0;">storefront / production</dd>
+<dt style="color: var(--ink-muted);">Result</dt><dd style="margin: 0; display: flex; flex-direction: column; gap: 2px;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="deploying" label="Rolling out to 3 servers"></x-import><span style="display: flex; flex-wrap: wrap; gap: 0 8px; font: 400 12px/18px var(--font-mono); color: var(--ink-muted);"><span>fra-1-15</span><span>fra-1-16</span><span>ams-1-09</span></span></dd>
+</dl>
+<div><a href="Activity.dc.html" class="dw-btn dw-btn-secondary dw-btn-sm" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="activity" size="{{14}}"></x-import><span>Open in Activity</span></a></div>
+</div>
+<div style="flex: 1 1 360px; min-width: 0;">
+<x-import component-from-global-scope="Dockwell.PlanDiff" resources="{{plan}}" impact="One replica at a time · no downtime"></x-import>
+</div>
+</div>
+</td>
+</tr>
+
+<sc-for list="{{after}}" as="r">
+<tr>
+<td>{{r.time}}</td>
+<td>{{r.actorEl}}</td>
+<td class="is-mono">{{r.action}}</td>
+<td>{{r.targetEl}}</td>
+<td>{{r.sourceEl}}</td>
+<td class="is-mono is-muted">{{r.ip}}</td>
+<td style="padding-left: 0; text-align: right;">{{r.toggle}}</td>
+</tr>
+</sc-for>
+
+<tr><td colspan="7" style="height: 32px; background: var(--canvas); font-size: 12px; font-weight: 500; color: var(--ink-muted); border-top: 1px solid var(--line);">Yesterday · Monday 2 Nov</td></tr>
+
+<sc-for list="{{yesterday}}" as="r">
+<tr>
+<td>{{r.time}}</td>
+<td>{{r.actorEl}}</td>
+<td class="is-mono">{{r.action}}</td>
+<td>{{r.targetEl}}</td>
+<td>{{r.sourceEl}}</td>
+<td class="is-mono is-muted">{{r.ip}}</td>
+<td style="padding-left: 0; text-align: right;">{{r.toggle}}</td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+<p style="margin: 0; font-size: 12.5px; color: var(--ink-muted);">10 events in the last 24 hours. Pick a longer range to see more.</p>
+</section>
+
+</div>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":940}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const chip = { display: 'grid', placeItems: 'center', width: 22, height: 22, boxSizing: 'border-box', background: 'var(--surface-sunken)', border: '1px solid var(--line)', flex: 'none' };
+    const actorEl = (a) => h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 8 } },
+      a.kind === 'person'
+        ? h('span', { 'aria-hidden': true, style: Object.assign({}, chip, { borderRadius: '50%', fontSize: 9.5, fontWeight: 600, color: 'var(--ink)' }) }, a.i)
+        : h('span', { 'aria-hidden': true, style: Object.assign({}, chip, { borderRadius: 6, color: 'var(--ink-muted)' }) }, h(DW.Icon, { name: a.kind === 'token' ? 'key' : 'settings', size: 12 })),
+      h('span', null, a.name));
+    const mono = (t) => h('code', { style: { fontSize: 12 } }, t);
+    const rev = (t) => h('code', { style: { padding: '0 5px', borderRadius: 3, background: 'var(--surface-sunken)', fontSize: 11.5, lineHeight: '18px' } }, t);
+    const muted = (t) => h('span', { style: { color: 'var(--ink-muted)' } }, t);
+    const targetEl = (parts) => h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6 } }, parts.map((p, i) => h(React.Fragment, { key: i }, p)));
+    const srcIcon = { UI: 'browser', CLI: 'terminal', API: 'link', MCP: 'chat', GitHub: 'branch', Automatic: 'refresh' };
+    const sourceEl = (s) => h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6 } }, h('span', { style: { display: 'flex', color: 'var(--ink-muted)' } }, h(DW.Icon, { name: srcIcon[s], size: 14 })), s);
+    const toggle = (open, label) => h(DW.Button, { variant: 'ghost', size: 'sm', icon: open ? 'chevron-down' : 'chevron-right', 'aria-label': (open ? 'Hide details for ' : 'Show details for ') + label, 'aria-expanded': open });
+    const mira = { kind: 'person', i: 'MC', name: 'Mira Chen' };
+    const row = (time, actor, action, target, source, ip) => ({
+      time, action, ip,
+      actorEl: actorEl(actor), targetEl: targetEl(target), sourceEl: sourceEl(source),
+      toggle: toggle(false, action + ' at ' + time)
+    });
+    const before = [
+      row('14:19', mira, 'token.create', ['MCP — Claude Desktop'], 'UI', '198.51.100.23')
+    ];
+    const open = {
+      actorEl: actorEl(mira),
+      targetEl: targetEl([mono('storefront-web'), rev('r64'), muted('production')]),
+      sourceEl: sourceEl('UI'),
+      toggle: toggle(true, 'plan.apply at 14:16')
+    };
+    const after = [
+      row('14:12', { kind: 'token', name: 'GitHub Actions deploy' }, 'plan.propose', [mono('storefront-web'), rev('r64'), muted('production')], 'GitHub', '192.0.2.41'),
+      row('14:03', { kind: 'system', name: 'Dockwell' }, 'replica.move', [muted('2 replicas from'), mono('ams-1-03')], 'Automatic', '—'),
+      row('13:55', mira, 'plan.apply', [mono('worker'), rev('r57'), muted('production')], 'UI', '198.51.100.23'),
+      row('13:49', { kind: 'person', i: 'SO', name: 'Sam Okafor' }, 'plan.propose', [mono('worker'), rev('r57'), muted('production')], 'CLI', '198.51.100.77'),
+      row('13:41', mira, 'server.reboot', [mono('sfo-2-03'), muted('builders')], 'CLI', '198.51.100.23'),
+      row('11:28', { kind: 'person', i: 'LP', name: 'Leo Park' }, 'app.deploy', [mono('checkout'), rev('r213'), muted('staging')], 'MCP', '198.51.100.51')
+    ];
+    const yesterday = [
+      row('18:40', { kind: 'person', i: 'DW', name: 'Dana Whitfield' }, 'member.invite', [mono('jordan@fieldwork.dev'), muted('Developer')], 'UI', '198.51.100.12'),
+      row('16:05', { kind: 'token', name: 'Terraform' }, 'server.create', [mono('fra-1-24'), muted('Hetzner · fra-1')], 'API', '192.0.2.88')
+    ];
+    const plan = [
+      { id: 'web', action: 'update', kind: 'app', kindLabel: 'App', name: 'storefront-web', note: 'Rolling update', expanded: true, changes: [
+        { path: 'image', from: 'ghcr.io/acme/storefront:e41b7d0', to: 'ghcr.io/acme/storefront:2c71f09' },
+        { path: 'revision', from: 'r63', to: 'r64' }
+      ] }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      before, open, after, yesterday, plan,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

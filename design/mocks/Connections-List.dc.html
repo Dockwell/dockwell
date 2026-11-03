@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Connections</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="connections" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Connections</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">6 external services used by 7 apps · values set per environment</p>
+</div>
+<a href="Connection-New.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>Add connection</span></a>
+</div>
+
+<section aria-label="All connections" style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 28px;">
+<h2 class="heading" style="margin: 0;">All connections</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">1 test failing · 5 passing</span>
+<span style="flex: 1 1 24px;"></span>
+<div style="flex: 0 1 280px; min-width: 200px;"><x-import component-from-global-scope="Dockwell.TextField" size="sm" icon="search" placeholder="Filter by name, provider or app" aria-label="Filter connections"></x-import></div>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{cols}}" rows="{{conns}}" caption="Connections in Acme" on-row-click="{{noop}}"></x-import>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px 10px 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface);">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="settings" size="{{16}}"></x-import></span>
+<p style="margin: 0; flex: 1 1 480px; font-size: 13px; line-height: 18px; color: var(--ink-muted);">Connections are credentials your apps use. Accounts Dockwell itself uses, like GitHub, Cloudflare and Hetzner, are integrations.</p>
+<a href="Settings-Integrations.dc.html" class="dw-btn dw-btn-ghost dw-btn-sm" style="text-decoration: none;"><span>Settings</span><span style="color: var(--ink-muted); font-weight: 400;">/</span><span>Integrations</span><x-import component-from-global-scope="Dockwell.Icon" name="arrow-right" size="{{14}}"></x-import></a>
+</div>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 16px; align-items: stretch;">
+
+<section class="dw-panel" style="display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Add from a template</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Fields and variable names filled in</span></div>
+<div class="dw-panel-body" role="group" aria-label="Templates" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px; align-content: start; --control-md: 36px;">
+<sc-for list="{{templates}}" as="t">
+<a href="Connection-New.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="justify-content: flex-start; gap: 10px; padding: 0 12px 0 6px; text-decoration: none;"><span aria-hidden="true" style="display: grid; place-items: center; width: 22px; height: 22px; flex: none; border-radius: var(--radius-xs); background: var(--surface-sunken); border: 1px solid var(--line); box-sizing: border-box; font-size: 10.5px; font-weight: 600; color: var(--ink);">{{t.mono}}</span><span>{{t.name}}</span><span style="flex: 1 1 auto;"></span><span style="font-size: 12.5px; font-weight: 400; color: var(--ink-muted);">{{t.note}}</span></a>
+</sc-for>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Recent activity</h2><a href="Audit-Log.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Audit log</a></div>
+<div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.Timeline" events="{{events}}"></x-import></div>
+</section>
+
+</div>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":940}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const muted = { color: 'var(--ink-muted)' };
+    const tile = (m) => h('span', { 'aria-hidden': true, style: { display: 'grid', placeItems: 'center', width: 32, height: 32, flex: 'none', boxSizing: 'border-box', borderRadius: 'var(--radius-sm)', background: 'var(--surface-sunken)', border: '1px solid var(--line)', fontSize: 12, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--ink)' } }, m);
+    const nameCell = (r) => h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 } },
+      tile(r.mono),
+      h('div', { className: 'dw-cell' },
+        r.href
+          ? h('a', { href: r.href, style: { fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: '18px', fontWeight: 500, color: 'var(--ink)', textDecoration: 'none' } }, r.name)
+          : h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: '18px', fontWeight: 500 } }, r.name),
+        h('span', { style: Object.assign({ fontSize: 12.5, lineHeight: '16px' }, muted) }, r.provider)));
+    const usedCell = (r) => h('div', { className: 'dw-cell' },
+      h('span', null, r.apps.length + (r.apps.length === 1 ? ' app' : ' apps')),
+      h('span', { style: Object.assign({ fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, muted) }, r.apps.join(', ')));
+    const rotCell = (r) => h('div', { className: 'dw-cell' },
+      h('span', { style: r.rotated ? null : muted }, r.rotated || 'Never'),
+      h('span', { style: Object.assign({ fontSize: 12.5, lineHeight: '16px' }, muted) }, r.rotBy));
+    const testCell = (r) => r.fail
+      ? h('div', { className: 'dw-cell' },
+          h(DW.StatusBadge, { status: 'degraded', label: h('span', null, 'Fails from ', h('code', { style: { fontSize: 12.5 } }, 'sfo-2-10')) }),
+          h('span', { style: Object.assign({ paddingLeft: 16, fontSize: 12.5, lineHeight: '16px' }, muted) }, r.fail))
+      : h(DW.StatusBadge, { status: 'healthy', label: 'Passed', meta: r.servers });
+    const conns = [
+      { id: 'supabase', name: 'supabase', mono: 'Sb', provider: 'Supabase · Frankfurt', href: 'Connection-Detail.dc.html', apps: ['storefront-web', 'api', 'worker', 'metabase'], envs: 'Production, Staging', rotated: '21 Sep', rotBy: 'Dana Whitfield', fail: 'metabase · blocked by network restrictions' },
+      { id: 'r2-uploads', name: 'r2-uploads', mono: 'R2', provider: 'Cloudflare R2 · created by Dockwell', apps: ['images', 'api'], envs: 'Production', rotated: '', rotBy: 'Created 1 Sep', servers: 'on 5 servers' },
+      { id: 'stripe', name: 'stripe', mono: 'St', provider: 'Stripe', apps: ['checkout', 'api'], envs: 'Production, Staging', rotated: '14 Oct', rotBy: 'Dana Whitfield', servers: 'on 6 servers' },
+      { id: 'resend', name: 'resend', mono: 'Re', provider: 'Resend', apps: ['worker', 'checkout'], envs: 'Production, Staging', rotated: '', rotBy: 'Created 12 Aug', servers: 'on 6 servers' },
+      { id: 'sentry', name: 'sentry', mono: 'Se', provider: 'Sentry', apps: ['api', 'worker', 'checkout', 'storefront-web'], envs: 'Production, Staging', rotated: '', rotBy: 'Created 21 Sep', servers: 'on 12 servers' },
+      { id: 'openai', name: 'openai', mono: 'Oa', provider: 'OpenAI', apps: ['search-ui'], envs: 'Staging', rotated: '', rotBy: 'Created 3 Oct', servers: 'on 1 server' }
+    ];
+    const cols = [
+      { key: 'name', header: 'Connection', render: nameCell },
+      { key: 'apps', header: 'Used by', width: 296, render: usedCell },
+      { key: 'envs', header: 'Environments', width: 168, muted: true },
+      { key: 'rotated', header: 'Last rotated', width: 148, render: rotCell },
+      { key: 'test', header: 'Last test', width: 284, render: testCell }
+    ];
+    const templates = [
+      { mono: 'Sb', name: 'Supabase', note: '' },
+      { mono: 'R2', name: 'Cloudflare R2', note: 'Can create for you' },
+      { mono: 'S3', name: 'Amazon S3', note: '' },
+      { mono: 'St', name: 'Stripe', note: '' },
+      { mono: 'Re', name: 'Resend', note: '' },
+      { mono: 'Pm', name: 'Postmark', note: '' },
+      { mono: 'Sm', name: 'SMTP', note: '' },
+      { mono: 'Oa', name: 'OpenAI', note: '' },
+      { mono: 'Se', name: 'Sentry', note: '' },
+      { mono: '+', name: 'Custom', note: 'Your own fields' }
+    ];
+    const events = [
+      { id: 1, kind: 'alert', tone: 'warning', title: 'supabase test failed from sfo-2-10', meta: 'metabase · refused by network restrictions', time: '3 min ago' },
+      { id: 2, kind: 'config', title: 'Bound supabase to metabase', actor: 'Mira Chen', meta: 'internal-tools', time: '26 min ago' },
+      { id: 3, kind: 'plan', title: 'Rotated stripe secret_key', actor: 'Dana Whitfield', meta: 'checkout and api restarted', time: '14 Oct' },
+      { id: 4, kind: 'config', title: 'Added openai', actor: 'Leo Park', meta: 'Staging · search-ui', time: '3 Oct' }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      conns, cols, templates, events,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

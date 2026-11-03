@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Domain acme.dev, traffic</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="domains" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: var(--ink-muted);"><a href="Domains-Fleet.dc.html" style="color: var(--ink-muted); text-decoration: none;">Domains</a><span aria-hidden="true">/</span><span aria-current="page">acme.dev</span></nav>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;">
+<h1 class="title" style="margin: 0; font-family: var(--font-mono); font-weight: 600; letter-spacing: -0.02em;">acme.dev</h1>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+<span class="dw-tag" style="font-family: var(--font-sans); font-weight: 500;">Proxied by Cloudflare</span>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Routes to storefront-web in storefront / production · <code class="code-sm">www.acme.dev</code> redirects here</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="#trace" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="activity" size="{{16}}"></x-import><span>Trace a request</span></a>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="plus">Add route</x-import>
+</div>
+</div>
+<div class="dw-tabs" role="tablist" aria-label="Domain sections">
+<a href="Domain-Traffic.dc.html" class="dw-tab" role="tab" aria-selected="true" style="text-decoration: none;"><span>Traffic</span></a>
+<button type="button" class="dw-tab" role="tab" aria-selected="false"><span>Routes</span><span class="dw-tab-count">2</span></button>
+<button type="button" class="dw-tab" role="tab" aria-selected="false"><span>Certificate</span></button>
+<button type="button" class="dw-tab" role="tab" aria-selected="false"><span>DNS records</span><span class="dw-tab-count">5</span></button>
+<button type="button" class="dw-tab" role="tab" aria-selected="false"><span>Settings</span></button>
+</div>
+</div>
+
+<section class="dw-panel" aria-labelledby="path-title" style="display: flex; flex-direction: column; overflow: hidden;">
+<div class="dw-panel-head" style="flex-wrap: wrap; row-gap: 8px;">
+<div style="display: flex; align-items: baseline; gap: 8px;"><h2 id="path-title" class="dw-panel-title">Traffic path</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Last 5 min · line width is share of requests</span></div>
+<ul aria-label="Legend" style="margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: 12.5px; line-height: 16px; color: var(--ink-muted);">
+<li style="display: flex; align-items: center; gap: 6px;"><span aria-hidden="true" style="width: 18px; height: 0; border-top: 2px solid var(--line-strong);"></span>Requests</li>
+<li style="display: flex; align-items: center; gap: 6px;"><span aria-hidden="true" style="width: 18px; height: 0; border-top: 2px solid var(--cobalt);"></span>Traced <code class="code-sm" style="color: var(--ink);">/cart</code></li>
+<li style="display: flex; align-items: center; gap: 6px;"><span aria-hidden="true" style="width: 18px; height: 0; border-top: 2px dashed var(--critical);"></span>Taken out of DNS</li>
+<li style="display: flex; align-items: center; gap: 6px;"><span aria-hidden="true" style="width: 18px; height: 0; border-top: 2px dashed var(--line-strong);"></span>Not serving yet</li>
+</ul>
+</div>
+
+<div style="overflow-x: auto;">
+<div role="img" aria-label="{{pathLabel}}" style="min-width: 1000px; box-sizing: border-box; padding: 20px 24px 28px; display: grid; grid-template-columns: 184px minmax(48px, 1fr) 248px minmax(48px, 1fr) 184px minmax(48px, 1fr) 248px; row-gap: 16px;">
+
+<sc-for list="{{steps}}" as="s">
+<div style="{{s.style}}">
+<span aria-hidden="true" style="display: grid; place-items: center; flex: none; width: 22px; height: 22px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--line-strong); font-size: 12px; font-weight: 600;">{{s.n}}</span>
+<span style="display: flex; flex-direction: column; gap: 1px; min-width: 0;"><span style="font-size: 13px; line-height: 18px; font-weight: 600;">{{s.title}}</span><span style="font-size: 12.5px; line-height: 16px; color: var(--ink-muted);">{{s.sub}}</span></span>
+</div>
+</sc-for>
+
+<div style="position: relative; height: 368px;">
+<div style="position: absolute; inset: 0; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface);">
+<div style="position: absolute; top: 14px; left: 14px; right: 14px; display: flex; align-items: center; gap: 10px;">
+<span style="display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: var(--radius-sm); background: var(--surface-sunken); color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="globe" size="{{16}}"></x-import></span>
+<span style="display: flex; flex-direction: column; min-width: 0;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">Cloudflare</span><span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Proxied · TTL auto</span></span>
+</div>
+<div style="position: absolute; top: 64px; left: 0; right: 0; border-top: 1px solid var(--line);"></div>
+<div style="position: absolute; top: 80px; left: 14px; right: 14px; display: flex; justify-content: space-between; font-size: 12px; line-height: 16px; color: var(--ink-muted);"><span>A records</span><span>5</span></div>
+<sc-for list="{{records}}" as="r">
+<div style="{{r.style}}"><span style="color: var(--ink-muted);">A</span><span style="{{r.ipStyle}}">{{r.ip}}</span><span aria-hidden="true" style="{{r.port}}"></span></div>
+</sc-for>
+<div style="position: absolute; left: 0; right: 0; bottom: 48px; border-top: 1px solid var(--line);"></div>
+<div style="position: absolute; left: 14px; right: 14px; bottom: 16px; display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="refresh" size="{{12}}"></x-import><span>Synced 1 min ago</span></div>
+</div>
+</div>
+
+<div style="position: relative; height: 368px;">
+<svg aria-hidden="true" viewBox="0 0 100 368" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;">
+<g fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke">
+<path d="M0 124 C50 124 50 50 100 50" stroke="var(--line-strong)" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+<path d="M0 148 C50 148 50 102 100 102" stroke="var(--line-strong)" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+<path d="M0 172 C50 172 50 154 100 154" stroke="var(--line-strong)" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+<path d="M0 196 C50 196 50 242 100 242" stroke="var(--line-strong)" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+<path d="M0 220 C50 220 50 294 100 294" stroke="var(--cobalt)" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+<path d="M0 244 C50 244 50 346 100 346" stroke="var(--critical)" stroke-width="1.5" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"></path>
+</g>
+</svg>
+</div>
+
+<div style="position: relative; height: 368px;">
+<sc-for list="{{regions}}" as="g">
+<div style="{{g.style}}"><code style="font-size: 12px; font-weight: 550; color: var(--ink);">{{g.name}}</code><span>{{g.place}}</span><span style="flex: 1 1 auto;"></span><span style="color: var(--ink); font-weight: 550;">{{g.share}}</span></div>
+</sc-for>
+<sc-for list="{{ingress}}" as="r">
+<div style="{{r.style}}">
+<span aria-hidden="true" style="{{r.portL}}"></span>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="{{r.status}}" label="{{r.label}}"></x-import>
+<span style="flex: 1 1 auto;"></span>
+<sc-if value="{{r.up}}">
+<span aria-hidden="true" style="display: block; flex: none; width: 56px; height: 4px; border-radius: 2px; background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden;"><span style="{{r.fill}}"></span></span>
+<span style="width: 30px; text-align: right; font-size: 13px; line-height: 18px; font-weight: 550;">{{r.pct}}</span>
+<span aria-hidden="true" style="{{r.portR}}"></span>
+</sc-if>
+<sc-if value="{{r.down}}">
+<span style="font-size: 12px; line-height: 16px; font-weight: 550; color: var(--critical); white-space: nowrap;">Removed 14:02:31</span>
+</sc-if>
+</div>
+</sc-for>
+</div>
+
+<div style="position: relative; height: 368px;">
+<svg aria-hidden="true" viewBox="0 0 100 368" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;">
+<g fill="none" stroke-linecap="round">
+<path d="M0 50 C50 50 50 184 100 184" stroke="var(--line-strong)" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+<path d="M0 102 C50 102 50 184 100 184" stroke="var(--line-strong)" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+<path d="M0 154 C50 154 50 184 100 184" stroke="var(--line-strong)" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+<path d="M0 242 C50 242 50 184 100 184" stroke="var(--line-strong)" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+<path d="M0 294 C50 294 50 184 100 184" stroke="var(--cobalt)" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+</g>
+</svg>
+</div>
+
+<div style="position: relative; height: 368px;">
+<div style="position: absolute; left: 0; right: 0; top: 106px; height: 156px; box-sizing: border-box; padding: 14px; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--cobalt); border-radius: var(--radius-md); background: var(--surface);">
+<span aria-hidden="true" style="position: absolute; left: -5px; top: 73px; width: 8px; height: 8px; box-sizing: border-box; border-radius: 50%; background: var(--cobalt); border: 1.5px solid var(--cobalt);"></span>
+<span aria-hidden="true" style="position: absolute; right: -5px; top: 73px; width: 8px; height: 8px; box-sizing: border-box; border-radius: 50%; background: var(--cobalt); border: 1.5px solid var(--cobalt);"></span>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Match</span>
+<span style="display: flex; align-items: center; gap: 6px;"><code style="font-size: 13px; line-height: 20px; font-weight: 500;">acme.dev</code><code style="padding: 0 6px; border-radius: var(--radius-xs); background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; line-height: 20px; font-weight: 600;">/</code></span>
+</div>
+<div style="border-top: 1px solid var(--line);"></div>
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Forward to</span>
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">storefront-web</span>
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">storefront / production</span>
+</div>
+</div>
+</div>
+
+<div style="position: relative; height: 368px;">
+<svg aria-hidden="true" viewBox="0 0 100 368" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;">
+<g fill="none" stroke-linecap="round">
+<path d="M0 184 C50 184 50 96 100 96" stroke="var(--line-strong)" stroke-width="1.5" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"></path>
+<path d="M0 184 C50 184 50 184 100 184" stroke="var(--line-strong)" stroke-width="6" vector-effect="non-scaling-stroke"></path>
+<path d="M0 184 C50 184 50 272 100 272" stroke="var(--cobalt)" stroke-width="4" vector-effect="non-scaling-stroke"></path>
+</g>
+</svg>
+</div>
+
+<div style="position: relative; height: 368px;">
+<sc-for list="{{replicas}}" as="r">
+<div style="{{r.style}}">
+<span aria-hidden="true" style="{{r.port}}"></span>
+<div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="{{r.status}}" label="{{r.label}}"></x-import>
+<code class="code-sm" style="padding: 0 5px; border-radius: 3px; background: var(--surface-sunken);">{{r.rev}}</code>
+<span style="flex: 1 1 auto;"></span>
+<span style="{{r.pctStyle}}">{{r.pct}}</span>
+</div>
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{r.meta}}</span>
+<span aria-hidden="true" style="display: block; height: 4px; border-radius: 2px; background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden;"><span style="{{r.fill}}"></span></span>
+</div>
+</sc-for>
+</div>
+
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); border-top: 1px solid var(--line);">
+<div style="padding: 16px 24px;"><x-import component-from-global-scope="Dockwell.Metric" label="Requests" value="6.1k" unit="/min" data="{{reqs}}" tone="cobalt" caption="54% of the fleet’s 11.2k /min"></x-import></div>
+<div style="padding: 16px 24px; border-left: 1px solid var(--line);"><x-import component-from-global-scope="Dockwell.Metric" label="Latency, p95" value="120" unit="ms" data="{{lat}}" caption="Measured at ingress"></x-import></div>
+<div style="padding: 16px 24px; border-left: 1px solid var(--line);"><x-import component-from-global-scope="Dockwell.Metric" label="Error rate" value="0.02" unit="%" data="{{err}}" min="{{0}}" max="{{0.1}}" caption="5xx from storefront-web"></x-import></div>
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<div style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Routes</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">2 rules · to services, never to servers</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{routeCols}}" rows="{{routes}}" caption="Routes on acme.dev"></x-import>
+</section>
+
+<section id="trace" class="dw-panel" aria-labelledby="trace-title">
+<div class="dw-panel-head"><h2 id="trace-title" class="dw-panel-title">Trace a request</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Sends one request and follows it hop by hop</span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<form style="display: flex; gap: 8px; margin: 0;">
+<label for="trace-url" class="dw-sr">URL to trace</label>
+<div class="dw-input" style="flex: 1 1 auto; min-width: 0; align-items: center; gap: 8px; padding: 0 10px;">
+<span class="dw-tag" style="flex: none; font-family: var(--font-mono);">GET</span>
+<input id="trace-url" class="dw-input-el is-mono" value="https://acme.dev/cart" style="padding: 0;">
+</div>
+<x-import component-from-global-scope="Dockwell.Button" icon="refresh">Trace again</x-import>
+</form>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-sunken);">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="200 in 41 ms"></x-import>
+<span style="font-size: 12.5px; color: var(--ink-muted);">Through Cloudflare, <code class="code-sm">ams-1-02</code> and <code class="code-sm">ams-1-09</code> · traced just now by Mira Chen</span>
+</div>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column;">
+<sc-for list="{{hops}}" as="p">
+<li style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; column-gap: 12px;">
+<span style="display: flex; flex-direction: column; align-items: center;">
+<span style="{{p.markStyle}}"><x-import component-from-global-scope="Dockwell.Icon" name="{{p.icon}}" size="{{14}}"></x-import></span>
+<span aria-hidden="true" style="{{p.spine}}"></span>
+</span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 4px 0 16px;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">{{p.title}}</span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">{{p.meta}}</span>
+</span>
+<code class="code-sm" style="padding-top: 5px; color: var(--ink-muted);">{{p.at}}</code>
+</li>
+</sc-for>
+</ol>
+</div>
+</section>
+</div>
+
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Balancing</h2><a href="Ingress.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Defaults</a></div>
+<div class="dw-panel-body">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 16px; font-size: 13px; line-height: 18px;">
+<dt style="color: var(--ink-muted);">Method</dt><dd style="margin: 0;">Least connections</dd>
+<dt style="color: var(--ink-muted);">Order</dt><dd style="margin: 0;">Same region first, then any healthy replica</dd>
+<dt style="color: var(--ink-muted);">Health check</dt><dd style="margin: 0;"><code class="code-sm">GET /</code> every 2 s</dd>
+<dt style="color: var(--ink-muted);">Draining</dt><dd style="margin: 0;">30 s before a replica stops</dd>
+</dl>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Certificate</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Valid" meta="47 days left"></x-import></div>
+<div class="dw-panel-body">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 16px; font-size: 13px; line-height: 18px;">
+<dt style="color: var(--ink-muted);">Covers</dt><dd style="margin: 0;"><code class="code-sm">acme.dev</code>, <code class="code-sm">www.acme.dev</code></dd>
+<dt style="color: var(--ink-muted);">Issuer</dt><dd style="margin: 0;">Let’s Encrypt, automatic</dd>
+<dt style="color: var(--ink-muted);">Challenge</dt><dd style="margin: 0;">DNS-01 through Cloudflare</dd>
+<dt style="color: var(--ink-muted);">Issued by</dt><dd style="margin: 0;">The control plane, once for the fleet</dd>
+<dt style="color: var(--ink-muted);">Installed on</dt><dd style="margin: 0;">6 ingress servers</dd>
+<dt style="color: var(--ink-muted);">Next renewal</dt><dd style="margin: 0;">20 Nov</dd>
+</dl>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Recent</h2><a href="Activity.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Activity</a></div>
+<div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.Timeline" events="{{events}}"></x-import></div>
+</section>
+</div>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1690}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const wave = (n, base, amp, seed) => Array.from({ length: n }, (_, i) => +(base + amp * Math.sin((i + seed) / 3.1) + amp * 0.5 * Math.sin((i * 7 + seed) / 5.3)).toFixed(3));
+    const code = (t) => h('code', { style: { fontFamily: 'var(--font-mono)', fontSize: 12.5 } }, t);
+    const muted = { color: 'var(--ink-muted)' };
+    const port = (side, traced, ring) => 'position: absolute; ' + side + ': -5px; top: 50%; width: 8px; height: 8px; margin-top: -4px; box-sizing: border-box; border-radius: 50%; '
+      + (traced ? 'background: var(--cobalt); border: 1.5px solid var(--cobalt);' : 'background: var(--surface); border: 1.5px solid ' + (ring || 'var(--line-strong)') + ';');
+
+    const steps = [
+      { n: '1', title: 'DNS', sub: 'Cloudflare, zone acme.dev', col: 1 },
+      { n: '2', title: 'Ingress', sub: '5 of 6 serving · share of requests', col: 3 },
+      { n: '3', title: 'Route', sub: 'First rule that matches', col: 5 },
+      { n: '4', title: 'Replicas', sub: 'storefront-web · r64 on 1 of 3', col: 7 }
+    ].map((s) => Object.assign(s, { style: 'grid-column: ' + s.col + '; display: flex; align-items: flex-start; gap: 10px; min-width: 0;' }));
+
+    const records = [
+      { ip: '49.12.118.36' }, { ip: '49.12.118.37' }, { ip: '49.12.118.38' },
+      { ip: '164.92.140.21' }, { ip: '164.92.140.22', traced: true }, { ip: '164.92.140.23', removed: true }
+    ].map((r, i) => Object.assign(r, {
+      style: 'position: absolute; left: 0; right: 0; top: ' + (112 + i * 24) + 'px; height: 24px; display: flex; align-items: center; gap: 8px; padding: 0 14px; font: 400 12px/16px var(--font-mono);',
+      ipStyle: r.removed ? 'color: var(--critical); text-decoration: line-through;' : (r.traced ? 'color: var(--ink); font-weight: 600;' : 'color: var(--ink);'),
+      port: port('right', r.traced, r.removed ? 'var(--critical)' : null)
+    }));
+
+    const regions = [
+      { name: 'fra-1', place: 'Falkenstein', share: '61%', top: 0 },
+      { name: 'ams-1', place: 'Amsterdam', share: '39%', top: 192 }
+    ].map((g) => Object.assign(g, { style: 'position: absolute; left: 2px; right: 2px; top: ' + g.top + 'px; height: 22px; display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--ink-muted);' }));
+
+    const ingress = [
+      { id: 'fra-1-01', top: 28, pct: 21 }, { id: 'fra-1-02', top: 80, pct: 20 }, { id: 'fra-1-03', top: 132, pct: 20 },
+      { id: 'ams-1-01', top: 220, pct: 20 }, { id: 'ams-1-02', top: 272, pct: 19, traced: true }, { id: 'ams-1-03', top: 324, down: true }
+    ].map((r) => Object.assign(r, {
+      status: r.down ? 'down' : 'healthy', up: !r.down, down: !!r.down,
+      label: code(r.id),
+      pct: r.down ? '' : r.pct + '%',
+      fill: 'display: block; height: 100%; width: ' + (r.pct || 0) + '%; background: var(--ink-muted);',
+      style: 'position: absolute; left: 0; right: 0; top: ' + r.top + 'px; height: 44px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-radius: var(--radius-sm); '
+        + (r.down ? 'border: 1px dashed var(--critical); background: var(--critical-soft);' : 'border: 1px solid ' + (r.traced ? 'var(--cobalt)' : 'var(--line)') + '; background: var(--surface);'),
+      portL: port('left', r.traced, r.down ? 'var(--critical)' : null),
+      portR: port('right', r.traced)
+    }));
+
+    const replicas = [
+      { id: 'fra-1-15', top: 58, status: 'deploying', rev: 'r64', pct: 0, meta: 'Starting · joins when healthy' },
+      { id: 'fra-1-16', top: 146, status: 'healthy', rev: 'r63', pct: 61, meta: 'Serving fra-1 ingress · updates next' },
+      { id: 'ams-1-09', top: 234, status: 'healthy', rev: 'r64', pct: 39, meta: 'Serving ams-1 ingress · updated', traced: true }
+    ].map((r) => Object.assign(r, {
+      label: code(r.id),
+      pct: r.pct + '%',
+      pctStyle: 'font-size: 13px; line-height: 18px; font-weight: 550; color: ' + (r.pct ? 'var(--ink)' : 'var(--ink-muted)') + ';',
+      fill: 'display: block; height: 100%; width: ' + r.pct + '%; background: var(--ink-muted);',
+      port: port('left', r.traced, r.status === 'deploying' ? null : null),
+      style: 'position: absolute; left: 0; right: 0; top: ' + r.top + 'px; height: 76px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid ' + (r.traced ? 'var(--cobalt)' : 'var(--line)') + ';'
+    }));
+
+    const routes = [
+      { id: 'root', host: 'acme.dev', path: '/', kind: 'service', to: 'storefront-web', toSub: 'storefront / production · 3 replicas', rule: 'Least connections', status: 'deploying', statusLabel: 'Rolling out', statusMeta: 'r64' },
+      { id: 'www', host: 'www.acme.dev', path: '/*', kind: 'arrow-right', to: 'Redirect to acme.dev', toSub: '301 · keeps the path and query', rule: 'Answered at ingress', status: 'healthy', statusLabel: 'Active' }
+    ];
+    const routeCols = [
+      { key: 'match', header: 'Match', width: 200, render: (r) => h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6 } },
+        h('code', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500 } }, r.host),
+        h('code', { style: { padding: '0 5px', borderRadius: 3, background: 'var(--surface-sunken)', fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600 } }, r.path)) },
+      { key: 'to', header: 'Goes to', render: (r) => h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+        h('span', { style: Object.assign({ display: 'flex' }, muted) }, h(DW.Icon, { name: r.kind, size: 16 })),
+        h('div', { className: 'dw-cell' }, h('span', { className: 'dw-cell-title' }, r.to), h('span', { style: Object.assign({ fontSize: 12.5, lineHeight: '16px' }, muted) }, r.toSub))) },
+      { key: 'rule', header: 'Balancing', width: 160, muted: true },
+      { key: 'status', header: 'Status', width: 132, render: (r) => h(DW.StatusBadge, { status: r.status, label: r.statusLabel, meta: r.statusMeta }) }
+    ];
+
+    const mark = 'display: grid; place-items: center; flex: none; width: 28px; height: 28px; box-sizing: border-box; border-radius: 50%; ';
+    const hops = [
+      { icon: 'globe', title: 'Cloudflare', meta: h(React.Fragment, null, 'Proxied, sent to ', code('164.92.140.22'), ', the A record for ams-1-02'), at: '' },
+      { icon: 'network', title: 'Ingress ams-1-02', meta: 'Amsterdam · TLS ended with the acme.dev certificate', at: '' },
+      { icon: 'link', title: 'Route acme.dev /', meta: 'Matched rule 1 of 2', at: '' },
+      { icon: 'service', title: 'storefront-web', meta: 'storefront / production · least connections, same region first', at: '' },
+      { icon: 'server', title: 'Replica on ams-1-09', meta: h(React.Fragment, null, 'r64 · over the private network to ', code('10.210.5.9')), at: '' },
+      { icon: 'check', title: '200 OK', meta: 'Back through ams-1-02 and Cloudflare', at: '41 ms', last: true }
+    ].map((p, i, all) => Object.assign(p, {
+      markStyle: mark + (p.last ? 'background: var(--healthy-soft); color: var(--healthy);' : 'background: var(--surface); border: 1px solid var(--cobalt); color: var(--cobalt);'),
+      spine: i === all.length - 1 ? 'display: none;' : 'flex: 1 1 auto; width: 2px; min-height: 12px; background: var(--cobalt); opacity: 1;'
+    }));
+
+    const events = [
+      { id: 1, kind: 'deploy', status: 'deploying', title: 'Rolling out storefront-web', revision: 'r64', actor: 'GitHub Actions', time: 'now' },
+      { id: 2, kind: 'config', tone: 'critical', title: 'Took ams-1-03 out of the A records', meta: 'No heartbeat · no requests dropped', actor: 'Dockwell', time: '18 min ago' },
+      { id: 3, kind: 'config', title: 'Renewed the certificate', meta: 'Pushed to 6 ingress servers', actor: 'Dockwell', time: '21 Sep' }
+    ];
+
+    return {
+      theme: this.props.theme ?? 'light',
+      pathLabel: 'Traffic path for acme.dev. DNS at Cloudflare holds 5 A records; 164.92.140.23 for ams-1-03 was removed at 14:02:31. Ingress shares: fra-1-01 21%, fra-1-02 20%, fra-1-03 20%, ams-1-01 20%, ams-1-02 19%. Route acme.dev / forwards to storefront-web. Replicas: fra-1-16 on r63 takes 61%, ams-1-09 on r64 takes 39%, fra-1-15 is starting r64. The traced request went through ams-1-02 to ams-1-09.',
+      steps, records, regions, ingress, replicas, routes, routeCols, hops, events,
+      reqs: wave(30, 6.1, 0.35, 2), lat: wave(30, 120, 8, 5), err: wave(30, 0.02, 0.006, 3),
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

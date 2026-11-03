@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mobile tab bar</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<nav aria-label="Main" style="width: 100%; box-sizing: border-box; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px 8px 22px; background: var(--surface-raised); border-top: 1px solid var(--line); font-family: var(--font-sans);">
+<a href="{{overviewHref}}" aria-current="{{cur.overview}}" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 50px; border-radius: 10px; font-size: 11px; line-height: 14px; font-weight: 550; text-decoration: none; color: {{c.overview}};"><x-import component-from-global-scope="Dockwell.Icon" name="home" size="{{22}}"></x-import><span>Overview</span></a>
+<a href="M-Apps.dc.html" aria-current="{{cur.apps}}" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 50px; border-radius: 10px; font-size: 11px; line-height: 14px; font-weight: 550; text-decoration: none; color: {{c.apps}};"><x-import component-from-global-scope="Dockwell.Icon" name="service" size="{{22}}"></x-import><span>Apps</span></a>
+<a href="M-Servers.dc.html" aria-current="{{cur.servers}}" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 50px; border-radius: 10px; font-size: 11px; line-height: 14px; font-weight: 550; text-decoration: none; color: {{c.servers}};"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{22}}"></x-import><span>{{serversLabel}}</span></a>
+<a href="M-Incident.dc.html" aria-current="{{cur.activity}}" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 50px; border-radius: 10px; font-size: 11px; line-height: 14px; font-weight: 550; text-decoration: none; color: {{c.activity}};"><span style="position: relative; display: flex;"><x-import component-from-global-scope="Dockwell.Icon" name="activity" size="{{22}}"></x-import><sc-if value="{{fleet}}" hint-placeholder-val="{{false}}"><span aria-hidden="true" style="position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 2px var(--surface-raised);"></span></sc-if></span><span>Activity</span></a>
+<a href="M-More.dc.html" aria-current="{{cur.more}}" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 50px; border-radius: 10px; font-size: 11px; line-height: 14px; font-weight: 550; text-decoration: none; color: {{c.more}};"><x-import component-from-global-scope="Dockwell.Icon" name="menu" size="{{22}}"></x-import><span>More</span></a>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"active":{"editor":"enum","options":["overview","apps","servers","activity","more"],"default":"overview"},"mode":{"editor":"enum","options":["single","fleet"],"default":"single"},"$preview":{"width":390,"height":80}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = this.props.active ?? 'overview';
+    const fleet = (this.props.mode ?? 'single') === 'fleet';
+    const c = {}, cur = {};
+    ['overview', 'apps', 'servers', 'activity', 'more'].forEach((k) => {
+      c[k] = k === active ? 'var(--ink)' : 'var(--ink-muted)';
+      cur[k] = k === active ? 'page' : null;
+    });
+    return {
+      c, cur, fleet,
+      serversLabel: fleet ? 'Servers' : 'Server',
+      overviewHref: fleet ? 'M-Overview-Fleet.dc.html' : 'M-Overview-Single.dc.html'
+    };
+  }
+}
+</script>
+</body>
+</html>

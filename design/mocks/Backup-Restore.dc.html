@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Restore postgres</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="backups" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Backups</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Daily at 03:00 to Cloudflare R2</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="Backup-Restore.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="undo" size="{{16}}"></x-import><span>Restore</span></a>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="archive">Back up now</x-import>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch;">
+
+<section class="dw-panel" style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Policies</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Next run tomorrow 03:00</span></div>
+<sc-for list="{{policies}}" as="p">
+<div style="display: grid; grid-template-columns: 32px minmax(0, 1fr) minmax(0, 240px) 124px; align-items: center; gap: 12px; flex: 1 1 auto; padding: 16px; border-top: {{p.border}};">
+<span style="display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--line); box-sizing: border-box; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="{{p.icon}}" size="{{16}}"></x-import></span>
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">{{p.name}}</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">{{p.what}}</span></div>
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; font-size: 13px; line-height: 18px;">
+<dt style="color: var(--ink-muted);">Runs</dt><dd style="margin: 0;">{{p.schedule}}</dd>
+<dt style="color: var(--ink-muted);">Keep</dt><dd style="margin: 0;">{{p.keep}}</dd>
+</dl>
+<div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-end;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="{{p.state}}"></x-import><span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">{{p.meta}}</span></div>
+</div>
+</sc-for>
+</section>
+
+<section class="dw-panel" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Destinations</h2><span style="display: flex; margin: -4px -8px;"><x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="plus">Add</x-import></span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 12px; flex: 1 1 auto;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">Cloudflare R2</span>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Connected"></x-import>
+</div>
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px;">
+<dt style="color: var(--ink-muted);">Bucket</dt><dd style="margin: 0;"><code style="font-size: 12.5px;">acme-backups</code></dd>
+<dt style="color: var(--ink-muted);">Used</dt><dd style="margin: 0;">38.2 GB · 28 snapshots</dd>
+<dt style="color: var(--ink-muted);">Last upload</dt><dd style="margin: 0;">Today 03:04 · 312 MB new data</dd>
+<dt style="color: var(--ink-muted);">Encryption</dt><dd style="margin: 0; display: flex; align-items: center; gap: 6px;"><span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="lock" size="{{14}}"></x-import></span>Encrypted on hz-1 before upload</dd>
+</dl>
+</div>
+</section>
+
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<section style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Recent runs</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">Last 7 days · 7 completed · 1 warning</span>
+<span style="flex: 1 1 auto;"></span>
+<a href="Activity.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">All runs</a>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{runCols}}" rows="{{runs}}" caption="Backup runs in the last 7 days" on-row-click="{{noop}}"></x-import>
+</section>
+
+<section class="dw-panel" style="flex: 1 1 300px; min-width: 0;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Restore drills</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Weekly, Sunday 04:00</span></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Passed" meta="Sunday 04:00"></x-import>
+<span style="font-size: 13px; font-weight: 550;">3 min 12 s</span>
+</div>
+<p style="margin: 0; font-size: 13px; line-height: 20px;">Restored postgres to a scratch container from the Sunday 03:00 snapshot.</p>
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 18px; color: var(--ink-muted);">
+<sc-for list="{{checks}}" as="c">
+<li style="display: flex; align-items: center; gap: 8px;"><span style="display: flex; color: var(--healthy);"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{14}}"></x-import></span>{{c}}</li>
+</sc-for>
+</ul>
+</div>
+<div style="border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Earlier drills</span>
+<sc-for list="{{drills}}" as="d">
+<div style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="{{d.date}}"></x-import>
+<span style="flex: 1 1 auto;"></span>
+<span style="color: var(--ink-muted);">{{d.time}}</span>
+</div>
+</sc-for>
+</div>
+<div style="border-top: 1px solid var(--line); padding-top: 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<span style="font-size: 13px;"><span style="color: var(--ink-muted);">Next</span> Sunday 8 Nov, 04:00</span>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="play">Run drill now</x-import>
+</div>
+</div>
+</section>
+
+</div>
+</div>
+</main>
+
+<div style="position: absolute; inset: 0; z-index: var(--z-sheet); background: var(--scrim); display: flex; justify-content: flex-end; padding: 8px; box-sizing: border-box;">
+<div style="width: 560px; max-width: 100%; height: 100%;">
+<x-import component-from-global-scope="Dockwell.Sheet" inline="{{yes}}" title="Restore postgres" subtitle="PostgreSQL 17.2 · 4.8 GB · used by api and storefront-web" footer="{{footer}}" on-close="{{noop}}">
+<div style="display: flex; flex-direction: column; gap: 24px;">
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+<h3 class="label" style="margin: 0;">Restore point</h3>
+<x-import component-from-global-scope="Dockwell.SegmentedControl" size="sm" label="Restore point shortcuts" options="{{pointOpts}}" value="before"></x-import>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; align-items: center; gap: 16px; height: 20px; font-size: 12px; line-height: 16px; color: var(--ink-muted); white-space: nowrap;">
+<span style="display: inline-flex; align-items: center; gap: 6px;"><span aria-hidden="true" style="width: 3px; height: 10px; border-radius: 1px; background: var(--ink-muted);"></span>Daily snapshot</span>
+<span style="display: inline-flex; align-items: center; gap: 6px;"><span aria-hidden="true" style="width: 2px; height: 10px; background: var(--cobalt);"></span>Selected</span>
+<span style="flex: 1 1 auto;"></span>
+<span>Any second since 27 Oct 14:20</span>
+</div>
+<div role="img" aria-label="Last 7 days of postgres history with 7 daily snapshots; selected today 13:59, one minute before the scheduled session purge at 14:00" style="position: relative; height: 36px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunken); overflow: hidden;">
+<sc-for list="{{midnights}}" as="m"><span style="position: absolute; top: 0; bottom: 0; left: {{m}}%; width: 1px; background: var(--line);"></span></sc-for>
+<sc-for list="{{snaps}}" as="x"><span style="position: absolute; top: 11px; left: {{x}}%; width: 3px; height: 12px; margin-left: -1.5px; border-radius: 1px; background: var(--ink-muted);"></span></sc-for>
+<span style="position: absolute; top: 0; bottom: 0; right: 0; width: 7px; background: var(--cobalt-soft); border-left: 2px solid var(--cobalt);"></span>
+</div>
+<div style="position: relative; height: 16px; font-size: 12px; line-height: 16px; color: var(--ink-muted);">
+<sc-for list="{{dayLabels}}" as="d"><span style="position: absolute; left: {{d.at}}%; transform: translateX(-50%); white-space: nowrap;">{{d.label}}</span></sc-for>
+<span style="position: absolute; right: 0; color: var(--ink); font-weight: 550;">Today</span>
+</div>
+</div>
+
+<svg aria-hidden="true" viewBox="0 0 100 10" preserveAspectRatio="none" style="display: block; width: 100%; height: 20px; margin: -10px 0 -8px; color: var(--line-strong);">
+<path d="M98.6 0 L0 10 M100 0 L100 10" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"></path>
+</svg>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="position: relative; height: 22px;">
+<span style="position: absolute; right: 52.5%; margin-right: 6px; top: 0; display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: var(--radius-full); background: var(--cobalt); color: var(--on-cobalt); font-size: 12px; font-weight: 550; white-space: nowrap;">13:59</span>
+<span style="position: absolute; left: 50%; margin-left: 6px; top: 0; display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--surface); font-size: 12px; white-space: nowrap;"><span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="calendar" size="{{12}}"></x-import></span><span>Session purge, 14:00</span></span>
+</div>
+<div style="position: relative; height: 40px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface);">
+<sc-for list="{{fineTicks}}" as="t"><span style="position: absolute; bottom: 0; left: {{t.at}}%; width: 1px; height: {{t.h}}px; background: var(--line-strong);"></span></sc-for>
+<span style="position: absolute; top: 0; bottom: 0; left: 50%; right: 0; background: repeating-linear-gradient(135deg, transparent 0 5px, var(--surface-sunken) 5px 7px);"></span>
+<span style="position: absolute; top: -1px; bottom: -1px; left: 50%; border-left: 1.5px dashed var(--ink-muted);"></span>
+<span style="position: absolute; top: -6px; bottom: -6px; left: 47.5%; width: 2px; margin-left: -1px; background: var(--cobalt);"></span>
+<span style="position: absolute; top: 50%; left: 47.5%; width: 14px; height: 14px; margin: -7px 0 0 -7px; box-sizing: border-box; border-radius: 50%; background: var(--cobalt); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--cobalt);"></span>
+</div>
+<div style="position: relative; height: 16px; font-size: 12px; line-height: 16px; color: var(--ink-muted);">
+<sc-for list="{{fineLabels}}" as="l"><span style="position: absolute; left: {{l.at}}%; transform: translateX({{l.shift}}); white-space: nowrap;">{{l.label}}</span></sc-for>
+</div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-sunken);">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="clock" size="{{16}}"></x-import></span>
+<span style="display: flex; flex-direction: column; gap: 1px;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">Today 13:59 — before the session purge</span><span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">From the 03:00 snapshot, then 10 h 59 min of logged changes</span></span>
+</div>
+</section>
+
+<fieldset style="margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+<legend class="label" style="padding: 0; margin-bottom: 8px;">Restore to</legend>
+<label style="display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--cobalt); box-shadow: inset 0 0 0 1px var(--cobalt); border-radius: var(--radius-md); background: var(--selection); cursor: pointer;">
+<input type="radio" name="target" value="new" checked class="dw-sr">
+<span aria-hidden="true" style="flex: none; width: 16px; height: 16px; margin-top: 2px; box-sizing: border-box; border-radius: 50%; border: 5px solid var(--cobalt); background: var(--surface);"></span>
+<span style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px;">
+<span style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">To a new database, <code style="font-size: 13px; font-weight: 500;">postgres-restored</code></span><span style="display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: var(--radius-full); background: var(--surface); border: 1px solid var(--line); font-size: 11.5px; font-weight: 550; color: var(--ink-muted);">Recommended</span></span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Current postgres keeps running. Check the data, then switch apps over.</span>
+</span>
+</label>
+<label style="display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--surface); cursor: pointer;">
+<input type="radio" name="target" value="replace" class="dw-sr">
+<span aria-hidden="true" style="flex: none; width: 16px; height: 16px; margin-top: 2px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--line-strong); background: var(--surface);"></span>
+<span style="display: flex; flex-direction: column; gap: 2px;">
+<span style="font-size: 14px; line-height: 20px; font-weight: 550;">Replace postgres</span>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">About 2 min of downtime for api and storefront-web</span>
+</span>
+</label>
+</fieldset>
+
+<section style="display: flex; flex-direction: column; gap: 8px;">
+<h3 class="label" style="margin: 0;">Plan</h3>
+<x-import component-from-global-scope="Dockwell.PlanDiff" resources="{{plan}}" impact="No downtime"></x-import>
+</section>
+
+</div>
+</x-import>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":950}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const policies = [
+      { name: 'Everything on hz-1', what: 'Apps’ volumes, websites, databases, server config', icon: 'server', schedule: 'Daily at 03:00', keep: '14 daily · 8 weekly · 6 monthly', state: 'On schedule', meta: 'Last run 11 h ago', border: '0' },
+      { name: 'postgres point-in-time', what: 'Write-ahead log streamed to R2 as it is written', icon: 'database', schedule: 'Continuous', keep: '7 days, any second', state: 'Current', meta: 'Last write 12 s ago', border: '1px solid var(--line)' }
+    ];
+    const statusCell = (r) => r.warn
+      ? h('div', { className: 'dw-cell' }, h(DW.StatusBadge, { status: 'degraded', label: 'Completed with 1 warning' }), h('span', { style: { paddingLeft: 16, fontSize: 12.5, lineHeight: '16px', color: 'var(--ink-muted)' } }, r.warn))
+      : h(DW.StatusBadge, { status: 'healthy', label: 'Completed' });
+    const runs = [
+      { id: 1, at: 'Today 03:00', snap: '7c2e91d4', up: '312 MB', size: '2.4 GB', dur: '4 min' },
+      { id: 2, at: '2 Nov 03:00', snap: 'e05b13a8', up: '288 MB', size: '2.4 GB', dur: '4 min' },
+      { id: 3, at: '1 Nov 03:00', snap: '91fa6c02', up: '301 MB', size: '2.4 GB', dur: '4 min' },
+      { id: 4, at: '31 Oct 03:00', snap: '3d8e7b55', up: '296 MB', size: '2.3 GB', dur: '6 min', warn: '1 file changed during backup, retried' },
+      { id: 5, at: '30 Oct 03:00', snap: 'b46c0f19', up: '274 MB', size: '2.3 GB', dur: '4 min' },
+      { id: 6, at: '29 Oct 03:00', snap: '58a1d7e3', up: '280 MB', size: '2.3 GB', dur: '3 min' },
+      { id: 7, at: '28 Oct 03:00', snap: 'c9e24b70', up: '265 MB', size: '2.2 GB', dur: '3 min' }
+    ];
+    const runCols = [
+      { key: 'at', header: 'Started', width: 132, render: (r) => h('span', { style: { fontWeight: 500 } }, r.at) },
+      { key: 'status', header: 'Status', render: statusCell },
+      { key: 'snap', header: 'Snapshot', width: 112, mono: true, muted: true },
+      { key: 'size', header: 'Size', width: 80, align: 'right' },
+      { key: 'up', header: 'New data', width: 96, align: 'right', muted: true },
+      { key: 'dur', header: 'Duration', width: 88, align: 'right', muted: true }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      policies, runs, runCols,
+      yes: true,
+      pointOpts: [{ value: 'before', label: 'Before the purge' }, { value: 'snap', label: 'Today 03:00' }, { value: 'custom', label: 'Custom' }],
+      midnights: [5.75, 20.04, 34.33, 48.61, 62.9, 77.18, 91.47],
+      snaps: [7.54, 21.83, 36.11, 50.4, 64.68, 78.97, 93.25],
+      dayLabels: [{ at: 12.9, label: 'Wed 28' }, { at: 27.19, label: 'Thu 29' }, { at: 41.47, label: 'Fri 30' }, { at: 55.76, label: 'Sat 31' }, { at: 70.04, label: 'Sun 1' }, { at: 84.33, label: 'Mon 2' }],
+      fineTicks: Array.from({ length: 41 }, (_, i) => ({ at: i * 2.5, h: i % 10 === 0 ? 12 : i % 5 === 0 ? 8 : 4 })).filter((t, i) => i > 0 && i < 40),
+      fineLabels: [{ at: 0, label: '13:40', shift: '0' }, { at: 25, label: '13:50', shift: '-50%' }, { at: 50, label: '14:00', shift: '-50%' }, { at: 75, label: '14:10', shift: '-50%' }, { at: 100, label: 'Now', shift: '-100%' }],
+      plan: [{ id: 'db', action: 'create', kind: 'database', kindLabel: 'Database', name: 'postgres-restored', note: 'From 13:59', changes: [
+        { path: 'source', to: 'postgres @ 2026-11-03 13:59:00' },
+        { path: 'base', to: 'snapshot 7c2e91d4 (03:00)' },
+        { path: 'engine', to: 'PostgreSQL 17.2' },
+        { path: 'volume', to: '4.8 GB on hz-1' }
+      ] }],
+      footer: h(React.Fragment, null,
+        h('span', { className: 'dw-sheet-note' }, h(DW.Icon, { name: 'clock', size: 14 }), 'About 4 min'),
+        h(DW.Button, { variant: 'ghost' }, 'Cancel'),
+        h(DW.Button, { variant: 'primary', icon: 'commit', kbd: '⌘↵' }, 'Review plan')),
+      checks: ['Database starts and accepts connections', 'Row counts match the source', 'Scratch container removed'],
+      drills: [{ date: '25 Oct', time: '3 min 4 s' }, { date: '18 Oct', time: '3 min 20 s' }, { date: '11 Oct', time: '2 min 58 s' }],
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

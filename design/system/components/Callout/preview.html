@@ -1,0 +1,20 @@
+<!-- @dsCard group="Feedback" height=376 subtitle="Inline notices that say what happened and what to do next" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Callout</title>
+<style> .demo { padding: 24px; display: flex; flex-direction: column; gap: 10px; max-width: 760px; } </style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement, C = H.Callout, B = H.Button;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'demo' },
+    h(C, { tone: 'warning', title: 'Control plane unreachable',
+      actions: h(B, { size: 'sm' }, 'Retry now') }, 'Servers keep serving from their last desired state. Changes queue until the connection returns. Retrying in 12 s.'),
+    h(C, { tone: 'critical', title: 'ams-1-03 is down',
+      actions: h(B, { size: 'sm', variant: 'primary' }, 'Replace server') }, 'Its two replicas moved to ams-1-04 and ams-1-05. Check the provider console, then reconnect or replace the server.'),
+    h(C, { tone: 'info', title: 'Previews sleep after 30 minutes idle' }, 'The next request wakes them in about 2 s.'),
+    h(C, { tone: 'healthy', title: 'Restore drill passed' }, 'postgres restored from last night’s backup in 3 min 12 s and passed its checks.')));
+</script>
+</body>
+</html>

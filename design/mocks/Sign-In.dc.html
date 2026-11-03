@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign in</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-direction: column; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+
+<main style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center; padding: 64px 24px 32px; box-sizing: border-box;">
+<div style="width: 100%; max-width: 416px; display: flex; flex-direction: column; gap: 24px;">
+
+<div style="display: flex; justify-content: center; padding-bottom: 8px;">
+<x-import component-from-global-scope="Dockwell.Logo" variant="logotype" height="17"></x-import>
+</div>
+
+<section class="dw-panel" aria-labelledby="signin-title" style="display: flex; flex-direction: column; gap: 24px; padding: 32px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<h1 id="signin-title" class="title" style="margin: 0;">Sign in to Dockwell</h1>
+<p style="margin: 0; font-size: 14px; line-height: 20px; color: var(--ink-muted);"><code style="font-size: 13px; color: var(--ink);">panel.acme.dev</code> · the panel for hz-1</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<a href="Overview-Single.dc.html" class="dw-btn dw-btn-primary dw-btn-lg" style="width: 100%; text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="key" size="{{16}}"></x-import><span>Sign in with a passkey</span></a>
+<x-import component-from-global-scope="Dockwell.Button" size="lg" style="display: flex; flex-direction: column;">Use a security key or another device</x-import>
+</div>
+</section>
+
+<section aria-labelledby="recover-title" style="display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h2 id="recover-title" style="margin: 0; font-size: 13px; line-height: 18px; font-weight: 550;">Lost your passkey?</h2>
+<p style="margin: 0; font-size: 13px; line-height: 18px; color: var(--ink-muted);">Run this on hz-1 over SSH. It prints a sign-in link that works once.</p>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 4px 0 12px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunken);">
+<code style="flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; line-height: 20px;">dockwell recover --user mira@acme.dev</code>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="copy" aria-label="Copy command"></x-import>
+</div>
+</section>
+
+</div>
+</main>
+
+<footer style="display: flex; justify-content: center; padding: 0 24px 24px; font-size: 12px; line-height: 16px; color: var(--ink-muted);">
+<span>Version <code style="font-size: 11.5px;">0.9.4</code></span>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark"},"$preview":{"width":1440,"height":760}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      theme: this.props.theme ?? 'dark'
+    };
+  }
+}
+</script>
+</body>
+</html>

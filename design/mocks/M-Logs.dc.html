@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Phone logs</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="width: 390px; height: 844px; overflow: hidden; position: relative; display: flex; flex-direction: column; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="MobileHeader" title="api logs" sub="Live · 3 replicas" back="M-App.dc.html" hint-size="390px,56px"></dc-import>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 8px;">
+
+<div role="group" aria-label="Filter log lines" style="display: flex; align-items: center; gap: 8px; margin-right: -16px; padding-right: 16px; overflow-x: auto; scrollbar-width: none;">
+<sc-for list="{{levels}}" as="c">
+<button type="button" aria-pressed="{{c.on}}" style="flex: none; height: 44px; padding: 0; border: 0; background: none; display: flex; align-items: center; font: inherit; cursor: pointer;">
+<span style="display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; box-sizing: border-box; border-radius: var(--radius-full); border: 1px solid {{c.border}}; background: {{c.bg}}; color: {{c.fg}}; font-size: 13px; font-weight: 550; white-space: nowrap;">
+<sc-if value="{{c.shape}}"><span style="display: flex; color: {{c.tone}};"><x-import component-from-global-scope="Dockwell.Glyph" shape="{{c.shape}}" size="{{8}}"></x-import></span></sc-if>
+<span>{{c.label}}</span>
+</span>
+</button>
+</sc-for>
+<span aria-hidden="true" style="flex: none; width: 1px; height: 20px; background: var(--line); margin: 0 4px;"></span>
+<sc-for list="{{replicas}}" as="r">
+<button type="button" aria-pressed="false" style="flex: none; height: 44px; padding: 0; border: 0; background: none; display: flex; align-items: center; font: inherit; cursor: pointer;">
+<span style="display: inline-flex; align-items: center; height: 32px; padding: 0 12px; box-sizing: border-box; border-radius: var(--radius-full); border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-family: var(--font-mono); font-size: 12px; white-space: nowrap;">{{r}}</span>
+</button>
+</sc-for>
+</div>
+
+<div style="--control-sm: 44px;">
+<x-import component-from-global-scope="Dockwell.LogStream" lines="{{lines}}" title="Production" live="{{yes}}" height="{{logHeight}}"></x-import>
+</div>
+
+</div>
+<div style="flex: none; display: flex; gap: 8px; padding: 12px 16px 24px; border-top: 1px solid var(--line); background: var(--surface-raised); --control-md: 48px;">
+<x-import component-from-global-scope="Dockwell.Button" icon="download" dc-props="{{pauseBtn}}">Download</x-import>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="chat" dc-props="{{explainBtn}}">Explain errors</x-import>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    // Phone layout for LogStream. Its grid keeps fixed 96 px time and 120 px source columns, which leaves about
+    // 60 px for the message at 390 px. So time and source go into a meta row inside the message cell, and the
+    // whole entry is pulled left over the empty columns. The level is passed as "error " / "warn " so the line
+    // keeps the component's error band and screen-reader level, while the glyph is drawn in the meta row
+    // (the component centres its own glyph across the full entry height, on top of the message).
+    const shift = 96 + 120 + 10 + 36;
+    const lvl = { error: { shape: 'square', tone: 'var(--critical)' }, warn: { shape: 'triangle', tone: 'var(--warning)' } };
+    const entry = (time, source, level, text) => h('span', { style: { display: 'block', marginLeft: -shift, padding: '6px 0 8px' } },
+      h('span', { style: { display: 'flex', alignItems: 'center', gap: 12, color: 'var(--ink-muted)' } },
+        h('span', null, time), h('span', null, source), h('span', { style: { flex: '1 1 auto' } }),
+        lvl[level] ? h('span', { 'aria-hidden': true, style: { display: 'flex', alignItems: 'center', gap: 6, color: lvl[level].tone } }, h(DW.Glyph, { shape: lvl[level].shape, size: 8 }), level) : null),
+      h('span', { style: { display: 'block', marginTop: 2, color: 'var(--ink)' } }, text));
+    const raw = [
+      ['14:19:58.104', 'fra-1-04', 'info', 'GET /v1/products?category=shoes 200 in 14 ms'],
+      ['14:19:58.377', 'fra-1-11', 'info', 'POST /v1/cart/items 201 in 22 ms'],
+      ['14:19:59.020', 'ams-1-02', 'warn', 'enqueue order.confirmation: worker took 2.4 s to ack'],
+      ['14:19:59.611', 'fra-1-04', 'error', 'POST /v1/orders 502: worker did not ack order.confirmation within 5 s'],
+      ['14:20:00.142', 'fra-1-11', 'info', 'GET /v1/products/2041 200 in 9 ms'],
+      ['14:20:00.958', 'ams-1-02', 'error', 'POST /v1/orders 502: worker did not ack order.confirmation within 5 s'],
+      ['14:20:01.203', 'fra-1-04', 'info', 'GET /healthz 200 in 1 ms'],
+      ['14:20:01.870', 'fra-1-11', 'warn', 'retrying order.confirmation, attempt 2 of 3'],
+      ['14:20:02.416', 'fra-1-11', 'info', 'POST /v1/orders 201 in 61 ms'],
+      ['14:20:02.734', 'ams-1-02', 'info', 'GET /v1/cart 200 in 11 ms'],
+      ['14:20:03.002', 'fra-1-04', 'error', 'POST /v1/orders 502: worker did not ack order.confirmation within 5 s'],
+      ['14:20:03.388', 'fra-1-11', 'info', 'GET /v1/products?category=bags&sort=price 200 in 17 ms']
+    ];
+    const lines = raw.map((l, i) => ({ id: i, time: '', source: '', level: l[2] === 'info' ? 'info' : l[2] + ' ', text: entry(l[0], l[1], l[2], l[3]) }));
+    const chip = (label, on, shape, tone) => ({
+      label, on: on ? 'true' : 'false', shape: shape || '', tone: tone || 'inherit',
+      bg: on ? 'var(--selection)' : 'var(--surface)', fg: on ? 'var(--cobalt)' : 'var(--ink)', border: on ? 'transparent' : 'var(--line)'
+    });
+    return {
+      theme: this.props.theme ?? 'dark',
+      levels: [chip('All levels', true), chip('Errors', false, 'square', 'var(--critical)'), chip('Warnings', false, 'triangle', 'var(--warning)'), chip('Info', false)],
+      replicas: ['fra-1-04', 'fra-1-11', 'ams-1-02'],
+      lines, logHeight: 560, yes: true,
+      pauseBtn: { style: { flex: '1 1 0', fontSize: 14 } },
+      explainBtn: { style: { flex: '1.4 1 0', fontSize: 14 } }
+    };
+  }
+}
+</script>
+</body>
+</html>

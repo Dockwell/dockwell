@@ -1,0 +1,38 @@
+<!-- @dsCard group="Data" height=364 subtitle="Live logs that pause when you scroll up to read" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>LogStream</title>
+<style> .demo { padding: 24px; } </style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement;
+  var pool = [
+    ['info', 'api-gateway-1', 'GET /v1/orders 200 18ms'],
+    ['info', 'api-gateway-2', 'GET /v1/cart/7f3a 200 9ms'],
+    ['info', 'api-gateway-3', 'POST /v1/checkout 201 142ms'],
+    ['warn', 'api-gateway-2', 'upstream payments slow: p95 840ms (budget 500ms)'],
+    ['info', 'api-gateway-1', 'GET /healthz 200 1ms'],
+    ['error', 'api-gateway-3', 'POST /v1/checkout 502 upstream payments reset connection (attempt 2 of 3)'],
+    ['info', 'api-gateway-3', 'POST /v1/checkout 201 391ms retry succeeded'],
+    ['info', 'api-gateway-2', 'GET /v1/products?cat=bags 200 24ms']
+  ];
+  var seq = 0, clock = 14 * 3600 + 2 * 60 + 11;
+  function line() {
+    var p = pool[seq % pool.length]; seq += 1; clock += 1;
+    var hh = Math.floor(clock / 3600), mm = Math.floor(clock / 60) % 60, ss = clock % 60, ms = (seq * 137) % 1000;
+    function z(n, w) { n = String(n); while (n.length < w) n = '0' + n; return n; }
+    return { id: seq, level: p[0], source: p[1], text: p[2], time: z(hh, 2) + ':' + z(mm, 2) + ':' + z(ss, 2) + '.' + z(ms, 3) };
+  }
+  function Demo() {
+    var init = []; for (var i = 0; i < 14; i++) init.push(line());
+    var s = React.useState(init), lines = s[0], set = s[1];
+    React.useEffect(function () { var t = setInterval(function () { set(function (l) { return l.concat(line()).slice(-300); }); }, 1400); return function () { clearInterval(t); }; }, []);
+    return h('div', { className: 'demo' }, h(H.LogStream, { live: true, title: 'api-gateway · production', lines: lines, height: 228,
+      toolbar: h(H.Button, { size: 'sm', variant: 'ghost', icon: 'filter' }, 'All levels') }));
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

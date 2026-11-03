@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Move control plane</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="settings" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px 32px;">
+
+<nav aria-label="Settings" style="flex: 1 1 200px; max-width: 200px; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; height: 24px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Organization</div>
+<a href="Settings-General.dc.html" class="dw-rail-item">General</a>
+<a href="Members.dc.html" class="dw-rail-item">Members</a>
+<a href="API-Tokens.dc.html" class="dw-rail-item">API tokens</a>
+<a href="Audit-Log.dc.html" class="dw-rail-item">Audit log</a>
+<a href="Billing.dc.html" class="dw-rail-item">Billing</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Platform</div>
+<a href="Settings-ControlPlane.dc.html" class="dw-rail-item is-active" aria-current="page">Control plane</a>
+<a href="Settings-Integrations.dc.html" class="dw-rail-item">Integrations</a>
+<a href="Alerts-Channels.dc.html" class="dw-rail-item">Notifications</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Account</div>
+<a href="Profile.dc.html" class="dw-rail-item">Profile and security</a>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Control plane</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Runs on hz-1 next to your apps · 0.9.4</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" icon="download">Download recovery kit</x-import>
+<x-import component-from-global-scope="Dockwell.Button" icon="undo">Restore from backup</x-import>
+<x-import component-from-global-scope="Dockwell.Button" icon="arrow-right">Move control plane</x-import>
+</div>
+</div>
+
+<x-import component-from-global-scope="Dockwell.Callout" tone="info" title="hz-1 is busy: CPU above 80% during builds.">Moving the control plane frees it up. Your apps stay on hz-1.</x-import>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 16px;">
+
+<section class="dw-panel" style="display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Where it runs</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import></div>
+<div class="dw-panel-body" style="flex: 1 1 auto;">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; font-size: 13px; line-height: 18px;">
+<dt style="color: var(--ink-muted);">Server</dt><dd style="margin: 0;"><code style="font-size: 12px;">hz-1</code> · Hetzner CX32 · Falkenstein</dd>
+<dt style="color: var(--ink-muted);">Shares</dt><dd style="margin: 0;">4 vCPU and 8 GB with 6 apps and 3 websites</dd>
+<dt style="color: var(--ink-muted);">State store</dt><dd style="margin: 0;">On hz-1, one copy</dd>
+<dt style="color: var(--ink-muted);">Version</dt><dd style="margin: 0;">0.9.4 · stable channel</dd>
+</dl>
+</div>
+</section>
+
+<section class="dw-panel" style="display: flex; flex-direction: column;">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Backups</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="On schedule"></x-import></div>
+<div class="dw-panel-body" style="flex: 1 1 auto;">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; font-size: 13px; line-height: 18px;">
+<dt style="color: var(--ink-muted);">Schedule</dt><dd style="margin: 0;">Daily at 03:00</dd>
+<dt style="color: var(--ink-muted);">Destination</dt><dd style="margin: 0;">Cloudflare R2 · <code style="font-size: 12px;">acme-backups</code></dd>
+<dt style="color: var(--ink-muted);">Last run</dt><dd style="margin: 0;">Today 03:00</dd>
+<dt style="color: var(--ink-muted);">Updates</dt><dd style="margin: 0;">Automatic on Sundays at 05:00</dd>
+</dl>
+</div>
+</section>
+
+</div>
+
+</div>
+</div>
+</div>
+</main>
+
+<div style="position: absolute; inset: 0; z-index: var(--z-sheet); background: var(--scrim); display: flex; justify-content: flex-end; padding: 8px; box-sizing: border-box;">
+<div style="width: 560px; max-width: 100%; height: 100%;">
+<x-import component-from-global-scope="Dockwell.Sheet" inline="{{yes}}" title="Move control plane" subtitle="Take Dockwell’s control plane off hz-1. Your apps stay where they are." footer="{{footer}}" on-close="{{noop}}">
+<div style="display: flex; flex-direction: column; gap: 24px;">
+
+<fieldset style="margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+<legend class="label" style="padding: 0; margin-bottom: 8px;">Move it to</legend>
+
+<label style="display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--cobalt); box-shadow: 0 0 0 1px var(--cobalt); border-radius: var(--radius-md); background: var(--surface); cursor: pointer;">
+<input type="radio" name="destination" class="dw-sr" checked>
+<span aria-hidden="true" style="flex: none; width: 16px; height: 16px; margin-top: 2px; box-sizing: border-box; border-radius: 50%; border: 5px solid var(--cobalt); background: var(--surface);"></span>
+<span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+<span style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;"><span class="body-strong">Dockwell Cloud</span><span class="dw-tag" style="font-family: var(--font-sans); font-weight: 500;">Recommended for small fleets</span><span style="flex: 1 1 auto;"></span><span style="font-size: 13px; font-weight: 550;">[PRICE] a month</span></span>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">Dockwell runs, updates and backs it up. hz-1 keeps only its agent.</span>
+</span>
+</label>
+
+<label style="display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); cursor: pointer;">
+<input type="radio" name="destination" class="dw-sr">
+<span aria-hidden="true" style="flex: none; width: 16px; height: 16px; margin-top: 2px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--line-strong); background: var(--surface);"></span>
+<span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+<span style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;"><span class="body-strong">A small dedicated server</span><span style="flex: 1 1 auto;"></span><span style="font-size: 13px; color: var(--ink-muted);">Billed by Hetzner</span></span>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">Create <code style="font-size: 12px; color: var(--ink);">hz-cp</code> at Hetzner: CX22 in Falkenstein, next to hz-1.</span>
+</span>
+</label>
+
+<label style="display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); opacity: .45; cursor: not-allowed;">
+<input type="radio" name="destination" class="dw-sr" disabled>
+<span aria-hidden="true" style="flex: none; width: 16px; height: 16px; margin-top: 2px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--line-strong); background: var(--surface);"></span>
+<span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+<span class="body-strong">Another server you already have</span>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">None yet. Add a second server first.</span>
+</span>
+</label>
+</fieldset>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<h3 class="label" style="margin: 0;">What happens</h3>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column;">
+<li style="position: relative; display: grid; grid-template-columns: 24px 1fr; gap: 12px; padding-bottom: 16px;">
+<span aria-hidden="true" style="position: absolute; left: 11.5px; top: 28px; bottom: 4px; width: 1px; background: var(--line);"></span>
+<span style="display: grid; place-items: center; width: 24px; height: 24px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: 50%; font-size: 12px; font-weight: 600;">1</span>
+<span style="display: flex; flex-direction: column; gap: 2px; padding-top: 2px;"><span style="font-size: 14px; font-weight: 500;">Copy state</span><span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">Copy settings, history and secrets. hz-1 keeps serving. About 2 min.</span></span>
+</li>
+<li style="position: relative; display: grid; grid-template-columns: 24px 1fr; gap: 12px; padding-bottom: 16px;">
+<span aria-hidden="true" style="position: absolute; left: 11.5px; top: 28px; bottom: 4px; width: 1px; background: var(--line);"></span>
+<span style="display: grid; place-items: center; width: 24px; height: 24px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: 50%; font-size: 12px; font-weight: 600;">2</span>
+<span style="display: flex; flex-direction: column; gap: 2px; padding-top: 2px;"><span style="font-size: 14px; font-weight: 500;">Switch agents</span><span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">Point hz-1’s agent at the new address. The panel pauses for 30 s.</span></span>
+</li>
+<li style="display: grid; grid-template-columns: 24px 1fr; gap: 12px;">
+<span style="display: grid; place-items: center; width: 24px; height: 24px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: 50%; font-size: 12px; font-weight: 600;">3</span>
+<span style="display: flex; flex-direction: column; gap: 2px; padding-top: 2px;"><span style="font-size: 14px; font-weight: 500;">Retire the old one</span><span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">Stop it on hz-1 and give its CPU and memory back to your builds.</span></span>
+</li>
+</ol>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); font-size: 13px;">
+<span style="display: inline-flex; align-items: center; gap: 6px;"><span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="clock" size="{{14}}"></x-import></span>Panel offline about 30 s</span>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="Apps keep running"></x-import>
+<span style="flex: 1 1 auto;"></span>
+<span style="color: var(--ink-muted);">Done in about 3 min</span>
+</div>
+
+</div>
+</x-import>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":760}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const footer = h(React.Fragment, null,
+      h('span', { className: 'dw-sheet-note' }, h(DW.Icon, { name: 'shield', size: 14 }), 'Nothing changes until you apply the plan'),
+      h(DW.Button, { variant: 'ghost' }, 'Cancel'),
+      h(DW.Button, { variant: 'primary', icon: 'commit', kbd: '⌘↵' }, 'Review plan'));
+    return {
+      theme: this.props.theme ?? 'light',
+      footer,
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

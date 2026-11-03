@@ -1,0 +1,29 @@
+<!-- @dsCard group="Changes" height=480 subtitle="Every change is shown as a plan before it runs" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>PlanDiff</title>
+<style> .demo { padding: 24px; } </style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement;
+  var resources = [
+    { id: 'svc', action: 'update', kind: 'service', kindLabel: 'App', name: 'api-gateway', note: 'Rolling update', changes: [
+      { path: 'image', from: 'ghcr.io/acme/api:3f9c0a1', to: 'ghcr.io/acme/api:8be41d2' },
+      { path: 'replicas', from: 2, to: 3 },
+      { path: 'env.LOG_LEVEL', from: 'info', to: 'warn' },
+      { path: 'env.STRIPE_KEY', from: { secret: true }, to: { secret: true } }] },
+    { id: 'dom', action: 'create', kind: 'domain', kindLabel: 'Domain', name: 'eu.api.acme.dev', changes: [
+      { path: 'routes to', to: 'api-gateway:8080' },
+      { path: 'certificate', to: 'automatic, DNS-01 via Cloudflare' }] },
+    { id: 'vol', action: 'replace', kind: 'volume', kindLabel: 'Volume', name: 'uploads', note: 'Replace, data copied first', changes: [
+      { path: 'server', from: 'fra-1-07', to: 'fra-1-11' }] },
+    { id: 'job', action: 'destroy', kind: 'job', kindLabel: 'Job', name: 'cleanup-legacy-sessions', changes: [
+      { path: 'schedule', from: '*/15 * * * *' }] }
+  ];
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'demo' },
+    h(H.PlanDiff, { resources: resources, impact: '3 servers · rolling, one at a time · no downtime expected' })));
+</script>
+</body>
+</html>

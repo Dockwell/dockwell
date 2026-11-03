@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Connection, phone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="width: 390px; height: 844px; overflow: hidden; position: relative; display: flex; flex-direction: column; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="MobileHeader" title="supabase" sub="Supabase · used by 4 apps" back="M-More.dc.html" hint-size="390px,56px"></dc-import>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+
+<section class="dw-panel" aria-label="Status" style="display: flex; flex-direction: column; gap: 8px; padding: 16px;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="degraded" variant="pill" label="1 test failing" meta="9 of 10 pass"></x-import>
+<span style="font-size: 12.5px; color: var(--ink-muted);">3 min ago</span>
+</div>
+<span style="font-size: 15px; line-height: 20px; font-weight: 550;">metabase can’t reach Supabase from <code style="font-size: 14px; font-weight: 500; white-space: nowrap;">sfo-2-10</code></span>
+<p style="margin: 0; font-size: 13.5px; line-height: 20px; color: var(--ink-muted);">Network restrictions block <code style="font-size: 12.5px; color: var(--ink);">203.0.113.40</code>, the outgoing IP of sfo-2. Add <code style="font-size: 12.5px; color: var(--ink);">203.0.113.40/32</code> in Supabase, then test again.</p>
+</section>
+
+<div class="dw-seg" role="radiogroup" aria-label="Environment" style="display: flex;">
+<button type="button" role="radio" aria-checked="true" class="dw-seg-item is-on" style="flex: 1 1 0; justify-content: center; height: 44px; font-size: 14px;">Production</button>
+<button type="button" role="radio" aria-checked="false" class="dw-seg-item" style="flex: 1 1 0; justify-content: center; height: 44px; font-size: 14px;">Staging</button>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; align-items: baseline; gap: 8px; padding: 0 2px;">
+<h2 class="heading" style="margin: 0;">Used by</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">4 apps on 10 servers</span>
+</div>
+<div class="dw-panel" role="list" style="display: flex; flex-direction: column; overflow: hidden;">
+<sc-for list="{{uses}}" as="u">
+<div role="listitem" style="display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 2px; min-height: 60px; padding: 10px 16px; box-sizing: border-box; border-top: {{u.sep}};">
+<span style="display: flex; color: {{u.tone}};"><x-import component-from-global-scope="Dockwell.Glyph" shape="{{u.shape}}" size="{{10}}"></x-import></span>
+<span style="display: flex; align-items: baseline; gap: 6px; min-width: 0;"><span style="font-size: 15px; line-height: 20px; font-weight: 550; white-space: nowrap;">{{u.app}}</span><span style="font-size: 12.5px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{u.project}}</span></span>
+<span style="{{u.testSt}}">{{u.test}}</span>
+<span></span>
+<span style="grid-column: 2 / span 2; display: flex; align-items: center; gap: 6px; min-width: 0; font: 400 12px/18px var(--font-mono); color: var(--ink-muted);">
+<span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink);">{{u.v}}</span>
+<span style="display: flex; flex: none;"><x-import component-from-global-scope="Dockwell.Icon" name="arrow-left" size="{{12}}" label="from"></x-import></span>
+<span style="flex: none; color: var(--ink);">{{u.f}}</span>
+<span style="flex: none; font-family: var(--font-sans); font-size: 12px;">{{u.more}}</span>
+</span>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section class="dw-panel" aria-label="Rotation" style="display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; column-gap: 12px; min-height: 52px; padding: 8px 16px; box-sizing: border-box;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="refresh" size="{{16}}"></x-import></span>
+<span style="display: flex; flex-direction: column; gap: 1px; min-width: 0;"><span style="font-size: 14px; line-height: 20px;">Rotated 21 Sep by Dana Whitfield</span><span style="font-size: 12.5px; line-height: 16px; color: var(--ink-muted);"><code style="font-size: 12px;">service_key</code> · next due 20 Dec</span></span>
+</section>
+
+</div>
+<div style="flex: none; display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); background: var(--canvas); --control-md: 48px;">
+<x-import component-from-global-scope="Dockwell.Button" icon="copy" aria-label="Copy IP 203.0.113.40/32" dc-props="{{copyBtn}}">Copy IP</x-import>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="refresh" dc-props="{{testBtn}}">Test again</x-import>
+</div>
+<dc-import name="MobileTabBar" active="more" mode="fleet" hint-size="390px,78px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const ok = { tone: 'var(--healthy)', shape: 'circle', testSt: 'font-size: 13px; color: var(--ink-muted); white-space: nowrap;' };
+    const uses = [
+      Object.assign({ app: 'storefront-web', project: '', test: '3 servers', v: 'NEXT_PUBLIC_SUPABASE_URL', f: 'url', more: '+1' }, ok),
+      Object.assign({ app: 'api', project: '', test: '3 servers', v: 'SUPABASE_URL', f: 'url', more: '+1' }, ok),
+      Object.assign({ app: 'worker', project: '', test: '3 servers', v: 'SB_URL', f: 'url', more: '+1' }, ok),
+      { app: 'metabase', project: 'internal-tools', test: 'sfo-2-10', v: 'MB_DB_*', f: 'pooled_url', more: 'split · +1 literal', tone: 'var(--warning)', shape: 'triangle', testSt: 'font: 500 12.5px/18px var(--font-mono); color: var(--warning); white-space: nowrap;' }
+    ].map((u, i) => Object.assign(u, { sep: i ? '1px solid var(--line)' : '0' }));
+    return {
+      theme: this.props.theme ?? 'light',
+      uses,
+      copyBtn: { style: { flex: '1 1 0', fontSize: 14 } },
+      testBtn: { style: { flex: '1 1 0', fontSize: 14 } },
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

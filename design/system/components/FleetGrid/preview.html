@@ -1,0 +1,32 @@
+<!-- @dsCard group="Data" height=352 subtitle="The whole fleet at a glance: calm when healthy, loud only where something is wrong" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>FleetGrid</title>
+<style> .demo { margin: 24px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); } </style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement;
+  function servers(region, net, n, special) {
+    var out = [];
+    for (var i = 1; i <= n; i++) {
+      var id = region + '-' + (i < 10 ? '0' + i : i), sp = special[i] || {};
+      var st = sp.status || 'healthy';
+      out.push({ id: id, name: id, status: st, cpu: st === 'stopped' ? null : (sp.cpu || 14 + (i * 37) % 52), mem: st === 'stopped' ? null : 28 + (i * 23) % 50, ip: '10.210.' + net + '.' + (10 + i), note: sp.note });
+    }
+    return out;
+  }
+  var groups = [
+    { label: 'fra-1', meta: 'Hetzner · Falkenstein · 24 servers', servers: servers('fra-1', 4, 24, { 7: { status: 'degraded', cpu: 92, note: 'Memory above 90% for 6 min' }, 15: { status: 'deploying' }, 16: { status: 'deploying' }, 22: { status: 'stopped' } }) },
+    { label: 'ams-1', meta: 'DigitalOcean · Amsterdam · 16 servers', servers: servers('ams-1', 5, 16, { 3: { status: 'down', note: 'No heartbeat since 14:02' }, 9: { status: 'deploying' }, 12: { status: 'degraded', cpu: 88 } }) },
+    { label: 'sfo-2', meta: 'On-prem rack B · 12 servers', servers: servers('sfo-2', 6, 12, { 5: { status: 'stopped' } }) }
+  ];
+  function Demo() {
+    var s = React.useState('fra-1-07'), sel = s[0], set = s[1];
+    return h('div', { className: 'demo' }, h(H.FleetGrid, { groups: groups, selectedId: sel, onSelect: function (n) { set(n.id); } }));
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

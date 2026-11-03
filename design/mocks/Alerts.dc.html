@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Alerts</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="alerts" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Alerts</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">2 open · 1 acknowledged · across 52 servers in Acme</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="plus">New rule</x-import>
+</div>
+</div>
+<div class="dw-tabs" role="tablist" aria-label="Alerts sections">
+<a role="tab" aria-selected="true" href="Alerts.dc.html" class="dw-tab" style="text-decoration: none;"><span>Alerts</span><span class="dw-tab-count dw-tone-warning">2</span></a>
+<a role="tab" aria-selected="false" href="#rules" class="dw-tab" style="text-decoration: none;"><span>Rules</span><span class="dw-tab-count">7</span></a>
+<a role="tab" aria-selected="false" href="Alerts-Channels.dc.html" class="dw-tab" style="text-decoration: none;"><span>Channels</span><span class="dw-tab-count">5</span></a>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch;">
+
+<section style="flex: 2 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Open</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">Most severe first</span>
+</div>
+
+<article class="dw-panel" style="display: grid; grid-template-columns: 36px minmax(0, 1fr) 132px; gap: 4px 16px; padding: 16px; border-color: color-mix(in srgb, var(--critical) 40%, var(--line));">
+<span aria-hidden="true" style="grid-row: span 3; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--critical-soft); color: var(--critical);"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{18}}"></x-import></span>
+<div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-height: 36px;">
+<h3 style="margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: -0.005em;"><code style="font-size: 15px; font-weight: 550;">ams-1-03</code> heartbeat lost</h3>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="down" label="Critical" variant="pill"></x-import>
+</div>
+<div style="grid-row: span 2; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding-top: 6px;">
+<span style="font-size: 13px; line-height: 18px;"><span style="font-weight: 550;">18 min</span> <span style="color: var(--ink-muted);">since 14:02</span></span>
+<div role="img" aria-label="Heartbeats in the last 30 minutes, none since 14:02" style="display: flex; align-items: flex-end; gap: 2px; height: 24px;">
+<sc-for list="{{beats}}" as="b"><span style="width: 2px; height: {{b.h}}px; border-radius: 1px; background: {{b.c}};"></span></sc-for>
+</div>
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Heartbeats, last 30 min</span>
+</div>
+<p style="margin: 0; font-size: 14px; line-height: 20px; max-width: 64ch;">No heartbeat since 14:02. Its 2 replicas moved to <code style="font-size: 13px;">ams-1-04</code> and <code style="font-size: 13px;">ams-1-05</code>. Check the provider console, then reconnect or replace the server.</p>
+<div style="grid-column: 2 / 4; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-sunken); border: 1px solid var(--line); font-size: 10.5px; font-weight: 600; flex: none;">PR</span>
+<span style="font-size: 13px;">Acknowledged by Priya Raman <span style="color: var(--ink-muted);">· 14:08 · on call</span></span>
+<span style="flex: 1 1 auto;"></span>
+<span style="font-size: 12.5px; color: var(--ink-muted);">Sent to Slack #ops, Push, PagerDuty</span>
+<a href="Incident.dc.html" class="dw-btn dw-btn-secondary dw-btn-sm" style="text-decoration: none;"><span>Open incident</span><x-import component-from-global-scope="Dockwell.Icon" name="arrow-right" size="{{14}}"></x-import></a>
+</div>
+</article>
+
+<article class="dw-panel" style="display: grid; grid-template-columns: 36px minmax(0, 1fr) 132px; gap: 4px 16px; padding: 16px; border-color: color-mix(in srgb, var(--warning) 35%, var(--line));">
+<span aria-hidden="true" style="grid-row: span 3; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--warning-soft); color: var(--warning);"><x-import component-from-global-scope="Dockwell.Icon" name="service" size="{{18}}"></x-import></span>
+<div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-height: 36px;">
+<h3 style="margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: -0.005em;">worker memory above 90% on <code style="font-size: 15px; font-weight: 550;">fra-1-07</code></h3>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="degraded" label="Warning" variant="pill"></x-import>
+</div>
+<div style="grid-row: span 2; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding-top: 6px;">
+<span style="font-size: 13px; line-height: 18px;"><span style="font-weight: 550;">22 min</span> <span style="color: var(--ink-muted);">since 13:58</span></span>
+<x-import component-from-global-scope="Dockwell.Sparkline" data="{{memLine}}" width="{{124}}" height="{{24}}" min="{{40}}" max="{{100}}" threshold="{{90}}" tone="warning" area="{{yes}}" label="Memory on fra-1-07, last hour, now 93%"></x-import>
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Memory, now 93%</span>
+</div>
+<p style="margin: 0; font-size: 14px; line-height: 20px; max-width: 64ch;">Climbing since worker <code style="font-size: 13px;">r57</code> rolled out at 13:56, above 90% since 13:58, CPU 92%. The error rate alert (0.42%) is grouped here. Roll back worker to <code style="font-size: 13px;">r56</code> to stop the leak.</p>
+<div style="grid-column: 2 / 4; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);">
+<span style="font-size: 13px; color: var(--ink-muted);">Not acknowledged</span>
+<span style="flex: 1 1 auto;"></span>
+<span style="font-size: 12.5px; color: var(--ink-muted);">Sent to Slack #ops</span>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="check">Acknowledge</x-import>
+<a href="Incident.dc.html" class="dw-btn dw-btn-secondary dw-btn-sm" style="text-decoration: none;"><span>Open incident</span><x-import component-from-global-scope="Dockwell.Icon" name="arrow-right" size="{{14}}"></x-import></a>
+</div>
+</article>
+</section>
+
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Resolved today</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">3 · median 12 min</span>
+<span style="flex: 1 1 auto;"></span>
+<a href="Activity.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">History</a>
+</div>
+<div class="dw-panel">
+<sc-for list="{{resolved}}" as="r">
+<div style="display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 16px; border-top: {{r.border}};">
+<span style="display: flex; padding-top: 3px; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="check" size="{{14}}"></x-import></span>
+<span style="font-size: 13.5px; line-height: 20px; font-weight: 500; min-width: 0;">{{r.title}}</span>
+<span style="font-size: 12.5px; line-height: 20px; color: var(--ink-muted); white-space: nowrap;">{{r.at}}</span>
+<span></span>
+<span style="grid-column: 2 / 4; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">{{r.meta}}</span>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">On call</h2><a href="Alerts-Channels.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Routing</a></div>
+<div class="dw-panel-body" style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; gap: 10px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--surface-sunken); border: 1px solid var(--line); font-size: 11px; font-weight: 600; flex: none;">PR</span>
+<span style="display: flex; flex-direction: column; min-width: 0;"><span style="font-size: 14px; line-height: 20px; font-weight: 550;">Priya Raman</span><span style="font-size: 12.5px; line-height: 16px; color: var(--ink-muted);">This week, until Monday 09:00</span></span>
+<span style="flex: 1 1 auto;"></span>
+<span style="font-size: 12.5px; color: var(--ink-muted); white-space: nowrap;">Paged at 14:02</span>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; color: var(--ink-muted);">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 1px dashed var(--line-strong); font-size: 11px; font-weight: 600; flex: none; box-sizing: border-box;">LP</span>
+<span style="display: flex; flex-direction: column; min-width: 0;"><span style="font-size: 13.5px; line-height: 20px; color: var(--ink);">Leo Park</span><span style="font-size: 12.5px; line-height: 16px;">Next, from Monday 9 Nov</span></span>
+</div>
+</div>
+</section>
+</div>
+
+</div>
+
+<section id="rules" style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Rules</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">7 rules for all servers and apps · 2 firing</span>
+<span style="flex: 1 1 auto;"></span>
+<a href="Alerts-Channels.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Channels and routing</a>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{ruleCols}}" rows="{{rules}}" density="compact" caption="Alert rules" on-row-click="{{noop}}"></x-import>
+</section>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":990}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const muted = 'var(--ink-muted)';
+    const beats = Array.from({ length: 30 }, (_, i) => i < 12
+      ? { h: 14 + ((i * 7) % 5) * 2, c: 'var(--line-strong)' }
+      : { h: 4, c: 'var(--critical)' });
+    const memLine = [52, 52, 53, 52, 53, 53, 52, 53, 54, 53, 58, 62, 66, 69, 72, 75, 78, 81, 83, 86, 88, 90, 91, 92, 93, 94];
+    const mono = (t) => h('code', { style: { fontSize: 12.5 } }, t);
+    const resolved = [
+      { title: h('span', null, 'CPU above 85% on ', mono('sfo-2-02')), at: '10:43', meta: '12 min · during the checkout r212 build', border: '0' },
+      { title: h('span', null, 'Disk above 85% on ', mono('sfo-2-09')), at: '09:40', meta: '26 min · Dockwell pruned 14 old images', border: '1px solid var(--line)' },
+      { title: 'Backup failed for search', at: '03:20', meta: '8 min · the retry passed', border: '1px solid var(--line)' }
+    ];
+    const CH = { slack: ['chat', 'Slack #ops'], email: ['mail', 'Email'], push: ['bell', 'Push'], pd: ['link', 'PagerDuty'] };
+    const chans = (list) => h('span', { style: { display: 'flex', alignItems: 'center', gap: 12 } }, list.map((k) =>
+      h('span', { key: k, style: { display: 'inline-flex', alignItems: 'center', gap: 5 } }, h('span', { style: { display: 'flex', color: muted } }, h(DW.Icon, { name: CH[k][0], size: 14 })), CH[k][1])));
+    const sev = (s) => s === 'critical' ? h(DW.StatusBadge, { status: 'down', label: 'Critical' }) : h(DW.StatusBadge, { status: 'degraded', label: 'Warning' });
+    const stateCell = (r) => r.firing
+      ? h(DW.StatusBadge, { status: r.sev === 'critical' ? 'down' : 'degraded', label: r.firing })
+      : h('span', { style: { color: muted } }, r.quiet || 'Quiet');
+    const rules = [
+      { id: 'cpu', name: 'CPU above 85%', cond: 'cpu.percent > 85', dur: '10 min', sev: 'warning', ch: ['slack'], quiet: 'Last fired 10:31' },
+      { id: 'mem', name: 'Memory above 90%', cond: 'memory.percent > 90', dur: '5 min', sev: 'warning', ch: ['slack'], firing: 'Firing on fra-1-07' },
+      { id: 'disk', name: 'Disk above 85%', cond: 'disk.percent > 85', dur: 'At once', sev: 'warning', ch: ['slack', 'email'], quiet: 'Last fired 09:14' },
+      { id: 'hb', name: 'Heartbeat lost', cond: 'heartbeat.age > 60s', dur: '60 s', sev: 'critical', ch: ['slack', 'push', 'pd'], firing: 'Firing on ams-1-03' },
+      { id: 'err', name: 'Error rate above 0.25%', cond: 'http.error_rate > 0.25', dur: '5 min', sev: 'warning', ch: ['slack'], firing: 'Grouped with worker' },
+      { id: 'cert', name: 'Certificate expires within 14 days', cond: 'cert.days_left < 14', dur: 'At once', sev: 'warning', ch: ['slack', 'email'] },
+      { id: 'backup', name: 'Backup failed', cond: 'backup.status == failed', dur: 'At once', sev: 'critical', ch: ['slack', 'push', 'pd'], quiet: 'Last fired 03:12' }
+    ];
+    const ruleCols = [
+      { key: 'name', header: 'Rule', render: (r) => h('span', { style: { fontWeight: 550 } }, r.name) },
+      { key: 'cond', header: 'Condition', width: 220, render: (r) => h('code', { style: { fontSize: 12, fontVariantLigatures: 'none' } }, r.cond) },
+      { key: 'dur', header: 'For', width: 88, muted: true },
+      { key: 'sev', header: 'Severity', width: 112, render: (r) => sev(r.sev) },
+      { key: 'ch', header: 'Channels', width: 300, render: (r) => chans(r.ch) },
+      { key: 'state', header: 'State', width: 176, render: stateCell }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      beats, memLine, resolved, rules, ruleCols, yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

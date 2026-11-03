@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Command bar</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="overview" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 class="title" style="margin: 0;">Overview</h1>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">52 servers in 3 regions · 8 apps in storefront / production</p>
+</div>
+</div>
+
+<x-import component-from-global-scope="Dockwell.Callout" tone="warning" title="worker memory above 90%">Open 22 min on 4 servers. Memory started climbing 2 min after worker r57 deployed.</x-import>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px;">
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="CPU" value="38.4" unit="%" data="{{cpu}}" min="{{0}}" max="{{100}}" caption="Average across 52 servers"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Memory" value="61" unit="% · 204 of 336 GB" data="{{mem}}" min="{{0}}" max="{{100}}" caption="Across the fleet"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Requests" value="11.2k" unit="/min" data="{{req}}" tone="cobalt" caption="23 domains"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Error rate" value="0.42" unit="%" delta="from 0.10%" delta-tone="warning" data="{{err}}" tone="warning" min="{{0}}" caption="Rising since 13:58"></x-import></div>
+</div>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Servers</h2><a href="Servers-List.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">View all</a></div>
+<div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.FleetGrid" groups="{{groups}}" hint="Hover or focus a server to inspect it."></x-import></div>
+</section>
+
+</div>
+</main>
+
+<div style="position: absolute; inset: 0; z-index: var(--z-command); background: var(--scrim); display: flex; justify-content: center; align-items: flex-start; padding: 104px 16px 16px; box-sizing: border-box;">
+<div style="width: 640px; max-width: 100%;">
+<x-import component-from-global-scope="Dockwell.CommandBar" inline="{{yes}}" items="{{items}}" default-query="roll back" scope="Acme / storefront" on-select="{{noop}}" on-close="{{noop}}"></x-import>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const wave = (n, base, amp, seed) => Array.from({ length: n }, (_, i) => +(base + amp * Math.sin((i + seed) / 3.1) + amp * 0.5 * Math.sin((i * 7 + seed) / 5.3)).toFixed(2));
+    const err = Array.from({ length: 40 }, (_, i) => i < 22 ? +(0.1 + 0.01 * Math.sin(i)).toFixed(3) : +(Math.min(0.42, 0.1 + (i - 21) * 0.06) + 0.01 * Math.sin(i)).toFixed(3));
+    const special = {
+      'fra-1-07': { status: 'degraded', cpu: 92, mem: 94, note: 'Memory above 90%' },
+      'fra-1-15': { status: 'deploying', note: 'storefront-web r64' },
+      'fra-1-16': { status: 'deploying', note: 'storefront-web r64' },
+      'fra-1-22': { status: 'stopped', cpu: null, mem: null },
+      'ams-1-03': { status: 'down', cpu: null, mem: null, note: 'No heartbeat since 14:02' },
+      'ams-1-09': { status: 'deploying', note: 'storefront-web r64' },
+      'ams-1-12': { status: 'degraded', cpu: 88, mem: 71, note: 'CPU 88%' },
+      'sfo-2-05': { status: 'stopped', cpu: null, mem: null }
+    };
+    const region = (prefix, count, net) => Array.from({ length: count }, (_, i) => {
+      const n = String(i + 1).padStart(2, '0'), name = prefix + '-' + n;
+      return Object.assign({ id: name, name, status: 'healthy', cpu: 18 + ((i * 37) % 41), mem: 44 + ((i * 23) % 33), ip: net + i }, special[name] || {});
+    });
+    const groups = [
+      { label: 'fra-1', meta: 'Hetzner Falkenstein · 24 servers', servers: region('fra-1', 24, '10.210.4.') },
+      { label: 'ams-1', meta: 'DigitalOcean Amsterdam · 16 servers', servers: region('ams-1', 16, '10.210.5.') },
+      { label: 'sfo-2', meta: 'On-prem rack B · 12 servers', servers: region('sfo-2', 12, '10.210.6.') }
+    ];
+    // CommandBar ranks equal matches by label length. Trailing spaces (collapsed, never drawn)
+    // keep the open incident's rollback first until CommandItem supports a rank.
+    const pad = (s, n) => s + ' '.repeat(Math.max(0, n - s.length));
+    const items = [
+      { id: 'rb-worker', label: 'Roll back worker to r56', icon: 'undo', hint: 'Degraded since 13:58' },
+      { id: 'rb-web', label: 'Roll back storefront-web to r63', icon: 'undo', hint: 'r64 rolling out' },
+      { id: 'rb-api', label: pad('Roll back api to r127', 32), icon: 'undo', hint: 'r128 live' },
+      { id: 'rb-history', label: pad('Open rollback history', 33), icon: 'activity', hint: 'Activity' },
+      { id: 'open-worker', label: 'Open worker', icon: 'service', group: 'Apps' },
+      { id: 'deploy-web', label: 'Deploy storefront-web', icon: 'deploy', group: 'Actions' },
+      { id: 'term', label: 'Open terminal on fra-1-07', icon: 'terminal', group: 'Servers' },
+      { id: 'alert', label: 'Open alert: worker memory above 90%', icon: 'bell', group: 'Alerts' }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      cpu: wave(40, 38, 4, 1), mem: wave(40, 61, 1.5, 3), req: wave(40, 11.2, 0.8, 5), err,
+      groups, items,
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

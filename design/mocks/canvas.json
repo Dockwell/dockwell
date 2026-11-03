@@ -1,0 +1,1007 @@
+{
+ "v": 3,
+ "attachments": {},
+ "boards": {
+  "API-Tokens.dc.html": {
+   "expand": "fill",
+   "h": 940,
+   "page": "settings",
+   "title": "API tokens",
+   "w": 1440,
+   "x": 0,
+   "y": 1540
+  },
+  "Activity.dc.html": {
+   "expand": "fill",
+   "h": 1070,
+   "page": "operate",
+   "title": "Activity",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Add-Server.dc.html": {
+   "expand": "fill",
+   "h": 680,
+   "page": "fleet",
+   "title": "Add a server",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Alerts-Channels.dc.html": {
+   "expand": "fill",
+   "h": 840,
+   "page": "operate",
+   "title": "Notification channels",
+   "w": 1440,
+   "x": 0,
+   "y": 2520
+  },
+  "Alerts.dc.html": {
+   "expand": "fill",
+   "h": 990,
+   "page": "operate",
+   "title": "Alerts",
+   "w": 1440,
+   "x": 1520,
+   "y": 1230
+  },
+  "App-Deployments.dc.html": {
+   "expand": "fill",
+   "h": 830,
+   "page": "apps",
+   "title": "App · deployments",
+   "w": 1440,
+   "x": 1520,
+   "y": 960
+  },
+  "App-Environment.dc.html": {
+   "expand": "fill",
+   "h": 1090,
+   "page": "apps",
+   "title": "App · environment",
+   "w": 1440,
+   "x": 1520,
+   "y": 2230
+  },
+  "App-Logs.dc.html": {
+   "expand": "fill",
+   "h": 970,
+   "page": "apps",
+   "title": "App · logs",
+   "w": 1440,
+   "x": 0,
+   "y": 2230
+  },
+  "App-Overview.dc.html": {
+   "expand": "fill",
+   "h": 1110,
+   "page": "apps",
+   "title": "App · overview",
+   "w": 1440,
+   "x": 0,
+   "y": 960
+  },
+  "App-Previews.dc.html": {
+   "expand": "fill",
+   "h": 780,
+   "page": "apps",
+   "title": "App · previews",
+   "w": 1440,
+   "x": 1520,
+   "y": 3480
+  },
+  "App-Settings.dc.html": {
+   "expand": "fill",
+   "h": 1010,
+   "page": "apps",
+   "title": "App · settings",
+   "w": 1440,
+   "x": 0,
+   "y": 3480
+  },
+  "Apps-List.dc.html": {
+   "expand": "fill",
+   "h": 710,
+   "page": "apps",
+   "title": "Apps",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Apps-New.dc.html": {
+   "expand": "fill",
+   "h": 800,
+   "page": "apps",
+   "title": "New app",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "Audit-Log.dc.html": {
+   "expand": "fill",
+   "h": 940,
+   "page": "settings",
+   "title": "Audit log",
+   "w": 1440,
+   "x": 1520,
+   "y": 1540
+  },
+  "Backup-Restore.dc.html": {
+   "expand": "fill",
+   "h": 950,
+   "page": "data",
+   "title": "Restore",
+   "w": 1440,
+   "x": 1520,
+   "y": 2090
+  },
+  "Backups.dc.html": {
+   "expand": "fill",
+   "h": 840,
+   "page": "data",
+   "title": "Backups",
+   "w": 1440,
+   "x": 0,
+   "y": 2090
+  },
+  "Billing.dc.html": {
+   "expand": "fill",
+   "h": 740,
+   "page": "settings",
+   "title": "Billing",
+   "w": 1440,
+   "x": 1520,
+   "y": 3770
+  },
+  "Catalog-Install.dc.html": {
+   "expand": "fill",
+   "h": 1130,
+   "page": "web",
+   "title": "Install from catalog",
+   "w": 1440,
+   "x": 1520,
+   "y": 1160
+  },
+  "Catalog.dc.html": {
+   "expand": "fill",
+   "h": 850,
+   "page": "web",
+   "title": "Catalog",
+   "w": 1440,
+   "x": 0,
+   "y": 1160
+  },
+  "Connection-Bind.dc.html": {
+   "expand": "fill",
+   "h": 1170,
+   "page": "connections",
+   "title": "Use in an app",
+   "w": 1440,
+   "x": 1520,
+   "y": 1380
+  },
+  "Connection-Detail.dc.html": {
+   "expand": "fill",
+   "h": 1230,
+   "page": "connections",
+   "title": "Connection · supabase",
+   "w": 1440,
+   "x": 0,
+   "y": 1380
+  },
+  "Connection-New.dc.html": {
+   "expand": "fill",
+   "h": 1220,
+   "page": "connections",
+   "title": "Add a connection",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "Connections-List.dc.html": {
+   "expand": "fill",
+   "h": 940,
+   "page": "connections",
+   "title": "Connections",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Database-Detail.dc.html": {
+   "expand": "fill",
+   "h": 1010,
+   "page": "data",
+   "title": "Database · postgres",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "Databases-List.dc.html": {
+   "expand": "fill",
+   "h": 680,
+   "page": "data",
+   "title": "Databases",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Domain-Add.dc.html": {
+   "expand": "fill",
+   "h": 760,
+   "page": "data",
+   "title": "Add a domain",
+   "w": 1440,
+   "x": 1520,
+   "y": 1170
+  },
+  "Domain-Traffic.dc.html": {
+   "expand": "fill",
+   "h": 1690,
+   "page": "routing",
+   "title": "Traffic path · acme.dev",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "Domains-Fleet.dc.html": {
+   "expand": "fill",
+   "h": 850,
+   "page": "routing",
+   "title": "Domains · fleet",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Domains-List.dc.html": {
+   "expand": "fill",
+   "h": 680,
+   "page": "data",
+   "title": "Domains",
+   "w": 1440,
+   "x": 0,
+   "y": 1170
+  },
+  "Fleet-Action-Running.dc.html": {
+   "expand": "fill",
+   "h": 980,
+   "page": "fleet",
+   "title": "Fleet action running",
+   "w": 1440,
+   "x": 0,
+   "y": 2250
+  },
+  "Fleet-Action.dc.html": {
+   "expand": "fill",
+   "h": 1130,
+   "page": "fleet",
+   "title": "New fleet action",
+   "w": 1440,
+   "x": 1520,
+   "y": 960
+  },
+  "Global-Assistant.dc.html": {
+   "expand": "fill",
+   "h": 950,
+   "page": "operate",
+   "title": "Ops assistant",
+   "w": 1440,
+   "x": 1520,
+   "y": 3520
+  },
+  "Global-CommandBar.dc.html": {
+   "expand": "fill",
+   "h": 900,
+   "page": "operate",
+   "title": "Command bar",
+   "w": 1440,
+   "x": 0,
+   "y": 3520
+  },
+  "Incident.dc.html": {
+   "expand": "fill",
+   "h": 1130,
+   "page": "operate",
+   "title": "Incident",
+   "w": 1440,
+   "x": 0,
+   "y": 1230
+  },
+  "Ingress.dc.html": {
+   "expand": "fill",
+   "h": 1460,
+   "page": "routing",
+   "title": "Ingress",
+   "w": 1440,
+   "x": 0,
+   "y": 1850
+  },
+  "M-App.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · app",
+   "w": 390,
+   "x": 1410,
+   "y": 0
+  },
+  "M-Apps.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · apps",
+   "w": 390,
+   "x": 940,
+   "y": 0
+  },
+  "M-CommandBar.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · search",
+   "w": 390,
+   "x": 0,
+   "y": 2008
+  },
+  "M-Connection.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · connection",
+   "w": 390,
+   "x": 1410,
+   "y": 2008
+  },
+  "M-Domain.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · domain",
+   "w": 390,
+   "x": 1880,
+   "y": 2008
+  },
+  "M-Files.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · edit a file",
+   "w": 390,
+   "x": 940,
+   "y": 2008
+  },
+  "M-Incident.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · incident",
+   "w": 390,
+   "x": 1880,
+   "y": 1004
+  },
+  "M-Logs.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · logs",
+   "w": 390,
+   "x": 1880,
+   "y": 0
+  },
+  "M-More.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · more",
+   "w": 390,
+   "x": 470,
+   "y": 2008
+  },
+  "M-Overview-Fleet.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · overview, fleet",
+   "w": 390,
+   "x": 470,
+   "y": 0
+  },
+  "M-Overview-Single.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · overview, one server",
+   "w": 390,
+   "x": 0,
+   "y": 0
+  },
+  "M-Plan-Approve.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · approve plan",
+   "w": 390,
+   "x": 1410,
+   "y": 1004
+  },
+  "M-Server.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · server",
+   "w": 390,
+   "x": 470,
+   "y": 1004
+  },
+  "M-Servers.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · servers",
+   "w": 390,
+   "x": 0,
+   "y": 1004
+  },
+  "M-Terminal.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · terminal",
+   "w": 390,
+   "x": 940,
+   "y": 1004
+  },
+  "Main.dc.html": {
+   "expand": "fill",
+   "h": 2700,
+   "page": "map",
+   "title": "Screen map",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Members.dc.html": {
+   "expand": "fill",
+   "h": 1000,
+   "page": "settings",
+   "title": "Members",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "Merge-Install.dc.html": {
+   "expand": "fill",
+   "h": 950,
+   "page": "fleet",
+   "title": "Connect another Dockwell",
+   "w": 1440,
+   "x": 1520,
+   "y": 2250
+  },
+  "MobileHeader.dc.html": {
+   "h": 58,
+   "page": "shell",
+   "title": "Phone header",
+   "w": 390,
+   "x": 312,
+   "y": 180
+  },
+  "MobileTabBar.dc.html": {
+   "h": 80,
+   "page": "shell",
+   "title": "Phone tab bar",
+   "w": 390,
+   "x": 782,
+   "y": 180
+  },
+  "Move-ControlPlane.dc.html": {
+   "expand": "fill",
+   "h": 760,
+   "page": "settings",
+   "title": "Move control plane",
+   "w": 1440,
+   "x": 1520,
+   "y": 2730
+  },
+  "Onboarding-Claim.dc.html": {
+   "expand": "fill",
+   "h": 780,
+   "page": "start",
+   "title": "Claim this server",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Onboarding-FirstDeploy.dc.html": {
+   "expand": "fill",
+   "h": 800,
+   "page": "start",
+   "title": "First deploy",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "Onboarding-Live.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "page": "start",
+   "title": "It’s live",
+   "w": 1440,
+   "x": 0,
+   "y": 960
+  },
+  "Overview-Fleet.dc.html": {
+   "expand": "fill",
+   "h": 1250,
+   "page": "overview",
+   "title": "Overview · fleet",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "Overview-Single.dc.html": {
+   "expand": "fill",
+   "h": 1140,
+   "page": "overview",
+   "title": "Overview · one server",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Plan-Review.dc.html": {
+   "expand": "fill",
+   "h": 900,
+   "page": "operate",
+   "title": "Review plan",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "Profile.dc.html": {
+   "expand": "fill",
+   "h": 820,
+   "page": "settings",
+   "title": "Profile and security",
+   "w": 1440,
+   "x": 0,
+   "y": 4800
+  },
+  "Rail.dc.html": {
+   "h": 900,
+   "page": "shell",
+   "title": "Navigation rail",
+   "w": 232,
+   "x": 0,
+   "y": 0
+  },
+  "Scheduled-Tasks.dc.html": {
+   "expand": "fill",
+   "h": 740,
+   "page": "operate",
+   "title": "Scheduled tasks",
+   "w": 1440,
+   "x": 1520,
+   "y": 2520
+  },
+  "Second-Server.dc.html": {
+   "expand": "fill",
+   "h": 800,
+   "page": "fleet",
+   "title": "Second server joined",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "Server-Files.dc.html": {
+   "expand": "fill",
+   "h": 920,
+   "page": "server",
+   "title": "Server · files",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "Server-Firewall.dc.html": {
+   "expand": "fill",
+   "h": 830,
+   "page": "server",
+   "title": "Server · firewall",
+   "w": 1440,
+   "x": 1520,
+   "y": 1150
+  },
+  "Server-Overview.dc.html": {
+   "expand": "fill",
+   "h": 990,
+   "page": "server",
+   "title": "Server · overview",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Server-Processes.dc.html": {
+   "expand": "fill",
+   "h": 930,
+   "page": "server",
+   "title": "Server · processes",
+   "w": 1440,
+   "x": 0,
+   "y": 2240
+  },
+  "Server-Terminal.dc.html": {
+   "expand": "fill",
+   "h": 930,
+   "page": "server",
+   "title": "Server · terminal",
+   "w": 1440,
+   "x": 0,
+   "y": 1150
+  },
+  "Server-Updates.dc.html": {
+   "expand": "fill",
+   "h": 680,
+   "page": "server",
+   "title": "Server · updates",
+   "w": 1440,
+   "x": 1520,
+   "y": 2240
+  },
+  "Servers-List.dc.html": {
+   "expand": "fill",
+   "h": 1000,
+   "page": "fleet",
+   "title": "Servers",
+   "w": 1440,
+   "x": 0,
+   "y": 960
+  },
+  "Settings-ControlPlane.dc.html": {
+   "expand": "fill",
+   "h": 880,
+   "page": "settings",
+   "title": "Control plane",
+   "w": 1440,
+   "x": 0,
+   "y": 2730
+  },
+  "Settings-General.dc.html": {
+   "expand": "fill",
+   "h": 1380,
+   "page": "settings",
+   "title": "Organization",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Settings-Integrations.dc.html": {
+   "expand": "fill",
+   "h": 870,
+   "page": "settings",
+   "title": "Integrations",
+   "w": 1440,
+   "x": 0,
+   "y": 3770
+  },
+  "Sign-In.dc.html": {
+   "expand": "fill",
+   "h": 760,
+   "page": "start",
+   "title": "Sign in",
+   "w": 1440,
+   "x": 1520,
+   "y": 960
+  },
+  "Topbar.dc.html": {
+   "h": 52,
+   "page": "shell",
+   "title": "Top bar",
+   "w": 1208,
+   "x": 312,
+   "y": 0
+  },
+  "Website-Detail.dc.html": {
+   "expand": "fill",
+   "h": 1000,
+   "page": "web",
+   "title": "Website · configuration",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "Websites-List.dc.html": {
+   "expand": "fill",
+   "h": 770,
+   "page": "web",
+   "title": "Websites",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Logo.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 1890,
+   "title": "Logo",
+   "page": "brand",
+   "expand": "fill"
+  }
+ },
+ "createdOnFiles": {
+  "at": "2026-11-03T07:06:37Z",
+  "v": 1
+ },
+ "designSystems": [
+  {
+   "artifact": "https://claude.ai/artifact/Fo1eeuf9wFrKyKYzii4pTS",
+   "copiedAt": "2026-11-03T21:45:00Z",
+   "namespace": "dockwell",
+   "title": "Dockwell",
+   "version": "1793740038-e31b"
+  }
+ ],
+ "launch": {
+  "page": "map",
+  "view": "canvas"
+ },
+ "notes": {
+  "t-apps": {
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "apps",
+   "text": "Apps",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-connections": {
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "connections",
+   "text": "Connections",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-data": {
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "data",
+   "text": "Data",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-fleet": {
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "fleet",
+   "text": "Fleet",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-mobile": {
+   "kind": "title1",
+   "maxW": 2270,
+   "page": "mobile",
+   "text": "Phone",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-operate": {
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "operate",
+   "text": "Operate",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-overview": {
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "overview",
+   "text": "Overview",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-routing": {
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "routing",
+   "text": "Fleet routing",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-server": {
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "server",
+   "text": "Server",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-settings": {
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "settings",
+   "text": "Access and settings",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-shell": {
+   "kind": "title1",
+   "maxW": 1520,
+   "page": "shell",
+   "text": "Shared shell",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-start": {
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "start",
+   "text": "Get started",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-web": {
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "web",
+   "text": "Websites and catalog",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-brand": {
+   "x": 0,
+   "y": -300,
+   "text": "Brand",
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "brand",
+   "w": 240
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "Rail.dc.html",
+  "Topbar.dc.html",
+  "MobileHeader.dc.html",
+  "MobileTabBar.dc.html",
+  "Logo.dc.html",
+  "Onboarding-Claim.dc.html",
+  "Onboarding-FirstDeploy.dc.html",
+  "Onboarding-Live.dc.html",
+  "Sign-In.dc.html",
+  "Overview-Single.dc.html",
+  "Overview-Fleet.dc.html",
+  "Apps-List.dc.html",
+  "Apps-New.dc.html",
+  "App-Overview.dc.html",
+  "App-Deployments.dc.html",
+  "App-Logs.dc.html",
+  "App-Environment.dc.html",
+  "App-Settings.dc.html",
+  "App-Previews.dc.html",
+  "Websites-List.dc.html",
+  "Website-Detail.dc.html",
+  "Catalog.dc.html",
+  "Catalog-Install.dc.html",
+  "Databases-List.dc.html",
+  "Database-Detail.dc.html",
+  "Domains-List.dc.html",
+  "Domain-Add.dc.html",
+  "Backups.dc.html",
+  "Backup-Restore.dc.html",
+  "Connections-List.dc.html",
+  "Connection-New.dc.html",
+  "Connection-Detail.dc.html",
+  "Connection-Bind.dc.html",
+  "Server-Overview.dc.html",
+  "Server-Files.dc.html",
+  "Server-Terminal.dc.html",
+  "Server-Firewall.dc.html",
+  "Server-Processes.dc.html",
+  "Server-Updates.dc.html",
+  "Add-Server.dc.html",
+  "Second-Server.dc.html",
+  "Servers-List.dc.html",
+  "Fleet-Action.dc.html",
+  "Fleet-Action-Running.dc.html",
+  "Merge-Install.dc.html",
+  "Domains-Fleet.dc.html",
+  "Domain-Traffic.dc.html",
+  "Ingress.dc.html",
+  "Activity.dc.html",
+  "Plan-Review.dc.html",
+  "Incident.dc.html",
+  "Alerts.dc.html",
+  "Alerts-Channels.dc.html",
+  "Scheduled-Tasks.dc.html",
+  "Global-CommandBar.dc.html",
+  "Global-Assistant.dc.html",
+  "M-Overview-Single.dc.html",
+  "M-Overview-Fleet.dc.html",
+  "M-Apps.dc.html",
+  "M-App.dc.html",
+  "M-Logs.dc.html",
+  "M-Servers.dc.html",
+  "M-Server.dc.html",
+  "M-Terminal.dc.html",
+  "M-Plan-Approve.dc.html",
+  "M-Incident.dc.html",
+  "M-CommandBar.dc.html",
+  "M-More.dc.html",
+  "M-Files.dc.html",
+  "M-Connection.dc.html",
+  "M-Domain.dc.html",
+  "Settings-General.dc.html",
+  "Members.dc.html",
+  "API-Tokens.dc.html",
+  "Audit-Log.dc.html",
+  "Settings-ControlPlane.dc.html",
+  "Move-ControlPlane.dc.html",
+  "Settings-Integrations.dc.html",
+  "Billing.dc.html",
+  "Profile.dc.html"
+ ],
+ "pages": [
+  {
+   "id": "map",
+   "name": "Map"
+  },
+  {
+   "id": "shell",
+   "name": "Shell"
+  },
+  {
+   "id": "brand",
+   "name": "Brand"
+  },
+  {
+   "id": "start",
+   "name": "Get started"
+  },
+  {
+   "id": "overview",
+   "name": "Overview"
+  },
+  {
+   "id": "apps",
+   "name": "Apps"
+  },
+  {
+   "id": "web",
+   "name": "Websites and catalog"
+  },
+  {
+   "id": "data",
+   "name": "Data"
+  },
+  {
+   "id": "connections",
+   "name": "Connections"
+  },
+  {
+   "id": "server",
+   "name": "Server"
+  },
+  {
+   "id": "fleet",
+   "name": "Fleet"
+  },
+  {
+   "id": "routing",
+   "name": "Fleet routing"
+  },
+  {
+   "id": "operate",
+   "name": "Operate"
+  },
+  {
+   "id": "settings",
+   "name": "Access and settings"
+  },
+  {
+   "id": "mobile",
+   "name": "Phone"
+  }
+ ],
+ "title": "Dockwell Screens"
+}

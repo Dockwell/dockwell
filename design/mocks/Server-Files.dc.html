@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Files, hz-1</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="servers" mode="single" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="single" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 12px;">
+<h1 class="title" style="margin: 0; font-family: var(--font-mono); letter-spacing: -0.02em;">hz-1</h1>
+<x-import component-from-global-scope="Dockwell.Tag">Runs the control plane</x-import>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Hetzner CX32 · Falkenstein · <span style="font-family: var(--font-mono); font-size: 12.5px;">49.12.33.7</span> · up 41 days</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="Add-Server.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>Add server</span></a>
+<x-import component-from-global-scope="Dockwell.Button" icon="refresh">Restart agent</x-import>
+</div>
+</div>
+<nav class="dw-tabs" aria-label="Server hz-1">
+<a href="Server-Overview.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Overview</a>
+<a href="Server-Files.dc.html" class="dw-tab" aria-selected="true" aria-current="page" style="text-decoration: none;">Files</a>
+<a href="Server-Terminal.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Terminal</a>
+<a href="Server-Firewall.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Firewall</a>
+<a href="Server-Processes.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Processes</a>
+<a href="Server-Updates.dc.html" class="dw-tab" aria-selected="false" style="text-decoration: none;">Updates <span class="dw-tab-count dw-tone-warning">3</span></a>
+</nav>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;">
+<div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+<nav aria-label="Path" style="display: flex; align-items: center; gap: 0; font-family: var(--font-mono); font-size: 13px;">
+<button type="button" class="dw-btn dw-btn-ghost dw-btn-sm" style="padding: 0 6px; font: 400 13px/1 var(--font-mono);">/</button>
+<button type="button" class="dw-btn dw-btn-ghost dw-btn-sm" style="padding: 0 6px; font: 400 13px/1 var(--font-mono);">var</button>
+<span aria-hidden="true" style="color: var(--line-strong);">/</span>
+<button type="button" class="dw-btn dw-btn-ghost dw-btn-sm" style="padding: 0 6px; font: 400 13px/1 var(--font-mono);">www</button>
+<span aria-hidden="true" style="color: var(--line-strong);">/</span>
+<span aria-current="page" style="padding: 0 6px; font: 550 13px/28px var(--font-mono); color: var(--ink);">shop-legacy</span>
+</nav>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="copy" aria-label="Copy path /var/www/shop-legacy"></x-import>
+<span style="font-size: 13px; color: var(--ink-muted);">21 items · owned by <code style="font-size: 12px;">www-data</code></span>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+<div style="width: 240px;"><x-import component-from-global-scope="Dockwell.TextField" size="sm" icon="search" placeholder="Search in shop-legacy" aria-label="Search in shop-legacy"></x-import></div>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="folder">New folder</x-import>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" icon="upload">Upload</x-import>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch;">
+
+<nav class="dw-panel" aria-label="Folders" style="flex: 0 0 208px; min-width: 0; padding: 8px; box-sizing: border-box; display: flex; flex-direction: column; gap: 0;">
+<div style="padding: 4px 8px 6px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Pinned</div>
+{{pinned}}
+<div style="height: 1px; background: var(--line); margin: 8px 0;"></div>
+<div style="padding: 4px 8px 6px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Server</div>
+{{tree}}
+</nav>
+
+<div style="flex: 1 1 520px; min-width: 0;">
+<x-import component-from-global-scope="Dockwell.Table" columns="{{cols}}" rows="{{files}}" density="compact" max-height="{{640}}" selected-key="user-ini" caption="Files in /var/www/shop-legacy" on-row-click="{{noop}}"></x-import>
+</div>
+
+<section class="dw-panel" aria-label="Editor" style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; overflow: hidden;">
+<div class="dw-panel-head" style="padding-right: 8px;">
+<div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="file" size="{{16}}"></x-import></span>
+<h2 style="margin: 0; font: 550 13px/20px var(--font-mono);">.user.ini</h2>
+<span style="font-size: 12.5px; color: var(--ink-muted);">Edited</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="x" aria-label="Close .user.ini"></x-import>
+</div>
+<div style="flex: 1 1 auto; display: flex; flex-direction: column; background: var(--surface-sunken); font: 400 12px/20px var(--font-mono);">
+<div role="textbox" aria-multiline="true" aria-label="Contents of .user.ini" style="flex: 1 1 auto; padding: 10px 0;">
+{{code}}
+</div>
+<div style="display: flex; gap: 16px; justify-content: flex-end; padding: 6px 16px; border-top: 1px solid var(--line); font: 400 11.5px/16px var(--font-sans); color: var(--ink-muted);"><span>Ln 5, Col 20</span><span>UTF-8</span><span>LF</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border-top: 1px solid var(--line);">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+<h3 class="label" style="margin: 0;">2 changes to save</h3>
+<span style="font-size: 12px; color: var(--ink-muted);">Compared with the file on disk</span>
+</div>
+<dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 6px 16px; font: 400 12px/20px var(--font-mono);">
+<dt style="color: var(--ink-muted);">upload_max_filesize</dt><dd class="dw-plan-val"><span class="dw-diff-from">8M</span><span class="dw-plan-arrow">→</span><span class="dw-diff-to">64M</span></dd>
+<dt style="color: var(--ink-muted);">post_max_size</dt><dd class="dw-plan-val"><span class="dw-diff-from">8M</span><span class="dw-plan-arrow">→</span><span class="dw-diff-to">64M</span></dd>
+</dl>
+<p style="margin: 0; font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">PHP-FPM rereads this file within 5 min, no restart. You can undo the save from Activity.</p>
+<div style="display: flex; justify-content: flex-end; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button">Discard</x-import>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" kbd="⌘S">Save</x-import>
+</div>
+</div>
+</section>
+
+</div>
+</div>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":920}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const mono = { fontFamily: 'var(--font-mono)', fontSize: 12.5 };
+    const icon = (name, size, color) => h('span', { style: { display: 'flex', color: color || 'var(--ink-muted)' } }, h(DW.Icon, { name, size }));
+    const rowBtn = (key, pad, kids, selected) => h('button', {
+      key, type: 'button', className: 'dw-btn dw-btn-ghost dw-btn-sm', 'aria-current': selected ? 'true' : undefined,
+      style: Object.assign({ justifyContent: 'flex-start', gap: 6, width: '100%', paddingLeft: pad, paddingRight: 8, fontWeight: 400, color: selected ? 'var(--ink)' : 'var(--ink-muted)' }, selected ? { background: 'var(--selection)' } : {})
+    }, kids);
+
+    const pinned = [
+      { k: 'p-www', label: 'Websites', path: '/var/www', icon: 'browser' },
+      { k: 'p-log', label: 'Logs', path: '/var/log', icon: 'file' },
+      { k: 'p-vol', label: 'Docker volumes', path: '/var/lib/docker/volumes', icon: 'layers' }
+    ].map((p) => rowBtn(p.k, 8, [icon(p.icon, 14), h('span', { key: 'l', style: { fontSize: 13, color: 'var(--ink)' }, title: p.path }, p.label)]));
+
+    const tree = [
+      ['/', 0, 'open'], ['etc', 1], ['home', 1], ['opt', 1], ['root', 1], ['usr', 1],
+      ['var', 1, 'open'], ['lib', 2], ['log', 2], ['www', 2, 'open'],
+      ['blog', 3], ['docs', 3], ['shop-legacy', 3, 'sel'],
+      ['wp-admin', 4], ['wp-content', 4], ['wp-includes', 4]
+    ].map(([name, depth, st], i) => {
+      const open = st === 'open' || st === 'sel';
+      return rowBtn('t' + i, 6 + depth * 12, [
+        icon(open ? 'chevron-down' : 'chevron-right', 12),
+        icon('folder', 14, st === 'sel' ? 'var(--ink)' : undefined),
+        h('span', { key: 'n', style: Object.assign({}, mono, { color: st === 'sel' ? 'var(--ink)' : 'var(--ink)', fontWeight: st === 'sel' ? 550 : 400 }) }, name)
+      ], st === 'sel');
+    });
+
+    const D = 'drwxr-xr-x', F = '-rw-r--r--';
+    const files = [
+      { id: 'wp-admin', name: 'wp-admin', dir: true, size: '—', at: '13 Oct', perm: D },
+      { id: 'wp-content', name: 'wp-content', dir: true, size: '—', at: '2 h ago', perm: D },
+      { id: 'wp-includes', name: 'wp-includes', dir: true, size: '—', at: '13 Oct', perm: D },
+      { id: 'user-ini', name: '.user.ini', size: '271 B', at: '13 Oct', perm: F },
+      { id: 'index', name: 'index.php', size: '405 B', at: '13 Oct', perm: F },
+      { id: 'license', name: 'license.txt', size: '19.9 KB', at: '13 Oct', perm: F },
+      { id: 'readme', name: 'readme.html', size: '7.4 KB', at: '13 Oct', perm: F },
+      { id: 'activate', name: 'wp-activate.php', size: '7.2 KB', at: '13 Oct', perm: F },
+      { id: 'blog-header', name: 'wp-blog-header.php', size: '351 B', at: '13 Oct', perm: F },
+      { id: 'comments', name: 'wp-comments-post.php', size: '2.3 KB', at: '13 Oct', perm: F },
+      { id: 'config-sample', name: 'wp-config-sample.php', size: '3.3 KB', at: '13 Oct', perm: F },
+      { id: 'config', name: 'wp-config.php', size: '3.4 KB', at: '13 Oct', perm: '-rw-r-----' },
+      { id: 'cron', name: 'wp-cron.php', size: '5.5 KB', at: '13 Oct', perm: F },
+      { id: 'opml', name: 'wp-links-opml.php', size: '2.5 KB', at: '13 Oct', perm: F },
+      { id: 'load', name: 'wp-load.php', size: '3.8 KB', at: '13 Oct', perm: F },
+      { id: 'login', name: 'wp-login.php', size: '50.2 KB', at: '13 Oct', perm: F },
+      { id: 'mail', name: 'wp-mail.php', size: '8.5 KB', at: '13 Oct', perm: F },
+      { id: 'settings', name: 'wp-settings.php', size: '28.5 KB', at: '13 Oct', perm: F },
+      { id: 'signup', name: 'wp-signup.php', size: '34.4 KB', at: '13 Oct', perm: F },
+      { id: 'trackback', name: 'wp-trackback.php', size: '5.1 KB', at: '13 Oct', perm: F },
+      { id: 'xmlrpc', name: 'xmlrpc.php', size: '3.2 KB', at: '13 Oct', perm: F }
+    ].map((f) => Object.assign({ owner: 'www-data' }, f));
+    const cols = [
+      { key: 'name', header: 'Name', render: (r) => h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 8 } }, icon(r.dir ? 'folder' : 'file', 15), h('span', { style: Object.assign({}, mono, { fontWeight: r.id === 'user-ini' ? 550 : 400 }) }, r.name)) },
+      { key: 'size', header: 'Size', width: 76, align: 'right', muted: true },
+      { key: 'at', header: 'Modified', width: 84, muted: true },
+      { key: 'perm', header: 'Permissions', width: 108, mono: true, muted: true },
+      { key: 'owner', header: 'Owner', width: 88, mono: true, muted: true }
+    ];
+
+    const src = [
+      ['; PHP settings for shop-legacy.acme.dev'],
+      ['; PHP-FPM rereads this file every 300 s'],
+      [''],
+      ['upload_max_filesize', '64M', true],
+      ['post_max_size', '64M', true, true],
+      ['memory_limit', '256M'],
+      ['max_execution_time', '120'],
+      ['max_input_vars', '3000'],
+      [''],
+      ['display_errors', 'Off'],
+      ['log_errors', 'On'],
+      ['error_log', '/var/log/php/shop-legacy.log']
+    ];
+    const code = src.map(([k, v, changed, caret], i) => h('div', {
+      key: i,
+      style: { display: 'grid', gridTemplateColumns: '40px minmax(0, 1fr)', background: changed ? 'var(--diff-change-soft)' : undefined }
+    },
+      h('span', { 'aria-hidden': true, style: { textAlign: 'right', paddingRight: 12, color: 'var(--ink-muted)', boxShadow: changed ? 'inset 2px 0 0 var(--diff-change)' : undefined } }, i + 1),
+      h('span', { style: { whiteSpace: 'pre', paddingLeft: 4, paddingRight: 16, overflow: 'hidden', textOverflow: 'ellipsis' } },
+        v === undefined ? h('span', { style: { color: 'var(--ink-muted)' } }, k) :
+          [h('span', { key: 'k' }, k), h('span', { key: 'e', style: { color: 'var(--ink-muted)' } }, ' = '), h('span', { key: 'v', style: { fontWeight: changed ? 600 : 400 } }, v),
+            caret ? h('span', { key: 'c', 'aria-hidden': true, style: { display: 'inline-block', width: 2, height: 16, marginLeft: 1, verticalAlign: '-3px', background: 'var(--cobalt)' } }) : null]))
+    );
+
+    return {
+      theme: this.props.theme ?? 'light',
+      pinned, tree, files, cols, code,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

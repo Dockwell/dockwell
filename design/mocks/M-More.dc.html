@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>More, phone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="width: 390px; height: 844px; overflow: hidden; position: relative; display: flex; flex-direction: column; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="MobileHeader" title="More" sub="" back="" hint-size="390px,56px"></dc-import>
+
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+
+<button type="button" class="dw-panel" aria-label="Change scope: Acme, storefront, production" style="flex: none; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; margin-bottom: 4px; padding: 12px 12px 12px 14px; box-sizing: border-box; text-align: left; font: inherit; color: var(--ink); cursor: pointer;">
+<span style="display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 8px; background: var(--surface-sunken); border: 1px solid var(--line); box-sizing: border-box; color: var(--ink);"><x-import component-from-global-scope="Dockwell.Icon" name="org" size="{{18}}"></x-import></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto;">
+<span style="display: flex; align-items: center; gap: 5px; font-size: 15px; line-height: 20px; font-weight: 550; white-space: nowrap;">Acme <span style="color: var(--ink-muted); font-weight: 400;">/</span> storefront <span style="color: var(--ink-muted); font-weight: 400;">/</span> production</span>
+<span style="display: flex; align-items: center; gap: 5px; font-size: 12.5px; line-height: 16px; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="lock" size="{{12}}"></x-import>Protected · changes need approval</span>
+</span>
+<span style="display: flex; flex: none; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{18}}"></x-import></span>
+</button>
+
+<sc-for list="{{groups}}" as="g">
+<nav class="dw-panel" aria-label="{{g.label}}" style="flex: none; overflow: hidden;">
+<sc-for list="{{g.rows}}" as="r">
+<sc-if value="{{r.link}}" hint-placeholder-val="{{false}}">
+<a href="{{r.href}}" style="display: flex; align-items: center; gap: 14px; width: 100%; height: 46px; padding: 0 14px 0 16px; box-sizing: border-box; border-top: {{r.border}}; text-decoration: none; font-size: 15px; color: var(--ink);">
+<span style="display: flex; flex: none; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="{{r.icon}}" size="{{18}}"></x-import></span>
+<span style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{r.label}}</span>
+<sc-if value="{{r.alert}}" hint-placeholder-val="{{false}}"><span aria-label="{{r.value}} open" style="display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 9999px; background: var(--warning-soft); color: var(--warning); font-size: 12px; font-weight: 600;"><x-import component-from-global-scope="Dockwell.Glyph" shape="triangle" size="{{8}}"></x-import>{{r.value}}</span></sc-if>
+<sc-if value="{{r.plain}}" hint-placeholder-val="{{false}}"><span style="flex: none; font-size: 14px; color: var(--ink-muted);">{{r.value}}</span></sc-if>
+<span style="display: flex; flex: none; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="{{r.chev}}" size="{{16}}"></x-import></span>
+</a>
+</sc-if>
+<sc-if value="{{r.btn}}" hint-placeholder-val="{{true}}">
+<button type="button" style="display: flex; align-items: center; gap: 14px; width: 100%; height: 46px; padding: 0 14px 0 16px; box-sizing: border-box; border: 0; border-top: {{r.border}}; background: none; text-align: left; font: inherit; font-size: 15px; color: var(--ink); cursor: pointer;">
+<span style="display: flex; flex: none; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="{{r.icon}}" size="{{18}}"></x-import></span>
+<span style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{r.label}}</span>
+<sc-if value="{{r.alert}}" hint-placeholder-val="{{false}}"><span aria-label="{{r.value}} open" style="display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 9999px; background: var(--warning-soft); color: var(--warning); font-size: 12px; font-weight: 600;"><x-import component-from-global-scope="Dockwell.Glyph" shape="triangle" size="{{8}}"></x-import>{{r.value}}</span></sc-if>
+<sc-if value="{{r.plain}}" hint-placeholder-val="{{false}}"><span style="flex: none; font-size: 14px; color: var(--ink-muted);">{{r.value}}</span></sc-if>
+<span style="display: flex; flex: none; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="{{r.chev}}" size="{{16}}"></x-import></span>
+</button>
+</sc-if>
+</sc-for>
+</nav>
+</sc-for>
+
+<div class="dw-panel" style="flex: none; display: flex; overflow: hidden;">
+<button type="button" aria-label="Theme: System" style="flex: 1.65 1 0; display: flex; align-items: center; gap: 14px; min-width: 0; height: 46px; padding: 0 14px 0 16px; box-sizing: border-box; border: 0; background: none; text-align: left; font: inherit; font-size: 15px; color: var(--ink); cursor: pointer;">
+<span style="display: flex; flex: none; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="sun" size="{{18}}"></x-import></span>
+<span style="flex: 1 1 auto;">Theme</span>
+<span style="font-size: 14px; color: var(--ink-muted); margin-right: -6px;">System</span>
+<span style="display: flex; flex: none; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</button>
+<span aria-hidden="true" style="flex: none; width: 1px; background: var(--line);"></span>
+<button type="button" style="flex: 1 1 0; display: flex; align-items: center; gap: 14px; min-width: 0; height: 46px; padding: 0 16px; box-sizing: border-box; border: 0; background: none; text-align: left; font: inherit; font-size: 15px; color: var(--ink); cursor: pointer;">
+<span style="display: flex; flex: none; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="logout" size="{{18}}"></x-import></span>
+<span>Sign out</span>
+</button>
+</div>
+
+</div>
+
+<dc-import name="MobileTabBar" active="more" mode="fleet" hint-size="390px,78px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const row = (i, o) => Object.assign({ border: i ? '1px solid var(--line)' : '0', value: '', plain: !!o.value && !o.alert, alert: false, chev: 'chevron-right', href: '', link: !!o.href, btn: !o.href }, o);
+    const groups = [
+      { label: 'Resources', rows: [
+        row(0, { icon: 'browser', label: 'Websites', value: '2' }),
+        row(1, { icon: 'database', label: 'Databases', value: '3' }),
+        row(2, { icon: 'key', label: 'Connections', value: '6', href: 'M-Connection.dc.html' }),
+        row(3, { icon: 'link', label: 'Domains', value: '23', href: 'M-Domain.dc.html' }),
+        row(4, { icon: 'archive', label: 'Backups', value: 'Today 03:00' }),
+        row(5, { icon: 'grid', label: 'Catalog' })
+      ] },
+      { label: 'Operate', rows: [
+        row(0, { icon: 'play', label: 'Fleet actions' }),
+        row(1, { icon: 'bell', label: 'Alerts', value: '2', alert: true }),
+        row(2, { icon: 'calendar', label: 'Scheduled tasks' })
+      ] },
+      { label: 'Account', rows: [
+        row(0, { icon: 'settings', label: 'Settings' }),
+        row(1, { icon: 'user', label: 'Profile and security', value: 'Mira Chen' })
+      ] }
+    ];
+    return { theme: this.props.theme ?? 'light', groups };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Server, phone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="width: 390px; height: 844px; overflow: hidden; position: relative; display: flex; flex-direction: column; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="MobileHeader" title="fra-1-07" sub="Hetzner Falkenstein · CX32 · pool web" back="M-Servers.dc.html" hint-size="390px,56px"></dc-import>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+
+<section class="dw-panel" aria-label="Status" style="display: flex; flex-direction: column; overflow: hidden;">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 16px;">
+<div style="display: flex;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="degraded" variant="pill"></x-import></div>
+<span style="font-size: 15px; line-height: 20px; font-weight: 550;">Memory above 90% since 13:58</span>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line);">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 14px;">
+<x-import component-from-global-scope="Dockwell.Metric" label="CPU" value="92" unit="%"></x-import>
+<div role="meter" aria-label="CPU" aria-valuemin="0" aria-valuemax="100" aria-valuenow="92" aria-valuetext="92%" style="height: 6px; border-radius: 3px; background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--line);"><span style="display: block; width: 92%; height: 100%; border-radius: 3px; background: var(--warning);"></span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 14px; border-left: 1px solid var(--line);">
+<x-import component-from-global-scope="Dockwell.Metric" label="Memory" value="7.4" unit="of 8 GB"></x-import>
+<div role="meter" aria-label="Memory" aria-valuemin="0" aria-valuemax="8" aria-valuenow="7.4" aria-valuetext="7.4 of 8 GB" style="height: 6px; border-radius: 3px; background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--line);"><span style="display: block; width: 92.5%; height: 100%; border-radius: 3px; background: var(--warning);"></span></div>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line);">
+<button type="button" aria-label="Copy public IP 49.12.118.42" style="display: grid; grid-template-columns: minmax(0, 1fr) 16px; align-items: center; column-gap: 8px; min-height: 56px; padding: 8px 12px 8px 16px; box-sizing: border-box; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer;">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;"><span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Public IP</span><code style="font-family: var(--font-mono); font-size: 13px; line-height: 18px;">49.12.118.42</code></span>
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="copy" size="{{16}}"></x-import></span>
+</button>
+<button type="button" aria-label="Copy private IP 10.210.4.7" style="display: grid; grid-template-columns: minmax(0, 1fr) 16px; align-items: center; column-gap: 8px; min-height: 56px; padding: 8px 12px 8px 16px; box-sizing: border-box; border: 0; border-left: 1px solid var(--line); background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer;">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;"><span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Private IP</span><code style="font-family: var(--font-mono); font-size: 13px; line-height: 18px;">10.210.4.7</code></span>
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="copy" size="{{16}}"></x-import></span>
+</button>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; align-items: baseline; gap: 8px; padding: 0 2px;">
+<h2 class="heading" style="margin: 0;">Runs here</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">2 apps · 3 replicas</span>
+</div>
+<div class="dw-panel" role="list" style="display: flex; flex-direction: column; overflow: hidden;">
+<sc-for list="{{apps}}" as="a">
+<div role="listitem" style="display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; box-sizing: border-box; border-top: {{a.sep}};">
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="service" size="{{16}}"></x-import></span>
+<span style="margin-left: 2px; font-size: 15px; line-height: 20px; font-weight: 550;">{{a.name}}</span>
+<span style="font-size: 13px; color: var(--ink-muted);">{{a.count}}</span>
+<code class="code-sm" style="padding: 0 5px; border-radius: 3px; background: var(--surface-sunken);">{{a.rev}}</code>
+<span style="flex: 1 1 auto;"></span>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="{{a.status}}"></x-import>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px; padding: 0 2px;">
+<h2 class="heading" style="margin: 0;">Recent</h2>
+</div>
+<div style="padding: 0 2px;">
+<x-import component-from-global-scope="Dockwell.Timeline" events="{{events}}"></x-import>
+</div>
+</section>
+
+</div>
+<div style="flex: none; display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); background: var(--canvas); --control-md: 48px;">
+<a href="M-Terminal.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="flex: 1 1 0; text-decoration: none; font-size: 14px;"><x-import component-from-global-scope="Dockwell.Icon" name="terminal" size="{{16}}"></x-import><span>Terminal</span></a>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="layers" dc-props="{{drainBtn}}">Drain</x-import>
+</div>
+<dc-import name="MobileTabBar" active="servers" mode="fleet" hint-size="390px,78px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const apps = [
+      { name: 'worker', count: '×2', rev: 'r57', status: 'degraded' },
+      { name: 'uptime-kuma', count: '×1', rev: 'r3', status: 'healthy' }
+    ].map((a, i) => Object.assign(a, { sep: i ? '1px solid var(--line)' : '0' }));
+    const events = [
+      { id: 1, kind: 'alert', tone: 'warning', title: 'worker ran out of memory twice', meta: 'Replica back on r57 each time', time: '1 min ago' },
+      { id: 2, kind: 'alert', tone: 'warning', title: 'Memory above 90%', meta: 'Alert open, Priya Raman notified', time: '22 min ago' },
+      { id: 3, kind: 'deploy', title: 'worker started 2 replicas here', revision: 'r57', actor: 'Push to main', time: '24 min ago' }
+    ];
+    return {
+      theme: this.props.theme ?? 'light',
+      apps, events,
+      drainBtn: { style: { flex: '1 1 0', fontSize: 14 } },
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

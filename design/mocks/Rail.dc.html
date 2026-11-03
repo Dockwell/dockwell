@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Navigation rail</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<nav class="dw-rail" aria-label="Main" style="flex: 1 1 232px; max-width: 232px; min-width: 200px; box-sizing: border-box; align-self: stretch; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); gap: 2px; padding: 12px 12px 16px;">
+<div style="display: flex; align-items: center; justify-content: space-between; height: 36px; padding: 0 8px; margin-bottom: 12px;">
+<x-import component-from-global-scope="Dockwell.Logo" variant="logotype" height="14"></x-import>
+<sc-if value="{{single}}" hint-placeholder-val="{{true}}">
+<span style="font: 400 11.5px/1 var(--font-mono); color: var(--ink-muted);">0.9.4</span>
+</sc-if>
+</div>
+<a href="{{overviewHref}}" class="{{c.overview}}"><x-import component-from-global-scope="Dockwell.Icon" name="home" size="{{16}}"></x-import><span>Overview</span></a>
+<a href="Apps-List.dc.html" class="{{c.apps}}"><x-import component-from-global-scope="Dockwell.Icon" name="service" size="{{16}}"></x-import><span>Apps</span><span class="dw-rail-count">{{n.apps}}</span></a>
+<a href="Websites-List.dc.html" class="{{c.websites}}"><x-import component-from-global-scope="Dockwell.Icon" name="browser" size="{{16}}"></x-import><span>Websites</span><span class="dw-rail-count">{{n.websites}}</span></a>
+<a href="Databases-List.dc.html" class="{{c.databases}}"><x-import component-from-global-scope="Dockwell.Icon" name="database" size="{{16}}"></x-import><span>Databases</span><span class="dw-rail-count">{{n.databases}}</span></a>
+<a href="Connections-List.dc.html" class="{{c.connections}}"><x-import component-from-global-scope="Dockwell.Icon" name="key" size="{{16}}"></x-import><span>Connections</span><span class="dw-rail-count">{{n.connections}}</span></a>
+<a href="{{domainsHref}}" class="{{c.domains}}"><x-import component-from-global-scope="Dockwell.Icon" name="link" size="{{16}}"></x-import><span>Domains</span><span class="dw-rail-count">{{n.domains}}</span></a>
+<a href="Backups.dc.html" class="{{c.backups}}"><x-import component-from-global-scope="Dockwell.Icon" name="archive" size="{{16}}"></x-import><span>Backups</span></a>
+<a href="Catalog.dc.html" class="{{c.catalog}}"><x-import component-from-global-scope="Dockwell.Icon" name="grid" size="{{16}}"></x-import><span>Catalog</span></a>
+<sc-if value="{{single}}" hint-placeholder-val="{{true}}">
+<div class="dw-rail-section">Machine</div>
+<a href="Server-Overview.dc.html" class="{{c.servers}}"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{16}}"></x-import><span>Server</span><span class="dw-rail-count" style="font-family: var(--font-mono);">hz-1</span></a>
+</sc-if>
+<sc-if value="{{fleet}}" hint-placeholder-val="{{false}}">
+<div class="dw-rail-section">Fleet</div>
+<a href="Servers-List.dc.html" class="{{c.servers}}"><x-import component-from-global-scope="Dockwell.Icon" name="server" size="{{16}}"></x-import><span>Servers</span><span class="dw-rail-count">{{serverCount}}</span></a>
+<a href="Fleet-Action.dc.html" class="{{c.fleet}}"><x-import component-from-global-scope="Dockwell.Icon" name="play" size="{{16}}"></x-import><span>Fleet actions</span></a>
+</sc-if>
+<div class="dw-rail-section">Operate</div>
+<a href="Activity.dc.html" class="{{c.activity}}"><x-import component-from-global-scope="Dockwell.Icon" name="activity" size="{{16}}"></x-import><span>Activity</span></a>
+<a href="Alerts.dc.html" class="{{c.alerts}}"><x-import component-from-global-scope="Dockwell.Icon" name="bell" size="{{16}}"></x-import><span>Alerts</span><span class="{{alertCountClass}}">{{n.alerts}}</span></a>
+<a href="Scheduled-Tasks.dc.html" class="{{c.tasks}}"><x-import component-from-global-scope="Dockwell.Icon" name="calendar" size="{{16}}"></x-import><span>Scheduled tasks</span></a>
+<div style="flex: 1 1 24px;"></div>
+<a href="Settings-ControlPlane.dc.html" class="{{c.settings}}"><x-import component-from-global-scope="Dockwell.Icon" name="settings" size="{{16}}"></x-import><span>Settings</span></a>
+<a href="Profile.dc.html" class="{{c.profile}}" style="height: 40px; margin-top: 4px;">
+<span aria-hidden="true" style="display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-sunken); border: 1px solid var(--line); font-size: 10.5px; font-weight: 600; color: var(--ink); flex: none;">MC</span>
+<span style="display: flex; flex-direction: column; min-width: 0; line-height: 16px;"><span style="color: var(--ink);">Mira Chen</span><span style="font-size: 12px; color: var(--ink-muted);">{{who}}</span></span>
+</a>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"active":{"editor":"enum","options":["overview","apps","websites","databases","connections","domains","backups","catalog","servers","fleet","activity","alerts","tasks","settings","profile"],"default":"overview"},"mode":{"editor":"enum","options":["single","fleet"],"default":"single"},"servers":{"editor":"text","default":"52"},"$preview":{"width":232,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = this.props.active ?? 'overview';
+    const fleet = (this.props.mode ?? 'single') === 'fleet';
+    const keys = ['overview','apps','websites','databases','connections','domains','backups','catalog','servers','fleet','activity','alerts','tasks','settings','profile'];
+    const c = {};
+    keys.forEach((k) => { c[k] = 'dw-rail-item' + (k === active ? ' is-active' : ''); });
+    const serverCount = this.props.servers ?? '52';
+    // The team world is the 52-server fleet; any other count is the solo world after it grew.
+    const team = fleet && serverCount === '52';
+    const n = team
+      ? { apps: '14', websites: '9', databases: '5', connections: '6', domains: '23', alerts: '2' }
+      : { apps: '6', websites: '3', databases: '2', connections: '', domains: '8', alerts: '' };
+    return {
+      fleet, single: !fleet, c, n,
+      overviewHref: fleet ? 'Overview-Fleet.dc.html' : 'Overview-Single.dc.html',
+      domainsHref: team ? 'Domains-Fleet.dc.html' : 'Domains-List.dc.html',
+      alertCountClass: team ? 'dw-rail-count dw-tab-count dw-tone-warning' : 'dw-rail-count',
+      who: team ? 'Admin · Acme' : 'Owner',
+      serverCount
+    };
+  }
+}
+</script>
+</body>
+</html>

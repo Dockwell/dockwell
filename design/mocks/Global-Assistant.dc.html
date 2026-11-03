@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ops assistant</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="apps" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: stretch; min-width: 0;">
+
+<div style="flex: 1 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 24px; padding: 24px; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 12px;"><h1 class="title" style="margin: 0;">worker</h1><x-import component-from-global-scope="Dockwell.StatusBadge" status="degraded"></x-import></div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);"><code class="code-sm">ghcr.io/acme/worker:9a03e1b</code> · r57 · 4 replicas</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<a href="App-Logs.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="file" size="{{16}}"></x-import><span>Logs</span></a>
+<x-import component-from-global-scope="Dockwell.Button" icon="deploy">Deploy</x-import>
+</div>
+</div>
+<x-import component-from-global-scope="Dockwell.Tabs" tabs="{{tabs}}" value="overview" label="App sections"></x-import>
+</div>
+
+<x-import component-from-global-scope="Dockwell.Callout" tone="warning" title="Memory above 90% since 13:58">4 replicas affected. fra-1-07 restarted twice after running out of memory.</x-import>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px;">
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Memory" value="93" unit="% on fra-1-07" data="{{mem}}" min="{{0}}" max="{{100}}" threshold="{{90}}" tone="warning" caption="Alert above 90%"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Error rate" value="0.42" unit="%" data="{{err}}" min="{{0}}" tone="warning" caption="Up from 0.10% at 13:58"></x-import></div>
+<div class="dw-panel" style="padding: 16px;"><x-import component-from-global-scope="Dockwell.Metric" label="Replicas" value="4" unit="of 4 running" data="{{cpu}}" min="{{0}}" max="{{100}}" caption="CPU, last hour"></x-import></div>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 8px;">
+<h2 class="heading" style="margin: 0;">Deploys</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">Rolling, one replica at a time</span>
+<span style="flex: 1 1 auto;"></span>
+<a href="App-Deployments.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">View all</a>
+</div>
+<x-import component-from-global-scope="Dockwell.Table" columns="{{deployCols}}" rows="{{deploys}}" density="compact" caption="Recent deploys of worker"></x-import>
+</section>
+
+<section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Recent activity</h2><a href="Activity.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Activity</a></div>
+<div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.Timeline" events="{{events}}"></x-import></div>
+</section>
+
+</div>
+
+<aside aria-labelledby="assistant-title" style="flex: 0 0 420px; max-width: calc(100% - 16px); margin: 8px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: var(--surface-raised); border-radius: var(--radius-lg); box-shadow: var(--shadow-sheet);">
+
+<div style="display: flex; align-items: center; gap: 8px; padding: 14px 12px 14px 20px; border-bottom: 1px solid var(--line);">
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+<h2 id="assistant-title" style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 600;">Ops assistant</h2>
+<span style="font-size: 12.5px; line-height: 16px; color: var(--ink-muted);">Answers from metrics, deploys and logs</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="plus" aria-label="New conversation"></x-import>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" size="sm" icon="x" aria-label="Close assistant"></x-import>
+</div>
+
+<div role="log" aria-label="Conversation" style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="align-self: flex-end; max-width: 85%; display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted);">Mira Chen · 14:19</span>
+<p style="margin: 0; padding: 8px 12px; border-radius: var(--radius-md); background: var(--surface-sunken); font-size: 14px; line-height: 20px;">Why is worker degraded?</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 14px; font-size: 14px; line-height: 21px;">
+<p style="margin: 0; font-weight: 600;">Memory climbs after r57.</p>
+<p style="margin: 0;">r57 deployed at 13:56. Two minutes later memory on <span style="white-space: nowrap;">fra-1-07</span> started climbing, and the replica there has run out of memory twice since. On r56 it held steady.</p>
+<ul style="margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; line-height: 20px;">
+<li>Memory on <span style="white-space: nowrap;">fra-1-07</span> went from <code class="code-sm">64%</code> to <code class="code-sm">93%</code></li>
+<li><code class="code-sm">2</code> out-of-memory restarts, both on <code class="code-sm">9a03e1b</code></li>
+<li>Error rate rose from <code class="code-sm">0.10%</code> to <code class="code-sm">0.42%</code> at 13:58</li>
+</ul>
+<p style="margin: 0;">Rolling back to r56 should stop the climb.</p>
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<span class="caption" style="color: var(--ink-muted);">Suggested plan</span>
+<x-import component-from-global-scope="Dockwell.PlanDiff" resources="{{plan}}"></x-import>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px;">
+<a href="Plan-Review.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="commit" size="{{16}}"></x-import><span>Review plan</span></a>
+<a href="App-Logs.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="file" size="{{16}}"></x-import><span>Show logs</span></a>
+</div>
+</div>
+</div>
+
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 14px; border-top: 1px solid var(--line);">
+<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+<x-import component-from-global-scope="Dockwell.Button" size="sm">What else changed in r57?</x-import>
+<x-import component-from-global-scope="Dockwell.Button" size="sm">Which servers run worker?</x-import>
+</div>
+<x-import component-from-global-scope="Dockwell.TextField" size="lg" placeholder="Ask about your servers and apps" aria-label="Ask the ops assistant" action="{{send}}"></x-import>
+<p style="margin: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="shield" size="{{12}}"></x-import>The assistant proposes plans; you approve every change.</p>
+</div>
+
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":950}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const wave = (n, base, amp, seed) => Array.from({ length: n }, (_, i) => +(base + amp * Math.sin((i + seed) / 3.1) + amp * 0.5 * Math.sin((i * 7 + seed) / 5.3)).toFixed(2));
+    const mem = Array.from({ length: 40 }, (_, i) => i < 24 ? +(64 + 1.2 * Math.sin(i * 1.7)).toFixed(1) : i === 24 ? 78 : +(90.8 + (i - 25) * 0.22 + 0.4 * Math.sin(i)).toFixed(1));
+    const err = Array.from({ length: 40 }, (_, i) => i < 25 ? +(0.1 + 0.01 * Math.sin(i)).toFixed(3) : +(Math.min(0.42, 0.1 + (i - 24) * 0.06) + 0.01 * Math.sin(i)).toFixed(3));
+    const tabs = [
+      { id: 'overview', label: 'Overview' },
+      { id: 'deploys', label: 'Deploys' },
+      { id: 'previews', label: 'Previews' },
+      { id: 'logs', label: 'Logs' },
+      { id: 'env', label: 'Environment' },
+      { id: 'settings', label: 'Settings' }
+    ];
+    const rev = (r) => h('code', { className: 'dw-tl-rev' }, r);
+    const deploys = [
+      { id: 'r57', rev: 'r57', commit: '9a03e1b', status: 'degraded', label: 'Live · degraded', by: 'Sam Okafor', at: '24 min ago' },
+      { id: 'r56', rev: 'r56', commit: '51d0c7e', label: 'Previous, ready to roll back to', by: 'Leo Park', at: '28 Oct' },
+      { id: 'r55', rev: 'r55', commit: '7be2f40', label: 'Replaced', by: 'Leo Park', at: '21 Oct' }
+    ];
+    const deployCols = [
+      { key: 'rev', header: 'Revision', width: 96, render: (r) => rev(r.rev) },
+      { key: 'commit', header: 'Commit', width: 110, mono: true, muted: true },
+      { key: 'status', header: 'Status', render: (r) => r.status ? h(DW.StatusBadge, { status: r.status, label: r.label }) : h('span', { style: { color: 'var(--ink-muted)' } }, r.label) },
+      { key: 'by', header: 'By', width: 130, muted: true },
+      { key: 'at', header: 'Deployed', width: 104, align: 'right', muted: true }
+    ];
+    const plan = [
+      { id: 'worker', action: 'update', kind: 'app', kindLabel: 'App', name: 'worker', note: 'Rolling · 4 replicas', changes: [
+        { path: 'image tag', from: '9a03e1b', to: '51d0c7e' },
+        { path: 'revision', from: 'r57', to: 'r56' }
+      ] }
+    ];
+    const events = [
+      { id: 3, kind: 'alert', title: '2 out-of-memory restarts on fra-1-07', meta: 'Replica back on r57 each time', time: '1 min ago' },
+      { id: 2, kind: 'alert', tone: 'warning', title: 'Alert opened: worker memory above 90%', actor: 'Acknowledged by Priya Raman', time: '22 min ago' },
+      { id: 1, kind: 'deploy', title: 'Deployed worker', revision: 'r57', actor: 'Sam Okafor', meta: 'Push to main', time: '24 min ago' }
+    ];
+    const send = h('span', { style: { display: 'flex', alignItems: 'center', paddingRight: 6 } }, h(DW.Button, { size: 'sm', variant: 'secondary', icon: 'arrow-right', 'aria-label': 'Send' }));
+    return {
+      theme: this.props.theme ?? 'light',
+      mem, err, cpu: wave(40, 34, 6, 3), tabs, deploys, deployCols, plan, events, send
+    };
+  }
+}
+</script>
+</body>
+</html>

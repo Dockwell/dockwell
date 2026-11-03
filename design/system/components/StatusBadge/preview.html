@@ -1,0 +1,28 @@
+<!-- @dsCard group="Status" height=148 subtitle="Every status is a shape, a word and a colour" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>StatusBadge</title>
+<style>
+  .demo { padding: 24px; display: grid; grid-template-columns: 72px 1fr; gap: 18px 12px; align-items: center; }
+  .k { font-size: 12px; color: var(--ink-muted); }
+  .row { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement, S = H.StatusBadge;
+  var all = ['healthy', 'degraded', 'down', 'deploying', 'stopped'];
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'demo' },
+    h('span', { className: 'k' }, 'Dot'),
+    h('div', { className: 'row' }, all.map(function (s) { return h(S, { key: s, status: s }); })),
+    h('span', { className: 'k' }, 'Pill'),
+    h('div', { className: 'row', style: { gap: '8px' } }, all.map(function (s) { return h(S, { key: s, status: s, variant: 'pill' }); })),
+    h('span', { className: 'k' }, 'With meta'),
+    h('div', { className: 'row' },
+      h(S, { status: 'degraded', meta: 'for 6 min' }),
+      h(S, { status: 'deploying', label: 'Deploying r128', meta: '2 of 3 servers' }),
+      h(S, { status: 'down', variant: 'pill', label: 'Down', meta: 'since 14:02' }))));
+</script>
+</body>
+</html>

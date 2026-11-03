@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mobile header</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<header style="width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 4px; min-height: 56px; padding: 6px 8px 6px 4px; background: var(--canvas); border-bottom: 1px solid var(--line); font-family: var(--font-sans); color: var(--ink);">
+<sc-if value="{{hasBack}}" hint-placeholder-val="{{false}}">
+<a href="{{back}}" aria-label="Back" style="display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; color: var(--ink); text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="arrow-left" size="{{20}}"></x-import></a>
+</sc-if>
+<sc-if value="{{noBack}}" hint-placeholder-val="{{true}}">
+<span style="width: 12px; flex: none;"></span>
+</sc-if>
+<div style="display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto;">
+<span style="font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{title}}</span>
+<sc-if value="{{hasSub}}" hint-placeholder-val="{{true}}">
+<span style="font-size: 12px; line-height: 16px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{sub}}</span>
+</sc-if>
+</div>
+<a href="M-CommandBar.dc.html" aria-label="Search or run a command" style="display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; color: var(--ink); text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="search" size="{{20}}"></x-import></a>
+</header>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"title":{"editor":"text","default":"Overview"},"sub":{"editor":"text","default":""},"back":{"editor":"text","default":""},"$preview":{"width":390,"height":58}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const back = this.props.back ?? '';
+    const sub = this.props.sub ?? '';
+    return { title: this.props.title ?? 'Overview', sub, hasSub: !!sub, back, hasBack: !!back, noBack: !back };
+  }
+}
+</script>
+</body>
+</html>

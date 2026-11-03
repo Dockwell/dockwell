@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Command bar, phone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="width: 390px; height: 844px; overflow: hidden; position: relative; display: flex; flex-direction: column; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+
+<div role="search" style="flex: none; display: flex; align-items: center; gap: 4px; padding: 6px 4px 6px 16px; border-bottom: 1px solid var(--line);">
+<label class="dw-input" style="flex: 1 1 auto; min-width: 0; height: 46px; border-radius: 10px; border-color: var(--cobalt); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cobalt) 24%, transparent);">
+<span style="display: flex; align-self: center; margin-left: 12px; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="search" size="{{18}}"></x-import></span>
+<input class="dw-input-el" type="search" value="roll" aria-label="Search or run a command" enterkeyhint="go" style="padding-left: 8px; font-size: 16px;">
+<button type="button" aria-label="Clear search" style="flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--ink-muted);"><span style="display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface-sunken);"><x-import component-from-global-scope="Dockwell.Icon" name="x" size="{{12}}"></x-import></span></button>
+</label>
+<a href="M-Overview-Fleet.dc.html" style="flex: none; display: grid; place-items: center; height: 44px; padding: 0 12px; border-radius: 10px; color: var(--ink); font-size: 15px; font-weight: 550; text-decoration: none;">Cancel</a>
+</div>
+
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; font-size: 12.5px; line-height: 16px; color: var(--ink-muted);">
+<span>8 results</span>
+<span style="display: inline-flex; align-items: center; gap: 5px;">In <b style="font-weight: 550; color: var(--ink);">Acme / storefront / production</b><x-import component-from-global-scope="Dockwell.Icon" name="lock" size="{{12}}" label="Protected"></x-import></span>
+</div>
+
+<sc-for list="{{groups}}" as="g">
+<section aria-label="{{g.label}}" style="display: flex; flex-direction: column; gap: 8px;">
+<h2 style="margin: 0; padding: 0 4px; font-size: 12.5px; line-height: 16px; font-weight: 500; color: var(--ink-muted);">{{g.label}}</h2>
+<div class="dw-panel" role="listbox" aria-label="{{g.label}}" style="overflow: hidden;">
+<sc-for list="{{g.rows}}" as="r">
+<button type="button" role="option" aria-selected="false" style="display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 9px 16px; box-sizing: border-box; border: 0; border-top: {{r.border}}; background: none; text-align: left; font: inherit; color: var(--ink); cursor: pointer;">
+<span style="display: flex; flex: none; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="{{r.icon}}" size="{{18}}"></x-import></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto;">
+<span class="dw-cmd-label" style="flex: none; font-family: {{r.font}}; font-size: {{r.size}}; line-height: 20px;">{{r.a}}<mark>{{r.m}}</mark>{{r.b}}</span>
+<span class="dw-cmd-label" style="flex: none; font-size: 12.5px; line-height: 16px; color: var(--ink-muted);">{{r.sa}}<mark>{{r.sm}}</mark>{{r.sb}}<code style="font-size: 11.5px;">{{r.code}}</code></span>
+</span>
+<sc-if value="{{r.deploying}}" hint-placeholder-val="{{false}}"><x-import component-from-global-scope="Dockwell.StatusBadge" status="deploying"></x-import></sc-if>
+<sc-if value="{{r.go}}" hint-placeholder-val="{{false}}"><span style="display: flex; flex: none; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-right" size="{{16}}"></x-import></span></sc-if>
+</button>
+</sc-for>
+</div>
+</section>
+</sc-for>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const sans = 'var(--font-sans)', mono = 'var(--font-mono)';
+    const row = (i, o) => Object.assign({ border: i ? '1px solid var(--line)' : '0', font: sans, size: '15px', a: '', m: '', b: '', sa: '', sm: '', sb: '', code: '', deploying: false, go: false }, o);
+    const groups = [
+      { label: 'Actions', rows: [
+        row(0, { icon: 'undo', m: 'Roll', b: ' back worker to r56', sa: 'Opens a plan · ', code: '51d0c7e', go: true }),
+        row(1, { icon: 'undo', m: 'Roll', b: ' back storefront-web to r63', sa: 'Opens a plan · ', code: '7e2a913', go: true }),
+        row(2, { icon: 'refresh', m: 'Roll', b: 'ing restart worker', sa: 'Opens a plan · 4 replicas, one at a time', go: true }),
+        row(3, { icon: 'pause', a: 'Pause storefront-web ', m: 'roll', b: 'out', sa: 'r64 is deploying to 3 servers', go: true })
+      ] },
+      { label: 'Go to', rows: [
+        row(0, { icon: 'activity', m: 'Roll', b: 'back history', sa: 'Activity, roll backs only', go: true })
+      ] },
+      { label: 'Servers', rows: [
+        row(0, { icon: 'server', font: mono, size: '14px', a: 'fra-1-15', sm: 'Roll', sb: 'ing out storefront-web r64', deploying: true }),
+        row(1, { icon: 'server', font: mono, size: '14px', a: 'fra-1-16', sm: 'Roll', sb: 'ing out storefront-web r64', deploying: true }),
+        row(2, { icon: 'server', font: mono, size: '14px', a: 'ams-1-09', sm: 'Roll', sb: 'ing out storefront-web r64', deploying: true })
+      ] }
+    ];
+    return { theme: this.props.theme ?? 'light', groups };
+  }
+}
+</script>
+</body>
+</html>

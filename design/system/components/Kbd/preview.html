@@ -1,0 +1,22 @@
+<!-- @dsCard group="Actions" height=100 subtitle="Shortcut hints inside text, buttons and menus" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Kbd</title>
+<style>
+  .demo { padding: 24px; display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: center; font-size: 14px; color: var(--ink-muted); }
+  .demo span { display: inline-flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var H = window.Dockwell, h = React.createElement, K = H.Kbd;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'demo' },
+    h('span', null, h(K, null, '⌘'), h(K, null, 'K'), ' Command bar'),
+    h('span', null, h(K, null, '⌘'), h(K, null, '↵'), ' Apply plan'),
+    h('span', null, h(K, null, '⌘'), h(K, null, 'Z'), ' Undo last change'),
+    h('span', null, h(K, null, 'G'), ' then ', h(K, null, 'F'), ' Go to fleet'),
+    h('span', null, h(K, null, 'esc'), ' Close')));
+</script>
+</body>
+</html>

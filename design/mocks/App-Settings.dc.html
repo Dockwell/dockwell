@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>App api, settings</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="apps" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+<nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: var(--ink-muted);"><a href="Apps-List.dc.html" style="color: var(--ink-muted); text-decoration: none;">Apps</a><span aria-hidden="true">/</span><span aria-current="page">api</span></nav>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;">
+<h1 class="title" style="margin: 0;">api</h1>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+<x-import component-from-global-scope="Dockwell.Tag" icon="branch">main</x-import>
+<code class="code-sm" style="color: var(--ink-muted);">r128</code>
+</div>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">Go · 3 replicas in fra-1 and ams-1 · deployed 4 min ago by Mira Chen</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.Button" icon="refresh">Restart</x-import>
+<a href="App-Logs.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="terminal" size="{{16}}"></x-import><span>Logs</span></a>
+<x-import component-from-global-scope="Dockwell.Button" variant="primary" icon="deploy">Deploy</x-import>
+</div>
+</div>
+<div class="dw-tabs" role="tablist" aria-label="App sections">
+<a href="App-Overview.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Overview</span></a>
+<a href="App-Deployments.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Deployments</span><span class="dw-tab-count">128</span></a>
+<a href="App-Logs.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Logs</span></a>
+<a href="App-Environment.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Environment</span></a>
+<a href="App-Settings.dc.html" class="dw-tab" role="tab" aria-selected="true" style="text-decoration: none;"><span>Settings</span></a>
+<a href="App-Previews.dc.html" class="dw-tab" role="tab" aria-selected="false" style="text-decoration: none;"><span>Previews</span><span class="dw-tab-count">3</span></a>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start;">
+
+<nav aria-label="Settings sections" style="flex: 0 0 200px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 24px;">
+<a href="#general" class="dw-rail-item" style="text-decoration: none;">General</a>
+<a href="#source" class="dw-rail-item" style="text-decoration: none;">Source and build</a>
+<a href="#health" class="dw-rail-item" style="text-decoration: none;">Health checks</a>
+<a href="#scaling" class="dw-rail-item is-active" aria-current="true" style="text-decoration: none;">Scaling and placement</a>
+<a href="#networking" class="dw-rail-item" style="text-decoration: none;">Networking</a>
+<a href="#previews" class="dw-rail-item" style="text-decoration: none;">Previews</a>
+<a href="#danger" class="dw-rail-item" style="text-decoration: none;">Danger zone</a>
+</nav>
+
+<div style="flex: 1 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+
+<section id="scaling" class="dw-panel" aria-labelledby="scaling-t">
+<div class="dw-panel-head"><h2 id="scaling-t" class="dw-panel-title">Scaling and placement</h2><span style="font-size: 12.5px; color: var(--ink-muted);">Changes open a plan, then restart one replica at a time</span></div>
+<div class="dw-panel-body" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 24px 32px;">
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span id="rep-l" class="label">Replicas</span>
+<div style="display: flex; align-items: center; gap: 12px;">
+<div style="display: inline-flex; align-items: center; height: 32px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); overflow: hidden;">
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" icon="minus" aria-label="Remove a replica"></x-import>
+<div role="spinbutton" tabindex="0" aria-labelledby="rep-l" aria-valuenow="3" aria-valuemin="1" aria-valuemax="12" style="display: grid; place-items: center; width: 48px; height: 100%; border-left: 1px solid var(--line); border-right: 1px solid var(--line); font-size: 14px; font-weight: 550;">3</div>
+<x-import component-from-global-scope="Dockwell.Button" variant="ghost" icon="plus" aria-label="Add a replica"></x-import>
+</div>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="3 running"></x-import>
+</div>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Dockwell replaces any replica that fails its health check.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span class="label">Resources per replica</span>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+<x-import component-from-global-scope="Dockwell.TextField" default-value="1" suffix="vCPU" aria-label="CPU limit"></x-import>
+<x-import component-from-global-scope="Dockwell.TextField" default-value="512" suffix="MB" aria-label="Memory limit"></x-import>
+</div>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">CPU limit and memory limit. Replicas use about 31% CPU and 214 MB now.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span class="label">Placement</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<x-import component-from-global-scope="Dockwell.SegmentedControl" label="Placement" options="{{placement}}" default-value="auto"></x-import>
+<x-import component-from-global-scope="Dockwell.SegmentedControl" label="Strategy" options="{{strategy}}" default-value="spread"></x-import>
+</div>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Dockwell picks matching servers and spreads replicas across servers and regions.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span class="label">Server selector</span>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 32px;">
+<x-import component-from-global-scope="Dockwell.Tag" label="region" value="eu" on-remove="{{noop}}"></x-import>
+<x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="plus">Add label</x-import>
+</div>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);">Matches 40 servers in fra-1 and ams-1.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span id="build-l" class="label">Build on</span>
+<button type="button" class="dw-btn dw-btn-secondary dw-btn-md" aria-labelledby="build-l build-v" style="justify-content: flex-start; width: 100%; font-weight: 500;"><span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="layers" size="{{16}}"></x-import></span><span id="build-v">builders</span><span style="flex: 1 1 auto;"></span><span style="font-weight: 400; color: var(--ink-muted);">Pool of 4 servers</span><span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span></button>
+<span style="font-size: 12.5px; line-height: 18px; color: var(--ink-muted);"><code class="code-sm">sfo-2-01</code> to <code class="code-sm">sfo-2-04</code>, so builds never compete with traffic.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px; padding-top: 24px;">
+<x-import component-from-global-scope="Dockwell.Switch" default-checked="{{yes}}" label="One replica per server" description="Losing a server takes down at most one replica of api."></x-import>
+</div>
+
+</div>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 24px;">
+<section id="source" class="dw-panel" aria-labelledby="source-t">
+<div class="dw-panel-head"><h2 id="source-t" class="dw-panel-title">Source and build</h2><x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="edit">Edit</x-import></div>
+<div class="dw-panel-body">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 16px; font-size: 13px; line-height: 20px;">
+<dt style="color: var(--ink-muted);">Repository</dt><dd style="margin: 0;">GitHub <code class="code-sm">acme/api</code> on <code class="code-sm">main</code></dd>
+<dt style="color: var(--ink-muted);">Deploy on push</dt><dd style="margin: 0;">On, opens a plan for production</dd>
+<dt style="color: var(--ink-muted);">Build</dt><dd style="margin: 0;">Dockerfile at <code class="code-sm">./Dockerfile</code></dd>
+<dt style="color: var(--ink-muted);">Image</dt><dd style="margin: 0; min-width: 0; overflow-wrap: anywhere;"><code class="code-sm">ghcr.io/acme/api</code></dd>
+</dl>
+</div>
+</section>
+<section id="health" class="dw-panel" aria-labelledby="health-t">
+<div class="dw-panel-head"><h2 id="health-t" class="dw-panel-title">Health checks</h2><x-import component-from-global-scope="Dockwell.Button" size="sm" variant="ghost" icon="edit">Edit</x-import></div>
+<div class="dw-panel-body">
+<dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 16px; font-size: 13px; line-height: 20px;">
+<dt style="color: var(--ink-muted);">Request</dt><dd style="margin: 0;"><code class="code-sm">GET /healthz</code> on port <code class="code-sm">8080</code></dd>
+<dt style="color: var(--ink-muted);">Interval</dt><dd style="margin: 0;">Every 10 s, timeout 2 s</dd>
+<dt style="color: var(--ink-muted);">Unhealthy after</dt><dd style="margin: 0;">3 failed checks in a row</dd>
+<dt style="color: var(--ink-muted);">Now</dt><dd style="margin: 0; display: flex;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="3 of 3 passing"></x-import></dd>
+</dl>
+</div>
+</section>
+</div>
+
+<section id="danger" class="dw-panel" aria-labelledby="danger-t">
+<div class="dw-panel-head"><h2 id="danger-t" class="dw-panel-title">Danger zone</h2></div>
+<div class="dw-panel-body" style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px;">
+<div style="flex: 1 1 360px; display: flex; flex-direction: column; gap: 2px;">
+<span style="font-size: 14px; font-weight: 550;">Delete api</span>
+<span style="font-size: 13px; line-height: 18px; color: var(--ink-muted);">Stops 3 replicas, removes the route for <code class="code-sm">api.acme.dev</code> and deletes all 128 revisions. postgres and valkey are kept.</span>
+</div>
+<x-import component-from-global-scope="Dockwell.Button" variant="danger" icon="trash">Delete api</x-import>
+</div>
+</section>
+
+</div>
+</div>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      theme: this.props.theme ?? 'light',
+      placement: [{ value: 'auto', label: 'Auto' }, { value: 'pinned', label: 'Pinned' }],
+      strategy: [{ value: 'spread', label: 'Spread' }, { value: 'pack', label: 'Pack' }],
+      yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

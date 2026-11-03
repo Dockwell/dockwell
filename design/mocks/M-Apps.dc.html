@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Phone apps</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="width: 390px; height: 844px; overflow: hidden; position: relative; display: flex; flex-direction: column; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="MobileHeader" title="Apps" sub="Acme / storefront" back="" hint-size="390px,56px"></dc-import>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+
+<div style="display: flex; --control-md: 50px;">
+<x-import component-from-global-scope="Dockwell.SegmentedControl" label="Environment" options="{{envs}}" value="production" on-change="{{noop}}"></x-import>
+</div>
+
+<div style="--control-md: 44px;">
+<x-import component-from-global-scope="Dockwell.TextField" type="search" icon="search" placeholder="Filter by name or revision" aria-label="Filter apps"></x-import>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+<div style="display: flex; align-items: baseline; gap: 8px; padding: 0 2px;">
+<h2 class="heading" style="margin: 0;">8 apps</h2>
+<span style="font-size: 13px; color: var(--ink-muted);">1 degraded · 1 deploying</span>
+<span style="flex: 1 1 auto;"></span>
+<span style="font-size: 12px; line-height: 16px; font-weight: 500; color: var(--ink-muted); padding-right: 39px;">Replicas</span>
+</div>
+<div class="dw-panel" style="display: flex; flex-direction: column; overflow: hidden;">
+<sc-for list="{{apps}}" as="a">
+<a href="M-App.dc.html" style="display: grid; grid-template-columns: 10px minmax(0, 1fr) auto 16px; align-items: center; column-gap: 12px; min-height: 56px; padding: 8px 12px 8px 16px; box-sizing: border-box; border-top: {{a.sep}}; text-decoration: none; color: var(--ink);">
+<span style="align-self: start; display: flex; padding-top: 6px;"><x-import component-from-global-scope="Dockwell.StatusBadge" status="{{a.status}}" label=""></x-import></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 15px; line-height: 20px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{a.name}}</span>
+<span style="display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 12.5px; line-height: 16px; color: var(--ink-muted); white-space: nowrap; overflow: hidden;"><span style="color: {{a.tone}};">{{a.word}}</span><span aria-hidden="true">·</span><code style="font-family: var(--font-mono); font-size: 12px; color: var(--ink);">{{a.rev}}</code><sc-if value="{{a.note}}"><span aria-hidden="true">·</span><span style="overflow: hidden; text-overflow: ellipsis;">{{a.note}}</span></sc-if></span>
+</span>
+<span style="font-size: 13px; line-height: 18px; font-weight: 500; color: var(--ink);">{{a.replicas}}</span>
+<span style="display: flex; color: var(--ink-muted);"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-right" size="{{16}}"></x-import></span>
+</a>
+</sc-for>
+</div>
+<p style="margin: 4px 0 0; font-size: 12.5px; line-height: 16px; color: var(--ink-muted); text-align: center;">6 more apps live in internal-tools and data</p>
+</section>
+
+</div>
+<dc-import name="MobileTabBar" active="apps" mode="fleet" hint-size="390px,78px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement;
+    const word = { healthy: 'Healthy', deploying: 'Deploying', degraded: 'Degraded', down: 'Down', stopped: 'Stopped' };
+    const tone = { healthy: 'var(--ink-muted)', deploying: 'var(--cobalt)', degraded: 'var(--warning)', down: 'var(--critical)', stopped: 'var(--ink-muted)' };
+    const apps = [
+      { id: 'worker', name: 'worker', status: 'degraded', rev: 'r57', note: 'memory climbing', replicas: '4' },
+      { id: 'web', name: 'storefront-web', status: 'deploying', rev: 'r64', note: 'rolling out', replicas: '3' },
+      { id: 'api', name: 'api', status: 'healthy', rev: 'r128', note: '', replicas: '3' },
+      { id: 'checkout', name: 'checkout', status: 'healthy', rev: 'r212', note: '', replicas: '3' },
+      { id: 'search', name: 'search', status: 'healthy', rev: 'r9', note: 'Meilisearch 1.11', replicas: '1' },
+      { id: 'images', name: 'images', status: 'healthy', rev: 'r14', note: 'imgproxy 3.27', replicas: '2' },
+      { id: 'plausible', name: 'plausible', status: 'healthy', rev: 'r6', note: 'Plausible 2.1.4', replicas: '1' },
+      { id: 'kuma', name: 'uptime-kuma', status: 'healthy', rev: 'r3', note: 'Uptime Kuma 1.23', replicas: '1' }
+    ].map((a, i) => Object.assign(a, { word: word[a.status], tone: tone[a.status], sep: i ? '1px solid var(--line)' : '0' }));
+    const seg = (label) => h('span', { style: { display: 'block', width: 92, textAlign: 'center' } }, label);
+    return {
+      theme: this.props.theme ?? 'light',
+      envs: [
+        { value: 'production', label: seg('Production') },
+        { value: 'staging', label: seg('Staging') },
+        { value: 'previews', label: seg('Previews') }
+      ],
+      apps,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

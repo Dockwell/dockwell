@@ -1,0 +1,29 @@
+<!-- @dsCard group="Brand" height=232 subtitle="The D is the dock; the cobalt below its waterline is the well" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Logo</title>
+<style>
+  .demo { padding: 28px 28px 24px; display: flex; flex-direction: column; gap: 22px; color: var(--ink); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 20px 36px; }
+  .cap { font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+  .dark { background: #0f1110; color: #e8ece8; border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; gap: 20px; --cobalt: #809dff; }
+  .cell { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.Dockwell, h = React.createElement, L = D.Logo;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'demo' },
+    h('div', { className: 'row' },
+      h(L, { variant: 'logotype', height: 44 }),
+      h(L, { variant: 'mark', height: 44 }),
+      h(L, { variant: 'icon', height: 56 }),
+      h('div', { className: 'dark' }, h(L, { variant: 'logotype', height: 22 }), h(L, { variant: 'mark', height: 22 }))),
+    h('div', { className: 'row' },
+      h('div', { className: 'cell' }, h(L, { variant: 'logotype', height: 14 }), h('span', { className: 'cap' }, 'Logotype · 14 in the rail')),
+      h('div', { className: 'cell' }, h(L, { variant: 'logotype', height: 20, mono: true }), h('span', { className: 'cap' }, 'One colour')),
+      h('div', { className: 'cell' }, h('div', { className: 'row', style: { gap: 12 } }, h(L, { variant: 'icon', height: 32 }), h(L, { variant: 'icon', height: 16 })), h('span', { className: 'cap' }, 'Icon · 32 and 16')))));
+</script>
+</body>
+</html>
