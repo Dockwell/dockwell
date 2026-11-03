@@ -44,6 +44,7 @@ Operating your own machines, any number of them, is free and open source. Paid e
 | --- | --- |
 | [`docs/product/prd.md`](docs/product/prd.md) | Product requirements: users, principles, architecture, every requirement by phase, the signature flows and the targets |
 | [`docs/adr/`](docs/adr/) | Architecture decision records |
+| [`docs/releasing.md`](docs/releasing.md) | How releases are built, signed and verified |
 | [`design/`](design/README.md) | The design system (tokens, components, logo, fonts) and every screen mock, desktop and phone |
 
 ## Contributing

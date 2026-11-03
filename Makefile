@@ -109,6 +109,19 @@ smoke: build ## Start the built binary and check it serves the API and the panel
 .PHONY: check
 check: lint test check-generated check-breaking smoke ## Run everything CI runs
 
+# The version the release workflow uses; `go run` builds it on first use.
+GORELEASER ?= go run github.com/goreleaser/goreleaser/v2@v2.18.2
+
+.PHONY: release-check
+release-check: ## Validate the release configuration
+	$(GORELEASER) check
+
+.PHONY: release-snapshot
+release-snapshot: deps ## Build unsigned release archives into dist/ (SBOMs too, when syft is installed)
+	$(GORELEASER) release --snapshot --clean --skip=sign$(if $(shell command -v syft),,$(comma)sbom)
+
+comma := ,
+
 .PHONY: clean
 clean: ## Remove build output
-	rm -rf bin internal/panel/dist/app
+	rm -rf bin dist internal/panel/dist/app

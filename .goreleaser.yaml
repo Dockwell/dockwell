@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Release builds. A pushed tag (vX.Y.Z) runs this through
+# .github/workflows/release.yml; every push to main makes a snapshot.
+# See docs/releasing.md for how to cut a release and verify one.
+version: 2
+project_name: dockwell
+
+before:
+  hooks:
+    # The panel is embedded in the binary, so it is built first.
+    - make web
+
+builds:
+  - id: dockwell
+    main: ./cmd/dockwell
+    binary: dockwell
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -buildid=
+      - -X github.com/dockwell/dockwell/internal/buildinfo.version=v{{ .Version }}
+    # Reproducible: the same commit gives the same bytes.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: dockwell
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+sboms:
+  - id: archives
+    artifacts: archive
+    documents:
+      - "{{ .ArtifactName }}.spdx.json"
+
+signs:
+  # Keyless: cosign signs with the workflow's OIDC identity, recorded in
+  # Sigstore's transparency log. Signing the checksums covers every archive.
+  - id: checksums
+    cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args: ["sign-blob", "--bundle=${signature}", "--yes", "${artifact}"]
+    output: true
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next+{{ .ShortCommit }}"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^Merge "
+
+release:
+  github:
+    owner: Dockwell
+    name: dockwell
+  prerelease: auto
+  footer: |
+    ## Verify this release
+
+    ```sh
+    gh attestation verify dockwell_{{ .Version }}_linux_amd64.tar.gz -R Dockwell/dockwell
+    ```
+
+    Or check the signed checksums with cosign, as [docs/releasing.md](https://github.com/Dockwell/dockwell/blob/main/docs/releasing.md#verify-a-release) describes.
