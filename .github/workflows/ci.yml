@@ -134,13 +134,16 @@ jobs:
   hygiene:
     name: Licenses and links
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache-dependency-path: tools/go.sum
       - name: License headers
         run: scripts/check-spdx.sh
       - name: Links in docs
         run: go run ./scripts/checklinks
+      - name: Release configuration is valid
+        run: go tool -modfile=tools/go.mod goreleaser check

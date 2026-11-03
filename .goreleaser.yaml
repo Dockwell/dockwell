@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Release builds, run by .github/workflows/release.yml. GoReleaser only
+# builds: signing, attestation and publishing happen in a separate job that
+# runs none of this build code. See docs/releasing.md.
+version: 2
+project_name: dockwell
+
+before:
+  hooks:
+    # The panel is embedded in the binary, so it is built first.
+    - make web
+
+builds:
+  - id: dockwell
+    main: ./cmd/dockwell
+    binary: dockwell
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -buildid=
+      - -X github.com/dockwell/dockwell/internal/buildinfo.version=v{{ .Version }}
+    # Reproducible: the same commit gives the same bytes.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: dockwell
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # Fixed metadata, so the archive doesn't depend on the checkout's
+    # timestamps, the builder's user or the umask.
+    builds_info:
+      owner: root
+      group: root
+      mode: 0755
+      mtime: "{{ .CommitDate }}"
+    files:
+      - src: LICENSE
+        info: &fixed
+          owner: root
+          group: root
+          mode: 0644
+          mtime: "{{ .CommitDate }}"
+      - src: README.md
+        info: *fixed
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+  # Archives only. SBOMs embed a creation time and a random namespace, so
+  # they would make the signed checksums differ from build to build; the
+  # provenance attestation covers them instead.
+  ids: [dockwell]
+
+sboms:
+  - id: archives
+    artifacts: archive
+    documents:
+      - "{{ .ArtifactName }}.spdx.json"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next+{{ .ShortCommit }}"
+
+changelog:
+  disable: true
+
+release:
+  disable: true

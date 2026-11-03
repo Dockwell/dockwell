@@ -109,6 +109,14 @@ smoke: build ## Start the built binary and check it serves the API and the panel
 .PHONY: check
 check: lint test check-generated check-breaking smoke ## Run everything CI runs
 
+.PHONY: release-check
+release-check: ## Validate the release configuration
+	$(GOTOOL) goreleaser check
+
+.PHONY: release-snapshot
+release-snapshot: deps ## Build release archives into dist/, as CI does for main (SBOMs need syft)
+	$(GOTOOL) goreleaser release --snapshot --clean $(if $(shell command -v syft),,--skip=sbom)
+
 .PHONY: clean
 clean: ## Remove build output
-	rm -rf bin internal/panel/dist/app
+	rm -rf bin dist internal/panel/dist/app
