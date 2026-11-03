@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# Release builds. A pushed tag (vX.Y.Z) runs this through
-# .github/workflows/release.yml; every push to main makes a snapshot.
-# See docs/releasing.md for how to cut a release and verify one.
+# Release builds, run by .github/workflows/release.yml. GoReleaser only
+# builds: signing, attestation and publishing happen in a separate job that
+# runs none of this build code. See docs/releasing.md.
 version: 2
 project_name: dockwell
 
@@ -30,13 +30,25 @@ archives:
   - id: dockwell
     formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # Fixed metadata, so the archive doesn't depend on the checkout's
+    # timestamps, owner or umask.
     files:
-      - LICENSE
-      - README.md
+      - src: LICENSE
+        info: &fixed
+          owner: root
+          group: root
+          mode: 0644
+          mtime: "{{ .CommitDate }}"
+      - src: README.md
+        info: *fixed
 
 checksum:
   name_template: checksums.txt
   algorithm: sha256
+  # Archives only. SBOMs embed a creation time and a random namespace, so
+  # they would make the signed checksums differ from build to build; the
+  # provenance attestation covers them instead.
+  ids: [dockwell]
 
 sboms:
   - id: archives
@@ -44,36 +56,11 @@ sboms:
     documents:
       - "{{ .ArtifactName }}.spdx.json"
 
-signs:
-  # Keyless: cosign signs with the workflow's OIDC identity, recorded in
-  # Sigstore's transparency log. Signing the checksums covers every archive.
-  - id: checksums
-    cmd: cosign
-    artifacts: checksum
-    signature: "${artifact}.sigstore.json"
-    args: ["sign-blob", "--bundle=${signature}", "--yes", "${artifact}"]
-    output: true
-
 snapshot:
   version_template: "{{ incpatch .Version }}-next+{{ .ShortCommit }}"
 
 changelog:
-  use: github
-  sort: asc
-  filters:
-    exclude:
-      - "^Merge "
+  disable: true
 
 release:
-  github:
-    owner: Dockwell
-    name: dockwell
-  prerelease: auto
-  footer: |
-    ## Verify this release
-
-    ```sh
-    gh attestation verify dockwell_{{ .Version }}_linux_amd64.tar.gz -R Dockwell/dockwell
-    ```
-
-    Or check the signed checksums with cosign, as [docs/releasing.md](https://github.com/Dockwell/dockwell/blob/main/docs/releasing.md#verify-a-release) describes.
+  disable: true

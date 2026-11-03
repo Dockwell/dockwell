@@ -1,6 +1,11 @@
 # Releasing Dockwell
 
-Releases are cut from `main` by pushing a tag. [`.github/workflows/release.yml`](../.github/workflows/release.yml) builds, signs and publishes them with GoReleaser ([`.goreleaser.yaml`](../.goreleaser.yaml)). Nobody builds release artifacts on a laptop.
+Releases are cut from `main` by pushing a tag, and [`.github/workflows/release.yml`](../.github/workflows/release.yml) does the rest in two jobs:
+
+- **Build** has read-only permissions and uses no caches. It refuses the tag unless it points at a commit on `main` whose required CI checks all passed. It then builds with GoReleaser ([`.goreleaser.yaml`](../.goreleaser.yaml)), smoke-tests the binary, and hands the artifacts on.
+- **Publish** runs none of the build code. It signs, attests and publishes what Build produced.
+
+Nobody builds release artifacts on a laptop, and no npm package or build script ever holds the signing or publishing credentials.
 
 ## What a release contains
 
@@ -11,11 +16,11 @@ For each platform (linux amd64 and arm64):
 
 And once per release:
 
-- `checksums.txt`: SHA-256 of every archive and SBOM.
+- `checksums.txt`: SHA-256 of every archive.
 - `checksums.txt.sigstore.json`: a keyless cosign signature of `checksums.txt`, made with the release workflow's GitHub identity and recorded in Sigstore's public transparency log.
-- A GitHub build-provenance attestation for every archive, which says the workflow and commit that built it.
+- A GitHub build-provenance attestation for every archive, SBOM and the checksums, which says the workflow and commit that built them.
 
-Builds are reproducible. The same commit gives byte-identical binaries and archives, because paths are trimmed, file times come from the commit and the build ID is empty.
+Builds are reproducible. The same commit gives byte-identical binaries, archives and `checksums.txt`, because paths are trimmed, file times and owners are fixed, and the build ID is empty. SBOMs embed their creation time, so they differ between builds; the provenance attestation covers them instead of the checksums.
 
 Every push to `main` also runs the same build as a snapshot, without signing or publishing. The workflow run keeps the snapshot for 14 days as an artifact named `dockwell-snapshot`.
 
@@ -23,8 +28,8 @@ Every push to `main` also runs the same build as a snapshot, without signing or 
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor bump may break compatibility, and the changelog says so.
 
-1. Make sure `main` is green, and that the milestone for the release is closed or moved on.
-2. Tag the commit and push the tag:
+1. Make sure the milestone for the release is closed or moved on. The workflow checks that the commit you tag is on `main` and green. It waits up to 20 minutes for CI that is still running.
+2. Tag the commit and push the tag. Only admins can create `v*` tags, and a tag can't be moved or deleted once pushed:
 
    ```sh
    git tag -s v0.1.0 -m "Dockwell v0.1.0"
@@ -32,9 +37,9 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor b
    ```
 
    A tag with a suffix, such as `v0.2.0-rc.1`, is published as a pre-release.
-3. Watch the Release workflow. When it finishes, the GitHub release has the archives, the SBOMs, the checksums with their signature, and the changelog drawn from merged pull requests.
+3. Watch the Release workflow. When it finishes, the GitHub release has the archives, the SBOMs, the checksums with their signature, and notes that GitHub generates from the pull requests merged since the last release. Edit the notes afterwards to call out anything that breaks compatibility.
 
-To check the build locally first, run `make release-snapshot`. It writes unsigned archives to `dist/`, with SBOMs too if [syft](https://github.com/anchore/syft) is installed.
+To check the build locally first, run `make release-snapshot`. It writes the same archives to `dist/` that CI builds for `main`, with SBOMs too if [syft](https://github.com/anchore/syft) is installed. GoReleaser is pinned in `tools/go.mod`, so the local and CI builds use the same version.
 
 ## Verify a release
 

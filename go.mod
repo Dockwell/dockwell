@@ -2,6 +2,9 @@ module github.com/dockwell/dockwell
 
 go 1.27.0
 
+// Builds, CI and releases use this toolchain; bump it for Go security fixes.
+toolchain go1.27.3
+
 // The panel and the TypeScript packages live alongside the Go code; keep their
 // node_modules (and any stray .go files inside them) out of ./... patterns.
 ignore (
