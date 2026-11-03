@@ -84,12 +84,17 @@ check-generated: generate web ## Fail if generated code is out of date
 		exit 1; \
 	fi
 
+# The schema is compared with main upstream, not a local branch that may be stale.
+BREAKING_BASE ?= origin/main
+
 .PHONY: check-breaking
-check-breaking: ## Fail if the API schema breaks compatibility with main
-	@if git cat-file -e main:proto 2>/dev/null; then \
-		$(GOTOOL) buf breaking --against '.git#branch=main'; \
+check-breaking: ## Fail if the API schema breaks compatibility with origin/main
+	@base=$$(git rev-parse --verify --quiet "$(BREAKING_BASE)^{commit}" || true); \
+	if [ -n "$$base" ] && git cat-file -e "$$base:proto" 2>/dev/null; then \
+		$(GOTOOL) buf breaking --against ".git#ref=$$base"; \
+		echo "The schema is compatible with $(BREAKING_BASE)."; \
 	else \
-		echo "main has no schema yet, so there is nothing to break."; \
+		echo "$(BREAKING_BASE) has no schema yet, so there is nothing to break."; \
 	fi
 
 .PHONY: smoke
