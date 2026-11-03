@@ -11,9 +11,10 @@ An open-source control plane for servers, from one VPS to a fleet. One Go binary
 
 ## Commands
 
-- `make check` runs what CI runs: Go lint and tests, schema lint and format, the generated-code check, the TypeScript typecheck and license headers. Run it before every push.
-- `make generate` after any change in `proto/`. Commit `gen/` and `packages/api/src/gen/`.
-- `make run` builds and serves on 127.0.0.1:7600.
+- `make check` runs what CI runs: lint for Go, the schema, TypeScript and CSS, translations, license headers and doc links; Go and TypeScript tests; the generated-code and breaking-change checks; and a smoke test of the built binary. Run it before every push.
+- `make generate` after any change in `proto/` or `design/system/tokens.json`. Commit what it writes.
+- `make run` builds everything and serves on 127.0.0.1:7600; `make dev` adds the panel with hot reload on :5173.
+- Panel text: English in `<Trans>`/`` t`…` ``, then `make i18n` and translate `web/src/locales/zh-CN/messages.po`. Components come from `@dockwell/ui`; port a design-system component there (from `design/system/components/`) before using it in a screen.
 - Tools: `go tool -modfile=tools/go.mod <buf|golangci-lint|…>`. pnpm comes from corepack (`packageManager` in package.json). New npm versions are held back 14 days (`minimumReleaseAge`); pin Go modules and actions to releases at least that old too, with actions pinned by commit hash.
 
 ## Rules

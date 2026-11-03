@@ -4,3 +4,6 @@ packages:
 
 # Supply-chain hygiene: only resolve versions published at least 14 days ago.
 minimumReleaseAge: 20160
+
+# Pin exact versions; the lockfile and Dependabot handle updates.
+saveExact: true

@@ -1,0 +1,33 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.dw-status-dot {
+  color: var(--ink);
+}
+.dw-status-dot .dw-glyph {
+  color: var(--tone);
+}
+.dw-status-meta {
+  color: var(--ink-muted);
+}
+.dw-status-pill {
+  height: 22px;
+  padding: 0 9px 0 8px;
+  border-radius: var(--radius-full);
+  background: var(--tone-soft);
+  color: var(--tone);
+  font-size: 12px;
+  font-weight: 550;
+}
+.dw-status-pill .dw-status-meta {
+  font-weight: 400;
+}
+.dw-status-pill.dw-tone-idle {
+  color: var(--ink-muted);
+}

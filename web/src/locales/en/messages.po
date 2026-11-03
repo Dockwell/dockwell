@@ -1,0 +1,120 @@
+msgid ""
+msgstr ""
+"POT-Creation-Date: 2026-11-03 23:10+0000\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: @lingui/cli\n"
+"Language: en\n"
+
+#: src/features/system/StatusPage.tsx
+msgid "(modified)"
+msgstr "(modified)"
+
+#: src/features/system/StatusPage.tsx
+msgid "Can't reach the control plane"
+msgstr "Can't reach the control plane"
+
+#: src/features/system/StatusPage.tsx
+msgid "Check it from a terminal"
+msgstr "Check it from a terminal"
+
+#: src/features/system/StatusPage.tsx
+msgid "Command copied"
+msgstr "Command copied"
+
+#: src/features/system/StatusPage.tsx
+msgid "Commit"
+msgstr "Commit"
+
+#: src/features/system/StatusPage.tsx
+msgid "Committed"
+msgstr "Committed"
+
+#: src/features/system/StatusPage.tsx
+msgid "Connected"
+msgstr "Connected"
+
+#: src/features/system/StatusPage.tsx
+msgid "Connecting"
+msgstr "Connecting"
+
+#: src/features/system/StatusPage.tsx
+msgid "Connecting to the control plane"
+msgstr "Connecting to the control plane"
+
+#: src/features/system/StatusPage.tsx
+msgid "Copy command"
+msgstr "Copy command"
+
+#: src/app/Providers.tsx
+msgid "Degraded"
+msgstr "Degraded"
+
+#: src/app/Providers.tsx
+msgid "Deploying"
+msgstr "Deploying"
+
+#: src/features/system/StatusPage.tsx
+msgid "Dockwell answers on {host}. This early build has no servers or apps to show yet; the API is ready for tools and scripts."
+msgstr "Dockwell answers on {host}. This early build has no servers or apps to show yet; the API is ready for tools and scripts."
+
+#: src/app/Providers.tsx
+msgid "Down"
+msgstr "Down"
+
+#: src/features/system/StatusPage.tsx
+msgid "Go"
+msgstr "Go"
+
+#: src/app/Providers.tsx
+msgid "Healthy"
+msgstr "Healthy"
+
+#: src/features/system/NotFound.tsx
+msgid "No page here"
+msgstr "No page here"
+
+#: src/features/system/StatusPage.tsx
+msgid "Platform"
+msgstr "Platform"
+
+#: src/app/Providers.tsx
+msgid "Remove {what}"
+msgstr "Remove {what}"
+
+#: src/features/system/StatusPage.tsx
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/system/StatusPage.tsx
+msgid "Retrying"
+msgstr "Retrying"
+
+#: src/app/Providers.tsx
+msgid "Stopped"
+msgstr "Stopped"
+
+#: src/features/system/StatusPage.tsx
+msgid "The control plane is running"
+msgstr "The control plane is running"
+
+#: src/features/system/StatusPage.tsx
+msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
+msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
+
+#: src/features/system/NotFound.tsx
+msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
+msgstr "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
+
+#: src/features/system/StatusPage.tsx
+msgid "This control plane"
+msgstr "This control plane"
+
+#: src/features/system/StatusPage.tsx
+msgid "Unreachable"
+msgstr "Unreachable"
+
+#: src/features/system/StatusPage.tsx
+msgid "Version"
+msgstr "Version"

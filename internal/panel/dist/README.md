@@ -1,0 +1,1 @@
+`make web` builds the panel into `app/` here, and the Go binary embeds it (see `internal/panel`). The build output is not committed. Without it, the binary still works and the panel's URL explains how to build it.

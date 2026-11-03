@@ -1,0 +1,82 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { cx } from "../../lib/cx";
+import "./Logo.css";
+
+// The D is the dock; the cobalt below its waterline is the well. Geometry in
+// font units, cap height 700. Ported from design/system/components/bundle.js.
+const D = "M53.6 -700H300.1A350 350 0 0 1 300.1 0H53.6ZM178.6 -575V-125H300.1A225 225 0 0 0 300.1 -575Z";
+const WATER = "M178.6 -311.5H521.8A225 225 0 0 1 300.1 -125H178.6Z";
+const OCK =
+  "M937.8 12Q863.4 12 803.7 -20.8Q743.9 -53.6 709.1 -112.5Q674.2 -171.4 674.2 -248Q674.2 -325.6 709.2 -384Q744.1 -442.4 804.4 -475.2Q864.6 -508 938.2 -508Q1012.8 -508 1072.4 -475.2Q1132.1 -442.4 1166.9 -384Q1201.8 -325.6 1201.8 -248Q1201.8 -171.4 1166.8 -112.5Q1131.9 -53.6 1072.1 -20.8Q1012.4 12 937.8 12ZM937.7 -95.9Q975 -95.9 1005.8 -112.9Q1036.6 -129.9 1054.9 -163.7Q1073.2 -197.5 1073.2 -247.6Q1073.2 -298.5 1054.6 -332.3Q1036 -366.1 1005.6 -383.1Q975.2 -400.1 938.6 -400.1Q902 -400.1 871 -383Q840.1 -365.8 821.4 -332.4Q802.8 -298.9 802.8 -247.9Q802.8 -197.7 821.1 -163.8Q839.4 -129.9 870.3 -112.9Q901.1 -95.9 937.7 -95.9Z M1487 12Q1411.7 12 1353.5 -21.3Q1295.2 -54.6 1261.9 -113.1Q1228.6 -171.6 1228.6 -248Q1228.6 -324.6 1261.9 -383Q1295.2 -441.4 1353.5 -474.7Q1411.7 -508 1487 -508Q1581.1 -508 1645.5 -458.7Q1709.9 -409.4 1728.2 -323.6H1596.9Q1587.5 -359.4 1557.4 -380.1Q1527.3 -400.9 1486.2 -400.9Q1450.9 -400.9 1421.1 -382.7Q1391.3 -364.5 1373.9 -330.7Q1356.4 -296.9 1356.4 -248Q1356.4 -200.1 1373.9 -165.4Q1391.3 -130.7 1421.1 -112.5Q1450.9 -94.4 1486.2 -94.4Q1527.3 -94.4 1557.4 -114.7Q1587.5 -135 1596.9 -172.4H1728.2Q1710.9 -89.4 1646 -38.7Q1581.1 12 1487 12Z M1893.1 -144.4 1837.6 -223.1 2085.9 -496H2233ZM1776.2 0V-720H1901.2V0ZM2112.8 0 1920.4 -249.4 1996.3 -325.1 2266.6 0Z M2382.6 0 2236.9 -496H2360.5L2463 -76.4L2432.4 -77.2L2550.1 -496H2689.1L2807.6 -77.2L2776.2 -76.4L2878.7 -496H3003.1L2857.4 0H2728.2L2602.4 -432.9H2636.9L2511.8 0Z M3243.7 12Q3168.2 12 3110.3 -20.5Q3052.4 -53 3019.8 -110.7Q2987.2 -168.4 2987.2 -244.3Q2987.2 -321.7 3019.3 -381.3Q3051.4 -440.9 3109.5 -474.4Q3167.6 -508 3244.1 -508Q3317.7 -508 3373.4 -475.9Q3429.1 -443.8 3460.1 -389Q3491 -334.3 3491 -265.6Q3491 -255.6 3491 -243.5Q3491 -231.3 3489.2 -218.1H3077.4V-296.9H3364.9Q3361.9 -347.1 3328 -376.8Q3294.2 -406.4 3244.3 -406.4Q3207.9 -406.4 3177.2 -390.3Q3146.4 -374.2 3128.3 -342Q3110.2 -309.8 3110.2 -260.6V-232.1Q3110.2 -187.9 3127.7 -155.9Q3145.3 -124 3175.4 -107.2Q3205.4 -90.4 3242.9 -90.4Q3282.4 -90.4 3309.4 -108.2Q3336.4 -125.9 3350.1 -155.4H3477Q3463.4 -108.1 3430.9 -70.1Q3398.4 -32.1 3350.8 -10.1Q3303.3 12 3243.7 12Z M3543.5 0V-720H3668.5V0Z M3735.5 0V-720H3860.5V0Z";
+
+const CAP_HEIGHT = 700;
+
+export interface LogoProps {
+  /** logotype: the name with the dock-and-water D. mark: the D alone. icon: the app-icon tile, in fixed colours. */
+  variant?: "logotype" | "mark" | "icon";
+  /** Pixels. For logotype and mark, the cap height of the D (14 in bars, 16–24 on sign-in); for icon, the tile size. */
+  height?: number;
+  /** One colour: the water takes the ink colour too. For photos, print and coloured fills. */
+  mono?: boolean;
+  /** Accessible name. */
+  title?: string;
+  className?: string;
+}
+
+/**
+ * The Dockwell logo. Ink follows currentColor and the water follows
+ * var(--cobalt), so one drawing works in both themes. Never type the name
+ * next to it.
+ */
+export function Logo({ variant = "logotype", height, mono = false, title = "Dockwell", className }: LogoProps) {
+  const h = height ?? (variant === "logotype" ? 20 : 24);
+  const classes = cx("dw-logo", className);
+
+  if (variant === "icon") {
+    return (
+      <svg
+        className={classes}
+        role="img"
+        aria-label={title}
+        focusable="false"
+        viewBox="0 0 1024 1024"
+        width={h}
+        height={h}
+      >
+        <rect
+          x={4}
+          y={4}
+          width={1016}
+          height={1016}
+          rx={225}
+          fill="#191c1a"
+          stroke="rgba(255,255,255,0.12)"
+          strokeWidth={8}
+        />
+        <g transform="translate(236 798.7) scale(0.81920)">
+          <path fill="#f3f4f1" fillRule="evenodd" d={D} />
+          <path fill="#809dff" d={WATER} />
+        </g>
+      </svg>
+    );
+  }
+
+  const width = variant === "mark" ? 596.4 : 3850.4;
+  return (
+    <svg
+      className={classes}
+      role="img"
+      aria-label={title}
+      focusable="false"
+      viewBox={`53.6 -700 ${width} ${CAP_HEIGHT}`}
+      height={h}
+      width={(h * width) / CAP_HEIGHT}
+      fill="currentColor"
+    >
+      <path fillRule="evenodd" d={D} />
+      <path fill={mono ? "currentColor" : "var(--cobalt)"} d={WATER} />
+      {variant === "mark" ? null : <path d={OCK} />}
+    </svg>
+  );
+}

@@ -1,0 +1,69 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Holds the page's height while the first request is in flight. */
+.status-reserve {
+  min-height: 168px;
+}
+
+.status-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-3) var(--space-6);
+  margin: 0;
+}
+
+.status-facts dt {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+
+.status-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.status-facts code {
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.status-muted {
+  color: var(--ink-muted);
+}
+
+.status-command {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+/* Commands wrap rather than scroll out of sight on narrow screens; the copy
+   button always takes the whole command. */
+.status-command code {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) 0;
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+.status-error {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
