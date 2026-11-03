@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "google/protobuf/descriptor.proto";
+
+// Effect says how a method touches managed state. The CLI and MCP generators
+// read it: read and plan methods run freely, apply methods show their plan and
+// ask first, and destructive methods need a typed confirmation.
+enum Effect {
+  EFFECT_UNSPECIFIED = 0;
+  // Reads state and changes nothing. Safe to retry and to cache.
+  EFFECT_READ = 1;
+  // Computes a plan and changes nothing.
+  EFFECT_PLAN = 2;
+  // Applies a plan and changes state. Every apply can be undone.
+  EFFECT_APPLY = 3;
+  // Applies a plan that removes data or cuts off access, so undo may not
+  // bring everything back.
+  EFFECT_DESTRUCTIVE = 4;
+}
+
+extend google.protobuf.MethodOptions {
+  // How the method affects managed state. Every Dockwell method sets it; a
+  // test in internal/control fails the build when one doesn't.
+  Effect effect = 50100;
+}

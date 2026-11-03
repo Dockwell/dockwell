@@ -9,6 +9,13 @@ An open-source control plane for servers, from one VPS to a fleet. One Go binary
 - Design: start at `design/README.md`, which says what is where and which phase builds each screen. Then `design/system/README.md` (brand book and content rules), `design/system/tokens.json`, `design/system/components/index.d.ts`, and the mocks in `design/mocks/*.dc.html`.
 - Don't go back to the original Claude artifacts unless a redesign happened there; then re-import as `design/README.md` describes.
 
+## Commands
+
+- `make check` runs what CI runs: Go lint and tests, schema lint and format, the generated-code check, the TypeScript typecheck and license headers. Run it before every push.
+- `make generate` after any change in `proto/`. Commit `gen/` and `packages/api/src/gen/`.
+- `make run` builds and serves on 127.0.0.1:7600.
+- Tools: `go tool -modfile=tools/go.mod <buf|golangci-lint|…>`. pnpm comes from corepack (`packageManager` in package.json). New npm versions are held back 14 days (`minimumReleaseAge`); pin Go modules and actions to releases at least that old too, with actions pinned by commit hash.
+
 ## Rules
 
 - UI text, CLI output, errors and docs follow the content fundamentals in `design/system/README.md`: sentence case, address the reader as "you", no emoji or exclamation marks, fact then consequence then fix.
@@ -17,3 +24,5 @@ An open-source control plane for servers, from one VPS to a fleet. One Go binary
 - The panel uses only the public API through the generated client. Nothing is UI-only.
 - Memory budgets: the agent stays under 40 MB RSS at idle, and the control plane plus agent under 250 MB.
 - Work on a branch and open a pull request to `main` that references its issue and milestone.
+- Every source file starts with `SPDX-License-Identifier: AGPL-3.0-only` (`scripts/check-spdx.sh`).
+- Go: errors and log messages follow the content rules too. Wrap errors with context, and when the operator can fix something, end the message with how.

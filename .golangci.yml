@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gosec
+    - intrange
+    - misspell
+    - nilerr
+    - noctx
+    - nolintlint
+    - perfsprint
+    - revive
+    - sloglint
+    - unconvert
+    - unparam
+    - usestdlibvars
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+    gocritic:
+      enabled-tags: [diagnostic, performance, style]
+      disabled-checks:
+        - hugeParam
+        - unnamedResult
+        - whyNoLint
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: context-as-argument
+        - name: error-strings
+        - name: receiver-naming
+        - name: var-naming
+        - name: unused-parameter
+          disabled: true
+    sloglint:
+      no-mixed-args: true
+      static-msg: true
+      key-naming-case: snake
+  exclusions:
+    generated: strict
+    presets:
+      - std-error-handling
+    paths:
+      - gen/
+    rules:
+      - path: _test\.go
+        linters: [gosec, noctx]
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/dockwell/dockwell

@@ -32,7 +32,30 @@ The CLA is still a draft, and the bot that collects signatures isn't set up yet.
 
 ## Development setup
 
-Build and test instructions arrive with the first code (milestone M0).
+You need Go 1.27 or later, Node.js 24, and pnpm. Run `corepack enable` once to get the pnpm version this repository pins.
+
+```sh
+make deps    # install the JavaScript dependencies
+make run     # build bin/dockwell and run it on 127.0.0.1:7600
+make check   # what CI runs: lint, tests and the generated-code check
+```
+
+Run `make` on its own to list every target. Developer tools such as buf and golangci-lint are pinned in `tools/go.mod` and run with `go tool -modfile=tools/go.mod <tool>`, so there is nothing else to install.
+
+The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and `packages/api/src/gen/` (TypeScript). After changing the schema, run `make generate` and commit the result. Every method must set `(dockwell.v1.effect)`, and a test fails the build when one doesn't.
+
+## Repository layout
+
+| Path | What it holds |
+| --- | --- |
+| `cmd/dockwell/` | The binary's entry point |
+| `internal/cli/` | The `dockwell` commands |
+| `internal/control/` | The control plane: API server and services |
+| `internal/buildinfo/`, `internal/logging/` | Build information and structured logging |
+| `proto/` | The API schema ([ADR 0003](docs/adr/0003-one-schema-protobuf-connect.md)) |
+| `gen/`, `packages/api/` | Code generated from the schema, for Go and TypeScript |
+| `tools/` | Pinned developer tools |
+| `docs/`, `design/` | Requirements, decisions and the design system |
 
 ## Code of conduct and security
 

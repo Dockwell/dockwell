@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/protobuf/timestamp.proto";
+
+// SystemService describes the Dockwell install itself. It needs no sign-in, so
+// the CLI, agents and other tools can check what they are talking to first.
+service SystemService {
+  // GetVersion returns the build of the control plane that answers.
+  rpc GetVersion(GetVersionRequest) returns (GetVersionResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+}
+
+// GetVersionRequest takes no parameters.
+message GetVersionRequest {}
+
+// GetVersionResponse carries the control plane's build.
+message GetVersionResponse {
+  // The build of the dockwell binary running the control plane.
+  BuildInfo build = 1;
+}
+
+// BuildInfo identifies one build of the dockwell binary.
+message BuildInfo {
+  // Semantic version such as "v0.4.0", or a Go pseudo-version for builds
+  // between releases.
+  string version = 1;
+  // Full commit hash the binary was built from. Empty when unknown.
+  string commit = 2;
+  // Time of that commit. Unset when unknown.
+  google.protobuf.Timestamp commit_time = 3;
+  // True when the working tree had uncommitted changes at build time.
+  bool modified = 4;
+  // Go toolchain that built the binary, such as "go1.27.3".
+  string go_version = 5;
+  // Target operating system and architecture, such as "linux/amd64".
+  string platform = 6;
+}
