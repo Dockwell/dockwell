@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+syntax = "proto3";
+
+package dockwell.agent.v1;
+
+import "dockwell/v1/options.proto";
+import "dockwell/v1/system.proto";
+
+// AgentService is how a server's agent talks to the control plane, over
+// mTLS on the control plane's agent listener (ADR 0007). It is an internal
+// protocol between dockwell binaries, not part of the public API, so the CLI
+// and MCP generators skip it.
+service AgentService {
+  // Join spends a join ticket to give a new server its identity: the
+  // control plane records the server and signs a certificate for the key in
+  // the request. It is the only method callable without a client certificate.
+  rpc Join(JoinRequest) returns (JoinResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+
+  // RenewCertificate signs a fresh certificate for the calling server,
+  // which proves itself with its current one.
+  rpc RenewCertificate(RenewCertificateRequest) returns (RenewCertificateResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+}
+
+// JoinTicket is what `dockwell join` takes, encoded as "dwj1." followed by
+// the message in unpadded base64url. It carries everything a new server
+// needs to find and trust the control plane, so adding a server is one paste.
+message JoinTicket {
+  // The control plane's agent endpoint, such as "https://203.0.113.7:7443".
+  string control_url = 1;
+  // The control plane CA's public key, "sha256:<hex>", so the first
+  // connection is verified without a copy of the CA certificate.
+  string ca_pin = 2;
+  // The join token to spend.
+  string token_id = 3;
+  // The token's secret. Only its hash is stored on the control plane.
+  bytes secret = 4;
+}
+
+// JoinRequest asks to join with a join token.
+message JoinRequest {
+  // The join token to spend, from the ticket.
+  string token_id = 1;
+  // The token's secret, from the ticket.
+  bytes secret = 2;
+  // A PKCS #10 certificate request (DER) for the key the agent made. Only
+  // its public key is used.
+  bytes csr = 3;
+  // The server's hostname, used to name it. The control plane makes the
+  // name unique if another server has it.
+  string hostname = 4;
+  // The agent's build.
+  dockwell.v1.BuildInfo build = 5;
+}
+
+// JoinResponse gives a server its identity.
+message JoinResponse {
+  // The new server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The name the server is known by, such as "hz-2".
+  string server_name = 2;
+  // The server's certificate (DER), valid for a short time and renewed by
+  // the agent.
+  bytes certificate = 3;
+  // The control plane's CA certificate (DER), which the agent trusts from
+  // now on.
+  bytes ca_certificate = 4;
+}
+
+// RenewCertificateRequest asks for a fresh certificate.
+message RenewCertificateRequest {
+  // A PKCS #10 certificate request (DER). The agent may keep its key or
+  // send a new one.
+  bytes csr = 1;
+}
+
+// RenewCertificateResponse carries the fresh certificate.
+message RenewCertificateResponse {
+  // The server's new certificate (DER).
+  bytes certificate = 1;
+}

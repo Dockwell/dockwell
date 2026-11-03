@@ -53,7 +53,11 @@ The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and
 | --- | --- |
 | `cmd/dockwell/` | The binary's entry point |
 | `internal/cli/` | The `dockwell` commands |
-| `internal/control/` | The control plane: API server and services |
+| `internal/control/` | The control plane: API and agent listeners, services, and the identity authority |
+| `internal/agent/` | The agent: its identity (`enroll`) and runtime |
+| `internal/store/` | The control plane's state, in SQLite, with embedded migrations |
+| `internal/pki/`, `internal/seal/`, `internal/ticket/` | The CA, secrets sealed at rest, and join tickets ([threat model](docs/security/server-identity.md)) |
+| `internal/serve/` | What every HTTP listener shares: timeouts, TLS, shutdown, recovery, RPC logging |
 | `internal/panel/` | Serves the panel embedded in the binary |
 | `internal/buildinfo/`, `internal/logging/` | Build information and structured logging |
 | `proto/` | The API schema ([ADR 0003](docs/adr/0003-one-schema-protobuf-connect.md)) |

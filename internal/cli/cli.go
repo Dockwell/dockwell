@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/logging"
 )
 
@@ -25,9 +26,12 @@ const (
 
 // env names the environment variables that set flag defaults.
 const (
-	envLogLevel  = "DOCKWELL_LOG_LEVEL"
-	envLogFormat = "DOCKWELL_LOG_FORMAT"
-	envListen    = "DOCKWELL_LISTEN"
+	envLogLevel    = "DOCKWELL_LOG_LEVEL"
+	envLogFormat   = "DOCKWELL_LOG_FORMAT"
+	envDataDir     = "DOCKWELL_DATA_DIR"
+	envListen      = "DOCKWELL_LISTEN"
+	envAgentListen = "DOCKWELL_AGENT_LISTEN"
+	envAdvertise   = "DOCKWELL_ADVERTISE_URL"
 )
 
 // IO carries the streams and environment a command runs with, so tests can
@@ -86,6 +90,15 @@ func (e usageError) Unwrap() error { return e.error }
 type globalFlags struct {
 	logLevel  string
 	logFormat string
+	dataDir   string
+}
+
+// dir resolves the data directory: --data-dir, then the default for this user.
+func (g *globalFlags) dir(stdio IO) (datadir.Dir, error) {
+	if g.dataDir != "" {
+		return datadir.Dir{Root: g.dataDir}, nil
+	}
+	return datadir.Default(stdio.Getenv)
 }
 
 func newRootCmd(stdio IO) *cobra.Command {
@@ -112,10 +125,14 @@ func newRootCmd(stdio IO) *cobra.Command {
 		"log level: debug, info, warn or error (env "+envLogLevel+")")
 	pf.StringVar(&g.logFormat, "log-format", envOr(stdio, envLogFormat, string(logging.FormatAuto)),
 		"log format: auto, text or json; auto writes text to a terminal (env "+envLogFormat+")")
+	pf.StringVar(&g.dataDir, "data-dir", envOr(stdio, envDataDir, ""),
+		"where dockwell keeps its state; /var/lib/dockwell for root, ~/.local/state/dockwell otherwise (env "+envDataDir+")")
 
 	root.AddCommand(
 		newVersionCmd(),
 		newRunCmd(stdio, &g),
+		newJoinCmd(stdio, &g),
+		newTokenCmd(stdio, &g),
 	)
 
 	// Unknown subcommands are usage errors, with a pointer to the help.
