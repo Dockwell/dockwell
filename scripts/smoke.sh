@@ -11,13 +11,16 @@ bin=${1:?usage: scripts/smoke.sh path/to/dockwell}
 addr=127.0.0.1:${SMOKE_PORT:-7699}
 base="http://$addr"
 log=$(mktemp)
+data=$(mktemp -d)
 
-"$bin" run --listen "$addr" --log-format json >"$log" 2>&1 &
+# A throwaway data directory and an ephemeral agent port, so the smoke test
+# never touches a real install's state.
+"$bin" run --listen "$addr" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json >"$log" 2>&1 &
 pid=$!
 cleanup() {
   kill "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
-  rm -f "$log"
+  rm -rf "$log" "$data"
 }
 trap cleanup EXIT
 
