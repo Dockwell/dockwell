@@ -38,6 +38,7 @@ You need Go 1.27 or later, Node.js 24, and pnpm. Run `corepack enable` once to g
 make deps    # install the JavaScript dependencies
 make dev     # the API on 127.0.0.1:7600 and the panel with hot reload on localhost:5173
 make run     # build bin/dockwell with the panel built in, and run it on 127.0.0.1:7600
+make mocks   # browse the screen mocks in design/mocks on 127.0.0.1:5174
 make check   # what CI runs: lint, tests, generated-code checks and a smoke test of the binary
 ```
 
@@ -59,6 +60,7 @@ The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and
 | `proto/` | The API schema ([ADR 0003](docs/adr/0003-one-schema-protobuf-connect.md)) |
 | `gen/`, `packages/api/` | Code generated from the schema, for Go and TypeScript |
 | `packages/ui/` | The design system as typed React components, with tokens generated from `design/system/tokens.json` |
+| `packages/mockview/` | A local viewer and snapshot tool for the screen mocks in `design/mocks/` (`make mocks`) |
 | `web/` | The panel ([ADR 0008](docs/adr/0008-panel-libraries.md)) |
 | `tools/` | Pinned developer tools |
 | `docs/`, `design/` | Requirements, decisions and the design system |
