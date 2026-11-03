@@ -84,7 +84,8 @@ export default defineConfig(({ command }) => ({
     port: 5173,
     strictPort: true,
     proxy: {
-      "^/(dockwell\\.v1\\.|grpc\\.)": apiOrigin,
+      // Connect and gRPC procedures live under /<package>.<Service>/.
+      "^/(dockwell|grpc)\\.": apiOrigin,
       "/healthz": apiOrigin,
     },
   },

@@ -12,22 +12,21 @@ export type GlyphShape = "circle" | "triangle" | "square" | "spinner" | "ring" |
 export type ToneClass = "healthy" | "warning" | "critical" | "cobalt" | "idle";
 
 interface StatusSpec {
-  /** The status word, in sentence case. */
-  label: string;
   tone: ToneClass;
   shape: GlyphShape;
 }
 
 /**
- * Every state is a shape, a word and a colour. These pairings are fixed:
- * never recolour a shape or reuse one for another meaning.
+ * Every state is a shape, a word and a colour. These pairings of shape and
+ * colour are fixed: never recolour a shape or reuse one for another meaning.
+ * The words live in UIStrings (lib/strings.tsx), so they can be translated.
  */
 export const STATUS: Readonly<Record<Status, StatusSpec>> = {
-  healthy: { label: "Healthy", tone: "healthy", shape: "circle" },
-  degraded: { label: "Degraded", tone: "warning", shape: "triangle" },
-  down: { label: "Down", tone: "critical", shape: "square" },
-  deploying: { label: "Deploying", tone: "cobalt", shape: "spinner" },
-  stopped: { label: "Stopped", tone: "idle", shape: "ring" },
+  healthy: { tone: "healthy", shape: "circle" },
+  degraded: { tone: "warning", shape: "triangle" },
+  down: { tone: "critical", shape: "square" },
+  deploying: { tone: "cobalt", shape: "spinner" },
+  stopped: { tone: "idle", shape: "ring" },
 };
 
 /** The glyph and colour each tone uses in callouts and toasts. */

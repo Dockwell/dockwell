@@ -38,7 +38,9 @@ run: build ## Build everything and run Dockwell on 127.0.0.1:7600
 
 .PHONY: dev
 dev: deps build-go ## Run the API on :7600 and the panel with hot reload on :5173
-	@trap 'kill 0' EXIT; $(BIN) run --log-level debug & pnpm --filter @dockwell/web dev
+	@$(BIN) run --log-level debug & api=$$!; \
+	trap 'kill $$api 2>/dev/null; wait $$api 2>/dev/null' EXIT; \
+	pnpm --filter @dockwell/web dev
 
 .PHONY: generate
 generate: deps ## Regenerate code from proto/, and the design tokens
@@ -90,9 +92,12 @@ BREAKING_BASE ?= origin/main
 .PHONY: check-breaking
 check-breaking: ## Fail if the API schema breaks compatibility with origin/main
 	@base=$$(git rev-parse --verify --quiet "$(BREAKING_BASE)^{commit}" || true); \
-	if [ -n "$$base" ] && git cat-file -e "$$base:proto" 2>/dev/null; then \
+	if [ -z "$$base" ]; then \
+		echo "Can't find $(BREAKING_BASE) to compare the schema with. Run git fetch origin main, or set BREAKING_BASE." >&2; \
+		exit 1; \
+	elif git cat-file -e "$$base:proto" 2>/dev/null; then \
 		$(GOTOOL) buf breaking --against ".git#ref=$$base"; \
-		echo "The schema is compatible with $(BREAKING_BASE)."; \
+		echo "The schema is compatible with $(BREAKING_BASE) at $$(git rev-parse --short $$base)."; \
 	else \
 		echo "$(BREAKING_BASE) has no schema yet, so there is nothing to break."; \
 	fi

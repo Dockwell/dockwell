@@ -17,14 +17,17 @@ export interface TagProps {
   icon?: IconName;
   /** Shows a remove button, for tags that are part of an editable selector. */
   onRemove?: () => void;
+  /** What the remove button names, when children aren't plain text. Defaults to the tag's text. */
+  removeLabel?: string;
   children?: ReactNode;
   className?: string;
 }
 
 /** A key:value label or selector, set in mono because machines read it. Tags never carry status. */
-export function Tag({ label, value, tone, icon, onRemove, children, className }: TagProps) {
+export function Tag({ label, value, tone, icon, onRemove, removeLabel, children, className }: TagProps) {
   const strings = useUIStrings();
-  const text = [label, value].filter((part) => part != null).join(":");
+  const plainChildren = typeof children === "string" || typeof children === "number" ? String(children) : "";
+  const text = removeLabel ?? ([label, value].filter((part) => part != null).join(":") || plainChildren);
   return (
     <span className={cx("dw-tag", tone && `dw-tag-${tone}`, className)}>
       {icon ? <Icon name={icon} size={12} /> : null}

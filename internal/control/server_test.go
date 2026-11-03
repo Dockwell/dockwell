@@ -176,7 +176,7 @@ func TestPanelServesEverythingElse(t *testing.T) {
 	if code, body := fetch("/servers/hz-1", "text/html"); code != http.StatusOK || !strings.Contains(body, "<title>Dockwell</title>") {
 		t.Errorf("a page load = %d %q, want the panel", code, body)
 	}
-	if code, _ := fetch("/dockwell.v1.NopeService/Get", "text/html"); code != http.StatusNotFound {
+	if code, _ := fetch("/dockwell.v1.NopeService/Get", "application/json"); code != http.StatusNotFound {
 		t.Errorf("an unknown procedure = %d, want 404", code)
 	}
 	if code, _ := fetch("/missing.js", "*/*"); code != http.StatusNotFound {

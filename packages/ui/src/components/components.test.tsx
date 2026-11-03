@@ -138,6 +138,17 @@ describe("Tag", () => {
     await expectAccessible(container);
   });
 
+  it("names the remove button after plain children, or an explicit label", () => {
+    render(<Tag onRemove={() => {}}>prod</Tag>);
+    expect(screen.getByRole("button", { name: "Remove prod" })).toBeVisible();
+    render(
+      <Tag onRemove={() => {}} removeLabel="pool web">
+        <b>web</b>
+      </Tag>,
+    );
+    expect(screen.getByRole("button", { name: "Remove pool web" })).toBeVisible();
+  });
+
   it("renders plain children and the managed tone", () => {
     const { container } = render(
       <Tag tone="cobalt" icon="branch">

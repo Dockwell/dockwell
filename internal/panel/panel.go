@@ -3,19 +3,21 @@
 // Package panel serves the web panel built into the binary.
 //
 // `make web` builds web/ into dist/app, which is embedded here. The handler
-// loads the build once, then serves it with the headers a production web app
-// needs: precompressed Brotli or gzip variants, immutable caching for
-// content-hashed assets, ETag revalidation for everything else, a
-// single-page-app fallback for client-side routes, and strict security
-// headers on HTML.
+// indexes the build once and then serves it with the headers a production
+// web app needs: precompressed Brotli or gzip variants, immutable caching
+// for content-hashed assets, ETag revalidation for everything else, a
+// client-route fallback for page loads, and strict security headers on HTML.
+// File contents are read from the embedded filesystem per request, so the
+// build isn't copied onto the heap.
 package panel
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"mime"
 	"net/http"
@@ -29,7 +31,8 @@ import (
 var embedded embed.FS
 
 // Embedded returns the panel build compiled into the binary, rooted at its
-// index.html. It may be empty when the binary was built without `make web`.
+// index.html. The directory is absent when the binary was built without
+// `make web`, which New treats as no panel.
 func Embedded() fs.FS {
 	sub, err := fs.Sub(embedded, "dist/app")
 	if err != nil {
@@ -45,50 +48,53 @@ const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 
 	"font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; " +
 	"base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
-const immutableAssets = "/assets/"
+// assetDir holds the build's content-hashed files. They never change, so
+// they are cached for a year, and a missing one is a 404, never the index.
+const assetDir = "/assets/"
 
-// apiPrefixes are request paths that belong to the API. They never fall back
-// to the panel, so a mistyped procedure returns 404 rather than HTML.
-var apiPrefixes = []string{"/dockwell.", "/grpc."}
+const htmlType = "text/html; charset=utf-8"
 
 type asset struct {
+	file        string // path within the build
 	contentType string
 	etag        string
-	body        []byte
-	brotli      []byte
-	gzip        []byte
+	brotli      bool
+	gzip        bool
 	immutable   bool
 }
 
 // Handler serves a panel build.
 type Handler struct {
+	fsys   fs.FS
 	assets map[string]*asset
 	index  *asset
 }
 
-// New loads the build in fsys. A build without index.html is allowed: the
+// New indexes the build in fsys. A missing or empty build is allowed: the
 // handler then explains how to build the panel instead of serving it.
 func New(fsys fs.FS) (*Handler, error) {
-	h := &Handler{assets: map[string]*asset{}}
+	h := &Handler{fsys: fsys, assets: map[string]*asset{}}
 	err := fs.WalkDir(fsys, ".", func(name string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || strings.HasSuffix(name, ".br") || strings.HasSuffix(name, ".gz") {
 			return err
 		}
-		body, err := fs.ReadFile(fsys, name)
+		sum, size, err := hashFile(fsys, name)
 		if err != nil {
 			return err
 		}
-		a := &asset{
+		h.assets["/"+name] = &asset{
+			file:        name,
 			contentType: contentType(name),
-			etag:        etag(body),
-			body:        body,
-			immutable:   strings.HasPrefix("/"+name, immutableAssets),
+			etag:        sum,
+			brotli:      smaller(fsys, name+".br", size),
+			gzip:        smaller(fsys, name+".gz", size),
+			immutable:   strings.HasPrefix("/"+name, assetDir),
 		}
-		a.brotli = readVariant(fsys, name+".br", len(body))
-		a.gzip = readVariant(fsys, name+".gz", len(body))
-		h.assets["/"+name] = a
 		return nil
 	})
+	if errors.Is(err, fs.ErrNotExist) && len(h.assets) == 0 {
+		return h, nil // no build at all
+	}
 	if err != nil {
 		return nil, fmt.Errorf("can't load the panel build: %w", err)
 	}
@@ -99,33 +105,40 @@ func New(fsys fs.FS) (*Handler, error) {
 // Built reports whether the handler has a panel to serve.
 func (h *Handler) Built() bool { return h.index != nil }
 
-// ServeHTTP serves the asset at the request path, falls back to index.html
-// for page navigations, and answers 404 for anything else.
+// ServeHTTP serves the file at the request path. A page load of any other
+// path gets index.html, so the panel's router can handle it; everything else
+// is a 404.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		w.Header().Set("Allow", "GET, HEAD")
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	name := path.Clean("/" + r.URL.Path)
 	a, ok := h.assets[name]
-	if !ok {
-		if !isNavigation(r, name) {
-			http.NotFound(w, r)
-			return
-		}
-		if h.index == nil {
+	isRead := r.Method == http.MethodGet || r.Method == http.MethodHead
+
+	switch {
+	case ok && !isRead:
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	case ok:
+		h.serve(w, r, a)
+	case !isRead:
+		// Not ours: most likely a mistyped API procedure, which clients should
+		// see as unimplemented (404), not as a method error.
+		notFound(w)
+	default:
+		// The answer depends on Accept, so caches must key on it.
+		w.Header().Add("Vary", "Accept")
+		switch {
+		case !isPageLoad(r, name):
+			notFound(w)
+		case h.index == nil:
 			notBuilt(w)
-			return
+		default:
+			h.serve(w, r, h.index)
 		}
-		a = h.index
 	}
-	serve(w, r, name, a)
 }
 
-func serve(w http.ResponseWriter, r *http.Request, name string, a *asset) {
+func (h *Handler) serve(w http.ResponseWriter, r *http.Request, a *asset) {
 	header := w.Header()
 	header.Set("Content-Type", a.contentType)
 	if a.immutable {
@@ -137,25 +150,37 @@ func serve(w http.ResponseWriter, r *http.Request, name string, a *asset) {
 		setDocumentHeaders(header)
 	}
 
-	body, encoding := a.body, ""
-	if a.brotli != nil || a.gzip != nil {
+	file, encoding := a.file, ""
+	if a.brotli || a.gzip {
 		header.Add("Vary", "Accept-Encoding")
 		switch accepts := acceptedEncodings(r.Header.Get("Accept-Encoding")); {
-		case a.brotli != nil && accepts["br"]:
-			body, encoding = a.brotli, "br"
-		case a.gzip != nil && accepts["gzip"]:
-			body, encoding = a.gzip, "gzip"
+		case a.brotli && accepts["br"]:
+			file, encoding = a.file+".br", "br"
+		case a.gzip && accepts["gzip"]:
+			file, encoding = a.file+".gz", "gzip"
 		}
 	}
+	etag := a.etag
 	if encoding != "" {
 		header.Set("Content-Encoding", encoding)
-		header.Set("ETag", strconv.Quote(a.etag+"-"+encoding))
-	} else {
-		header.Set("ETag", strconv.Quote(a.etag))
+		etag += "-" + encoding
+	}
+	header.Set("ETag", strconv.Quote(etag))
+
+	f, err := h.fsys.Open(file)
+	if err != nil {
+		http.Error(w, "the panel build changed while running; restart dockwell", http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+	content, ok := f.(io.ReadSeeker)
+	if !ok {
+		http.Error(w, "the panel build can't be served from this filesystem", http.StatusInternalServerError)
+		return
 	}
 	// ServeContent handles If-None-Match, Range and HEAD. The zero modtime
 	// leaves validation to the ETag.
-	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(body))
+	http.ServeContent(w, r, a.file, time.Time{}, content)
 }
 
 func setDocumentHeaders(h http.Header) {
@@ -166,19 +191,13 @@ func setDocumentHeaders(h http.Header) {
 	h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
 }
 
-// isNavigation reports whether a request for a missing file is a page load
-// that the panel's client-side router should handle.
-func isNavigation(r *http.Request, name string) bool {
-	for _, prefix := range apiPrefixes {
-		if strings.HasPrefix(name, prefix) {
-			return false
-		}
-	}
-	if path.Ext(name) != "" {
-		return false
-	}
-	accept := r.Header.Get("Accept")
-	return accept == "" || strings.Contains(accept, "text/html") || strings.Contains(accept, "*/*")
+// isPageLoad reports whether a request for a missing path is a browser
+// loading a page, which the panel's router should answer. Browsers always
+// send text/html in Accept for a navigation; API clients and asset requests
+// never do. Client routes may contain dots (/servers/web-1.example.com), so
+// the path's extension decides nothing outside /assets/.
+func isPageLoad(r *http.Request, name string) bool {
+	return !strings.HasPrefix(name, assetDir) && strings.Contains(r.Header.Get("Accept"), "text/html")
 }
 
 // acceptedEncodings parses Accept-Encoding, honouring q=0 as a refusal.
@@ -203,8 +222,6 @@ func acceptedEncodings(header string) map[string]bool {
 	return accepted
 }
 
-const htmlType = "text/html; charset=utf-8"
-
 func contentType(name string) string {
 	switch path.Ext(name) {
 	case ".html":
@@ -220,18 +237,31 @@ func contentType(name string) string {
 	return "application/octet-stream"
 }
 
-func etag(body []byte) string {
-	sum := sha256.Sum256(body)
-	return hex.EncodeToString(sum[:12])
+// hashFile returns a short content hash and the size, reading the file once
+// without keeping it.
+func hashFile(fsys fs.FS, name string) (string, int64, error) {
+	f, err := fsys.Open(name)
+	if err != nil {
+		return "", 0, err
+	}
+	defer f.Close()
+	h := sha256.New()
+	n, err := io.Copy(h, f)
+	if err != nil {
+		return "", 0, err
+	}
+	return hex.EncodeToString(h.Sum(nil)[:12]), n, nil
 }
 
-// readVariant returns a precompressed variant if it exists and is smaller.
-func readVariant(fsys fs.FS, name string, size int) []byte {
-	b, err := fs.ReadFile(fsys, name)
-	if err != nil || len(b) >= size {
-		return nil
-	}
-	return b
+// smaller reports whether a precompressed variant exists and beats the original.
+func smaller(fsys fs.FS, name string, size int64) bool {
+	info, err := fs.Stat(fsys, name)
+	return err == nil && info.Size() < size
+}
+
+func notFound(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	http.Error(w, "404 page not found", http.StatusNotFound)
 }
 
 // notBuilt explains a binary built without the panel. It is a 404: the panel
@@ -242,7 +272,7 @@ func notBuilt(w http.ResponseWriter) {
 	h.Set("Cache-Control", "no-store")
 	setDocumentHeaders(h)
 	w.WriteHeader(http.StatusNotFound)
-	_, _ = w.Write([]byte(notBuiltPage))
+	_, _ = io.WriteString(w, notBuiltPage)
 }
 
 const notBuiltPage = `<!doctype html>

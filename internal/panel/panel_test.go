@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -70,7 +71,7 @@ func body(t *testing.T, res *http.Response) string {
 
 func TestIndexAndClientRoutes(t *testing.T) {
 	h := newTestHandler(t)
-	for _, target := range []string{"/", "/index.html", "/servers/hz-1", "/apps/api/logs?follow=1"} {
+	for _, target := range []string{"/", "/index.html", "/servers/hz-1", "/servers/web-1.example.com", "/apps/api/releases/v1.2", "/apps/api/logs?follow=1"} {
 		t.Run(target, func(t *testing.T) {
 			res := get(t, h, http.MethodGet, target, map[string]string{"Accept": "text/html,application/xhtml+xml"})
 			if res.StatusCode != http.StatusOK || body(t, res) != string(indexHTML) {
@@ -188,22 +189,41 @@ func TestRevalidation(t *testing.T) {
 	}
 }
 
+func TestFallbackVariesOnAccept(t *testing.T) {
+	h := newTestHandler(t)
+	res := get(t, h, http.MethodGet, "/servers/hz-1", map[string]string{"Accept": "text/html"})
+	_ = body(t, res)
+	if vary := res.Header.Values("Vary"); len(vary) == 0 || vary[0] != "Accept" {
+		t.Errorf("the client-route fallback must Vary on Accept, got %q", vary)
+	}
+	direct := get(t, h, http.MethodGet, "/favicon.svg", map[string]string{"Accept": "text/html"})
+	_ = body(t, direct)
+	if vary := direct.Header.Get("Vary"); vary != "" {
+		t.Errorf("a file that exists doesn't depend on Accept, got Vary %q", vary)
+	}
+}
+
 func TestNotFound(t *testing.T) {
 	h := newTestHandler(t)
 	tests := []struct {
-		name, target, accept string
+		name, method, target, accept string
 	}{
-		{"missing file", "/assets/gone-123.js", "*/*"},
-		{"API path", "/dockwell.v1.NopeService/Get", "text/html"},
-		{"health path", "/grpc.health.v1.Health/Watch", "text/html"},
-		{"not a page load", "/settings", "application/json"},
+		{"missing asset, even for a page load", http.MethodGet, "/assets/gone-123.js", "text/html"},
+		{"API client", http.MethodGet, "/dockwell.v1.NopeService/Get", "application/proto"},
+		{"not a page load", http.MethodGet, "/settings", "application/json"},
+		{"no Accept", http.MethodGet, "/settings", ""},
+		{"mistyped procedure", http.MethodPost, "/dockwell.v1.SystemServic/GetVersion", "application/json"},
+		{"POST to a page", http.MethodPost, "/", "text/html"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := get(t, h, http.MethodGet, tt.target, map[string]string{"Accept": tt.accept})
+			res := get(t, h, tt.method, tt.target, map[string]string{"Accept": tt.accept})
 			_ = body(t, res)
 			if res.StatusCode != http.StatusNotFound {
-				t.Errorf("GET %s = %d, want 404", tt.target, res.StatusCode)
+				t.Errorf("%s %s = %d, want 404", tt.method, tt.target, res.StatusCode)
+			}
+			if cc := res.Header.Get("Cache-Control"); cc != "no-store" {
+				t.Errorf("Cache-Control = %q, want no-store", cc)
 			}
 		})
 	}
@@ -215,25 +235,34 @@ func TestMethods(t *testing.T) {
 	if head.StatusCode != http.StatusOK || body(t, head) != "" {
 		t.Errorf("HEAD / = %d with a body", head.StatusCode)
 	}
-	post := get(t, h, http.MethodPost, "/", nil)
+	post := get(t, h, http.MethodPost, "/favicon.svg", nil)
 	_ = body(t, post)
 	if post.StatusCode != http.StatusMethodNotAllowed || post.Header.Get("Allow") != "GET, HEAD" {
-		t.Errorf("POST / = %d, Allow %q", post.StatusCode, post.Header.Get("Allow"))
+		t.Errorf("POST to a file = %d, Allow %q; want 405", post.StatusCode, post.Header.Get("Allow"))
 	}
 }
 
 func TestNotBuilt(t *testing.T) {
-	h, err := New(fstest.MapFS{})
+	// A fresh checkout has no dist/app at all; a cleaned one may have it empty.
+	missing, err := fs.Sub(fstest.MapFS{"README.md": {Data: []byte("x")}}, "app")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if h.Built() {
-		t.Fatal("an empty build reports Built")
-	}
-	res := get(t, h, http.MethodGet, "/", map[string]string{"Accept": "text/html"})
-	text := body(t, res)
-	if res.StatusCode != http.StatusNotFound || !strings.Contains(text, "make build") {
-		t.Errorf("GET / without a build = %d %q", res.StatusCode, text)
+	for name, fsys := range map[string]fs.FS{"missing": missing, "empty": fstest.MapFS{}} {
+		t.Run(name, func(t *testing.T) {
+			h, err := New(fsys)
+			if err != nil {
+				t.Fatalf("New on a %s build = %v; the binary must still start", name, err)
+			}
+			if h.Built() {
+				t.Fatal("reports Built without an index.html")
+			}
+			res := get(t, h, http.MethodGet, "/", map[string]string{"Accept": "text/html"})
+			text := body(t, res)
+			if res.StatusCode != http.StatusNotFound || !strings.Contains(text, "make build") {
+				t.Errorf("GET / without a build = %d %q", res.StatusCode, text)
+			}
+		})
 	}
 }
 
