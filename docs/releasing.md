@@ -26,7 +26,7 @@ Every push to `main` also runs the same build as a snapshot, without signing or 
 
 ## Cut a release
 
-Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor bump may break compatibility, and the changelog says so.
+Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor bump may break compatibility, and its release notes say so.
 
 1. Make sure the milestone for the release is closed or moved on. The workflow checks that the commit you tag is on `main` and green. It waits up to 20 minutes for CI that is still running.
 2. Tag the commit and push the tag. Only admins can create `v*` tags, and a tag can't be moved or deleted once pushed:

@@ -31,7 +31,12 @@ archives:
     formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     # Fixed metadata, so the archive doesn't depend on the checkout's
-    # timestamps, owner or umask.
+    # timestamps, the builder's user or the umask.
+    builds_info:
+      owner: root
+      group: root
+      mode: 0755
+      mtime: "{{ .CommitDate }}"
     files:
       - src: LICENSE
         info: &fixed
