@@ -38,12 +38,17 @@ test: ## Run the Go tests with the race detector
 	go test -race ./...
 
 .PHONY: lint
-lint: deps ## Lint Go, the API schema, TypeScript and license headers
+lint: deps ## Lint Go, the API schema, TypeScript, license headers and doc links
+	go mod tidy -diff
+	cd tools && go mod tidy -diff
+	go vet ./...
 	$(GOTOOL) golangci-lint run
+	$(GOTOOL) golangci-lint fmt --diff
 	$(GOTOOL) buf lint
 	$(GOTOOL) buf format --diff --exit-code
 	pnpm -r --if-present typecheck
 	scripts/check-spdx.sh
+	go run ./scripts/checklinks
 
 .PHONY: fmt
 fmt: ## Format Go and proto files
@@ -58,8 +63,16 @@ check-generated: generate ## Fail if generated code is out of date
 		exit 1; \
 	fi
 
+.PHONY: check-breaking
+check-breaking: ## Fail if the API schema breaks compatibility with main
+	@if git cat-file -e main:proto 2>/dev/null; then \
+		$(GOTOOL) buf breaking --against '.git#branch=main'; \
+	else \
+		echo "main has no schema yet, so there is nothing to break."; \
+	fi
+
 .PHONY: check
-check: lint test check-generated ## Run everything CI runs
+check: lint test check-generated check-breaking ## Run everything CI runs
 
 .PHONY: clean
 clean: ## Remove build output

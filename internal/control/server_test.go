@@ -5,12 +5,14 @@ package control
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -200,7 +202,7 @@ func TestNewRequiresLogger(t *testing.T) {
 	}
 }
 
-func TestListenAndServeReportsBusyAddress(t *testing.T) {
+func TestListenAndServeWrapsListenErrors(t *testing.T) {
 	var lc net.ListenConfig
 	ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
@@ -211,9 +213,75 @@ func TestListenAndServeReportsBusyAddress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	err = srv.ListenAndServe(t.Context(), ln.Addr().String())
-	if err == nil || !strings.Contains(err.Error(), "pass a different --listen address") {
-		t.Fatalf("ListenAndServe on a busy port = %v", err)
+	if !errors.Is(err, syscall.EADDRINUSE) {
+		t.Errorf("busy port: got %v, want an error wrapping EADDRINUSE", err)
+	}
+
+	err = srv.ListenAndServe(t.Context(), "no-port-here")
+	var addrErr *net.AddrError
+	if !errors.As(err, &addrErr) {
+		t.Errorf("malformed address: got %v, want a *net.AddrError", err)
+	}
+}
+
+func TestShutdownEndsLongRunningRequests(t *testing.T) {
+	srv, err := New(Config{Logger: slog.New(slog.DiscardHandler)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.streamGrace = 50 * time.Millisecond
+	started := make(chan struct{})
+	srv.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		close(started)
+		<-r.Context().Done() // a stream that only ends when told to
+	})
+
+	var lc net.ListenConfig
+	ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- srv.Serve(ctx, ln) }()
+
+	go func() {
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+ln.Addr().String()+"/stream", http.NoBody)
+		if res, err := http.DefaultClient.Do(req); err == nil {
+			_, _ = io.Copy(io.Discard, res.Body)
+			res.Body.Close()
+		}
+	}()
+	<-started
+
+	begin := time.Now()
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Serve = %v, want a clean shutdown", err)
+		}
+		if took := time.Since(begin); took > 2*time.Second {
+			t.Errorf("shutdown took %v; the stream should have been cancelled after the grace period", took)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve didn't return; the open stream held up shutdown")
+	}
+}
+
+func TestSeconds(t *testing.T) {
+	for d, want := range map[time.Duration]string{
+		15 * time.Second:        "15 s",
+		1500 * time.Millisecond: "1.5 s",
+		0:                       "0 s",
+	} {
+		if got := seconds(d); got != want {
+			t.Errorf("seconds(%v) = %q, want %q", d, got, want)
+		}
 	}
 }
 

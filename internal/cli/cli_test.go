@@ -6,7 +6,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -47,12 +51,15 @@ func TestVersionJSON(t *testing.T) {
 	if r.code != exitOK {
 		t.Fatalf("exit %d, stderr %q", r.code, r.err)
 	}
-	var got buildinfo.Info
+	// Same field names as dockwell.v1.BuildInfo over the API (protojson).
+	var got map[string]any
 	if err := json.Unmarshal([]byte(r.out), &got); err != nil {
 		t.Fatalf("output is not JSON: %v\n%s", err, r.out)
 	}
-	if got.Version == "" || got.GoVersion == "" || got.Platform == "" {
-		t.Errorf("incomplete build info: %+v", got)
+	for _, key := range []string{"version", "goVersion", "platform"} {
+		if s, _ := got[key].(string); s == "" {
+			t.Errorf("JSON is missing %q: %s", key, r.out)
+		}
 	}
 }
 
@@ -89,6 +96,8 @@ func TestUsageErrors(t *testing.T) {
 		{"unknown command", []string{"deploy-everything"}, `unknown command "deploy-everything". Run "dockwell --help" to see the commands`},
 		{"unknown flag", []string{"version", "--yaml"}, `Run "dockwell version --help" to see the flags`},
 		{"bad log level", []string{"--log-level", "loud", "run"}, `unknown log level "loud": use debug, info, warn or error`},
+		{"stray argument to version", []string{"version", "extra"}, `dockwell version takes no arguments, but got "extra". Run "dockwell version --help"`},
+		{"stray argument to run", []string{"run", "extra"}, `dockwell run takes no arguments, but got "extra". Run "dockwell run --help"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -126,13 +135,44 @@ func TestHelp(t *testing.T) {
 	}
 }
 
-func TestRunFailsClearlyWhenAddressIsTaken(t *testing.T) {
-	r := run(t, map[string]string{envLogFormat: "json"}, "run", "--listen", "256.0.0.1:1")
-	if r.code != exitError {
-		t.Fatalf("exit %d, want %d; stderr %q", r.code, exitError, r.err)
+func TestRunExplainsListenFailures(t *testing.T) {
+	var lc net.ListenConfig
+	busy, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(r.err, "can't listen on 256.0.0.1:1") || !strings.Contains(r.err, "--listen") {
-		t.Errorf("stderr = %q", r.err)
+	defer busy.Close()
+
+	tests := []struct {
+		name, listen, want string
+	}{
+		{"address in use", busy.Addr().String(), "Stop the process using that address, or pass a different --listen address"},
+		{"malformed address", "no-port-here", "Pass --listen as host:port, such as 127.0.0.1:7600"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := run(t, map[string]string{envLogFormat: "json"}, "run", "--listen", tt.listen)
+			if r.code != exitError {
+				t.Fatalf("exit %d, want %d; stderr %q", r.code, exitError, r.err)
+			}
+			if !strings.Contains(r.err, "can't listen on "+tt.listen) || !strings.Contains(r.err, tt.want) {
+				t.Errorf("stderr = %q, want it to contain %q", r.err, tt.want)
+			}
+		})
+	}
+}
+
+func TestWithListenHint(t *testing.T) {
+	if withListenHint(nil) != nil {
+		t.Error("withListenHint(nil) should stay nil")
+	}
+	eacces := fmt.Errorf("can't listen on 0.0.0.0:80: %w", &net.OpError{Op: "listen", Err: syscall.EACCES})
+	if got := withListenHint(eacces).Error(); !strings.Contains(got, "CAP_NET_BIND_SERVICE") {
+		t.Errorf("EACCES hint = %q", got)
+	}
+	other := errors.New("something else")
+	if got := withListenHint(other); !errors.Is(got, other) || got.Error() != "something else" {
+		t.Errorf("unrelated errors should pass through untouched, got %q", got)
 	}
 }
 

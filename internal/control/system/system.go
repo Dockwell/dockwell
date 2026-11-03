@@ -8,7 +8,6 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
@@ -24,7 +23,7 @@ var _ dockwellv1connect.SystemServiceHandler = (*Service)(nil)
 
 // New returns a Service that reports build as the running build.
 func New(build buildinfo.Info) *Service {
-	return &Service{build: BuildInfoToProto(build)}
+	return &Service{build: build.Proto()}
 }
 
 // GetVersion returns the control plane's build.
@@ -32,19 +31,4 @@ func (s *Service) GetVersion(
 	context.Context, *connect.Request[dockwellv1.GetVersionRequest],
 ) (*connect.Response[dockwellv1.GetVersionResponse], error) {
 	return connect.NewResponse(&dockwellv1.GetVersionResponse{Build: s.build}), nil
-}
-
-// BuildInfoToProto converts build information to its API form.
-func BuildInfoToProto(info buildinfo.Info) *dockwellv1.BuildInfo {
-	pb := &dockwellv1.BuildInfo{
-		Version:   info.Version,
-		Commit:    info.Commit,
-		Modified:  info.Modified,
-		GoVersion: info.GoVersion,
-		Platform:  info.Platform,
-	}
-	if !info.CommitTime.IsZero() {
-		pb.CommitTime = timestamppb.New(info.CommitTime)
-	}
-	return pb
 }

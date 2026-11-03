@@ -33,7 +33,7 @@ jobs:
       - name: Modules are tidy
         run: |
           go mod tidy -diff
-          go mod tidy -diff -modfile=tools/go.mod
+          (cd tools && go mod tidy -diff)
       - name: Vet
         run: go vet ./...
       - name: Lint
@@ -94,10 +94,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
       - name: License headers
         run: scripts/check-spdx.sh
       - name: Links in docs
-        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
-        with:
-          args: --offline --include-fragments --no-progress './**/*.md'
-          fail: true
+        run: go run ./scripts/checklinks

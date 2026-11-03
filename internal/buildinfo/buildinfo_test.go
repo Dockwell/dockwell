@@ -95,6 +95,24 @@ func TestShortCommit(t *testing.T) {
 	}
 }
 
+func TestProto(t *testing.T) {
+	commitTime := time.Date(2026, 11, 3, 21, 40, 0, 0, time.UTC)
+	pb := Info{
+		Version: "v0.4.0", Commit: "3f2a9c", CommitTime: commitTime, Modified: true,
+		GoVersion: "go1.27.3", Platform: "linux/arm64",
+	}.Proto()
+	if pb.GetVersion() != "v0.4.0" || pb.GetCommit() != "3f2a9c" || !pb.GetModified() ||
+		pb.GetGoVersion() != "go1.27.3" || pb.GetPlatform() != "linux/arm64" {
+		t.Errorf("Proto() = %v", pb)
+	}
+	if !pb.GetCommitTime().AsTime().Equal(commitTime) {
+		t.Errorf("CommitTime = %v, want %v", pb.GetCommitTime().AsTime(), commitTime)
+	}
+	if (Info{Version: Devel}).Proto().GetCommitTime() != nil {
+		t.Error("an unknown commit time should stay unset, not become the zero time")
+	}
+}
+
 func TestReadIsStable(t *testing.T) {
 	if a, b := Read(), Read(); a != b {
 		t.Fatalf("Read() changed between calls: %+v then %+v", a, b)

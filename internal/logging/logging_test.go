@@ -38,9 +38,9 @@ func TestNewFormats(t *testing.T) {
 		}
 	})
 
-	t.Run("level filters", func(t *testing.T) {
+	t.Run("level filters, case-insensitively", func(t *testing.T) {
 		var buf bytes.Buffer
-		logger, err := New(&buf, Options{Level: "warn", Format: FormatJSON})
+		logger, err := New(&buf, Options{Level: "WARN", Format: FormatJSON})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -55,6 +55,8 @@ func TestNewFormats(t *testing.T) {
 func TestNewRejectsUnknownValues(t *testing.T) {
 	for _, opts := range []Options{
 		{Level: "loud", Format: FormatText},
+		{Level: "info+2", Format: FormatText},
+		{Level: "", Format: FormatText},
 		{Level: "info", Format: "yaml"},
 	} {
 		if _, err := New(&bytes.Buffer{}, opts); err == nil {

@@ -60,8 +60,10 @@ export const GetVersionResponseSchema: GenMessage<GetVersionResponse> = /*@__PUR
  */
 export type BuildInfo = Message<"dockwell.v1.BuildInfo"> & {
   /**
-   * Semantic version such as "v0.4.0", or a Go pseudo-version for builds
-   * between releases.
+   * Semantic version such as "v0.4.0", a Go pseudo-version for builds
+   * between releases such as "v0.4.1-0.20261103214000-3f2a9c1d4e5b", or
+   * "devel" when the build carries no version at all. Only the first two
+   * parse as semver.
    *
    * @generated from field: string version = 1;
    */

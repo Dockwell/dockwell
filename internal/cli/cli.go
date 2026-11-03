@@ -129,6 +129,16 @@ func newRootCmd(stdio IO) *cobra.Command {
 	return root
 }
 
+// noArgs rejects positional arguments as a usage error that points to the
+// command's help. Use it instead of cobra.NoArgs.
+func noArgs(cmd *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return usageError{fmt.Errorf("%s takes no arguments, but got %q. Run %q to see how to use it",
+			cmd.CommandPath(), args[0], cmd.CommandPath()+" --help")}
+	}
+	return nil
+}
+
 func (g *globalFlags) logger(w io.Writer) (*slog.Logger, error) {
 	logger, err := logging.New(w, logging.Options{Level: g.logLevel, Format: logging.Format(g.logFormat)})
 	if err != nil {

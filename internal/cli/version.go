@@ -3,12 +3,12 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/dockwell/dockwell/internal/buildinfo"
 )
@@ -18,18 +18,23 @@ func newVersionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Show which build of dockwell this is",
-		Args:  cobra.NoArgs,
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			info := buildinfo.Read()
 			if asJSON {
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
-				return enc.Encode(info)
+				// The API's BuildInfo, so scripts see one shape from the CLI and
+				// from SystemService.GetVersion.
+				b, err := protojson.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(info.Proto())
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", b)
+				return err
 			}
 			return writeVersion(cmd.OutOrStdout(), info)
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "print the build as JSON")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "print the build as JSON, in the same shape the API returns")
 	return cmd
 }
 

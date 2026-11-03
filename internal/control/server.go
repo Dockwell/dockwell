@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"runtime/debug"
+	"strconv"
 	"time"
 
 	"connectrpc.com/connect"
@@ -38,7 +39,14 @@ const (
 	maxHeaderBytes    = 64 << 10
 	maxMessageBytes   = 8 << 20
 	compressMinBytes  = 1 << 10
-	shutdownTimeout   = 15 * time.Second
+)
+
+// Shutdown timing. In-flight requests get streamGrace to finish on their
+// own; after that, request contexts are cancelled so long-lived streams end,
+// and anything still open at shutdownTimeout is closed.
+const (
+	defaultStreamGrace     = 2 * time.Second
+	defaultShutdownTimeout = 15 * time.Second
 )
 
 // Config configures a Server.
@@ -51,8 +59,10 @@ type Config struct {
 
 // Server is a configured control plane, ready to serve on a listener.
 type Server struct {
-	logger  *slog.Logger
-	handler http.Handler
+	logger          *slog.Logger
+	handler         http.Handler
+	streamGrace     time.Duration
+	shutdownTimeout time.Duration
 }
 
 // New builds a Server from cfg.
@@ -60,7 +70,11 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Logger == nil {
 		return nil, errors.New("control: Config.Logger is required")
 	}
-	s := &Server{logger: cfg.Logger}
+	s := &Server{
+		logger:          cfg.Logger,
+		streamGrace:     defaultStreamGrace,
+		shutdownTimeout: defaultShutdownTimeout,
+	}
 	s.handler = s.routes(cfg)
 	return s, nil
 }
@@ -95,14 +109,19 @@ func (s *Server) routes(cfg Config) http.Handler {
 }
 
 // Serve accepts connections on ln until ctx is done, then shuts down
-// gracefully: it stops accepting, lets in-flight requests finish for up to
-// shutdownTimeout, and closes what remains. It returns nil after a clean
-// shutdown.
+// gracefully: it stops accepting, lets in-flight requests finish, cancels
+// the contexts of requests still running after streamGrace (so streams end),
+// and closes whatever is left at shutdownTimeout. It returns nil after a
+// clean shutdown.
 func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 	var protocols http.Protocols
 	protocols.SetHTTP1(true)
 	protocols.SetHTTP2(true)
 	protocols.SetUnencryptedHTTP2(true)
+
+	// Requests outlive ctx briefly, so the drain below can let them finish.
+	baseCtx, cancelRequests := context.WithCancel(context.WithoutCancel(ctx))
+	defer cancelRequests()
 
 	srv := &http.Server{
 		Handler:           s.handler,
@@ -111,7 +130,7 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 		IdleTimeout:       idleTimeout,
 		MaxHeaderBytes:    maxHeaderBytes,
 		ErrorLog:          slog.NewLogLogger(s.logger.Handler(), slog.LevelWarn),
-		BaseContext:       func(net.Listener) context.Context { return context.WithoutCancel(ctx) },
+		BaseContext:       func(net.Listener) context.Context { return baseCtx },
 	}
 
 	errc := make(chan error, 1)
@@ -125,11 +144,14 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 	}
 
 	s.logger.Info("control plane shutting down")
-	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+	endStreams := time.AfterFunc(s.streamGrace, cancelRequests)
+	defer endStreams.Stop()
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.shutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		_ = srv.Close()
-		return fmt.Errorf("control plane didn't stop within %s: %w", shutdownTimeout, err)
+		return fmt.Errorf("control plane didn't stop within %s, so its remaining connections were closed: %w",
+			seconds(s.shutdownTimeout), err)
 	}
 	if err := <-errc; !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("control plane stopped: %w", err)
@@ -138,14 +160,23 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 	return nil
 }
 
-// ListenAndServe listens on addr and serves until ctx is done.
+// ListenAndServe listens on addr and serves until ctx is done. A failure to
+// listen wraps the underlying error, so callers can tell a busy port
+// (syscall.EADDRINUSE) from a privileged one (syscall.EACCES) or a malformed
+// address (*net.AddrError).
 func (s *Server) ListenAndServe(ctx context.Context, addr string) error {
 	var lc net.ListenConfig
 	ln, err := lc.Listen(ctx, "tcp", addr)
 	if err != nil {
-		return fmt.Errorf("can't listen on %s: %w. Stop whatever is using it, or pass a different --listen address", addr, err)
+		return fmt.Errorf("can't listen on %s: %w", addr, err)
 	}
 	return s.Serve(ctx, ln)
+}
+
+// seconds formats d the way Dockwell writes durations: a number, a space and
+// a unit, such as "15 s".
+func seconds(d time.Duration) string {
+	return strconv.FormatFloat(d.Seconds(), 'f', -1, 64) + " s"
 }
 
 func (s *Server) recoverRPC(ctx context.Context, spec connect.Spec, _ http.Header, p any) error {
