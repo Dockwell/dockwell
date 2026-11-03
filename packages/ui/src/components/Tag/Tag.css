@@ -1,0 +1,51 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+  font: 400 12px / 1 var(--font-mono);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.dw-tag .dw-icon {
+  color: var(--ink-muted);
+  margin-right: 3px;
+}
+.dw-tag-key {
+  color: var(--ink-muted);
+}
+.dw-tag-cobalt {
+  background: var(--cobalt-soft);
+  border-color: transparent;
+  color: var(--cobalt);
+}
+.dw-tag-cobalt .dw-tag-key,
+.dw-tag-cobalt .dw-icon {
+  color: var(--cobalt);
+}
+.dw-tag-x {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin: 0 -4px 0 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.dw-tag-x:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+.dw-tag-x:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

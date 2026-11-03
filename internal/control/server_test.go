@@ -14,6 +14,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"connectrpc.com/connect"
@@ -23,6 +24,8 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 )
+
+var testPanel = fstest.MapFS{"index.html": {Data: []byte("<!doctype html><title>Dockwell</title>")}}
 
 var testBuild = buildinfo.Info{
 	Version:    "v0.4.0",
@@ -39,7 +42,11 @@ func startServer(t *testing.T, logs io.Writer) string {
 	if logs == nil {
 		logs = io.Discard
 	}
-	srv, err := New(Config{Logger: slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})), Build: testBuild})
+	srv, err := New(Config{
+		Logger: slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Build:  testBuild,
+		Panel:  testPanel,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,16 +160,27 @@ func TestHealth(t *testing.T) {
 	})
 }
 
-func TestUnknownRoute(t *testing.T) {
+func TestPanelServesEverythingElse(t *testing.T) {
 	base := startServer(t, nil)
-	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, base+"/nope", http.NoBody)
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
+	fetch := func(path, accept string) (int, string) {
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, base+path, http.NoBody)
+		req.Header.Set("Accept", accept)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return res.StatusCode, string(b)
 	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNotFound {
-		t.Errorf("GET /nope = %d, want 404", res.StatusCode)
+	if code, body := fetch("/servers/hz-1", "text/html"); code != http.StatusOK || !strings.Contains(body, "<title>Dockwell</title>") {
+		t.Errorf("a page load = %d %q, want the panel", code, body)
+	}
+	if code, _ := fetch("/dockwell.v1.NopeService/Get", "text/html"); code != http.StatusNotFound {
+		t.Errorf("an unknown procedure = %d, want 404", code)
+	}
+	if code, _ := fetch("/missing.js", "*/*"); code != http.StatusNotFound {
+		t.Errorf("a missing asset = %d, want 404", code)
 	}
 }
 
@@ -209,7 +227,7 @@ func TestListenAndServeWrapsListenErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ln.Close()
-	srv, err := New(Config{Logger: slog.New(slog.DiscardHandler)})
+	srv, err := New(Config{Logger: slog.New(slog.DiscardHandler), Panel: testPanel})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +245,7 @@ func TestListenAndServeWrapsListenErrors(t *testing.T) {
 }
 
 func TestShutdownEndsLongRunningRequests(t *testing.T) {
-	srv, err := New(Config{Logger: slog.New(slog.DiscardHandler)})
+	srv, err := New(Config{Logger: slog.New(slog.DiscardHandler), Panel: testPanel})
 	if err != nil {
 		t.Fatal(err)
 	}

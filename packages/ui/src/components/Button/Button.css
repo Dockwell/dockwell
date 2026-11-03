@@ -1,0 +1,106 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-btn {
+  --h: var(--control-md);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--h);
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1;
+  letter-spacing: -0.003em;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+.dw-btn-sm {
+  --h: var(--control-sm);
+  padding: 0 10px;
+  gap: 6px;
+  font-size: 12.5px;
+}
+.dw-btn-lg {
+  --h: var(--control-lg);
+  padding: 0 var(--space-4);
+  font-size: 14px;
+}
+.dw-btn-icon {
+  width: var(--h);
+  padding: 0;
+}
+.dw-btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+.dw-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.dw-btn:disabled {
+  cursor: not-allowed;
+}
+.dw-btn:disabled:not(.is-loading) {
+  opacity: 0.45;
+}
+.dw-btn.is-loading {
+  cursor: progress;
+}
+
+.dw-btn-primary {
+  background: var(--action);
+  color: var(--on-action);
+}
+.dw-btn-primary:hover:not(:disabled) {
+  background: var(--action-hover);
+}
+.dw-btn-secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+  box-shadow: 0 1px 0 var(--line);
+}
+.dw-btn-secondary:hover:not(:disabled) {
+  border-color: var(--line-strong);
+}
+.dw-btn-ghost {
+  background: transparent;
+  color: var(--ink-muted);
+}
+.dw-btn-ghost:hover:not(:disabled) {
+  background: var(--surface-sunken);
+  color: var(--ink);
+}
+.dw-btn-danger {
+  background: var(--critical);
+  color: var(--on-critical);
+}
+.dw-btn-danger:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.dw-btn .dw-kbd {
+  margin: 0 -4px 0 2px;
+  background: transparent;
+  border-color: currentColor;
+  border-bottom-width: 1px;
+  color: inherit;
+  opacity: 0.6;
+}
+.dw-btn-primary .dw-kbd,
+.dw-btn-danger .dw-kbd {
+  opacity: 0.75;
+}
+.dw-btn-spinner {
+  flex: none;
+}

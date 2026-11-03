@@ -3,12 +3,16 @@
 *.woff2 binary
 *.png   binary
 
-# Generated from proto/ by `make generate`.
-/gen/**                       linguist-generated=true
-/packages/api/src/gen/**      linguist-generated=true
-go.sum                        linguist-generated=true
-tools/go.sum                  linguist-generated=true
-pnpm-lock.yaml                linguist-generated=true
+# Generated: `make generate` (proto/, tokens), the router plugin (routeTree),
+# and the package managers.
+/gen/**                             linguist-generated=true
+/packages/api/src/gen/**            linguist-generated=true
+/packages/ui/src/tokens.ts          linguist-generated=true
+/packages/ui/src/styles/tokens.css  linguist-generated=true
+/web/src/routeTree.gen.ts           linguist-generated=true
+go.sum                              linguist-generated=true
+tools/go.sum                        linguist-generated=true
+pnpm-lock.yaml                      linguist-generated=true
 
 # Imported design reference, not product source.
-/design/**                    linguist-documentation=true
+/design/**                          linguist-documentation=true

@@ -11,6 +11,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0005](0005-caddy-ingress.md) | Caddy as the default ingress | Accepted |
 | [0006](0006-web-react-typescript.md) | React and TypeScript for the panel, on the Dockwell design system | Accepted |
 | [0007](0007-one-binary-two-roles.md) | One binary, two roles; agents dial out | Accepted |
+| [0008](0008-panel-libraries.md) | Libraries and tooling for the panel | Accepted |
 
 Still open from the PRD: the config-as-code format (extended Compose is recommended; needed in phase 3), and the [open questions](../product/prd.md#risks-open-questions-and-decisions).
 

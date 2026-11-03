@@ -18,7 +18,7 @@ while IFS= read -r -d '' file; do
 done < <(
   git ls-files -z --cached --others --exclude-standard -- \
     '*.go' '*.proto' '*.ts' '*.tsx' '*.js' '*.mjs' '*.css' '*.sh' 'Makefile' \
-    ':!:gen/**' ':!:packages/api/src/gen/**' ':!:design/**' ':!:**/node_modules/**'
+    ':!:gen/**' ':!:packages/api/src/gen/**' ':!:**/*.gen.ts' ':!:design/**' ':!:**/node_modules/**'
 )
 
 if ((${#missing[@]})); then

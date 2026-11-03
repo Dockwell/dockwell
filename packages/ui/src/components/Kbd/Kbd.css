@@ -1,0 +1,21 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font: 500 11px / 1 var(--font-sans);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.dw-kbd + .dw-kbd {
+  margin-left: 2px;
+}

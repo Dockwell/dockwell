@@ -1,0 +1,120 @@
+msgid ""
+msgstr ""
+"POT-Creation-Date: 2026-11-03 23:10+0000\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: @lingui/cli\n"
+"Language: zh-CN\n"
+
+#: src/features/system/StatusPage.tsx
+msgid "(modified)"
+msgstr "（有未提交的修改）"
+
+#: src/features/system/StatusPage.tsx
+msgid "Can't reach the control plane"
+msgstr "无法连接到控制平面"
+
+#: src/features/system/StatusPage.tsx
+msgid "Check it from a terminal"
+msgstr "在终端中检查"
+
+#: src/features/system/StatusPage.tsx
+msgid "Command copied"
+msgstr "命令已复制"
+
+#: src/features/system/StatusPage.tsx
+msgid "Commit"
+msgstr "提交"
+
+#: src/features/system/StatusPage.tsx
+msgid "Committed"
+msgstr "提交时间"
+
+#: src/features/system/StatusPage.tsx
+msgid "Connected"
+msgstr "已连接"
+
+#: src/features/system/StatusPage.tsx
+msgid "Connecting"
+msgstr "正在连接"
+
+#: src/features/system/StatusPage.tsx
+msgid "Connecting to the control plane"
+msgstr "正在连接控制平面"
+
+#: src/features/system/StatusPage.tsx
+msgid "Copy command"
+msgstr "复制命令"
+
+#: src/app/Providers.tsx
+msgid "Degraded"
+msgstr "降级"
+
+#: src/app/Providers.tsx
+msgid "Deploying"
+msgstr "正在部署"
+
+#: src/features/system/StatusPage.tsx
+msgid "Dockwell answers on {host}. This early build has no servers or apps to show yet; the API is ready for tools and scripts."
+msgstr "Dockwell 正在 {host} 上响应。这个早期版本还没有可显示的服务器或应用；API 已可供工具和脚本使用。"
+
+#: src/app/Providers.tsx
+msgid "Down"
+msgstr "宕机"
+
+#: src/features/system/StatusPage.tsx
+msgid "Go"
+msgstr "Go"
+
+#: src/app/Providers.tsx
+msgid "Healthy"
+msgstr "健康"
+
+#: src/features/system/NotFound.tsx
+msgid "No page here"
+msgstr "页面不存在"
+
+#: src/features/system/StatusPage.tsx
+msgid "Platform"
+msgstr "平台"
+
+#: src/app/Providers.tsx
+msgid "Remove {what}"
+msgstr "移除 {what}"
+
+#: src/features/system/StatusPage.tsx
+msgid "Retry"
+msgstr "重试"
+
+#: src/features/system/StatusPage.tsx
+msgid "Retrying"
+msgstr "正在重试"
+
+#: src/app/Providers.tsx
+msgid "Stopped"
+msgstr "已停止"
+
+#: src/features/system/StatusPage.tsx
+msgid "The control plane is running"
+msgstr "控制平面正在运行"
+
+#: src/features/system/StatusPage.tsx
+msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
+msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务器上的 <0>dockwell run</0> 仍在运行，然后重试。"
+
+#: src/features/system/NotFound.tsx
+msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
+msgstr "<0>{pathname}</0> 下没有内容。<1>前往概览</1>"
+
+#: src/features/system/StatusPage.tsx
+msgid "This control plane"
+msgstr "当前控制平面"
+
+#: src/features/system/StatusPage.tsx
+msgid "Unreachable"
+msgstr "无法访问"
+
+#: src/features/system/StatusPage.tsx
+msgid "Version"
+msgstr "版本"

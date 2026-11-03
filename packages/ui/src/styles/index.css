@@ -1,0 +1,5 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Import once, at the root of an app: tokens, then the global foundations.
+   Each component brings its own stylesheet. */
+@import "./tokens.css";
+@import "./base.css";

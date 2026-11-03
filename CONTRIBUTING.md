@@ -36,11 +36,14 @@ You need Go 1.27 or later, Node.js 24, and pnpm. Run `corepack enable` once to g
 
 ```sh
 make deps    # install the JavaScript dependencies
-make run     # build bin/dockwell and run it on 127.0.0.1:7600
-make check   # what CI runs: lint, tests and the generated-code check
+make dev     # the API on 127.0.0.1:7600 and the panel with hot reload on localhost:5173
+make run     # build bin/dockwell with the panel built in, and run it on 127.0.0.1:7600
+make check   # what CI runs: lint, tests, generated-code checks and a smoke test of the binary
 ```
 
 Run `make` on its own to list every target. Developer tools such as buf and golangci-lint are pinned in `tools/go.mod` and run with `go tool -modfile=tools/go.mod <tool>`, so there is nothing else to install.
+
+The panel's text goes through Lingui: write it in English inside `<Trans>` or `` t`…` ``, run `make i18n` to extract it, and add the Simplified Chinese translation to `web/src/locales/zh-CN/messages.po`. CI fails on a missing translation.
 
 The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and `packages/api/src/gen/` (TypeScript). After changing the schema, run `make generate` and commit the result. Every method must set `(dockwell.v1.effect)`, and a test fails the build when one doesn't.
 
@@ -51,9 +54,12 @@ The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and
 | `cmd/dockwell/` | The binary's entry point |
 | `internal/cli/` | The `dockwell` commands |
 | `internal/control/` | The control plane: API server and services |
+| `internal/panel/` | Serves the panel embedded in the binary |
 | `internal/buildinfo/`, `internal/logging/` | Build information and structured logging |
 | `proto/` | The API schema ([ADR 0003](docs/adr/0003-one-schema-protobuf-connect.md)) |
 | `gen/`, `packages/api/` | Code generated from the schema, for Go and TypeScript |
+| `packages/ui/` | The design system as typed React components, with tokens generated from `design/system/tokens.json` |
+| `web/` | The panel ([ADR 0008](docs/adr/0008-panel-libraries.md)) |
 | `tools/` | Pinned developer tools |
 | `docs/`, `design/` | Requirements, decisions and the design system |
 

@@ -14,3 +14,6 @@ coverage/
 .DS_Store
 .idea/
 *.swp
+
+# The panel build, embedded by `make build` (internal/panel/dist/README.md)
+/internal/panel/dist/app/

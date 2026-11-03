@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Package control is the control plane: the API every surface uses and,
-// later, the panel, the revision store and the scheduler.
+// Package control is the control plane: the API every surface uses, the
+// panel, and later the revision store and the scheduler.
 //
 // One HTTP listener serves the Connect, gRPC and gRPC-Web protocols over
 // HTTP/1.1 and HTTP/2 (including unencrypted HTTP/2 for local gRPC clients),
-// plus a plain /healthz for process supervisors.
+// the panel at every other path, and a plain /healthz for process supervisors.
 package control
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -26,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/system"
+	"github.com/dockwell/dockwell/internal/panel"
 )
 
 // DefaultListen is where the control plane listens unless told otherwise. It
@@ -55,6 +57,8 @@ type Config struct {
 	Logger *slog.Logger
 	// Build is reported by SystemService.GetVersion.
 	Build buildinfo.Info
+	// Panel is the panel build to serve. Nil means the one embedded in the binary.
+	Panel fs.FS
 }
 
 // Server is a configured control plane, ready to serve on a listener.
@@ -70,19 +74,29 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Logger == nil {
 		return nil, errors.New("control: Config.Logger is required")
 	}
+	if cfg.Panel == nil {
+		cfg.Panel = panel.Embedded()
+	}
+	ui, err := panel.New(cfg.Panel)
+	if err != nil {
+		return nil, err
+	}
+	if !ui.Built() {
+		cfg.Logger.Warn("this binary has no panel built in; the API works, and make build adds the panel")
+	}
 	s := &Server{
 		logger:          cfg.Logger,
 		streamGrace:     defaultStreamGrace,
 		shutdownTimeout: defaultShutdownTimeout,
 	}
-	s.handler = s.routes(cfg)
+	s.handler = s.routes(cfg, ui)
 	return s, nil
 }
 
 // Handler returns the server's root HTTP handler.
 func (s *Server) Handler() http.Handler { return s.handler }
 
-func (s *Server) routes(cfg Config) http.Handler {
+func (s *Server) routes(cfg Config, ui http.Handler) http.Handler {
 	opts := []connect.HandlerOption{
 		connect.WithInterceptors(logInterceptor{logger: s.logger}),
 		connect.WithReadMaxBytes(maxMessageBytes),
@@ -104,6 +118,9 @@ func (s *Server) routes(cfg Config) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write([]byte("ok\n"))
 	})
+
+	// Everything else is the panel; it answers 404 for paths it doesn't own.
+	mux.Handle("/", ui)
 
 	return s.recoverHTTP(mux)
 }
