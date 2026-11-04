@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
+
 	"connectrpc.com/connect"
 	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/protobuf/proto"
@@ -213,8 +216,10 @@ func TestEveryMethodHasARESTPath(t *testing.T) {
 	}
 }
 
-func TestRESTPathsWithASession(t *testing.T) {
-	srv := startFull(t, nil)
+func TestRESTPathsWithASession(t *testing.T) { storetest.Each(t, testRESTPathsWithASession) }
+
+func testRESTPathsWithASession(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	_, port, _ := net.SplitHostPort(srv.api)
 	b := newBrowser(t, "http://localhost:"+port, srv.api, nil)
 	link, _ := srv.auth.CreateClaimLink(t.Context(), "test")
@@ -286,7 +291,11 @@ func TestRESTPathsWithASession(t *testing.T) {
 // from the panel; one with an API token needs no origin, since no browser
 // adds the token for a page.
 func TestRESTRefusesCrossSiteRequests(t *testing.T) {
-	srv := startFull(t, nil)
+	storetest.Each(t, testRESTRefusesCrossSiteRequests)
+}
+
+func testRESTRefusesCrossSiteRequests(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	_, port, _ := net.SplitHostPort(srv.api)
 	origin := "http://localhost:" + port
 	laptop := newBrowser(t, origin, srv.api, nil)
@@ -520,7 +529,11 @@ func h2cTransport(t *testing.T, addr string) *http.Transport {
 // One token works with every protocol the API speaks, and stops working,
 // streams included, the moment it is revoked.
 func TestATokenWorksWithEveryProtocol(t *testing.T) {
-	srv := startFull(t, nil)
+	storetest.Each(t, testATokenWorksWithEveryProtocol)
+}
+
+func testATokenWorksWithEveryProtocol(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	_, port, _ := net.SplitHostPort(srv.api)
 	origin := "http://localhost:" + port
 	b := newBrowser(t, origin, srv.api, nil)
@@ -650,8 +663,10 @@ func wantForToken(procedure string, md protoreflect.MethodDescriptor, scope dock
 // TestWhatEachTokenMayCall calls every procedure, and every REST path,
 // with a read-only and a read-write token. Each must be refused exactly
 // when its effect, or its service, puts it out of the token's reach.
-func TestWhatEachTokenMayCall(t *testing.T) {
-	srv := startFull(t, nil)
+func TestWhatEachTokenMayCall(t *testing.T) { storetest.Each(t, testWhatEachTokenMayCall) }
+
+func testWhatEachTokenMayCall(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	_, port, _ := net.SplitHostPort(srv.api)
 	origin := "http://localhost:" + port
 	b := newBrowser(t, origin, srv.api, nil)
@@ -722,8 +737,10 @@ func TestWhatEachTokenMayCall(t *testing.T) {
 }
 
 // A token is refused the same way over every protocol, and says why.
-func TestTokenRefusalsSayWhy(t *testing.T) {
-	srv := startFull(t, nil)
+func TestTokenRefusalsSayWhy(t *testing.T) { storetest.Each(t, testTokenRefusalsSayWhy) }
+
+func testTokenRefusalsSayWhy(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	_, port, _ := net.SplitHostPort(srv.api)
 	origin := "http://localhost:" + port
 	b := newBrowser(t, origin, srv.api, nil)
@@ -752,8 +769,10 @@ func TestTokenRefusalsSayWhy(t *testing.T) {
 
 // A token's expiry can be a ttl, which the control plane adds to its own
 // clock, so a client whose clock is off doesn't move it.
-func TestCreateTokenWithATTL(t *testing.T) {
-	srv := startFull(t, nil)
+func TestCreateTokenWithATTL(t *testing.T) { storetest.Each(t, testCreateTokenWithATTL) }
+
+func testCreateTokenWithATTL(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	_, port, _ := net.SplitHostPort(srv.api)
 	b := newBrowser(t, "http://localhost:"+port, srv.api, nil)
 	link, _ := srv.auth.CreateClaimLink(t.Context(), "test")

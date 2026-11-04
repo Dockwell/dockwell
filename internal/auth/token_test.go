@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dockwell/dockwell/internal/store/storetest"
+
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -74,8 +76,10 @@ func (f *fixture) token(t *testing.T, p Principal, scope string, expires *time.T
 	return made
 }
 
-func TestTokenScopes(t *testing.T) {
-	f := newFixture(t, "")
+func TestTokenScopes(t *testing.T) { storetest.Each(t, testTokenScopes) }
+
+func testTokenScopes(t *testing.T, b store.Backend) {
+	f := newFixture(t, b, "")
 	owner := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
 	read := f.token(t, owner, store.ScopeReadOnly, nil)
 	write := f.token(t, owner, store.ScopeReadWrite, nil)
@@ -114,8 +118,10 @@ func TestTokenScopes(t *testing.T) {
 	}
 }
 
-func TestTokensExpireAndAreRevoked(t *testing.T) {
-	f := newFixture(t, "")
+func TestTokensExpireAndAreRevoked(t *testing.T) { storetest.Each(t, testTokensExpireAndAreRevoked) }
+
+func testTokensExpireAndAreRevoked(t *testing.T, b store.Backend) {
+	f := newFixture(t, b, "")
 	f.svc.recheck = 2 * time.Millisecond
 	owner := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
 	in := f.clock.now().Add(time.Hour)
@@ -168,7 +174,11 @@ func TestTokensExpireAndAreRevoked(t *testing.T) {
 }
 
 func TestCreateTokenChecksItsRequest(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testCreateTokenChecksItsRequest)
+}
+
+func testCreateTokenChecksItsRequest(t *testing.T, b store.Backend) {
+	f := newFixture(t, b, "")
 	owner := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
 	past := f.clock.now().Add(-time.Second)
 	for name, try := range map[string]func() error{
@@ -227,14 +237,18 @@ func TestCreateTokenChecksItsRequest(t *testing.T) {
 // working, with their addresses, when someone signs in, as sessions are:
 // a token's owner may make no more tokens for years.
 func TestEndedTokensArePrunedOnSignIn(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testEndedTokensArePrunedOnSignIn)
+}
+
+func testEndedTokensArePrunedOnSignIn(t *testing.T, b store.Backend) {
+	f := newFixture(t, b, "")
 	a := &authtest.Authenticator{}
 	owner := ownerPrincipal(f.claim(t, localhost, a))
 	in := f.clock.now().Add(time.Hour)
 	expiring := f.token(t, owner, store.ScopeReadOnly, &in)
 	revoked := f.token(t, owner, store.ScopeReadOnly, nil)
 	live := f.token(t, owner, store.ScopeReadOnly, nil)
-	for _, made := range []NewToken{expiring, revoked, live} {
+	for _, made := range []*NewToken{&expiring, &revoked, &live} {
 		if _, err := f.svc.AuthenticateToken(t.Context(), localhost, made.Secret, AccessRead, "/test/Call"); err != nil {
 			t.Fatal(err)
 		}
@@ -270,7 +284,11 @@ func TestEndedTokensArePrunedOnSignIn(t *testing.T) {
 // /64, whose privacy addresses rotate, or an IPv4 address however it is
 // written. Each network's first use is audited once.
 func TestTokenUseIsRecordedOnceAMinuteForEachNetwork(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testTokenUseIsRecordedOnceAMinuteForEachNetwork)
+}
+
+func testTokenUseIsRecordedOnceAMinuteForEachNetwork(t *testing.T, b store.Backend) {
+	f := newFixture(t, b, "")
 	owner := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
 	made := f.token(t, owner, store.ScopeReadOnly, nil)
 	from := func(addr string) Client {
@@ -342,8 +360,10 @@ func TestRefusalCountsAreForgottenOnlyWhenReported(t *testing.T) {
 
 // The audit log has every token made and revoked, its first use from each
 // new address, and refusals of known tokens, at most once an hour each.
-func TestTokensAreAudited(t *testing.T) {
-	f := newFixture(t, "")
+func TestTokensAreAudited(t *testing.T) { storetest.Each(t, testTokensAreAudited) }
+
+func testTokensAreAudited(t *testing.T, b store.Backend) {
+	f := newFixture(t, b, "")
 	owner := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
 	made := f.token(t, owner, store.ScopeReadOnly, nil)
 	if got := f.auditDetails(t, "token.create"); len(got) != 1 || !strings.Contains(got[0], made.Token.ID) ||
@@ -423,14 +443,18 @@ func TestTokensAreAudited(t *testing.T) {
 
 // Recording a token's use is best effort, as for sessions.
 func TestAFailedTokenTouchStillAuthenticates(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testAFailedTokenTouchStillAuthenticates)
+}
+
+func testAFailedTokenTouchStillAuthenticates(t *testing.T, b store.Backend) {
+	f := newFixture(t, b, "")
 	owner := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
 	made := f.token(t, owner, store.ScopeReadOnly, nil)
-	f.execSQL(t, `CREATE TRIGGER no_touch BEFORE UPDATE OF last_used_at ON api_tokens BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END`)
+	restore := storetest.FailUpdates(t, f.path, "api_tokens", "last_used_at")
 	if p, err := f.svc.AuthenticateToken(t.Context(), localhost, made.Secret, AccessRead, "/test/Call"); err != nil || p.Token.ID != made.Token.ID {
 		t.Errorf("AuthenticateToken when the touch fails = %v", err)
 	}
-	f.execSQL(t, `DROP TRIGGER no_touch`)
+	restore()
 	if _, err := f.svc.AuthenticateToken(t.Context(), localhost, made.Secret, AccessRead, "/test/Call"); err != nil {
 		t.Fatal(err)
 	}
@@ -440,7 +464,11 @@ func TestAFailedTokenTouchStillAuthenticates(t *testing.T) {
 }
 
 func TestATokenKeepsAtMostSoManyAddresses(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testATokenKeepsAtMostSoManyAddresses)
+}
+
+func testATokenKeepsAtMostSoManyAddresses(t *testing.T, b store.Backend) {
+	f := newFixture(t, b, "")
 	owner := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
 	made := f.token(t, owner, store.ScopeReadOnly, nil)
 	for i := range store.MaxTokenAddresses + 10 {
@@ -458,7 +486,11 @@ func TestATokenKeepsAtMostSoManyAddresses(t *testing.T) {
 
 func (f *fixture) execSQLScan(t *testing.T, query string, dest ...any) {
 	t.Helper()
-	db, err := sql.Open("sqlite", "file:"+f.path+"?_pragma=busy_timeout(5000)")
+	driver, source := "sqlite", "file:"+f.path+"?_pragma=busy_timeout(5000)"
+	if store.IsPostgres(f.path) {
+		driver, source = "pgx", f.path
+	}
+	db, err := sql.Open(driver, source)
 	if err != nil {
 		t.Fatal(err)
 	}
