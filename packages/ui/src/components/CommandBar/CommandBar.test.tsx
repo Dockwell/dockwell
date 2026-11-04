@@ -96,6 +96,27 @@ describe("CommandBar inline", () => {
     expect(onSelect).toHaveBeenCalledWith(items[3]);
   });
 
+  it("names an option by its label, and gives its shortcut as aria-keyshortcuts", async () => {
+    const { container } = render(
+      <CommandBar
+        inline
+        items={[...items, { id: "palette", group: "Go to", icon: "search", label: "Search everything", kbd: "⇧⌘F" }]}
+      />,
+    );
+    // The key caps stay on screen and out of the name.
+    const fleet = screen.getByRole("option", { name: "Fleet" });
+    expect(within(fleet).getByText("G F").tagName).toBe("KBD");
+    expect(within(fleet).getByText("G F")).toHaveAttribute("aria-hidden", "true");
+    // aria-keyshortcuts can't say a sequence of keys, so it's left out.
+    expect(fleet).not.toHaveAttribute("aria-keyshortcuts");
+    expect(screen.getByRole("option", { name: "Search everything" })).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Shift+Meta+F",
+    );
+    expect(screen.getByRole("option", { name: "Apps" })).not.toHaveAttribute("aria-keyshortcuts");
+    await expectAccessible(container);
+  });
+
   it("says when nothing matches, in a live region", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
@@ -246,6 +267,31 @@ describe("CommandBar overlay", () => {
     expect(onSelect).toHaveBeenCalledWith(items[3]);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(opener).toHaveFocus();
+  });
+
+  it("fills a phone screen and closes with Cancel, as there's no Escape key", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width"),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    const user = userEvent.setup();
+    render(<Harness />);
+    const opener = screen.getByRole("button", { name: "Search" });
+    await user.click(opener);
+    const dialog = screen.getByRole("dialog", { name: "Command bar" });
+    expect(within(dialog).queryByText("esc")).toBeNull();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(opener).toHaveFocus();
+  });
+
+  it("shows Escape instead of Cancel on wider screens", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    expect(screen.getByText("esc").tagName).toBe("KBD");
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
   });
 
   it("starts with an empty query each time it opens", async () => {

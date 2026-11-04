@@ -4,7 +4,9 @@ import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { ConnectError, createClient, type Transport } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { type Server, ServerService } from "@dockwell/api";
-import { useEffect, useState } from "react";
+import { createContext, createElement, type ReactNode, useContext, useEffect, useState } from "react";
+
+import { type FleetView, fleetView } from "./server";
 
 /** How many samples each server keeps for sparklines, matching the control plane. */
 export const HISTORY_LENGTH = 60;
@@ -17,24 +19,66 @@ export type FleetState =
 const MIN_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 15_000;
 
+/** A watch's state, and the shell's view of it, which keeps its identity while only the numbers change. */
+interface Watched {
+  state: FleetState;
+  view: FleetView;
+}
+
+// Two contexts, so what reads only the view isn't woken by each sample.
+const StateContext = createContext<FleetState | undefined>(undefined);
+const ViewContext = createContext<FleetView | undefined>(undefined);
+
+/**
+ * Watches the fleet once for everything inside it, so the shell and the
+ * screen it holds share one stream.
+ */
+export function FleetProvider({ children }: { children: ReactNode }) {
+  const { state, view } = useWatch(true);
+  return createElement(StateContext, { value: state }, createElement(ViewContext, { value: view }, children));
+}
+
 /**
  * Every server and its live stats, from ServerService.WatchServers. The
  * stream opens with a snapshot, each server with its history, and marks its
  * end; later messages carry only the newest sample, appended here. A dropped
  * stream reconnects with backoff, keeps showing what it knew, and swaps in
- * the fresh snapshot once it is complete.
+ * the fresh snapshot once it is complete. Inside a FleetProvider this reads
+ * the provider's watch; anywhere else it opens its own.
  */
 export function useFleet(): FleetState {
+  const shared = useContext(StateContext);
+  const own = useWatch(shared === undefined);
+  return shared ?? own.state;
+}
+
+/**
+ * The fleet as the shell shows it: how many servers, their names and how
+ * they are. Unlike useFleet, a component that reads only this doesn't
+ * render again for each stats sample.
+ */
+export function useFleetView(): FleetView {
+  const shared = useContext(ViewContext);
+  const own = useWatch(shared === undefined);
+  return shared ?? own.view;
+}
+
+const CONNECTING: FleetState = { status: "connecting" };
+
+function useWatch(enabled: boolean): Watched {
   const transport = useTransport();
-  const [state, setState] = useState<FleetState>({ status: "connecting" });
+  const [watched, setWatched] = useState<Watched>(() => ({ state: CONNECTING, view: fleetView(CONNECTING) }));
 
   useEffect(() => {
+    if (!enabled) return;
     const abort = new AbortController();
-    void watch(transport, abort.signal, setState);
+    void watch(transport, abort.signal, (state) =>
+      setWatched((prev) => ({ state, view: fleetView(state, prev.view) })),
+    );
     return () => abort.abort();
-  }, [transport]);
+  }, [transport, enabled]);
 
-  return state;
+  return watched;
 }
 
 async function watch(transport: Transport, signal: AbortSignal, publish: (s: FleetState) => void): Promise<void> {

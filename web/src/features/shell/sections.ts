@@ -1,0 +1,58 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import type { IconName } from "@dockwell/ui";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+
+interface Section {
+  label: MessageDescriptor;
+  icon: IconName;
+  /** Reached from the phone's More page, rather than its tab bar. */
+  inMore: boolean;
+}
+
+/**
+ * The sections in the design's rail that have no screen yet. The rail and the
+ * phone's More page show them where the design puts them, and each opens a
+ * page that says so, so the panel's layout stays put as screens arrive. A
+ * section with a screen gets its own route, which takes over its path.
+ */
+export const UPCOMING = {
+  apps: { label: msg`Apps`, icon: "service", inMore: false },
+  websites: { label: msg`Websites`, icon: "browser", inMore: true },
+  databases: { label: msg`Databases`, icon: "database", inMore: true },
+  connections: { label: msg`Connections`, icon: "key", inMore: true },
+  domains: { label: msg`Domains`, icon: "link", inMore: true },
+  backups: { label: msg`Backups`, icon: "archive", inMore: true },
+  catalog: { label: msg`Catalog`, icon: "grid", inMore: true },
+  "fleet-actions": { label: msg`Fleet actions`, icon: "play", inMore: true },
+  activity: { label: msg`Activity`, icon: "activity", inMore: false },
+  alerts: { label: msg`Alerts`, icon: "bell", inMore: true },
+  "scheduled-tasks": { label: msg`Scheduled tasks`, icon: "calendar", inMore: true },
+  settings: { label: msg`Settings`, icon: "settings", inMore: true },
+} as const satisfies Record<string, Section>;
+
+export type UpcomingSection = keyof typeof UPCOMING;
+
+/** The rail's resource sections, in its order. */
+export const RESOURCES = [
+  "apps",
+  "websites",
+  "databases",
+  "connections",
+  "domains",
+  "backups",
+  "catalog",
+] as const satisfies readonly UpcomingSection[];
+
+/** The rail's operate sections, in its order. */
+export const OPERATE = ["activity", "alerts", "scheduled-tasks"] as const satisfies readonly UpcomingSection[];
+
+export function isUpcoming(section: string): section is UpcomingSection {
+  return Object.hasOwn(UPCOMING, section);
+}
+
+/** The first segment of a path, such as "servers" for /servers/srv_1. */
+export function firstSegment(pathname: string): string {
+  return pathname.split("/").find((part) => part !== "") ?? "";
+}

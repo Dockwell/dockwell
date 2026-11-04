@@ -4,6 +4,6 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { StatusPage } from "../features/system/StatusPage";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/status")({
   component: StatusPage,
 });

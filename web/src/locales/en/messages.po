@@ -59,29 +59,75 @@ msgstr "{name}, {status}, CPU {cpu}%"
 msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 msgstr "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 
+#: src/features/shell/Topbar.tsx
+msgid "{unknown} in an unknown state"
+msgstr "{unknown} in an unknown state"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "{used} of {total}"
 msgstr "{used} of {total}"
+
+#: src/features/shell/Topbar.tsx
+msgid "{waiting} waiting for an agent"
+msgstr "{waiting} waiting for an agent"
+
+#: src/features/shell/sections.ts
+#: src/features/shell/TabBar.tsx
+msgid "Activity"
+msgstr "Activity"
 
 #: src/features/servers/ServersPanel.tsx
 msgid "Agent not connected"
 msgstr "Agent not connected"
 
+#: src/features/shell/sections.ts
+msgid "Alerts"
+msgstr "Alerts"
+
+#: src/features/shell/Topbar.tsx
+msgid "All healthy"
+msgstr "All healthy"
+
 #: src/app/Providers.tsx
 msgid "app"
 msgstr "app"
+
+#: src/features/shell/sections.ts
+#: src/features/shell/TabBar.tsx
+msgid "Apps"
+msgstr "Apps"
+
+#: src/features/shell/Page.tsx
+msgid "Back"
+msgstr "Back"
 
 #: src/app/Providers.tsx
 msgid "backup"
 msgstr "backup"
 
+#: src/features/shell/sections.ts
+msgid "Backups"
+msgstr "Backups"
+
 #: src/features/system/StatusPage.tsx
 msgid "Can't reach the control plane"
 msgstr "Can't reach the control plane"
 
+#: src/app/Providers.tsx
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/shell/sections.ts
+msgid "Catalog"
+msgstr "Catalog"
+
 #: src/features/system/StatusPage.tsx
 msgid "Check it from a terminal"
 msgstr "Check it from a terminal"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Check the control plane's status"
+msgstr "Check the control plane's status"
 
 #: src/app/Providers.tsx
 msgid "Close"
@@ -115,6 +161,18 @@ msgstr "Connecting"
 msgid "Connecting to the control plane"
 msgstr "Connecting to the control plane"
 
+#: src/features/shell/sections.ts
+msgid "Connections"
+msgstr "Connections"
+
+#: src/features/shell/MorePage.tsx
+msgid "Control plane"
+msgstr "Control plane"
+
+#: src/features/system/StatusPage.tsx
+msgid "Control plane status"
+msgstr "Control plane status"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "Control server"
 msgstr "Control server"
@@ -132,9 +190,21 @@ msgstr "CPU"
 msgid "Create"
 msgstr "Create"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Current"
+msgstr "Current"
+
+#: src/features/shell/MorePage.tsx
+msgid "Dark"
+msgstr "Dark"
+
 #: src/app/Providers.tsx
 msgid "database"
 msgstr "database"
+
+#: src/features/shell/sections.ts
+msgid "Databases"
+msgstr "Databases"
 
 #: src/app/Providers.tsx
 msgid "Degraded"
@@ -152,6 +222,10 @@ msgstr "Destroy"
 msgid "Dismiss"
 msgstr "Dismiss"
 
+#: src/features/shell/Rail.tsx
+msgid "Dockwell {short}: control plane status"
+msgstr "Dockwell {short}: control plane status"
+
 #: src/features/system/StatusPage.tsx
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
@@ -159,6 +233,10 @@ msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and 
 #: src/app/Providers.tsx
 msgid "domain"
 msgstr "domain"
+
+#: src/features/shell/sections.ts
+msgid "Domains"
+msgstr "Domains"
 
 #: src/app/Providers.tsx
 msgid "Down"
@@ -168,9 +246,21 @@ msgstr "Down"
 msgid "Error"
 msgstr "Error"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Find {name} in the server list"
+msgstr "Find {name} in the server list"
+
 #: src/app/Providers.tsx
 msgid "firewall"
 msgstr "firewall"
+
+#: src/features/shell/Rail.tsx
+msgid "Fleet"
+msgstr "Fleet"
+
+#: src/features/shell/sections.ts
+msgid "Fleet actions"
+msgstr "Fleet actions"
 
 #: src/app/Providers.tsx
 msgid "Follow"
@@ -183,6 +273,10 @@ msgstr "from"
 #: src/features/system/StatusPage.tsx
 msgid "Go"
 msgstr "Go"
+
+#: src/features/shell/NotYet.tsx
+msgid "Go to the overview"
+msgstr "Go to the overview"
 
 #: src/app/Providers.tsx
 msgid "Healthy"
@@ -204,6 +298,10 @@ msgstr "In <0>{scope}</0>"
 msgid "job"
 msgstr "job"
 
+#: src/features/shell/MorePage.tsx
+msgid "Light"
+msgstr "Light"
+
 #: src/app/Providers.tsx
 msgid "Live"
 msgstr "Live"
@@ -212,10 +310,28 @@ msgstr "Live"
 msgid "Loading servers"
 msgstr "Loading servers"
 
+#: src/features/shell/Rail.tsx
+msgid "Machine"
+msgstr "Machine"
+
+#: src/features/shell/Rail.tsx
+#: src/features/shell/TabBar.tsx
+msgid "Main"
+msgstr "Main"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Match the system theme"
+msgstr "Match the system theme"
+
 #: src/app/Providers.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "Memory"
 msgstr "Memory"
+
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/TabBar.tsx
+msgid "More"
+msgstr "More"
 
 #: src/features/system/NotFound.tsx
 msgid "No page here"
@@ -225,6 +341,10 @@ msgstr "No page here"
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "No servers yet. Add one with <0>dockwell token create</0> on this server."
 
+#: src/features/shell/NotYet.tsx
+msgid "Not in this release yet"
+msgstr "Not in this release yet"
+
 #: src/app/Providers.tsx
 msgid "Nothing here yet."
 msgstr "Nothing here yet."
@@ -233,13 +353,36 @@ msgstr "Nothing here yet."
 msgid "Nothing matches “{query}”. Try a server, app or action name."
 msgstr "Nothing matches “{query}”. Try a server, app or action name."
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Open the overview"
+msgstr "Open the overview"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Open the server list"
+msgstr "Open the server list"
+
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/Rail.tsx
+msgid "Operate"
+msgstr "Operate"
+
 #: src/app/Providers.tsx
 msgid "Optional"
 msgstr "Optional"
 
+#: src/features/overview/Overview.tsx
+#: src/features/shell/Rail.tsx
+#: src/features/shell/TabBar.tsx
+msgid "Overview"
+msgstr "Overview"
+
 #: src/app/Providers.tsx
 msgid "package"
 msgstr "package"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Pages"
+msgstr "Pages"
 
 #: src/app/Providers.tsx
 msgid "Pause"
@@ -258,6 +401,7 @@ msgid "Protected environment"
 msgstr "Protected environment"
 
 #: src/features/servers/ServersPanel.tsx
+#: src/features/shell/Topbar.tsx
 msgid "Reconnecting"
 msgstr "Reconnecting"
 
@@ -268,6 +412,10 @@ msgstr "Remove {what}"
 #: src/app/Providers.tsx
 msgid "Replace"
 msgstr "Replace"
+
+#: src/features/shell/MorePage.tsx
+msgid "Resources"
+msgstr "Resources"
 
 #: src/app/Providers.tsx
 msgid "Results"
@@ -281,11 +429,17 @@ msgstr "Retry"
 msgid "Retrying"
 msgstr "Retrying"
 
+#: src/features/shell/sections.ts
+msgid "Scheduled tasks"
+msgstr "Scheduled tasks"
+
 #: src/app/Providers.tsx
 msgid "Scope"
 msgstr "Scope"
 
 #: src/app/Providers.tsx
+#: src/features/shell/Page.tsx
+#: src/features/shell/Topbar.tsx
 msgid "Search or run a command"
 msgstr "Search or run a command"
 
@@ -297,8 +451,17 @@ msgstr "secret"
 msgid "server"
 msgstr "server"
 
+#: src/features/shell/Rail.tsx
+#: src/features/shell/TabBar.tsx
+msgid "Server"
+msgstr "Server"
+
 #: src/app/Providers.tsx
+#: src/features/servers/ServersPage.tsx
 #: src/features/servers/ServersPanel.tsx
+#: src/features/shell/CommandMenu.tsx
+#: src/features/shell/Rail.tsx
+#: src/features/shell/TabBar.tsx
 msgid "Servers"
 msgstr "Servers"
 
@@ -306,9 +469,25 @@ msgstr "Servers"
 msgid "service"
 msgstr "service"
 
+#: src/features/shell/sections.ts
+msgid "Settings"
+msgstr "Settings"
+
+#: src/features/shell/MorePage.tsx
+msgid "Settings and status"
+msgstr "Settings and status"
+
+#: src/features/shell/Shell.tsx
+msgid "Skip to content"
+msgstr "Skip to content"
+
 #: src/app/Providers.tsx
 msgid "Stopped"
 msgstr "Stopped"
+
+#: src/features/shell/MorePage.tsx
+msgid "System"
+msgstr "System"
 
 #: src/features/system/StatusPage.tsx
 msgid "The control plane is running"
@@ -322,6 +501,11 @@ msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwe
 msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "The server list didn't load. Dockwell keeps trying."
 
+#: src/features/shell/CommandMenu.tsx
+#: src/features/shell/MorePage.tsx
+msgid "Theme"
+msgstr "Theme"
+
 #: src/features/system/NotFound.tsx
 msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 msgstr "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
@@ -329,6 +513,10 @@ msgstr "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 #: src/features/system/StatusPage.tsx
 msgid "This control plane"
 msgstr "This control plane"
+
+#: src/features/shell/NotYet.tsx
+msgid "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
+msgstr "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
 
 #: src/app/Providers.tsx
 msgid "to"
@@ -383,6 +571,14 @@ msgstr "Up"
 msgid "Update in place"
 msgstr "Update in place"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Use the dark theme"
+msgstr "Use the dark theme"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Use the light theme"
+msgstr "Use the light theme"
+
 #: src/features/system/StatusPage.tsx
 msgid "Version"
 msgstr "Version"
@@ -398,3 +594,7 @@ msgstr "Waiting for its agent"
 #: src/app/Providers.tsx
 msgid "Warning"
 msgstr "Warning"
+
+#: src/features/shell/sections.ts
+msgid "Websites"
+msgstr "Websites"

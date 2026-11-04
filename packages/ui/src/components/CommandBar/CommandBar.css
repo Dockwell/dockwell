@@ -128,3 +128,56 @@
   color: var(--ink);
   font-weight: 550;
 }
+.dw-cmd-cancel {
+  flex: none;
+  height: 44px;
+  margin-right: calc(var(--space-2) * -1);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.dw-cmd-cancel:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* On phones the overlay fills the screen, as a search page would. Inputs at
+   16px keep iOS from zooming in, and the key hints give way to Cancel. */
+@media (max-width: 639.98px) {
+  .dw-cmd-layer {
+    padding: 0;
+    align-items: stretch;
+  }
+  .dw-cmd-layer > .dw-cmd {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    border-radius: 0;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .dw-cmd-layer .dw-cmd-input-row {
+    height: 58px;
+  }
+  .dw-cmd-layer .dw-cmd-input {
+    font-size: 16px;
+  }
+  .dw-cmd-layer .dw-cmd-list {
+    flex: 1;
+    max-height: none;
+  }
+  .dw-cmd-layer .dw-cmd-item {
+    height: 46px;
+  }
+  .dw-cmd-layer .dw-cmd-foot > span[aria-hidden] {
+    display: none;
+  }
+  .dw-cmd-layer .dw-cmd-foot.is-keys-only {
+    display: none;
+  }
+}

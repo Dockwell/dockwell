@@ -59,29 +59,75 @@ msgstr "{name}，{status}，CPU {cpu}%"
 msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 msgstr "{samples, plural, other {# 个样本的趋势，最新值 {latest}}}"
 
+#: src/features/shell/Topbar.tsx
+msgid "{unknown} in an unknown state"
+msgstr "{unknown} 台状态未知"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "{used} of {total}"
 msgstr "{used} / {total}"
+
+#: src/features/shell/Topbar.tsx
+msgid "{waiting} waiting for an agent"
+msgstr "{waiting} 台等待代理连接"
+
+#: src/features/shell/sections.ts
+#: src/features/shell/TabBar.tsx
+msgid "Activity"
+msgstr "动态"
 
 #: src/features/servers/ServersPanel.tsx
 msgid "Agent not connected"
 msgstr "代理未连接"
 
+#: src/features/shell/sections.ts
+msgid "Alerts"
+msgstr "告警"
+
+#: src/features/shell/Topbar.tsx
+msgid "All healthy"
+msgstr "全部健康"
+
 #: src/app/Providers.tsx
 msgid "app"
 msgstr "应用"
 
+#: src/features/shell/sections.ts
+#: src/features/shell/TabBar.tsx
+msgid "Apps"
+msgstr "应用"
+
+#: src/features/shell/Page.tsx
+msgid "Back"
+msgstr "返回"
+
 #: src/app/Providers.tsx
 msgid "backup"
+msgstr "备份"
+
+#: src/features/shell/sections.ts
+msgid "Backups"
 msgstr "备份"
 
 #: src/features/system/StatusPage.tsx
 msgid "Can't reach the control plane"
 msgstr "无法连接到控制平面"
 
+#: src/app/Providers.tsx
+msgid "Cancel"
+msgstr "取消"
+
+#: src/features/shell/sections.ts
+msgid "Catalog"
+msgstr "应用目录"
+
 #: src/features/system/StatusPage.tsx
 msgid "Check it from a terminal"
 msgstr "在终端中检查"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Check the control plane's status"
+msgstr "查看控制平面状态"
 
 #: src/app/Providers.tsx
 msgid "Close"
@@ -115,6 +161,18 @@ msgstr "正在连接"
 msgid "Connecting to the control plane"
 msgstr "正在连接控制平面"
 
+#: src/features/shell/sections.ts
+msgid "Connections"
+msgstr "连接"
+
+#: src/features/shell/MorePage.tsx
+msgid "Control plane"
+msgstr "控制平面"
+
+#: src/features/system/StatusPage.tsx
+msgid "Control plane status"
+msgstr "控制平面状态"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "Control server"
 msgstr "控制服务器"
@@ -132,8 +190,20 @@ msgstr "CPU"
 msgid "Create"
 msgstr "创建"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Current"
+msgstr "当前"
+
+#: src/features/shell/MorePage.tsx
+msgid "Dark"
+msgstr "深色"
+
 #: src/app/Providers.tsx
 msgid "database"
+msgstr "数据库"
+
+#: src/features/shell/sections.ts
+msgid "Databases"
 msgstr "数据库"
 
 #: src/app/Providers.tsx
@@ -152,12 +222,20 @@ msgstr "销毁"
 msgid "Dismiss"
 msgstr "关闭"
 
+#: src/features/shell/Rail.tsx
+msgid "Dockwell {short}: control plane status"
+msgstr "Dockwell {short}：控制平面状态"
+
 #: src/features/system/StatusPage.tsx
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方；应用和部署功能即将推出。"
 
 #: src/app/Providers.tsx
 msgid "domain"
+msgstr "域名"
+
+#: src/features/shell/sections.ts
+msgid "Domains"
 msgstr "域名"
 
 #: src/app/Providers.tsx
@@ -168,9 +246,21 @@ msgstr "宕机"
 msgid "Error"
 msgstr "错误"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Find {name} in the server list"
+msgstr "在服务器列表中查找 {name}"
+
 #: src/app/Providers.tsx
 msgid "firewall"
 msgstr "防火墙"
+
+#: src/features/shell/Rail.tsx
+msgid "Fleet"
+msgstr "集群"
+
+#: src/features/shell/sections.ts
+msgid "Fleet actions"
+msgstr "集群操作"
 
 #: src/app/Providers.tsx
 msgid "Follow"
@@ -183,6 +273,10 @@ msgstr "从"
 #: src/features/system/StatusPage.tsx
 msgid "Go"
 msgstr "Go"
+
+#: src/features/shell/NotYet.tsx
+msgid "Go to the overview"
+msgstr "前往概览"
 
 #: src/app/Providers.tsx
 msgid "Healthy"
@@ -204,6 +298,10 @@ msgstr "范围：<0>{scope}</0>"
 msgid "job"
 msgstr "任务"
 
+#: src/features/shell/MorePage.tsx
+msgid "Light"
+msgstr "浅色"
+
 #: src/app/Providers.tsx
 msgid "Live"
 msgstr "实时"
@@ -212,10 +310,28 @@ msgstr "实时"
 msgid "Loading servers"
 msgstr "正在加载服务器"
 
+#: src/features/shell/Rail.tsx
+msgid "Machine"
+msgstr "机器"
+
+#: src/features/shell/Rail.tsx
+#: src/features/shell/TabBar.tsx
+msgid "Main"
+msgstr "主导航"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Match the system theme"
+msgstr "跟随系统主题"
+
 #: src/app/Providers.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "Memory"
 msgstr "内存"
+
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/TabBar.tsx
+msgid "More"
+msgstr "更多"
 
 #: src/features/system/NotFound.tsx
 msgid "No page here"
@@ -225,6 +341,10 @@ msgstr "页面不存在"
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "还没有服务器。在这台服务器上运行 <0>dockwell token create</0> 来添加一台。"
 
+#: src/features/shell/NotYet.tsx
+msgid "Not in this release yet"
+msgstr "此版本尚未提供"
+
 #: src/app/Providers.tsx
 msgid "Nothing here yet."
 msgstr "这里还没有内容。"
@@ -233,13 +353,36 @@ msgstr "这里还没有内容。"
 msgid "Nothing matches “{query}”. Try a server, app or action name."
 msgstr "没有与“{query}”匹配的结果。试试服务器、应用或操作的名称。"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Open the overview"
+msgstr "打开概览"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Open the server list"
+msgstr "打开服务器列表"
+
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/Rail.tsx
+msgid "Operate"
+msgstr "运维"
+
 #: src/app/Providers.tsx
 msgid "Optional"
 msgstr "可选"
 
+#: src/features/overview/Overview.tsx
+#: src/features/shell/Rail.tsx
+#: src/features/shell/TabBar.tsx
+msgid "Overview"
+msgstr "概览"
+
 #: src/app/Providers.tsx
 msgid "package"
 msgstr "软件包"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Pages"
+msgstr "页面"
 
 #: src/app/Providers.tsx
 msgid "Pause"
@@ -258,6 +401,7 @@ msgid "Protected environment"
 msgstr "受保护的环境"
 
 #: src/features/servers/ServersPanel.tsx
+#: src/features/shell/Topbar.tsx
 msgid "Reconnecting"
 msgstr "正在重新连接"
 
@@ -268,6 +412,10 @@ msgstr "移除 {what}"
 #: src/app/Providers.tsx
 msgid "Replace"
 msgstr "替换"
+
+#: src/features/shell/MorePage.tsx
+msgid "Resources"
+msgstr "资源"
 
 #: src/app/Providers.tsx
 msgid "Results"
@@ -281,11 +429,17 @@ msgstr "重试"
 msgid "Retrying"
 msgstr "正在重试"
 
+#: src/features/shell/sections.ts
+msgid "Scheduled tasks"
+msgstr "计划任务"
+
 #: src/app/Providers.tsx
 msgid "Scope"
 msgstr "范围"
 
 #: src/app/Providers.tsx
+#: src/features/shell/Page.tsx
+#: src/features/shell/Topbar.tsx
 msgid "Search or run a command"
 msgstr "搜索或运行命令"
 
@@ -297,8 +451,17 @@ msgstr "密钥"
 msgid "server"
 msgstr "服务器"
 
+#: src/features/shell/Rail.tsx
+#: src/features/shell/TabBar.tsx
+msgid "Server"
+msgstr "服务器"
+
 #: src/app/Providers.tsx
+#: src/features/servers/ServersPage.tsx
 #: src/features/servers/ServersPanel.tsx
+#: src/features/shell/CommandMenu.tsx
+#: src/features/shell/Rail.tsx
+#: src/features/shell/TabBar.tsx
 msgid "Servers"
 msgstr "服务器"
 
@@ -306,9 +469,25 @@ msgstr "服务器"
 msgid "service"
 msgstr "服务"
 
+#: src/features/shell/sections.ts
+msgid "Settings"
+msgstr "设置"
+
+#: src/features/shell/MorePage.tsx
+msgid "Settings and status"
+msgstr "设置与状态"
+
+#: src/features/shell/Shell.tsx
+msgid "Skip to content"
+msgstr "跳到主要内容"
+
 #: src/app/Providers.tsx
 msgid "Stopped"
 msgstr "已停止"
+
+#: src/features/shell/MorePage.tsx
+msgid "System"
+msgstr "跟随系统"
 
 #: src/features/system/StatusPage.tsx
 msgid "The control plane is running"
@@ -322,6 +501,11 @@ msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务�
 msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "服务器列表未能加载。Dockwell 会继续重试。"
 
+#: src/features/shell/CommandMenu.tsx
+#: src/features/shell/MorePage.tsx
+msgid "Theme"
+msgstr "主题"
+
 #: src/features/system/NotFound.tsx
 msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 msgstr "<0>{pathname}</0> 下没有内容。<1>前往概览</1>"
@@ -329,6 +513,10 @@ msgstr "<0>{pathname}</0> 下没有内容。<1>前往概览</1>"
 #: src/features/system/StatusPage.tsx
 msgid "This control plane"
 msgstr "当前控制平面"
+
+#: src/features/shell/NotYet.tsx
+msgid "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
+msgstr "Dockwell 的这一部分尚未完成，会在之后的版本中推出。在此之前，可以在概览中查看服务器的运行情况。"
 
 #: src/app/Providers.tsx
 msgid "to"
@@ -383,6 +571,14 @@ msgstr "运行时间"
 msgid "Update in place"
 msgstr "原地更新"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Use the dark theme"
+msgstr "使用深色主题"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Use the light theme"
+msgstr "使用浅色主题"
+
 #: src/features/system/StatusPage.tsx
 msgid "Version"
 msgstr "版本"
@@ -398,3 +594,7 @@ msgstr "等待代理连接"
 #: src/app/Providers.tsx
 msgid "Warning"
 msgstr "警告"
+
+#: src/features/shell/sections.ts
+msgid "Websites"
+msgstr "网站"

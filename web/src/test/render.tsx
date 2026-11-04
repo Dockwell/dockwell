@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { create } from "@bufbuild/protobuf";
 import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@connectrpc/connect";
-import { ServerService, SystemService } from "@dockwell/api";
+import { GetVersionResponseSchema, ServerService, SystemService } from "@dockwell/api";
+import { PHONE_QUERY } from "@dockwell/ui";
 import { QueryClient } from "@tanstack/react-query";
+import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { render, renderHook } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
+import { vi } from "vitest";
 
 import { Providers } from "../app/Providers";
+import { routeTree } from "../routeTree.gen";
 
 /** The parts of the API a test answers. Anything left out fails as unimplemented. */
 export type Api = {
@@ -45,6 +50,33 @@ function apiWrapper(api: Api) {
 /** Renders ui against api. */
 export function renderWithApi(ui: ReactElement, api: Api) {
   return render(ui, { wrapper: apiWrapper(api) });
+}
+
+/** The control plane's build in tests that don't ask for another. */
+export const version = () =>
+  create(GetVersionResponseSchema, { build: { version: "v0.4.0", platform: "linux/amd64" } });
+
+/**
+ * Renders the whole panel at path, routes and all, against api. The control
+ * plane answers GetVersion with v0.4.0 unless api says otherwise.
+ */
+export function renderAt(path: string, api: Api = {}) {
+  const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) });
+  const result = renderWithApi(<RouterProvider router={router} />, {
+    ...api,
+    system: { getVersion: version, ...api.system },
+  });
+  return { ...result, router };
+}
+
+/** Makes the screen phone-sized from here on in the test: matchMedia matches the phone query. */
+export function onPhone() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === PHONE_QUERY,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
 }
 
 /** Renders a hook against api. */

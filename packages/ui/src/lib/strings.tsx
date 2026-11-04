@@ -44,6 +44,8 @@ export interface UIStrings {
     run: string;
     /** Footer text naming where commands apply. */
     scope: (scope: ReactNode) => ReactNode;
+    /** The button that closes the command bar on phones, where it fills the screen and there's no Escape key. */
+    cancel: string;
   };
   /** Sparkline: default accessible name, given the number of samples and the latest value. */
   sparkline: (samples: number, latest: number) => string;
@@ -120,6 +122,7 @@ export const englishStrings: UIStrings = {
     empty: (query) => `Nothing matches “${query}”. Try a server, app or action name.`,
     move: "to move",
     run: "to run",
+    cancel: "Cancel",
     scope: (scope) => (
       <>
         In <b>{scope}</b>

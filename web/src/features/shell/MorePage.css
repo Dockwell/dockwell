@@ -1,0 +1,76 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Grouped rows, 46px tall, as on the phone's settings screens. */
+.more-group {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* The page's usual gap is for panels; these groups sit closer. */
+.page:has(> .more-group) {
+  gap: 10px;
+}
+
+.more-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px 0 var(--space-4);
+  color: var(--ink);
+  font-size: 15px;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.more-row + .more-row {
+  border-top: 1px solid var(--line);
+}
+
+.more-row:active {
+  background: var(--surface-sunken);
+}
+
+.more-row:focus-visible,
+.more-choice:has(.more-select:focus-visible) {
+  outline: none;
+  border-radius: var(--radius-md);
+  box-shadow:
+    inset 0 0 0 2px var(--cobalt),
+    inset 0 0 0 4px var(--surface);
+}
+
+.more-icon,
+.more-chevron {
+  display: flex;
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.more-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more-value {
+  flex: none;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+/* A native select over the whole row, so the phone's own picker opens. */
+.more-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  font-size: 16px;
+  cursor: pointer;
+}
