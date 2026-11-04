@@ -502,6 +502,12 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			if st.GetHealthUnknown() {
 				fmt.Fprintln(tw, "      Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy.")
 			}
+			for _, line := range ingressWords(st.GetIngress(), s.GetServerName()) {
+				fmt.Fprintln(tw, "      "+line)
+			}
+			if line := domainWords(st.GetDomainCheck()); line != "" {
+				fmt.Fprintln(tw, "      "+line)
+			}
 			for _, warning := range st.GetWarnings() {
 				if warning == dockwellv1.PlanWarning_PLAN_WARNING_MAY_LOCK_OUT {
 					fmt.Fprintln(tw, "      May cut off remote access to "+s.GetServerName()+", such as SSH.")
@@ -529,6 +535,53 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 	}
 }
 
+// ingressWords says what a step does to its server's ingress.
+func ingressWords(e *dockwellv1.IngressEffect, server string) []string {
+	if e == nil {
+		return nil
+	}
+	var out []string
+	proxy, ports := e.GetProxy(), human.List(e.GetPorts())
+	switch e.GetChange() {
+	case dockwellv1.IngressChange_INGRESS_CHANGE_STARTS:
+		out = append(out, fmt.Sprintf("This is the first route on %s, so %s starts, and takes ports %s.", server, proxy, ports))
+		if d := e.GetPanelDomain(); d != "" {
+			out = append(out, fmt.Sprintf("The panel's domain, %s, moves behind %s. Its address, passkeys and sessions stay as they are. HTTPS on it is down for a few seconds while its certificate comes; the SSH tunnel keeps working.", d, proxy))
+		}
+	case dockwellv1.IngressChange_INGRESS_CHANGE_STOPS:
+		out = append(out, fmt.Sprintf("This is the last route on %s, so %s stops, and ports %s are free. Its certificates stay on the server for when a route comes back.", server, proxy, ports))
+		if d := e.GetPanelDomain(); d != "" {
+			out = append(out, fmt.Sprintf("The panel takes those ports back for its domain, %s. Its address, passkeys and sessions stay as they are.", d))
+		}
+	case dockwellv1.IngressChange_INGRESS_CHANGE_RESTARTS:
+		out = append(out, fmt.Sprintf("%s restarts on %s, for a newer version, so everything it serves is down for that long.", proxy, server))
+	default:
+	}
+	return out
+}
+
+// domainWords says what DNS said of a route's domain as this was planned, if
+// that is worth saying. It never stops a plan, as people often set DNS after.
+func domainWords(c *dockwellv1.DomainCheck) string {
+	if c == nil {
+		return ""
+	}
+	found, here := human.List(c.GetFound()), human.List(c.GetHere())
+	switch c.GetState() {
+	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_NO_RECORD:
+		if here == "" {
+			return c.GetDomain() + " has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do."
+		}
+		return fmt.Sprintf("%s has no DNS record yet, so its certificate can't come. Point an A or AAAA record at %s; it comes once you do.", c.GetDomain(), here)
+	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE:
+		return fmt.Sprintf("DNS for %s points at %s, not this server (%s), so its certificate can't come yet. Point it here; it comes once you do.", c.GetDomain(), found, here)
+	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL:
+		return fmt.Sprintf("DNS for %s points at %s. This server's own addresses are private (%s), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is.", c.GetDomain(), found, here)
+	default:
+		return ""
+	}
+}
+
 // accessWords says what each access is, for people.
 func accessWords(list []*dockwellv1.HostAccess) []string {
 	out := make([]string, 0, len(list))
@@ -547,6 +600,7 @@ var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HOST_NETWORK:   resource.AccessNetwork,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_VOLUME_MOUNT:   resource.AccessMount,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_NETWORK_DRIVER: resource.AccessNetworkDriver,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN:         resource.AccessDomain,
 }
 
 // upTo writes a bound to the second, rounding up, as "1 min 50 s", so it

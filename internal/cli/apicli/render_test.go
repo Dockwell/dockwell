@@ -97,6 +97,50 @@ func TestPlanView(t *testing.T) {
 	}
 }
 
+// A person reading a plan learns that it takes the server's public ports, and
+// what DNS says, in words.
+func TestARoutesPlanSaysWhatItDoesToTheServer(t *testing.T) {
+	route := &dockwellv1.ResourceRef{Kind: "route", Name: "www"}
+	plan := &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: []*dockwellv1.PlanStep{{
+		Resource: route, Action: dockwellv1.PlanAction_PLAN_ACTION_CREATE,
+		Ingress: &dockwellv1.IngressEffect{
+			Change: dockwellv1.IngressChange_INGRESS_CHANGE_STARTS, Proxy: "Caddy", Ports: []string{"80/tcp", "443/tcp", "443/udp"}, PanelDomain: "panel.example.com",
+		},
+		DomainCheck: &dockwellv1.DomainCheck{Domain: "app.example.com", State: dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE, Found: []string{"198.51.100.1"}, Here: []string{"203.0.113.9"}},
+	}}}}}
+	var out bytes.Buffer
+	PlanView(&out, plan)
+	for _, want := range []string{
+		"first route on hz-1, so Caddy starts, and takes ports 80/tcp, 443/tcp and 443/udp",
+		"panel.example.com, moves behind Caddy",
+		"the SSH tunnel keeps working",
+		"DNS for app.example.com points at 198.51.100.1, not this server (203.0.113.9)",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("the plan doesn't say %q:\n%s", want, out.String())
+		}
+	}
+
+	for _, tc := range []struct {
+		check *dockwellv1.DomainCheck
+		want  string
+	}{
+		{&dockwellv1.DomainCheck{Domain: "a.example.com", State: dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_NO_RECORD, Here: []string{"203.0.113.9"}}, "has no DNS record yet"},
+		{&dockwellv1.DomainCheck{Domain: "a.example.com", State: dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL, Found: []string{"1.2.3.4"}, Here: []string{"10.0.0.1"}}, "can't tell"},
+		{&dockwellv1.DomainCheck{Domain: "a.example.com", State: dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_POINTS_HERE}, ""},
+		{nil, ""},
+	} {
+		got := domainWords(tc.check)
+		if (tc.want == "") != (got == "") || !strings.Contains(got, tc.want) {
+			t.Errorf("domainWords(%v) = %q, want %q", tc.check, got, tc.want)
+		}
+	}
+	stops := ingressWords(&dockwellv1.IngressEffect{Change: dockwellv1.IngressChange_INGRESS_CHANGE_STOPS, Proxy: "Caddy", Ports: []string{"80/tcp"}}, "hz-1")
+	if len(stops) != 1 || !strings.Contains(stops[0], "Its certificates stay") {
+		t.Errorf("stopping says %v", stops)
+	}
+}
+
 func TestChangeView(t *testing.T) {
 	c := &dockwellv1.Change{
 		Id: "chg_1", Summary: "Add a staging environment", State: dockwellv1.ChangeState_CHANGE_STATE_APPLIED,

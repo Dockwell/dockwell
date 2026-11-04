@@ -510,6 +510,7 @@ function ServerSteps({
             const stepBound = time.bound(stepHealthy);
             const kept = step.keptPaths.join(", ");
             const reach = step.hostAccess.map((a) => words.access(a)).join("; ");
+            const dns = words.domain(step.domainCheck);
             return (
               <li key={step.resourceId} className="plan-step">
                 <span className="plan-step-what">
@@ -536,6 +537,10 @@ function ServerSteps({
                   {step.warnings.includes(PlanWarning.MAY_LOCK_OUT) ? (
                     <span className="plan-step-warn">{t`May cut off access to ${server.serverName}`}</span>
                   ) : null}
+                  {words.ingress(step.ingress, server.serverName).map((line) => (
+                    <span key={line}>{line}</span>
+                  ))}
+                  {dns ? <span className="plan-step-warn">{dns}</span> : null}
                   {live?.message && live.message !== "" ? <span>{live.message}</span> : null}
                 </span>
               </li>

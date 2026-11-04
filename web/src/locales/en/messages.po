@@ -115,6 +115,14 @@ msgstr "{count} stopped"
 msgid "{cpus} vCPU"
 msgstr "{cpus} vCPU"
 
+#: src/features/changes/words.ts
+msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {here}; it comes once you do"
+msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {here}; it comes once you do"
+
+#: src/features/changes/words.ts
+msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
+msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "{free} free"
 msgstr "{free} free"
@@ -190,6 +198,10 @@ msgstr "{out}, with {detail}"
 #: src/features/variables/VariablesPage.tsx
 msgid "{plain, plural, one {# variable} other {# variables}}"
 msgstr "{plain, plural, one {# variable} other {# variables}}"
+
+#: src/features/changes/words.ts
+msgid "{proxy} restarts on {server}, for a newer version, so everything it serves is down for that long"
+msgstr "{proxy} restarts on {server}, for a newer version, so everything it serves is down for that long"
 
 #: src/features/changes/words.ts
 msgid "{reads}, relabelled for SELinux as private"
@@ -840,6 +852,14 @@ msgstr "Disks"
 #: src/app/Providers.tsx
 msgid "Dismiss"
 msgstr "Dismiss"
+
+#: src/features/changes/words.ts
+msgid "DNS for {domain} points at {found}, not this server ({here}), so its certificate can't come yet. Point it here; it comes once you do"
+msgstr "DNS for {domain} points at {found}, not this server ({here}), so its certificate can't come yet. Point it here; it comes once you do"
+
+#: src/features/changes/words.ts
+msgid "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is"
+msgstr "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Docker"
@@ -1896,6 +1916,9 @@ msgstr "Rolls back"
 #: src/features/activity/describe.ts
 msgid "Rotated the key that wraps every secret"
 msgstr "Rotated the key that wraps every secret"
+#: src/features/changes/words.ts
+msgid "Route"
+msgstr "Route"
 
 #: src/features/overview/Overview.tsx
 msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
@@ -2293,6 +2316,9 @@ msgstr "the control plane runs {controlPlane}"
 #: src/features/variables/VariablesPage.tsx
 msgid "The old value stays in this variable's history"
 msgstr "The old value stays in this variable's history"
+#: src/features/changes/words.ts
+msgid "the domain {path}, which the environment {detail} held within the last 7 days"
+msgstr "the domain {path}, which the environment {detail} held within the last 7 days"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "The owner account wasn't created"
@@ -2305,6 +2331,14 @@ msgstr "The panel"
 #: src/features/system/Unreachable.tsx
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
+
+#: src/features/changes/words.ts
+msgid "The panel takes those ports back for its domain, {panelDomain}. Its address, passkeys and sessions stay as they are"
+msgstr "The panel takes those ports back for its domain, {panelDomain}. Its address, passkeys and sessions stay as they are"
+
+#: src/features/changes/words.ts
+msgid "The panel's domain, {panelDomain}, moves behind {proxy}. Its address, passkeys and sessions stay as they are. HTTPS on it is down for a few seconds while its certificate comes; the SSH tunnel keeps working"
+msgstr "The panel's domain, {panelDomain}, moves behind {proxy}. Its address, passkeys and sessions stay as they are. HTTPS on it is down for a few seconds while its certificate comes; the SSH tunnel keeps working"
 
 #: src/features/auth/messages.ts
 msgid "The passkey prompt closed before it finished. Try again when you're ready."
@@ -2386,6 +2420,14 @@ msgstr "This install already has an owner"
 #: src/features/auth/messages.ts
 msgid "This install already has an owner. Sign in instead."
 msgstr "This install already has an owner. Sign in instead."
+
+#: src/features/changes/words.ts
+msgid "This is the first route on {server}, so {proxy} starts, and takes ports {ports}"
+msgstr "This is the first route on {server}, so {proxy} starts, and takes ports {ports}"
+
+#: src/features/changes/words.ts
+msgid "This is the last route on {server}, so {proxy} stops, and ports {ports} are free. Its certificates stay on the server for when a route comes back"
+msgstr "This is the last route on {server}, so {proxy} stops, and ports {ports} are free. Its certificates stay on the server for when a route comes back"
 
 #: src/features/auth/RecoverPage.tsx
 msgid "This page needs the whole link that dockwell recover printed, including the part after “#”."
