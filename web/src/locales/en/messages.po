@@ -979,6 +979,10 @@ msgstr "In 30 days"
 msgid "In 90 days"
 msgstr "In 90 days"
 
+#: src/features/changes/words.ts
+msgid "In a shell on the control server"
+msgstr "In a shell on the control server"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "in under a minute"
 msgstr "in under a minute"
@@ -1302,10 +1306,6 @@ msgstr "Offline"
 msgid "On"
 msgstr "On"
 
-#: src/features/changes/words.ts
-msgid "On the server's shell"
-msgstr "On the server's shell"
-
 #: src/features/auth/ClaimPage.tsx
 msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its {record} record to <0>{publicAddress}</0>, then restart dockwell with <1>--domain</1>."
 msgstr "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its {record} record to <0>{publicAddress}</0>, then restart dockwell with <1>--domain</1>."
@@ -1471,6 +1471,10 @@ msgstr "Project"
 #: src/features/shell/CommandMenu.tsx
 msgid "Projects"
 msgstr "Projects"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Proposed by"
+msgstr "Proposed by"
 
 #: src/app/Providers.tsx
 msgid "Protected environment"

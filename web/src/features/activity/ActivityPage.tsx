@@ -5,6 +5,7 @@ import { useQuery } from "@connectrpc/connect-query";
 import {
   type Actor,
   ActorKind,
+  type Change,
   ChangeService,
   ChangeState,
   type Event,
@@ -434,6 +435,19 @@ function PhoneDay({ events, summaries, now }: DayProps) {
   );
 }
 
+/**
+ * Whether someone other than whoever applied a change proposed it, or
+ * proposed it from elsewhere, as when the CLI plans what only a person
+ * may apply: then the timeline names the one who applied it, and the
+ * detail names the proposer too.
+ */
+function proposedApart(change: Change): boolean {
+  const by = change.proposedBy;
+  const applied = change.appliedBy;
+  if (!applied || !by) return false;
+  return by.kind !== applied.kind || by.id !== applied.id || change.proposedVia !== change.appliedVia;
+}
+
 /** Who did it: a person's initials, or a mark for a token, a server, a shell account or Dockwell. */
 function ActorView({ actor }: { actor: Actor | undefined }) {
   const { t } = useLingui();
@@ -599,6 +613,19 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
             </dd>
             <dt>{t`From`}</dt>
             <dd>{words.surface(event.surface)}</dd>
+            {change && proposedApart(change) ? (
+              <>
+                <dt>{t`Proposed by`}</dt>
+                <dd>
+                  <ActorView actor={change.proposedBy} />
+                  <span className="activity-muted">
+                    {[change.proposedBy ? words.actorKind(change.proposedBy.kind) : "", words.via(change.proposedVia)]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </dd>
+              </>
+            ) : null}
             {change ? (
               <>
                 <dt>{t`State`}</dt>

@@ -5,6 +5,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ActorKind,
+  ActorSchema,
   ChangeState,
   EventKind,
   type ListEventsRequest,
@@ -23,7 +24,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { applied, auditEvent, changeEvent, moved, shopPlanned, since, snapshot, webPlanned } from "../../test/changes";
+import {
+  applied,
+  auditEvent,
+  changeEvent,
+  mira,
+  moved,
+  shopPlanned,
+  since,
+  snapshot,
+  webPlanned,
+} from "../../test/changes";
 import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
 
 const HOUR = 3_600_000;
@@ -293,23 +304,34 @@ describe("Activity", () => {
 
   it("opens a change's own page, /changes/<id>, over Activity, to review and apply it", async () => {
     const user = userEvent.setup();
-    // Proposed with the CLI, which sends a person here for a destructive plan.
-    const destructive = moved(webPlanned(), { proposedVia: Surface.CLI });
+    // Proposed by the CLI's local access, which sends a person here for a destructive plan.
+    const destructive = moved(webPlanned(), {
+      proposedBy: create(ActorSchema, {
+        kind: ActorKind.TOKEN,
+        id: "tok_local",
+        name: "Local access on hz-1, read-write",
+      }),
+      proposedVia: Surface.CLI,
+    });
     if (destructive.plan) destructive.plan.destructive = true;
+    const applying = moved(destructive, { state: ChangeState.APPLYING, appliedBy: mira, appliedVia: Surface.PANEL });
+    // Each watch starts from the change as it stands.
+    let now = destructive;
     const applies: string[] = [];
     const { router } = renderAt("/changes/chg_web", {
       events: {
         async *watchEvents(_req, ctx) {
-          yield snapshot([changeEvent(destructive)]);
+          yield snapshot([changeEvent(now)]);
           await untilAborted(ctx.signal);
         },
       },
       changes: {
-        getChange: () => ({ change: destructive }),
+        getChange: () => ({ change: now }),
         watchChange: feed<WatchChangeResponse>().stream,
         applyChange: (req) => {
           applies.push(req.fingerprint);
-          return { change: moved(destructive, { state: ChangeState.APPLYING }) };
+          now = applying;
+          return { change: applying };
         },
       },
     });
@@ -321,12 +343,16 @@ describe("Activity", () => {
     await waitFor(() => expect(applies).toEqual(["a1b2c3d4e5f60718293a4b5c6d7e8f90"]));
     expect(screen.getByRole("link", { name: "Activity" })).toHaveAttribute("aria-current", "page");
 
-    const applying = await screen.findByRole("dialog", { name: "Applying" });
-    await user.click(within(applying).getAllByRole("button", { name: "Close" }).at(-1) as HTMLElement);
+    const sheetApplying = await screen.findByRole("dialog", { name: "Applying" });
+    await user.click(within(sheetApplying).getAllByRole("button", { name: "Close" }).at(-1) as HTMLElement);
     await waitFor(() => expect(router.state.location.pathname).toBe("/activity"));
     expect(router.state.location.search).toEqual({ event: "chg_web" });
-    // Beside the list, the change says where it came from.
-    expect(await screen.findByRole("region", { name: "Update web" })).toHaveTextContent("The CLI");
+    // Beside the list, the change names who applied it and from where, and
+    // the CLI's token that proposed it.
+    const detail = await screen.findByRole("region", { name: "Update web" });
+    await waitFor(() => expect(detail).toHaveTextContent("Mira Chen"));
+    expect(detail).toHaveTextContent("The panel");
+    expect(detail).toHaveTextContent("Proposed byLocal access on hz-1, read-writeAPI token · From the CLI");
   });
 
   it("says when nothing has happened", async () => {

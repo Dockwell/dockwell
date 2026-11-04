@@ -134,7 +134,7 @@ export function useChangeWords(): ChangeWords {
           case ActorKind.SERVER:
             return t`Server`;
           case ActorKind.SHELL:
-            return t`On the server's shell`;
+            return t`In a shell on the control server`;
         }
         return "";
       },
