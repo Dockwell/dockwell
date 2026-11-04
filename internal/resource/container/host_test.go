@@ -144,6 +144,14 @@ func TestServerPathsNoContainerMayMount(t *testing.T) {
 			&resourcev1.Container{Image: "alpine", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/run"}, Target: "/host-run"}}},
 			[]resource.Access{{Kind: resource.AccessDocker, Path: "/run"}},
 		},
+		"rootless": {
+			&resourcev1.Container{Image: "alpine", Mounts: []*resourcev1.Mount{
+				{Source: &resourcev1.Mount_HostPath{HostPath: "/run/user"}, Target: "/a"},
+				{Source: &resourcev1.Mount_HostPath{HostPath: "/run/user/1000"}, Target: "/b"},
+				{Source: &resourcev1.Mount_HostPath{HostPath: "/run/user/1000/app"}, Target: "/c"},
+			}},
+			[]resource.Access{{Kind: resource.AccessDocker, Path: "/run/user"}, {Kind: resource.AccessDocker, Path: "/run/user/1000"}, {Kind: resource.AccessPath, Path: "/run/user/1000/app"}},
+		},
 		"host network": {&resourcev1.Container{Image: "alpine", Networks: []string{"host"}}, []resource.Access{{Kind: resource.AccessNetwork}}},
 		"volume":       {&resourcev1.Container{Image: "alpine", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data"}}}, nil},
 	} {

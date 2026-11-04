@@ -126,7 +126,13 @@ func controlsDocker(p string) bool {
 	if base := path.Base(p); base == "docker.sock" || base == "containerd.sock" {
 		return true
 	}
-	return slices.ContainsFunc(sockets, func(s string) bool { return within(s, p) }) || within(p, "/run/user") && !strings.Contains(strings.TrimPrefix(p, "/run/user/"), "/")
+	if slices.ContainsFunc(sockets, func(s string) bool { return within(s, p) }) {
+		return true
+	}
+	// Rootless Docker listens in its user's runtime directory, such as
+	// /run/user/1000/docker.sock.
+	user, ok := strings.CutPrefix(p, "/run/user")
+	return ok && (user == "" || strings.HasPrefix(user, "/") && !strings.Contains(user[1:], "/"))
 }
 
 // HostAccess lists what a container reaches on its server: each server
