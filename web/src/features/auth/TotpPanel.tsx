@@ -8,6 +8,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { encode } from "uqr";
 
+import { normalizeCode } from "./code";
 import { useAuthError } from "./messages";
 
 /** Code sign-in with an authenticator app, and its recovery codes. */
@@ -146,14 +147,15 @@ function TotpSetupSheet({ open, onClose }: { open: boolean; onClose: () => void 
 
   const confirm = async (event: FormEvent) => {
     event.preventDefault();
-    if (!/^\d{6}$/.test(code.replace(/\s/g, ""))) {
+    const typed = normalizeCode(code);
+    if (typed?.kind !== "totp") {
       setProblem(t`Enter the 6-digit code your authenticator app shows for Dockwell.`);
       return;
     }
     setBusy(true);
     setProblem(undefined);
     try {
-      const res = await createClient(AuthService, transport).confirmTotpSetup({ code });
+      const res = await createClient(AuthService, transport).confirmTotpSetup({ code: typed.code });
       setCodes(res.recoveryCodes);
     } catch (err) {
       setProblem(explain(err));

@@ -343,7 +343,7 @@ describe("ProfilePage", () => {
     expect(await within(sheet).findByRole("img", { name: "QR code for your authenticator app" })).toBeVisible();
     expect(within(sheet).getByText("JBSW Y3DP EHPK 3PXP JBSW Y3DP EHPK 3PXP")).toBeVisible();
 
-    await userEvent.type(within(sheet).getByLabelText("Enter the 6-digit code it shows"), "123456");
+    await userEvent.type(within(sheet).getByLabelText("Enter the 6-digit code it shows"), "123\u00a0456");
     await userEvent.click(within(sheet).getByRole("button", { name: "Turn on" }));
     const saved = await screen.findByRole("dialog", { name: "Save your recovery codes" });
     expect(within(saved).getAllByRole("listitem")).toHaveLength(10);

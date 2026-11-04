@@ -103,7 +103,7 @@ describe("SignInPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/"));
     expect(calls.auth.signInWithCode).toHaveBeenCalledWith(
-      expect.objectContaining({ email: "mira@acme.dev", code: "123 456" }),
+      expect.objectContaining({ email: "mira@acme.dev", code: "123456" }),
       expect.anything(),
     );
   });
@@ -127,6 +127,36 @@ describe("SignInPage", () => {
     renderAt("/sign-in", calls);
     await userEvent.click(await screen.findByRole("button", { name: "Use a code from your authenticator app" }));
     await userEvent.type(screen.getByLabelText("Code"), "12345");
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(screen.getByText("Enter the 6-digit code from your authenticator app, or a recovery code.")).toBeVisible();
+    expect(calls.auth.signInWithCode).not.toHaveBeenCalled();
+  });
+
+  it("sends a pasted code as it checked it, in the alphabet recovery codes use", async () => {
+    stubPasskeys();
+    const calls = api({ signInWithCode: vi.fn(() => ({ usedRecoveryCode: true })) });
+    renderAt("/sign-in", calls);
+    await userEvent.click(await screen.findByRole("button", { name: "Use a code from your authenticator app" }));
+    await userEvent.type(screen.getByLabelText("Email"), "mira@acme.dev");
+    // Copied from a note: a non-breaking space, an en dash, small letters, and an O where a 0 was meant.
+    await userEvent.click(screen.getByLabelText("Code"));
+    await userEvent.paste("7kq2\u00a0m9xd\u20134tpa-zr3o");
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() =>
+      expect(calls.auth.signInWithCode).toHaveBeenCalledWith(
+        expect.objectContaining({ code: "7KQ2M9XD4TPAZR30" }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("refuses a letter recovery codes never have, before sending it", async () => {
+    stubPasskeys();
+    const calls = api();
+    renderAt("/sign-in", calls);
+    await userEvent.click(await screen.findByRole("button", { name: "Use a code from your authenticator app" }));
+    await userEvent.type(screen.getByLabelText("Email"), "mira@acme.dev");
+    await userEvent.type(screen.getByLabelText("Code"), "7KQ2-M9XD-4TPA-ZR3U");
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect(screen.getByText("Enter the 6-digit code from your authenticator app, or a recovery code.")).toBeVisible();
     expect(calls.auth.signInWithCode).not.toHaveBeenCalled();

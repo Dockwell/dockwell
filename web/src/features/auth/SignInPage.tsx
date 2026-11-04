@@ -12,6 +12,7 @@ import { reasonOf } from "../../lib/errors";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import { getPasskey, PasskeyError, type PasskeyHint, passkeysAvailable } from "../../lib/webauthn";
 import { CopyCommand } from "../system/CopyCommand";
+import { normalizeCode } from "./code";
 import { useAuthError } from "./messages";
 import { Unclaimed } from "./Unclaimed";
 import { safeNext, useAuthState, useRefreshAuth } from "./useAuthState";
@@ -230,20 +231,18 @@ function CodeSignIn({ name, finish, onUsePasskey }: { name: string; finish: Fini
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const typed = code.replace(/[\s-]/g, "");
+    const typed = normalizeCode(code);
     const next = {
       email: /^[^\s@]+@[^\s@]+$/.test(email.trim()) ? undefined : t`Enter the email of your account.`,
-      code:
-        /^\d{6}$/.test(typed) || /^[0-9A-Za-z]{16}$/.test(typed)
-          ? undefined
-          : t`Enter the 6-digit code from your authenticator app, or a recovery code.`,
+      code: typed ? undefined : t`Enter the 6-digit code from your authenticator app, or a recovery code.`,
     };
     setInvalid(next);
-    if (next.email || next.code) return;
+    if (next.email || !typed) return;
     setBusy(true);
     setProblem(undefined);
     try {
-      const res = await createClient(AuthService, transport).signInWithCode({ email, code });
+      // The code as checked here, so the control plane never refuses one the panel let through.
+      const res = await createClient(AuthService, transport).signInWithCode({ email, code: typed.code });
       await finish(res.usedRecoveryCode);
     } catch (err) {
       setProblem(err);
