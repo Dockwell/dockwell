@@ -289,6 +289,9 @@ describe("ProfilePage", () => {
       api({ getAuthState: () => authState({ rpId: "panel.example.com", domain: "panel.example.com" }) }),
     );
     expect(await screen.findByText("No passkey works at panel.example.com yet")).toBeVisible();
+    expect(screen.getByText("dockwell recover").parentElement).toHaveTextContent(
+      "run dockwell recover on the server: its link signs you in here, so you can add a passkey with no code.",
+    );
   });
 
   it("warns that code sign-in is locked, and unlocks it", async () => {

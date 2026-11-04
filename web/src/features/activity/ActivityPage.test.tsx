@@ -213,18 +213,21 @@ describe("Activity", () => {
     expect(row.querySelector(".dw-tone-warning, [data-tone='warning']")).not.toBeNull();
   });
 
-  it("marks a passkey added after a recovery code as worth a look", async () => {
+  it.each([
+    ["passkey.add_with_recovery_code", "a recovery code"],
+    ["passkey.add_with_authenticator_code", "an authenticator code"],
+  ])("marks %s, a passkey added after %s, as worth a look", async (action, code) => {
     const watch = feed<WatchEventsResponse>();
     const added = auditEvent({
       id: "evt_recovered",
-      action: "passkey.add_with_recovery_code",
+      action,
       time: timestampFromDate(new Date(Date.now() - HOUR)),
       subject: { id: "pky_new", name: "Unknown laptop" },
     });
     watch.push(snapshot([added]));
     renderActivity(watch, {});
     const row = await screen.findByRole("row", {
-      name: /Added the passkey Unknown laptop after signing in with a recovery code/,
+      name: new RegExp(`Added the passkey Unknown laptop after signing in with ${code}`),
     });
     expect(row.querySelector(".dw-tone-warning, [data-tone='warning']")).not.toBeNull();
   });

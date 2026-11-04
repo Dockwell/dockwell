@@ -342,8 +342,9 @@ func (s *Service) BeginAddPasskey(ctx context.Context, client Client, p Principa
 // FinishAddPasskey checks and saves a new passkey for the principal. One
 // that a sign-in just now confirms, with no step-up, is checked again as
 // it is stored: still within RecentSignIn of signing in, and still the
-// first since (freshSignIn). One a recovery code confirmed is a security
-// event on the timeline of its own, passkey.add_with_recovery_code.
+// first since (freshSignIn). One a recovery code or an authenticator code
+// confirmed is a security event on the timeline of its own:
+// passkey.add_with_recovery_code or passkey.add_with_authenticator_code.
 func (s *Service) FinishAddPasskey(ctx context.Context, client Client, p Principal, ceremonyID string, credential []byte, name string) (Passkey, error) {
 	cer, err := s.ceremonies.take(ceremonyID, ceremonyAddPasskey, s.now())
 	if err != nil {
@@ -383,8 +384,11 @@ func (s *Service) FinishAddPasskey(ctx context.Context, client Client, p Princip
 				return err
 			}
 			cer.confirmed = by
-			if p.Session.Method == MethodRecoveryCode {
+			switch p.Session.Method {
+			case MethodRecoveryCode:
 				action = "passkey.add_with_recovery_code"
+			case MethodAuthenticator:
+				action = "passkey.add_with_authenticator_code"
 			}
 		}
 		var err error

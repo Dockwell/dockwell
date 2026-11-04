@@ -55,6 +55,15 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             icon: "key",
             tone: "warning",
           };
+        case "passkey.add_with_authenticator_code":
+          // As after a recovery code: a code stood in for the passkey.
+          return {
+            title: name
+              ? t`Added the passkey ${name} after signing in with an authenticator code`
+              : t`Added a passkey after signing in with an authenticator code`,
+            icon: "key",
+            tone: "warning",
+          };
         case "passkey.remove":
           return { title: name ? t`Removed the passkey ${name}` : t`Removed a passkey`, icon: "key" };
         case "totp.enable":

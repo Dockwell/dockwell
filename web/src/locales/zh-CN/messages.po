@@ -377,12 +377,20 @@ msgid "Added a passkey after signing in with a recovery code"
 msgstr "用恢复码登录后添加了一个通行密钥"
 
 #: src/features/activity/describe.ts
+msgid "Added a passkey after signing in with an authenticator code"
+msgstr "用身份验证器验证码登录后添加了一个通行密钥"
+
+#: src/features/activity/describe.ts
 msgid "Added the passkey {name}"
 msgstr "添加了通行密钥 {name}"
 
 #: src/features/activity/describe.ts
 msgid "Added the passkey {name} after signing in with a recovery code"
 msgstr "用恢复码登录后添加了通行密钥 {name}"
+
+#: src/features/activity/describe.ts
+msgid "Added the passkey {name} after signing in with an authenticator code"
+msgstr "用身份验证器验证码登录后添加了通行密钥 {name}"
 
 #: src/features/auth/messages.ts
 msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
@@ -898,7 +906,7 @@ msgstr "邮箱"
 
 #: src/features/activity/describe.ts
 msgid "Ended an authenticator app's setup after 5 wrong codes"
-msgstr "输入 5 次错误代码后结束了身份验证器应用的设置"
+msgstr "输错 5 次验证码后结束了身份验证器应用的设置"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Enter an email address, such as mira@acme.dev."
@@ -1608,8 +1616,8 @@ msgid "Passkeys"
 msgstr "通行密钥"
 
 #: src/features/auth/ProfilePage.tsx
-msgid "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code."
-msgstr "通行密钥属于创建它的地址。请为 {rpId} 添加一个，这样在这里登录就不需要验证码。"
+msgid "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code. If you came here after adding a domain, run <0>dockwell recover</0> on the server: its link signs you in here, so you can add a passkey with no code."
+msgstr "通行密钥属于创建它的地址。请为 {rpId} 添加一个，这样在这里登录就不需要验证码。如果你是在添加域名后来到这里，请在服务器上运行 <0>dockwell recover</0>：它的链接会让你在这里登录，然后无需验证码即可添加通行密钥。"
 
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/SignInPage.tsx
@@ -2224,7 +2232,7 @@ msgstr "这个通行密钥报告的使用次数比之前少，这在通行密钥
 
 #: src/features/auth/messages.ts
 msgid "That was the last try. 5 wrong codes ended this setup, and its key no longer works. Close this and set it up again, which asks for your passkey."
-msgstr "这是最后一次尝试。5 次错误代码已结束此次设置，其密钥不再有效。请关闭此处并重新设置，届时需要使用通行密钥确认。"
+msgstr "这是最后一次尝试。输错 5 次验证码已结束此次设置，其密钥不再有效。请关闭此处并重新设置，届时需要用通行密钥确认。"
 
 #: src/features/auth/messages.ts
 msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."

@@ -57,7 +57,7 @@ var (
 	serverActions = []string{"server.join", "server.renew", "server.revoke"}
 	accessActions = []string{
 		"owner.claim", "auth.sign_in", "session.revoke",
-		"passkey.add", "passkey.add_with_recovery_code", "passkey.remove",
+		"passkey.add", "passkey.add_with_recovery_code", "passkey.add_with_authenticator_code", "passkey.remove",
 		"totp.enable", "totp.disable", "totp.unlock", "totp.setup_discarded", "recovery_codes.regenerate",
 		"token.create", "token.revoke",
 		"sign_in_link.create", "claim_link.create", "join_token.create",

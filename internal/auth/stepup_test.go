@@ -426,8 +426,9 @@ func testASignInJustNowConfirmsAddingAPasskey(t *testing.T, backend store.Backen
 	if _, err := f.svc.FinishAddPasskey(ctx, onDomain, p, first.ID, []byte(cred), "iPhone"); err != nil {
 		t.Fatal(err)
 	}
-	if added := f.auditDetails(t, "passkey.add"); !strings.HasSuffix(added[len(added)-1], "confirmed by signing in with an authenticator code, with no passkey for this address") {
-		t.Errorf("passkey.add events = %q", added)
+	if ev := f.auditEvents(t, "passkey.add_with_authenticator_code"); len(ev) != 1 || !strings.HasPrefix(ev[0].Target, "pky_") ||
+		!strings.HasSuffix(ev[0].Detail, "confirmed by signing in with an authenticator code, with no passkey for this address") {
+		t.Errorf("passkey.add_with_authenticator_code events = %+v, want one naming the passkey", ev)
 	}
 	// A second ceremony begun meanwhile, finished: the first used it.
 	cred, _, _ = (&authtest.Authenticator{}).Create(string(late.Options), onDomain.Site.Origin)

@@ -379,8 +379,9 @@ func (s *Service) confirmed(p Principal, proof string, action StepUpAction) erro
 //   - a recovery code, which is for getting back in after losing every
 //     passkey, and is a security event on the timeline;
 //   - an authenticator code, only when no usable passkey is registered for
-//     this address, as after adding a domain. A code is phishable, so with
-//     a passkey here, adding another takes that passkey.
+//     this address, as after adding a domain, and a security event too. A
+//     code is phishable, so with a passkey here, adding another takes that
+//     passkey.
 //
 // Adding the passkey checks it again, in the transaction that stores it,
 // and records that the session used it (store.Tx.AddPasskeyOnce), so
