@@ -26,9 +26,9 @@ The product has one voice, set out in the design system's [content fundamentals]
 
 ## Contributor License Agreement
 
-Before we merge your first pull request, you sign the [Contributor License Agreement](CLA.md) once. Dockwell's core is licensed under the AGPL-3.0, and the paid Organization edition and Dockwell Cloud are built on that same core. The CLA lets the project ship your contribution there too. Your contribution always stays available under the AGPL in the open-source core, and you keep the copyright.
+Before we merge your first pull request, you sign the [Contributor License Agreement](CLA.md) once. Dockwell's core is licensed under the AGPL-3.0, and the paid Organization edition and Dockwell Cloud are built on that same core. The CLA lets the project ship your contribution there too. In return, it commits the project to keep your contribution to the open-source core available under the AGPL-3.0, or another licence approved by the Open Source Initiative, for as long as the project distributes it. You keep the copyright.
 
-The API schema in `proto/` and the clients generated from it in `gen/` and `packages/api/` are licensed under the Apache-2.0 instead, so anyone can build the clients into their own tools. Contributions there are published under the Apache-2.0, under the same CLA ([ADR 0012](docs/adr/0012-apache-for-api-schema-and-clients.md)).
+The API schema in `proto/` and the clients generated from it in `gen/` and `packages/api/` are licensed under the Apache-2.0 instead, so anyone can build the clients into their own tools. Contributions there are published under the Apache-2.0, under the same CLA. The CLA doesn't yet say that they stay under the Apache-2.0; that question is open for the CLA's review ([ADR 0012](docs/adr/0012-apache-for-api-schema-and-clients.md#the-cla)).
 
 The CLA is still a draft, and the bot that collects signatures isn't set up yet. Until it is, we can review outside pull requests but can't merge them.
 
@@ -55,7 +55,7 @@ Run `make` on its own to list every target. Developer tools such as buf and gola
 
 The panel's text goes through Lingui: write it in English inside `<Trans>` or `` t`…` ``, run `make i18n` to extract it, and add the Simplified Chinese translation to `web/src/locales/zh-CN/messages.po`. CI fails on a missing translation.
 
-The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and `packages/api/src/gen/` (TypeScript). After changing the schema, run `make generate` and commit the result. Files in these directories start with `SPDX-License-Identifier: Apache-2.0`, and generated files take that header from their `.proto` file. Every method must set `(dockwell.v1.effect)`, and a test fails the build when one doesn't.
+The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and `packages/api/src/gen/` (TypeScript). After changing the schema, run `make generate` and commit the result. Run it through make rather than `buf generate` on its own, which empties `gen/` and deletes `gen/LICENSE`. Files in `proto/`, `gen/` and all of `packages/api/` start with `SPDX-License-Identifier: Apache-2.0`, and generated files take that header from their `.proto` file. Every method must set `(dockwell.v1.effect)`, and a test fails the build when one doesn't.
 
 ## Repository layout
 

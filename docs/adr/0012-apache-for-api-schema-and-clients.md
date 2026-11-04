@@ -31,13 +31,13 @@ The other question is scope. Only the public API needs to reach integrations, so
   - `gen/`, the Go code generated from it;
   - `packages/api/`, the TypeScript package `@dockwell/api`, including the hand-written `src/index.ts`. Its `package.json` says `"license": "Apache-2.0"`.
 - Everything else stays AGPL-3.0-only, as ADR 0001 decided. That includes the code in `internal/` that serves and calls the API, the panel in `web/`, and the build configuration that drives generation (`buf.yaml`, `buf.gen.yaml` and the Makefile).
-- Each of the three directories has a `LICENSE` file with the unmodified Apache-2.0 text, so GitHub, npm and Go tooling find it next to the code. buf empties `gen/` before it writes, so `make generate` copies `proto/LICENSE` back into `gen/` afterwards.
+- Each of the three directories has a `LICENSE` file with the unmodified Apache-2.0 text, so GitHub, npm and Go tooling find it next to the code. buf empties `gen/` before it writes and can't leave a file there, so `make generate` copies `proto/LICENSE` back into `gen/` afterwards, and `buf generate` on its own deletes it.
 - Every source file in the three directories starts with `SPDX-License-Identifier: Apache-2.0`. Generated files get it from the `.proto` file they come from.
 - `scripts/check-spdx.sh` enforces the boundary in CI:
-  - it requires Apache-2.0 in the three directories, and AGPL-3.0-only everywhere else;
+  - every source file has exactly one SPDX identifier in its first 5 lines, and it is `Apache-2.0` in the three directories and `AGPL-3.0-only` everywhere else, compared as a whole value;
   - it now checks generated code too, which it used to skip;
-  - every `package.json` declares the licence of its directory;
-  - the three `LICENSE` files are the same Apache-2.0 text.
+  - every `package.json`, read as JSON, declares the licence of its directory;
+  - each of the three `LICENSE` files matches a pinned SHA-256 of the text at <https://www.apache.org/licenses/LICENSE-2.0.txt>, and the check names each file that is missing or differs.
 - The `dockwell` binary compiles `gen/` in with the AGPL core. The binary as a whole is offered under the AGPL-3.0, and its release archive keeps shipping the AGPL text as `LICENSE`.
 
 ### The CLA
