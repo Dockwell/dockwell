@@ -380,6 +380,27 @@ async function main() {
   await page.getByRole("radio", { name: "Running now" }).click();
   await page.waitForFunction(() => !window.location.search.includes("change="));
 
+  step("the commands docker-e2e runs on real Docker read and list what was kept");
+  const table = dockwell("logs", "sources", "web");
+  if (!table.includes("Running") || !table.includes("Failed")) fail(`dockwell logs sources printed:\n${table}`);
+  if (dockwell("logs", "read", "web", "--page-size", "50").trim() === "") fail("dockwell logs read printed no line");
+  const listed = JSON.parse(dockwell("logs", "sources", "web", "--json")) as {
+    sources: { state: string; revision?: string; kept?: string }[];
+  };
+  const failedRevision =
+    listed.sources.find((s) => s.state === "LOG_SOURCE_STATE_KEPT" && s.kept === "LOG_KEPT_FAILED")?.revision ??
+    fail("no source is kept as failed");
+  if (!dockwell("logs", "read", "web", "--revision", failedRevision).includes("giving up after 3 tries"))
+    fail("the failed deploy's kept log doesn't read back");
+  // A background job of a script, as docker-e2e runs it, starts with SIGINT ignored.
+  const interrupted = execFileSync(
+    "bash",
+    ["-c", `"${bin}" logs follow web --tail 1 >/dev/null 2>&1 & p=$!; sleep 1; kill -INT $p; wait $p; echo $?`],
+    { encoding: "utf8", env: env(), timeout: 20_000 },
+  ).trim();
+  if (interrupted !== "0")
+    fail(`dockwell logs follow, interrupted as a script's background job, exited ${interrupted}`);
+
   step("the keyboard scrolls, stops following and goes back to it");
   await page.goto(url);
   await logBody(page).focus();
@@ -500,7 +521,8 @@ async function main() {
   const search = page.getByRole("textbox", { name: "Search logs" });
   const typed = Date.now();
   await search.fill("products/4242 ");
-  await page.getByText(/of the .* lines loaded match/).waitFor();
+  // It really is at the limit: the figures above are worth nothing otherwise.
+  await page.getByText(/of the 100,000 lines loaded match/).waitFor();
   step(
     `  a search over all of them, from typing to the answer (120 ms of that waits for the next key): ${Date.now() - typed} ms`,
   );

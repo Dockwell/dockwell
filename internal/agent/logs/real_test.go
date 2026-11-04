@@ -136,9 +136,12 @@ func TestLogsOnRealDocker(t *testing.T) {
 		t.Errorf("the kept log has %d lines, without those it printed", back.count())
 	}
 
-	// Rotation: it writes past three files' worth, and the disk holds its bound.
+	// Rotation: it writes past what five files of 10 MiB hold, as json-file counts
+	// a line with its JSON around it. It pauses before its last line, which a live
+	// stream's limit would otherwise drop with the rest of the flood.
+	const written = 400_000
 	rot := "rotates"
-	writer := `i=0; while [ $i -lt 400000 ]; do echo "line $i ` + strings.Repeat("y", 100) + `"; i=$((i+1)); done; echo finished; sleep 60`
+	writer := `i=0; while [ $i -lt ` + strconv.Itoa(written) + ` ]; do echo "line $i ` + strings.Repeat("y", 100) + `"; i=$((i+1)); done; sleep 3; echo finished; sleep 60`
 	runReal(t, client, rt, project, rot, writer, 1)
 	refRot := &dockwellv1.ResourceRef{Kind: "service", Scope: scope, Name: rot}
 	seen := newCollector()
@@ -154,23 +157,37 @@ func TestLogsOnRealDocker(t *testing.T) {
 	})
 	cancel3()
 
-	// All that is left reads back in order, across its compressed files, and its
-	// oldest line is well after the first it wrote.
+	// What is left reads back in order across its compressed files, and what
+	// rotated away is gone, so the log kept within its bound.
 	all := newCollector()
 	if err := reader.Stream(t.Context(), &agentv1.LogsCall{Resource: refRot, Query: "line ", Tail: 5000}, all.send); err != nil {
 		t.Fatal(err)
 	}
-	if len(all.scans) != 1 || all.scans[0].GetLines() < 100_000 {
-		t.Fatalf("scans = %v, want it to read well over 100,000 lines of its rotated files", all.scans)
+	if len(all.scans) != 1 {
+		t.Fatalf("scans = %v, want one", all.scans)
+	}
+	read := all.scans[0].GetLines()
+	if read < 100_000 || read >= written {
+		t.Errorf("a search read %d of the %d lines written; want many files' worth, and fewer than all, as the oldest rotated away", read, written)
+	}
+	if all.scans[0].GetCutShort() {
+		t.Error("a search of a rotated log stopped at its limit")
 	}
 	got := all.got()
-	if len(got) != 5000 || !strings.HasPrefix(got[len(got)-1], "line 399999 ") {
-		t.Errorf("the search read %d lines, ending %.20q", len(got), got[len(got)-1])
+	if len(got) != 5000 {
+		t.Fatalf("the search kept %d lines, want 5000", len(got))
 	}
-	if strings.HasPrefix(got[0], "line 0 ") {
-		t.Error("the first line it wrote is still there, so it never rotated")
+	if last := got[len(got)-1]; !strings.HasPrefix(last, "line 399999 ") {
+		t.Errorf("the last line it kept is %.20q", last)
 	}
-	t.Logf("read back %d lines of %s across its rotated files, oldest %v", all.scans[0].GetLines(), rot, all.scans[0].GetOldestTime().AsTime())
+	first := newCollector()
+	if err := reader.Stream(t.Context(), &agentv1.LogsCall{Resource: refRot, Query: "line 0 yyy", Tail: 10}, first.send); err != nil {
+		t.Fatal(err)
+	}
+	if first.count() != 0 {
+		t.Error("the first line it wrote is still there, so it never rotated away")
+	}
+	t.Logf("read back %d of %d lines of %s across its rotated files, oldest %v", read, written, rot, all.scans[0].GetOldestTime().AsTime())
 }
 
 func waitForLong(t *testing.T, what string, ok func() bool) {

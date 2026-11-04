@@ -32,7 +32,7 @@ const (
 // Rotation is what Dockwell asks of json-file, Docker's default driver, which
 // keeps a log without a limit unless told otherwise: 5 files of 10 MiB, the
 // four older ones compressed, so a container's log never takes more than
-// 50 MiB of disk, and usually about 18 MiB. See docs/adr/0025-logs-per-deploy.md.
+// 50 MiB of disk. See docs/adr/0025-logs-per-deploy.md.
 func Rotation() *LogConfig {
 	return &LogConfig{Type: LogDriverJSONFile, Config: map[string]string{
 		"max-size": "10m",

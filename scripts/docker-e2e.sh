@@ -257,7 +257,9 @@ says '^GREETING=hello$' env_of || fail "web's environment is $(env_of)"
 step "Its logs read through the CLI, and follow, and stop on an interrupt"
 logs=$(dw logs read web --page-size 50) || fail "logs read failed"
 grep -q 'nginx\|start' <<<"$logs" || fail "logs read printed no line of nginx's: $logs"
-dw logs sources web | grep -q "Running" || fail "logs sources doesn't list web's container as running"
+# Into a variable first: under pipefail, grep -q leaving early can fail what writes to it.
+listing=$(dw logs sources web) || fail "logs sources failed"
+grep -q "Running" <<<"$listing" || fail "logs sources doesn't list web's container as running: $listing"
 follow_log=$(mktemp)
 dw logs follow web --tail 1 >"$follow_log" 2>&1 &
 follower=$!
@@ -280,7 +282,7 @@ wait "$follower" || code=$?
 rm -f "$follow_log"
 docker inspect --format '{{.HostConfig.LogConfig.Type}} {{index .HostConfig.LogConfig.Config "max-size"}}' "$container" | grep -qx 'json-file 10m' ||
   fail "web's log isn't rotated: $(docker inspect --format '{{json .HostConfig.LogConfig}}' "$container")"
-docker inspect --format '{{index .Config.Labels "dev.dockwell.revision"}}' "$container" | grep -qx '[0-9]*' ||
+docker inspect --format '{{index .Config.Labels "dev.dockwell.revision"}}' "$container" | grep -qx '[0-9][0-9]*' ||
   fail "web's container doesn't say which revision made it"
 
 step "It changes, and the change undoes"
@@ -291,7 +293,8 @@ says '^GREETING=hi$' env_of || fail "after the update, web's environment is $(en
 sources=$(dw logs sources web --json) || fail "logs sources failed"
 kept=$(jq -r '[.sources[] | select(.state == "LOG_SOURCE_STATE_KEPT")] | first | .revision // empty' <<<"$sources")
 [[ -n "$kept" ]] || fail "the replaced container's log wasn't kept: $sources"
-dw logs read web --revision "$kept" | grep -q 'e2e-follows-this' || fail "the replaced container's kept log doesn't read back"
+kept_log=$(dw logs read web --revision "$kept") || fail "logs read --revision $kept failed"
+grep -q 'e2e-follows-this' <<<"$kept_log" || fail "the replaced container's kept log doesn't read back: $kept_log"
 # Changes are listed newest first.
 changes=$(dw changes list --json) || fail "changes list failed"
 change=$(jq -r '.changes[0].id // empty' <<<"$changes") || fail "changes list printed what isn't JSON: $changes"
