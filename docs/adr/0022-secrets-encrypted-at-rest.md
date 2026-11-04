@@ -71,7 +71,7 @@ the install's key           <data>/control/key, 0600, never in the database
 2. wraps every data key under it;
 3. retires the old one, emptying its sealed copy;
 
-all in one transaction, which the audit log records as `secrets.rotate_key`. The control plane can keep running: it reads the active key in each transaction that seals, and finds each data key's own key when it opens one. Rotating the install's key itself, the root, means sealing again the key-encryption keys, the CA's key and the authenticator secrets; that has no command yet.
+all in one transaction, which the audit log records as `secrets.rotate_key`. The control plane can keep running: it reads the active key in each transaction that seals, and finds each data key's own key when it opens one. It keeps no key-encryption key in memory beyond the transaction that unsealed it, which costs a small read and an AES-GCM open, so once `rotate-key` retires one beside it, the running control plane holds it nowhere, and needs no restart. Rotating the install's key itself, the root, means sealing again the key-encryption keys, the CA's key and the authenticator secrets; that has no command yet.
 
 ### What a database backup alone reveals
 

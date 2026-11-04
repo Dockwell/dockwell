@@ -31,7 +31,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sync"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -59,25 +58,26 @@ var ErrOpen = errors.New("can't open a sealed spec")
 // It isn't read, as nothing says it is what Dockwell stored.
 var ErrUnsealed = errors.New("the stored spec isn't sealed, as every spec of its kind is")
 
-// Keeper seals and opens specs, and keeps the keys that do it.
+// Keeper seals and opens specs, with the keys in the store.
+//
+// It keeps no key-encryption key in memory beyond the transaction that
+// uses it: each is unsealed with the install's key when a transaction
+// needs it, which is one small read and one AES-GCM open. So once
+// dockwell rotate-key retires one, in this process or beside it, no
+// running control plane holds it, and every transaction after uses the
+// new one.
 type Keeper struct {
 	db     *store.DB
 	key    *seal.Key
 	kinds  *resource.Registry
 	digest []byte
 	now    func() time.Time
-
-	mu   sync.Mutex
-	keks map[string]cipher.AEAD // unsealed key-encryption keys, by ID
 }
 
 // New returns a Keeper over db, with the install's key. kinds reads the
 // specs it resolves and reveals.
 func New(db *store.DB, key *seal.Key, kinds *resource.Registry) *Keeper {
-	return &Keeper{
-		db: db, key: key, kinds: kinds, digest: key.Derive("spec digests"), now: time.Now,
-		keks: map[string]cipher.AEAD{},
-	}
+	return &Keeper{db: db, key: key, kinds: kinds, digest: key.Derive("spec digests"), now: time.Now}
 }
 
 // Sealed reports whether a stored spec is sealed.
@@ -127,14 +127,9 @@ func specAD(at store.SpecAt) ([]byte, error) {
 	return nil, fmt.Errorf("a sealed spec of %s is either a revision's or a change item's, not %+v", at.ResourceID, at)
 }
 
-// kek returns a key-encryption key, unsealed with the install's key.
+// kek returns a key-encryption key, unsealed with the install's key, for
+// the transaction tx alone.
 func (k *Keeper) kek(ctx context.Context, tx *store.Tx, kekID string) (cipher.AEAD, error) {
-	k.mu.Lock()
-	aead, ok := k.keks[kekID]
-	k.mu.Unlock()
-	if ok {
-		return aead, nil
-	}
 	stored, err := tx.GetKEK(ctx, kekID)
 	if err != nil {
 		return nil, err
@@ -152,14 +147,7 @@ func (k *Keeper) unseal(stored store.KeyEncryptionKey) (cipher.AEAD, error) {
 			"Restore the key file from the backup taken with this database: %w", stored.ID, err)
 	}
 	defer clear(raw)
-	aead, err := newAEAD(raw)
-	if err != nil {
-		return nil, err
-	}
-	k.mu.Lock()
-	k.keks[stored.ID] = aead
-	k.mu.Unlock()
-	return aead, nil
+	return newAEAD(raw)
 }
 
 // activeKEK returns the key-encryption key that wraps new data keys,
@@ -190,9 +178,6 @@ func (k *Keeper) newKEK(ctx context.Context, tx *store.Tx) (string, cipher.AEAD,
 	if err != nil {
 		return "", nil, err
 	}
-	k.mu.Lock()
-	k.keks[kekID] = aead
-	k.mu.Unlock()
 	return kekID, aead, nil
 }
 
@@ -365,12 +350,5 @@ func (k *Keeper) RotateKEK(ctx context.Context, actor, surface string) (string, 
 	if err != nil {
 		return "", 0, err
 	}
-	k.mu.Lock()
-	for kid := range k.keks {
-		if kid != kekID {
-			delete(k.keks, kid)
-		}
-	}
-	k.mu.Unlock()
 	return kekID, n, nil
 }

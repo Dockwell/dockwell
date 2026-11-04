@@ -20,7 +20,8 @@ func newRotateKeyCmd(stdio IO, g *globalFlags) *cobra.Command {
 		Short: "Rotate the key that wraps the keys of every stored secret",
 		Long: "Makes a new key-encryption key, wraps the data key of every encrypted spec under it, and retires the old key, " +
 			"forgetting it, all in one transaction. Secrets, and the specs that hold them, stay as they are: only how their keys " +
-			"are kept changes. The rotation is in the audit log, and the control plane can keep running while it runs.\n\n" +
+			"are kept changes. The rotation is in the audit log. The control plane can keep running: it unseals a key only for the " +
+			"transaction that uses it, so from its next one it uses the new key, and holds the old one nowhere.\n\n" +
 			"Run it on the control server, as the user that runs dockwell. See docs/adr/0022-secrets-encrypted-at-rest.md.",
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

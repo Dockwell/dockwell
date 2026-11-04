@@ -168,6 +168,52 @@ func TestDigestIsKeyed(t *testing.T) {
 	}
 }
 
+// A control plane that keeps running beside dockwell rotate-key holds no
+// retired key-encryption key: a data key still wrapped under the old one,
+// as in a backup taken before, opens nothing in it once another process
+// retires that key, though it opened just before.
+func TestARetiredKeyOpensNothingInARunningControlPlane(t *testing.T) {
+	storetest.Each(t, testARetiredKeyOpensNothingInARunningControlPlane)
+}
+
+func testARetiredKeyOpensNothingInARunningControlPlane(t *testing.T, backend store.Backend) {
+	db, _ := storetest.Open(t, backend)
+	running := secretstest.Keeper(db, kinds())
+	sealed := sealIn(t, db, running, "sec_1", []byte("value"))
+	if got, err := openIn(t, db, running, secretAt("sec_1"), sealed); err != nil || string(got) != "value" {
+		t.Fatalf("Open = %q, %v", got, err)
+	}
+	var before []store.DataKey
+	_ = db.View(t.Context(), func(tx *store.Tx) error {
+		old, err := tx.ActiveKEK(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		before, err = tx.DataKeysUnder(t.Context(), old.ID, "", 10)
+		return err
+	})
+	if len(before) != 1 {
+		t.Fatalf("data keys = %+v, want one", before)
+	}
+	// dockwell rotate-key, beside it.
+	if _, _, err := secretstest.Keeper(db, kinds()).RotateKEK(t.Context(), "cli:mira@hz-1", store.SurfaceCLI); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := openIn(t, db, running, secretAt("sec_1"), sealed); err != nil || string(got) != "value" {
+		t.Errorf("after rotating, Open = %q, %v", got, err)
+	}
+	// The data key as a backup from before has it, wrapped under the
+	// retired key.
+	if err := db.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.RewrapDataKey(t.Context(), before[0].ID, before[0].KEKID, before[0].Wrapped)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := openIn(t, db, running, secretAt("sec_1"), sealed); err == nil {
+		t.Errorf("the running control plane opened a spec with the retired key: %q", got)
+	}
+}
+
 // Rotating the key-encryption key wraps every data key again and retires
 // the old one, forgetting it; every sealed spec still opens, in this
 // process and in a new one, and the rotation is in the audit log.
