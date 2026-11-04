@@ -142,7 +142,7 @@ e2e: build ## Claim, sign out and sign in again in headless Chromium with a virt
 	node web/e2e/sign-in.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
 
 .PHONY: budgets
-budgets: build ## Fail if the binary is over its idle memory budgets (takes about 70 s)
+budgets: build ## Fail if the binary is over its idle memory budgets; BASELINE=other/dockwell measures that too (about 7 minutes)
 	scripts/budgets.sh $(BIN)
 
 .PHONY: check

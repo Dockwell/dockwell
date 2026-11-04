@@ -12,7 +12,7 @@ An open-source control plane for servers, from one VPS to a fleet. One Go binary
 ## Commands
 
 - `make check` runs what CI runs: lint for Go, the schema, TypeScript, CSS and shell scripts (with shellcheck, when it is installed), translations, license headers and doc links; Go and TypeScript tests; the generated-code and breaking-change checks; and a smoke test of the built binary. Run it before every push.
-- The Install workflow also runs `make budgets` (idle memory: agent under 40 MB, control plane plus agent under 250 MB) and `make install-test` (the install script in containers; needs Docker and cosign v3). Run them when you change `scripts/install.sh` or anything that could move memory.
+- The Install workflow also runs `make budgets` (idle memory: agent under 40 MB, with a warning from 30 MB, control plane plus agent under 250 MB; on pull requests, beside main's build) and `make install-test` (the install script in containers; needs Docker and cosign v3). Run them when you change `scripts/install.sh` or anything that could move memory.
 - The store's tests run on SQLite, and on Postgres too when `DOCKWELL_TEST_POSTGRES` names a server, as CI sets it. Set it when you change `internal/store` or any query.
 - `make generate` after any change in `proto/` or `design/system/tokens.json`. Commit what it writes.
 - `make run` builds everything and serves on 127.0.0.1:7600; `make dev` adds the panel with hot reload on :5173.
