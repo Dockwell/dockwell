@@ -116,6 +116,9 @@ func (in *interpolator) walk(at place, v any) (any, error) {
 
 // substitute resolves the variables in s.
 func (in *interpolator) substitute(at place, s string) (string, error) {
+	if !strings.Contains(s, "$") {
+		return s, nil
+	}
 	var b strings.Builder
 	for i := 0; i < len(s); {
 		if s[i] != '$' || i+1 == len(s) {

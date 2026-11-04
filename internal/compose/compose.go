@@ -130,6 +130,10 @@ func checkRaw(file []byte) (map[string]any, error) {
 	if err := check("the Compose file", raw, topKeys); err != nil {
 		return nil, err
 	}
+	dropExtensions(raw)
+	if err := measure(raw); err != nil {
+		return nil, err
+	}
 	if err := conform(place{owner: fileOwner}, raw, fileShape()); err != nil {
 		return nil, err
 	}
@@ -255,11 +259,16 @@ type model struct {
 	Networks types.Networks `yaml:"networks"`
 }
 
-// MaxFile is the largest Compose file Parse reads: 1 MiB, far more than
-// any real file. compose-go's canonical forms take time and memory that
-// grow faster than a file does, so a file at the API's limit of 8 MB took
-// 5 s of CPU and 4.7 GB of allocations.
-const MaxFile = 1 << 20
+// MaxFile is the largest Compose file Parse reads: 256 KiB, far more than
+// any real file. The YAML library's check for repeated names and compose-go's
+// canonical forms take time and memory that grow faster than a file does: at
+// 1 MiB a file took up to 13 s of CPU, and at this size it takes up to 2 s and
+// 44 MiB of heap.
+const MaxFile = 256 << 10
+
+// parsing limits how many files are read at once, as each takes what MaxFile
+// says, and a write token can send as many as it likes.
+var parsing = make(chan struct{}, 2)
 
 // Parse reads a Compose file into what it makes in an environment.
 // Variables such as ${TAG} take their values from variables, or the
@@ -273,10 +282,16 @@ const MaxFile = 1 << 20
 // than the schema does, and the steps here do the rest of what the loader
 // would: resolving variables, the default network, and references between
 // services, volumes and networks.
-func Parse(_ context.Context, file []byte, variables map[string]string) (*Stack, error) {
+func Parse(ctx context.Context, file []byte, variables map[string]string) (*Stack, error) {
 	if len(file) > MaxFile {
-		return nil, invalid("the Compose file is %.1f MiB, and Dockwell reads files of up to 1 MiB. "+
-			"Leave out what Dockwell doesn't run, or import the services in more than one file", float64(len(file))/(1<<20))
+		return nil, invalid("the Compose file is %d KiB, and Dockwell reads files of up to %d KiB. "+
+			"Leave out what Dockwell doesn't run, or import the services in more than one file", len(file)>>10, MaxFile>>10)
+	}
+	select {
+	case parsing <- struct{}{}:
+		defer func() { <-parsing }()
+	case <-ctx.Done():
+		return nil, fmt.Errorf("stopped waiting to read the Compose file: %w", ctx.Err())
 	}
 	raw, err := checkRaw(file)
 	if err != nil {

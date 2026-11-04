@@ -3,12 +3,15 @@
 package compose
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"runtime"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/distribution/reference"
 	"google.golang.org/protobuf/proto"
@@ -18,7 +21,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/volume"
 )
 
-// The 1 MiB cap is on the file; variables aren't capped, and each ${A}
+// The cap is on the file; variables aren't capped, and each ${A}
 // copies its value. The API's limit is 8 MiB.
 func TestVariablesCantGetRoundTheCap(t *testing.T) {
 	var b strings.Builder
@@ -212,5 +215,24 @@ func TestVolumeOptionsHoldSecrets(t *testing.T) {
 	changes := resource.Diff(s.Volumes[0].Spec, other)
 	if resource.Equal(s.Volumes[0].Spec, other) || len(changes) != 1 || !changes[0].Sensitive || changes[0].From != "" || changes[0].To != "" {
 		t.Errorf("another password = %+v, want it seen, and masked", changes)
+	}
+}
+
+// Reading a file takes memory, and a write token can send as many as it
+// likes, so they wait their turn, and a caller can stop waiting.
+func TestFilesAreReadAFewAtATime(t *testing.T) {
+	for range cap(parsing) {
+		parsing <- struct{}{}
+	}
+	defer func() {
+		for range cap(parsing) {
+			<-parsing
+		}
+	}()
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+	_, err := Parse(ctx, []byte("services:\n  web:\n    image: nginx:1.27\n"), nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("Parse with every turn taken = %v, want it to stop waiting", err)
 	}
 }

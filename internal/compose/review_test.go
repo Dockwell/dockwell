@@ -144,7 +144,7 @@ func TestCostlyFilesAreRefused(t *testing.T) {
 	_, err := compose.Parse(t.Context(), file, nil)
 	took := time.Since(start)
 	runtime.ReadMemStats(&after)
-	if err == nil || !strings.Contains(err.Error(), "files of up to 1 MiB") {
+	if err == nil || !strings.Contains(err.Error(), "files of up to 256 KiB") {
 		t.Errorf("a file of %d bytes = %v, want it refused for its size", len(file), err)
 	}
 	if alloc := after.TotalAlloc - before.TotalAlloc; alloc > 1<<20 || took > time.Second {

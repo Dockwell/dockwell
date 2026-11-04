@@ -37,7 +37,7 @@ type ImportComposeRequest struct {
 	// only one.
 	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
 	// The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
-	// up to 1 MiB. Paths in it must be absolute, as it runs on servers where
+	// up to 256 KiB. Paths in it must be absolute, as it runs on servers where
 	// a path relative to the file means nothing.
 	Compose string `protobuf:"bytes,4,opt,name=compose,proto3" json:"compose,omitempty"`
 	// Values for the variables the file uses, such as ${TAG}. A variable
