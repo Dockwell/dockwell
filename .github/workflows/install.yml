@@ -226,11 +226,10 @@ jobs:
         run: |
           work=$(mktemp -d)
           root="$PWD/scripts/sigstore_trusted_root.json"
-          # cosign verify-blob in a network namespace of its own, with nothing
-          # cached, so it can reach neither Sigstore nor anything else.
+          # cosign verify-blob in a network namespace of its own, with an empty
+          # TUF cache, so it can reach neither Sigstore nor anything else.
           offline() {
-            rm -rf "$work/tuf"
-            sudo unshare --net -- env HOME="$work" TUF_ROOT="$work/tuf" "$(command -v cosign)" verify-blob "$@"
+            sudo unshare --net -- env HOME="$work" TUF_ROOT="$(mktemp -d)" "$(command -v cosign)" verify-blob "$@"
           }
           for file in cosign_checksums.txt cosign_checksums.txt.sigstore.json; do
             curl -fsSL --retry 3 -o "$work/$file" "https://github.com/sigstore/cosign/releases/download/$COSIGN_VERSION/$file"
