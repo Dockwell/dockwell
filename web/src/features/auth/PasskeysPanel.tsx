@@ -9,7 +9,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
 import { createPasskey, passkeysAvailable } from "../../lib/webauthn";
-import { useDeviceName } from "./ClaimPage";
+import { useDeviceName } from "./device";
 import { useAuthError } from "./messages";
 import { formatDay, useAgo } from "./time";
 

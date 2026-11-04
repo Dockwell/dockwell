@@ -10,10 +10,10 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useEffect, useId, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
-import { describeUserAgent } from "../../lib/userAgent";
 import { createPasskey, passkeysAvailable } from "../../lib/webauthn";
 import { CopyCommand } from "../system/CopyCommand";
 import { StandalonePage } from "../system/StandalonePage";
+import { useDeviceName } from "./device";
 import { useAuthError } from "./messages";
 import { useAgo } from "./time";
 import { useAuthState, useRefreshAuth } from "./useAuthState";
@@ -446,12 +446,4 @@ function AlreadyClaimed({ signedIn }: { signedIn: boolean }) {
       <CopyCommand command="dockwell recover" />
     </StandalonePage>
   );
-}
-
-/** What to call a passkey made in this browser, such as "Chrome on macOS". */
-export function useDeviceName(): string {
-  const { t } = useLingui();
-  const { browser, os } = describeUserAgent(navigator.userAgent);
-  if (browser && os) return t`${browser} on ${os}`;
-  return browser || os;
 }

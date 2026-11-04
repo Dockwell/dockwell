@@ -2,7 +2,7 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { Code } from "@connectrpc/connect";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { PasskeySchema, SessionSchema, SignInMethod, TotpSchema } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -161,6 +161,50 @@ describe("ProfilePage", () => {
     expect(unlockCodeSignIn).toHaveBeenCalledOnce();
   });
 
+  it("says why unlocking failed, and stays locked", async () => {
+    const unlockCodeSignIn = vi.fn(() => Promise.reject(new ConnectError("connection refused", Code.Unavailable)));
+    renderAt(
+      "/profile",
+      api({
+        getTotp: () => ({
+          totp: create(TotpSchema, {
+            enabled: true,
+            recoveryCodesLeft: 10,
+            failedAttempts: 10,
+            lockTime: minutesAgo(3),
+          }),
+        }),
+        unlockCodeSignIn,
+      }),
+    );
+    const callout = await screen.findByRole("alert");
+    await userEvent.click(within(callout).getByRole("button", { name: "Unlock" }));
+    await waitFor(() => expect(callout).toHaveTextContent("Connection refused."));
+    expect(callout).toHaveTextContent("Code sign-in is locked");
+  });
+
+  it("says why signing out failed, and stays signed in", async () => {
+    const signOut = vi.fn(() => Promise.reject(new ConnectError("connection refused", Code.Unavailable)));
+    renderAt("/profile", api({ signOut }));
+    await userEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Connection refused.");
+    expect(screen.getByRole("heading", { level: 1, name: "Profile and security" })).toBeVisible();
+  });
+
+  it("is reached from the account panel, through the router", async () => {
+    const { router } = renderAt("/", {
+      system: { getVersion: () => ({}) },
+      auth: { ...api().auth, signOut: () => Promise.reject(new ConnectError("connection refused", Code.Unavailable)) },
+    });
+    const account = await screen.findByRole("region", { name: "Your account" });
+    await userEvent.click(within(account).getByRole("button", { name: "Sign out" }));
+    expect(await within(account).findByRole("alert")).toHaveTextContent("Connection refused.");
+    const link = within(account).getByRole("link", { name: "Profile and security" });
+    expect(link).toHaveClass("dw-btn", "dw-btn-sm");
+    await userEvent.click(link);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/profile"));
+  });
+
   it("sets up an authenticator app and shows the recovery codes once", async () => {
     const codes = Array.from({ length: 10 }, (_, i) => `7KQ2-M9XD-4TPA-ZR3${i}`);
     const confirmTotpSetup = vi.fn(() => ({ recoveryCodes: codes }));
@@ -184,10 +228,9 @@ describe("ProfilePage", () => {
     await userEvent.click(within(sheet).getByRole("button", { name: "Turn on" }));
     const saved = await screen.findByRole("dialog", { name: "Save your recovery codes" });
     expect(within(saved).getAllByRole("listitem")).toHaveLength(10);
-    expect(within(saved).getByRole("link", { name: "Download" })).toHaveAttribute(
-      "download",
-      "dockwell-recovery-codes.txt",
-    );
+    const download = within(saved).getByRole("link", { name: "Download" });
+    expect(download).toHaveAttribute("download", "dockwell-recovery-codes.txt");
+    expect(download).toHaveClass("dw-btn", "dw-btn-secondary", "dw-btn-sm");
     expect(confirmTotpSetup).toHaveBeenCalledWith(expect.objectContaining({ code: "123456" }), expect.anything());
   });
 

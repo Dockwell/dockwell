@@ -9,11 +9,13 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { passkeysAvailable } from "../../lib/webauthn";
+import { useAuthError } from "./messages";
 import { PasskeysPanel, useAddPasskey } from "./PasskeysPanel";
 import { SessionsPanel } from "./SessionsPanel";
 import { TotpPanel } from "./TotpPanel";
 import { useAgo } from "./time";
-import { useAuthState, useRefreshAuth } from "./useAuthState";
+import { useAuthState } from "./useAuthState";
+import { useSignOut } from "./useSignOut";
 import "./auth.css";
 import "./ProfilePage.css";
 
@@ -27,20 +29,8 @@ export type ProfileVia = "link" | "recovery-code";
 export function ProfilePage({ via }: { via?: ProfileVia }) {
   const { t } = useLingui();
   const auth = useAuthState();
-  const transport = useTransport();
-  const refreshAuth = useRefreshAuth();
-  const [signingOut, setSigningOut] = useState(false);
+  const signOut = useSignOut();
   const how = useSignedInWith(auth.data?.signInMethod ?? SignInMethod.UNSPECIFIED);
-
-  const signOut = async () => {
-    setSigningOut(true);
-    try {
-      await createClient(AuthService, transport).signOut({});
-    } finally {
-      setSigningOut(false);
-      await refreshAuth();
-    }
-  };
 
   return (
     <div className="profile">
@@ -48,7 +38,7 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
         <Link to="/" className="profile-home" aria-label={t`Go to the overview`}>
           <Logo variant="logotype" height={14} title="Dockwell" />
         </Link>
-        <Button size="sm" variant="ghost" icon="logout" loading={signingOut} onClick={() => void signOut()}>
+        <Button size="sm" variant="ghost" icon="logout" loading={signOut.busy} onClick={() => void signOut.run()}>
           <Trans>Sign out</Trans>
         </Button>
       </header>
@@ -66,6 +56,11 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
               ) : null}
             </p>
           </div>
+          {signOut.problem ? (
+            <p className="profile-error" role="alert">
+              {signOut.problem}
+            </p>
+          ) : null}
           <ProfileCallout via={via} rpId={auth.data?.rpId ?? ""} />
           <div className="profile-grid">
             <PasskeysPanel rpId={auth.data?.rpId ?? ""} />
@@ -104,7 +99,9 @@ function ProfileCallout({ via, rpId }: { via?: ProfileVia; rpId: string }) {
   const passkeys = useQuery(AuthService.method.listPasskeys, {});
   const totp = useQuery(AuthService.method.getTotp, {});
   const add = useAddPasskey();
+  const explain = useAuthError();
   const [unlocking, setUnlocking] = useState(false);
+  const [unlockProblem, setUnlockProblem] = useState<string>();
   if (!passkeys.data || !totp.data) return null;
   const state = totp.data.totp;
   const usable = passkeys.data.passkeys.filter((p) => !p.suspectedCopy);
@@ -114,9 +111,12 @@ function ProfileCallout({ via, rpId }: { via?: ProfileVia; rpId: string }) {
   if (state?.lockTime) {
     const unlock = async () => {
       setUnlocking(true);
+      setUnlockProblem(undefined);
       try {
         await createClient(AuthService, transport).unlockCodeSignIn({});
         await totp.refetch();
+      } catch (err) {
+        setUnlockProblem(explain(err));
       } finally {
         setUnlocking(false);
       }
@@ -137,6 +137,7 @@ function ProfileCallout({ via, rpId }: { via?: ProfileVia; rpId: string }) {
           Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if
           that was you. Otherwise someone may know your email; your passkeys and recovery codes still work.
         </Trans>
+        {unlockProblem ? <span className="profile-callout-error"> {unlockProblem}</span> : null}
       </Callout>
     );
   }

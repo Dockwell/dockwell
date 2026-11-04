@@ -24,7 +24,8 @@ export function useRefreshAuth() {
 
 function matchesAuth(key: readonly unknown[]): boolean {
   const [, opts] = key as [string, { serviceName?: string; methodName?: string }];
-  return opts?.serviceName === authStateKey[1].serviceName && opts?.methodName === "GetAuthState";
+  const [, auth] = authStateKey;
+  return opts?.serviceName === auth.serviceName && opts?.methodName === auth.methodName;
 }
 
 /** Where to go after signing in: a path on this panel, never another site. */

@@ -8,6 +8,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
 import { describeUserAgent } from "../../lib/userAgent";
+import { useDeviceLabel } from "./device";
 import { useAuthError } from "./messages";
 import { useAgo } from "./time";
 
@@ -77,8 +78,9 @@ function SessionRow({ session, onEnded }: { session: Session; onEnded: () => voi
   const explain = useAuthError();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
-  const { browser, os } = describeUserAgent(session.userAgent);
-  const device = browser && os ? t`${browser} on ${os}` : browser || os || t`Unknown browser`;
+  const label = useDeviceLabel();
+  const device = label(session.userAgent) || t`Unknown browser`;
+  const { browser } = describeUserAgent(session.userAgent);
   const seen = session.current ? t`now` : ago(session.lastSeenTime);
 
   const end = async () => {
