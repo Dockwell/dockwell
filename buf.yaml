@@ -13,3 +13,5 @@ lint:
 breaking:
   use:
     - FILE
+  # Alpha packages, such as dockwell.resource.v1alpha1, may still change.
+  ignore_unstable_packages: true
