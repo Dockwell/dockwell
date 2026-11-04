@@ -34,7 +34,13 @@ type ListVariablesRequest struct {
 	Environment string `protobuf:"bytes,1,opt,name=environment,proto3" json:"environment,omitempty"`
 	// The environment's project, by name or ID. Leave it out while there is
 	// only one project, or when environment is an ID.
-	Project       string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	// How many variables and secrets to return: 500 when unset, and at most
+	// 1000.
+	PageSize int32 `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Where to start: the next_page_token of the page before. Pass the same
+	// environment with it.
+	PageToken     string `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -83,13 +89,29 @@ func (x *ListVariablesRequest) GetProject() string {
 	return ""
 }
 
+func (x *ListVariablesRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListVariablesRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
 // ListVariablesResponse is an environment's variables and secrets.
 type ListVariablesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The environment's ID, such as "env_01JD6Z3R8M9QF2K7T4XW5BNC0V".
 	EnvironmentId string `protobuf:"bytes,1,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"`
 	// Its variables and secrets, by name.
-	Variables     []*EnvironmentVariable `protobuf:"bytes,2,rep,name=variables,proto3" json:"variables,omitempty"`
+	Variables []*EnvironmentVariable `protobuf:"bytes,2,rep,name=variables,proto3" json:"variables,omitempty"`
+	// Pass it as page_token for the next page. Empty on the last page.
+	NextPageToken string `protobuf:"bytes,3,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -136,6 +158,13 @@ func (x *ListVariablesResponse) GetVariables() []*EnvironmentVariable {
 		return x.Variables
 	}
 	return nil
+}
+
+func (x *ListVariablesResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
 }
 
 // EnvironmentVariable is one variable or secret of an environment, as its
@@ -436,13 +465,17 @@ var File_dockwell_v1_variable_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_variable_proto_rawDesc = "" +
 	"\n" +
-	"\x1adockwell/v1/variable.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"R\n" +
+	"\x1adockwell/v1/variable.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8e\x01\n" +
 	"\x14ListVariablesRequest\x12 \n" +
 	"\venvironment\x18\x01 \x01(\tR\venvironment\x12\x18\n" +
-	"\aproject\x18\x02 \x01(\tR\aproject\"~\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x04 \x01(\tR\tpageToken\"\xa6\x01\n" +
 	"\x15ListVariablesResponse\x12%\n" +
 	"\x0eenvironment_id\x18\x01 \x01(\tR\renvironmentId\x12>\n" +
-	"\tvariables\x18\x02 \x03(\v2 .dockwell.v1.EnvironmentVariableR\tvariables\"\xc3\x02\n" +
+	"\tvariables\x18\x02 \x03(\v2 .dockwell.v1.EnvironmentVariableR\tvariables\x12&\n" +
+	"\x0fnext_page_token\x18\x03 \x01(\tR\rnextPageToken\"\xc3\x02\n" +
 	"\x13EnvironmentVariable\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +

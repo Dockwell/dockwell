@@ -435,6 +435,18 @@ type NewRevision struct {
 	Change   string
 	Position int // of the change item asking for it
 	At       time.Time
+	// Uses is what the spec uses of others in its scope, by reference,
+	// kept in the clear beside it.
+	Uses []Use
+}
+
+// Use is one resource that a revision uses in its scope, such as a secret
+// a service uses, by reference.
+type Use struct {
+	As       string // the name the user sees it as, such as DATABASE_URL
+	Kind     string
+	Name     string
+	Revision int // the revision it is pinned to; 0 when it isn't
 }
 
 // AddRevision writes the next revision of a resource, creating the
@@ -460,7 +472,52 @@ func (t *RevisionTx) AddRevision(ctx context.Context, n NewRevision) (Revision, 
 	if _, err := t.exec(ctx, `UPDATE resources SET revision = ? WHERE id = ?`, r.Revision, r.ID); err != nil {
 		return Revision{}, fmt.Errorf("can't record a revision of %s %s: %w", n.Kind, n.Name, err)
 	}
+	for _, u := range n.Uses {
+		if _, err := t.exec(ctx, `INSERT INTO revision_uses (resource_id, revision, scope, used_as, used_kind, used_name, used_revision)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`, r.ID, r.Revision, n.Scope, u.As, u.Kind, u.Name, u.Revision); err != nil {
+			return Revision{}, fmt.Errorf("can't record what %s %s uses: %w", n.Kind, n.Name, err)
+		}
+	}
 	return Revision{Resource: r, CreatedAt: n.At}, nil
+}
+
+// Using is a resource whose latest revision uses another in its scope,
+// and what it uses.
+type Using struct {
+	ID, Kind, Scope, Name string
+	Revision              int // the user's latest revision
+	Uses                  Use
+}
+
+// UsersOf returns what the resources in scope use, at their latest
+// revisions, by the user's kind and name, then the name each use is seen
+// as. A deleted resource uses nothing. With kind set, it returns only the
+// uses of that kind; with names set too, only of those names.
+func (t *Tx) UsersOf(ctx context.Context, scope, kind string, names ...string) ([]Using, error) {
+	query := `SELECT r.id, r.kind, r.scope, r.name, r.revision, u.used_as, u.used_kind, u.used_name, u.used_revision
+		FROM revision_uses u JOIN resources r ON r.id = u.resource_id AND r.revision = u.revision
+		WHERE u.scope = ? AND (u.used_kind = ? OR ? = '')`
+	args := []any{scope, kind, kind}
+	if len(names) > 0 {
+		query += ` AND u.used_name IN (` + marks(len(names)) + `)`
+		for _, n := range names {
+			args = append(args, n)
+		}
+	}
+	rows, err := t.query(ctx, query+` ORDER BY r.kind, r.name, u.used_as`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read what the resources of %s use: %w", scope, err)
+	}
+	defer rows.Close()
+	var out []Using
+	for rows.Next() {
+		var u Using
+		if err := rows.Scan(&u.ID, &u.Kind, &u.Scope, &u.Name, &u.Revision, &u.Uses.As, &u.Uses.Kind, &u.Uses.Name, &u.Uses.Revision); err != nil {
+			return nil, fmt.Errorf("can't read what the resources of %s use: %w", scope, err)
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
 }
 
 const revisionColumns = `r.id, r.kind, r.scope, r.name, v.number, v.spec, v.spec IS NULL, v.change_id, v.created_at`

@@ -1285,9 +1285,9 @@ paths:
             tags:
                 - VariableService
             description: |-
-                ListVariables returns an environment's variables and secrets, by name:
-                 each variable with its value, each secret without it, and the services
-                 that use each.
+                ListVariables returns an environment's variables and secrets, by name,
+                 a page at a time: each variable with its value, each secret without it,
+                 and the services that use each.
             operationId: VariableService_ListVariables
             parameters:
                 - name: environment
@@ -1303,6 +1303,21 @@ paths:
                   description: |-
                     The environment's project, by name or ID. Leave it out while there is
                      only one project, or when environment is an ID.
+                  schema:
+                    type: string
+                - name: pageSize
+                  in: query
+                  description: |-
+                    How many variables and secrets to return: 500 when unset, and at most
+                     1000.
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: |-
+                    Where to start: the next_page_token of the page before. Pass the same
+                     environment with it.
                   schema:
                     type: string
             responses:
@@ -2512,6 +2527,9 @@ components:
                     items:
                         $ref: '#/components/schemas/EnvironmentVariable'
                     description: Its variables and secrets, by name.
+                nextPageToken:
+                    type: string
+                    description: Pass it as page_token for the next page. Empty on the last page.
             description: ListVariablesResponse is an environment's variables and secrets.
         Mount:
             type: object

@@ -125,6 +125,27 @@ describe("the variables and secrets page", () => {
     await expectAccessible(container);
   });
 
+  it("reads every page of a long list", async () => {
+    const asked: ListVariablesRequest[] = [];
+    renderAt(
+      "/variables",
+      api([production], {
+        variables: {
+          listVariables: (req) => {
+            asked.push(req);
+            return req.pageToken === ""
+              ? { environmentId: "env_prod", variables: [dbPassword], nextPageToken: "page-2" }
+              : { environmentId: "env_prod", variables: [logLevel] };
+          },
+        },
+      }),
+    );
+    const table = await screen.findByRole("table", { name: "Variables and secrets in production" });
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(3));
+    expect(asked.map((r) => r.pageToken)).toEqual(["", "page-2"]);
+    expect(screen.getByText("1 variable · 1 secret")).toBeVisible();
+  });
+
   it("switches environments once there are two, defaulting to production", async () => {
     const user = userEvent.setup();
     const asked: string[] = [];

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { MessageInitShape } from "@bufbuild/protobuf";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { useQuery } from "@connectrpc/connect-query";
+import { createClient } from "@connectrpc/connect";
+import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   type EditSchema,
   type EnvironmentVariable,
+  ListVariablesResponseSchema,
   type Resource,
   ResourceService,
   VariableService,
@@ -24,6 +26,7 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useQuery as useTanstackQuery } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
@@ -51,6 +54,40 @@ function edit(kind: Kind, scope: string, name: string, value?: string): MessageI
         ? { kind: { case: "secret", value: { value } } }
         : { kind: { case: "variable", value: { value } } },
   };
+}
+
+/** The most ListVariables returns at once. */
+const PAGE_SIZE = 1000;
+
+/**
+ * Every variable and secret of an environment, read a page at a time and
+ * kept as one list, under ListVariables' own query key, so a change applied
+ * in the plan sheet reads it again.
+ */
+function useAllVariables(environment: string | undefined) {
+  const transport = useTransport();
+  const input = { environment: environment ?? "" };
+  return useTanstackQuery({
+    queryKey: createConnectQueryKey({
+      schema: VariableService.method.listVariables,
+      input,
+      transport,
+      cardinality: "finite",
+    }),
+    queryFn: async ({ signal }) => {
+      const client = createClient(VariableService, transport);
+      const all = create(ListVariablesResponseSchema);
+      let pageToken = "";
+      do {
+        const page = await client.listVariables({ ...input, pageSize: PAGE_SIZE, pageToken }, { signal });
+        all.environmentId = page.environmentId;
+        all.variables.push(...page.variables);
+        pageToken = page.nextPageToken;
+      } while (pageToken !== "");
+      return all;
+    },
+    enabled: environment !== undefined,
+  });
 }
 
 /** An environment as the switch shows it: its name, with its project's once there are several. */
@@ -93,11 +130,7 @@ export function VariablesPage({ environment, onEnvironment }: VariablesPageProps
   const projects = projectList.data?.resources ?? [];
   const environments = envs.data?.resources ?? [];
   const chosen = environments.find((e) => e.id === environment) ?? defaultEnvironment(environments, projects);
-  const list = useQuery(
-    VariableService.method.listVariables,
-    { environment: chosen?.id ?? "" },
-    { enabled: chosen !== undefined },
-  );
+  const list = useAllVariables(chosen?.id);
   const [editing, setEditing] = useState<EnvironmentVariable>();
   // Kept here, so a value revealed stays revealed when the layout changes, as when a phone turns.
   const reveals = useReveals();

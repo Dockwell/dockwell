@@ -3,6 +3,7 @@
 package revision
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -27,13 +28,6 @@ import (
 //   - a change applies only while what it pinned is still the latest.
 // See docs/adr/0022-secrets-encrypted-at-rest.md.
 
-// usedKey names a used resource in its scope.
-type usedKey struct {
-	kind  resource.Kind
-	scope string
-	name  string
-}
-
 // binder returns the item's kind as a Binder, if it is one.
 func (e *Engine) binder(kind resource.Kind) (resource.Binder, bool) {
 	t, err := e.kinds.Type(kind)
@@ -54,18 +48,6 @@ func (e *Engine) valuer(kind resource.Kind) bool {
 	return ok
 }
 
-// binderKinds lists the kinds that use others, sorted.
-func (e *Engine) binderKinds() []resource.Kind {
-	var out []resource.Kind
-	for _, k := range e.kinds.All() {
-		if _, ok := e.binder(k); ok {
-			out = append(out, k)
-		}
-	}
-	slices.Sort(out)
-	return out
-}
-
 // usesOf lists what an item's spec uses, keyed in its scope.
 func (e *Engine) usesOf(it *item, spec proto.Message) []resource.Use {
 	b, ok := e.binder(it.ref.Kind)
@@ -80,55 +62,73 @@ func (e *Engine) usesOf(it *item, spec proto.Message) []resource.Use {
 // pins it again: a change to a secret restarts every service that uses it,
 // in the same plan.
 func (e *Engine) withUsers(ctx context.Context, tx *store.Tx, items []item) ([]item, error) {
-	changed := map[usedKey]bool{}
+	refs, err := e.users(ctx, tx, items)
+	if err != nil {
+		return nil, err
+	}
+	for _, ref := range refs {
+		it, err := e.load(ctx, tx, ref)
+		if err != nil {
+			return nil, err
+		}
+		it.spec = proto.Clone(it.current)
+		if it.encoded, err = resource.Encode(it.spec); err != nil {
+			return nil, err
+		}
+		if it.servers, err = e.place(ctx, tx, it, nil); err != nil {
+			return nil, err
+		}
+		items = append(items, it)
+	}
+	return items, nil
+}
+
+// users lists the resources that use a value the change changes or
+// deletes, at their latest revisions, and aren't in it, by kind and name.
+// It reads what each uses from the store's index of uses, which opens no
+// spec.
+func (e *Engine) users(ctx context.Context, tx *store.Tx, items []item) ([]resource.Ref, error) {
 	in := map[resource.Ref]bool{}
+	changed := map[string]map[resource.Kind][]string{} // by scope, then kind
 	for i := range items {
 		it := &items[i]
 		in[it.ref] = true
 		if e.valuer(it.ref.Kind) && it.changes() {
-			changed[usedKey{it.ref.Kind, it.ref.Scope, it.ref.Name}] = true
+			if changed[it.ref.Scope] == nil {
+				changed[it.ref.Scope] = map[resource.Kind][]string{}
+			}
+			changed[it.ref.Scope][it.ref.Kind] = append(changed[it.ref.Scope][it.ref.Kind], it.ref.Name)
 		}
 	}
-	if len(changed) == 0 {
-		return items, nil
-	}
-	scopes := map[string]bool{}
-	for k := range changed {
-		scopes[k.scope] = true
-	}
-	for _, scopeID := range slices.Sorted(maps.Keys(scopes)) {
-		for _, kind := range e.binderKinds() {
-			users, err := tx.ListResources(ctx, scopeID, string(kind))
-			if err != nil {
-				return nil, err
-			}
-			for _, r := range users {
-				ref := resource.Ref{Kind: kind, Scope: r.Scope, Name: r.Name}
-				if in[ref] {
-					continue
-				}
-				it, err := e.load(ctx, tx, ref)
+	var out []resource.Ref
+	for _, scopeID := range slices.Sorted(maps.Keys(changed)) {
+		for _, kind := range slices.Sorted(maps.Keys(changed[scopeID])) {
+			for names := range slices.Chunk(changed[scopeID][kind], 500) {
+				users, err := tx.UsersOf(ctx, scopeID, string(kind), names...)
 				if err != nil {
 					return nil, err
 				}
-				if !slices.ContainsFunc(e.usesOf(&it, it.current), func(u resource.Use) bool {
-					return changed[usedKey{u.Kind, ref.Scope, u.Name}]
-				}) {
-					continue
+				for _, u := range users {
+					ref := resource.Ref{Kind: resource.Kind(u.Kind), Scope: u.Scope, Name: u.Name}
+					if !in[ref] {
+						in[ref] = true
+						out = append(out, ref)
+					}
 				}
-				it.spec = proto.Clone(it.current)
-				if it.encoded, err = resource.Encode(it.spec); err != nil {
-					return nil, err
-				}
-				if it.servers, err = e.place(ctx, tx, it, nil); err != nil {
-					return nil, err
-				}
-				in[ref] = true
-				items = append(items, it)
 			}
 		}
 	}
-	return items, nil
+	slices.SortFunc(out, func(a, b resource.Ref) int { return cmp.Or(cmp.Compare(a.Kind, b.Kind), cmp.Compare(a.Name, b.Name)) })
+	return out, nil
+}
+
+// storeUses is what a spec uses, as the store's index keeps it.
+func storeUses(uses []resource.Use) []store.Use {
+	out := make([]store.Use, len(uses))
+	for i, u := range uses {
+		out[i] = store.Use{As: u.As, Kind: string(u.Kind), Name: u.Name, Revision: u.Revision}
+	}
+	return out
 }
 
 // revisions says, for each resource a spec uses, the revision it resolves
@@ -207,14 +207,13 @@ func (e *Engine) stillPinned(ctx context.Context, tx *store.Tx, c store.Change, 
 			}
 		}
 	}
-	all, err := e.withUsers(ctx, tx, slices.Clone(items))
+	late, err := e.users(ctx, tx, items)
 	if err != nil {
 		return err
 	}
-	if len(all) > len(items) {
-		late := all[len(items)]
+	if len(late) > 0 {
 		return fault.New(ErrStale, "%s %s started using a value %s changes after it was planned. Propose the change again, so it restarts with the new value",
-			late.ref.Kind, late.ref.Name, c.ID)
+			late[0].Kind, late[0].Name, c.ID)
 	}
 	return nil
 }

@@ -207,6 +207,66 @@ func testValuesReachOnlyTheServersThatRunTheService(t *testing.T, backend store.
 	}
 }
 
+// An environment's variables and secrets list by name, a page at a time,
+// each with the services that use it, under every name each uses it as.
+// Listing opens no sealed spec: a variable's isn't sealed, and what each
+// service uses is kept in the clear beside it, by reference. So with every
+// data key gone, as from a damaged database, the list still answers in
+// full, and a secret's value still can't be read.
+func TestListingValuesOpensNoSpec(t *testing.T) { storetest.Each(t, testListingValuesOpensNoSpec) }
+
+func testListingValuesOpensNoSpec(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	hz1 := f.addNamedServer(t, "hz-1", true)
+	c := changeClient(b, b.origin)
+	api := serviceSpec("api", map[string]string{"DATABASE_PASSWORD": "DB_PASSWORD", "REPLICA_PASSWORD": "DB_PASSWORD"}, hz1.id.ServerID)
+	api.GetSpec().GetService().Variables = map[string]string{"LOG_LEVEL": ""}
+	apply(t, c, propose(t, c, "Run the shop",
+		secretSpec("DB_PASSWORD", "s3cret-listed-never"), variableSpec("LOG_LEVEL", "info"), variableSpec("API_URL", "https://api.example"),
+		secretSpec("MAIL_TOKEN", "s3cret-mail"), api,
+		serviceSpec("worker", map[string]string{"DB_PASSWORD": ""}, hz1.id.ServerID),
+	))
+	f.execSQL(t, "DELETE FROM data_keys")
+
+	v := variablesClient(b, b.origin)
+	var got []string
+	token, pages := "", 0
+	for {
+		res, err := v.ListVariables(t.Context(), connect.NewRequest(&dockwellv1.ListVariablesRequest{PageSize: 3, PageToken: token}))
+		if err != nil {
+			t.Fatalf("ListVariables, page %d = %v", pages+1, err)
+		}
+		pages++
+		for _, x := range res.Msg.GetVariables() {
+			line := x.GetName() + "=" + x.GetValue() + " by " + x.GetUpdatedBy().GetName()
+			for _, u := range x.GetUsedBy() {
+				line += " " + u.GetService() + ":" + u.GetName()
+			}
+			got = append(got, line)
+		}
+		if token = res.Msg.GetNextPageToken(); token == "" {
+			break
+		}
+	}
+	want := []string{
+		"API_URL=https://api.example by Mira Chen",
+		"DB_PASSWORD= by Mira Chen api:DATABASE_PASSWORD api:REPLICA_PASSWORD worker:DB_PASSWORD",
+		"LOG_LEVEL=info by Mira Chen api:LOG_LEVEL",
+		"MAIL_TOKEN= by Mira Chen",
+	}
+	if pages != 2 || !slices.Equal(got, want) {
+		t.Errorf("ListVariables, 3 at a time, in %d pages =\n%s\nwant, in 2 pages,\n%s", pages, strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if _, err := v.ListVariables(t.Context(), connect.NewRequest(&dockwellv1.ListVariablesRequest{PageToken: "bm9uc2Vuc2U"})); reasonOf(err) != "invalid" {
+		t.Errorf("a page token ListVariables didn't give = %v, want it invalid", err)
+	}
+	id := listed(t, v, "DB_PASSWORD").GetId()
+	if got, err := v.RevealSecret(t.Context(), connect.NewRequest(&dockwellv1.RevealSecretRequest{Id: id, Proof: stepUp(t, b, id)})); err == nil {
+		t.Errorf("revealing a secret whose data key is gone = %v, want it refused", got.Msg)
+	}
+}
+
 func listedEnv(t *testing.T, b *browser) string {
 	t.Helper()
 	res, err := variablesClient(b, b.origin).ListVariables(t.Context(), connect.NewRequest(&dockwellv1.ListVariablesRequest{}))

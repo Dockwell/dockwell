@@ -45,9 +45,9 @@ const (
 
 // VariableServiceClient is a client for the dockwell.v1.VariableService service.
 type VariableServiceClient interface {
-	// ListVariables returns an environment's variables and secrets, by name:
-	// each variable with its value, each secret without it, and the services
-	// that use each.
+	// ListVariables returns an environment's variables and secrets, by name,
+	// a page at a time: each variable with its value, each secret without it,
+	// and the services that use each.
 	ListVariables(context.Context, *connect.Request[v1.ListVariablesRequest]) (*connect.Response[v1.ListVariablesResponse], error)
 	// RevealSecret returns a secret's latest value. It needs a signed-in
 	// session and a proof from FinishStepUp for this secret, made with a
@@ -101,9 +101,9 @@ func (c *variableServiceClient) RevealSecret(ctx context.Context, req *connect.R
 
 // VariableServiceHandler is an implementation of the dockwell.v1.VariableService service.
 type VariableServiceHandler interface {
-	// ListVariables returns an environment's variables and secrets, by name:
-	// each variable with its value, each secret without it, and the services
-	// that use each.
+	// ListVariables returns an environment's variables and secrets, by name,
+	// a page at a time: each variable with its value, each secret without it,
+	// and the services that use each.
 	ListVariables(context.Context, *connect.Request[v1.ListVariablesRequest]) (*connect.Response[v1.ListVariablesResponse], error)
 	// RevealSecret returns a secret's latest value. It needs a signed-in
 	// session and a proof from FinishStepUp for this secret, made with a

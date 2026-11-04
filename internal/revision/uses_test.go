@@ -4,8 +4,11 @@ package revision
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -13,6 +16,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/variable"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -206,5 +210,76 @@ func testPinsHoldUntilApplied(t *testing.T, backend store.Backend) {
 	apply(t, e, propose(t, e, "Run worker", user(env, "worker", "srv_A", map[string]string{"OTHER": ""}, nil)))
 	if err := e.Apply(t.Context(), rotation.Change); !errors.Is(err, ErrStale) || !strings.Contains(err.Error(), "service worker started using a value") {
 		t.Errorf("applying a rotation a service joined since: %v, want it out of date", err)
+	}
+}
+
+// opening is a Sealer that notes which resources' specs it opens.
+type opening struct {
+	Sealer
+	mu     sync.Mutex
+	opened map[string]int
+}
+
+func (o *opening) Open(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, stored []byte) ([]byte, error) {
+	o.mu.Lock()
+	o.opened[resourceID]++
+	o.mu.Unlock()
+	return o.Sealer.Open(ctx, tx, resourceID, kind, stored)
+}
+
+func (o *opening) count(resourceID string) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.opened[resourceID]
+}
+
+// A change to a value finds the services that use it from what each
+// revision records it uses, kept in the clear: proposing and applying a
+// rotation opens the specs of the services that use the secret, and never
+// those of the services that don't, under the commit lock or outside it.
+func TestARotationOpensOnlyTheServicesThatUseIt(t *testing.T) {
+	storetest.Each(t, testARotationOpensOnlyTheServicesThatUseIt)
+}
+
+func testARotationOpensOnlyTheServicesThatUseIt(t *testing.T, backend store.Backend) {
+	_, f, db := setup(t, backend, "srv_A")
+	kinds := testKinds()
+	sealer := &opening{Sealer: secretstest.Keeper(db, kinds), opened: map[string]int{}}
+	e := New(db, kinds, f, sealer, slog.New(slog.DiscardHandler))
+	env := production(t, db)
+	apply(t, e, propose(t, e, "Set up the shop",
+		secretEdit(env, "DB_PASSWORD", "correct-horse-1"),
+		secretEdit(env, "MAIL_TOKEN", "mail-1"),
+		user(env, "api", "srv_A", map[string]string{"DATABASE_PASSWORD": "DB_PASSWORD"}, nil),
+		user(env, "mailer", "srv_A", map[string]string{"MAIL_TOKEN": ""}, nil),
+		user(env, "static", "srv_A", nil, nil),
+	))
+	ids := map[string]string{}
+	_ = db.View(t.Context(), func(tx *store.Tx) error {
+		for _, name := range []string{"api", "mailer", "static"} {
+			r, err := tx.GetResource(t.Context(), string(service.Kind), env, name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ids[name] = r.ID
+		}
+		return nil
+	})
+	sealer.mu.Lock()
+	clear(sealer.opened)
+	sealer.mu.Unlock()
+
+	p := propose(t, e, "Rotate the database password", secretEdit(env, "DB_PASSWORD", "correct-horse-2"))
+	apply(t, e, p)
+	if planned(p, "api") == nil || planned(p, "mailer") != nil || planned(p, "static") != nil {
+		t.Errorf("the rotation's plan has %+v, want api alone of the services", p.Resources)
+	}
+	if sealer.count(ids["api"]) == 0 {
+		t.Error("the rotation never opened api's spec; the test doesn't watch what it means to")
+	}
+	for _, name := range []string{"mailer", "static"} {
+		if n := sealer.count(ids[name]); n != 0 {
+			t.Errorf("the rotation opened %s's spec %d times, which doesn't use the secret", name, n)
+		}
 	}
 }

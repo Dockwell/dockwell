@@ -1648,7 +1648,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 			}
 			rev, err := tx.AddRevision(ctx, store.NewRevision{
 				Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, ID: it.id,
-				Spec: spec, Change: c.ID, Position: i, At: now,
+				Spec: spec, Change: c.ID, Position: i, At: now, Uses: storeUses(e.usesOf(it, it.spec)),
 			})
 			if err != nil {
 				return err

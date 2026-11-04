@@ -29,9 +29,9 @@ service VariableService {
     help: "A secret is a value of an environment that its services use without anyone reading it back, such as a database password. Dockwell keeps it encrypted, sends it only to the servers that run a service that uses it, and never shows it in plans, history or logs. Its value is read from standard input or a file, never from a flag. Revealing it takes a passkey, in the panel, and is audited: no API token can."
   };
 
-  // ListVariables returns an environment's variables and secrets, by name:
-  // each variable with its value, each secret without it, and the services
-  // that use each.
+  // ListVariables returns an environment's variables and secrets, by name,
+  // a page at a time: each variable with its value, each secret without it,
+  // and the services that use each.
   rpc ListVariables(ListVariablesRequest) returns (ListVariablesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
@@ -61,6 +61,12 @@ message ListVariablesRequest {
   // The environment's project, by name or ID. Leave it out while there is
   // only one project, or when environment is an ID.
   string project = 2;
+  // How many variables and secrets to return: 500 when unset, and at most
+  // 1000.
+  int32 page_size = 3;
+  // Where to start: the next_page_token of the page before. Pass the same
+  // environment with it.
+  string page_token = 4;
 }
 
 // ListVariablesResponse is an environment's variables and secrets.
@@ -69,6 +75,8 @@ message ListVariablesResponse {
   string environment_id = 1;
   // Its variables and secrets, by name.
   repeated EnvironmentVariable variables = 2;
+  // Pass it as page_token for the next page. Empty on the last page.
+  string next_page_token = 3;
 }
 
 // EnvironmentVariable is one variable or secret of an environment, as its
