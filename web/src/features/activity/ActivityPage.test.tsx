@@ -197,6 +197,20 @@ describe("Activity", () => {
     await waitFor(() => expect(router.state.location.search).toEqual({ environment: "env_prod" }));
   });
 
+  it("marks a passkey added after a recovery code as worth a look", async () => {
+    const watch = feed<WatchEventsResponse>();
+    const added = auditEvent({
+      id: "evt_recovered",
+      action: "passkey.add_with_recovery_code",
+      time: timestampFromDate(new Date(Date.now() - HOUR)),
+      subject: { id: "pky_new", name: "Unknown laptop" },
+    });
+    watch.push(snapshot([added]));
+    renderActivity(watch, {});
+    const row = await screen.findByRole("row", { name: /Added the passkey Unknown laptop after signing in with a recovery code/ });
+    expect(row.querySelector(".dw-tone-warning, [data-tone='warning']")).not.toBeNull();
+  });
+
   it("filters by kind and actor, in its address", async () => {
     const user = userEvent.setup();
     const requests: WatchEventsRequest[] = [];

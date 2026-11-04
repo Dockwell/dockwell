@@ -343,7 +343,7 @@ func Methods() []*apicli.Method {
 			Noun:      "passkeys",
 			Verb:      "begin-add",
 			Short:     "Start adding a passkey for the address of this request",
-			Long:      "Start adding a passkey for the address of this request. It needs a proof from\ndockwell sessions finish-step-up for adding a passkey, made with a passkey you\nhave for this address. Within 10 minutes of signing in with a code, a recovery\ncode or a link from dockwell recover, that sign-in confirms it instead, so you\ncan add one when you have none here.",
+			Long:      "Start adding a passkey for the address of this request. It needs a proof from\ndockwell sessions finish-step-up for adding a passkey, made with a passkey you\nhave for this address. A sign-in in the last 10 minutes that needed no passkey\nhere confirms one passkey instead, so you can add one when you have none here: a\nlink from dockwell recover, a recovery code, or a code from an authenticator app\nwhen no passkey is registered for this address.",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "proof", Help: "The proof from dockwell sessions finish-step-up, for adding a passkey. Leave it out within 10 minutes of signing in with a code, a recovery code or a link from dockwell recover."},
@@ -357,7 +357,7 @@ func Methods() []*apicli.Method {
 			Noun:      "passkeys",
 			Verb:      "finish-add",
 			Short:     "Save the new passkey",
-			Long:      "Save the new passkey.",
+			Long:      "Save the new passkey. One a sign-in confirmed is checked again: still within its\n10 minutes, and the first since.",
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "ceremony_id", Help: "From dockwell passkeys begin-add."},

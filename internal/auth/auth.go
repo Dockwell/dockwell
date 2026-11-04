@@ -402,6 +402,9 @@ type ceremony struct {
 	target    string
 	// confirmed says, for the audit log, what confirmed adding a passkey.
 	confirmed string
+	// fresh says a sign-in just now confirmed adding a passkey, with no
+	// step-up, which finishing checks again (freshSignIn).
+	fresh bool
 }
 
 type ceremonyKind int

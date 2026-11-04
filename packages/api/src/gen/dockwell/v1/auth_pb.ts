@@ -1740,9 +1740,11 @@ export const AuthService: GenService<{
   /**
    * BeginAddPasskey starts adding a passkey for the address of this request.
    * It needs a proof from FinishStepUp for adding a passkey, made with a
-   * passkey you have for this address. Within 10 minutes of signing in with
-   * a code, a recovery code or a link from dockwell recover, that sign-in
-   * confirms it instead, so you can add one when you have none here.
+   * passkey you have for this address. A sign-in in the last 10 minutes
+   * that needed no passkey here confirms one passkey instead, so you can
+   * add one when you have none here: a link from dockwell recover, a
+   * recovery code, or a code from an authenticator app when no passkey is
+   * registered for this address.
    *
    * @generated from rpc dockwell.v1.AuthService.BeginAddPasskey
    */
@@ -1752,7 +1754,8 @@ export const AuthService: GenService<{
     output: typeof BeginAddPasskeyResponseSchema;
   },
   /**
-   * FinishAddPasskey saves the new passkey.
+   * FinishAddPasskey saves the new passkey. One a sign-in confirmed is
+   * checked again: still within its 10 minutes, and the first since.
    *
    * @generated from rpc dockwell.v1.AuthService.FinishAddPasskey
    */

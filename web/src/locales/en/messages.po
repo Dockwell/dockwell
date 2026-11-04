@@ -373,8 +373,16 @@ msgid "Added a passkey"
 msgstr "Added a passkey"
 
 #: src/features/activity/describe.ts
+msgid "Added a passkey after signing in with a recovery code"
+msgstr "Added a passkey after signing in with a recovery code"
+
+#: src/features/activity/describe.ts
 msgid "Added the passkey {name}"
 msgstr "Added the passkey {name}"
+
+#: src/features/activity/describe.ts
+msgid "Added the passkey {name} after signing in with a recovery code"
+msgstr "Added the passkey {name} after signing in with a recovery code"
 
 #: src/features/auth/messages.ts
 msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."

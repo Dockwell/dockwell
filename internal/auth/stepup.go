@@ -83,11 +83,10 @@ func doing(action StepUpAction, target string) string {
 	return a.doing
 }
 
-// RecentSignIn is how long a sign-in with an authenticator code, a
-// recovery code or a link from dockwell recover confirms adding a passkey,
-// as a step-up would. Someone with no passkey for this address, or none
-// they still have, as after losing a device or adding a domain, adds one
-// so. A session stolen later can't.
+// RecentSignIn is how long a sign-in that needed no passkey here confirms
+// adding one, once, as a step-up would (freshSignIn). Someone with no
+// passkey for this address, or none they still have, as after losing a
+// device or adding a domain, adds one so. A session stolen later can't.
 const RecentSignIn = 10 * time.Minute
 
 // Errors for step-ups.
@@ -371,14 +370,41 @@ func (s *Service) confirmed(p Principal, proof string, action StepUpAction) erro
 	return s.UseStepUp(p, proof, action, p.User.ID)
 }
 
-// signedInJustNow reports a session made, within RecentSignIn, by a
-// sign-in that needs no passkey here: an authenticator code, a recovery
-// code or a link from dockwell recover. That sign-in confirms adding a
-// passkey, as a step-up would.
-func (s *Service) signedInJustNow(p Principal) bool {
-	switch p.Session.Method {
-	case MethodAuthenticator, MethodRecoveryCode, MethodLink:
-		return p.Token == nil && s.now().Sub(p.Session.CreatedAt) < RecentSignIn
+// freshSignIn reports whether the principal's session may add a passkey
+// for rpID with no step-up, and says what confirms it, for the audit log.
+// Only a sign-in that needed no passkey here does, within RecentSignIn of
+// signing in, and only for the first passkey added since:
+//   - a link from dockwell recover, which takes a shell on the control
+//     server;
+//   - a recovery code, which is for getting back in after losing every
+//     passkey, and is a security event on the timeline;
+//   - an authenticator code, only when no usable passkey is registered for
+//     this address, as after adding a domain. A code is phishable, so with
+//     a passkey here, adding another takes that passkey.
+//
+// Adding the passkey checks it again, in the transaction that stores it,
+// and records that the session used it (store.Tx.AddPasskeyOnce), so
+// neither the ceremony nor a second one stretches it.
+func (s *Service) freshSignIn(ctx context.Context, tx *store.Tx, p Principal, rpID string) (string, bool, error) {
+	if p.Token != nil || p.Session.ID == "" || p.Session.AddedPasskeyAt != nil || s.now().Sub(p.Session.CreatedAt) >= RecentSignIn {
+		return "", false, nil
 	}
-	return false
+	var by string
+	switch p.Session.Method {
+	case MethodLink:
+		by = "confirmed by signing in with a link from dockwell recover"
+	case MethodRecoveryCode:
+		by = "confirmed by signing in with a recovery code"
+	case MethodAuthenticator:
+		by = "confirmed by signing in with an authenticator code, with no passkey for this address"
+	default:
+		return "", false, nil
+	}
+	if p.Session.Method == MethodAuthenticator {
+		here, err := s.stepUpCredentials(ctx, tx, p.User.ID, rpID)
+		if err != nil || len(here) > 0 {
+			return "", false, err // a passkey here confirms it instead
+		}
+	}
+	return by, true, nil
 }

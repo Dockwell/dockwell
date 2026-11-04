@@ -146,11 +146,14 @@ type AuthServiceClient interface {
 	ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error)
 	// BeginAddPasskey starts adding a passkey for the address of this request.
 	// It needs a proof from FinishStepUp for adding a passkey, made with a
-	// passkey you have for this address. Within 10 minutes of signing in with
-	// a code, a recovery code or a link from dockwell recover, that sign-in
-	// confirms it instead, so you can add one when you have none here.
+	// passkey you have for this address. A sign-in in the last 10 minutes
+	// that needed no passkey here confirms one passkey instead, so you can
+	// add one when you have none here: a link from dockwell recover, a
+	// recovery code, or a code from an authenticator app when no passkey is
+	// registered for this address.
 	BeginAddPasskey(context.Context, *connect.Request[v1.BeginAddPasskeyRequest]) (*connect.Response[v1.BeginAddPasskeyResponse], error)
-	// FinishAddPasskey saves the new passkey.
+	// FinishAddPasskey saves the new passkey. One a sign-in confirmed is
+	// checked again: still within its 10 minutes, and the first since.
 	FinishAddPasskey(context.Context, *connect.Request[v1.FinishAddPasskeyRequest]) (*connect.Response[v1.FinishAddPasskeyResponse], error)
 	// RemovePasskey removes one of your passkeys. It needs a proof from
 	// FinishStepUp for removing it. It refuses to remove your last way to sign
@@ -532,11 +535,14 @@ type AuthServiceHandler interface {
 	ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error)
 	// BeginAddPasskey starts adding a passkey for the address of this request.
 	// It needs a proof from FinishStepUp for adding a passkey, made with a
-	// passkey you have for this address. Within 10 minutes of signing in with
-	// a code, a recovery code or a link from dockwell recover, that sign-in
-	// confirms it instead, so you can add one when you have none here.
+	// passkey you have for this address. A sign-in in the last 10 minutes
+	// that needed no passkey here confirms one passkey instead, so you can
+	// add one when you have none here: a link from dockwell recover, a
+	// recovery code, or a code from an authenticator app when no passkey is
+	// registered for this address.
 	BeginAddPasskey(context.Context, *connect.Request[v1.BeginAddPasskeyRequest]) (*connect.Response[v1.BeginAddPasskeyResponse], error)
-	// FinishAddPasskey saves the new passkey.
+	// FinishAddPasskey saves the new passkey. One a sign-in confirmed is
+	// checked again: still within its 10 minutes, and the first since.
 	FinishAddPasskey(context.Context, *connect.Request[v1.FinishAddPasskeyRequest]) (*connect.Response[v1.FinishAddPasskeyResponse], error)
 	// RemovePasskey removes one of your passkeys. It needs a proof from
 	// FinishStepUp for removing it. It refuses to remove your last way to sign

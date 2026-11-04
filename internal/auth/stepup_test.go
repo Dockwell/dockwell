@@ -272,10 +272,18 @@ func testChangingHowYouSignInTakesAStepUp(t *testing.T, backend store.Backend) {
 }
 
 // Someone with no passkey for this address, or none they still have, adds
-// one in the minutes after signing in with a code, a recovery code or a
-// link from dockwell recover: that sign-in confirms it. A session made
-// that way confirms nothing else, and nothing once the minutes are up,
-// when signing in again is the way.
+// one in the minutes after signing in some other way: that sign-in
+// confirms it, once.
+//   - A link from dockwell recover, and a recovery code, confirm it even
+//     with a passkey here, which they may have lost; a recovery code's is
+//     a security event of its own.
+//   - An authenticator code confirms it only with no usable passkey here,
+//     as a code is phishable.
+//   - A passkey sign-in confirms nothing: the passkey is at hand.
+//
+// A session made that way confirms nothing else, nothing once a passkey is
+// added, and nothing once the minutes are up, checked again as the
+// passkey is stored.
 func TestASignInJustNowConfirmsAddingAPasskey(t *testing.T) {
 	storetest.Each(t, testASignInJustNowConfirmsAddingAPasskey)
 }
@@ -283,45 +291,145 @@ func TestASignInJustNowConfirmsAddingAPasskey(t *testing.T) {
 func testASignInJustNowConfirmsAddingAPasskey(t *testing.T, backend store.Backend) {
 	f := newFixture(t, backend, "panel.acme.dev")
 	owner := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
-	_, recovery := f.enableTOTP(t, owner)
+	secret, recovery := f.enableTOTP(t, owner)
 	ctx := t.Context()
-
-	// On the domain, where there is no passkey, after a recovery code.
-	got, err := f.svc.SignInWithCode(ctx, onDomain, "mira@acme.dev", recovery[0])
-	if err != nil {
-		t.Fatal(err)
+	add := func(client Client, p Principal) (Passkey, error) {
+		t.Helper()
+		cer, err := f.svc.BeginAddPasskey(ctx, client, p, "")
+		if err != nil {
+			return Passkey{}, err
+		}
+		cred, _, err := (&authtest.Authenticator{}).Create(string(cer.Options), client.Site.Origin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return f.svc.FinishAddPasskey(ctx, client, p, cer.ID, []byte(cred), "new")
 	}
-	p := ownerPrincipal(got.SignedIn)
-	if _, err := f.svc.BeginStepUp(ctx, onDomain, p, StepUpAddPasskey, ""); !errors.Is(err, ErrNeedsFreshSignIn) {
-		t.Errorf("a step-up to add a passkey with none here = %v, want ErrNeedsFreshSignIn", err)
+	codeSignIn := func(client Client) Principal {
+		t.Helper()
+		f.clock.advance(totpPeriod * time.Second)
+		return ownerPrincipal(must(f.svc.SignInWithCode(ctx, client, "mira@acme.dev", totpCode(secret, totpStep(f.clock.now())))).SignedIn)
+	}
+
+	// An authenticator code, with the owner's passkey here: no.
+	p := codeSignIn(localhost)
+	if _, err := add(localhost, p); !errors.Is(err, ErrNeedsStepUp) {
+		t.Errorf("adding a passkey after a code sign-in, with a passkey here = %v, want ErrNeedsStepUp", err)
 	}
 	if _, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, ""); !errors.Is(err, ErrNeedsStepUp) {
 		t.Errorf("making a token just after signing in with a code = %v, want ErrNeedsStepUp", err)
 	}
-	f.clock.advance(RecentSignIn - time.Second)
-	b := &authtest.Authenticator{}
-	cer, err := f.svc.BeginAddPasskey(ctx, onDomain, p, "")
-	if err != nil {
-		t.Fatalf("adding a passkey just after signing in with a recovery code: %v", err)
+
+	// On the domain, where there is none: once, and checked at both ends.
+	p = codeSignIn(onDomain)
+	if _, err := f.svc.BeginStepUp(ctx, onDomain, p, StepUpAddPasskey, ""); !errors.Is(err, ErrNeedsFreshSignIn) {
+		t.Errorf("a step-up to add a passkey with none here = %v, want ErrNeedsFreshSignIn", err)
 	}
-	cred, _, _ := b.Create(string(cer.Options), onDomain.Site.Origin)
-	if _, err := f.svc.FinishAddPasskey(ctx, onDomain, p, cer.ID, []byte(cred), "iPhone"); err != nil {
+	f.clock.advance(RecentSignIn - 2*time.Second)
+	late, err := f.svc.BeginAddPasskey(ctx, onDomain, p, "")
+	if err != nil {
+		t.Fatalf("adding a passkey just after signing in with a code, with none here: %v", err)
+	}
+	first, err := f.svc.BeginAddPasskey(ctx, onDomain, p, "")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if added := f.auditDetails(t, "passkey.add"); len(added) != 2 || !strings.HasSuffix(added[1], "confirmed by signing in just now") {
+	cred, _, _ := (&authtest.Authenticator{}).Create(string(first.Options), onDomain.Site.Origin)
+	if _, err := f.svc.FinishAddPasskey(ctx, onDomain, p, first.ID, []byte(cred), "iPhone"); err != nil {
+		t.Fatal(err)
+	}
+	if added := f.auditDetails(t, "passkey.add"); !strings.HasSuffix(added[len(added)-1], "confirmed by signing in with an authenticator code, with no passkey for this address") {
 		t.Errorf("passkey.add events = %q", added)
 	}
+	// A second ceremony begun meanwhile, finished: the first used it.
+	cred, _, _ = (&authtest.Authenticator{}).Create(string(late.Options), onDomain.Site.Origin)
+	if _, err := f.svc.FinishAddPasskey(ctx, onDomain, p, late.ID, []byte(cred), "another"); !errors.Is(err, ErrNeedsStepUp) {
+		t.Errorf("a second passkey from one sign-in = %v, want ErrNeedsStepUp", err)
+	}
+
+	// A ceremony begun in the minutes, finished after them.
+	p = codeSignIn(onDomain)
+	onIt := f.storedOn(t, owner.User.ID, "panel.acme.dev")
+	if err := f.svc.RemovePasskey(ctx, owner, onIt, f.proof(t, owner, StepUpRemovePasskey, onIt)); err != nil {
+		t.Fatal(err)
+	}
+	f.clock.advance(RecentSignIn - time.Second)
+	cer, err := f.svc.BeginAddPasskey(ctx, onDomain, p, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	f.clock.advance(2 * time.Second)
-	if _, err := f.svc.BeginAddPasskey(ctx, onDomain, p, ""); !errors.Is(err, ErrNeedsStepUp) {
-		t.Errorf("adding a passkey %s after signing in = %v, want ErrNeedsStepUp", RecentSignIn, err)
+	cred, _, _ = (&authtest.Authenticator{}).Create(string(cer.Options), onDomain.Site.Origin)
+	if _, err := f.svc.FinishAddPasskey(ctx, onDomain, p, cer.ID, []byte(cred), "late"); !errors.Is(err, ErrNeedsFreshSignIn) {
+		t.Errorf("finishing a passkey %s after signing in = %v, want ErrNeedsFreshSignIn", RecentSignIn+time.Second, err)
+	}
+
+	// A recovery code, with the owner's passkey here: yes, once, on the
+	// timeline as a security event naming the passkey.
+	got, err := f.svc.SignInWithCode(ctx, localhost, "mira@acme.dev", recovery[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	p = ownerPrincipal(got.SignedIn)
+	pk, err := add(localhost, p)
+	if err != nil {
+		t.Fatalf("adding a passkey after a recovery code: %v", err)
+	}
+	if ev := f.auditEvents(t, "passkey.add_with_recovery_code"); len(ev) != 1 || ev[0].Target != pk.ID ||
+		!strings.HasSuffix(ev[0].Detail, "confirmed by signing in with a recovery code") {
+		t.Errorf("passkey.add_with_recovery_code events = %+v, want one for %s", ev, pk.ID)
+	}
+	f.clock.advance(time.Second)
+	if _, err := add(localhost, p); !errors.Is(err, ErrNeedsStepUp) {
+		t.Errorf("a second passkey after one recovery code = %v, want ErrNeedsStepUp", err)
+	}
+
+	// A link from dockwell recover, with passkeys here: yes, once.
+	link, _, err := f.svc.CreateSignInLink(ctx, "", "cli:root@hz-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	signedIn, err := f.svc.SignInWithLink(ctx, localhost, link.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p = Principal{User: signedIn.User, Session: signedIn.Session}
+	if _, err := add(localhost, p); err != nil {
+		t.Errorf("adding a passkey after a link from dockwell recover: %v", err)
+	}
+	f.clock.advance(time.Second)
+	if _, err := add(localhost, p); !errors.Is(err, ErrNeedsStepUp) {
+		t.Errorf("a second passkey after one link = %v, want ErrNeedsStepUp", err)
 	}
 
 	// A passkey sign-in is no such confirmation: whoever holds the session
 	// confirms with the passkey.
-	again := ownerPrincipal(must(f.passkeySignIn(t, onDomain, b, nil)))
-	if _, err := f.svc.BeginAddPasskey(ctx, onDomain, again, ""); !errors.Is(err, ErrNeedsStepUp) {
+	again := ownerPrincipal(must(f.passkeySignIn(t, localhost, f.passkeys, nil)))
+	if _, err := add(localhost, again); !errors.Is(err, ErrNeedsStepUp) {
 		t.Errorf("adding a passkey just after a passkey sign-in, without a step-up = %v, want ErrNeedsStepUp", err)
 	}
+}
+
+// storedOn is the ID of a user's passkey for rpID.
+func (f *fixture) storedOn(t *testing.T, userID, rpID string) string {
+	t.Helper()
+	var id string
+	_ = f.db.View(t.Context(), func(tx *store.Tx) error {
+		all, err := tx.ListPasskeys(t.Context(), userID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range all {
+			if all[i].RPID == rpID {
+				id = all[i].ID
+			}
+		}
+		return nil
+	})
+	if id == "" {
+		t.Fatalf("the owner has no passkey for %s", rpID)
+	}
+	return id
 }
 
 func must[T any](v T, err error) T {

@@ -45,6 +45,16 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return { title: t`Signed out other sessions`, icon: "logout" };
         case "passkey.add":
           return { title: name ? t`Added the passkey ${name}` : t`Added a passkey`, icon: "key" };
+        case "passkey.add_with_recovery_code":
+          // A recovery code stood in for the passkey: worth a look, as
+          // whoever holds a code can do it.
+          return {
+            title: name
+              ? t`Added the passkey ${name} after signing in with a recovery code`
+              : t`Added a passkey after signing in with a recovery code`,
+            icon: "key",
+            tone: "warning",
+          };
         case "passkey.remove":
           return { title: name ? t`Removed the passkey ${name}` : t`Removed a passkey`, icon: "key" };
         case "totp.enable":
