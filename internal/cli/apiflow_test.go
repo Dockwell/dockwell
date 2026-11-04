@@ -200,7 +200,10 @@ func TestABadConfigFileIsSaidFirst(t *testing.T) {
 // Local access opens the control plane's state as it is: it never
 // upgrades a state an older dockwell left, as between an upgrade and the
 // control plane's restart, and says to restart it.
-func TestLocalAccessNeverMigrates(t *testing.T) {
+// Only dockwell run migrates the state, as it starts the control plane.
+// Every other command beside a control plane, from local access to the
+// admin commands, leaves an older state as it is and says to restart.
+func TestCommandsBesideTheControlPlaneNeverMigrate(t *testing.T) {
 	dir := datadir.Dir{Root: t.TempDir()}
 	if err := datadir.Ensure(dir.Control()); err != nil {
 		t.Fatal(err)
@@ -229,7 +232,7 @@ func TestLocalAccessNeverMigrates(t *testing.T) {
 	}
 
 	env := map[string]string{"XDG_CONFIG_HOME": t.TempDir(), envDataDir: dir.Root, envLogFormat: "json"}
-	for _, args := range [][]string{{"servers", "list"}, {"login", "--local"}} {
+	for _, args := range [][]string{{"servers", "list"}, {"login", "--local"}, {"claim"}, {"recover"}, {"token", "create"}} {
 		r := run(t, env, args...)
 		if r.code != exitError || !strings.Contains(r.err, "runs an older dockwell than this one") || !strings.Contains(r.err, "Restart the control plane") {
 			t.Errorf("%s with the state at an older schema = %d %q", strings.Join(args, " "), r.code, r.err)
