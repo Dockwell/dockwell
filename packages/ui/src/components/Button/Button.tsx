@@ -2,7 +2,8 @@
 
 import type { ButtonHTMLAttributes, Ref } from "react";
 
-import { cx } from "../../lib/cx";
+import { cx, hasContent } from "../../lib/cx";
+import { keyShortcut } from "../../lib/keyShortcut";
 import { Glyph } from "../Glyph/Glyph";
 import { Icon } from "../Icon/Icon";
 import type { IconName } from "../Icon/icons";
@@ -16,7 +17,11 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Icon before the label. With no children the button becomes square and needs aria-label. */
   icon?: IconName;
   iconAfter?: IconName;
-  /** Shortcut hint shown inside the button, such as "⌘↵". */
+  /**
+   * Shortcut hint shown inside the button, such as "⌘↵". Assistive technology
+   * gets it as aria-keyshortcuts ("Meta+Enter") rather than in the name. Pass
+   * aria-keyshortcuts to say it another way, such as "Control+Enter" off macOS.
+   */
   kbd?: string;
   /** Replaces the icon with a spinner and disables the button. Keep the label and change its verb ("Deploying"). */
   loading?: boolean;
@@ -37,10 +42,11 @@ export function Button({
   disabled,
   ...rest
 }: ButtonProps) {
-  const iconOnly = children == null || children === false;
+  const iconOnly = !hasContent(children);
   return (
     <button
       {...rest}
+      aria-keyshortcuts={rest["aria-keyshortcuts"] ?? (kbd ? keyShortcut(kbd) : undefined)}
       type={type}
       className={cx(
         "dw-btn",
@@ -60,7 +66,8 @@ export function Button({
       ) : null}
       {iconOnly ? null : <span className="dw-btn-label">{children}</span>}
       {iconAfter ? <Icon name={iconAfter} size={14} /> : null}
-      {kbd ? <Kbd>{kbd}</Kbd> : null}
+      {/* Kept out of the name, so the button reads "Apply plan", not "Apply plan⌘↵". */}
+      {kbd ? <Kbd aria-hidden="true">{kbd}</Kbd> : null}
     </button>
   );
 }

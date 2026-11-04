@@ -1,0 +1,69 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* The list scrolls sideways, which clips anything outside it. Padding taken
+   back by margins leaves room for the focus ring without moving the tabs, and
+   the rule under the tabs is drawn on the content box so it lines up with them. */
+.dw-tabs {
+  display: flex;
+  gap: var(--space-5);
+  margin: -4px;
+  padding: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: linear-gradient(var(--line), var(--line)) no-repeat left bottom / 100% 1px;
+  background-origin: content-box;
+  background-clip: content-box;
+}
+.dw-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0;
+  flex: none;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-out);
+}
+.dw-tab:hover {
+  color: var(--ink);
+}
+.dw-tab[aria-selected="true"] {
+  color: var(--ink);
+}
+.dw-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--ink);
+}
+.dw-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-xs);
+}
+.dw-tab-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  font-size: 11.5px;
+  line-height: 18px;
+  font-weight: 550;
+  text-align: center;
+}
+.dw-tab-count[class*="dw-tone-"] {
+  background: var(--tone-soft);
+  color: var(--tone);
+}

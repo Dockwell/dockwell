@@ -1,0 +1,130 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-fleet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.dw-fleet-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  font-size: 13px;
+}
+.dw-fleet-total {
+  font-weight: 600;
+  color: var(--ink);
+}
+.dw-fleet-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.dw-fleet-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.dw-fleet-glabel {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 13px;
+  font-weight: 550;
+}
+.dw-fleet-gmeta {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+.dw-fleet-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dw-fleet-tiles > li {
+  display: flex;
+}
+.dw-tile {
+  --s: 20px;
+  display: grid;
+  place-items: center;
+  width: var(--s);
+  height: var(--s);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--on-critical);
+  cursor: pointer;
+  transition:
+    transform var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+.dw-fleet-sm .dw-tile {
+  --s: 14px;
+  border-radius: 3px;
+}
+.dw-fleet-sm .dw-tile .dw-glyph {
+  width: 6px;
+  height: 6px;
+}
+.dw-tile:hover {
+  transform: scale(1.12);
+}
+/* A calm grid means a calm fleet: healthy tiles stay a light tint. */
+.dw-tile-healthy {
+  background: color-mix(in srgb, var(--healthy) 16%, var(--surface));
+  border-color: color-mix(in srgb, var(--healthy) 42%, var(--surface));
+}
+.dw-tile-degraded {
+  background: var(--warning);
+  color: var(--surface);
+}
+.dw-tile-down {
+  background: var(--critical);
+  color: var(--on-critical);
+}
+.dw-tile-deploying {
+  background: var(--cobalt-soft);
+  border-color: var(--cobalt);
+  color: var(--cobalt);
+}
+.dw-tile-stopped {
+  border: 1px dashed var(--line-strong);
+  color: var(--idle);
+}
+.dw-tile.is-selected {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3.5px var(--ink);
+}
+.dw-tile:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.dw-fleet-readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-4);
+  min-height: 28px;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.dw-fleet-readout .dw-status {
+  font-weight: 550;
+}
+.dw-fleet-readout b {
+  font-weight: 550;
+  color: var(--ink);
+}
+.dw-fleet-readout code {
+  font-size: 12px;
+  color: var(--ink);
+}

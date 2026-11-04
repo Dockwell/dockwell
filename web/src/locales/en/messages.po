@@ -11,17 +11,53 @@ msgstr ""
 msgid "(modified)"
 msgstr "(modified)"
 
+#: src/app/Providers.tsx
+msgid "{count, plural, one {# server} other {# servers}}"
+msgstr "{count, plural, one {# server} other {# servers}}"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "{count} d"
 msgstr "{count} d"
+
+#: src/app/Providers.tsx
+msgid "{count} degraded"
+msgstr "{count} degraded"
+
+#: src/app/Providers.tsx
+msgid "{count} deploying"
+msgstr "{count} deploying"
+
+#: src/app/Providers.tsx
+msgid "{count} down"
+msgstr "{count} down"
 
 #: src/features/servers/ServersPanel.tsx
 msgid "{count} h"
 msgstr "{count} h"
 
+#: src/app/Providers.tsx
+msgid "{count} healthy"
+msgstr "{count} healthy"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "{count} min"
 msgstr "{count} min"
+
+#: src/app/Providers.tsx
+msgid "{count} stopped"
+msgstr "{count} stopped"
+
+#: src/app/Providers.tsx
+msgid "{name}, {status}"
+msgstr "{name}, {status}"
+
+#: src/app/Providers.tsx
+msgid "{name}, {status}, CPU {cpu}%"
+msgstr "{name}, {status}, CPU {cpu}%"
+
+#: src/app/Providers.tsx
+msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
+msgstr "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 
 #: src/features/servers/ServersPanel.tsx
 msgid "{used} of {total}"
@@ -31,6 +67,14 @@ msgstr "{used} of {total}"
 msgid "Agent not connected"
 msgstr "Agent not connected"
 
+#: src/app/Providers.tsx
+msgid "app"
+msgstr "app"
+
+#: src/app/Providers.tsx
+msgid "backup"
+msgstr "backup"
+
 #: src/features/system/StatusPage.tsx
 msgid "Can't reach the control plane"
 msgstr "Can't reach the control plane"
@@ -38,6 +82,14 @@ msgstr "Can't reach the control plane"
 #: src/features/system/StatusPage.tsx
 msgid "Check it from a terminal"
 msgstr "Check it from a terminal"
+
+#: src/app/Providers.tsx
+msgid "Close"
+msgstr "Close"
+
+#: src/app/Providers.tsx
+msgid "Command bar"
+msgstr "Command bar"
 
 #: src/features/system/StatusPage.tsx
 msgid "Command copied"
@@ -71,9 +123,18 @@ msgstr "Control server"
 msgid "Copy command"
 msgstr "Copy command"
 
+#: src/app/Providers.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "CPU"
 msgstr "CPU"
+
+#: src/app/Providers.tsx
+msgid "Create"
+msgstr "Create"
+
+#: src/app/Providers.tsx
+msgid "database"
+msgstr "database"
 
 #: src/app/Providers.tsx
 msgid "Degraded"
@@ -83,13 +144,41 @@ msgstr "Degraded"
 msgid "Deploying"
 msgstr "Deploying"
 
+#: src/app/Providers.tsx
+msgid "Destroy"
+msgstr "Destroy"
+
+#: src/app/Providers.tsx
+msgid "Dismiss"
+msgstr "Dismiss"
+
 #: src/features/system/StatusPage.tsx
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 
 #: src/app/Providers.tsx
+msgid "domain"
+msgstr "domain"
+
+#: src/app/Providers.tsx
 msgid "Down"
 msgstr "Down"
+
+#: src/app/Providers.tsx
+msgid "Error"
+msgstr "Error"
+
+#: src/app/Providers.tsx
+msgid "firewall"
+msgstr "firewall"
+
+#: src/app/Providers.tsx
+msgid "Follow"
+msgstr "Follow"
+
+#: src/app/Providers.tsx
+msgid "from"
+msgstr "from"
 
 #: src/features/system/StatusPage.tsx
 msgid "Go"
@@ -99,10 +188,31 @@ msgstr "Go"
 msgid "Healthy"
 msgstr "Healthy"
 
+#: src/app/Providers.tsx
+msgid "hidden"
+msgstr "hidden"
+
+#: src/app/Providers.tsx
+msgid "Hover or focus a server to inspect it."
+msgstr "Hover or focus a server to inspect it."
+
+#: src/app/Providers.tsx
+msgid "In <0>{scope}</0>"
+msgstr "In <0>{scope}</0>"
+
+#: src/app/Providers.tsx
+msgid "job"
+msgstr "job"
+
+#: src/app/Providers.tsx
+msgid "Live"
+msgstr "Live"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "Loading servers"
 msgstr "Loading servers"
 
+#: src/app/Providers.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "Memory"
 msgstr "Memory"
@@ -115,9 +225,37 @@ msgstr "No page here"
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "No servers yet. Add one with <0>dockwell token create</0> on this server."
 
+#: src/app/Providers.tsx
+msgid "Nothing here yet."
+msgstr "Nothing here yet."
+
+#: src/app/Providers.tsx
+msgid "Nothing matches “{query}”. Try a server, app or action name."
+msgstr "Nothing matches “{query}”. Try a server, app or action name."
+
+#: src/app/Providers.tsx
+msgid "Optional"
+msgstr "Optional"
+
+#: src/app/Providers.tsx
+msgid "package"
+msgstr "package"
+
+#: src/app/Providers.tsx
+msgid "Pause"
+msgstr "Pause"
+
+#: src/app/Providers.tsx
+msgid "Paused"
+msgstr "Paused"
+
 #: src/features/system/StatusPage.tsx
 msgid "Platform"
 msgstr "Platform"
+
+#: src/app/Providers.tsx
+msgid "Protected environment"
+msgstr "Protected environment"
 
 #: src/features/servers/ServersPanel.tsx
 msgid "Reconnecting"
@@ -127,6 +265,14 @@ msgstr "Reconnecting"
 msgid "Remove {what}"
 msgstr "Remove {what}"
 
+#: src/app/Providers.tsx
+msgid "Replace"
+msgstr "Replace"
+
+#: src/app/Providers.tsx
+msgid "Results"
+msgstr "Results"
+
 #: src/features/system/StatusPage.tsx
 msgid "Retry"
 msgstr "Retry"
@@ -135,9 +281,30 @@ msgstr "Retry"
 msgid "Retrying"
 msgstr "Retrying"
 
+#: src/app/Providers.tsx
+msgid "Scope"
+msgstr "Scope"
+
+#: src/app/Providers.tsx
+msgid "Search or run a command"
+msgstr "Search or run a command"
+
+#: src/app/Providers.tsx
+msgid "secret"
+msgstr "secret"
+
+#: src/app/Providers.tsx
+msgid "server"
+msgstr "server"
+
+#: src/app/Providers.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "Servers"
 msgstr "Servers"
+
+#: src/app/Providers.tsx
+msgid "service"
+msgstr "service"
 
 #: src/app/Providers.tsx
 msgid "Stopped"
@@ -163,6 +330,43 @@ msgstr "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 msgid "This control plane"
 msgstr "This control plane"
 
+#: src/app/Providers.tsx
+msgid "to"
+msgstr "to"
+
+#: src/app/Providers.tsx
+msgid "to change"
+msgstr "to change"
+
+#: src/app/Providers.tsx
+msgid "to create"
+msgstr "to create"
+
+#: src/app/Providers.tsx
+msgid "to destroy"
+msgstr "to destroy"
+
+#: src/app/Providers.tsx
+msgid "to move"
+msgstr "to move"
+
+#: src/app/Providers.tsx
+msgid "to replace"
+msgstr "to replace"
+
+#: src/app/Providers.tsx
+msgid "to run"
+msgstr "to run"
+
+#. Read after a metric's name to name its chart, as in “CPU trend”.
+#: src/app/Providers.tsx
+msgid "trend"
+msgstr "trend"
+
+#: src/app/Providers.tsx
+msgid "Undo"
+msgstr "Undo"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "Unknown system"
 msgstr "Unknown system"
@@ -175,10 +379,22 @@ msgstr "Unreachable"
 msgid "Up"
 msgstr "Up"
 
+#: src/app/Providers.tsx
+msgid "Update in place"
+msgstr "Update in place"
+
 #: src/features/system/StatusPage.tsx
 msgid "Version"
 msgstr "Version"
 
+#: src/app/Providers.tsx
+msgid "volume"
+msgstr "volume"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "Waiting for its agent"
 msgstr "Waiting for its agent"
+
+#: src/app/Providers.tsx
+msgid "Warning"
+msgstr "Warning"

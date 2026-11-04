@@ -1,0 +1,108 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-log {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.dw-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  height: 44px;
+  padding: 0 var(--space-2) 0 var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.dw-log-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 550;
+}
+.dw-log-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.dw-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--cobalt);
+}
+.dw-live.is-paused {
+  color: var(--ink-muted);
+}
+.dw-live-dot {
+  position: relative;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+/* The live-stream dot: one of the three loops allowed. Stops under reduced motion (base.css). */
+.dw-live-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: currentColor;
+  animation: dw-ping 1.6s var(--ease-out) infinite;
+}
+.dw-live.is-paused .dw-live-dot::after {
+  animation: none;
+  opacity: 0;
+}
+.dw-log-body {
+  overflow: auto;
+  padding: var(--space-2) 0;
+  background: var(--surface-sunken);
+  font: 400 12px / 19px var(--font-mono);
+  outline: none;
+}
+.dw-log-body:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--cobalt);
+}
+.dw-log-line {
+  display: grid;
+  grid-template-columns: 96px 120px 10px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
+  color: var(--ink);
+}
+.dw-log-line:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+.dw-log-time,
+.dw-log-src {
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The glyph sits on the first line of a line that wraps. */
+.dw-log-lvl {
+  display: flex;
+  align-items: center;
+  height: 19px;
+}
+.dw-log-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.dw-log-line.is-warn .dw-log-lvl {
+  color: var(--warning);
+}
+.dw-log-line.is-error {
+  background: color-mix(in srgb, var(--critical) 9%, transparent);
+}
+.dw-log-line.is-error .dw-log-lvl {
+  color: var(--critical);
+}

@@ -1,0 +1,76 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Toasts stack bottom-right, newest at the bottom, at most three. */
+.dw-toaster {
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.dw-toast {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  overflow: hidden;
+  width: min(420px, calc(100vw - 32px));
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  background: var(--surface-raised);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
+  animation: dw-rise var(--motion-slow) var(--ease-out);
+}
+.dw-toast-glyph {
+  padding-top: 5px;
+  color: var(--tone);
+}
+.dw-toast-body {
+  flex: 1;
+  min-width: 0;
+}
+.dw-toast-title {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 550;
+  color: var(--ink);
+}
+.dw-toast-desc {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+  margin-top: 1px;
+}
+.dw-toast-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+/* The toast timer: one of the three loops allowed. Hidden under reduced motion (base.css). */
+.dw-toast-timer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--ink);
+  opacity: 0.2;
+  transform-origin: left;
+  animation: dw-timer var(--dw-toast-d, 6000ms) linear forwards;
+}
+.dw-toast:hover .dw-toast-timer,
+.dw-toast:focus-within .dw-toast-timer {
+  animation-play-state: paused;
+}
+@media (max-width: 639px) {
+  .dw-toaster {
+    right: var(--space-4);
+    bottom: var(--space-4);
+    left: var(--space-4);
+  }
+  .dw-toaster .dw-toast {
+    width: 100%;
+  }
+}

@@ -1,0 +1,168 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.dw-plan-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.dw-plan-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.dw-plan-count b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.dw-plan-count.is-zero {
+  opacity: 0.55;
+}
+.dw-plan-impact {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-muted);
+}
+.dw-plan-sym {
+  font: 600 14px / 1 var(--font-mono);
+  text-align: center;
+}
+.dw-plan-sym.is-add {
+  color: var(--diff-add);
+}
+.dw-plan-sym.is-change {
+  color: var(--diff-change);
+}
+.dw-plan-sym.is-remove {
+  color: var(--diff-remove);
+}
+.dw-plan-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.dw-plan-res + .dw-plan-res {
+  border-top: 1px solid var(--line);
+}
+.dw-plan-row {
+  display: grid;
+  grid-template-columns: 16px 16px minmax(0, 1fr) auto 14px;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+}
+button.dw-plan-row {
+  cursor: pointer;
+}
+button.dw-plan-row:hover {
+  background: var(--canvas);
+}
+.dw-plan-row:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--cobalt);
+}
+.dw-plan-kicon {
+  color: var(--ink-muted);
+}
+.dw-plan-name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.dw-plan-name code {
+  font-size: 13px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dw-plan-kind {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.dw-plan-act {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.dw-plan-res.is-remove .dw-plan-name code {
+  text-decoration: line-through;
+  text-decoration-color: var(--diff-remove);
+}
+.dw-plan-chev {
+  color: var(--ink-muted);
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+.dw-plan-chev.is-open {
+  transform: rotate(180deg);
+}
+.dw-plan-changes {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px var(--space-4);
+  margin: 0;
+  padding: 2px var(--space-4) var(--space-4) calc(var(--space-4) + 32px + var(--space-3) * 2);
+  font: 400 12px / 20px var(--font-mono);
+}
+.dw-plan-changes[hidden] {
+  display: none;
+}
+.dw-plan-path {
+  color: var(--ink-muted);
+}
+.dw-plan-val {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+.dw-plan-arrow {
+  color: var(--ink-muted);
+}
+/* Old values are struck through as well as coloured, so the diff reads in grayscale. */
+.dw-diff-from,
+.dw-diff-to {
+  padding: 0 5px;
+  border-radius: 3px;
+  word-break: break-all;
+}
+.dw-diff-from {
+  background: var(--diff-remove-soft);
+  color: var(--diff-remove);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.dw-diff-to {
+  background: var(--diff-add-soft);
+  color: var(--diff-add);
+}
+.dw-diff-secret {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+}

@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { type CSSProperties, type ReactNode, type Ref, useId, useRef } from "react";
+
+import { cx, hasContent } from "../../lib/cx";
+import { ModalLayer } from "../../lib/modal";
+import { useUIStrings } from "../../lib/strings";
+import { Button } from "../Button/Button";
+import "./Sheet.css";
+
+export interface SheetProps {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  /** Overlay mode: render only while open. */
+  open?: boolean;
+  /** Called on Escape, on a click on the scrim and from the close button. Unsaved edits ask first. */
+  onClose?: () => void;
+  /** Actions, the primary one on the right. A dw-sheet-note at the start holds duration and undo window. */
+  footer?: ReactNode;
+  children?: ReactNode;
+  /** Defaults to sheet-width (560px). Wider content belongs on a page. */
+  width?: number | string;
+  /** Render the panel in place, without scrim, portal or fixed positioning. */
+  inline?: boolean;
+  className?: string;
+}
+
+/**
+ * A panel that slides in from the right for plans, settings and details,
+ * keeping the page visible behind it. In overlay mode it is a modal dialog:
+ * focus moves in, stays inside, and returns to the opener on close.
+ */
+export function Sheet(props: SheetProps) {
+  if (props.inline) return <SheetPanel {...props} modal={false} />;
+  if (!props.open) return null;
+  return <SheetLayer {...props} />;
+}
+
+function SheetLayer(props: SheetProps) {
+  const panelRef = useRef<HTMLElement>(null);
+  return (
+    <ModalLayer className="dw-sheet-layer" containerRef={panelRef} onClose={props.onClose}>
+      <SheetPanel {...props} modal ref={panelRef} />
+    </ModalLayer>
+  );
+}
+
+function SheetPanel({
+  title,
+  subtitle,
+  onClose,
+  footer,
+  children,
+  width,
+  inline = false,
+  className,
+  modal,
+  ref,
+}: SheetProps & { modal: boolean; ref?: Ref<HTMLElement> }) {
+  const strings = useUIStrings();
+  const titleId = useId();
+  const subtitleId = useId();
+  const hasSubtitle = hasContent(subtitle);
+  const style: CSSProperties | undefined = width !== undefined ? { width } : undefined;
+  return (
+    <section
+      ref={ref}
+      tabIndex={-1}
+      className={cx("dw-sheet", inline && "is-inline", className)}
+      role="dialog"
+      aria-modal={modal || undefined}
+      aria-labelledby={titleId}
+      aria-describedby={hasSubtitle ? subtitleId : undefined}
+      style={style}
+    >
+      <header className="dw-sheet-head">
+        <div className="dw-sheet-heading">
+          <h2 id={titleId} className="dw-sheet-title">
+            {title}
+          </h2>
+          {hasSubtitle ? (
+            <p id={subtitleId} className="dw-sheet-sub">
+              {subtitle}
+            </p>
+          ) : null}
+        </div>
+        {onClose ? <Button variant="ghost" size="sm" icon="x" aria-label={strings.close} onClick={onClose} /> : null}
+      </header>
+      <div className="dw-sheet-body">{children}</div>
+      {hasContent(footer) ? <footer className="dw-sheet-foot">{footer}</footer> : null}
+    </section>
+  );
+}
