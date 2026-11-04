@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ActorKind,
+  ChangeState,
   EventKind,
   type ListEventsRequest,
+  ResourceSchema,
+  StepProgressSchema,
+  StepState,
   Surface,
   type UndoChangeRequest,
   type WatchChangeResponse,
@@ -17,8 +23,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { applied, auditEvent, changeEvent, moved, shopPlanned, since, snapshot } from "../../test/changes";
-import { type Api, feed, onPhone, renderAt } from "../../test/render";
+import { applied, auditEvent, changeEvent, moved, shopPlanned, since, snapshot, webPlanned } from "../../test/changes";
+import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
 
 const HOUR = 3_600_000;
 const shop = applied(shopPlanned(), new Date(Date.now() - 2 * 60_000));
@@ -50,6 +56,7 @@ function renderActivity(watch: ReturnType<typeof feed<WatchEventsResponse>>, api
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("Activity", () => {
@@ -189,6 +196,137 @@ describe("Activity", () => {
     expect(await screen.findByRole("row", { name: /Created the API token/ })).toBeVisible();
     expect(pages).toEqual([expect.objectContaining({ pageToken: "page-2" })]);
     expect(screen.queryByRole("button", { name: "Show earlier events" })).toBeNull();
+  });
+
+  it("leaves out an earlier page asked for under the filter before", async () => {
+    const user = userEvent.setup();
+    let answer: () => void = () => {};
+    renderAt("/activity", {
+      events: {
+        async *watchEvents(req, ctx) {
+          yield req.kinds.length === 0 ? snapshot([shopEvent], "page-2") : snapshot([shopEvent], "changes-2");
+          await untilAborted(ctx.signal);
+        },
+        listEvents: async (req) => {
+          if (req.pageToken === "page-2") await new Promise<void>((resolve) => (answer = resolve));
+          return { events: req.pageToken === "page-2" ? [token] : [], nextPageToken: "" };
+        },
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: "Show earlier events" }));
+    await user.click(screen.getByRole("radio", { name: "Changes" }));
+    await screen.findByRole("row", { name: /Create the project shop/ });
+    // The page for every kind arrives once the list shows only changes.
+    act(() => answer());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByRole("row", { name: /Created the API token/ })).toBeNull();
+    // The changes carry on from their own snapshot.
+    expect(screen.getByRole("button", { name: "Show earlier events" })).toBeEnabled();
+  });
+
+  it("keeps the earlier pages it loaded across a reconnect, and pages on below them", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const user = userEvent.setup();
+    const first = feed<WatchEventsResponse>();
+    const second = feed<WatchEventsResponse>();
+    first.push(snapshot([shopEvent], "page-2"));
+    const watches = [first, second];
+    const pages: string[] = [];
+    renderAt("/activity", {
+      events: {
+        watchEvents: (req, ctx) => (watches.shift() ?? second).stream(req, ctx),
+        listEvents: (req) => {
+          pages.push(req.pageToken);
+          return req.pageToken === "page-2" ? { events: [token], nextPageToken: "page-3" } : { events: [] };
+        },
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: "Show earlier events" }));
+    await screen.findByRole("row", { name: /Created the API token/ });
+
+    // The watch drops, and its new snapshot reaches back to what was shown.
+    const newer = auditEvent({ id: "evt_new", action: "auth.sign_in" });
+    second.push(snapshot([newer, shopEvent], "page-2-again"));
+    act(() => first.fail(new ConnectError("the control plane restarted", Code.Unavailable)));
+    await waitFor(() => expect(screen.getAllByRole("row", { name: /Signed in/ })).toHaveLength(1), { timeout: 3000 });
+    expect(screen.getByRole("row", { name: /Created the API token/ })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Show earlier events" }));
+    await waitFor(() => expect(pages).toEqual(["page-2", "page-3"]));
+  });
+
+  it("counts only the steps that ran to the end", async () => {
+    const watch = feed<WatchEventsResponse>();
+    const steps = [StepState.DONE, StepState.FAILED, StepState.SKIPPED].map((state, i) =>
+      create(StepProgressSchema, {
+        serverId: "srv_1",
+        resourceId: `res_${i}`,
+        state,
+        finishTime: timestampFromDate(new Date()),
+      }),
+    );
+    watch.push(snapshot([changeEvent(moved(shopPlanned(), { state: ChangeState.APPLYING, steps }))]));
+    renderActivity(watch);
+    expect(await screen.findByRole("row", { name: /Create the project shop/ })).toHaveTextContent("1 of 3 steps done");
+  });
+
+  it("names the resource it narrows to, asking only for its kind", async () => {
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot([shopEvent]));
+    const kinds: string[] = [];
+    renderActivity(
+      watch,
+      {
+        resources: {
+          listResources: (req) => {
+            kinds.push(req.kind);
+            return {
+              resources: [create(ResourceSchema, { id: "prj_shop", resource: { kind: "project", name: "shop" } })],
+            };
+          },
+        },
+      },
+      "/activity?resource=prj_shop",
+    );
+    expect(await screen.findByText("shop", { selector: ".dw-tag-value" })).toBeVisible();
+    expect(kinds).toEqual(["project"]);
+  });
+
+  it("opens a change's own page, /changes/<id>, over Activity, to review and apply it", async () => {
+    const user = userEvent.setup();
+    // Proposed with the CLI, which sends a person here for a destructive plan.
+    const destructive = moved(webPlanned(), { proposedVia: Surface.CLI });
+    if (destructive.plan) destructive.plan.destructive = true;
+    const applies: string[] = [];
+    const { router } = renderAt("/changes/chg_web", {
+      events: {
+        async *watchEvents(_req, ctx) {
+          yield snapshot([changeEvent(destructive)]);
+          await untilAborted(ctx.signal);
+        },
+      },
+      changes: {
+        getChange: () => ({ change: destructive }),
+        watchChange: feed<WatchChangeResponse>().stream,
+        applyChange: (req) => {
+          applies.push(req.fingerprint);
+          return { change: moved(destructive, { state: ChangeState.APPLYING }) };
+        },
+      },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const apply = await within(sheet).findByRole("button", { name: /Apply plan/ });
+    expect(apply).toBeDisabled();
+    await user.type(within(sheet).getByLabelText("Type a1b2c3d4 to apply it"), "a1b2c3d4");
+    await user.click(apply);
+    await waitFor(() => expect(applies).toEqual(["a1b2c3d4e5f60718293a4b5c6d7e8f90"]));
+    expect(screen.getByRole("link", { name: "Activity" })).toHaveAttribute("aria-current", "page");
+
+    const applying = await screen.findByRole("dialog", { name: "Applying" });
+    await user.click(within(applying).getAllByRole("button", { name: "Close" }).at(-1) as HTMLElement);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/activity"));
+    expect(router.state.location.search).toEqual({ event: "chg_web" });
+    // Beside the list, the change says where it came from.
+    expect(await screen.findByRole("region", { name: "Update web" })).toHaveTextContent("The CLI");
   });
 
   it("says when nothing has happened", async () => {

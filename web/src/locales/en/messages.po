@@ -841,6 +841,10 @@ msgstr "Expires in {remaining}"
 msgid "Failed"
 msgstr "Failed"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Finding your projects"
+msgstr "Finding your projects"
+
 #: src/app/Providers.tsx
 msgid "firewall"
 msgstr "firewall"
@@ -1274,8 +1278,6 @@ msgstr "Nothing matches these filters. Clear them to see everything."
 msgid "Nothing runs on a server: Dockwell records it and it applies at once."
 msgstr "Nothing runs on a server: Dockwell records it and it applies at once."
 
-#: src/features/activity/ActivityPage.tsx
-#: src/features/changes/ChangeSheet.tsx
 #: src/features/changes/words.ts
 msgid "Nothing to do"
 msgstr "Nothing to do"

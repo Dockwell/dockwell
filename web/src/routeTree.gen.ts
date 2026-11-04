@@ -19,6 +19,7 @@ import { Route as ShellSectionRouteImport } from './routes/_shell/$section'
 import { Route as ShellActivityRouteImport } from './routes/_shell/activity'
 import { Route as ShellMoreRouteImport } from './routes/_shell/more'
 import { Route as ShellProfileRouteImport } from './routes/_shell/profile'
+import { Route as ShellChangesChangeIdRouteImport } from './routes/_shell/changes.$changeId'
 import { Route as ShellServersIndexRouteImport } from './routes/_shell/servers.index'
 import { Route as ShellServersServerIdRouteImport } from './routes/_shell/servers.$serverId'
 
@@ -71,6 +72,11 @@ const ShellProfileRoute = ShellProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellChangesChangeIdRoute = ShellChangesChangeIdRouteImport.update({
+  id: '/changes/$changeId',
+  path: '/changes/$changeId',
+  getParentRoute: () => ShellRoute,
+} as any)
 const ShellServersIndexRoute = ShellServersIndexRouteImport.update({
   id: '/servers/',
   path: '/servers/',
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/activity': typeof ShellActivityRoute
   '/more': typeof ShellMoreRoute
   '/profile': typeof ShellProfileRoute
+  '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/servers/$serverId': typeof ShellServersServerIdRoute
   '/servers/': typeof ShellServersIndexRoute
 }
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/more': typeof ShellMoreRoute
   '/profile': typeof ShellProfileRoute
   '/': typeof ShellIndexRoute
+  '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/servers/$serverId': typeof ShellServersServerIdRoute
   '/servers': typeof ShellServersIndexRoute
 }
@@ -120,6 +128,7 @@ export interface FileRoutesById {
   '/_shell/more': typeof ShellMoreRoute
   '/_shell/profile': typeof ShellProfileRoute
   '/_shell/': typeof ShellIndexRoute
+  '/_shell/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/_shell/servers/$serverId': typeof ShellServersServerIdRoute
   '/_shell/servers/': typeof ShellServersIndexRoute
 }
@@ -135,6 +144,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/more'
     | '/profile'
+    | '/changes/$changeId'
     | '/servers/$serverId'
     | '/servers/'
   fileRoutesByTo: FileRoutesByTo
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/more'
     | '/profile'
     | '/'
+    | '/changes/$changeId'
     | '/servers/$serverId'
     | '/servers'
   id:
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/_shell/more'
     | '/_shell/profile'
     | '/_shell/'
+    | '/_shell/changes/$changeId'
     | '/_shell/servers/$serverId'
     | '/_shell/servers/'
   fileRoutesById: FileRoutesById
@@ -246,6 +258,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellProfileRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/changes/$changeId': {
+      id: '/_shell/changes/$changeId'
+      path: '/changes/$changeId'
+      fullPath: '/changes/$changeId'
+      preLoaderRoute: typeof ShellChangesChangeIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/servers/': {
       id: '/_shell/servers/'
       path: '/servers'
@@ -269,6 +288,7 @@ interface ShellRouteChildren {
   ShellMoreRoute: typeof ShellMoreRoute
   ShellProfileRoute: typeof ShellProfileRoute
   ShellIndexRoute: typeof ShellIndexRoute
+  ShellChangesChangeIdRoute: typeof ShellChangesChangeIdRoute
   ShellServersServerIdRoute: typeof ShellServersServerIdRoute
   ShellServersIndexRoute: typeof ShellServersIndexRoute
 }
@@ -279,6 +299,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellMoreRoute: ShellMoreRoute,
   ShellProfileRoute: ShellProfileRoute,
   ShellIndexRoute: ShellIndexRoute,
+  ShellChangesChangeIdRoute: ShellChangesChangeIdRoute,
   ShellServersServerIdRoute: ShellServersServerIdRoute,
   ShellServersIndexRoute: ShellServersIndexRoute,
 }

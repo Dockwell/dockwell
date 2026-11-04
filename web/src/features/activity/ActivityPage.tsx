@@ -35,7 +35,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useCallback, useMemo, useRef } from "react";
 
 import { sentence } from "../../lib/errors";
-import { formatDateTime } from "../../lib/format";
+import { formatClock, formatDateTime, formatWeekday } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { initials } from "../auth/user";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -163,7 +163,7 @@ export function ActivityPage({
         {days.map((day) => {
           const label = dayLabel(day.date, now, i18n);
           const count = day.events.length;
-          const long = longDay(day.date, i18n.locale);
+          const long = formatWeekday(day.date, i18n.locale);
           const meta = plural(count, { one: `${long} · # event`, other: `${long} · # events` });
           return (
             <section key={day.key} className="activity-day" aria-label={label}>
@@ -248,6 +248,11 @@ export function ActivityPage({
   );
 }
 
+/** Activity's search without the filters left unset, for its URL. */
+export function searchWithout(search: ActivitySearch): ActivitySearch {
+  return Object.fromEntries(Object.entries(search).filter(([, v]) => v !== undefined)) as ActivitySearch;
+}
+
 function filtered(search: ActivitySearch): boolean {
   return Boolean(search.kind || search.actor || search.server || search.resource);
 }
@@ -278,20 +283,7 @@ function dayLabel(date: Date, now: number, i18n: I18n): string {
     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   if (same(date, today)) return i18n._(msg`Today`);
   if (same(date, yesterday)) return i18n._(msg`Yesterday`);
-  return longDay(date, i18n.locale);
-}
-
-/** "Tuesday 3 Nov", in the locale's order. */
-export function longDay(date: Date, locale: string): string {
-  const tag = locale === "en" ? "en-GB" : locale;
-  return new Intl.DateTimeFormat(tag, { weekday: "long", day: "numeric", month: "short" })
-    .format(date)
-    .replace(",", "");
-}
-
-function clock(date: Date, locale: string): string {
-  const tag = locale === "en" ? "en-GB" : locale;
-  return new Intl.DateTimeFormat(tag, { hour: "2-digit", minute: "2-digit" }).format(date);
+  return formatWeekday(date, i18n.locale);
 }
 
 /** An event's mark: its icon, toned only for an outcome worth noticing. */
@@ -383,7 +375,7 @@ function DayTable({
         return (
           <div className="activity-when">
             <time dateTime={date.toISOString()}>{time.ago(date, now)}</time>
-            <span>{clock(date, i18n.locale)}</span>
+            <span>{formatClock(date, i18n.locale)}</span>
           </div>
         );
       },
@@ -515,7 +507,9 @@ function Scopes({
 }) {
   const { t } = useLingui();
   const { servers } = useFleetView();
-  const resources = useQuery(ResourceService.method.listResources, {}, { enabled: Boolean(search.resource) });
+  // Only the kind of resource the ID names: its prefix says which.
+  const kind = search.resource ? kindOf(search.resource) : "";
+  const resources = useQuery(ResourceService.method.listResources, { kind }, { enabled: kind !== "" });
   if (!search.server && !search.resource) return null;
   // A removed server is in no fleet, but its events still name it.
   const server =
@@ -547,6 +541,17 @@ function Scopes({
       ) : null}
     </div>
   );
+}
+
+/** The kinds whose IDs say what they are, by their prefix. */
+const KIND_OF_PREFIX: Readonly<Record<string, string>> = { prj: "project", env: "environment", svc: "service" };
+
+/**
+ * The kind of resource an ID belongs to, from its prefix, or "" for an ID
+ * that doesn't say, which Activity shows as it is.
+ */
+export function kindOf(resourceId: string): string {
+  return KIND_OF_PREFIX[resourceId.slice(0, resourceId.indexOf("_"))] ?? "";
 }
 
 interface DetailProps {
@@ -646,7 +651,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
                 <Trans>What changed</Trans>
               </h3>
               {full.data?.change ? (
-                <PlanDiff resources={diffResources(full.data.change.plan, t`Nothing to do`)} />
+                <PlanDiff resources={diffResources(full.data.change.plan)} />
               ) : full.error ? (
                 <p className="activity-note" role="alert">
                   {sentence(full.error)}

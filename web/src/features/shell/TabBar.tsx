@@ -5,7 +5,7 @@ import { useLingui } from "@lingui/react/macro";
 import { Link, useLocation } from "@tanstack/react-router";
 
 import type { FleetView } from "../servers/server";
-import { firstSegment, isUpcoming, UPCOMING } from "./sections";
+import { firstSegment, inActivity, isUpcoming, UPCOMING } from "./sections";
 
 type Tab = "overview" | "apps" | "servers" | "activity" | "more";
 
@@ -13,7 +13,8 @@ type Tab = "overview" | "apps" | "servers" | "activity" | "more";
 export function tabOf(pathname: string): Tab {
   const segment = firstSegment(pathname);
   if (segment === "") return "overview";
-  if (segment === "apps" || segment === "activity" || segment === "servers") return segment;
+  if (inActivity(segment)) return "activity";
+  if (segment === "apps" || segment === "servers") return segment;
   if (segment === "more" || segment === "profile" || (isUpcoming(segment) && UPCOMING[segment].inMore)) return "more";
   return "overview";
 }

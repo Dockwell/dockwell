@@ -49,9 +49,17 @@ export function untilAborted(signal: AbortSignal): Promise<void> {
   });
 }
 
+/** How a test's query cache behaves. */
+export interface CacheOptions {
+  /** How long what it read stays fresh: 0, unless a test needs the panel's 30 s, as createQueryClient has. */
+  staleTime?: number;
+}
+
 /** The real providers, and the real session watch, around an in-memory API and a query cache that doesn't retry. */
-function apiWrapper(api: Api) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function apiWrapper(api: Api, cache: CacheOptions = {}) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: cache.staleTime ?? 0 } },
+  });
   const transport = createRouterTransport(
     ({ service }) => {
       service(SystemService, api.system ?? {});
@@ -73,8 +81,8 @@ function apiWrapper(api: Api) {
 }
 
 /** Renders ui against api. */
-export function renderWithApi(ui: ReactElement, api: Api) {
-  return render(ui, { wrapper: apiWrapper(api) });
+export function renderWithApi(ui: ReactElement, api: Api, cache?: CacheOptions) {
+  return render(ui, { wrapper: apiWrapper(api, cache) });
 }
 
 /** The control plane's build in tests that don't ask for another. */
@@ -86,13 +94,17 @@ export const version = () =>
  * browser would load it. Unless api says otherwise, the control plane
  * answers GetVersion with v0.4.0, and GetAuthState with Mira signed in.
  */
-export function renderAt(path: string, api: Api = {}) {
+export function renderAt(path: string, api: Api = {}, cache?: CacheOptions) {
   const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) });
-  const result = renderWithApi(<RouterProvider router={router} />, {
-    ...api,
-    system: { getVersion: version, ...api.system },
-    auth: { getAuthState: () => authState(), ...api.auth },
-  });
+  const result = renderWithApi(
+    <RouterProvider router={router} />,
+    {
+      ...api,
+      system: { getVersion: version, ...api.system },
+      auth: { getAuthState: () => authState(), ...api.auth },
+    },
+    cache,
+  );
   return { ...result, router };
 }
 

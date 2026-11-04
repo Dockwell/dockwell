@@ -2,7 +2,12 @@
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { type ActivityKind, ActivityPage, type ActivitySearch } from "../../features/activity/ActivityPage";
+import {
+  type ActivityKind,
+  ActivityPage,
+  type ActivitySearch,
+  searchWithout,
+} from "../../features/activity/ActivityPage";
 
 const KINDS: readonly ActivityKind[] = ["changes", "servers", "access"];
 
@@ -30,10 +35,7 @@ export const Route = createFileRoute("/_shell/activity")({
     return (
       <ActivityPage
         search={search}
-        onSearch={(next) => {
-          const clean = Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined)) as ActivitySearch;
-          void navigate({ to: "/activity", search: clean, replace: true });
-        }}
+        onSearch={(next) => void navigate({ to: "/activity", search: searchWithout(next), replace: true })}
       />
     );
   },

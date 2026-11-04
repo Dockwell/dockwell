@@ -841,6 +841,10 @@ msgstr "{remaining}后过期"
 msgid "Failed"
 msgstr "失败"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Finding your projects"
+msgstr "正在查找你的项目"
+
 #: src/app/Providers.tsx
 msgid "firewall"
 msgstr "防火墙"
@@ -1274,8 +1278,6 @@ msgstr "没有符合这些筛选条件的内容。清除筛选即可查看全部
 msgid "Nothing runs on a server: Dockwell records it and it applies at once."
 msgstr "不会在服务器上运行任何内容：Dockwell 记录后立即应用。"
 
-#: src/features/activity/ActivityPage.tsx
-#: src/features/changes/ChangeSheet.tsx
 #: src/features/changes/words.ts
 msgid "Nothing to do"
 msgstr "无需操作"

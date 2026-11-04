@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { ActorKind, type Change, ChangeState, type Event, EventKind } from "@dockwell/api";
+import { ActorKind, type Change, ChangeState, type Event, EventKind, StepState } from "@dockwell/api";
 import type { IconName } from "@dockwell/ui";
 import type { I18n } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
@@ -110,7 +110,11 @@ export function useCounts(): (change: Change) => string {
   );
 }
 
-/** How far an applying change has got: "1 of 3 steps done". Empty with no steps. */
+/**
+ * How far an applying change has got: "1 of 3 steps done", counting the
+ * steps that ran to the end, not one that failed or was skipped. Empty
+ * with no steps.
+ */
 export function useProgress(): (change: Change) => string {
   // The words change with the locale, which t carries.
   const { t } = useLingui();
@@ -119,7 +123,7 @@ export function useProgress(): (change: Change) => string {
     () => (change: Change) => {
       const total = change.steps.length;
       if (total === 0) return "";
-      const done = change.steps.filter((s) => s.finishTime !== undefined).length;
+      const done = change.steps.filter((s) => s.state === StepState.DONE).length;
       return plural(total, { one: `${done} of # step done`, other: `${done} of # steps done` });
     },
     [t],

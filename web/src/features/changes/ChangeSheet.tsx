@@ -2,15 +2,17 @@
 
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { createClient } from "@connectrpc/connect";
-import { useTransport } from "@connectrpc/connect-query";
+import { type Client, createClient } from "@connectrpc/connect";
+import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
   type Change,
   ChangeService,
   ChangeState,
   type EditSchema,
+  EventService,
   type Plan,
   PlanWarning,
+  ResourceService,
   type ServerPlan,
   type StepProgress,
 } from "@dockwell/api";
@@ -29,7 +31,8 @@ import {
   useMediaQuery,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatDateTime } from "../../lib/format";
@@ -41,10 +44,14 @@ import { canUndo, diffResources, isFinal, longestDowntime, shortFingerprint } fr
 import { type ChangeWords, useChangeWords } from "./words";
 import "./ChangeSheet.css";
 
-/** What the plan sheet opens on: edits to plan, a change on record, or the undo of one. */
+/**
+ * What the plan sheet opens on: edits to plan, a change on record, or the
+ * undo of one. A change's sheet may say what to do once you close it, such
+ * as leave the page that opened it.
+ */
 export type Opening =
   | { kind: "propose"; summary: string; edits: MessageInitShape<typeof EditSchema>[] }
-  | { kind: "change"; id: string }
+  | { kind: "change"; id: string; onClose?: () => void }
   | { kind: "undo"; id: string };
 
 interface ChangeSheetApi {
@@ -68,12 +75,75 @@ export function ChangeSheetProvider({ children }: { children: ReactNode }) {
   const [shown, setShown] = useState<{ opening: Opening; key: number }>();
   const open = useCallback((opening: Opening) => setShown((was) => ({ opening, key: (was?.key ?? 0) + 1 })), []);
   const api = useMemo(() => ({ open }), [open]);
+  const close = useCallback(() => {
+    setShown(undefined);
+    if (shown?.opening.kind === "change") shown.opening.onClose?.();
+  }, [shown]);
   return (
     <SheetContext value={api}>
       {children}
-      {shown ? <ChangeSheet key={shown.key} opening={shown.opening} onClose={() => setShown(undefined)} /> : null}
+      {/* A new opening replaces the sheet, which lets go of any plan it made, as closing it does. */}
+      {shown ? <ChangeSheet key={shown.key} showing={shown} opening={shown.opening} onClose={close} /> : null}
     </SheetContext>
   );
+}
+
+/**
+ * A plan a sheet makes: one each time the sheet opens, however many times
+ * it mounts, as StrictMode mounts each twice in development. The sheets
+ * showing it hold it. Once the last lets go without applying it, it is
+ * discarded, even if it is still being made then: closing the sheet, or
+ * opening another in its place, leaves no plan behind.
+ */
+interface Proposal {
+  change: Promise<Change | undefined>;
+  holders: number;
+  /** Set while it applies, and once it has, so it stays. */
+  keep: boolean;
+  leaving?: ReturnType<typeof setTimeout>;
+}
+
+/** The plans sheets made, by the time each opened. */
+const proposals = new WeakMap<object, Proposal>();
+
+function hold(
+  client: Client<typeof ChangeService>,
+  showing: object,
+  opening: Exclude<Opening, { kind: "change" }>,
+): Proposal {
+  let proposal = proposals.get(showing);
+  if (!proposal) {
+    // Never cancelled: a proposal cut off may still be made, and then it must be discarded.
+    const made =
+      opening.kind === "propose"
+        ? client.proposeChange({ summary: opening.summary, edits: opening.edits })
+        : client.undoChange({ id: opening.id });
+    proposal = { change: made.then((res) => res.change), holders: 0, keep: false };
+    proposals.set(showing, proposal);
+  }
+  clearTimeout(proposal.leaving);
+  proposal.holders += 1;
+  return proposal;
+}
+
+function letGo(client: Client<typeof ChangeService>, proposal: Proposal): void {
+  proposal.holders -= 1;
+  if (proposal.holders > 0) return;
+  // StrictMode lets go and holds again at once, so wait a moment to be sure the sheet is gone.
+  proposal.leaving = setTimeout(() => {
+    if (proposal.holders > 0 || proposal.keep) return;
+    // A failure leaves the plan planned, which Activity shows.
+    proposal.change
+      .then((change) => (change && !proposal.keep ? client.discardChange({ id: change.id }) : undefined))
+      .catch(() => {});
+  }, 0);
+}
+
+/** Reads what a change applied or undone may have changed again: the resources, the timeline's pages and the changes. */
+function refreshAfter(queryClient: QueryClient): void {
+  for (const schema of [ResourceService, EventService, ChangeService]) {
+    void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
+  }
 }
 
 /** A later state wins, so an apply's answer never takes back what the watch already said. */
@@ -92,16 +162,26 @@ function later(was: Change | undefined, next: Change | undefined): Change | unde
   return next;
 }
 
-type Busy = "apply" | "discard" | undefined;
+type Busy = "apply" | undefined;
 
 /**
  * The plan sheet: what a change does, where, for how long, and whether it
  * can be undone, before anything runs (Plan-Review, M-Plan-Approve). Apply
  * follows the steps inline as they run. A plan that destroys data or may
  * cut off access asks for its fingerprint to be typed first, which the API
- * checks too (ADR 0017). Closing a plan this sheet made discards it.
+ * checks too (ADR 0017). Closing a plan this sheet made discards it, as
+ * opening another sheet in its place does.
  */
-function ChangeSheet({ opening, onClose }: { opening: Opening; onClose: () => void }) {
+function ChangeSheet({
+  showing,
+  opening,
+  onClose,
+}: {
+  /** This time the sheet opened, which its plan, if it makes one, is kept by. */
+  showing: object;
+  opening: Opening;
+  onClose: () => void;
+}) {
   const { t, i18n } = useLingui();
   const words = useChangeWords();
   const transport = useTransport();
@@ -113,28 +193,31 @@ function ChangeSheet({ opening, onClose }: { opening: Opening; onClose: () => vo
   const [failure, setFailure] = useState<unknown>();
   const [busy, setBusy] = useState<Busy>();
   const [typed, setTyped] = useState("");
-  // A plan this sheet made is this sheet's to discard when it closes unapplied.
-  const own = opening.kind !== "change";
+  const queryClient = useQueryClient();
+  // The plan this sheet made, if it made one: its to discard unless it applies.
+  const proposal = useRef<Proposal | undefined>(undefined);
 
   useEffect(() => {
-    const abort = new AbortController();
-    const { signal } = abort;
-    const start = async () => {
-      try {
-        const res =
-          opening.kind === "propose"
-            ? await client.proposeChange({ summary: opening.summary, edits: opening.edits }, { signal })
-            : opening.kind === "undo"
-              ? await client.undoChange({ id: opening.id }, { signal })
-              : await client.getChange({ id: opening.id }, { signal });
-        if (!signal.aborted) setChange(res.change);
-      } catch (err) {
-        if (!signal.aborted) setFailure(err);
-      }
+    let live = true;
+    const show = (next: Change | undefined) => live && setChange(next);
+    const fail = (err: unknown) => live && setFailure(err);
+    if (opening.kind === "change") {
+      const abort = new AbortController();
+      client.getChange({ id: opening.id }, { signal: abort.signal }).then((res) => show(res.change), fail);
+      return () => {
+        live = false;
+        abort.abort();
+      };
+    }
+    const held = hold(client, showing, opening);
+    proposal.current = held;
+    held.change.then(show, fail);
+    return () => {
+      live = false;
+      proposal.current = undefined;
+      letGo(client, held);
     };
-    void start();
-    return () => abort.abort();
-  }, [client, opening]);
+  }, [client, showing, opening]);
 
   // Follow the change while it can move on: someone may apply or discard a
   // plan, and an apply's steps run after it returns.
@@ -147,6 +230,13 @@ function ChangeSheet({ opening, onClose }: { opening: Opening; onClose: () => vo
     return () => abort.abort();
   }, [transport, id, moving]);
 
+  // Once a change applies, or fails partway, what the command bar and Activity
+  // read about resources and changes may be out of date.
+  const state = change?.state;
+  useEffect(() => {
+    if (state === ChangeState.APPLIED || state === ChangeState.FAILED) refreshAfter(queryClient);
+  }, [state, queryClient]);
+
   const plan = change?.plan;
   const planned = change?.state === ChangeState.PLANNED;
   const confirmWith = plan?.destructive ? shortFingerprint(plan) : "";
@@ -156,24 +246,23 @@ function ChangeSheet({ opening, onClose }: { opening: Opening; onClose: () => vo
     if (!change || !confirmed || busy) return;
     setBusy("apply");
     setFailure(undefined);
+    // Closing the sheet while it applies leaves it to apply.
+    const held = proposal.current;
+    if (held) held.keep = true;
     try {
       const res = await client.applyChange({ id: change.id, fingerprint: change.plan?.fingerprint ?? "" });
       setChange((was) => later(was, res.change));
     } catch (err) {
+      // Still planned: closing discards it, as before.
+      if (held) held.keep = false;
       setFailure(err);
     } finally {
       setBusy(undefined);
     }
   }, [change, confirmed, busy, client]);
 
-  const close = useCallback(() => {
-    if (own && change?.state === ChangeState.PLANNED && busy !== "apply") {
-      setBusy("discard");
-      // The plan goes whether or not anyone waits; a failure leaves it planned, which Activity shows.
-      void client.discardChange({ id: change.id }).catch(() => {});
-    }
-    onClose();
-  }, [own, change, busy, client, onClose]);
+  // Closing lets go of the plan this sheet made, which discards it unless it applied.
+  const close = onClose;
 
   // ⌘↵ (Ctrl+Enter elsewhere) applies, as the button says.
   useEffect(() => {
@@ -316,10 +405,7 @@ function ChangeSheet({ opening, onClose }: { opening: Opening; onClose: () => vo
                 </h3>
               ) : null}
               {/* The impact sits on the diff on wide screens (Plan-Review), and leads the effects below on phones (M-Plan-Approve). */}
-              <PlanDiff
-                resources={diffResources(plan, t`Nothing to do`)}
-                impact={phone ? undefined : <Impact plan={plan} />}
-              />
+              <PlanDiff resources={diffResources(plan)} impact={phone ? undefined : <Impact plan={plan} />} />
             </section>
             <Steps plan={plan} progress={change.steps} words={words} />
             <Effects

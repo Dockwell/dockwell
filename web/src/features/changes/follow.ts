@@ -4,10 +4,10 @@ import { Code, ConnectError, createClient, type Transport } from "@connectrpc/co
 import { type Change, ChangeService } from "@dockwell/api";
 
 import { isSessionEnded } from "../../lib/errors";
+import { keepTrying } from "../../lib/retry";
 import { isFinal } from "./plan";
 
-const MIN_BACKOFF_MS = 500;
-const MAX_BACKOFF_MS = 8_000;
+const BACKOFF = { minMs: 500, maxMs: 8_000 };
 
 /**
  * Follows a change with ChangeService.WatchChange until it is applied,
@@ -23,10 +23,11 @@ export async function followChange(
   onChange: (change: Change) => void,
 ): Promise<void> {
   const client = createClient(ChangeService, transport);
-  let backoff = MIN_BACKOFF_MS;
   let current: Change | undefined;
-  while (!signal.aborted) {
-    try {
+  await keepTrying(
+    signal,
+    BACKOFF,
+    async (connected) => {
       for await (const msg of client.watchChange({ id }, { signal })) {
         if (msg.event.case === "change") {
           current = msg.event.value;
@@ -39,30 +40,14 @@ export async function followChange(
           }
         }
         if (current) onChange(current);
-        backoff = MIN_BACKOFF_MS;
+        connected();
       }
-      if (!current || isFinal(current)) return;
-    } catch (err) {
-      if (signal.aborted) return;
+      return !current || isFinal(current) ? "done" : undefined;
+    },
+    (err) => {
       const code = ConnectError.from(err).code;
       // A change that isn't there, or a session that ended, won't come back by trying again.
-      if (code === Code.NotFound || code === Code.PermissionDenied || isSessionEnded(err)) return;
-    }
-    await delay(backoff + Math.random() * backoff, signal);
-    backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
-  }
-}
-
-function delay(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        resolve();
-      },
-      { once: true },
-    );
-  });
+      return code === Code.NotFound || code === Code.PermissionDenied || isSessionEnded(err) ? "done" : undefined;
+    },
+  );
 }

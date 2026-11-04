@@ -51,6 +51,11 @@ export function isUpcoming(section: string): section is UpcomingSection {
   return Object.hasOwn(UPCOMING, section);
 }
 
+/** Whether a path's first segment is Activity's: its own, or a change's page over it. */
+export function inActivity(segment: string): boolean {
+  return segment === "activity" || segment === "changes";
+}
+
 /** The first segment of a path, such as "servers" for /servers/srv_1. */
 export function firstSegment(pathname: string): string {
   return pathname.split("/").find((part) => part !== "") ?? "";

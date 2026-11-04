@@ -4,10 +4,9 @@ import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { type Change, ChangeState, FieldOp, type Plan, PlanAction, type ServerPlan } from "@dockwell/api";
 import type { PlanAction as DiffAction, PlanChange, PlanKind, PlanResource, PlanValue } from "@dockwell/ui";
 
-/** How PlanDiff draws each of the plan's actions. Nothing to do reads as an update with a note saying so. */
-const ACTIONS: Readonly<Record<PlanAction, DiffAction>> = {
+/** How PlanDiff draws each of the plan's actions that change something. */
+const ACTIONS: Readonly<Record<Exclude<PlanAction, PlanAction.NONE>, DiffAction>> = {
   [PlanAction.UNSPECIFIED]: "update",
-  [PlanAction.NONE]: "update",
   [PlanAction.CREATE]: "create",
   [PlanAction.UPDATE]: "update",
   [PlanAction.REPLACE]: "replace",
@@ -32,25 +31,27 @@ const SECRET: PlanValue = { secret: true };
 
 /**
  * A plan's resources as PlanDiff shows them: each one's action and field
- * changes. A sensitive field says it changed and never what it holds, which
- * the API blanks anyway.
+ * changes. A resource the plan leaves as it is isn't one, as the plan's
+ * summary doesn't count it, so PlanDiff's counts say the same. A sensitive
+ * field says it changed and never what it holds, which the API blanks
+ * anyway.
  */
-export function diffResources(plan: Plan | undefined, nothingToDo: string): PlanResource[] {
-  return (plan?.resources ?? []).map((resource) => {
+export function diffResources(plan: Plan | undefined): PlanResource[] {
+  const changing = (plan?.resources ?? []).filter((r) => r.action !== PlanAction.NONE);
+  return changing.map((resource) => {
     const changes: PlanChange[] = resource.changes.map((change) => {
       const out: { path: string; from?: PlanValue; to?: PlanValue } = { path: change.path };
       if (change.op !== FieldOp.ADDED) out.from = change.sensitive ? SECRET : change.from;
       if (change.op !== FieldOp.REMOVED) out.to = change.sensitive ? SECRET : change.to;
       return out;
     });
-    const out: PlanResource = {
+    return {
       id: resource.id,
-      action: ACTIONS[resource.action],
+      action: ACTIONS[resource.action as Exclude<PlanAction, PlanAction.NONE>],
       kind: diffKind(resource.resource?.kind ?? ""),
       name: resource.resource?.name ?? resource.id,
       changes,
     };
-    return resource.action === PlanAction.NONE ? { ...out, note: nothingToDo } : out;
   });
 }
 

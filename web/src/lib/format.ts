@@ -1,13 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 /**
+ * The locale to format dates in: English follows the design system's
+ * "12 Oct" style, day before month, rather than US order; every other
+ * locale keeps its own.
+ */
+export function dateLocale(locale: string): string {
+  return locale === "en" ? "en-GB" : locale;
+}
+
+/**
  * A date and time the way the product writes them: day before month, short
  * month names ("3 Nov 2026, 21:40"), and the locale's own order elsewhere.
  */
 export function formatDateTime(date: Date, locale: string): string {
-  // English follows the design system's "12 Oct" style rather than US order.
-  const tag = locale === "en" ? "en-GB" : locale;
-  return new Intl.DateTimeFormat(tag, {
+  return new Intl.DateTimeFormat(dateLocale(locale), {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -87,9 +94,8 @@ export function formatBitRate(bytesPerSecond: number | bigint, locale: string): 
 
 /** A day and month the way the product writes dates: "12 Oct", with the year when it isn't this one. */
 export function formatDay(date: Date, locale: string, now: number = Date.now()): string {
-  const tag = locale === "en" ? "en-GB" : locale;
   const sameYear = date.getFullYear() === new Date(now).getFullYear();
-  return new Intl.DateTimeFormat(tag, {
+  return new Intl.DateTimeFormat(dateLocale(locale), {
     day: "numeric",
     month: "short",
     ...(sameYear ? {} : { year: "numeric" }),
@@ -109,4 +115,16 @@ export function formatLiveBytesOf(part: number | bigint, whole: number | bigint,
     formatFixed(Number(part) / 1024 ** unit, digits, locale),
     `${amountIn(Number(whole), unit, locale)} ${BYTE_UNITS[unit]}`,
   ];
+}
+
+/** A weekday and its date, the way a day's heading reads: "Tuesday 3 Nov". */
+export function formatWeekday(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(dateLocale(locale), { weekday: "long", day: "numeric", month: "short" })
+    .format(date)
+    .replace(",", "");
+}
+
+/** A time of day on the 24-hour clock where the locale uses it: "09:41". */
+export function formatClock(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(dateLocale(locale), { hour: "2-digit", minute: "2-digit" }).format(date);
 }

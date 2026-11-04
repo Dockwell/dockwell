@@ -2,19 +2,20 @@
 
 import { create } from "@bufbuild/protobuf";
 import {
+  ChangeState,
   type ProposeChangeRequest,
   type Resource,
   ResourceSchema,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
-import { applied, changeEvent, shopPlanned } from "../../test/changes";
-import { type Api, feed, renderAt } from "../../test/render";
+import { applied, changeEvent, moved, shopPlanned, watched } from "../../test/changes";
+import { type Api, type CacheOptions, feed, renderAt } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 
 const hz1 = aServer({ id: "srv_1", name: "hz-1", controlServer: true, stats: sample(12) });
@@ -28,11 +29,11 @@ const shopProject = resource("prj_shop", "project", "org_1", "shop", "Shop");
 const production = resource("env_prod", "environment", "prj_default", "production");
 const staging = resource("env_staging", "environment", "prj_default", "staging");
 
-async function openBar(api: Api, path = "/") {
+async function openBar(api: Api, path = "/", cache?: CacheOptions) {
   const user = userEvent.setup();
   const watch = feed<WatchServersResponse>();
   watch.push(changed(hz1), snapshotComplete);
-  const rendered = renderAt(path, { ...api, servers: { watchServers: watch.stream } });
+  const rendered = renderAt(path, { ...api, servers: { watchServers: watch.stream } }, cache);
   await screen.findByRole("heading", { level: 1 });
   await user.keyboard("{Control>}k{/Control}");
   return { ...rendered, user, bar: await screen.findByRole("dialog", { name: "Command bar" }) };
@@ -118,6 +119,77 @@ describe("the command bar", () => {
     expect(proposals[0]?.summary).toBe("Create the project shop");
     expect(proposals[0]?.edits[0]?.resource).toMatchObject({ kind: "project", name: "shop" });
     expect(proposals[0]?.edits[0]?.spec?.kind.case).toBe("project");
+  });
+
+  it("keeps what you typed when you choose the note that it can't be a name", async () => {
+    const { user, bar } = await openBar({});
+    await user.click(within(bar).getByRole("option", { name: "Create a project Opens a plan" }));
+    const ask = screen.getByRole("dialog", { name: "Command bar" });
+    const input = within(ask).getByRole("combobox", { name: "Name the new project, such as shop" });
+    await user.type(input, "Shop!");
+    await user.click(within(ask).getByRole("option", { name: /can't be a name/ }));
+    expect(input).toHaveValue("Shop!");
+    expect(within(ask).getByRole("option")).toHaveTextContent("Shop! can't be a name");
+    await user.type(input, "{Backspace}");
+    expect(within(ask).getByRole("option")).toHaveTextContent("Shop can't be a name");
+  });
+
+  it("waits for the projects before asking which, and asks nothing with only one", async () => {
+    let loaded: () => void = () => {};
+    const ready = new Promise<void>((resolve) => (loaded = resolve));
+    const { user, bar } = await openBar({
+      resources: {
+        listResources: async (req) => {
+          await ready;
+          return { resources: req.kind === "project" ? [defaultProject] : [production] };
+        },
+      },
+    });
+    await user.click(within(bar).getByRole("option", { name: "Create an environment Opens a plan" }));
+    const ask = screen.getByRole("dialog", { name: "Command bar" });
+    expect(within(ask).getByRole("combobox", { name: "Finding your projects" })).toBeVisible();
+    expect(within(ask).queryByRole("option")).toBeNull();
+    act(() => loaded());
+    const name = await screen.findByRole("combobox", { name: "Name the new environment, such as staging" });
+    expect(name).toHaveValue("");
+    await user.type(name, "qa");
+    expect(screen.getByRole("option", { name: "Create the environment qa Opens a plan" })).toBeVisible();
+  });
+
+  it("reads the projects again once a change applies", async () => {
+    const watch = feed<WatchChangeResponse>();
+    let projects = [defaultProject];
+    const shop = shopPlanned();
+    const { user, bar } = await openBar(
+      {
+        resources: { listResources: (req) => ({ resources: req.kind === "project" ? projects : [] }) },
+        changes: {
+          proposeChange: () => ({ change: shop }),
+          applyChange: () => ({ change: moved(shop, { state: ChangeState.APPLYING }) }),
+          watchChange: watch.stream,
+        },
+      },
+      "/",
+      // As the panel keeps it: what was read a moment ago isn't read again on its own.
+      { staleTime: 30_000 },
+    );
+    await within(bar).findByRole("option", { name: "Create a project Opens a plan" });
+    await user.click(within(bar).getByRole("option", { name: "Create a project Opens a plan" }));
+    await user.type(screen.getByRole("combobox", { name: "Name the new project, such as shop" }), "shop");
+    await user.keyboard("{Enter}");
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await user.click(within(sheet).getByRole("button", { name: /Apply plan/ }));
+    projects = [defaultProject, shopProject];
+    act(() => watch.push(watched(applied(shop))));
+    await user.click(
+      await within(await screen.findByRole("dialog", { name: "Applied" })).findByRole("button", { name: "Done" }),
+    );
+
+    await user.keyboard("{Control>}k{/Control}");
+    const again = await screen.findByRole("dialog", { name: "Command bar" });
+    await user.click(await within(again).findByRole("option", { name: "Create an environment Opens a plan" }));
+    const which = screen.getByRole("dialog", { name: "Command bar" });
+    expect(await within(which).findByRole("option", { name: "In shop Shop" })).toBeVisible();
   });
 
   it("creates an environment in the project you choose, once there is a choice", async () => {

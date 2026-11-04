@@ -5,6 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   type ApplyChangeRequest,
   ChangeState,
+  PlanAction,
   StepProgressSchema,
   StepState,
   type WatchChangeResponse,
@@ -12,7 +13,7 @@ import {
 } from "@dockwell/api";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useEffect } from "react";
+import { StrictMode, useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
@@ -51,6 +52,7 @@ describe("the plan sheet", () => {
     const user = userEvent.setup();
     const watch = feed<WatchChangeResponse>();
     const applies: ApplyChangeRequest[] = [];
+    const discard = vi.fn(() => ({}));
     const planned = webPlanned();
     renderSheet(proposeWeb, {
       changes: {
@@ -60,6 +62,7 @@ describe("the plan sheet", () => {
           applies.push(req);
           return { change: moved(planned, { state: ChangeState.APPLYING }) };
         },
+        discardChange: discard,
       },
     });
 
@@ -125,6 +128,10 @@ describe("the plan sheet", () => {
     expect(done).toHaveTextContent(/You can undo it until/);
     expect(within(done).getByRole("button", { name: "Undo" })).toBeVisible();
     await expectAccessible(document.body);
+    // An applied plan stays, sheet or no sheet.
+    await user.click(within(done).getByRole("button", { name: "Done" }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(discard).not.toHaveBeenCalled();
   });
 
   it("asks for the start of the fingerprint before applying a destructive plan", async () => {
@@ -183,6 +190,108 @@ describe("the plan sheet", () => {
     await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(discarded).toEqual(["chg_shop"]));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("discards a plan that arrives after you close the sheet", async () => {
+    const user = userEvent.setup();
+    const discarded: string[] = [];
+    let made: (value: { change: ReturnType<typeof shopPlanned> }) => void = () => {};
+    renderSheet(
+      { kind: "propose", summary: "Create the project shop", edits: [] },
+      {
+        changes: {
+          proposeChange: () => new Promise((resolve) => (made = resolve)),
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: (req) => {
+            discarded.push(req.id);
+            return {};
+          },
+        },
+      },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Planning" });
+    await user.click(within(sheet).getAllByRole("button", { name: "Close" }).at(-1) as HTMLElement);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // The control plane finishes planning after all.
+    act(() => made({ change: shopPlanned() }));
+    await waitFor(() => expect(discarded).toEqual(["chg_shop"]));
+  });
+
+  it("plans once in StrictMode, which mounts the sheet twice, and discards that one plan", async () => {
+    const user = userEvent.setup();
+    const proposals = vi.fn(() => ({ change: shopPlanned() }));
+    const discarded: string[] = [];
+    renderWithApi(
+      <StrictMode>
+        <ChangeSheetProvider>
+          <Opener opening={{ kind: "propose", summary: "Create the project shop", edits: [] }} />
+        </ChangeSheetProvider>
+      </StrictMode>,
+      {
+        changes: {
+          proposeChange: proposals,
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: (req) => {
+            discarded.push(req.id);
+            return {};
+          },
+        },
+      },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await within(sheet).findByText("to create");
+    expect(proposals).toHaveBeenCalledTimes(1);
+    expect(discarded).toEqual([]);
+    await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(discarded).toEqual(["chg_shop"]));
+  });
+
+  it("discards the plan it made when another sheet opens in its place", async () => {
+    const discarded: string[] = [];
+    let api: ReturnType<typeof useChangeSheet> | undefined;
+    function Handle() {
+      api = useChangeSheet();
+      return null;
+    }
+    renderWithApi(
+      <ChangeSheetProvider>
+        <Handle />
+      </ChangeSheetProvider>,
+      {
+        changes: {
+          proposeChange: () => ({ change: shopPlanned() }),
+          getChange: () => ({ change: applied(webPlanned()) }),
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: (req) => {
+            discarded.push(req.id);
+            return {};
+          },
+        },
+      },
+    );
+    act(() => api?.open({ kind: "propose", summary: "Create the project shop", edits: [] }));
+    await within(await screen.findByRole("dialog", { name: "Review plan" })).findByText("to create");
+    // The command bar opens a recent change's plan over it.
+    act(() => api?.open({ kind: "change", id: "chg_web" }));
+    expect(await screen.findByRole("dialog", { name: "Applied" })).toBeVisible();
+    await waitFor(() => expect(discarded).toEqual(["chg_shop"]));
+  });
+
+  it("counts only the resources that change, as the plan's summary does", async () => {
+    const planned = shopPlanned();
+    const [project] = planned.plan?.resources ?? [];
+    if (project) project.action = PlanAction.NONE;
+    if (planned.plan?.summary) planned.plan.summary.create = 1;
+    renderSheet(
+      { kind: "change", id: "chg_shop" },
+      { changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream } },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await within(sheet).findByText("to create");
+    expect(sheet).toHaveTextContent("1 to create");
+    expect(sheet).toHaveTextContent("0 to change");
+    expect(within(sheet).queryByText("shop")).toBeNull();
+    expect(within(sheet).getByText("production")).toBeVisible();
   });
 
   it("leaves a plan someone else made when you close it", async () => {

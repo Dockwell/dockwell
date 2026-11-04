@@ -74,14 +74,27 @@ function isK(event: KeyboardEvent): boolean {
 
 type Run = () => void;
 
-/** A command, and whether choosing it keeps the bar open, as for a step of a question. */
-type Command = CommandItem & { run: Run; keepOpen?: boolean };
+/**
+ * A command. Choosing one closes the bar, unless it keeps it open: a step
+ * of a question, which asks the next one in an empty bar, or a note, such
+ * as why what you typed can't be a name, which leaves what you typed.
+ */
+type Command = CommandItem & { run: Run; keepOpen?: "step" | "note" };
 
 /** A name Dockwell takes for a project or environment: a DNS label, such as "api-v2". */
 const NAME = /^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$/;
 
-/** What the bar is asking for, after an action that takes a name. */
+/**
+ * What the bar is asking for, after an action that takes a name. An
+ * environment's project is asked for only once there is a choice.
+ */
 type Prompt = { kind: "project" } | { kind: "environment"; project?: Resource | undefined };
+
+/** The project a new environment is for: the one chosen, or the only one there is. */
+function projectFor(prompt: Prompt, projects: readonly Resource[] | undefined): Resource | undefined {
+  if (prompt.kind !== "environment") return undefined;
+  return prompt.project ?? (projects?.length === 1 ? projects[0] : undefined);
+}
 
 function Commands({ onClose }: { onClose: () => void }) {
   const { t, i18n } = useLingui();
@@ -102,7 +115,7 @@ function Commands({ onClose }: { onClose: () => void }) {
   const commands = useMemo(() => {
     const list: Command[] = [];
     if (prompt)
-      return promptItems(prompt, query.trim(), projects ?? [], i18n, setPrompt, (opening) => {
+      return promptItems(prompt, query.trim(), projects, i18n, setPrompt, (opening) => {
         onClose();
         sheet.open(opening);
       });
@@ -219,7 +232,7 @@ function Commands({ onClose }: { onClose: () => void }) {
       icon: "plus",
       label: t`Create a project`,
       hint: t`Opens a plan`,
-      keepOpen: true,
+      keepOpen: "step",
       run: () => setPrompt({ kind: "project" }),
     });
     list.push({
@@ -228,11 +241,9 @@ function Commands({ onClose }: { onClose: () => void }) {
       icon: "plus",
       label: t`Create an environment`,
       hint: t`Opens a plan`,
-      keepOpen: true,
-      run: () =>
-        setPrompt(
-          (projects?.length ?? 0) > 1 ? { kind: "environment" } : { kind: "environment", project: projects?.[0] },
-        ),
+      keepOpen: "step",
+      // Which project it is for is asked once the projects are in, and only if there is a choice.
+      run: () => setPrompt({ kind: "environment" }),
     });
 
     const themes: { id: ThemePreference; label: string; icon: CommandItem["icon"] }[] = [
@@ -271,18 +282,25 @@ function Commands({ onClose }: { onClose: () => void }) {
     onClose,
   ]);
 
+  const project = prompt ? projectFor(prompt, projects) : undefined;
   const placeholder = !prompt
     ? undefined
     : prompt.kind === "project"
       ? t`Name the new project, such as shop`
-      : prompt.project
+      : project
         ? t`Name the new environment, such as staging`
-        : t`Which project is it for?`;
+        : projects
+          ? t`Which project is it for?`
+          : t`Finding your projects`;
+
+  // Each question has a bar of its own, which starts empty.
+  const question = prompt ? `${prompt.kind}:${project?.id ?? (projects ? "choose" : "loading")}` : "commands";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new question starts with an empty query, as its bar does
+  useEffect(() => setQuery(""), [question]);
 
   return (
     <CommandBar
-      // A new question starts with an empty query.
-      key={prompt ? `${prompt.kind}:${prompt.kind === "environment" ? (prompt.project?.id ?? "") : ""}` : "commands"}
+      key={question}
       open
       items={commands}
       placeholder={placeholder}
@@ -290,9 +308,9 @@ function Commands({ onClose }: { onClose: () => void }) {
       onClose={onClose}
       onSelect={(item) => {
         const command = commands.find((c) => c.id === item.id);
-        // Choosing a step of a question keeps the bar open for the next one.
-        if (command?.keepOpen) setQuery("");
-        else onClose();
+        // A step asks its next question in a new, empty bar; a note leaves what you typed as it is.
+        if (command?.keepOpen === "step") setQuery("");
+        else if (!command?.keepOpen) onClose();
         command?.run();
       }}
     />
@@ -303,12 +321,15 @@ function Commands({ onClose }: { onClose: () => void }) {
 function promptItems(
   prompt: Prompt,
   name: string,
-  projects: readonly Resource[],
+  loaded: readonly Resource[] | undefined,
   i18n: I18n,
   setPrompt: (p: Prompt) => void,
   propose: (opening: Opening) => void,
 ): Command[] {
-  if (prompt.kind === "environment" && !prompt.project) {
+  const projects = loaded ?? [];
+  if (prompt.kind === "environment" && !projectFor(prompt, loaded)) {
+    // Until the projects are in, there is nothing to choose from yet.
+    if (!loaded) return [];
     return projects.map((project) => {
       const projectName = project.resource?.name ?? project.id;
       return {
@@ -316,7 +337,7 @@ function promptItems(
         icon: "folder",
         label: i18n._(msg`In ${projectName}`),
         hint: project.displayName || undefined,
-        keepOpen: true,
+        keepOpen: "step",
         run: () => setPrompt({ kind: "environment", project }),
       };
     });
@@ -328,7 +349,7 @@ function promptItems(
         id: "prompt:invalid",
         icon: "alert",
         label: i18n._(msg`${name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter`),
-        keepOpen: true,
+        keepOpen: "note",
         run: () => {},
       },
     ];
@@ -349,7 +370,7 @@ function promptItems(
       },
     ];
   }
-  const project = prompt.project;
+  const project = projectFor(prompt, loaded);
   const projectName = project?.resource?.name ?? "";
   // With one project it goes unnamed, as everywhere until there is a choice.
   const label =

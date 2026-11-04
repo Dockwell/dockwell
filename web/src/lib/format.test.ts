@@ -6,10 +6,12 @@ import {
   formatBitRate,
   formatBytes,
   formatBytesOf,
+  formatClock,
   formatDay,
   formatFixed,
   formatLiveBytesOf,
   formatPercent,
+  formatWeekday,
 } from "./format";
 
 const MiB = 1024 ** 2;
@@ -98,5 +100,22 @@ describe("formatLiveBytesOf", () => {
     [219.4 * GiB, 695 * GiB, "219", "695 GB"],
   ])("keeps %d of %d at a steady width", (part, whole, shown, total) => {
     expect(formatLiveBytesOf(part, whole, "en")).toEqual([shown, total]);
+  });
+});
+
+describe("formatWeekday and formatClock", () => {
+  it("put the day before the month in English, and keep the 24-hour clock", () => {
+    const date = new Date(2026, 10, 3, 9, 41);
+    expect(formatWeekday(date, "en")).toBe("Tuesday 3 Nov");
+    expect(formatClock(date, "en")).toBe("09:41");
+  });
+
+  it("keep another locale's own order", () => {
+    const date = new Date(2026, 10, 3, 9, 41);
+    expect(formatWeekday(date, "zh-CN")).toBe(
+      new Intl.DateTimeFormat("zh-CN", { weekday: "long", day: "numeric", month: "short" })
+        .format(date)
+        .replace(",", ""),
+    );
   });
 });

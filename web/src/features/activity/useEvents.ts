@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampMs } from "@bufbuild/protobuf/wkt";
-import { ConnectError, createClient, type Transport } from "@connectrpc/connect";
+import { ConnectError, createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { type ActorKind, type Event, type EventKind, EventService } from "@dockwell/api";
+import { type ActorKind, type Event, type EventKind, EventService, type WatchEventsResponse } from "@dockwell/api";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { isSessionEnded } from "../../lib/errors";
+import { keepTrying } from "../../lib/retry";
 
 /** Which events to show; every field set must hold. */
 export interface EventFilter {
@@ -32,8 +33,7 @@ export interface Events {
 }
 
 const PAGE_SIZE = 50;
-const MIN_BACKOFF_MS = 1_000;
-const MAX_BACKOFF_MS = 15_000;
+const BACKOFF = { minMs: 1_000, maxMs: 15_000 };
 
 /** Newest first, then by ID, as the API orders them. */
 export function newestFirst(a: Event, b: Event): number {
@@ -43,125 +43,175 @@ export function newestFirst(a: Event, b: Event): number {
   return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
 }
 
+/** What is loaded: each event shown, by ID, and where ListEvents carries on below them. */
+export interface Loaded {
+  events: Map<string, Event>;
+  /** Empty once there is nothing older. */
+  older: string;
+}
+
+/**
+ * Takes a watch's snapshot into what is loaded, and says whether the
+ * pages loaded before carry on below it. The first snapshot is all there
+ * is. After a reconnect, the snapshot holds the newest events, which may
+ * have moved on or left since; what was loaded below it stays, with
+ * paging carrying on where it was, as long as the two meet, so nothing
+ * that happened in between is missing. If more happened while the watch
+ * was away than the snapshot holds, there would be a gap, so the snapshot
+ * starts over and paging carries on below it.
+ */
+export function takeSnapshot(
+  was: Loaded | undefined,
+  snapshot: WatchEventsResponse,
+): { loaded: Loaded; kept: boolean } {
+  const fresh = new Map(snapshot.events.map((e) => [e.id, e] as const));
+  const startOver = { loaded: { events: fresh, older: snapshot.nextPageToken }, kept: false };
+  // A snapshot without a next page holds every event there is.
+  if (!was || was.events.size === 0 || snapshot.nextPageToken === "") return startOver;
+  const oldest = [...fresh.values()].sort(newestFirst).at(-1);
+  const newest = [...was.events.values()].sort(newestFirst)[0];
+  if (!oldest || !newest || newestFirst(newest, oldest) > 0) return startOver;
+  for (const event of was.events.values()) {
+    if (!fresh.has(event.id) && newestFirst(event, oldest) > 0) fresh.set(event.id, event);
+  }
+  return { loaded: { events: fresh, older: was.older }, kept: true };
+}
+
 /**
  * The timeline, live, from EventService.WatchEvents: its snapshot of the
  * newest page, then each new event and each change as it moves on. Older
  * pages come from ListEvents on request. A dropped watch reconnects with
- * backoff, keeps showing what it had, and swaps in the fresh snapshot.
+ * backoff, keeps showing what it had, and merges in the fresh snapshot.
  */
 export function useEvents(filter: EventFilter): Events {
   const transport = useTransport();
-  const [state, setState] = useState<EventsState>({ status: "connecting" });
-  const [older, setOlder] = useState("");
+  const [shown, setShown] = useState<{ state: EventsState; older: string }>({
+    state: { status: "connecting" },
+    older: "",
+  });
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [olderError, setOlderError] = useState<ConnectError>();
-  // Events from older pages, kept apart so a fresh snapshot doesn't drop them.
-  const paged = useRef(new Map<string, Event>());
+  // What this filter's watch has loaded. A new filter, or a reconnect that
+  // starts over, puts a new one here, so a page asked for before lands
+  // nowhere.
+  const loaded = useRef<Loaded>({ events: new Map(), older: "" });
+  // The older page being read, if one is.
+  const listing = useRef<AbortController | undefined>(undefined);
   const { serverId, resourceId, actorId, actorKind } = filter;
   // The kinds as one value, so a new array of the same kinds doesn't watch again.
   const kindList = filter.kinds.join(",");
 
+  const stopListing = useCallback(() => {
+    listing.current?.abort();
+    listing.current = undefined;
+    setLoadingOlder(false);
+  }, []);
+
   useEffect(() => {
     const kinds = kindsOf(kindList);
     const abort = new AbortController();
-    paged.current = new Map();
-    setState({ status: "connecting" });
-    setOlder("");
+    stopListing();
+    loaded.current = { events: new Map(), older: "" };
+    setShown({ state: { status: "connecting" }, older: "" });
     setOlderError(undefined);
+    let started = false;
+    const show = (status: "live" | "reconnecting", error?: ConnectError) =>
+      setShown({
+        state: { status, events: [...loaded.current.events.values()].sort(newestFirst), ...(error ? { error } : {}) },
+        older: loaded.current.older,
+      });
     const request = { kinds, serverId, resourceId, actorId, actorKind, pageSize: PAGE_SIZE };
-    void watch(transport, request, abort.signal, (events, next, status, error, removed) => {
-      if (next !== undefined) setOlder(next);
-      for (const id of removed ?? []) paged.current.delete(id);
-      setState(
-        events
-          ? { status, events: merged(events, paged.current), ...(error ? { error } : {}) }
-          : { status: "connecting", ...(error ? { error } : {}) },
-      );
-    });
-    return () => abort.abort();
-  }, [transport, kindList, serverId, resourceId, actorId, actorKind]);
+    const client = createClient(EventService, transport);
+    void keepTrying(
+      abort.signal,
+      BACKOFF,
+      async (connected) => {
+        for await (const msg of client.watchEvents(request, { signal: abort.signal })) {
+          if (msg.snapshot) {
+            const { loaded: next, kept } = takeSnapshot(started ? loaded.current : undefined, msg);
+            if (kept) {
+              loaded.current.events = next.events;
+            } else {
+              stopListing();
+              loaded.current = next;
+            }
+            started = true;
+          } else {
+            for (const event of msg.events) loaded.current.events.set(event.id, event);
+            for (const id of msg.removed) loaded.current.events.delete(id);
+          }
+          show("live");
+          connected();
+        }
+        throw new ConnectError("the watch ended");
+      },
+      (err) => {
+        // An ended session is the gate's to handle, as for the fleet.
+        if (isSessionEnded(err)) return undefined;
+        const error = ConnectError.from(err);
+        if (started) show("reconnecting", error);
+        else setShown({ state: { status: "connecting", error }, older: "" });
+        return undefined;
+      },
+    );
+    return () => {
+      abort.abort();
+      stopListing();
+    };
+  }, [transport, kindList, serverId, resourceId, actorId, actorKind, stopListing]);
 
   const loadOlder = useCallback(() => {
-    if (!older || loadingOlder) return;
+    const into = loaded.current;
+    if (!into.older || listing.current) return;
+    const abort = new AbortController();
+    listing.current = abort;
     setLoadingOlder(true);
     setOlderError(undefined);
-    const client = createClient(EventService, transport);
-    const kinds = kindsOf(kindList);
-    client
-      .listEvents({ kinds, serverId, resourceId, actorId, actorKind, pageSize: PAGE_SIZE, pageToken: older })
+    createClient(EventService, transport)
+      .listEvents(
+        {
+          kinds: kindsOf(kindList),
+          serverId,
+          resourceId,
+          actorId,
+          actorKind,
+          pageSize: PAGE_SIZE,
+          pageToken: into.older,
+        },
+        { signal: abort.signal },
+      )
       .then((res) => {
-        for (const event of res.events) paged.current.set(event.id, event);
-        setOlder(res.nextPageToken);
-        setState((was) => (was.status === "connecting" ? was : { ...was, events: merged(was.events, paged.current) }));
+        // Asked for under another filter, or before the watch started over.
+        if (loaded.current !== into || abort.signal.aborted) return;
+        // What the watch has is newer than any page.
+        for (const event of res.events) if (!into.events.has(event.id)) into.events.set(event.id, event);
+        into.older = res.nextPageToken;
+        setShown((was) =>
+          was.state.status === "connecting"
+            ? was
+            : { state: { ...was.state, events: [...into.events.values()].sort(newestFirst) }, older: into.older },
+        );
       })
-      .catch((err: unknown) => setOlderError(ConnectError.from(err)))
-      .finally(() => setLoadingOlder(false));
-  }, [older, loadingOlder, transport, kindList, serverId, resourceId, actorId, actorKind]);
+      .catch((err: unknown) => {
+        if (loaded.current === into && !abort.signal.aborted) setOlderError(ConnectError.from(err));
+      })
+      .finally(() => {
+        if (listing.current === abort) {
+          listing.current = undefined;
+          setLoadingOlder(false);
+        }
+      });
+  }, [transport, kindList, serverId, resourceId, actorId, actorKind]);
 
-  return { state, older, loadingOlder, ...(olderError ? { olderError } : {}), loadOlder };
+  return {
+    state: shown.state,
+    older: shown.older,
+    loadingOlder,
+    ...(olderError ? { olderError } : {}),
+    loadOlder,
+  };
 }
 
 function kindsOf(list: string): EventKind[] {
   return list === "" ? [] : list.split(",").map((k) => Number(k) as EventKind);
-}
-
-/** The live events with the older pages below them, each event once, the live one winning. */
-function merged(live: readonly Event[], paged: Map<string, Event>): Event[] {
-  const byId = new Map<string, Event>();
-  for (const event of paged.values()) byId.set(event.id, event);
-  for (const event of live) byId.set(event.id, event);
-  return [...byId.values()].sort(newestFirst);
-}
-
-type Publish = (
-  events: Event[] | undefined,
-  next: string | undefined,
-  status: "live" | "reconnecting",
-  error?: ConnectError,
-  removed?: readonly string[],
-) => void;
-
-async function watch(
-  transport: Transport,
-  request: Parameters<ReturnType<typeof createClient<typeof EventService>>["watchEvents"]>[0],
-  signal: AbortSignal,
-  publish: Publish,
-): Promise<void> {
-  const client = createClient(EventService, transport);
-  let backoff = MIN_BACKOFF_MS;
-  let known: Event[] | undefined;
-  while (!signal.aborted) {
-    try {
-      const events = new Map<string, Event>();
-      for await (const msg of client.watchEvents(request, { signal })) {
-        if (msg.snapshot) events.clear();
-        for (const event of msg.events) events.set(event.id, event);
-        for (const id of msg.removed) events.delete(id);
-        known = [...events.values()].sort(newestFirst);
-        publish(known, msg.snapshot ? msg.nextPageToken : undefined, "live", undefined, msg.removed);
-        backoff = MIN_BACKOFF_MS;
-      }
-      throw new ConnectError("the watch ended");
-    } catch (err) {
-      if (signal.aborted) return;
-      // An ended session is the gate's to handle, as for the fleet.
-      if (!isSessionEnded(err)) publish(known, undefined, "reconnecting", ConnectError.from(err));
-      await delay(backoff + Math.random() * backoff, signal);
-      backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
-    }
-  }
-}
-
-function delay(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        resolve();
-      },
-      { once: true },
-    );
-  });
 }
