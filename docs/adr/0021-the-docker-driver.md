@@ -35,7 +35,7 @@ Earlier records left it these seams:
 
 **Names are looked up exactly.** Docker takes a reference as a full ID, then an exact name, then a prefix of one ID alone. So a name made of hex digits, such as `db` or `cafe`, would otherwise find a container whose ID starts with it, and Dockwell would stop it, remove it, or read it back as drift. The client finds a container or a network by its exact name, and the drivers act on the ID it returns from then on. An image named without a tag is asked for as `name:latest`, which never matches an ID.
 
-**Errors say how to fix them.** Docker not installed, not running, its socket not allowed, or too old each have their own message with the fix, such as "Docker is installed, but isn't running. Start it with systemctl start docker; the agent finds it within a minute". Docker's own refusals pass through as Docker wrote them.
+**Errors say how to fix them.** Docker not installed, not running, its socket not allowed, too old, or taking the connection but never answering each have their own message with the fix, such as "Docker is installed, but isn't running. Start it with systemctl start docker; the agent finds it within a minute". Docker's own refusals pass through as Docker wrote them.
 
 ### The agent offers what it can run
 

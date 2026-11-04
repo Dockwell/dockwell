@@ -4,6 +4,8 @@ package container_test
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -344,6 +346,24 @@ func TestPullsAndHealth(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("running %s = %v, want %q", image, err, want)
 		}
+	}
+}
+
+// A Docker that takes the connection but never answers makes the kinds
+// unavailable with how to check it, never a bare context error.
+func TestHungDocker(t *testing.T) {
+	e := dockertest.New(t)
+	e.Intercept(func(r *http.Request) error {
+		<-r.Context().Done()
+		return r.Context().Err()
+	})
+	d := &container.Driver{Runtime: &container.Docker{Client: e.Client()}}
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	err := d.Ready(ctx)
+	if !docker.IsUnavailable(err) || !strings.Contains(err.Error(), "Docker isn't answering on "+e.Socket) ||
+		!strings.Contains(err.Error(), "Check it with systemctl status docker") || !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("Ready with Docker hung = %v, want it unavailable with how to check it", err)
 	}
 }
 

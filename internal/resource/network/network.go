@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"net/http"
 	"slices"
 	"strings"
 
@@ -202,7 +201,7 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 			return err
 		}
 		err = d.Client.RemoveNetwork(ctx, n.ID)
-		if docker.IsConflict(err) || statusOf(err) == http.StatusForbidden {
+		if docker.IsInUse(err) {
 			var names []string
 			for _, c := range n.Containers {
 				names = append(names, c.Name)
@@ -219,14 +218,6 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 	case resource.ActionNone:
 	}
 	return nil
-}
-
-func statusOf(err error) int {
-	var e *docker.Error
-	if errors.As(err, &e) {
-		return e.Status
-	}
-	return 0
 }
 
 // Verify has nothing to check: the network exists as asked for.

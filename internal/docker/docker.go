@@ -98,6 +98,13 @@ func IsNotFound(err error) bool { return status(err) == http.StatusNotFound }
 // a name in use or a volume a container uses.
 func IsConflict(err error) bool { return status(err) == http.StatusConflict }
 
+// IsInUse reports the engine refusing to remove what a container uses: a
+// conflict, or for a network, forbidden, as most engines answer.
+func IsInUse(err error) bool {
+	s := status(err)
+	return s == http.StatusConflict || s == http.StatusForbidden
+}
+
 func status(err error) int {
 	var e *Error
 	if errors.As(err, &e) {
@@ -213,17 +220,26 @@ func (c *Client) AtLeast(v string) bool {
 	return api != "" && !older(api, v)
 }
 
-// do sends a request to a versioned endpoint, negotiating the version
-// first if no Ping has yet.
-func (c *Client) do(ctx context.Context, method, path string, query url.Values, body, out any) error {
+// versioned returns path under the agreed API version, such as
+// /v1.47/containers/json, agreeing it first if no Ping has yet.
+func (c *Client) versioned(ctx context.Context, path string) (string, error) {
 	api, _ := c.Version()
 	if api == "" {
 		if err := c.Ping(ctx); err != nil {
-			return err
+			return "", err
 		}
 		api, _ = c.Version()
 	}
-	return c.raw(ctx, method, "/v"+api+path, query, body, out)
+	return "/v" + api + path, nil
+}
+
+// do sends a request to a versioned endpoint.
+func (c *Client) do(ctx context.Context, method, path string, query url.Values, body, out any) error {
+	path, err := c.versioned(ctx, path)
+	if err != nil {
+		return err
+	}
+	return c.raw(ctx, method, path, query, body, out)
 }
 
 // raw sends a request and decodes the answer into out, unless out is
@@ -268,8 +284,14 @@ func (c *Client) send(ctx context.Context, method, path string, query url.Values
 	}
 	res, err := c.http.Do(req)
 	if err != nil {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
+		switch cerr := ctx.Err(); {
+		case errors.Is(cerr, context.DeadlineExceeded):
+			// Docker took the request, or the connection, and sent
+			// nothing back before the caller stopped waiting.
+			return nil, &UnavailableError{Err: cerr, msg: fmt.Sprintf("Docker isn't answering on %s: it sent nothing back in time. "+
+				"Check it with systemctl status docker; the agent tries again within a minute", c.socket)}
+		case cerr != nil:
+			return nil, cerr
 		}
 		var op *net.OpError
 		if errors.As(err, &op) && op.Op == "dial" {

@@ -64,14 +64,11 @@ const progressEvery = time.Second
 // once a second, such as "12 of 48 MB".
 func (c *Client) PullImage(ctx context.Context, ref string, progress func(string)) error {
 	ref = WithTag(ref)
-	api, _ := c.Version()
-	if api == "" {
-		if err := c.Ping(ctx); err != nil {
-			return err
-		}
-		api, _ = c.Version()
+	path, err := c.versioned(ctx, "/images/create")
+	if err != nil {
+		return err
 	}
-	res, err := c.send(ctx, http.MethodPost, "/v"+api+"/images/create", url.Values{"fromImage": {ref}}, nil)
+	res, err := c.send(ctx, http.MethodPost, path, url.Values{"fromImage": {ref}}, nil)
 	if err != nil {
 		return err
 	}
