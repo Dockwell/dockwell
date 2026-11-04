@@ -83,7 +83,7 @@ function ServerRow({ server }: { server: Server }) {
     <li className="servers-row">
       <div className="servers-name">
         <StatusBadge status={STATUS[server.connection]} label={server.name} meta={meta} />
-        {server.controlServer ? <Tag tone="cobalt">{t`control server`}</Tag> : null}
+        {server.controlServer ? <Tag className="servers-role">{t`Control server`}</Tag> : null}
       </div>
       <p className="servers-os">{server.inventory?.osName || t`Unknown system`}</p>
       {connected && stats ? (

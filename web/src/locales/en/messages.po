@@ -64,8 +64,8 @@ msgid "Connecting to the control plane"
 msgstr "Connecting to the control plane"
 
 #: src/features/servers/ServersPanel.tsx
-msgid "control server"
-msgstr "control server"
+msgid "Control server"
+msgstr "Control server"
 
 #: src/features/system/StatusPage.tsx
 msgid "Copy command"

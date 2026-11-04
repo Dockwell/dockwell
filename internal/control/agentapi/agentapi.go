@@ -110,6 +110,8 @@ func (h *Handler) Join(ctx context.Context, req *connect.Request[agentv1.JoinReq
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
+	// Listed straight away, as waiting for its agent, rather than when it first connects.
+	h.fleet.Joined(joined.Server)
 	return connect.NewResponse(&agentv1.JoinResponse{
 		ServerId:      joined.Server.ID,
 		ServerName:    joined.Server.Name,

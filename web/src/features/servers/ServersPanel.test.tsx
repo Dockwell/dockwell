@@ -30,7 +30,7 @@ describe("ServersPanel", () => {
     const panel = await screen.findByRole("region", { name: "Servers" });
     const [first, second] = await within(panel).findAllByRole("listitem");
     expect(first).toHaveTextContent("Healthy: hz-1");
-    expect(within(first as HTMLElement).getByText("control server")).toBeVisible();
+    expect(within(first as HTMLElement).getByText("Control server")).toBeVisible();
     expect(first).toHaveTextContent("Ubuntu 24.04.1 LTS");
     expect(first).toHaveTextContent("CPU12%");
     expect(first).toHaveTextContent("Memory2.4 of 8 GB");

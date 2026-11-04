@@ -64,7 +64,7 @@ msgid "Connecting to the control plane"
 msgstr "正在连接控制平面"
 
 #: src/features/servers/ServersPanel.tsx
-msgid "control server"
+msgid "Control server"
 msgstr "控制服务器"
 
 #: src/features/system/StatusPage.tsx

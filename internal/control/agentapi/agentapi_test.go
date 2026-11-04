@@ -147,6 +147,25 @@ func TestAgentStreamsToTheFleet(t *testing.T) {
 	})
 }
 
+func TestAJoinedServerIsListedBeforeItsAgentConnects(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	tk, err := s.auth.CreateTicket(t.Context(), s.url, "cli:test", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := enroll.Join(t.Context(), tk.Value, "hz-2", buildinfo.Read())
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv, err := s.hub.Get(id.ServerID)
+	if err != nil {
+		t.Fatalf("the fleet doesn't know the server that just joined: %v", err)
+	}
+	if srv.GetName() != "hz-2" || srv.GetConnection() != dockwellv1.Connection_CONNECTION_PENDING {
+		t.Errorf("got %s %v, want hz-2 waiting for its agent", srv.GetName(), srv.GetConnection())
+	}
+}
+
 func TestRevokingClosesAnOpenStream(t *testing.T) {
 	s := startStack(t, 5*time.Second)
 	id := s.enrollLocal(t)
