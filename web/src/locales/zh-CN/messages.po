@@ -243,6 +243,10 @@ msgstr "宕机"
 msgid "Error"
 msgstr "错误"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Find {name} in the server list"
+msgstr "在服务器列表中查找 {name}"
+
 #: src/app/Providers.tsx
 msgid "firewall"
 msgstr "防火墙"
@@ -345,10 +349,6 @@ msgstr "这里还没有内容。"
 #: src/app/Providers.tsx
 msgid "Nothing matches “{query}”. Try a server, app or action name."
 msgstr "没有与“{query}”匹配的结果。试试服务器、应用或操作的名称。"
-
-#: src/features/shell/CommandMenu.tsx
-msgid "Open {name}"
-msgstr "打开 {name}"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the overview"

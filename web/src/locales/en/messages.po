@@ -243,6 +243,10 @@ msgstr "Down"
 msgid "Error"
 msgstr "Error"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Find {name} in the server list"
+msgstr "Find {name} in the server list"
+
 #: src/app/Providers.tsx
 msgid "firewall"
 msgstr "firewall"
@@ -345,10 +349,6 @@ msgstr "Nothing here yet."
 #: src/app/Providers.tsx
 msgid "Nothing matches “{query}”. Try a server, app or action name."
 msgstr "Nothing matches “{query}”. Try a server, app or action name."
-
-#: src/features/shell/CommandMenu.tsx
-msgid "Open {name}"
-msgstr "Open {name}"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the overview"

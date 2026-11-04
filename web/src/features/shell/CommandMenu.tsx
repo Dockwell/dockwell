@@ -108,7 +108,8 @@ function Commands({ onClose }: { onClose: () => void }) {
         id: `server:${server.id}`,
         group: fleet ? t`Servers` : pages,
         icon: "server",
-        label: t`Open ${name}`,
+        // Servers have no page of their own yet, so this says where it goes.
+        label: t`Find ${name} in the server list`,
         hint: [strings.status[serverStatus(server)], address].filter(Boolean).join(" · "),
         run: () => navigate({ to: "/servers" }),
       });

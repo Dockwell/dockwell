@@ -175,7 +175,9 @@ describe("the command bar", () => {
     await user.keyboard("{Control>}k{/Control}");
     const dialog = screen.getByRole("dialog", { name: "Command bar" });
     expect(within(dialog).getByRole("combobox")).toHaveFocus();
-    expect(within(dialog).getByRole("option", { name: "Open hz-1 Healthy · 49.12.33.7" })).toBeVisible();
+    expect(
+      within(dialog).getByRole("option", { name: "Find hz-1 in the server list Healthy · 49.12.33.7" }),
+    ).toBeVisible();
 
     await user.keyboard("control plane{Enter}");
 
@@ -268,7 +270,7 @@ describe("the command bar", () => {
       within(servers)
         .getAllByRole("option")
         .map((o) => o.textContent),
-    ).toEqual(["Open hz-1 Healthy · 49.12.33.7", "Open hz-2 Healthy"]);
+    ).toEqual(["Find hz-1 in the server list Healthy · 49.12.33.7", "Find hz-2 in the server list Healthy"]);
     expect(screen.getByRole("option", { name: "Open the server list 2" })).toBeVisible();
     await expectAccessible(document.body);
   });
