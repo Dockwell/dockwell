@@ -1,54 +1,43 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package control is the control plane: the API every surface uses, the
-// panel, and later the revision store and the scheduler.
+// panel, the agent listener servers connect to, and later the revision
+// store and the scheduler.
 //
-// One HTTP listener serves the Connect, gRPC and gRPC-Web protocols over
-// HTTP/1.1 and HTTP/2 (including unencrypted HTTP/2 for local gRPC clients),
-// the panel at every other path, and a plain /healthz for process supervisors.
+// It listens twice. The API listener serves the Connect, gRPC and gRPC-Web
+// protocols over HTTP/1.1 and HTTP/2, the panel at every other path, and
+// /healthz for process supervisors. The agent listener speaks only to
+// agents, over TLS 1.3 with client certificates (ADR 0007).
 package control
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
-	"fmt"
 	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
-	"runtime/debug"
-	"strconv"
-	"time"
+	"sync"
 
-	"connectrpc.com/connect"
 	"connectrpc.com/grpchealth"
 	"connectrpc.com/grpcreflect"
 
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/buildinfo"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/control/system"
 	"github.com/dockwell/dockwell/internal/panel"
+	"github.com/dockwell/dockwell/internal/serve"
 )
 
-// DefaultListen is where the control plane listens unless told otherwise. It
-// stays on loopback so nothing is exposed until the operator chooses to.
-const DefaultListen = "127.0.0.1:7600"
-
-// Limits applied to every request.
+// Default listen addresses. The API stays on loopback until the operator
+// chooses to expose it; agents on other servers must reach the agent
+// listener, which only speaks mTLS and join tickets.
 const (
-	readHeaderTimeout = 10 * time.Second
-	idleTimeout       = 2 * time.Minute
-	maxHeaderBytes    = 64 << 10
-	maxMessageBytes   = 8 << 20
-	compressMinBytes  = 1 << 10
-)
-
-// Shutdown timing. In-flight requests get streamGrace to finish on their
-// own; after that, request contexts are cancelled so long-lived streams end,
-// and anything still open at shutdownTimeout is closed.
-const (
-	defaultStreamGrace     = 2 * time.Second
-	defaultShutdownTimeout = 15 * time.Second
+	DefaultListen      = "127.0.0.1:7600"
+	DefaultAgentListen = ":7443"
 )
 
 // Config configures a Server.
@@ -59,14 +48,19 @@ type Config struct {
 	Build buildinfo.Info
 	// Panel is the panel build to serve. Nil means the one embedded in the binary.
 	Panel fs.FS
+	// Identity is the install's authority. Without it there is no agent listener.
+	Identity *identity.Authority
+	// AgentHosts are the names and addresses agents dial; the agent
+	// listener's certificate is valid for them.
+	AgentHosts []string
 }
 
-// Server is a configured control plane, ready to serve on a listener.
+// Server is a configured control plane, ready to serve.
 type Server struct {
-	logger          *slog.Logger
-	handler         http.Handler
-	streamGrace     time.Duration
-	shutdownTimeout time.Duration
+	logger   *slog.Logger
+	api      http.Handler
+	agents   http.Handler
+	agentTLS *tls.Config
 }
 
 // New builds a Server from cfg.
@@ -84,26 +78,19 @@ func New(cfg Config) (*Server, error) {
 	if !ui.Built() {
 		cfg.Logger.Warn("this binary has no panel built in; the API works, and make build adds the panel")
 	}
-	s := &Server{
-		logger:          cfg.Logger,
-		streamGrace:     defaultStreamGrace,
-		shutdownTimeout: defaultShutdownTimeout,
+	s := &Server{logger: cfg.Logger, api: apiRoutes(cfg, ui)}
+	if cfg.Identity != nil {
+		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Logger)
+		s.agentTLS = agentapi.TLSConfig(cfg.Identity, cfg.AgentHosts)
 	}
-	s.handler = s.routes(cfg, ui)
 	return s, nil
 }
 
-// Handler returns the server's root HTTP handler.
-func (s *Server) Handler() http.Handler { return s.handler }
+// Handler returns the API listener's root handler.
+func (s *Server) Handler() http.Handler { return s.api }
 
-func (s *Server) routes(cfg Config, ui http.Handler) http.Handler {
-	opts := []connect.HandlerOption{
-		connect.WithInterceptors(logInterceptor{logger: s.logger}),
-		connect.WithReadMaxBytes(maxMessageBytes),
-		connect.WithCompressMinBytes(compressMinBytes),
-		connect.WithRecover(s.recoverRPC),
-	}
-
+func apiRoutes(cfg Config, ui http.Handler) http.Handler {
+	opts := serve.HandlerOptions(cfg.Logger)
 	mux := http.NewServeMux()
 	mux.Handle(dockwellv1connect.NewSystemServiceHandler(system.New(cfg.Build), opts...))
 
@@ -122,108 +109,41 @@ func (s *Server) routes(cfg Config, ui http.Handler) http.Handler {
 	// Everything else is the panel; it answers 404 for paths it doesn't own.
 	mux.Handle("/", ui)
 
-	return s.recoverHTTP(mux)
+	return serve.Recover(cfg.Logger, mux)
 }
 
-// Serve accepts connections on ln until ctx is done, then shuts down
-// gracefully: it stops accepting, lets in-flight requests finish, cancels
-// the contexts of requests still running after streamGrace (so streams end),
-// and closes whatever is left at shutdownTimeout. It returns nil after a
-// clean shutdown.
+// Serve serves the API and panel on ln until ctx is done.
 func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
-	var protocols http.Protocols
-	protocols.SetHTTP1(true)
-	protocols.SetHTTP2(true)
-	protocols.SetUnencryptedHTTP2(true)
+	return serve.Serve(ctx, ln, s.api, serve.Options{Name: "control plane", Logger: s.logger})
+}
 
-	// Requests outlive ctx briefly, so the drain below can let them finish.
-	baseCtx, cancelRequests := context.WithCancel(context.WithoutCancel(ctx))
-	defer cancelRequests()
-
-	srv := &http.Server{
-		Handler:           s.handler,
-		Protocols:         &protocols,
-		ReadHeaderTimeout: readHeaderTimeout,
-		IdleTimeout:       idleTimeout,
-		MaxHeaderBytes:    maxHeaderBytes,
-		ErrorLog:          slog.NewLogLogger(s.logger.Handler(), slog.LevelWarn),
-		BaseContext:       func(net.Listener) context.Context { return baseCtx },
+// ServeAgents serves the agent listener on ln until ctx is done.
+func (s *Server) ServeAgents(ctx context.Context, ln net.Listener) error {
+	if s.agents == nil {
+		return errors.New("control: the agent listener needs Config.Identity")
 	}
+	return serve.Serve(ctx, ln, s.agents, serve.Options{Name: "agent listener", Logger: s.logger, TLS: s.agentTLS})
+}
 
-	errc := make(chan error, 1)
-	go func() { errc <- srv.Serve(ln) }()
-	s.logger.Info("control plane listening", slog.String("addr", ln.Addr().String()))
-
-	select {
-	case err := <-errc:
-		return fmt.Errorf("control plane stopped: %w", err)
-	case <-ctx.Done():
-	}
-
-	s.logger.Info("control plane shutting down")
-	endStreams := time.AfterFunc(s.streamGrace, cancelRequests)
-	defer endStreams.Stop()
-	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.shutdownTimeout)
+// Run serves the API on api and, when the server has an identity, agents on
+// agents, until ctx is done or either listener fails. A failure stops the
+// other listener too.
+func (s *Server) Run(ctx context.Context, api, agents net.Listener) error {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		_ = srv.Close()
-		return fmt.Errorf("control plane didn't stop within %s, so its remaining connections were closed: %w",
-			seconds(s.shutdownTimeout), err)
-	}
-	if err := <-errc; !errors.Is(err, http.ErrServerClosed) {
-		return fmt.Errorf("control plane stopped: %w", err)
-	}
-	s.logger.Info("control plane stopped")
-	return nil
-}
 
-// ListenAndServe listens on addr and serves until ctx is done. A failure to
-// listen wraps the underlying error, so callers can tell a busy port
-// (syscall.EADDRINUSE) from a privileged one (syscall.EACCES) or a malformed
-// address (*net.AddrError).
-func (s *Server) ListenAndServe(ctx context.Context, addr string) error {
-	var lc net.ListenConfig
-	ln, err := lc.Listen(ctx, "tcp", addr)
-	if err != nil {
-		return fmt.Errorf("can't listen on %s: %w", addr, err)
-	}
-	return s.Serve(ctx, ln)
-}
-
-// seconds formats d the way Dockwell writes durations: a number, a space and
-// a unit, such as "15 s".
-func seconds(d time.Duration) string {
-	return strconv.FormatFloat(d.Seconds(), 'f', -1, 64) + " s"
-}
-
-func (s *Server) recoverRPC(ctx context.Context, spec connect.Spec, _ http.Header, p any) error {
-	s.logger.ErrorContext(ctx, "rpc panicked",
-		slog.String("procedure", spec.Procedure),
-		slog.Any("panic", p),
-		slog.String("stack", string(debug.Stack())),
-	)
-	return connect.NewError(connect.CodeInternal, errors.New("internal error"))
-}
-
-// recoverHTTP keeps a panic in a plain HTTP handler from taking down the
-// process. Connect handlers recover on their own (see recoverRPC).
-func (s *Server) recoverHTTP(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			p := recover()
-			if p == nil {
-				return
-			}
-			if p == http.ErrAbortHandler { //nolint:errorlint // sentinel compared by identity, as net/http does
-				panic(p)
-			}
-			s.logger.ErrorContext(r.Context(), "http handler panicked",
-				slog.String("path", r.URL.Path),
-				slog.Any("panic", p),
-				slog.String("stack", string(debug.Stack())),
-			)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-		}()
-		next.ServeHTTP(w, r)
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	wg.Go(func() {
+		errs[0] = s.Serve(ctx, api)
+		cancel()
 	})
+	if agents != nil {
+		wg.Go(func() {
+			errs[1] = s.ServeAgents(ctx, agents)
+			cancel()
+		})
+	}
+	wg.Wait()
+	return errors.Join(errs...)
 }

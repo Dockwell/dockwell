@@ -25,6 +25,8 @@ Dockwell has not had a release yet. Once it has, security fixes go to the latest
 - Remote access through the agent: the terminal, files and commands
 - The supply chain: release signing, agent self-updates and catalog images
 
+How servers prove their identity, and what that protects against, is in [docs/security/server-identity.md](docs/security/server-identity.md).
+
 Every release is signed, attested and reproducible; [docs/releasing.md](docs/releasing.md#verify-a-release) shows how to verify one.
 
 An external security audit is planned before 1.0, followed by a public bug bounty.

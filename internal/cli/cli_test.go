@@ -8,8 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -151,7 +156,8 @@ func TestRunExplainsListenFailures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := run(t, map[string]string{envLogFormat: "json"}, "run", "--listen", tt.listen)
+			r := run(t, map[string]string{envLogFormat: "json", envDataDir: t.TempDir()},
+				"run", "--listen", tt.listen, "--agent-listen", "127.0.0.1:0")
 			if r.code != exitError {
 				t.Fatalf("exit %d, want %d; stderr %q", r.code, exitError, r.err)
 			}
@@ -163,15 +169,22 @@ func TestRunExplainsListenFailures(t *testing.T) {
 }
 
 func TestWithListenHint(t *testing.T) {
-	if withListenHint(nil) != nil {
+	if withListenHint(nil, "--listen") != nil {
 		t.Error("withListenHint(nil) should stay nil")
 	}
 	eacces := fmt.Errorf("can't listen on 0.0.0.0:80: %w", &net.OpError{Op: "listen", Err: syscall.EACCES})
-	if got := withListenHint(eacces).Error(); !strings.Contains(got, "CAP_NET_BIND_SERVICE") {
+	if got := withListenHint(eacces, "--agent-listen").Error(); !strings.Contains(got, "CAP_NET_BIND_SERVICE") || !strings.Contains(got, "--agent-listen") {
+		t.Errorf("EACCES hint = %q", got)
+	}
+	malformed := fmt.Errorf("can't listen on foo: %w", &net.AddrError{Err: "missing port in address", Addr: "foo"})
+	if got := withListenHint(malformed, "--agent-listen").Error(); !strings.Contains(got, "such as :7443") {
+		t.Errorf("the agent listener's example should be its own default, got %q", got)
+	}
+	if got := withListenHint(eacces, "--listen").Error(); !strings.Contains(got, "CAP_NET_BIND_SERVICE") {
 		t.Errorf("EACCES hint = %q", got)
 	}
 	other := errors.New("something else")
-	if got := withListenHint(other); !errors.Is(got, other) || got.Error() != "something else" {
+	if got := withListenHint(other, "--listen"); !errors.Is(got, other) || got.Error() != "something else" {
 		t.Errorf("unrelated errors should pass through untouched, got %q", got)
 	}
 }
@@ -181,7 +194,7 @@ func TestRunStopsOnCancel(t *testing.T) {
 	done := make(chan int, 1)
 	var out, errOut bytes.Buffer
 	go func() {
-		done <- Execute(ctx, []string{"run", "--listen", "127.0.0.1:0", "--log-format", "json"}, IO{
+		done <- Execute(ctx, []string{"run", "--listen", "127.0.0.1:0", "--agent-listen", "127.0.0.1:0", "--data-dir", t.TempDir(), "--log-format", "json"}, IO{
 			Out: &out, Err: &errOut, Getenv: func(string) string { return "" },
 		})
 	}()
@@ -194,5 +207,106 @@ func TestRunStopsOnCancel(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("run did not stop within 5 s of cancellation")
+	}
+}
+
+// startRun runs `dockwell run` on loopback ports with its own data
+// directory, and waits until the control server's agent has its identity.
+func startRun(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan int, 1)
+	var errOut syncBuffer
+	go func() {
+		done <- Execute(ctx, []string{"run", "--listen", "127.0.0.1:0", "--agent-listen", "127.0.0.1:0", "--data-dir", dir, "--log-format", "json"}, IO{
+			Out: io.Discard, Err: &errOut, Getenv: func(string) string { return "" },
+		})
+	}()
+	t.Cleanup(func() {
+		cancel()
+		if code := <-done; code != exitOK {
+			t.Errorf("run exited %d:\n%s", code, errOut.String())
+		}
+	})
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "agent", "agent.json")); err == nil {
+			return dir
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the control server's agent never got an identity:\n%s", errOut.String())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func TestAddAServerThroughTheCLI(t *testing.T) {
+	control := startRun(t)
+	none := map[string]string{envLogFormat: "json"}
+
+	r := run(t, none, "token", "create", "--data-dir", control, "--ttl", "30m")
+	if r.code != exitOK {
+		t.Fatalf("token create exit %d: %s", r.code, r.err)
+	}
+	ticket := regexp.MustCompile(`dockwell join (dwj1\.\S+)`).FindStringSubmatch(r.out)
+	if ticket == nil || !strings.Contains(r.out, "expires in 30 min") {
+		t.Fatalf("token create printed:\n%s", r.out)
+	}
+
+	added := t.TempDir()
+	r = run(t, none, "join", ticket[1], "--data-dir", added, "--name", "hz-2")
+	if r.code != exitOK || !strings.HasPrefix(r.out, "Joined as hz-2 (srv_") {
+		t.Fatalf("join exit %d:\n%s%s", r.code, r.out, r.err)
+	}
+
+	r = run(t, none, "join", ticket[1], "--data-dir", added)
+	if r.code != exitError || !strings.Contains(r.err, "already joined") {
+		t.Errorf("joining twice = %d %q", r.code, r.err)
+	}
+	r = run(t, none, "join", ticket[1], "--data-dir", t.TempDir())
+	if r.code != exitError || !strings.Contains(r.err, "invalid, already used or expired") {
+		t.Errorf("reusing a ticket = %d %q", r.code, r.err)
+	}
+	r = run(t, none, "token", "create", "--data-dir", t.TempDir())
+	if r.code != exitError || !strings.Contains(r.err, "there's no control plane") {
+		t.Errorf("token create away from the control server = %d %q", r.code, r.err)
+	}
+	r = run(t, none, "join")
+	if r.code != exitUsage || !strings.Contains(r.err, "takes one join ticket") {
+		t.Errorf("join without a ticket = %d %q", r.code, r.err)
+	}
+}
+
+func TestLoopbackURL(t *testing.T) {
+	for _, tt := range []struct {
+		addr *net.TCPAddr
+		want string
+	}{
+		{&net.TCPAddr{IP: net.IPv4zero, Port: 7443}, "https://127.0.0.1:7443"},
+		{&net.TCPAddr{IP: net.IPv6unspecified, Port: 7443}, "https://127.0.0.1:7443"},
+		{&net.TCPAddr{IP: net.ParseIP("10.0.0.5"), Port: 9443}, "https://10.0.0.5:9443"},
+		{&net.TCPAddr{IP: net.IPv6loopback, Port: 7443}, "https://[::1]:7443"},
+	} {
+		if got := loopbackURL(tt.addr); got != tt.want {
+			t.Errorf("loopbackURL(%v) = %q, want %q", tt.addr, got, tt.want)
+		}
 	}
 }
