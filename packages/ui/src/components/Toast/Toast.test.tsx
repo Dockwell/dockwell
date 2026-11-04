@@ -89,6 +89,24 @@ describe("Toast timer", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("asks to close once, however often it's hovered or focused after", () => {
+    const onClose = vi.fn();
+    render(<Toast title="Saved" duration={6000} onClose={onClose} action={{ label: "Undo" }} />);
+    const toast = screen.getByRole("status");
+    act(() => vi.advanceTimersByTime(6000));
+    expect(onClose).toHaveBeenCalledOnce();
+    // The caller hasn't removed it yet.
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.mouseEnter(toast);
+      fireEvent.mouseLeave(toast);
+      act(() => vi.advanceTimersByTime(100));
+    }
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    act(() => screen.getByRole("button", { name: "Undo" }).blur());
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("can't dismiss itself without onClose, so draws no timer", () => {
     const { container } = render(<Toast title="Saved" duration={6000} />);
     expect(container.querySelector(".dw-toast-timer")).toBeNull();

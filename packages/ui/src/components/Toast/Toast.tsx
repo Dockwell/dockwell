@@ -49,6 +49,8 @@ export function Toast({ tone = "healthy", title, description, action, onClose, d
   const [focused, setFocused] = useState(false);
   const paused = hovered || focused;
   const remaining = useRef(duration ?? 0);
+  // Asks to close once per duration. The caller may keep the toast up a while; hovering it then starts nothing.
+  const fired = useRef(false);
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -57,12 +59,19 @@ export function Toast({ tone = "healthy", title, description, action, onClose, d
 
   useEffect(() => {
     remaining.current = duration ?? 0;
+    fired.current = false;
   }, [duration]);
 
   useEffect(() => {
-    if (!duration || !closable || paused) return;
+    if (!duration || !closable || paused || fired.current) return;
     const started = Date.now();
-    const timer = setTimeout(() => onCloseRef.current?.(), Math.max(0, remaining.current));
+    const timer = setTimeout(
+      () => {
+        fired.current = true;
+        onCloseRef.current?.();
+      },
+      Math.max(0, remaining.current),
+    );
     return () => {
       clearTimeout(timer);
       remaining.current -= Date.now() - started;
