@@ -102,6 +102,25 @@ func testComposeThroughTheAPI(t *testing.T, backend store.Backend) {
 		t.Fatalf("importing without DB_PASSWORD = %v", err)
 	}
 
+	// What a container may never mount is refused as the file imports, as
+	// a bind or a volume's bind device; another server path is host access.
+	for file, want := range map[string]string{
+		"services:\n  sh:\n    image: alpine\n    volumes: [\"/:/host\"]\n": "the server path / mounted at /host is the server's whole file system",
+		"services:\n  sh:\n    image: alpine\n    volumes: [\"keys:/k\"]\nvolumes:\n  keys:\n    driver_opts: {type: none, o: bind, device: /var/lib/dockwell}\n": "the server path /var/lib/dockwell that the volume binds is in Dockwell's data directory",
+	} {
+		_, err := cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: file}))
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("importing %q = %v, want it refused, saying %s", file, err, want)
+		}
+	}
+	logs := importCompose(t, cc, "services:\n  sh:\n    image: alpine\n    volumes: [\"/srv/logs:/logs:ro\"]\n", nil, false)
+	if !logs.GetPlan().GetHostAccess() {
+		t.Errorf("importing a bind of /srv/logs plans no host access: %v", logs.GetPlan())
+	}
+	if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: logs.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+
 	planned := importCompose(t, cc, shopStack, vars, false)
 	p := planned.GetPlan()
 	var order []string
