@@ -25,6 +25,11 @@ plugins:
     # The TypeScript client carries the google.api files it imports; Go uses
     # them from google.golang.org/genproto.
     include_imports: true
+  # The CLI's API commands (ADR 0019), from every file at once. Its output
+  # directory holds only what it writes, as buf empties it first.
+  - local: [go, run, ./cmd/protoc-gen-dockwell-cli]
+    out: internal/cli/apicmd
+    strategy: all
   # The OpenAPI document for the REST paths (ADR 0015), in gen/openapi.
   - local: [go, tool, -modfile=tools/go.mod, protoc-gen-openapi]
     out: gen/openapi

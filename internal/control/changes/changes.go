@@ -58,8 +58,14 @@ func New(engine *revision.Engine, db *store.DB, logger *slog.Logger) *Handler {
 	return &Handler{engine: engine, db: db, logger: logger}
 }
 
+// CLIUserAgent starts the User-Agent of the dockwell CLI, which says so to
+// have its changes recorded as the CLI's (ADR 0019).
+const CLIUserAgent = "dockwell-cli/"
+
 // by is who is calling, and from where: a session is the panel, and an API
-// token the API.
+// token the API, or the CLI when its User-Agent says so. The surface is
+// what the client says it is, for the timeline; the actor is what the
+// audit log holds to account.
 func by(ctx context.Context) (revision.By, auth.Principal, error) {
 	p, ok := authapi.PrincipalFrom(ctx)
 	if !ok {
@@ -69,6 +75,9 @@ func by(ctx context.Context) (revision.By, auth.Principal, error) {
 	via := revision.ViaPanel
 	if p.Token != nil {
 		via = revision.ViaAPI
+		if client, ok := authapi.ClientFrom(ctx); ok && strings.HasPrefix(client.UserAgent, CLIUserAgent) {
+			via = revision.ViaCLI
+		}
 	}
 	return revision.By{Actor: p.Actor(), Via: via}, p, nil
 }
@@ -475,6 +484,16 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				tree = &loaded
 			}
 			if ref.Scope, err = resolve(ctx, tx, tree, t.Level(), e.GetProject(), ref.Scope); err != nil {
+				var choice *scope.ChoiceError
+				if errors.As(err, &choice) {
+					// Which field takes the choice: an environment's project
+					// is named apart, and every other choice is the scope.
+					field := "resource.scope"
+					if t.Level() == resource.LevelEnvironment && choice.Level == scope.ProjectKind {
+						field = "project"
+					}
+					return &choiceAt{ChoiceError: choice, field: fmt.Sprintf("edits[%d].%s", i, field)}
+				}
 				return err
 			}
 			var servers []string // none keeps a service where it runs
@@ -487,6 +506,15 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 	})
 	return out, err
 }
+
+// choiceAt is a choice a request left out, with the field of the request
+// that takes it.
+type choiceAt struct {
+	*scope.ChoiceError
+	field string
+}
+
+func (c *choiceAt) Unwrap() error { return c.ChoiceError }
 
 // resolve finds the ID of what a resource lives in, from an ID, a name,
 // or nothing, which means the only one there is. An environment's project
@@ -575,6 +603,7 @@ func (h *Handler) actors(ctx context.Context) func(actor string) *dockwellv1.Act
 var surfaces = map[string]dockwellv1.Surface{
 	revision.ViaPanel:     dockwellv1.Surface_SURFACE_PANEL,
 	revision.ViaAPI:       dockwellv1.Surface_SURFACE_API,
+	revision.ViaCLI:       dockwellv1.Surface_SURFACE_CLI,
 	revision.ViaAutomatic: dockwellv1.Surface_SURFACE_AUTOMATIC,
 }
 
@@ -727,7 +756,17 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 	}
 	var choice *scope.ChoiceError
 	if errors.As(err, &choice) {
-		return reasonError(connect.CodeInvalidArgument, err, "choice")
+		// The options go in a detail too, so a client can ask which.
+		cerr := reasonError(connect.CodeInvalidArgument, err, "choice")
+		detail := &dockwellv1.Choice{Level: string(choice.Level), Options: choice.Options, Project: choice.Project}
+		var at *choiceAt
+		if errors.As(err, &at) {
+			detail.Field = at.field
+		}
+		if d, derr := connect.NewErrorDetail(detail); derr == nil {
+			cerr.AddDetail(d)
+		}
+		return cerr
 	}
 	for _, c := range codes {
 		if errors.Is(err, c.err) {

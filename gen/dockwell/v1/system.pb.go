@@ -218,10 +218,11 @@ const file_dockwell_v1_system_proto_rawDesc = "" +
 	"\bmodified\x18\x04 \x01(\bR\bmodified\x12\x1d\n" +
 	"\n" +
 	"go_version\x18\x05 \x01(\tR\tgoVersion\x12\x1a\n" +
-	"\bplatform\x18\x06 \x01(\tR\bplatform2z\n" +
-	"\rSystemService\x12i\n" +
+	"\bplatform\x18\x06 \x01(\tR\bplatform2\x8f\x01\n" +
+	"\rSystemService\x12~\n" +
 	"\n" +
-	"GetVersion\x12\x1e.dockwell.v1.GetVersionRequest\x1a\x1f.dockwell.v1.GetVersionResponse\"\x1a\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/version\x90\x02\x01B\xa4\x01\n" +
+	"GetVersion\x12\x1e.dockwell.v1.GetVersionRequest\x1a\x1f.dockwell.v1.GetVersionResponse\"/\xa0\xbb\x18\x01\xaa\xbb\x18\x11\n" +
+	"\x06system\x12\aversion\x82\xd3\xe4\x93\x02\r\x12\v/v1/version\x90\x02\x01B\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vSystemProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

@@ -1,0 +1,704 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package apicli
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"slices"
+	"strconv"
+	"strings"
+	"text/tabwriter"
+	"time"
+
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+)
+
+// JSON writes msg as the API's JSON, protojson as REST answers it: field
+// names in lowerCamelCase, enums by name, unset fields left out. Indented,
+// it suits one message; lines puts each message on its own line, for a
+// command that prints several, as JSON Lines. Whitespace is normalized,
+// as protojson's own varies on purpose.
+func JSON(w io.Writer, msg proto.Message, indented bool) error {
+	raw, err := protojson.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	var buf bytes.Buffer
+	if indented {
+		err = json.Indent(&buf, raw, "", "  ")
+	} else {
+		err = json.Compact(&buf, raw)
+	}
+	if err != nil {
+		return err
+	}
+	buf.WriteByte('\n')
+	_, err = w.Write(buf.Bytes())
+	return err
+}
+
+// Render writes msg for people.
+func Render(w io.Writer, msg proto.Message, now time.Time) {
+	switch m := msg.(type) {
+	case *dockwellv1.ListServersResponse:
+		serversTable(w, m.GetServers(), now)
+	case *dockwellv1.GetServerResponse:
+		serverDetail(w, m.GetServer(), now)
+	case *dockwellv1.WatchServersResponse:
+		serverEvent(w, m, now)
+	case *dockwellv1.ListChangesResponse:
+		changesTable(w, m, now)
+	case *dockwellv1.ListDriftResponse:
+		driftTable(w, m)
+	default:
+		if c := changeIn(msg); c != nil {
+			ChangeView(w, c, now)
+			return
+		}
+		generic(w, msg.ProtoReflect(), now)
+	}
+}
+
+// changeIn finds the change a response carries, if it carries one.
+func changeIn(msg proto.Message) *dockwellv1.Change {
+	m := msg.ProtoReflect()
+	fields := m.Descriptor().Fields()
+	for i := range fields.Len() {
+		fd := fields.Get(i)
+		if fd.Message() != nil && !fd.IsList() && fd.Message().FullName() == "dockwell.v1.Change" && m.Has(fd) {
+			c, _ := m.Get(fd).Message().Interface().(*dockwellv1.Change)
+			return c
+		}
+	}
+	return nil
+}
+
+func newTable(w io.Writer) *tabwriter.Writer { return tabwriter.NewWriter(w, 0, 0, 2, ' ', 0) }
+
+func row(tw io.Writer, cells ...string) { fmt.Fprintln(tw, strings.Join(cells, "\t")) }
+
+func orDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
+}
+
+func when(t *timestamppb.Timestamp, now time.Time) string {
+	if t == nil {
+		return ""
+	}
+	if at := t.AsTime(); at.After(now.Add(time.Second)) {
+		return In(at, now)
+	}
+	return Ago(t.AsTime(), now)
+}
+
+// enumWord writes an enum value as a word: CONNECTION_CONNECTED is
+// "Connected", TOKEN_SCOPE_READ_ONLY "Read only".
+func enumWord(ed protoreflect.EnumDescriptor, n protoreflect.EnumNumber) string {
+	v := ed.Values().ByNumber(n)
+	if v == nil {
+		return strconv.Itoa(int(n))
+	}
+	if n == 0 {
+		return ""
+	}
+	return capitalize(strings.ReplaceAll(enumName(ed, v), "-", " "))
+}
+
+func word(e interface {
+	Descriptor() protoreflect.EnumDescriptor
+	Number() protoreflect.EnumNumber
+},
+) string {
+	return enumWord(e.Descriptor(), e.Number())
+}
+
+func capitalize(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func serversTable(w io.Writer, servers []*dockwellv1.Server, now time.Time) {
+	if len(servers) == 0 {
+		fmt.Fprintln(w, "No servers yet. Make a join ticket with dockwell token create on the control server, then run dockwell join on the server you're adding.")
+		return
+	}
+	tw := newTable(w)
+	row(tw, "Name", "ID", "Connection", "OS", "CPU", "Memory", "Last seen")
+	for _, s := range servers {
+		name := s.GetName()
+		if s.GetControlServer() {
+			name += " (control)"
+		}
+		cpu, memory := "-", "-"
+		if st := s.GetStats(); st != nil {
+			cpu = Percent(st.GetCpuPercent())
+			memory = BytesOf(st.GetMemoryUsedBytes(), st.GetMemoryTotalBytes())
+		}
+		seen := "never"
+		if s.GetLastSeenTime() != nil {
+			seen = when(s.GetLastSeenTime(), now)
+		}
+		row(tw, name, s.GetId(), word(s.GetConnection()), orDash(s.GetInventory().GetOsName()), cpu, memory, seen)
+	}
+	_ = tw.Flush()
+}
+
+func serverDetail(w io.Writer, s *dockwellv1.Server, now time.Time) {
+	fmt.Fprintf(w, "%s (%s)\n", s.GetName(), s.GetId())
+	tw := newTable(w)
+	connection := word(s.GetConnection())
+	if s.GetLastSeenTime() != nil {
+		connection += ", last seen " + when(s.GetLastSeenTime(), now)
+	}
+	row(tw, "Connection", connection)
+	if s.GetControlServer() {
+		row(tw, "Control server", "Yes, it runs the control plane")
+	}
+	inv := s.GetInventory()
+	if inv != nil {
+		os := inv.GetOsName()
+		if inv.GetKernel() != "" {
+			os += ", kernel " + inv.GetKernel()
+		}
+		if inv.GetArchitecture() != "" {
+			os += ", " + inv.GetArchitecture()
+		}
+		row(tw, "OS", os)
+		cpu := inv.GetCpuModel()
+		if inv.GetCpuCount() > 0 {
+			cpu = strings.TrimPrefix(cpu+fmt.Sprintf(", %d cores", inv.GetCpuCount()), ", ")
+		}
+		if st := s.GetStats(); st != nil {
+			cpu += ", " + Percent(st.GetCpuPercent()) + " busy"
+		}
+		row(tw, "CPU", cpu)
+	}
+	if st := s.GetStats(); st != nil {
+		row(tw, "Memory", BytesOf(st.GetMemoryUsedBytes(), st.GetMemoryTotalBytes()))
+		row(tw, "Load", fmt.Sprintf("%.2f, %.2f, %.2f", st.GetLoad1(), st.GetLoad5(), st.GetLoad15()))
+		for _, d := range st.GetDisks() {
+			row(tw, "Disk "+d.GetMountPoint(), BytesOf(d.GetUsedBytes(), d.GetSizeBytes()))
+		}
+		if st.GetUptime() != nil {
+			row(tw, "Up for", Span(st.GetUptime().AsDuration()))
+		}
+	} else if inv != nil {
+		row(tw, "Memory", Bytes(inv.GetMemoryBytes()))
+	}
+	if inv != nil {
+		docker := inv.GetDockerVersion()
+		if docker == "" {
+			docker = "Not running"
+		}
+		row(tw, "Docker", docker)
+		if len(inv.GetAddresses()) > 0 {
+			row(tw, "Addresses", strings.Join(inv.GetAddresses(), ", "))
+		}
+	}
+	if b := s.GetAgentBuild(); b != nil {
+		row(tw, "Agent", b.GetVersion())
+	}
+	if s.GetCreateTime() != nil {
+		row(tw, "Joined", when(s.GetCreateTime(), now))
+	}
+	_ = tw.Flush()
+}
+
+func serverEvent(w io.Writer, e *dockwellv1.WatchServersResponse, now time.Time) {
+	switch {
+	case e.GetSnapshotComplete():
+		fmt.Fprintln(w, "Watching for changes. Press Ctrl+C to stop.")
+	case e.GetRemoved():
+		fmt.Fprintf(w, "%s was removed.\n", e.GetServer().GetName())
+	default:
+		s := e.GetServer()
+		line := fmt.Sprintf("%s  %s", s.GetName(), word(s.GetConnection()))
+		if st := s.GetStats(); st != nil {
+			line += fmt.Sprintf("  CPU %s  memory %s", Percent(st.GetCpuPercent()), BytesOf(st.GetMemoryUsedBytes(), st.GetMemoryTotalBytes()))
+		}
+		if s.GetLastSeenTime() != nil {
+			line += "  " + when(s.GetLastSeenTime(), now)
+		}
+		fmt.Fprintln(w, line)
+	}
+}
+
+// Counts writes a plan's summary as the panel does: "1 to create · 0 to
+// change · 0 to destroy", with replacements apart, only when there are
+// some.
+func Counts(s *dockwellv1.PlanSummary) string {
+	parts := []string{fmt.Sprintf("%d to create", s.GetCreate()), fmt.Sprintf("%d to change", s.GetChange())}
+	if s.GetReplace() > 0 {
+		parts = append(parts, fmt.Sprintf("%d to replace", s.GetReplace()))
+	}
+	parts = append(parts, fmt.Sprintf("%d to destroy", s.GetDestroy()))
+	return strings.Join(parts, " · ")
+}
+
+// shortCounts is a plan's summary in a table: "+1 ~0 -0".
+func shortCounts(s *dockwellv1.PlanSummary) string {
+	out := fmt.Sprintf("+%d ~%d", s.GetCreate(), s.GetChange())
+	if s.GetReplace() > 0 {
+		out += fmt.Sprintf(" ±%d", s.GetReplace())
+	}
+	return out + fmt.Sprintf(" -%d", s.GetDestroy())
+}
+
+func changesTable(w io.Writer, res *dockwellv1.ListChangesResponse, now time.Time) {
+	if len(res.GetChanges()) == 0 {
+		fmt.Fprintln(w, "No changes yet. Make one with a command such as dockwell projects create.")
+		return
+	}
+	tw := newTable(w)
+	row(tw, "ID", "Summary", "State", "Plan", "By", "Proposed")
+	for _, c := range res.GetChanges() {
+		row(tw, c.GetId(), c.GetSummary(), word(c.GetState()), shortCounts(c.GetPlan().GetSummary()), orDash(c.GetProposedBy().GetName()), when(c.GetCreateTime(), now))
+	}
+	_ = tw.Flush()
+	if t := res.GetNextPageToken(); t != "" {
+		fmt.Fprintf(w, "\nThere are more. See them with dockwell changes list --page-token %s\n", t)
+	}
+}
+
+func driftTable(w io.Writer, res *dockwellv1.ListDriftResponse) {
+	if len(res.GetDrift()) == 0 && len(res.GetUncheckedServers()) == 0 {
+		fmt.Fprintln(w, "No drift: what every server has matches its latest revisions.")
+		return
+	}
+	if len(res.GetDrift()) > 0 {
+		tw := newTable(w)
+		row(tw, "Server", "Resource", "ID", "Revision", "What differs")
+		for _, d := range res.GetDrift() {
+			what := "Missing from the server"
+			if !d.GetMissing() {
+				var paths []string
+				for _, c := range d.GetChanges() {
+					paths = append(paths, c.GetPath())
+				}
+				what = strings.Join(paths, ", ")
+			}
+			row(tw, d.GetServerId(), ref(d.GetResource()), d.GetResourceId(), fmt.Sprintf("r%d", d.GetRevision()), what)
+		}
+		_ = tw.Flush()
+		fmt.Fprintln(w, "\nPut one back with dockwell drift revert, or keep what the server has with dockwell drift adopt, each with --server-id and --resource-id.")
+	}
+	for _, u := range res.GetUncheckedServers() {
+		fmt.Fprintf(w, "%s wasn't checked: %s\n", orDash(u.GetServerName()), u.GetMessage())
+	}
+}
+
+// ref names a resource as "kind name".
+func ref(r *dockwellv1.ResourceRef) string {
+	if r.GetKind() == "" {
+		return r.GetName()
+	}
+	return r.GetKind() + " " + r.GetName()
+}
+
+// The panel's symbols and words for each action.
+var actions = map[dockwellv1.PlanAction]struct{ symbol, word string }{
+	dockwellv1.PlanAction_PLAN_ACTION_NONE:    {" ", "No change"},
+	dockwellv1.PlanAction_PLAN_ACTION_CREATE:  {"+", "Create"},
+	dockwellv1.PlanAction_PLAN_ACTION_UPDATE:  {"~", "Update in place"},
+	dockwellv1.PlanAction_PLAN_ACTION_REPLACE: {"±", "Replace"},
+	dockwellv1.PlanAction_PLAN_ACTION_DELETE:  {"-", "Destroy"},
+}
+
+var surfaces = map[dockwellv1.Surface]string{
+	dockwellv1.Surface_SURFACE_PANEL:     "in the panel",
+	dockwellv1.Surface_SURFACE_API:       "through the API",
+	dockwellv1.Surface_SURFACE_AUTOMATIC: "on its own",
+	dockwellv1.Surface_SURFACE_CLI:       "from the CLI",
+}
+
+// ChangeView writes a change: what it is, who proposed and applied it,
+// its plan, and how its steps went.
+func ChangeView(w io.Writer, c *dockwellv1.Change, now time.Time) {
+	fmt.Fprintf(w, "%s  %s\n", c.GetId(), c.GetSummary())
+	proposed := fmt.Sprintf("%s by %s %s", when(c.GetCreateTime(), now), actor(c.GetProposedBy()), surfaces[c.GetProposedVia()])
+	applied := fmt.Sprintf("%s by %s %s", when(c.GetApplyTime(), now), actor(c.GetAppliedBy()), surfaces[c.GetAppliedVia()])
+	switch c.GetState() {
+	case dockwellv1.ChangeState_CHANGE_STATE_PLANNED:
+		fmt.Fprintf(w, "Planned %s.\n", proposed)
+	case dockwellv1.ChangeState_CHANGE_STATE_DISCARDED:
+		fmt.Fprintf(w, "Discarded. Proposed %s.\n", proposed)
+	case dockwellv1.ChangeState_CHANGE_STATE_APPLYING:
+		fmt.Fprintf(w, "Applying. Applied %s.\n", applied)
+	case dockwellv1.ChangeState_CHANGE_STATE_APPLIED:
+		fmt.Fprintf(w, "Applied %s.\n", applied)
+	case dockwellv1.ChangeState_CHANGE_STATE_FAILED:
+		fmt.Fprintf(w, "Failed. Applied %s.\n", applied)
+	case dockwellv1.ChangeState_CHANGE_STATE_UNSPECIFIED:
+	}
+	switch {
+	case c.GetRollback():
+		fmt.Fprintf(w, "Dockwell made it to roll back %s, which failed.\n", c.GetReverts())
+	case c.GetReverts() != "":
+		fmt.Fprintf(w, "It undoes %s.\n", c.GetReverts())
+	}
+	if c.GetError() != "" {
+		fmt.Fprintf(w, "It failed: %s\n", sentence(c.GetError()))
+	}
+	if c.GetRolledBackBy() != "" {
+		fmt.Fprintf(w, "Dockwell rolled back what it had done in %s.\n", c.GetRolledBackBy())
+	}
+	if c.GetUndoneBy() != "" {
+		fmt.Fprintf(w, "%s undid it.\n", c.GetUndoneBy())
+	}
+	fmt.Fprintln(w)
+	PlanView(w, c.GetPlan())
+	if len(c.GetSteps()) > 0 {
+		fmt.Fprintln(w, "\nSteps:")
+		tw := newTable(w)
+		for _, s := range c.GetSteps() {
+			row(tw, "  "+word(s.GetState()), stepText(s))
+		}
+		_ = tw.Flush()
+	}
+	switch {
+	case c.GetUndoDeadline() != nil && c.GetUndoneBy() == "" && c.GetUndoDeadline().AsTime().After(now):
+		fmt.Fprintf(w, "\nUndo it %s with dockwell changes undo %s.\n", untilWord(c.GetUndoDeadline().AsTime(), now), c.GetId())
+	case c.GetState() == dockwellv1.ChangeState_CHANGE_STATE_PLANNED && c.GetPlan().GetUndoWindow() != nil && !c.GetPlan().GetDestructive():
+		fmt.Fprintf(w, "\nUndo for %s once applied.\n", Span(c.GetPlan().GetUndoWindow().AsDuration()))
+	}
+}
+
+// untilWord says how long is left: "within 7 days", "within 3 hours",
+// to the nearest minute, so a deadline a moment under 7 days away reads 7.
+func untilWord(t, now time.Time) string { return "within " + Span(t.Sub(now).Round(time.Minute)) }
+
+func actor(a *dockwellv1.Actor) string {
+	switch {
+	case a == nil:
+		return "someone"
+	case a.GetKind() == dockwellv1.ActorKind_ACTOR_KIND_TOKEN:
+		return "the API token " + a.GetName()
+	case a.GetName() != "":
+		return a.GetName()
+	}
+	return a.GetId()
+}
+
+func stepText(s *dockwellv1.StepProgress) string {
+	if s.GetMessage() != "" {
+		return s.GetMessage()
+	}
+	return actions[s.GetAction()].word + " " + ref(s.GetResource())
+}
+
+// sentence ends a message with a full stop.
+func sentence(s string) string {
+	s = strings.TrimSpace(s)
+	if s != "" && !strings.HasSuffix(s, ".") {
+		s += "."
+	}
+	return s
+}
+
+// PlanView writes a plan as the panel's plan sheet shows it: what happens
+// to each resource that runs on no server, then each server's steps with
+// their downtime, data loss and warnings, then the counts.
+func PlanView(w io.Writer, p *dockwellv1.Plan) {
+	if p == nil {
+		return
+	}
+	onServers := map[string]bool{}
+	for _, s := range p.GetServers() {
+		for _, st := range s.GetSteps() {
+			onServers[st.GetResourceId()] = true
+		}
+	}
+	byID := map[string]*dockwellv1.PlannedResource{}
+	tw := newTable(w)
+	wrote := false
+	for _, r := range p.GetResources() {
+		byID[r.GetId()] = r
+		if onServers[r.GetId()] || r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_NONE {
+			continue
+		}
+		a := actions[r.GetAction()]
+		row(tw, "  "+a.symbol+" "+ref(r.GetResource()), a.word)
+		fieldChanges(tw, r.GetChanges(), "      ")
+		wrote = true
+	}
+	_ = tw.Flush()
+	for _, s := range p.GetServers() {
+		if wrote {
+			fmt.Fprintln(w)
+		}
+		wrote = true
+		head := s.GetServerName()
+		switch {
+		case s.GetRemoved():
+			head += ", removed from the fleet: what the change takes off it is only recorded"
+		case s.GetOffline():
+			head += ", offline: its steps are planned from the state it last reported, and the change can't apply until it reconnects"
+		}
+		if d := s.GetDowntime(); d.AsDuration() > 0 {
+			head += " · " + downtime(d) + " of downtime"
+		}
+		fmt.Fprintf(w, "On %s\n", head)
+		tw := newTable(w)
+		for _, st := range s.GetSteps() {
+			a := actions[st.GetAction()]
+			details := []string{a.word}
+			switch st.GetEffect() {
+			case dockwellv1.StepEffect_STEP_EFFECT_RESTART:
+				details = append(details, "restarts")
+			case dockwellv1.StepEffect_STEP_EFFECT_RECREATE:
+				details = append(details, "recreated")
+			default:
+			}
+			if d := st.GetDowntime(); d.AsDuration() > 0 {
+				details = append(details, downtime(d)+" downtime")
+			}
+			row(tw, "  "+a.symbol+" "+ref(st.GetResource()), strings.Join(details, " · "))
+			changes := st.GetChanges()
+			if len(changes) == 0 {
+				changes = byID[st.GetResourceId()].GetChanges()
+			}
+			fieldChanges(tw, changes, "      ")
+			// Lines without a tab don't widen the columns.
+			if st.GetDestroysData() {
+				fmt.Fprintln(tw, "      Destroys data its spec can't bring back.")
+			}
+			for _, warning := range st.GetWarnings() {
+				if warning == dockwellv1.PlanWarning_PLAN_WARNING_MAY_LOCK_OUT {
+					fmt.Fprintln(tw, "      May cut off remote access to "+s.GetServerName()+", such as SSH.")
+				}
+			}
+		}
+		_ = tw.Flush()
+	}
+	if wrote {
+		fmt.Fprintln(w)
+	}
+	fmt.Fprintln(w, Counts(p.GetSummary()))
+	if p.GetDestructive() {
+		fmt.Fprintln(w, "It destroys data or may cut off access, which undo may not bring back.")
+	}
+}
+
+func downtime(d *durationpb.Duration) string {
+	if d.AsDuration() < time.Second {
+		return "under 1 s"
+	}
+	return Span(d.AsDuration())
+}
+
+// fieldChanges writes each field that changes, never a sensitive value.
+func fieldChanges(tw io.Writer, changes []*dockwellv1.FieldChange, indent string) {
+	for _, c := range changes {
+		from, to := c.GetFrom(), c.GetTo()
+		if c.GetSensitive() {
+			from, to = "(hidden)", "(hidden)"
+		}
+		switch c.GetOp() {
+		case dockwellv1.FieldOp_FIELD_OP_ADDED:
+			row(tw, indent+"+ "+c.GetPath(), to)
+		case dockwellv1.FieldOp_FIELD_OP_REMOVED:
+			row(tw, indent+"- "+c.GetPath(), from)
+		default:
+			if c.GetSensitive() {
+				row(tw, indent+"~ "+c.GetPath(), "(hidden)")
+				continue
+			}
+			row(tw, indent+"~ "+c.GetPath(), from+" → "+to)
+		}
+	}
+}
+
+// generic writes any message: a table for a list, and otherwise each field
+// that is set.
+func generic(w io.Writer, m protoreflect.Message, now time.Time) {
+	fields := m.Descriptor().Fields()
+	var list protoreflect.FieldDescriptor
+	others := 0
+	for i := range fields.Len() {
+		fd := fields.Get(i)
+		switch {
+		case fd.IsList() && fd.Message() != nil && list == nil:
+			list = fd
+		case fd.Name() == "next_page_token":
+		default:
+			others++
+		}
+	}
+	if list != nil && others == 0 {
+		genericTable(w, list, m.Get(list).List(), now)
+		if fd := fields.ByName("next_page_token"); fd != nil && m.Get(fd).String() != "" {
+			fmt.Fprintf(w, "\nThere are more. See them with --page-token %s\n", m.Get(fd).String())
+		}
+		return
+	}
+	tw := newTable(w)
+	genericFields(tw, m, "", now)
+	_ = tw.Flush()
+}
+
+func genericFields(tw io.Writer, m protoreflect.Message, indent string, now time.Time) {
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		label := indent + Label(fd)
+		switch {
+		case fd.IsList() && fd.Message() != nil && !isWellKnown(fd.Message()):
+			l := v.List()
+			for i := range l.Len() {
+				row(tw, fmt.Sprintf("%s %d", label, i+1), "")
+				genericFields(tw, l.Get(i).Message(), indent+"  ", now)
+			}
+		case fd.IsList():
+			l := v.List()
+			items := make([]string, 0, l.Len())
+			for i := range l.Len() {
+				items = append(items, format(fd, l.Get(i), now))
+			}
+			row(tw, label, strings.Join(items, ", "))
+		case fd.IsMap():
+			v.Map().Range(func(k protoreflect.MapKey, mv protoreflect.Value) bool {
+				row(tw, label+" "+k.String(), format(fd.MapValue(), mv, now))
+				return true
+			})
+		case fd.Message() != nil && !isWellKnown(fd.Message()):
+			row(tw, label, "")
+			genericFields(tw, v.Message(), indent+"  ", now)
+		default:
+			row(tw, label, format(fd, v, now))
+		}
+		return true
+	})
+}
+
+func genericTable(w io.Writer, fd protoreflect.FieldDescriptor, l protoreflect.List, now time.Time) {
+	if l.Len() == 0 {
+		fmt.Fprintf(w, "No %s.\n", strings.ToLower(Label(fd)))
+		return
+	}
+	md := fd.Message()
+	var cols []protoreflect.FieldDescriptor
+	fields := md.Fields()
+	for i := range fields.Len() {
+		c := fields.Get(i)
+		if c.IsList() || c.IsMap() || (c.Message() != nil && !isWellKnown(c.Message())) {
+			continue
+		}
+		for j := range l.Len() {
+			if l.Get(j).Message().Has(c) {
+				cols = append(cols, c)
+				break
+			}
+		}
+	}
+	tw := newTable(w)
+	head := make([]string, len(cols))
+	for i, c := range cols {
+		head[i] = Label(c)
+	}
+	row(tw, head...)
+	for i := range l.Len() {
+		item := l.Get(i).Message()
+		cells := make([]string, len(cols))
+		for j, c := range cols {
+			if item.Has(c) {
+				cells[j] = format(c, item.Get(c), now)
+			} else {
+				cells[j] = "-"
+			}
+		}
+		row(tw, cells...)
+	}
+	_ = tw.Flush()
+}
+
+func isWellKnown(md protoreflect.MessageDescriptor) bool {
+	return md.FullName() == timestampName || md.FullName() == durationName
+}
+
+// labels name fields whose generic label reads badly.
+var labels = map[protoreflect.Name]string{
+	"create_time":    "Created",
+	"expire_time":    "Expires",
+	"last_used_time": "Last used",
+	"last_seen_time": "Last seen",
+	"apply_time":     "Applied",
+	"connect_time":   "Connected",
+	"commit_time":    "Committed",
+	"lock_time":      "Locked",
+	"start_time":     "Started",
+	"finish_time":    "Finished",
+	"undo_deadline":  "Undo until",
+}
+
+var acronyms = map[string]string{"id": "ID", "rp": "RP", "os": "OS", "cpu": "CPU", "ip": "IP", "url": "URL", "uri": "URI", "json": "JSON", "ttl": "TTL", "api": "API"}
+
+// Label is a field's name for people: "server_name" is "Server name",
+// "create_time" "Created".
+func Label(fd protoreflect.FieldDescriptor) string {
+	if l, ok := labels[fd.Name()]; ok {
+		return l
+	}
+	words := strings.Split(string(fd.Name()), "_")
+	for i, w := range words {
+		if a, ok := acronyms[w]; ok {
+			words[i] = a
+		}
+	}
+	return capitalize(strings.Join(words, " "))
+}
+
+// format writes one value of fd for people.
+func format(fd protoreflect.FieldDescriptor, v protoreflect.Value, now time.Time) string {
+	name := string(fd.Name())
+	switch fd.Kind() {
+	case protoreflect.BoolKind:
+		if v.Bool() {
+			return "Yes"
+		}
+		return "No"
+	case protoreflect.EnumKind:
+		return enumWord(fd.Enum(), v.Enum())
+	case protoreflect.Uint64Kind, protoreflect.Uint32Kind, protoreflect.Fixed64Kind:
+		switch {
+		case strings.HasSuffix(name, "_bytes_per_second"):
+			return Bytes(v.Uint()) + "/s"
+		case strings.HasSuffix(name, "_bytes"):
+			return Bytes(v.Uint())
+		}
+	case protoreflect.DoubleKind, protoreflect.FloatKind:
+		if strings.HasSuffix(name, "_percent") {
+			return Percent(v.Float())
+		}
+	case protoreflect.MessageKind:
+		switch fd.Message().FullName() {
+		case timestampName:
+			t, _ := v.Message().Interface().(*timestamppb.Timestamp)
+			return when(t, now)
+		case durationName:
+			d, _ := v.Message().Interface().(*durationpb.Duration)
+			return Span(d.AsDuration())
+		}
+	default:
+	}
+	return v.String()
+}
+
+// stepStates in the order a step moves through them, for telling a step
+// that moved on.
+var finalSteps = []dockwellv1.StepState{
+	dockwellv1.StepState_STEP_STATE_DONE, dockwellv1.StepState_STEP_STATE_FAILED, dockwellv1.StepState_STEP_STATE_SKIPPED,
+}
+
+func finalStep(s dockwellv1.StepState) bool { return slices.Contains(finalSteps, s) }

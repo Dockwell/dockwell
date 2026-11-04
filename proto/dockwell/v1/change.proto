@@ -188,6 +188,24 @@ message ResourceRef {
   string name = 3;
 }
 
+// Choice is the detail of an error whose reason is "choice": a request
+// left out something there is more than one of, such as the project of an
+// environment once there are two projects (PRD principle 4). Ask which,
+// set field to it, and send the request again. Errors carry it as a
+// google.rpc.Status detail, over REST too.
+message Choice {
+  // What to choose: "project", "environment" or "server".
+  string level = 1;
+  // The request's field that takes the choice, as a path of field names
+  // from the request, such as "edits[0].project" or
+  // "edits[0].resource.scope".
+  string field = 2;
+  // The names to choose from. The field takes any of them.
+  repeated string options = 3;
+  // For a choice of environment, the project they are in.
+  string project = 4;
+}
+
 // ProposeChangeResponse carries the planned change.
 message ProposeChangeResponse {
   // The change, planned, with its plan.
@@ -456,6 +474,9 @@ enum Surface {
   SURFACE_API = 2;
   // Dockwell on its own, such as a rollback after a failure.
   SURFACE_AUTOMATIC = 3;
+  // The dockwell CLI, with an API token. The CLI says so in its User-Agent,
+  // "dockwell-cli/<version>"; any other client with a token is the API.
+  SURFACE_CLI = 4;
 }
 
 // Plan is what applying a change would do: what changes, where, and for

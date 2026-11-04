@@ -119,12 +119,12 @@ func WellFormedToken(s string) bool {
 	return tokenChecksum(rest[:tokenBodyLen]) == rest[tokenBodyLen:]
 }
 
-// tokenHint is the prefix and the first and last 4 of a secret's random
+// TokenHint is the prefix and the first and last 4 of a secret's random
 // digits, such as "dwt_4f9K…x9Ta", for telling tokens apart. It never shows
 // the checksum, which is a function of the random digits and would give
 // away more of them. 8 of the 43 random digits leave about 208 of the 256
 // bits unknown.
-func tokenHint(secret string) string {
+func TokenHint(secret string) string {
 	body := secret[len(TokenPrefix) : len(TokenPrefix)+tokenBodyLen]
 	return TokenPrefix + body[:4] + "…" + body[len(body)-4:]
 }
@@ -140,6 +140,56 @@ func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope stri
 	if p.Token != nil {
 		return NewToken{}, ErrNeedsSession
 	}
+	return s.createToken(ctx, func(*store.Tx) (store.User, error) { return p.User, nil }, p.Actor(), name, scope, expires)
+}
+
+// LocalTokenTTL is how long a token for local access lasts.
+const LocalTokenTTL = 12 * time.Hour
+
+// CreateLocalToken makes a token that lasts LocalTokenTTL for the
+// install's owner, for the CLI on the control server. Only someone who can
+// read the control plane's data directory can call it, as with
+// CreateSignInLink, and they control the install already; actor names
+// them in the audit log, as "cli:root@hz-1". See
+// docs/adr/0019-a-cli-generated-from-the-schema.md.
+func (s *Service) CreateLocalToken(ctx context.Context, actor, name, scope string) (NewToken, error) {
+	expires := s.now().Add(LocalTokenTTL)
+	return s.createToken(ctx, func(tx *store.Tx) (store.User, error) {
+		u, err := tx.Owner(ctx)
+		if errors.Is(err, store.ErrNotFound) {
+			return u, errors.New("this install has no owner yet, so local access has nobody to act for. Claim it with the link from dockwell claim")
+		}
+		return u, err
+	}, actor, name, scope, &expires)
+}
+
+// RevokeLocalToken revokes a token CreateLocalToken made, for whoever can
+// read the data directory. It is a no-op for a token that no longer works.
+func (s *Service) RevokeLocalToken(ctx context.Context, actor, tokenID string) error {
+	err := s.db.Update(ctx, func(tx *store.Tx) error {
+		owner, err := tx.Owner(ctx)
+		if err != nil {
+			return err
+		}
+		err = tx.RevokeAPIToken(ctx, owner.ID, tokenID, s.now())
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "token.revoke", owner.ID, "token "+tokenID)
+	})
+	if err != nil {
+		return err
+	}
+	s.streams.end(tokenID)
+	return nil
+}
+
+// createToken makes a token for the user who returns, in the transaction
+// that stores it.
+func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, name, scope string, expires *time.Time) (NewToken, error) {
 	name = strings.Join(strings.Fields(cleanText(name)), " ")
 	if name == "" || len([]rune(name)) > maxTokenName {
 		return NewToken{}, fmt.Errorf("%w: name the token after what will use it, in up to %d characters, such as GitHub Actions deploy",
@@ -160,18 +210,22 @@ func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope stri
 	tok := store.APIToken{
 		ID:        id.New(id.Token),
 		TokenHash: hash,
-		UserID:    p.User.ID,
 		Name:      name,
-		Hint:      tokenHint(secret),
+		Hint:      TokenHint(secret),
 		Scope:     scope,
 		CreatedAt: now,
 		ExpiresAt: expires,
 	}
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
+		user, err := who(tx)
+		if err != nil {
+			return err
+		}
+		tok.UserID = user.ID
 		if err := tx.PruneAPITokens(ctx, now.Add(-pruneAfter)); err != nil {
 			return err
 		}
-		live, err := tx.CountLiveAPITokens(ctx, p.User.ID, now)
+		live, err := tx.CountLiveAPITokens(ctx, user.ID, now)
 		if err != nil {
 			return err
 		}
@@ -186,7 +240,7 @@ func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope stri
 		if expires != nil {
 			expiry = "expires " + expires.Format(time.RFC3339)
 		}
-		return s.audit(ctx, tx, p.Actor(), "token.create", p.User.ID, fmt.Sprintf("token %s %q, %s, %s", tok.ID, name, scope, expiry))
+		return s.audit(ctx, tx, actor, "token.create", user.ID, fmt.Sprintf("token %s %q, %s, %s", tok.ID, name, scope, expiry))
 	})
 	if err != nil {
 		return NewToken{}, err

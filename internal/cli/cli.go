@@ -12,7 +12,9 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
+	"github.com/dockwell/dockwell/internal/cli/apicli"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/logging"
 	"github.com/dockwell/dockwell/internal/store"
@@ -49,6 +51,12 @@ type IO struct {
 	Out    io.Writer
 	Err    io.Writer
 	Getenv func(string) string
+	// In is standard input, for answers and tokens. Nil means os.Stdin.
+	In io.Reader
+	// Interactive reports whether a person is at a terminal to answer
+	// questions. Nil means whether standard input and standard error are
+	// terminals.
+	Interactive func() bool
 }
 
 // Execute runs the dockwell command line with args (without the program
@@ -57,20 +65,36 @@ func Execute(ctx context.Context, args []string, stdio IO) int {
 	if stdio.Getenv == nil {
 		stdio.Getenv = os.Getenv
 	}
-	root := newRootCmd(stdio)
+	if stdio.In == nil {
+		stdio.In = os.Stdin
+	}
+	if stdio.Interactive == nil {
+		stdio.Interactive = func() bool {
+			return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stderr.Fd()))
+		}
+	}
+	root, err := newRootCmd(stdio)
+	if err != nil {
+		fmt.Fprintf(stdio.Err, "dockwell: %s\n", err)
+		return exitError
+	}
 	root.SetArgs(args)
-	err := root.ExecuteContext(ctx)
+	err = root.ExecuteContext(ctx)
 	if err == nil {
 		return exitOK
 	}
 	fmt.Fprintf(stdio.Err, "dockwell: %s\n", err)
 	var usage usageError
+	var apiUsage apicli.UsageError
 	var coded exitCodeError
+	var apiCoded apicli.ExitError
 	switch {
-	case errors.As(err, &usage):
+	case errors.As(err, &usage), errors.As(err, &apiUsage):
 		return exitUsage
 	case errors.As(err, &coded):
 		return coded.code
+	case errors.As(err, &apiCoded):
+		return apiCoded.Code
 	default:
 		return exitError
 	}
@@ -78,14 +102,19 @@ func Execute(ctx context.Context, args []string, stdio IO) int {
 
 // usageTemplate replaces cobra's default help layout with one that follows
 // Dockwell's content rules: sentence-case headings and a plain closing hint.
+// The root lists its commands in groups: those for this server, and those
+// that call the control plane's API.
 const usageTemplate = `Usage:
   {{if .HasAvailableSubCommands}}{{.CommandPath}} <command> [flags]{{else}}{{.UseLine}}{{end}}{{if .HasExample}}
 
 Examples:
-{{.Example}}{{end}}{{if .HasAvailableSubCommands}}
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
 
-Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
-  {{rpad .Name .NamePadding }}  {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }}  {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+
+{{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+  {{rpad .Name .NamePadding }}  {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
 
 Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
@@ -145,7 +174,10 @@ func (g *globalFlags) databaseOf(stdio IO, dir datadir.Dir) (string, error) {
 	return location, nil
 }
 
-func newRootCmd(stdio IO) *cobra.Command {
+// Help groups of the root's commands.
+const groupServer = "server"
+
+func newRootCmd(stdio IO) (*cobra.Command, error) {
 	var g globalFlags
 	root := &cobra.Command{
 		Use:   "dockwell",
@@ -175,7 +207,12 @@ func newRootCmd(stdio IO) *cobra.Command {
 		"the control plane's Postgres database, as a postgres:// URL; SQLite in the data directory when unset. "+
 			"Set it with "+envDatabase+" or a .pgpass file rather than here, so its password stays out of the process list (env "+envDatabase+")")
 
-	root.AddCommand(
+	root.AddGroup(
+		&cobra.Group{ID: groupServer, Title: "Commands:"},
+		&cobra.Group{ID: apicli.GroupID, Title: "API commands, which call the control plane:"},
+	)
+	root.SetHelpCommandGroupID(groupServer)
+	for _, cmd := range []*cobra.Command{
 		newVersionCmd(),
 		newRunCmd(stdio, &g),
 		newJoinCmd(stdio, &g),
@@ -183,7 +220,15 @@ func newRootCmd(stdio IO) *cobra.Command {
 		newRoleCmd(stdio, &g),
 		newClaimCmd(stdio, &g),
 		newRecoverCmd(stdio, &g),
-	)
+	} {
+		cmd.GroupID = groupServer
+		root.AddCommand(cmd)
+	}
+	api, err := apiCommands(stdio, &g)
+	if err != nil {
+		return nil, err
+	}
+	root.AddCommand(api...)
 
 	// Unknown subcommands are usage errors, with a pointer to the help.
 	root.Args = func(cmd *cobra.Command, args []string) error {
@@ -193,7 +238,7 @@ func newRootCmd(stdio IO) *cobra.Command {
 		return nil
 	}
 	root.RunE = func(cmd *cobra.Command, _ []string) error { return cmd.Help() }
-	return root
+	return root, nil
 }
 
 // noArgs rejects positional arguments as a usage error that points to the

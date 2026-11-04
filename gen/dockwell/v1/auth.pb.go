@@ -2755,14 +2755,20 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x16SIGN_IN_METHOD_PASSKEY\x10\x02\x12%\n" +
 	"!SIGN_IN_METHOD_AUTHENTICATOR_CODE\x10\x03\x12 \n" +
 	"\x1cSIGN_IN_METHOD_RECOVERY_CODE\x10\x04\x12\x17\n" +
-	"\x13SIGN_IN_METHOD_LINK\x10\x052\x81\x16\n" +
+	"\x13SIGN_IN_METHOD_LINK\x10\x052\xb2\x16\n" +
 	"\vAuthService\x12q\n" +
-	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12m\n" +
+	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12}\n" +
 	"\n" +
-	"CheckClaim\x12\x1e.dockwell.v1.CheckClaimRequest\x1a\x1f.dockwell.v1.CheckClaimResponse\"\x1e\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/claim:check\x12m\n" +
+	"CheckClaim\x12\x1e.dockwell.v1.CheckClaimRequest\x1a\x1f.dockwell.v1.CheckClaimResponse\".\xa0\xbb\x18\x01\xaa\xbb\x18\f\n" +
 	"\n" +
-	"BeginClaim\x12\x1e.dockwell.v1.BeginClaimRequest\x1a\x1f.dockwell.v1.BeginClaimResponse\"\x1e\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/claim:begin\x12q\n" +
-	"\vFinishClaim\x12\x1f.dockwell.v1.FinishClaimRequest\x1a .dockwell.v1.FinishClaimResponse\"\x1f\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/claim:finish\x12\x95\x01\n" +
+	"claim-link\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/claim:check\x12}\n" +
+	"\n" +
+	"BeginClaim\x12\x1e.dockwell.v1.BeginClaimRequest\x1a\x1f.dockwell.v1.BeginClaimResponse\".\xa0\xbb\x18\x01\xaa\xbb\x18\f\n" +
+	"\n" +
+	"claim-link\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/claim:begin\x12\x81\x01\n" +
+	"\vFinishClaim\x12\x1f.dockwell.v1.FinishClaimRequest\x1a .dockwell.v1.FinishClaimResponse\"/\xa0\xbb\x18\x03\xaa\xbb\x18\f\n" +
+	"\n" +
+	"claim-link\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/claim:finish\x12\x95\x01\n" +
 	"\x12BeginPasskeySignIn\x12&.dockwell.v1.BeginPasskeySignInRequest\x1a'.dockwell.v1.BeginPasskeySignInResponse\".\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/sessions:beginPasskeySignIn\x12\x99\x01\n" +
 	"\x13FinishPasskeySignIn\x12'.dockwell.v1.FinishPasskeySignInRequest\x1a(.dockwell.v1.FinishPasskeySignInResponse\"/\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02%:\x01*\" /v1/sessions:finishPasskeySignIn\x12\x85\x01\n" +
 	"\x0eSignInWithCode\x12\".dockwell.v1.SignInWithCodeRequest\x1a#.dockwell.v1.SignInWithCodeResponse\"*\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/sessions:signInWithCode\x12\x85\x01\n" +

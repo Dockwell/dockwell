@@ -22,8 +22,25 @@ enum Effect {
   EFFECT_DESTRUCTIVE = 4;
 }
 
+// Command names a method's command in the dockwell CLI, dockwell <noun>
+// <verb>, where the generator's rules give a name that is taken or
+// misleading. By the rules, the noun is the collection in the method's REST
+// path, such as "servers" for /v1/servers/{id}, or for a stream the rest of
+// its name after the verb, plural; the verb is the path's custom verb, such
+// as "apply" for :apply, or else the first word of the method's name, such
+// as "list". See docs/adr/0019-a-cli-generated-from-the-schema.md.
+message Command {
+  // The noun, such as "api-tokens", in place of the rules' one.
+  string noun = 1;
+  // The verb, such as "version", in place of the rules' one.
+  string verb = 2;
+}
+
 extend google.protobuf.MethodOptions {
   // How the method affects managed state. Every Dockwell method sets it; a
   // test in internal/control fails the build when one doesn't.
   Effect effect = 50100;
+  // How the dockwell CLI names the method's command, where its rules give a
+  // name that is taken or misleading. Most methods leave it unset.
+  Command command = 50101;
 }

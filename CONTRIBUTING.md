@@ -58,7 +58,7 @@ Run `make` on its own to list every target. Developer tools such as buf and gola
 
 The panel's text goes through Lingui: write it in English inside `<Trans>` or `` t`…` ``, run `make i18n` to extract it, and add the Simplified Chinese translation to `web/src/locales/zh-CN/messages.po`. CI fails on a missing translation.
 
-The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and `packages/api/src/gen/` (TypeScript). After changing the schema, run `make generate` and commit the result. Run it through make rather than `buf generate` on its own, which empties `gen/` and deletes `gen/LICENSE`. Files in `proto/`, `gen/` and all of `packages/api/` start with `SPDX-License-Identifier: Apache-2.0`, and generated files take that header from their `.proto` file. Every method must set `(dockwell.v1.effect)`, and a test fails the build when one doesn't.
+The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and `packages/api/src/gen/` (TypeScript). After changing the schema, run `make generate` and commit the result. Run it through make rather than `buf generate` on its own, which empties `gen/` and deletes `gen/LICENSE`. Files in `proto/`, `gen/` and all of `packages/api/` start with `SPDX-License-Identifier: Apache-2.0`, and generated files take that header from their `.proto` file. Every method must set `(dockwell.v1.effect)`, and a test fails the build when one doesn't. The CLI's API commands are generated from the schema too, with help from its comments, so write each method's comment as its name and a verb, such as "ListServers returns every server". A method whose command would take a name that is already used sets `(dockwell.v1.command)` ([ADR 0019](docs/adr/0019-a-cli-generated-from-the-schema.md)).
 
 ## Repository layout
 
@@ -66,6 +66,7 @@ The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and
 | --- | --- |
 | `cmd/dockwell/` | The binary's entry point |
 | `internal/cli/` | The `dockwell` commands |
+| `internal/cli/apicli/`, `internal/cli/apicmd/` | The API commands: the machinery that runs them, and their descriptions, generated from the schema by `cmd/protoc-gen-dockwell-cli` and `internal/cli/cligen` ([ADR 0019](docs/adr/0019-a-cli-generated-from-the-schema.md)) |
 | `internal/control/` | The control plane: API and agent listeners, services, and the identity authority |
 | `internal/auth/` | Who may use the panel and API: the claim, passkeys, authenticator codes and sessions ([ADR 0011](docs/adr/0011-claim-and-sign-in.md)) |
 | `internal/https/` | The panel's domain and its certificates from Let's Encrypt |

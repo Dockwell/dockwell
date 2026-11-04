@@ -37,7 +37,7 @@ func TestTokenSecretsHaveTheirShape(t *testing.T) {
 		}
 		// The hint shows random digits only, the first 4 and the last 4,
 		// never the checksum after them.
-		if hint := tokenHint(secret); hint != secret[:8]+"…"+secret[43:47] {
+		if hint := TokenHint(secret); hint != secret[:8]+"…"+secret[43:47] {
 			t.Fatalf("hint %q for %q, want the prefix and the first and last 4 random digits", hint, secret)
 		}
 	}
@@ -113,7 +113,7 @@ func testTokenScopes(t *testing.T, b store.Backend) {
 		stored, err = tx.GetAPIToken(t.Context(), read.Token.ID)
 		return err
 	})
-	if strings.Contains(string(stored.TokenHash), read.Secret[4:]) || stored.Hint != tokenHint(read.Secret) {
+	if strings.Contains(string(stored.TokenHash), read.Secret[4:]) || stored.Hint != TokenHint(read.Secret) {
 		t.Errorf("stored token %+v", stored)
 	}
 }
@@ -497,5 +497,43 @@ func (f *fixture) execSQLScan(t *testing.T, query string, dest ...any) {
 	defer db.Close()
 	if err := db.QueryRowContext(t.Context(), query).Scan(dest...); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLocalTokens(t *testing.T) { storetest.Each(t, testLocalTokens) }
+
+// Local access on the control server makes tokens for the owner, which
+// last LocalTokenTTL, and only once there is an owner.
+func testLocalTokens(t *testing.T, b store.Backend) {
+	f := newFixture(t, b, "")
+	if _, err := f.svc.CreateLocalToken(t.Context(), "cli:root@hz-1", "Local access on hz-1, read-only", store.ScopeReadOnly); err == nil ||
+		!strings.Contains(err.Error(), "no owner yet") {
+		t.Errorf("a local token before the claim = %v, want it refused", err)
+	}
+	owner := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
+	made, err := f.svc.CreateLocalToken(t.Context(), "cli:root@hz-1", "Local access on hz-1, read-only", store.ScopeReadOnly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if made.Token.UserID != owner.User.ID || made.Token.ExpiresAt == nil || !made.Token.ExpiresAt.Equal(f.clock.now().Add(LocalTokenTTL)) {
+		t.Errorf("a local token = %+v, want the owner's, lasting %s", made.Token, LocalTokenTTL)
+	}
+	if _, err := f.svc.AuthenticateToken(t.Context(), localhost, made.Secret, AccessWrite, "/test/Call"); !errors.Is(err, ErrTokenScope) {
+		t.Errorf("a read-only local token making a change = %v, want ErrTokenScope", err)
+	}
+	if got := f.auditEvents(t, "token.create"); len(got) != 1 || got[0].Actor != "cli:root@hz-1" {
+		t.Errorf("token.create events = %+v, want one by the local user", got)
+	}
+	if err := f.svc.RevokeLocalToken(t.Context(), "cli:root@hz-1", made.Token.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.AuthenticateToken(t.Context(), localhost, made.Secret, AccessRead, "/test/Call"); !errors.Is(err, ErrTokenRejected) {
+		t.Errorf("a revoked local token = %v, want ErrTokenRejected", err)
+	}
+	if err := f.svc.RevokeLocalToken(t.Context(), "cli:root@hz-1", made.Token.ID); err != nil {
+		t.Errorf("revoking it again = %v, want nothing to do", err)
+	}
+	if got := f.auditEvents(t, "token.revoke"); len(got) != 1 || got[0].Actor != "cli:root@hz-1" {
+		t.Errorf("token.revoke events = %+v, want one by the local user", got)
 	}
 }

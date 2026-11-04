@@ -52,6 +52,8 @@ service AuthService {
       post: "/v1/claim:check"
       body: "*"
     };
+    // dockwell claim prints a claim link.
+    option (dockwell.v1.command) = {noun: "claim-link"};
   }
 
   // BeginClaim starts creating the owner's first passkey.
@@ -61,6 +63,7 @@ service AuthService {
       post: "/v1/claim:begin"
       body: "*"
     };
+    option (dockwell.v1.command) = {noun: "claim-link"};
   }
 
   // FinishClaim spends the claim link, creates the owner with the new
@@ -71,6 +74,7 @@ service AuthService {
       post: "/v1/claim:finish"
       body: "*"
     };
+    option (dockwell.v1.command) = {noun: "claim-link"};
   }
 
   // BeginPasskeySignIn starts signing in with a passkey.

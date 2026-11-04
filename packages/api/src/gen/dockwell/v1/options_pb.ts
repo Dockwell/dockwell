@@ -4,16 +4,51 @@
 // @generated from file dockwell/v1/options.proto (package dockwell.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenEnum, GenExtension, GenFile } from "@bufbuild/protobuf/codegenv2";
-import { enumDesc, extDesc, fileDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenExtension, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, extDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import type { MethodOptions } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_descriptor } from "@bufbuild/protobuf/wkt";
+import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file dockwell/v1/options.proto.
  */
 export const file_dockwell_v1_options: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9vcHRpb25zLnByb3RvEgtkb2Nrd2VsbC52MSpsCgZFZmZlY3QSFgoSRUZGRUNUX1VOU1BFQ0lGSUVEEAASDwoLRUZGRUNUX1JFQUQQARIPCgtFRkZFQ1RfUExBThACEhAKDEVGRkVDVF9BUFBMWRADEhYKEkVGRkVDVF9ERVNUUlVDVElWRRAEOk0KBmVmZmVjdBIeLmdvb2dsZS5wcm90b2J1Zi5NZXRob2RPcHRpb25zGLSHAyABKA4yEy5kb2Nrd2VsbC52MS5FZmZlY3RSBmVmZmVjdEKlAQoPY29tLmRvY2t3ZWxsLnYxQgxPcHRpb25zUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_google_protobuf_descriptor]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9vcHRpb25zLnByb3RvEgtkb2Nrd2VsbC52MSIlCgdDb21tYW5kEgwKBG5vdW4YASABKAkSDAoEdmVyYhgCIAEoCSpsCgZFZmZlY3QSFgoSRUZGRUNUX1VOU1BFQ0lGSUVEEAASDwoLRUZGRUNUX1JFQUQQARIPCgtFRkZFQ1RfUExBThACEhAKDEVGRkVDVF9BUFBMWRADEhYKEkVGRkVDVF9ERVNUUlVDVElWRRAEOk0KBmVmZmVjdBIeLmdvb2dsZS5wcm90b2J1Zi5NZXRob2RPcHRpb25zGLSHAyABKA4yEy5kb2Nrd2VsbC52MS5FZmZlY3RSBmVmZmVjdDpQCgdjb21tYW5kEh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYtYcDIAEoCzIULmRvY2t3ZWxsLnYxLkNvbW1hbmRSB2NvbW1hbmRCpQEKD2NvbS5kb2Nrd2VsbC52MUIMT3B0aW9uc1Byb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_google_protobuf_descriptor]);
+
+/**
+ * Command names a method's command in the dockwell CLI, dockwell <noun>
+ * <verb>, where the generator's rules give a name that is taken or
+ * misleading. By the rules, the noun is the collection in the method's REST
+ * path, such as "servers" for /v1/servers/{id}, or for a stream the rest of
+ * its name after the verb, plural; the verb is the path's custom verb, such
+ * as "apply" for :apply, or else the first word of the method's name, such
+ * as "list". See docs/adr/0019-a-cli-generated-from-the-schema.md.
+ *
+ * @generated from message dockwell.v1.Command
+ */
+export type Command = Message<"dockwell.v1.Command"> & {
+  /**
+   * The noun, such as "api-tokens", in place of the rules' one.
+   *
+   * @generated from field: string noun = 1;
+   */
+  noun: string;
+
+  /**
+   * The verb, such as "version", in place of the rules' one.
+   *
+   * @generated from field: string verb = 2;
+   */
+  verb: string;
+};
+
+/**
+ * Describes the message dockwell.v1.Command.
+ * Use `create(CommandSchema)` to create a new message.
+ */
+export const CommandSchema: GenMessage<Command> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_options, 0);
 
 /**
  * Effect says how a method touches managed state. The CLI and MCP generators
@@ -72,4 +107,13 @@ export const EffectSchema: GenEnum<Effect> = /*@__PURE__*/
  */
 export const effect: GenExtension<MethodOptions, Effect> = /*@__PURE__*/
   extDesc(file_dockwell_v1_options, 0);
+
+/**
+ * How the dockwell CLI names the method's command, where its rules give a
+ * name that is taken or misleading. Most methods leave it unset.
+ *
+ * @generated from extension: dockwell.v1.Command command = 50101;
+ */
+export const command: GenExtension<MethodOptions, Command> = /*@__PURE__*/
+  extDesc(file_dockwell_v1_options, 1);
 
