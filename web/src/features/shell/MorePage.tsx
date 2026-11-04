@@ -7,8 +7,7 @@ import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { fleetShape } from "../servers/server";
-import { useFleet } from "../servers/useFleet";
+import { useFleetView } from "../servers/useFleet";
 import { Page } from "./Page";
 import { RESOURCES, UPCOMING, type UpcomingSection } from "./sections";
 import { shortVersion } from "./version";
@@ -20,7 +19,7 @@ import "./MorePage.css";
  */
 export function MorePage() {
   const { t, i18n } = useLingui();
-  const { fleet } = fleetShape(useFleet());
+  const { fleet } = useFleetView();
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
   const [theme, setTheme] = useThemePreference();
   const themes: Record<ThemePreference, string> = { system: t`System`, light: t`Light`, dark: t`Dark` };

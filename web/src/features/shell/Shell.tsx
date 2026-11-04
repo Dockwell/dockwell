@@ -5,8 +5,7 @@ import { useLingui } from "@lingui/react/macro";
 import { useLocation } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useRef } from "react";
 
-import { fleetShape } from "../servers/server";
-import { FleetProvider, useFleet } from "../servers/useFleet";
+import { FleetProvider, useFleetView } from "../servers/useFleet";
 import { CommandMenu } from "./CommandMenu";
 import { Rail } from "./Rail";
 import { TabBar } from "./TabBar";
@@ -30,7 +29,8 @@ export function Shell({ children }: { children: ReactNode }) {
 
 function Frame({ children }: { children: ReactNode }) {
   const { t } = useLingui();
-  const shape = fleetShape(useFleet());
+  // The view, not the whole fleet: the frame redraws when a server joins, drops or is renamed, not for each sample.
+  const view = useFleetView();
   const phone = useMediaQuery(PHONE_QUERY);
   const main = useRef<HTMLElement>(null);
   const pathname = useLocation({ select: (location) => location.pathname });
@@ -49,13 +49,13 @@ function Frame({ children }: { children: ReactNode }) {
       <a className="shell-skip" href="#main">
         {t`Skip to content`}
       </a>
-      {phone ? null : <Rail shape={shape} />}
+      {phone ? null : <Rail view={view} />}
       <div className="shell-column">
-        {phone ? null : <Topbar shape={shape} />}
+        {phone ? null : <Topbar view={view} />}
         <main id="main" ref={main} tabIndex={-1} className="shell-main">
           {children}
         </main>
-        {phone ? <TabBar shape={shape} /> : null}
+        {phone ? <TabBar view={view} /> : null}
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ import { cx, Icon, type IconName, Logo } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link, useLocation } from "@tanstack/react-router";
 
-import type { FleetShape } from "../servers/server";
+import type { FleetView } from "../servers/server";
 import { firstSegment, OPERATE, RESOURCES, UPCOMING, type UpcomingSection } from "./sections";
 import { shortVersion } from "./version";
 
@@ -15,7 +15,7 @@ import { shortVersion } from "./version";
  * and shows the version; from the second server on, Fleet holds the server
  * list and fleet actions instead. Below 960px it narrows to icons.
  */
-export function Rail({ shape }: { shape: FleetShape }) {
+export function Rail({ view }: { view: FleetView }) {
   const { t, i18n } = useLingui();
   const segment = firstSegment(useLocation({ select: (location) => location.pathname }));
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
@@ -35,14 +35,14 @@ export function Rail({ shape }: { shape: FleetShape }) {
     );
   };
 
-  const servers = shape.servers?.length ?? 0;
+  const servers = view.servers?.length ?? 0;
   const short = version ? shortVersion(version) : undefined;
   return (
     <nav className="rail" aria-label={t`Main`}>
       <div className="rail-brand">
         <Logo variant="logotype" height={14} className="rail-logo" />
         <Logo variant="mark" height={14} className="rail-mark" />
-        {!shape.fleet && short ? (
+        {!view.fleet && short ? (
           <Link to="/status" className="rail-version" aria-label={t`Dockwell ${short}: control plane status`}>
             {short}
           </Link>
@@ -52,7 +52,7 @@ export function Rail({ shape }: { shape: FleetShape }) {
         <ItemBody icon="home" label={t`Overview`} />
       </Link>
       {RESOURCES.map(section)}
-      {shape.fleet ? (
+      {view.fleet ? (
         <>
           <div className="rail-section">{t`Fleet`}</div>
           <Link to="/servers" activeOptions={{ exact: true }} {...current(segment === "servers")}>
@@ -64,7 +64,7 @@ export function Rail({ shape }: { shape: FleetShape }) {
         <>
           <div className="rail-section">{t`Machine`}</div>
           <Link to="/servers" activeOptions={{ exact: true }} {...current(segment === "servers")}>
-            <ItemBody icon="server" label={t`Server`} count={shape.only?.name} machineCount />
+            <ItemBody icon="server" label={t`Server`} count={view.only?.name} machineCount />
           </Link>
         </>
       )}

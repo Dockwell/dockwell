@@ -7,8 +7,8 @@ import { useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { fleetShape, primaryAddress, serverStatus } from "../servers/server";
-import { useFleet } from "../servers/useFleet";
+import { serverStatus } from "../servers/server";
+import { useFleetView } from "../servers/useFleet";
 import { shortVersion } from "./version";
 
 const OpenContext = createContext<() => void>(() => {});
@@ -77,7 +77,8 @@ function Commands({ onClose }: { onClose: () => void }) {
   const { t } = useLingui();
   const strings = useUIStrings();
   const navigate = useNavigate();
-  const { servers, fleet } = fleetShape(useFleet());
+  // The view keeps its identity between samples, so the list isn't rebuilt while you type.
+  const { servers, fleet } = useFleetView();
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
   const [theme, setTheme] = useThemePreference();
 
@@ -102,7 +103,6 @@ function Commands({ onClose }: { onClose: () => void }) {
       });
     }
     for (const server of servers ?? []) {
-      const address = primaryAddress(server.inventory?.addresses ?? []);
       const name = server.name;
       list.push({
         id: `server:${server.id}`,
@@ -110,7 +110,7 @@ function Commands({ onClose }: { onClose: () => void }) {
         icon: "server",
         // Servers have no page of their own yet, so this says where it goes.
         label: t`Find ${name} in the server list`,
-        hint: [strings.status[serverStatus(server)], address].filter(Boolean).join(" · "),
+        hint: [strings.status[serverStatus(server)], server.address].filter(Boolean).join(" · "),
         run: () => navigate({ to: "/servers" }),
       });
     }

@@ -12,7 +12,6 @@ msgid "(modified)"
 msgstr "(modified)"
 
 #: src/app/Providers.tsx
-#: src/features/shell/Topbar.tsx
 msgid "{count, plural, one {# server} other {# servers}}"
 msgstr "{count, plural, one {# server} other {# servers}}"
 
@@ -59,6 +58,10 @@ msgstr "{name}, {status}, CPU {cpu}%"
 #: src/app/Providers.tsx
 msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 msgstr "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
+
+#: src/features/shell/Topbar.tsx
+msgid "{unknown} in an unknown state"
+msgstr "{unknown} in an unknown state"
 
 #: src/features/servers/ServersPanel.tsx
 msgid "{used} of {total}"
@@ -398,6 +401,7 @@ msgid "Protected environment"
 msgstr "Protected environment"
 
 #: src/features/servers/ServersPanel.tsx
+#: src/features/shell/Topbar.tsx
 msgid "Reconnecting"
 msgstr "Reconnecting"
 

@@ -5,35 +5,96 @@ import type { Status } from "@dockwell/ui";
 
 import type { FleetState } from "./useFleet";
 
-const STATUS: Record<Connection, Status> = {
-  [Connection.UNSPECIFIED]: "stopped",
+const STATUS: Partial<Record<Connection, Status>> = {
   [Connection.CONNECTED]: "healthy",
   [Connection.UNREACHABLE]: "down",
   [Connection.PENDING]: "stopped",
 };
 
-/** A server's state as the design system draws it: connected is healthy, gone quiet is down, not yet heard from is stopped. */
-export function serverStatus(server: Server): Status {
-  return STATUS[server.connection];
+/**
+ * A server's state as the design system draws it: connected is healthy, gone
+ * quiet is down, not yet heard from is stopped. A state this panel doesn't
+ * know, from a newer control plane, is stopped too.
+ */
+export function serverStatus(server: Pick<Server, "connection">): Status {
+  return STATUS[server.connection] ?? "stopped";
 }
 
-/** What the shell needs to know about the fleet's size. */
-export interface FleetShape {
+/** What the shell shows of one server: what changes when it is renamed, connects or drops, not with each sample. */
+export interface ServerSummary {
+  id: string;
+  name: string;
+  connection: Connection;
+  /** The address people reach it on, from its inventory. */
+  address: string | undefined;
+}
+
+/**
+ * The fleet as the shell shows it: how many servers there are and how they
+ * are, but not their numbers. Its parts stay the same objects from one stats
+ * sample to the next, so the rail, top bar and command bar don't redraw for
+ * each one.
+ */
+export interface FleetView {
+  /** Whether the watch is live. While it reconnects, the rest is what it knew last. */
+  status: FleetState["status"];
   /** Every server, or undefined until the first snapshot arrives. */
-  servers: Server[] | undefined;
+  servers: readonly ServerSummary[] | undefined;
   /** True from the second server on. A single-server user never sees fleet concepts before then. */
   fleet: boolean;
   /** The one server, while there is exactly one. */
-  only: Server | undefined;
+  only: ServerSummary | undefined;
+  /** How many servers are in each state. Unknown counts what is in none of the others. */
+  counts: { connected: number; down: number; waiting: number; unknown: number };
 }
 
-export function fleetShape(state: FleetState): FleetShape {
-  const servers = state.status === "connecting" ? undefined : state.servers;
-  return {
+/** Sums up state for the shell, reusing what it can of the view before it so equal parts keep their identity. */
+export function fleetView(state: FleetState, prev?: FleetView): FleetView {
+  const servers = state.status === "connecting" ? undefined : summaries(state.servers, prev?.servers);
+  const counts = { connected: 0, down: 0, waiting: 0, unknown: 0 };
+  for (const server of servers ?? []) {
+    if (server.connection === Connection.CONNECTED) counts.connected++;
+    else if (server.connection === Connection.UNREACHABLE) counts.down++;
+    else if (server.connection === Connection.PENDING) counts.waiting++;
+    else counts.unknown++;
+  }
+  const next: FleetView = {
+    status: state.status,
     servers,
     fleet: (servers?.length ?? 0) > 1,
     only: servers?.length === 1 ? servers[0] : undefined,
+    counts,
   };
+  return prev && sameView(prev, next) ? prev : next;
+}
+
+function summaries(servers: readonly Server[], prev: readonly ServerSummary[] | undefined): readonly ServerSummary[] {
+  const next = servers.map((server, i): ServerSummary => {
+    const summary = {
+      id: server.id,
+      name: server.name,
+      connection: server.connection,
+      address: primaryAddress(server.inventory?.addresses ?? []),
+    };
+    const old = prev?.[i];
+    return old && sameSummary(old, summary) ? old : summary;
+  });
+  return prev && next.length === prev.length && next.every((s, i) => s === prev[i]) ? prev : next;
+}
+
+function sameSummary(a: ServerSummary, b: ServerSummary): boolean {
+  return a.id === b.id && a.name === b.name && a.connection === b.connection && a.address === b.address;
+}
+
+function sameView(a: FleetView, b: FleetView): boolean {
+  return (
+    a.status === b.status &&
+    a.servers === b.servers &&
+    a.counts.connected === b.counts.connected &&
+    a.counts.down === b.counts.down &&
+    a.counts.waiting === b.counts.waiting &&
+    a.counts.unknown === b.counts.unknown
+  );
 }
 
 /** Whether ip is in a private, shared or unique-local range, so not reachable from the internet. */

@@ -4,7 +4,7 @@ import { cx, Icon, type IconName } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link, useLocation } from "@tanstack/react-router";
 
-import type { FleetShape } from "../servers/server";
+import type { FleetView } from "../servers/server";
 import { firstSegment, isUpcoming, UPCOMING } from "./sections";
 
 type Tab = "overview" | "apps" | "servers" | "activity" | "more";
@@ -19,7 +19,7 @@ export function tabOf(pathname: string): Tab {
 }
 
 /** The phone's tab bar, in place of the rail below 640px. */
-export function TabBar({ shape }: { shape: FleetShape }) {
+export function TabBar({ view }: { view: FleetView }) {
   const { t } = useLingui();
   const tab = tabOf(useLocation({ select: (location) => location.pathname }));
   const props = (id: Tab) => ({
@@ -36,7 +36,7 @@ export function TabBar({ shape }: { shape: FleetShape }) {
         <TabBody icon="service" label={t`Apps`} />
       </Link>
       <Link to="/servers" {...props("servers")}>
-        <TabBody icon="server" label={shape.fleet ? t`Servers` : t`Server`} />
+        <TabBody icon="server" label={view.fleet ? t`Servers` : t`Server`} />
       </Link>
       <Link to="/$section" params={{ section: "activity" }} {...props("activity")}>
         <TabBody icon="activity" label={t`Activity`} />

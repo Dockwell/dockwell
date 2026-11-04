@@ -12,7 +12,6 @@ msgid "(modified)"
 msgstr "（有未提交的修改）"
 
 #: src/app/Providers.tsx
-#: src/features/shell/Topbar.tsx
 msgid "{count, plural, one {# server} other {# servers}}"
 msgstr "{count, plural, other {# 台服务器}}"
 
@@ -59,6 +58,10 @@ msgstr "{name}，{status}，CPU {cpu}%"
 #: src/app/Providers.tsx
 msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 msgstr "{samples, plural, other {# 个样本的趋势，最新值 {latest}}}"
+
+#: src/features/shell/Topbar.tsx
+msgid "{unknown} in an unknown state"
+msgstr "{unknown} 台状态未知"
 
 #: src/features/servers/ServersPanel.tsx
 msgid "{used} of {total}"
@@ -398,6 +401,7 @@ msgid "Protected environment"
 msgstr "受保护的环境"
 
 #: src/features/servers/ServersPanel.tsx
+#: src/features/shell/Topbar.tsx
 msgid "Reconnecting"
 msgstr "正在重新连接"
 

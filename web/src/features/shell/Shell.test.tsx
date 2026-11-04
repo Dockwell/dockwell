@@ -120,6 +120,54 @@ describe("the shell on wide screens", () => {
     }
   });
 
+  it("says the counts may be stale while the watch reconnects", async () => {
+    const { watch } = await renderWith("/", hz1, hz2);
+    const top = screen.getByRole("banner");
+    expect(await within(top).findByText("All healthy")).toBeVisible();
+
+    act(() => watch.fail(new Error("the stream dropped")));
+
+    expect(await within(top).findByText("Reconnecting")).toBeVisible();
+    expect(top).not.toHaveTextContent("All healthy");
+    expect(top).not.toHaveTextContent("Deploying");
+    expect(top).toHaveTextContent("2 servers");
+  });
+
+  it("says a single server's state may be stale while the watch reconnects", async () => {
+    const { watch } = await renderWith("/", hz1);
+    const top = screen.getByRole("banner");
+    expect(await within(top).findByText("Healthy")).toBeVisible();
+
+    act(() => watch.fail(new Error("the stream dropped")));
+
+    expect(await within(top).findByText("Reconnecting")).toBeVisible();
+    expect(top).not.toHaveTextContent("Healthy");
+    expect(top).not.toHaveTextContent("Deploying");
+  });
+
+  it("counts every state, and calls the fleet healthy only when every server is connected", async () => {
+    await renderWith(
+      "/",
+      hz1,
+      aServer({ id: "srv_2", name: "hz-2", connection: Connection.PENDING }),
+      aServer({ id: "srv_3", name: "hz-3", connection: Connection.UNSPECIFIED }),
+      aServer({ id: "srv_4", name: "hz-4", connection: Connection.UNREACHABLE }),
+    );
+    const top = screen.getByRole("banner");
+    expect(await within(top).findByText("4 servers")).toBeVisible();
+    expect(within(top).getByText("1 down")).toBeVisible();
+    expect(within(top).getByText("1 waiting for an agent")).toBeVisible();
+    expect(within(top).getByText("1 in an unknown state")).toBeVisible();
+    expect(top).not.toHaveTextContent("All healthy");
+  });
+
+  it("doesn't call a fleet with a server in an unknown state healthy", async () => {
+    await renderWith("/", hz1, aServer({ id: "srv_2", name: "hz-2", connection: Connection.UNSPECIFIED }));
+    const top = screen.getByRole("banner");
+    expect(await within(top).findByText("1 in an unknown state")).toBeVisible();
+    expect(top).not.toHaveTextContent("All healthy");
+  });
+
   it("marks where you are, including the pages below a section", async () => {
     const user = userEvent.setup();
     await renderWith("/", hz1);
@@ -354,6 +402,14 @@ describe("the shell in Simplified Chinese", () => {
     expect(within(nav).getByRole("link", { name: "计划任务" })).toBeVisible();
     expect(screen.getByRole("button", { name: "搜索或运行命令" })).toBeVisible();
     expect(screen.getByRole("banner")).toHaveTextContent("健康");
+  });
+
+  it("counts a fleet in the top bar with the design system's words", async () => {
+    await activateLocale("zh-CN");
+    await renderWith("/", hz1, hz2);
+    const top = screen.getByRole("banner");
+    expect(await within(top).findByText("2 台服务器")).toBeVisible();
+    expect(within(top).getByText("全部健康")).toBeVisible();
   });
 
   it("translates the not-yet page", async () => {
