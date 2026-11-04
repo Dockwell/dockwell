@@ -255,6 +255,12 @@ type model struct {
 	Networks types.Networks `yaml:"networks"`
 }
 
+// MaxFile is the largest Compose file Parse reads: 1 MiB, far more than
+// any real file. compose-go's canonical forms take time and memory that
+// grow faster than a file does, so a file at the API's limit of 8 MB took
+// 5 s of CPU and 4.7 GB of allocations.
+const MaxFile = 1 << 20
+
 // Parse reads a Compose file into what it makes in an environment.
 // Variables such as ${TAG} take their values from variables, or the
 // defaults the file gives; one with neither is refused, rather than left
@@ -268,6 +274,10 @@ type model struct {
 // would: resolving variables, the default network, and references between
 // services, volumes and networks.
 func Parse(_ context.Context, file []byte, variables map[string]string) (*Stack, error) {
+	if len(file) > MaxFile {
+		return nil, invalid("the Compose file is %.1f MiB, and Dockwell reads files of up to 1 MiB. "+
+			"Leave out what Dockwell doesn't run, or import the services in more than one file", float64(len(file))/(1<<20))
+	}
 	raw, err := checkRaw(file)
 	if err != nil {
 		return nil, err
@@ -486,6 +496,11 @@ func app(name string, s *types.ServiceConfig) (*resourcev1.Container, error) {
 	c := &resourcev1.Container{
 		Image: s.Image, Command: s.Command, Entrypoint: s.Entrypoint,
 		User: s.User, WorkingDir: s.WorkingDir, Labels: userLabels(s.Labels),
+	}
+	// entrypoint: [] and entrypoint: "" run none, not even the image's;
+	// compose-go reads both as an empty list, and no entrypoint as nil.
+	if s.Entrypoint != nil && len(s.Entrypoint) == 0 {
+		c.NoEntrypoint = true
 	}
 	restart, ok := restarts[s.Restart]
 	if !ok {

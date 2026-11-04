@@ -28,8 +28,10 @@ type (
 		Volumes  map[string]volumeEntry  `yaml:"volumes,omitempty"`
 	}
 	serviceEntry struct {
-		Image       string             `yaml:"image"`
-		Entrypoint  []string           `yaml:"entrypoint,omitempty"`
+		Image string `yaml:"image"`
+		// Entrypoint is a list, or an empty one for none, as "entrypoint: []"
+		// runs no entrypoint, not even the image's.
+		Entrypoint  any                `yaml:"entrypoint,omitempty"`
 		Command     []string           `yaml:"command,omitempty"`
 		User        string             `yaml:"user,omitempty"`
 		WorkingDir  string             `yaml:"working_dir,omitempty"`
@@ -89,8 +91,14 @@ func Export(project string, stack *Stack) (*Exported, error) {
 			continue
 		}
 		entry := serviceEntry{
-			Image: c.GetImage(), Entrypoint: c.GetEntrypoint(), Command: c.GetCommand(),
-			User: c.GetUser(), WorkingDir: c.GetWorkingDir(), Networks: c.GetNetworks(),
+			Image: escape(c.GetImage()), Command: escapeAll(c.GetCommand()),
+			User: escape(c.GetUser()), WorkingDir: escape(c.GetWorkingDir()), Networks: c.GetNetworks(),
+		}
+		switch {
+		case c.GetNoEntrypoint():
+			entry.Entrypoint = []string{}
+		case len(c.GetEntrypoint()) > 0:
+			entry.Entrypoint = escapeAll(c.GetEntrypoint())
 		}
 		var left []string
 		entry.Environment, left = environment(c)
@@ -120,7 +128,7 @@ func Export(project string, stack *Stack) (*Exported, error) {
 			if len(options) > 0 {
 				v += ":" + strings.Join(options, ",")
 			}
-			entry.Volumes = append(entry.Volumes, v)
+			entry.Volumes = append(entry.Volumes, escape(v))
 		}
 		if len(entry.Networks) == 0 {
 			// Not Compose's default network, which it would make: Docker's
@@ -137,7 +145,7 @@ func Export(project string, stack *Stack) (*Exported, error) {
 				entry.Healthcheck = &healthEntry{Disable: true}
 			} else {
 				entry.Healthcheck = &healthEntry{
-					Test: hc.GetTest(), Interval: hc.GetInterval(), Timeout: hc.GetTimeout(),
+					Test: escapeAll(hc.GetTest()), Interval: hc.GetInterval(), Timeout: hc.GetTimeout(),
 					StartPeriod: hc.GetStartPeriod(), Retries: hc.GetRetries(),
 				}
 			}
@@ -149,6 +157,7 @@ func Export(project string, stack *Stack) (*Exported, error) {
 			}
 			maps.Copy(entry.Labels, own)
 		}
+		entry.Labels = escapeValues(entry.Labels)
 		f.Services[s.Name] = entry
 	}
 	for _, n := range stack.Networks {
@@ -162,13 +171,17 @@ func Export(project string, stack *Stack) (*Exported, error) {
 			}
 			maps.Copy(labels, own)
 		}
-		f.Networks[n.Name] = networkEntry{Driver: n.Spec.GetDriver(), DriverOpts: n.Spec.GetOptions(), Internal: n.Spec.GetInternal(), Labels: labels}
+		f.Networks[n.Name] = networkEntry{
+			Driver: escape(n.Spec.GetDriver()), DriverOpts: escapeValues(n.Spec.GetOptions()), Internal: n.Spec.GetInternal(), Labels: escapeValues(labels),
+		}
 	}
 	for _, v := range stack.Volumes {
 		if f.Volumes == nil {
 			f.Volumes = map[string]volumeEntry{}
 		}
-		f.Volumes[v.Name] = volumeEntry{Driver: v.Spec.GetDriver(), DriverOpts: v.Spec.GetOptions(), Labels: v.Spec.GetLabels()}
+		f.Volumes[v.Name] = volumeEntry{
+			Driver: escape(v.Spec.GetDriver()), DriverOpts: escapeValues(v.Spec.GetOptions()), Labels: escapeValues(v.Spec.GetLabels()),
+		}
 	}
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "# Written by Dockwell. Its project, %s, is the\n# environment's, so docker compose sees what Dockwell runs.\n", project)
@@ -206,10 +219,37 @@ func environment(c *resourcev1.Container) (map[string]*string, []string) {
 			left = append(left, k)
 			continue
 		}
-		v := env[k]
+		v := escape(env[k])
 		out[k] = &v
 	}
 	return out, left
+}
+
+// escape writes a $ as $$, which Compose reads as a $ of its own, not the
+// start of a variable. Compose resolves variables in every value of a
+// file, never in its keys, so values alone are escaped.
+func escape(s string) string { return strings.ReplaceAll(s, "$", "$$") }
+
+func escapeAll(list []string) []string {
+	if list == nil {
+		return nil
+	}
+	out := make([]string, len(list))
+	for i, s := range list {
+		out[i] = escape(s)
+	}
+	return out
+}
+
+func escapeValues(m map[string]string) map[string]string {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[k] = escape(v)
+	}
+	return out
 }
 
 // quoted is a string written in double quotes, as a port such as
