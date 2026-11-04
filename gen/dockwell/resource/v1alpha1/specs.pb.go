@@ -433,6 +433,178 @@ func (x *FirewallRule) GetComment() string {
 	return ""
 }
 
+// Project is a product or client in the organization. It holds
+// environments, and scopes members, secrets and domains. An install starts
+// with one, named "default", which stays out of sight until there is a
+// second.
+type Project struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// How the panel shows it, such as "Acme web". Empty shows its name, which
+	// URLs and the CLI use.
+	DisplayName   string `protobuf:"bytes,1,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Project) Reset() {
+	*x = Project{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Project) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Project) ProtoMessage() {}
+
+func (x *Project) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Project.ProtoReflect.Descriptor instead.
+func (*Project) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Project) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+// Environment is a stage of a project, such as production or staging, with
+// its own config. A project starts with one, named "production", which
+// stays out of sight until there is a second.
+type Environment struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// How the panel shows it, such as "Staging". Empty shows its name.
+	DisplayName   string `protobuf:"bytes,1,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Environment) Reset() {
+	*x = Environment{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Environment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Environment) ProtoMessage() {}
+
+func (x *Environment) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Environment.ProtoReflect.Descriptor instead.
+func (*Environment) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Environment) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+// Service is anything that runs in an environment, placed on servers: for
+// now an app from an image, run as one container on each server it is
+// placed on. Compose stacks, websites, databases, catalog apps and jobs
+// come later. Where it runs isn't part of the spec: each revision is
+// deployed on its servers.
+type Service struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What runs.
+	//
+	// Types that are valid to be assigned to Runs:
+	//
+	//	*Service_App
+	Runs          isService_Runs `protobuf_oneof:"runs"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Service) Reset() {
+	*x = Service{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Service) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Service) ProtoMessage() {}
+
+func (x *Service) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Service.ProtoReflect.Descriptor instead.
+func (*Service) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Service) GetRuns() isService_Runs {
+	if x != nil {
+		return x.Runs
+	}
+	return nil
+}
+
+func (x *Service) GetApp() *Container {
+	if x != nil {
+		if x, ok := x.Runs.(*Service_App); ok {
+			return x.App
+		}
+	}
+	return nil
+}
+
+type isService_Runs interface {
+	isService_Runs()
+}
+
+type Service_App struct {
+	// An app from an image.
+	App *Container `protobuf:"bytes,1,opt,name=app,proto3,oneof"`
+}
+
+func (*Service_App) isService_Runs() {}
+
 var file_dockwell_resource_v1alpha1_specs_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.FieldOptions)(nil),
@@ -480,7 +652,14 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\bprotocol\x18\x02 \x01(\x0e2$.dockwell.resource.v1alpha1.ProtocolR\bprotocol\x12\x12\n" +
 	"\x04port\x18\x03 \x01(\rR\x04port\x12\x18\n" +
 	"\asources\x18\x04 \x03(\tR\asources\x12\x18\n" +
-	"\acomment\x18\x05 \x01(\tR\acomment*\xa3\x01\n" +
+	"\acomment\x18\x05 \x01(\tR\acomment\",\n" +
+	"\aProject\x12!\n" +
+	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\"0\n" +
+	"\vEnvironment\x12!\n" +
+	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\"L\n" +
+	"\aService\x129\n" +
+	"\x03app\x18\x01 \x01(\v2%.dockwell.resource.v1alpha1.ContainerH\x00R\x03appB\x06\n" +
+	"\x04runs*\xa3\x01\n" +
 	"\rRestartPolicy\x12\x1e\n" +
 	"\x1aRESTART_POLICY_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11RESTART_POLICY_NO\x10\x01\x12\x1d\n" +
@@ -512,7 +691,7 @@ func file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_resource_v1alpha1_specs_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(RestartPolicy)(0),                // 0: dockwell.resource.v1alpha1.RestartPolicy
 	(Protocol)(0),                     // 1: dockwell.resource.v1alpha1.Protocol
@@ -520,24 +699,28 @@ var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(*Container)(nil),                 // 3: dockwell.resource.v1alpha1.Container
 	(*PortMapping)(nil),               // 4: dockwell.resource.v1alpha1.PortMapping
 	(*FirewallRule)(nil),              // 5: dockwell.resource.v1alpha1.FirewallRule
-	nil,                               // 6: dockwell.resource.v1alpha1.Container.EnvEntry
-	nil,                               // 7: dockwell.resource.v1alpha1.Container.LabelsEntry
-	(*descriptorpb.FieldOptions)(nil), // 8: google.protobuf.FieldOptions
+	(*Project)(nil),                   // 6: dockwell.resource.v1alpha1.Project
+	(*Environment)(nil),               // 7: dockwell.resource.v1alpha1.Environment
+	(*Service)(nil),                   // 8: dockwell.resource.v1alpha1.Service
+	nil,                               // 9: dockwell.resource.v1alpha1.Container.EnvEntry
+	nil,                               // 10: dockwell.resource.v1alpha1.Container.LabelsEntry
+	(*descriptorpb.FieldOptions)(nil), // 11: google.protobuf.FieldOptions
 }
 var file_dockwell_resource_v1alpha1_specs_proto_depIdxs = []int32{
-	6, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
-	4, // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
-	0, // 2: dockwell.resource.v1alpha1.Container.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
-	7, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
-	1, // 4: dockwell.resource.v1alpha1.PortMapping.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
-	2, // 5: dockwell.resource.v1alpha1.FirewallRule.action:type_name -> dockwell.resource.v1alpha1.FirewallAction
-	1, // 6: dockwell.resource.v1alpha1.FirewallRule.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
-	8, // 7: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	7, // [7:8] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	9,  // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
+	4,  // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
+	0,  // 2: dockwell.resource.v1alpha1.Container.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
+	10, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
+	1,  // 4: dockwell.resource.v1alpha1.PortMapping.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
+	2,  // 5: dockwell.resource.v1alpha1.FirewallRule.action:type_name -> dockwell.resource.v1alpha1.FirewallAction
+	1,  // 6: dockwell.resource.v1alpha1.FirewallRule.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
+	3,  // 7: dockwell.resource.v1alpha1.Service.app:type_name -> dockwell.resource.v1alpha1.Container
+	11, // 8: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
+	9,  // [9:9] is the sub-list for method output_type
+	9,  // [9:9] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	8,  // [8:9] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_resource_v1alpha1_specs_proto_init() }
@@ -545,13 +728,16 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 	if File_dockwell_resource_v1alpha1_specs_proto != nil {
 		return
 	}
+	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[5].OneofWrappers = []any{
+		(*Service_App)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_resource_v1alpha1_specs_proto_rawDesc), len(file_dockwell_resource_v1alpha1_specs_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   5,
+			NumMessages:   8,
 			NumExtensions: 1,
 			NumServices:   0,
 		},

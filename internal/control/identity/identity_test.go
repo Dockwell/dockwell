@@ -15,6 +15,7 @@ import (
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 	"github.com/dockwell/dockwell/internal/ticket"
 )
 
@@ -25,18 +26,14 @@ type fixture struct {
 	dir string
 }
 
-func newFixture(t *testing.T) *fixture {
+func newFixture(t *testing.T, backend store.Backend) *fixture {
 	t.Helper()
 	dir := t.TempDir()
 	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := store.Open(t.Context(), filepath.Join(dir, "state.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db, _ := storetest.Open(t, backend)
 	a, err := Bootstrap(t.Context(), db, key, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +64,11 @@ func newTicket(t *testing.T, f *fixture, ttl time.Duration) *agentv1.JoinTicket 
 }
 
 func TestBootstrapKeepsTheSameIdentity(t *testing.T) {
-	f := newFixture(t)
+	storetest.Each(t, testBootstrapKeepsTheSameIdentity)
+}
+
+func testBootstrapKeepsTheSameIdentity(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
 	again, err := Bootstrap(t.Context(), f.db, f.key, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
@@ -97,8 +98,10 @@ func TestBootstrapKeepsTheSameIdentity(t *testing.T) {
 	})
 }
 
-func TestTicketRoundTrip(t *testing.T) {
-	f := newFixture(t)
+func TestTicketRoundTrip(t *testing.T) { storetest.Each(t, testTicketRoundTrip) }
+
+func testTicketRoundTrip(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
 	tk, err := f.a.CreateTicket(t.Context(), "https://203.0.113.7:7443", "cli:test", DefaultTicketTTL)
 	if err != nil {
 		t.Fatal(err)
@@ -129,8 +132,10 @@ func TestTicketRoundTrip(t *testing.T) {
 	}
 }
 
-func TestJoinSpendsTheTicketOnce(t *testing.T) {
-	f := newFixture(t)
+func TestJoinSpendsTheTicketOnce(t *testing.T) { storetest.Each(t, testJoinSpendsTheTicketOnce) }
+
+func testJoinSpendsTheTicketOnce(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
 	tk := newTicket(t, f, time.Hour)
 
 	joined, err := f.a.Join(t.Context(), tk.GetTokenId(), tk.GetSecret(), csr(t), "HZ-2.example.com", "198.51.100.4")
@@ -162,8 +167,10 @@ func TestJoinSpendsTheTicketOnce(t *testing.T) {
 	})
 }
 
-func TestJoinRejects(t *testing.T) {
-	f := newFixture(t)
+func TestJoinRejects(t *testing.T) { storetest.Each(t, testJoinRejects) }
+
+func testJoinRejects(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
 	tk := newTicket(t, f, time.Hour)
 
 	wrong := append([]byte(nil), tk.GetSecret()...)
@@ -191,8 +198,10 @@ func TestJoinRejects(t *testing.T) {
 	}
 }
 
-func TestNamesStayUnique(t *testing.T) {
-	f := newFixture(t)
+func TestNamesStayUnique(t *testing.T) { storetest.Each(t, testNamesStayUnique) }
+
+func testNamesStayUnique(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
 	var names []string
 	for range 3 {
 		tk := newTicket(t, f, time.Hour)
@@ -208,7 +217,11 @@ func TestNamesStayUnique(t *testing.T) {
 }
 
 func TestRenewRotatesKeysAndRefusesReplacedCertificates(t *testing.T) {
-	f := newFixture(t)
+	storetest.Each(t, testRenewRotatesKeysAndRefusesReplacedCertificates)
+}
+
+func testRenewRotatesKeysAndRefusesReplacedCertificates(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
 	joined, err := f.a.EnrollLocal(t.Context(), csr(t), "hz-1")
 	if err != nil {
 		t.Fatal(err)
@@ -265,8 +278,10 @@ func TestRenewRotatesKeysAndRefusesReplacedCertificates(t *testing.T) {
 	})
 }
 
-func TestRevokedServersCantRenew(t *testing.T) {
-	f := newFixture(t)
+func TestRevokedServersCantRenew(t *testing.T) { storetest.Each(t, testRevokedServersCantRenew) }
+
+func testRevokedServersCantRenew(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
 	joined, err := f.a.EnrollLocal(t.Context(), csr(t), "hz-1")
 	if err != nil {
 		t.Fatal(err)
@@ -285,17 +300,14 @@ func TestRevokedServersCantRenew(t *testing.T) {
 	}
 }
 
-func TestOpenNeverCreatesAnInstall(t *testing.T) {
-	dir := t.TempDir()
-	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
+func TestOpenNeverCreatesAnInstall(t *testing.T) { storetest.Each(t, testOpenNeverCreatesAnInstall) }
+
+func testOpenNeverCreatesAnInstall(t *testing.T, backend store.Backend) {
+	key, err := seal.LoadOrCreate(filepath.Join(t.TempDir(), "key"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := store.Open(t.Context(), filepath.Join(dir, "state.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+	db, _ := storetest.Open(t, backend)
 	if _, err := Open(t.Context(), db, key, slog.New(slog.DiscardHandler)); !errors.Is(err, ErrNoInstall) {
 		t.Fatalf("Open on an empty database = %v", err)
 	}
@@ -308,7 +320,11 @@ func TestOpenNeverCreatesAnInstall(t *testing.T) {
 }
 
 func TestTicketLifetimeErrorReadsWell(t *testing.T) {
-	f := newFixture(t)
+	storetest.Each(t, testTicketLifetimeErrorReadsWell)
+}
+
+func testTicketLifetimeErrorReadsWell(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
 	_, err := f.a.CreateTicket(t.Context(), "https://x:7443", "cli:test", 25*time.Hour)
 	if err == nil || err.Error() != "a join ticket can last from 1 s to 24 h, not 25 h" {
 		t.Errorf("error = %v", err)

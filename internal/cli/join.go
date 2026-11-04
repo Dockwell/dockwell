@@ -40,7 +40,7 @@ func newJoinCmd(stdio IO, g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if exists(dir.StateDB()) {
+			if hasControlPlane(dir) {
 				return fmt.Errorf("this server runs a control plane, in %s, so it can't join another one. Join a different server, or move this one's servers first", dir.Root)
 			}
 			if existing, err := enroll.Load(dir.Agent()); err == nil {
@@ -96,8 +96,12 @@ func newTokenCmd(stdio IO, g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			location, err := g.databaseOf(stdio, dir)
+			if err != nil {
+				return err
+			}
 			ctx := cmd.Context()
-			auth, closeDB, err := openAuthority(ctx, dir, logger)
+			auth, closeDB, err := openAuthority(ctx, dir, location, logger)
 			if err != nil {
 				return err
 			}
@@ -133,18 +137,22 @@ func actor() string {
 	return fmt.Sprintf("cli:%s@%s", user, host)
 }
 
-// openControl opens an existing control plane's key and database, for
-// commands that run beside it on the control server. It never creates
-// either. The caller closes the database.
-func openControl(ctx context.Context, dir datadir.Dir) (*seal.Key, *store.DB, error) {
-	if !exists(dir.StateDB()) {
+// openControl opens an existing control plane's key and database at
+// location, for commands that run beside it on the control server. It
+// never creates either. The caller closes the database.
+func openControl(ctx context.Context, dir datadir.Dir, location string) (*seal.Key, *store.DB, error) {
+	switch {
+	case !hasControlPlane(dir):
 		return nil, nil, fmt.Errorf("there's no control plane in %s. Run this on the control server, or pass its --data-dir", dir.Root)
+	case !store.IsPostgres(location) && !exists(location):
+		return nil, nil, fmt.Errorf("the control plane in %s has no state in %s. If it keeps its state in Postgres, pass --database or set %s to its URL, as dockwell run has it",
+			dir.Root, location, envDatabase)
 	}
 	key, err := seal.Load(dir.SealKey())
 	if err != nil {
 		return nil, nil, err
 	}
-	db, err := store.Open(ctx, dir.StateDB())
+	db, err := store.Open(ctx, location)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -153,8 +161,8 @@ func openControl(ctx context.Context, dir datadir.Dir) (*seal.Key, *store.DB, er
 
 // openAuthority opens an existing control plane's authority, for commands
 // that run beside it. It never creates a key or an install.
-func openAuthority(ctx context.Context, dir datadir.Dir, logger *slog.Logger) (*identity.Authority, func(), error) {
-	key, db, err := openControl(ctx, dir)
+func openAuthority(ctx context.Context, dir datadir.Dir, location string, logger *slog.Logger) (*identity.Authority, func(), error) {
+	key, db, err := openControl(ctx, dir, location)
 	if err != nil {
 		return nil, nil, err
 	}

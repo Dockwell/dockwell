@@ -13,6 +13,7 @@ import (
 
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 func TestTOTPMatchesRFC6238(t *testing.T) {
@@ -114,7 +115,11 @@ func (f *fixture) enableTOTP(t *testing.T, p Principal) ([]byte, []string) {
 func ownerPrincipal(s SignedIn) Principal { return Principal{User: s.User, Session: s.Session} }
 
 func TestSignInWithAnAuthenticatorCode(t *testing.T) {
-	f := newFixture(t, "panel.acme.dev")
+	storetest.Each(t, testSignInWithAnAuthenticatorCode)
+}
+
+func testSignInWithAnAuthenticatorCode(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "panel.acme.dev")
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
 	secret, _ := f.enableTOTP(t, ownerPrincipal(owner))
 
@@ -148,7 +153,11 @@ func TestSignInWithAnAuthenticatorCode(t *testing.T) {
 }
 
 func TestRacingCodeSignInsUseACodeOnce(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testRacingCodeSignInsUseACodeOnce)
+}
+
+func testRacingCodeSignInsUseACodeOnce(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
 	secret, _ := f.enableTOTP(t, ownerPrincipal(owner))
 	code := totpCode(secret, totpStep(f.clock.now()))
@@ -172,8 +181,10 @@ func TestRacingCodeSignInsUseACodeOnce(t *testing.T) {
 	}
 }
 
-func TestWrongCodesSlowDownThenLock(t *testing.T) {
-	f := newFixture(t, "")
+func TestWrongCodesSlowDownThenLock(t *testing.T) { storetest.Each(t, testWrongCodesSlowDownThenLock) }
+
+func testWrongCodesSlowDownThenLock(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
 	secret, recovery := f.enableTOTP(t, ownerPrincipal(owner))
 	wrong := func() string {
@@ -249,7 +260,11 @@ func TestWrongCodesSlowDownThenLock(t *testing.T) {
 }
 
 func TestWrongCodesFromOneSourceSlowDown(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testWrongCodesFromOneSourceSlowDown)
+}
+
+func testWrongCodesFromOneSourceSlowDown(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	f.claim(t, localhost, &authtest.Authenticator{})
 	// Different emails, one address: the source's own limit applies.
 	var slowed int
@@ -268,7 +283,11 @@ func TestWrongCodesFromOneSourceSlowDown(t *testing.T) {
 }
 
 func TestRecoveryCodesAreReplacedTogether(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testRecoveryCodesAreReplacedTogether)
+}
+
+func testRecoveryCodesAreReplacedTogether(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
 	p := ownerPrincipal(owner)
 	_, old := f.enableTOTP(t, p)
@@ -296,8 +315,10 @@ func TestRecoveryCodesAreReplacedTogether(t *testing.T) {
 	}
 }
 
-func TestNeverRemoveTheLastWayIn(t *testing.T) {
-	f := newFixture(t, "")
+func TestNeverRemoveTheLastWayIn(t *testing.T) { storetest.Each(t, testNeverRemoveTheLastWayIn) }
+
+func testNeverRemoveTheLastWayIn(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	a := &authtest.Authenticator{}
 	owner := f.claim(t, localhost, a)
 	p := ownerPrincipal(owner)
@@ -324,7 +345,11 @@ func TestNeverRemoveTheLastWayIn(t *testing.T) {
 // Passkeys for a domain the panel no longer answers on can't sign in, so
 // they don't count as a way in.
 func TestPasskeysForAnOldDomainArentAWayIn(t *testing.T) {
-	f := newFixture(t, "panel.acme.dev")
+	storetest.Each(t, testPasskeysForAnOldDomainArentAWayIn)
+}
+
+func testPasskeysForAnOldDomainArentAWayIn(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "panel.acme.dev")
 	a := &authtest.Authenticator{}
 	owner := f.claim(t, onDomain, a)
 	p := ownerPrincipal(owner)
@@ -374,7 +399,11 @@ func TestPasskeysForAnOldDomainArentAWayIn(t *testing.T) {
 // address it came from as the actor, and the account it tried as the
 // subject. Only a sign-in that worked names the person.
 func TestFailedSignInsAreAuditedAsTheirSource(t *testing.T) {
-	f := newFixture(t, "panel.acme.dev")
+	storetest.Each(t, testFailedSignInsAreAuditedAsTheirSource)
+}
+
+func testFailedSignInsAreAuditedAsTheirSource(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "panel.acme.dev")
 	a := &authtest.Authenticator{}
 	owner := f.claim(t, localhost, a)
 	secret, _ := f.enableTOTP(t, ownerPrincipal(owner))
@@ -409,8 +438,10 @@ func TestFailedSignInsAreAuditedAsTheirSource(t *testing.T) {
 	}
 }
 
-func TestSignInLinks(t *testing.T) {
-	f := newFixture(t, "")
+func TestSignInLinks(t *testing.T) { storetest.Each(t, testSignInLinks) }
+
+func testSignInLinks(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	if _, _, err := f.svc.CreateSignInLink(t.Context(), "", "test"); err == nil {
 		t.Error("a sign-in link before anyone claimed the install")
 	}
@@ -436,8 +467,10 @@ func TestSignInLinks(t *testing.T) {
 	}
 }
 
-func TestSessionsExpire(t *testing.T) {
-	f := newFixture(t, "")
+func TestSessionsExpire(t *testing.T) { storetest.Each(t, testSessionsExpire) }
+
+func testSessionsExpire(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
 
 	// Idle: no request for 12 h ends it.
@@ -473,7 +506,11 @@ func TestSessionsExpire(t *testing.T) {
 }
 
 func TestSessionsWorkOnlyOnTheirAddress(t *testing.T) {
-	f := newFixture(t, "panel.acme.dev")
+	storetest.Each(t, testSessionsWorkOnlyOnTheirAddress)
+}
+
+func testSessionsWorkOnlyOnTheirAddress(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "panel.acme.dev")
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
 	if _, err := f.svc.Authenticate(t.Context(), onDomain, owner.Token); !errors.Is(err, ErrUnauthenticated) {
 		t.Errorf("a localhost session on the domain = %v, want ErrUnauthenticated", err)
@@ -488,8 +525,10 @@ func TestSessionsWorkOnlyOnTheirAddress(t *testing.T) {
 	}
 }
 
-func TestListAndRevokeSessions(t *testing.T) {
-	f := newFixture(t, "")
+func TestListAndRevokeSessions(t *testing.T) { storetest.Each(t, testListAndRevokeSessions) }
+
+func testListAndRevokeSessions(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	a := &authtest.Authenticator{}
 	first := f.claim(t, localhost, a)
 	f.clock.advance(time.Minute)
@@ -637,7 +676,11 @@ func (f *fixture) lockCodes(t *testing.T, email string, secret []byte, from int)
 // locked, from as many addresses as they hold. The audit log mustn't grow
 // with them: one event an hour, with the count.
 func TestCodesRefusedWhileLockedAreAuditedOnceAnHour(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testCodesRefusedWhileLockedAreAuditedOnceAnHour)
+}
+
+func testCodesRefusedWhileLockedAreAuditedOnceAnHour(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
 	secret, _ := f.enableTOTP(t, ownerPrincipal(owner))
 	next := f.lockCodes(t, "mira@acme.dev", secret, 0)
@@ -690,7 +733,11 @@ func TestCodesRefusedWhileLockedAreAuditedOnceAnHour(t *testing.T) {
 // authenticator codes, not the lock, and not wrong recovery codes, however
 // recent.
 func TestARecoveryCodeWorksWhateverOthersSend(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testARecoveryCodeWorksWhateverOthersSend)
+}
+
+func testARecoveryCodeWorksWhateverOthersSend(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
 	secret, recovery := f.enableTOTP(t, ownerPrincipal(owner))
 	stranger, _ := newRecoveryCodes()
@@ -766,7 +813,11 @@ func (f *fixture) answers(t *testing.T, email string, secret []byte, n, from int
 // An email with no account gets the same answers as the owner's, through
 // the lock, after a restart, and however many other emails are tried.
 func TestUnknownEmailsGetTheSameAnswers(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testUnknownEmailsGetTheSameAnswers)
+}
+
+func testUnknownEmailsGetTheSameAnswers(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
 	secret, _ := f.enableTOTP(t, ownerPrincipal(owner))
 

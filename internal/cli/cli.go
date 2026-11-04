@@ -15,6 +15,7 @@ import (
 
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/logging"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 // Exit codes.
@@ -39,6 +40,7 @@ const (
 	envHTTPSListen   = "DOCKWELL_HTTPS_LISTEN"
 	envHTTPListen    = "DOCKWELL_HTTP_LISTEN"
 	envACMEDirectory = "DOCKWELL_ACME_DIRECTORY_URL"
+	envDatabase      = "DOCKWELL_DATABASE"
 )
 
 // IO carries the streams and environment a command runs with, so tests can
@@ -112,6 +114,7 @@ type globalFlags struct {
 	logLevel  string
 	logFormat string
 	dataDir   string
+	database  string
 }
 
 // dir resolves the data directory: --data-dir, then the default for this user.
@@ -120,6 +123,26 @@ func (g *globalFlags) dir(stdio IO) (datadir.Dir, error) {
 		return datadir.Dir{Root: g.dataDir}, nil
 	}
 	return datadir.Default(stdio.Getenv)
+}
+
+// databaseOf resolves where the control plane keeps its state: --database,
+// then DOCKWELL_DATABASE, each a postgres:// URL, and otherwise SQLite in
+// the data directory. Neither the URL nor its password is ever echoed: the
+// flag's default isn't the variable, so help doesn't print it, and errors
+// name the setting, not its value.
+func (g *globalFlags) databaseOf(stdio IO, dir datadir.Dir) (string, error) {
+	location, from := g.database, "--database"
+	if location == "" {
+		location, from = stdio.Getenv(envDatabase), envDatabase
+	}
+	switch {
+	case location == "":
+		return dir.StateDB(), nil
+	case !store.IsPostgres(location):
+		return "", usageError{fmt.Errorf("%s must be a postgres:// URL, such as postgres://dockwell@db.internal:5432/dockwell. "+
+			"Leave it unset to keep the control plane's state in SQLite, in the data directory", from)}
+	}
+	return location, nil
 }
 
 func newRootCmd(stdio IO) *cobra.Command {
@@ -148,6 +171,9 @@ func newRootCmd(stdio IO) *cobra.Command {
 		"log format: auto, text or json; auto writes text to a terminal (env "+envLogFormat+")")
 	pf.StringVar(&g.dataDir, "data-dir", envOr(stdio, envDataDir, ""),
 		"where dockwell keeps its state; /var/lib/dockwell for root, ~/.local/state/dockwell otherwise (env "+envDataDir+")")
+	pf.StringVar(&g.database, "database", "",
+		"the control plane's Postgres database, as a postgres:// URL; SQLite in the data directory when unset. "+
+			"Set it with "+envDatabase+" or a .pgpass file rather than here, so its password stays out of the process list (env "+envDatabase+")")
 
 	root.AddCommand(
 		newVersionCmd(),

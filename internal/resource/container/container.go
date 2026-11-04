@@ -52,6 +52,10 @@ var _ resource.Driver = (*Driver)(nil)
 // Kind returns "container".
 func (*Driver) Kind() resource.Kind { return Kind }
 
+// Level is the server: a container run by hand is host-level. Services
+// run containers too, as part of their environment.
+func (*Driver) Level() resource.Level { return resource.LevelServer }
+
 // New returns an empty Container.
 func (*Driver) New() proto.Message { return &resourcev1.Container{} }
 
@@ -89,8 +93,8 @@ func (*Driver) Validate(spec proto.Message) error {
 }
 
 // Observe asks Docker.
-func (d *Driver) Observe(ctx context.Context, name string) (proto.Message, error) {
-	c, err := d.Runtime.Inspect(ctx, name)
+func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {
+	c, err := d.Runtime.Inspect(ctx, ref.Name)
 	if err != nil || c == nil {
 		return nil, err
 	}
@@ -136,6 +140,6 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 }
 
 // Verify checks the container is running and passes its health check.
-func (d *Driver) Verify(ctx context.Context, name string, _ proto.Message) error {
-	return d.Runtime.Healthy(ctx, name)
+func (d *Driver) Verify(ctx context.Context, ref resource.Ref, _ proto.Message) error {
+	return d.Runtime.Healthy(ctx, ref.Name)
 }

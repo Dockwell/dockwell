@@ -28,6 +28,11 @@ const (
 	Change    = "chg"
 	Passkey   = "pky"
 	Link      = "lnk"
+
+	Organization = "org"
+	Project      = "prj"
+	Environment  = "env"
+	Service      = "svc"
 )
 
 // CrockfordAlphabet is Crockford's base32 alphabet: no I, L, O or U, so IDs

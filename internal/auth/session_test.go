@@ -11,12 +11,15 @@ import (
 
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 // Text a browser sends is stored as valid UTF-8, or the session list can't
 // be sent back.
-func TestClientTextIsValidUTF8(t *testing.T) {
-	f := newFixture(t, "")
+func TestClientTextIsValidUTF8(t *testing.T) { storetest.Each(t, testClientTextIsValidUTF8) }
+
+func testClientTextIsValidUTF8(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	client := localhost
 	client.UserAgent = "x" + strings.Repeat("é", 300) + "\xff\xfe\x00"
 	owner := f.claim(t, client, &authtest.Authenticator{})
@@ -41,9 +44,13 @@ func TestClientTextIsValidUTF8(t *testing.T) {
 // Recording that a session was used is best effort: when it fails, the
 // request still goes through.
 func TestAFailedTouchStillAuthenticates(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testAFailedTouchStillAuthenticates)
+}
+
+func testAFailedTouchStillAuthenticates(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
-	f.execSQL(t, `CREATE TRIGGER no_touch BEFORE UPDATE OF last_seen_at ON sessions BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END`)
+	storetest.FailUpdates(t, f.path, "sessions", "last_seen_at")
 	f.clock.advance(2 * touchEvery)
 	if p, err := f.svc.Authenticate(t.Context(), localhost, owner.Token); err != nil || p.User.ID != owner.User.ID {
 		t.Errorf("Authenticate when the touch fails = %v, %v", p.User.ID, err)
@@ -53,7 +60,11 @@ func TestAFailedTouchStillAuthenticates(t *testing.T) {
 // A page that only holds a stream open is in use: its session lasts until
 // the absolute limit, and no longer.
 func TestAnOpenStreamKeepsItsSession(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testAnOpenStreamKeepsItsSession)
+}
+
+func testAnOpenStreamKeepsItsSession(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	f.svc.recheck = 2 * time.Millisecond
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
 	ctx, stop := f.svc.Track(t.Context(), localhost, ownerPrincipal(owner))
@@ -96,7 +107,11 @@ func TestAnOpenStreamKeepsItsSession(t *testing.T) {
 
 // Signing out the other sessions counts only those that still worked.
 func TestRevokeOtherSessionsSkipsEndedOnes(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testRevokeOtherSessionsSkipsEndedOnes)
+}
+
+func testRevokeOtherSessionsSkipsEndedOnes(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	a := &authtest.Authenticator{}
 	current := f.claim(t, localhost, a)
 	if _, err := f.passkeySignIn(t, localhost, a, nil); err != nil { // left idle
@@ -120,7 +135,11 @@ func TestRevokeOtherSessionsSkipsEndedOnes(t *testing.T) {
 // the stream registered with Track, still ends at once, not at the next
 // recheck.
 func TestARevocationBeforeTrackStillEndsTheStream(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testARevocationBeforeTrackStillEndsTheStream)
+}
+
+func testARevocationBeforeTrackStillEndsTheStream(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	f.svc.recheck = time.Hour
 	a := &authtest.Authenticator{}
 	owner := f.claim(t, localhost, a)

@@ -51,6 +51,8 @@ The Install workflow runs the last two, as well as the install script under syst
 
 The first start prints a one-time link that claims the install: open it to create your owner account with a passkey. With `make dev`, open it on port 5173 instead of 7600. Run `dockwell claim --data-dir <dir>` for a new link, and `dockwell recover` to sign in without your passkey.
 
+The control plane's store runs on SQLite and on Postgres, and the tests that touch it run on each. Without a Postgres server they run on SQLite only, and the Postgres runs skip, saying so. To run them too, point `DOCKWELL_TEST_POSTGRES` at a server you can create schemas on, such as `DOCKWELL_TEST_POSTGRES=postgres://postgres@127.0.0.1:5432/postgres make test`; each test gets a schema of its own and drops it. CI does this for every pull request.
+
 Run `make` on its own to list every target. Developer tools such as buf and golangci-lint are pinned in `tools/go.mod` and run with `go tool -modfile=tools/go.mod <tool>`, so there is nothing else to install.
 
 The panel's text goes through Lingui: write it in English inside `<Trans>` or `` t`…` ``, run `make i18n` to extract it, and add the Simplified Chinese translation to `web/src/locales/zh-CN/messages.po`. CI fails on a missing translation.
@@ -67,7 +69,8 @@ The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and
 | `internal/auth/` | Who may use the panel and API: the claim, passkeys, authenticator codes and sessions ([ADR 0011](docs/adr/0011-claim-and-sign-in.md)) |
 | `internal/https/` | The panel's domain and its certificates from Let's Encrypt |
 | `internal/agent/` | The agent: its identity (`enroll`) and runtime |
-| `internal/store/` | The control plane's state, in SQLite, with embedded migrations |
+| `internal/store/` | The control plane's state, in SQLite or Postgres, with embedded migrations ([ADR 0014](docs/adr/0014-object-model-and-store.md)) |
+| `internal/resource/`, `internal/revision/`, `internal/scope/` | The resource model and its kinds, the revision store with plans, undo and drift, and the projects and environments things live in ([ADR 0009](docs/adr/0009-resources-revisions-and-plans.md), [ADR 0014](docs/adr/0014-object-model-and-store.md)) |
 | `internal/pki/`, `internal/seal/`, `internal/ticket/` | The CA, secrets sealed at rest, and join tickets ([threat model](docs/security/server-identity.md)) |
 | `internal/serve/` | What every HTTP listener shares: timeouts, TLS, shutdown, recovery, RPC logging |
 | `internal/panel/` | Serves the panel embedded in the binary |
