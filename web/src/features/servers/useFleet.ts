@@ -6,6 +6,7 @@ import { useTransport } from "@connectrpc/connect-query";
 import { Connection, type Server, ServerService } from "@dockwell/api";
 import { createContext, createElement, type ReactNode, useContext, useEffect, useState } from "react";
 
+import { isSessionEnded } from "../../lib/errors";
 import { useNow } from "../../lib/time";
 import { appendSample } from "./history";
 import { type FleetView, fleetView } from "./server";
@@ -135,12 +136,17 @@ async function watch(
       throw new ConnectError("the watch ended");
     } catch (err) {
       if (signal.aborted) return;
-      publish(
-        known
-          ? { status: "reconnecting", servers: known, error: ConnectError.from(err) }
-          : { status: "connecting", error: ConnectError.from(err) },
-        clock.skewMs,
-      );
+      // A session that ended is the gate's to handle: the transport has told
+      // it, and it takes the page away if the session is really gone. Until
+      // then the watch keeps trying, without showing an error for it.
+      if (!isSessionEnded(err)) {
+        publish(
+          known
+            ? { status: "reconnecting", servers: known, error: ConnectError.from(err) }
+            : { status: "connecting", error: ConnectError.from(err) },
+          clock.skewMs,
+        );
+      }
       await delay(backoff + Math.random() * backoff, signal);
       backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
     }

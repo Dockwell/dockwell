@@ -2,7 +2,7 @@
 
 import { create } from "@bufbuild/protobuf";
 import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@connectrpc/connect";
-import { GetVersionResponseSchema, ServerService, SystemService } from "@dockwell/api";
+import { AuthService, GetVersionResponseSchema, ServerService, SystemService } from "@dockwell/api";
 import { PHONE_QUERY } from "@dockwell/ui";
 import { QueryClient } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
@@ -10,13 +10,16 @@ import { render, renderHook } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { vi } from "vitest";
 
+import { recheckAuth, watchSession } from "../app/api";
 import { Providers } from "../app/Providers";
 import { routeTree } from "../routeTree.gen";
+import { authState } from "./auth";
 
 /** The parts of the API a test answers. Anything left out fails as unimplemented. */
 export type Api = {
   system?: Partial<ServiceImpl<typeof SystemService>>;
   servers?: Partial<ServiceImpl<typeof ServerService>>;
+  auth?: Partial<ServiceImpl<typeof AuthService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -33,13 +36,17 @@ export function untilAborted(signal: AbortSignal): Promise<void> {
   });
 }
 
-/** The real providers around an in-memory API and a query cache that doesn't retry. */
+/** The real providers, and the real session watch, around an in-memory API and a query cache that doesn't retry. */
 function apiWrapper(api: Api) {
-  const transport = createRouterTransport(({ service }) => {
-    service(SystemService, api.system ?? {});
-    service(ServerService, { watchServers: quietWatch, ...api.servers });
-  });
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const transport = createRouterTransport(
+    ({ service }) => {
+      service(SystemService, api.system ?? {});
+      service(ServerService, { watchServers: quietWatch, ...api.servers });
+      service(AuthService, api.auth ?? {});
+    },
+    { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
+  );
   return ({ children }: { children: ReactNode }) => (
     <Providers transport={transport} queryClient={queryClient}>
       {children}
@@ -57,14 +64,16 @@ export const version = () =>
   create(GetVersionResponseSchema, { build: { version: "v0.4.0", platform: "linux/amd64" } });
 
 /**
- * Renders the whole panel at path, routes and all, against api. The control
- * plane answers GetVersion with v0.4.0 unless api says otherwise.
+ * Renders the whole panel at path, routes and all, against api, as the
+ * browser would load it. Unless api says otherwise, the control plane
+ * answers GetVersion with v0.4.0, and GetAuthState with Mira signed in.
  */
 export function renderAt(path: string, api: Api = {}) {
   const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) });
   const result = renderWithApi(<RouterProvider router={router} />, {
     ...api,
     system: { getVersion: version, ...api.system },
+    auth: { getAuthState: () => authState(), ...api.auth },
   });
   return { ...result, router };
 }

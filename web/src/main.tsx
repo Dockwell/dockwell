@@ -6,7 +6,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { createQueryClient, createTransport } from "./app/api";
+import { createApi } from "./app/api";
 import { activateLocale, pickLocale } from "./app/i18n";
 import { Providers } from "./app/Providers";
 import { router } from "./app/router";
@@ -17,9 +17,10 @@ if (!root) throw new Error("index.html is missing #root");
 // Translations load before the first render, so text never flashes in English.
 await activateLocale(pickLocale(navigator.languages));
 
+const { transport, queryClient } = createApi();
 createRoot(root).render(
   <StrictMode>
-    <Providers transport={createTransport()} queryClient={createQueryClient()}>
+    <Providers transport={transport} queryClient={queryClient}>
       <RouterProvider router={router} />
     </Providers>
   </StrictMode>,

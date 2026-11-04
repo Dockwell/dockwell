@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ButtonHTMLAttributes, Ref } from "react";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, Ref } from "react";
 
 import { cx, hasContent } from "../../lib/cx";
 import { keyShortcut } from "../../lib/keyShortcut";
@@ -69,5 +69,40 @@ export function Button({
       {/* Kept out of the name, so the button reads "Apply plan", not "Apply plan⌘↵". */}
       {kbd ? <Kbd aria-hidden="true">{kbd}</Kbd> : null}
     </button>
+  );
+}
+
+export interface ButtonLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
+  /** As for Button. */
+  variant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
+  /** Icon before the label. With no children the link becomes square and needs aria-label. */
+  icon?: IconName;
+  iconAfter?: IconName;
+  ref?: Ref<HTMLAnchorElement>;
+}
+
+/**
+ * Goes somewhere and looks like a Button: another page, a download. It is an
+ * <a>, so it opens in a new tab and downloads as any link does. Use Button
+ * for actions. Inside the panel, wrap it with the router's link factory,
+ * such as TanStack Router's createLink, so it navigates without a reload.
+ */
+export function ButtonLink({
+  variant = "secondary",
+  size = "md",
+  icon,
+  iconAfter,
+  className,
+  children,
+  ...rest
+}: ButtonLinkProps) {
+  const iconOnly = !hasContent(children);
+  return (
+    <a {...rest} className={cx("dw-btn", `dw-btn-${variant}`, `dw-btn-${size}`, iconOnly && "dw-btn-icon", className)}>
+      {icon ? <Icon name={icon} size={size === "sm" ? 14 : 16} /> : null}
+      {iconOnly ? null : <span className="dw-btn-label">{children}</span>}
+      {iconAfter ? <Icon name={iconAfter} size={14} /> : null}
+    </a>
   );
 }

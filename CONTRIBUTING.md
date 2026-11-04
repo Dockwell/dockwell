@@ -40,6 +40,7 @@ make dev     # the API on 127.0.0.1:7600 and the panel with hot reload on localh
 make run     # build bin/dockwell with the panel built in, and run it on 127.0.0.1:7600
 make mocks   # browse the screen mocks in design/mocks on 127.0.0.1:5174
 make check   # what CI runs: lint, tests, generated-code checks and a smoke test of the binary
+make e2e     # claim, sign out and sign in again in headless Chromium with a virtual passkey
 make budgets # idle memory of an agent, and of a control plane with its agent, against their budgets
 make install-test  # the install script in Debian, Ubuntu, AlmaLinux and Alpine containers (needs Docker and cosign v3)
 ```

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { ConnectError } from "@connectrpc/connect";
 import { useQuery } from "@connectrpc/connect-query";
 import type { BuildInfo } from "@dockwell/api";
 import { SystemService } from "@dockwell/api";
-import { Button, Panel, StatusBadge } from "@dockwell/ui";
+import { Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useEffect, useState } from "react";
 
 import { formatDateTime } from "../../lib/format";
 import { useElapsed } from "../../lib/useElapsed";
 import { ServersPanel } from "../servers/ServersPanel";
+import { CopyCommand } from "./CopyCommand";
 import { StandalonePage } from "./StandalonePage";
+import { Unreachable } from "./Unreachable";
 import "./StatusPage.css";
 
 /**
@@ -37,12 +37,7 @@ export function StatusPage() {
   if (version.isError) {
     return (
       <StandalonePage title={title}>
-        <Unreachable
-          host={host}
-          error={ConnectError.from(version.error)}
-          retrying={version.isFetching}
-          onRetry={() => void version.refetch()}
-        />
+        <Unreachable error={version.error} retrying={version.isFetching} onRetry={() => void version.refetch()} />
       </StandalonePage>
     );
   }
@@ -143,74 +138,5 @@ function Connecting() {
         <Trans>Connecting to the control plane</Trans>
       </h1>
     </header>
-  );
-}
-
-interface UnreachableProps {
-  host: string;
-  error: ConnectError;
-  retrying: boolean;
-  onRetry: () => void;
-}
-
-function Unreachable({ host, error, retrying, onRetry }: UnreachableProps) {
-  const { t } = useLingui();
-  return (
-    <>
-      <header className="standalone-head">
-        <StatusBadge status="down" label={t`Unreachable`} />
-        <h1 className="dw-text-title">
-          <Trans>Can't reach the control plane</Trans>
-        </h1>
-        <p className="standalone-lead">
-          <Trans>
-            The panel loaded, but {host} didn't answer the API. Check that <code>dockwell run</code> is still running on
-            the server, then retry.
-          </Trans>
-        </p>
-      </header>
-      <div className="status-actions">
-        <Button icon="refresh" loading={retrying} onClick={onRetry}>
-          {retrying ? t`Retrying` : t`Retry`}
-        </Button>
-        <code className="status-error">{error.rawMessage || error.message}</code>
-      </div>
-    </>
-  );
-}
-
-function CopyCommand({ command }: { command: string }) {
-  const { t } = useLingui();
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(command);
-      setCopied(true);
-    } catch {
-      // Clipboard access was refused; the command stays selectable.
-    }
-  };
-
-  return (
-    <div className="status-command">
-      <code>{command}</code>
-      <Button
-        variant="ghost"
-        size="sm"
-        icon={copied ? "check" : "copy"}
-        aria-label={copied ? t`Command copied` : t`Copy command`}
-        onClick={() => void copy()}
-      />
-      <span className="dw-sr" aria-live="polite">
-        {copied ? t`Command copied` : ""}
-      </span>
-    </div>
   );
 }

@@ -14,4 +14,8 @@ declare module "@tanstack/react-router" {
   interface Register {
     router: typeof router;
   }
+  interface StaticDataRouteOption {
+    /** The page works without signing in: the claim and sign-in screens. */
+    public?: boolean;
+  }
 }

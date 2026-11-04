@@ -1,0 +1,23 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.copy-command {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+/* Commands wrap rather than scroll out of sight on narrow screens; the copy
+   button always takes the whole command. */
+.copy-command code {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) 0;
+  font-size: 12.5px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}

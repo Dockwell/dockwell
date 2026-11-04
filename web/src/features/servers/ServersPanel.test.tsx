@@ -6,6 +6,7 @@ import { act, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
+import { authError } from "../../test/auth";
 import { feed, renderWithApi } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 import { ServersPanel } from "./ServersPanel";
@@ -99,11 +100,24 @@ describe("ServersPanel", () => {
 
   it("explains a list that didn't load", async () => {
     const watch = feed<WatchServersResponse>();
-    watch.fail(new ConnectError("sign in to see servers", Code.Unauthenticated));
+    watch.fail(new ConnectError("the fleet is still loading", Code.Unavailable));
     renderPanel(watch);
 
     expect(await screen.findByText("The server list didn't load. Dockwell keeps trying.")).toBeVisible();
-    expect(screen.getByText("sign in to see servers")).toBeVisible();
+    expect(screen.getByText("the fleet is still loading")).toBeVisible();
+  });
+
+  it("leaves an ended session to the sign-in gate, and keeps trying quietly until it acts", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const watchServers = vi.fn(() => {
+      throw authError(Code.Unauthenticated, "session_ended", "your session ended");
+    });
+    renderWithApi(<ServersPanel />, { servers: { watchServers } });
+    await vi.waitFor(() => expect(watchServers).toHaveBeenCalledOnce());
+    await act(() => vi.advanceTimersByTimeAsync(2_500));
+    expect(watchServers).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("your session ended")).toBeNull();
+    expect(screen.queryByText("The server list didn't load. Dockwell keeps trying.")).toBeNull();
   });
 
   it("speaks Simplified Chinese", async () => {

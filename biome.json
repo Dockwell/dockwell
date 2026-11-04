@@ -69,7 +69,7 @@
   },
   "overrides": [
     {
-      "includes": ["**/scripts/**"],
+      "includes": ["**/scripts/**", "web/e2e/**"],
       "linter": {
         "rules": {
           "suspicious": {

@@ -64,6 +64,48 @@
   font-size: 14px;
 }
 
+/* A row that acts rather than goes somewhere, such as signing out. */
+.more-button {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.more-button:disabled {
+  color: var(--ink-muted);
+  cursor: default;
+}
+
+/* The theme and signing out share a row, the theme the wider. */
+.more-split {
+  flex-direction: row;
+}
+
+.more-split > .more-choice {
+  flex: 1.65 1 0;
+  min-width: 0;
+}
+
+.more-split > .more-button {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.more-split > .more-row + .more-row {
+  border-top: 0;
+  border-left: 1px solid var(--line);
+}
+
+.more-error {
+  padding: 0 var(--space-1);
+  color: var(--critical);
+  font-size: 13px;
+  line-height: 18px;
+}
+
 /* A native select over the whole row, so the phone's own picker opens. */
 .more-select {
   position: absolute;

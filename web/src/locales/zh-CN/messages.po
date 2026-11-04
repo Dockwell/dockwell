@@ -11,6 +11,20 @@ msgstr ""
 msgid "(modified)"
 msgstr "（有未提交的修改）"
 
+#. placeholder {0}: formatBytes(disk.sizeBytes, i18n.locale)
+#: src/features/auth/ClaimPage.tsx
+msgid "{0} disk"
+msgstr "{0} 磁盘"
+
+#. placeholder {0}: inv.cpuCount
+#: src/features/auth/ClaimPage.tsx
+msgid "{0} vCPU"
+msgstr "{0} vCPU"
+
+#: src/features/auth/device.ts
+msgid "{browser} on {os}"
+msgstr "{os} 上的 {browser}"
+
 #: src/lib/time.ts
 msgid "{count, plural, one {# day} other {# days}}"
 msgstr "{count, plural, other {# 天}}"
@@ -72,6 +86,10 @@ msgstr "{cpus} 个 vCPU"
 msgid "{free} free"
 msgstr "可用 {free}"
 
+#: src/features/auth/ProfilePage.tsx
+msgid "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
+msgstr "还剩 {left} 个（共 10 个），每个只能用一次。如果你丢了身份验证器应用，请在下方重新设置，这也会生成新的恢复码。"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "{memShare} in use"
 msgstr "已使用 {memShare}"
@@ -79,6 +97,10 @@ msgstr "已使用 {memShare}"
 #: src/features/servers/ServerPanels.tsx
 msgid "{mount}: {used} used, {free} free, of {size}"
 msgstr "{mount}：共 {size}，已用 {used}，可用 {free}"
+
+#: src/features/auth/Unclaimed.tsx
+msgid "{name} has no owner yet"
+msgstr "{name} 还没有所有者"
 
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} is waiting for its agent"
@@ -124,6 +146,11 @@ msgstr "{used} / {total}"
 msgid "{waiting} waiting for an agent"
 msgstr "{waiting} 台等待代理连接"
 
+#. placeholder {0}: window.location.host
+#: src/features/auth/SignInPage.tsx
+msgid "<0>{0}</0> · the panel for {name}"
+msgstr "<0>{0}</0> · {name} 的面板"
+
 #: src/features/servers/ServerOverview.tsx
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> 可能已被移除，或者链接有误。"
@@ -136,6 +163,14 @@ msgstr "1、5 和 15 分钟"
 msgid "1, 5 and 15 min, on {cpus} vCPU"
 msgstr "1、5 和 15 分钟，共 {cpus} 个 vCPU"
 
+#: src/features/auth/SignInPage.tsx
+msgid "6 digits from your authenticator app, or one of your recovery codes."
+msgstr "身份验证器应用里的 6 位数字，或你的一个恢复码。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "A claim link works only until someone claims the install. Sign in instead."
+msgstr "认领链接只在有人认领之前有效。请直接登录。"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "Across {cpus} vCPU"
 msgstr "{cpus} 个 vCPU 合计"
@@ -145,17 +180,44 @@ msgstr "{cpus} 个 vCPU 合计"
 msgid "Activity"
 msgstr "动态"
 
+#: src/features/auth/ProfilePage.tsx
+msgid "Add a passkey for {rpId} now, so you can sign in here next time without another link."
+msgstr "现在为 {rpId} 添加一个通行密钥，下次在这里登录就不再需要链接。"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "Add a second way to sign in"
+msgstr "再添加一种登录方式"
+
+#: src/features/auth/PasskeysPanel.tsx
+#: src/features/auth/ProfilePage.tsx
+msgid "Add passkey"
+msgstr "添加通行密钥"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Added {added}"
+msgstr "{added}添加"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Addresses"
 msgstr "地址"
 
+#: src/features/auth/ClaimPage.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Agent"
 msgstr "代理"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Agent connected"
+msgstr "代理已连接"
+
+#: src/features/auth/ClaimPage.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "Agent not connected"
 msgstr "代理未连接"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Agent starting"
+msgstr "代理正在启动"
 
 #: src/features/shell/sections.ts
 msgid "Alerts"
@@ -165,6 +227,10 @@ msgstr "告警"
 msgid "All healthy"
 msgstr "全部健康"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Already claimed"
+msgstr "已被认领"
+
 #: src/app/Providers.tsx
 msgid "app"
 msgstr "应用"
@@ -173,6 +239,10 @@ msgstr "应用"
 #: src/features/shell/TabBar.tsx
 msgid "Apps"
 msgstr "应用"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Authenticator app"
+msgstr "身份验证器应用"
 
 #: src/features/shell/Page.tsx
 msgid "Back"
@@ -186,11 +256,22 @@ msgstr "备份"
 msgid "Backups"
 msgstr "备份"
 
-#: src/features/system/StatusPage.tsx
+#: src/features/auth/AuthGate.tsx
+msgid "Can't check your session"
+msgstr "无法检查你的会话"
+
+#: src/features/auth/AuthGate.tsx
+#: src/features/system/Unreachable.tsx
 msgid "Can't reach the control plane"
 msgstr "无法连接到控制平面"
 
+#. placeholder {0}: groupSecret(setup.secret)
+#: src/features/auth/TotpPanel.tsx
+msgid "Can't scan it? Enter this key instead: <0>{0}</0>"
+msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
+
 #: src/app/Providers.tsx
+#: src/features/auth/TotpPanel.tsx
 msgid "Cancel"
 msgstr "取消"
 
@@ -206,15 +287,59 @@ msgstr "在终端中检查"
 msgid "Check the control plane's status"
 msgstr "查看控制平面状态"
 
+#: src/features/auth/AuthGate.tsx
+msgid "Checking"
+msgstr "正在检查"
+
+#: src/features/auth/AuthGate.tsx
+msgid "Checking again."
+msgstr "正在重新检查。"
+
+#: src/features/auth/AuthGate.tsx
+msgid "Checking your session"
+msgstr "正在检查你的会话"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Claim {name}"
+msgstr "认领 {name}"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Claim code"
+msgstr "认领码"
+
+#: src/features/auth/Unclaimed.tsx
+msgid "Claim it with the one-time link that <0>dockwell run</0> printed when it started. For a new link, run this on {name} over SSH:"
+msgstr "用 <0>dockwell run</0> 启动时打印的一次性链接认领它。如需新链接，请通过 SSH 在 {name} 上运行："
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Claim this server"
+msgstr "认领这台服务器"
+
 #: src/app/Providers.tsx
 msgid "Close"
 msgstr "关闭"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Code"
+msgstr "验证码"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "Code sign-in is locked"
+msgstr "验证码登录已锁定"
+
+#: src/features/auth/messages.ts
+msgid "Code sign-in is locked after 10 wrong codes in a row. Sign in with a passkey or a recovery code, or run dockwell recover on the server, then unlock it under Profile and security."
+msgstr "连续输错 10 次验证码后，验证码登录已锁定。请用通行密钥或恢复码登录，或在服务器上运行 dockwell recover，然后在“个人资料和安全”中解锁。"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Codes copied"
+msgstr "恢复码已复制"
 
 #: src/app/Providers.tsx
 msgid "Command bar"
 msgstr "命令栏"
 
-#: src/features/system/StatusPage.tsx
+#: src/features/system/CopyCommand.tsx
 msgid "Command copied"
 msgstr "命令已复制"
 
@@ -225,6 +350,10 @@ msgstr "提交"
 #: src/features/system/StatusPage.tsx
 msgid "Committed"
 msgstr "提交时间"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Confirm with Touch ID, Windows Hello or a security key."
+msgstr "用 Touch ID、Windows Hello 或安全密钥确认。"
 
 #: src/features/servers/ServerPanels.tsx
 #: src/features/system/StatusPage.tsx
@@ -264,7 +393,11 @@ msgstr "已复制 {text}"
 msgid "Copy {ip}"
 msgstr "复制 {ip}"
 
-#: src/features/system/StatusPage.tsx
+#: src/features/auth/TotpPanel.tsx
+msgid "Copy codes"
+msgstr "复制恢复码"
+
+#: src/features/system/CopyCommand.tsx
 msgid "Copy command"
 msgstr "复制命令"
 
@@ -278,6 +411,15 @@ msgstr "CPU"
 msgid "Create"
 msgstr "创建"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Create passkey"
+msgstr "创建通行密钥"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Creating passkey"
+msgstr "正在创建通行密钥"
+
+#: src/features/auth/SessionsPanel.tsx
 #: src/features/shell/CommandMenu.tsx
 msgid "Current"
 msgstr "当前"
@@ -297,6 +439,10 @@ msgstr "数据库"
 #: src/app/Providers.tsx
 msgid "Degraded"
 msgstr "降级"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Deploy your first app"
+msgstr "部署你的第一个应用"
 
 #: src/app/Providers.tsx
 msgid "Deploying"
@@ -342,9 +488,50 @@ msgstr "域名"
 msgid "Down"
 msgstr "宕机"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "Download"
+msgstr "下载"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Each code signs you in once, with your email, if you lose your authenticator app. They're shown only now. Keep them somewhere safe, apart from your phone."
+msgstr "如果你丢了身份验证器应用，每个恢复码可以配合你的邮箱登录一次。它们只在此时显示。请把它们保存在安全的地方，不要和手机放在一起。"
+
+#: src/features/auth/ClaimPage.tsx
+#: src/features/auth/SignInPage.tsx
+msgid "Email"
+msgstr "邮箱"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Enter an email address, such as mira@acme.dev."
+msgstr "请输入邮箱地址，例如 mira@acme.dev。"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Enter the 6-digit code from your authenticator app, or a recovery code."
+msgstr "请输入身份验证器应用里的 6 位验证码，或一个恢复码。"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Enter the 6-digit code it shows"
+msgstr "输入它显示的 6 位验证码"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Enter the 6-digit code your authenticator app shows for Dockwell."
+msgstr "请输入身份验证器应用为 Dockwell 显示的 6 位验证码。"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Enter the email of your account."
+msgstr "请输入你账户的邮箱。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Enter your name."
+msgstr "请输入你的姓名。"
+
 #: src/app/Providers.tsx
 msgid "Error"
 msgstr "错误"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Expired"
+msgstr "已过期"
 
 #: src/app/Providers.tsx
 msgid "firewall"
@@ -374,10 +561,23 @@ msgstr "可用"
 msgid "from"
 msgstr "从"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "From Git, a Docker image, a Compose file or the catalog."
+msgstr "来自 Git、Docker 镜像、Compose 文件或应用目录。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "From the link <0>dockwell run</0> printed. Run <1>dockwell claim</1> on {name} for a new one."
+msgstr "来自 <0>dockwell run</0> 打印的链接。在 {name} 上运行 <1>dockwell claim</1> 可获取新的认领码。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Full access to {name}"
+msgstr "完全访问 {name}"
+
 #: src/features/system/StatusPage.tsx
 msgid "Go"
 msgstr "Go"
 
+#: src/features/auth/ClaimPage.tsx
 #: src/features/servers/ServerOverview.tsx
 #: src/features/shell/NotYet.tsx
 msgid "Go to the overview"
@@ -399,13 +599,49 @@ msgstr "主机名"
 msgid "Hover or focus a server to inspect it."
 msgstr "悬停或聚焦一台服务器以查看详情。"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "HTTPS is automatic. Your passkey works at this address."
+msgstr "HTTPS 自动配置。你的通行密钥在这个地址可用。"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "I saved them"
+msgstr "我已保存"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "If you lose the device with your only passkey, you'd need <0>dockwell recover</0> on the server. Add another passkey, or an authenticator app."
+msgstr "如果你丢了保存唯一通行密钥的设备，就需要在服务器上运行 <0>dockwell recover</0>。请再添加一个通行密钥，或设置身份验证器应用。"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "If you lost a passkey, add a new one now, then remove the lost one below."
+msgstr "如果你丢了通行密钥，请现在添加一个新的，然后在下方移除丢失的那个。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "in {hours} h"
+msgstr "{hours} 小时后"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "in {minutes} min"
+msgstr "{minutes} 分钟后"
+
 #: src/app/Providers.tsx
 msgid "In <0>{scope}</0>"
 msgstr "范围：<0>{scope}</0>"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "in under a minute"
+msgstr "不到一分钟后"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Installed"
+msgstr "安装时间"
+
 #: src/features/servers/ServerCallout.tsx
 msgid "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
 msgstr "它已加入，但代理尚未连接，所以还没有数据。请在该服务器上运行 <0>dockwell run</0> 启动代理。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "It's live with HTTPS"
+msgstr "通过 HTTPS 上线"
 
 #: src/features/servers/ServerCallout.tsx
 msgid "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
@@ -423,6 +659,18 @@ msgstr "任务"
 msgid "Joined"
 msgstr "加入时间"
 
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Keep"
+msgstr "保留"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Keep at least two, so losing one device never locks you out. Each works only on its address."
+msgstr "至少保留两个，这样丢了一台设备也不会被锁在外面。每个通行密钥只在创建它的地址可用。"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Keep it on"
+msgstr "保持开启"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Kernel"
 msgstr "内核"
@@ -439,6 +687,10 @@ msgstr "最后心跳"
 msgid "Light"
 msgstr "浅色"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Link expires"
+msgstr "链接过期"
+
 #: src/app/Providers.tsx
 msgid "Live"
 msgstr "实时"
@@ -447,9 +699,25 @@ msgstr "实时"
 msgid "Load average"
 msgstr "平均负载"
 
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Loading passkeys"
+msgstr "正在加载通行密钥"
+
 #: src/features/servers/FleetNotes.tsx
 msgid "Loading servers"
 msgstr "正在加载服务器"
+
+#: src/features/auth/SessionsPanel.tsx
+msgid "Loading sessions"
+msgstr "正在加载会话"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Lost your passkey?"
+msgstr "丢了通行密钥？"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Lost your passkey? Run this on the server over SSH. It prints a sign-in link that works once."
+msgstr "丢了通行密钥？请通过 SSH 在服务器上运行这条命令。它会打印一个只能用一次的登录链接。"
 
 #: src/features/shell/Rail.tsx
 msgid "Machine"
@@ -460,9 +728,17 @@ msgstr "机器"
 msgid "Main"
 msgstr "主导航"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "Make new recovery codes"
+msgstr "生成新的恢复码"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Match the system theme"
 msgstr "跟随系统主题"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "May have been copied; it no longer signs in"
+msgstr "可能已被复制，不能再用于登录"
 
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
@@ -476,6 +752,14 @@ msgstr "内存"
 msgid "More"
 msgstr "更多"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "Move to another app"
+msgstr "换到另一个应用"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Name"
+msgstr "名称"
+
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Network"
@@ -485,9 +769,29 @@ msgstr "网络"
 msgid "Never"
 msgstr "从未"
 
+#: src/features/auth/PasskeysPanel.tsx
+msgid "never used"
+msgstr "从未使用"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "New recovery codes"
+msgstr "新的恢复码"
+
+#: src/features/auth/Unclaimed.tsx
+msgid "No owner yet"
+msgstr "还没有所有者"
+
 #: src/features/system/NotFound.tsx
 msgid "No page here"
 msgstr "页面不存在"
+
+#: src/features/auth/SignInPage.tsx
+msgid "No passkey for this address? Passkeys belong to the address they were made on, so one made through the SSH tunnel doesn't work here. Sign in with a code, or run <0>dockwell recover</0> on the server for a one-time link, then add a passkey here."
+msgstr "这个地址没有通行密钥？通行密钥属于创建它的地址，所以通过 SSH 隧道创建的通行密钥在这里不可用。请用验证码登录，或在服务器上运行 <0>dockwell recover</0> 获取一次性链接，然后在这里添加通行密钥。"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "No passkey works at {rpId} yet"
+msgstr "{rpId} 上还没有可用的通行密钥"
 
 #: src/features/servers/ServerOverview.tsx
 msgid "No server with this ID"
@@ -525,21 +829,53 @@ msgstr "这里还没有内容。"
 msgid "Nothing matches “{query}”. Try a server, app or action name."
 msgstr "没有与“{query}”匹配的结果。试试服务器、应用或操作的名称。"
 
+#: src/features/auth/SessionsPanel.tsx
+msgid "now"
+msgstr "现在"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "of {total}"
 msgstr "/ {total}"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Off"
+msgstr "关闭"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "On"
+msgstr "开启"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its {record} record to <0>{publicAddress}</0>, then restart dockwell with <1>--domain</1>."
+msgstr "只能通过你的 SSH 隧道访问，你的通行密钥也只在这里可用。要在你自己的域名上使用 HTTPS，请先把它的 {record} 记录指向 <0>{publicAddress}</0>，然后用 <1>--domain</1> 重启 dockwell。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A or AAAA record to this server's public address, then restart dockwell with <0>--domain</0>."
+msgstr "只能通过你的 SSH 隧道访问，你的通行密钥也只在这里可用。要在你自己的域名上使用 HTTPS，请先把它的 A 或 AAAA 记录指向这台服务器的公网地址，然后用 <0>--domain</0> 重启 dockwell。"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open {name}"
 msgstr "打开 {name}"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
+msgstr "请通过 SSH 隧道在 <0>http://localhost</0> 打开认领链接，或通过 HTTPS 在面板的域名上打开。"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the overview"
 msgstr "打开概览"
 
+#: src/features/auth/SignInPage.tsx
+msgid "Open the panel through your SSH tunnel at <0>http://localhost</0>, or on its domain over HTTPS. You can still sign in with a code."
+msgstr "请通过 SSH 隧道在 <0>http://localhost</0> 打开面板，或通过 HTTPS 在它的域名上打开。你仍然可以用验证码登录。"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the server list"
 msgstr "打开服务器列表"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Open your profile and security settings"
+msgstr "打开你的个人资料和安全设置"
 
 #: src/features/shell/MorePage.tsx
 #: src/features/shell/Rail.tsx
@@ -560,6 +896,14 @@ msgstr "可选"
 msgid "Overview"
 msgstr "概览"
 
+#: src/features/auth/user.ts
+msgid "Owner"
+msgstr "所有者"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Owner account"
+msgstr "所有者账户"
+
 #: src/app/Providers.tsx
 msgid "package"
 msgstr "软件包"
@@ -567,6 +911,35 @@ msgstr "软件包"
 #: src/features/shell/CommandMenu.tsx
 msgid "Pages"
 msgstr "页面"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Panel address"
+msgstr "面板地址"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Passkey"
+msgstr "通行密钥"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Passkeys"
+msgstr "通行密钥"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code."
+msgstr "通行密钥属于创建它的地址。请为 {rpId} 添加一个，这样在这里登录就不需要验证码。"
+
+#: src/features/auth/ClaimPage.tsx
+#: src/features/auth/SignInPage.tsx
+msgid "Passkeys don't work at this address"
+msgstr "通行密钥在这个地址不可用"
+
+#: src/features/auth/messages.ts
+msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
+msgstr "通行密钥需要主机名，不能用 IP 地址。请在同一端口上打开 http://localhost 访问面板。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Paste the claim link or code that dockwell run printed."
+msgstr "请粘贴 dockwell run 打印的认领链接或认领码。"
 
 #: src/app/Providers.tsx
 msgid "Pause"
@@ -588,9 +961,18 @@ msgstr "私有地址"
 msgid "Processor"
 msgstr "处理器"
 
+#: src/features/auth/ProfilePage.tsx
+#: src/features/shell/MorePage.tsx
+msgid "Profile and security"
+msgstr "个人资料和安全"
+
 #: src/app/Providers.tsx
 msgid "Protected environment"
 msgstr "受保护的环境"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Public IP"
+msgstr "公网 IP"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Public IPv4"
@@ -600,6 +982,10 @@ msgstr "公网 IPv4"
 msgid "Public IPv6"
 msgstr "公网 IPv6"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "QR code for your authenticator app"
+msgstr "身份验证器应用的二维码"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Receiving"
 msgstr "接收"
@@ -607,6 +993,22 @@ msgstr "接收"
 #: src/features/servers/FleetNotes.tsx
 msgid "Reconnecting"
 msgstr "正在重新连接"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Recovery codes"
+msgstr "恢复码"
+
+#: src/features/auth/AuthGate.tsx
+msgid "Refused"
+msgstr "已拒绝"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Remove"
+msgstr "移除"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Remove {name}"
+msgstr "移除 {name}"
 
 #: src/app/Providers.tsx
 msgid "Remove {what}"
@@ -616,6 +1018,10 @@ msgstr "移除 {what}"
 msgid "Replace"
 msgstr "替换"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "Replace codes"
+msgstr "替换恢复码"
+
 #: src/features/shell/MorePage.tsx
 msgid "Resources"
 msgstr "资源"
@@ -624,17 +1030,31 @@ msgstr "资源"
 msgid "Results"
 msgstr "结果"
 
-#: src/features/system/StatusPage.tsx
+#: src/features/auth/AuthGate.tsx
+#: src/features/system/Unreachable.tsx
 msgid "Retry"
 msgstr "重试"
 
-#: src/features/system/StatusPage.tsx
+#: src/features/auth/AuthGate.tsx
+#: src/features/system/Unreachable.tsx
 msgid "Retrying"
 msgstr "正在重试"
 
 #: src/features/overview/Overview.tsx
 msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
 msgstr "在控制服务器上运行 <0>dockwell token create</0>，然后在要添加的服务器上，用它输出的凭据运行 <1>dockwell join</1>。"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Run this on {name} over SSH. It prints a sign-in link that works once."
+msgstr "请通过 SSH 在 {name} 上运行这条命令。它会打印一个只能用一次的登录链接。"
+
+#: src/features/auth/RecoverPage.tsx
+msgid "Run this on the server over SSH for a new link. It works once, for 15 min."
+msgstr "请通过 SSH 在服务器上运行这条命令获取新链接。它只能用一次，15 分钟内有效。"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Run this on the server over SSH. It prints a sign-in link that works once."
+msgstr "请通过 SSH 在服务器上运行这条命令。它会打印一个只能用一次的登录链接。"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Runs on another server"
@@ -651,6 +1071,14 @@ msgstr "运行控制平面"
 #: src/features/servers/ServerPanels.tsx
 msgid "same as the control plane"
 msgstr "与控制平面相同"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Save your recovery codes"
+msgstr "保存你的恢复码"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Scan this code with the app."
+msgstr "用应用扫描这个二维码。"
 
 #: src/features/shell/sections.ts
 msgid "Scheduled tasks"
@@ -697,22 +1125,132 @@ msgstr "服务器"
 msgid "service"
 msgstr "服务"
 
+#: src/features/auth/SessionsPanel.tsx
+msgid "Sessions"
+msgstr "会话"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Set up"
+msgstr "设置"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Set up an authenticator app"
+msgstr "设置身份验证器应用"
+
 #: src/features/shell/sections.ts
 msgid "Settings"
 msgstr "设置"
 
 #: src/features/shell/MorePage.tsx
-msgid "Settings and status"
-msgstr "设置与状态"
+msgid "Settings, status and account"
+msgstr "设置、状态和账户"
+
+#: src/features/auth/ClaimPage.tsx
+#: src/features/auth/SignInPage.tsx
+msgid "Sign in"
+msgstr "登录"
+
+#: src/features/auth/RecoverPage.tsx
+msgid "Sign in another way"
+msgstr "用其他方式登录"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Sign in to Dockwell"
+msgstr "登录 Dockwell"
+
+#. placeholder {0}: state.recoveryCodesLeft
+#: src/features/auth/TotpPanel.tsx
+msgid "Sign in with a 6-digit code when your passkey isn't at hand. {0} of 10 recovery codes are left."
+msgstr "通行密钥不在手边时，可以用 6 位验证码登录。还剩 {0} 个恢复码（共 10 个）。"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Sign in with a 6-digit code when your passkey isn't at hand. Codes work at every address, so they also get you in after the panel moves to a new domain."
+msgstr "通行密钥不在手边时，可以用 6 位验证码登录。验证码在所有地址都有效，所以面板换到新域名后也能用它登录。"
+
+#: src/features/auth/RecoverPage.tsx
+msgid "Sign in with a link"
+msgstr "用链接登录"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Sign in with a passkey"
+msgstr "使用通行密钥登录"
+
+#: src/features/auth/ProfilePage.tsx
+#: src/features/auth/SessionsPanel.tsx
+#: src/features/shell/MorePage.tsx
+msgid "Sign out"
+msgstr "退出登录"
+
+#: src/features/auth/SessionsPanel.tsx
+msgid "Sign out {device}"
+msgstr "让 {device} 退出登录"
+
+#: src/features/auth/SessionsPanel.tsx
+msgid "Sign out everywhere else"
+msgstr "在其他所有地方退出登录"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in by claiming this install"
+msgstr "通过认领此安装登录"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in with a one-time link"
+msgstr "通过一次性链接登录"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in with a passkey"
+msgstr "通过通行密钥登录"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in with a recovery code"
+msgstr "通过恢复码登录"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in with an authenticator code"
+msgstr "通过身份验证器验证码登录"
+
+#: src/features/auth/RecoverPage.tsx
+#: src/features/auth/SignInPage.tsx
+msgid "Signing in"
+msgstr "正在登录"
+
+#: src/features/auth/SessionsPanel.tsx
+msgid "Signing out everywhere else keeps this browser signed in. A session ends after 12 h unused, or 7 days."
+msgstr "在其他所有地方退出登录后，这个浏览器仍保持登录。会话在 12 小时未使用或 7 天后结束。"
+
+#: src/features/auth/RecoverPage.tsx
+msgid "Signing you in with a one-time link"
+msgstr "正在用一次性链接为你登录"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Size"
+msgstr "规格"
 
 #: src/features/shell/Shell.tsx
 msgid "Skip to content"
 msgstr "跳到主要内容"
 
+#: src/features/auth/ProfilePage.tsx
+msgid "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
+msgstr "有人为你的账户连续输错了 {count} 次验证码，最后一次在{when}。只有确认是你本人时才解锁验证码登录。否则可能有人知道了你的邮箱；你的通行密钥和恢复码仍然可用。"
+
+#: src/features/auth/messages.ts
+msgid "Something went wrong. Try again."
+msgstr "出了点问题。请重试。"
+
 #: src/app/Providers.tsx
 msgid "Stopped"
 msgstr "已停止"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "Such as 1Password, Google Authenticator or Aegis"
+msgstr "例如 1Password、Google Authenticator 或 Aegis"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Synced"
+msgstr "已同步"
+
+#: src/features/auth/ClaimPage.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "System"
 msgstr "系统"
@@ -722,6 +1260,38 @@ msgctxt "theme"
 msgid "System"
 msgstr "跟随系统"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
+msgstr "10 个新恢复码将替换你现有的 {left} 个，旧的会立即失效。新的恢复码只显示一次。"
+
+#: src/features/auth/messages.ts
+msgid "That code didn't work. Check the email and the code, then try again."
+msgstr "这个验证码无效。请检查邮箱和验证码，然后重试。"
+
+#: src/features/auth/messages.ts
+msgid "That code doesn't match. Check that your phone's clock is right, then enter the current code."
+msgstr "验证码不匹配。请确认手机时间准确，然后输入当前的验证码。"
+
+#: src/features/auth/messages.ts
+msgid "That code was already used. Wait for the next one in your authenticator app."
+msgstr "这个验证码已经用过了。请等待身份验证器应用中的下一个。"
+
+#: src/features/auth/messages.ts
+msgid "That passkey is already registered. Use it to sign in, or pick another device or security key."
+msgstr "这个通行密钥已经注册过了。请用它登录，或选择其他设备或安全密钥。"
+
+#: src/features/auth/messages.ts
+msgid "That passkey isn't registered for this address, or it couldn't be verified. Try another passkey, or sign in with a code."
+msgstr "这个通行密钥没有为此地址注册，或无法验证。请尝试其他通行密钥，或用验证码登录。"
+
+#: src/features/auth/messages.ts
+msgid "That passkey reported a lower use count than before, which happens when a passkey is copied, so it no longer signs in. Sign in another way and remove it under Profile and security."
+msgstr "这个通行密钥报告的使用次数比之前少，这在通行密钥被复制时会发生，所以它已不能再用于登录。请用其他方式登录，然后在“个人资料和安全”中移除它。"
+
+#: src/features/auth/messages.ts
+msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
+msgstr "这样你将无法登录。请先添加另一个通行密钥或身份验证器应用。"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "The agent hasn't said what this server is yet."
 msgstr "代理尚未上报这台服务器的信息。"
@@ -730,17 +1300,49 @@ msgstr "代理尚未上报这台服务器的信息。"
 msgid "The agent reports no disks"
 msgstr "代理没有上报磁盘"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "The authenticator app isn't set up yet"
+msgstr "身份验证器应用尚未设置"
+
+#: src/features/auth/messages.ts
+msgid "The browser couldn't finish with the passkey. Try again, or use another device."
+msgstr "浏览器未能完成通行密钥操作。请重试，或换一台设备。"
+
+#: src/features/auth/messages.ts
+msgid "The control plane couldn't check your session just now. Try again in a moment."
+msgstr "控制平面暂时无法检查你的会话。请稍后重试。"
+
+#: src/features/auth/messages.ts
+msgid "The control plane doesn't answer at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain."
+msgstr "控制平面不在这个地址上响应。请通过 SSH 隧道在 http://localhost 打开面板，或在它的域名上打开。"
+
 #: src/features/system/StatusPage.tsx
 msgid "The control plane is running"
 msgstr "控制平面正在运行"
+
+#: src/features/auth/messages.ts
+msgid "The control plane refused this because it didn't come from the panel's own address. Open the panel at its usual address and try there."
+msgstr "控制平面拒绝了这个请求，因为它不是从面板自己的地址发出的。请在面板的常用地址打开它，然后在那里重试。"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "the control plane runs {controlPlane}"
 msgstr "控制平面为 {controlPlane}"
 
-#: src/features/system/StatusPage.tsx
+#: src/features/auth/ClaimPage.tsx
+msgid "The owner account wasn't created"
+msgstr "所有者账户未创建"
+
+#: src/features/system/Unreachable.tsx
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务器上的 <0>dockwell run</0> 仍在运行，然后重试。"
+
+#: src/features/auth/messages.ts
+msgid "The passkey prompt closed before it finished. Try again when you're ready."
+msgstr "通行密钥提示在完成前关闭了。准备好后请重试。"
+
+#: src/features/auth/messages.ts
+msgid "The passkey request expired. Try again."
+msgstr "通行密钥请求已过期。请重试。"
 
 #: src/features/servers/FleetNotes.tsx
 msgid "The server list didn't load. Dockwell keeps trying."
@@ -755,13 +1357,57 @@ msgstr "主题"
 msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 msgstr "<0>{pathname}</0> 下没有内容。<1>前往概览</1>"
 
+#: src/features/auth/SessionsPanel.tsx
+msgid "This browser"
+msgstr "这个浏览器"
+
+#: src/features/auth/messages.ts
+msgid "This browser can't use passkeys at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain over HTTPS."
+msgstr "这个浏览器无法在此地址使用通行密钥。请通过 SSH 隧道在 http://localhost 打开面板，或通过 HTTPS 在它的域名上打开。"
+
+#: src/features/auth/messages.ts
+msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
+msgstr "这个认领链接无效、已使用、已被新链接取代或已过期。请在服务器上运行 dockwell claim 获取新链接。"
+
 #: src/features/system/StatusPage.tsx
 msgid "This control plane"
 msgstr "当前控制平面"
 
+#: src/features/auth/messages.ts
+msgid "This device already has a passkey for your account here. Use it, or pick another device or security key."
+msgstr "这台设备已经有你在此处账户的通行密钥。请直接使用它，或选择其他设备或安全密钥。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "This install already has an owner"
+msgstr "这个安装已经有所有者"
+
+#: src/features/auth/messages.ts
+msgid "This install already has an owner. Sign in instead."
+msgstr "这个安装已经有所有者。请直接登录。"
+
+#: src/features/auth/RecoverPage.tsx
+msgid "This page needs the whole link that dockwell recover printed, including the part after “#”."
+msgstr "这个页面需要 dockwell recover 打印的完整链接，包括“#”之后的部分。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "This panel controls {name}. Create the owner account with a passkey."
+msgstr "这个面板控制 {name}。请用通行密钥创建所有者账户。"
+
 #: src/features/shell/NotYet.tsx
 msgid "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
 msgstr "Dockwell 的这一部分尚未完成，会在之后的版本中推出。在此之前，可以在概览中查看服务器的运行情况。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "This server"
+msgstr "这台服务器"
+
+#: src/features/auth/RecoverPage.tsx
+msgid "This sign-in link didn't work"
+msgstr "这个登录链接无效"
+
+#: src/features/auth/messages.ts
+msgid "This sign-in link is invalid, already used, replaced by a newer one, or expired. Run dockwell recover on the server for a new link."
+msgstr "这个登录链接无效、已使用、已被新链接取代或已过期。请在服务器上运行 dockwell recover 获取新链接。"
 
 #: src/app/Providers.tsx
 msgid "to"
@@ -791,10 +1437,35 @@ msgstr "项待替换"
 msgid "to run"
 msgstr "运行"
 
+#: src/features/auth/messages.ts
+msgid "Too many requests from your address. Wait a minute, then try again."
+msgstr "来自你的地址的请求过多。请等一分钟后重试。"
+
+#. placeholder {0}: wait(seconds)
+#: src/features/auth/messages.ts
+msgid "Too many wrong codes. Wait {0}, then try again."
+msgstr "验证码错误次数过多。请等待 {0} 后重试。"
+
+#: src/features/auth/messages.ts
+msgid "Too many wrong codes. Wait a moment, then try again."
+msgstr "验证码错误次数过多。请稍候再试。"
+
 #. Read after a metric's name to name its chart, as in “CPU trend”.
 #: src/app/Providers.tsx
 msgid "trend"
 msgstr "趋势"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Turn off"
+msgstr "关闭"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Turn off and delete codes"
+msgstr "关闭并删除恢复码"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Turn on"
+msgstr "开启"
 
 #: src/app/Providers.tsx
 msgid "Undo"
@@ -804,11 +1475,19 @@ msgstr "撤销"
 msgid "Unknown"
 msgstr "未知"
 
+#: src/features/auth/SessionsPanel.tsx
+msgid "Unknown browser"
+msgstr "未知浏览器"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "Unknown system"
 msgstr "未知系统"
 
-#: src/features/system/StatusPage.tsx
+#: src/features/auth/ProfilePage.tsx
+msgid "Unlock"
+msgstr "解锁"
+
+#: src/features/system/Unreachable.tsx
 msgid "Unreachable"
 msgstr "无法访问"
 
@@ -824,6 +1503,18 @@ msgstr "已运行 {uptime}"
 msgid "Update in place"
 msgstr "原地更新"
 
+#: src/features/auth/SignInPage.tsx
+msgid "Use a code from your authenticator app"
+msgstr "使用身份验证器应用中的验证码"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Use a passkey instead"
+msgstr "改用通行密钥"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Use a security key or another device"
+msgstr "使用安全密钥或其他设备"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Use the dark theme"
 msgstr "使用深色主题"
@@ -836,10 +1527,20 @@ msgstr "使用浅色主题"
 msgid "Used"
 msgstr "已用"
 
+#. placeholder {0}: words.ago(timestampDate(passkey.lastUsedTime), now)
+#: src/features/auth/PasskeysPanel.tsx
+msgid "used {0}"
+msgstr "{0}使用过"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/system/StatusPage.tsx
 msgid "Version"
 msgstr "版本"
+
+#. placeholder {0}: version.data.build.version
+#: src/features/auth/SignInPage.tsx
+msgid "Version <0>{0}</0>"
+msgstr "版本 <0>{0}</0>"
 
 #: src/app/Providers.tsx
 msgid "volume"
@@ -860,3 +1561,60 @@ msgstr "警告"
 #: src/features/shell/sections.ts
 msgid "Websites"
 msgstr "网站"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "What happens next"
+msgstr "接下来"
+
+#. placeholder {0}: explain(error)
+#: src/features/auth/AuthGate.tsx
+msgid "What you see may be out of date. {0}"
+msgstr "你看到的内容可能已过时。{0}"
+
+#: src/features/auth/AuthGate.tsx
+msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
+msgstr "你看到的内容可能已过时。请确认服务器上的 dockwell run 仍在运行，然后重试。"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Works here"
+msgstr "在此处可用"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Works on {where}"
+msgstr "在 {where} 上可用"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "You become the owner. Nobody else can sign in."
+msgstr "你将成为所有者。其他人无法登录。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "You sign in with it when you use a code."
+msgstr "使用验证码登录时需要它。"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "You signed in with a one-time link"
+msgstr "你通过一次性链接登录了"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "You used a recovery code"
+msgstr "你使用了一个恢复码"
+
+#: src/features/auth/SignInPage.tsx
+msgid "You're not signed in"
+msgstr "你尚未登录"
+
+#: src/features/auth/messages.ts
+msgid "You're not signed in. Sign in, then try again."
+msgstr "你尚未登录。请登录后重试。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Your domain gets a certificate automatically."
+msgstr "你的域名会自动获得证书。"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Your name"
+msgstr "你的姓名"
+
+#: src/features/auth/messages.ts
+msgid "Your session ended, so this didn't happen. Sign in again, then try again."
+msgstr "你的会话已结束，所以这个操作没有执行。请重新登录后重试。"

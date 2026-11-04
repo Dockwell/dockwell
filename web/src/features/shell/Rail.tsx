@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { SystemService } from "@dockwell/api";
+import { Role, SystemService } from "@dockwell/api";
 import { cx, Icon, type IconName, Logo } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link, useLocation } from "@tanstack/react-router";
-
+import { useSignedInUser } from "../auth/useAuthState";
+import { initials, useRoleName } from "../auth/user";
 import type { FleetView } from "../servers/server";
 import { firstSegment, OPERATE, RESOURCES, UPCOMING, type UpcomingSection } from "./sections";
 import { shortVersion } from "./version";
@@ -13,7 +14,8 @@ import { shortVersion } from "./version";
 /**
  * The navigation rail. With one server it names that server under Machine
  * and shows the version; from the second server on, Fleet holds the server
- * list and fleet actions instead. Below 960px it narrows to icons.
+ * list and fleet actions instead. You, signed in, are at the foot, a link to
+ * your profile. Below 960px it narrows to icons.
  */
 export function Rail({ view }: { view: FleetView }) {
   const { t, i18n } = useLingui();
@@ -83,7 +85,35 @@ export function Rail({ view }: { view: FleetView }) {
       {OPERATE.map(section)}
       <div className="rail-fill" />
       {section("settings")}
+      <Profile active={segment === "profile"} />
     </nav>
+  );
+}
+
+/** Who is signed in, with their role, leading to their profile and security settings. */
+function Profile({ active }: { active: boolean }) {
+  const user = useSignedInUser();
+  const role = useRoleName(user?.role ?? Role.UNSPECIFIED);
+  if (!user) return null;
+  const { className, ...rest } = current(active);
+  return (
+    <Link to="/profile" className={cx(className, "rail-profile")} {...rest}>
+      <span className="rail-avatar" aria-hidden="true">
+        {initials(user.name)}
+      </span>
+      <span className="rail-who">
+        <span className="rail-label rail-name">{user.name}</span>
+        {role ? (
+          <>
+            {" "}
+            <span className="rail-role">{role}</span>
+          </>
+        ) : null}
+      </span>
+      <span className="rail-tip" aria-hidden="true">
+        {user.name}
+      </span>
+    </Link>
   );
 }
 
