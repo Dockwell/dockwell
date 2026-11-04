@@ -235,6 +235,8 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 				h.fleet.Record(peer.ServerID, msg.GetStats())
 			case msg.GetResult() != nil && session != nil:
 				session.deliver(msg.GetResult())
+			case msg.GetDraining() != nil && session != nil:
+				session.drain()
 			}
 		case <-silence.C:
 			log.WarnContext(ctx, "closing a silent stream", slog.String("silent_for", human.Duration(h.silence)))

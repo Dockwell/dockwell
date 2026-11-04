@@ -69,6 +69,9 @@ const (
 	stableSession = time.Minute
 	// defaultStatsInterval applies until the control plane says otherwise.
 	defaultStatsInterval = 5 * time.Second
+	// endWait bounds how long a stream that ends on purpose waits for the
+	// control plane to end it.
+	endWait = 10 * time.Second
 )
 
 // Run keeps the server's certificate fresh and its stream to the control
@@ -165,13 +168,14 @@ var errRenewed = errors.New("the certificate was renewed")
 
 // session runs one stream: hello, welcome, then stats until it breaks or
 // the certificate is renewed.
-func session(ctx context.Context, cfg Config) error {
+func session(ctx context.Context, cfg Config) (err error) {
 	renewed := cfg.Identity.Renewed()
 	client, release, err := cfg.Identity.Client()
 	if err != nil {
 		return err
 	}
 	defer release() // after the stream closes, so its connection goes too
+	parent := ctx
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stream := client.Connect(ctx)
@@ -212,10 +216,14 @@ func session(ctx context.Context, cfg Config) error {
 		defer sendMu.Unlock()
 		return stream.Send(m)
 	}
-	calls := newCalls(ctx, cfg, send)
-	defer calls.stop()
+	// The calls outlive the stream's context, which stops the receiver, so
+	// the stream ends in order: refuse new calls, stop receiving, then
+	// cancel what still runs and wait for it.
+	calls := newCalls(parent, cfg, send)
 	recvErr := make(chan error, 1)
+	received := make(chan struct{})
 	go func() {
+		defer close(received)
 		for {
 			msg, err := stream.Receive()
 			if err != nil {
@@ -227,8 +235,31 @@ func session(ctx context.Context, cfg Config) error {
 				calls.start(msg.GetCall())
 			case msg.GetCancel() != nil:
 				calls.cancel(msg.GetCancel().GetId())
+			case msg.GetDrained() != nil:
+				calls.acknowledged()
 			}
 		}
+	}()
+	defer func() {
+		calls.close()
+		// Half-close first, so what was sent goes out. Moving to a renewed
+		// certificate, the stream ends on purpose: the control plane ends
+		// it once it has read everything, the last results included, which
+		// closing the response at once could drop. Closing the response
+		// then ends a Receive under way, and the stream's context, which
+		// drops what hasn't gone out, is cancelled last.
+		_ = stream.CloseRequest()
+		if errors.Is(err, errRenewed) {
+			wait := time.NewTimer(endWait)
+			select {
+			case <-received:
+			case <-wait.C:
+			}
+			wait.Stop()
+		}
+		_ = stream.CloseResponse()
+		<-received
+		calls.stop()
 	}()
 
 	// When the control plane ends the stream, Send only says EOF; the

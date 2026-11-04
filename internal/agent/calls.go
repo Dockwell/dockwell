@@ -23,8 +23,14 @@ const drainLimit = 15 * time.Minute
 // goroutine, and sends each result back. They end with the stream: a call
 // still running when it drops is cancelled, and the control plane plans
 // again from what the server has when the agent reconnects.
+//
+// The stream ends in order: close refuses the calls that arrive from then
+// on, the stream's receiver stops, and stop cancels what still runs and
+// waits for it. So no call starts while stop waits, and moving to a renewed
+// certificate never cuts a step off that it took on.
 type calls struct {
-	ctx    context.Context
+	ctx    context.Context // the calls', apart from the stream's
+	end    context.CancelFunc
 	cfg    Config
 	local  resource.Local
 	send   func(*agentv1.ConnectRequest) error
@@ -32,36 +38,74 @@ type calls struct {
 
 	mu      sync.Mutex
 	running map[uint64]context.CancelFunc
+	closing bool // refuse calls from now on
 	wg      sync.WaitGroup
 	idle    chan struct{} // signalled when the last running call ends
+	// drained is closed once the control plane answers Draining: it sends
+	// no more calls on this stream.
+	drained     chan struct{}
+	drainedOnce sync.Once
 }
 
 func newCalls(ctx context.Context, cfg Config, send func(*agentv1.ConnectRequest) error) *calls {
+	ctx, end := context.WithCancel(ctx)
 	return &calls{
-		ctx: ctx, cfg: cfg, local: resource.Local{Drivers: cfg.Drivers}, send: send, logger: cfg.Logger,
-		running: map[uint64]context.CancelFunc{}, idle: make(chan struct{}, 1),
+		ctx: ctx, end: end, cfg: cfg, local: resource.Local{Drivers: cfg.Drivers}, send: send, logger: cfg.Logger,
+		running: map[uint64]context.CancelFunc{}, idle: make(chan struct{}, 1), drained: make(chan struct{}),
 	}
 }
 
-// start runs a call.
+// acknowledged notes the control plane's answer to Draining.
+func (c *calls) acknowledged() { c.drainedOnce.Do(func() { close(c.drained) }) }
+
+// start runs a call, or refuses it once the stream is closing: nothing
+// runs, and the control plane sends it again on the next stream.
 func (c *calls) start(call *agentv1.Call) {
 	timeout := call.GetTimeout().AsDuration()
 	if timeout <= 0 {
 		timeout = time.Minute
 	}
-	ctx, cancel := context.WithTimeout(c.ctx, timeout)
 	c.mu.Lock()
+	if c.closing {
+		c.mu.Unlock()
+		c.reply(call.GetId(), &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
+			Message:  "this agent is moving to a new stream, so it didn't run the call; send it again once the agent reconnects",
+			Draining: true,
+		}}})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.ctx, timeout)
 	c.running[call.GetId()] = cancel
+	c.wg.Add(1)
 	c.mu.Unlock()
-	c.wg.Go(func() {
+	go func() {
+		defer c.wg.Done()
 		defer c.done(call.GetId())
-		result := c.run(ctx, call)
-		result.Id = call.GetId()
-		if err := c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: result}}); err != nil && c.ctx.Err() == nil {
-			c.logger.Warn("can't send a call's result; the control plane checks again when the stream is back",
-				slog.Uint64("call", call.GetId()), slog.String("error", errText(err)))
-		}
-	})
+		c.reply(call.GetId(), c.run(ctx, call))
+	}()
+}
+
+// reply sends a call's result.
+func (c *calls) reply(id uint64, result *agentv1.CallResult) {
+	result.Id = id
+	if err := c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: result}}); err != nil && c.ctx.Err() == nil && !c.isClosing() {
+		c.logger.Warn("can't send a call's result; the control plane checks again when the stream is back",
+			slog.Uint64("call", id), slog.String("error", errText(err)))
+	}
+}
+
+// close refuses the calls that arrive from now on. Those already running
+// carry on.
+func (c *calls) close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.closing = true
+}
+
+func (c *calls) isClosing() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.closing
 }
 
 func (c *calls) done(id uint64) {
@@ -94,23 +138,30 @@ func (c *calls) busy() bool {
 	return len(c.running) > 0
 }
 
-// stop cancels every call still running and waits for them.
+// stop cancels every call still running and waits for them. It closes
+// first, so no call starts while it waits; stop the stream's receiver
+// between the two.
 func (c *calls) stop() {
-	c.mu.Lock()
-	for _, cancel := range c.running {
-		cancel()
-	}
-	c.mu.Unlock()
+	c.close()
+	c.end()
 	c.wg.Wait()
 }
 
-// drain waits until no call is running, while the stream keeps reporting
-// stats, so a stream that moves to a renewed certificate doesn't cut a step
-// off halfway. It gives up after drainLimit.
+// drain readies a stream that moves to a renewed certificate to end, while
+// it keeps reporting stats. It refuses calls from now on, and tells the
+// control plane, which sends no more and says so; the calls that arrive
+// before its answer are refused, and the control plane sends them again on
+// the next stream. drain then waits for the calls under way to finish, so
+// moving doesn't cut a step off halfway. It gives up after drainLimit.
 func (c *calls) drain(ctx context.Context, recvErr <-chan error, tick <-chan time.Time, sendStats func() error) error {
+	c.close()
+	if err := c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Draining{Draining: &agentv1.Draining{}}}); err != nil {
+		return err
+	}
 	limit := time.NewTimer(drainLimit)
 	defer limit.Stop()
-	for c.busy() {
+	drained, answered := c.drained, false
+	for c.busy() || !answered {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -121,6 +172,8 @@ func (c *calls) drain(ctx context.Context, recvErr <-chan error, tick <-chan tim
 				return err
 			}
 		case <-c.idle:
+		case <-drained:
+			drained, answered = nil, true
 		case <-limit.C:
 			return nil
 		}

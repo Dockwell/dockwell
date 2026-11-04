@@ -31,8 +31,17 @@ const (
 )
 
 // ErrLost means a server's stream ended while a call on it was waiting
-// for its result. The call may or may not have run.
-var ErrLost = errors.New("the server's agent disconnected")
+// for its result. The call may or may not have run. It is resource.ErrLost,
+// which the engine knows.
+var ErrLost = resource.ErrLost
+
+// reconnectGrace is how long a call that an agent refused, because it is
+// moving to a new stream, waits for the new one once the old one ends.
+const reconnectGrace = 30 * time.Second
+
+// errDraining is a call the agent refused without running it, because it
+// is moving to a new stream.
+var errDraining = errors.New("the agent is moving to a new stream")
 
 // Agents reaches each connected server's agent over its stream, with the
 // calls the engine makes: plan, apply and observe. It is the engine's
@@ -46,12 +55,15 @@ type Agents struct {
 	mu        sync.Mutex
 	sessions  map[string]*Session // the newest stream of each server
 	onConnect []func(server string)
+	// opened is closed, and made again, whenever a session opens, for the
+	// calls waiting for a server's next stream.
+	opened chan struct{}
 }
 
 // NewAgents returns an empty set of agents. kinds reads the specs agents
 // send back.
 func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
-	return &Agents{kinds: kinds, logger: logger, sessions: map[string]*Session{}}
+	return &Agents{kinds: kinds, logger: logger, sessions: map[string]*Session{}, opened: make(chan struct{})}
 }
 
 // OnConnect calls fn, in its own goroutine, each time a server's agent
@@ -98,6 +110,8 @@ func (a *Agents) open(server, name string, kinds []string, send func(*agentv1.Co
 	slices.Sort(s.kinds)
 	a.mu.Lock()
 	a.sessions[server] = s
+	close(a.opened)
+	a.opened = make(chan struct{})
 	hooks := slices.Clone(a.onConnect)
 	a.mu.Unlock()
 	for _, fn := range hooks {
@@ -118,6 +132,9 @@ type Session struct {
 	// ended stops sends once the stream's handler is returning, which
 	// must not write to it any more.
 	ended bool
+	// draining stops calls once the agent said it is moving to a new
+	// stream: they go to the next one.
+	draining bool
 
 	mu      sync.Mutex
 	next    uint64
@@ -127,6 +144,40 @@ type Session struct {
 }
 
 var _ resource.Agent = (*Session)(nil)
+
+// next waits for a newer session of old's server than old, as when its
+// agent moves to a new stream, until ctx is done, or old has ended and
+// reconnectGrace has passed.
+func (a *Agents) next(ctx context.Context, old *Session) (*Session, error) {
+	ended := old.done
+	var grace *time.Timer
+	var graceC <-chan time.Time
+	defer func() {
+		if grace != nil {
+			grace.Stop()
+		}
+	}()
+	for {
+		a.mu.Lock()
+		current, opened := a.sessions[old.server], a.opened
+		a.mu.Unlock()
+		if current != nil && current != old {
+			return current, nil
+		}
+		select {
+		case <-opened:
+		case <-ended:
+			ended = nil
+			grace = time.NewTimer(reconnectGrace)
+			graceC = grace.C
+		case <-graceC:
+			return nil, fmt.Errorf("%w: %s's agent was moving to a new stream and didn't reconnect within %s, so the call didn't run",
+				resource.ErrNotConnected, old.name, human.Duration(reconnectGrace))
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
 
 // close ends the session: the calls still waiting fail with ErrLost, and
 // the server is no longer connected unless a newer stream took over. It
@@ -170,8 +221,44 @@ func (s *Session) write(msg *agentv1.ConnectResponse) error {
 	return s.send(msg)
 }
 
+// writeCall sends a call, unless the agent is moving to a new stream.
+// Checking under the send lock means a call goes out before Drained or
+// not at all, so the agent answers every call it was sent.
+func (s *Session) writeCall(msg *agentv1.ConnectResponse) error {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+	switch {
+	case s.draining:
+		return errDraining
+	case s.ended:
+		return ErrLost
+	}
+	return s.send(msg)
+}
+
+// moving reports a stream the agent left for a new one.
+func (s *Session) moving() bool {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+	return s.draining
+}
+
+// drain answers an agent that is moving to a new stream: no more calls go
+// on this one, and the agent hears so after every call sent before.
+func (s *Session) drain() {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+	if s.draining || s.ended {
+		return
+	}
+	s.draining = true
+	_ = s.send(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Drained{Drained: &agentv1.Drained{}}})
+}
+
 // call sends c and waits for its result, until ctx is done or the stream
-// ends. c's timeout is what remains of ctx's deadline, or fallback.
+// ends. c's timeout is what remains of ctx's deadline, or fallback. A call
+// the agent refuses because it is moving to a new stream didn't run, so it
+// is sent again on the new one, within the same time.
 func (s *Session) call(ctx context.Context, c *agentv1.Call, fallback time.Duration) (*agentv1.CallResult, error) {
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc
@@ -180,10 +267,36 @@ func (s *Session) call(ctx context.Context, c *agentv1.Call, fallback time.Durat
 	}
 	deadline, _ := ctx.Deadline()
 	timeout := time.Until(deadline)
+	for {
+		r, err := s.callOnce(ctx, c)
+		if !errors.Is(err, errDraining) {
+			return r, s.timedOut(ctx, err, timeout)
+		}
+		next, err := s.agents.next(ctx, s)
+		if err != nil {
+			return nil, s.timedOut(ctx, err, timeout)
+		}
+		s = next
+	}
+}
+
+// timedOut says, of a call that ran out of time, how long it had.
+func (s *Session) timedOut(ctx context.Context, err error, timeout time.Duration) error {
+	if err != nil && errors.Is(err, context.DeadlineExceeded) && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return fmt.Errorf("%s's agent didn't answer within %s: %w", s.name, human.Duration(timeout.Round(time.Second)), err)
+	}
+	return err
+}
+
+// callOnce sends c on this stream and waits for its result.
+func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallResult, error) {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return nil, s.lost()
+		if s.moving() {
+			return nil, errDraining // the agent is on, or coming to, its next stream
+		}
+		return nil, s.notConnected()
 	}
 	s.next++
 	c.Id = s.next
@@ -195,17 +308,25 @@ func (s *Session) call(ctx context.Context, c *agentv1.Call, fallback time.Durat
 		delete(s.pending, c.GetId())
 		s.mu.Unlock()
 	}
-	c.Timeout = durationpb.New(timeout)
-	if err := s.write(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Call{Call: c}}); err != nil {
+	deadline, _ := ctx.Deadline()
+	c.Timeout = durationpb.New(time.Until(deadline))
+	if err := s.writeCall(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Call{Call: c}}); err != nil {
 		forget()
-		return nil, s.lost()
+		if errors.Is(err, errDraining) {
+			return nil, err
+		}
+		return nil, s.notConnected()
 	}
 	select {
 	case r := <-ch:
-		if e := r.GetError(); e != nil {
-			return nil, errors.New(e.GetMessage())
+		switch e := r.GetError(); {
+		case e == nil:
+			return r, nil
+		case e.GetDraining():
+			return nil, errDraining
+		default:
+			return nil, &resource.ServerError{Server: s.name, Err: errors.New(e.GetMessage())}
 		}
-		return r, nil
 	case <-s.done:
 		forget()
 		return nil, s.lost()
@@ -213,15 +334,18 @@ func (s *Session) call(ctx context.Context, c *agentv1.Call, fallback time.Durat
 		forget()
 		// Best effort: the agent stops the call when it can.
 		_ = s.write(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Cancel{Cancel: &agentv1.CancelCall{Id: c.GetId()}}})
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, fmt.Errorf("%s's agent didn't answer within %s: %w", s.name, human.Duration(timeout.Round(time.Second)), ctx.Err())
-		}
 		return nil, ctx.Err()
 	}
 }
 
 func (s *Session) lost() error {
 	return fmt.Errorf("%w: %s's agent disconnected before it answered, so the step may or may not have run. Dockwell checks it again when the agent reconnects", ErrLost, s.name)
+}
+
+// notConnected is a call that never reached the agent, as its stream had
+// ended.
+func (s *Session) notConnected() error {
+	return fmt.Errorf("%w: %s's agent disconnected before the call reached it, so it didn't run", resource.ErrNotConnected, s.name)
 }
 
 // supports refuses a kind the agent has no driver for.

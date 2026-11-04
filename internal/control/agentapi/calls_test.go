@@ -159,8 +159,69 @@ func TestCallsReachTheAgentsDrivers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := a.Apply(t.Context(), steps[0], broken); err == nil || !strings.Contains(err.Error(), "isn't healthy") {
-		t.Errorf("applying a broken image = %v, want the health check's failure", err)
+	// The driver's reason comes back naming the server it failed on.
+	err = a.Apply(t.Context(), steps[0], broken)
+	var failed *resource.ServerError
+	if !errors.As(err, &failed) || failed.Server != "hz-1" || !strings.HasPrefix(err.Error(), "hz-1: ") || !strings.Contains(err.Error(), "isn't healthy") {
+		t.Errorf("applying a broken image = %v, want the health check's failure on hz-1", err)
+	}
+}
+
+// An agent moving to a renewed certificate lets the calls under way finish,
+// and refuses the ones that arrive meanwhile. The control plane sends a
+// refused call again on the agent's next stream, so it succeeds rather than
+// failing.
+func TestACallRefusedWhileTheAgentMovesIsSentAgain(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	fw := newGate()
+	runAgent(t, s, id, resource.NewRegistry(&firewall.Driver{Backend: fw}))
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	slow := resource.Step{Ref: resource.Ref{Kind: firewall.Kind, Scope: id.ServerID, Name: "slow"}, Decision: resource.Decision{Action: resource.ActionCreate}}
+	rule := &resourcev1.FirewallRule{Port: 8080}
+	if err := (&firewall.Driver{}).Validate(rule); err != nil {
+		t.Fatal(err)
+	}
+	applied := make(chan error, 1)
+	go func() { applied <- a.Apply(t.Context(), slow, rule) }()
+	<-fw.started
+
+	id.Replace(id.Key(), id.Cert()) // renewed: the agent drains its stream
+	time.Sleep(50 * time.Millisecond)
+	type planned struct {
+		steps []resource.Step
+		err   error
+	}
+	plans := make(chan planned, 1)
+	go func() {
+		steps, err := a.Plan(t.Context(), []resource.Desired{{Ref: resource.Ref{Kind: firewall.Kind, Scope: id.ServerID, Name: "http"}, Spec: rule}})
+		plans <- planned{steps, err}
+	}()
+	select {
+	case p := <-plans:
+		t.Fatalf("a plan sent while the agent drains ended with %+v, %v before the call under way did; want it refused, and sent again", p.steps, p.err)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	close(fw.release)
+	if err := <-applied; err != nil {
+		t.Errorf("the call under way as the agent moved = %v, want it to finish", err)
+	}
+	select {
+	case p := <-plans:
+		if p.err != nil || len(p.steps) != 1 || p.steps[0].Action != resource.ActionCreate {
+			t.Errorf("the plan sent again = %+v, %v, want one create", p.steps, p.err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the refused plan wasn't sent again on the agent's next stream")
+	}
+	waitUntil(t, "the agent is on its next stream", func() bool {
+		next, ok := s.agents.Agent(id.ServerID)
+		return ok && next != a
+	})
+	// A call that reaches the stream the agent left goes to its new one.
+	if _, err := a.Plan(t.Context(), nil); err != nil {
+		t.Errorf("a call on the stream the agent moved from = %v, want it sent on the new one", err)
 	}
 }
 
@@ -240,9 +301,10 @@ func TestAStreamThatDropsFailsItsCalls(t *testing.T) {
 		t.Fatal("a call on a dropped stream is still waiting")
 	}
 	waitForAgent(t, s.agents, id.ServerID, false)
-	// The dropped session takes no more calls.
-	if _, err := a.Plan(t.Context(), nil); !errors.Is(err, agentapi.ErrLost) {
-		t.Errorf("a call on the old session = %v, want ErrLost", err)
+	// The dropped session takes no more calls, and says they never reached
+	// the agent.
+	if _, err := a.Plan(t.Context(), nil); !errors.Is(err, resource.ErrNotConnected) || !strings.Contains(err.Error(), "didn't run") {
+		t.Errorf("a call on the old session = %v, want ErrNotConnected", err)
 	}
 
 	// The agent comes back, with its drivers, on a new stream.

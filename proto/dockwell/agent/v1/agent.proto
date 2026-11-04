@@ -48,8 +48,16 @@ message ConnectRequest {
     dockwell.v1.ServerStats stats = 2;
     // The answer to a call from the control plane.
     CallResult result = 3;
+    // The agent is moving to a new stream, as when its certificate was
+    // renewed: it takes no more calls on this one, and refuses those that
+    // arrive. It finishes the calls under way, and once the control plane
+    // answers with Drained, ends the stream.
+    Draining draining = 4;
   }
 }
+
+// Draining says the agent takes no more calls on this stream.
+message Draining {}
 
 // Hello introduces the agent at the start of a stream.
 message Hello {
@@ -72,8 +80,16 @@ message ConnectResponse {
     Call call = 2;
     // Stops a call the control plane no longer waits for.
     CancelCall cancel = 3;
+    // The answer to Draining: the control plane sends no more calls on this
+    // stream. Every call it sent before arrives first, so the agent has
+    // answered each one, if only with a refusal, by the time it ends the
+    // stream.
+    Drained drained = 4;
   }
 }
+
+// Drained says the control plane sends no more calls on this stream.
+message Drained {}
 
 // Welcome accepts an agent's stream.
 message Welcome {
@@ -220,6 +236,10 @@ message CallError {
   // The reason, for people, such as "can't replace container web: the
   // image doesn't exist".
   string message = 1;
+  // True when the agent didn't run the call because it is moving to a new
+  // stream, as when its certificate was renewed. Nothing ran, and the
+  // control plane sends the call again once the agent reconnects.
+  bool draining = 2;
 }
 
 // PlanResult carries a plan call's steps.
