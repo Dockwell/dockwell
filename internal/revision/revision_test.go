@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -405,6 +406,148 @@ func TestARuleThatBlocksSSHFromEverywhereIsFlagged(t *testing.T) {
 	}
 	p := propose(t, e, "Close SSH", block)
 	if w := p.Steps()[0].Warnings; len(w) != 1 || w[0] != resource.WarningMayLockOut {
+		t.Errorf("warnings: %v", w)
+	}
+}
+
+// hooked wraps an agent to watch or disturb each step it applies.
+type hooked struct {
+	resource.Agent
+	before  func(resource.Step)
+	applied *[]string
+}
+
+func (h hooked) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
+	if h.before != nil {
+		h.before(step)
+	}
+	if err := ctx.Err(); err != nil {
+		return err // an agent that honours cancellation
+	}
+	if h.applied != nil {
+		*h.applied = append(*h.applied, step.Action.String()+" "+step.Ref.Name+" on "+step.Ref.Server)
+	}
+	return h.Agent.Apply(ctx, step, desired)
+}
+
+func TestBuildsRunOnEveryServerBeforeAnyDelete(t *testing.T) {
+	e, f, _ := setup(t, "srv_A", "srv_B")
+	apply(t, e, propose(t, e, "Run web", web("nginx:1.27")))
+	var applied []string
+	for _, id := range []string{"srv_A", "srv_B"} {
+		f[id].agent = hooked{Agent: f[id].agent, applied: &applied}
+	}
+	moved := web("nginx:1.27")
+	moved.Ref.Server = "srv_B"
+	apply(t, e, propose(t, e, "Move web to srv_B", Edit{Ref: web("").Ref}, moved))
+	if len(applied) != 2 || applied[0] != "create web on srv_B" || applied[1] != "delete web on srv_A" {
+		t.Errorf("order: %v; the new web must run before the old one goes", applied)
+	}
+}
+
+func TestACancelledApplyStillFinishes(t *testing.T) {
+	e, f, db := setup(t, "srv_A")
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { cancel() }}
+	p := propose(t, e, "Run web", web("nginx:1.27"), rule("srv_A", "http", 80))
+	if err := e.Apply(ctx, p.Change); err != nil {
+		t.Fatalf("apply after the caller left = %v", err)
+	}
+	_ = db.View(t.Context(), func(tx *store.Tx) error {
+		if c, _ := tx.GetChange(t.Context(), p.Change); c.State != store.ChangeApplied {
+			t.Errorf("state %s, want applied", c.State)
+		}
+		return nil
+	})
+	if f["srv_A"].firewall.Len() != 1 {
+		t.Error("the second step didn't run")
+	}
+}
+
+func TestAServerThatDropsMidApplyIsRolledBackWhenItReturns(t *testing.T) {
+	e, f, db := setup(t, "srv_A", "srv_B")
+	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { f["srv_B"].online = false }}
+	onB := web("nginx:1.27")
+	onB.Ref.Server = "srv_B"
+	p := propose(t, e, "Open http and run web", rule("srv_A", "http", 80), onB)
+
+	err := e.Apply(t.Context(), p.Change)
+	var failed *FailedError
+	if !errors.As(err, &failed) || !errors.Is(err, ErrOffline) || !errors.Is(failed.RollbackErr, ErrPending) {
+		t.Fatalf("apply = %v, want a failure for srv_B with the rollback pending", err)
+	}
+	if f["srv_A"].firewall.Len() != 0 {
+		t.Error("srv_A's rule wasn't rolled back")
+	}
+	// Desired state is already back, before srv_B returns.
+	_ = db.View(t.Context(), func(tx *store.Tx) error {
+		r, _ := tx.GetResource(t.Context(), string(container.Kind), "srv_B", "web")
+		if r.Spec != nil || r.ChangeID != failed.Rollback {
+			t.Errorf("web on srv_B: spec %v by %s, want deleted by the rollback", r.Spec, r.ChangeID)
+		}
+		c, _ := tx.GetChange(t.Context(), failed.Rollback)
+		if c.State != store.ChangeApplying {
+			t.Errorf("rollback is %s, want applying until srv_B returns", c.State)
+		}
+		return nil
+	})
+	if err := e.Resume(t.Context()); err != nil {
+		t.Fatalf("resume while srv_B is away = %v", err)
+	}
+
+	f["srv_B"].online = true
+	if err := e.Resume(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.View(t.Context(), func(tx *store.Tx) error {
+		if c, _ := tx.GetChange(t.Context(), failed.Rollback); c.State != store.ChangeApplied {
+			t.Errorf("rollback is %s after srv_B returned, want applied", c.State)
+		}
+		return nil
+	})
+	if c, _ := f["srv_B"].docker.Inspect(t.Context(), "web"); c != nil {
+		t.Error("web runs on srv_B although its change was rolled back")
+	}
+}
+
+func TestWhatAServerReportsIsNormalized(t *testing.T) {
+	e, f, _ := setup(t, "srv_A")
+	spec := web("nginx:1.27")
+	spec.Spec.(*resourcev1.Container).Ports = []*resourcev1.PortMapping{{HostPort: 443, ContainerPort: 8443}, {HostPort: 80, ContainerPort: 8080}}
+	apply(t, e, propose(t, e, "Run web", spec))
+	// Docker reports ports in its own order and leaves out defaults.
+	f["srv_A"].docker.Edit("web", func(c *resourcev1.Container) {
+		c.Ports[0], c.Ports[1] = c.Ports[1], c.Ports[0]
+		c.Restart = resourcev1.RestartPolicy_RESTART_POLICY_UNSPECIFIED
+		c.Ports[0].Protocol = resourcev1.Protocol_PROTOCOL_UNSPECIFIED
+	})
+	if d, err := e.Drift(t.Context(), "srv_A"); err != nil || len(d) != 0 {
+		t.Errorf("drift from the server's own order and defaults: %+v, %v", d, err)
+	}
+	if p := propose(t, e, "Nothing", spec); !p.Empty() {
+		t.Errorf("planning the same spec again: %+v", p)
+	}
+}
+
+func TestTheUndoWindowIsWordedExactly(t *testing.T) {
+	e, _, _ := setup(t, "srv_A")
+	p := propose(t, e, "Run web", web("nginx:1.27"))
+	apply(t, e, p)
+	e.now = func() time.Time { return time.Now().Add(UndoWindow + time.Hour + time.Minute) }
+	_, err := e.Undo(t.Context(), p.Change, "usr_test")
+	if err == nil || !strings.Contains(err.Error(), "applied 7 days and 1 hour ago, and changes can be undone for 7 days") {
+		t.Errorf("message: %v", err)
+	}
+}
+
+func TestBlockingSSHForEveryAddressIsFlaggedToo(t *testing.T) {
+	e, _, _ := setup(t, "srv_A")
+	block := Edit{
+		Ref:  resource.Ref{Kind: firewall.Kind, Server: "srv_A", Name: "no-ssh"},
+		Spec: &resourcev1.FirewallRule{Port: 22, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY, Sources: []string{"0.0.0.0/0", "::/0"}},
+	}
+	if w := propose(t, e, "Close SSH", block).Steps()[0].Warnings; len(w) != 1 {
 		t.Errorf("warnings: %v", w)
 	}
 }

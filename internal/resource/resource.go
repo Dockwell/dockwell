@@ -111,7 +111,8 @@ type Driver interface {
 	Plan(actual, desired proto.Message, changes []Change) (Decision, error)
 	// Apply carries out a step; desired is nil for a deletion.
 	Apply(ctx context.Context, step Step, desired proto.Message) error
-	// Verify confirms the resource matches desired and is healthy.
+	// Verify confirms the resource is healthy, once the caller has checked
+	// it matches desired. It isn't called after a deletion.
 	Verify(ctx context.Context, name string, desired proto.Message) error
 }
 

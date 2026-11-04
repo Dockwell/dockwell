@@ -135,20 +135,7 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 	}
 }
 
-// Verify checks that Docker has what was asked for, and that it is healthy.
-func (d *Driver) Verify(ctx context.Context, name string, desired proto.Message) error {
-	actual, err := d.Observe(ctx, name)
-	if err != nil {
-		return err
-	}
-	if desired == nil {
-		if actual != nil {
-			return errors.New("the container is still there")
-		}
-		return nil
-	}
-	if changes := resource.Diff(actual, desired); len(changes) > 0 {
-		return fmt.Errorf("docker has a different %s than asked for", changes[0].Path)
-	}
+// Verify checks the container is running and passes its health check.
+func (d *Driver) Verify(ctx context.Context, name string, _ proto.Message) error {
 	return d.Runtime.Healthy(ctx, name)
 }

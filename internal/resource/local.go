@@ -23,8 +23,8 @@ type Agent interface {
 	Plan(ctx context.Context, desired []Desired) ([]Step, error)
 	// Apply carries out a step and verifies the result.
 	Apply(ctx context.Context, step Step, desired proto.Message) error
-	// Observe returns each resource as the server has it, or nil if it
-	// doesn't exist.
+	// Observe returns each resource as the server has it, normalized like
+	// a desired spec, or nil if it doesn't exist.
 	Observe(ctx context.Context, refs []Ref) ([]proto.Message, error)
 }
 
@@ -43,7 +43,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, err
 		}
-		actual, err := d.Observe(ctx, want.Ref.Name)
+		actual, err := Observe(ctx, d, want.Ref.Name)
 		if err != nil {
 			return nil, fmt.Errorf("can't read %s: %w", want.Ref, err)
 		}
@@ -56,7 +56,8 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 	return steps, nil
 }
 
-// Apply carries out step, then verifies it.
+// Apply carries out step, then checks the server has what was asked for
+// and that the driver finds it healthy.
 func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) error {
 	d, err := l.Drivers.Driver(step.Ref.Kind)
 	if err != nil {
@@ -65,8 +66,22 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 	if err := d.Apply(ctx, step, desired); err != nil {
 		return fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err)
 	}
+	actual, err := Observe(ctx, d, step.Ref.Name)
+	if err != nil {
+		return fmt.Errorf("applied %s, but can't read it back: %w", step.Ref, err)
+	}
+	if !Equal(actual, desired) {
+		what := "something else"
+		if changes := Diff(desired, actual); len(changes) > 0 {
+			what = "a different " + changes[0].Path
+		}
+		return fmt.Errorf("applied %s, but the server has %s than asked for", step.Ref, what)
+	}
+	if desired == nil {
+		return nil
+	}
 	if err := d.Verify(ctx, step.Ref.Name, desired); err != nil {
-		return fmt.Errorf("applied %s, but it isn't right yet: %w", step.Ref, err)
+		return fmt.Errorf("applied %s, but it isn't healthy: %w", step.Ref, err)
 	}
 	return nil
 }
@@ -79,7 +94,7 @@ func (l Local) Observe(ctx context.Context, refs []Ref) ([]proto.Message, error)
 		if err != nil {
 			return nil, err
 		}
-		if out[i], err = d.Observe(ctx, ref.Name); err != nil {
+		if out[i], err = Observe(ctx, d, ref.Name); err != nil {
 			return nil, fmt.Errorf("can't read %s: %w", ref, err)
 		}
 	}
@@ -91,7 +106,7 @@ func (l Local) Observe(ctx context.Context, refs []Ref) ([]proto.Message, error)
 func PlanStep(d Driver, ref Ref, actual, desired proto.Message) (Step, error) {
 	// Equality decides, not the diff, so a field the diff can't show still
 	// gets applied.
-	if (actual == nil) == (desired == nil) && (actual == nil || proto.Equal(actual, desired)) {
+	if Equal(actual, desired) {
 		return Step{Ref: ref}, nil
 	}
 	changes := Diff(actual, desired)
@@ -100,4 +115,20 @@ func PlanStep(d Driver, ref Ref, actual, desired proto.Message) (Step, error) {
 		return Step{}, fmt.Errorf("can't plan %s: %w", ref, err)
 	}
 	return Step{Ref: ref, Decision: dec, Changes: changes}, nil
+}
+
+// Observe reads a resource through its driver and normalizes it like a
+// desired spec, so what a server reports in its own order or with its own
+// defaults compares equal to the spec that made it. What can't be
+// normalized is returned as read, and shows as a difference.
+func Observe(ctx context.Context, d Driver, name string) (proto.Message, error) {
+	actual, err := d.Observe(ctx, name)
+	if err != nil || actual == nil {
+		return nil, err
+	}
+	normal := proto.Clone(actual)
+	if d.Validate(normal) == nil {
+		return normal, nil
+	}
+	return actual, nil
 }

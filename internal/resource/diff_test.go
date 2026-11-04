@@ -62,3 +62,12 @@ func TestDiffOfNothing(t *testing.T) {
 		t.Errorf("creating: %+v", created)
 	}
 }
+
+func TestDiffSeesThroughAmbiguousLists(t *testing.T) {
+	a := &resourcev1.Container{Command: []string{"sh -c", "x"}}
+	b := &resourcev1.Container{Command: []string{"sh -c, x"}}
+	got := resource.Diff(a, b)
+	if len(got) != 2 || got[0].Path != "command[0]" || got[1].Path != "command[1]" || got[1].Op != resource.OpRemoved {
+		t.Errorf("changes: %+v", got)
+	}
+}

@@ -45,7 +45,7 @@ Applying commits the revisions and their change together in one transaction, so 
 
 A driver has five methods:
 - `Validate` normalizes a spec, so equal intents compare equal.
-- `Observe` returns the actual state, projected onto the spec.
+- `Observe` returns the actual state, projected onto the spec. The agent then normalizes it with `Validate`, so a server's own field order and defaults don't show as differences.
 - `Plan` turns a diff into a step.
 - `Apply` carries out a step.
 - `Verify` confirms the result is healthy.
@@ -68,10 +68,15 @@ The plan carries a fingerprint, a hash of its steps.
 
    In both cases the fix is to review the plan again.
 2. It commits the revisions, so the desired state is on record before anything runs. If the control plane stops mid-apply, agents reconcile toward that state rather than toward a half-applied one.
-3. It runs the steps, server by server, in a fixed order. Creates, updates and replaces go in proposal order, then deletes in reverse.
+3. It runs the steps in a fixed order. Creates, updates and replaces run on every server first, in proposal order, and then deletes, last first. So a move starts the new copy before the old one goes.
 4. It verifies each step after applying it.
 
+Once the revisions are committed, apply runs to an end even if the caller goes away: a change left half applied is worse than one that finishes late.
+
 If a step fails, apply stops. It then rolls back the steps it already applied, as a new change that undoes the failed one and is applied at once. The history shows both: the deploy that failed and the rollback that followed.
+- A rollback commits even when a server it touches is offline, so desired state goes back at once. It stays applying until that server returns.
+- *Resume* finishes every change left applying, whether a rollback waiting for a server or a change a stopped control plane left halfway. It runs on start and whenever a server reconnects. It plans each resource again against its server and runs what remains, skipping resources a later change has moved on.
+- A rollback that fails isn't rolled back in turn, since that would re-apply what failed.
 
 **Undo is a change like any other.** Undoing change C proposes, for each resource C touched, the spec it had before C, or a deletion if C created it. It then plans and applies like any edit. Undo is refused when:
 - a resource has changed again since C. The message names the later change, so the reader can undo that first or edit it directly. A partial undo that quietly keeps some of C is worse than none.

@@ -123,8 +123,24 @@ func (d *differ) message(prefix string, md protoreflect.MessageDescriptor, a, b 
 func (d *differ) list(path string, fd protoreflect.FieldDescriptor, a, b protoreflect.Value, sensitive bool) {
 	la, lb := list(a), list(b)
 	if fd.Message() == nil {
-		// A list of values reads best whole: "22, 80, 443".
-		d.addPresent(path, joinList(fd, la), joinList(fd, lb), len(la) > 0, len(lb) > 0, sensitive)
+		// A list of values reads best whole: "22, 80, 443". When joining
+		// hides the difference, as with ["a, b"] and ["a", "b"], it goes
+		// item by item.
+		ja, jb := joinList(fd, la), joinList(fd, lb)
+		if ja != jb || len(la) == len(lb) && slices.EqualFunc(la, lb, func(x, y protoreflect.Value) bool { return x.Equal(y) }) {
+			d.addPresent(path, ja, jb, len(la) > 0, len(lb) > 0, sensitive)
+			return
+		}
+		for i := range max(len(la), len(lb)) {
+			var x, y string
+			if i < len(la) {
+				x = present(fd, la[i])
+			}
+			if i < len(lb) {
+				y = present(fd, lb[i])
+			}
+			d.addPresent(fmt.Sprintf("%s[%d]", path, i), x, y, i < len(la), i < len(lb), sensitive)
+		}
 		return
 	}
 	for i := range max(len(la), len(lb)) {

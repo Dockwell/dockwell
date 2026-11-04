@@ -22,7 +22,7 @@ func TestValidateMakesEqualRulesEqual(t *testing.T) {
 	if r.GetAction() != resourcev1.FirewallAction_FIREWALL_ACTION_ALLOW || r.GetProtocol() != resourcev1.Protocol_PROTOCOL_TCP {
 		t.Errorf("defaults: %v %v", r.GetAction(), r.GetProtocol())
 	}
-	for _, bad := range []*resourcev1.FirewallRule{{}, {Port: 70000}, {Port: 80, Sources: []string{"office"}}} {
+	for _, bad := range []*resourcev1.FirewallRule{{}, {Port: 70000}, {Port: 80, Sources: []string{"office"}}, {Port: 80, Sources: []string{"fe80::1%eth0"}}} {
 		if err := d.Validate(bad); err == nil {
 			t.Errorf("%v passed", bad)
 		}

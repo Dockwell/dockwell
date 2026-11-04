@@ -130,6 +130,24 @@ func (t *Tx) SetChangeState(ctx context.Context, changeID, state, errText string
 	return nil
 }
 
+// ChangesIn returns the IDs of changes in a state, oldest first.
+func (t *Tx) ChangesIn(ctx context.Context, state string) ([]string, error) {
+	rows, err := t.tx.QueryContext(ctx, `SELECT id FROM changes WHERE state = ? ORDER BY created_at, id`, state)
+	if err != nil {
+		return nil, fmt.Errorf("can't list changes: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var changeID string
+		if err := rows.Scan(&changeID); err != nil {
+			return nil, fmt.Errorf("can't list changes: %w", err)
+		}
+		out = append(out, changeID)
+	}
+	return out, rows.Err()
+}
+
 const resourceColumns = `r.id, r.kind, r.server_id, r.name, r.revision, v.spec, v.change_id`
 
 func scanResource(row interface{ Scan(...any) error }) (Resource, error) {

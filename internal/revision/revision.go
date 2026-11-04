@@ -16,7 +16,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -314,7 +316,8 @@ type FailedError struct {
 	Change string
 	Step   resource.Ref
 	Err    error
-	// Rollback is the change that put the applied steps back, if one ran.
+	// Rollback is the change that puts the applied steps back, if one was
+	// made.
 	Rollback    string
 	RollbackErr error
 }
@@ -323,6 +326,8 @@ func (e *FailedError) Error() string {
 	switch {
 	case e.Rollback == "" && e.RollbackErr == nil:
 		return fmt.Sprintf("%s failed at %s: %v", e.Change, e.Step, e.Err)
+	case errors.Is(e.RollbackErr, ErrPending):
+		return fmt.Sprintf("%s failed at %s: %v. It is being rolled back in %s, which finishes when %v", e.Change, e.Step, e.Err, e.Rollback, e.RollbackErr)
 	case e.RollbackErr != nil:
 		return fmt.Sprintf("%s failed at %s: %v. Rolling back failed too: %v. Check the servers, then undo or fix it by hand", e.Change, e.Step, e.Err, e.RollbackErr)
 	default:
@@ -331,6 +336,15 @@ func (e *FailedError) Error() string {
 }
 
 func (e *FailedError) Unwrap() error { return e.Err }
+
+// ErrPending means a rollback is on record but waits for a server to
+// reconnect; Resume finishes it.
+var ErrPending = errors.New("a server it touches reconnects")
+
+// isRollback reports a change Dockwell made to roll another back. A
+// rollback isn't refused for an offline server, and isn't rolled back in
+// turn when it fails: that would re-apply what failed in the first place.
+func isRollback(c store.Change) bool { return c.Actor == SystemActor && c.Reverts != "" }
 
 // Apply carries out a planned change: it checks that nothing moved since
 // the plan, commits the revisions, then runs the steps. If a step fails,
@@ -367,9 +381,11 @@ func (e *Engine) apply(ctx context.Context, changeID string) error {
 	if err != nil {
 		return err
 	}
-	for _, s := range plan.Servers {
-		if s.Offline {
-			return fmt.Errorf("%w: %s. Apply again once its agent reconnects", ErrOffline, s.Server)
+	if !isRollback(c) {
+		for _, s := range plan.Servers {
+			if s.Offline {
+				return fmt.Errorf("%w: %s. Apply again once its agent reconnects", ErrOffline, s.Server)
+			}
 		}
 	}
 	if plan.Fingerprint != c.Fingerprint {
@@ -396,21 +412,139 @@ func (e *Engine) apply(ctx context.Context, changeID string) error {
 	if err != nil {
 		return err
 	}
+	// From here the change is on record, so it runs to an end even if the
+	// caller goes away: a change left half applied is worse than one that
+	// finishes late.
+	return e.run(context.WithoutCancel(ctx), c, items, plan)
+}
 
+// run carries out a committed change. Creates, updates and replaces run on
+// every server before any delete, so what is built comes first and what
+// goes is taken down last. A rollback skips servers that aren't connected
+// and stays applying until Resume reaches them.
+func (e *Engine) run(ctx context.Context, c store.Change, items []item, plan *Plan) error {
 	specs := map[resource.Ref]proto.Message{}
 	for _, it := range items {
 		specs[it.ref] = it.spec
 	}
-	for _, s := range plan.Servers {
-		agent, _ := e.agents.Agent(s.Server)
+	type queued struct {
+		server string
+		step   *resource.Step
+	}
+	var builds, deletes []queued
+	for si := range plan.Servers {
+		s := &plan.Servers[si]
 		for i := range s.Steps {
-			step := &s.Steps[i]
-			if err := agent.Apply(ctx, *step, specs[step.Ref]); err != nil {
-				return e.fail(ctx, c, step.Ref, err)
+			q := queued{server: s.Server, step: &s.Steps[i]}
+			if q.step.Action == resource.ActionDelete {
+				deletes = append(deletes, q)
+			} else {
+				builds = append(builds, q)
 			}
 		}
 	}
+	// Each server's deletes are already last first; take the servers in
+	// reverse too.
+	slices.SortStableFunc(deletes, func(a, b queued) int {
+		return slices.Index(serversOf(plan), b.server) - slices.Index(serversOf(plan), a.server)
+	})
+
+	pending := map[string]bool{}
+	for _, q := range append(builds, deletes...) {
+		agent, online := e.agents.Agent(q.server)
+		if !online || agent == nil {
+			if isRollback(c) {
+				pending[q.server] = true
+				continue
+			}
+			return e.fail(ctx, c, q.step.Ref, fmt.Errorf("%w: %s lost its connection partway through", ErrOffline, q.server))
+		}
+		if err := agent.Apply(ctx, *q.step, specs[q.step.Ref]); err != nil {
+			return e.fail(ctx, c, q.step.Ref, err)
+		}
+	}
+	if len(pending) > 0 {
+		waiting := slices.Sorted(maps.Keys(pending))
+		e.logger.WarnContext(ctx, "a rollback waits for servers to reconnect", slog.String("change", c.ID), slog.Any("servers", waiting))
+		return fmt.Errorf("%w: %s", ErrPending, strings.Join(waiting, ", "))
+	}
 	return e.finish(ctx, c, store.ChangeApplied, "", "change.applied")
+}
+
+func serversOf(p *Plan) []string {
+	out := make([]string, len(p.Servers))
+	for i := range p.Servers {
+		out[i] = p.Servers[i].Server
+	}
+	return out
+}
+
+// Resume finishes every change left applying: by a control plane that
+// stopped partway, or by a rollback waiting for a server. Each resource is
+// planned again against its server, toward the revision the change
+// committed, and the steps that remain run as in Apply. A change waits
+// while any server it touches is offline, and skips resources a later
+// change has moved on. Call it on start and whenever a server reconnects.
+func (e *Engine) Resume(ctx context.Context) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var ids []string
+	if err := e.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		ids, err = tx.ChangesIn(ctx, store.ChangeApplying)
+		return err
+	}); err != nil {
+		return err
+	}
+	var errs []error
+	for _, changeID := range ids {
+		if err := e.resume(ctx, changeID); err != nil && !errors.Is(err, ErrPending) {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (e *Engine) resume(ctx context.Context, changeID string) error {
+	var c store.Change
+	var items []item
+	err := e.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		if c, err = tx.GetChange(ctx, changeID); err != nil {
+			return err
+		}
+		for _, ci := range c.Items {
+			ref := resource.Ref{Kind: resource.Kind(ci.Kind), Server: ci.Server, Name: ci.Name}
+			it, err := e.load(ctx, tx, ref)
+			if err != nil {
+				return err
+			}
+			if it.spec = it.current; it.current != nil {
+				if it.encoded, err = resource.Encode(it.current); err != nil {
+					return err
+				}
+			}
+			if !bytes.Equal(it.encoded, ci.Spec) {
+				continue // a later change moved it on
+			}
+			items = append(items, it)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	for _, it := range items {
+		if _, online := e.agents.Agent(it.ref.Server); !online {
+			return fmt.Errorf("%w: %s", ErrPending, it.ref.Server)
+		}
+	}
+	e.logger.InfoContext(ctx, "resuming a change left applying", slog.String("change", c.ID))
+	plan, err := e.plan(ctx, items)
+	if err != nil {
+		return err
+	}
+	return e.run(context.WithoutCancel(ctx), c, items, plan)
 }
 
 // current checks that every item still starts from the latest revision,
@@ -438,15 +572,15 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 	return items, nil
 }
 
-// fail records a failed apply and rolls back what it changed.
+// fail records a failed apply and rolls back what it changed. The
+// rollback commits at once, so desired state goes back even when a server
+// can't be reached yet.
 func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, cause error) error {
 	ferr := &FailedError{Change: c.ID, Step: at, Err: cause}
 	if err := e.finish(ctx, c, store.ChangeFailed, cause.Error(), "change.failed"); err != nil {
 		return errors.Join(ferr, err)
 	}
-	if c.Actor == SystemActor && c.Reverts != "" {
-		// A rollback that fails isn't rolled back in turn: that would
-		// re-apply what failed in the first place.
+	if isRollback(c) {
 		return ferr
 	}
 	e.logger.WarnContext(ctx, "a change failed; rolling it back", slog.String("change", c.ID), slog.String("at", at.String()),
@@ -591,18 +725,14 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 		if err != nil {
 			return nil, err
 		}
-		d := Drift{Ref: refs[i], Revision: r.Revision, Observed: observed[i]}
-		if observed[i] == nil {
-			d.Missing = true
-		} else {
-			// Observed specs are normalized like desired ones, or noise looks
-			// like drift.
-			if err := e.kinds.Validate(refs[i].Kind, observed[i]); err != nil {
-				return nil, fmt.Errorf("%s has something Dockwell can't read: %w", refs[i], err)
-			}
-			if d.Changes = resource.Diff(desired, observed[i]); len(d.Changes) == 0 {
-				continue
-			}
+		// Agents normalize what they observe, so only real differences
+		// are unequal.
+		if resource.Equal(desired, observed[i]) {
+			continue
+		}
+		d := Drift{Ref: refs[i], Revision: r.Revision, Observed: observed[i], Missing: observed[i] == nil}
+		if !d.Missing {
+			d.Changes = resource.Diff(desired, observed[i])
 		}
 		out = append(out, d)
 	}
@@ -637,11 +767,20 @@ func encodeOrNil(m proto.Message) ([]byte, error) {
 	return resource.Encode(m)
 }
 
-// days writes a long duration the way the plan sheet does: "7 days".
+// days writes a long duration the way the plan sheet does: "7 days", or
+// "7 days and 3 hours" when the hours matter.
 func days(d time.Duration) string {
-	n := int(d / (24 * time.Hour))
-	if n == 1 {
-		return "1 day"
+	n, h := int(d/(24*time.Hour)), int(d%(24*time.Hour)/time.Hour)
+	out := plural(n, "day")
+	if h > 0 {
+		out += " and " + plural(h, "hour")
 	}
-	return fmt.Sprintf("%d days", n)
+	return out
+}
+
+func plural(n int, unit string) string {
+	if n == 1 {
+		return "1 " + unit
+	}
+	return fmt.Sprintf("%d %ss", n, unit)
 }
