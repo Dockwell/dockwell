@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/container/containertest"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -108,7 +109,7 @@ func waitForAgent(t *testing.T, agents *agentapi.Agents, server string, connecte
 func TestCallsReachTheAgentsDrivers(t *testing.T) {
 	s := startStack(t, 5*time.Second)
 	id := s.enrollLocal(t)
-	rt, fw := container.NewFake(), firewall.NewFake()
+	rt, fw := containertest.NewFake(), firewall.NewFake()
 	runAgent(t, s, id, resource.NewRegistry(&container.Driver{Runtime: rt, RecreateDowntime: 2 * time.Second}, &firewall.Driver{Backend: fw}))
 	a := waitForAgent(t, s.agents, id.ServerID, true)
 	// The agent said in its hello which kinds it has drivers for, and its

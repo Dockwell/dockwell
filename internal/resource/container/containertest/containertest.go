@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-package container
+// Package containertest is an in-memory container runtime for tests, which
+// behaves like Docker where the driver can tell. It is never linked into
+// either build.
+package containertest
 
 import (
 	"context"
@@ -10,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/resource/container"
 )
 
 // Fake is an in-memory Runtime that behaves like Docker where the driver
@@ -29,10 +33,10 @@ func NewFake() *Fake {
 	return &Fake{containers: map[string]*resourcev1.Container{}, Broken: map[string]bool{}}
 }
 
-var _ Runtime = (*Fake)(nil)
+var _ container.Runtime = (*Fake)(nil)
 
 // Inspect returns a copy, as Docker would.
-func (f *Fake) Inspect(_ context.Context, t Target) (*resourcev1.Container, error) {
+func (f *Fake) Inspect(_ context.Context, t container.Target) (*resourcev1.Container, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	c, ok := f.containers[t.Name]
@@ -43,7 +47,7 @@ func (f *Fake) Inspect(_ context.Context, t Target) (*resourcev1.Container, erro
 }
 
 // Run replaces any container with the name.
-func (f *Fake) Run(_ context.Context, t Target, spec *resourcev1.Container) error {
+func (f *Fake) Run(_ context.Context, t container.Target, spec *resourcev1.Container) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.containers[t.Name] = proto.Clone(spec).(*resourcev1.Container)
@@ -52,7 +56,7 @@ func (f *Fake) Run(_ context.Context, t Target, spec *resourcev1.Container) erro
 }
 
 // SetRestart updates the policy in place.
-func (f *Fake) SetRestart(_ context.Context, t Target, policy resourcev1.RestartPolicy) error {
+func (f *Fake) SetRestart(_ context.Context, t container.Target, policy resourcev1.RestartPolicy) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	c, ok := f.containers[t.Name]
@@ -64,7 +68,7 @@ func (f *Fake) SetRestart(_ context.Context, t Target, policy resourcev1.Restart
 }
 
 // Remove deletes the container.
-func (f *Fake) Remove(_ context.Context, t Target) error {
+func (f *Fake) Remove(_ context.Context, t container.Target) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	delete(f.containers, t.Name)
@@ -72,7 +76,7 @@ func (f *Fake) Remove(_ context.Context, t Target) error {
 }
 
 // Healthy fails for broken images.
-func (f *Fake) Healthy(_ context.Context, t Target) error {
+func (f *Fake) Healthy(_ context.Context, t container.Target) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	c, ok := f.containers[t.Name]

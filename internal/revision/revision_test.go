@@ -17,6 +17,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/container/containertest"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/store"
@@ -27,7 +28,7 @@ const recreate = 2 * time.Second
 
 // server is a fake machine: Docker and a firewall behind its agent.
 type server struct {
-	docker   *container.Fake
+	docker   *containertest.Fake
 	firewall *firewall.Fake
 	agent    resource.Agent
 	online   atomic.Bool
@@ -63,7 +64,7 @@ func setupAt(t *testing.T, b store.Backend, ids ...string) (*Engine, fleet, *sto
 			if err := tx.CreateServer(t.Context(), store.Server{ID: id, Name: id, CreatedAt: now, CertSerial: id, CertNotAfter: now}); err != nil {
 				return err
 			}
-			s := &server{docker: container.NewFake(), firewall: firewall.NewFake()}
+			s := &server{docker: containertest.NewFake(), firewall: firewall.NewFake()}
 			s.online.Store(true)
 			s.agent = resource.Local{Drivers: resource.NewRegistry(
 				&container.Driver{Runtime: s.docker, RecreateDowntime: recreate},

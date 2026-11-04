@@ -29,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/container/containertest"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -62,7 +63,7 @@ func (g *gate) Put(ctx context.Context, name string, rule *resourcev1.FirewallRu
 // firewall in memory.
 type testServer struct {
 	id      *enroll.Identity
-	docker  *container.Fake
+	docker  *containertest.Fake
 	fw      *gate
 	drivers *resource.Registry
 	stop    func()
@@ -89,7 +90,7 @@ func (f *fullServer) addNamedServer(t *testing.T, name string, withDrivers bool)
 	}
 	s := &testServer{
 		id:     enroll.New(joined.Server.ID, joined.Server.Name, "https://"+f.agentAddr, key, joined.Cert, f.ident.CA().Certificate()),
-		docker: container.NewFake(), fw: &gate{Fake: firewall.NewFake(), started: make(chan struct{}, 4), release: make(chan struct{})},
+		docker: containertest.NewFake(), fw: &gate{Fake: firewall.NewFake(), started: make(chan struct{}, 4), release: make(chan struct{})},
 	}
 	if withDrivers {
 		containers := container.Driver{Runtime: s.docker, RecreateDowntime: 2 * time.Second}
