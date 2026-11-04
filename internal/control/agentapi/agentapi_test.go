@@ -30,15 +30,19 @@ import (
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/logging"
 	"github.com/dockwell/dockwell/internal/pki"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/serve"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
 type stack struct {
-	auth *identity.Authority
-	hub  *fleet.Hub
-	url  string
+	auth   *identity.Authority
+	hub    *fleet.Hub
+	agents *agentapi.Agents
+	url    string
 }
 
 // startStack runs the agent listener with short timers on a loopback port.
@@ -49,6 +53,13 @@ func startStack(t *testing.T, silence time.Duration) *stack {
 
 // startStackLogging is startStack with the control plane logging to logger.
 func startStackLogging(t *testing.T, silence time.Duration, logger *slog.Logger) *stack {
+	t.Helper()
+	return startStackWith(t, silence, logger, true)
+}
+
+// startStackWith is startStackLogging that makes agents reachable for calls
+// only withAgents. Without, streams only report.
+func startStackWith(t *testing.T, silence time.Duration, logger *slog.Logger, withAgents bool) *stack {
 	t.Helper()
 	dir := t.TempDir()
 	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
@@ -68,7 +79,12 @@ func startStackLogging(t *testing.T, silence time.Duration, logger *slog.Logger)
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := agentapi.NewHandler(auth, hub, logger, agentapi.WithStreamTiming(silence, 50*time.Millisecond))
+	agents := agentapi.NewAgents(resource.NewRegistry(&container.Driver{}, &firewall.Driver{}), logger)
+	opts := []agentapi.Option{agentapi.WithStreamTiming(silence, 50*time.Millisecond)}
+	if withAgents {
+		opts = append(opts, agentapi.WithAgents(agents))
+	}
+	h := agentapi.NewHandler(auth, hub, logger, opts...)
 
 	var lc net.ListenConfig
 	ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
@@ -89,7 +105,7 @@ func startStackLogging(t *testing.T, silence time.Duration, logger *slog.Logger)
 			t.Errorf("agent listener: %v", err)
 		}
 	})
-	return &stack{auth: auth, hub: hub, url: "https://" + ln.Addr().String()}
+	return &stack{auth: auth, hub: hub, agents: agents, url: "https://" + ln.Addr().String()}
 }
 
 // enrollLocal makes an identity the way the control server's own agent gets one.
@@ -415,5 +431,52 @@ func TestAStreamMustStartWithHello(t *testing.T) {
 	}
 	if _, err := stream.Receive(); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Errorf("stats before a hello = %v, want InvalidArgument", err)
+	}
+}
+
+// openStream connects to the agent listener as id's agent would, says
+// hello with kinds, and returns the stream once the control plane welcomes
+// it.
+func openStream(t *testing.T, id *enroll.Identity, kinds ...string) *connect.BidiStreamForClient[agentv1.ConnectRequest, agentv1.ConnectResponse] {
+	t.Helper()
+	client, release, err := id.Client()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(release)
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	stream := client.Connect(ctx)
+	t.Cleanup(func() { _ = stream.CloseRequest(); _ = stream.CloseResponse() })
+	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: &agentv1.Hello{Kinds: kinds}}}); err != nil {
+		t.Fatal(err)
+	}
+	if msg, err := stream.Receive(); err != nil || msg.GetWelcome() == nil {
+		t.Fatalf("the hello was answered with %v, %v, want a welcome", msg, err)
+	}
+	return stream
+}
+
+// A stream with no calls to wait for, as when the control plane reaches no
+// agent over it, answers Draining at once: the agent moves to its renewed
+// certificate without waiting out its drain limit.
+func TestDrainingIsAnsweredWithoutCalls(t *testing.T) {
+	s := startStackWith(t, 5*time.Second, slog.New(slog.DiscardHandler), false)
+	stream := openStream(t, s.enrollLocal(t))
+	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Draining{Draining: &agentv1.Draining{}}}); err != nil {
+		t.Fatal(err)
+	}
+	answered := make(chan *agentv1.ConnectResponse, 1)
+	go func() {
+		msg, _ := stream.Receive()
+		answered <- msg
+	}()
+	select {
+	case msg := <-answered:
+		if msg.GetDrained() == nil {
+			t.Errorf("Draining was answered with %v, want Drained", msg)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Draining wasn't answered; the agent would wait out its drain limit")
 	}
 }

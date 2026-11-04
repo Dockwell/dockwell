@@ -27,6 +27,212 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/changes:
+        get:
+            tags:
+                - ChangeService
+            description: |-
+                ListChanges returns changes, newest first, a page at a time. Each
+                 change's plan is in brief: its fingerprint, summary, undo window and
+                 whether it is destructive. GetChange has the plan in full.
+            operationId: ChangeService_ListChanges
+            parameters:
+                - name: pageSize
+                  in: query
+                  description: 'How many changes to return: 50 when unset, and at most 200.'
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: |-
+                    Where to start: the next_page_token of the page before. Empty starts
+                     with the newest.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListChangesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                ProposeChange plans a set of edits and records them as a planned
+                 change, ready to apply or discard. Planning asks each server's agent
+                 what the edits would take there, and changes nothing on any server. The
+                 same edits against the same state give the same plan and fingerprint.
+            operationId: ChangeService_ProposeChange
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ProposeChangeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ProposeChangeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/changes/{id}:
+        get:
+            tags:
+                - ChangeService
+            description: |-
+                GetChange returns one change, with its plan and the progress of each of
+                 its steps.
+            operationId: ChangeService_GetChange
+            parameters:
+                - name: id
+                  in: path
+                  description: The change's ID, such as "chg_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetChangeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/changes/{id}:apply:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                ApplyChange carries out a planned change. It plans again, and refuses
+                 if any resource changed since, or if the servers no longer match the
+                 plan; either way, propose the edits again and review the new plan.
+                 Otherwise it commits the change's revisions and starts running its
+                 steps, and returns the change as it starts applying. The steps run to
+                 an end whether or not the caller waits. Follow them with WatchChange,
+                 or by polling GetChange. If a step fails, the steps already done are
+                 rolled back in a change of Dockwell's own, named in rolled_back_by.
+
+                 A plan that destroys data or may cut off access needs the fingerprint
+                 of the plan you reviewed, and a signed-in session: no API token may
+                 apply one.
+            operationId: ChangeService_ApplyChange
+            parameters:
+                - name: id
+                  in: path
+                  description: The change's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ApplyChangeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ApplyChangeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/changes/{id}:discard:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                DiscardChange drops a planned change without applying it. The change
+                 stays on record as discarded.
+            operationId: ChangeService_DiscardChange
+            parameters:
+                - name: id
+                  in: path
+                  description: The change's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DiscardChangeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DiscardChangeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/changes/{id}:undo:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                UndoChange plans putting back everything an applied change did, as a
+                 new change; apply it to carry it out. It is refused once the change is
+                 older than its undo window, or when a resource it touched has changed
+                 again since: undo that later change first, or edit the resource.
+            operationId: ChangeService_UndoChange
+            parameters:
+                - name: id
+                  in: path
+                  description: The change's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UndoChangeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UndoChangeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/claim:begin:
         post:
             tags:
@@ -100,6 +306,89 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/FinishClaimResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/drift:
+        get:
+            tags:
+                - ChangeService
+            description: |-
+                ListDrift compares what servers have with the latest revision of each
+                 resource they should have, and returns every difference. It asks each
+                 connected server's agent, and changes nothing.
+            operationId: ChangeService_ListDrift
+            parameters:
+                - name: serverId
+                  in: query
+                  description: A server's ID. Empty looks on every server.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListDriftResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/drift:adopt:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                AdoptDrift plans keeping what a server has for a drifted resource: a
+                 new revision that matches it. Nothing changes on that server; any other
+                 server the resource runs on is brought to match, and the plan shows it.
+            operationId: ChangeService_AdoptDrift
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AdoptDriftRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AdoptDriftResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/drift:revert:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                RevertDrift plans putting a drifted resource back to its latest
+                 revision on the servers it runs on.
+            operationId: ChangeService_RevertDrift
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RevertDriftRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevertDriftResponse'
                 default:
                     description: Default error response
                     content:
@@ -708,6 +997,68 @@ paths:
                                 $ref: '#/components/schemas/Status'
 components:
     schemas:
+        Actor:
+            type: object
+            properties:
+                kind:
+                    enum:
+                        - ACTOR_KIND_UNSPECIFIED
+                        - ACTOR_KIND_USER
+                        - ACTOR_KIND_TOKEN
+                        - ACTOR_KIND_DOCKWELL
+                    type: string
+                    description: What kind of actor it is.
+                    format: enum
+                id:
+                    type: string
+                    description: The user's or token's ID. Empty for Dockwell.
+                name:
+                    type: string
+                    description: |-
+                        The name to show, such as "Mira Chen", or a token's name, such as
+                         "GitHub Actions deploy".
+            description: Actor is who made a change, or applied it.
+        AdoptDriftRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server whose version to keep.
+                resourceId:
+                    type: string
+                    description: The resource's ID.
+            description: AdoptDriftRequest names a drifted resource to keep as it is.
+        AdoptDriftResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: A new change, planned, whose revision matches what the server has.
+            description: AdoptDriftResponse carries the planned adoption.
+        ApplyChangeRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The change's ID.
+                fingerprint:
+                    type: string
+                    description: |-
+                        The fingerprint of the plan you reviewed. When set, the change applies
+                         only if its plan has it. A plan that destroys data or may cut off
+                         access needs it.
+            description: ApplyChangeRequest names a planned change to apply.
+        ApplyChangeResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: |-
+                        The change: applying, with its steps queued; or applied, when it had
+                         no steps to run.
+            description: ApplyChangeResponse carries the change as it starts applying.
         BeginAddPasskeyRequest:
             type: object
             properties: {}
@@ -802,6 +1153,98 @@ components:
                     type: string
                     description: Target operating system and architecture, such as "linux/amd64".
             description: BuildInfo identifies one build of the dockwell binary.
+        Change:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The change's ID, such as "chg_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                summary:
+                    type: string
+                    description: What it is for, such as "Add a staging environment".
+                state:
+                    enum:
+                        - CHANGE_STATE_UNSPECIFIED
+                        - CHANGE_STATE_PLANNED
+                        - CHANGE_STATE_APPLYING
+                        - CHANGE_STATE_APPLIED
+                        - CHANGE_STATE_FAILED
+                        - CHANGE_STATE_DISCARDED
+                    type: string
+                    description: Where it is.
+                    format: enum
+                proposedBy:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: Who proposed it.
+                proposedVia:
+                    enum:
+                        - SURFACE_UNSPECIFIED
+                        - SURFACE_PANEL
+                        - SURFACE_API
+                        - SURFACE_AUTOMATIC
+                    type: string
+                    description: Where it was proposed from.
+                    format: enum
+                createTime:
+                    type: string
+                    description: When it was proposed.
+                    format: date-time
+                plan:
+                    allOf:
+                        - $ref: '#/components/schemas/Plan'
+                    description: |-
+                        What applying does, as it was reviewed. It never changes. A rollback,
+                         which nobody reviews, has the plan it ran with. ListChanges gives it in
+                         brief, without resources and servers.
+                reverts:
+                    type: string
+                    description: The change this one undoes or rolls back, if any.
+                rollback:
+                    type: boolean
+                    description: True for a change Dockwell made to roll back a failed one.
+                appliedBy:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: Who applied it. Unset until it is applied.
+                appliedVia:
+                    enum:
+                        - SURFACE_UNSPECIFIED
+                        - SURFACE_PANEL
+                        - SURFACE_API
+                        - SURFACE_AUTOMATIC
+                    type: string
+                    description: Where it was applied from. Unset until it is applied.
+                    format: enum
+                applyTime:
+                    type: string
+                    description: When it started applying. Unset until then.
+                    format: date-time
+                undoDeadline:
+                    type: string
+                    description: Until when UndoChange works, once it is applied. Unset otherwise.
+                    format: date-time
+                error:
+                    type: string
+                    description: Why it failed, when it did.
+                steps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/StepProgress'
+                    description: |-
+                        Each step of the plan with its progress, once it is applying: servers
+                         in plan order, and on each the steps in the order they run.
+                rolledBackBy:
+                    type: string
+                    description: |-
+                        The change that rolled this one back after it failed, if any. It may
+                         still be applying, as when it waits for a server to reconnect.
+                undoneBy:
+                    type: string
+                    description: The applied change that undid this one, if any.
+            description: |-
+                Change is one action's worth of edits to managed resources: planned,
+                 then applied, failed or discarded.
         CheckClaimRequest:
             type: object
             properties:
@@ -843,6 +1286,43 @@ components:
                         type: string
                     description: Ten one-time recovery codes. They are shown only now; store them safely.
             description: ConfirmTotpSetupResponse carries the recovery codes.
+        Container:
+            type: object
+            properties:
+                image:
+                    type: string
+                    description: The image to run, such as "ghcr.io/acme/web:1.4.2".
+                command:
+                    type: array
+                    items:
+                        type: string
+                    description: Overrides the image's command when set.
+                env:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: Environment variables, which may hold secrets.
+                ports:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PortMapping'
+                    description: Ports published on the server.
+                restart:
+                    enum:
+                        - RESTART_POLICY_UNSPECIFIED
+                        - RESTART_POLICY_NO
+                        - RESTART_POLICY_ON_FAILURE
+                        - RESTART_POLICY_UNLESS_STOPPED
+                        - RESTART_POLICY_ALWAYS
+                    type: string
+                    description: What Docker does when the container stops.
+                    format: enum
+                labels:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: Labels on the container, for tools that read them.
+            description: Container is one Docker container on a server.
         CreateTokenRequest:
             type: object
             properties:
@@ -890,6 +1370,21 @@ components:
             type: object
             properties: {}
             description: DisableTotpResponse is empty.
+        DiscardChangeRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The change's ID.
+            description: DiscardChangeRequest names a planned change to discard.
+        DiscardChangeResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, discarded.
+            description: DiscardChangeResponse carries the discarded change.
         Disk:
             type: object
             properties:
@@ -919,6 +1414,110 @@ components:
                     type: string
                     description: Total size, in bytes.
             description: DiskUsage is one filesystem's use.
+        Drift:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server.
+                resourceId:
+                    type: string
+                    description: The resource's ID.
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: The resource.
+                revision:
+                    type: string
+                    description: The latest revision, which the server should match.
+                missing:
+                    type: boolean
+                    description: True when the resource is gone from the server.
+                changes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FieldChange'
+                    description: What differs, from the latest revision to what the server has.
+            description: Drift is a resource on a server that doesn't match its latest revision.
+        Edit:
+            type: object
+            properties:
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: |-
+                        The resource. Its kind may be left out when the spec says it. Its
+                         scope may be left out where there is only one to choose, as with the
+                         organization of a project, or the environment of a service in an
+                         install with one; once there is a choice, leaving it out is an error
+                         that names the options.
+                spec:
+                    allOf:
+                        - $ref: '#/components/schemas/Spec'
+                    description: |-
+                        What the resource should be. Every field is set as given: an edit
+                         replaces the whole spec. Unset only with delete.
+                delete:
+                    type: boolean
+                    description: |-
+                        Deletes the resource. A project or environment goes only once what
+                         lives in it has gone, in this change or an earlier one.
+                servers:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Where a service runs, by server ID. Empty keeps it where it runs now;
+                         a new one runs on the only server, and must name its servers once there
+                         are several. Other kinds ignore it: a container or firewall rule lives
+                         on its server, and projects and environments run on none.
+                project:
+                    type: string
+                    description: |-
+                        The project of the environment the resource lives in, by name or ID,
+                         for a kind that lives in an environment, such as a service. Leave it
+                         out while there is only one project, or when resource.scope is an
+                         environment's ID; once there are several, an environment named
+                         without its project is an error that names the projects. Other kinds
+                         name their project, if they live in one, in resource.scope.
+            description: Edit sets one resource's desired spec, or deletes it.
+        Environment:
+            type: object
+            properties:
+                displayName:
+                    type: string
+                    description: How the panel shows it, such as "Staging". Empty shows its name.
+            description: |-
+                Environment is a stage of a project, such as production or staging, with
+                 its own config. A project starts with one, named "production", which
+                 stays out of sight until there is a second.
+        FieldChange:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: The field, such as "image", "env[API_KEY]" or "ports[0].host_port".
+                op:
+                    enum:
+                        - FIELD_OP_UNSPECIFIED
+                        - FIELD_OP_ADDED
+                        - FIELD_OP_REMOVED
+                        - FIELD_OP_MODIFIED
+                    type: string
+                    description: How it changed.
+                    format: enum
+                from:
+                    type: string
+                    description: The value before. Empty when it was unset, and for a sensitive field.
+                to:
+                    type: string
+                    description: The value after. Empty when it is unset, and for a sensitive field.
+                sensitive:
+                    type: boolean
+                    description: |-
+                        True for a field that may hold a secret: the plan says it changed,
+                         never what it holds.
+            description: FieldChange is one field that differs between two specs.
         FinishAddPasskeyRequest:
             type: object
             properties:
@@ -986,6 +1585,40 @@ components:
             description: |-
                 FinishPasskeySignInResponse carries who signed in. The response sets the
                  session cookie.
+        FirewallRule:
+            type: object
+            properties:
+                action:
+                    enum:
+                        - FIREWALL_ACTION_UNSPECIFIED
+                        - FIREWALL_ACTION_ALLOW
+                        - FIREWALL_ACTION_DENY
+                    type: string
+                    description: Allow or block.
+                    format: enum
+                protocol:
+                    enum:
+                        - PROTOCOL_UNSPECIFIED
+                        - PROTOCOL_TCP
+                        - PROTOCOL_UDP
+                    type: string
+                    description: TCP unless set.
+                    format: enum
+                port:
+                    type: integer
+                    description: The port the rule covers.
+                    format: uint32
+                sources:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Source addresses in CIDR form, such as "203.0.113.0/24". Empty means
+                         anywhere.
+                comment:
+                    type: string
+                    description: Why the rule exists, shown next to it.
+            description: FirewallRule allows or blocks inbound traffic to a port on a server.
         GetAuthStateResponse:
             type: object
             properties:
@@ -1026,6 +1659,14 @@ components:
                     description: How this session began. Unset when not signed in.
                     format: enum
             description: GetAuthStateResponse describes the install and this request's session.
+        GetChangeResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change.
+            description: GetChangeResponse carries one change.
         GetServerResponse:
             type: object
             properties:
@@ -1058,6 +1699,35 @@ components:
                     description: The type of the serialized message.
             additionalProperties: true
             description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        ListChangesResponse:
+            type: object
+            properties:
+                changes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Change'
+                    description: The changes, newest first.
+                nextPageToken:
+                    type: string
+                    description: Pass it as page_token for the next page. Empty on the last page.
+            description: ListChangesResponse is a page of changes.
+        ListDriftResponse:
+            type: object
+            properties:
+                drift:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Drift'
+                    description: Each resource that differs, on each server it differs on.
+                uncheckedServers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/UncheckedServer'
+                    description: |-
+                        Servers that couldn't be checked, each with why, such as an agent that
+                         isn't connected. The servers that could be checked are in drift all
+                         the same.
+            description: ListDriftResponse lists what doesn't match its latest revision.
         ListPasskeysResponse:
             type: object
             properties:
@@ -1125,6 +1795,219 @@ components:
                         True when it once reported a lower use count than before, which happens
                          when a passkey is copied. It no longer signs in; remove it.
             description: Passkey is one of a user's passkeys.
+        Plan:
+            type: object
+            properties:
+                fingerprint:
+                    type: string
+                    description: |-
+                        A hash of what the plan does. The same edits against the same state
+                         have the same fingerprint, and applying checks that a fresh plan still
+                         has it.
+                summary:
+                    allOf:
+                        - $ref: '#/components/schemas/PlanSummary'
+                    description: How many resources it creates, changes, replaces and destroys.
+                resources:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PlannedResource'
+                    description: Each resource the change touches, in the order of its edits.
+                servers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ServerPlan'
+                    description: |-
+                        Each server with something to do, in the order of the edits, then each
+                         removed server the change takes resources off.
+                undoWindow:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: How long the change can be undone once it is applied.
+                destructive:
+                    type: boolean
+                    description: |-
+                        True when a step destroys data or may cut off access. Applying it needs
+                         the fingerprint and a signed-in session.
+            description: |-
+                Plan is what applying a change would do: what changes, where, and for
+                 how long.
+        PlanStep:
+            type: object
+            properties:
+                resourceId:
+                    type: string
+                    description: The resource's ID.
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: The resource.
+                action:
+                    enum:
+                        - PLAN_ACTION_UNSPECIFIED
+                        - PLAN_ACTION_NONE
+                        - PLAN_ACTION_CREATE
+                        - PLAN_ACTION_UPDATE
+                        - PLAN_ACTION_REPLACE
+                        - PLAN_ACTION_DELETE
+                    type: string
+                    description: What the step does.
+                    format: enum
+                effect:
+                    enum:
+                        - STEP_EFFECT_UNSPECIFIED
+                        - STEP_EFFECT_NONE
+                        - STEP_EFFECT_RESTART
+                        - STEP_EFFECT_RECREATE
+                    type: string
+                    description: What it does to what the resource serves.
+                    format: enum
+                downtime:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: How long what the resource serves is unavailable. Unset means none.
+                destroysData:
+                    type: boolean
+                    description: True when the step removes data its spec can't bring back.
+                warnings:
+                    type: array
+                    items:
+                        enum:
+                            - PLAN_WARNING_UNSPECIFIED
+                            - PLAN_WARNING_MAY_LOCK_OUT
+                        type: string
+                        format: enum
+                    description: Ways the step may hurt that its action doesn't say.
+                changes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FieldChange'
+                    description: The fields that differ from what the server has now.
+            description: PlanStep is what applying does to one resource on one server.
+        PlanSummary:
+            type: object
+            properties:
+                create:
+                    type: integer
+                    description: Resources made for the first time.
+                    format: int32
+                change:
+                    type: integer
+                    description: Resources changed in place.
+                    format: int32
+                replace:
+                    type: integer
+                    description: |-
+                        Resources removed and made again, such as a recreated container. A
+                         replace is counted here alone, never among the changes.
+                    format: int32
+                destroy:
+                    type: integer
+                    description: Resources deleted.
+                    format: int32
+            description: PlanSummary counts the resources a plan touches by what it does to them.
+        PlannedResource:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The resource's ID. A new resource has its ID from when it is planned.
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: The resource.
+                action:
+                    enum:
+                        - PLAN_ACTION_UNSPECIFIED
+                        - PLAN_ACTION_NONE
+                        - PLAN_ACTION_CREATE
+                        - PLAN_ACTION_UPDATE
+                        - PLAN_ACTION_REPLACE
+                        - PLAN_ACTION_DELETE
+                    type: string
+                    description: |-
+                        What happens to it, from its steps on every server: replace if any
+                         step replaces it; delete if it is deleted, from every server; create if
+                         it is new and every step creates it; otherwise update, if anything
+                         changes. A kind that runs on no server takes what its revision does.
+                         The summary counts these.
+                    format: enum
+                baseRevision:
+                    type: string
+                    description: 'The revision it starts from: 0 for a new resource.'
+                changes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FieldChange'
+                    description: The fields that differ from its latest revision.
+                servers:
+                    type: array
+                    items:
+                        type: string
+                    description: Where it runs once applied, by server ID.
+                previousServers:
+                    type: array
+                    items:
+                        type: string
+                    description: Where it runs now, by server ID.
+            description: PlannedResource is what a plan does to one resource as a whole.
+        PortMapping:
+            type: object
+            properties:
+                hostPort:
+                    type: integer
+                    description: The port on the server.
+                    format: uint32
+                containerPort:
+                    type: integer
+                    description: The port inside the container.
+                    format: uint32
+                protocol:
+                    enum:
+                        - PROTOCOL_UNSPECIFIED
+                        - PROTOCOL_TCP
+                        - PROTOCOL_UDP
+                    type: string
+                    description: TCP unless set.
+                    format: enum
+            description: PortMapping publishes a container port on the server.
+        Project:
+            type: object
+            properties:
+                displayName:
+                    type: string
+                    description: |-
+                        How the panel shows it, such as "Acme web". Empty shows its name, which
+                         URLs and the CLI use.
+            description: |-
+                Project is a product or client in the organization. It holds
+                 environments, and scopes members, secrets and domains. An install starts
+                 with one, named "default", which stays out of sight until there is a
+                 second.
+        ProposeChangeRequest:
+            type: object
+            properties:
+                summary:
+                    type: string
+                    description: |-
+                        What the change is for, in your words, such as "Add a staging
+                         environment". Required: the timeline shows it.
+                edits:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Edit'
+                    description: |-
+                        The edits, at most one for each resource. They apply in this order,
+                         and deletions last, in reverse.
+            description: ProposeChangeRequest is a set of edits to plan together.
+        ProposeChangeResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: ProposeChangeResponse carries the planned change.
         RegenerateRecoveryCodesRequest:
             type: object
             properties: {}
@@ -1142,6 +2025,43 @@ components:
             type: object
             properties: {}
             description: RemovePasskeyResponse is empty.
+        ResourceRef:
+            type: object
+            properties:
+                kind:
+                    type: string
+                    description: |-
+                        The kind, such as "project", "environment", "service", "container" or
+                         "firewall.rule".
+                scope:
+                    type: string
+                    description: |-
+                        The ID of what it lives in, which its kind says: the organization
+                         ("org_…") for a project, a project ("prj_…") for an environment, an
+                         environment ("env_…") for a service, and a server ("srv_…") for a
+                         container or firewall rule.
+                name:
+                    type: string
+                    description: Its name, unique among its kind in its scope, such as "web".
+            description: ResourceRef names a resource.
+        RevertDriftRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server it drifted on.
+                resourceId:
+                    type: string
+                    description: The resource's ID.
+            description: RevertDriftRequest names a drifted resource to put back.
+        RevertDriftResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: A new change, planned, that puts the resource back.
+            description: RevertDriftResponse carries the planned revert.
         RevokeOtherSessionsRequest:
             type: object
             properties: {}
@@ -1279,6 +2199,35 @@ components:
                         type: string
                     description: The server's non-loopback IP addresses.
             description: 'ServerInventory is what a server is: its system and hardware.'
+        ServerPlan:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID.
+                serverName:
+                    type: string
+                    description: The server's name, such as "hz-1".
+                offline:
+                    type: boolean
+                    description: |-
+                        True when the server isn't connected: its steps are planned from the
+                         state it last had, and the change can't be applied until it reconnects.
+                removed:
+                    type: boolean
+                    description: |-
+                        True when the server was removed from the fleet. It has no steps: what
+                         the change takes off it is only recorded.
+                downtime:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: The steps' downtime added up, as they run one at a time.
+                steps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PlanStep'
+                    description: The steps, in the order they run.
+            description: ServerPlan is the part of a plan on one server.
         ServerStats:
             type: object
             properties:
@@ -1324,6 +2273,19 @@ components:
                     type: string
                     description: Time since the server booted.
             description: ServerStats is one sample of a server's resource use.
+        Service:
+            type: object
+            properties:
+                app:
+                    allOf:
+                        - $ref: '#/components/schemas/Container'
+                    description: An app from an image.
+            description: |-
+                Service is anything that runs in an environment, placed on servers: for
+                 now an app from an image, run as one container on each server it is
+                 placed on. Compose stacks, websites, databases, catalog apps and jobs
+                 come later. Where it runs isn't part of the spec: each revision is
+                 deployed on its servers.
         Session:
             type: object
             properties:
@@ -1422,6 +2384,33 @@ components:
             type: object
             properties: {}
             description: SignOutResponse is empty. The response clears the session cookie.
+        Spec:
+            type: object
+            properties:
+                project:
+                    allOf:
+                        - $ref: '#/components/schemas/Project'
+                    description: A project, kind "project".
+                environment:
+                    allOf:
+                        - $ref: '#/components/schemas/Environment'
+                    description: An environment, kind "environment".
+                service:
+                    allOf:
+                        - $ref: '#/components/schemas/Service'
+                    description: A service, kind "service".
+                container:
+                    allOf:
+                        - $ref: '#/components/schemas/Container'
+                    description: A container run by hand on a server, kind "container".
+                firewallRule:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallRule'
+                    description: A firewall rule on a server, kind "firewall.rule".
+            description: |-
+                Spec is the desired state of one resource, of any kind: the field that is
+                 set says which. Edits in the API carry specs in it, so one message takes
+                 every kind.
         Status:
             type: object
             properties:
@@ -1438,6 +2427,56 @@ components:
                         $ref: '#/components/schemas/GoogleProtobufAny'
                     description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
             description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+        StepProgress:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server it runs on.
+                resourceId:
+                    type: string
+                    description: The resource's ID.
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: The resource.
+                action:
+                    enum:
+                        - PLAN_ACTION_UNSPECIFIED
+                        - PLAN_ACTION_NONE
+                        - PLAN_ACTION_CREATE
+                        - PLAN_ACTION_UPDATE
+                        - PLAN_ACTION_REPLACE
+                        - PLAN_ACTION_DELETE
+                    type: string
+                    description: What the step does.
+                    format: enum
+                state:
+                    enum:
+                        - STEP_STATE_UNSPECIFIED
+                        - STEP_STATE_QUEUED
+                        - STEP_STATE_RUNNING
+                        - STEP_STATE_DONE
+                        - STEP_STATE_FAILED
+                        - STEP_STATE_SKIPPED
+                        - STEP_STATE_WAITING
+                    type: string
+                    description: How it is going.
+                    format: enum
+                message:
+                    type: string
+                    description: |-
+                        What is happening, for people, such as "Replacing web on hz-1", or why
+                         the step failed.
+                startTime:
+                    type: string
+                    description: When it started running. Unset until then.
+                    format: date-time
+                finishTime:
+                    type: string
+                    description: When it finished. Unset until then.
+                    format: date-time
+            description: StepProgress is one step of an applying change, and how it is going.
         Token:
             type: object
             properties:
@@ -1502,6 +2541,41 @@ components:
                          Recovery codes still work while it is locked.
                     format: date-time
             description: Totp is the state of signing in with an authenticator app.
+        UncheckedServer:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID.
+                serverName:
+                    type: string
+                    description: The server's name, such as "hz-1".
+                reason:
+                    type: string
+                    description: |-
+                        Why, as a word an error's reason would be: "server_offline" for an
+                         agent that isn't connected, or dropped while it was checked, whose
+                         drift is checked once it reconnects; "agent_timeout"; "no_driver"; or
+                         "agent_failed".
+                message:
+                    type: string
+                    description: Why, for people.
+            description: UncheckedServer is a server whose drift couldn't be checked.
+        UndoChangeRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The change's ID.
+            description: UndoChangeRequest names an applied change to undo.
+        UndoChangeResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: A new change, planned, that puts back what the undone one did.
+            description: UndoChangeResponse carries the planned undo.
         UnlockCodeSignInRequest:
             type: object
             properties: {}
@@ -1563,6 +2637,22 @@ tags:
          with an API token gets "token_rejected" when the token is unknown, revoked
          or expired, "token_scope" when its scope doesn't cover the call, and
          "needs_session" when no token may make it.
+    - name: ChangeService
+      description: |-
+        ChangeService is the one way to change managed state, for every kind of
+         resource: projects, environments, services, containers and firewall rules
+         alike. You propose edits and get a plan back; applying the plan writes
+         immutable revisions and runs its steps on the servers; undoing makes a new
+         plan that puts things back. See docs/adr/0009-resources-revisions-and-plans.md
+         and docs/adr/0017-the-change-api-and-the-agent-stream.md.
+
+         Plans never show a secret: a field that may hold one says that it changed,
+         never what it holds, and no response carries a spec.
+
+         WatchChange streams, so it has no REST path. A REST client follows a
+         change by polling GET /v1/changes/{id}, which carries the same progress,
+         or opens the stream with Connect, gRPC or gRPC-Web, with the same
+         credentials.
     - name: ServerService
       description: |-
         ServerService lists the servers Dockwell manages and streams their live

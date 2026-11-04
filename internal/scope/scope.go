@@ -17,12 +17,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
@@ -185,23 +186,31 @@ func (t Tree) Shown(project string) Shown {
 	return s
 }
 
-// ErrNotFound means a request named a project or environment that doesn't
-// exist.
+// ErrNotFound means a request named a project, environment or server that
+// doesn't exist.
 var ErrNotFound = errors.New("no such scope")
+
+// ServerLevel is the level a ChoiceError names when a request leaves out
+// which server a host-level resource, such as a firewall rule, lives on,
+// and there are several.
+const ServerLevel resource.Kind = "server"
 
 // ChoiceError means a request left out a level that offers a choice. It
 // names the level and the options, so a surface can ask which.
 type ChoiceError struct {
-	Level   resource.Kind // ProjectKind or EnvironmentKind
+	Level   resource.Kind // ProjectKind, EnvironmentKind or ServerLevel
 	Project string        // the project's name, for an environment
 	Options []string      // names
 }
 
 func (e *ChoiceError) Error() string {
-	if e.Level == EnvironmentKind {
-		return fmt.Sprintf("project %s has %d environments, %s, so say which one you mean", e.Project, len(e.Options), and(e.Options))
+	switch e.Level {
+	case EnvironmentKind:
+		return fmt.Sprintf("project %s has %d environments, %s, so say which one you mean", e.Project, len(e.Options), human.List(e.Options))
+	case ServerLevel:
+		return fmt.Sprintf("there are %d servers, %s, so say which one you mean", len(e.Options), human.List(e.Options))
 	}
-	return fmt.Sprintf("this organization has %d projects, %s, so say which one you mean", len(e.Options), and(e.Options))
+	return fmt.Sprintf("this organization has %d projects, %s, so say which one you mean", len(e.Options), human.List(e.Options))
 }
 
 // Resolve finds the environment a request means, from a project and an
@@ -217,9 +226,9 @@ func (t Tree) Resolve(project, environment string) (Project, Environment, error)
 				}
 			}
 		}
-		return Project{}, Environment{}, fmt.Errorf("there's no environment %s%s: %w", environment, inProject(project), ErrNotFound)
+		return Project{}, Environment{}, fault.New(ErrNotFound, "there's no environment %s%s", environment, inProject(project))
 	}
-	p, err := t.project(project)
+	p, err := t.Project(project)
 	if err != nil {
 		return Project{}, Environment{}, err
 	}
@@ -234,17 +243,19 @@ func (t Tree) Resolve(project, environment string) (Project, Environment, error)
 			return p, e, nil
 		}
 	}
-	return Project{}, Environment{}, fmt.Errorf("project %s has no environment %s. Its environments are %s: %w",
-		p.Name, environment, and(names(p.Environments)), ErrNotFound)
+	return Project{}, Environment{}, fault.New(ErrNotFound, "project %s has no environment %s. Its environments are %s",
+		p.Name, environment, human.List(names(p.Environments)))
 }
 
-func (t Tree) project(project string) (Project, error) {
+// Project finds a live project by name or ID. Empty means the only one
+// there is; once there are several, leaving it out is a *ChoiceError.
+func (t Tree) Project(project string) (Project, error) {
 	if project == "" {
 		switch len(t.Projects) {
 		case 1:
 			return t.Projects[0], nil
 		case 0:
-			return Project{}, fmt.Errorf("the organization has no projects yet: %w", ErrNotFound)
+			return Project{}, fault.New(ErrNotFound, "the organization has no projects yet. Make one first")
 		}
 		return Project{}, &ChoiceError{Level: ProjectKind, Options: projectNames(t.Projects)}
 	}
@@ -253,7 +264,7 @@ func (t Tree) project(project string) (Project, error) {
 			return p, nil
 		}
 	}
-	return Project{}, fmt.Errorf("there's no project %s. The projects are %s: %w", project, and(projectNames(t.Projects)), ErrNotFound)
+	return Project{}, fault.New(ErrNotFound, "there's no project %s. The projects are %s", project, human.List(projectNames(t.Projects)))
 }
 
 func inProject(project string) string {
@@ -277,16 +288,4 @@ func projectNames(projects []Project) []string {
 		out[i] = p.Name
 	}
 	return out
-}
-
-// and lists names the way messages do: "a", "a and b", "a, b and c".
-func and(names []string) string {
-	names = slices.Clone(names)
-	switch len(names) {
-	case 0:
-		return "none"
-	case 1:
-		return names[0]
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }

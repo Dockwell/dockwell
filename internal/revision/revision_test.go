@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,7 +30,7 @@ type server struct {
 	docker   *container.Fake
 	firewall *firewall.Fake
 	agent    resource.Agent
-	online   bool
+	online   atomic.Bool
 }
 
 type fleet map[string]*server
@@ -39,12 +40,19 @@ func (f fleet) Agent(id string) (resource.Agent, bool) {
 	if !ok {
 		return nil, false
 	}
-	return s.agent, s.online
+	return s.agent, s.online.Load()
 }
 
 func setup(t *testing.T, b store.Backend, ids ...string) (*Engine, fleet, *store.DB) {
 	t.Helper()
-	db, _ := storetest.Open(t, b)
+	e, f, db, _ := setupAt(t, b, ids...)
+	return e, f, db
+}
+
+// setupAt is setup that also says where the store is, for storetest.
+func setupAt(t *testing.T, b store.Backend, ids ...string) (*Engine, fleet, *store.DB, string) {
+	t.Helper()
+	db, location := storetest.Open(t, b)
 	if _, err := Setup(t.Context(), db, slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +63,8 @@ func setup(t *testing.T, b store.Backend, ids ...string) (*Engine, fleet, *store
 			if err := tx.CreateServer(t.Context(), store.Server{ID: id, Name: id, CreatedAt: now, CertSerial: id, CertNotAfter: now}); err != nil {
 				return err
 			}
-			s := &server{docker: container.NewFake(), firewall: firewall.NewFake(), online: true}
+			s := &server{docker: container.NewFake(), firewall: firewall.NewFake()}
+			s.online.Store(true)
 			s.agent = resource.Local{Drivers: resource.NewRegistry(
 				&container.Driver{Runtime: s.docker, RecreateDowntime: recreate},
 				&firewall.Driver{Backend: s.firewall},
@@ -67,9 +76,18 @@ func setup(t *testing.T, b store.Backend, ids ...string) (*Engine, fleet, *store
 	}); err != nil {
 		t.Fatal(err)
 	}
+	return newEngine(db, f), f, db, location
+}
+
+// newEngine is an engine over db and the fleet f, as a control plane that
+// starts again makes one.
+func newEngine(db *store.DB, f fleet) *Engine { return newEngineWith(db, f) }
+
+// newEngineWith is newEngine reaching the servers through agents.
+func newEngineWith(db *store.DB, agents Agents) *Engine {
 	// The control plane's drivers only read specs; they never reach a server.
 	kinds := resource.NewRegistry(&container.Driver{RecreateDowntime: recreate}, &firewall.Driver{}, &service.Driver{})
-	return New(db, kinds, f, slog.New(slog.DiscardHandler)), f, db
+	return New(db, kinds, agents, slog.New(slog.DiscardHandler))
 }
 
 func web(image string) Edit {
@@ -166,7 +184,7 @@ func testPlanApplyUndoAcrossKinds(t *testing.T, backend store.Backend) {
 	}
 	apply(t, e, second)
 
-	undo, err := e.Undo(t.Context(), second.Change, "usr_test")
+	undo, err := e.Undo(t.Context(), second.Change, By{Actor: "usr_test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +207,7 @@ func testPlanApplyUndoAcrossKinds(t *testing.T, backend store.Backend) {
 	})
 
 	// The first change can't be undone now: web moved on since.
-	if _, err := e.Undo(t.Context(), first.Change, "usr_test"); !errors.Is(err, ErrCantUndo) {
+	if _, err := e.Undo(t.Context(), first.Change, By{Actor: "usr_test"}); !errors.Is(err, ErrCantUndo) {
 		t.Errorf("undoing a change something later changed again = %v, want ErrCantUndo", err)
 	}
 }
@@ -215,7 +233,7 @@ func testDeletesRunLastAndUndoBringsThemBack(t *testing.T, backend store.Backend
 		t.Fatal("web is still running")
 	}
 
-	undo, err := e.Undo(t.Context(), remove.Change, "usr_test")
+	undo, err := e.Undo(t.Context(), remove.Change, By{Actor: "usr_test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +273,7 @@ func TestAPlanCoversEveryServerItTouches(t *testing.T) {
 
 func testAPlanCoversEveryServerItTouches(t *testing.T, backend store.Backend) {
 	e, f, _ := setup(t, backend, "srv_A", "srv_B")
-	f["srv_B"].online = false
+	f["srv_B"].online.Store(false)
 
 	p := propose(t, e, "Open the API on both", rule("srv_A", "api", 8443), rule("srv_B", "api", 8443))
 	if len(p.Servers) != 2 || p.Servers[0].Offline || !p.Servers[1].Offline {
@@ -350,7 +368,7 @@ func testDriftIsFoundThenRevertedOrAdopted(t *testing.T, backend store.Backend) 
 	if c := drift[0].Changes[0]; c.Path != "env[DEBUG]" || c.Op != resource.OpAdded || !c.Sensitive {
 		t.Errorf("drift change: %+v", c)
 	}
-	revert, err := e.Revert(t.Context(), drift[0], "usr_test")
+	revert, err := e.Revert(t.Context(), drift[0], By{Actor: "usr_test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,7 +383,7 @@ func testDriftIsFoundThenRevertedOrAdopted(t *testing.T, backend store.Backend) 
 	// Someone changes the restart policy and the team wants to keep it.
 	hz1.docker.Edit("web", func(c *resourcev1.Container) { c.Restart = resourcev1.RestartPolicy_RESTART_POLICY_ALWAYS })
 	drift, _ = e.Drift(t.Context(), "srv_A")
-	adopt, err := e.Adopt(t.Context(), drift[0], "usr_test")
+	adopt, err := e.Adopt(t.Context(), drift[0], By{Actor: "usr_test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +411,7 @@ func testUndoHasAWindow(t *testing.T, backend store.Backend) {
 	p := propose(t, e, "Run web", web("nginx:1.27"))
 	apply(t, e, p)
 	e.now = func() time.Time { return time.Now().Add(UndoWindow + time.Hour) }
-	if _, err := e.Undo(t.Context(), p.Change, "usr_test"); !errors.Is(err, ErrCantUndo) {
+	if _, err := e.Undo(t.Context(), p.Change, By{Actor: "usr_test"}); !errors.Is(err, ErrCantUndo) {
 		t.Errorf("undo after the window = %v, want ErrCantUndo", err)
 	}
 }
@@ -447,16 +465,35 @@ func testARuleThatBlocksSSHFromEverywhereIsFlagged(t *testing.T, backend store.B
 	}
 }
 
-// hooked wraps an agent to watch or disturb each step it applies.
+// hooked wraps an agent to watch or disturb each step it applies, and
+// each plan it makes.
 type hooked struct {
 	resource.Agent
 	before  func(resource.Step)
 	applied *[]string
+	// apply runs before each step, and plan before each plan; an error
+	// stands for the agent's.
+	apply func(ctx context.Context, step resource.Step, desired proto.Message) error
+	plan  func(ctx context.Context, desired []resource.Desired) error
+}
+
+func (h hooked) Plan(ctx context.Context, desired []resource.Desired) ([]resource.Step, error) {
+	if h.plan != nil {
+		if err := h.plan(ctx, desired); err != nil {
+			return nil, err
+		}
+	}
+	return h.Agent.Plan(ctx, desired)
 }
 
 func (h hooked) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
 	if h.before != nil {
 		h.before(step)
+	}
+	if h.apply != nil {
+		if err := h.apply(ctx, step, desired); err != nil {
+			return err
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return err // an agent that honours cancellation
@@ -516,7 +553,7 @@ func TestAServerThatDropsMidApplyIsRolledBackWhenItReturns(t *testing.T) {
 
 func testAServerThatDropsMidApplyIsRolledBackWhenItReturns(t *testing.T, backend store.Backend) {
 	e, f, db := setup(t, backend, "srv_A", "srv_B")
-	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { f["srv_B"].online = false }}
+	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { f["srv_B"].online.Store(false) }}
 	onB := web("nginx:1.27")
 	onB.Ref.Scope = "srv_B"
 	p := propose(t, e, "Open http and run web", rule("srv_A", "http", 80), onB)
@@ -545,7 +582,7 @@ func testAServerThatDropsMidApplyIsRolledBackWhenItReturns(t *testing.T, backend
 		t.Fatalf("resume while srv_B is away = %v", err)
 	}
 
-	f["srv_B"].online = true
+	f["srv_B"].online.Store(true)
 	if err := e.Resume(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -592,7 +629,7 @@ func testTheUndoWindowIsWordedExactly(t *testing.T, backend store.Backend) {
 	p := propose(t, e, "Run web", web("nginx:1.27"))
 	apply(t, e, p)
 	e.now = func() time.Time { return time.Now().Add(UndoWindow + time.Hour + time.Minute) }
-	_, err := e.Undo(t.Context(), p.Change, "usr_test")
+	_, err := e.Undo(t.Context(), p.Change, By{Actor: "usr_test"})
 	if err == nil || !strings.Contains(err.Error(), "applied 7 days and 1 hour ago, and changes can be undone for 7 days") {
 		t.Errorf("message: %v", err)
 	}

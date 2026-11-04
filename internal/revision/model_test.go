@@ -162,7 +162,7 @@ func TestAServiceSaysWhereItRunsOnceThereIsAChoice(t *testing.T) {
 		e, f, db := setup(t, b, "srv_A", "srv_B")
 		env := production(t, db)
 		_, err := e.Propose(t.Context(), Proposal{Summary: "Run web", Actor: "usr_test", Edits: []Edit{app(env, "nginx:1.27")}})
-		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "there are 2 servers, so say which web runs on: srv_A, srv_B") {
+		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "there are 2 servers, srv_A and srv_B, so say which web runs on") {
 			t.Fatalf("a new service with two servers and no choice = %v", err)
 		}
 		web := app(env, "nginx:1.27", "srv_B", "srv_A", "srv_B")
@@ -214,7 +214,7 @@ func TestMovingAServiceIsARevision(t *testing.T) {
 			t.Errorf("deployments after the move: %v", d)
 		}
 
-		undo, err := e.Undo(t.Context(), move.Change, "usr_test")
+		undo, err := e.Undo(t.Context(), move.Change, By{Actor: "usr_test"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -291,7 +291,7 @@ func TestAnEnvironmentIsAChangeAndShowsOnlyOnceThereIsAChoice(t *testing.T) {
 			t.Errorf("Resolve(default, staging) = %+v, %v", env, err)
 		}
 
-		undo, err := e.Undo(t.Context(), p.Change, "usr_test")
+		undo, err := e.Undo(t.Context(), p.Change, By{Actor: "usr_test"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -411,7 +411,7 @@ func removedOnly(sp ServerPlan, server string) bool {
 
 func undo(t *testing.T, e *Engine, p *Plan) *Plan {
 	t.Helper()
-	u, err := e.Undo(t.Context(), p.Change, "usr_test")
+	u, err := e.Undo(t.Context(), p.Change, By{Actor: "usr_test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -424,7 +424,7 @@ func remove(t *testing.T, db *store.DB, f fleet, server string) {
 	if err := db.Update(t.Context(), func(tx *store.Tx) error { return tx.RevokeServer(t.Context(), server, time.Now()) }); err != nil {
 		t.Fatal(err)
 	}
-	f[server].online = false
+	f[server].online.Store(false)
 }
 
 // One change can't delete a scope and keep something in it, and it can
@@ -559,7 +559,7 @@ func TestAServiceCanLeaveARemovedServer(t *testing.T) {
 		if d := deployments(t, db, web.Ref); !slices.Equal(d, []string{"srv_A@2=live", "srv_B@1=superseded"}) {
 			t.Errorf("web's deployments after the move: %v", d)
 		}
-		if _, err := e.Undo(t.Context(), move.Change, "usr_test"); !errors.Is(err, ErrCantUndo) ||
+		if _, err := e.Undo(t.Context(), move.Change, By{Actor: "usr_test"}); !errors.Is(err, ErrCantUndo) ||
 			!strings.Contains(err.Error(), "web ran on srv_B, which was removed from the fleet, so there's nowhere to put it back. Edit web directly instead") {
 			t.Errorf("undoing the move = %v, want ErrCantUndo saying there's nowhere to put web back", err)
 		}
@@ -572,7 +572,7 @@ func TestAServiceCanLeaveARemovedServer(t *testing.T) {
 		if d := deployments(t, db, api.Ref); !slices.Equal(d, []string{"srv_B@1=superseded"}) {
 			t.Errorf("api's deployments after the delete: %v", d)
 		}
-		if _, err := e.Undo(t.Context(), gone.Change, "usr_test"); !errors.Is(err, ErrCantUndo) {
+		if _, err := e.Undo(t.Context(), gone.Change, By{Actor: "usr_test"}); !errors.Is(err, ErrCantUndo) {
 			t.Errorf("undoing api's deletion = %v, want ErrCantUndo", err)
 		}
 	})
@@ -609,7 +609,7 @@ func TestUndoSkipsARemovedServer(t *testing.T) {
 func TestARollbackStopsWaitingForARemovedServer(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		e, f, db := setup(t, b, "srv_A", "srv_B")
-		f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { f["srv_B"].online = false }}
+		f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { f["srv_B"].online.Store(false) }}
 		onB := web("nginx:1.27")
 		onB.Ref.Scope = "srv_B"
 		err := e.Apply(t.Context(), propose(t, e, "Open http and run web", rule("srv_A", "http", 80), onB).Change)

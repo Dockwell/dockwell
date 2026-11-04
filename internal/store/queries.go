@@ -235,12 +235,15 @@ type Event struct {
 	Action  string
 	Subject string
 	Detail  string
+	// Surface is where it came from, such as "panel", "api" or
+	// "automatic". Empty for events that don't say.
+	Surface string
 }
 
 // RecordEvent appends to the audit log.
 func (t *Tx) RecordEvent(ctx context.Context, e Event) error {
-	_, err := t.exec(ctx, `INSERT INTO audit_events (id, at, actor, action, subject, detail) VALUES (?, ?, ?, ?, ?, ?)`,
-		e.ID, millis(e.At), e.Actor, e.Action, e.Subject, e.Detail)
+	_, err := t.exec(ctx, `INSERT INTO audit_events (id, at, actor, action, subject, detail, surface) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		e.ID, millis(e.At), e.Actor, e.Action, e.Subject, e.Detail, e.Surface)
 	if err != nil {
 		return fmt.Errorf("can't record audit event %s: %w", e.Action, err)
 	}
@@ -249,7 +252,7 @@ func (t *Tx) RecordEvent(ctx context.Context, e Event) error {
 
 // ListEvents returns the newest audit events first, at most limit of them.
 func (t *Tx) ListEvents(ctx context.Context, limit int) ([]Event, error) {
-	rows, err := t.query(ctx, `SELECT id, at, actor, action, subject, detail FROM audit_events ORDER BY at DESC, id DESC LIMIT ?`, limit)
+	rows, err := t.query(ctx, `SELECT id, at, actor, action, subject, detail, surface FROM audit_events ORDER BY at DESC, id DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("can't list audit events: %w", err)
 	}
@@ -258,7 +261,7 @@ func (t *Tx) ListEvents(ctx context.Context, limit int) ([]Event, error) {
 	for rows.Next() {
 		var e Event
 		var at int64
-		if err := rows.Scan(&e.ID, &at, &e.Actor, &e.Action, &e.Subject, &e.Detail); err != nil {
+		if err := rows.Scan(&e.ID, &at, &e.Actor, &e.Action, &e.Subject, &e.Detail, &e.Surface); err != nil {
 			return nil, err
 		}
 		e.At = fromMillis(at)

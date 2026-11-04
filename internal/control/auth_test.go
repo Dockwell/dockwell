@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,10 +35,16 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/auth/authtest"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/https"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -45,11 +52,19 @@ import (
 
 // fullServer is a control plane with sign-in, as dockwell run starts it.
 type fullServer struct {
-	auth  *auth.Service
-	db    string // where the database is, for store.Open
-	api   string // the loopback listener's address
-	https string // the HTTPS listener's address, with a domain
-	http  string // the plain-HTTP listener's address, with a domain
+	auth   *auth.Service
+	engine *revision.Engine
+	agents *agentapi.Agents
+	ident  *identity.Authority
+	store  *store.DB
+	// agentAddr is the agent listener's address.
+	agentAddr string
+	db        string // where the database is, for store.Open
+	api       string // the loopback listener's address
+	https     string // the HTTPS listener's address, with a domain
+	http      string // the plain-HTTP listener's address, with a domain
+	// stop stops the server, as a signal does, and returns what Run did.
+	stop func() error
 }
 
 // execSQL runs a statement on the server's database from outside the store,
@@ -61,8 +76,13 @@ func (f *fullServer) execSQL(t *testing.T, query string) {
 
 func startFull(t *testing.T, backend store.Backend, public https.Source) *fullServer {
 	t.Helper()
+	return startFullLogging(t, backend, public, slog.New(slog.DiscardHandler))
+}
+
+// startFullLogging is startFull with the control plane logging to logger.
+func startFullLogging(t *testing.T, backend store.Backend, public https.Source, logger *slog.Logger) *fullServer {
+	t.Helper()
 	dir := t.TempDir()
-	logger := slog.New(slog.DiscardHandler)
 	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +104,18 @@ func startFull(t *testing.T, backend store.Backend, public https.Source) *fullSe
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv, err := New(Config{Logger: logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public})
+	if _, err := revision.Setup(t.Context(), db, logger); err != nil {
+		t.Fatal(err)
+	}
+	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{})
+	agents := agentapi.NewAgents(kinds, logger)
+	engine := revision.New(db, kinds, agents, logger)
+	agents.OnConnect(func(string) { _ = engine.Resume(context.Background()) })
+	t.Cleanup(engine.Wait)
+	srv, err := New(Config{
+		Logger: logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
+		Changes: engine, Agents: agents, Store: db, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,8 +127,11 @@ func startFull(t *testing.T, backend store.Backend, public https.Source) *fullSe
 		}
 		return ln
 	}
-	ls := Listeners{API: listen()}
-	f := &fullServer{auth: people, db: path, api: ls.API.Addr().String()}
+	ls := Listeners{API: listen(), Agents: listen()}
+	f := &fullServer{
+		auth: people, engine: engine, agents: agents, ident: ident, store: db, db: path,
+		api: ls.API.Addr().String(), agentAddr: ls.Agents.Addr().String(),
+	}
 	if public != nil {
 		ls.HTTPS, ls.HTTP = listen(), listen()
 		f.https, f.http = ls.HTTPS.Addr().String(), ls.HTTP.Addr().String()
@@ -105,9 +139,17 @@ func startFull(t *testing.T, backend store.Backend, public https.Source) *fullSe
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- srv.Run(ctx, ls) }()
+	var once sync.Once
+	var runErr error
+	f.stop = func() error {
+		once.Do(func() {
+			cancel()
+			runErr = <-done
+		})
+		return runErr
+	}
 	t.Cleanup(func() {
-		cancel()
-		if err := <-done; err != nil {
+		if err := f.stop(); err != nil {
 			t.Errorf("Run returned %v after cancel", err)
 		}
 	})

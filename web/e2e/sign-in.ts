@@ -6,7 +6,7 @@
 // codes, signs in with a recovery code, opens a link from `dockwell recover`
 // on a phone, and signs that phone out from the first browser. It makes an
 // API token in the panel, calls REST and Connect with it as a script would,
-// and revokes it. Everything
+// makes a project with a plan and undoes it, and revokes the token. Everything
 // after the claim goes through the panel shell: the rail's link to your
 // profile on wide screens, More on phones. With --shots <dir> it also saves
 // screenshots of every screen at 1440, 390 and 360 px, light and dark.
@@ -361,6 +361,84 @@ async function main() {
     fail(`GET /v1/sessions with a token should need a session: ${JSON.stringify(sessionsWithToken)}`);
   }
   step(`  REST and Connect answered with the token (${restServers.length} server), and sign-in needed a session`);
+
+  step("changes: make a project through the API with a plan, apply it, then undo it");
+  const readOnly = await withToken("/v1/changes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      summary: "Add the shop project",
+      edits: [{ resource: { name: "shop" }, spec: { project: {} } }],
+    }),
+  });
+  if (readOnly.status !== 403 || readOnly.reason !== "token_scope") {
+    fail(`proposing a change with the read-only token: ${JSON.stringify(readOnly)}`);
+  }
+  type Change = {
+    id: string;
+    state: string;
+    reverts?: string;
+    proposedBy?: { kind: string; name: string };
+    plan?: {
+      fingerprint: string;
+      summary?: { create?: number; destroy?: number };
+      resources?: { action: string; resource: { kind: string; name: string } }[];
+      servers?: unknown[];
+    };
+  };
+  // From the panel's page, with its session, as the panel calls the API.
+  const changeCall = async (path: string, body?: unknown): Promise<Change> => {
+    const r = await page.evaluate(
+      async ({ path, body }) => {
+        const res = await fetch(
+          path,
+          body === undefined
+            ? {}
+            : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+        );
+        return { status: res.status, reason: res.headers.get("Dockwell-Error"), body: await res.text() };
+      },
+      { path, body },
+    );
+    if (r.status !== 200) fail(`${body === undefined ? "GET" : "POST"} ${path}: ${JSON.stringify(r)}`);
+    return (JSON.parse(r.body) as { change: Change }).change;
+  };
+  const applied = async (change: Change): Promise<Change> => {
+    await changeCall(`/v1/changes/${change.id}:apply`, {});
+    for (let i = 0; i < 100; i++) {
+      const now = await changeCall(`/v1/changes/${change.id}`);
+      if (now.state === "CHANGE_STATE_APPLIED") return now;
+      if (now.state !== "CHANGE_STATE_APPLYING")
+        fail(`applying ${change.id} ended ${now.state}: ${JSON.stringify(now)}`);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return fail(`${change.id} didn't finish applying`);
+  };
+  const shop = await changeCall("/v1/changes", {
+    summary: "Add the shop project",
+    edits: [{ resource: { name: "shop" }, spec: { project: { displayName: "Shop" } } }],
+  });
+  const kinds = (shop.plan?.resources ?? []).map((r) => `${r.action} ${r.resource.kind} ${r.resource.name}`).join(", ");
+  if (
+    shop.state !== "CHANGE_STATE_PLANNED" ||
+    shop.plan?.summary?.create !== 2 ||
+    kinds !== "PLAN_ACTION_CREATE project shop, PLAN_ACTION_CREATE environment production" ||
+    shop.proposedBy?.kind !== "ACTOR_KIND_USER" ||
+    shop.proposedBy?.name !== "Mira Chen"
+  ) {
+    fail(`proposing a project planned ${JSON.stringify(shop)}`);
+  }
+  step(`  planned ${kinds}, fingerprint ${shop.plan?.fingerprint}`);
+  await applied(shop);
+  const undo = await changeCall(`/v1/changes/${shop.id}:undo`, {});
+  if (undo.reverts !== shop.id || undo.plan?.summary?.destroy !== 2)
+    fail(`undoing the project planned ${JSON.stringify(undo)}`);
+  await applied(undo);
+  const history = await page.evaluate(async () => (await fetch("/v1/changes?pageSize=3")).json());
+  const ids = ((history as { changes?: Change[] }).changes ?? []).map((c) => c.id);
+  if (ids[0] !== undo.id || ids[1] !== shop.id)
+    fail(`GET /v1/changes lists ${JSON.stringify(ids)}, want the undo, then the project`);
+  step(`  the read-only token was refused; the panel applied ${shop.id}, then undid it in ${undo.id}`);
   await page.reload();
   const row = tokens.getByRole("listitem").filter({ hasText: "e2e script" });
   await row.filter({ hasText: /from\s*127\.0\.0\.1/ }).waitFor();

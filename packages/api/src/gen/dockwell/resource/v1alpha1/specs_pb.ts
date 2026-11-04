@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/resource/v1alpha1/specs.proto.
  */
 export const file_dockwell_resource_v1alpha1_specs: GenFile = /*@__PURE__*/
-  fileDesc("CiZkb2Nrd2VsbC9yZXNvdXJjZS92MWFscGhhMS9zcGVjcy5wcm90bxIaZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEigAMKCUNvbnRhaW5lchINCgVpbWFnZRgBIAEoCRIPCgdjb21tYW5kGAIgAygJEkEKA2VudhgDIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5FbnZFbnRyeUIEyPMYARI2CgVwb3J0cxgEIAMoCzInLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlBvcnRNYXBwaW5nEjoKB3Jlc3RhcnQYBSABKA4yKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5SZXN0YXJ0UG9saWN5EkEKBmxhYmVscxgGIAMoCzIxLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5MYWJlbHNFbnRyeRoqCghFbnZFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi0KC0xhYmVsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEicAoLUG9ydE1hcHBpbmcSEQoJaG9zdF9wb3J0GAEgASgNEhYKDmNvbnRhaW5lcl9wb3J0GAIgASgNEjYKCHByb3RvY29sGAMgASgOMiQuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUHJvdG9jb2wisgEKDEZpcmV3YWxsUnVsZRI6CgZhY3Rpb24YASABKA4yKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbEFjdGlvbhI2Cghwcm90b2NvbBgCIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlByb3RvY29sEgwKBHBvcnQYAyABKA0SDwoHc291cmNlcxgEIAMoCRIPCgdjb21tZW50GAUgASgJIh8KB1Byb2plY3QSFAoMZGlzcGxheV9uYW1lGAEgASgJIiMKC0Vudmlyb25tZW50EhQKDGRpc3BsYXlfbmFtZRgBIAEoCSJHCgdTZXJ2aWNlEjQKA2FwcBgBIAEoCzIlLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lckgAQgYKBHJ1bnMqowEKDVJlc3RhcnRQb2xpY3kSHgoaUkVTVEFSVF9QT0xJQ1lfVU5TUEVDSUZJRUQQABIVChFSRVNUQVJUX1BPTElDWV9OTxABEh0KGVJFU1RBUlRfUE9MSUNZX09OX0ZBSUxVUkUQAhIhCh1SRVNUQVJUX1BPTElDWV9VTkxFU1NfU1RPUFBFRBADEhkKFVJFU1RBUlRfUE9MSUNZX0FMV0FZUxAEKkgKCFByb3RvY29sEhgKFFBST1RPQ09MX1VOU1BFQ0lGSUVEEAASEAoMUFJPVE9DT0xfVENQEAESEAoMUFJPVE9DT0xfVURQEAIqZgoORmlyZXdhbGxBY3Rpb24SHwobRklSRVdBTExfQUNUSU9OX1VOU1BFQ0lGSUVEEAASGQoVRklSRVdBTExfQUNUSU9OX0FMTE9XEAESGAoURklSRVdBTExfQUNUSU9OX0RFTlkQAjo9CglzZW5zaXRpdmUSHS5nb29nbGUucHJvdG9idWYuRmllbGRPcHRpb25zGLmOAyABKAhSCXNlbnNpdGl2ZUKEAgoeY29tLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExQgpTcGVjc1Byb3RvUAFaTGdpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3Jlc291cmNlL3YxYWxwaGExO3Jlc291cmNldjFhbHBoYTGiAgNEUliqAhpEb2Nrd2VsbC5SZXNvdXJjZS5WMWFscGhhMcoCGkRvY2t3ZWxsXFJlc291cmNlXFYxYWxwaGEx4gImRG9ja3dlbGxcUmVzb3VyY2VcVjFhbHBoYTFcR1BCTWV0YWRhdGHqAhxEb2Nrd2VsbDo6UmVzb3VyY2U6OlYxYWxwaGExYgZwcm90bzM", [file_google_protobuf_descriptor]);
+  fileDesc("CiZkb2Nrd2VsbC9yZXNvdXJjZS92MWFscGhhMS9zcGVjcy5wcm90bxIaZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEigAMKCUNvbnRhaW5lchINCgVpbWFnZRgBIAEoCRIPCgdjb21tYW5kGAIgAygJEkEKA2VudhgDIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5FbnZFbnRyeUIEyPMYARI2CgVwb3J0cxgEIAMoCzInLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlBvcnRNYXBwaW5nEjoKB3Jlc3RhcnQYBSABKA4yKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5SZXN0YXJ0UG9saWN5EkEKBmxhYmVscxgGIAMoCzIxLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5MYWJlbHNFbnRyeRoqCghFbnZFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi0KC0xhYmVsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEicAoLUG9ydE1hcHBpbmcSEQoJaG9zdF9wb3J0GAEgASgNEhYKDmNvbnRhaW5lcl9wb3J0GAIgASgNEjYKCHByb3RvY29sGAMgASgOMiQuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUHJvdG9jb2wisgEKDEZpcmV3YWxsUnVsZRI6CgZhY3Rpb24YASABKA4yKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbEFjdGlvbhI2Cghwcm90b2NvbBgCIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlByb3RvY29sEgwKBHBvcnQYAyABKA0SDwoHc291cmNlcxgEIAMoCRIPCgdjb21tZW50GAUgASgJIh8KB1Byb2plY3QSFAoMZGlzcGxheV9uYW1lGAEgASgJIiMKC0Vudmlyb25tZW50EhQKDGRpc3BsYXlfbmFtZRgBIAEoCSJHCgdTZXJ2aWNlEjQKA2FwcBgBIAEoCzIlLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lckgAQgYKBHJ1bnMivQIKBFNwZWMSNgoHcHJvamVjdBgBIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlByb2plY3RIABI+CgtlbnZpcm9ubWVudBgCIAEoCzInLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkVudmlyb25tZW50SAASNgoHc2VydmljZRgDIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlNlcnZpY2VIABI6Cgljb250YWluZXIYBCABKAsyJS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db250YWluZXJIABJBCg1maXJld2FsbF9ydWxlGAUgASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRmlyZXdhbGxSdWxlSABCBgoEa2luZCqjAQoNUmVzdGFydFBvbGljeRIeChpSRVNUQVJUX1BPTElDWV9VTlNQRUNJRklFRBAAEhUKEVJFU1RBUlRfUE9MSUNZX05PEAESHQoZUkVTVEFSVF9QT0xJQ1lfT05fRkFJTFVSRRACEiEKHVJFU1RBUlRfUE9MSUNZX1VOTEVTU19TVE9QUEVEEAMSGQoVUkVTVEFSVF9QT0xJQ1lfQUxXQVlTEAQqSAoIUHJvdG9jb2wSGAoUUFJPVE9DT0xfVU5TUEVDSUZJRUQQABIQCgxQUk9UT0NPTF9UQ1AQARIQCgxQUk9UT0NPTF9VRFAQAipmCg5GaXJld2FsbEFjdGlvbhIfChtGSVJFV0FMTF9BQ1RJT05fVU5TUEVDSUZJRUQQABIZChVGSVJFV0FMTF9BQ1RJT05fQUxMT1cQARIYChRGSVJFV0FMTF9BQ1RJT05fREVOWRACOj0KCXNlbnNpdGl2ZRIdLmdvb2dsZS5wcm90b2J1Zi5GaWVsZE9wdGlvbnMYuY4DIAEoCFIJc2Vuc2l0aXZlQoQCCh5jb20uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTFCClNwZWNzUHJvdG9QAVpMZ2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvcmVzb3VyY2UvdjFhbHBoYTE7cmVzb3VyY2V2MWFscGhhMaICA0RSWKoCGkRvY2t3ZWxsLlJlc291cmNlLlYxYWxwaGExygIaRG9ja3dlbGxcUmVzb3VyY2VcVjFhbHBoYTHiAiZEb2Nrd2VsbFxSZXNvdXJjZVxWMWFscGhhMVxHUEJNZXRhZGF0YeoCHERvY2t3ZWxsOjpSZXNvdXJjZTo6VjFhbHBoYTFiBnByb3RvMw", [file_google_protobuf_descriptor]);
 
 /**
  * Container is one Docker container on a server.
@@ -241,6 +241,69 @@ export type Service = Message<"dockwell.resource.v1alpha1.Service"> & {
  */
 export const ServiceSchema: GenMessage<Service> = /*@__PURE__*/
   messageDesc(file_dockwell_resource_v1alpha1_specs, 5);
+
+/**
+ * Spec is the desired state of one resource, of any kind: the field that is
+ * set says which. Edits in the API carry specs in it, so one message takes
+ * every kind.
+ *
+ * @generated from message dockwell.resource.v1alpha1.Spec
+ */
+export type Spec = Message<"dockwell.resource.v1alpha1.Spec"> & {
+  /**
+   * The kind's spec.
+   *
+   * @generated from oneof dockwell.resource.v1alpha1.Spec.kind
+   */
+  kind: {
+    /**
+     * A project, kind "project".
+     *
+     * @generated from field: dockwell.resource.v1alpha1.Project project = 1;
+     */
+    value: Project;
+    case: "project";
+  } | {
+    /**
+     * An environment, kind "environment".
+     *
+     * @generated from field: dockwell.resource.v1alpha1.Environment environment = 2;
+     */
+    value: Environment;
+    case: "environment";
+  } | {
+    /**
+     * A service, kind "service".
+     *
+     * @generated from field: dockwell.resource.v1alpha1.Service service = 3;
+     */
+    value: Service;
+    case: "service";
+  } | {
+    /**
+     * A container run by hand on a server, kind "container".
+     *
+     * @generated from field: dockwell.resource.v1alpha1.Container container = 4;
+     */
+    value: Container;
+    case: "container";
+  } | {
+    /**
+     * A firewall rule on a server, kind "firewall.rule".
+     *
+     * @generated from field: dockwell.resource.v1alpha1.FirewallRule firewall_rule = 5;
+     */
+    value: FirewallRule;
+    case: "firewallRule";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message dockwell.resource.v1alpha1.Spec.
+ * Use `create(SpecSchema)` to create a new message.
+ */
+export const SpecSchema: GenMessage<Spec> = /*@__PURE__*/
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 6);
 
 /**
  * RestartPolicy says when Docker restarts a stopped container.

@@ -191,6 +191,8 @@ func TestHistoryIsAppendOnly(t *testing.T) {
 			`DELETE FROM change_items`,
 			`UPDATE changes SET plan = 'x'`,
 			`UPDATE changes SET fingerprint = 'x'`,
+			`UPDATE changes SET proposed_via = 'x'`,
+			`UPDATE changes SET state = 'abandoned'`,
 			`DELETE FROM changes`,
 			`UPDATE resources SET revision = 5`,
 			`UPDATE resources SET name = 'telnet'`,
@@ -207,6 +209,8 @@ func TestHistoryIsAppendOnly(t *testing.T) {
 		// What is meant to move on still does.
 		for _, q := range []string{
 			`UPDATE changes SET state = 'applied', applied_at = 1`,
+			`UPDATE changes SET applied_by = 'user:usr_1', applied_via = 'panel', progress = 'x'`,
+			`UPDATE changes SET state = 'discarded'`,
 			`UPDATE deployments SET state = 'live', updated_at = 1`,
 		} {
 			if err := db.Update(ctx, func(tx *store.Tx) error { return store.ExecForTest(ctx, tx, q) }); err != nil {
@@ -283,5 +287,26 @@ func TestUpgradeKeepsM1Revisions(t *testing.T) {
 			}
 			return nil
 		})
+	})
+}
+
+// Resume lists the changes left applying on every start, every connect and
+// every wakeup, so the list comes from an index on the state: not from
+// reading every change there ever was.
+func TestChangesInAStateComeFromAnIndex(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		var plan string
+		if err := db.View(t.Context(), func(tx *store.Tx) (err error) {
+			plan, err = store.ChangesInPlanForTest(t.Context(), tx, store.ChangeApplying)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		// The state is a condition of the index, not a filter on each row.
+		want := map[store.Backend]string{store.SQLite: "changes_by_state (state=?)", store.Postgres: "Index Cond: (state = "}[b]
+		if !strings.Contains(plan, want) {
+			t.Errorf("listing the changes left applying runs as\n%s\nwant it to look the state up in an index (%q)", plan, want)
+		}
 	})
 }

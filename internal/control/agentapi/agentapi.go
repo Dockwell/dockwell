@@ -51,6 +51,7 @@ func PeerFrom(ctx context.Context) (Peer, bool) {
 type Handler struct {
 	auth   *identity.Authority
 	fleet  *fleet.Hub
+	agents *Agents
 	logger *slog.Logger
 	// silence is how long a stream may say nothing before it is closed, and
 	// recheck how often a connected server's revocation is checked.
@@ -75,6 +76,12 @@ type Option func(*Handler)
 // connected server's revocation is checked.
 func WithStreamTiming(silence, recheck time.Duration) Option {
 	return func(h *Handler) { h.silence, h.recheck = silence, recheck }
+}
+
+// WithAgents makes each stream's agent reachable through agents, for the
+// engine's calls. Without it, streams only report.
+func WithAgents(agents *Agents) Option {
+	return func(h *Handler) { h.agents = agents }
 }
 
 // NewHandler returns the agent listener's root handler.
@@ -201,7 +208,14 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 		return err
 	}
 	log := h.logger.With(slog.String("server", peer.ServerID), slog.String("name", srv.Name))
-	log.InfoContext(ctx, "server connected", slog.String("agent", hello.GetBuild().GetVersion()))
+	log.InfoContext(ctx, "server connected", slog.String("agent", hello.GetBuild().GetVersion()), slog.Any("kinds", hello.GetKinds()))
+	// The engine reaches the agent's drivers over the stream from now on.
+	// Sends after the welcome go through the session, one at a time.
+	var session *Session
+	if h.agents != nil {
+		session = h.agents.open(peer.ServerID, srv.Name, hello.GetKinds(), stream.Send)
+		defer session.close()
+	}
 
 	recheck := time.NewTicker(h.recheck)
 	defer recheck.Stop()
@@ -216,8 +230,20 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 			return err
 		case msg := <-msgs:
 			silence.Reset(h.silence)
-			if stats := msg.GetStats(); stats != nil {
-				h.fleet.Record(peer.ServerID, stats)
+			switch {
+			case msg.GetStats() != nil:
+				h.fleet.Record(peer.ServerID, msg.GetStats())
+			case msg.GetResult() != nil && session != nil:
+				session.deliver(msg.GetResult())
+			case msg.GetDraining() != nil && session != nil:
+				session.drain()
+			case msg.GetDraining() != nil:
+				// No calls go on a stream without a session, so it is
+				// drained already. Answer at once, or the agent waits its
+				// whole drain limit before it moves to the new stream.
+				if err := stream.Send(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Drained{Drained: &agentv1.Drained{}}}); err != nil {
+					return err
+				}
 			}
 		case <-silence.C:
 			log.WarnContext(ctx, "closing a silent stream", slog.String("silent_for", human.Duration(h.silence)))

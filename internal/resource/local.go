@@ -4,6 +4,7 @@ package resource
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"google.golang.org/protobuf/proto"
@@ -27,6 +28,29 @@ type Agent interface {
 	// a desired spec, or nil if it doesn't exist.
 	Observe(ctx context.Context, refs []Ref) ([]proto.Message, error)
 }
+
+// What an Agent's call returns when it didn't run to an end on the server.
+// The engine tells them apart: a call that didn't run can wait for the
+// agent, and one that may have run is checked again.
+var (
+	// ErrLost means the agent's stream ended while a call waited for its
+	// result. The call may or may not have run.
+	ErrLost = errors.New("the server's agent disconnected")
+	// ErrNotConnected means the server's agent isn't connected, so the
+	// call never reached it and didn't run.
+	ErrNotConnected = errors.New("the server's agent isn't connected")
+)
+
+// ServerError is a call that a server's agent ran and failed, with the
+// agent's own reason. It names the server, so what wraps it needn't.
+type ServerError struct {
+	Server string // the server's name
+	Err    error
+}
+
+func (e *ServerError) Error() string { return e.Server + ": " + e.Err.Error() }
+
+func (e *ServerError) Unwrap() error { return e.Err }
 
 // Local is an Agent backed by drivers in this process.
 type Local struct {

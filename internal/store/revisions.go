@@ -53,10 +53,11 @@ func (t *RevisionTx) CreateOrganization(ctx context.Context, o Organization) err
 
 // Change states.
 const (
-	ChangePlanned  = "planned"
-	ChangeApplying = "applying"
-	ChangeApplied  = "applied"
-	ChangeFailed   = "failed"
+	ChangePlanned   = "planned"
+	ChangeApplying  = "applying"
+	ChangeApplied   = "applied"
+	ChangeFailed    = "failed"
+	ChangeDiscarded = "discarded"
 )
 
 // Change is one action's worth of edits to managed resources.
@@ -71,7 +72,15 @@ type Change struct {
 	Error       string
 	CreatedAt   time.Time
 	AppliedAt   time.Time // zero until applied
-	Items       []ChangeItem
+	// ProposedVia is the surface it was proposed from, such as "panel".
+	ProposedVia string
+	// AppliedBy and AppliedVia are who applied it and from where; empty
+	// until it is applied.
+	AppliedBy, AppliedVia string
+	// Progress is each step of an applying change and how it went, as the
+	// revision store writes it; nil until it applies.
+	Progress []byte
+	Items    []ChangeItem
 }
 
 // ChangeItem is what a change asks of one resource.
@@ -130,9 +139,9 @@ type Deployment struct {
 
 // CreateChange records a planned change and its items.
 func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
-	_, err := t.exec(ctx, `INSERT INTO changes (id, summary, actor, state, reverts, fingerprint, plan, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		c.ID, c.Summary, c.Actor, c.State, nullString(c.Reverts), c.Fingerprint, c.Plan, millis(c.CreatedAt))
+	_, err := t.exec(ctx, `INSERT INTO changes (id, summary, actor, state, reverts, fingerprint, plan, created_at, proposed_via)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.ID, c.Summary, c.Actor, c.State, nullString(c.Reverts), c.Fingerprint, c.Plan, millis(c.CreatedAt), c.ProposedVia)
 	if err != nil {
 		return fmt.Errorf("can't record change %s: %w", c.ID, err)
 	}
@@ -146,24 +155,32 @@ func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
 	return nil
 }
 
-// GetChange returns a change with its items, or ErrNotFound.
-func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
+const changeColumns = `id, summary, actor, state, reverts, fingerprint, plan, error, created_at, applied_at,
+	proposed_via, applied_by, applied_via, progress`
+
+func scanChange(row interface{ Scan(...any) error }) (Change, error) {
 	var c Change
-	var reverts, errText sql.NullString
+	var reverts, errText, appliedBy, appliedVia sql.NullString
 	var created int64
 	var applied sql.NullInt64
-	err := t.queryRow(ctx, `SELECT id, summary, actor, state, reverts, fingerprint, plan, error, created_at, applied_at
-		FROM changes WHERE id = ?`, changeID).
-		Scan(&c.ID, &c.Summary, &c.Actor, &c.State, &reverts, &c.Fingerprint, &c.Plan, &errText, &created, &applied)
+	err := row.Scan(&c.ID, &c.Summary, &c.Actor, &c.State, &reverts, &c.Fingerprint, &c.Plan, &errText, &created, &applied,
+		&c.ProposedVia, &appliedBy, &appliedVia, &c.Progress)
+	c.Reverts, c.Error, c.CreatedAt = reverts.String, errText.String, fromMillis(created)
+	c.AppliedBy, c.AppliedVia = appliedBy.String, appliedVia.String
+	if applied.Valid {
+		c.AppliedAt = fromMillis(applied.Int64)
+	}
+	return c, err
+}
+
+// GetChange returns a change with its items, or ErrNotFound.
+func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
+	c, err := scanChange(t.queryRow(ctx, `SELECT `+changeColumns+` FROM changes WHERE id = ?`, changeID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Change{}, ErrNotFound
 	}
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
-	}
-	c.Reverts, c.Error, c.CreatedAt = reverts.String, errText.String, fromMillis(created)
-	if applied.Valid {
-		c.AppliedAt = fromMillis(applied.Int64)
 	}
 	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers
 		FROM change_items WHERE change_id = ? ORDER BY position`, changeID)
@@ -187,6 +204,91 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 	return c, rows.Err()
 }
 
+// ChangePage names where a page of changes starts: after the change with
+// this creation time and ID, going back in time. The zero value starts with
+// the newest.
+type ChangePage struct {
+	CreatedAt time.Time
+	ID        string
+}
+
+// ListChanges returns at most limit changes, newest first, without their
+// items, from where page says.
+func (t *Tx) ListChanges(ctx context.Context, page ChangePage, limit int) ([]Change, error) {
+	query := `SELECT ` + changeColumns + ` FROM changes`
+	args := []any{}
+	if page.ID != "" {
+		query += ` WHERE created_at < ? OR created_at = ? AND id < ?`
+		at := millis(page.CreatedAt)
+		args = append(args, at, at, page.ID)
+	}
+	rows, err := t.query(ctx, query+` ORDER BY created_at DESC, id DESC LIMIT ?`, append(args, limit)...)
+	if err != nil {
+		return nil, fmt.Errorf("can't list changes: %w", err)
+	}
+	defer rows.Close()
+	var out []Change
+	for rows.Next() {
+		c, err := scanChange(rows)
+		if err != nil {
+			return nil, fmt.Errorf("can't list changes: %w", err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// Reverting returns the changes that undo or roll back any of changeIDs,
+// oldest first, in one query. Each has only its ID, actor, state and what
+// it reverts.
+func (t *Tx) Reverting(ctx context.Context, changeIDs []string) ([]Change, error) {
+	if len(changeIDs) == 0 {
+		return nil, nil
+	}
+	args := make([]any, len(changeIDs))
+	for i, id := range changeIDs {
+		args[i] = id
+	}
+	marks := strings.Repeat("?, ", len(changeIDs)-1) + "?"
+	rows, err := t.query(ctx, `SELECT id, actor, state, reverts FROM changes WHERE reverts IN (`+marks+`) ORDER BY created_at, id`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the changes that revert others: %w", err)
+	}
+	defer rows.Close()
+	var out []Change
+	for rows.Next() {
+		var c Change
+		if err := rows.Scan(&c.ID, &c.Actor, &c.State, &c.Reverts); err != nil {
+			return nil, fmt.Errorf("can't read the changes that revert others: %w", err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// StartApplying moves a planned change to applying, recording who applied
+// it, from where, and when, with its steps' progress. It fails with
+// ErrNotFound unless the change is still planned.
+func (t *RevisionTx) StartApplying(ctx context.Context, changeID, by, via string, progress []byte, at time.Time) error {
+	res, err := t.exec(ctx, `UPDATE changes SET state = ?, applied_at = ?, applied_by = ?, applied_via = ?, progress = ?
+		WHERE id = ? AND state = ?`, ChangeApplying, millis(at), by, via, progress, changeID, ChangePlanned)
+	if err != nil {
+		return fmt.Errorf("can't start applying change %s: %w", changeID, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("planned change %s: %w", changeID, ErrNotFound)
+	}
+	return nil
+}
+
+// SetChangeProgress records how an applying change's steps are going.
+func (t *RevisionTx) SetChangeProgress(ctx context.Context, changeID string, progress []byte) error {
+	if _, err := t.exec(ctx, `UPDATE changes SET progress = ? WHERE id = ?`, progress, changeID); err != nil {
+		return fmt.Errorf("can't record the progress of change %s: %w", changeID, err)
+	}
+	return nil
+}
+
 // SetChangeState moves a change on. appliedAt is recorded when set.
 func (t *RevisionTx) SetChangeState(ctx context.Context, changeID, state, errText string, appliedAt time.Time) error {
 	var applied sql.NullInt64
@@ -204,9 +306,14 @@ func (t *RevisionTx) SetChangeState(ctx context.Context, changeID, state, errTex
 	return nil
 }
 
+// changesIn lists the changes in a state, oldest first. The index
+// changes_by_state answers it, as Resume runs it on every start, every
+// connect and every wakeup.
+const changesIn = `SELECT id FROM changes WHERE state = ? ORDER BY created_at, id`
+
 // ChangesIn returns the IDs of changes in a state, oldest first.
 func (t *Tx) ChangesIn(ctx context.Context, state string) ([]string, error) {
-	rows, err := t.query(ctx, `SELECT id FROM changes WHERE state = ? ORDER BY created_at, id`, state)
+	rows, err := t.query(ctx, changesIn, state)
 	if err != nil {
 		return nil, fmt.Errorf("can't list changes: %w", err)
 	}

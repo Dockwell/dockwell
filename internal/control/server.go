@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/grpchealth"
@@ -40,13 +41,16 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/apidoc"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/control/servers"
 	"github.com/dockwell/dockwell/internal/control/system"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/panel"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/serve"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 // Default listen addresses. The API stays on loopback until the operator
@@ -81,15 +85,32 @@ type Config struct {
 	// PublicAddress is this server's public IP address, shown on the claim
 	// screen for pointing a domain at. Empty when it isn't known.
 	PublicAddress string
+	// Changes is the revision engine, which ChangeService serves, and
+	// Agents how it reaches each server's agent over its stream. Store is
+	// the state they read. Without Changes there is no ChangeService.
+	Changes *revision.Engine
+	Agents  *agentapi.Agents
+	Store   *store.DB
+	// StepGrace is how long the steps under way get to finish when the
+	// control plane stops, before they are cancelled; DefaultStepGrace when
+	// zero. Their changes finish when it starts again.
+	StepGrace time.Duration
 }
+
+// DefaultStepGrace is how long the steps under way get to finish when the
+// control plane stops. With the API's and the agent listener's own
+// shutdown, it keeps a stop well within the 90 seconds systemd waits.
+const DefaultStepGrace = 30 * time.Second
 
 // Server is a configured control plane, ready to serve.
 type Server struct {
-	logger   *slog.Logger
-	api      http.Handler
-	agents   http.Handler
-	agentTLS *tls.Config
-	public   https.Source
+	logger    *slog.Logger
+	api       http.Handler
+	agents    http.Handler
+	agentTLS  *tls.Config
+	public    https.Source
+	changes   *revision.Engine
+	stepGrace time.Duration
 }
 
 // New builds a Server from cfg.
@@ -114,12 +135,18 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{logger: cfg.Logger, api: api, public: cfg.Public}
+	s := &Server{logger: cfg.Logger, api: api, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
+	if s.stepGrace <= 0 {
+		s.stepGrace = DefaultStepGrace
+	}
 	if (cfg.Identity == nil) != (cfg.Fleet == nil) {
 		return nil, errors.New("control: Config.Identity and Config.Fleet go together")
 	}
+	if cfg.Changes != nil && (cfg.Agents == nil || cfg.Store == nil) {
+		return nil, errors.New("control: Config.Changes needs Config.Agents and Config.Store")
+	}
 	if cfg.Identity != nil {
-		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Fleet, cfg.Logger)
+		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Fleet, cfg.Logger, agentapi.WithAgents(cfg.Agents))
 		s.agentTLS = agentapi.TLSConfig(cfg.Identity, cfg.AgentHosts)
 	}
 	return s, nil
@@ -152,6 +179,9 @@ func apiRoutes(cfg Config, ui http.Handler) (http.Handler, error) {
 	}
 	if cfg.Fleet != nil {
 		handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet), opts...))
+	}
+	if cfg.Changes != nil {
+		handle(dockwellv1connect.NewChangeServiceHandler(changes.New(cfg.Changes, cfg.Store, cfg.Logger), opts...))
 	}
 	restPaths, err := restHandler(rest)
 	if err != nil {
@@ -210,40 +240,63 @@ type Listeners struct {
 
 // Run serves on every listener in ls until ctx is done or one of them
 // fails. A failure stops the others too.
+//
+// It stops in order, so a change under way isn't failed by the stop
+// itself: first the API, so no new change starts; then the revision
+// engine, which lets the steps under way finish for StepGrace and leaves
+// what remains of their changes for the next start; then the agent
+// listener, whose streams those steps need.
 func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if (ls.HTTPS != nil || ls.HTTP != nil) && s.public == nil {
 		return errors.New("control: the HTTPS and HTTP listeners need Config.Public")
 	}
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	apiCtx, stopAPI := context.WithCancel(ctx)
+	defer stopAPI()
+	agentCtx, stopAgents := context.WithCancel(context.WithoutCancel(ctx))
+	defer stopAgents()
 
-	var wg sync.WaitGroup
+	var api, agents sync.WaitGroup
 	var mu sync.Mutex
 	var errs []error
+	failed := func(err error) {
+		if err != nil {
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
+		}
+	}
 	run := func(serveFn func() error) {
-		wg.Go(func() {
-			if err := serveFn(); err != nil {
-				mu.Lock()
-				errs = append(errs, err)
-				mu.Unlock()
-			}
-			cancel()
+		api.Go(func() {
+			failed(serveFn())
+			stopAPI()
 		})
 	}
-	run(func() error { return s.Serve(ctx, ls.API) })
+	run(func() error { return s.Serve(apiCtx, ls.API) })
 	if ls.HTTPS != nil {
 		run(func() error {
-			return serve.Serve(ctx, ls.HTTPS, s.api, serve.Options{Name: "panel over HTTPS", Logger: s.logger, TLS: s.public.TLSConfig()})
+			return serve.Serve(apiCtx, ls.HTTPS, s.api, serve.Options{Name: "panel over HTTPS", Logger: s.logger, TLS: s.public.TLSConfig()})
 		})
 	}
 	if ls.HTTP != nil {
 		run(func() error {
-			return serve.Serve(ctx, ls.HTTP, s.public.HTTPHandler(), serve.Options{Name: "HTTP redirect", Logger: s.logger})
+			return serve.Serve(apiCtx, ls.HTTP, s.public.HTTPHandler(), serve.Options{Name: "HTTP redirect", Logger: s.logger})
 		})
 	}
 	if ls.Agents != nil {
-		run(func() error { return s.ServeAgents(ctx, ls.Agents) })
+		agents.Go(func() {
+			failed(s.ServeAgents(agentCtx, ls.Agents))
+			stopAPI()
+		})
 	}
-	wg.Wait()
+	api.Wait()
+	if s.changes != nil {
+		grace, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.stepGrace)
+		if err := s.changes.Stop(grace); err != nil {
+			s.logger.WarnContext(ctx, "the revision engine didn't stop cleanly", slog.String("error", err.Error()))
+		}
+		cancel()
+	}
+	stopAgents()
+	agents.Wait()
 	return errors.Join(errs...)
 }

@@ -13,8 +13,10 @@ package resource
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -229,6 +231,22 @@ func (r *Registry) Type(kind Kind) (Type, error) {
 	return t, nil
 }
 
+// ErrNoDriver means a server's agent has no driver for a kind, so it can't
+// plan or apply resources of that kind.
+var ErrNoDriver = errors.New("no driver for this kind")
+
+// Kinds lists the kinds the registry has drivers for, sorted.
+func (r *Registry) Kinds() []Kind {
+	var out []Kind
+	for k, t := range r.types {
+		if _, ok := t.(Driver); ok {
+			out = append(out, k)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // Driver returns the driver for kind.
 func (r *Registry) Driver(kind Kind) (Driver, error) {
 	t, err := r.Type(kind)
@@ -240,6 +258,17 @@ func (r *Registry) Driver(kind Kind) (Driver, error) {
 		return nil, fmt.Errorf("%s resources apply on the control plane, not on a server", kind)
 	}
 	return d, nil
+}
+
+// KindOf returns the kind whose spec is spec's message type.
+func (r *Registry) KindOf(spec proto.Message) (Kind, bool) {
+	name := spec.ProtoReflect().Descriptor().FullName()
+	for k, t := range r.types {
+		if t.New().ProtoReflect().Descriptor().FullName() == name {
+			return k, true
+		}
+	}
+	return "", false
 }
 
 // Validate checks spec against its kind: the right message type, valid
