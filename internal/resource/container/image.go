@@ -3,6 +3,7 @@
 package container
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -15,7 +16,7 @@ var (
 	pathPartRE  = regexp.MustCompile(`^[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*$`)
 	domainPart  = `(?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])`
 	registryRE  = regexp.MustCompile(`^(?:` + domainPart + `(?:\.` + domainPart + `)*|\[[0-9a-fA-F:.]+\])(?::[0-9]+)?$`)
-	tagRE       = regexp.MustCompile(`^[\w][\w.-]{0,127}$`)
+	tagRE       = regexp.MustCompile(`^\w[\w.-]{0,127}$`)
 	digestRE    = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*(?:[-_+.][A-Za-z][A-Za-z0-9]*)*:[0-9a-fA-F]{32,}$`)
 	maxImageLen = 255
 )
@@ -25,7 +26,7 @@ var (
 // mistake is refused when a change is proposed, not when the server pulls.
 func CheckImage(ref string) error {
 	if strings.TrimSpace(ref) == "" {
-		return fmt.Errorf("a container needs an image, such as nginx:1.27")
+		return errors.New("a container needs an image, such as nginx:1.27")
 	}
 	if i := strings.IndexFunc(ref, unicode.IsSpace); i >= 0 {
 		return fmt.Errorf("the image %q has a space in it, which no image reference has. Write it as name:tag, with nothing between, such as nginx:1.27", ref)
