@@ -147,6 +147,7 @@ type Service struct {
 	sources    *failures // wrong codes by source address
 	begins     *buckets  // unauthenticated ceremonies and links, by source
 	streams    *streams
+	unflagged  unflagged // passkeys seen to be copied, until the flag is stored
 }
 
 // New returns a Service.
@@ -226,15 +227,6 @@ func hashToken(token string) []byte {
 
 func (s *Service) audit(ctx context.Context, tx *store.Tx, actor, action, subject, detail string) error {
 	return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: s.now(), Actor: actor, Action: action, Subject: subject, Detail: detail})
-}
-
-// auditAlone records an event in its own transaction, for failures whose
-// own transaction rolled back.
-func (s *Service) auditAlone(ctx context.Context, actor, action, subject, detail string) {
-	err := s.db.Update(ctx, func(tx *store.Tx) error { return s.audit(ctx, tx, actor, action, subject, detail) })
-	if err != nil {
-		s.logger.ErrorContext(ctx, "can't record an audit event", slog.String("action", action), slog.Any("error", err))
-	}
 }
 
 // normalizeEmail lowercases and trims an email and checks its shape.

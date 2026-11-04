@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -97,6 +98,13 @@ func (s *Service) BeginSignIn(ctx context.Context, client Client) (Ceremony, err
 // FinishSignIn checks a passkey's assertion and signs in. A passkey whose
 // sign count went backwards is treated as copied: the sign-in is refused,
 // the passkey is flagged and stops working, and the event is audited.
+//
+// Reading the passkey, checking the assertion against its stored count and
+// storing the new count happen in one write transaction. Writes are
+// serialized, so of two sign-ins racing with one count, from a copy and the
+// original, the second sees the first's count and is refused as a copy, and
+// the stored count never goes backwards. A passkey flagged or removed
+// meanwhile doesn't sign in.
 func (s *Service) FinishSignIn(ctx context.Context, client Client, ceremonyID string, credential []byte) (SignedIn, error) {
 	now := s.now()
 	cer, err := s.ceremonies.take(ceremonyID, ceremonySignIn, now)
@@ -116,74 +124,124 @@ func (s *Service) FinishSignIn(ctx context.Context, client Client, ceremonyID st
 		return SignedIn{}, ErrPasskeyRejected
 	}
 
-	// Find the passkey and its owner before verifying, so a failure can be
-	// audited against the account it tried.
-	var user store.User
-	var pk Passkey
-	err = s.db.View(ctx, func(tx *store.Tx) error {
+	var (
+		signedIn SignedIn
+		refused  error  // why the sign-in was refused, after auditing it
+		copied   string // the passkey being flagged as a copy, if any
+	)
+	err = s.db.Update(ctx, func(tx *store.Tx) error {
 		stored, err := tx.GetPasskeyByCredentialID(ctx, parsed.RawID)
 		if err != nil {
 			return err
 		}
-		if pk, err = decodePasskey(stored); err != nil {
+		pk, err := decodePasskey(stored)
+		if err != nil {
 			return err
 		}
-		user, err = tx.GetUser(ctx, stored.UserID)
-		return err
-	})
-	switch {
-	case errors.Is(err, store.ErrNotFound):
-		s.logger.InfoContext(ctx, "refused an unknown passkey", slog.String("from", client.Addr))
-		return SignedIn{}, ErrPasskeyRejected
-	case err != nil:
-		return SignedIn{}, err
-	}
-	fail := func(reason string, err error) (SignedIn, error) {
-		s.auditAlone(ctx, "user:"+user.ID, "auth.sign_in_failed", user.ID,
-			fmt.Sprintf("passkey %s on %s from %s: %s", pk.ID, client.Site.RPID, client.remoteIP(), reason))
-		return SignedIn{}, err
-	}
-	if pk.RPID != client.Site.RPID || !bytes.Equal(parsed.Response.UserHandle, user.WebAuthnHandle) {
-		return fail("made for another address or user", ErrPasskeyRejected)
-	}
-	if pk.CloneWarningAt != nil {
-		return fail("flagged as possibly copied", ErrPasskeyCopied)
-	}
-	handler := func(rawID, userHandle []byte) (webauthn.User, error) {
-		if !bytes.Equal(rawID, pk.CredentialID) || !bytes.Equal(userHandle, user.WebAuthnHandle) {
-			return nil, ErrPasskeyRejected
+		user, err := tx.GetUser(ctx, stored.UserID)
+		if err != nil {
+			return err
 		}
-		return &waUser{user: user, credentials: []webauthn.Credential{pk.Credential}}, nil
-	}
-	_, cred, err := rp.ValidatePasskeyLogin(handler, cer.session, parsed)
-	if err != nil {
-		return fail(protocolDetail(err), ErrPasskeyRejected)
-	}
-	if cred.Authenticator.CloneWarning {
-		_ = s.db.Update(ctx, func(tx *store.Tx) error {
+		refuse := func(reason string, why error) error {
+			refused = why
+			return s.audit(ctx, tx, "user:"+user.ID, "auth.sign_in_failed", user.ID,
+				fmt.Sprintf("passkey %s on %s from %s: %s", pk.ID, client.Site.RPID, client.remoteIP(), reason))
+		}
+		flag := func(detail string) error {
+			refused, copied = ErrPasskeyCopied, pk.ID
 			if err := tx.FlagPasskeyClone(ctx, pk.ID, now); err != nil {
 				return err
 			}
-			return s.audit(ctx, tx, "user:"+user.ID, "passkey.clone_suspected", user.ID,
-				fmt.Sprintf("%s reported sign count %d after %d, from %s", pk.ID, parsed.Response.AuthenticatorData.Counter,
-					pk.Credential.Authenticator.SignCount, client.remoteIP()))
-		})
-		s.logger.WarnContext(ctx, "refused a passkey that may have been copied", slog.String("passkey", pk.ID), slog.String("user", user.ID))
-		return SignedIn{}, ErrPasskeyCopied
-	}
-	record, err := json.Marshal(cred)
-	if err != nil {
-		return SignedIn{}, err
-	}
-	var signedIn SignedIn
-	err = s.db.Update(ctx, func(tx *store.Tx) error {
+			return s.audit(ctx, tx, "user:"+user.ID, "passkey.clone_suspected", user.ID, detail)
+		}
+		if pk.RPID != client.Site.RPID || !bytes.Equal(parsed.Response.UserHandle, user.WebAuthnHandle) {
+			return refuse("made for another address or user", ErrPasskeyRejected)
+		}
+		if pk.CloneWarningAt != nil {
+			return refuse("flagged as possibly copied", ErrPasskeyCopied)
+		}
+		// A copy was seen before, but flagging it failed: flag it now, and
+		// refuse whichever copy this is.
+		if detail, ok := s.unflagged.get(pk.ID); ok {
+			return flag(detail)
+		}
+		handler := func(rawID, userHandle []byte) (webauthn.User, error) {
+			if !bytes.Equal(rawID, pk.CredentialID) || !bytes.Equal(userHandle, user.WebAuthnHandle) {
+				return nil, ErrPasskeyRejected
+			}
+			return &waUser{user: user, credentials: []webauthn.Credential{pk.Credential}}, nil
+		}
+		_, cred, err := rp.ValidatePasskeyLogin(handler, cer.session, parsed)
+		if err != nil {
+			return refuse(protocolDetail(err), ErrPasskeyRejected)
+		}
+		if cred.Authenticator.CloneWarning {
+			detail := fmt.Sprintf("%s reported sign count %d after %d, from %s", pk.ID, parsed.Response.AuthenticatorData.Counter,
+				pk.Credential.Authenticator.SignCount, client.remoteIP())
+			s.unflagged.put(pk.ID, detail)
+			return flag(detail)
+		}
+		record, err := json.Marshal(cred)
+		if err != nil {
+			return err
+		}
 		if err := tx.UsePasskey(ctx, pk.ID, record, now); err != nil {
 			return err
 		}
 		signedIn, err = s.startSession(ctx, tx, user, client, MethodPasskey)
 		return err
 	})
-	return signedIn, err
+	switch {
+	case copied != "" && err != nil:
+		// Refused all the same. The flag is tried again on the passkey's next
+		// sign-in, whichever copy makes it.
+		s.logger.ErrorContext(ctx, "can't flag a passkey that may have been copied; refusing it until it is flagged",
+			slog.String("passkey", copied), slog.Any("error", err))
+		return SignedIn{}, fmt.Errorf("can't flag passkey %s as possibly copied: %w", copied, err)
+	case errors.Is(err, store.ErrNotFound):
+		s.logger.InfoContext(ctx, "refused an unknown passkey", slog.String("from", client.Addr))
+		return SignedIn{}, ErrPasskeyRejected
+	case err != nil:
+		return SignedIn{}, err
+	case copied != "":
+		s.unflagged.remove(copied)
+		s.logger.WarnContext(ctx, "refused a passkey that may have been copied", slog.String("passkey", copied))
+		return SignedIn{}, ErrPasskeyCopied
+	case refused != nil:
+		return SignedIn{}, refused
+	}
+	return signedIn, nil
+}
+
+// unflagged holds passkeys seen to be copied whose flag couldn't be stored,
+// and the audit detail for when it is. They are refused until it is.
+type unflagged struct {
+	mu sync.Mutex
+	m  map[string]string
+}
+
+func (u *unflagged) get(passkeyID string) (string, bool) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	d, ok := u.m[passkeyID]
+	return d, ok
+}
+
+func (u *unflagged) put(passkeyID, detail string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.m == nil {
+		u.m = map[string]string{}
+	}
+	if _, ok := u.m[passkeyID]; !ok {
+		u.m[passkeyID] = detail
+	}
+}
+
+func (u *unflagged) remove(passkeyID string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	delete(u.m, passkeyID)
 }
 
 // ListPasskeys returns the principal's passkeys, oldest first.
