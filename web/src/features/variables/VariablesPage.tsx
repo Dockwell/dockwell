@@ -354,7 +354,8 @@ function UsedBy({ variable }: { variable: EnvironmentVariable }) {
   return (
     <ul className="variables-users">
       {variable.usedBy.map((use) => (
-        <li key={use.serviceId}>
+        // A service may use one value under two names.
+        <li key={`${use.serviceId}:${use.name}`}>
           <Tag icon="service">{use.service === "" ? use.serviceId : use.service}</Tag>
           {use.name !== variable.name ? (
             <span className="variables-muted">

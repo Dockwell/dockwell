@@ -146,6 +146,31 @@ describe("the variables and secrets page", () => {
     expect(screen.getByText("1 variable · 1 secret")).toBeVisible();
   });
 
+  it("shows each name a service uses a value under", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const twice = create(EnvironmentVariableSchema, {
+      id: "sec_db",
+      name: "DB_PASSWORD",
+      secret: true,
+      revision: 3n,
+      updatedBy: mira,
+      usedBy: [
+        { serviceId: "svc_api", service: "api", name: "DATABASE_PASSWORD" },
+        { serviceId: "svc_api", service: "api", name: "REPLICA_PASSWORD" },
+      ],
+    });
+    renderAt(
+      "/variables",
+      api([production], { variables: { listVariables: () => ({ environmentId: "env_prod", variables: [twice] }) } }),
+    );
+    const table = await screen.findByRole("table", { name: "Variables and secrets in production" });
+    const secret = within(table).getAllByRole("row")[1] as HTMLElement;
+    expect(secret).toHaveTextContent("as DATABASE_PASSWORD");
+    expect(secret).toHaveTextContent("as REPLICA_PASSWORD");
+    expect(errors.mock.calls.flat().join(" ")).not.toMatch(/same key/);
+    errors.mockRestore();
+  });
+
   it("switches environments once there are two, defaulting to production", async () => {
     const user = userEvent.setup();
     const asked: string[] = [];
