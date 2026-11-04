@@ -62,10 +62,10 @@ An environment is one Compose project, so `docker compose` sees and manages what
 ### Running, replacing and checking a container
 
 - **Images are pulled when the server doesn't have them,** as Compose's default `pull_policy: missing` does. One already there runs as it is. The engine pulls by tag, as written; see the consequences for ADR 0013's digests.
-- **A replace makes the new container first,** under a name of its own, then stops the old one, removes it, renames the new one and starts it, as Compose recreates. The pull and the create aren't downtime.
+- **A replace makes the new container first,** under a name of its own, then stops the old one, removes it, renames the new one and starts it, as Compose recreates. The pull and the create aren't downtime. Once the old one is gone, the rename and the start finish even if the call is cancelled, for up to 30 s. If the rename fails anyway, the new container is left under the name it was made with, `<old ID, 12 digits>_<name>`, with the service's labels: the next run takes it as the old one, so the volumes Docker made for the image move on with their data, and deleting the service removes it.
 - **Downtime is stated as its most:** 12 seconds, the 10 s Docker gives a container to stop before it kills it, and 2 s to start. Changing only the restart policy is an update in place with none. A service's ports are down for that long; rolling deploys that avoid it are #28.
 - **Volumes Docker made for an image's `VOLUME` paths move to the new container,** as Compose keeps them, so a replace loses no data. Removing a container leaves them for a prune.
-- **Verify waits for health.** A container with a health check, its own or its image's, must turn healthy within 5 minutes. One without must keep running for 2 s. One that exits or keeps restarting fails with how to see why, `docker logs <name>`, never with what it printed, which may hold secrets (ADR 0017).
+- **Verify waits for health.** A container with a health check, its own or its image's, must turn healthy within 5 minutes; if the step's own time runs out first, as after a long pull, the error says that, not that the check took too long. One without must keep running for 2 s. One that exits or keeps restarting fails with how to see why, `docker logs <name>`, never with what it printed, which may hold secrets (ADR 0017).
 
 ### Reading back, and drift
 

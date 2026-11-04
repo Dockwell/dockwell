@@ -42,6 +42,9 @@ func images(e *dockertest.Engine) {
 	e.Registry["sick:1"] = dockertest.Image{Unhealthy: true, Config: docker.Config{
 		Cmd: []string{"sleep", "inf"}, Healthcheck: &docker.Healthcheck{Test: []string{"CMD", "false"}},
 	}}
+	e.Registry["slow:1"] = dockertest.Image{Starting: true, Config: docker.Config{
+		Cmd: []string{"sleep", "inf"}, Healthcheck: &docker.Healthcheck{Test: []string{"CMD", "true"}},
+	}}
 }
 
 func drivers(e *dockertest.Engine) *resource.Registry {
@@ -346,6 +349,85 @@ func TestPullsAndHealth(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("running %s = %v, want %q", image, err, want)
 		}
+	}
+}
+
+// A replace that removed the old container but couldn't give the new one
+// its name leaves it under the name it was made with. The next run takes
+// it as the old one, so the volumes Docker made for the image, with their
+// data, move on to the container that gets the name, and nothing is left.
+func TestAFailedRenameIsFinished(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	l := resource.Local{Drivers: drivers(e)}
+	db := resource.Ref{Kind: service.Kind, Scope: env, Name: "db"}
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "postgres:17", Env: map[string]string{"POSTGRES_DB": "app"}}}}
+	apply(t, l, db, spec)
+	name := service.ContainerName(db)
+	data := e.Container(name).Mounts[0].Name
+
+	var once sync.Once
+	e.Intercept(func(r *http.Request) error {
+		var err error
+		if strings.HasSuffix(r.URL.Path, "/rename") {
+			once.Do(func() { err = errors.New("Error when allocating new name: the daemon is restarting") })
+		}
+		return err
+	})
+	spec.GetApp().Env["POSTGRES_DB"] = "shop"
+	if err := container.Validate(spec.GetApp()); err != nil {
+		t.Fatal(err)
+	}
+	err := l.Apply(t.Context(), resource.Step{Ref: db, Decision: resource.Decision{Action: resource.ActionReplace}}, spec)
+	if err == nil || !strings.Contains(err.Error(), "removed the old "+name+", but can't give the new one its name") {
+		t.Fatalf("a replace whose rename fails = %v", err)
+	}
+	if got := e.Containers(); len(got) != 1 || got[0] == name {
+		t.Fatalf("Docker has %v, want the new container left under the name it was made with", got)
+	}
+
+	if step := apply(t, l, db, spec); step.Action != resource.ActionCreate {
+		t.Errorf("planning db again = %s, want a create, as nothing has its name", step.Action)
+	}
+	if got := e.Containers(); len(got) != 1 || got[0] != name {
+		t.Errorf("Docker has %v, want %s alone", got, name)
+	}
+	if c := e.Container(name); len(c.Mounts) != 1 || c.Mounts[0].Name != data || !c.State.Running {
+		t.Errorf("%s mounts %+v and runs %t, want the image's volume %s and running", name, c.Mounts, c.State.Running, data)
+	}
+	unchanged(t, l, db, spec)
+}
+
+// Waiting for health is bounded twice: by HealthWait, and by the step's
+// own time. Each is blamed only when it is what ran out.
+func TestHealthWaitsAreTold(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	ref := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "slow"}
+	spec := &resourcev1.Container{Image: "slow:1"}
+	if err := container.Validate(spec); err != nil {
+		t.Fatal(err)
+	}
+	for name, tc := range map[string]struct {
+		wait, step time.Duration
+		want       string
+	}{
+		"its own":    {50 * time.Millisecond, time.Minute, "slow didn't pass its health check within 0.05 s"},
+		"the step's": {time.Minute, 100 * time.Millisecond, "the step's time ran out before slow passed its health check"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rt := &container.Docker{Client: e.Client(), Poll: time.Millisecond, HealthWait: tc.wait}
+			d := &container.Driver{Runtime: rt}
+			ctx, cancel := context.WithTimeout(t.Context(), tc.step)
+			defer cancel()
+			err := d.Apply(ctx, resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionCreate}}, spec)
+			if err == nil {
+				err = d.Verify(ctx, ref, spec)
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("waiting for a check that keeps starting = %v, want %q", err, tc.want)
+			}
+		})
 	}
 }
 

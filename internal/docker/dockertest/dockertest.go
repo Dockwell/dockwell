@@ -39,8 +39,9 @@ type Image struct {
 	// Exits makes a container of it stop right after it starts, with
 	// exit code 1.
 	Exits bool
-	// Unhealthy makes its health check fail.
-	Unhealthy bool
+	// Unhealthy makes its health check fail, and Starting keeps it
+	// starting, neither passing nor failing yet.
+	Unhealthy, Starting bool
 	// Size is what pulling it downloads, in bytes.
 	Size int64
 }
@@ -353,8 +354,11 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		}
 		if hc := c.Config.Healthcheck; hc != nil && len(hc.Test) > 0 && hc.Test[0] != "NONE" && c.State.Running {
 			c.State.Health = &docker.Health{Status: "healthy"}
-			if c.img.Unhealthy {
+			switch {
+			case c.img.Unhealthy:
 				c.State.Health = &docker.Health{Status: "unhealthy", FailingStreak: 3}
+			case c.img.Starting:
+				c.State.Health = &docker.Health{Status: "starting"}
 			}
 		}
 		e.attach(c)
@@ -422,20 +426,22 @@ func filters(r *http.Request) (map[string][]string, error) {
 
 // matches reports whether a container passes a list's filters, as the
 // engine has them: name is a regular expression on its name, with or
-// without the leading slash; label is a key, or key=value; volume is a
-// volume's name, or where something is mounted.
+// without the leading slash; label is a key, or key=value, and every label
+// must match; volume is a volume's name, or where something is mounted.
 func (c *container) matches(f map[string][]string) bool {
 	passes := func(key string, ok func(string) bool) bool {
 		vs, set := f[key]
 		return !set || slices.ContainsFunc(vs, ok)
 	}
+	for _, v := range f["label"] {
+		k, val, hasValue := strings.Cut(v, "=")
+		if got, ok := c.Config.Labels[k]; !ok || hasValue && got != val {
+			return false
+		}
+	}
 	return passes("name", func(v string) bool {
 		re, err := regexp.Compile(v)
 		return err == nil && (re.MatchString(c.Name) || re.MatchString(strings.TrimPrefix(c.Name, "/")))
-	}) && passes("label", func(v string) bool {
-		k, val, hasValue := strings.Cut(v, "=")
-		got, ok := c.Config.Labels[k]
-		return ok && (!hasValue || got == val)
 	}) && passes("volume", func(v string) bool {
 		return slices.ContainsFunc(c.Mounts, func(m docker.MountPoint) bool { return m.Name == v || m.Source == v || m.Destination == v })
 	})

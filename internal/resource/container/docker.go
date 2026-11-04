@@ -3,11 +3,14 @@
 package container
 
 import (
+	"cmp"
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -492,6 +495,11 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) 
 	if err != nil {
 		return err
 	}
+	if old == nil {
+		if old, err = d.unfinished(ctx, t); err != nil {
+			return err
+		}
+	}
 	req, later := d.createRequest(t, spec, old)
 	name := t.Name
 	if old != nil {
@@ -528,8 +536,15 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) 
 		if err := d.Client.RemoveContainer(ctx, old.ID, true); err != nil && !docker.IsNotFound(err) {
 			return discard(fmt.Errorf("can't remove the old %s: %w", t.Name, err))
 		}
+		// The old one is gone: finish the swap even if the caller stops
+		// waiting, as a service left with no container is worse than a
+		// step that ends late. If the new one can't take the name, the
+		// next Run finishes it (unfinished).
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), finishWait)
+		defer cancel()
 		if err := d.Client.RenameContainer(ctx, id, t.Name); err != nil {
-			return fmt.Errorf("removed the old %s, but can't give the new one its name: %w", t.Name, err)
+			return fmt.Errorf("removed the old %s, but can't give the new one its name: %w. Apply the change again, which finishes it", t.Name, err)
 		}
 	}
 	resource.Progress(ctx, "starting")
@@ -537,6 +552,42 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) 
 		return fmt.Errorf("docker can't start %s: %w", t.Name, err)
 	}
 	return nil
+}
+
+// finishWait bounds finishing a replace once the old container is gone.
+const finishWait = 30 * time.Second
+
+// leftovers lists the containers made for t that never got its name: a
+// replace makes the new one as <the old one's ID, 12 digits>_<name>, as
+// Compose does, and renames it once the old one is gone. Newest first.
+func (d *Docker) leftovers(ctx context.Context, t Target) ([]docker.ContainerSummary, error) {
+	list, err := d.Client.ListContainers(ctx, map[string][]string{
+		"name":  {"^/[0-9a-f]{12}_" + regexp.QuoteMeta(t.Name) + "$"},
+		"label": {docker.LabelProject + "=" + t.Project, docker.LabelService + "=" + t.Service},
+	})
+	slices.SortStableFunc(list, func(a, b docker.ContainerSummary) int { return cmp.Compare(b.Created, a.Created) })
+	return list, err
+}
+
+// unfinished finds a replace that removed the old container at t, but
+// couldn't give the new one its name: the new one is taken as the old one,
+// so the volumes Docker made for its image, which moved to it with their
+// data, move on again. Any others left over are removed.
+func (d *Docker) unfinished(ctx context.Context, t Target) (*docker.Container, error) {
+	left, err := d.leftovers(ctx, t)
+	if err != nil || len(left) == 0 {
+		return nil, err
+	}
+	for _, l := range left[1:] {
+		if err := d.Client.RemoveContainer(ctx, l.ID, true); err != nil && !docker.IsNotFound(err) {
+			return nil, err
+		}
+	}
+	c, err := d.Client.InspectContainer(ctx, left[0].ID)
+	if docker.IsNotFound(err) {
+		return nil, nil
+	}
+	return c, err
 }
 
 // SetRestart changes the restart policy in place.
@@ -555,6 +606,15 @@ func (d *Docker) SetRestart(ctx context.Context, t Target, policy resourcev1.Res
 // volumes stay: an environment's are resources of their own, and those
 // Docker made for its image stay until a prune.
 func (d *Docker) Remove(ctx context.Context, t Target) error {
+	left, err := d.leftovers(ctx, t)
+	if err != nil {
+		return err
+	}
+	for _, l := range left {
+		if err := d.Client.RemoveContainer(ctx, l.ID, true); err != nil && !docker.IsNotFound(err) {
+			return err
+		}
+	}
 	c, err := d.find(ctx, t.Name)
 	if err != nil || c == nil {
 		return err
@@ -584,7 +644,8 @@ func or(d, def time.Duration) time.Duration {
 // fails its check isn't healthy. Messages name the container and how to
 // see why, never what it printed, which may hold secrets.
 func (d *Docker) Healthy(ctx context.Context, t Target) error {
-	ctx, cancel := context.WithTimeout(ctx, or(d.HealthWait, 5*time.Minute))
+	wait := or(d.HealthWait, 5*time.Minute)
+	ctx, cancel := context.WithTimeoutCause(ctx, wait, errWaited)
 	defer cancel()
 	settle := or(d.Settle, 2*time.Second)
 	poll := time.NewTicker(or(d.Poll, 250*time.Millisecond))
@@ -633,14 +694,22 @@ func (d *Docker) Healthy(ctx context.Context, t Target) error {
 		}
 		break
 	}
-	if err := ctx.Err(); err != nil && !isDeadline(err) {
-		return err
+	// The caller's deadline may come first, such as the step's own time
+	// running out after a long pull: that isn't the health check's doing.
+	switch cause := context.Cause(ctx); {
+	case errors.Is(cause, errWaited):
+		return fmt.Errorf("%s didn't pass its health check within %s. See why with docker inspect --format '{{json .State.Health}}' %s",
+			t.Name, human.Duration(wait), t.Name)
+	case errors.Is(cause, context.DeadlineExceeded):
+		return fmt.Errorf("the step's time ran out before %s passed its health check, so Dockwell stopped waiting: %w. "+
+			"See how it is with docker inspect --format '{{json .State.Health}}' %s", t.Name, cause, t.Name)
+	default:
+		return cause
 	}
-	return fmt.Errorf("%s didn't pass its health check within %s. See why with docker inspect --format '{{json .State.Health}}' %s",
-		t.Name, human.Duration(or(d.HealthWait, 5*time.Minute)), t.Name)
 }
 
-func isDeadline(err error) bool { return err == context.DeadlineExceeded } //nolint:errorlint // ctx.Err() isn't wrapped
+// errWaited ends waiting for a health check that took HealthWait.
+var errWaited = errors.New("waited for the health check for long enough")
 
 // Ready checks Docker answers, and agrees an API version with it.
 func (d *Docker) Ready(ctx context.Context) error { return d.Client.Ping(ctx) }
