@@ -17,10 +17,19 @@ import (
 	"testing/fstest"
 	"time"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/network"
+	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -37,7 +46,10 @@ type controlPlane struct {
 	url  string
 }
 
-func startControlPlane(t *testing.T) *controlPlane {
+// startControlPlane starts a control plane's agent listener. With agents,
+// it reaches the agents that connect through them, as the revision engine
+// does.
+func startControlPlane(t *testing.T, agents *agentapi.Agents) *controlPlane {
 	t.Helper()
 	dir := t.TempDir()
 	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
@@ -58,7 +70,7 @@ func startControlPlane(t *testing.T) *controlPlane {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv, err := control.New(control.Config{Logger: logger, Identity: auth, Fleet: hub, AgentHosts: []string{"127.0.0.1"}, Panel: fstest.MapFS{}})
+	srv, err := control.New(control.Config{Logger: logger, Identity: auth, Fleet: hub, AgentHosts: []string{"127.0.0.1"}, Panel: fstest.MapFS{}, Agents: agents})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +92,7 @@ func startControlPlane(t *testing.T) *controlPlane {
 }
 
 func TestTheAgentBuildJoinsAndRunsTheAgent(t *testing.T) {
-	cp := startControlPlane(t)
+	cp := startControlPlane(t, nil)
 	tk, err := cp.auth.CreateTicket(t.Context(), cp.url, "cli:test", time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -143,6 +155,107 @@ func TestTheAgentBuildJoinsAndRunsTheAgent(t *testing.T) {
 	cancel()
 	if code := <-done; code != exitOK {
 		t.Errorf("run exited %d after it was stopped:\n%s", code, logs.String())
+	}
+}
+
+// A server that joined runs the agent build, so its agent has the Docker
+// driver, registered as dockwell run registers it, on the Docker at the
+// socket DOCKER_HOST names: the control plane plans, applies and observes
+// a container there through the agent's stream.
+func TestTheAgentBuildRunsContainers(t *testing.T) {
+	e := dockertest.New(t)
+	e.Registry["nginx:1.27"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx", "-g", "daemon off;"}}}
+	kinds := resource.NewRegistry(&container.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{})
+	agents := agentapi.NewAgents(kinds, slog.New(slog.DiscardHandler))
+	cp := startControlPlane(t, agents)
+	tk, err := cp.auth.CreateTicket(t.Context(), cp.url, "cli:test", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if r := run(t, nil, "join", tk.Value, "--data-dir", dir, "--name", "hz-2"); r.code != exitOK {
+		t.Fatalf("join = %d %q %q", r.code, r.out, r.err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan int, 1)
+	var logs syncBuffer
+	go func() {
+		done <- Execute(ctx, []string{"run", "--data-dir", dir, "--log-format", "json"}, IO{
+			Out: io.Discard, Err: &logs, Getenv: func(k string) string {
+				if k == "DOCKER_HOST" {
+					return "unix://" + e.Socket
+				}
+				return ""
+			},
+		})
+	}()
+	defer func() {
+		cancel()
+		if code := <-done; code != exitOK {
+			t.Errorf("run exited %d after it was stopped:\n%s", code, logs.String())
+		}
+	}()
+	var server string
+	var agent resource.Agent
+	for deadline := time.Now().Add(10 * time.Second); agent == nil; time.Sleep(20 * time.Millisecond) {
+		for _, s := range cp.hub.List() {
+			if s.GetName() == "hz-2" {
+				server = s.GetId()
+			}
+		}
+		if a, ok := agents.Agent(server); ok {
+			agent = a
+		} else if time.Now().After(deadline) {
+			t.Fatalf("the agent didn't connect within 10 s:\n%s", logs.String())
+		}
+	}
+
+	// It offers every Docker kind. The control plane checks each spec, and
+	// fills in its defaults, before an agent sees it.
+	envID := "env_01KAT4ZR6E3V0Y5XBKZB5D9Q6M"
+	others := []resource.Desired{
+		{Ref: resource.Ref{Kind: service.Kind, Scope: envID, Name: "api"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27"}}}},
+		{Ref: resource.Ref{Kind: volume.Kind, Scope: envID, Name: "data"}, Spec: &resourcev1.Volume{}},
+		{Ref: resource.Ref{Kind: network.Kind, Scope: envID, Name: "backend"}, Spec: &resourcev1.Network{}},
+	}
+	for _, d := range others {
+		if err := kinds.Validate(d.Ref.Kind, d.Spec); err != nil {
+			t.Fatalf("checking %s: %v", d.Ref, err)
+		}
+	}
+	steps, err := agent.Plan(t.Context(), others)
+	if err != nil {
+		t.Fatalf("planning a service, a volume and a network: %v\n%s", err, logs.String())
+	}
+	for i, step := range steps {
+		if step.Action != resource.ActionCreate {
+			t.Errorf("%s plans %s, want create", others[i].Ref, step.Action)
+		}
+	}
+
+	web := resource.Ref{Kind: container.Kind, Scope: server, Name: "web"}
+	spec := &resourcev1.Container{Image: "nginx:1.27"}
+	if err := kinds.Validate(web.Kind, spec); err != nil {
+		t.Fatal(err)
+	}
+	steps, err = agent.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}})
+	if err != nil || len(steps) != 1 || steps[0].Action != resource.ActionCreate {
+		t.Fatalf("planning %s = %+v, %v, want create:\n%s", web, steps, err, logs.String())
+	}
+	if err := agent.Apply(t.Context(), steps[0], spec); err != nil {
+		t.Fatalf("applying %s: %v\n%s", web, err, logs.String())
+	}
+	if c := e.Container("web"); c == nil || !c.State.Running || c.Config.Image != "nginx:1.27" {
+		t.Fatalf("Docker has %+v, want web running nginx:1.27", c)
+	}
+	steps, err = agent.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}})
+	if err != nil || steps[0].Action != resource.ActionNone {
+		t.Errorf("planning %s again = %+v, %v, want nothing to do", web, steps, err)
+	}
+	observed, err := agent.Observe(t.Context(), []resource.Ref{web})
+	if err != nil || len(observed) != 1 || observed[0].(*resourcev1.Container).GetImage() != "nginx:1.27" {
+		t.Errorf("observing %s = %v, %v", web, observed, err)
 	}
 }
 

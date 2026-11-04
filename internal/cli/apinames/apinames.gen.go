@@ -18,11 +18,13 @@ func Commands() []string {
 		"auth-state",
 		"changes",
 		"claim-link",
+		"compose",
 		"containers",
 		"drift",
 		"environments",
 		"events",
 		"firewall-rules",
+		"networks",
 		"passkeys",
 		"projects",
 		"resources",
@@ -31,5 +33,6 @@ func Commands() []string {
 		"sessions",
 		"system",
 		"totp",
+		"volumes",
 	}
 }

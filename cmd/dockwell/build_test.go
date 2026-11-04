@@ -39,11 +39,17 @@ var agentPackages = []string{
 	"internal/cli",
 	"internal/cli/apinames", // the API commands' names, to say they're in the full build
 	"internal/datadir",
+	"internal/docker", // the Docker Engine's API, for the Docker driver (ADR 0021)
 	"internal/human",
+	"internal/id",
 	"internal/logging",
 	"internal/pki",
 	"internal/resource",
+	"internal/resource/container", // the Docker driver's kinds
+	"internal/resource/network",
 	"internal/resource/resourcepb",
+	"internal/resource/service",
+	"internal/resource/volume",
 	"internal/ticket",
 }
 
@@ -71,6 +77,7 @@ var controlOnly = map[string]string{
 	"github.com/dockwell/dockwell/internal/cli/apicli": "the API commands",
 	"github.com/dockwell/dockwell/internal/cli/apicmd": "the API commands",
 	"github.com/dockwell/dockwell/internal/https":      "the panel's HTTPS and ACME",
+	"github.com/dockwell/dockwell/internal/compose":    "Compose import and export",
 	"modernc.org/sqlite":                               "SQLite",
 	"github.com/jackc/pgx":                             "Postgres",
 	"github.com/go-webauthn/webauthn":                  "passkeys",
