@@ -62,13 +62,19 @@ function ServerPage({ server, fleet, status }: { server: Server; fleet: boolean;
   const phone = useMediaQuery(PHONE_QUERY);
   const inv = server.inventory;
   const address = primaryAddress(inv?.addresses ?? []);
-  const hostname = inv?.hostname && inv.hostname !== server.name ? inv.hostname : undefined;
+  // The hostname only when it says something the name and address don't.
+  const hostname = inv?.hostname && inv.hostname !== server.name && inv.hostname !== address ? inv.hostname : "";
+  const parts: { key: string; node: ReactNode }[] = [
+    { key: "hostname", node: hostname },
+    { key: "address", node: address ? <span className="server-address">{address}</span> : "" },
+    { key: "up", node: up },
+  ].filter((part) => part.node);
   const lead =
-    hostname || address || up
-      ? [hostname, address, up].filter(Boolean).map((part, i) => (
-          <Fragment key={part}>
+    parts.length > 0
+      ? parts.map(({ key, node }, i) => (
+          <Fragment key={key}>
             {i > 0 ? " · " : null}
-            {part === address ? <span className="server-address">{part}</span> : part}
+            {node}
           </Fragment>
         ))
       : undefined;

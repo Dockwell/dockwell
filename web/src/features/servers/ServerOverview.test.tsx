@@ -76,6 +76,19 @@ describe("ServerOverview", () => {
     expect(screen.getByRole("link", { name: "Server hz-1" })).toHaveAttribute("aria-current", "page");
   });
 
+  it("names a hostname that is the address once", async () => {
+    const errors = vi.spyOn(console, "error");
+    const named = aServer({
+      ...hz1,
+      inventory: create(ServerInventorySchema, { ...inventory, hostname: "49.12.33.7" }),
+    });
+    await renderServer("/servers/srv_1", named);
+    const lead = screen.getByText("up 3 days", { exact: false });
+    expect(lead).toHaveTextContent(/^49\.12\.33\.7 · up 3 days$/);
+    expect(lead.querySelectorAll(".server-address")).toHaveLength(1);
+    expect(errors.mock.calls.flat().join(" ")).not.toContain("same key");
+  });
+
   it("shows live CPU, memory, disk and load", async () => {
     await renderServer("/servers/srv_1", hz1);
     await screen.findByText("Load average");
