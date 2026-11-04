@@ -156,9 +156,9 @@ func check(what string, m map[string]any, allowed map[string]bool) error {
 			continue
 		}
 		if reason, ok := why[k]; ok {
-			return invalid("%s %s", what, reason)
+			return invalidAt(place{what, k}, "%s %s", what, reason)
 		}
-		return invalid("%s uses %s, which Dockwell can't run yet. Remove it from the Compose file to import it", what, k)
+		return invalidAt(place{what, k}, "%s uses %s, which Dockwell can't run yet. Remove it from the Compose file to import it", what, k)
 	}
 	return nil
 }

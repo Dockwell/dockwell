@@ -135,6 +135,28 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	return h.change(ctx, plan.Change)
 }
 
+// Planned plans a change with plan, for another method that plans one its
+// own way, such as RollBackService, and returns it for the schema.
+func (h *Handler) Planned(ctx context.Context, plan func(who revision.By) (*revision.Plan, error)) (*dockwellv1.Change, error) {
+	who, _, err := by(ctx)
+	if err != nil {
+		return nil, err
+	}
+	p, err := plan(who)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return h.change(ctx, p.Change)
+}
+
+// Error is err as the API says it, as ChangeService's own methods do.
+func (h *Handler) Error(ctx context.Context, err error) error { return h.rpcError(ctx, err) }
+
+// Protos are records for the schema, with their actors named in one read.
+func (h *Handler) Protos(ctx context.Context, records ...*revision.Record) ([]*dockwellv1.Change, error) {
+	return h.protos(ctx, records...)
+}
+
 // Environment finds the environment a request names by project and
 // environment, each by name or ID, or left out where there is one. A
 // choice it leaves out names the request's fields project and

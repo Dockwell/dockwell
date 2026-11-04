@@ -365,6 +365,7 @@ func TestFieldFlagsAvoidTheCLIsOwn(t *testing.T) {
 	}
 	root.PersistentFlags().VisitAll(func(f *pflag.Flag) { reserved[f.Name] = true })
 	kindFlags := []string{"summary", "project", "environment", "on"}
+	kindVerbs := []string{"create", "update", "delete"}
 	fields := 0
 	var walk func(cmd *cobra.Command, kind bool)
 	walk = func(cmd *cobra.Command, kind bool) {
@@ -376,7 +377,9 @@ func TestFieldFlagsAvoidTheCLIsOwn(t *testing.T) {
 			switch {
 			case reserved[f.Name]:
 				t.Errorf("%s --%s, a field's flag, takes one of the CLI's own", cmd.CommandPath(), f.Name)
-			case kind && slices.Contains(kindFlags, f.Name):
+			// A noun's own verbs may share a kind's flags, as services' do:
+			// they mean the same there. A kind's verbs take its spec's fields.
+			case kind && slices.Contains(kindVerbs, cmd.Name()) && slices.Contains(kindFlags, f.Name):
 				t.Errorf("%s --%s, a field's flag, takes one a kind's commands have", cmd.CommandPath(), f.Name)
 			}
 			for p := cmd.Parent(); p != nil; p = p.Parent() {

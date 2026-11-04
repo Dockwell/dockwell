@@ -38,6 +38,9 @@ const (
 	// ComposeServiceImportComposeProcedure is the fully-qualified name of the ComposeService's
 	// ImportCompose RPC.
 	ComposeServiceImportComposeProcedure = "/dockwell.v1.ComposeService/ImportCompose"
+	// ComposeServiceCheckComposeProcedure is the fully-qualified name of the ComposeService's
+	// CheckCompose RPC.
+	ComposeServiceCheckComposeProcedure = "/dockwell.v1.ComposeService/CheckCompose"
 	// ComposeServiceExportComposeProcedure is the fully-qualified name of the ComposeService's
 	// ExportCompose RPC.
 	ComposeServiceExportComposeProcedure = "/dockwell.v1.ComposeService/ExportCompose"
@@ -51,6 +54,11 @@ type ComposeServiceClient interface {
 	// one of its own. A field of the file that Dockwell can't run yet is
 	// refused, by name, rather than dropped.
 	ImportCompose(context.Context, *connect.Request[v1.ImportComposeRequest]) (*connect.Response[v1.ImportComposeResponse], error)
+	// CheckCompose reads a Compose file as ImportCompose would and says what
+	// it would make, or why it can't, without planning anything or recording a
+	// change, so a form can check a file as someone types it.
+	// It is a POST, as a file of 1 MiB doesn't fit in a URL.
+	CheckCompose(context.Context, *connect.Request[v1.CheckComposeRequest]) (*connect.Response[v1.CheckComposeResponse], error)
 	// ExportCompose writes a Compose file of an environment, or of one service
 	// with the volumes and networks it uses. It never includes a secret: an
 	// environment variable whose value may hold one is listed by name, for
@@ -76,6 +84,12 @@ func NewComposeServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(composeServiceMethods.ByName("ImportCompose")),
 			connect.WithClientOptions(opts...),
 		),
+		checkCompose: connect.NewClient[v1.CheckComposeRequest, v1.CheckComposeResponse](
+			httpClient,
+			baseURL+ComposeServiceCheckComposeProcedure,
+			connect.WithSchema(composeServiceMethods.ByName("CheckCompose")),
+			connect.WithClientOptions(opts...),
+		),
 		exportCompose: connect.NewClient[v1.ExportComposeRequest, v1.ExportComposeResponse](
 			httpClient,
 			baseURL+ComposeServiceExportComposeProcedure,
@@ -89,12 +103,18 @@ func NewComposeServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 // composeServiceClient implements ComposeServiceClient.
 type composeServiceClient struct {
 	importCompose *connect.Client[v1.ImportComposeRequest, v1.ImportComposeResponse]
+	checkCompose  *connect.Client[v1.CheckComposeRequest, v1.CheckComposeResponse]
 	exportCompose *connect.Client[v1.ExportComposeRequest, v1.ExportComposeResponse]
 }
 
 // ImportCompose calls dockwell.v1.ComposeService.ImportCompose.
 func (c *composeServiceClient) ImportCompose(ctx context.Context, req *connect.Request[v1.ImportComposeRequest]) (*connect.Response[v1.ImportComposeResponse], error) {
 	return c.importCompose.CallUnary(ctx, req)
+}
+
+// CheckCompose calls dockwell.v1.ComposeService.CheckCompose.
+func (c *composeServiceClient) CheckCompose(ctx context.Context, req *connect.Request[v1.CheckComposeRequest]) (*connect.Response[v1.CheckComposeResponse], error) {
+	return c.checkCompose.CallUnary(ctx, req)
 }
 
 // ExportCompose calls dockwell.v1.ComposeService.ExportCompose.
@@ -110,6 +130,11 @@ type ComposeServiceHandler interface {
 	// one of its own. A field of the file that Dockwell can't run yet is
 	// refused, by name, rather than dropped.
 	ImportCompose(context.Context, *connect.Request[v1.ImportComposeRequest]) (*connect.Response[v1.ImportComposeResponse], error)
+	// CheckCompose reads a Compose file as ImportCompose would and says what
+	// it would make, or why it can't, without planning anything or recording a
+	// change, so a form can check a file as someone types it.
+	// It is a POST, as a file of 1 MiB doesn't fit in a URL.
+	CheckCompose(context.Context, *connect.Request[v1.CheckComposeRequest]) (*connect.Response[v1.CheckComposeResponse], error)
 	// ExportCompose writes a Compose file of an environment, or of one service
 	// with the volumes and networks it uses. It never includes a secret: an
 	// environment variable whose value may hold one is listed by name, for
@@ -131,6 +156,12 @@ func NewComposeServiceHandler(svc ComposeServiceHandler, opts ...connect.Handler
 		connect.WithSchema(composeServiceMethods.ByName("ImportCompose")),
 		connect.WithHandlerOptions(opts...),
 	)
+	composeServiceCheckComposeHandler := connect.NewUnaryHandler(
+		ComposeServiceCheckComposeProcedure,
+		svc.CheckCompose,
+		connect.WithSchema(composeServiceMethods.ByName("CheckCompose")),
+		connect.WithHandlerOptions(opts...),
+	)
 	composeServiceExportComposeHandler := connect.NewUnaryHandler(
 		ComposeServiceExportComposeProcedure,
 		svc.ExportCompose,
@@ -142,6 +173,8 @@ func NewComposeServiceHandler(svc ComposeServiceHandler, opts ...connect.Handler
 		switch r.URL.Path {
 		case ComposeServiceImportComposeProcedure:
 			composeServiceImportComposeHandler.ServeHTTP(w, r)
+		case ComposeServiceCheckComposeProcedure:
+			composeServiceCheckComposeHandler.ServeHTTP(w, r)
 		case ComposeServiceExportComposeProcedure:
 			composeServiceExportComposeHandler.ServeHTTP(w, r)
 		default:
@@ -155,6 +188,10 @@ type UnimplementedComposeServiceHandler struct{}
 
 func (UnimplementedComposeServiceHandler) ImportCompose(context.Context, *connect.Request[v1.ImportComposeRequest]) (*connect.Response[v1.ImportComposeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ComposeService.ImportCompose is not implemented"))
+}
+
+func (UnimplementedComposeServiceHandler) CheckCompose(context.Context, *connect.Request[v1.CheckComposeRequest]) (*connect.Response[v1.CheckComposeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ComposeService.CheckCompose is not implemented"))
 }
 
 func (UnimplementedComposeServiceHandler) ExportCompose(context.Context, *connect.Request[v1.ExportComposeRequest]) (*connect.Response[v1.ExportComposeResponse], error) {

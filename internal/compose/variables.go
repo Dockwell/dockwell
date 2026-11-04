@@ -260,7 +260,7 @@ func (in *interpolator) value(name string) string {
 }
 
 func unreadable(at place, variable string) error {
-	return invalid("%s has a variable Dockwell can't read, %s. Write one as ${NAME} or ${NAME:-default}, and a $ of its own as $$", at, variable)
+	return invalidAt(at, "%s has a variable Dockwell can't read, %s. Write one as ${NAME} or ${NAME:-default}, and a $ of its own as $$", at, variable)
 }
 
 // closing finds the } that closes the { at open, counting the braces

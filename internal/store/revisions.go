@@ -723,3 +723,83 @@ func (t *Tx) Deployments(ctx context.Context, resourceID string, revision int) (
 	}
 	return out, rows.Err()
 }
+
+// LatestDeployments returns where the latest revision of each of
+// resourceIDs is placed, by resource ID, in one query.
+func (t *Tx) LatestDeployments(ctx context.Context, resourceIDs []string) (map[string][]Deployment, error) {
+	out := make(map[string][]Deployment, len(resourceIDs))
+	if len(resourceIDs) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(resourceIDs))
+	for i, id := range resourceIDs {
+		args[i] = id
+	}
+	rows, err := t.query(ctx, `SELECT d.resource_id, d.revision, d.server_id, d.state, d.error, d.created_at, d.updated_at
+		FROM deployments d JOIN resources r ON r.id = d.resource_id AND r.revision = d.revision
+		WHERE d.resource_id IN (`+marks(len(args))+`) ORDER BY d.resource_id, d.server_id`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the deployments of services: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var d Deployment
+		var errText sql.NullString
+		var created, updated int64
+		if err := rows.Scan(&d.ResourceID, &d.Revision, &d.Server, &d.State, &errText, &created, &updated); err != nil {
+			return nil, fmt.Errorf("can't read the deployments of services: %w", err)
+		}
+		d.Error, d.CreatedAt, d.UpdatedAt = errText.String, fromMillis(created), fromMillis(updated)
+		out[d.ResourceID] = append(out[d.ResourceID], d)
+	}
+	return out, rows.Err()
+}
+
+// ChangeOrigins reads the changes named, in one query. Each has only its
+// ID, actor, state and what it reverts.
+func (t *Tx) ChangeOrigins(ctx context.Context, changeIDs []string) (map[string]Change, error) {
+	out := make(map[string]Change, len(changeIDs))
+	if len(changeIDs) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(changeIDs))
+	for i, id := range changeIDs {
+		args[i] = id
+	}
+	rows, err := t.query(ctx, `SELECT id, actor, state, reverts FROM changes WHERE id IN (`+marks(len(args))+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read changes: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var c Change
+		var reverts sql.NullString
+		if err := rows.Scan(&c.ID, &c.Actor, &c.State, &reverts); err != nil {
+			return nil, fmt.Errorf("can't read changes: %w", err)
+		}
+		c.Reverts = reverts.String
+		out[c.ID] = c
+	}
+	return out, rows.Err()
+}
+
+// PageRevisions returns at most limit of a resource's revisions, newest
+// first, from before revision before, or from its latest when before is 0.
+func (t *Tx) PageRevisions(ctx context.Context, resourceID string, before, limit int) ([]Revision, error) {
+	rows, err := t.query(ctx, `SELECT `+revisionColumns+`
+		FROM revisions v JOIN resources r ON r.id = v.resource_id
+		WHERE v.resource_id = ? AND (v.number < ? OR ? = 0) ORDER BY v.number DESC LIMIT ?`, resourceID, before, before, limit)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the revisions of %s: %w", resourceID, err)
+	}
+	defer rows.Close()
+	var out []Revision
+	for rows.Next() {
+		rev, err := scanRevision(rows)
+		if err != nil {
+			return nil, fmt.Errorf("can't read the revisions of %s: %w", resourceID, err)
+		}
+		out = append(out, rev)
+	}
+	return out, rows.Err()
+}

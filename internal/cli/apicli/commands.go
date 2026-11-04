@@ -211,12 +211,14 @@ func methodCommand(env *Env, m *Method, o *options) (*cobra.Command, error) {
 // change it ended, which is only printed. A plan method that returns a
 // change and isn't here fails the commands' building, and so their tests.
 var proposers = map[string]bool{
-	"dockwell.v1.ChangeService.ProposeChange":  true,
-	"dockwell.v1.ChangeService.UndoChange":     true,
-	"dockwell.v1.ChangeService.RevertDrift":    true,
-	"dockwell.v1.ChangeService.AdoptDrift":     true,
-	"dockwell.v1.ChangeService.DiscardChange":  false,
-	"dockwell.v1.ComposeService.ImportCompose": true,
+	"dockwell.v1.ChangeService.ProposeChange":    true,
+	"dockwell.v1.ChangeService.UndoChange":       true,
+	"dockwell.v1.ChangeService.RevertDrift":      true,
+	"dockwell.v1.ChangeService.AdoptDrift":       true,
+	"dockwell.v1.ChangeService.DiscardChange":    false,
+	"dockwell.v1.ComposeService.ImportCompose":   true,
+	"dockwell.v1.ServiceService.DeployService":   true,
+	"dockwell.v1.ServiceService.RollBackService": true,
 }
 
 // proposes reports a method that proposes a new change, by what it does,
@@ -270,7 +272,10 @@ func kindCommand(env *Env, k *Kind, parent *cobra.Command, o *options) (*cobra.C
 		return nil, err
 	}
 	what := strings.ReplaceAll(string(kind), ".", " ")
-	if parent == nil {
+	if parent != nil {
+		parent.Short = "Create, update, delete or " + strings.ToLower(parent.Short[:1]) + parent.Short[1:]
+		parent.Long = strings.TrimSpace(parent.Long + "\n\n" + k.Long + "\n\nCreate, update and delete each propose a change, show its plan, and ask before applying it.")
+	} else {
 		o = &options{}
 		parent = &cobra.Command{
 			Use:     k.Noun,

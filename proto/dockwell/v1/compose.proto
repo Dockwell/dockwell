@@ -7,6 +7,7 @@ package dockwell.v1;
 import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
+import "dockwell/v1/service.proto";
 import "google/api/annotations.proto";
 
 // ComposeService turns a Docker Compose file into an environment's
@@ -25,6 +26,18 @@ service ComposeService {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (google.api.http) = {
       post: "/v1/compose:import"
+      body: "*"
+    };
+  }
+
+  // CheckCompose reads a Compose file as ImportCompose would and says what
+  // it would make, or why it can't, without planning anything or recording a
+  // change, so a form can check a file as someone types it.
+  // It is a POST, as a file of 1 MiB doesn't fit in a URL.
+  rpc CheckCompose(CheckComposeRequest) returns (CheckComposeResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {
+      post: "/v1/compose:check"
       body: "*"
     };
   }
@@ -84,6 +97,49 @@ message ImportComposeRequest {
 message ImportComposeResponse {
   // The change, planned, with its plan.
   Change change = 1;
+}
+
+// CheckComposeRequest is a Compose file to read.
+message CheckComposeRequest {
+  // The Compose file, as YAML, of up to 1 MiB.
+  string compose = 1;
+  // Values for the variables the file uses, as ImportCompose takes them.
+  map<string, string> variables = 2;
+}
+
+// CheckComposeResponse says what a Compose file would make, or why it can't.
+message CheckComposeResponse {
+  // Why ImportCompose would refuse the file, when it would: the first thing
+  // in the way. Fix it and check again for the next. Unset when it would take
+  // it.
+  ComposeRefusal refusal = 1;
+  // The variables the file uses, whether or not the file can be read
+  // further than that.
+  repeated ComposeVariable variables = 2;
+  // The services it would make, in the order it would make them, with
+  // sensitive values blanked. Empty when it is refused.
+  repeated ServiceInfo services = 3;
+  // The volumes it would make, by name. Empty when it is refused.
+  repeated string volumes = 4;
+  // The networks it would make, by name. Empty when it is refused.
+  repeated string networks = 5;
+}
+
+// ComposeRefusal is why a Compose file can't be imported.
+message ComposeRefusal {
+  // What is wrong and how to fix it, for people.
+  string message = 1;
+  // The line of the file it is about, from 1. 0 when it is about the file
+  // as a whole.
+  int32 line = 2;
+}
+
+// ComposeVariable is a variable a Compose file uses, such as ${TAG}.
+message ComposeVariable {
+  // Its name, such as "TAG".
+  string name = 1;
+  // True when it needs a value, as the file gives it no default.
+  bool required = 2;
 }
 
 // ExportComposeRequest names what to export.
