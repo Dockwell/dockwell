@@ -90,8 +90,9 @@ func (h *Handler) GetAuthState(ctx context.Context, _ *connect.Request[dockwellv
 		msg.User = userProto(p.User)
 		msg.SessionId = p.Session.ID
 		msg.SignInMethod = methodProto(p.Session.Method)
-	} else if req, ok := ctx.Value(requestKey{}).(request); ok && req.token != "" {
-		// A cookie for a session that ended: clear it.
+	} else if req, ok := ctx.Value(requestKey{}).(request); ok && req.token != "" && !sessionUnchecked(ctx) {
+		// A cookie for a session that ended: clear it. One that couldn't be
+		// checked stays, as its session may still work.
 		res.Header().Add("Set-Cookie", client.Site.ClearCookie().String())
 	}
 	return res, nil

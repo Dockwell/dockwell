@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"database/sql"
 	"errors"
 	"io"
 	"log/slog"
@@ -44,9 +45,24 @@ import (
 // fullServer is a control plane with sign-in, as dockwell run starts it.
 type fullServer struct {
 	auth  *auth.Service
+	db    string // the database file
 	api   string // the loopback listener's address
 	https string // the HTTPS listener's address, with a domain
 	http  string // the plain-HTTP listener's address, with a domain
+}
+
+// execSQL runs a statement on the server's database from outside the store,
+// to make its reads or writes fail as a damaged disk or a bug elsewhere would.
+func (f *fullServer) execSQL(t *testing.T, query string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", "file:"+f.db+"?_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.ExecContext(t.Context(), query); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func startFull(t *testing.T, public https.Source) *fullServer {
@@ -57,7 +73,8 @@ func startFull(t *testing.T, public https.Source) *fullServer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := store.Open(t.Context(), filepath.Join(dir, "state.db"))
+	path := filepath.Join(dir, "state.db")
+	db, err := store.Open(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +108,7 @@ func startFull(t *testing.T, public https.Source) *fullServer {
 		return ln
 	}
 	ls := Listeners{API: listen()}
-	f := &fullServer{auth: people, api: ls.API.Addr().String()}
+	f := &fullServer{auth: people, db: path, api: ls.API.Addr().String()}
 	if public != nil {
 		ls.HTTPS, ls.HTTP = listen(), listen()
 		f.https, f.http = ls.HTTPS.Addr().String(), ls.HTTP.Addr().String()
@@ -696,6 +713,41 @@ func TestRefusalsSayWhy(t *testing.T) {
 	_, err = noOrigin.RevokeOtherSessions(t.Context(), connect.NewRequest(&dockwellv1.RevokeOtherSessionsRequest{}))
 	if connect.CodeOf(err) != connect.CodePermissionDenied || reason(err) != authapi.ReasonOrigin {
 		t.Errorf("a write without Origin = %v (reason %q), want reason origin", err, reason(err))
+	}
+}
+
+// A session that can't be checked, as when the database fails, doesn't
+// stop the calls that need none: the sign-in screen still loads, and people
+// can still start signing in. Calls that need a session say to try again,
+// and the cookie stays, as its session may still work.
+func TestPublicCallsGoAheadWhenTheSessionCantBeChecked(t *testing.T) {
+	srv := startFull(t, nil)
+	_, port, _ := net.SplitHostPort(srv.api)
+	b := newBrowser(t, "http://localhost:"+port, srv.api, nil)
+	link, _ := srv.auth.CreateClaimLink(t.Context(), "test")
+	b.claim(t, link.Token)
+	servers := dockwellv1connect.NewServerServiceClient(b, b.origin)
+
+	srv.execSQL(t, `ALTER TABLE sessions RENAME TO sessions_away`)
+	if _, err := dockwellv1connect.NewSystemServiceClient(b, b.origin).GetVersion(t.Context(), connect.NewRequest(&dockwellv1.GetVersionRequest{})); err != nil {
+		t.Errorf("GetVersion with a session that can't be checked: %v", err)
+	}
+	if _, err := b.authClient().BeginPasskeySignIn(t.Context(), connect.NewRequest(&dockwellv1.BeginPasskeySignInRequest{})); err != nil {
+		t.Errorf("BeginPasskeySignIn with a session that can't be checked: %v", err)
+	}
+	state, err := b.authClient().GetAuthState(t.Context(), connect.NewRequest(&dockwellv1.GetAuthStateRequest{}))
+	if err != nil || !state.Msg.GetClaimed() || state.Msg.GetUser() != nil {
+		t.Errorf("GetAuthState with a session that can't be checked = %v, %v, want claimed and no user", state, err)
+	} else if cookie := state.Header().Get("Set-Cookie"); cookie != "" {
+		t.Errorf("GetAuthState cleared a cookie it couldn't check: %q", cookie)
+	}
+	if _, err := servers.ListServers(t.Context(), connect.NewRequest(&dockwellv1.ListServersRequest{})); connect.CodeOf(err) != connect.CodeUnavailable || reason(err) != authapi.ReasonUnavailable {
+		t.Errorf("ListServers with a session that can't be checked = %v (reason %q), want unavailable", err, reason(err))
+	}
+
+	srv.execSQL(t, `ALTER TABLE sessions_away RENAME TO sessions`)
+	if _, err := servers.ListServers(t.Context(), connect.NewRequest(&dockwellv1.ListServersRequest{})); err != nil {
+		t.Errorf("ListServers once the session can be checked again: %v", err)
 	}
 }
 

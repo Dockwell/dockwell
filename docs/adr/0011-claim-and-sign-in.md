@@ -82,6 +82,7 @@ A fresh VPS has an IP address and nothing else. Until #14, the API listened on l
   - `SystemService.GetVersion`, because the sign-in screen shows the version;
   - gRPC health, and `/healthz`.
 - A test calls every registered procedure without a session and fails on any answer not in that list.
+- When a session can't be checked, as when the database fails, the calls in that list go ahead as if signed out, so the sign-in screen still loads; `GetAuthState` then keeps the cookie, whose session may still work. Every other call answers `unavailable`, with the reason `unavailable`.
 - **CSRF**, on top of SameSite=Strict and Connect's non-simple content types:
   - A request with an `Origin` other than the panel's own is refused, and so is one whose `Sec-Fetch-Site` says another site. That includes `same-site`, which is how another port on `localhost` shows up.
   - A write authenticated by cookie must carry a matching `Origin` or `Sec-Fetch-Site: same-origin`.

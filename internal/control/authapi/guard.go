@@ -49,6 +49,9 @@ func PublicProcedures() []string {
 type (
 	requestKey   struct{}
 	principalKey struct{}
+	// uncheckedKey marks a request whose session couldn't be checked, as
+	// when the database failed: it may still work.
+	uncheckedKey struct{}
 )
 
 // request is what Guard learned about an HTTP request.
@@ -71,6 +74,14 @@ func ClientFrom(ctx context.Context) (auth.Client, bool) {
 func PrincipalFrom(ctx context.Context) (auth.Principal, bool) {
 	p, ok := ctx.Value(principalKey{}).(auth.Principal)
 	return p, ok
+}
+
+// sessionUnchecked reports a request with a session cookie that couldn't be
+// checked, which went ahead without a principal because its procedure
+// needs none.
+func sessionUnchecked(ctx context.Context) bool {
+	unchecked, _ := ctx.Value(uncheckedKey{}).(bool)
+	return unchecked
 }
 
 // Guard wraps every handler on the API listeners. It:
@@ -255,6 +266,13 @@ func (i *interceptor) authorize(ctx context.Context, procedure string) (context.
 		case err == nil:
 			ctx = context.WithValue(ctx, principalKey{}, p)
 		case errors.Is(err, auth.ErrUnauthenticated):
+		case publicProcedures[procedure]:
+			// The call needs no session, so one that can't be checked
+			// doesn't stop it: signing in, the version and health still
+			// answer. It goes ahead as if signed out.
+			i.logger.WarnContext(ctx, "can't check a session; going on without it, as the call needs none",
+				slog.String("procedure", procedure), slog.Any("error", err))
+			ctx = context.WithValue(ctx, uncheckedKey{}, true)
 		default:
 			i.logger.ErrorContext(ctx, "can't check a session", slog.Any("error", err))
 			return ctx, reasonError(connect.CodeUnavailable, errors.New("can't check your session right now. Try again in a moment"), ReasonUnavailable)
