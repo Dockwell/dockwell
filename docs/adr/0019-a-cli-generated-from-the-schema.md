@@ -12,7 +12,7 @@ PRD principle 1 says the UI, API, CLI, Git config and MCP server are views of on
 
 What was already settled:
 - Every method declares its effect, `(dockwell.v1.effect)`: read, plan, apply or destructive. Every unary method has one REST path under `/v1/` that follows Google's API design guide ([ADR 0015](0015-rest-and-openapi-from-the-schema.md)).
-- Scripts and the CLI authenticate with API tokens. No token may call a destructive method, AuthService or TokenService ([ADR 0016](0016-scoped-api-tokens.md)), and none may apply a destructive plan ([ADR 0017](0017-the-change-api-and-the-agent-stream.md)).
+- Scripts and the CLI authenticate with API tokens. No token may call a destructive method, AuthService or TokenService ([ADR 0016](0016-scoped-api-tokens.md)), and none may apply a destructive plan ([ADR 0017](0017-the-change-api-and-the-agent-stream.md)), or one that gives a container more of its server ([ADR 0021](0021-the-docker-driver.md#host-access)).
 - `dockwell token create` already makes join tickets for servers, so API token commands need another name.
 - ChangeService proposes, applies, watches, undoes and discards changes, and lists drift. A request leaves out a scope while there is one to choose from, and gets the reason `choice` once there are several, with the options in its message.
 - ADR 0017 left two things to this record: what a spec-reading method would look like, and how a client says it is the CLI, for the surface its changes record.
@@ -158,7 +158,7 @@ This is safe because reading that directory already gives full control of the in
   - The token is named "Local access on hz-1, read-only" or "read-write", and listed on Profile and security like any other, where it can be revoked.
   - Its creation and revocation are `token.create` and `token.revoke` events, by `cli:<user>@<host>`, the actor `dockwell token create` and `dockwell claim` already record: the shell account on the control server that ran the command. The timeline shows it as a shell account, `mira@hz-1` ([ADR 0020](0020-the-event-timeline.md)).
   - Its calls are the token's, `token:tok_…`, and its changes, and every audit event its calls cause, come from the CLI.
-- **Within ADR 0016's limits.** A local token is an ordinary token, so it can't apply a destructive plan or manage sign-in, either.
+- **Within ADR 0016's limits.** A local token is an ordinary token, so it can't apply a destructive plan, or one that gives host access, or manage sign-in, either.
 - **Only for the owner.** An install with no owner refuses it, and says to claim it first.
 - **Not for anyone else.** A user who can't read the data directory gets a message that says to use `sudo` or `dockwell login`. A user other than root looks in a data directory of their own by default, so when the system's, `/var/lib/dockwell`, has a control plane, or only root can look in it, the message says the same. A control plane on Postgres needs `DOCKWELL_DATABASE`, as `dockwell recover` does.
 - **Never an upgrade.** Local access opens the control plane's state as it is, through `store.OpenExisting`: it never creates or migrates it, since a migration under a running control plane of another version would change its schema beneath it, as between an upgrade and the service's restart. A state at another schema version than the CLI's is refused, with what to do: restart the control plane so it runs this `dockwell`, or run the `dockwell` it runs. It reads what it needs and no more: the panel's address alone to find the control plane, and the sealing key only to make a token.

@@ -37,7 +37,7 @@ Every method already declares its effect in the schema (`(dockwell.v1.effect)`: 
   | Read only | Yes | No (`token_scope`) | No (`needs_session`) | No (`needs_session`) |
   | Read and write | Yes | Yes | No (`needs_session`) | No (`needs_session`) |
 
-- **No token may call a destructive method.** Apply methods can be undone through revisions (ADR 0009); destructive ones may not come back. The PRD makes destructive methods ask a person for a typed confirmation, which a script can't give honestly. A leaked read-write token can therefore change things, but the owner can undo every change it made.
+- **No token may call a destructive method.** Apply methods can be undone through revisions (ADR 0009); destructive ones may not come back. Nor may a token apply a plan that destroys data ([ADR 0017](0017-the-change-api-and-the-agent-stream.md)), or one that gives a container more of its server, such as a server path or Docker's socket, which an undo can't take back from whoever used it ([ADR 0021](0021-the-docker-driver.md#host-access)). The PRD makes destructive methods ask a person for a typed confirmation, which a script can't give honestly. A leaked read-write token can therefore change things, but the owner can undo every change it made.
 - **No token may manage sign-in or tokens.** With `AuthService` and `TokenService` out of reach, a leaked token can't make itself a successor, outlive its revocation, add a passkey, or lock the owner out. The services check this in three places: the interceptor refuses the call, the handlers refuse a principal that came with a token, and the auth service refuses to create or revoke a token for one.
 - A procedure the interceptor can't find an effect for needs a session, so a new service is closed to tokens until its methods say what they do.
 - Reflection is open to any token, as it only shows the schema, which is public.
@@ -93,7 +93,7 @@ Every method already declares its effect in the schema (`(dockwell.v1.effect)`: 
 - Scripts, CI, the CLI and the MCP server use the same API as the panel, over any protocol, from anywhere the API answers, with one header.
 - A leaked token is limited by design:
   - A read-only one can read what its owner can, including server inventory.
-  - A read-write one can also apply changes, each of which can be undone.
+  - A read-write one can also apply changes, each of which can be undone, but none that gives a container more of its server than a person approved.
   - Neither can remove data, cut off access, or make or keep tokens alive. The owner revokes it in the panel, and the audit log shows each new address it was used from.
 - The CLI can't run destructive commands, or manage sign-in and tokens, with a token. #22 needs a way to do those that a person confirms, such as a short-lived session from a device flow approved with a passkey. A token scope that allows destructive calls would need its own record.
 - `dockwell token create` already makes join tickets for servers. The CLI must name its API token commands so the two can't be confused, or rename the join ticket command.
