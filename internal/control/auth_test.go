@@ -354,7 +354,9 @@ func callEmpty(t *testing.T, b *browser, procedure string, md protoreflect.Metho
 	switch {
 	case md.IsStreamingClient():
 		stream := client.CallBidiStream(ctx)
-		if err = stream.Send(in); err == nil {
+		// When the server has already answered, Send reports io.EOF, and
+		// the answer comes from Receive.
+		if err = stream.Send(in); err == nil || errors.Is(err, io.EOF) {
 			_ = stream.CloseRequest()
 			_, err = stream.Receive()
 		}
