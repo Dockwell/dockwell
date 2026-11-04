@@ -20,6 +20,13 @@ import (
 // that isn't used needs nothing. compose-go's own substitution leaves a
 // variable blank inside a default, and after one in the same string.
 func interpolate(raw map[string]any, variables map[string]string) (map[string]any, error) {
+	total := 0
+	for k, v := range variables {
+		total += len(k) + len(v)
+	}
+	if total > MaxVariables {
+		return nil, invalid("the variables come to %.1f MiB, and Dockwell takes up to %d KiB of them. Pass less, or set long values on the server", float64(total)/(1<<20), MaxVariables>>10)
+	}
 	in := &interpolator{variables: variables, missing: map[string]bool{}}
 	out, err := in.walk(place{owner: fileOwner}, raw)
 	if len(in.missing) > 0 {
@@ -35,9 +42,30 @@ func interpolate(raw map[string]any, variables map[string]string) (map[string]an
 
 const fileOwner = "the Compose file"
 
+// What variables may add to a file. The cap on a file means little if one
+// short line can repeat a long value, so what they expand to counts across
+// the whole file, as it grows, before compose-go reads the result. A file
+// of 50 KiB and one value of 64 KiB otherwise allocated 288 MiB.
+const (
+	// MaxExpansion is how many bytes variables may expand to in a file.
+	MaxExpansion = 2 << 20
+	// MaxVariables is how many bytes the variables themselves may hold.
+	MaxVariables = 1 << 20
+)
+
 type interpolator struct {
 	variables map[string]string
 	missing   map[string]bool
+	// expanded counts what variables have expanded to so far.
+	expanded int
+}
+
+// spend counts n bytes against MaxExpansion.
+func (in *interpolator) spend(at place, n int) error {
+	if in.expanded += n; in.expanded > MaxExpansion {
+		return invalid("%s takes the variables past %d MiB once they are expanded, which Dockwell doesn't read. Use each long value less often, or shorten it", at, MaxExpansion>>20)
+	}
+	return nil
 }
 
 // walk resolves the strings in v, which is at.
@@ -101,6 +129,9 @@ func (in *interpolator) substitute(at place, s string) (string, error) {
 			if err != nil {
 				return "", err
 			}
+			if err := in.spend(at, len(v)); err != nil {
+				return "", err
+			}
 			b.WriteString(v)
 			i = end + 1
 		case nameStart(next):
@@ -108,7 +139,11 @@ func (in *interpolator) substitute(at place, s string) (string, error) {
 			for j < len(s) && nameRest(s[j]) {
 				j++
 			}
-			b.WriteString(in.value(s[i+1 : j]))
+			v := in.value(s[i+1 : j])
+			if err := in.spend(at, len(v)); err != nil {
+				return "", err
+			}
+			b.WriteString(v)
 			i = j
 		default:
 			// A $ before anything else is a $, as docker compose has it.

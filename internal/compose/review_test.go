@@ -76,7 +76,6 @@ services:
     command: ["sleep", "inf"]
 volumes:
   db-data:
-    driver_opts: {type: nfs, o: "addr=10.0.0.2", device: ":/export/$$db"}
     labels: {note: "$$1 a month"}
 networks:
   default:
@@ -94,7 +93,7 @@ networks:
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"exec postgres -p $$PORT", "pg_isready -U $${POSTGRES_USER}", "/srv/$$data:/data", "device: :/export/$$db", "entrypoint: []"} {
+	for _, want := range []string{"exec postgres -p $$PORT", "pg_isready -U $${POSTGRES_USER}", "/srv/$$data:/data", "note: $$1 a month", "entrypoint: []"} {
 		if !strings.Contains(string(out.File), want) {
 			t.Errorf("the export doesn't have %s:\n%s", want, out.File)
 		}

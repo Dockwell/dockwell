@@ -65,8 +65,9 @@ type (
 	}
 )
 
-// Exported is a Compose file, and the environment variables it leaves
-// out, as service.NAME.
+// Exported is a Compose file, and what it leaves out as it may hold
+// secrets: environment variables, as service.NAME, and a volume's driver
+// options, as volumes.NAME.driver_opts.
 type Exported struct {
 	File    []byte
 	Omitted []string
@@ -85,6 +86,7 @@ type Exported struct {
 func Export(project string, stack *Stack) (*Exported, error) {
 	f := file{Name: project, Services: map[string]serviceEntry{}}
 	var omitted []string
+	volumesLeft := false
 	for _, s := range stack.Services {
 		c := s.Spec.GetApp()
 		if c == nil {
@@ -179,15 +181,29 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		if f.Volumes == nil {
 			f.Volumes = map[string]volumeEntry{}
 		}
-		f.Volumes[v.Name] = volumeEntry{
-			Driver: escape(v.Spec.GetDriver()), DriverOpts: escapeValues(v.Spec.GetOptions()), Labels: escapeValues(v.Spec.GetLabels()),
+		// Options may hold a password, as a CIFS mount's goes in o, and
+		// have no form for a shell to fill in, so they are left out whole.
+		entry := volumeEntry{Driver: escape(v.Spec.GetDriver()), Labels: escapeValues(v.Spec.GetLabels())}
+		if len(v.Spec.GetOptions()) > 0 {
+			fd := v.Spec.ProtoReflect().Descriptor().Fields().ByName("options")
+			if resource.IsSensitive(fd) {
+				omitted = append(omitted, "volumes."+v.Name+".driver_opts")
+				volumesLeft = true
+			} else {
+				entry.DriverOpts = escapeValues(v.Spec.GetOptions())
+			}
 		}
+		f.Volumes[v.Name] = entry
 	}
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "# Written by Dockwell. Its project, %s, is the\n# environment's, so docker compose sees what Dockwell runs.\n", project)
 	if len(omitted) > 0 {
 		buf.WriteString("# Variables listed without a value may hold secrets, so they are left out: set\n" +
 			"# them in your shell, or in an .env file beside this one, before docker compose up.\n")
+	}
+	if volumesLeft {
+		buf.WriteString("# A volume's driver options may hold secrets, so they are left out too. Docker\n" +
+			"# keeps them with a volume that is on the server already; write them in for a new one.\n")
 	}
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
