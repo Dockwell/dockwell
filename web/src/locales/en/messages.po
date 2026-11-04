@@ -166,6 +166,10 @@ msgstr "Connections"
 msgid "Control plane"
 msgstr "Control plane"
 
+#: src/features/system/StatusPage.tsx
+msgid "Control plane status"
+msgstr "Control plane status"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "Control server"
 msgstr "Control server"

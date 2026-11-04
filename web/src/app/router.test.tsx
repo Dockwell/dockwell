@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { screen, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { renderAt } from "../test/render";
@@ -18,6 +19,38 @@ describe("routes", () => {
     renderAt("/status");
     expect(await screen.findByRole("heading", { level: 1, name: "The control plane is running" })).toBeVisible();
     expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+    expect(document.title).toBe("Control plane status · Dockwell");
+  });
+
+  it("names the tab for each page, in and out of the shell", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt("/apps");
+    await screen.findByRole("heading", { level: 1, name: "Apps" });
+    expect(document.title).toBe("Apps · Dockwell");
+
+    await act(() => router.navigate({ to: "/status" }));
+    await screen.findByRole("heading", { level: 1, name: "The control plane is running" });
+    expect(document.title).toBe("Control plane status · Dockwell");
+
+    await act(() => router.navigate({ to: "/nowhere" as "/" }));
+    await screen.findByRole("heading", { level: 1, name: "No page here" });
+    expect(document.title).toBe("No page here · Dockwell");
+
+    await user.click(screen.getByRole("link", { name: "Go to the overview" }));
+    await screen.findByRole("heading", { level: 1, name: "Overview" });
+    expect(document.title).toBe("Overview · Dockwell");
+  });
+
+  it("goes home from the status page's logo without reloading the panel", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt("/status");
+    await screen.findByRole("heading", { level: 1, name: "The control plane is running" });
+
+    await user.click(screen.getByRole("link", { name: "Dockwell" }));
+
+    // A plain link would leave the router where it was and load the document again.
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect(await screen.findByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   });
 
   it("lists the servers", async () => {

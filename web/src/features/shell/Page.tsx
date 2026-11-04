@@ -3,8 +3,9 @@
 import { cx, Icon, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useEffect } from "react";
+import type { ReactNode } from "react";
 
+import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import { useOpenCommandBar } from "./CommandMenu";
 import "./Page.css";
 
@@ -51,9 +52,7 @@ export function Page({
 }: PageProps) {
   const phone = useMediaQuery(PHONE_QUERY);
 
-  useEffect(() => {
-    document.title = `${title} · Dockwell`;
-  }, [title]);
+  useDocumentTitle(title);
 
   return (
     <>

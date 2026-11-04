@@ -166,6 +166,10 @@ msgstr "连接"
 msgid "Control plane"
 msgstr "控制平面"
 
+#: src/features/system/StatusPage.tsx
+msgid "Control plane status"
+msgstr "控制平面状态"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "Control server"
 msgstr "控制服务器"

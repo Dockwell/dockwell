@@ -21,18 +21,22 @@ import "./StatusPage.css";
  * terminal.
  */
 export function StatusPage() {
+  const { t } = useLingui();
+  const title = t`Control plane status`;
   const version = useQuery(SystemService.method.getVersion, {});
   const host = window.location.host;
   const slow = useElapsed(version.isPending);
 
   if (version.isPending) {
     return (
-      <StandalonePage>{slow ? <Connecting /> : <div className="status-reserve" aria-busy="true" />}</StandalonePage>
+      <StandalonePage title={title}>
+        {slow ? <Connecting /> : <div className="status-reserve" aria-busy="true" />}
+      </StandalonePage>
     );
   }
   if (version.isError) {
     return (
-      <StandalonePage>
+      <StandalonePage title={title}>
         <Unreachable
           host={host}
           error={ConnectError.from(version.error)}
@@ -43,7 +47,7 @@ export function StatusPage() {
     );
   }
   return (
-    <StandalonePage>
+    <StandalonePage title={title}>
       <Running host={host} build={version.data.build} />
     </StandalonePage>
   );

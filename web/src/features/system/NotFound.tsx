@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useLocation } from "@tanstack/react-router";
 
 import { StandalonePage } from "./StandalonePage";
 
 export function NotFound() {
+  const { t } = useLingui();
   const { pathname } = useLocation();
   return (
-    <StandalonePage>
+    <StandalonePage title={t`No page here`}>
       <header className="standalone-head">
         <h1 className="dw-text-title">
           <Trans>No page here</Trans>
