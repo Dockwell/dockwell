@@ -144,7 +144,7 @@ if costly=$(dw compose import --compose "$costly_file" --variables "A=$long" --y
   fail "a file made to cost too much was read: ${costly:0:300}"
 fi
 [[ "$costly" == *"more time or memory"* ]] || fail "a file made to cost too much failed some other way: ${costly:0:300}"
-dw services list >/dev/null || fail "the control plane didn't carry on after a file that cost too much"
+dw changes list --json >/dev/null || fail "the control plane didn't carry on after a file that cost too much"
 
 dw compose import --compose "$(cat "$data/stack.yaml")" --yes || fail "compose import failed"
 services=$(docker compose -p "$project" ps --format '{{.Service}}' | sort | tr '\n' ' ') || fail "docker compose -p $project ps failed"
