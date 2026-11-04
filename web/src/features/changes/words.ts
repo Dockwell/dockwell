@@ -141,19 +141,29 @@ export function useChangeWords(): ChangeWords {
         return "";
       },
       access(access) {
-        const path = access.path;
+        const { path, type, driver, detail } = access;
+        const reads = access.readOnly ? t`read-only` : t`read-write`;
         switch (access.kind) {
-          case HostAccessKind.SERVER_PATH:
-            return access.readOnly ? t`the server path ${path} (read-only)` : t`the server path ${path}`;
+          case HostAccessKind.SERVER_PATH: {
+            let how = reads;
+            if (access.relabel === "z") how = t`${reads}, relabelled for SELinux as shared`;
+            if (access.relabel === "Z") how = t`${reads}, relabelled for SELinux as private`;
+            return t`the server path ${path} (${how})`;
+          }
           case HostAccessKind.DOCKER_SOCKET:
             return t`Docker's socket at ${path}, which gives control of Docker on the server, the same as root`;
           case HostAccessKind.HOST_NETWORK:
             return t`the server's own network`;
           case HostAccessKind.VOLUME_MOUNT: {
-            const type = access.type;
-            if (type !== "" && path !== "") return t`a ${type} mount of ${path}`;
-            if (type !== "") return t`a ${type} mount`;
-            return t`a mount from the volume's options`;
+            if (driver !== "") return t`the volume driver ${driver}, which reaches what the plugin does (${reads})`;
+            const at = access.address + path;
+            return at === "" ? t`a ${type} mount (${reads})` : t`the ${type} mount ${at} (${reads})`;
+          }
+          case HostAccessKind.NETWORK_DRIVER: {
+            let out = path === "" ? t`a ${driver} network` : t`a ${driver} network on ${path}`;
+            if (driver !== "bridge") out = t`${out}, which reaches past the server's firewall`;
+            if (detail !== "") out = t`${out}, with ${detail}`;
+            return out;
           }
         }
         return t`something else on the server`;

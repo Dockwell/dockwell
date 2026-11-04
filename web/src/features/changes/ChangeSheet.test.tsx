@@ -175,6 +175,18 @@ describe("the plan sheet", () => {
     const step = plan?.servers[0]?.steps[0];
     if (!plan || !step) throw new Error("webPlanned has no step");
     plan.hostAccess = true;
+    const resource = plan.resources[0];
+    if (resource) {
+      resource.hostAccess = [
+        create(HostAccessSchema, {
+          kind: HostAccessKind.VOLUME_MOUNT,
+          type: "nfs",
+          address: "10.0.0.2",
+          path: ":/media",
+        }),
+      ];
+    }
+    step.healthUnknown = true;
     step.hostAccess = [
       create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/app/config", readOnly: true }),
       create(HostAccessSchema, { kind: HostAccessKind.DOCKER_SOCKET, path: "/var/run/docker.sock" }),
@@ -194,10 +206,13 @@ describe("the plan sheet", () => {
     });
 
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
-    expect(sheet).toHaveTextContent("This plan gives a container more access to its server");
+    expect(sheet).toHaveTextContent("This plan gives more access to a server");
     expect(sheet).toHaveTextContent(
       "Reaches the server path /srv/app/config (read-only); Docker's socket at /var/run/docker.sock, which gives control of Docker on the server, the same as root on hz-1",
     );
+    // At the plan's level too, as a plan with no steps has nowhere else.
+    expect(sheet).toHaveTextContent("web reaches the nfs mount 10.0.0.2:/media (read-write).");
+    expect(sheet).toHaveTextContent("Its image isn't on the server yet, so its own health check isn't known");
     expect(sheet).toHaveTextContent("Up to 1 min 50 s until healthy");
     expect(sheet).toHaveTextContent(
       "Takes out of use what its image keeps at /var/lib/postgresql/data, which the server keeps for 7 days",

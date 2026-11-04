@@ -151,6 +151,10 @@ msgstr "{name} 正在等待代理连接"
 msgid "{name} isn't reporting"
 msgstr "{name} 没有上报数据"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "{name} reaches {reaches}."
+msgstr "{name} 可访问 {reaches}。"
+
 #: src/app/Providers.tsx
 msgid "{name}, {status}"
 msgstr "{name}，{status}"
@@ -170,6 +174,22 @@ msgstr "{names} · 预计不会停机"
 #: src/features/servers/ServerPanels.tsx
 msgid "{now} now"
 msgstr "当前 {now}"
+
+#: src/features/changes/words.ts
+msgid "{out}, which reaches past the server's firewall"
+msgstr "{out}，可绕过服务器的防火墙"
+
+#: src/features/changes/words.ts
+msgid "{out}, with {detail}"
+msgstr "{out}，选项为 {detail}"
+
+#: src/features/changes/words.ts
+msgid "{reads}, relabelled for SELinux as private"
+msgstr "{reads}，按 SELinux 重新标记为私有"
+
+#: src/features/changes/words.ts
+msgid "{reads}, relabelled for SELinux as shared"
+msgstr "{reads}，按 SELinux 重新标记为共享"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "{rx} in · {tx} out"
@@ -237,20 +257,20 @@ msgid "6 digits from your authenticator app, or one of your recovery codes."
 msgstr "身份验证器应用里的 6 位数字，或你的一个恢复码。"
 
 #: src/features/changes/words.ts
-msgid "a {type} mount"
-msgstr "一个 {type} 挂载"
+msgid "a {driver} network"
+msgstr "一个 {driver} 网络"
 
 #: src/features/changes/words.ts
-msgid "a {type} mount of {path}"
-msgstr "{path} 的 {type} 挂载"
+msgid "a {driver} network on {path}"
+msgstr "{path} 上的一个 {driver} 网络"
+
+#: src/features/changes/words.ts
+msgid "a {type} mount ({reads})"
+msgstr "一个 {type} 挂载（{reads}）"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "认领链接只在有人认领之前有效。请直接登录。"
-
-#: src/features/changes/words.ts
-msgid "a mount from the volume's options"
-msgstr "按卷的选项进行的挂载"
 
 #: src/features/activity/describe.ts
 msgid "a server"
@@ -1051,6 +1071,10 @@ msgstr "它的代理已断开连接。请检查该服务器上的 <0>dockwell ru
 msgid "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
 msgstr "它的代理最后一次上报于 {seen}，此处显示的是当时的数据。请检查该服务器上的 <0>dockwell run</0> 是否仍在运行。"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy"
+msgstr "服务器上还没有它的镜像，因此其自带的健康检查未知，恢复健康可能需要更久"
+
 #: src/app/Providers.tsx
 msgid "job"
 msgstr "任务"
@@ -1348,8 +1372,8 @@ msgid "On"
 msgstr "开启"
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "Only a signed-in person can apply it, as no API token may. Check each step says what it should reach."
-msgstr "只有已登录的用户才能应用它，任何 API 令牌都不能。请检查每个步骤所列的访问范围是否符合预期。"
+msgid "Only a signed-in person can apply it, as no API token may."
+msgstr "只有已登录的用户才能应用它，任何 API 令牌都不能。"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its {record} record to <0>{publicAddress}</0>, then restart dockwell with <1>--domain</1>."
@@ -1557,6 +1581,14 @@ msgstr "读写"
 #: src/features/auth/TokensPanel.tsx
 msgid "Read only"
 msgstr "只读"
+
+#: src/features/changes/words.ts
+msgid "read-only"
+msgstr "只读"
+
+#: src/features/changes/words.ts
+msgid "read-write"
+msgstr "读写"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads servers and their state. Changes nothing."
@@ -2018,6 +2050,10 @@ msgstr "这个通行密钥报告的使用次数比之前少，这在通行密钥
 msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 msgstr "这样你将无法登录。请先添加另一个通行密钥或身份验证器应用。"
 
+#: src/features/changes/words.ts
+msgid "the {type} mount {at} ({reads})"
+msgstr "{type} 挂载 {at}（{reads}）"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "The agent hasn't said what this server is yet."
 msgstr "代理尚未上报这台服务器的信息。"
@@ -2103,12 +2139,8 @@ msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "服务器列表未能加载。Dockwell 会继续重试。"
 
 #: src/features/changes/words.ts
-msgid "the server path {path}"
-msgstr "服务器路径 {path}"
-
-#: src/features/changes/words.ts
-msgid "the server path {path} (read-only)"
-msgstr "服务器路径 {path}（只读）"
+msgid "the server path {path} ({how})"
+msgstr "服务器路径 {path}（{how}）"
 
 #: src/features/changes/words.ts
 msgid "the server's own network"
@@ -2121,6 +2153,10 @@ msgstr "这个计划指纹的开头，确保你应用的正是你审查过的内
 #: src/features/auth/TokensPanel.tsx
 msgid "The token wasn't created"
 msgstr "令牌未创建"
+
+#: src/features/changes/words.ts
+msgid "the volume driver {driver}, which reaches what the plugin does ({reads})"
+msgstr "卷驱动 {driver}，可访问该插件能访问的内容（{reads}）"
 
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/MorePage.tsx
@@ -2176,8 +2212,8 @@ msgid "This plan destroys data or may cut off access"
 msgstr "这个计划会销毁数据，或可能切断访问"
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "This plan gives a container more access to its server"
-msgstr "这个计划会让容器获得对其服务器的更多访问"
+msgid "This plan gives more access to a server"
+msgstr "这个计划会增加对服务器的访问"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"

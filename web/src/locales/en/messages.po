@@ -151,6 +151,10 @@ msgstr "{name} is waiting for its agent"
 msgid "{name} isn't reporting"
 msgstr "{name} isn't reporting"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "{name} reaches {reaches}."
+msgstr "{name} reaches {reaches}."
+
 #: src/app/Providers.tsx
 msgid "{name}, {status}"
 msgstr "{name}, {status}"
@@ -170,6 +174,22 @@ msgstr "{names} · no downtime expected"
 #: src/features/servers/ServerPanels.tsx
 msgid "{now} now"
 msgstr "{now} now"
+
+#: src/features/changes/words.ts
+msgid "{out}, which reaches past the server's firewall"
+msgstr "{out}, which reaches past the server's firewall"
+
+#: src/features/changes/words.ts
+msgid "{out}, with {detail}"
+msgstr "{out}, with {detail}"
+
+#: src/features/changes/words.ts
+msgid "{reads}, relabelled for SELinux as private"
+msgstr "{reads}, relabelled for SELinux as private"
+
+#: src/features/changes/words.ts
+msgid "{reads}, relabelled for SELinux as shared"
+msgstr "{reads}, relabelled for SELinux as shared"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "{rx} in · {tx} out"
@@ -237,20 +257,20 @@ msgid "6 digits from your authenticator app, or one of your recovery codes."
 msgstr "6 digits from your authenticator app, or one of your recovery codes."
 
 #: src/features/changes/words.ts
-msgid "a {type} mount"
-msgstr "a {type} mount"
+msgid "a {driver} network"
+msgstr "a {driver} network"
 
 #: src/features/changes/words.ts
-msgid "a {type} mount of {path}"
-msgstr "a {type} mount of {path}"
+msgid "a {driver} network on {path}"
+msgstr "a {driver} network on {path}"
+
+#: src/features/changes/words.ts
+msgid "a {type} mount ({reads})"
+msgstr "a {type} mount ({reads})"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "A claim link works only until someone claims the install. Sign in instead."
-
-#: src/features/changes/words.ts
-msgid "a mount from the volume's options"
-msgstr "a mount from the volume's options"
 
 #: src/features/activity/describe.ts
 msgid "a server"
@@ -1051,6 +1071,10 @@ msgstr "Its agent has disconnected. Check that <0>dockwell run</0> is still runn
 msgid "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
 msgstr "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy"
+msgstr "Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy"
+
 #: src/app/Providers.tsx
 msgid "job"
 msgstr "job"
@@ -1348,8 +1372,8 @@ msgid "On"
 msgstr "On"
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "Only a signed-in person can apply it, as no API token may. Check each step says what it should reach."
-msgstr "Only a signed-in person can apply it, as no API token may. Check each step says what it should reach."
+msgid "Only a signed-in person can apply it, as no API token may."
+msgstr "Only a signed-in person can apply it, as no API token may."
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its {record} record to <0>{publicAddress}</0>, then restart dockwell with <1>--domain</1>."
@@ -1557,6 +1581,14 @@ msgstr "Read and write"
 #: src/features/auth/TokensPanel.tsx
 msgid "Read only"
 msgstr "Read only"
+
+#: src/features/changes/words.ts
+msgid "read-only"
+msgstr "read-only"
+
+#: src/features/changes/words.ts
+msgid "read-write"
+msgstr "read-write"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads servers and their state. Changes nothing."
@@ -2018,6 +2050,10 @@ msgstr "That passkey reported a lower use count than before, which happens when 
 msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 msgstr "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 
+#: src/features/changes/words.ts
+msgid "the {type} mount {at} ({reads})"
+msgstr "the {type} mount {at} ({reads})"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "The agent hasn't said what this server is yet."
 msgstr "The agent hasn't said what this server is yet."
@@ -2103,12 +2139,8 @@ msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "The server list didn't load. Dockwell keeps trying."
 
 #: src/features/changes/words.ts
-msgid "the server path {path}"
-msgstr "the server path {path}"
-
-#: src/features/changes/words.ts
-msgid "the server path {path} (read-only)"
-msgstr "the server path {path} (read-only)"
+msgid "the server path {path} ({how})"
+msgstr "the server path {path} ({how})"
 
 #: src/features/changes/words.ts
 msgid "the server's own network"
@@ -2121,6 +2153,10 @@ msgstr "The start of this plan's fingerprint, so you apply exactly what you revi
 #: src/features/auth/TokensPanel.tsx
 msgid "The token wasn't created"
 msgstr "The token wasn't created"
+
+#: src/features/changes/words.ts
+msgid "the volume driver {driver}, which reaches what the plugin does ({reads})"
+msgstr "the volume driver {driver}, which reaches what the plugin does ({reads})"
 
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/MorePage.tsx
@@ -2176,8 +2212,8 @@ msgid "This plan destroys data or may cut off access"
 msgstr "This plan destroys data or may cut off access"
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "This plan gives a container more access to its server"
-msgstr "This plan gives a container more access to its server"
+msgid "This plan gives more access to a server"
+msgstr "This plan gives more access to a server"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"

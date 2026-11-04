@@ -529,6 +529,9 @@ function ServerSteps({
                   ) : null}
                   {step.restores ? <span>{t`Brings back the data the server kept`}</span> : null}
                   {reach ? <span className="plan-step-warn">{t`Reaches ${reach} on ${server.serverName}`}</span> : null}
+                  {step.healthUnknown ? (
+                    <span>{t`Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy`}</span>
+                  ) : null}
                   {step.warnings.includes(PlanWarning.MAY_LOCK_OUT) ? (
                     <span className="plan-step-warn">{t`May cut off access to ${server.serverName}`}</span>
                   ) : null}
@@ -557,6 +560,7 @@ interface EffectsProps {
 /** What applying means beyond the diff: reach, undo, offline servers, and what can't come back (M-Plan-Approve). */
 function Effects({ reach, change, plan, confirmWith, typed, onType }: EffectsProps) {
   const { t } = useLingui();
+  const words = useChangeWords();
   const offline = (plan?.servers ?? []).filter((s) => s.offline && !s.removed).map((s) => s.serverName);
   const rows: { icon: IconName; title: ReactNode; detail?: ReactNode; key: string }[] = [];
   const steps = (plan?.servers ?? []).reduce((n, s) => n + s.steps.length, 0);
@@ -599,11 +603,18 @@ function Effects({ reach, change, plan, confirmWith, typed, onType }: EffectsPro
     rows.push({
       key: "host-access",
       icon: "shield",
-      title: <Trans>This plan gives a container more access to its server</Trans>,
+      title: <Trans>This plan gives more access to a server</Trans>,
       detail: (
-        <Trans>
-          Only a signed-in person can apply it, as no API token may. Check each step says what it should reach.
-        </Trans>
+        <>
+          <Trans>Only a signed-in person can apply it, as no API token may.</Trans>
+          {(plan.resources ?? [])
+            .filter((r) => r.hostAccess.length > 0)
+            .map((r) => {
+              const name = r.resource?.name ?? r.id;
+              const reaches = r.hostAccess.map((a) => words.access(a)).join("; ");
+              return <span key={r.id}> {t`${name} reaches ${reaches}.`}</span>;
+            })}
+        </>
       ),
     });
   }
