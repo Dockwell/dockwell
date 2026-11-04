@@ -59,14 +59,13 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 			build := buildinfo.Read()
 			logger.Info("starting dockwell", "version", build.Version, "commit", build.ShortCommit(), "data_dir", dir.Root)
 
-			id, err := enroll.Load(dir.Agent())
-			hasControl := exists(dir.StateDB())
-			switch {
-			case errors.Is(err, enroll.ErrNotJoined) || hasControl:
-				err = runControl(cmd.Context(), logger, dir, build, f)
-			case err != nil:
+			role, id, err := decideRole(dir)
+			if err != nil {
 				return err
-			default:
+			}
+			if role == roleControl {
+				err = runControl(cmd.Context(), logger, dir, build, f)
+			} else {
 				err = agent.Run(cmd.Context(), agent.Config{Logger: logger, Dir: dir.Agent(), Identity: id, Build: build})
 			}
 			// Asked to stop while still starting: every write so far was a

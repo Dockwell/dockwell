@@ -143,6 +143,8 @@ jobs:
           cache-dependency-path: tools/go.sum
       - name: License headers
         run: scripts/check-spdx.sh
+      - name: Shell scripts
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck
       - name: Links in docs
         run: go run ./scripts/checklinks
       - name: Release configuration is valid

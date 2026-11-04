@@ -272,9 +272,22 @@ func TestAddAServerThroughTheCLI(t *testing.T) {
 	}
 
 	added := t.TempDir()
+	if r = run(t, none, "role", "--data-dir", added); r.code != exitOK || r.out != "control\n" {
+		t.Errorf("role before joining = %d %q, want control: run would start a control plane", r.code, r.out)
+	}
 	r = run(t, none, "join", ticket[1], "--data-dir", added, "--name", "hz-2")
 	if r.code != exitOK || !strings.HasPrefix(r.out, "Joined as hz-2 (srv_") {
 		t.Fatalf("join exit %d:\n%s%s", r.code, r.out, r.err)
+	}
+	if r = run(t, none, "role", "--data-dir", added); r.code != exitOK || !regexp.MustCompile(`^agent https://\S+\n$`).MatchString(r.out) {
+		t.Errorf("role after joining = %d %q, want agent and the control plane's URL", r.code, r.out)
+	}
+	if r = run(t, none, "role", "--data-dir", control); r.code != exitOK || r.out != "control\n" {
+		t.Errorf("role on the control server = %d %q", r.code, r.out)
+	}
+	r = run(t, none, "join", ticket[1], "--data-dir", control)
+	if r.code != exitError || !strings.Contains(r.err, "runs a control plane") {
+		t.Errorf("joining from the control server = %d %q", r.code, r.err)
 	}
 
 	r = run(t, none, "join", ticket[1], "--data-dir", added)

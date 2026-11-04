@@ -40,7 +40,11 @@ make dev     # the API on 127.0.0.1:7600 and the panel with hot reload on localh
 make run     # build bin/dockwell with the panel built in, and run it on 127.0.0.1:7600
 make mocks   # browse the screen mocks in design/mocks on 127.0.0.1:5174
 make check   # what CI runs: lint, tests, generated-code checks and a smoke test of the binary
+make budgets # idle memory of an agent, and of a control plane with its agent, against their budgets
+make install-test  # the install script in Debian, Ubuntu, AlmaLinux and Alpine containers (needs Docker and cosign v3)
 ```
+
+The Install workflow runs the last two, as well as the install script under systemd on the runner and, nightly, the time from install to a running panel on one CPU. [docs/install.md](docs/install.md#how-it-is-tested) describes how.
 
 Run `make` on its own to list every target. Developer tools such as buf and golangci-lint are pinned in `tools/go.mod` and run with `go tool -modfile=tools/go.mod <tool>`, so there is nothing else to install.
 
@@ -66,6 +70,8 @@ The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and
 | `packages/ui/` | The design system as typed React components, with tokens generated from `design/system/tokens.json` |
 | `packages/mockview/` | A local viewer and snapshot tool for the screen mocks in `design/mocks/` (`make mocks`) |
 | `web/` | The panel ([ADR 0008](docs/adr/0008-panel-libraries.md)) |
+| `scripts/install.sh`, `scripts/install-test/` | The install script ([docs/install.md](docs/install.md)) and its tests |
+| `scripts/budgets.sh` | The idle memory budgets |
 | `tools/` | Pinned developer tools |
 | `docs/`, `design/` | Requirements, decisions and the design system |
 

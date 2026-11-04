@@ -61,7 +61,7 @@ test: deps ## Run the Go and TypeScript tests
 	pnpm -r --if-present test
 
 .PHONY: lint
-lint: deps ## Lint Go, the schema, TypeScript, CSS, translations, license headers and doc links
+lint: deps ## Lint Go, the schema, TypeScript, CSS, shell scripts, translations, license headers and doc links
 	go mod tidy -diff
 	cd tools && go mod tidy -diff
 	go vet ./...
@@ -74,6 +74,8 @@ lint: deps ## Lint Go, the schema, TypeScript, CSS, translations, license header
 	pnpm --filter @dockwell/ui tokens:check
 	pnpm --filter @dockwell/web i18n:check
 	scripts/check-spdx.sh
+	@if command -v shellcheck >/dev/null; then git ls-files -z '*.sh' | xargs -0 shellcheck; \
+	else echo "shellcheck isn't installed, so the shell scripts weren't linted. CI lints them."; fi
 	go run ./scripts/checklinks
 
 .PHONY: fmt
@@ -114,8 +116,12 @@ check-breaking: ## Fail if the API schema breaks compatibility with origin/main
 smoke: build ## Start the built binary and check it serves the API and the panel
 	scripts/smoke.sh $(BIN)
 
+.PHONY: budgets
+budgets: build ## Fail if the binary is over its idle memory budgets (takes about 70 s)
+	scripts/budgets.sh $(BIN)
+
 .PHONY: check
-check: lint test check-generated check-breaking smoke ## Run everything CI runs
+check: lint test check-generated check-breaking smoke ## Run everything CI runs, except the Install workflow
 
 .PHONY: release-check
 release-check: ## Validate the release configuration
@@ -124,6 +130,24 @@ release-check: ## Validate the release configuration
 .PHONY: release-snapshot
 release-snapshot: deps ## Build release archives into dist/, as CI does for main (SBOMs need syft)
 	$(GOTOOL) goreleaser release --snapshot --clean $(if $(shell command -v syft),,--skip=sbom)
+
+# The install script's tests (scripts/install-test/): a snapshot and an older
+# build, laid out and signed as releases, installed in stock containers.
+INSTALL_TEST_IMAGES ?= debian:13 ubuntu:26.04 almalinux:9 alpine:3.24
+COSIGN ?= cosign
+
+.PHONY: install-test-releases
+install-test-releases: release-snapshot ## Lay out signed test releases for the install script in dist/install-test (needs cosign v3)
+	for arch in amd64 arm64; do \
+		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build -trimpath \
+			-ldflags "-s -w -X github.com/dockwell/dockwell/internal/buildinfo.version=v0.0.0-test" \
+			-o dist/old/linux_$$arch/dockwell ./cmd/dockwell; \
+	done
+	scripts/install-test/releases.sh dist dist/old dist/install-test $(COSIGN)
+
+.PHONY: install-test
+install-test: install-test-releases ## Test the install script in Debian, Ubuntu, AlmaLinux and Alpine containers (needs Docker and cosign v3)
+	scripts/install-test/test.sh dist/install-test "$$(command -v $(COSIGN))" $(INSTALL_TEST_IMAGES)
 
 .PHONY: clean
 clean: ## Remove build output
