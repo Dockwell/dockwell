@@ -593,10 +593,11 @@ type Edit struct {
 	// Deletes the resource. A project or environment goes only once what
 	// lives in it has gone, in this change or an earlier one.
 	Delete bool `protobuf:"varint,3,opt,name=delete,proto3" json:"delete,omitempty"`
-	// Where a service runs, by server ID. Empty keeps it where it runs now;
-	// a new one runs on the only server, and must name its servers once there
-	// are several. Other kinds ignore it: a container or firewall rule lives
-	// on its server, and projects and environments run on none.
+	// Where a service, volume or network runs, by server ID. Empty keeps it
+	// where it runs now; a new one runs on the only server, and must name its
+	// servers once there are several. Other kinds ignore it: a container or
+	// firewall rule lives on its server, and projects and environments run on
+	// none.
 	Servers []string `protobuf:"bytes,4,rep,name=servers,proto3" json:"servers,omitempty"`
 	// The project of the environment the resource lives in, by name or ID,
 	// for a kind that lives in an environment, such as a service. Leave it
@@ -677,13 +678,13 @@ func (x *Edit) GetProject() string {
 // ResourceRef names a resource.
 type ResourceRef struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The kind, such as "project", "environment", "service", "container" or
-	// "firewall.rule".
+	// The kind, such as "project", "environment", "service", "volume",
+	// "network", "container" or "firewall.rule".
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// The ID of what it lives in, which its kind says: the organization
 	// ("org_…") for a project, a project ("prj_…") for an environment, an
-	// environment ("env_…") for a service, and a server ("srv_…") for a
-	// container or firewall rule.
+	// environment ("env_…") for a service, volume or network, and a server
+	// ("srv_…") for a container or firewall rule.
 	Scope string `protobuf:"bytes,2,opt,name=scope,proto3" json:"scope,omitempty"`
 	// Its name, unique among its kind in its scope, such as "web".
 	Name          string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`

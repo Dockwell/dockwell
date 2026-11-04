@@ -84,10 +84,11 @@ export type Edit = Message<"dockwell.v1.Edit"> & {
   delete: boolean;
 
   /**
-   * Where a service runs, by server ID. Empty keeps it where it runs now;
-   * a new one runs on the only server, and must name its servers once there
-   * are several. Other kinds ignore it: a container or firewall rule lives
-   * on its server, and projects and environments run on none.
+   * Where a service, volume or network runs, by server ID. Empty keeps it
+   * where it runs now; a new one runs on the only server, and must name its
+   * servers once there are several. Other kinds ignore it: a container or
+   * firewall rule lives on its server, and projects and environments run on
+   * none.
    *
    * @generated from field: repeated string servers = 4;
    */
@@ -120,8 +121,8 @@ export const EditSchema: GenMessage<Edit> = /*@__PURE__*/
  */
 export type ResourceRef = Message<"dockwell.v1.ResourceRef"> & {
   /**
-   * The kind, such as "project", "environment", "service", "container" or
-   * "firewall.rule".
+   * The kind, such as "project", "environment", "service", "volume",
+   * "network", "container" or "firewall.rule".
    *
    * @generated from field: string kind = 1;
    */
@@ -130,8 +131,8 @@ export type ResourceRef = Message<"dockwell.v1.ResourceRef"> & {
   /**
    * The ID of what it lives in, which its kind says: the organization
    * ("org_…") for a project, a project ("prj_…") for an environment, an
-   * environment ("env_…") for a service, and a server ("srv_…") for a
-   * container or firewall rule.
+   * environment ("env_…") for a service, volume or network, and a server
+   * ("srv_…") for a container or firewall rule.
    *
    * @generated from field: string scope = 2;
    */
@@ -1773,8 +1774,8 @@ export const StepStateSchema: GenEnum<StepState> = /*@__PURE__*/
 
 /**
  * ChangeService is the one way to change managed state, for every kind of
- * resource: projects, environments, services, containers and firewall rules
- * alike. You propose edits and get a plan back; applying the plan writes
+ * resource: projects, environments, services, volumes, networks, containers
+ * and firewall rules alike. You propose edits and get a plan back; applying the plan writes
  * immutable revisions and runs its steps on the servers; undoing makes a new
  * plan that puts things back. See docs/adr/0009-resources-revisions-and-plans.md
  * and docs/adr/0017-the-change-api-and-the-agent-stream.md.

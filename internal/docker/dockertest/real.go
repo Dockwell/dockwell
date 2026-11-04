@@ -62,7 +62,9 @@ func Cleanup(t testing.TB, c *docker.Client, project string) {
 		}
 		// docker compose down needs no file to remove a project's
 		// containers, networks and volumes.
-		cmd := exec.Command("docker", "compose", "-p", project, "down", "--volumes", "--remove-orphans", "--timeout", "1")
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "docker", "compose", "-p", project, "down", "--volumes", "--remove-orphans", "--timeout", "1") //nolint:gosec // a project this test named
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Logf("can't clean up the Compose project %s: %v\n%s", project, err, out)
 		}

@@ -16,6 +16,7 @@ import (
 	"io"
 	"maps"
 	"path"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
@@ -23,9 +24,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compose-spec/compose-go/v2/loader"
+	"github.com/compose-spec/compose-go/v2/interpolation"
 	"github.com/compose-spec/compose-go/v2/template"
+	"github.com/compose-spec/compose-go/v2/transform"
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/sirupsen/logrus"
 	"go.yaml.in/yaml/v4"
 
@@ -115,50 +118,53 @@ func check(what string, m map[string]any, allowed map[string]bool) error {
 	return nil
 }
 
-// checkRaw refuses, before compose-go reads the file, anything Dockwell
-// doesn't run, and anything that would read files on the control plane,
-// such as env_file and include.
-func checkRaw(file []byte) error {
+// checkRaw reads the file's YAML, and refuses anything Dockwell doesn't
+// run, and anything that would read files on the control plane, such as
+// env_file and include.
+func checkRaw(file []byte) (map[string]any, error) {
 	var raw map[string]any
 	if err := yaml.Unmarshal(file, &raw); err != nil {
-		return invalid("the Compose file isn't valid YAML: %v", err)
+		return nil, invalid("the Compose file isn't valid YAML: %v", err)
 	}
 	if len(raw) == 0 {
-		return invalid("the Compose file is empty. Give it services, such as web with image: nginx:1.27")
+		return nil, invalid("the Compose file is empty. Give it services, such as web with image: nginx:1.27")
 	}
 	if err := check("the Compose file", raw, topKeys); err != nil {
-		return err
+		return nil, err
 	}
 	services, _ := raw["services"].(map[string]any)
 	for _, name := range slices.Sorted(maps.Keys(services)) {
 		what := "the service " + name
-		svc, _ := services[name].(map[string]any)
+		svc, ok := services[name].(map[string]any)
+		if !ok {
+			return nil, invalid("%s has no image. Name one, such as image: nginx:1.27", what)
+		}
 		if err := check(what, svc, serviceKeys); err != nil {
-			return err
+			return nil, err
 		}
 		if hc, ok := svc["healthcheck"].(map[string]any); ok {
 			if err := check(what+"'s healthcheck", hc, healthKeys); err != nil {
-				return err
+				return nil, err
 			}
 		}
 		for _, p := range list(svc["ports"]) {
 			if m, ok := p.(map[string]any); ok {
 				if err := check(what+"'s port", m, portKeys); err != nil {
-					return err
+					return nil, err
 				}
 			}
 		}
 		for _, v := range list(svc["volumes"]) {
 			if m, ok := v.(map[string]any); ok {
 				if err := check(what+"'s volume", m, mountKeys); err != nil {
-					return err
+					return nil, err
 				}
 			}
 		}
 		if nets, ok := svc["networks"].(map[string]any); ok {
 			for _, n := range slices.Sorted(maps.Keys(nets)) {
 				if m, ok := nets[n].(map[string]any); ok && len(m) > 0 {
-					return invalid("%s sets options for the network %s, such as aliases, which Dockwell can't run yet. "+
+					return nil, invalid("%s sets options for the network %s, such as aliases, which Dockwell can't run yet. "+
 						"Others on the network reach it by its name; remove the options to import the file", what, n)
 				}
 			}
@@ -167,7 +173,7 @@ func checkRaw(file []byte) error {
 			for _, d := range slices.Sorted(maps.Keys(deps)) {
 				if m, ok := deps[d].(map[string]any); ok {
 					if err := check(what+"'s dependency on "+d, m, dependsKeys); err != nil {
-						return err
+						return nil, err
 					}
 				}
 			}
@@ -178,11 +184,11 @@ func checkRaw(file []byte) error {
 		for _, name := range slices.Sorted(maps.Keys(entries)) {
 			m, _ := entries[name].(map[string]any)
 			if err := check(fmt.Sprintf("the %s %s", strings.TrimSuffix(section, "s"), name), m, allowed); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
-	return nil
+	return raw, nil
 }
 
 func list(v any) []any {
@@ -190,36 +196,40 @@ func list(v any) []any {
 	return l
 }
 
-// noFiles refuses every file compose-go would read beside the Compose
-// file, which checkRaw already refuses, so the control plane never reads
-// its own files for one.
-type noFiles struct{}
-
-func (noFiles) Accept(string) bool { return true }
-
-func (noFiles) Load(_ context.Context, p string) (string, error) {
-	return "", invalid("the Compose file refers to %s, which Dockwell doesn't have. Put everything in one file", p)
-}
-
-func (noFiles) Dir(string) string { return "/" }
-
 var quiet sync.Once
 
 var variableName = regexp.MustCompile(`^\$\{?([A-Za-z_][A-Za-z0-9_]*)`)
 
-// Parse reads a Compose file into what it makes in the environment whose
-// Compose project is project. Variables such as ${TAG} take their values
+// model is the part of a Compose file Dockwell runs, in compose-go's
+// types.
+type model struct {
+	Services types.Services `yaml:"services"`
+	Volumes  types.Volumes  `yaml:"volumes"`
+	Networks types.Networks `yaml:"networks"`
+}
+
+// Parse reads a Compose file into what it makes in an environment.
+// Variables such as ${TAG} take their values
 // from variables, or the defaults the file gives; one with neither is
 // refused, rather than left blank.
-func Parse(ctx context.Context, file []byte, variables map[string]string, project string) (*Stack, error) {
-	if err := checkRaw(file); err != nil {
+//
+// It reads the file as docker compose does, with compose-go's
+// interpolation, its canonical forms of the short syntaxes, and its
+// types, but not its loader. The loader validates against the Compose
+// schema with a JSON Schema library that allocates 1.7 MB as every
+// process starts, agents included (ADR 0021); checkRaw allows far less
+// than the schema does, and the steps here do the rest of what the loader
+// would: resolving variables, the default network, and references between
+// services, volumes and networks.
+func Parse(_ context.Context, file []byte, variables map[string]string) (*Stack, error) {
+	raw, err := checkRaw(file)
+	if err != nil {
 		return nil, err
 	}
 	// compose-go warns through logrus, which Dockwell doesn't use: what
 	// matters comes back as an error.
 	quiet.Do(func() { logrus.SetOutput(io.Discard) })
 
-	var mu sync.Mutex
 	var missing []string
 	substitute := func(tmpl string, mapping template.Mapping) (string, error) {
 		return template.SubstituteWithOptions(tmpl, mapping, template.WithoutLogging,
@@ -227,26 +237,17 @@ func Parse(ctx context.Context, file []byte, variables map[string]string, projec
 				v, ok, err := template.DefaultReplacementAppliedFunc(s, m, cfg)
 				if err == nil && !ok {
 					if name := variableName.FindStringSubmatch(s); name != nil {
-						mu.Lock()
 						missing = append(missing, name[1])
-						mu.Unlock()
 					}
 				}
 				return v, err
 			}))
 	}
-	details := types.ConfigDetails{
-		WorkingDir:  "/",
-		ConfigFiles: []types.ConfigFile{{Filename: "compose.yaml", Content: file}},
-		Environment: variables,
+	lookup := func(k string) (string, bool) {
+		v, ok := variables[k]
+		return v, ok
 	}
-	p, err := loader.LoadWithContext(ctx, details, func(o *loader.Options) {
-		o.SetProjectName(project, true)
-		o.ResolvePaths = false
-		o.SkipInclude = true
-		o.ResourceLoaders = []loader.ResourceLoader{noFiles{}}
-		o.Interpolate.Substitute = substitute
-	})
+	dict, err := interpolation.Interpolate(raw, interpolation.Options{LookupValue: lookup, Substitute: substitute})
 	if len(missing) > 0 {
 		slices.Sort(missing)
 		missing = slices.Compact(missing)
@@ -254,16 +255,104 @@ func Parse(ctx context.Context, file []byte, variables map[string]string, projec
 			strings.Join(missing, ", "), missing[0])
 	}
 	if err != nil {
-		if errors.Is(err, ErrInvalid) {
-			return nil, err
-		}
+		return nil, invalid("the Compose file's variables aren't valid: %v", err)
+	}
+	if dict, err = transform.Canonical(dict, false); err != nil {
 		return nil, invalid("the Compose file isn't valid: %v", err)
 	}
-	return stack(p)
+	if dict, err = transform.SetDefaultValues(dict); err != nil {
+		return nil, invalid("the Compose file isn't valid: %v", err)
+	}
+	var m model
+	if err := decode(dict, &m); err != nil {
+		return nil, invalid("the Compose file isn't valid: %v", err)
+	}
+	if err := m.resolve(variables); err != nil {
+		return nil, err
+	}
+	return stack(&m)
 }
 
-// stack turns a loaded project into specs.
-func stack(p *types.Project) (*Stack, error) {
+// decode reads a canonical Compose model into compose-go's types, as its
+// loader does: each type that reads its own short forms, such as a
+// command given as one string, does, and strings become the numbers and
+// booleans they stand for.
+func decode(dict map[string]any, out *model) error {
+	hook := func(from, to reflect.Value) (any, error) {
+		type decoder interface{ DecodeMapstructure(any) error }
+		u, ok := to.Interface().(decoder)
+		if !ok && to.CanAddr() {
+			u, ok = to.Addr().Interface().(decoder)
+		}
+		if !ok {
+			return from.Interface(), nil
+		}
+		if to.Kind() == reflect.Pointer && to.IsNil() {
+			to.Set(reflect.New(to.Type().Elem()))
+			u = to.Interface().(decoder)
+		}
+		if err := u.DecodeMapstructure(from.Interface()); err != nil {
+			return to.Interface(), err
+		}
+		return to.Interface(), nil
+	}
+	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		DecodeHook:       hook,
+		Result:           out,
+		TagName:          "yaml",
+		Squash:           true,
+		WeaklyTypedInput: true,
+	})
+	if err != nil {
+		return err
+	}
+	return d.Decode(dict)
+}
+
+// resolve does what compose-go's loader does after reading a file: a
+// variable named without a value takes it from variables, a service that
+// names no network joins the project's default one, and every volume,
+// network and service a service names must be in the file.
+func (m *model) resolve(variables map[string]string) error {
+	for _, name := range slices.Sorted(maps.Keys(m.Services)) {
+		s := m.Services[name]
+		what := "the service " + name
+		for k, v := range s.Environment {
+			if val, ok := variables[k]; v == nil && ok {
+				s.Environment[k] = &val
+			}
+		}
+		if len(s.Networks) == 0 && s.NetworkMode == "" {
+			s.Networks = map[string]*types.ServiceNetworkConfig{"default": nil}
+			if _, ok := m.Networks["default"]; !ok {
+				if m.Networks == nil {
+					m.Networks = types.Networks{}
+				}
+				m.Networks["default"] = types.NetworkConfig{}
+			}
+		}
+		for n := range s.Networks {
+			if _, ok := m.Networks[n]; !ok {
+				return invalid("%s joins the network %s, which the file doesn't list under networks. Add it there", what, n)
+			}
+		}
+		for _, v := range s.Volumes {
+			if _, ok := m.Volumes[v.Source]; v.Type == types.VolumeTypeVolume && v.Source != "" && !ok {
+				return invalid("%s mounts the volume %s, which the file doesn't list under volumes. Add it there", what, v.Source)
+			}
+		}
+		for dep := range s.DependsOn {
+			if _, ok := m.Services[dep]; !ok {
+				return invalid("%s depends on %s, which isn't a service in the file", what, dep)
+			}
+		}
+		m.Services[name] = s
+	}
+	return nil
+}
+
+// stack turns a read file into specs.
+func stack(p *model) (*Stack, error) {
 	out := &Stack{}
 	for _, name := range slices.Sorted(maps.Keys(p.Networks)) {
 		n := p.Networks[name]
@@ -289,34 +378,47 @@ func stack(p *types.Project) (*Stack, error) {
 		}
 		specs[name] = &resourcev1.Service{Runs: &resourcev1.Service_App{App: c}}
 	}
-	for _, name := range ordered(p.Services) {
+	order, err := ordered(p.Services)
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range order {
 		out.Services = append(out.Services, Item[*resourcev1.Service]{Name: name, Spec: specs[name]})
 	}
 	return out, nil
 }
 
 // ordered lists services so each comes after those it depends on, by name
-// where that leaves a choice. compose-go has refused a cycle already.
-func ordered(services types.Services) []string {
+// where that leaves a choice, and refuses a cycle.
+func ordered(services types.Services) ([]string, error) {
 	var out []string
-	done := map[string]bool{}
-	var visit func(string)
-	visit = func(name string) {
-		if done[name] {
-			return
+	const visiting, done = 1, 2
+	state := map[string]int{}
+	var visit func(name string, path []string) error
+	visit = func(name string, path []string) error {
+		switch state[name] {
+		case done:
+			return nil
+		case visiting:
+			return invalid("the services depend on each other in a circle, %s. Break it, as nothing could start first",
+				strings.Join(append(path, name), " → "))
 		}
-		done[name] = true
+		state[name] = visiting
 		for _, dep := range slices.Sorted(maps.Keys(services[name].DependsOn)) {
-			if _, ok := services[dep]; ok {
-				visit(dep)
+			if err := visit(dep, append(path, name)); err != nil {
+				return err
 			}
 		}
+		state[name] = done
 		out = append(out, name)
+		return nil
 	}
 	for _, name := range slices.Sorted(maps.Keys(services)) {
-		visit(name)
+		if err := visit(name, nil); err != nil {
+			return nil, err
+		}
 	}
-	return out
+	return out, nil
 }
 
 func nonEmpty[M ~map[string]string](m M) map[string]string {

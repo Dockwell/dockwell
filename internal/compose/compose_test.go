@@ -82,7 +82,7 @@ func names[T any](items []compose.Item[T]) []string {
 // A Compose file becomes services, volumes and networks, each checked as
 // its kind checks it, in the order to make them.
 func TestParse(t *testing.T) {
-	s, err := compose.Parse(t.Context(), []byte(shop), map[string]string{"API_KEY": "s3cret"}, project)
+	s, err := compose.Parse(t.Context(), []byte(shop), map[string]string{"API_KEY": "s3cret"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,9 +150,14 @@ func TestParseRefuses(t *testing.T) {
 		"restart count": {"services: {web: {image: a, restart: 'on-failure:3'}}", `the service web restarts "on-failure:3"`},
 		"no services":   {"volumes: {data: {}}", "the Compose file has no services"},
 		"not yaml":      {"services: [", "the Compose file isn't valid YAML"},
+		"no volume":     {"services: {web: {image: a, volumes: ['data:/data']}}", "the service web mounts the volume data, which the file doesn't list under volumes"},
+		"no network":    {"services: {web: {image: a, networks: [back]}}", "the service web joins the network back, which the file doesn't list under networks"},
+		"no dependency": {"services: {web: {image: a, depends_on: [db]}}", "the service web depends on db, which isn't a service in the file"},
+		"cycle":         {"services: {a: {image: x, depends_on: [b]}, b: {image: x, depends_on: [a]}}", "the services depend on each other in a circle, a → b → a"},
+		"bad port":      {"services: {web: {image: a, ports: ['eighty:80']}}", "the Compose file isn't valid"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := compose.Parse(t.Context(), []byte(tc.file), nil, project)
+			_, err := compose.Parse(t.Context(), []byte(tc.file), nil)
 			if !errors.Is(err, compose.ErrInvalid) || !strings.Contains(compose.Message(err), tc.want) {
 				t.Errorf("Parse = %v, want %q", err, tc.want)
 			}
@@ -163,7 +168,7 @@ func TestParseRefuses(t *testing.T) {
 // An exported file reads back as what was exported, so docker compose
 // runs what Dockwell runs, and it never holds a secret.
 func TestExportRoundTrips(t *testing.T) {
-	s, err := compose.Parse(t.Context(), []byte(shop), map[string]string{"API_KEY": "s3cret"}, project)
+	s, err := compose.Parse(t.Context(), []byte(shop), map[string]string{"API_KEY": "s3cret"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +205,7 @@ func TestExportRoundTrips(t *testing.T) {
 
 	// Set the variables it left out, as the shell would, and read it back.
 	vars := map[string]string{"API_KEY": "s3cret", "DATABASE_URL": "postgres://shop@db/shop", "POSTGRES_DB": "shop"}
-	back, err := compose.Parse(t.Context(), out.File, vars, project)
+	back, err := compose.Parse(t.Context(), out.File, vars)
 	if err != nil {
 		t.Fatalf("the export doesn't read back: %v\n%s", err, text)
 	}

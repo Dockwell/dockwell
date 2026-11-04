@@ -44,6 +44,10 @@ export function useChangeWords(): ChangeWords {
             return t`Service`;
           case "container":
             return t`Container`;
+          case "volume":
+            return t`Volume`;
+          case "network":
+            return t`Network`;
           case "firewall.rule":
             return t`Firewall rule`;
         }

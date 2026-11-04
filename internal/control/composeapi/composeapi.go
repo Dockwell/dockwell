@@ -62,7 +62,7 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 	if err != nil {
 		return nil, err
 	}
-	stack, err := compose.Parse(ctx, []byte(m.GetCompose()), m.GetVariables(), docker.Project(env.ID))
+	stack, err := compose.Parse(ctx, []byte(m.GetCompose()), m.GetVariables())
 	if err != nil {
 		if errors.Is(err, compose.ErrInvalid) {
 			return nil, invalid(err)

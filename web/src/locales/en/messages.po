@@ -1175,6 +1175,11 @@ msgstr "Name the new project, such as shop"
 msgid "Name the token after what will use it, such as GitHub Actions deploy."
 msgstr "Name the token after what will use it, such as GitHub Actions deploy."
 
+#: src/app/Providers.tsx
+msgid "network"
+msgstr "network"
+
+#: src/features/changes/words.ts
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Network"
@@ -2330,6 +2335,10 @@ msgstr "Version <0>{0}</0>"
 #: src/app/Providers.tsx
 msgid "volume"
 msgstr "volume"
+
+#: src/features/changes/words.ts
+msgid "Volume"
+msgstr "Volume"
 
 #: src/features/changes/words.ts
 #: src/features/servers/ServerPanels.tsx

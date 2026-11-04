@@ -1732,10 +1732,11 @@ components:
                     items:
                         type: string
                     description: |-
-                        Where a service runs, by server ID. Empty keeps it where it runs now;
-                         a new one runs on the only server, and must name its servers once there
-                         are several. Other kinds ignore it: a container or firewall rule lives
-                         on its server, and projects and environments run on none.
+                        Where a service, volume or network runs, by server ID. Empty keeps it
+                         where it runs now; a new one runs on the only server, and must name its
+                         servers once there are several. Other kinds ignore it: a container or
+                         firewall rule lives on its server, and projects and environments run on
+                         none.
                 project:
                     type: string
                     description: |-
@@ -2567,15 +2568,15 @@ components:
                 kind:
                     type: string
                     description: |-
-                        The kind, such as "project", "environment", "service", "container" or
-                         "firewall.rule".
+                        The kind, such as "project", "environment", "service", "volume",
+                         "network", "container" or "firewall.rule".
                 scope:
                     type: string
                     description: |-
                         The ID of what it lives in, which its kind says: the organization
                          ("org_…") for a project, a project ("prj_…") for an environment, an
-                         environment ("env_…") for a service, and a server ("srv_…") for a
-                         container or firewall rule.
+                         environment ("env_…") for a service, volume or network, and a server
+                         ("srv_…") for a container or firewall rule.
                 name:
                     type: string
                     description: Its name, unique among its kind in its scope, such as "web".
@@ -3206,8 +3207,8 @@ tags:
     - name: ChangeService
       description: |-
         ChangeService is the one way to change managed state, for every kind of
-         resource: projects, environments, services, containers and firewall rules
-         alike. You propose edits and get a plan back; applying the plan writes
+         resource: projects, environments, services, volumes, networks, containers
+         and firewall rules alike. You propose edits and get a plan back; applying the plan writes
          immutable revisions and runs its steps on the servers; undoing makes a new
          plan that puts things back. See docs/adr/0009-resources-revisions-and-plans.md
          and docs/adr/0017-the-change-api-and-the-agent-stream.md.
@@ -3249,8 +3250,8 @@ tags:
     - name: ResourceService
       description: |-
         ResourceService reads the resources Dockwell manages: projects,
-         environments, services, containers and firewall rules. Change them with
-         ChangeService.
+         environments, services, volumes, networks, containers and firewall rules.
+         Change them with ChangeService.
 
          It names resources and says where they live, and never carries a spec,
          which may hold secrets. A spec's display_name, which never does, is the

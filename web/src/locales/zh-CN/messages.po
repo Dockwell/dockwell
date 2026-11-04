@@ -1175,6 +1175,11 @@ msgstr "为新项目命名，例如 shop"
 msgid "Name the token after what will use it, such as GitHub Actions deploy."
 msgstr "用将要使用它的程序为令牌命名，例如 GitHub Actions deploy。"
 
+#: src/app/Providers.tsx
+msgid "network"
+msgstr "网络"
+
+#: src/features/changes/words.ts
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Network"
@@ -2329,6 +2334,10 @@ msgstr "版本 <0>{0}</0>"
 
 #: src/app/Providers.tsx
 msgid "volume"
+msgstr "卷"
+
+#: src/features/changes/words.ts
+msgid "Volume"
 msgstr "卷"
 
 #: src/features/changes/words.ts

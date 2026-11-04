@@ -97,7 +97,7 @@ volumes:
 networks:
   front: {}
 `, port)
-	stack, err := compose.Parse(t.Context(), []byte(file), nil, project)
+	stack, err := compose.Parse(t.Context(), []byte(file), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -166,7 +166,7 @@ func testComposeThroughTheAPI(t *testing.T, backend store.Backend) {
 	if want := []string{"db.POSTGRES_PASSWORD", "web.DATABASE_URL"}; !slices.Equal(ex.Msg.GetOmitted(), want) {
 		t.Errorf("omitted %v, want %v", ex.Msg.GetOmitted(), want)
 	}
-	back, err := compose.Parse(t.Context(), []byte(file), map[string]string{"POSTGRES_PASSWORD": "x", "DATABASE_URL": "y"}, project)
+	back, err := compose.Parse(t.Context(), []byte(file), map[string]string{"POSTGRES_PASSWORD": "x", "DATABASE_URL": "y"})
 	if err != nil {
 		t.Fatalf("the export doesn't read back: %v\n%s", err, file)
 	}

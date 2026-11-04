@@ -84,10 +84,10 @@ A stopped container isn't drift: the spec says what runs, not whether it is runn
 
 ### Compose files
 
-- **compose-go v2.16.2 parses them, in the control plane alone,** as `docker compose` does: interpolation, YAML anchors, short and long syntax, and the default network for services that name none.
+- **compose-go v2.16.2 parses them, in the control plane,** as `docker compose` does: its interpolation, its canonical forms of the short syntaxes, and its types. Not its loader, which validates against the Compose schema with a JSON Schema library that allocates 1.7 MB as every process starts, agents included (see the consequences). Dockwell takes far less than the schema allows, and checks it on the file's YAML first; what the loader would do after, Dockwell does too: variables named without a value, the default network for services that name none, and references between services, volumes and networks, cycles of `depends_on` included.
 - **`ComposeService.ImportCompose`** (`POST /v1/compose:import`, `dockwell compose import`) plans a file into an environment as one change: its networks, then its volumes, then its services, each after those it `depends_on`. Each Compose service is a service, and each volume and network one of its own. With `remove_orphans`, services and networks of the environment that aren't in the file are deleted too; volumes stay, as `docker compose up --remove-orphans` leaves them.
 - **What Dockwell can't run is refused by name, never dropped:** the file's top level takes `services`, `volumes`, `networks`, `name` and `version`; a service takes `image`, `command`, `entrypoint`, `environment`, `ports`, `restart`, `labels`, `volumes`, `networks`, `network_mode: bridge`, `user`, `working_dir`, `healthcheck`, `depends_on` and `expose`. `x-` extensions are allowed. `expose` changes nothing on one server, and `depends_on` orders the change but isn't kept. Each refusal says what to do, such as "the service web builds an image, which Dockwell can't do yet. Build and push the image, then name it with image".
-- **The control plane never reads a file for one.** `env_file`, `label_file`, `extends`, `include`, secrets and configs are refused before compose-go reads the file, and compose-go's file loader is replaced with one that refuses. Bind mounts must be absolute: a path relative to the file means nothing on a server.
+- **The control plane never reads a file for one.** `env_file`, `label_file`, `extends`, `include`, secrets and configs are refused on the file's YAML, and nothing that would read them runs. Bind mounts must be absolute: a path relative to the file means nothing on a server.
 - **Variables** take values from the request and the file's defaults. One with neither is refused, rather than left blank as Compose would.
 - **Restart** follows Compose: a service without `restart` doesn't restart, though Dockwell's own default is `unless-stopped`.
 - **`ComposeService.ExportCompose`** (`GET /v1/compose`, `dockwell compose export`) writes an environment, or one service with the volumes and networks it uses, as a file with the project's name. `docker compose -f <file> ps` lists what Dockwell runs. The CLI prints the file alone, to pipe into `docker compose -f -`.
@@ -105,7 +105,17 @@ A stopped container isn't drift: the spec says what runs, not whether it is runn
 
 ## Consequences
 
-- **Memory:** MEMORY_PLACEHOLDER
+- **Memory.** An idle agent reads 30.0 MB, 2.2 MB more than main's build at 2f50507, and a control plane with its own agent 38.4 MB, 1.6 MB more: medians of 5 runs after 180 s, each beside the other on one machine (ADR 0018). That is at the agent's 30 MB warning line, 10 MB under its budget. What it is made of, measured in pairs the same way, where a build measured twice read up to 0.3 MB apart:
+
+  | Idle agent, RSS | Without compose-go | With its parsing packages | With its loader |
+  | --- | ---: | ---: | ---: |
+  | This change | 28.1 MB | 29.7 MB | 31.7 MB |
+  | Allocated at init by compose-go and what it brings | none | 0.57 MB | 2.32 MB |
+
+  - The driver itself, the Docker client and the new kinds, costs an agent about 0.3 MB: without compose-go it read 28.1 MB, and main 27.8 MB.
+  - compose-go's loader cost 3.6 MB, over the warning line. Most of that is `santhosh-tekuri/jsonschema`, which the loader's schema validation brings: it allocates 1.7 MB and spends 4 ms at init, in every process. Calling compose-go's interpolation, canonical forms and types without the loader costs 1.5 MB.
+  - Of what remains, `distribution/reference`, which compose-go's types import, allocates 0.41 MB at init.
+  - **Something lighter would do.** A parser of the subset Dockwell takes, over the YAML library alone, would leave out compose-go's types and transforms, and `distribution/reference` with them. The YAML library adds 0.6 MB to the binary, against compose-go's 1.7 MB, so it would save about 1 MB of the 1.5. It would mean writing the short syntaxes of ports, volumes and durations, and interpolation, which compose-go keeps in step with docker compose. If a later feature needs the agent's room, that is the place to find it.
 - **Images are pulled by tag, not digest, so ADR 0013's digests and mirror map aren't here yet.** Resolving a tag to a digest when planning needs the revision to record the digest it resolved, so that a rollback runs the same image, which is a change to how the engine commits specs. Until then a server pulls a tag it doesn't have, and keeps the image it has.
 - **Private registries** need credentials the agent sends with a pull, which come with secrets.
 - **One container per service.** A service scaled by hand with `docker compose up --scale` isn't drift; replicas come with rollouts (#28).
