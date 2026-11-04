@@ -321,6 +321,55 @@ func TestNeverRemoveTheLastWayIn(t *testing.T) {
 	}
 }
 
+// Passkeys for a domain the panel no longer answers on can't sign in, so
+// they don't count as a way in.
+func TestPasskeysForAnOldDomainArentAWayIn(t *testing.T) {
+	f := newFixture(t, "panel.acme.dev")
+	a := &authtest.Authenticator{}
+	owner := f.claim(t, onDomain, a)
+	p := ownerPrincipal(owner)
+	cer, err := f.svc.BeginAddPasskey(t.Context(), localhost, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cred, _, err := a.Create(string(cer.Options), localhost.Site.Origin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	local, err := f.svc.FinishAddPasskey(t.Context(), localhost, p, cer.ID, []byte(cred), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys, _ := f.svc.ListPasskeys(t.Context(), p)
+	onOld := keys[0]
+	if onOld.RPID != "panel.acme.dev" || local.RPID != "localhost" {
+		t.Fatalf("passkeys for %s and %s", onOld.RPID, local.RPID)
+	}
+
+	// The panel loses its domain: only the localhost passkey still works.
+	f.domain = ""
+	f.svc = f.restart(t)
+	if err := f.svc.RemovePasskey(t.Context(), p, local.ID); !errors.Is(err, ErrLastWayIn) {
+		t.Errorf("removing the only passkey that works here = %v, want ErrLastWayIn", err)
+	}
+	f.enableTOTP(t, p)
+	f.domain = "new.acme.dev"
+	f.svc = f.restart(t)
+	if err := f.svc.RemovePasskey(t.Context(), p, local.ID); err != nil {
+		t.Errorf("removing it once codes work: %v", err)
+	}
+	if err := f.svc.DisableTOTP(t.Context(), p); !errors.Is(err, ErrLastWayIn) {
+		t.Errorf("turning off codes with only a passkey for an old domain left = %v, want ErrLastWayIn", err)
+	}
+
+	// Back on the domain the passkey was made for, it counts again.
+	f.domain = "panel.acme.dev"
+	f.svc = f.restart(t)
+	if err := f.svc.DisableTOTP(t.Context(), p); err != nil {
+		t.Errorf("turning off codes with a passkey for this domain: %v", err)
+	}
+}
+
 func TestSignInLinks(t *testing.T) {
 	f := newFixture(t, "")
 	if _, _, err := f.svc.CreateSignInLink(t.Context(), "", "test"); err == nil {

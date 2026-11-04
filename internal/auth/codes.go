@@ -348,8 +348,8 @@ func (s *Service) ConfirmTOTP(ctx context.Context, p Principal, code string) ([]
 }
 
 // DisableTOTP turns code sign-in off for the principal, deleting the secret
-// and recovery codes. It refuses when no passkey would be left to sign in
-// with.
+// and recovery codes. It refuses when no passkey that signs in at the
+// panel's addresses now would be left.
 func (s *Service) DisableTOTP(ctx context.Context, p Principal) error {
 	return s.db.Update(ctx, func(tx *store.Tx) error {
 		u, err := tx.GetUser(ctx, p.User.ID)
@@ -363,13 +363,7 @@ func (s *Service) DisableTOTP(ctx context.Context, p Principal) error {
 		if err != nil {
 			return err
 		}
-		usable := 0
-		for i := range all {
-			if all[i].CloneWarningAt == nil {
-				usable++
-			}
-		}
-		if usable == 0 {
+		if s.usablePasskeys(all, "") == 0 {
 			return ErrLastWayIn
 		}
 		if err := tx.DisableTOTP(ctx, u.ID); err != nil {

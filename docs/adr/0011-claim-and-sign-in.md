@@ -53,7 +53,7 @@ A fresh VPS has an IP address and nothing else. Until #14, the API listened on l
 - **Clone detection.** A passkey whose sign count goes backwards (both counts nonzero) is treated as copied. The sign-in is refused, the passkey is flagged and never signs in again, and the event is audited. Synced passkeys always report zero and never trip it.
   - Reading the stored count, checking the assertion against it and storing the new count are one write transaction. Writes are serialized, so of a copy and the original signing in at once with one count, the second is refused as a copy, and the stored count never goes backwards.
   - When the flag can't be stored, the sign-in is refused all the same, the failure is logged and returned, and the flag is stored on the passkey's next sign-in, whichever copy makes it.
-- A signed-in user can add passkeys and remove them, but never the last way in. Afterwards there must be another working passkey, or code sign-in.
+- A signed-in user can add passkeys and remove them, but never the last way in. Afterwards there must be another passkey that signs in at an address the panel answers on now, or code sign-in. Such a passkey is one for `localhost` or the current domain that isn't flagged as copied; one for a domain the panel no longer has can't sign in, so it doesn't count. Recovery codes come and go with code sign-in. `dockwell recover` doesn't count either: it is the last resort for whoever can reach the server, not a way in to keep.
 
 **Codes from an authenticator app (TOTP), with recovery codes.**
 - **Codes:**

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 
@@ -326,9 +327,27 @@ func (s *Service) FinishAddPasskey(ctx context.Context, client Client, p Princip
 	return decodePasskey(pk)
 }
 
+// usablePasskeys counts the passkeys that still sign in at the panel's
+// addresses now, leaving out the one with ID except: those for localhost or
+// the current domain that aren't flagged as copied.
+//
+// With code sign-in, these are the ways in that count when someone removes
+// one. Recovery codes come and go with code sign-in, so they count as part
+// of it. dockwell recover doesn't count: it is the last resort, for whoever
+// can reach the server, not a way in to keep.
+func (s *Service) usablePasskeys(all []store.Passkey, except string) int {
+	n := 0
+	for i := range all {
+		if all[i].ID != except && all[i].CloneWarningAt == nil && s.sites.Serves(all[i].RPID) {
+			n++
+		}
+	}
+	return n
+}
+
 // RemovePasskey removes one of the principal's passkeys. It refuses to
 // remove the last way in: afterwards there must be another passkey that
-// still works, or code sign-in.
+// signs in at the panel's addresses now, or code sign-in.
 func (s *Service) RemovePasskey(ctx context.Context, p Principal, passkeyID string) error {
 	return s.db.Update(ctx, func(tx *store.Tx) error {
 		all, err := tx.ListPasskeys(ctx, p.User.ID)
@@ -339,19 +358,10 @@ func (s *Service) RemovePasskey(ctx context.Context, p Principal, passkeyID stri
 		if err != nil {
 			return err
 		}
-		found, others := false, 0
-		for i := range all {
-			switch {
-			case all[i].ID == passkeyID:
-				found = true
-			case all[i].CloneWarningAt == nil:
-				others++
-			}
-		}
-		if !found {
+		if !slices.ContainsFunc(all, func(pk store.Passkey) bool { return pk.ID == passkeyID }) {
 			return fmt.Errorf("%w: you have no passkey %s. List them with ListPasskeys", ErrNotFound, passkeyID)
 		}
-		if others == 0 && user.TOTPSecret == nil {
+		if s.usablePasskeys(all, passkeyID) == 0 && user.TOTPSecret == nil {
 			return ErrLastWayIn
 		}
 		if err := tx.DeletePasskey(ctx, p.User.ID, passkeyID); err != nil {

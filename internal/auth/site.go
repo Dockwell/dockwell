@@ -84,6 +84,14 @@ type Sites struct {
 	Domain string
 }
 
+// Serves reports whether a passkey made for rpID signs in at the panel now:
+// on localhost always, through the loopback listener and a tunnel, and on
+// the domain while the panel has it. Passkeys for a domain the panel no
+// longer answers on don't.
+func (s Sites) Serves(rpID string) bool {
+	return rpID == "localhost" || (s.Domain != "" && rpID == s.Domain)
+}
+
 // ErrMisdirected reports a request for a host the panel doesn't answer on,
 // such as another name pointed at this server, or a DNS rebinding attack.
 var ErrMisdirected = errors.New("misdirected request")
