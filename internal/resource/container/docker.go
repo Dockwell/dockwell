@@ -713,3 +713,6 @@ var errWaited = errors.New("waited for the health check for long enough")
 
 // Ready checks Docker answers, and agrees an API version with it.
 func (d *Docker) Ready(ctx context.Context) error { return d.Client.Ping(ctx) }
+
+// ReadyKey is the client: whether its Docker answers.
+func (d *Docker) ReadyKey() any { return d.Client }

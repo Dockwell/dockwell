@@ -19,6 +19,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 )
@@ -446,6 +447,32 @@ func TestHungDocker(t *testing.T) {
 	if !docker.IsUnavailable(err) || !strings.Contains(err.Error(), "Docker isn't answering on "+e.Socket) ||
 		!strings.Contains(err.Error(), "Check it with systemctl status docker") || !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("Ready with Docker hung = %v, want it unavailable with how to check it", err)
+	}
+}
+
+// The Docker drivers' readiness is whether one Docker answers, so a
+// registry of them asks it once per check.
+func TestReadyAsksDockerOnce(t *testing.T) {
+	e := dockertest.New(t)
+	client := e.Client()
+	containers := container.Driver{Runtime: &container.Docker{Client: client}}
+	reg := resource.NewRegistry(&containers, &service.Driver{Containers: containers},
+		&volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}}, &network.Driver{Client: client})
+	pings := func() int {
+		n := 0
+		for _, r := range e.Seen() {
+			if strings.HasSuffix(r, "/version") {
+				n++
+			}
+		}
+		return n
+	}
+	ready, unavailable := reg.Ready(t.Context())
+	if len(ready) != 4 || len(unavailable) != 0 {
+		t.Fatalf("ready %v, unavailable %v, want the four Docker kinds ready", ready, unavailable)
+	}
+	if n := pings(); n != 1 {
+		t.Errorf("one check asked Docker %d times, want once", n)
 	}
 }
 

@@ -115,3 +115,6 @@ func (d *Driver) Verify(ctx context.Context, ref resource.Ref, _ proto.Message) 
 
 // Ready says why services can't run now, as their containers can't.
 func (d *Driver) Ready(ctx context.Context) error { return d.Containers.Ready(ctx) }
+
+// ReadyKey is the containers' runtime's.
+func (d *Driver) ReadyKey() any { return d.Containers.ReadyKey() }

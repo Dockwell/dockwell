@@ -39,7 +39,7 @@ Earlier records left it these seams:
 
 ### The agent offers what it can run
 
-- **A driver may say it can't run now.** A `resource.Readier` driver, as each Docker driver is, answers `Ready`. The agent offers in its hello only the kinds whose drivers are ready, and gives the others with why, in `Hello.unavailable`. It checks again every 30 s, and sends `Kinds` on its stream when that changes, so Docker started after the agent is picked up without a restart.
+- **A driver may say it can't run now.** A `resource.Readier` driver, as each Docker driver is, answers `Ready`. The agent offers in its hello only the kinds whose drivers are ready, and gives the others with why, in `Hello.unavailable`. It checks again every 30 s, and sends `Kinds` on its stream when that changes, so Docker started after the agent is picked up without a restart. The check runs beside the stream, one at a time, so a Docker that hangs holds up neither stats nor the stream's end, and drivers on one Docker client share one answer: the agent asks Docker once, not once for each kind.
 - **A plan for a kind the agent can't run fails as before,** with `no_driver`, now with the agent's reason: "hz-1 can't run service web now: Docker is installed, but isn't running. Start it with systemctl start docker; the agent finds it within a minute".
 - **Pulls show their progress.** A driver reports how a step is going through its context (`resource.Progress`). The agent sends it to the control plane at most once a second, as `CallProgress`, and the engine puts it in the running step's message for watchers, such as "Creating service db on hz-1: pulling postgres:17, 12 of 48 MB". It isn't recorded: the step's end is.
 

@@ -220,16 +220,40 @@ type Readier interface {
 	Ready(ctx context.Context) error
 }
 
+// SharedReadier is a Readier whose answer others share, such as each
+// Docker driver's, which is whether one Docker Engine answers.
+type SharedReadier interface {
+	Readier
+	// ReadyKey is what the answer is about, such as the Docker client:
+	// drivers whose keys are equal share one answer.
+	ReadyKey() any
+}
+
 // Ready lists the kinds whose drivers can run now, sorted, and why each
-// other kind with a driver can't.
+// other kind with a driver can't. Drivers that share an answer are asked
+// once.
 func (r *Registry) Ready(ctx context.Context) (ready []Kind, unavailable map[Kind]string) {
+	answers := map[any]error{}
+	ask := func(d Readier) error {
+		s, ok := d.(SharedReadier)
+		if !ok {
+			return d.Ready(ctx)
+		}
+		key := s.ReadyKey()
+		if err, asked := answers[key]; asked {
+			return err
+		}
+		err := d.Ready(ctx)
+		answers[key] = err
+		return err
+	}
 	for _, k := range r.Kinds() {
 		d, _ := r.types[k].(Readier)
 		if d == nil {
 			ready = append(ready, k)
 			continue
 		}
-		if err := d.Ready(ctx); err != nil {
+		if err := ask(d); err != nil {
 			if unavailable == nil {
 				unavailable = map[Kind]string{}
 			}

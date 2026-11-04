@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -468,5 +469,52 @@ func TestDockerKindsWaitForDocker(t *testing.T) {
 	}
 	if c := e.Container(service.ContainerName(web)); c == nil || !c.State.Running {
 		t.Errorf("the service's container isn't running on Docker: %+v", c)
+	}
+}
+
+// alternating is a firewall driver whose every other check hangs until it
+// is given up on, as a Docker that takes the connection and says nothing:
+// the check before each hello answers, and the next, in the stream's
+// loop, hangs.
+type alternating struct {
+	firewall.Driver
+	checks atomic.Int32
+}
+
+func (a *alternating) Ready(ctx context.Context) error {
+	if a.checks.Add(1)%2 == 0 {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	return nil
+}
+
+// A check of which kinds the agent can run that hangs never holds up the
+// stream: the agent still hears it end, and reconnects within its backoff
+// rather than once the check gives up, 5 s later.
+func TestAHungCheckDoesntHoldTheStream(t *testing.T) {
+	// The control plane closes a stream silent for 300 ms, and an agent
+	// sends stats every 5 s, so each stream ends 300 ms in.
+	s := startStack(t, 300*time.Millisecond)
+	connected := make(chan string, 16)
+	s.agents.OnConnect(func(server string) { connected <- server })
+	id := s.enrollLocal(t)
+	drivers := resource.NewRegistry(&alternating{Driver: firewall.Driver{Backend: firewall.NewFake()}})
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = agent.Run(ctx, agent.Config{
+			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(),
+			Collector: fakeCollector(), Drivers: drivers, KindsEvery: 20 * time.Millisecond,
+		})
+		close(done)
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+	for i, within := range []time.Duration{5 * time.Second, 3 * time.Second} {
+		select {
+		case <-connected:
+		case <-time.After(within):
+			t.Fatalf("connection %d didn't come within %s: a check that hung held up the stream", i+1, within)
+		}
 	}
 }

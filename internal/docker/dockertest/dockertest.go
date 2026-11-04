@@ -871,6 +871,13 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 	}
 }
 
+// Seen lists the requests the engine has had, as "METHOD /path".
+func (e *Engine) Seen() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return slices.Clone(e.Requests)
+}
+
 // Container returns a container by name, as the engine reports it, or
 // nil.
 func (e *Engine) Container(name string) *docker.Container {

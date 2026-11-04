@@ -225,3 +225,6 @@ func (*Driver) Verify(context.Context, resource.Ref, proto.Message) error { retu
 
 // Ready checks Docker answers.
 func (d *Driver) Ready(ctx context.Context) error { return d.Client.Ping(ctx) }
+
+// ReadyKey is the client: whether its Docker answers.
+func (d *Driver) ReadyKey() any { return d.Client }

@@ -393,3 +393,12 @@ func (d *Driver) Ready(ctx context.Context) error {
 	}
 	return nil
 }
+
+// ReadyKey is the runtime's, such as its Docker client, so the drivers on
+// one Docker share one answer.
+func (d *Driver) ReadyKey() any {
+	if r, ok := d.Runtime.(resource.SharedReadier); ok {
+		return r.ReadyKey()
+	}
+	return d
+}

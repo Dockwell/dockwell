@@ -110,6 +110,33 @@ func readyKinds(ctx context.Context, drivers *resource.Registry) kinds {
 	return k
 }
 
+// kindsCheck checks which kinds the agent can run in the background, one
+// check at a time. A check can take readyWait, as when Docker takes the
+// connection but doesn't answer, and the stream's loop goes on meanwhile:
+// sending stats, and hearing the stream end.
+type kindsCheck struct {
+	drivers *resource.Registry
+	// done delivers a check's answer; take it, then call got.
+	done    chan kinds
+	running bool
+}
+
+func newKindsCheck(drivers *resource.Registry) *kindsCheck {
+	return &kindsCheck{drivers: drivers, done: make(chan kinds, 1)}
+}
+
+// start begins a check, unless one is under way.
+func (k *kindsCheck) start(ctx context.Context) {
+	if k.running {
+		return
+	}
+	k.running = true
+	go func() { k.done <- readyKinds(ctx, k.drivers) }()
+}
+
+// got notes the answer was taken, so the next start checks again.
+func (k *kindsCheck) got() { k.running = false }
+
 func (k kinds) equal(o kinds) bool {
 	return slices.Equal(k.ready, o.ready) && maps.Equal(k.unavailable, o.unavailable)
 }
@@ -343,6 +370,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	recheck := time.NewTicker(every)
 	defer recheck.Stop()
+	checks := newKindsCheck(cfg.Drivers)
 	if err := sendStats(); err != nil {
 		return err
 	}
@@ -351,7 +379,9 @@ func session(ctx context.Context, cfg Config) (err error) {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-recheck.C:
-			now := readyKinds(ctx, cfg.Drivers)
+			checks.start(ctx)
+		case now := <-checks.done:
+			checks.got()
 			if now.equal(offered) {
 				continue
 			}

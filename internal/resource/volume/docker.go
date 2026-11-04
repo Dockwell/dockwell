@@ -349,3 +349,6 @@ func (d *Docker) KeepPruned(ctx context.Context, logger *slog.Logger) {
 
 // Ready checks Docker answers.
 func (d *Docker) Ready(ctx context.Context) error { return d.Client.Ping(ctx) }
+
+// ReadyKey is the client: whether its Docker answers.
+func (d *Docker) ReadyKey() any { return d.Client }
