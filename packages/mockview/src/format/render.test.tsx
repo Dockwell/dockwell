@@ -159,6 +159,32 @@ describe("templates", () => {
     expect(logged).toEqual([]);
   });
 
+  it("moves selected from the options to the select, for one choice and for several", async () => {
+    const { container } = await render(
+      {
+        "A.dc.html": artboard(
+          `<select class="off"><option selected="{{no}}">a</option><option>b</option></select>
+<select class="text"><option>a</option><option selected>
+  b  two
+</option></select>
+<select class="last"><option selected>a</option><option selected value="{{v}}">b</option></select>
+<select class="many" multiple><option selected>a</option><option>b</option><sc-for list="{{more}}" as="o"><option selected="{{o.on}}">{{o.name}}</option></sc-for></select>
+<select class="group"><optgroup label="g"><option>a</option><option selected>b</option></optgroup></select>`,
+          logic(`{ no: false, v: 'bee', more: [{ name: 'c', on: true }, { name: 'd', on: false }] }`),
+        ),
+      },
+      "A.dc.html",
+    );
+    const select = (cls: string) => container.querySelector<HTMLSelectElement>(`select.${cls}`);
+    expect(select("off")?.value).toBe("a");
+    expect(select("text")?.value).toBe("b two");
+    expect(select("last")?.value).toBe("bee");
+    expect([...(select("many")?.selectedOptions ?? [])].map((o) => o.value)).toEqual(["a", "c"]);
+    expect(select("group")?.value).toBe("b");
+    // React warns about any selected left on an option, and about a string defaultValue on <select multiple>.
+    expect(logged).toEqual([]);
+  });
+
   it("gives keys to element lists built in a script, so React doesn't warn", async () => {
     const { container } = await render(
       {

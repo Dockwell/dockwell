@@ -474,9 +474,11 @@ class RenderContext {
       children = [];
     }
     if (lower === "select") {
-      const result = takeSelected(children);
+      const result = takeSelected(children, Boolean(props["multiple"]));
       children = result.children;
-      if (result.value !== undefined && !("defaultValue" in props)) props["defaultValue"] = result.value;
+      if (result.value !== undefined && !("defaultValue" in props) && !("value" in props)) {
+        props["defaultValue"] = result.value;
+      }
     }
     return createElement(tag, props, ...children);
   }
@@ -513,18 +515,23 @@ function mergeStrings(nodes: ReactNode[]): ReactNode[] {
 }
 
 /**
- * React sets a select's choice with defaultValue, not with selected on an
- * option, so this moves it. It returns the options without selected.
+ * React picks a select's options with defaultValue, not with selected on an
+ * option, so this moves the choice there, as an HTML page would make it:
+ * every selected option for <select multiple>, otherwise the last one. The
+ * options come back without selected, whatever its value.
  */
-function takeSelected(children: ReactNode[]): { children: ReactNode[]; value: string | undefined } {
-  let value: string | undefined;
+function takeSelected(
+  children: ReactNode[],
+  multiple: boolean,
+): { children: ReactNode[]; value: string | string[] | undefined } {
+  const values: string[] = [];
   const visit = (nodes: ReactNode[]): ReactNode[] =>
     nodes.map((node) => {
       if (!isValidElement<Props>(node)) return node;
-      if (node.type === "option" && node.props["selected"]) {
-        const text = node.props["value"] ?? childText(node.props["children"]);
-        value = String(text);
-        return cloneElement(node, { selected: undefined });
+      if (node.type === "option" && "selected" in node.props) {
+        const { selected, ...rest } = node.props;
+        if (selected) values.push(optionValue(rest));
+        return createElement("option", node.key == null ? rest : { ...rest, key: node.key });
       }
       if (node.type === "optgroup") {
         const { children: options, ...rest } = node.props;
@@ -532,7 +539,17 @@ function takeSelected(children: ReactNode[]): { children: ReactNode[]; value: st
       }
       return node;
     });
-  return { children: visit(children), value };
+  const out = visit(children);
+  if (multiple) return { children: out, value: values.length ? values : undefined };
+  return { children: out, value: values.at(-1) };
+}
+
+/** An option's value: its value attribute, or else its text with the whitespace collapsed, as the DOM reads it. */
+function optionValue(props: Props): string {
+  if (props["value"] != null) return String(props["value"]);
+  return childText(props["children"])
+    .replace(/[\t\n\f\r ]+/g, " ")
+    .replace(/^ | $/g, "");
 }
 
 function childText(children: unknown): string {
