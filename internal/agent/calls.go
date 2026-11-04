@@ -13,8 +13,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
-	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
 
@@ -38,7 +38,7 @@ type calls struct {
 	local resource.Local
 	// delivery opens the values of variables and secrets sent for a step,
 	// sealed for server.
-	delivery *binding.Key
+	delivery *delivery.Key
 	server   string
 	send     func(*agentv1.ConnectRequest) error
 	logger   *slog.Logger
@@ -54,14 +54,14 @@ type calls struct {
 	drainedOnce sync.Once
 }
 
-func newCalls(ctx context.Context, cfg Config, send func(*agentv1.ConnectRequest) error, delivery *binding.Key) *calls {
+func newCalls(ctx context.Context, cfg Config, send func(*agentv1.ConnectRequest) error, key *delivery.Key) *calls {
 	ctx, end := context.WithCancel(ctx)
 	var server string
 	if cfg.Identity != nil {
 		server = cfg.Identity.ServerID
 	}
 	return &calls{
-		ctx: ctx, end: end, cfg: cfg, local: resource.Local{Drivers: cfg.Drivers}, delivery: delivery, server: server, send: send, logger: cfg.Logger,
+		ctx: ctx, end: end, cfg: cfg, local: resource.Local{Drivers: cfg.Drivers}, delivery: key, server: server, send: send, logger: cfg.Logger,
 		running: map[uint64]context.CancelFunc{}, idle: make(chan struct{}, 1), drained: make(chan struct{}),
 	}
 }

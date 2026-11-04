@@ -90,6 +90,7 @@ The install's key is a separate file, and a backup of the database without it op
 - **Sealed to one stream.** Each agent stream makes an X25519 key pair, keeps the private key in memory, and sends the public key in its hello (`delivery_key`). The values for a step travel in the `ApplyCall` sealed to it with HPKE (RFC 9180: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-256-GCM, Go's `crypto/hpke`). The info binds them to the server and the resource. So values never appear in the clear in a message, even within mTLS. They can't be opened for another resource or server, nor once the stream ends, as the key that opens them is gone.
 - **A call sent again is sealed again.** A step the agent refuses as it moves to a renewed certificate goes to its next stream (ADR 0017). The values are read once, and sealed to the delivery key of each stream the call goes out on.
 - **An agent that sends no delivery key** can't run a service that uses a variable or secret, and the step says to update it.
+- **Where the code is, for the two builds** ([ADR 0023](0023-a-full-build-and-an-agent-build.md)). The agent build links `internal/delivery`: the stream's key pair, the suite and info, and opening. Sealing the values for a stream (`secrets.SealValues`), and everything at rest, the key chain, the store, step-ups and the CLI's `rotate-key`, are the full build's alone. `internal/delivery` adds no package to the agent build beyond itself, as the agent build links `crypto/hpke` already.
 
 ### On the agent
 

@@ -5,11 +5,12 @@
 // docs/adr/0022-secrets-encrypted-at-rest.md.
 //
 // The control plane seals the values for one step to the agent stream's
-// delivery key (Seal). The agent opens them in memory (Key.Open) and hands
-// them to the driver for that call alone (resource.WithValues). The driver
-// builds the container's environment from them (Environment) and records
-// on the container which variables and secrets it used, never their values
-// (Label), so it can read the service back as its spec (Restore).
+// delivery key (secrets.SealValues). The agent opens them in memory
+// (delivery.Key.Open) and hands them to the driver for that call alone
+// (resource.WithValues). The driver builds the container's environment
+// from them (Environment) and records on the container which variables and
+// secrets it used, never their values (Label), so it can read the service
+// back as its spec (Restore).
 //
 // The Docker driver (#26) calls Environment when it creates a service's
 // container, and gets everything else from the service driver here.
@@ -17,99 +18,16 @@ package binding
 
 import (
 	"context"
-	"crypto/ecdh"
-	"crypto/hpke"
-	"crypto/rand"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"strconv"
 	"strings"
 
-	"google.golang.org/protobuf/proto"
-
-	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 )
-
-// infoPrefix starts the HPKE info, which binds sealed values to one
-// server and one resource, so values sealed for one step can't be passed
-// off as another's.
-const infoPrefix = "dockwell.values.v1"
-
-// The HPKE suite: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-256-GCM.
-var (
-	kem  = hpke.DHKEM(ecdh.X25519())
-	kdf  = hpke.HKDFSHA256()
-	aead = hpke.AES256GCM()
-)
-
-func info(server string, ref resource.Ref) []byte {
-	return []byte(strings.Join([]string{infoPrefix, server, string(ref.Kind), ref.Scope, ref.Name}, "\x00"))
-}
-
-// Key is an agent stream's delivery key. The agent makes one for each
-// stream and keeps it in memory only: values sealed to it can't be opened
-// once the stream ends, so nothing an agent could keep would open them.
-type Key struct {
-	private hpke.PrivateKey
-	public  []byte
-}
-
-// NewKey makes a delivery key.
-func NewKey() (*Key, error) {
-	priv, err := ecdh.X25519().GenerateKey(rand.Reader)
-	if err != nil {
-		return nil, fmt.Errorf("can't make a delivery key: %w", err)
-	}
-	pk, err := hpke.NewDHKEMPrivateKey(priv)
-	if err != nil {
-		return nil, fmt.Errorf("can't make a delivery key: %w", err)
-	}
-	return &Key{private: pk, public: priv.PublicKey().Bytes()}, nil
-}
-
-// Public is what the agent sends in its hello.
-func (k *Key) Public() []byte { return slices.Clone(k.public) }
-
-// ErrNoDeliveryKey means an agent sent no delivery key, as an agent older
-// than this build doesn't.
-var ErrNoDeliveryKey = errors.New("the agent sent no delivery key")
-
-// Seal seals the values for a resource on a server to the delivery key
-// its agent's stream sent.
-func Seal(deliveryKey []byte, server string, ref resource.Ref, values map[string]string) ([]byte, error) {
-	if len(deliveryKey) == 0 {
-		return nil, ErrNoDeliveryKey
-	}
-	pub, err := kem.NewPublicKey(deliveryKey)
-	if err != nil {
-		return nil, fmt.Errorf("the agent's delivery key isn't an X25519 key: %w", err)
-	}
-	plain, err := proto.MarshalOptions{Deterministic: true}.Marshal(&agentv1.Values{Values: values})
-	if err != nil {
-		return nil, err
-	}
-	defer clear(plain)
-	return hpke.Seal(pub, kdf, aead, info(server, ref), plain)
-}
-
-// Open opens values sealed to this key for a resource on this server.
-func (k *Key) Open(server string, ref resource.Ref, sealed []byte) (map[string]string, error) {
-	plain, err := hpke.Open(k.private, kdf, aead, info(server, ref), sealed)
-	if err != nil {
-		return nil, errors.New("can't open the values sent for this step: they weren't sealed for this stream, server and resource")
-	}
-	defer clear(plain)
-	var v agentv1.Values
-	if err := proto.Unmarshal(plain, &v); err != nil {
-		return nil, fmt.Errorf("can't read the values sent for this step: %w", err)
-	}
-	return v.GetValues(), nil
-}
 
 // Environment returns the environment a service's container runs with:
 // its app's own variables, then each variable and secret it uses, under

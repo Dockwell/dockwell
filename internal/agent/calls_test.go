@@ -17,13 +17,14 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
-	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/container/containertest"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/secrets"
 )
 
 // slowFirewall puts the rule "slow" in place only once released, or not at
@@ -287,7 +288,7 @@ func (p *peeking) Applied(ctx context.Context, _ resource.Ref, _ proto.Message) 
 // Desired, which may keep what it hears, as #32's cache will: it hears
 // the step with a context that holds none.
 func TestDesiredHearsNoValues(t *testing.T) {
-	key, err := binding.NewKey()
+	key, err := delivery.NewKey()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +311,7 @@ func TestDesiredHearsNoValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sealed, err := binding.Seal(key.Public(), "", web, map[string]string{"TOKEN": "s3cret-not-for-desired"})
+	sealed, err := secrets.SealValues(key.Public(), "", web, map[string]string{"TOKEN": "s3cret-not-for-desired"})
 	if err != nil {
 		t.Fatal(err)
 	}

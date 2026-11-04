@@ -1,6 +1,6 @@
 # Secrets: threat model
 
-How Dockwell keeps an environment's secrets, and every spec that may hold one, encrypted at rest. It also covers how it gets them to the servers that run what uses them, and how a person reveals one. It says what an attacker could try, and what stops them. The design is in [ADR 0022](../adr/0022-secrets-encrypted-at-rest.md), beside sign-in's threat model in [sign-in.md](sign-in.md). The code is in `internal/secrets`, `internal/resource/binding`, `internal/resource/variable`, the revision store in `internal/revision`, `internal/auth/stepup.go` and `internal/control/variables`.
+How Dockwell keeps an environment's secrets, and every spec that may hold one, encrypted at rest. It also covers how it gets them to the servers that run what uses them, and how a person reveals one. It says what an attacker could try, and what stops them. The design is in [ADR 0022](../adr/0022-secrets-encrypted-at-rest.md), beside sign-in's threat model in [sign-in.md](sign-in.md). The code is in `internal/secrets`, `internal/delivery`, `internal/resource/binding`, `internal/resource/variable`, the revision store in `internal/revision`, `internal/auth/stepup.go` and `internal/control/variables`.
 
 ## What there is to protect
 

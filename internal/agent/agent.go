@@ -26,10 +26,10 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/buildinfo"
+	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
-	"github.com/dockwell/dockwell/internal/resource/binding"
 )
 
 // Config configures Run.
@@ -280,13 +280,13 @@ func session(ctx context.Context, cfg Config) (err error) {
 	// A delivery key for this stream alone: the values of variables and
 	// secrets come sealed to it, and it is never written anywhere, so
 	// nothing outlives the stream that could open them.
-	delivery, err := binding.NewKey()
+	key, err := delivery.NewKey()
 	if err != nil {
 		return err
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: delivery.Public()}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public()}
 	hello.Kinds, hello.Unavailable = offered.proto()
 	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: hello}}); err != nil {
 		if errors.Is(err, io.EOF) {
@@ -317,7 +317,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	// The calls outlive the stream's context, which stops the receiver, so
 	// the stream ends in order: refuse new calls, stop receiving, then
 	// cancel what still runs and wait for it.
-	calls := newCalls(parent, cfg, send, delivery)
+	calls := newCalls(parent, cfg, send, key)
 	recvErr := make(chan error, 1)
 	received := make(chan struct{})
 	go func() {

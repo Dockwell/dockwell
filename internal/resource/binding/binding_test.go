@@ -3,7 +3,6 @@
 package binding
 
 import (
-	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -15,43 +14,6 @@ import (
 )
 
 var api = resource.Ref{Kind: "service", Scope: "env_1", Name: "api"}
-
-// Values sealed for one stream, server and resource open only there.
-func TestValuesOpenOnlyWhereTheyWereSealedFor(t *testing.T) {
-	k, err := NewKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	values := map[string]string{"DATABASE_URL": "postgres://hunter2@db"}
-	sealed, err := Seal(k.Public(), "srv_A", api, values)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Contains(sealed, []byte("hunter2")) {
-		t.Fatal("the sealed values hold the plaintext")
-	}
-	got, err := k.Open("srv_A", api, sealed)
-	if err != nil || got["DATABASE_URL"] != values["DATABASE_URL"] {
-		t.Fatalf("Open = %v, %v", got, err)
-	}
-	other, _ := NewKey()
-	for what, try := range map[string]func() (map[string]string, error){
-		"on another server": func() (map[string]string, error) { return k.Open("srv_B", api, sealed) },
-		"for another service": func() (map[string]string, error) {
-			return k.Open("srv_A", resource.Ref{Kind: "service", Scope: "env_1", Name: "web"}, sealed)
-		},
-		"on another stream": func() (map[string]string, error) { return other.Open("srv_A", api, sealed) },
-	} {
-		if v, err := try(); err == nil || v != nil {
-			t.Errorf("opening values %s = %v, %v; want it refused", what, v, err)
-		} else if strings.Contains(err.Error(), "hunter2") {
-			t.Errorf("the error says the value: %v", err)
-		}
-	}
-	if _, err := Seal(nil, "srv_A", api, values); err == nil {
-		t.Error("sealed values for an agent with no delivery key")
-	}
-}
 
 // A service's container gets its app's environment and the values of
 // what it uses; a label says what it used, never a value, and reading

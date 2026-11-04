@@ -19,8 +19,8 @@ import (
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
-	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	"github.com/dockwell/dockwell/internal/secrets"
 )
 
 // How long a call may take when its caller sets no deadline. Planning and
@@ -576,7 +576,7 @@ func (s *Session) seal(ref resource.Ref, values map[string]string) ([]byte, erro
 	if len(s.deliveryKey) == 0 {
 		return nil, s.noDeliveryKey(ref)
 	}
-	sealed, err := binding.Seal(s.deliveryKey, s.server, ref, values)
+	sealed, err := secrets.SealValues(s.deliveryKey, s.server, ref, values)
 	if err != nil {
 		return nil, fmt.Errorf("can't seal the values %s uses for %s: %w", ref.Name, s.name, err)
 	}
