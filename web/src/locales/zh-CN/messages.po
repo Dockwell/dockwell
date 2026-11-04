@@ -535,10 +535,6 @@ msgstr "这里还没有内容。"
 msgid "Nothing matches “{query}”. Try a server, app or action name."
 msgstr "没有与“{query}”匹配的结果。试试服务器、应用或操作的名称。"
 
-#: src/lib/time.ts
-msgid "now"
-msgstr "刚刚"
-
 #: src/features/servers/ServerMetrics.tsx
 msgid "of {total}"
 msgstr "/ {total}"

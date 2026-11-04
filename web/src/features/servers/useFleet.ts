@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { type Timestamp, timestampMs } from "@bufbuild/protobuf/wkt";
 import { ConnectError, createClient, type Transport } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { type Server, ServerService } from "@dockwell/api";
+import { Connection, type Server, ServerService } from "@dockwell/api";
 import { createContext, createElement, type ReactNode, useContext, useEffect, useState } from "react";
 
+import { useNow } from "../../lib/time";
 import { appendSample } from "./history";
 import { type FleetView, fleetView } from "./server";
 
@@ -17,23 +18,43 @@ export type FleetState =
 const MIN_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 15_000;
 
-/** A watch's state, and the shell's view of it, which keeps its identity while only the numbers change. */
+/**
+ * A watch's state; the shell's view of it, which keeps its identity while
+ * only the numbers change; and how far the browser's clock runs ahead of
+ * the control plane's.
+ */
 interface Watched {
   state: FleetState;
   view: FleetView;
+  skewMs: number;
 }
 
-// Two contexts, so what reads only the view isn't woken by each sample.
+// Separate contexts, so what reads only the view isn't woken by each sample.
 const StateContext = createContext<FleetState | undefined>(undefined);
 const ViewContext = createContext<FleetView | undefined>(undefined);
+const SkewContext = createContext(0);
 
 /**
  * Watches the fleet once for everything inside it, so the shell and the
  * screen it holds share one stream.
  */
 export function FleetProvider({ children }: { children: ReactNode }) {
-  const { state, view } = useWatch(true);
-  return createElement(StateContext, { value: state }, createElement(ViewContext, { value: view }, children));
+  const { state, view, skewMs } = useWatch(true);
+  return createElement(
+    StateContext,
+    { value: state },
+    createElement(ViewContext, { value: view }, createElement(SkewContext, { value: skewMs }, children)),
+  );
+}
+
+/**
+ * Now on the control plane's clock, as well as the browser can tell, kept
+ * up to date every interval. Server timestamps, such as when an agent last
+ * reported, are on that clock, so how long ago they were is this less the
+ * timestamp; the browser's own clock may be minutes off.
+ */
+export function useControlPlaneNow(interval?: number): number {
+  return useNow(interval) - useContext(SkewContext);
 }
 
 /**
@@ -65,13 +86,17 @@ const CONNECTING: FleetState = { status: "connecting" };
 
 function useWatch(enabled: boolean): Watched {
   const transport = useTransport();
-  const [watched, setWatched] = useState<Watched>(() => ({ state: CONNECTING, view: fleetView(CONNECTING) }));
+  const [watched, setWatched] = useState<Watched>(() => ({
+    state: CONNECTING,
+    view: fleetView(CONNECTING),
+    skewMs: 0,
+  }));
 
   useEffect(() => {
     if (!enabled) return;
     const abort = new AbortController();
-    void watch(transport, abort.signal, (state) =>
-      setWatched((prev) => ({ state, view: fleetView(state, prev.view) })),
+    void watch(transport, abort.signal, (state, skewMs) =>
+      setWatched((prev) => ({ state, view: fleetView(state, prev.view), skewMs })),
     );
     return () => abort.abort();
   }, [transport, enabled]);
@@ -79,8 +104,13 @@ function useWatch(enabled: boolean): Watched {
   return watched;
 }
 
-async function watch(transport: Transport, signal: AbortSignal, publish: (s: FleetState) => void): Promise<void> {
+async function watch(
+  transport: Transport,
+  signal: AbortSignal,
+  publish: (s: FleetState, skewMs: number) => void,
+): Promise<void> {
   const client = createClient(ServerService, transport);
+  const clock = new SkewEstimate();
   let backoff = MIN_BACKOFF_MS;
   let known: Server[] | undefined;
   while (!signal.aborted) {
@@ -92,12 +122,14 @@ async function watch(transport: Transport, signal: AbortSignal, publish: (s: Fle
         if (next && msg.removed) {
           servers.delete(next.id);
         } else if (next) {
-          servers.set(next.id, merge(servers.get(next.id), next));
+          const prev = servers.get(next.id);
+          if (synced) clock.observe(prev, next);
+          servers.set(next.id, merge(prev, next));
         }
         synced ||= msg.snapshotComplete;
         if (!synced) continue;
         known = [...servers.values()];
-        publish({ status: "live", servers: known });
+        publish({ status: "live", servers: known }, clock.skewMs);
         backoff = MIN_BACKOFF_MS;
       }
       throw new ConnectError("the watch ended");
@@ -107,12 +139,36 @@ async function watch(transport: Transport, signal: AbortSignal, publish: (s: Fle
         known
           ? { status: "reconnecting", servers: known, error: ConnectError.from(err) }
           : { status: "connecting", error: ConnectError.from(err) },
+        clock.skewMs,
       );
       await delay(backoff + Math.random() * backoff, signal);
       backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
     }
   }
 }
+
+/**
+ * How far the browser's clock runs ahead of the control plane's. When the
+ * control plane hears from an agent it stamps the server's last_seen_time
+ * with its own clock and tells watchers at once, so a message with a newer
+ * last_seen_time arrives moments after that time. The smallest of the last
+ * few differences leaves out messages that waited in a queue.
+ */
+class SkewEstimate {
+  private readonly recent: number[] = [];
+  skewMs = 0;
+
+  observe(prev: Server | undefined, next: Server): void {
+    if (next.connection !== Connection.CONNECTED || !next.lastSeenTime) return;
+    const seen = timestampMs(next.lastSeenTime);
+    if (prev?.lastSeenTime && seen <= timestampMs(prev.lastSeenTime)) return;
+    this.recent.push(Date.now() - seen);
+    if (this.recent.length > SKEW_SAMPLES) this.recent.shift();
+    this.skewMs = Math.min(...this.recent);
+  }
+}
+
+const SKEW_SAMPLES = 12;
 
 /**
  * Folds a new message into what is known: history arrives once, then each

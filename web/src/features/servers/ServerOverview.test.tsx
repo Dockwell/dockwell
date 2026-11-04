@@ -140,6 +140,22 @@ describe("ServerOverview", () => {
     expect(agent).toHaveTextContent("Last heartbeat5 s ago");
   });
 
+  it("measures the agent's times on the control plane's clock, not the browser's", async () => {
+    // The control plane's clock is 10 min behind the browser's.
+    const skew = 10 * 60_000;
+    const controlNow = () => new Date(Date.now() - skew);
+    const ago = (ms: number) => timestampFromDate(new Date(controlNow().getTime() - ms));
+    const server = aServer({ ...hz1, connectTime: ago(30 * 60_000), lastSeenTime: ago(3_000) });
+    const { watch } = await renderServer("/servers/srv_1", server);
+
+    // A sample arrives, stamped by the control plane as it hears it.
+    act(() => watch.push(changed(aServer({ ...server, history: [], stats: sample(40), lastSeenTime: ago(0) }))));
+
+    const agent = await screen.findByRole("region", { name: "Agent" });
+    await vi.waitFor(() => expect(agent).toHaveTextContent("ConnectedFor 30 min"));
+    expect(agent).toHaveTextContent("Last heartbeat1 s ago");
+  });
+
   it("says when the agent's build differs from the control plane's", async () => {
     const hz2 = aServer({
       id: "srv_2",

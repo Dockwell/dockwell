@@ -24,7 +24,12 @@ export function useNow(interval = SECOND): number {
 export interface TimeWords {
   /** A length of time, rounded to what a person acts on: "40 s", "12 min", "5 hours", "41 days". */
   span(ms: number): string;
-  /** How long ago something was: "now", "2 s ago", "3 min ago", "2 h ago", then a date, "12 Oct". */
+  /**
+   * How long ago something was: "1 s ago" at the least, then "3 min ago",
+   * "2 h ago", then a date, "12 Oct". Never "now", which reads oddly after
+   * "last reported", and never a time to come, which a small difference
+   * between clocks could otherwise give.
+   */
   ago(then: Date, now: number): string;
 }
 
@@ -51,9 +56,8 @@ export function useTimeWords(): TimeWords {
       },
       ago(then, now) {
         const ms = now - then.getTime();
-        if (ms < SECOND) return t`now`;
         if (ms < MINUTE) {
-          const count = Math.floor(ms / SECOND);
+          const count = Math.max(1, Math.floor(ms / SECOND));
           return t`${count} s ago`;
         }
         if (ms < HOUR) {

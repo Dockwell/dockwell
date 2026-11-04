@@ -105,6 +105,20 @@ describe("Overview with one server", () => {
     expect(screen.getByText("4 vCPU · 8 GB · Ubuntu 24.04.1 LTS")).toBeVisible();
   });
 
+  it("counts the time since the last report second by second", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date(2026, 10, 4, 12, 0) });
+    const { watch } = renderOverview();
+    const seen = timestampFromDate(new Date(2026, 10, 4, 11, 59, 50));
+    watch.push(changed(aServer({ ...hz1, connection: Connection.UNREACHABLE, lastSeenTime: seen })), snapshotComplete);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("last reported 10 s ago");
+    await act(() => vi.advanceTimersByTimeAsync(1_000));
+    expect(alert).toHaveTextContent("last reported 11 s ago");
+    await act(() => vi.advanceTimersByTimeAsync(1_000));
+    expect(alert).toHaveTextContent("last reported 12 s ago");
+  });
+
   it("explains a server whose agent hasn't connected yet", async () => {
     const { watch } = renderOverview();
     watch.push(

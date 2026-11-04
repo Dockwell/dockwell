@@ -5,13 +5,15 @@ import { Connection, type Server } from "@dockwell/api";
 import { Callout } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
-import { useNow, useTimeWords } from "../../lib/time";
+import { useTimeWords } from "../../lib/time";
+import { useControlPlaneNow } from "./useFleet";
 
 /** Says when a server's agent isn't reporting, what that means for the page, and what to do. */
 export function ServerCallout({ server }: { server: Server }) {
   const { t } = useLingui();
   const words = useTimeWords();
-  const now = useNow(10_000);
+  // Every second, as the age counts in seconds for its first minute.
+  const now = useControlPlaneNow();
   const name = server.name;
   if (server.connection === Connection.UNREACHABLE) {
     const seen = server.lastSeenTime ? words.ago(timestampDate(server.lastSeenTime), now) : undefined;

@@ -8,9 +8,10 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
 import { formatBitRate, formatBytes, formatDateTime, formatPercent } from "../../lib/format";
-import { useNow, useTimeWords } from "../../lib/time";
+import { useTimeWords } from "../../lib/time";
 import { CopyButton } from "./CopyButton";
 import { isPrivateAddress, serverStatus } from "./server";
+import { useControlPlaneNow } from "./useFleet";
 import "./ServerPanels.css";
 
 /** Each disk's use, as a bar of used and free space. */
@@ -150,7 +151,8 @@ export function NetworkPanel({ server }: { server: Server }) {
 export function AgentPanel({ server }: { server: Server }) {
   const { t, i18n } = useLingui();
   const words = useTimeWords();
-  const now = useNow();
+  // The control plane's clock, which its timestamps are on, so a browser whose clock is off doesn't skew them.
+  const now = useControlPlaneNow();
   const controlPlane = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
   const version = server.agentBuild?.version;
   const badge =

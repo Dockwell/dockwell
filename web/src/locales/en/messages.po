@@ -535,10 +535,6 @@ msgstr "Nothing here yet."
 msgid "Nothing matches “{query}”. Try a server, app or action name."
 msgstr "Nothing matches “{query}”. Try a server, app or action name."
 
-#: src/lib/time.ts
-msgid "now"
-msgstr "now"
-
 #: src/features/servers/ServerMetrics.tsx
 msgid "of {total}"
 msgstr "of {total}"
