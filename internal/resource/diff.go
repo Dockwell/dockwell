@@ -44,11 +44,11 @@ type Change struct {
 func Diff(from, to proto.Message) []Change { return diff(from, to, false) }
 
 // DiffRotating is Diff for a spec whose sensitive values are set anew, as
-// an edit that sets one does: each sensitive value to sets counts as
-// changed, even when from holds the same. Setting a value is a rotation,
-// so what applying does never depends on whether a value is the one
-// already there, and neither a plan nor a step can confirm a guess at it
-// (ADR 0022). Its values are never compared.
+// setting a secret's value does: each sensitive value to sets counts as
+// changed, even when from holds the same. So what applying does never
+// depends on whether the value is the one already there, and neither a
+// plan nor a step can confirm a guess at it (ADR 0022). Its values are
+// never compared.
 func DiffRotating(from, to proto.Message) []Change { return diff(from, to, true) }
 
 func diff(from, to proto.Message, rotate bool) []Change {

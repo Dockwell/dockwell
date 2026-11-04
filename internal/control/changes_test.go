@@ -338,7 +338,7 @@ func testPlanApplyAndUndoThroughTheAPI(t *testing.T, backend store.Backend) {
 	}
 
 	// The same proposal against the same state plans the same, with a
-	// fingerprint of its own, as it sets a container's environment.
+	// fingerprint of its own, as a container is a kind that may hold secrets.
 	again := propose(t, c, "Run web", webEdit("nginx:1.27", map[string]string{"API_KEY": "s3cret-value"}))
 	if again.GetPlan().GetFingerprint() == plan.GetFingerprint() || again.GetId() == planned.GetId() ||
 		!proto.Equal(again.GetPlan().GetSummary(), plan.GetSummary()) || len(again.GetPlan().GetServers()) != len(plan.GetServers()) {

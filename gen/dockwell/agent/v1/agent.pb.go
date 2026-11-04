@@ -1365,10 +1365,10 @@ type DesiredResource struct {
 	// Its spec, encoded as its kind's message. Unset deletes it; an empty
 	// spec is set, with no bytes.
 	Spec []byte `protobuf:"bytes,2,opt,name=spec,proto3,oneof" json:"spec,omitempty"`
-	// True when the change sets the spec's sensitive values anew, as an edit
-	// that sets one does. A plan counts each such value as changed, whatever
-	// the server has, and never compares it, so the step says nothing of
-	// whether a value is the one already there. Only a plan call sets it.
+	// True when the change sets the spec's sensitive values anew, as a
+	// rotation. A plan counts each such value as changed, whatever the server
+	// has, and never compares it, so the step says nothing of whether a value
+	// is the one already there. Only a plan call sets it.
 	Rotate        bool `protobuf:"varint,3,opt,name=rotate,proto3" json:"rotate,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

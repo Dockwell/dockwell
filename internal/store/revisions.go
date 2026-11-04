@@ -105,8 +105,8 @@ type ChangeItem struct {
 	// host-level kind, and none for a deletion or a kind that runs on no
 	// server.
 	Servers []string
-	// Rotates is true when the edit sets values that may be secret, which
-	// plan as changed whatever they hold (ADR 0022).
+	// Rotates is true when the edit sets a secret's value, which plans as
+	// changed whatever it holds (ADR 0022).
 	Rotates bool
 }
 

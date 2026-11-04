@@ -2009,10 +2009,11 @@ export const ChangeService: GenService<{
    * fingerprint unless they edit a kind that may hold secrets, which each
    * change digests for itself.
    *
-   * An edit that sets a sensitive field, such as a secret's value or a
-   * container's environment, is a rotation: it plans as a change, and
-   * restarts what uses the value, whatever the value is. So a plan never
-   * says whether a value is the one already there.
+   * An edit that sets a secret's value is a rotation: it plans as a change,
+   * and restarts what uses the secret, whatever the value is. So a plan
+   * never says whether it is the value already there. Any other sensitive
+   * field, such as a container's environment, compares as usual: an equal
+   * value is no change, and a plan masks one that differs.
    *
    * @generated from rpc dockwell.v1.ChangeService.ProposeChange
    */

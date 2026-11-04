@@ -14,8 +14,8 @@ import (
 type Desired struct {
 	Ref  Ref
 	Spec proto.Message
-	// Rotate says the change sets Spec's sensitive values anew, as an edit
-	// that sets one does: each counts as changed, whatever the server has
+	// Rotate says the change sets Spec's sensitive values anew, as a
+	// rotation: each counts as changed, whatever the server has
 	// (DiffRotating). So the step says nothing of whether a value is the
 	// one already there, and applying it restarts what holds the value.
 	Rotate bool

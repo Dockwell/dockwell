@@ -347,13 +347,15 @@ type item struct {
 	// sealed says its kind's specs may hold secrets, so the store keeps
 	// them encrypted, and the fingerprint digests them with a key.
 	sealed bool
-	// rotates says the edit sets values that may be secret, which plan as
-	// changed whatever they hold (resource.DiffRotating). Setting a value
-	// is a rotation: it makes a revision and restarts what holds it, even
-	// when the value is the one there, so no plan confirms a guess at it.
-	// Only what someone asks for rotates, and what Dockwell puts back
-	// (undo and rollback); what a change takes in, such as the services
-	// that use a value, and what drift keeps or reverts, don't.
+	// rotates says the edit sets the value of a kind that holds values and
+	// keeps them sealed, a secret, which plans as changed whatever it holds
+	// (resource.DiffRotating). Setting one is a rotation: it makes a
+	// revision and restarts what uses it, even when the value is the one
+	// there, so no plan confirms a guess at it. Only what someone asks for
+	// rotates, and what Dockwell puts back (undo and rollback). A workload's
+	// own sensitive fields, such as a container's environment, compare as
+	// any field does: edits carry whole specs, so applying the same thing
+	// twice must change nothing (ADR 0022).
 	rotates bool
 	// id names the resource. A new one gets its ID when the change is
 	// planned, so another item in the change can live in it.
@@ -423,8 +425,8 @@ func (e *Engine) Propose(ctx context.Context, p Proposal) (*Plan, error) {
 	return e.propose(ctx, p, "", true)
 }
 
-// propose plans and records a change. With rotate, an edit that sets
-// values that may be secret rotates them (item.rotates).
+// propose plans and records a change. With rotate, an edit that sets a
+// secret's value rotates it (item.rotates).
 func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate bool) (*Plan, error) {
 	if len(p.Edits) == 0 {
 		return nil, fault.New(ErrInvalid, "the change has no edits. Add one for each resource to change")
@@ -520,7 +522,7 @@ func (e *Engine) recordPlanned(ctx context.Context, tx *store.RevisionTx, c stor
 
 // items reads where each edit's resource stands and what the edit wants of
 // it, gives new resources their IDs, and checks the edits as a whole. With
-// rotate, an edit that sets values that may be secret rotates them.
+// rotate, an edit that sets a secret's value rotates it.
 func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, error) {
 	items := make([]item, 0, len(edits))
 	seen := map[resource.Ref]bool{}
@@ -548,7 +550,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 				if it.encoded, err = resource.Encode(it.spec); err != nil {
 					return err
 				}
-				it.rotates = rotate && resource.SetsSensitive(it.spec)
+				it.rotates = rotate && e.valuer(ed.Ref.Kind) && resource.SetsSensitive(it.spec)
 			} else if it.current == nil {
 				return fault.New(ErrInvalid, "there's no %s to delete. Check its kind, name and scope", ed.Ref)
 			}

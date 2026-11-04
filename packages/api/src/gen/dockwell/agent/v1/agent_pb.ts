@@ -726,10 +726,10 @@ export type DesiredResource = Message<"dockwell.agent.v1.DesiredResource"> & {
   spec?: Uint8Array | undefined;
 
   /**
-   * True when the change sets the spec's sensitive values anew, as an edit
-   * that sets one does. A plan counts each such value as changed, whatever
-   * the server has, and never compares it, so the step says nothing of
-   * whether a value is the one already there. Only a plan call sets it.
+   * True when the change sets the spec's sensitive values anew, as a
+   * rotation. A plan counts each such value as changed, whatever the server
+   * has, and never compares it, so the step says nothing of whether a value
+   * is the one already there. Only a plan call sets it.
    *
    * @generated from field: bool rotate = 3;
    */
