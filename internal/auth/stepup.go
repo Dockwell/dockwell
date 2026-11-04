@@ -24,7 +24,12 @@ import (
 // target, in one session: a person at the keyboard, with their
 // authenticator, just now. It ends in a proof that works once, within
 // StepUpTTL, for that action and target in that session alone. Revealing a
-// secret needs one. See docs/adr/0022-secrets-encrypted-at-rest.md.
+// secret needs one, and so does every change to how a person signs in or
+// to their API tokens that could let a stolen session keep its hold: adding
+// or removing a passkey, setting up or turning off code sign-in, making
+// recovery codes and creating a token. See
+// docs/adr/0022-secrets-encrypted-at-rest.md and
+// docs/adr/0011-claim-and-sign-in.md.
 
 // StepUpTTL is how long a step-up's proof works.
 const StepUpTTL = time.Minute
@@ -32,14 +37,58 @@ const StepUpTTL = time.Minute
 // StepUpAction is an action that needs a step-up.
 type StepUpAction string
 
-// Actions.
+// Actions. Each takes a target: what it acts on, or for an action on the
+// person's own account, the person's ID, which BeginStepUp fills in.
 const (
 	// StepUpRevealSecret reveals a secret's value. Its target is the
 	// secret's ID.
 	StepUpRevealSecret StepUpAction = "secret.reveal"
+	// StepUpAddPasskey adds a passkey.
+	StepUpAddPasskey StepUpAction = "passkey.add"
+	// StepUpRemovePasskey removes a passkey. Its target is the passkey's
+	// ID.
+	StepUpRemovePasskey StepUpAction = "passkey.remove"
+	// StepUpSetUpCodes sets up code sign-in with a new authenticator
+	// secret, which ends with new recovery codes.
+	StepUpSetUpCodes StepUpAction = "totp.enable"
+	// StepUpDisableCodes turns code sign-in off.
+	StepUpDisableCodes StepUpAction = "totp.disable"
+	// StepUpRecoveryCodes makes new recovery codes.
+	StepUpRecoveryCodes StepUpAction = "recovery_codes.regenerate"
+	// StepUpCreateToken creates an API token.
+	StepUpCreateToken StepUpAction = "token.create"
 )
 
-var stepUpWords = map[StepUpAction]string{StepUpRevealSecret: "revealing"}
+// stepUpActions says what each action is doing, for the audit log, and
+// whether it acts on a target of its own rather than the person.
+var stepUpActions = map[StepUpAction]struct {
+	doing    string
+	targeted bool
+}{
+	StepUpRevealSecret:  {"revealing", true},
+	StepUpAddPasskey:    {"adding a passkey", false},
+	StepUpRemovePasskey: {"removing passkey", true},
+	StepUpSetUpCodes:    {"setting up code sign-in", false},
+	StepUpDisableCodes:  {"turning code sign-in off", false},
+	StepUpRecoveryCodes: {"making new recovery codes", false},
+	StepUpCreateToken:   {"creating an API token", false},
+}
+
+// doing says what a step-up confirms, such as "revealing sec_…".
+func doing(action StepUpAction, target string) string {
+	a := stepUpActions[action]
+	if a.targeted {
+		return a.doing + " " + target
+	}
+	return a.doing
+}
+
+// RecentSignIn is how long a sign-in with an authenticator code, a
+// recovery code or a link from dockwell recover confirms adding a passkey,
+// as a step-up would. Someone with no passkey for this address, or none
+// they still have, as after losing a device or adding a domain, adds one
+// so. A session stolen later can't.
+const RecentSignIn = 10 * time.Minute
 
 // Errors for step-ups.
 var (
@@ -47,6 +96,8 @@ var (
 		"Try again, and confirm when your browser asks")
 	ErrNoPasskeyHere = errors.New("confirming this needs a passkey for this address, and you have none here. " +
 		"Add one under Profile and security, then try again")
+	ErrNeedsFreshSignIn = errors.New("adding a passkey needs you to confirm with a passkey you have for this address, and you have none here. " +
+		"Sign out, sign in again with a code, a recovery code or a link from dockwell recover, and add it within 10 minutes")
 )
 
 // StepUp is a step-up's proof.
@@ -110,8 +161,12 @@ func (s *Service) BeginStepUp(ctx context.Context, client Client, p Principal, a
 	if p.Token != nil || p.Session.ID == "" {
 		return Ceremony{}, ErrNeedsSession
 	}
-	if _, ok := stepUpWords[action]; !ok || target == "" {
+	a, ok := stepUpActions[action]
+	switch {
+	case !ok || a.targeted && target == "":
 		return Ceremony{}, fmt.Errorf("%w: say which action to confirm, and on what, such as revealing a secret by its ID", ErrInvalid)
+	case !a.targeted:
+		target = p.User.ID // it acts on the person
 	}
 	rp, err := s.relyingParty(client.Site)
 	if err != nil {
@@ -119,26 +174,17 @@ func (s *Service) BeginStepUp(ctx context.Context, client Client, p Principal, a
 	}
 	var creds []webauthn.Credential
 	err = s.db.View(ctx, func(tx *store.Tx) error {
-		all, err := tx.ListPasskeys(ctx, p.User.ID)
-		if err != nil {
-			return err
-		}
-		for i := range all {
-			if all[i].RPID != client.Site.RPID || all[i].CloneWarningAt != nil {
-				continue
-			}
-			pk, err := decodePasskey(all[i])
-			if err != nil {
-				return err
-			}
-			creds = append(creds, pk.Credential)
-		}
-		return nil
+		var err error
+		creds, err = s.stepUpCredentials(ctx, tx, p.User.ID, client.Site.RPID)
+		return err
 	})
 	if err != nil {
 		return Ceremony{}, err
 	}
 	if len(creds) == 0 {
+		if action == StepUpAddPasskey {
+			return Ceremony{}, ErrNeedsFreshSignIn
+		}
 		return Ceremony{}, ErrNoPasskeyHere
 	}
 	now := s.now()
@@ -158,6 +204,27 @@ func (s *Service) BeginStepUp(ctx context.Context, client Client, p Principal, a
 		sessionID: p.Session.ID, action: action, target: target,
 	}, now)
 	return Ceremony{ID: key, Options: options}, nil
+}
+
+// stepUpCredentials are the passkeys a step-up allows: the person's for
+// this address that aren't flagged as copied.
+func (s *Service) stepUpCredentials(ctx context.Context, tx *store.Tx, userID, rpID string) ([]webauthn.Credential, error) {
+	all, err := tx.ListPasskeys(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	var creds []webauthn.Credential
+	for i := range all {
+		if all[i].RPID != rpID || all[i].CloneWarningAt != nil {
+			continue
+		}
+		pk, err := decodePasskey(all[i])
+		if err != nil {
+			return nil, err
+		}
+		creds = append(creds, pk.Credential)
+	}
+	return creds, nil
 }
 
 // FinishStepUp checks a step-up's assertion and returns its proof. As at
@@ -190,7 +257,7 @@ func (s *Service) FinishStepUp(ctx context.Context, client Client, p Principal, 
 		copied  string
 		used    string
 	)
-	what := fmt.Sprintf("%s %s", stepUpWords[cer.action], cer.target)
+	what := doing(cer.action, cer.target)
 	err = s.db.Update(ctx, func(tx *store.Tx) error {
 		stored, err := tx.GetPasskeyByCredentialID(ctx, parsed.RawID)
 		if errors.Is(err, store.ErrNotFound) {
@@ -226,7 +293,13 @@ func (s *Service) FinishStepUp(ctx context.Context, client Client, p Principal, 
 		if detail, ok := s.unflagged.get(pk.ID); ok {
 			return flag(detail)
 		}
-		cred, err := rp.ValidateLogin(&waUser{user: p.User, credentials: []webauthn.Credential{pk.Credential}}, cer.session, parsed)
+		// The assertion is checked against every passkey the ceremony
+		// allowed, as the library requires, and must come from pk.
+		allowed, err := s.stepUpCredentials(ctx, tx, p.User.ID, client.Site.RPID)
+		if err != nil {
+			return err
+		}
+		cred, err := rp.ValidateLogin(&waUser{user: p.User, credentials: allowed}, cer.session, parsed)
 		if err != nil {
 			return refuse(protocolDetail(err), ErrPasskeyRejected)
 		}
@@ -273,7 +346,8 @@ func (s *Service) FinishStepUp(ctx context.Context, client Client, p Principal, 
 
 // UseStepUp spends a proof for action on target, in the principal's
 // session. It works once: a proof given for anything else is spent too.
-// No API token can use one.
+// No API token can use one. For an action on the person's own account,
+// the target is their ID.
 func (s *Service) UseStepUp(p Principal, proof string, action StepUpAction, target string) error {
 	if p.Token != nil || p.Session.ID == "" {
 		return ErrNeedsSession
@@ -289,4 +363,22 @@ func (s *Service) UseStepUp(p Principal, proof string, action StepUpAction, targ
 		return ErrNeedsStepUp
 	}
 	return nil
+}
+
+// confirmed spends a proof for an action on the principal's own account
+// (UseStepUp).
+func (s *Service) confirmed(p Principal, proof string, action StepUpAction) error {
+	return s.UseStepUp(p, proof, action, p.User.ID)
+}
+
+// signedInJustNow reports a session made, within RecentSignIn, by a
+// sign-in that needs no passkey here: an authenticator code, a recovery
+// code or a link from dockwell recover. That sign-in confirms adding a
+// passkey, as a step-up would.
+func (s *Service) signedInJustNow(p Principal) bool {
+	switch p.Session.Method {
+	case MethodAuthenticator, MethodRecoveryCode, MethodLink:
+		return p.Token == nil && s.now().Sub(p.Session.CreatedAt) < RecentSignIn
+	}
+	return false
 }

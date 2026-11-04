@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { AuthService, type Passkey } from "@dockwell/api";
+import { AuthService, type Passkey, StepUpAction } from "@dockwell/api";
 import { Button, Icon, Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
@@ -14,8 +14,13 @@ import { createPasskey, passkeysAvailable } from "../../lib/webauthn";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { useDeviceName } from "./device";
 import { useAuthError } from "./messages";
+import { stepUp, withStepUpIfAsked } from "./stepUp";
 
-/** Adds a passkey for this address, and refreshes the list. */
+/**
+ * Adds a passkey for this address, and refreshes the list. Your browser
+ * first asks for a passkey you have here, to confirm it, unless you signed
+ * in with a code or a link just now, which confirms it already.
+ */
 export function useAddPasskey() {
   const transport = useTransport();
   const device = useDeviceName();
@@ -28,7 +33,9 @@ export function useAddPasskey() {
     setProblem(undefined);
     try {
       const client = createClient(AuthService, transport);
-      const begin = await client.beginAddPasskey({});
+      const begin = await withStepUpIfAsked(transport, StepUpAction.ADD_PASSKEY, (proof) =>
+        client.beginAddPasskey({ proof }),
+      );
       const credentialJson = await createPasskey(begin.optionsJson);
       await client.finishAddPasskey({ ceremonyId: begin.ceremonyId, credentialJson, name: device });
       await passkeys.refetch();
@@ -113,7 +120,8 @@ function PasskeyRow({ passkey, here, now, onRemoved }: PasskeyRowProps) {
     setBusy(true);
     setProblem(undefined);
     try {
-      await createClient(AuthService, transport).removePasskey({ id: passkey.id });
+      const proof = await stepUp(transport, StepUpAction.REMOVE_PASSKEY, passkey.id);
+      await createClient(AuthService, transport).removePasskey({ id: passkey.id, proof });
       onRemoved();
     } catch (err) {
       setProblem(explain(err));

@@ -145,6 +145,21 @@ const (
 	// Revealing a secret's value, with RevealSecret. The target is the
 	// secret's ID.
 	StepUpAction_STEP_UP_ACTION_REVEAL_SECRET StepUpAction = 1
+	// Adding a passkey, with BeginAddPasskey. It has no target.
+	StepUpAction_STEP_UP_ACTION_ADD_PASSKEY StepUpAction = 2
+	// Removing a passkey, with RemovePasskey. The target is the passkey's ID.
+	StepUpAction_STEP_UP_ACTION_REMOVE_PASSKEY StepUpAction = 3
+	// Setting up code sign-in with a new authenticator secret, with
+	// BeginTotpSetup, which ConfirmTotpSetup finishes with new recovery
+	// codes. It has no target.
+	StepUpAction_STEP_UP_ACTION_SET_UP_CODES StepUpAction = 4
+	// Turning code sign-in off, with DisableTotp. It has no target.
+	StepUpAction_STEP_UP_ACTION_DISABLE_CODES StepUpAction = 5
+	// Making new recovery codes, with RegenerateRecoveryCodes. It has no
+	// target.
+	StepUpAction_STEP_UP_ACTION_REGENERATE_RECOVERY_CODES StepUpAction = 6
+	// Creating an API token, with TokenService.CreateToken. It has no target.
+	StepUpAction_STEP_UP_ACTION_CREATE_TOKEN StepUpAction = 7
 )
 
 // Enum value maps for StepUpAction.
@@ -152,10 +167,22 @@ var (
 	StepUpAction_name = map[int32]string{
 		0: "STEP_UP_ACTION_UNSPECIFIED",
 		1: "STEP_UP_ACTION_REVEAL_SECRET",
+		2: "STEP_UP_ACTION_ADD_PASSKEY",
+		3: "STEP_UP_ACTION_REMOVE_PASSKEY",
+		4: "STEP_UP_ACTION_SET_UP_CODES",
+		5: "STEP_UP_ACTION_DISABLE_CODES",
+		6: "STEP_UP_ACTION_REGENERATE_RECOVERY_CODES",
+		7: "STEP_UP_ACTION_CREATE_TOKEN",
 	}
 	StepUpAction_value = map[string]int32{
-		"STEP_UP_ACTION_UNSPECIFIED":   0,
-		"STEP_UP_ACTION_REVEAL_SECRET": 1,
+		"STEP_UP_ACTION_UNSPECIFIED":               0,
+		"STEP_UP_ACTION_REVEAL_SECRET":             1,
+		"STEP_UP_ACTION_ADD_PASSKEY":               2,
+		"STEP_UP_ACTION_REMOVE_PASSKEY":            3,
+		"STEP_UP_ACTION_SET_UP_CODES":              4,
+		"STEP_UP_ACTION_DISABLE_CODES":             5,
+		"STEP_UP_ACTION_REGENERATE_RECOVERY_CODES": 6,
+		"STEP_UP_ACTION_CREATE_TOKEN":              7,
 	}
 )
 
@@ -1800,7 +1827,9 @@ type BeginStepUpRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The action.
 	Action StepUpAction `protobuf:"varint,1,opt,name=action,proto3,enum=dockwell.v1.StepUpAction" json:"action,omitempty"`
-	// What it acts on, such as a secret's ID.
+	// What it acts on: a secret's ID to reveal it, a passkey's to remove it.
+	// Leave it out for an action on your own account, such as adding a
+	// passkey.
 	Target        string `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2016,9 +2045,13 @@ func (x *FinishStepUpResponse) GetExpireTime() *timestamppb.Timestamp {
 	return nil
 }
 
-// BeginAddPasskeyRequest takes no parameters.
+// BeginAddPasskeyRequest confirms adding a passkey.
 type BeginAddPasskeyRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The proof from FinishStepUp, for adding a passkey. Leave it out within
+	// 10 minutes of signing in with a code, a recovery code or a link from
+	// dockwell recover.
+	Proof         string `protobuf:"bytes,1,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2051,6 +2084,13 @@ func (x *BeginAddPasskeyRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use BeginAddPasskeyRequest.ProtoReflect.Descriptor instead.
 func (*BeginAddPasskeyRequest) Descriptor() ([]byte, []int) {
 	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *BeginAddPasskeyRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
 }
 
 // BeginAddPasskeyResponse carries the options for creating the passkey.
@@ -2222,7 +2262,9 @@ func (x *FinishAddPasskeyResponse) GetPasskey() *Passkey {
 type RemovePasskeyRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The passkey's ID.
-	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The proof from FinishStepUp, for removing this passkey.
+	Proof         string `protobuf:"bytes,2,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2260,6 +2302,13 @@ func (*RemovePasskeyRequest) Descriptor() ([]byte, []int) {
 func (x *RemovePasskeyRequest) GetId() string {
 	if x != nil {
 		return x.Id
+	}
+	return ""
+}
+
+func (x *RemovePasskeyRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
 	}
 	return ""
 }
@@ -2458,9 +2507,11 @@ func (x *Totp) GetLockTime() *timestamppb.Timestamp {
 	return nil
 }
 
-// BeginTotpSetupRequest takes no parameters.
+// BeginTotpSetupRequest confirms setting up code sign-in.
 type BeginTotpSetupRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The proof from FinishStepUp, for setting up code sign-in.
+	Proof         string `protobuf:"bytes,1,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2493,6 +2544,13 @@ func (x *BeginTotpSetupRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use BeginTotpSetupRequest.ProtoReflect.Descriptor instead.
 func (*BeginTotpSetupRequest) Descriptor() ([]byte, []int) {
 	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *BeginTotpSetupRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
 }
 
 // BeginTotpSetupResponse carries the new secret.
@@ -2642,9 +2700,11 @@ func (x *ConfirmTotpSetupResponse) GetRecoveryCodes() []string {
 	return nil
 }
 
-// DisableTotpRequest takes no parameters.
+// DisableTotpRequest confirms turning code sign-in off.
 type DisableTotpRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The proof from FinishStepUp, for turning code sign-in off.
+	Proof         string `protobuf:"bytes,1,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2677,6 +2737,13 @@ func (x *DisableTotpRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use DisableTotpRequest.ProtoReflect.Descriptor instead.
 func (*DisableTotpRequest) Descriptor() ([]byte, []int) {
 	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *DisableTotpRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
 }
 
 // DisableTotpResponse is empty.
@@ -2716,9 +2783,11 @@ func (*DisableTotpResponse) Descriptor() ([]byte, []int) {
 	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{47}
 }
 
-// RegenerateRecoveryCodesRequest takes no parameters.
+// RegenerateRecoveryCodesRequest confirms making new recovery codes.
 type RegenerateRecoveryCodesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The proof from FinishStepUp, for making recovery codes.
+	Proof         string `protobuf:"bytes,1,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2751,6 +2820,13 @@ func (x *RegenerateRecoveryCodesRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RegenerateRecoveryCodesRequest.ProtoReflect.Descriptor instead.
 func (*RegenerateRecoveryCodesRequest) Descriptor() ([]byte, []int) {
 	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *RegenerateRecoveryCodesRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
 }
 
 // RegenerateRecoveryCodesResponse carries the new codes.
@@ -2992,8 +3068,9 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x14FinishStepUpResponse\x12\x14\n" +
 	"\x05proof\x18\x01 \x01(\tR\x05proof\x12;\n" +
 	"\vexpire_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"expireTime\"\x18\n" +
-	"\x16BeginAddPasskeyRequest\"]\n" +
+	"expireTime\".\n" +
+	"\x16BeginAddPasskeyRequest\x12\x14\n" +
+	"\x05proof\x18\x01 \x01(\tR\x05proof\"]\n" +
 	"\x17BeginAddPasskeyResponse\x12\x1f\n" +
 	"\vceremony_id\x18\x01 \x01(\tR\n" +
 	"ceremonyId\x12!\n" +
@@ -3004,9 +3081,10 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x0fcredential_json\x18\x02 \x01(\tR\x0ecredentialJson\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\"J\n" +
 	"\x18FinishAddPasskeyResponse\x12.\n" +
-	"\apasskey\x18\x01 \x01(\v2\x14.dockwell.v1.PasskeyR\apasskey\"&\n" +
+	"\apasskey\x18\x01 \x01(\v2\x14.dockwell.v1.PasskeyR\apasskey\"<\n" +
 	"\x14RemovePasskeyRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x17\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05proof\x18\x02 \x01(\tR\x05proof\"\x17\n" +
 	"\x15RemovePasskeyResponse\"\x10\n" +
 	"\x0eGetTotpRequest\"8\n" +
 	"\x0fGetTotpResponse\x12%\n" +
@@ -3015,18 +3093,21 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12.\n" +
 	"\x13recovery_codes_left\x18\x02 \x01(\x05R\x11recoveryCodesLeft\x12'\n" +
 	"\x0ffailed_attempts\x18\x03 \x01(\x05R\x0efailedAttempts\x127\n" +
-	"\tlock_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\blockTime\"\x17\n" +
-	"\x15BeginTotpSetupRequest\"B\n" +
+	"\tlock_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\blockTime\"-\n" +
+	"\x15BeginTotpSetupRequest\x12\x14\n" +
+	"\x05proof\x18\x01 \x01(\tR\x05proof\"B\n" +
 	"\x16BeginTotpSetupResponse\x12\x16\n" +
 	"\x06secret\x18\x01 \x01(\tR\x06secret\x12\x10\n" +
 	"\x03uri\x18\x02 \x01(\tR\x03uri\"-\n" +
 	"\x17ConfirmTotpSetupRequest\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\"A\n" +
 	"\x18ConfirmTotpSetupResponse\x12%\n" +
-	"\x0erecovery_codes\x18\x01 \x03(\tR\rrecoveryCodes\"\x14\n" +
-	"\x12DisableTotpRequest\"\x15\n" +
-	"\x13DisableTotpResponse\" \n" +
-	"\x1eRegenerateRecoveryCodesRequest\"H\n" +
+	"\x0erecovery_codes\x18\x01 \x03(\tR\rrecoveryCodes\"*\n" +
+	"\x12DisableTotpRequest\x12\x14\n" +
+	"\x05proof\x18\x01 \x01(\tR\x05proof\"\x15\n" +
+	"\x13DisableTotpResponse\"6\n" +
+	"\x1eRegenerateRecoveryCodesRequest\x12\x14\n" +
+	"\x05proof\x18\x01 \x01(\tR\x05proof\"H\n" +
 	"\x1fRegenerateRecoveryCodesResponse\x12%\n" +
 	"\x0erecovery_codes\x18\x01 \x03(\tR\rrecoveryCodes\"\x19\n" +
 	"\x17UnlockCodeSignInRequest\"\x1a\n" +
@@ -3041,10 +3122,16 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x16SIGN_IN_METHOD_PASSKEY\x10\x02\x12%\n" +
 	"!SIGN_IN_METHOD_AUTHENTICATOR_CODE\x10\x03\x12 \n" +
 	"\x1cSIGN_IN_METHOD_RECOVERY_CODE\x10\x04\x12\x17\n" +
-	"\x13SIGN_IN_METHOD_LINK\x10\x05*P\n" +
+	"\x13SIGN_IN_METHOD_LINK\x10\x05*\xa5\x02\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
-	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x012\xba#\n" +
+	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
+	"\x1aSTEP_UP_ACTION_ADD_PASSKEY\x10\x02\x12!\n" +
+	"\x1dSTEP_UP_ACTION_REMOVE_PASSKEY\x10\x03\x12\x1f\n" +
+	"\x1bSTEP_UP_ACTION_SET_UP_CODES\x10\x04\x12 \n" +
+	"\x1cSTEP_UP_ACTION_DISABLE_CODES\x10\x05\x12,\n" +
+	"(STEP_UP_ACTION_REGENERATE_RECOVERY_CODES\x10\x06\x12\x1f\n" +
+	"\x1bSTEP_UP_ACTION_CREATE_TOKEN\x10\a2\x92$\n" +
 	"\vAuthService\x12q\n" +
 	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12}\n" +
 	"\n" +
@@ -3070,22 +3157,22 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\fFinishStepUp\x12 .dockwell.v1.FinishStepUpRequest\x1a!.dockwell.v1.FinishStepUpResponse\"(\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/sessions:finishStepUp\x12p\n" +
 	"\fListPasskeys\x12 .dockwell.v1.ListPasskeysRequest\x1a!.dockwell.v1.ListPasskeysResponse\"\x1b\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/passkeys\x90\x02\x01\x12\x82\x01\n" +
 	"\x0fBeginAddPasskey\x12#.dockwell.v1.BeginAddPasskeyRequest\x1a$.dockwell.v1.BeginAddPasskeyResponse\"$\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/passkeys:beginAdd\x12\x86\x01\n" +
-	"\x10FinishAddPasskey\x12$.dockwell.v1.FinishAddPasskeyRequest\x1a%.dockwell.v1.FinishAddPasskeyResponse\"%\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/passkeys:finishAdd\x12u\n" +
-	"\rRemovePasskey\x12!.dockwell.v1.RemovePasskeyRequest\x1a\".dockwell.v1.RemovePasskeyResponse\"\x1d\xa0\xbb\x18\x04\x82\xd3\xe4\x93\x02\x13*\x11/v1/passkeys/{id}\x12]\n" +
+	"\x10FinishAddPasskey\x12$.dockwell.v1.FinishAddPasskeyRequest\x1a%.dockwell.v1.FinishAddPasskeyResponse\"%\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/passkeys:finishAdd\x12\x7f\n" +
+	"\rRemovePasskey\x12!.dockwell.v1.RemovePasskeyRequest\x1a\".dockwell.v1.RemovePasskeyResponse\"'\xa0\xbb\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/passkeys/{id}:remove\x12]\n" +
 	"\aGetTotp\x12\x1b.dockwell.v1.GetTotpRequest\x1a\x1c.dockwell.v1.GetTotpResponse\"\x17\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\n" +
 	"\x12\b/v1/totp\x90\x02\x01\x12}\n" +
 	"\x0eBeginTotpSetup\x12\".dockwell.v1.BeginTotpSetupRequest\x1a#.dockwell.v1.BeginTotpSetupResponse\"\"\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/totp:beginSetup\x12\x85\x01\n" +
 	"\x10ConfirmTotpSetup\x12$.dockwell.v1.ConfirmTotpSetupRequest\x1a%.dockwell.v1.ConfirmTotpSetupResponse\"$\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/totp:confirmSetup\x12q\n" +
 	"\vDisableTotp\x12\x1f.dockwell.v1.DisableTotpRequest\x1a .dockwell.v1.DisableTotpResponse\"\x1f\xa0\xbb\x18\x04\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/totp:disable\x12\xa5\x01\n" +
 	"\x17RegenerateRecoveryCodes\x12+.dockwell.v1.RegenerateRecoveryCodesRequest\x1a,.dockwell.v1.RegenerateRecoveryCodesResponse\"/\xa0\xbb\x18\x04\x82\xd3\xe4\x93\x02%:\x01*\" /v1/totp:regenerateRecoveryCodes\x12\x7f\n" +
-	"\x10UnlockCodeSignIn\x12$.dockwell.v1.UnlockCodeSignInRequest\x1a%.dockwell.v1.UnlockCodeSignInResponse\"\x1e\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/totp:unlock\x1a\x8b\v\xa2\xbb\x18\xb6\x01\n" +
+	"\x10UnlockCodeSignIn\x12$.dockwell.v1.UnlockCodeSignInRequest\x1a%.dockwell.v1.UnlockCodeSignInResponse\"\x1e\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/totp:unlock\x1a\xd9\v\xa2\xbb\x18\xb6\x01\n" +
 	"\n" +
 	"auth-state\x12\xa7\x01The install's auth state says whether it has an owner yet, who is signed in on a request, and which address passkeys are made for there. GetAuthState needs no sign-in.\xa2\xbb\x18\x92\x02\n" +
 	"\n" +
-	"claim-link\x12\x83\x02A claim link, which dockwell run and dockwell claim print, creates the install's owner with a passkey, and works once. CheckClaim describes the server a link claims, and BeginClaim and FinishClaim make the passkey, which takes a browser: open the link in one.\xa2\xbb\x18\x9a\x02\n" +
-	"\bpasskeys\x12\x8d\x02Passkeys are how you sign in to the panel. A browser, a phone or a security key makes each one, for one address, and only it can use it. Adding and removing them needs a signed-in session, which no API token gives, so you do it in the panel, under Profile and security.\xa2\xbb\x18\xb9\x02\n" +
-	"\bsessions\x12\xac\x02A session is a browser you're signed in on. Signing in takes a passkey, a code from an authenticator app, a recovery code, or a one-time link from dockwell recover, and sets a session cookie. No API token can sign in, or list or end sessions: how you sign in changes only by signing in, in the panel.\xa2\xbb\x18\xd7\x02\n" +
-	"\x04totp\x12\xce\x02Code sign-in lets you sign in with a code from an authenticator app, or with a one-time recovery code, beside your passkeys. Wrong codes slow it down, and too many lock it until UnlockCodeSignIn turns it back on. Setting it up needs a signed-in session, which no API token gives, so you do it in the panel, under Profile and security.B\xa2\x01\n" +
+	"claim-link\x12\x83\x02A claim link, which dockwell run and dockwell claim print, creates the install's owner with a passkey, and works once. CheckClaim describes the server a link claims, and BeginClaim and FinishClaim make the passkey, which takes a browser: open the link in one.\xa2\xbb\x18\xc8\x02\n" +
+	"\bpasskeys\x12\xbb\x02Passkeys are how you sign in to the panel. A browser, a phone or a security key makes each one, for one address, and only it can use it. Adding and removing them needs a signed-in session, which no API token gives, and a passkey you already have to confirm it, so you do it in the panel, under Profile and security.\xa2\xbb\x18\xb9\x02\n" +
+	"\bsessions\x12\xac\x02A session is a browser you're signed in on. Signing in takes a passkey, a code from an authenticator app, a recovery code, or a one-time link from dockwell recover, and sets a session cookie. No API token can sign in, or list or end sessions: how you sign in changes only by signing in, in the panel.\xa2\xbb\x18\xf7\x02\n" +
+	"\x04totp\x12\xee\x02Code sign-in lets you sign in with a code from an authenticator app, or with a one-time recovery code, beside your passkeys. Wrong codes slow it down, and too many lock it until UnlockCodeSignIn turns it back on. Setting it up needs a signed-in session, which no API token gives, and your passkey to confirm it, so you do it in the panel, under Profile and security.B\xa2\x01\n" +
 	"\x0fcom.dockwell.v1B\tAuthProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

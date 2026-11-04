@@ -135,12 +135,16 @@ func liveToken(tok *store.APIToken, now time.Time) bool {
 }
 
 // CreateToken makes a token for the principal, who must have signed in: a
-// token can't make another. Unset expires makes one that doesn't expire.
-func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope string, expires *time.Time) (NewToken, error) {
-	if p.Token != nil {
+// token can't make another. It needs proof of a step-up for creating a
+// token, so a stolen session can't make one to keep. Unset expires makes
+// one that doesn't expire. A request it refuses as invalid leaves the
+// proof unspent.
+func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope string, expires *time.Time, proof string) (NewToken, error) {
+	if p.Token != nil || p.Session.ID == "" {
 		return NewToken{}, ErrNeedsSession
 	}
-	return s.createToken(ctx, func(*store.Tx) (store.User, error) { return p.User, nil }, p.Actor(), name, scope, expires)
+	return s.createToken(ctx, func(*store.Tx) (store.User, error) { return p.User, nil }, p.Actor(), name, scope, expires,
+		func() error { return s.confirmed(p, proof, StepUpCreateToken) })
 }
 
 // LocalTokenTTL is how long a token for local access lasts.
@@ -160,7 +164,7 @@ func (s *Service) CreateLocalToken(ctx context.Context, actor, name, scope strin
 			return u, errors.New("this install has no owner yet, so local access has nobody to act for. Claim it with the link from dockwell claim")
 		}
 		return u, err
-	}, actor, name, scope, &expires)
+	}, actor, name, scope, &expires, nil)
 }
 
 // RevokeLocalToken revokes a token CreateLocalToken made, for whoever can
@@ -196,8 +200,11 @@ func (s *Service) RevokeLocalToken(ctx context.Context, actor, tokenID string) (
 }
 
 // createToken makes a token for the user who returns, in the transaction
-// that stores it.
-func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, name, scope string, expires *time.Time) (NewToken, error) {
+// that stores it. confirm, when set, is called once the request is valid
+// and before anything is stored, to check it may be made.
+func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, name, scope string, expires *time.Time,
+	confirm func() error,
+) (NewToken, error) {
 	name = strings.Join(strings.Fields(cleanText(name)), " ")
 	if name == "" || len([]rune(name)) > maxTokenName {
 		return NewToken{}, fmt.Errorf("%w: name the token after what will use it, in up to %d characters, such as GitHub Actions deploy",
@@ -213,6 +220,11 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 			return NewToken{}, fmt.Errorf("%w: choose an expiry in the future, or none", ErrInvalid)
 		}
 		expires = &at
+	}
+	if confirm != nil {
+		if err := confirm(); err != nil {
+			return NewToken{}, err
+		}
 	}
 	secret, hash := newTokenSecret()
 	tok := store.APIToken{

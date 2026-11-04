@@ -396,9 +396,12 @@ type ceremony struct {
 	// claimHash is the claim link's token hash.
 	claimHash []byte
 	// What a step-up confirms: in which session, which action, on what.
+	// Adding a passkey is bound to its session too.
 	sessionID string
 	action    StepUpAction
 	target    string
+	// confirmed says, for the audit log, what confirmed adding a passkey.
+	confirmed string
 }
 
 type ceremonyKind int

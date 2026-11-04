@@ -134,8 +134,9 @@ type AuthServiceClient interface {
 	// RevokeOtherSessions ends every session of yours except this one.
 	RevokeOtherSessions(context.Context, *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error)
 	// BeginStepUp starts confirming, with a passkey you have for the address
-	// of this request, an action that needs a person right now, such as
-	// revealing a secret. Pass the passkey's answer to FinishStepUp.
+	// of this request, an action that needs a person right now: revealing a
+	// secret, or changing how you sign in or your API tokens. Pass the
+	// passkey's answer to FinishStepUp.
 	BeginStepUp(context.Context, *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error)
 	// FinishStepUp checks the passkey's answer and returns a proof for the
 	// action it began with. The proof works once, within a minute, in this
@@ -144,26 +145,33 @@ type AuthServiceClient interface {
 	// ListPasskeys returns your passkeys, oldest first.
 	ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error)
 	// BeginAddPasskey starts adding a passkey for the address of this request.
+	// It needs a proof from FinishStepUp for adding a passkey, made with a
+	// passkey you have for this address. Within 10 minutes of signing in with
+	// a code, a recovery code or a link from dockwell recover, that sign-in
+	// confirms it instead, so you can add one when you have none here.
 	BeginAddPasskey(context.Context, *connect.Request[v1.BeginAddPasskeyRequest]) (*connect.Response[v1.BeginAddPasskeyResponse], error)
 	// FinishAddPasskey saves the new passkey.
 	FinishAddPasskey(context.Context, *connect.Request[v1.FinishAddPasskeyRequest]) (*connect.Response[v1.FinishAddPasskeyResponse], error)
-	// RemovePasskey removes one of your passkeys. It refuses to remove your last
-	// way to sign in.
+	// RemovePasskey removes one of your passkeys. It needs a proof from
+	// FinishStepUp for removing it. It refuses to remove your last way to sign
+	// in.
 	RemovePasskey(context.Context, *connect.Request[v1.RemovePasskeyRequest]) (*connect.Response[v1.RemovePasskeyResponse], error)
 	// GetTotp says whether you sign in with an authenticator app, and how many
 	// recovery codes are left.
 	GetTotp(context.Context, *connect.Request[v1.GetTotpRequest]) (*connect.Response[v1.GetTotpResponse], error)
-	// BeginTotpSetup makes a new authenticator secret. It takes effect only
+	// BeginTotpSetup makes a new authenticator secret. It needs a proof from
+	// FinishStepUp for setting up code sign-in. The secret takes effect only
 	// once ConfirmTotpSetup checks a code from it.
 	BeginTotpSetup(context.Context, *connect.Request[v1.BeginTotpSetupRequest]) (*connect.Response[v1.BeginTotpSetupResponse], error)
 	// ConfirmTotpSetup checks a code from the new secret, turns code sign-in
 	// on, and returns new recovery codes. They are shown once.
 	ConfirmTotpSetup(context.Context, *connect.Request[v1.ConfirmTotpSetupRequest]) (*connect.Response[v1.ConfirmTotpSetupResponse], error)
 	// DisableTotp turns code sign-in off and deletes the secret and recovery
-	// codes. It refuses when that would leave no way to sign in.
+	// codes. It needs a proof from FinishStepUp for turning code sign-in off.
+	// It refuses when that would leave no way to sign in.
 	DisableTotp(context.Context, *connect.Request[v1.DisableTotpRequest]) (*connect.Response[v1.DisableTotpResponse], error)
 	// RegenerateRecoveryCodes replaces your recovery codes. The old ones stop
-	// working.
+	// working. It needs a proof from FinishStepUp for making recovery codes.
 	RegenerateRecoveryCodes(context.Context, *connect.Request[v1.RegenerateRecoveryCodesRequest]) (*connect.Response[v1.RegenerateRecoveryCodesResponse], error)
 	// UnlockCodeSignIn turns code sign-in back on after too many wrong codes
 	// locked it.
@@ -512,8 +520,9 @@ type AuthServiceHandler interface {
 	// RevokeOtherSessions ends every session of yours except this one.
 	RevokeOtherSessions(context.Context, *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error)
 	// BeginStepUp starts confirming, with a passkey you have for the address
-	// of this request, an action that needs a person right now, such as
-	// revealing a secret. Pass the passkey's answer to FinishStepUp.
+	// of this request, an action that needs a person right now: revealing a
+	// secret, or changing how you sign in or your API tokens. Pass the
+	// passkey's answer to FinishStepUp.
 	BeginStepUp(context.Context, *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error)
 	// FinishStepUp checks the passkey's answer and returns a proof for the
 	// action it began with. The proof works once, within a minute, in this
@@ -522,26 +531,33 @@ type AuthServiceHandler interface {
 	// ListPasskeys returns your passkeys, oldest first.
 	ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error)
 	// BeginAddPasskey starts adding a passkey for the address of this request.
+	// It needs a proof from FinishStepUp for adding a passkey, made with a
+	// passkey you have for this address. Within 10 minutes of signing in with
+	// a code, a recovery code or a link from dockwell recover, that sign-in
+	// confirms it instead, so you can add one when you have none here.
 	BeginAddPasskey(context.Context, *connect.Request[v1.BeginAddPasskeyRequest]) (*connect.Response[v1.BeginAddPasskeyResponse], error)
 	// FinishAddPasskey saves the new passkey.
 	FinishAddPasskey(context.Context, *connect.Request[v1.FinishAddPasskeyRequest]) (*connect.Response[v1.FinishAddPasskeyResponse], error)
-	// RemovePasskey removes one of your passkeys. It refuses to remove your last
-	// way to sign in.
+	// RemovePasskey removes one of your passkeys. It needs a proof from
+	// FinishStepUp for removing it. It refuses to remove your last way to sign
+	// in.
 	RemovePasskey(context.Context, *connect.Request[v1.RemovePasskeyRequest]) (*connect.Response[v1.RemovePasskeyResponse], error)
 	// GetTotp says whether you sign in with an authenticator app, and how many
 	// recovery codes are left.
 	GetTotp(context.Context, *connect.Request[v1.GetTotpRequest]) (*connect.Response[v1.GetTotpResponse], error)
-	// BeginTotpSetup makes a new authenticator secret. It takes effect only
+	// BeginTotpSetup makes a new authenticator secret. It needs a proof from
+	// FinishStepUp for setting up code sign-in. The secret takes effect only
 	// once ConfirmTotpSetup checks a code from it.
 	BeginTotpSetup(context.Context, *connect.Request[v1.BeginTotpSetupRequest]) (*connect.Response[v1.BeginTotpSetupResponse], error)
 	// ConfirmTotpSetup checks a code from the new secret, turns code sign-in
 	// on, and returns new recovery codes. They are shown once.
 	ConfirmTotpSetup(context.Context, *connect.Request[v1.ConfirmTotpSetupRequest]) (*connect.Response[v1.ConfirmTotpSetupResponse], error)
 	// DisableTotp turns code sign-in off and deletes the secret and recovery
-	// codes. It refuses when that would leave no way to sign in.
+	// codes. It needs a proof from FinishStepUp for turning code sign-in off.
+	// It refuses when that would leave no way to sign in.
 	DisableTotp(context.Context, *connect.Request[v1.DisableTotpRequest]) (*connect.Response[v1.DisableTotpResponse], error)
 	// RegenerateRecoveryCodes replaces your recovery codes. The old ones stop
-	// working.
+	// working. It needs a proof from FinishStepUp for making recovery codes.
 	RegenerateRecoveryCodes(context.Context, *connect.Request[v1.RegenerateRecoveryCodesRequest]) (*connect.Response[v1.RegenerateRecoveryCodesResponse], error)
 	// UnlockCodeSignIn turns code sign-in back on after too many wrong codes
 	// locked it.

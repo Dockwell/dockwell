@@ -2,7 +2,9 @@
 
 // Claims a fresh install, signs out and signs in again in headless Chromium,
 // against a real `dockwell run` on a temporary data directory, with the
-// DevTools virtual authenticator standing in for Touch ID. Then it turns on
+// DevTools virtual authenticator standing in for Touch ID. It adds a second
+// passkey, from a second authenticator, confirmed with the first: a
+// step-up, as every change to how you sign in takes. Then it turns on
 // codes, signs in with a recovery code, opens a link from `dockwell recover`
 // on a phone, and signs that phone out from the first browser. It makes an
 // API token in the panel, calls REST and Connect with it as a script would,
@@ -257,6 +259,63 @@ async function main() {
   if (api.status !== 200 || api.body.sessions?.length !== 1)
     fail(`ListSessions after signing in again: ${JSON.stringify(api)}`);
   step(`  signed in again; ${api.body.sessions.length} open session`);
+
+  step("add a second passkey, confirmed with the first: a step-up");
+  await page.goto(`${origin}/`);
+  await nav(page).getByRole("link", { name: "Mira Chen Owner" }).click();
+  await expectPage(page, "Profile and security");
+  const passkeyList = page.getByRole("region", { name: "Passkeys" });
+  await passkeyList.getByRole("listitem").first().waitFor();
+  // The first authenticator holds the passkey that confirms it. A second,
+  // as a security key would, makes the new one: the first can't, as it
+  // holds one for this account already. They swap once the step-up is done,
+  // as the panel asks to begin adding with its proof, the second time it
+  // asks: the first, without one, is answered needs_step_up.
+  const beginAdd = "**/dockwell.v1.AuthService/BeginAddPasskey";
+  let begins = 0;
+  let second: string | undefined;
+  await page.route(beginAdd, async (route) => {
+    begins += 1;
+    if (begins === 2) {
+      await cdp.send("WebAuthn.setAutomaticPresenceSimulation", { authenticatorId, enabled: false });
+      ({ authenticatorId: second } = await cdp.send("WebAuthn.addVirtualAuthenticator", {
+        options: {
+          protocol: "ctap2",
+          transport: "usb",
+          hasResidentKey: true,
+          hasUserVerification: true,
+          isUserVerified: true,
+          automaticPresenceSimulation: true,
+        },
+      }));
+    }
+    await route.continue();
+  });
+  const stepUps = await watchFor(page, ["needs your passkey just now", "The passkey prompt closed"]);
+  await passkeyList.getByRole("button", { name: "Add passkey" }).click();
+  await passkeyList.getByRole("listitem").nth(1).waitFor({ timeout: 15_000 });
+  await page.unroute(beginAdd);
+  await cdp.send("WebAuthn.setAutomaticPresenceSimulation", { authenticatorId, enabled: true });
+  if (begins !== 2) fail(`the panel began adding a passkey ${begins} times; want twice, before and after its step-up`);
+  const flashed = await stepUps();
+  if (flashed.length > 0) fail(`adding a passkey showed ${JSON.stringify(flashed)}`);
+  const onSecond = await cdp.send("WebAuthn.getCredentials", {
+    authenticatorId: second ?? fail("the second authenticator was never added"),
+  });
+  if (onSecond.credentials.length !== 1 || onSecond.credentials[0]?.rpId !== "localhost") {
+    fail(`the second authenticator holds ${JSON.stringify(onSecond.credentials)}, want one passkey for localhost`);
+  }
+  const added = await page.evaluate(async () => {
+    const r = await fetch("/dockwell.v1.AuthService/ListPasskeys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    return (await r.json()) as { passkeys?: unknown[] };
+  });
+  if (added.passkeys?.length !== 2) fail(`ListPasskeys after adding one = ${JSON.stringify(added)}`);
+  await shoot(page, "passkey-added");
+  step("  the first passkey confirmed it; the second authenticator made a passkey for localhost, and either signs in");
 
   step("profile: set up an authenticator app");
   await page.goto(`${origin}/`);
@@ -596,19 +655,42 @@ async function main() {
       (v) => v.name === "DB_PASSWORD",
     )?.id ?? fail(`GET /v1/variables listed ${JSON.stringify(listed)}`);
   if (JSON.stringify(listed).includes(secretValue)) fail("GET /v1/variables carries the secret's value");
+  await page.getByRole("button", { name: "Hide DB_PASSWORD" }).click();
   // A script's token, even read-write, is refused, and so is its step-up.
-  const revealToken = await page.evaluate(async () => {
+  // Making the token takes the passkey too, so a page's script can't: the
+  // panel makes it, and the browser asks.
+  const withoutStepUp = await page.evaluate(async () => {
     const res = await fetch("/v1/tokens", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "e2e reveal", scope: "TOKEN_SCOPE_READ_WRITE" }),
+      body: JSON.stringify({ name: "e2e sneaky", scope: "TOKEN_SCOPE_READ_WRITE" }),
     });
-    return (await res.json()) as { token?: { id: string }; secret?: string };
+    return { status: res.status, reason: res.headers.get("Dockwell-Error") };
   });
-  const revealer = revealToken.secret ?? fail(`making a token for the reveal: ${JSON.stringify(revealToken)}`);
+  if (withoutStepUp.status !== 403 || withoutStepUp.reason !== "needs_step_up") {
+    fail(`POST /v1/tokens from the page without a step-up = ${JSON.stringify(withoutStepUp)}`);
+  }
+  await page.goto(`${origin}/profile`);
+  const revealTokens = page.getByRole("region", { name: "API tokens" });
+  await revealTokens.getByRole("button", { name: "Create token" }).click();
+  const revealCreate = page.getByRole("dialog", { name: "Create an API token" });
+  await revealCreate.getByLabel("Name").fill("e2e reveal");
+  await revealCreate.getByRole("radio", { name: /Read and write/ }).check();
+  await revealCreate.getByRole("button", { name: "Create token" }).click();
+  const revealMade = revealTokens.locator(".tokens-made");
+  await revealMade.waitFor();
+  const revealer = (await revealMade.locator(".tokens-secret code").innerText()).trim();
+  await revealMade.getByRole("button", { name: "Done" }).click();
+  const revealTokenId = await page.evaluate(async () => {
+    const res = await fetch("/v1/tokens");
+    const body = (await res.json()) as { tokens?: { id: string; name: string }[] };
+    return body.tokens?.find((t) => t.name === "e2e reveal")?.id ?? "";
+  });
   for (const [path, body] of [
     [`/v1/secrets/${secretId}:reveal`, { proof: "anything" }],
     ["/v1/sessions:beginStepUp", { action: "STEP_UP_ACTION_REVEAL_SECRET", target: secretId }],
+    ["/v1/sessions:beginStepUp", { action: "STEP_UP_ACTION_CREATE_TOKEN" }],
+    ["/v1/sessions:beginStepUp", { action: "STEP_UP_ACTION_ADD_PASSKEY" }],
   ] as const) {
     const r = await fetch(`http://127.0.0.1:${port}${path}`, {
       method: "POST",
@@ -623,15 +705,16 @@ async function main() {
   await page.evaluate(
     async (id) =>
       fetch(`/v1/tokens/${id}:revoke`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }),
-    revealToken.token?.id ?? "",
+    revealTokenId || fail("the token made for the reveal isn't listed"),
   );
-  await page.getByRole("button", { name: "Hide DB_PASSWORD" }).click();
   await page.goto(`${origin}/activity`);
   await page
     .getByRole("row", { name: /Revealed the secret DB_PASSWORD/ })
     .first()
     .waitFor();
-  step(`  ${secretId} added through a plan, revealed with the passkey and on the timeline; a token was refused`);
+  step(
+    `  ${secretId} added through a plan, revealed with the passkey and on the timeline; a token, and a page's script, were refused`,
+  );
 
   step("sign out on a phone, from More");
   await page.setViewportSize({ width: 390, height: 844 });

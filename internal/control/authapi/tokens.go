@@ -50,7 +50,7 @@ func (h *Handler) CreateToken(ctx context.Context, req *connect.Request[dockwell
 		at := h.auth.Now().Add(e.Ttl.AsDuration())
 		expires = &at
 	}
-	made, err := h.auth.CreateToken(ctx, p, m.GetName(), scope, expires)
+	made, err := h.auth.CreateToken(ctx, p, m.GetName(), scope, expires, m.GetProof())
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}

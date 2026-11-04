@@ -268,8 +268,8 @@ func testRESTPathsWithASession(t *testing.T, backend store.Backend) {
 			t.Errorf("POST /v1/sessions:revokeOthers with %s = %d %s, want 200", tt.name, res.StatusCode, out)
 		}
 	}
-	if status, why, body := callREST(t, b, http.MethodDelete, "/v1/passkeys/{id}", nil, ""); status != http.StatusNotFound || why != "not_found" {
-		t.Errorf("DELETE /v1/passkeys/x = %d (reason %q) %s, want 404 not_found", status, why, body)
+	if status, why, body := callREST(t, b, http.MethodPost, "/v1/passkeys/{id}:remove", nil, "{}"); status != http.StatusNotFound || why != "not_found" {
+		t.Errorf("POST /v1/passkeys/x:remove = %d (reason %q) %s, want 404 not_found", status, why, body)
 	}
 	status, _, body = callREST(t, b, http.MethodGet, "/v1/nothing/here", nil, "")
 	var notFound rpcStatus
@@ -494,7 +494,9 @@ var restStatusCodes = map[int]int{
 func createToken(t *testing.T, b *browser, scope dockwellv1.TokenScope) string {
 	t.Helper()
 	res, err := dockwellv1connect.NewTokenServiceClient(b, b.origin, connect.WithProtoJSON()).CreateToken(t.Context(),
-		connect.NewRequest(&dockwellv1.CreateTokenRequest{Name: "CI " + scope.String(), Scope: scope}))
+		connect.NewRequest(&dockwellv1.CreateTokenRequest{
+			Name: "CI " + scope.String(), Scope: scope, Proof: stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
+		}))
 	if err != nil {
 		t.Fatalf("CreateToken: %v", err)
 	}
@@ -787,7 +789,8 @@ func testCreateTokenWithATTL(t *testing.T, backend store.Backend) {
 	b.claim(t, link.Token)
 
 	before := srv.auth.Now().Truncate(time.Millisecond)
-	status, why, body := callREST(t, b, http.MethodPost, "/v1/tokens", nil, `{"name": "CI", "scope": "TOKEN_SCOPE_READ_ONLY", "ttl": "3600s"}`)
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, "")
+	status, why, body := callREST(t, b, http.MethodPost, "/v1/tokens", nil, `{"name": "CI", "scope": "TOKEN_SCOPE_READ_ONLY", "ttl": "3600s", "proof": "`+proof+`"}`)
 	after := srv.auth.Now()
 	var made struct {
 		Token struct {

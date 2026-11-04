@@ -2,11 +2,11 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { AuthService, StepUpAction, VariableService } from "@dockwell/api";
+import { StepUpAction, VariableService } from "@dockwell/api";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
-import { getPasskey } from "../../lib/webauthn";
 import { useAuthError } from "../auth/messages";
+import { stepUp } from "../auth/stepUp";
 
 /** How long a revealed value stays on screen before it hides again. */
 export const REVEALED_FOR = 60_000;
@@ -65,10 +65,7 @@ export function useReveals(): Reveals {
       set(id, { busy: true });
       void (async () => {
         try {
-          const auth = createClient(AuthService, transport);
-          const begin = await auth.beginStepUp({ action: StepUpAction.REVEAL_SECRET, target: id });
-          const credentialJson = await getPasskey(begin.optionsJson);
-          const { proof } = await auth.finishStepUp({ ceremonyId: begin.ceremonyId, credentialJson });
+          const proof = await stepUp(transport, StepUpAction.REVEAL_SECRET, id);
           const revealed = await createClient(VariableService, transport).revealSecret({ id, proof });
           set(id, { value: revealed.value });
           clearTimeout(timers.current.get(id));

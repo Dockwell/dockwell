@@ -576,13 +576,14 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/passkeys/{id}:
-        delete:
+    /v1/passkeys/{id}:remove:
+        post:
             tags:
                 - AuthService
             description: |-
-                RemovePasskey removes one of your passkeys. It refuses to remove your last
-                 way to sign in.
+                RemovePasskey removes one of your passkeys. It needs a proof from
+                 FinishStepUp for removing it. It refuses to remove your last way to sign
+                 in.
             operationId: AuthService_RemovePasskey
             parameters:
                 - name: id
@@ -591,6 +592,12 @@ paths:
                   required: true
                   schema:
                     type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RemovePasskeyRequest'
+                required: true
             responses:
                 "200":
                     description: OK
@@ -608,7 +615,12 @@ paths:
         post:
             tags:
                 - AuthService
-            description: BeginAddPasskey starts adding a passkey for the address of this request.
+            description: |-
+                BeginAddPasskey starts adding a passkey for the address of this request.
+                 It needs a proof from FinishStepUp for adding a passkey, made with a
+                 passkey you have for this address. Within 10 minutes of signing in with
+                 a code, a recovery code or a link from dockwell recover, that sign-in
+                 confirms it instead, so you can add one when you have none here.
             operationId: AuthService_BeginAddPasskey
             requestBody:
                 content:
@@ -867,8 +879,9 @@ paths:
                 - AuthService
             description: |-
                 BeginStepUp starts confirming, with a passkey you have for the address
-                 of this request, an action that needs a person right now, such as
-                 revealing a secret. Pass the passkey's answer to FinishStepUp.
+                 of this request, an action that needs a person right now: revealing a
+                 secret, or changing how you sign in or your API tokens. Pass the
+                 passkey's answer to FinishStepUp.
             operationId: AuthService_BeginStepUp
             requestBody:
                 content:
@@ -1068,8 +1081,9 @@ paths:
             tags:
                 - TokenService
             description: |-
-                CreateToken makes a new token for you. The secret is in the response,
-                 and only there: Dockwell keeps only its hash.
+                CreateToken makes a new token for you. It needs a proof from
+                 AuthService.FinishStepUp for creating a token. The secret is in the
+                 response, and only there: Dockwell keeps only its hash.
             operationId: TokenService_CreateToken
             requestBody:
                 content:
@@ -1150,7 +1164,8 @@ paths:
             tags:
                 - AuthService
             description: |-
-                BeginTotpSetup makes a new authenticator secret. It takes effect only
+                BeginTotpSetup makes a new authenticator secret. It needs a proof from
+                 FinishStepUp for setting up code sign-in. The secret takes effect only
                  once ConfirmTotpSetup checks a code from it.
             operationId: AuthService_BeginTotpSetup
             requestBody:
@@ -1205,7 +1220,8 @@ paths:
                 - AuthService
             description: |-
                 DisableTotp turns code sign-in off and deletes the secret and recovery
-                 codes. It refuses when that would leave no way to sign in.
+                 codes. It needs a proof from FinishStepUp for turning code sign-in off.
+                 It refuses when that would leave no way to sign in.
             operationId: AuthService_DisableTotp
             requestBody:
                 content:
@@ -1232,7 +1248,7 @@ paths:
                 - AuthService
             description: |-
                 RegenerateRecoveryCodes replaces your recovery codes. The old ones stop
-                 working.
+                 working. It needs a proof from FinishStepUp for making recovery codes.
             operationId: AuthService_RegenerateRecoveryCodes
             requestBody:
                 content:
@@ -1422,8 +1438,14 @@ components:
             description: ApplyChangeResponse carries the change as it starts applying.
         BeginAddPasskeyRequest:
             type: object
-            properties: {}
-            description: BeginAddPasskeyRequest takes no parameters.
+            properties:
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for adding a passkey. Leave it out within
+                         10 minutes of signing in with a code, a recovery code or a link from
+                         dockwell recover.
+            description: BeginAddPasskeyRequest confirms adding a passkey.
         BeginAddPasskeyResponse:
             type: object
             properties:
@@ -1480,12 +1502,21 @@ components:
                     enum:
                         - STEP_UP_ACTION_UNSPECIFIED
                         - STEP_UP_ACTION_REVEAL_SECRET
+                        - STEP_UP_ACTION_ADD_PASSKEY
+                        - STEP_UP_ACTION_REMOVE_PASSKEY
+                        - STEP_UP_ACTION_SET_UP_CODES
+                        - STEP_UP_ACTION_DISABLE_CODES
+                        - STEP_UP_ACTION_REGENERATE_RECOVERY_CODES
+                        - STEP_UP_ACTION_CREATE_TOKEN
                     type: string
                     description: The action.
                     format: enum
                 target:
                     type: string
-                    description: What it acts on, such as a secret's ID.
+                    description: |-
+                        What it acts on: a secret's ID to reveal it, a passkey's to remove it.
+                         Leave it out for an action on your own account, such as adding a
+                         passkey.
             description: BeginStepUpRequest says what the passkey confirms.
         BeginStepUpResponse:
             type: object
@@ -1501,8 +1532,11 @@ components:
             description: BeginStepUpResponse carries the options for the passkey's assertion.
         BeginTotpSetupRequest:
             type: object
-            properties: {}
-            description: BeginTotpSetupRequest takes no parameters.
+            properties:
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp, for setting up code sign-in.
+            description: BeginTotpSetupRequest confirms setting up code sign-in.
         BeginTotpSetupResponse:
             type: object
             properties:
@@ -1791,6 +1825,9 @@ components:
                         How long it works for, from when the control plane makes it, such as
                          "7776000s" for 90 days. The control plane's clock sets the expiry, so
                          a client whose clock is off doesn't move it.
+                proof:
+                    type: string
+                    description: The proof from AuthService.FinishStepUp, for creating a token.
             description: CreateTokenRequest describes the new token.
         CreateTokenResponse:
             type: object
@@ -1807,8 +1844,11 @@ components:
             description: CreateTokenResponse carries the new token and its secret.
         DisableTotpRequest:
             type: object
-            properties: {}
-            description: DisableTotpRequest takes no parameters.
+            properties:
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp, for turning code sign-in off.
+            description: DisableTotpRequest confirms turning code sign-in off.
         DisableTotpResponse:
             type: object
             properties: {}
@@ -2894,8 +2934,11 @@ components:
             description: ProposeChangeResponse carries the planned change.
         RegenerateRecoveryCodesRequest:
             type: object
-            properties: {}
-            description: RegenerateRecoveryCodesRequest takes no parameters.
+            properties:
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp, for making recovery codes.
+            description: RegenerateRecoveryCodesRequest confirms making new recovery codes.
         RegenerateRecoveryCodesResponse:
             type: object
             properties:
@@ -2905,6 +2948,16 @@ components:
                         type: string
                     description: Ten one-time recovery codes. They are shown only now.
             description: RegenerateRecoveryCodesResponse carries the new codes.
+        RemovePasskeyRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The passkey's ID.
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp, for removing this passkey.
+            description: RemovePasskeyRequest names a passkey.
         RemovePasskeyResponse:
             type: object
             properties: {}

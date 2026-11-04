@@ -376,6 +376,10 @@ msgstr "Added a passkey"
 msgid "Added the passkey {name}"
 msgstr "Added the passkey {name}"
 
+#: src/features/auth/messages.ts
+msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
+msgstr "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Addresses"
 msgstr "Addresses"

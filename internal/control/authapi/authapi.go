@@ -303,7 +303,7 @@ func (h *Handler) ListPasskeys(ctx context.Context, _ *connect.Request[dockwellv
 }
 
 // BeginAddPasskey starts adding a passkey for this address.
-func (h *Handler) BeginAddPasskey(ctx context.Context, _ *connect.Request[dockwellv1.BeginAddPasskeyRequest]) (*connect.Response[dockwellv1.BeginAddPasskeyResponse], error) {
+func (h *Handler) BeginAddPasskey(ctx context.Context, req *connect.Request[dockwellv1.BeginAddPasskeyRequest]) (*connect.Response[dockwellv1.BeginAddPasskeyResponse], error) {
 	client, err := h.client(ctx)
 	if err != nil {
 		return nil, err
@@ -312,7 +312,7 @@ func (h *Handler) BeginAddPasskey(ctx context.Context, _ *connect.Request[dockwe
 	if err != nil {
 		return nil, err
 	}
-	cer, err := h.auth.BeginAddPasskey(ctx, client, p)
+	cer, err := h.auth.BeginAddPasskey(ctx, client, p, req.Msg.GetProof())
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
@@ -341,7 +341,13 @@ func (h *Handler) BeginStepUp(ctx context.Context, req *connect.Request[dockwell
 }
 
 var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
-	dockwellv1.StepUpAction_STEP_UP_ACTION_REVEAL_SECRET: auth.StepUpRevealSecret,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_REVEAL_SECRET:             auth.StepUpRevealSecret,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_ADD_PASSKEY:               auth.StepUpAddPasskey,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_REMOVE_PASSKEY:            auth.StepUpRemovePasskey,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_UP_CODES:              auth.StepUpSetUpCodes,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_DISABLE_CODES:             auth.StepUpDisableCodes,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_REGENERATE_RECOVERY_CODES: auth.StepUpRecoveryCodes,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN:              auth.StepUpCreateToken,
 }
 
 // FinishStepUp checks the passkey's answer and returns a proof.
@@ -385,7 +391,7 @@ func (h *Handler) RemovePasskey(ctx context.Context, req *connect.Request[dockwe
 	if err != nil {
 		return nil, err
 	}
-	if err := h.auth.RemovePasskey(ctx, p, req.Msg.GetId()); err != nil {
+	if err := h.auth.RemovePasskey(ctx, p, req.Msg.GetId(), req.Msg.GetProof()); err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
 	return connect.NewResponse(&dockwellv1.RemovePasskeyResponse{}), nil
@@ -413,12 +419,12 @@ func (h *Handler) GetTotp(ctx context.Context, _ *connect.Request[dockwellv1.Get
 }
 
 // BeginTotpSetup makes a new authenticator secret.
-func (h *Handler) BeginTotpSetup(ctx context.Context, _ *connect.Request[dockwellv1.BeginTotpSetupRequest]) (*connect.Response[dockwellv1.BeginTotpSetupResponse], error) {
+func (h *Handler) BeginTotpSetup(ctx context.Context, req *connect.Request[dockwellv1.BeginTotpSetupRequest]) (*connect.Response[dockwellv1.BeginTotpSetupResponse], error) {
 	p, err := principal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	setup, err := h.auth.BeginTOTP(ctx, p)
+	setup, err := h.auth.BeginTOTP(ctx, p, req.Msg.GetProof())
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
@@ -439,24 +445,24 @@ func (h *Handler) ConfirmTotpSetup(ctx context.Context, req *connect.Request[doc
 }
 
 // DisableTotp turns code sign-in off.
-func (h *Handler) DisableTotp(ctx context.Context, _ *connect.Request[dockwellv1.DisableTotpRequest]) (*connect.Response[dockwellv1.DisableTotpResponse], error) {
+func (h *Handler) DisableTotp(ctx context.Context, req *connect.Request[dockwellv1.DisableTotpRequest]) (*connect.Response[dockwellv1.DisableTotpResponse], error) {
 	p, err := principal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := h.auth.DisableTOTP(ctx, p); err != nil {
+	if err := h.auth.DisableTOTP(ctx, p, req.Msg.GetProof()); err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
 	return connect.NewResponse(&dockwellv1.DisableTotpResponse{}), nil
 }
 
 // RegenerateRecoveryCodes replaces the recovery codes.
-func (h *Handler) RegenerateRecoveryCodes(ctx context.Context, _ *connect.Request[dockwellv1.RegenerateRecoveryCodesRequest]) (*connect.Response[dockwellv1.RegenerateRecoveryCodesResponse], error) {
+func (h *Handler) RegenerateRecoveryCodes(ctx context.Context, req *connect.Request[dockwellv1.RegenerateRecoveryCodesRequest]) (*connect.Response[dockwellv1.RegenerateRecoveryCodesResponse], error) {
 	p, err := principal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	codes, err := h.auth.RegenerateRecoveryCodes(ctx, p)
+	codes, err := h.auth.RegenerateRecoveryCodes(ctx, p, req.Msg.GetProof())
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
@@ -521,6 +527,10 @@ const (
 	// from FinishStepUp, and its proof is missing, used, expired, or for
 	// something else.
 	ReasonNeedsStepUp = "needs_step_up"
+	// ReasonNeedsFreshSignIn refuses adding a passkey that no passkey for
+	// this address can confirm, in a session not signed in just now. Sign
+	// in again, then add it.
+	ReasonNeedsFreshSignIn = "needs_fresh_sign_in"
 )
 
 // ReasonError is a Connect error that names its reason under ReasonKey.
@@ -564,6 +574,7 @@ var codes = []struct {
 	{auth.ErrNeedsSession, connect.CodePermissionDenied, ReasonNeedsSession},
 	{auth.ErrNeedsStepUp, connect.CodePermissionDenied, ReasonNeedsStepUp},
 	{auth.ErrNoPasskeyHere, connect.CodeFailedPrecondition, "no_passkey_here"},
+	{auth.ErrNeedsFreshSignIn, connect.CodeFailedPrecondition, ReasonNeedsFreshSignIn},
 }
 
 func (h *Handler) rpcError(ctx context.Context, err error) error {

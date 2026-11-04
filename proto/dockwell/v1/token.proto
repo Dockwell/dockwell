@@ -19,8 +19,9 @@ import "google/protobuf/timestamp.proto";
 // and EFFECT_APPLY methods. No token may call an EFFECT_DESTRUCTIVE method,
 // AuthService, or this service: they need a signed-in session.
 service TokenService {
-  // CreateToken makes a new token for you. The secret is in the response,
-  // and only there: Dockwell keeps only its hash.
+  // CreateToken makes a new token for you. It needs a proof from
+  // AuthService.FinishStepUp for creating a token. The secret is in the
+  // response, and only there: Dockwell keeps only its hash.
   rpc CreateToken(CreateTokenRequest) returns (CreateTokenResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (google.api.http) = {
@@ -100,6 +101,8 @@ message CreateTokenRequest {
     // a client whose clock is off doesn't move it.
     google.protobuf.Duration ttl = 4;
   }
+  // The proof from AuthService.FinishStepUp, for creating a token.
+  string proof = 5;
 }
 
 // CreateTokenResponse carries the new token and its secret.

@@ -376,6 +376,10 @@ msgstr "添加了通行密钥"
 msgid "Added the passkey {name}"
 msgstr "添加了通行密钥 {name}"
 
+#: src/features/auth/messages.ts
+msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
+msgstr "添加通行密钥需要用你在此地址已有的通行密钥确认，而你在这里还没有。请退出登录，再用验证码、恢复码或 dockwell recover 给出的链接重新登录，然后在 10 分钟内添加。"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Addresses"
 msgstr "地址"

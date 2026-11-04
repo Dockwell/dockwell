@@ -79,7 +79,8 @@ func claimWithTokens(t *testing.T, link string) (url, readWrite, readOnly string
 	if err != nil {
 		t.Fatalf("BeginClaim: %v", err)
 	}
-	cred, _, err := (&authtest.Authenticator{}).Create(begin.Msg.GetOptionsJson(), base)
+	passkeys := &authtest.Authenticator{}
+	cred, _, err := passkeys.Create(begin.Msg.GetOptionsJson(), base)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,8 +91,21 @@ func claimWithTokens(t *testing.T, link string) (url, readWrite, readOnly string
 	}
 	tokens := dockwellv1connect.NewTokenServiceClient(client, base, connect.WithInterceptors(originHeader(base)))
 	create := func(name string, scope dockwellv1.TokenScope) string {
+		// Making a token takes the passkey, just now.
+		up, err := c.BeginStepUp(t.Context(), connect.NewRequest(&dockwellv1.BeginStepUpRequest{Action: dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN}))
+		if err != nil {
+			t.Fatalf("BeginStepUp: %v", err)
+		}
+		answer, err := passkeys.Get(up.Msg.GetOptionsJson(), base, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		proof, err := c.FinishStepUp(t.Context(), connect.NewRequest(&dockwellv1.FinishStepUpRequest{CeremonyId: up.Msg.GetCeremonyId(), CredentialJson: answer}))
+		if err != nil {
+			t.Fatalf("FinishStepUp: %v", err)
+		}
 		res, err := tokens.CreateToken(t.Context(), connect.NewRequest(&dockwellv1.CreateTokenRequest{
-			Name: name, Scope: scope, Expiration: &dockwellv1.CreateTokenRequest_Ttl{Ttl: durationpb.New(time.Hour)},
+			Name: name, Scope: scope, Expiration: &dockwellv1.CreateTokenRequest_Ttl{Ttl: durationpb.New(time.Hour)}, Proof: proof.Msg.GetProof(),
 		}))
 		if err != nil {
 			t.Fatalf("CreateToken: %v", err)
@@ -605,7 +619,7 @@ func TestNounHelpNamesEveryCommand(t *testing.T) {
 				missing++
 			}
 		}
-		if missing > 0 && (more == nil || more[1] != strconv.Itoa(missing)) {
+		if missing > 0 && (len(more) < 2 || more[1] != strconv.Itoa(missing)) {
 			t.Errorf("the help of dockwell %s, %q, names %d of its commands %v", c.Name(), c.Short, len(verbs)-missing, verbs)
 		}
 	}

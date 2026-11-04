@@ -45,6 +45,8 @@ type fixture struct {
 	logs   *logBuffer // what every Service of the fixture logged
 	path   string     // where the database is, for store.Open
 	domain string
+	// passkeys is the owner's authenticator, from the claim, which steps up.
+	passkeys *authtest.Authenticator
 }
 
 // logBuffer collects log lines from any goroutine.
@@ -151,6 +153,7 @@ func (f *fixture) claim(t *testing.T, client Client, a *authtest.Authenticator) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.passkeys = a
 	return signedIn
 }
 
@@ -537,7 +540,7 @@ func testAddAPasskeyForANewAddress(t *testing.T, backend store.Backend) {
 		t.Fatal(err)
 	}
 	p := Principal{User: there.User, Session: there.Session}
-	cer, err := f.svc.BeginAddPasskey(t.Context(), onDomain, p)
+	cer, err := f.svc.BeginAddPasskey(t.Context(), onDomain, p, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -557,7 +560,7 @@ func testAddAPasskeyForANewAddress(t *testing.T, backend store.Backend) {
 	}
 
 	// The same authenticator can't add a second passkey for the domain.
-	cer, _ = f.svc.BeginAddPasskey(t.Context(), onDomain, p)
+	cer, _ = f.svc.BeginAddPasskey(t.Context(), onDomain, p, "")
 	if _, _, err := a.Create(string(cer.Options), onDomain.Site.Origin); !errors.Is(err, authtest.ErrExcluded) {
 		t.Errorf("a second passkey from one authenticator = %v, want it excluded", err)
 	}

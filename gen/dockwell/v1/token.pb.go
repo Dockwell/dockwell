@@ -205,7 +205,9 @@ type CreateTokenRequest struct {
 	//
 	//	*CreateTokenRequest_ExpireTime
 	//	*CreateTokenRequest_Ttl
-	Expiration    isCreateTokenRequest_Expiration `protobuf_oneof:"expiration"`
+	Expiration isCreateTokenRequest_Expiration `protobuf_oneof:"expiration"`
+	// The proof from AuthService.FinishStepUp, for creating a token.
+	Proof         string `protobuf:"bytes,5,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -277,6 +279,13 @@ func (x *CreateTokenRequest) GetTtl() *durationpb.Duration {
 		}
 	}
 	return nil
+}
+
+func (x *CreateTokenRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
 }
 
 type isCreateTokenRequest_Expiration interface {
@@ -536,13 +545,14 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\vexpire_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"expireTime\x12@\n" +
 	"\x0elast_used_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\flastUsedTime\x12!\n" +
-	"\flast_address\x18\b \x01(\tR\vlastAddress\"\xd3\x01\n" +
+	"\flast_address\x18\b \x01(\tR\vlastAddress\"\xe9\x01\n" +
 	"\x12CreateTokenRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12-\n" +
 	"\x05scope\x18\x02 \x01(\x0e2\x17.dockwell.v1.TokenScopeR\x05scope\x12=\n" +
 	"\vexpire_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\n" +
 	"expireTime\x12-\n" +
-	"\x03ttl\x18\x04 \x01(\v2\x19.google.protobuf.DurationH\x00R\x03ttlB\f\n" +
+	"\x03ttl\x18\x04 \x01(\v2\x19.google.protobuf.DurationH\x00R\x03ttl\x12\x14\n" +
+	"\x05proof\x18\x05 \x01(\tR\x05proofB\f\n" +
 	"\n" +
 	"expiration\"W\n" +
 	"\x13CreateTokenResponse\x12(\n" +

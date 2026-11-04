@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"maps"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -72,10 +74,15 @@ func listed(t *testing.T, v dockwellv1connect.VariableServiceClient, name string
 // stepUp confirms revealing secretID with the browser's passkey.
 func stepUp(t *testing.T, b *browser, secretID string) string {
 	t.Helper()
+	return stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_REVEAL_SECRET, secretID)
+}
+
+// stepUpFor confirms action on target with the browser's passkey, and
+// returns the proof.
+func stepUpFor(t *testing.T, b *browser, action dockwellv1.StepUpAction, target string) string {
+	t.Helper()
 	c := b.authClient()
-	begin, err := c.BeginStepUp(t.Context(), connect.NewRequest(&dockwellv1.BeginStepUpRequest{
-		Action: dockwellv1.StepUpAction_STEP_UP_ACTION_REVEAL_SECRET, Target: secretID,
-	}))
+	begin, err := c.BeginStepUp(t.Context(), connect.NewRequest(&dockwellv1.BeginStepUpRequest{Action: action, Target: target}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,11 +263,11 @@ func testListingValuesOpensNoSpec(t *testing.T, backend store.Backend) {
 		}
 		pages++
 		for _, x := range res.Msg.GetVariables() {
-			line := x.GetName() + "=" + x.GetValue() + " by " + x.GetUpdatedBy().GetName()
+			line := []string{x.GetName() + "=" + x.GetValue() + " by " + x.GetUpdatedBy().GetName()}
 			for _, u := range x.GetUsedBy() {
-				line += " " + u.GetService() + ":" + u.GetName()
+				line = append(line, u.GetService()+":"+u.GetName())
 			}
-			got = append(got, line)
+			got = append(got, strings.Join(line, " "))
 		}
 		if token = res.Msg.GetNextPageToken(); token == "" {
 			break
@@ -374,5 +381,107 @@ func testADatabaseDumpHoldsNoSecret(t *testing.T, backend store.Backend) {
 				}
 			}
 		}
+	}
+}
+
+// Through the API, as the panel calls it: adding a passkey, removing one,
+// setting up codes and making a token each take a proof from a step-up for
+// that action, which no token can begin. A link from dockwell recover
+// still lets someone with no passkey here add one, just after signing in
+// with it, and removing a passkey over REST carries its proof in the body.
+func TestChangingHowYouSignInTakesAPasskeyThroughTheAPI(t *testing.T) {
+	storetest.Each(t, testChangingHowYouSignInTakesAPasskeyThroughTheAPI)
+}
+
+func testChangingHowYouSignInTakesAPasskeyThroughTheAPI(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	c := b.authClient()
+	if _, err := c.BeginAddPasskey(t.Context(), connect.NewRequest(&dockwellv1.BeginAddPasskeyRequest{})); reasonOf(err) != authapi.ReasonNeedsStepUp {
+		t.Errorf("adding a passkey without a step-up: %v, want %s", err, authapi.ReasonNeedsStepUp)
+	}
+	if _, err := c.BeginTotpSetup(t.Context(), connect.NewRequest(&dockwellv1.BeginTotpSetupRequest{})); reasonOf(err) != authapi.ReasonNeedsStepUp {
+		t.Errorf("setting up codes without a step-up: %v, want %s", err, authapi.ReasonNeedsStepUp)
+	}
+	if _, err := c.BeginTotpSetup(t.Context(), connect.NewRequest(&dockwellv1.BeginTotpSetupRequest{
+		Proof: stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_SET_UP_CODES, ""),
+	})); err != nil {
+		t.Errorf("setting up codes with a step-up: %v", err)
+	}
+	tokens := dockwellv1connect.NewTokenServiceClient(b, b.origin, connect.WithProtoJSON())
+	if _, err := tokens.CreateToken(t.Context(), connect.NewRequest(&dockwellv1.CreateTokenRequest{
+		Name: "CI", Scope: dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY,
+		Proof: stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_ADD_PASSKEY, ""),
+	})); reasonOf(err) != authapi.ReasonNeedsStepUp {
+		t.Errorf("making a token with a proof for adding a passkey: %v, want %s", err, authapi.ReasonNeedsStepUp)
+	}
+
+	// A second passkey, from another authenticator, with a step-up.
+	second := &authtest.Authenticator{}
+	addWith := func(b *browser, proof string, a *authtest.Authenticator) (*dockwellv1.Passkey, error) {
+		c := b.authClient()
+		begin, err := c.BeginAddPasskey(t.Context(), connect.NewRequest(&dockwellv1.BeginAddPasskeyRequest{Proof: proof}))
+		if err != nil {
+			return nil, err
+		}
+		cred, _, err := a.Create(begin.Msg.GetOptionsJson(), b.origin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := c.FinishAddPasskey(t.Context(), connect.NewRequest(&dockwellv1.FinishAddPasskeyRequest{
+			CeremonyId: begin.Msg.GetCeremonyId(), CredentialJson: cred, Name: "YubiKey",
+		}))
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg.GetPasskey(), nil
+	}
+	yubikey, err := addWith(b, stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_ADD_PASSKEY, ""), second)
+	if err != nil {
+		t.Fatalf("adding a passkey with a step-up: %v", err)
+	}
+
+	// Removing it, over REST, takes a proof for that passkey.
+	path := "/v1/passkeys/" + yubikey.GetId() + ":remove"
+	if status, why, body := callREST(t, b, http.MethodPost, path, nil, "{}"); status != http.StatusForbidden || why != authapi.ReasonNeedsStepUp {
+		t.Errorf("POST %s without a proof = %d (reason %q) %s, want 403 %s", path, status, why, body, authapi.ReasonNeedsStepUp)
+	}
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_REMOVE_PASSKEY, yubikey.GetId())
+	if status, why, body := callREST(t, b, http.MethodPost, path, nil, `{"proof": "`+proof+`"}`); status != http.StatusOK {
+		t.Errorf("POST %s with a proof = %d (reason %q) %s, want 200", path, status, why, body)
+	}
+	listed, err := c.ListPasskeys(t.Context(), connect.NewRequest(&dockwellv1.ListPasskeysRequest{}))
+	if err != nil || len(listed.Msg.GetPasskeys()) != 1 {
+		t.Errorf("passkeys after removing the second = %v, %v, want the first alone", listed, err)
+	}
+
+	// No token begins a step-up for any of these.
+	token := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}
+	for _, action := range []dockwellv1.StepUpAction{
+		dockwellv1.StepUpAction_STEP_UP_ACTION_ADD_PASSKEY, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN,
+	} {
+		if _, err := dockwellv1connect.NewAuthServiceClient(token, b.origin).BeginStepUp(t.Context(), connect.NewRequest(&dockwellv1.BeginStepUpRequest{
+			Action: action,
+		})); reasonOf(err) != authapi.ReasonNeedsSession {
+			t.Errorf("a token beginning a step-up for %v: %v, want %s", action, err, authapi.ReasonNeedsSession)
+		}
+	}
+
+	// A browser with no passkey signs in with a link from dockwell
+	// recover, and adds one at once.
+	link, _, err := f.auth.CreateSignInLink(t.Context(), "", "cli:root@hz-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	phone := newBrowser(t, b.origin, f.api, nil)
+	if _, err := phone.authClient().SignInWithLink(t.Context(), connect.NewRequest(&dockwellv1.SignInWithLinkRequest{Token: link.Token})); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := addWith(phone, "", phone.auth); err != nil {
+		t.Errorf("adding a passkey just after signing in with a link from dockwell recover: %v", err)
+	}
+	if _, err := dockwellv1connect.NewTokenServiceClient(phone, phone.origin, connect.WithProtoJSON()).CreateToken(t.Context(),
+		connect.NewRequest(&dockwellv1.CreateTokenRequest{Name: "CI", Scope: dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY})); reasonOf(err) != authapi.ReasonNeedsStepUp {
+		t.Errorf("making a token just after signing in with a link, without a step-up: %v, want %s", err, authapi.ReasonNeedsStepUp)
 	}
 }

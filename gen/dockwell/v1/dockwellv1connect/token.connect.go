@@ -47,8 +47,9 @@ const (
 
 // TokenServiceClient is a client for the dockwell.v1.TokenService service.
 type TokenServiceClient interface {
-	// CreateToken makes a new token for you. The secret is in the response,
-	// and only there: Dockwell keeps only its hash.
+	// CreateToken makes a new token for you. It needs a proof from
+	// AuthService.FinishStepUp for creating a token. The secret is in the
+	// response, and only there: Dockwell keeps only its hash.
 	CreateToken(context.Context, *connect.Request[v1.CreateTokenRequest]) (*connect.Response[v1.CreateTokenResponse], error)
 	// ListTokens returns your tokens that still work, newest first.
 	ListTokens(context.Context, *connect.Request[v1.ListTokensRequest]) (*connect.Response[v1.ListTokensResponse], error)
@@ -114,8 +115,9 @@ func (c *tokenServiceClient) RevokeToken(ctx context.Context, req *connect.Reque
 
 // TokenServiceHandler is an implementation of the dockwell.v1.TokenService service.
 type TokenServiceHandler interface {
-	// CreateToken makes a new token for you. The secret is in the response,
-	// and only there: Dockwell keeps only its hash.
+	// CreateToken makes a new token for you. It needs a proof from
+	// AuthService.FinishStepUp for creating a token. The secret is in the
+	// response, and only there: Dockwell keeps only its hash.
 	CreateToken(context.Context, *connect.Request[v1.CreateTokenRequest]) (*connect.Response[v1.CreateTokenResponse], error)
 	// ListTokens returns your tokens that still work, newest first.
 	ListTokens(context.Context, *connect.Request[v1.ListTokensRequest]) (*connect.Response[v1.ListTokensResponse], error)

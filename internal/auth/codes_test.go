@@ -89,7 +89,7 @@ func TestNormalizeCode(t *testing.T) {
 // recovery codes.
 func (f *fixture) enableTOTP(t *testing.T, p Principal) ([]byte, []string) {
 	t.Helper()
-	setup, err := f.svc.BeginTOTP(t.Context(), p)
+	setup, err := f.svc.BeginTOTP(t.Context(), p, f.proof(t, p, StepUpSetUpCodes, ""))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +291,7 @@ func testRecoveryCodesAreReplacedTogether(t *testing.T, backend store.Backend) {
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
 	p := ownerPrincipal(owner)
 	_, old := f.enableTOTP(t, p)
-	fresh, err := f.svc.RegenerateRecoveryCodes(t.Context(), p)
+	fresh, err := f.svc.RegenerateRecoveryCodes(t.Context(), p, f.proof(t, p, StepUpRecoveryCodes, ""))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,17 +323,19 @@ func testNeverRemoveTheLastWayIn(t *testing.T, backend store.Backend) {
 	owner := f.claim(t, localhost, a)
 	p := ownerPrincipal(owner)
 	keys, _ := f.svc.ListPasskeys(t.Context(), p)
-	if err := f.svc.RemovePasskey(t.Context(), p, keys[0].ID); !errors.Is(err, ErrLastWayIn) {
+	// A refusal leaves the proof unspent, so it works once codes do.
+	remove := f.proof(t, p, StepUpRemovePasskey, keys[0].ID)
+	if err := f.svc.RemovePasskey(t.Context(), p, keys[0].ID, remove); !errors.Is(err, ErrLastWayIn) {
 		t.Errorf("removing the only passkey = %v, want ErrLastWayIn", err)
 	}
 	f.enableTOTP(t, p)
-	if err := f.svc.RemovePasskey(t.Context(), p, keys[0].ID); err != nil {
+	if err := f.svc.RemovePasskey(t.Context(), p, keys[0].ID, remove); err != nil {
 		t.Errorf("removing the passkey once codes work: %v", err)
 	}
-	if err := f.svc.DisableTOTP(t.Context(), p); !errors.Is(err, ErrLastWayIn) {
+	if err := f.svc.DisableTOTP(t.Context(), p, "unused"); !errors.Is(err, ErrLastWayIn) {
 		t.Errorf("turning off codes with no passkey left = %v, want ErrLastWayIn", err)
 	}
-	if err := f.svc.RemovePasskey(t.Context(), p, keys[0].ID); !errors.Is(err, ErrNotFound) {
+	if err := f.svc.RemovePasskey(t.Context(), p, keys[0].ID, remove); !errors.Is(err, ErrNotFound) {
 		t.Errorf("removing it again = %v, want ErrNotFound", err)
 	}
 	evs := f.events(t)
@@ -353,7 +355,7 @@ func testPasskeysForAnOldDomainArentAWayIn(t *testing.T, backend store.Backend) 
 	a := &authtest.Authenticator{}
 	owner := f.claim(t, onDomain, a)
 	p := ownerPrincipal(owner)
-	cer, err := f.svc.BeginAddPasskey(t.Context(), localhost, p)
+	cer, err := f.svc.BeginAddPasskey(t.Context(), localhost, p, f.stepUpAt(t, onDomain, p, a, StepUpAddPasskey, "").Proof)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,23 +376,23 @@ func testPasskeysForAnOldDomainArentAWayIn(t *testing.T, backend store.Backend) 
 	// The panel loses its domain: only the localhost passkey still works.
 	f.domain = ""
 	f.svc = f.restart(t)
-	if err := f.svc.RemovePasskey(t.Context(), p, local.ID); !errors.Is(err, ErrLastWayIn) {
+	if err := f.svc.RemovePasskey(t.Context(), p, local.ID, "unused"); !errors.Is(err, ErrLastWayIn) {
 		t.Errorf("removing the only passkey that works here = %v, want ErrLastWayIn", err)
 	}
 	f.enableTOTP(t, p)
 	f.domain = "new.acme.dev"
 	f.svc = f.restart(t)
-	if err := f.svc.RemovePasskey(t.Context(), p, local.ID); err != nil {
+	if err := f.svc.RemovePasskey(t.Context(), p, local.ID, f.proof(t, p, StepUpRemovePasskey, local.ID)); err != nil {
 		t.Errorf("removing it once codes work: %v", err)
 	}
-	if err := f.svc.DisableTOTP(t.Context(), p); !errors.Is(err, ErrLastWayIn) {
+	if err := f.svc.DisableTOTP(t.Context(), p, "unused"); !errors.Is(err, ErrLastWayIn) {
 		t.Errorf("turning off codes with only a passkey for an old domain left = %v, want ErrLastWayIn", err)
 	}
 
 	// Back on the domain the passkey was made for, it counts again.
 	f.domain = "panel.acme.dev"
 	f.svc = f.restart(t)
-	if err := f.svc.DisableTOTP(t.Context(), p); err != nil {
+	if err := f.svc.DisableTOTP(t.Context(), p, f.stepUpAt(t, onDomain, p, a, StepUpDisableCodes, "").Proof); err != nil {
 		t.Errorf("turning off codes with a passkey for this domain: %v", err)
 	}
 }

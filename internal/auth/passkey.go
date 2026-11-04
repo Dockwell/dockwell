@@ -266,9 +266,20 @@ func (s *Service) ListPasskeys(ctx context.Context, p Principal) ([]Passkey, err
 }
 
 // BeginAddPasskey starts adding a passkey for the principal on client's
-// address. Passkeys they already have here are excluded, so the same
-// authenticator isn't registered twice.
-func (s *Service) BeginAddPasskey(ctx context.Context, client Client, p Principal) (Ceremony, error) {
+// address. It needs proof of a step-up for adding a passkey, or a session
+// signed in just now without a passkey (signedInJustNow), so a stolen
+// session can't add one of its own. Passkeys they already have here are
+// excluded, so the same authenticator isn't registered twice. The ceremony
+// works only in this session.
+func (s *Service) BeginAddPasskey(ctx context.Context, client Client, p Principal, proof string) (Ceremony, error) {
+	if p.Token != nil || p.Session.ID == "" {
+		return Ceremony{}, ErrNeedsSession
+	}
+	if proof != "" || !s.signedInJustNow(p) {
+		if err := s.confirmed(p, proof, StepUpAddPasskey); err != nil {
+			return Ceremony{}, err
+		}
+	}
 	now := s.now()
 	rp, err := s.relyingParty(client.Site)
 	if err != nil {
@@ -295,8 +306,19 @@ func (s *Service) BeginAddPasskey(ctx context.Context, client Client, p Principa
 	if err != nil {
 		return Ceremony{}, err
 	}
-	key := s.ceremonies.put(&ceremony{kind: ceremonyAddPasskey, site: client.Site, session: *session, expires: now.Add(ceremonyTTL), user: p.User}, now)
+	key := s.ceremonies.put(&ceremony{
+		kind: ceremonyAddPasskey, site: client.Site, session: *session, expires: now.Add(ceremonyTTL), user: p.User, sessionID: p.Session.ID,
+		confirmed: confirmedBy(proof),
+	}, now)
 	return Ceremony{ID: key, Options: options}, nil
+}
+
+// confirmedBy says, for the audit log, what confirmed adding a passkey.
+func confirmedBy(proof string) string {
+	if proof != "" {
+		return "confirmed with a passkey"
+	}
+	return "confirmed by signing in just now"
 }
 
 // FinishAddPasskey checks and saves a new passkey for the principal.
@@ -305,7 +327,7 @@ func (s *Service) FinishAddPasskey(ctx context.Context, client Client, p Princip
 	if err != nil {
 		return Passkey{}, err
 	}
-	if cer.site != client.Site || cer.user.ID != p.User.ID {
+	if cer.site != client.Site || cer.user.ID != p.User.ID || cer.sessionID != p.Session.ID {
 		return Passkey{}, ErrCeremonyExpired
 	}
 	cred, err := s.verifyNewPasskey(client.Site, &waUser{user: p.User}, cer.session, credential)
@@ -319,7 +341,7 @@ func (s *Service) FinishAddPasskey(ctx context.Context, client Client, p Princip
 		if pk, err = s.storePasskey(ctx, tx, p.User, client.Site, cred, name); err != nil {
 			return err
 		}
-		return s.auditOn(ctx, tx, p.Actor(), "passkey.add", p.User.ID, pk.ID, pk.ID+" for "+pk.RPID+" from "+client.remoteIP())
+		return s.auditOn(ctx, tx, p.Actor(), "passkey.add", p.User.ID, pk.ID, pk.ID+" for "+pk.RPID+" from "+client.remoteIP()+", "+cer.confirmed)
 	})
 	if err != nil {
 		return Passkey{}, err
@@ -345,10 +367,14 @@ func (s *Service) usablePasskeys(all []store.Passkey, except string) int {
 	return n
 }
 
-// RemovePasskey removes one of the principal's passkeys. It refuses to
-// remove the last way in: afterwards there must be another passkey that
-// signs in at the panel's addresses now, or code sign-in.
-func (s *Service) RemovePasskey(ctx context.Context, p Principal, passkeyID string) error {
+// RemovePasskey removes one of the principal's passkeys, with proof of a
+// step-up for removing it. It refuses to remove the last way in:
+// afterwards there must be another passkey that signs in at the panel's
+// addresses now, or code sign-in. A refusal leaves the proof unspent.
+func (s *Service) RemovePasskey(ctx context.Context, p Principal, passkeyID, proof string) error {
+	if p.Token != nil || p.Session.ID == "" {
+		return ErrNeedsSession
+	}
 	return s.db.Update(ctx, func(tx *store.Tx) error {
 		all, err := tx.ListPasskeys(ctx, p.User.ID)
 		if err != nil {
@@ -363,6 +389,9 @@ func (s *Service) RemovePasskey(ctx context.Context, p Principal, passkeyID stri
 		}
 		if s.usablePasskeys(all, passkeyID) == 0 && user.TOTPSecret == nil {
 			return ErrLastWayIn
+		}
+		if err := s.UseStepUp(p, proof, StepUpRemovePasskey, passkeyID); err != nil {
+			return err
 		}
 		if err := tx.DeletePasskey(ctx, p.User.ID, passkeyID); err != nil {
 			return err
