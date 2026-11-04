@@ -191,7 +191,7 @@ export function useChangeWords(): ChangeWords {
         const out: string[] = [];
         switch (effect.change) {
           case IngressChange.STARTS:
-            out.push(t`This is the first route on ${server}, so ${proxy} starts, and takes ports ${ports}`);
+            out.push(t`${proxy} isn't running on ${server}, so this route starts it, and it takes ports ${ports}`);
             if (panelDomain !== "") {
               out.push(
                 t`The panel's domain, ${panelDomain}, moves behind ${proxy}. Its address, passkeys and sessions stay as they are. HTTPS on it is down for a few seconds while its certificate comes; the SSH tunnel keeps working`,

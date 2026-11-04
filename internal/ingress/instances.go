@@ -358,6 +358,15 @@ func (m *Manager) dialsOf(instances []Instance, port uint32) []string {
 	return out
 }
 
+// instanceOf is whose an upstream is, if it is anyone's the table knows.
+func (m *Manager) instanceOf(up string) (Instance, bool) {
+	host, _, err := splitUpstream(up)
+	if err != nil {
+		return Instance{}, false
+	}
+	return m.table.instanceAt(host)
+}
+
 // releaseUnused takes each service with no route left off the network, and
 // frees its addresses. It goes by service, not by upstream: a rollout's new
 // instance has an address before it has any traffic, and a drained one after.
@@ -368,12 +377,18 @@ func (m *Manager) releaseUnused(ctx context.Context) error {
 	}
 	used := map[Service]bool{}
 	for _, r := range routes {
+		// A route edited by hand may be about any service, until someone
+		// reverts or adopts it. Taking a service off the network now would
+		// leave it nothing to go back to.
+		if r.Edited {
+			return nil
+		}
 		for _, up := range r.Upstreams {
-			if host, _, err := splitUpstream(up); err == nil {
-				if i, known := m.table.instanceAt(host); known {
-					used[i.service()] = true
-				}
+			i, known := m.instanceOf(up)
+			if !known {
+				return nil
 			}
+			used[i.service()] = true
 		}
 	}
 	var failed error

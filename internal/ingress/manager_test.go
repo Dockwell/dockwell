@@ -699,12 +699,16 @@ func TestReadingBackAHandEditIsDrift(t *testing.T) {
 		t.Errorf("a hand-edited route reads as %v", got)
 	}
 
-	// Reconciling leaves it for a person: drift is never silently reverted.
+	// Reconciling leaves it for a person: drift is never silently reverted,
+	// and the service stays where a revert needs it.
 	if err := s.Reconcile(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if !s.proxy.routes[0].Edited {
 		t.Error("reconciling reverted a hand edit")
+	}
+	if _, on := s.engine.Container(docker.Project(envID) + "-web-1").NetworkSettings.Networks[docker.IngressNetwork]; !on {
+		t.Error("a hand edit took its service off the ingress network")
 	}
 
 	// Gone by hand reads as gone.

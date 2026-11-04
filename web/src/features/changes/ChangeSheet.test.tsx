@@ -255,7 +255,7 @@ describe("the plan sheet", () => {
 
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     expect(sheet).toHaveTextContent(
-      "This is the first route on hz-1, so Caddy starts, and takes ports 80/tcp, 443/tcp, 443/udp",
+      "Caddy isn't running on hz-1, so this route starts it, and it takes ports 80/tcp, 443/tcp, 443/udp",
     );
     expect(sheet).toHaveTextContent("The panel's domain, panel.example.com, moves behind Caddy");
     expect(sheet).toHaveTextContent("the SSH tunnel keeps working");

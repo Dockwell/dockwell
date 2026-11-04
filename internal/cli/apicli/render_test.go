@@ -111,7 +111,7 @@ func TestARoutesPlanSaysWhatItDoesToTheServer(t *testing.T) {
 	var out bytes.Buffer
 	PlanView(&out, plan)
 	for _, want := range []string{
-		"first route on hz-1, so Caddy starts, and takes ports 80/tcp, 443/tcp and 443/udp",
+		"Caddy isn't running on hz-1, so this route starts it, and it takes ports 80/tcp, 443/tcp and 443/udp",
 		"panel.example.com, moves behind Caddy",
 		"the SSH tunnel keeps working",
 		"DNS for app.example.com points at 198.51.100.1, not this server (203.0.113.9)",

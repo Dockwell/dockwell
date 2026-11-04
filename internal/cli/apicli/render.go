@@ -544,7 +544,7 @@ func ingressWords(e *dockwellv1.IngressEffect, server string) []string {
 	proxy, ports := e.GetProxy(), human.List(e.GetPorts())
 	switch e.GetChange() {
 	case dockwellv1.IngressChange_INGRESS_CHANGE_STARTS:
-		out = append(out, fmt.Sprintf("This is the first route on %s, so %s starts, and takes ports %s.", server, proxy, ports))
+		out = append(out, fmt.Sprintf("%s isn't running on %s, so this route starts it, and it takes ports %s.", proxy, server, ports))
 		if d := e.GetPanelDomain(); d != "" {
 			out = append(out, fmt.Sprintf("The panel's domain, %s, moves behind %s. Its address, passkeys and sessions stay as they are. HTTPS on it is down for a few seconds while its certificate comes; the SSH tunnel keeps working.", d, proxy))
 		}

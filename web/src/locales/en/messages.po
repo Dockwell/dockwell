@@ -200,6 +200,10 @@ msgid "{plain, plural, one {# variable} other {# variables}}"
 msgstr "{plain, plural, one {# variable} other {# variables}}"
 
 #: src/features/changes/words.ts
+msgid "{proxy} isn't running on {server}, so this route starts it, and it takes ports {ports}"
+msgstr "{proxy} isn't running on {server}, so this route starts it, and it takes ports {ports}"
+
+#: src/features/changes/words.ts
 msgid "{proxy} restarts on {server}, for a newer version, so everything it serves is down for that long"
 msgstr "{proxy} restarts on {server}, for a newer version, so everything it serves is down for that long"
 
@@ -2420,10 +2424,6 @@ msgstr "This install already has an owner"
 #: src/features/auth/messages.ts
 msgid "This install already has an owner. Sign in instead."
 msgstr "This install already has an owner. Sign in instead."
-
-#: src/features/changes/words.ts
-msgid "This is the first route on {server}, so {proxy} starts, and takes ports {ports}"
-msgstr "This is the first route on {server}, so {proxy} starts, and takes ports {ports}"
 
 #: src/features/changes/words.ts
 msgid "This is the last route on {server}, so {proxy} stops, and ports {ports} are free. Its certificates stay on the server for when a route comes back"

@@ -6,14 +6,15 @@
 # the environment exports as a Compose file that docker compose reads and
 # lists; a Compose file imports; a service using a variable and a secret
 # runs with their values, exports without the secret, and imports again
-# with no change; and everything goes again. Then the agent build joins the
-# full build's control plane, and runs a container on the same Docker. Before
-# that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
-# and serves a real container over HTTPS through Caddy. It uses throwaway data
-# directories and removes what it made, so it never touches a real install. It
-# needs Docker with the compose plugin, Go, curl, jq, openssl and iproute2's ss,
-# a free port (E2E_WEB_PORT, 18080 by default), and ports 80 and 443 free, for
-# the ingress's own part.
+# with no change; and everything goes again. Then the agent build joins the full build's control plane, and runs a container on the
+# same Docker. Before that, a route gets a real certificate from Pebble, Let's
+# Encrypt's test CA, and serves a real container over HTTPS through Caddy. It
+# uses throwaway data directories and removes what it made, so it never touches
+# a real install. It needs Docker with the compose plugin, Go, curl, jq, openssl
+# and iproute2's ss, a free port (E2E_WEB_PORT, 18080 by default), and ports 80
+# and 443 free, for the ingress's own part. With E2E_PANEL set, as in CI, it also
+# moves the panel's own domain behind Caddy and back, which needs sudo to let
+# this user bind ports 80 and 443.
 #
 #   scripts/docker-e2e.sh bin/dockwell bin/dockwell-agent
 set -euo pipefail
@@ -47,7 +48,9 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 
   -addext subjectAltName=DNS:localhost,IP:127.0.0.1 -keyout "$pebble_dir/key.pem" -out "$DOCKWELL_ACME_ROOTS" 2>/dev/null
 
 start_dockwell() {
-  "$bin" run --listen "$addr" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json >>"$log" 2>&1 &
+  # Only the panel's own certificates need this, as they come through Go's
+  # default roots.
+  SSL_CERT_FILE=$DOCKWELL_ACME_ROOTS "$bin" run --listen "$addr" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json "$@" >>"$log" 2>&1 &
   pid=$!
 }
 start_dockwell
@@ -308,6 +311,21 @@ done
 curl -fsS --cacert "$pebble_dir/cert.pem" https://localhost:14000/dir >/dev/null || fail "Pebble didn't answer within 10 s"
 
 listening() { [[ -n "$(ss -H -ltn "sport = :$1")" ]]; }
+stop_dockwell() {
+  kill "$pid"
+  wait "$pid" 2>/dev/null || true
+  connected=$(grep -c 'connected to the control plane' "$log" || true)
+}
+# wait_for_dockwell waits for what stop_dockwell stopped to answer, and for its
+# agent to connect, which every plan needs.
+wait_for_dockwell() {
+  for _ in $(seq 300); do
+    curl -fsS "http://$addr/healthz" >/dev/null 2>&1 &&
+      [[ "$(grep -c 'connected to the control plane' "$log")" -gt "$connected" ]] && return 0
+    sleep 0.1
+  done
+  fail "Dockwell didn't come back within 30 s"
+}
 if listening 80 || listening 443; then
   fail "something on this machine already holds port 80 or 443, so the ingress's part can't run. Stop it, and run this again"
 fi
@@ -415,8 +433,7 @@ drift=$(dw drift list --json) || fail "drift list failed"
 jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after a route and a replace: $drift"
 
 step "Ingress: traffic keeps flowing with Dockwell down, and through a restart of Caddy"
-kill "$pid"
-wait "$pid" 2>/dev/null || true
+stop_dockwell
 over_https | grep -q nginx || fail "with Dockwell down, https://$domain/ stopped serving"
 docker restart --time 5 dockwell-ingress >/dev/null || fail "docker restart dockwell-ingress failed"
 for _ in $(seq 100); do
@@ -425,10 +442,7 @@ for _ in $(seq 100); do
 done
 over_https | grep -q nginx || fail "with Dockwell down, Caddy came back without its last config"
 start_dockwell
-for _ in $(seq 100); do
-  curl -fsS "http://$addr/healthz" >/dev/null 2>&1 && break
-  sleep 0.1
-done
+wait_for_dockwell
 
 step "Ingress: a hand edit reads as drift, and a revert puts it back"
 hand='{"handler":"static_response","body":"by hand"}'
@@ -472,6 +486,90 @@ over_https | grep -q nginx || fail "with the route back, https://$domain/ doesn'
 after=$(openssl x509 -in "$certificate" -noout -serial) || fail "can't read the certificate"
 [[ "$after" == "$before" ]] || fail "a new certificate was issued, $after, where the one kept was $before"
 dw routes delete www --yes || fail "routes delete www, again, failed"
+
+if [[ -n "${E2E_PANEL:-}" ]]; then
+  step "Ingress: the panel's own domain, on its own ports"
+  panel=panel.e2e-dockwell.example.net
+  panel_url() { curl -fsS --max-time 10 --cacert "$pebble_dir/root.pem" --resolve "$panel:443:127.0.0.1" "$@"; }
+  wait_for_panel() {
+    for _ in $(seq 120); do
+      [[ "$(panel_url "https://$panel/healthz" 2>/dev/null)" == ok ]] && return 0
+      sleep 0.5
+    done
+    return 1
+  }
+  plain_status() { curl -sS --max-time 5 -o /dev/null -w '%{http_code}' --resolve "$panel:80:127.0.0.1" "$@" "http://$panel/"; }
+  sudo -n sysctl -q -w net.ipv4.ip_unprivileged_port_start=80 || fail "can't let this user bind ports 80 and 443, which the panel needs to hold them itself"
+  stop_dockwell
+  start_dockwell --domain "$panel"
+  wait_for_dockwell
+  wait_for_panel || fail "https://$panel/healthz didn't answer within 60 s, on the panel's own certificate"
+  [[ "$(plain_status -H 'Authorization: Bearer x')" == 400 ]] || fail "a token over plain HTTP wasn't refused by the panel itself"
+  if docker inspect dockwell-ingress >/dev/null 2>&1; then fail "the ingress ran with no route"; fi
+
+  step "Ingress: the first route moves the panel's domain behind Caddy"
+  moved=$(dw routes create www --domain "$domain" --service web --port 80 --yes 2>&1) || fail "routes create www beside the panel failed: $moved"
+  grep -q "moves behind Caddy" <<<"$moved" || fail "the plan doesn't say the panel moves: $moved"
+  docker inspect --format '{{.State.Running}}' dockwell-ingress | grep -q true || fail "dockwell-ingress isn't running"
+  wait_for_panel || fail "https://$panel/healthz didn't answer through Caddy within 60 s"
+  over_https | grep -q nginx || fail "with the panel beside it, https://$domain/ doesn't serve web"
+  state=$(panel_url -X POST -H 'Content-Type: application/json' -d '{}' "https://$panel/dockwell.v1.AuthService/GetAuthState") ||
+    fail "the panel's API doesn't answer through Caddy"
+  [[ "$(jq -r .rpId <<<"$state")" == "$panel" ]] || fail "through Caddy, the panel's RP ID is not its domain: $state"
+  [[ "$(plain_status -H 'Authorization: Bearer x')" == 400 ]] || fail "through Caddy, a token over plain HTTP wasn't refused"
+  [[ "$(plain_status -X POST)" == 400 ]] || fail "through Caddy, a POST over plain HTTP wasn't refused"
+  [[ "$(plain_status)" == 308 ]] || fail "through Caddy, a GET over plain HTTP wasn't redirected"
+  [[ "$(stat -c '%a' "$data/ingress/run/panel.sock")" == 600 ]] || fail "the panel's socket has mode $(stat -c '%a' "$data/ingress/run/panel.sock"), want 600"
+
+  step "Ingress: nothing on loopback can pretend to be HTTPS"
+  spoofed=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' -H "Host: $panel" -H 'X-Forwarded-Proto: https' -H 'X-Forwarded-For: 203.0.113.9' "http://$addr/healthz")
+  [[ "$spoofed" == 421 ]] || fail "the panel's Host on loopback, with forwarded headers, got $spoofed, want 421"
+
+  step "Ingress: with Caddy down, the tunnel's listener still answers"
+  docker stop --time 5 dockwell-ingress >/dev/null || fail "docker stop dockwell-ingress failed"
+  [[ "$(curl -fsS --max-time 5 "http://$addr/healthz")" == ok ]] || fail "with Caddy down, the panel's loopback listener doesn't answer"
+  # The agent starts it too, within a minute, so it may have done so already.
+  docker start dockwell-ingress >/dev/null 2>&1 || true
+  wait_for_panel || fail "https://$panel/healthz didn't come back with Caddy"
+
+  step "Ingress: a restart of Dockwell leaves the ports to Caddy"
+  stop_dockwell
+  start_dockwell --domain "$panel"
+  wait_for_dockwell
+  grep -q 'hold ports 80 and 443' "$log" || fail "Dockwell didn't say the ports are Caddy's"
+  wait_for_panel || fail "after a restart of Dockwell, https://$panel/healthz doesn't answer"
+
+  step "Ingress: the last route gives the panel its ports back"
+  back=$(dw routes delete www --yes 2>&1) || fail "routes delete www beside the panel failed: $back"
+  grep -q "takes those ports back" <<<"$back" || fail "the plan doesn't say the panel takes its ports back: $back"
+  if docker inspect dockwell-ingress >/dev/null 2>&1; then fail "dockwell-ingress is there after the last route"; fi
+  wait_for_panel || fail "https://$panel/healthz didn't answer on the panel's own ports again within 60 s"
+  state=$(panel_url -X POST -H 'Content-Type: application/json' -d '{}' "https://$panel/dockwell.v1.AuthService/GetAuthState") ||
+    fail "the panel's API doesn't answer on its own ports"
+  [[ "$(jq -r .rpId <<<"$state")" == "$panel" ]] || fail "back on its own ports, the panel's RP ID is not its domain: $state"
+  stop_dockwell
+  sudo -n sysctl -q -w net.ipv4.ip_unprivileged_port_start=1024 || true
+  start_dockwell
+  wait_for_dockwell
+else
+  echo "E2E_PANEL isn't set, so moving the panel's domain behind Caddy wasn't checked on real Docker. CI sets it"
+fi
+
+step "Ingress: a token can't take a domain another environment held"
+dw environments create staging --yes || fail "environments create staging failed"
+dw services create web --environment staging --app-image nginx:1.27-alpine --yes || fail "services create web in staging failed"
+set +e
+taken=$(dw routes create www --environment staging --domain "$domain" --service web --port 80 --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "taking a domain from another environment exited $status, want 4: it waits for a person: $taken"
+grep -q 'the environment production held' <<<"$taken" || fail "the plan doesn't say whose domain it takes: $taken"
+if docker inspect dockwell-ingress >/dev/null 2>&1; then fail "the ingress started for a plan that waits for a person"; fi
+changes=$(dw changes list --json) || fail "changes list failed"
+dw changes discard "$(jq -r '.changes[0].id' <<<"$changes")" >/dev/null || fail "changes discard failed"
+dw services delete web --environment staging --yes || fail "services delete web in staging failed"
+dw environments delete staging --yes || fail "environments delete staging failed"
+
 dw services delete web --yes || fail "services delete web failed"
 in_ingress=""
 

@@ -405,13 +405,13 @@ func (m *Manager) Ready(ctx context.Context) error {
 		return err
 	}
 	if info.Rootless() {
-		return errors.New("docker runs rootless on this server, so its host network isn't the server's, and the ingress couldn't take ports 80 and 443 here. Run the ingress's server with Docker as root")
+		return errors.New("docker runs rootless on this server, so its host network isn't the server's, and Caddy couldn't take ports 80 and 443 here. Run Docker as root to use routes on this server")
 	}
 	return nil
 }
 
-// ReadyKey is the Docker client, whether it answers; its other answers are
-// the same on one engine.
+// ReadyKey is the manager, as what it asks of the engine is more than whether
+// it answers.
 func (m *Manager) ReadyKey() any { return m }
 
 // Apply makes the proxy serve a route, or stop serving it when spec is nil.
@@ -672,6 +672,9 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 			return err
 		}
 	} else if err := m.Proxy.SetPanel(ctx, m.panelSite()); err != nil {
+		return err
+	}
+	if err := m.releaseUnused(ctx); err != nil {
 		return err
 	}
 	return m.attachAll(ctx)

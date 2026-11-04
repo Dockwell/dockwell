@@ -200,6 +200,10 @@ msgid "{plain, plural, one {# variable} other {# variables}}"
 msgstr "{plain, plural, other {# 个变量}}"
 
 #: src/features/changes/words.ts
+msgid "{proxy} isn't running on {server}, so this route starts it, and it takes ports {ports}"
+msgstr "{proxy} 未在 {server} 上运行，因此此路由将启动它，并由它占用端口 {ports}"
+
+#: src/features/changes/words.ts
 msgid "{proxy} restarts on {server}, for a newer version, so everything it serves is down for that long"
 msgstr "{proxy} 将在 {server} 上重启以更新版本，重启期间它提供的所有服务都不可用"
 
@@ -2420,10 +2424,6 @@ msgstr "这个安装已经有所有者"
 #: src/features/auth/messages.ts
 msgid "This install already has an owner. Sign in instead."
 msgstr "这个安装已经有所有者。请直接登录。"
-
-#: src/features/changes/words.ts
-msgid "This is the first route on {server}, so {proxy} starts, and takes ports {ports}"
-msgstr "这是 {server} 上的第一条路由，因此 {proxy} 将启动并占用端口 {ports}"
 
 #: src/features/changes/words.ts
 msgid "This is the last route on {server}, so {proxy} stops, and ports {ports} are free. Its certificates stay on the server for when a route comes back"
