@@ -52,6 +52,7 @@ the install's key           <data>/control/key, 0600, never in the database
 - **The key-encryption key** is random, 256 bits, and kept sealed with the install's key, under a purpose that names it (`internal/seal`). Data keys are AES-256-GCM under it, bound to their own ID and the key-encryption key's.
 - A stored spec says whether it is sealed: it starts with a zero byte, which no protobuf encoding does. A spec stored before this change opens as it is.
 - **Fingerprints don't give a secret away.** A plan's fingerprint hashed each item's spec, and a backup holds the fingerprint, so a guess at a short password could be checked against it. A sealed kind's spec is digested with HMAC-SHA256 under a key derived from the install's key (`seal.Key.Derive`), which keeps fingerprints reproducible and useless without the key file.
+- **Plans mask by the schema.** An agent's steps say which field changes are sensitive; the control plane masks every change whose path the schema marks sensitive, whatever the agent says, before a plan is kept.
 - **Revisions stay immutable.** Rotating the key-encryption key wraps every data key again, in their own table, and changes no revision.
 
 ### Rotating the key-encryption key

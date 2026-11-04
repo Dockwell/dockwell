@@ -71,3 +71,29 @@ func TestDiffSeesThroughAmbiguousLists(t *testing.T) {
 		t.Errorf("changes: %+v", got)
 	}
 }
+
+// A path names a sensitive field when any field along it is one, and a
+// path the message doesn't have counts as sensitive.
+func TestSensitivePath(t *testing.T) {
+	service := (&resourcev1.Service{}).ProtoReflect().Descriptor()
+	container := (&resourcev1.Container{}).ProtoReflect().Descriptor()
+	for path, want := range map[string]bool{
+		"app.env[API_KEY]":         true,
+		"app.image":                false,
+		"app.ports[0].host_port":   false,
+		"secrets[DATABASE_URL]":    false,
+		"revisions[DATABASE_URL]":  false,
+		"app.nonsense":             true,
+		"app.ports[0].host_port.x": true,
+	} {
+		if got := resource.SensitivePath(service, path); got != want {
+			t.Errorf("resource.SensitivePath(Service, %q) = %v, want %v", path, got, want)
+		}
+	}
+	if !resource.SensitivePath(container, "env[API_KEY]") || resource.SensitivePath(container, "image") {
+		t.Error("SensitivePath misreads a container's paths")
+	}
+	if !resource.SensitivePath((&resourcev1.Secret{}).ProtoReflect().Descriptor(), "value") {
+		t.Error("a secret's value isn't sensitive")
+	}
+}

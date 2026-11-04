@@ -531,3 +531,50 @@ func TestAHungCheckDoesntHoldTheStream(t *testing.T) {
 		}
 	}
 }
+
+// A field the schema marks sensitive never shows its value in a plan,
+// whatever the agent says of it: an agent that reports a container's
+// environment unmasked, as a buggy or older one might, has it masked.
+func TestAnAgentCantPutASecretInAPlan(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	stream := openStream(t, id, string(container.Kind))
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	web := resource.Ref{Kind: container.Kind, Scope: id.ServerID, Name: "web"}
+	type planned struct {
+		steps []resource.Step
+		err   error
+	}
+	done := make(chan planned, 1)
+	go func() {
+		steps, err := a.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: &resourcev1.Container{Image: "nginx:1.28"}}})
+		done <- planned{steps, err}
+	}()
+	msg, err := stream.Receive()
+	if err != nil || msg.GetCall().GetPlan() == nil {
+		t.Fatalf("the control plane sent %v, %v, want a plan", msg, err)
+	}
+	leaky := &dockwellv1.PlanStep{
+		Resource: resourcepb.Ref(web), Action: dockwellv1.PlanAction_PLAN_ACTION_REPLACE, Effect: dockwellv1.StepEffect_STEP_EFFECT_RECREATE,
+		Changes: []*dockwellv1.FieldChange{
+			{Path: "env[API_KEY]", Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, From: "old-s3cret", To: "new-s3cret"},
+			{Path: "image", Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, From: "nginx:1.27", To: "nginx:1.28"},
+		},
+	}
+	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: &agentv1.CallResult{
+		Id: msg.GetCall().GetId(), Result: &agentv1.CallResult_Plan{Plan: &agentv1.PlanResult{Steps: []*dockwellv1.PlanStep{leaky}}},
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	got := <-done
+	if got.err != nil || len(got.steps) != 1 || len(got.steps[0].Changes) != 2 {
+		t.Fatalf("Plan = %+v, %v", got.steps, got.err)
+	}
+	env, image := got.steps[0].Changes[0], got.steps[0].Changes[1]
+	if !env.Sensitive || env.From != "" || env.To != "" {
+		t.Errorf("the environment's change = %+v, want it masked", env)
+	}
+	if image.Sensitive || image.To != "nginx:1.28" {
+		t.Errorf("the image's change = %+v, want it shown", image)
+	}
+}

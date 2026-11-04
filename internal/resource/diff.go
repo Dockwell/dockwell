@@ -196,6 +196,33 @@ func (d *differ) mapField(path string, fd protoreflect.FieldDescriptor, a, b pro
 	}
 }
 
+// SensitivePath reports whether the field a change's path names, such as
+// "env[API_KEY]" or "app.env[API_KEY]", is sensitive or lies within a
+// sensitive field of md, as Diff marks it. A path md doesn't have is
+// sensitive, as nothing can show it's safe. The control plane masks what
+// agents report by it, rather than by what they say.
+func SensitivePath(md protoreflect.MessageDescriptor, path string) bool {
+	for part := range strings.SplitSeq(path, ".") {
+		name, _, _ := strings.Cut(part, "[")
+		if md == nil {
+			return true
+		}
+		fd := md.Fields().ByName(protoreflect.Name(name))
+		if fd == nil {
+			return true
+		}
+		if IsSensitive(fd) {
+			return true
+		}
+		value := fd
+		if fd.IsMap() {
+			value = fd.MapValue()
+		}
+		md = value.Message()
+	}
+	return false
+}
+
 // Sensitive reports whether a spec's message type has a field that may hold
 // a secret, at any depth. The revision store keeps every spec of such a
 // kind encrypted (ADR 0022).

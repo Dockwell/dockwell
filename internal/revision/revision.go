@@ -12,6 +12,7 @@ package revision
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -2037,7 +2038,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 					return err
 				}
 			}
-			asked, err := e.open(ctx, tx, it.id, ref.Kind, ci.Spec)
+			asked, err := e.open(ctx, tx, cmp.Or(ci.ResourceID, it.id), ref.Kind, ci.Spec)
 			if err != nil {
 				return err
 			}
@@ -2144,7 +2145,9 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 			}
 		}
 		it.servers = ci.Servers
-		if it.encoded, err = e.open(ctx, tx, it.id, ref.Kind, ci.Spec); err != nil {
+		// Opened as the resource it was sealed for, which the base check
+		// above makes the one there now.
+		if it.encoded, err = e.open(ctx, tx, cmp.Or(ci.ResourceID, it.id), ref.Kind, ci.Spec); err != nil {
 			return nil, fmt.Errorf("can't read what %s asks of %s: %w", c.ID, ref, err)
 		}
 		if ci.Spec != nil {

@@ -493,6 +493,18 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		}
 		// The step is about the resource asked for, whatever the agent says.
 		steps[i].Ref = desired[i].Ref
+		// A field the schema marks sensitive never shows its value, whatever
+		// the agent says of it: plans are kept, and an agent that got it
+		// wrong mustn't put a secret in one.
+		if t, err := s.agents.kinds.Type(desired[i].Ref.Kind); err == nil {
+			md := t.New().ProtoReflect().Descriptor()
+			for j := range steps[i].Changes {
+				c := &steps[i].Changes[j]
+				if c.Sensitive || resource.SensitivePath(md, c.Path) {
+					c.Sensitive, c.From, c.To = true, "", ""
+				}
+			}
+		}
 	}
 	return steps, nil
 }
