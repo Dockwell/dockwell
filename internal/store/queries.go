@@ -122,6 +122,37 @@ func (t *Tx) UpdateServerCert(ctx context.Context, id string, c CertUpdate) erro
 		c.Serial, c.KeyHash, millis(c.NotAfter), c.PrevSerial, id)
 }
 
+// ServerReport is what a server's agent last said about it, encoded.
+type ServerReport struct {
+	Inventory  []byte
+	AgentBuild []byte
+}
+
+// SaveServerReport stores what a server's agent reported, and when.
+func (t *Tx) SaveServerReport(ctx context.Context, id string, r ServerReport, at time.Time) error {
+	return t.updateServer(ctx, id, `UPDATE servers SET inventory = ?, agent_build = ?, last_seen_at = ? WHERE id = ?`,
+		r.Inventory, r.AgentBuild, millis(at), id)
+}
+
+// ServerReports returns the stored reports of active servers, by ID.
+func (t *Tx) ServerReports(ctx context.Context) (map[string]ServerReport, error) {
+	rows, err := t.tx.QueryContext(ctx, `SELECT id, inventory, agent_build FROM servers WHERE revoked_at IS NULL AND inventory IS NOT NULL`)
+	if err != nil {
+		return nil, fmt.Errorf("can't read server reports: %w", err)
+	}
+	defer rows.Close()
+	out := map[string]ServerReport{}
+	for rows.Next() {
+		var id string
+		var r ServerReport
+		if err := rows.Scan(&id, &r.Inventory, &r.AgentBuild); err != nil {
+			return nil, err
+		}
+		out[id] = r
+	}
+	return out, rows.Err()
+}
+
 // TouchServer records that a server was heard from.
 func (t *Tx) TouchServer(ctx context.Context, id string, at time.Time) error {
 	return t.updateServer(ctx, id, `UPDATE servers SET last_seen_at = ? WHERE id = ?`, millis(at), id)

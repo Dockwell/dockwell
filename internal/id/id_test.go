@@ -12,7 +12,8 @@ import (
 
 func TestNewIsPrefixedAndParses(t *testing.T) {
 	at := time.Date(2026, 11, 3, 21, 40, 0, 123e6, time.UTC)
-	s := newAt(Server, at)
+	var g generator
+	s := g.next(Server, at)
 	if !strings.HasPrefix(s, "srv_") || len(s) != len("srv_")+ulidLen {
 		t.Fatalf("New = %q", s)
 	}
@@ -27,12 +28,30 @@ func TestNewIsPrefixedAndParses(t *testing.T) {
 
 func TestIDsSortByCreationTime(t *testing.T) {
 	base := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+	var g generator
 	var ids []string
 	for i := range 50 {
-		ids = append(ids, newAt(Event, base.Add(time.Duration(i)*time.Millisecond)))
+		ids = append(ids, g.next(Event, base.Add(time.Duration(i)*time.Millisecond)))
 	}
 	if !slices.IsSorted(ids) {
 		t.Error("IDs made later must sort later")
+	}
+}
+
+func TestIDsIncreaseWithinAMillisecond(t *testing.T) {
+	at := time.Date(2026, 11, 3, 21, 40, 0, 0, time.UTC)
+	var g generator
+	prev := g.next(Event, at)
+	for range 1000 {
+		next := g.next(Event, at)
+		if next <= prev {
+			t.Fatalf("%s came after %s", next, prev)
+		}
+		prev = next
+	}
+	// A clock that steps back still yields increasing IDs.
+	if back := g.next(Event, at.Add(-time.Second)); back <= prev {
+		t.Errorf("after the clock stepped back, %s <= %s", back, prev)
 	}
 }
 

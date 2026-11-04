@@ -323,7 +323,7 @@ func (i *Identity) Renew(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	service, err := i.agentService()
+	service, err := i.Client()
 	if err != nil {
 		return err
 	}
@@ -360,8 +360,9 @@ func (i *Identity) ClientTLS() (*tls.Config, error) {
 	}, nil
 }
 
-// agentService is a client for the control plane, made once and reused.
-func (i *Identity) agentService() (agentv1connect.AgentServiceClient, error) {
+// Client is this server's client for the control plane, authenticated with
+// its current certificate. It is made once and reused.
+func (i *Identity) Client() (agentv1connect.AgentServiceClient, error) {
 	i.mu.Lock()
 	if i.service != nil {
 		defer i.mu.Unlock()

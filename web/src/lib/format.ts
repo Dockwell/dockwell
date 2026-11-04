@@ -15,3 +15,43 @@ export function formatDateTime(date: Date, locale: string): string {
     minute: "2-digit",
   }).format(date);
 }
+
+const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"] as const;
+
+/** The largest unit, as an index into BYTE_UNITS, that keeps bytes at 1 or more. */
+function unitFor(bytes: number): number {
+  let unit = 0;
+  while (bytes >= 1024 ** (unit + 1) && unit < BYTE_UNITS.length - 1) unit++;
+  return unit;
+}
+
+/** Bytes as a number in unit: one decimal below 10, none above, and no trailing zero. */
+function amountIn(bytes: number, unit: number, locale: string): string {
+  const value = bytes / 1024 ** unit;
+  const digits = unit > 0 && value < 10 ? 1 : 0;
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(value);
+}
+
+/**
+ * Bytes in the largest unit that keeps the number readable, with a space:
+ * "512 MB", "2.1 GB", "8 GB", "18 GB".
+ */
+export function formatBytes(bytes: number | bigint, locale: string): string {
+  const n = Number(bytes);
+  const unit = unitFor(n);
+  return `${amountIn(n, unit, locale)} ${BYTE_UNITS[unit]}`;
+}
+
+/**
+ * A part of a whole, both in the whole's unit, for "7.4 of 8 GB": the part
+ * as a bare number and the whole with its unit.
+ */
+export function formatBytesOf(part: number | bigint, whole: number | bigint, locale: string): [string, string] {
+  const unit = unitFor(Number(whole));
+  return [amountIn(Number(part), unit, locale), `${amountIn(Number(whole), unit, locale)} ${BYTE_UNITS[unit]}`];
+}
+
+/** A share of 100 as a whole percentage: "12%". */
+export function formatPercent(value: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(value / 100);
+}

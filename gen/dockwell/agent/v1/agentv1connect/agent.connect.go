@@ -40,6 +40,8 @@ const (
 	// AgentServiceRenewCertificateProcedure is the fully-qualified name of the AgentService's
 	// RenewCertificate RPC.
 	AgentServiceRenewCertificateProcedure = "/dockwell.agent.v1.AgentService/RenewCertificate"
+	// AgentServiceConnectProcedure is the fully-qualified name of the AgentService's Connect RPC.
+	AgentServiceConnectProcedure = "/dockwell.agent.v1.AgentService/Connect"
 )
 
 // AgentServiceClient is a client for the dockwell.agent.v1.AgentService service.
@@ -51,6 +53,11 @@ type AgentServiceClient interface {
 	// RenewCertificate signs a fresh certificate for the calling server,
 	// which proves itself with its current one.
 	RenewCertificate(context.Context, *connect.Request[v1.RenewCertificateRequest]) (*connect.Response[v1.RenewCertificateResponse], error)
+	// Connect is the agent's long-lived stream. The agent opens it with a
+	// hello and then reports samples; the control plane answers with a
+	// welcome, and closes the stream if the server is removed. Later, desired
+	// state travels down this stream too.
+	Connect(context.Context) *connect.BidiStreamForClient[v1.ConnectRequest, v1.ConnectResponse]
 }
 
 // NewAgentServiceClient constructs a client for the dockwell.agent.v1.AgentService service. By
@@ -76,6 +83,12 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("RenewCertificate")),
 			connect.WithClientOptions(opts...),
 		),
+		connect: connect.NewClient[v1.ConnectRequest, v1.ConnectResponse](
+			httpClient,
+			baseURL+AgentServiceConnectProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("Connect")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -83,6 +96,7 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 type agentServiceClient struct {
 	join             *connect.Client[v1.JoinRequest, v1.JoinResponse]
 	renewCertificate *connect.Client[v1.RenewCertificateRequest, v1.RenewCertificateResponse]
+	connect          *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
 }
 
 // Join calls dockwell.agent.v1.AgentService.Join.
@@ -95,6 +109,11 @@ func (c *agentServiceClient) RenewCertificate(ctx context.Context, req *connect.
 	return c.renewCertificate.CallUnary(ctx, req)
 }
 
+// Connect calls dockwell.agent.v1.AgentService.Connect.
+func (c *agentServiceClient) Connect(ctx context.Context) *connect.BidiStreamForClient[v1.ConnectRequest, v1.ConnectResponse] {
+	return c.connect.CallBidiStream(ctx)
+}
+
 // AgentServiceHandler is an implementation of the dockwell.agent.v1.AgentService service.
 type AgentServiceHandler interface {
 	// Join spends a join ticket to give a new server its identity: the
@@ -104,6 +123,11 @@ type AgentServiceHandler interface {
 	// RenewCertificate signs a fresh certificate for the calling server,
 	// which proves itself with its current one.
 	RenewCertificate(context.Context, *connect.Request[v1.RenewCertificateRequest]) (*connect.Response[v1.RenewCertificateResponse], error)
+	// Connect is the agent's long-lived stream. The agent opens it with a
+	// hello and then reports samples; the control plane answers with a
+	// welcome, and closes the stream if the server is removed. Later, desired
+	// state travels down this stream too.
+	Connect(context.Context, *connect.BidiStream[v1.ConnectRequest, v1.ConnectResponse]) error
 }
 
 // NewAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -125,12 +149,20 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("RenewCertificate")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceConnectHandler := connect.NewBidiStreamHandler(
+		AgentServiceConnectProcedure,
+		svc.Connect,
+		connect.WithSchema(agentServiceMethods.ByName("Connect")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.agent.v1.AgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AgentServiceJoinProcedure:
 			agentServiceJoinHandler.ServeHTTP(w, r)
 		case AgentServiceRenewCertificateProcedure:
 			agentServiceRenewCertificateHandler.ServeHTTP(w, r)
+		case AgentServiceConnectProcedure:
+			agentServiceConnectHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -146,4 +178,8 @@ func (UnimplementedAgentServiceHandler) Join(context.Context, *connect.Request[v
 
 func (UnimplementedAgentServiceHandler) RenewCertificate(context.Context, *connect.Request[v1.RenewCertificateRequest]) (*connect.Response[v1.RenewCertificateResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.agent.v1.AgentService.RenewCertificate is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) Connect(context.Context, *connect.BidiStream[v1.ConnectRequest, v1.ConnectResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.agent.v1.AgentService.Connect is not implemented"))
 }

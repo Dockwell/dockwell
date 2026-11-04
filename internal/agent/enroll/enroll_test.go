@@ -23,6 +23,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control"
+	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/seal"
@@ -54,7 +55,11 @@ func startControlPlane(t *testing.T) *controlPlane {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv, err := control.New(control.Config{Logger: logger, Identity: auth, AgentHosts: []string{"127.0.0.1"}, Panel: fstest.MapFS{}})
+	hub, err := fleet.New(t.Context(), db, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv, err := control.New(control.Config{Logger: logger, Identity: auth, Fleet: hub, AgentHosts: []string{"127.0.0.1"}, Panel: fstest.MapFS{}})
 	if err != nil {
 		t.Fatal(err)
 	}

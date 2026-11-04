@@ -1,0 +1,184 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "dockwell/v1/system.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// ServerService lists the servers Dockwell manages and streams their live
+// state, as each server's agent reports it.
+service ServerService {
+  // ListServers returns every server, connected or not, without history.
+  rpc ListServers(ListServersRequest) returns (ListServersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+
+  // GetServer returns one server, with its recent history.
+  rpc GetServer(GetServerRequest) returns (GetServerResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+
+  // WatchServers streams every server once, with recent history, marks the
+  // end of that snapshot, and then streams each change within a second of
+  // the agent reporting it.
+  rpc WatchServers(WatchServersRequest) returns (stream WatchServersResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+}
+
+// ListServersRequest takes no parameters yet.
+message ListServersRequest {}
+
+// ListServersResponse lists servers, oldest first.
+message ListServersResponse {
+  // The servers.
+  repeated Server servers = 1;
+}
+
+// GetServerRequest names a server.
+message GetServerRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+}
+
+// GetServerResponse carries one server.
+message GetServerResponse {
+  // The server, with history.
+  Server server = 1;
+}
+
+// WatchServersRequest takes no parameters yet.
+message WatchServersRequest {}
+
+// WatchServersResponse is one step of a watch: a server's latest state, or
+// the end of the snapshot.
+message WatchServersResponse {
+  // The server as it is now. The first message for each server carries its
+  // history; later ones carry only the newest stats, to append. Unset on the
+  // message that ends the snapshot.
+  Server server = 1;
+  // True when the server was removed; the client should drop it.
+  bool removed = 2;
+  // True on the one message, without a server, that ends the snapshot: every
+  // server that existed when the watch began came before it, and every later
+  // message is a change. An empty fleet sends only this.
+  bool snapshot_complete = 3;
+}
+
+// Connection says whether a server's agent is talking to the control plane.
+enum Connection {
+  CONNECTION_UNSPECIFIED = 0;
+  // The agent's stream is open and reporting.
+  CONNECTION_CONNECTED = 1;
+  // The agent was connected and has gone quiet.
+  CONNECTION_UNREACHABLE = 2;
+  // The server joined but its agent hasn't connected yet.
+  CONNECTION_PENDING = 3;
+}
+
+// Server is one machine running the agent.
+message Server {
+  // The server's ID.
+  string id = 1;
+  // What the server is called, such as "hz-1".
+  string name = 2;
+  // When the server joined.
+  google.protobuf.Timestamp create_time = 3;
+  // Whether its agent is connected.
+  Connection connection = 4;
+  // When the control plane last heard from the agent. Unset if never.
+  google.protobuf.Timestamp last_seen_time = 5;
+  // What the server is: OS, hardware, Docker. Unset until the agent reports.
+  ServerInventory inventory = 6;
+  // The newest stats. Unset until the agent reports.
+  ServerStats stats = 7;
+  // Recent stats, oldest first, for sparklines. Empty in lists.
+  repeated ServerStats history = 8;
+  // The agent's build.
+  BuildInfo agent_build = 9;
+  // True for the server that runs the control plane.
+  bool control_server = 10;
+}
+
+// ServerInventory is what a server is: its system and hardware.
+message ServerInventory {
+  // The server's hostname.
+  string hostname = 1;
+  // The operating system's name for people, such as "Ubuntu 24.04.1 LTS".
+  string os_name = 2;
+  // The OS's ID from os-release, such as "ubuntu" or "debian".
+  string os_id = 3;
+  // The OS version, such as "24.04".
+  string os_version = 4;
+  // The kernel release, such as "6.8.0-48-generic".
+  string kernel = 5;
+  // The CPU architecture, such as "amd64" or "arm64".
+  string architecture = 6;
+  // The CPU model, such as "AMD EPYC 7763 64-Core Processor".
+  string cpu_model = 7;
+  // Logical CPUs.
+  uint32 cpu_count = 8;
+  // Total memory, in bytes.
+  uint64 memory_bytes = 9;
+  // Mounted filesystems that hold data, largest first.
+  repeated Disk disks = 10;
+  // The Docker Engine version, such as "28.5.1". Empty when Docker isn't
+  // installed or isn't running.
+  string docker_version = 11;
+  // The server's non-loopback IP addresses.
+  repeated string addresses = 12;
+}
+
+// Disk is one mounted filesystem.
+message Disk {
+  // Where it is mounted, such as "/" or "/var/lib/docker".
+  string mount_point = 1;
+  // The device, such as "/dev/sda1".
+  string device = 2;
+  // The filesystem type, such as "ext4".
+  string filesystem = 3;
+  // Total size, in bytes.
+  uint64 size_bytes = 4;
+}
+
+// ServerStats is one sample of a server's resource use.
+message ServerStats {
+  // When the agent took the sample.
+  google.protobuf.Timestamp time = 1;
+  // CPU busy time across all cores since the previous sample, 0 to 100.
+  double cpu_percent = 2;
+  // Memory in use (total minus available), in bytes.
+  uint64 memory_used_bytes = 3;
+  // Total memory, in bytes.
+  uint64 memory_total_bytes = 4;
+  // Use of each disk in the inventory.
+  repeated DiskUsage disks = 5;
+  // Load averages over 1, 5 and 15 minutes.
+  double load1 = 6;
+  // Load average over 5 minutes.
+  double load5 = 7;
+  // Load average over 15 minutes.
+  double load15 = 8;
+  // Bytes received per second across physical interfaces.
+  uint64 network_rx_bytes_per_second = 9;
+  // Bytes sent per second across physical interfaces.
+  uint64 network_tx_bytes_per_second = 10;
+  // Time since the server booted.
+  google.protobuf.Duration uptime = 11;
+}
+
+// DiskUsage is one filesystem's use.
+message DiskUsage {
+  // Where it is mounted.
+  string mount_point = 1;
+  // Bytes in use.
+  uint64 used_bytes = 2;
+  // Total size, in bytes.
+  uint64 size_bytes = 3;
+}

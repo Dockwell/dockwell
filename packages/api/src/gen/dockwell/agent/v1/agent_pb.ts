@@ -7,15 +7,141 @@
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_dockwell_v1_options } from "../../v1/options_pb";
+import type { ServerInventory, ServerStats } from "../../v1/server_pb";
+import { file_dockwell_v1_server } from "../../v1/server_pb";
 import type { BuildInfo } from "../../v1/system_pb";
 import { file_dockwell_v1_system } from "../../v1/system_pb";
+import type { Duration } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_duration } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file dockwell/agent/v1/agent.proto.
  */
 export const file_dockwell_agent_v1_agent: GenFile = /*@__PURE__*/
-  fileDesc("Ch1kb2Nrd2VsbC9hZ2VudC92MS9hZ2VudC5wcm90bxIRZG9ja3dlbGwuYWdlbnQudjEiUwoKSm9pblRpY2tldBITCgtjb250cm9sX3VybBgBIAEoCRIOCgZjYV9waW4YAiABKAkSEAoIdG9rZW5faWQYAyABKAkSDgoGc2VjcmV0GAQgASgMInUKC0pvaW5SZXF1ZXN0EhAKCHRva2VuX2lkGAEgASgJEg4KBnNlY3JldBgCIAEoDBILCgNjc3IYAyABKAwSEAoIaG9zdG5hbWUYBCABKAkSJQoFYnVpbGQYBSABKAsyFi5kb2Nrd2VsbC52MS5CdWlsZEluZm8iYwoMSm9pblJlc3BvbnNlEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRITCgtjZXJ0aWZpY2F0ZRgDIAEoDBIWCg5jYV9jZXJ0aWZpY2F0ZRgEIAEoDCImChdSZW5ld0NlcnRpZmljYXRlUmVxdWVzdBILCgNjc3IYASABKAwiLwoYUmVuZXdDZXJ0aWZpY2F0ZVJlc3BvbnNlEhMKC2NlcnRpZmljYXRlGAEgASgMMtABCgxBZ2VudFNlcnZpY2USTQoESm9pbhIeLmRvY2t3ZWxsLmFnZW50LnYxLkpvaW5SZXF1ZXN0Gh8uZG9ja3dlbGwuYWdlbnQudjEuSm9pblJlc3BvbnNlIgSguxgDEnEKEFJlbmV3Q2VydGlmaWNhdGUSKi5kb2Nrd2VsbC5hZ2VudC52MS5SZW5ld0NlcnRpZmljYXRlUmVxdWVzdBorLmRvY2t3ZWxsLmFnZW50LnYxLlJlbmV3Q2VydGlmaWNhdGVSZXNwb25zZSIEoLsYA0LFAQoVY29tLmRvY2t3ZWxsLmFnZW50LnYxQgpBZ2VudFByb3RvUAFaOmdpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL2FnZW50L3YxO2FnZW50djGiAgNEQViqAhFEb2Nrd2VsbC5BZ2VudC5WMcoCEURvY2t3ZWxsXEFnZW50XFYx4gIdRG9ja3dlbGxcQWdlbnRcVjFcR1BCTWV0YWRhdGHqAhNEb2Nrd2VsbDo6QWdlbnQ6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_dockwell_v1_system]);
+  fileDesc("Ch1kb2Nrd2VsbC9hZ2VudC92MS9hZ2VudC5wcm90bxIRZG9ja3dlbGwuYWdlbnQudjEicQoOQ29ubmVjdFJlcXVlc3QSKQoFaGVsbG8YASABKAsyGC5kb2Nrd2VsbC5hZ2VudC52MS5IZWxsb0gAEikKBXN0YXRzGAIgASgLMhguZG9ja3dlbGwudjEuU2VydmVyU3RhdHNIAEIJCgdtZXNzYWdlIl8KBUhlbGxvEiUKBWJ1aWxkGAEgASgLMhYuZG9ja3dlbGwudjEuQnVpbGRJbmZvEi8KCWludmVudG9yeRgCIAEoCzIcLmRvY2t3ZWxsLnYxLlNlcnZlckludmVudG9yeSJLCg9Db25uZWN0UmVzcG9uc2USLQoHd2VsY29tZRgBIAEoCzIaLmRvY2t3ZWxsLmFnZW50LnYxLldlbGNvbWVIAEIJCgdtZXNzYWdlIlEKB1dlbGNvbWUSEwoLc2VydmVyX25hbWUYASABKAkSMQoOc3RhdHNfaW50ZXJ2YWwYAiABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24iUwoKSm9pblRpY2tldBITCgtjb250cm9sX3VybBgBIAEoCRIOCgZjYV9waW4YAiABKAkSEAoIdG9rZW5faWQYAyABKAkSDgoGc2VjcmV0GAQgASgMInUKC0pvaW5SZXF1ZXN0EhAKCHRva2VuX2lkGAEgASgJEg4KBnNlY3JldBgCIAEoDBILCgNjc3IYAyABKAwSEAoIaG9zdG5hbWUYBCABKAkSJQoFYnVpbGQYBSABKAsyFi5kb2Nrd2VsbC52MS5CdWlsZEluZm8iYwoMSm9pblJlc3BvbnNlEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRITCgtjZXJ0aWZpY2F0ZRgDIAEoDBIWCg5jYV9jZXJ0aWZpY2F0ZRgEIAEoDCImChdSZW5ld0NlcnRpZmljYXRlUmVxdWVzdBILCgNjc3IYASABKAwiLwoYUmVuZXdDZXJ0aWZpY2F0ZVJlc3BvbnNlEhMKC2NlcnRpZmljYXRlGAEgASgMMqwCCgxBZ2VudFNlcnZpY2USTQoESm9pbhIeLmRvY2t3ZWxsLmFnZW50LnYxLkpvaW5SZXF1ZXN0Gh8uZG9ja3dlbGwuYWdlbnQudjEuSm9pblJlc3BvbnNlIgSguxgDEnEKEFJlbmV3Q2VydGlmaWNhdGUSKi5kb2Nrd2VsbC5hZ2VudC52MS5SZW5ld0NlcnRpZmljYXRlUmVxdWVzdBorLmRvY2t3ZWxsLmFnZW50LnYxLlJlbmV3Q2VydGlmaWNhdGVSZXNwb25zZSIEoLsYAxJaCgdDb25uZWN0EiEuZG9ja3dlbGwuYWdlbnQudjEuQ29ubmVjdFJlcXVlc3QaIi5kb2Nrd2VsbC5hZ2VudC52MS5Db25uZWN0UmVzcG9uc2UiBKC7GAMoATABQsUBChVjb20uZG9ja3dlbGwuYWdlbnQudjFCCkFnZW50UHJvdG9QAVo6Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvYWdlbnQvdjE7YWdlbnR2MaICA0RBWKoCEURvY2t3ZWxsLkFnZW50LlYxygIRRG9ja3dlbGxcQWdlbnRcVjHiAh1Eb2Nrd2VsbFxBZ2VudFxWMVxHUEJNZXRhZGF0YeoCE0RvY2t3ZWxsOjpBZ2VudDo6VjFiBnByb3RvMw", [file_dockwell_v1_options, file_dockwell_v1_server, file_dockwell_v1_system, file_google_protobuf_duration]);
+
+/**
+ * ConnectRequest is one message from the agent.
+ *
+ * @generated from message dockwell.agent.v1.ConnectRequest
+ */
+export type ConnectRequest = Message<"dockwell.agent.v1.ConnectRequest"> & {
+  /**
+   * What the message is.
+   *
+   * @generated from oneof dockwell.agent.v1.ConnectRequest.message
+   */
+  message: {
+    /**
+     * The first message on every stream.
+     *
+     * @generated from field: dockwell.agent.v1.Hello hello = 1;
+     */
+    value: Hello;
+    case: "hello";
+  } | {
+    /**
+     * A sample of the server's resource use.
+     *
+     * @generated from field: dockwell.v1.ServerStats stats = 2;
+     */
+    value: ServerStats;
+    case: "stats";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message dockwell.agent.v1.ConnectRequest.
+ * Use `create(ConnectRequestSchema)` to create a new message.
+ */
+export const ConnectRequestSchema: GenMessage<ConnectRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 0);
+
+/**
+ * Hello introduces the agent at the start of a stream.
+ *
+ * @generated from message dockwell.agent.v1.Hello
+ */
+export type Hello = Message<"dockwell.agent.v1.Hello"> & {
+  /**
+   * The agent's build.
+   *
+   * @generated from field: dockwell.v1.BuildInfo build = 1;
+   */
+  build?: BuildInfo | undefined;
+
+  /**
+   * What the server is, as the agent sees it now.
+   *
+   * @generated from field: dockwell.v1.ServerInventory inventory = 2;
+   */
+  inventory?: ServerInventory | undefined;
+};
+
+/**
+ * Describes the message dockwell.agent.v1.Hello.
+ * Use `create(HelloSchema)` to create a new message.
+ */
+export const HelloSchema: GenMessage<Hello> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 1);
+
+/**
+ * ConnectResponse is one message from the control plane.
+ *
+ * @generated from message dockwell.agent.v1.ConnectResponse
+ */
+export type ConnectResponse = Message<"dockwell.agent.v1.ConnectResponse"> & {
+  /**
+   * What the message is.
+   *
+   * @generated from oneof dockwell.agent.v1.ConnectResponse.message
+   */
+  message: {
+    /**
+     * The answer to a hello.
+     *
+     * @generated from field: dockwell.agent.v1.Welcome welcome = 1;
+     */
+    value: Welcome;
+    case: "welcome";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message dockwell.agent.v1.ConnectResponse.
+ * Use `create(ConnectResponseSchema)` to create a new message.
+ */
+export const ConnectResponseSchema: GenMessage<ConnectResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 2);
+
+/**
+ * Welcome accepts an agent's stream.
+ *
+ * @generated from message dockwell.agent.v1.Welcome
+ */
+export type Welcome = Message<"dockwell.agent.v1.Welcome"> & {
+  /**
+   * The name the control plane knows the server by.
+   *
+   * @generated from field: string server_name = 1;
+   */
+  serverName: string;
+
+  /**
+   * How often the agent should send stats.
+   *
+   * @generated from field: google.protobuf.Duration stats_interval = 2;
+   */
+  statsInterval?: Duration | undefined;
+};
+
+/**
+ * Describes the message dockwell.agent.v1.Welcome.
+ * Use `create(WelcomeSchema)` to create a new message.
+ */
+export const WelcomeSchema: GenMessage<Welcome> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 3);
 
 /**
  * JoinTicket is what `dockwell join` takes, encoded as "dwj1." followed by
@@ -60,7 +186,7 @@ export type JoinTicket = Message<"dockwell.agent.v1.JoinTicket"> & {
  * Use `create(JoinTicketSchema)` to create a new message.
  */
 export const JoinTicketSchema: GenMessage<JoinTicket> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 0);
+  messageDesc(file_dockwell_agent_v1_agent, 4);
 
 /**
  * JoinRequest asks to join with a join token.
@@ -111,7 +237,7 @@ export type JoinRequest = Message<"dockwell.agent.v1.JoinRequest"> & {
  * Use `create(JoinRequestSchema)` to create a new message.
  */
 export const JoinRequestSchema: GenMessage<JoinRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 1);
+  messageDesc(file_dockwell_agent_v1_agent, 5);
 
 /**
  * JoinResponse gives a server its identity.
@@ -155,7 +281,7 @@ export type JoinResponse = Message<"dockwell.agent.v1.JoinResponse"> & {
  * Use `create(JoinResponseSchema)` to create a new message.
  */
 export const JoinResponseSchema: GenMessage<JoinResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 2);
+  messageDesc(file_dockwell_agent_v1_agent, 6);
 
 /**
  * RenewCertificateRequest asks for a fresh certificate.
@@ -177,7 +303,7 @@ export type RenewCertificateRequest = Message<"dockwell.agent.v1.RenewCertificat
  * Use `create(RenewCertificateRequestSchema)` to create a new message.
  */
 export const RenewCertificateRequestSchema: GenMessage<RenewCertificateRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 3);
+  messageDesc(file_dockwell_agent_v1_agent, 7);
 
 /**
  * RenewCertificateResponse carries the fresh certificate.
@@ -198,7 +324,7 @@ export type RenewCertificateResponse = Message<"dockwell.agent.v1.RenewCertifica
  * Use `create(RenewCertificateResponseSchema)` to create a new message.
  */
 export const RenewCertificateResponseSchema: GenMessage<RenewCertificateResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 4);
+  messageDesc(file_dockwell_agent_v1_agent, 8);
 
 /**
  * AgentService is how a server's agent talks to the control plane, over
@@ -231,6 +357,19 @@ export const AgentService: GenService<{
     methodKind: "unary";
     input: typeof RenewCertificateRequestSchema;
     output: typeof RenewCertificateResponseSchema;
+  },
+  /**
+   * Connect is the agent's long-lived stream. The agent opens it with a
+   * hello and then reports samples; the control plane answers with a
+   * welcome, and closes the stream if the server is removed. Later, desired
+   * state travels down this stream too.
+   *
+   * @generated from rpc dockwell.agent.v1.AgentService.Connect
+   */
+  connect: {
+    methodKind: "bidi_streaming";
+    input: typeof ConnectRequestSchema;
+    output: typeof ConnectResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_agent_v1_agent, 0);

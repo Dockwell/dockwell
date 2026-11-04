@@ -26,7 +26,9 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/control/servers"
 	"github.com/dockwell/dockwell/internal/control/system"
 	"github.com/dockwell/dockwell/internal/panel"
 	"github.com/dockwell/dockwell/internal/serve"
@@ -48,8 +50,10 @@ type Config struct {
 	Build buildinfo.Info
 	// Panel is the panel build to serve. Nil means the one embedded in the binary.
 	Panel fs.FS
-	// Identity is the install's authority. Without it there is no agent listener.
+	// Identity is the install's authority, and Fleet its servers' live state.
+	// Without both there is no agent listener and no ServerService.
 	Identity *identity.Authority
+	Fleet    *fleet.Hub
 	// AgentHosts are the names and addresses agents dial; the agent
 	// listener's certificate is valid for them.
 	AgentHosts []string
@@ -79,8 +83,11 @@ func New(cfg Config) (*Server, error) {
 		cfg.Logger.Warn("this binary has no panel built in; the API works, and make build adds the panel")
 	}
 	s := &Server{logger: cfg.Logger, api: apiRoutes(cfg, ui)}
+	if (cfg.Identity == nil) != (cfg.Fleet == nil) {
+		return nil, errors.New("control: Config.Identity and Config.Fleet go together")
+	}
 	if cfg.Identity != nil {
-		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Logger)
+		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Fleet, cfg.Logger)
 		s.agentTLS = agentapi.TLSConfig(cfg.Identity, cfg.AgentHosts)
 	}
 	return s, nil
@@ -93,8 +100,12 @@ func apiRoutes(cfg Config, ui http.Handler) http.Handler {
 	opts := serve.HandlerOptions(cfg.Logger)
 	mux := http.NewServeMux()
 	mux.Handle(dockwellv1connect.NewSystemServiceHandler(system.New(cfg.Build), opts...))
-
 	services := []string{dockwellv1connect.SystemServiceName}
+	if cfg.Fleet != nil {
+		mux.Handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet), opts...))
+		services = append(services, dockwellv1connect.ServerServiceName)
+	}
+
 	mux.Handle(grpchealth.NewHandler(grpchealth.NewStaticChecker(services...), opts...))
 	reflector := grpcreflect.NewStaticReflector(services...)
 	mux.Handle(grpcreflect.NewHandlerV1(reflector, opts...))

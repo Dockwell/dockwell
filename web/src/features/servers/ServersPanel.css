@@ -1,0 +1,114 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* The live view is catching up: the list stays, a quiet note says why it may be stale. */
+.servers-reconnecting {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.servers-reconnecting .dw-glyph {
+  color: var(--cobalt);
+}
+
+.servers-empty {
+  padding: var(--space-4);
+  color: var(--ink-muted);
+}
+
+/* Holds the panel's height without flashing a message at fast answers. */
+.servers-empty.is-quiet {
+  visibility: hidden;
+}
+
+.servers-error {
+  margin-top: var(--space-1);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.servers-empty code {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.servers-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.servers-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.servers-row + .servers-row {
+  border-top: 1px solid var(--line);
+}
+
+.servers-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.servers-name .dw-status-label {
+  font-weight: 550;
+}
+
+.servers-os {
+  grid-column: 1;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.servers-stats {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  gap: var(--space-5);
+  align-items: center;
+  margin: 0;
+}
+
+.servers-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.servers-stats dt {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+
+.servers-stats dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+/* On phones the stats move under the name instead of beside it. */
+@media (max-width: 520px) {
+  .servers-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .servers-stats {
+    grid-column: 1;
+    grid-row: auto;
+    gap: var(--space-4);
+    margin-top: var(--space-1);
+  }
+}

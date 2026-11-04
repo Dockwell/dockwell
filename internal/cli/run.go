@@ -22,6 +22,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control"
+	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/pki"
@@ -66,7 +67,7 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 			case err != nil:
 				return err
 			default:
-				err = agent.Run(cmd.Context(), agent.Config{Logger: logger, Dir: dir.Agent(), Identity: id})
+				err = agent.Run(cmd.Context(), agent.Config{Logger: logger, Dir: dir.Agent(), Identity: id, Build: build})
 			}
 			// Asked to stop while still starting: every write so far was a
 			// transaction, so stopping now is clean, not a failure.
@@ -128,18 +129,25 @@ func runControl(ctx context.Context, logger *slog.Logger, dir datadir.Dir, build
 	logger.Info("other servers join through the agent listener",
 		slog.String("url", agentURL), slog.String("install", auth.InstallID()), slog.String("ca_pin", auth.CA().Pin()))
 
-	srv, err := control.New(control.Config{
-		Logger:     logger,
-		Build:      build,
-		Identity:   auth,
-		AgentHosts: agentHosts(agentURL),
-	})
+	own, err := localIdentity(ctx, auth, dir, agentLn.Addr())
 	if err != nil {
 		_, _ = apiLn.Close(), agentLn.Close()
 		return err
 	}
+	hub, err := fleet.New(ctx, db, logger)
+	if err != nil {
+		_, _ = apiLn.Close(), agentLn.Close()
+		return err
+	}
+	hub.SetControlServer(own.ServerID)
 
-	own, err := localIdentity(ctx, auth, dir, agentLn.Addr())
+	srv, err := control.New(control.Config{
+		Logger:     logger,
+		Build:      build,
+		Identity:   auth,
+		Fleet:      hub,
+		AgentHosts: agentHosts(agentURL),
+	})
 	if err != nil {
 		_, _ = apiLn.Close(), agentLn.Close()
 		return err
@@ -154,7 +162,7 @@ func runControl(ctx context.Context, logger *slog.Logger, dir datadir.Dir, build
 		cancel()
 	})
 	wg.Go(func() {
-		agentErr = agent.Run(ctx, agent.Config{Logger: logger, Dir: dir.Agent(), Identity: own})
+		agentErr = agent.Run(ctx, agent.Config{Logger: logger, Dir: dir.Agent(), Identity: own, Build: build})
 		cancel()
 	})
 	wg.Wait()

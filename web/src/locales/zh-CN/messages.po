@@ -11,6 +11,26 @@ msgstr ""
 msgid "(modified)"
 msgstr "（有未提交的修改）"
 
+#: src/features/servers/ServersPanel.tsx
+msgid "{count} d"
+msgstr "{count} 天"
+
+#: src/features/servers/ServersPanel.tsx
+msgid "{count} h"
+msgstr "{count} 小时"
+
+#: src/features/servers/ServersPanel.tsx
+msgid "{count} min"
+msgstr "{count} 分钟"
+
+#: src/features/servers/ServersPanel.tsx
+msgid "{used} of {total}"
+msgstr "{used} / {total}"
+
+#: src/features/servers/ServersPanel.tsx
+msgid "Agent not connected"
+msgstr "代理未连接"
+
 #: src/features/system/StatusPage.tsx
 msgid "Can't reach the control plane"
 msgstr "无法连接到控制平面"
@@ -43,9 +63,17 @@ msgstr "正在连接"
 msgid "Connecting to the control plane"
 msgstr "正在连接控制平面"
 
+#: src/features/servers/ServersPanel.tsx
+msgid "control server"
+msgstr "控制服务器"
+
 #: src/features/system/StatusPage.tsx
 msgid "Copy command"
 msgstr "复制命令"
+
+#: src/features/servers/ServersPanel.tsx
+msgid "CPU"
+msgstr "CPU"
 
 #: src/app/Providers.tsx
 msgid "Degraded"
@@ -56,8 +84,8 @@ msgid "Deploying"
 msgstr "正在部署"
 
 #: src/features/system/StatusPage.tsx
-msgid "Dockwell answers on {host}. This early build has no servers or apps to show yet; the API is ready for tools and scripts."
-msgstr "Dockwell 正在 {host} 上响应。这个早期版本还没有可显示的服务器或应用；API 已可供工具和脚本使用。"
+msgid "Dockwell answers on {host}. Servers appear below as their agents connect; apps and deploys come next."
+msgstr "Dockwell 正在 {host} 上响应。服务器会在其代理连接后显示在下方；应用和部署功能即将推出。"
 
 #: src/app/Providers.tsx
 msgid "Down"
@@ -71,13 +99,29 @@ msgstr "Go"
 msgid "Healthy"
 msgstr "健康"
 
+#: src/features/servers/ServersPanel.tsx
+msgid "Loading servers"
+msgstr "正在加载服务器"
+
+#: src/features/servers/ServersPanel.tsx
+msgid "Memory"
+msgstr "内存"
+
 #: src/features/system/NotFound.tsx
 msgid "No page here"
 msgstr "页面不存在"
 
+#: src/features/servers/ServersPanel.tsx
+msgid "No servers yet. Their agents appear here once they connect. Add one with <0>dockwell token create</0> on this server."
+msgstr "还没有服务器。代理连接后会显示在这里。在这台服务器上运行 <0>dockwell token create</0> 来添加一台。"
+
 #: src/features/system/StatusPage.tsx
 msgid "Platform"
 msgstr "平台"
+
+#: src/features/servers/ServersPanel.tsx
+msgid "Reconnecting"
+msgstr "正在重新连接"
 
 #: src/app/Providers.tsx
 msgid "Remove {what}"
@@ -91,6 +135,10 @@ msgstr "重试"
 msgid "Retrying"
 msgstr "正在重试"
 
+#: src/features/servers/ServersPanel.tsx
+msgid "Servers"
+msgstr "服务器"
+
 #: src/app/Providers.tsx
 msgid "Stopped"
 msgstr "已停止"
@@ -103,6 +151,10 @@ msgstr "控制平面正在运行"
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务器上的 <0>dockwell run</0> 仍在运行，然后重试。"
 
+#: src/features/servers/ServersPanel.tsx
+msgid "The server list didn't load. Dockwell keeps trying."
+msgstr "服务器列表未能加载。Dockwell 会继续重试。"
+
 #: src/features/system/NotFound.tsx
 msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 msgstr "<0>{pathname}</0> 下没有内容。<1>前往概览</1>"
@@ -111,10 +163,22 @@ msgstr "<0>{pathname}</0> 下没有内容。<1>前往概览</1>"
 msgid "This control plane"
 msgstr "当前控制平面"
 
+#: src/features/servers/ServersPanel.tsx
+msgid "Unknown system"
+msgstr "未知系统"
+
 #: src/features/system/StatusPage.tsx
 msgid "Unreachable"
 msgstr "无法访问"
 
+#: src/features/servers/ServersPanel.tsx
+msgid "Up"
+msgstr "运行时间"
+
 #: src/features/system/StatusPage.tsx
 msgid "Version"
 msgstr "版本"
+
+#: src/features/servers/ServersPanel.tsx
+msgid "Waiting for its agent"
+msgstr "等待代理连接"

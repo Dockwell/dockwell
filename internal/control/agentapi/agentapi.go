@@ -13,16 +13,21 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/agent/v1/agentv1connect"
+	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/serve"
 )
@@ -45,14 +50,39 @@ func PeerFrom(ctx context.Context) (Peer, bool) {
 // Handler implements AgentService.
 type Handler struct {
 	auth   *identity.Authority
+	fleet  *fleet.Hub
 	logger *slog.Logger
+	// silence is how long a stream may say nothing before it is closed, and
+	// recheck how often a connected server's revocation is checked.
+	silence time.Duration
+	recheck time.Duration
 }
 
 var _ agentv1connect.AgentServiceHandler = (*Handler)(nil)
 
+// Stream timing.
+const (
+	// UnreachableAfter is how long an agent may stay silent before its
+	// stream is closed. Agents send stats every fleet.StatsInterval.
+	UnreachableAfter = 30 * time.Second
+	revocationCheck  = 30 * time.Second
+)
+
+// Option adjusts a Handler.
+type Option func(*Handler)
+
+// WithStreamTiming sets how long a stream may stay silent, and how often a
+// connected server's revocation is checked.
+func WithStreamTiming(silence, recheck time.Duration) Option {
+	return func(h *Handler) { h.silence, h.recheck = silence, recheck }
+}
+
 // NewHandler returns the agent listener's root handler.
-func NewHandler(auth *identity.Authority, logger *slog.Logger) http.Handler {
-	h := &Handler{auth: auth, logger: logger}
+func NewHandler(auth *identity.Authority, hub *fleet.Hub, logger *slog.Logger, opts ...Option) http.Handler {
+	h := &Handler{auth: auth, fleet: hub, logger: logger, silence: UnreachableAfter, recheck: revocationCheck}
+	for _, o := range opts {
+		o(h)
+	}
 	mux := http.NewServeMux()
 	mux.Handle(agentv1connect.NewAgentServiceHandler(h, serve.HandlerOptions(logger)...))
 	return serve.Recover(logger, identify(auth, mux))
@@ -100,6 +130,88 @@ func (h *Handler) RenewCertificate(ctx context.Context, req *connect.Request[age
 	}
 	h.logger.InfoContext(ctx, "server renewed its certificate", slog.String("server", peer.ServerID), slog.Time("not_after", cert.NotAfter))
 	return connect.NewResponse(&agentv1.RenewCertificateResponse{Certificate: cert.Raw}), nil
+}
+
+// Connect keeps a server's stream: a hello, then stats, until the agent
+// goes away, goes quiet, or the server is removed.
+func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv1.ConnectRequest, agentv1.ConnectResponse]) error {
+	peer, err := requireServer(ctx)
+	if err != nil {
+		return err
+	}
+	srv, err := h.auth.CheckServer(ctx, peer.ServerID)
+	if err != nil {
+		return h.rpcError(ctx, err)
+	}
+	first, err := stream.Receive()
+	if err != nil {
+		return err
+	}
+	hello := first.GetHello()
+	if hello == nil {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("a stream must start with a hello"))
+	}
+	detach, err := h.fleet.Attach(ctx, peer.ServerID, hello.GetInventory(), hello.GetBuild())
+	if err != nil {
+		return h.rpcError(ctx, err)
+	}
+	defer detach()
+	if err := stream.Send(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Welcome{Welcome: &agentv1.Welcome{
+		ServerName:    srv.Name,
+		StatsInterval: durationpb.New(fleet.StatsInterval),
+	}}}); err != nil {
+		return err
+	}
+	log := h.logger.With(slog.String("server", peer.ServerID), slog.String("name", srv.Name))
+	log.InfoContext(ctx, "server connected", slog.String("agent", hello.GetBuild().GetVersion()))
+
+	// Receive in the background, so silence and revocation can end the stream.
+	msgs := make(chan *agentv1.ConnectRequest)
+	recvErr := make(chan error, 1)
+	go func() {
+		for {
+			msg, err := stream.Receive()
+			if err != nil {
+				recvErr <- err
+				return
+			}
+			select {
+			case msgs <- msg:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	silence := time.NewTimer(h.silence)
+	defer silence.Stop()
+	recheck := time.NewTicker(h.recheck)
+	defer recheck.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case err := <-recvErr:
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		case msg := <-msgs:
+			silence.Reset(h.silence)
+			if stats := msg.GetStats(); stats != nil {
+				h.fleet.Record(peer.ServerID, stats)
+			}
+		case <-silence.C:
+			log.WarnContext(ctx, "closing a silent stream", slog.String("silent_for", human.Duration(h.silence)))
+			return connect.NewError(connect.CodeDeadlineExceeded,
+				fmt.Errorf("the agent sent nothing for %s, so the control plane closed the stream", human.Duration(h.silence)))
+		case <-recheck.C:
+			if _, err := h.auth.CheckServer(ctx, peer.ServerID); errors.Is(err, identity.ErrRevoked) || errors.Is(err, identity.ErrUnknownServer) {
+				log.InfoContext(ctx, "closing the stream of a removed server")
+				return h.rpcError(ctx, err)
+			}
+		}
+	}
 }
 
 func requireServer(ctx context.Context) (Peer, error) {
