@@ -458,7 +458,7 @@ function ValueForm({ scope, envName, editing, onDone }: ValueFormProps) {
           type={secret ? "password" : "text"}
           placeholder={editing?.secret && secret ? t`New value` : t`value`}
           value={value}
-          autoComplete={secret ? "new-password" : "off"}
+          autoComplete="off"
           spellCheck={false}
           error={tried ? missingValue : undefined}
           onChange={(e) => setValue(e.target.value)}
