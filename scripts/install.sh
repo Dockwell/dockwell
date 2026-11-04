@@ -151,7 +151,9 @@ detect() {
 		doing=Installing
 		[ "$action" != uninstall ] || doing=Removing
 		opts=$(options)
-		fail "$doing Dockwell needs root. Run it again as root: put sudo before sh, as in ... | sudo sh${opts:+ -s --$opts}, or run sudo sh install.sh$opts.${from_env:+ sudo doesn't pass DOCKWELL_JOIN or DOCKWELL_VERSION on, so the options carry them instead.}"
+		env_note=
+		[ -z "$from_env" ] || env_note=" sudo doesn't pass DOCKWELL_JOIN or DOCKWELL_VERSION on, so the options carry them instead."
+		fail "$doing Dockwell needs root. Run it again as root: put sudo before sh, as in ... | sudo sh${opts:+ -s --$opts}, or run sudo sh install.sh$opts.$env_note"
 	fi
 
 	machine=$(uname -m)
