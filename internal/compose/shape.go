@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -56,7 +57,9 @@ func object(example string, fields map[string]*shape) *shape {
 	return &shape{kinds: aMapping, fields: fields, example: example}
 }
 
-var fileShape = func() *shape {
+// fileShape is a whole file's shape. It is made the first time a file is
+// read, so a process that reads none, as an agent, never makes it.
+var fileShape = sync.OnceValue(func() *shape {
 	str := func(example string) *shape { return shaped(aString, example) }
 	// A command, as one string or a list of them.
 	command := func(example string) *shape {
@@ -134,7 +137,7 @@ var fileShape = func() *shape {
 		"volumes":  named("volume", volume, "volumes: {data: {}}"),
 		"networks": named("network", network, "networks: {back: {}}"),
 	})
-}()
+})
 
 // place names where a value is in the file, such as "the service web's
 // ports[0].target": the entry it is in, and the path within it.
