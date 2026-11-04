@@ -171,8 +171,9 @@ Launch (P0) makes Dockwell the best single-server panel with real CI/CD across a
 | Server | One-click runtimes: PHP, Node.js, Python, Go, Java | P0 · Launch |
 | Server | Scheduled tasks: shell, script, URL, backup | P0 · Launch |
 | Server | Firewall rules, fail2ban, SSH hardening | P0 · Launch |
+| Server | Importers for 1Panel and plain Compose | P0 · Launch |
 | Server | Processes, systemd services, package updates, system logs | P1 · Team |
-| Server | Importers for 1Panel, Coolify, Dokploy and plain Compose | P1 · Team |
+| Server | Importers for Coolify and Dokploy | P1 · Team |
 | Network | Domains and automatic TLS: HTTP-01, DNS-01 via providers, wildcards | P0 · Launch |
 | Network | WireGuard mesh with service discovery across nodes, providers and NAT | P1 · Team |
 | Network | One domain routed to replicas on many nodes, health-checked, with DNS and load-balancer provider integrations | P1 · Team |
