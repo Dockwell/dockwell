@@ -27,7 +27,7 @@ A fresh VPS has an IP address and nothing else. Until #14, the API listened on l
 **Two ways to reach the panel.**
 - **Without a domain:**
   - The panel and API stay on `127.0.0.1:7600`. `dockwell run` refuses a non-loopback `--listen`, so the panel is never served over plain HTTP to the network.
-  - You reach it through an SSH tunnel, `ssh -L 7600:127.0.0.1:7600 you@server`, at `http://localhost:7600`.
+  - You reach it through an SSH tunnel, `ssh -L 7600:127.0.0.1:7600 you@server`, at `http://localhost:7600`. The printed command forwards to the address the panel is bound to, such as `[::1]` for `--listen [::1]:7600`.
   - The RP ID is `localhost`.
   - Any local port works for the tunnel, because the origin is taken from the browser's `Host`. Page loads on `127.0.0.1` redirect to `localhost`, where passkeys work.
 - **With `--domain` (or `DOCKWELL_DOMAIN`):**
@@ -39,9 +39,9 @@ A fresh VPS has an IP address and nothing else. Until #14, the API listened on l
 - **Every request** is checked against these hosts. Any other `Host` gets 421, which also defeats DNS rebinding against the loopback listener.
 
 **The first owner comes only from a claim link.**
-- On start with no owner, `dockwell run` makes a claim link and prints the exact steps: the tunnel and `http://localhost:7600/claim#<token>`, or `https://<domain>/claim#<token>`.
+- On start with no owner, `dockwell run` makes a claim link and prints the exact steps: the tunnel and `http://localhost:7600/claim#<token>`, or `https://<domain>/claim#<token>`. When a link it printed before still works, as after a restart, it keeps that link and says so: the link `install.sh` showed must survive the service restarting.
 - The token is 256 random bits. Only its SHA-256 is stored. It works once, expires in 24 h, and sits in the URL fragment, so it never reaches a server log or a `Referer` header.
-- A new link replaces any earlier unused one, so at most one works at a time. `dockwell claim` prints a fresh link; like `dockwell token create`, it needs local access to the data directory.
+- A new link replaces any earlier unused one, so at most one works at a time. `dockwell claim` prints a fresh link, and is the only way to replace one that still works; like `dockwell token create`, it needs local access to the data directory.
 - Claiming takes two calls. `BeginClaim` checks the link without spending it and starts a passkey registration. `FinishClaim` verifies the passkey, then spends the link, creates the owner, stores the passkey and starts a session, all in one transaction.
 - The spend is a conditional update, and a partial unique index allows one owner, so racing claims can't make two. No other code path creates a user.
 
@@ -51,6 +51,8 @@ A fresh VPS has an IP address and nothing else. Until #14, the API listened on l
 - Attestation is `none`. Dockwell doesn't restrict authenticator models.
 - Each passkey is stored with its RP ID, credential record and sign count. A ceremony is bound to the origin it began on, and it's held in memory for at most 5 minutes, once.
 - **Clone detection.** A passkey whose sign count goes backwards (both counts nonzero) is treated as copied. The sign-in is refused, the passkey is flagged and never signs in again, and the event is audited. Synced passkeys always report zero and never trip it.
+  - Reading the stored count, checking the assertion against it and storing the new count are one write transaction. Writes are serialized, so of a copy and the original signing in at once with one count, the second is refused as a copy, and the stored count never goes backwards.
+  - When the flag can't be stored, the sign-in is refused all the same, the failure is logged and returned, and the flag is stored on the passkey's next sign-in, whichever copy makes it.
 - A signed-in user can add passkeys and remove them, but never the last way in. Afterwards there must be another working passkey, or code sign-in.
 
 **Codes from an authenticator app (TOTP), with recovery codes.**
@@ -60,16 +62,16 @@ A fresh VPS has an IP address and nothing else. Until #14, the API listened on l
   - The secret is sealed at rest with `internal/seal`, bound to the user's ID.
 - **Turning codes on** needs a code from the new secret. It then returns ten recovery codes, shown once. Each is 80 random bits, written as `XXXX-XXXX-XXXX-XXXX` in Crockford's base32, and stored only as a hash.
 - **Code sign-in** takes an email and a code. It is the fallback, so its limits are strict:
-  - Each source address (IPv6 by /64) gets 5 wrong codes before backoff. Each account, counted in the database so a restart doesn't reset it, gets 3.
+  - Each source address (IPv6 by /64) gets 5 wrong codes before backoff. Each email address, counted in the database so a restart doesn't reset it, gets 3 wrong authenticator codes.
   - After that, each try waits twice as long as the last, up to 15 minutes.
-  - After 10 wrong codes in a row, code sign-in locks for the account until the owner unlocks it from a session made some other way. This caps what a patient guesser can try: about 10 guesses per owner decision, not a few a minute forever.
-  - Recovery codes, which can't be guessed, still work while code sign-in is locked.
-  - An email with no account gets the same answers, lock included.
+  - After 10 wrong authenticator codes in a row, code sign-in locks for that email until the owner unlocks it from a session made some other way. This caps what a patient guesser can try: about 10 guesses per owner decision, not a few a minute forever.
+  - Recovery codes are limited only by source address. A right one is checked before anything about the account, so it works while code sign-in is slowed down or locked, and a wrong one doesn't count towards the lock. A limit kept for the account would be one anyone with the owner's email could trip, and 80 random bits need none ([the reasoning](../security/sign-in.md#recovery-codes-and-the-lock)).
+  - An email with no account gets the same answers, lock included. Wrong codes are counted in one table for every email tried, whether or not it has an account, by the same code. Emails share 65,536 buckets by a hash, which bounds the table.
 
 **Sessions.**
 - A session is an opaque 256-bit token in a cookie, stored as a hash.
 - The cookie is HttpOnly and SameSite=Strict. On HTTPS it is also Secure, with the `__Host-` prefix (`__Host-dockwell_session`). On localhost it is `dockwell_session` without Secure. Plain HTTP anywhere else never gets a cookie.
-- A session is bound to the RP ID it was made on. It ends after 12 hours idle, or 7 days after sign-in, whichever comes first.
+- A session is bound to the RP ID it was made on. It ends after 12 hours idle, or 7 days after sign-in, whichever comes first. An open stream counts as use, so a panel page left open keeps its session until the 7 days are up.
 - Revoking a session, or signing out, closes its open streams at once. Every stream also re-checks its session every 30 s.
 - You can list your sessions (browser, address, created, last seen, which one is this), revoke any of them, or revoke all the others.
 
@@ -84,7 +86,8 @@ A fresh VPS has an IP address and nothing else. Until #14, the API listened on l
   - A request with an `Origin` other than the panel's own is refused, and so is one whose `Sec-Fetch-Site` says another site. That includes `same-site`, which is how another port on `localhost` shows up.
   - A write authenticated by cookie must carry a matching `Origin` or `Sec-Fetch-Site: same-origin`.
 - The agent listener is separate and unchanged: mTLS (ADR 0007).
-- **Audit.** The claim, every sign-in and failure, sign-out, session revocation, passkeys added, removed or flagged, codes on, off, locked and unlocked, and each recovery code used are audit events. Failures for emails or passkeys that match no account are logged but not audited, so strangers can't fill the audit log.
+- **Refusals say why.** Every call refused for want of a session carries a reason under `Dockwell-Error`: `unauthenticated` with no session, `session_ended` for a cookie whose session no longer works or a stream whose session ended, `origin` for the CSRF checks, and `misdirected` for another host. AuthService's own errors carry theirs, such as `code_rejected`, so a client can tell a wrong code from a session that ended.
+- **Audit.** The claim, every sign-in and failure, sign-out, session revocation, passkeys added, removed or flagged, codes on, off, locked and unlocked, and each recovery code used are audit events. Failures for emails or passkeys that match no account are logged but not audited, so strangers can't fill the audit log. Nor can they through a real account: codes sent while code sign-in is locked, and wrong recovery codes, which aren't bounded by the lock, get at most one event an hour per account, carrying the count since the last.
 
 **Adding a domain later.**
 - Passkeys made on `localhost` don't work on the new domain, and the browser won't offer them.
