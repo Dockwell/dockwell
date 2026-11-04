@@ -76,13 +76,18 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** The visible stand-in for anything that failed to render. */
-function ProblemBox({ text }: { text: string }) {
+/**
+ * The visible stand-in for anything that failed to render. It's a span, so
+ * it's valid wherever the failed part was, even inside a <p>; inline, it sits
+ * in a line of text the way the text hole it replaces would have.
+ */
+function ProblemBox({ text, inline = false }: { text: string; inline?: boolean }) {
   return (
-    <div
+    <span
       role="alert"
       data-mockview-problem=""
       style={{
+        display: inline ? "inline-block" : "block",
         boxSizing: "border-box",
         padding: "6px 8px",
         border: "1px dashed var(--critical, #c62828)",
@@ -94,7 +99,7 @@ function ProblemBox({ text }: { text: string }) {
       }}
     >
       {text}
-    </div>
+    </span>
   );
 }
 
@@ -314,9 +319,9 @@ class RenderContext {
     this.#file = file;
   }
 
-  #problem(text: string, error?: unknown): ReactNode {
-    this.#library.report({ file: this.#file, message: text, error });
-    return <ProblemBox text={text} />;
+  #problem(text: string, inline = false): ReactNode {
+    this.#library.report({ file: this.#file, message: text });
+    return <ProblemBox text={text} inline={inline} />;
   }
 
   readonly #onHole = (error: HoleError) => {
@@ -373,8 +378,11 @@ class RenderContext {
       else if (Array.isArray(value) && value.every((v) => v == null || typeof v !== "object" || isValidElement(v))) {
         out.push(...(value as ReactNode[]));
       } else {
-        this.#problem(
-          `A text hole holds ${typeof value === "function" ? "a function" : "an object"}, which can't be shown as text.`,
+        out.push(
+          this.#problem(
+            `A text hole holds ${typeof value === "function" ? "a function" : "an object"}, which can't be shown as text.`,
+            true,
+          ),
         );
       }
     }

@@ -183,6 +183,25 @@ describe("templates", () => {
       "A text hole holds an object, which can't be shown as text.",
     ]);
   });
+
+  it("shows a problem box where a hole holding an object or a function was", async () => {
+    const { container } = await render(
+      {
+        "A.dc.html": artboard(
+          `<p class="obj">before {{obj}} after</p><p class="fn">{{fn}}</p>`,
+          logic(`{ obj: { x: 1 }, fn: () => 1 }`),
+        ),
+      },
+      "A.dc.html",
+    );
+    const box = container.querySelector(".obj > [data-mockview-problem]");
+    expect(box?.textContent).toBe("A text hole holds an object, which can't be shown as text.");
+    expect(container.querySelector(".obj")?.textContent).toBe(`before ${box?.textContent} after`);
+    expect(container.querySelector(".fn > [data-mockview-problem]")?.textContent).toBe(
+      "A text hole holds a function, which can't be shown as text.",
+    );
+    expect(logged).toEqual([]);
+  });
 });
 
 it("reads component children the way JSX does", () => {
