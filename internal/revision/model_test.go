@@ -162,7 +162,7 @@ func TestAServiceSaysWhereItRunsOnceThereIsAChoice(t *testing.T) {
 		e, f, db := setup(t, b, "srv_A", "srv_B")
 		env := production(t, db)
 		_, err := e.Propose(t.Context(), Proposal{Summary: "Run web", Actor: "usr_test", Edits: []Edit{app(env, "nginx:1.27")}})
-		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "there are 2 servers, so say which web runs on: srv_A, srv_B") {
+		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "there are 2 servers, srv_A and srv_B, so say which web runs on") {
 			t.Fatalf("a new service with two servers and no choice = %v", err)
 		}
 		web := app(env, "nginx:1.27", "srv_B", "srv_A", "srv_B")

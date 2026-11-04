@@ -23,3 +23,16 @@ func TestDuration(t *testing.T) {
 		}
 	}
 }
+
+func TestList(t *testing.T) {
+	for want, names := range map[string][]string{
+		"none":             nil,
+		"hz-1":             {"hz-1"},
+		"hz-1 and hz-2":    {"hz-1", "hz-2"},
+		"hz-1, hz-2 and x": {"hz-1", "hz-2", "x"},
+	} {
+		if got := List(names); got != want {
+			t.Errorf("List(%q) = %q, want %q", names, got, want)
+		}
+	}
+}

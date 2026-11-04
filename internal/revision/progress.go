@@ -11,6 +11,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -160,13 +161,13 @@ func (e *Engine) own(changeID string) bool {
 }
 
 // ownOrResumeLater is own for Resume: a change held already is running
-// here, or being resumed, so Resume runs again once it lets go, in case it
-// ends waiting for a server that is back by then.
+// here, or being resumed, so Resume runs again once that change lets go,
+// in case it ends waiting for a server that is back by then.
 func (e *Engine) ownOrResumeLater(changeID string) bool {
 	e.pmu.Lock()
 	defer e.pmu.Unlock()
 	if e.owned[changeID] {
-		e.wantResume = true
+		e.waiters[changeID] = true
 		return false
 	}
 	e.owned[changeID] = true
@@ -182,8 +183,10 @@ func (e *Engine) claim(changeID, takesOver string, items []item, resumeLater boo
 	defer e.pmu.Unlock()
 	for i := range items {
 		if other, ok := e.busy[items[i].id]; ok && other != changeID && other != takesOver {
-			e.wantResume = e.wantResume || resumeLater
-			return fmt.Errorf("%w: %s is applying %s now. Apply this change once it ends", ErrBusy, other, items[i].ref)
+			if resumeLater {
+				e.waiters[other] = true
+			}
+			return fault.New(ErrBusy, "%s is applying %s now, so this change can't start yet. Apply it once %s ends", other, items[i].ref, other)
 		}
 	}
 	for i := range items {
@@ -193,11 +196,12 @@ func (e *Engine) claim(changeID, takesOver string, items []item, resumeLater boo
 }
 
 // letGo ends a change's hold here: it isn't owned any more, its progress
-// isn't live, and its resources are free. With wake, a Resume asked for
-// meanwhile runs now, in the background: what it waited for may be free.
-// A change that never claimed anything, because another held its
-// resources, lets go without waking, or it would wake itself in a loop.
-func (e *Engine) letGo(ctx context.Context, changeID string, wake bool) {
+// isn't live, and its resources are free. If Resume skipped something
+// because this change held it, Resume runs again now, in the background:
+// what it waited for is free. Only the change Resume waited on wakes it,
+// so a change that lets go having done nothing, such as one waiting for a
+// server that is away, never wakes Resume for another.
+func (e *Engine) letGo(ctx context.Context, changeID string) {
 	e.pmu.Lock()
 	defer e.pmu.Unlock()
 	delete(e.owned, changeID)
@@ -207,10 +211,10 @@ func (e *Engine) letGo(ctx context.Context, changeID string, wake bool) {
 			delete(e.busy, id)
 		}
 	}
-	if !wake || !e.wantResume {
+	if !e.waiters[changeID] {
 		return
 	}
-	e.wantResume = false
+	delete(e.waiters, changeID)
 	if e.waking {
 		e.rerun = true
 		return
@@ -238,11 +242,11 @@ func (e *Engine) letGo(ctx context.Context, changeID string, wake bool) {
 	}()
 }
 
-// askResume asks for Resume once the next change held here lets go.
-func (e *Engine) askResume() {
+// resumeAfter asks for Resume once a change held here lets go.
+func (e *Engine) resumeAfter(changeID string) {
 	e.pmu.Lock()
 	defer e.pmu.Unlock()
-	e.wantResume = true
+	e.waiters[changeID] = true
 }
 
 // progress returns the live progress of a change running in this process,
@@ -258,15 +262,16 @@ func (e *Engine) progress(changeID string) *Progress {
 	return &c
 }
 
-// step moves one step on and tells the change's watchers. It returns the
-// progress as it now stands, to record, or nil if the change or the step
-// isn't tracked.
-func (e *Engine) step(changeID string, i int, state StepState, message string) *Progress {
+// step moves one step on in a change's live progress. It returns the
+// progress as it now stands, to record, and the update to tell the
+// change's watchers with announce once it is on record; nil for both if
+// the change or the step isn't tracked.
+func (e *Engine) step(changeID string, i int, state StepState, message string) (*Progress, *Update) {
 	e.pmu.Lock()
 	defer e.pmu.Unlock()
 	p, ok := e.live[changeID]
 	if !ok || i < 0 || i >= len(p.Steps) {
-		return nil
+		return nil, nil
 	}
 	s := &p.Steps[i]
 	now := e.now()
@@ -278,9 +283,19 @@ func (e *Engine) step(changeID string, i int, state StepState, message string) *
 	}
 	s.State, s.Message = state, message
 	step := *s
-	e.publishLocked(changeID, Update{Index: i, Step: &step})
 	c := p.clone()
-	return &c
+	return &c, &Update{Index: i, Step: &step}
+}
+
+// announce tells a change's watchers that a step moved on; nil tells them
+// nothing.
+func (e *Engine) announce(changeID string, u *Update) {
+	if u == nil {
+		return
+	}
+	e.pmu.Lock()
+	defer e.pmu.Unlock()
+	e.publishLocked(changeID, *u)
 }
 
 // newProgress lists a plan's steps, all queued.
@@ -465,7 +480,7 @@ func (e *Engine) Change(ctx context.Context, changeID string) (*Record, error) {
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return nil, fmt.Errorf("%w: there's no change %s", ErrNotFound, changeID)
+			return nil, noSuchChange(changeID)
 		}
 		return nil, err
 	}
@@ -516,7 +531,7 @@ func (e *Engine) complete(ctx context.Context, tx *store.Tx, records []*Record) 
 		r := byID[rc.Reverts]
 		switch {
 		case r == nil:
-		case isRollback(*rc):
+		case IsRollback(*rc):
 			r.RolledBackBy = rc.ID
 		case rc.State == store.ChangeApplied:
 			r.UndoneBy = rc.ID

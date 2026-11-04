@@ -28,6 +28,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/scope"
@@ -130,11 +132,15 @@ type Engine struct {
 	// A change claims its resources before it plans, so two changes never
 	// run steps on one resource at once.
 	busy map[string]string
-	// wantResume asks for Resume once an owned change lets go: Resume
-	// skipped a change because it was owned or its resources were, or a
-	// rollback ended waiting for a server that is back. waking says the
+	// waiters are the owned changes Resume waits on: it skipped a change
+	// because one of these held it or one of its resources, or a rollback
+	// ended its first run waiting for a server that is back. Once one lets
+	// go, Resume runs again. Only the change waited on wakes it, so a
+	// change that lets go having done nothing can't wake Resume for
+	// another, and Resume can't go round on its own. waking says the
 	// engine's own Resume is running, and rerun that it goes round again.
-	wantResume, waking, rerun bool
+	waiters       map[string]bool
+	waking, rerun bool
 }
 
 // New returns an engine over db, using kinds to read and check specs, and
@@ -148,6 +154,7 @@ func New(db *store.DB, kinds *resource.Registry, agents Agents, logger *slog.Log
 		db: db, kinds: kinds.With(scope.Types()...), agents: agents, logger: logger, now: time.Now,
 		idle: idle, halted: halted, halt: halt,
 		live: map[string]*Progress{}, watchers: map[string]map[chan Update]struct{}{}, owned: map[string]bool{}, busy: map[string]string{},
+		waiters: map[string]bool{},
 	}
 }
 
@@ -216,6 +223,11 @@ type ServerPlan struct {
 	// Offline means the server isn't connected, so the plan is based on
 	// its last known desired state.
 	Offline bool
+	// Unplanned, in a rollback's plan, is why the server's agent couldn't
+	// plan its part, though the server is connected. That part is planned
+	// from its last known desired state too, and waits for Resume to plan
+	// it against the server.
+	Unplanned string `json:",omitempty"`
 	// Removed means the server was removed from the fleet. Nothing runs
 	// there any more, so the plan has no steps on it: what the change
 	// takes off it is only recorded.
@@ -340,7 +352,7 @@ func (e *Engine) Propose(ctx context.Context, p Proposal) (*Plan, error) {
 
 func (e *Engine) propose(ctx context.Context, p Proposal, reverts string) (*Plan, error) {
 	if len(p.Edits) == 0 {
-		return nil, fmt.Errorf("%w: it has no edits", ErrInvalid)
+		return nil, fault.New(ErrInvalid, "the change has no edits. Add one for each resource to change")
 	}
 	items, err := e.items(ctx, p.Edits)
 	if err != nil {
@@ -397,7 +409,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit) ([]item, error) {
 	err := e.db.View(ctx, func(tx *store.Tx) error {
 		for _, ed := range edits {
 			if seen[ed.Ref] {
-				return fmt.Errorf("%w: it edits %s twice; combine the edits", ErrInvalid, ed.Ref)
+				return fault.New(ErrInvalid, "the change edits %s twice. Combine the edits into one", ed.Ref)
 			}
 			seen[ed.Ref] = true
 			it, err := e.load(ctx, tx, ed.Ref)
@@ -413,13 +425,13 @@ func (e *Engine) items(ctx context.Context, edits []Edit) ([]item, error) {
 				}
 				it.spec = proto.Clone(ed.Spec)
 				if err := e.kinds.Validate(ed.Ref.Kind, it.spec); err != nil {
-					return fmt.Errorf("%w: %s: %w", ErrInvalid, ed.Ref, err)
+					return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
 				}
 				if it.encoded, err = resource.Encode(it.spec); err != nil {
 					return err
 				}
 			} else if it.current == nil {
-				return fmt.Errorf("%w: there's no %s to delete", ErrInvalid, ed.Ref)
+				return fault.New(ErrInvalid, "there's no %s to delete. Check its kind, name and scope", ed.Ref)
 			}
 			if it.servers, err = e.place(ctx, tx, it, ed.Servers); err != nil {
 				return err
@@ -439,7 +451,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit) ([]item, error) {
 func (e *Engine) load(ctx context.Context, tx *store.Tx, ref resource.Ref) (item, error) {
 	t, err := e.kinds.Type(ref.Kind)
 	if err != nil {
-		return item{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+		return item{}, fault.New(ErrInvalid, "%w", err)
 	}
 	it := item{ref: ref, level: t.Level()}
 	r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
@@ -539,17 +551,16 @@ func (e *Engine) place(ctx context.Context, tx *store.Tx, it item, want []string
 		case 1:
 			return []string{active[0].ID}, nil
 		case 0:
-			return nil, fmt.Errorf("%w: %sthere's no server to run %s on. Add a server first", ErrInvalid, removed, it.ref.Name)
+			return nil, fault.New(ErrInvalid, "%sthere's no server to run %s on. Add a server first", removed, it.ref.Name)
 		}
 		names := make([]string, len(active))
 		for i := range active {
 			names[i] = active[i].Name
 		}
-		return nil, fmt.Errorf("%w: %sthere are %d servers, so say which %s runs on: %s", ErrInvalid, removed, len(active), it.ref.Name,
-			strings.Join(names, ", "))
+		return nil, fault.New(ErrInvalid, "%sthere are %d servers, %s, so say which %s runs on", removed, len(active), human.List(names), it.ref.Name)
 	}
 	if len(want) == 0 {
-		return nil, fmt.Errorf("%w: %s needs a server to run on. To stop it everywhere, delete it", ErrInvalid, it.ref.Name)
+		return nil, fault.New(ErrInvalid, "%s needs a server to run on. To stop it everywhere, delete it", it.ref.Name)
 	}
 	out := slices.Clone(want)
 	slices.Sort(out)
@@ -565,9 +576,9 @@ func (e *Engine) place(ctx context.Context, tx *store.Tx, it item, want []string
 // notInFleet explains why a resource can't be placed on a server.
 func notInFleet(ctx context.Context, tx *store.Tx, server, name string) error {
 	if _, err := tx.GetServer(ctx, server); err == nil {
-		return fmt.Errorf("%w: %s was removed from the fleet, so %s can't run there. Choose a server that is still in it", ErrInvalid, server, name)
+		return fault.New(ErrInvalid, "%s was removed from the fleet, so %s can't run there. Choose a server that is still in it", server, name)
 	}
-	return fmt.Errorf("%w: there's no server %s to run %s on", ErrInvalid, server, name)
+	return fault.New(ErrInvalid, "there's no server %s to run %s on. Choose one in the fleet", server, name)
 }
 
 func wasOrWere(n int) string {
@@ -580,7 +591,7 @@ func wasOrWere(n int) string {
 // checkName refuses a name its kind doesn't accept.
 func (e *Engine) checkName(ref resource.Ref) error {
 	if strings.TrimSpace(ref.Name) == "" {
-		return fmt.Errorf("%w: a %s needs a name", ErrInvalid, ref.Kind)
+		return fault.New(ErrInvalid, "a %s needs a name. Give it one", ref.Kind)
 	}
 	t, err := e.kinds.Type(ref.Kind)
 	if err != nil {
@@ -588,7 +599,7 @@ func (e *Engine) checkName(ref resource.Ref) error {
 	}
 	if c, ok := t.(resource.NameChecker); ok {
 		if err := c.CheckName(ref.Name); err != nil {
-			return fmt.Errorf("%w: %w", ErrInvalid, err)
+			return fault.New(ErrInvalid, "%w", err)
 		}
 	}
 	return nil
@@ -635,7 +646,7 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 				return err
 			}
 			if len(envs) == 0 {
-				return fmt.Errorf("%w: project %s would have no environment. Make one in it in the same change, such as %s", ErrInvalid,
+				return fault.New(ErrInvalid, "project %s would have no environment. Make one in it in the same change, such as %s",
 					it.ref.Name, scope.DefaultEnvironment)
 			}
 		}
@@ -652,7 +663,7 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 			return err
 		}
 		if len(left) > 0 {
-			return fmt.Errorf("%w: %s %s still holds %s. Delete them first, or in the same change", ErrInvalid, it.ref.Kind, it.ref.Name,
+			return fault.New(ErrInvalid, "%s %s still holds %s. Delete them first, or in the same change", it.ref.Kind, it.ref.Name,
 				strings.Join(left, ", "))
 		}
 		// Its parent keeps a place for things to go, unless it goes too: a
@@ -673,7 +684,7 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 				}
 				where = "project " + project.Name
 			}
-			return fmt.Errorf("%w: %s is the last %s in %s, which needs one. Make another first, or in the same change", ErrInvalid,
+			return fault.New(ErrInvalid, "%s is the last %s in %s, which needs one. Make another first, or in the same change",
 				it.ref.Name, it.ref.Kind, where)
 		}
 	}
@@ -709,7 +720,7 @@ func liveIn(ctx context.Context, tx *store.Tx, items []item, scopeID string, kin
 // applies, or isn't the kind of thing its level lives in.
 func (e *Engine) checkScope(ctx context.Context, tx *store.Tx, it *item, byID map[string]*item) error {
 	missing := func(what string) error {
-		return fmt.Errorf("%w: there's no %s %s for %s %s to live in", ErrInvalid, what, it.ref.Scope, it.ref.Kind, it.ref.Name)
+		return fault.New(ErrInvalid, "there's no %s %s for %s %s to live in", what, it.ref.Scope, it.ref.Kind, it.ref.Name)
 	}
 	var want resource.Kind
 	switch it.level {
@@ -739,7 +750,7 @@ func (e *Engine) checkScope(ctx context.Context, tx *store.Tx, it *item, byID ma
 		if it.current == nil {
 			fix = "leave " + it.ref.Name + " out"
 		}
-		return fmt.Errorf("%w: this change deletes %s %s, so %s %s has nowhere to live. Keep %s, or %s", ErrInvalid,
+		return fault.New(ErrInvalid, "this change deletes %s %s, so %s %s has nowhere to live. Keep %s, or %s",
 			in.ref.Kind, in.ref.Name, it.ref.Kind, it.ref.Name, in.ref.Name, fix)
 	}
 	r, err := tx.GetResourceByID(ctx, it.ref.Scope)
@@ -849,6 +860,7 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 		sp := ServerPlan{Server: server, Name: names[server]}
 		var steps []resource.Step
 		agent, online := e.agents.Agent(server)
+		sp.Offline = !online
 		if online {
 			var err error
 			if steps, err = e.planOn(ctx, agent, server, sp.Name, its); err != nil {
@@ -857,11 +869,10 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 				}
 				e.logger.WarnContext(ctx, "a rollback is planned from a server's last known state, as its agent can't plan it now; it waits for Resume there",
 					slog.String("server", sp.Name), slog.String("error", err.Error()))
-				online = false
+				sp.Unplanned = couldntPlan(err)
 			}
 		}
-		if !online {
-			sp.Offline = true
+		if sp.Offline || sp.Unplanned != "" {
 			for _, it := range its {
 				d, err := e.kinds.Driver(it.ref.Kind)
 				if err != nil {
@@ -1001,11 +1012,24 @@ type AgentError struct {
 }
 
 func (e *AgentError) Error() string {
-	// The agent's own failure already names the server.
+	return fmt.Sprintf("can't %s on %s: %s", e.Doing, e.Server, e.reason())
+}
+
+// reason is why the call failed, without the server's name when the
+// agent's own failure gives it.
+func (e *AgentError) reason() string {
 	if se, ok := e.Err.(*resource.ServerError); ok && se.Server == e.Server { //nolint:errorlint // only the agent's own failure, unwrapped
-		return fmt.Sprintf("can't %s on %s: %v", e.Doing, e.Server, se.Err)
+		return se.Err.Error()
 	}
-	return fmt.Sprintf("can't %s on %s: %v", e.Doing, e.Server, e.Err)
+	return e.Err.Error()
+}
+
+// couldntPlan says why an agent couldn't plan, for a step's message.
+func couldntPlan(err error) string {
+	if agent := (*AgentError)(nil); errors.As(err, &agent) {
+		return agent.reason()
+	}
+	return err.Error()
 }
 
 func (e *AgentError) Unwrap() error { return e.Err }
@@ -1040,13 +1064,41 @@ func (e *FailedError) Error() string {
 func (e *FailedError) Unwrap() error { return e.Err }
 
 // ErrPending means a rollback is on record but waits for a server to
-// reconnect; Resume finishes it.
+// reconnect; Resume finishes it. Its message names the servers, as
+// "hz-1 reconnects".
 var ErrPending = errors.New("a server it touches reconnects")
 
-// isRollback reports a change Dockwell made to roll another back. A
+// reconnects is ErrPending for the servers, by name.
+func reconnects(names []string) error {
+	if len(names) == 1 {
+		return fault.New(ErrPending, "%s reconnects", names[0])
+	}
+	return fault.New(ErrPending, "%s reconnect", human.List(names))
+}
+
+// noSuchChange is ErrNotFound for a change.
+func noSuchChange(changeID string) error {
+	return fault.New(ErrNotFound, "there's no change %s. Check its ID, or list the changes to find it", changeID)
+}
+
+// notPlanned is ErrNotPlanned for applying a change in state: it says
+// why the change can't be applied, and what to do instead.
+func notPlanned(changeID, state string) error {
+	switch state {
+	case store.ChangeApplying:
+		return fault.New(ErrNotPlanned, "%s is applying already, so it can't be applied again. Watch it to follow its steps", changeID)
+	case store.ChangeApplied:
+		return fault.New(ErrNotPlanned, "%s is applied already, so it can't be applied again. Undo it, or propose a new change", changeID)
+	case store.ChangeDiscarded:
+		return fault.New(ErrNotPlanned, "%s was discarded, so it can't be applied. Propose the change again", changeID)
+	}
+	return fault.New(ErrNotPlanned, "%s failed, so it can't be applied again. Propose the change again", changeID)
+}
+
+// IsRollback reports a change Dockwell made to roll another back. A
 // rollback isn't refused for an offline server, and isn't rolled back in
 // turn when it fails: that would re-apply what failed in the first place.
-func isRollback(c store.Change) bool { return c.Actor == SystemActor && c.Reverts != "" }
+func IsRollback(c store.Change) bool { return c.Actor == SystemActor && c.Reverts != "" }
 
 // Apply carries out a planned change on behalf of whoever proposed it: it
 // checks that nothing moved since the plan, commits the revisions and
@@ -1100,7 +1152,7 @@ func (e *Engine) Start(ctx context.Context, changeID string, by By) error {
 }
 
 func stopping(changeID string) error {
-	return fmt.Errorf("%w, so %s wasn't applied. Apply it again once the control plane is back", ErrStopping, changeID)
+	return fault.New(ErrStopping, "the control plane is stopping, so %s wasn't applied. Apply it again once the control plane is back", changeID)
 }
 
 // Wait waits for the runs under way to end: the changes applying in the
@@ -1207,6 +1259,9 @@ type committed struct {
 	c     store.Change
 	items []item
 	plan  *Plan
+	// resumed is a run of what remains of a change left applying, planned
+	// against every server it touches.
+	resumed bool
 }
 
 // commit checks that a planned change still holds and commits its
@@ -1217,35 +1272,39 @@ type committed struct {
 // touches a resource another change is applying is refused as busy,
 // whatever its plan would say now.
 func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed, error) {
+	// Holding the change before reading it means a run of it that ended
+	// meanwhile, such as a retried apply's first try, has recorded how it
+	// ended by the time it is read: the retry reads that the change isn't
+	// planned any more, rather than finding its plan out of date.
+	if !e.own(changeID) {
+		return nil, fault.New(ErrBusy, "%s is being applied already. Watch it to follow its steps", changeID)
+	}
 	var c store.Change
 	var items []item
 	err := e.db.View(ctx, func(tx *store.Tx) error {
 		var err error
 		if c, err = tx.GetChange(ctx, changeID); err != nil {
 			if errors.Is(err, store.ErrNotFound) {
-				return fmt.Errorf("%w: there's no change %s", ErrNotFound, changeID)
+				return noSuchChange(changeID)
 			}
 			return err
 		}
 		if c.State != store.ChangePlanned {
-			return fmt.Errorf("%w: %s is %s", ErrNotPlanned, changeID, c.State)
+			return notPlanned(changeID, c.State)
 		}
 		items, err = e.current(ctx, tx, c)
 		return err
 	})
+	if err == nil {
+		err = e.claim(changeID, "", items, false)
+	}
 	if err != nil {
-		return nil, err
-	}
-	if !e.own(changeID) {
-		return nil, fmt.Errorf("%w: %s is being applied already", ErrBusy, changeID)
-	}
-	if err := e.claim(changeID, "", items, false); err != nil {
-		e.letGo(ctx, changeID, false)
+		e.letGo(ctx, changeID)
 		return nil, err
 	}
 	r, err := e.commitOwned(ctx, c, items, by, false)
 	if err != nil {
-		e.letGo(ctx, changeID, true)
+		e.letGo(ctx, changeID)
 	}
 	return r, err
 }
@@ -1270,12 +1329,12 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 	// It takes over the failed change's resources, so nothing slips in
 	// between.
 	if err := e.claim(c.ID, failed.ID, items, false); err != nil {
-		e.letGo(ctx, c.ID, false)
+		e.letGo(ctx, c.ID)
 		return nil, err
 	}
 	r, err := e.commitOwned(ctx, c, items, system, true)
 	if err != nil {
-		e.letGo(ctx, c.ID, true)
+		e.letGo(ctx, c.ID)
 	}
 	return r, err
 }
@@ -1285,20 +1344,10 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 // was reviewed; a rollback isn't, and with create it is put on record here
 // too, with the plan that runs.
 func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, by By, create bool) (*committed, error) {
-	rollback := isRollback(c)
+	rollback := IsRollback(c)
 	plan, err := e.plan(ctx, items, rollback)
 	if err != nil {
 		return nil, err
-	}
-	if !rollback {
-		for _, s := range plan.Servers {
-			if s.Offline {
-				return nil, fmt.Errorf("%w: %s. Apply again once its agent reconnects", ErrOffline, s.Name)
-			}
-		}
-		if plan.Fingerprint != c.Fingerprint {
-			return nil, fmt.Errorf("%w: propose the change again and review what changed", ErrPlanChanged)
-		}
 	}
 	if create {
 		plan.Change, plan.Summary, plan.Reverts = c.ID, c.Summary, c.Reverts
@@ -1321,6 +1370,11 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error {
 		if create {
 			if err := e.recordPlanned(ctx, tx, c); err != nil {
+				return err
+			}
+		}
+		if !rollback {
+			if err := holds(ctx, tx.Tx, c, plan); err != nil {
 				return err
 			}
 		}
@@ -1351,7 +1405,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			// Discarded, or applied by someone else, since it was read.
-			return nil, fmt.Errorf("%w: %s was applied or discarded meanwhile", ErrNotPlanned, c.ID)
+			return nil, fault.New(ErrNotPlanned, "%s was applied or discarded while it was being committed, so it wasn't applied again. Read it to see which", c.ID)
 		}
 		return nil, err
 	}
@@ -1359,6 +1413,31 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 	e.track(c.ID, progress)
 	e.published(c.ID, store.ChangeApplying)
 	return &committed{c: c, items: items, plan: plan}, nil
+}
+
+// holds checks, as it commits, that a person's change still applies as it
+// was reviewed. Its state comes first: a change applied or discarded since
+// it was read, such as by a retried apply that lost the race, isn't
+// planned any more, and its plan isn't to blame. Then every server must be
+// there, and the plan must be the one reviewed.
+func holds(ctx context.Context, tx *store.Tx, c store.Change, plan *Plan) error {
+	now, err := tx.GetChange(ctx, c.ID)
+	if err != nil {
+		return err
+	}
+	if now.State != store.ChangePlanned {
+		return notPlanned(c.ID, now.State)
+	}
+	for _, s := range plan.Servers {
+		if s.Offline {
+			return fault.New(ErrOffline, "%s isn't connected, so %s can't apply. Apply it again once %s's agent reconnects", s.Name, c.ID, s.Name)
+		}
+	}
+	if plan.Fingerprint != c.Fingerprint {
+		return fault.New(ErrPlanChanged, "the servers changed since %s was planned, so its plan no longer matches them. "+
+			"Propose the change again and review what changed", c.ID)
+	}
+	return nil
 }
 
 // newID names a new resource with its kind's prefix.
@@ -1378,7 +1457,7 @@ func (e *Engine) newID(kind resource.Kind) string {
 // connected and stays applying until Resume reaches them. A run the engine
 // stops partway leaves its change applying, for Resume to finish.
 func (e *Engine) run(ctx context.Context, r *committed) error {
-	defer e.letGo(ctx, r.c.ID, true)
+	defer e.letGo(ctx, r.c.ID)
 	c, items, plan := r.c, r.items, r.plan
 	type at struct {
 		server string
@@ -1432,11 +1511,18 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 	}
 
-	// stop records a failed step, skips the steps after it, and rolls the
-	// change back.
+	// Steps are announced as they start, and as they end once the store
+	// has how they ended, so a watch hears of no end the record lacks.
+	//
+	// stop records a failed step and skips the steps after it, then rolls
+	// the change back. The skipped steps are recorded as the change fails,
+	// and its event carries them.
 	stop := func(qi int, err error) error {
 		q := queue[qi]
-		e.deployed(ctx, c.ID, byRef[q.step.Ref], q.server, err, e.step(c.ID, q.index, StepFailed, err.Error()))
+		p, u := e.step(c.ID, q.index, StepFailed, err.Error())
+		if e.deployed(ctx, c.ID, byRef[q.step.Ref], q.server, err, p) {
+			e.announce(c.ID, u)
+		}
 		for _, rest := range queue[qi+1:] {
 			e.step(c.ID, rest.index, StepSkipped, message(StepSkipped, rest.step.Action, rest.step.Ref, rest.name))
 		}
@@ -1447,9 +1533,9 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	// server when the control plane starts again, and finds it done or not.
 	interrupt := func(qi int) error {
 		q := queue[qi]
-		e.step(c.ID, q.index, StepQueued, message(StepQueued, q.step.Action, q.step.Ref, q.name))
-		if p := e.progress(c.ID); p != nil {
-			e.recordProgress(ctx, c.ID, *p)
+		_, u := e.step(c.ID, q.index, StepQueued, message(StepQueued, q.step.Action, q.step.Ref, q.name))
+		if e.recordProgress(ctx, c.ID) {
+			e.announce(c.ID, u)
 		}
 		e.logger.InfoContext(ctx, "stopped a change partway, as the control plane is stopping; it finishes when the control plane starts again",
 			slog.String("change", c.ID))
@@ -1459,14 +1545,25 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	// there or couldn't plan, runs none of those steps: Resume plans them
 	// against the server once it can. A rollback waits for that; any other
 	// change can't run without the server.
-	planned := map[string]bool{}
+	planned, unplanned := map[string]bool{}, map[string]string{}
 	for i := range plan.Servers {
-		planned[plan.Servers[i].Server] = !plan.Servers[i].Offline
+		sp := &plan.Servers[i]
+		planned[sp.Server] = !sp.Offline && sp.Unplanned == ""
+		unplanned[sp.Server] = sp.Unplanned
 	}
 	pending := map[string]string{} // server ID → name
-	wait := func(q queued) {
+	var waits []*Update
+	// wait leaves a step of a rollback waiting for its server: to
+	// reconnect, or, where it is connected and its agent couldn't plan, to
+	// plan it.
+	wait := func(q queued, couldntPlan string) {
 		pending[q.server] = q.name
-		e.step(c.ID, q.index, StepWaiting, message(StepWaiting, q.step.Action, q.step.Ref, q.name))
+		msg := message(StepWaiting, q.step.Action, q.step.Ref, q.name)
+		if couldntPlan != "" {
+			msg = fmt.Sprintf("Waiting for %s's agent, which couldn't plan this step: %s", q.name, couldntPlan)
+		}
+		_, u := e.step(c.ID, q.index, StepWaiting, msg)
+		waits = append(waits, u)
 	}
 	done := map[at]bool{}
 	for qi, q := range queue {
@@ -1476,16 +1573,21 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		it := byRef[q.step.Ref]
 		agent, online := e.agents.Agent(q.server)
 		if !online || agent == nil || !planned[q.server] {
-			if isRollback(c) {
-				wait(q)
+			if IsRollback(c) {
+				var couldntPlan string
+				if online {
+					couldntPlan = unplanned[q.server]
+				}
+				wait(q, couldntPlan)
 				continue
 			}
 			if e.isStopping() {
 				return interrupt(qi)
 			}
-			return stop(qi, fmt.Errorf("%w: %s lost its connection partway through", ErrOffline, q.name))
+			return stop(qi, fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run", q.name))
 		}
-		e.step(c.ID, q.index, StepRunning, message(StepRunning, q.step.Action, q.step.Ref, q.name))
+		_, u := e.step(c.ID, q.index, StepRunning, message(StepRunning, q.step.Action, q.step.Ref, q.name))
+		e.announce(c.ID, u)
 		callCtx, called := e.calling(ctx)
 		err := agent.Apply(callCtx, *q.step, it.desiredOn(q.server))
 		called()
@@ -1493,15 +1595,20 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		case err == nil:
 		case e.stoppedBy(err):
 			return interrupt(qi)
-		case isRollback(c) && errors.Is(err, resource.ErrNotConnected):
-			// The call never reached the agent: wait for it, as for a
-			// server that isn't connected.
-			wait(q)
+		case IsRollback(c) && (errors.Is(err, resource.ErrNotConnected) || errors.Is(err, resource.ErrLost)):
+			// The agent went away: the call never reached it, or it may
+			// have run. Either way a rollback waits for the server, as for
+			// one that isn't connected, and Resume plans the step against
+			// it again, to find it done or not.
+			wait(q, "")
 			continue
 		default:
 			return stop(qi, err)
 		}
-		e.deployed(ctx, c.ID, it, q.server, nil, e.step(c.ID, q.index, StepDone, message(StepDone, q.step.Action, q.step.Ref, q.name)))
+		p, u := e.step(c.ID, q.index, StepDone, message(StepDone, q.step.Action, q.step.Ref, q.name))
+		if e.deployed(ctx, c.ID, it, q.server, nil, p) {
+			e.announce(c.ID, u)
+		}
 		done[at{q.server, it.ref}] = true
 	}
 	// Where a revision needed no step, the server already has it.
@@ -1522,18 +1629,23 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			back = back || online
 		}
 		e.logger.WarnContext(ctx, "a rollback waits for servers to reconnect", slog.String("change", c.ID), slog.Any("servers", names))
-		if p := e.progress(c.ID); p != nil {
-			e.recordProgress(ctx, c.ID, *p)
+		if e.recordProgress(ctx, c.ID) {
+			for _, u := range waits {
+				e.announce(c.ID, u)
+			}
 		}
-		// A server it waits for may be back already: it reconnected while
-		// this ran, when Resume skipped the change as running, or it was
-		// only planned from its last known state. Resume again once this
-		// run lets go, so the rollback isn't left waiting for a connection
-		// that already came.
-		if back {
-			e.askResume()
+		// A server it waits for may be back already: it reconnected before
+		// the rollback was on record for that connection's Resume to find,
+		// or it was only planned from its last known state. Resume again
+		// once this run lets go, so the rollback isn't left waiting for a
+		// connection that already came. Only a first run asks. A resumed
+		// one was planned against every server, so a step of it that waits
+		// lost its server since, and the server's reconnect resumes it;
+		// asking would only send Resume round again, getting nowhere.
+		if back && !r.resumed {
+			e.resumeAfter(c.ID)
 		}
-		return fmt.Errorf("%w: %s", ErrPending, strings.Join(names, ", "))
+		return reconnects(names)
 	}
 	if err := e.finish(ctx, c, store.ChangeApplied, "", "change.applied", e.progress(c.ID)); err != nil {
 		return err
@@ -1546,18 +1658,13 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 // there, or failed; or, where the step took it off the server, what it
 // had there is superseded. It records the change's progress with it. A
 // record that can't be written is logged, not fatal: the step itself
-// happened, and Drift reads the servers, not this.
-func (e *Engine) deployed(ctx context.Context, changeID string, it *item, server string, failed error, progress *Progress) {
+// happened, and Drift reads the servers, not this. It reports whether the
+// record was written.
+func (e *Engine) deployed(ctx context.Context, changeID string, it *item, server string, failed error, progress *Progress) bool {
 	now := e.now()
 	err := e.db.Revise(ctx, func(tx *store.RevisionTx) error {
-		if progress != nil {
-			b, err := json.Marshal(progress)
-			if err != nil {
-				return err
-			}
-			if err := tx.SetChangeProgress(ctx, changeID, b); err != nil {
-				return err
-			}
+		if err := writeProgress(ctx, tx, changeID, progress); err != nil {
+			return err
 		}
 		switch {
 		case failed != nil && slices.Contains(it.servers, server):
@@ -1576,18 +1683,34 @@ func (e *Engine) deployed(ctx context.Context, changeID string, it *item, server
 		e.logger.WarnContext(ctx, "can't record a deployment", slog.String("resource", it.ref.String()), slog.String("server", server),
 			slog.String("error", err.Error()))
 	}
+	return err == nil
 }
 
-// recordProgress writes a change's progress, logging a failure: the steps
-// happened either way.
-func (e *Engine) recordProgress(ctx context.Context, changeID string, p Progress) {
-	b, err := json.Marshal(p)
-	if err == nil {
-		err = e.db.Revise(ctx, func(tx *store.RevisionTx) error { return tx.SetChangeProgress(ctx, changeID, b) })
+// recordProgress writes the live progress of a change running here,
+// logging a failure: the steps happened either way. It reports whether the
+// progress was written.
+func (e *Engine) recordProgress(ctx context.Context, changeID string) bool {
+	p := e.progress(changeID)
+	if p == nil {
+		return false
 	}
+	err := e.db.Revise(ctx, func(tx *store.RevisionTx) error { return writeProgress(ctx, tx, changeID, p) })
 	if err != nil {
 		e.logger.WarnContext(ctx, "can't record a change's progress", slog.String("change", changeID), slog.String("error", err.Error()))
 	}
+	return err == nil
+}
+
+// writeProgress records a change's progress in tx; nil leaves it as it is.
+func writeProgress(ctx context.Context, tx *store.RevisionTx, changeID string, p *Progress) error {
+	if p == nil {
+		return nil
+	}
+	b, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	return tx.SetChangeProgress(ctx, changeID, b)
 }
 
 func serversOf(p *Plan) []string {
@@ -1608,8 +1731,9 @@ func serversOf(p *Plan) []string {
 //
 // No wakeup is lost: when Resume skips a change because it is running
 // here, or because another change holds its resources, Resume runs again
-// once that one lets go. So does a rollback that ends waiting for a server
-// that is connected by then.
+// once that change lets go. Only that change wakes it, so Resume doesn't go
+// round while it waits. A rollback whose first run ends waiting for a
+// server that is connected by then wakes it too.
 func (e *Engine) Resume(ctx context.Context) error {
 	if !e.enter() {
 		return nil // stopping: the next start resumes
@@ -1692,7 +1816,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		return nil
 	})
 	if err != nil || c.State != store.ChangeApplying {
-		e.letGo(ctx, changeID, true)
+		e.letGo(ctx, changeID)
 		return nil, err
 	}
 	var offline []string
@@ -1704,7 +1828,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		}
 	}
 	if len(offline) > 0 {
-		e.letGo(ctx, changeID, true)
+		e.letGo(ctx, changeID)
 		names, err := e.serverNames(ctx, offline)
 		if err != nil {
 			return nil, err
@@ -1712,27 +1836,27 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		for i, s := range offline {
 			offline[i] = names[s]
 		}
-		return nil, fmt.Errorf("%w: %s", ErrPending, strings.Join(offline, ", "))
+		return nil, reconnects(offline)
 	}
 	if err := e.claim(changeID, "", items, true); err != nil {
 		// The change holding them asks for Resume when it lets go.
-		e.letGo(ctx, changeID, false)
-		return nil, fmt.Errorf("%w: %w", ErrPending, err)
+		e.letGo(ctx, changeID)
+		return nil, fault.New(ErrPending, "%w", err)
 	}
 	e.logger.InfoContext(ctx, "resuming a change left applying", slog.String("change", c.ID))
 	plan, err := e.plan(ctx, items, false)
 	if err != nil {
-		e.letGo(ctx, changeID, true)
+		e.letGo(ctx, changeID)
 		return nil, err
 	}
 	before, err := decodeProgress(c.Progress)
 	if err != nil {
-		e.letGo(ctx, changeID, true)
+		e.letGo(ctx, changeID)
 		return nil, err
 	}
 	e.track(changeID, resumed(before, plan, items))
 	e.published(changeID, store.ChangeApplying)
-	return &committed{c: c, items: items, plan: plan}, nil
+	return &committed{c: c, items: items, plan: plan, resumed: true}, nil
 }
 
 // current checks that every item still starts from the latest revision,
@@ -1747,7 +1871,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 		}
 		if it.base != ci.BaseRevision {
 			r, _ := tx.GetResource(ctx, ci.Kind, ci.Scope, ci.Name)
-			return nil, fmt.Errorf("%w: %s changed in %s after %s was planned. Plan it again", ErrStale, ref, r.ChangeID, c.ID)
+			return nil, fault.New(ErrStale, "%s changed in %s after %s was planned, so its plan is out of date. Propose the change again", ref, r.ChangeID, c.ID)
 		}
 		if it.id == "" {
 			// A new resource has the ID the change gave it, so what lives
@@ -1768,7 +1892,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 		items = append(items, it)
 	}
 	if err := e.check(ctx, tx, items); err != nil {
-		return nil, fmt.Errorf("%w. Plan %s again", err, c.ID)
+		return nil, fmt.Errorf("%w. %s can't apply as it was planned, so propose the change again", err, c.ID)
 	}
 	return items, nil
 }
@@ -1784,7 +1908,7 @@ func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, caus
 	if err := e.finish(ctx, c, store.ChangeFailed, cause.Error(), "change.failed", e.progress(c.ID)); err != nil {
 		return errors.Join(ferr, err)
 	}
-	if isRollback(c) {
+	if IsRollback(c) {
 		e.published(c.ID, store.ChangeFailed)
 		return ferr
 	}
@@ -1822,14 +1946,8 @@ func (e *Engine) finish(ctx context.Context, c store.Change, state, errText, eve
 		if err := tx.SetChangeState(ctx, c.ID, state, errText, time.Time{}); err != nil {
 			return err
 		}
-		if progress != nil {
-			b, err := json.Marshal(progress)
-			if err != nil {
-				return err
-			}
-			if err := tx.SetChangeProgress(ctx, c.ID, b); err != nil {
-				return err
-			}
+		if err := writeProgress(ctx, tx, c.ID, progress); err != nil {
+			return err
 		}
 		return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: now, Actor: actor, Action: event, Subject: c.ID, Detail: c.Summary, Surface: via})
 	})
@@ -1842,11 +1960,11 @@ func (e *Engine) Discard(ctx context.Context, changeID string, by By) error {
 		c, err := tx.GetChange(ctx, changeID)
 		switch {
 		case errors.Is(err, store.ErrNotFound):
-			return fmt.Errorf("%w: there's no change %s", ErrNotFound, changeID)
+			return noSuchChange(changeID)
 		case err != nil:
 			return err
 		case c.State != store.ChangePlanned:
-			return fmt.Errorf("%w: %s is %s, and only a planned change can be discarded", ErrNotPlanned, changeID, c.State)
+			return fault.New(ErrNotPlanned, "%s is %s, and only a planned change can be discarded", changeID, c.State)
 		}
 		if err := tx.SetChangeState(ctx, changeID, store.ChangeDiscarded, "", time.Time{}); err != nil {
 			return err
@@ -1880,7 +1998,7 @@ func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 				return err
 			}
 			if latest.Revision != rev.Revision {
-				return fmt.Errorf("%w: %s changed again in %s. Undo that first, or edit %s directly", ErrCantUndo, ref, latest.ChangeID, rev.Name)
+				return fault.New(ErrCantUndo, "%s changed again in %s, so %s can't be undone whole. Undo %s first, or edit %s directly", ref, latest.ChangeID, changeID, latest.ChangeID, rev.Name)
 			}
 			ed := Edit{Ref: ref}
 			if rev.Revision > 1 {
@@ -1925,8 +2043,8 @@ func inFleet(ctx context.Context, tx *store.Tx, ref resource.Ref, resourceID str
 		}
 	}
 	if len(placed) > 0 && len(out) == 0 {
-		return nil, fmt.Errorf("%w: before %s, %s ran on %s, which %s removed from the fleet, so there's nowhere to put it back. Edit %s directly instead",
-			ErrCantUndo, changeID, ref.Name, strings.Join(gone, ", "), wasOrWere(len(gone)), ref.Name)
+		return nil, fault.New(ErrCantUndo, "before %s, %s ran on %s, which %s removed from the fleet, so there's nowhere to put it back. Edit %s directly instead",
+			changeID, ref.Name, human.List(gone), wasOrWere(len(gone)), ref.Name)
 	}
 	return out, nil
 }
@@ -1941,23 +2059,23 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 		return err
 	}); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return nil, fmt.Errorf("%w: there's no change %s", ErrNotFound, changeID)
+			return nil, noSuchChange(changeID)
 		}
 		return nil, err
 	}
 	if c.State != store.ChangeApplied {
-		return nil, fmt.Errorf("%w: %s is %s, and only applied changes can be undone", ErrCantUndo, changeID, c.State)
+		return nil, fault.New(ErrCantUndo, "%s is %s, and only applied changes can be undone", changeID, c.State)
 	}
 	if age := e.now().Sub(c.AppliedAt); age > UndoWindow {
-		return nil, fmt.Errorf("%w: %s was applied %s ago, and changes can be undone for %s. Edit the resources directly instead",
-			ErrCantUndo, changeID, days(age), days(UndoWindow))
+		return nil, fault.New(ErrCantUndo, "%s was applied %s ago, and changes can be undone for %s. Edit the resources directly instead",
+			changeID, days(age), days(UndoWindow))
 	}
 	edits, err := e.reverse(ctx, changeID)
 	if err != nil {
 		return nil, err
 	}
 	if len(edits) == 0 {
-		return nil, fmt.Errorf("%w: %s made no revisions", ErrCantUndo, changeID)
+		return nil, fault.New(ErrCantUndo, "%s made no revisions, so there's nothing to undo", changeID)
 	}
 	return e.propose(ctx, Proposal{Summary: "Undo " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits}, changeID)
 }
@@ -1985,7 +2103,7 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 	name := names[server]
 	agent, online := e.agents.Agent(server)
 	if !online {
-		return nil, fmt.Errorf("%w: %s. Its drift is checked when its agent reconnects", ErrOffline, name)
+		return nil, fault.New(ErrOffline, "%s isn't connected, so its drift can't be checked. Check it again once its agent reconnects", name)
 	}
 	var resources []store.Resource
 	if err := e.db.View(ctx, func(tx *store.Tx) error {

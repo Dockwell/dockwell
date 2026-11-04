@@ -81,10 +81,13 @@ func setupAt(t *testing.T, b store.Backend, ids ...string) (*Engine, fleet, *sto
 
 // newEngine is an engine over db and the fleet f, as a control plane that
 // starts again makes one.
-func newEngine(db *store.DB, f fleet) *Engine {
+func newEngine(db *store.DB, f fleet) *Engine { return newEngineWith(db, f) }
+
+// newEngineWith is newEngine reaching the servers through agents.
+func newEngineWith(db *store.DB, agents Agents) *Engine {
 	// The control plane's drivers only read specs; they never reach a server.
 	kinds := resource.NewRegistry(&container.Driver{RecreateDowntime: recreate}, &firewall.Driver{}, &service.Driver{})
-	return New(db, kinds, f, slog.New(slog.DiscardHandler))
+	return New(db, kinds, agents, slog.New(slog.DiscardHandler))
 }
 
 func web(image string) Edit {

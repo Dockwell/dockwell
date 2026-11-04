@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -259,6 +260,192 @@ func testNoResumeIsLostWhileARollbackRuns(t *testing.T, backend store.Backend) {
 	}
 	if r, _ := f["srv_A"].firewall.Rule(t.Context(), "http"); r.GetPort() != 80 {
 		t.Errorf("srv_A's http rule is on port %d, want 80 again", r.GetPort())
+	}
+}
+
+// lookups counts how often the engine looks up each server's agent. Each
+// Resume pass looks up every server of each change it finds applying, so
+// the count says how many passes ran.
+type lookups struct {
+	fleet
+	mu sync.Mutex
+	n  map[string]int
+}
+
+func (l *lookups) Agent(id string) (resource.Agent, bool) {
+	l.mu.Lock()
+	l.n[id]++
+	l.mu.Unlock()
+	return l.fleet.Agent(id)
+}
+
+func (l *lookups) of(id string) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.n[id]
+}
+
+// waitingForB fails a change as srv_B drops, so that its rollback waits for
+// srv_B: web goes back to nginx:1.27 there, which srv_B still runs.
+func waitingForB(t *testing.T, e *Engine, f fleet) (rollback string) {
+	t.Helper()
+	onB := web("nginx:1.27")
+	onB.Ref.Scope = "srv_B"
+	apply(t, e, propose(t, e, "Run web on srv_B", onB))
+	plain := f["srv_A"].agent
+	f["srv_A"].agent = hooked{Agent: plain, before: func(resource.Step) { f["srv_B"].online.Store(false) }}
+	defer func() { f["srv_A"].agent = plain }()
+	onB.Spec.(*resourcev1.Container).Image = "nginx:1.28"
+	p := propose(t, e, "Open http and upgrade web", rule("srv_A", "http", 80), onB)
+	var failed *FailedError
+	if err := e.Apply(t.Context(), p.Change); !errors.As(err, &failed) || !errors.Is(failed.RollbackErr, ErrPending) {
+		t.Fatalf("apply as srv_B drops = %v, want it failed, with a rollback that waits for srv_B", err)
+	}
+	return failed.Rollback
+}
+
+// Resume skips a change that runs here, and runs again once that change
+// lets go: not each time some other change lets go. A rollback that waits
+// for a server that is away lets go at once, every pass, and used to take
+// the wakeup meant for the running change, so Resume went round and round
+// until that change ended.
+func TestResumeWaitsForTheChangeItSkipped(t *testing.T) {
+	storetest.Each(t, testResumeWaitsForTheChangeItSkipped)
+}
+
+func testResumeWaitsForTheChangeItSkipped(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A", "srv_B")
+	// The running change is older than the rollback, so each pass meets it
+	// first, then lets the rollback go.
+	slow := propose(t, e, "Open slow", rule("srv_A", "slow", 8080))
+	time.Sleep(2 * time.Millisecond)
+	rollback := waitingForB(t, e, f)
+
+	agents := &lookups{fleet: f, n: map[string]int{}}
+	e = newEngineWith(db, agents)
+	running, release := make(chan struct{}, 1), make(chan struct{})
+	plain := f["srv_A"].agent
+	f["srv_A"].agent = hooked{Agent: plain, apply: func(_ context.Context, step resource.Step, _ proto.Message) error {
+		if step.Ref.Name == "slow" {
+			running <- struct{}{}
+			<-release
+		}
+		return nil
+	}}
+	if err := e.Start(t.Context(), slow.Change, By{Actor: "user:usr_mira"}); err != nil {
+		t.Fatal(err)
+	}
+	<-running
+	// Two servers connect while slow runs: each Resume skips slow, and
+	// finds srv_B away.
+	for range 2 {
+		if err := e.Resume(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+	if n := agents.of("srv_B"); n > 2 {
+		t.Errorf("Resume looked for srv_B %d times while slow ran, want 2: one for each Resume, and none in a loop", n)
+	}
+
+	// Once slow ends, Resume runs again, and srv_B is back by then.
+	f["srv_B"].online.Store(true)
+	close(release)
+	e.Wait()
+	if c := stored(t, db, rollback); c.State != store.ChangeApplied {
+		t.Errorf("the rollback is %s once slow ended with srv_B back; Resume didn't run again", c.State)
+	}
+	if n := agents.of("srv_B"); n > 4 {
+		t.Errorf("Resume looked for srv_B %d times in all, want at most 4", n)
+	}
+}
+
+// A pass of Resume that gets nowhere doesn't ask for another. Here srv_B is
+// connected, yet the rollback's call never reaches its agent, as when the
+// stream it went to had just ended: the step waits, and the agent's
+// reconnect resumes it, not the run itself, round and round.
+func TestAResumeThatGetsNowhereDoesntGoAgain(t *testing.T) {
+	storetest.Each(t, testAResumeThatGetsNowhereDoesntGoAgain)
+}
+
+func testAResumeThatGetsNowhereDoesntGoAgain(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A", "srv_B")
+	rollback := waitingForB(t, e, f)
+	var calls atomic.Int32
+	plain := f["srv_B"].agent
+	f["srv_B"].agent = hooked{Agent: plain, apply: func(context.Context, resource.Step, proto.Message) error {
+		calls.Add(1)
+		return fmt.Errorf("%w: srv_B's agent disconnected before the call reached it", resource.ErrNotConnected)
+	}}
+	// srv_B's own web moved on to 1.28 meanwhile, so the rollback has a
+	// step there.
+	f["srv_B"].docker.Edit("web", func(c *resourcev1.Container) { c.Image = "nginx:1.28" })
+	f["srv_B"].online.Store(true)
+	if err := e.Resume(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if n := calls.Load(); n != 1 {
+		// Fatal, so the loop's next pass finds the store closed and ends.
+		t.Fatalf("the rollback's step was sent %d times in 300 ms, want once: Resume went round again with nothing done", n)
+	}
+	e.Wait()
+	if c := stored(t, db, rollback); c.State != store.ChangeApplying {
+		t.Fatalf("the rollback is %s, want it still applying, waiting for srv_B", c.State)
+	}
+	// The agent reconnects, and Resume runs as it does then.
+	f["srv_B"].agent = plain
+	if err := e.Resume(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if c := stored(t, db, rollback); c.State != store.ChangeApplied || image(t, f["srv_B"]) != "nginx:1.27" {
+		t.Errorf("after srv_B reconnects the rollback is %s, with %s on srv_B", c.State, image(t, f["srv_B"]))
+	}
+}
+
+// No wakeup is lost when Resume skips a change because another holds one of
+// its resources: once the holder lets go, Resume runs again. Here a revert
+// of drift, which makes no revision, holds web on srv_B as it plans, before
+// it is on record as applying, while a rollback that puts web back waits.
+func TestResumeRunsAgainOnceTheHolderLetsGo(t *testing.T) {
+	storetest.Each(t, testResumeRunsAgainOnceTheHolderLetsGo)
+}
+
+func testResumeRunsAgainOnceTheHolderLetsGo(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A", "srv_B")
+	rollback := waitingForB(t, e, f)
+	f["srv_B"].online.Store(true)
+	f["srv_B"].docker.Edit("web", func(c *resourcev1.Container) { c.Env["DEBUG"] = "1" })
+	drift, err := e.Drift(t.Context(), "srv_B")
+	if err != nil || len(drift) != 1 {
+		t.Fatalf("drift on srv_B = %v, %v", drift, err)
+	}
+	revert, err := e.Revert(t.Context(), drift[0], By{Actor: "usr_test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planning, release := make(chan struct{}, 1), make(chan struct{})
+	var once sync.Once
+	f["srv_B"].agent = hooked{Agent: f["srv_B"].agent, plan: func(context.Context, []resource.Desired) error {
+		once.Do(func() { planning <- struct{}{}; <-release })
+		return nil
+	}}
+	applied := make(chan error, 1)
+	go func() { applied <- e.Apply(context.Background(), revert.Change) }()
+	<-planning
+	if err := e.Resume(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if c := stored(t, db, rollback); c.State != store.ChangeApplying {
+		t.Fatalf("the rollback is %s while the revert holds web, want applying", c.State)
+	}
+	close(release)
+	if err := <-applied; err != nil {
+		t.Fatalf("applying the revert = %v", err)
+	}
+	e.Wait()
+	if c := stored(t, db, rollback); c.State != store.ChangeApplied {
+		t.Errorf("the rollback is %s once the revert let go of web; Resume didn't run again", c.State)
 	}
 }
 
@@ -601,5 +788,164 @@ func testChangesListPlansInBrief(t *testing.T, backend store.Backend) {
 		if w, ok := want[r.ID]; ok && got != w || !ok && got != "" {
 			t.Errorf("%s is listed %q, want %q", r.ID, got, w)
 		}
+	}
+}
+
+// A rollback whose stream drops while a step runs waits for its server, as
+// for one that isn't connected, rather than failing for good: Resume plans
+// the step against the server again, and finds it done or not.
+func TestARollbackWaitsWhenItsStreamDrops(t *testing.T) {
+	storetest.Each(t, testARollbackWaitsWhenItsStreamDrops)
+}
+
+func testARollbackWaitsWhenItsStreamDrops(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A")
+	var dropped atomic.Bool
+	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, apply: func(_ context.Context, step resource.Step, _ proto.Message) error {
+		switch {
+		case step.Ref.Name == "boom":
+			return errors.New("boom can't be opened")
+		case step.Action == resource.ActionDelete && dropped.CompareAndSwap(false, true):
+			// The rollback's step: the stream drops while it runs.
+			return fmt.Errorf("%w: srv_A's agent disconnected before it answered, so the step may or may not have run", resource.ErrLost)
+		}
+		return nil
+	}}
+	p := propose(t, e, "Open http and boom", rule("srv_A", "http", 80), rule("srv_A", "boom", 9))
+	var failed *FailedError
+	if err := e.Apply(t.Context(), p.Change); !errors.As(err, &failed) || failed.Rollback == "" || !errors.Is(failed.RollbackErr, ErrPending) {
+		t.Fatalf("apply = %v, want it failed, with a rollback that waits for srv_A", err)
+	}
+	e.Wait() // srv_A is back: Resume plans the rollback's step again, and runs it
+	if c := stored(t, db, failed.Rollback); c.State != store.ChangeApplied || f["srv_A"].firewall.Len() != 0 {
+		t.Errorf("the rollback is %s, with %d rules on srv_A; want it applied, with none", c.State, f["srv_A"].firewall.Len())
+	}
+}
+
+// A retried apply that loses the race to the first try reads that the
+// change is applied: its plan isn't to blame, and proposing the edits again
+// would only make another change. Here the retry reaches a second engine
+// over the same store, as a second control plane would, and plans while
+// the first try applies.
+func TestARetriedApplyThatLostTheRaceIsntBlamedOnThePlan(t *testing.T) {
+	storetest.Each(t, testARetriedApplyThatLostTheRaceIsntBlamedOnThePlan)
+}
+
+func testARetriedApplyThatLostTheRaceIsntBlamedOnThePlan(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A")
+	p := propose(t, e, "Open http", rule("srv_A", "http", 80))
+	planning, release := make(chan struct{}, 1), make(chan struct{})
+	var first atomic.Bool
+	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, plan: func(context.Context, []resource.Desired) error {
+		if first.CompareAndSwap(false, true) {
+			planning <- struct{}{}
+			<-release
+		}
+		return nil
+	}}
+	retry := newEngine(db, f)
+	retried := make(chan error, 1)
+	go func() { retried <- retry.Apply(context.Background(), p.Change) }()
+	<-planning
+	apply(t, e, p)
+	close(release)
+	err := <-retried
+	if !errors.Is(err, ErrNotPlanned) || errors.Is(err, ErrPlanChanged) || errors.Is(err, ErrStale) {
+		t.Fatalf("the retry that lost the race = %v, want ErrNotPlanned, not a plan to propose again", err)
+	}
+	if want := p.Change + " is applied already, so it can't be applied again. Undo it, or propose a new change"; err.Error() != want {
+		t.Errorf("the retry says %q, want %q", err, want)
+	}
+}
+
+// Watchers hear that a step ended only once the store has it, as for a
+// change: a step whose record can't be written isn't announced done.
+func TestAStepIsAnnouncedOnlyOnceRecorded(t *testing.T) {
+	storetest.Each(t, testAStepIsAnnouncedOnlyOnceRecorded)
+}
+
+func testAStepIsAnnouncedOnlyOnceRecorded(t *testing.T, backend store.Backend) {
+	e, f, _, location := setupAt(t, backend, "srv_A")
+	restore := func() {}
+	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, apply: func(_ context.Context, step resource.Step, _ proto.Message) error {
+		switch step.Ref.Name {
+		case "http":
+			restore = storetest.FailUpdates(t, location, "changes", "progress") // as a full disk would
+		case "https":
+			restore()
+		}
+		return nil
+	}}
+	p := propose(t, e, "Open http and https", rule("srv_A", "http", 80), rule("srv_A", "https", 443))
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	updates := e.Watch(ctx, p.Change)
+	apply(t, e, p)
+	var ended []int
+	for {
+		select {
+		case u := <-updates:
+			if u.Step != nil && u.Step.State.Final() {
+				ended = append(ended, u.Index)
+			}
+			continue
+		default:
+		}
+		break
+	}
+	if !slices.Equal(ended, []int{1}) {
+		t.Errorf("watchers heard steps %v end, want only step 1: step 0's end never reached the store", ended)
+	}
+}
+
+// A rollback's step that its agent couldn't plan says so while it waits,
+// with the agent's reason: its server is connected, so it isn't waiting for
+// it to reconnect.
+func TestAWaitingStepSaysWhyItWaits(t *testing.T) { storetest.Each(t, testAWaitingStepSaysWhyItWaits) }
+
+func testAWaitingStepSaysWhyItWaits(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A")
+	var plans atomic.Int32
+	release := make(chan struct{})
+	f["srv_A"].agent = hooked{
+		Agent: f["srv_A"].agent,
+		apply: func(_ context.Context, step resource.Step, _ proto.Message) error {
+			if step.Ref.Name == "boom" {
+				return errors.New("boom can't be opened")
+			}
+			return nil
+		},
+		plan: func(_ context.Context, desired []resource.Desired) error {
+			if desired[0].Spec != nil {
+				return nil // the change's own plans; the rollback's delete
+			}
+			switch plans.Add(1) {
+			case 1:
+				return errors.New("can't read the firewall just now")
+			case 2:
+				<-release // Resume's, once the rollback's first run lets go
+			}
+			return nil
+		},
+	}
+	p := propose(t, e, "Open http and boom", rule("srv_A", "http", 80), rule("srv_A", "boom", 9))
+	var failed *FailedError
+	if err := e.Apply(t.Context(), p.Change); !errors.As(err, &failed) || !errors.Is(failed.RollbackErr, ErrPending) {
+		t.Fatalf("apply = %v, want it failed, with a rollback that waits", err)
+	}
+	rb, err := decodeProgress(stored(t, db, failed.Rollback).Progress)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "Waiting for srv_A's agent, which couldn't plan this step: can't read the firewall just now"
+	for i := range rb.Steps {
+		if s := &rb.Steps[i]; s.State != StepWaiting || s.Message != want {
+			t.Errorf("the rollback's step %s is %s, saying %q; want it waiting, saying %q", s.Ref.Name, s.State, s.Message, want)
+		}
+	}
+	close(release)
+	e.Wait()
+	if c := stored(t, db, failed.Rollback); c.State != store.ChangeApplied {
+		t.Errorf("the rollback is %s once its agent could plan it, want applied", c.State)
 	}
 }

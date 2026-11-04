@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"connectrpc.com/connect"
@@ -28,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -274,7 +276,7 @@ func (h *Handler) ListDrift(ctx context.Context, req *connect.Request[dockwellv1
 		if want := req.Msg.GetServerId(); want != "" {
 			s, err := tx.GetServer(ctx, want)
 			if errors.Is(err, store.ErrNotFound) || err == nil && s.RevokedAt != nil {
-				return fmt.Errorf("%w: there's no server %s in the fleet", scope.ErrNotFound, want)
+				return fault.New(scope.ErrNotFound, "there's no server %s in the fleet", want)
 			}
 			servers, names[want] = []string{want}, s.Name
 			return err
@@ -289,23 +291,19 @@ func (h *Handler) ListDrift(ctx context.Context, req *connect.Request[dockwellv1
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
+	results, err := h.drift(ctx, servers)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
 	res := &dockwellv1.ListDriftResponse{}
-	for _, s := range servers {
-		drift, err := h.engine.Drift(ctx, s)
-		if err != nil {
-			// A server that can't be checked leaves the others to report.
-			// The request failing, as when its client goes away, or the
-			// store failing, fails it all.
-			reason, ok := serverReason(err)
-			if !ok || ctx.Err() != nil {
-				return nil, h.rpcError(ctx, err)
-			}
+	for i, s := range servers {
+		if err := results[i].err; err != nil {
+			reason, _ := serverReason(err)
 			res.UncheckedServers = append(res.UncheckedServers, &dockwellv1.UncheckedServer{
 				ServerId: s, ServerName: names[s], Reason: reason, Message: err.Error(),
 			})
-			continue
 		}
-		for _, d := range drift {
+		for _, d := range results[i].drift {
 			res.Drift = append(res.Drift, &dockwellv1.Drift{
 				ServerId: s, ResourceId: d.ID, Resource: resourcepb.Ref(d.Ref), Revision: int64(d.Revision), Missing: d.Missing,
 				Changes: resourcepb.Changes(d.Changes),
@@ -313,6 +311,58 @@ func (h *Handler) ListDrift(ctx context.Context, req *connect.Request[dockwellv1
 		}
 	}
 	return connect.NewResponse(res), nil
+}
+
+// DriftChecks is how many servers ListDrift checks at once. Each agent may
+// take up to a minute to answer, so one at a time would keep a fleet's
+// request waiting for minutes.
+const DriftChecks = 16
+
+// checked is one server's drift, or why it couldn't be checked.
+type checked struct {
+	drift []revision.Drift
+	err   error
+}
+
+// drift checks each server for drift, DriftChecks at a time, and returns
+// what each has, in the servers' order. A server that can't be checked
+// leaves the others to report; the request failing, as when its client
+// goes away, or the store failing, fails it all, and stops the checks
+// still under way.
+func (h *Handler) drift(ctx context.Context, servers []string) ([]checked, error) {
+	parent := ctx
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	out := make([]checked, len(servers))
+	var fatal error
+	var once sync.Once
+	next := make(chan int)
+	var wg sync.WaitGroup
+	for range min(DriftChecks, len(servers)) {
+		wg.Go(func() {
+			for i := range next {
+				c := &out[i]
+				c.drift, c.err = h.engine.Drift(ctx, servers[i])
+				if _, theServers := serverReason(c.err); c.err != nil && !theServers {
+					once.Do(func() { fatal = c.err; cancel() })
+				}
+			}
+		})
+	}
+feed:
+	for i := range servers {
+		select {
+		case next <- i:
+		case <-ctx.Done():
+			break feed
+		}
+	}
+	close(next)
+	wg.Wait()
+	if err := parent.Err(); err != nil {
+		return nil, err
+	}
+	return out, fatal
 }
 
 // RevertDrift plans putting a drifted resource back.
@@ -374,7 +424,7 @@ func (h *Handler) change(ctx context.Context, changeID string) (*dockwellv1.Chan
 // out (PRD principle 4).
 func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.Edit, error) {
 	if len(in) == 0 {
-		return nil, fmt.Errorf("%w: it has no edits. Add one for each resource to change", revision.ErrInvalid)
+		return nil, fault.New(revision.ErrInvalid, "the change has no edits. Add one for each resource to change")
 	}
 	kinds := h.engine.Kinds()
 	out := make([]revision.Edit, 0, len(in))
@@ -391,31 +441,31 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 			}
 			switch {
 			case e.GetDelete() && spec != nil:
-				return fmt.Errorf("%w: edit %d both sets a spec and deletes; do one or the other", revision.ErrInvalid, i+1)
+				return fault.New(revision.ErrInvalid, "edit %d both sets a spec and deletes. Do one or the other", i+1)
 			case !e.GetDelete() && spec == nil:
-				return fmt.Errorf("%w: edit %d has no spec. Set one, or set delete to delete the resource", revision.ErrInvalid, i+1)
+				return fault.New(revision.ErrInvalid, "edit %d has no spec. Set one, or set delete to delete the resource", i+1)
 			}
 			if spec != nil {
 				kind, ok := kinds.KindOf(spec)
 				switch {
 				case !ok:
-					return fmt.Errorf("%w: edit %d's spec is of no kind Dockwell manages", revision.ErrInvalid, i+1)
+					return fault.New(revision.ErrInvalid, "edit %d's spec is of no kind Dockwell manages. Set one of the spec's kinds, such as service", i+1)
 				case ref.Kind == "":
 					ref.Kind = kind
 				case ref.Kind != kind:
-					return fmt.Errorf("%w: edit %d is for a %s, but its spec is a %s", revision.ErrInvalid, i+1, ref.Kind, kind)
+					return fault.New(revision.ErrInvalid, "edit %d is for a %s, but its spec is a %s. Make the two agree, or leave the kind out", i+1, ref.Kind, kind)
 				}
 			}
 			t, err := kinds.Type(ref.Kind)
 			if err != nil {
 				if ref.Kind == "" {
-					return fmt.Errorf("%w: edit %d needs a kind, such as service", revision.ErrInvalid, i+1)
+					return fault.New(revision.ErrInvalid, "edit %d needs a kind, such as service", i+1)
 				}
-				return fmt.Errorf("%w: %w", revision.ErrInvalid, err)
+				return fault.New(revision.ErrInvalid, "%w", err)
 			}
 			if e.GetProject() != "" && t.Level() != resource.LevelEnvironment {
-				return fmt.Errorf("%w: edit %d names a project, which only a resource that lives in an environment, such as a service, takes. "+
-					"Name what a %s lives in with resource.scope instead", revision.ErrInvalid, i+1, ref.Kind)
+				return fault.New(revision.ErrInvalid, "edit %d names a project, which only a resource that lives in an environment, such as a service, takes. "+
+					"Name what a %s lives in with resource.scope instead", i+1, ref.Kind)
 			}
 			if tree == nil && t.Level() != resource.LevelServer {
 				loaded, err := scope.Load(ctx, tx)
@@ -447,7 +497,7 @@ func resolve(ctx context.Context, tx *store.Tx, tree *scope.Tree, level resource
 		if given == "" || given == tree.Organization.ID || given == tree.Organization.Name {
 			return tree.Organization.ID, nil
 		}
-		return "", fmt.Errorf("%w: there's no organization %s", scope.ErrNotFound, given)
+		return "", fault.New(scope.ErrNotFound, "there's no organization %s", given)
 	case resource.LevelProject:
 		if strings.HasPrefix(given, id.Project+"_") {
 			return given, nil // checked when the change is planned
@@ -471,20 +521,20 @@ func resolve(ctx context.Context, tx *store.Tx, tree *scope.Tree, level resource
 		case 1:
 			return servers[0].ID, nil
 		case 0:
-			return "", fmt.Errorf("%w: there's no server yet. Add one first", scope.ErrNotFound)
+			return "", fault.New(scope.ErrNotFound, "there's no server yet. Add one first")
 		}
 		names := make([]string, len(servers))
 		for i := range servers {
 			names[i] = servers[i].Name
 		}
-		return "", fmt.Errorf("%w: there are %d servers, so say which one you mean: %s", revision.ErrInvalid, len(servers), strings.Join(names, ", "))
+		return "", &scope.ChoiceError{Level: scope.ServerLevel, Options: names}
 	}
 	for i := range servers {
 		if servers[i].ID == given || servers[i].Name == given {
 			return servers[i].ID, nil
 		}
 	}
-	return "", fmt.Errorf("%w: there's no server %s in the fleet", scope.ErrNotFound, given)
+	return "", fault.New(scope.ErrNotFound, "there's no server %s in the fleet", given)
 }
 
 // actors finds the name to show for each actor, once per request.
@@ -549,7 +599,7 @@ func changeProto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dock
 	c := &dockwellv1.Change{
 		Id: r.ID, Summary: r.Summary, State: states[r.State], ProposedBy: actor(r.Actor), ProposedVia: surfaces[r.ProposedVia],
 		CreateTime: timestamppb.New(r.CreatedAt), Plan: planProto(r), Reverts: r.Reverts,
-		Rollback: r.Actor == revision.SystemActor && r.Reverts != "", AppliedBy: actor(r.AppliedBy), AppliedVia: surfaces[r.AppliedVia],
+		Rollback: revision.IsRollback(r.Change), AppliedBy: actor(r.AppliedBy), AppliedVia: surfaces[r.AppliedVia],
 		Error: r.Error, RolledBackBy: r.RolledBackBy, UndoneBy: r.UndoneBy,
 	}
 	if !r.AppliedAt.IsZero() {
@@ -646,7 +696,9 @@ func reasonError(code connect.Code, err error, reason string) *connect.Error {
 }
 
 // codes maps the engine's errors to codes and reasons. Their messages are
-// written for people; anything else is logged and reported as internal.
+// written whole, for people, with the kind of error apart from the text
+// (internal/fault), so they go out as they are; anything else is logged and
+// reported as internal.
 var codes = []struct {
 	err    error
 	code   connect.Code
@@ -679,7 +731,7 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 	}
 	for _, c := range codes {
 		if errors.Is(err, c.err) {
-			return reasonError(c.code, errors.New(strings.TrimPrefix(err.Error(), c.err.Error()+": ")), c.reason)
+			return reasonError(c.code, err, c.reason)
 		}
 	}
 	var agent *revision.AgentError

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package human formats values the way Dockwell writes them for people:
-// a number, a space and a unit ("41 s", "30 min", "1 h").
+// a number, a space and a unit ("41 s", "30 min", "1 h"), and lists of
+// names ("hz-1, hz-2 and hz-3").
 package human
 
 import (
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -20,4 +22,16 @@ func Duration(d time.Duration) string {
 	default:
 		return strconv.FormatFloat(d.Seconds(), 'f', -1, 64) + " s"
 	}
+}
+
+// List writes names the way messages do: "a", "a and b", "a, b and c",
+// and "none" for none.
+func List(names []string) string {
+	switch len(names) {
+	case 0:
+		return "none"
+	case 1:
+		return names[0]
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }
