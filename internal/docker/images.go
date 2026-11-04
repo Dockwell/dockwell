@@ -24,13 +24,23 @@ type Image struct {
 // error that IsNotFound reports.
 func (c *Client) InspectImage(ctx context.Context, ref string) (*Image, error) {
 	var out Image
-	if err := c.do(ctx, http.MethodGet, "/images/"+ref+"/json", nil, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/images/"+escRef(ref)+"/json", nil, nil, &out); err != nil {
 		return nil, err
 	}
 	if out.Config == nil {
 		out.Config = &Config{}
 	}
 	return &out, nil
+}
+
+// escRef escapes an image reference for a path, part by part: the engine
+// takes the slashes between a reference's parts as they are.
+func escRef(ref string) string {
+	parts := strings.Split(ref, "/")
+	for i, p := range parts {
+		parts[i] = esc(p)
+	}
+	return strings.Join(parts, "/")
 }
 
 // WithTag returns ref with ":latest" when it names neither a tag nor a

@@ -168,3 +168,23 @@ func TestBridgeAloneIsTheDefault(t *testing.T) {
 		t.Errorf("a service's networks [bridge] = %v, %v; want the environment's bridge", app.GetNetworks(), err)
 	}
 }
+
+// An image reference reaches Docker escaped in the request's path, so one
+// Docker would read as another, such as %6eginx for nginx, finds nothing.
+func TestImageReferencesAreEscaped(t *testing.T) {
+	e := dockertest.New(t)
+	e.Registry["nginx:1.27"] = dockertest.Image{}
+	e.Registry["ghcr.io/acme/web:1"] = dockertest.Image{}
+	c := e.Client()
+	for _, ref := range []string{"nginx:1.27", "ghcr.io/acme/web:1"} {
+		if err := c.PullImage(t.Context(), ref, nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.InspectImage(t.Context(), ref); err != nil {
+			t.Errorf("inspecting %s: %v", ref, err)
+		}
+	}
+	if img, err := c.InspectImage(t.Context(), "%6eginx:1.27"); !docker.IsNotFound(err) {
+		t.Errorf("inspecting %%6eginx:1.27 = %v, %v; want no such image", img, err)
+	}
+}
