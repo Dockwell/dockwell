@@ -2,50 +2,40 @@
 
 import { durationMs } from "@bufbuild/protobuf/wkt";
 import { Connection, type Server } from "@dockwell/api";
-import { cx, Glyph, Panel, StatusBadge, Tag } from "@dockwell/ui";
+import { Panel, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 
 import { formatBytesOf, formatPercent } from "../../lib/format";
-import { useElapsed } from "../../lib/useElapsed";
+import { Connecting, Reconnecting } from "./FleetNotes";
 import { serverStatus } from "./server";
 import { useFleet } from "./useFleet";
 import "./ServersPanel.css";
 
-/**
- * Every server with its live stats, as their agents report them. Linked,
- * each name opens the server's page; that needs the router, which the
- * status page doesn't have.
- */
-export function ServersPanel({ linked = false }: { linked?: boolean }) {
+export interface ServersPanelProps {
+  /** Each name opens the server's page; that needs the router, which the status page doesn't have. */
+  linked?: boolean;
+  /**
+   * Says "Reconnecting" in the panel's header. Pages in the shell say it in
+   * their own head instead, so it shows and is announced once.
+   */
+  reconnectingNote?: boolean;
+}
+
+/** Every server with its live stats, as their agents report them. */
+export function ServersPanel({ linked = false, reconnectingNote = true }: ServersPanelProps) {
   const { t } = useLingui();
   const fleet = useFleet();
-  const reconnecting = fleet.status === "reconnecting";
-  const slow = useElapsed(fleet.status === "connecting");
   return (
     <Panel
       title={t`Servers`}
-      actions={
-        reconnecting ? (
-          <span className="servers-reconnecting" role="status">
-            <Glyph shape="spinner" />
-            <Trans>Reconnecting</Trans>
-          </span>
-        ) : null
-      }
+      actions={reconnectingNote && fleet.status === "reconnecting" ? <Reconnecting /> : null}
       flush
     >
-      {fleet.status === "connecting" && fleet.error ? (
+      {fleet.status === "connecting" ? (
         <div className="servers-empty">
-          <p>
-            <Trans>The server list didn't load. Dockwell keeps trying.</Trans>
-          </p>
-          <p className="servers-error">{fleet.error.rawMessage}</p>
+          <Connecting error={fleet.error} />
         </div>
-      ) : fleet.status === "connecting" ? (
-        <p className={cx("servers-empty", !slow && "is-quiet")} aria-busy="true">
-          <Trans>Loading servers</Trans>
-        </p>
       ) : fleet.servers.length === 0 ? (
         <p className="servers-empty">
           <Trans>

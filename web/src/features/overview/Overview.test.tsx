@@ -210,4 +210,33 @@ describe("Overview with a fleet", () => {
     expect(within(list).getByRole("link", { name: "hz-2" })).toHaveAttribute("href", "/servers/srv_2");
     expect(screen.queryByText("Network")).toBeNull();
   });
+
+  it("says once that it is reconnecting", async () => {
+    const { watch } = renderOverview();
+    watch.push(changed(hz1), changed(aServer({ id: "srv_2", name: "hz-2", stats: sample(8) })), snapshotComplete);
+    await screen.findByText("2 servers", { selector: ".page-lead" });
+
+    act(() => watch.fail(new ConnectError("the watch fell behind", Code.Unavailable)));
+
+    const note = await within(screen.getByRole("main")).findByRole("status");
+    expect(note).toHaveTextContent("Reconnecting");
+    expect(screen.getAllByRole("status")).toEqual([note]);
+    // The list keeps its servers, with no note of its own.
+    expect(within(screen.getByRole("region", { name: "Servers" })).queryByText("Reconnecting")).toBeNull();
+  });
+});
+
+describe("the server list page", () => {
+  it("says once that it is reconnecting", async () => {
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), changed(aServer({ id: "srv_2", name: "hz-2", stats: sample(8) })), snapshotComplete);
+    renderAt("/servers", { servers: { watchServers: watch.stream } });
+    await screen.findByRole("link", { name: "hz-2" });
+
+    act(() => watch.fail(new ConnectError("the watch fell behind", Code.Unavailable)));
+
+    const note = await within(screen.getByRole("main")).findByRole("status");
+    expect(note).toHaveTextContent("Reconnecting");
+    expect(screen.getAllByRole("status")).toEqual([note]);
+  });
 });

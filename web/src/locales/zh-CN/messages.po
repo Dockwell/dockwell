@@ -458,7 +458,6 @@ msgid "Load average"
 msgstr "平均负载"
 
 #: src/features/servers/FleetNotes.tsx
-#: src/features/servers/ServersPanel.tsx
 msgid "Loading servers"
 msgstr "正在加载服务器"
 
@@ -620,8 +619,6 @@ msgid "Receiving"
 msgstr "接收"
 
 #: src/features/servers/FleetNotes.tsx
-#: src/features/servers/ServersPanel.tsx
-#: src/features/shell/Topbar.tsx
 msgid "Reconnecting"
 msgstr "正在重新连接"
 
@@ -760,7 +757,6 @@ msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwel
 msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务器上的 <0>dockwell run</0> 仍在运行，然后重试。"
 
 #: src/features/servers/FleetNotes.tsx
-#: src/features/servers/ServersPanel.tsx
 msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "服务器列表未能加载。Dockwell 会继续重试。"
 

@@ -1,33 +1,7 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
-/* The live view is catching up: the list stays, a quiet note says why it may be stale. */
-.servers-reconnecting {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--ink-muted);
-}
-
-.servers-reconnecting .dw-glyph {
-  color: var(--cobalt);
-}
-
 .servers-empty {
   padding: var(--space-4);
   color: var(--ink-muted);
-}
-
-/* Holds the panel's height without flashing a message at fast answers. */
-.servers-empty.is-quiet {
-  visibility: hidden;
-}
-
-.servers-error {
-  margin-top: var(--space-1);
-  font-size: 12px;
-  line-height: 18px;
-  overflow-wrap: anywhere;
 }
 
 .servers-empty code {

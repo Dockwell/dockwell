@@ -7,10 +7,14 @@ import { Trans } from "@lingui/react/macro";
 import { useElapsed } from "../../lib/useElapsed";
 import "./FleetNotes.css";
 
-/** For a page's status slot while the live view catches up: what's shown may be a few seconds old. */
-export function Reconnecting() {
+/**
+ * While the live view catches up: what's shown may be a few seconds old.
+ * One per screen announces it; a second, such as the top bar's, passes
+ * announce={false} so screen readers hear it once.
+ */
+export function Reconnecting({ announce = true }: { announce?: boolean }) {
   return (
-    <span className="fleet-reconnecting" role="status">
+    <span className="fleet-reconnecting" role={announce ? "status" : undefined}>
       <Glyph shape="spinner" />
       <Trans>Reconnecting</Trans>
     </span>

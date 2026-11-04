@@ -54,7 +54,7 @@ export function Overview() {
   }
   return (
     <Page title={t`Overview`} lead={plural(count, { one: "# server", other: "# servers" })} status={status}>
-      <ServersPanel linked />
+      <ServersPanel linked reconnectingNote={false} />
     </Page>
   );
 }
