@@ -1,0 +1,280 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// Claims a fresh install, signs out and signs in again in headless Chromium,
+// against a real `dockwell run` on a temporary data directory, with the
+// DevTools virtual authenticator standing in for Touch ID. Then it turns on
+// codes, signs in with a recovery code, and opens a link from
+// `dockwell recover`. With --shots <dir> it also saves screenshots of every
+// screen at 1440, 390 and 360 px, light and dark.
+//
+//   make e2e
+//   node web/e2e/sign-in.ts bin/dockwell --shots /tmp/shots
+//
+// Chromium is the system's: CHROMIUM_PATH, or /usr/bin/chromium.
+
+import { type ChildProcess, execFileSync, spawn } from "node:child_process";
+import { createHmac } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { parseArgs } from "node:util";
+
+import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
+
+const { values, positionals } = parseArgs({ allowPositionals: true, options: { shots: { type: "string" } } });
+const bin = resolve(positionals[0] ?? "bin/dockwell");
+const shots = values.shots ? resolve(values.shots) : undefined;
+const port = 7650 + Math.floor(Math.random() * 300);
+const origin = `http://localhost:${port}`;
+const data = mkdtempSync(join(tmpdir(), "dockwell-e2e-"));
+
+let server: ChildProcess | undefined;
+let browser: Browser | undefined;
+const log: string[] = [];
+
+function step(what: string) {
+  console.log(`e2e: ${what}`);
+}
+
+function fail(message: string): never {
+  throw new Error(message);
+}
+
+async function expectText(page: Page, text: string, timeout = 10_000) {
+  await page.getByText(text, { exact: false }).first().waitFor({ timeout });
+}
+
+/** Starts dockwell run and waits for the claim link it prints. */
+async function start(): Promise<string> {
+  server = spawn(
+    bin,
+    [
+      "run",
+      "--data-dir",
+      data,
+      "--listen",
+      `127.0.0.1:${port}`,
+      "--agent-listen",
+      "127.0.0.1:0",
+      "--log-format",
+      "json",
+    ],
+    {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, USER: "mira" },
+    },
+  );
+  let out = "";
+  server.stdout?.on("data", (b: Buffer) => {
+    out += b.toString();
+  });
+  server.stderr?.on("data", (b: Buffer) => log.push(b.toString()));
+  for (let i = 0; i < 200; i++) {
+    const link = out.match(/(http:\/\/localhost:\d+\/claim#[A-Za-z0-9_-]{43})/);
+    if (link?.[1]) {
+      console.log(
+        out
+          .trim()
+          .replace(/#[A-Za-z0-9_-]{43}/, "#<token>")
+          .replace(/^/gm, "  | "),
+      );
+      return link[1];
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  fail(`dockwell run printed no claim link:\n${out}\n${log.join("")}`);
+}
+
+/** A browser context with a platform authenticator that does user verification. */
+async function withAuthenticator(context: BrowserContext, page: Page) {
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("WebAuthn.enable", { enableUI: false });
+  const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+  return { cdp, authenticatorId };
+}
+
+async function shoot(page: Page, name: string) {
+  if (!shots) return;
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const width of [1440, 390, 360]) {
+      await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+      await page.waitForTimeout(100);
+      await page.screenshot({ path: join(shots, `${name}-${width}-${scheme}.png`), fullPage: true });
+    }
+  }
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+}
+
+function totp(secretBase32: string, step = Math.floor(Date.now() / 30_000)): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "";
+  for (const c of secretBase32.replace(/\s/g, "")) bits += alphabet.indexOf(c).toString(2).padStart(5, "0");
+  const key = Buffer.from(bits.match(/.{8}/g)?.map((b) => Number.parseInt(b, 2)) ?? []);
+  const msg = Buffer.alloc(8);
+  msg.writeBigUInt64BE(BigInt(step));
+  const sum = createHmac("sha1", key).update(msg).digest();
+  const off = (sum.at(-1) ?? 0) & 0x0f;
+  return String((sum.readUInt32BE(off) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+
+async function main() {
+  if (shots) await mkdir(shots, { recursive: true });
+  step(`starting ${bin} on ${origin} with data in ${data}`);
+  const claimLink = await start();
+
+  browser = await chromium.launch({
+    executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium",
+    headless: true,
+  });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  page.on("pageerror", (err) => fail(`the page threw: ${err.message}`));
+  const { cdp, authenticatorId } = await withAuthenticator(context, page);
+
+  step("an unclaimed panel explains how to claim it");
+  await page.goto(`${origin}/`);
+  await expectText(page, "has no owner yet");
+  await shoot(page, "unclaimed");
+
+  step("claim: open the printed link, create the owner with a passkey");
+  await page.goto(claimLink);
+  await page.getByRole("region", { name: "This server" }).waitFor();
+  if (page.url().includes("#")) fail(`the claim token stayed in the address bar: ${page.url()}`);
+  await shoot(page, "claim");
+  await page.getByLabel("Your name").fill("Mira Chen");
+  await page.getByLabel("Email").fill("mira@acme.dev");
+  await page.getByRole("button", { name: "Create passkey" }).click();
+  await page.getByRole("heading", { name: "The control plane is running" }).waitFor({ timeout: 15_000 });
+  const { credentials } = await cdp.send("WebAuthn.getCredentials", { authenticatorId });
+  if (credentials.length !== 1 || credentials[0]?.rpId !== "localhost" || !credentials[0]?.isResidentCredential) {
+    fail(`expected one discoverable passkey for localhost, got ${JSON.stringify(credentials)}`);
+  }
+  const cookies = await context.cookies(origin);
+  const session = cookies.find((c) => c.name === "dockwell_session");
+  if (!session?.httpOnly || session.sameSite !== "Strict") fail(`session cookie: ${JSON.stringify(cookies)}`);
+  step(
+    `  claimed; passkey made for rpId ${credentials[0]?.rpId}; cookie ${session.name} HttpOnly SameSite=${session.sameSite}`,
+  );
+  await shoot(page, "overview");
+
+  step("the claim link works only once");
+  const reuse = await browser.newPage();
+  await reuse.goto(claimLink);
+  await expectText(reuse, "This install already has an owner");
+  await reuse.close();
+
+  step("sign out, then sign in again with the passkey");
+  await page.getByRole("region", { name: "Your account" }).getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("heading", { name: "Sign in to Dockwell" }).waitFor();
+  await shoot(page, "sign-in");
+  await page.getByRole("button", { name: "Sign in with a passkey" }).click();
+  await page.getByRole("heading", { name: "The control plane is running" }).waitFor({ timeout: 15_000 });
+  const api = await page.evaluate(async () => {
+    const r = await fetch("/dockwell.v1.AuthService/ListSessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    return { status: r.status, body: await r.json() };
+  });
+  if (api.status !== 200 || api.body.sessions?.length !== 1)
+    fail(`ListSessions after signing in again: ${JSON.stringify(api)}`);
+  step(`  signed in again; ${api.body.sessions.length} open session`);
+
+  step("profile: set up an authenticator app");
+  await page.getByRole("link", { name: "Profile and security" }).click();
+  await page.getByRole("heading", { name: "Profile and security" }).waitFor();
+  await page.getByRole("region", { name: "Passkeys" }).getByRole("listitem").first().waitFor();
+  await shoot(page, "profile");
+  await page.getByRole("button", { name: "Set up" }).click();
+  const sheet = page.getByRole("dialog", { name: "Set up an authenticator app" });
+  const secret = (await sheet.locator(".totp-secret code").innerText()).replace(/\s/g, "");
+  await shoot(page, "totp-setup");
+  await sheet.getByLabel("Enter the 6-digit code it shows").fill(totp(secret));
+  await sheet.getByRole("button", { name: "Turn on" }).click();
+  const saved = page.getByRole("dialog", { name: "Save your recovery codes" });
+  await saved.waitFor();
+  const codes = await saved.locator(".totp-code-list code").allInnerTexts();
+  if (codes.length !== 10) fail(`expected 10 recovery codes, got ${codes.length}`);
+  await shoot(page, "recovery-codes");
+  await saved.getByRole("button", { name: "I saved them" }).click();
+  step(`  codes on, ${codes.length} recovery codes shown once`);
+
+  step("sign out, then sign in with a recovery code");
+  await page.getByRole("button", { name: "Sign out" }).first().click();
+  await page.getByRole("heading", { name: "Sign in to Dockwell" }).waitFor();
+  await page.getByRole("button", { name: "Use a code from your authenticator app" }).click();
+  await page.getByLabel("Email").fill("mira@acme.dev");
+  await page.getByLabel("Code").fill("000000");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expectText(page, "That code didn't work");
+  await shoot(page, "sign-in-code");
+  await page.getByLabel("Code").fill(codes[0] ?? "");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expectText(page, "You used a recovery code");
+  step("  a wrong code was refused, and the recovery code signed in");
+
+  step("dockwell recover: a one-time link signs in a browser with no passkey");
+  const recover = execFileSync(bin, ["recover", "--data-dir", data, "--log-format", "json"], {
+    encoding: "utf8",
+    env: { ...process.env, USER: "mira" },
+  });
+  const link =
+    recover.match(/(http:\/\/localhost:\d+\/recover#[A-Za-z0-9_-]{43})/)?.[1] ??
+    fail(`dockwell recover printed:\n${recover}`);
+  const other = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const phone = await other.newPage();
+  await phone.goto(link);
+  await expectText(phone, "You signed in with a one-time link");
+  await phone.goto(link);
+  await expectText(phone, "This sign-in link didn't work");
+  step("  signed in with the link once; the second visit was refused");
+
+  step("the first browser sees two sessions, and signs the other out");
+  await page.reload();
+  const sessions = page.getByRole("region", { name: "Sessions" });
+  await sessions.getByRole("listitem").nth(1).waitFor();
+  await sessions.getByRole("button", { name: "Sign out everywhere else" }).click();
+  await sessions.getByRole("listitem").nth(1).waitFor({ state: "detached" });
+  await phone.goto(`${origin}/profile`);
+  await expectText(phone, "Sign in to Dockwell");
+  step("  the other browser is signed out");
+
+  try {
+    const audit = execFileSync(
+      "sqlite3",
+      [join(data, "control", "state.db"), "SELECT action FROM audit_events ORDER BY at, id"],
+      {
+        encoding: "utf8",
+      },
+    ).trim();
+    step(`audit log: ${audit.split("\n").join(", ")}`);
+  } catch {
+    // sqlite3 isn't installed; the audit log is covered by the Go tests.
+  }
+  console.log("e2e: passed");
+}
+
+try {
+  await main();
+} catch (err) {
+  console.error(`e2e: failed: ${err instanceof Error ? err.message : String(err)}`);
+  console.error(log.join("").split("\n").slice(-30).join("\n"));
+  process.exitCode = 1;
+} finally {
+  await browser?.close();
+  server?.kill("SIGTERM");
+  rmSync(data, { recursive: true, force: true });
+}

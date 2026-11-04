@@ -11,6 +11,27 @@ msgstr ""
 msgid "(modified)"
 msgstr "(modified)"
 
+#. placeholder {0}: auth.data.user.name
+#. placeholder {1}: auth.data.user.email
+#: src/features/auth/ProfilePage.tsx
+msgid "{0} · {1} · signed in {how}"
+msgstr "{0} · {1} · signed in {how}"
+
+#. placeholder {0}: formatBytes(disk.sizeBytes, i18n.locale)
+#: src/features/auth/ClaimPage.tsx
+msgid "{0} disk"
+msgstr "{0} disk"
+
+#. placeholder {0}: inv.cpuCount
+#: src/features/auth/ClaimPage.tsx
+msgid "{0} vCPU"
+msgstr "{0} vCPU"
+
+#: src/features/auth/ClaimPage.tsx
+#: src/features/auth/SessionsPanel.tsx
+msgid "{browser} on {os}"
+msgstr "{browser} on {os}"
+
 #: src/lib/time.ts
 msgid "{count, plural, one {# day} other {# days}}"
 msgstr "{count, plural, one {# day} other {# days}}"
@@ -72,13 +93,33 @@ msgstr "{cpus} vCPU"
 msgid "{free} free"
 msgstr "{free} free"
 
+#: src/features/auth/time.ts
+msgid "{hours} h ago"
+msgstr "{hours} h ago"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
+msgstr "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "{memShare} in use"
 msgstr "{memShare} in use"
 
+#: src/features/auth/messages.ts
+msgid "{minutes} min"
+msgstr "{minutes} min"
+
+#: src/features/auth/time.ts
+msgid "{minutes} min ago"
+msgstr "{minutes} min ago"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "{mount}: {used} used, {free} free, of {size}"
 msgstr "{mount}: {used} used, {free} free, of {size}"
+
+#: src/features/auth/Unclaimed.tsx
+msgid "{name} has no owner yet"
+msgstr "{name} has no owner yet"
 
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} is waiting for its agent"
@@ -108,6 +149,10 @@ msgstr "{rx} in · {tx} out"
 msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 msgstr "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 
+#: src/features/auth/messages.ts
+msgid "{seconds} s"
+msgstr "{seconds} s"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "{share} of {size} used"
 msgstr "{share} of {size} used"
@@ -124,6 +169,11 @@ msgstr "{used} of {total}"
 msgid "{waiting} waiting for an agent"
 msgstr "{waiting} waiting for an agent"
 
+#. placeholder {0}: window.location.host
+#: src/features/auth/SignInPage.tsx
+msgid "<0>{0}</0> · the panel for {name}"
+msgstr "<0>{0}</0> · the panel for {name}"
+
 #: src/features/servers/ServerOverview.tsx
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> may have been removed, or the link may be wrong."
@@ -136,6 +186,14 @@ msgstr "1, 5 and 15 min"
 msgid "1, 5 and 15 min, on {cpus} vCPU"
 msgstr "1, 5 and 15 min, on {cpus} vCPU"
 
+#: src/features/auth/SignInPage.tsx
+msgid "6 digits from your authenticator app, or one of your recovery codes."
+msgstr "6 digits from your authenticator app, or one of your recovery codes."
+
+#: src/features/auth/ClaimPage.tsx
+msgid "A claim link works only until someone claims the install. Sign in instead."
+msgstr "A claim link works only until someone claims the install. Sign in instead."
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "Across {cpus} vCPU"
 msgstr "Across {cpus} vCPU"
@@ -145,17 +203,44 @@ msgstr "Across {cpus} vCPU"
 msgid "Activity"
 msgstr "Activity"
 
+#: src/features/auth/ProfilePage.tsx
+msgid "Add a passkey for {rpId} now, so you can sign in here next time without another link."
+msgstr "Add a passkey for {rpId} now, so you can sign in here next time without another link."
+
+#: src/features/auth/ProfilePage.tsx
+msgid "Add a second way to sign in"
+msgstr "Add a second way to sign in"
+
+#: src/features/auth/PasskeysPanel.tsx
+#: src/features/auth/ProfilePage.tsx
+msgid "Add passkey"
+msgstr "Add passkey"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Added {added}"
+msgstr "Added {added}"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Addresses"
 msgstr "Addresses"
 
+#: src/features/auth/ClaimPage.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Agent"
 msgstr "Agent"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Agent connected"
+msgstr "Agent connected"
+
+#: src/features/auth/ClaimPage.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "Agent not connected"
 msgstr "Agent not connected"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Agent starting"
+msgstr "Agent starting"
 
 #: src/features/shell/sections.ts
 msgid "Alerts"
@@ -165,6 +250,10 @@ msgstr "Alerts"
 msgid "All healthy"
 msgstr "All healthy"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Already claimed"
+msgstr "Already claimed"
+
 #: src/app/Providers.tsx
 msgid "app"
 msgstr "app"
@@ -173,6 +262,10 @@ msgstr "app"
 #: src/features/shell/TabBar.tsx
 msgid "Apps"
 msgstr "Apps"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Authenticator app"
+msgstr "Authenticator app"
 
 #: src/features/shell/Page.tsx
 msgid "Back"
@@ -186,11 +279,23 @@ msgstr "backup"
 msgid "Backups"
 msgstr "Backups"
 
+#. Ends “signed in …”
+#: src/features/auth/ProfilePage.tsx
+msgid "by claiming this install"
+msgstr "by claiming this install"
+
+#: src/features/auth/AuthGate.tsx
 #: src/features/system/StatusPage.tsx
 msgid "Can't reach the control plane"
 msgstr "Can't reach the control plane"
 
+#. placeholder {0}: groupSecret(setup.secret)
+#: src/features/auth/TotpPanel.tsx
+msgid "Can't scan it? Enter this key instead: <0>{0}</0>"
+msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
+
 #: src/app/Providers.tsx
+#: src/features/auth/TotpPanel.tsx
 msgid "Cancel"
 msgstr "Cancel"
 
@@ -206,15 +311,55 @@ msgstr "Check it from a terminal"
 msgid "Check the control plane's status"
 msgstr "Check the control plane's status"
 
+#: src/features/auth/AuthGate.tsx
+msgid "Checking"
+msgstr "Checking"
+
+#: src/features/auth/AuthGate.tsx
+msgid "Checking your session"
+msgstr "Checking your session"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Claim {name}"
+msgstr "Claim {name}"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Claim code"
+msgstr "Claim code"
+
+#: src/features/auth/Unclaimed.tsx
+msgid "Claim it with the one-time link that <0>dockwell run</0> printed when it started. For a new link, run this on {name} over SSH:"
+msgstr "Claim it with the one-time link that <0>dockwell run</0> printed when it started. For a new link, run this on {name} over SSH:"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Claim this server"
+msgstr "Claim this server"
+
 #: src/app/Providers.tsx
 msgid "Close"
 msgstr "Close"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Code"
+msgstr "Code"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "Code sign-in is locked"
+msgstr "Code sign-in is locked"
+
+#: src/features/auth/messages.ts
+msgid "Code sign-in is locked after 10 wrong codes in a row. Sign in with a passkey or a recovery code, or run dockwell recover on the server, then unlock it under Profile and security."
+msgstr "Code sign-in is locked after 10 wrong codes in a row. Sign in with a passkey or a recovery code, or run dockwell recover on the server, then unlock it under Profile and security."
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Codes copied"
+msgstr "Codes copied"
 
 #: src/app/Providers.tsx
 msgid "Command bar"
 msgstr "Command bar"
 
-#: src/features/system/StatusPage.tsx
+#: src/features/system/CopyCommand.tsx
 msgid "Command copied"
 msgstr "Command copied"
 
@@ -225,6 +370,10 @@ msgstr "Commit"
 #: src/features/system/StatusPage.tsx
 msgid "Committed"
 msgstr "Committed"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Confirm with Touch ID, Windows Hello or a security key."
+msgstr "Confirm with Touch ID, Windows Hello or a security key."
 
 #: src/features/servers/ServerPanels.tsx
 #: src/features/system/StatusPage.tsx
@@ -264,7 +413,11 @@ msgstr "Copied {text}"
 msgid "Copy {ip}"
 msgstr "Copy {ip}"
 
-#: src/features/system/StatusPage.tsx
+#: src/features/auth/TotpPanel.tsx
+msgid "Copy codes"
+msgstr "Copy codes"
+
+#: src/features/system/CopyCommand.tsx
 msgid "Copy command"
 msgstr "Copy command"
 
@@ -278,6 +431,15 @@ msgstr "CPU"
 msgid "Create"
 msgstr "Create"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Create passkey"
+msgstr "Create passkey"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Creating passkey"
+msgstr "Creating passkey"
+
+#: src/features/auth/SessionsPanel.tsx
 #: src/features/shell/CommandMenu.tsx
 msgid "Current"
 msgstr "Current"
@@ -297,6 +459,10 @@ msgstr "Databases"
 #: src/app/Providers.tsx
 msgid "Degraded"
 msgstr "Degraded"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Deploy your first app"
+msgstr "Deploy your first app"
 
 #: src/app/Providers.tsx
 msgid "Deploying"
@@ -342,6 +508,43 @@ msgstr "Domains"
 msgid "Down"
 msgstr "Down"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "Download"
+msgstr "Download"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Each code signs you in once, with your email, if you lose your authenticator app. They're shown only now. Keep them somewhere safe, apart from your phone."
+msgstr "Each code signs you in once, with your email, if you lose your authenticator app. They're shown only now. Keep them somewhere safe, apart from your phone."
+
+#: src/features/auth/ClaimPage.tsx
+#: src/features/auth/SignInPage.tsx
+msgid "Email"
+msgstr "Email"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Enter an email address, such as mira@acme.dev."
+msgstr "Enter an email address, such as mira@acme.dev."
+
+#: src/features/auth/SignInPage.tsx
+msgid "Enter the 6-digit code from your authenticator app, or a recovery code."
+msgstr "Enter the 6-digit code from your authenticator app, or a recovery code."
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Enter the 6-digit code it shows"
+msgstr "Enter the 6-digit code it shows"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Enter the 6-digit code your authenticator app shows for Dockwell."
+msgstr "Enter the 6-digit code your authenticator app shows for Dockwell."
+
+#: src/features/auth/SignInPage.tsx
+msgid "Enter the email of your account."
+msgstr "Enter the email of your account."
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Enter your name."
+msgstr "Enter your name."
+
 #: src/app/Providers.tsx
 msgid "Error"
 msgstr "Error"
@@ -374,10 +577,24 @@ msgstr "Free"
 msgid "from"
 msgstr "from"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "From Git, a Docker image, a Compose file or the catalog."
+msgstr "From Git, a Docker image, a Compose file or the catalog."
+
+#: src/features/auth/ClaimPage.tsx
+msgid "From the link <0>dockwell run</0> printed. Run <1>dockwell claim</1> on {name} for a new one."
+msgstr "From the link <0>dockwell run</0> printed. Run <1>dockwell claim</1> on {name} for a new one."
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Full access to {name}"
+msgstr "Full access to {name}"
+
 #: src/features/system/StatusPage.tsx
 msgid "Go"
 msgstr "Go"
 
+#: src/features/auth/ClaimPage.tsx
+#: src/features/auth/ProfilePage.tsx
 #: src/features/servers/ServerOverview.tsx
 #: src/features/shell/NotYet.tsx
 msgid "Go to the overview"
@@ -399,13 +616,45 @@ msgstr "Hostname"
 msgid "Hover or focus a server to inspect it."
 msgstr "Hover or focus a server to inspect it."
 
+#: src/features/auth/ClaimPage.tsx
+msgid "HTTPS is automatic. Your passkey works at this address."
+msgstr "HTTPS is automatic. Your passkey works at this address."
+
+#: src/features/auth/TotpPanel.tsx
+msgid "I saved them"
+msgstr "I saved them"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "If you lose the device with your only passkey, you'd need <0>dockwell recover</0> on the server. Add another passkey, or an authenticator app."
+msgstr "If you lose the device with your only passkey, you'd need <0>dockwell recover</0> on the server. Add another passkey, or an authenticator app."
+
+#: src/features/auth/ProfilePage.tsx
+msgid "If you lost a passkey, add a new one now, then remove the lost one below."
+msgstr "If you lost a passkey, add a new one now, then remove the lost one below."
+
+#: src/features/auth/ClaimPage.tsx
+msgid "in {hours} h"
+msgstr "in {hours} h"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "in {minutes} min"
+msgstr "in {minutes} min"
+
 #: src/app/Providers.tsx
 msgid "In <0>{scope}</0>"
 msgstr "In <0>{scope}</0>"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Installed"
+msgstr "Installed"
+
 #: src/features/servers/ServerCallout.tsx
 msgid "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
 msgstr "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
+
+#: src/features/auth/ClaimPage.tsx
+msgid "It's live with HTTPS"
+msgstr "It's live with HTTPS"
 
 #: src/features/servers/ServerCallout.tsx
 msgid "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
@@ -423,6 +672,22 @@ msgstr "job"
 msgid "Joined"
 msgstr "Joined"
 
+#: src/features/auth/time.ts
+msgid "just now"
+msgstr "just now"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Keep"
+msgstr "Keep"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Keep at least two, so losing one device never locks you out. Each works only on its address."
+msgstr "Keep at least two, so losing one device never locks you out. Each works only on its address."
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Keep it on"
+msgstr "Keep it on"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Kernel"
 msgstr "Kernel"
@@ -439,6 +704,10 @@ msgstr "Last heartbeat"
 msgid "Light"
 msgstr "Light"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Link expires"
+msgstr "Link expires"
+
 #: src/app/Providers.tsx
 msgid "Live"
 msgstr "Live"
@@ -447,9 +716,25 @@ msgstr "Live"
 msgid "Load average"
 msgstr "Load average"
 
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Loading passkeys"
+msgstr "Loading passkeys"
+
 #: src/features/servers/FleetNotes.tsx
 msgid "Loading servers"
 msgstr "Loading servers"
+
+#: src/features/auth/SessionsPanel.tsx
+msgid "Loading sessions"
+msgstr "Loading sessions"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Lost your passkey?"
+msgstr "Lost your passkey?"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Lost your passkey? Run this on the server over SSH. It prints a sign-in link that works once."
+msgstr "Lost your passkey? Run this on the server over SSH. It prints a sign-in link that works once."
 
 #: src/features/shell/Rail.tsx
 msgid "Machine"
@@ -460,9 +745,17 @@ msgstr "Machine"
 msgid "Main"
 msgstr "Main"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "Make new recovery codes"
+msgstr "Make new recovery codes"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Match the system theme"
 msgstr "Match the system theme"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "May have been copied; it no longer signs in"
+msgstr "May have been copied; it no longer signs in"
 
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
@@ -476,6 +769,14 @@ msgstr "Memory"
 msgid "More"
 msgstr "More"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "Move to another app"
+msgstr "Move to another app"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Name"
+msgstr "Name"
+
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Network"
@@ -485,9 +786,29 @@ msgstr "Network"
 msgid "Never"
 msgstr "Never"
 
+#: src/features/auth/PasskeysPanel.tsx
+msgid "never used"
+msgstr "never used"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "New recovery codes"
+msgstr "New recovery codes"
+
+#: src/features/auth/Unclaimed.tsx
+msgid "No owner yet"
+msgstr "No owner yet"
+
 #: src/features/system/NotFound.tsx
 msgid "No page here"
 msgstr "No page here"
+
+#: src/features/auth/SignInPage.tsx
+msgid "No passkey for this address? Passkeys belong to the address they were made on, so one made through the SSH tunnel doesn't work here. Sign in with a code, or run <0>dockwell recover</0> on the server for a one-time link, then add a passkey here."
+msgstr "No passkey for this address? Passkeys belong to the address they were made on, so one made through the SSH tunnel doesn't work here. Sign in with a code, or run <0>dockwell recover</0> on the server for a one-time link, then add a passkey here."
+
+#: src/features/auth/ProfilePage.tsx
+msgid "No passkey works at {rpId} yet"
+msgstr "No passkey works at {rpId} yet"
 
 #: src/features/servers/ServerOverview.tsx
 msgid "No server with this ID"
@@ -525,17 +846,41 @@ msgstr "Nothing here yet."
 msgid "Nothing matches “{query}”. Try a server, app or action name."
 msgstr "Nothing matches “{query}”. Try a server, app or action name."
 
+#: src/features/auth/SessionsPanel.tsx
+msgid "now"
+msgstr "now"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "of {total}"
 msgstr "of {total}"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Off"
+msgstr "Off"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "On"
+msgstr "On"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A record to <0>{ip}</0>, then restart dockwell with <1>--domain</1>."
+msgstr "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A record to <0>{ip}</0>, then restart dockwell with <1>--domain</1>."
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open {name}"
 msgstr "Open {name}"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
+msgstr "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the overview"
 msgstr "Open the overview"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Open the panel through your SSH tunnel at <0>http://localhost</0>, or on its domain over HTTPS. You can still sign in with a code."
+msgstr "Open the panel through your SSH tunnel at <0>http://localhost</0>, or on its domain over HTTPS. You can still sign in with a code."
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the server list"
@@ -560,6 +905,10 @@ msgstr "Optional"
 msgid "Overview"
 msgstr "Overview"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Owner account"
+msgstr "Owner account"
+
 #: src/app/Providers.tsx
 msgid "package"
 msgstr "package"
@@ -567,6 +916,35 @@ msgstr "package"
 #: src/features/shell/CommandMenu.tsx
 msgid "Pages"
 msgstr "Pages"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Panel address"
+msgstr "Panel address"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Passkey"
+msgstr "Passkey"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Passkeys"
+msgstr "Passkeys"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code."
+msgstr "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code."
+
+#: src/features/auth/ClaimPage.tsx
+#: src/features/auth/SignInPage.tsx
+msgid "Passkeys don't work at this address"
+msgstr "Passkeys don't work at this address"
+
+#: src/features/auth/messages.ts
+msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
+msgstr "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Paste the claim link or code that dockwell run printed."
+msgstr "Paste the claim link or code that dockwell run printed."
 
 #: src/app/Providers.tsx
 msgid "Pause"
@@ -588,9 +966,18 @@ msgstr "Private addresses"
 msgid "Processor"
 msgstr "Processor"
 
+#: src/features/auth/AccountPanel.tsx
+#: src/features/auth/ProfilePage.tsx
+msgid "Profile and security"
+msgstr "Profile and security"
+
 #: src/app/Providers.tsx
 msgid "Protected environment"
 msgstr "Protected environment"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Public IP"
+msgstr "Public IP"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Public IPv4"
@@ -600,6 +987,10 @@ msgstr "Public IPv4"
 msgid "Public IPv6"
 msgstr "Public IPv6"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "QR code for your authenticator app"
+msgstr "QR code for your authenticator app"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Receiving"
 msgstr "Receiving"
@@ -607,6 +998,18 @@ msgstr "Receiving"
 #: src/features/servers/FleetNotes.tsx
 msgid "Reconnecting"
 msgstr "Reconnecting"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Recovery codes"
+msgstr "Recovery codes"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Remove"
+msgstr "Remove"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Remove {name}"
+msgstr "Remove {name}"
 
 #: src/app/Providers.tsx
 msgid "Remove {what}"
@@ -616,6 +1019,10 @@ msgstr "Remove {what}"
 msgid "Replace"
 msgstr "Replace"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "Replace codes"
+msgstr "Replace codes"
+
 #: src/features/shell/MorePage.tsx
 msgid "Resources"
 msgstr "Resources"
@@ -624,10 +1031,12 @@ msgstr "Resources"
 msgid "Results"
 msgstr "Results"
 
+#: src/features/auth/AuthGate.tsx
 #: src/features/system/StatusPage.tsx
 msgid "Retry"
 msgstr "Retry"
 
+#: src/features/auth/AuthGate.tsx
 #: src/features/system/StatusPage.tsx
 msgid "Retrying"
 msgstr "Retrying"
@@ -635,6 +1044,18 @@ msgstr "Retrying"
 #: src/features/overview/Overview.tsx
 msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
 msgstr "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
+
+#: src/features/auth/SignInPage.tsx
+msgid "Run this on {name} over SSH. It prints a sign-in link that works once."
+msgstr "Run this on {name} over SSH. It prints a sign-in link that works once."
+
+#: src/features/auth/RecoverPage.tsx
+msgid "Run this on the server over SSH for a new link. It works once, for 15 min."
+msgstr "Run this on the server over SSH for a new link. It works once, for 15 min."
+
+#: src/features/auth/SignInPage.tsx
+msgid "Run this on the server over SSH. It prints a sign-in link that works once."
+msgstr "Run this on the server over SSH. It prints a sign-in link that works once."
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Runs on another server"
@@ -651,6 +1072,14 @@ msgstr "Runs the control plane"
 #: src/features/servers/ServerPanels.tsx
 msgid "same as the control plane"
 msgstr "same as the control plane"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Save your recovery codes"
+msgstr "Save your recovery codes"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Scan this code with the app."
+msgstr "Scan this code with the app."
 
 #: src/features/shell/sections.ts
 msgid "Scheduled tasks"
@@ -697,6 +1126,18 @@ msgstr "Servers"
 msgid "service"
 msgstr "service"
 
+#: src/features/auth/SessionsPanel.tsx
+msgid "Sessions"
+msgstr "Sessions"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Set up"
+msgstr "Set up"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Set up an authenticator app"
+msgstr "Set up an authenticator app"
+
 #: src/features/shell/sections.ts
 msgid "Settings"
 msgstr "Settings"
@@ -705,14 +1146,98 @@ msgstr "Settings"
 msgid "Settings and status"
 msgstr "Settings and status"
 
+#: src/features/auth/ClaimPage.tsx
+#: src/features/auth/SignInPage.tsx
+msgid "Sign in"
+msgstr "Sign in"
+
+#: src/features/auth/RecoverPage.tsx
+msgid "Sign in another way"
+msgstr "Sign in another way"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Sign in to Dockwell"
+msgstr "Sign in to Dockwell"
+
+#. placeholder {0}: state.recoveryCodesLeft
+#: src/features/auth/TotpPanel.tsx
+msgid "Sign in with a 6-digit code when your passkey isn't at hand. {0} of 10 recovery codes are left."
+msgstr "Sign in with a 6-digit code when your passkey isn't at hand. {0} of 10 recovery codes are left."
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Sign in with a 6-digit code when your passkey isn't at hand. Codes work at every address, so they also get you in after the panel moves to a new domain."
+msgstr "Sign in with a 6-digit code when your passkey isn't at hand. Codes work at every address, so they also get you in after the panel moves to a new domain."
+
+#: src/features/auth/RecoverPage.tsx
+msgid "Sign in with a link"
+msgstr "Sign in with a link"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Sign in with a passkey"
+msgstr "Sign in with a passkey"
+
+#: src/features/auth/AccountPanel.tsx
+#: src/features/auth/ProfilePage.tsx
+#: src/features/auth/SessionsPanel.tsx
+msgid "Sign out"
+msgstr "Sign out"
+
+#: src/features/auth/SessionsPanel.tsx
+msgid "Sign out {device}"
+msgstr "Sign out {device}"
+
+#: src/features/auth/SessionsPanel.tsx
+msgid "Sign out everywhere else"
+msgstr "Sign out everywhere else"
+
+#. placeholder {0}: user.name
+#. placeholder {1}: user.email
+#: src/features/auth/AccountPanel.tsx
+msgid "Signed in as <0>{0}</0> <1>({1})</1>"
+msgstr "Signed in as <0>{0}</0> <1>({1})</1>"
+
+#: src/features/auth/RecoverPage.tsx
+#: src/features/auth/SignInPage.tsx
+msgid "Signing in"
+msgstr "Signing in"
+
+#: src/features/auth/SessionsPanel.tsx
+msgid "Signing out everywhere else keeps this browser signed in. A session ends after 12 h unused, or 7 days."
+msgstr "Signing out everywhere else keeps this browser signed in. A session ends after 12 h unused, or 7 days."
+
+#: src/features/auth/RecoverPage.tsx
+msgid "Signing you in with a one-time link"
+msgstr "Signing you in with a one-time link"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Size"
+msgstr "Size"
+
 #: src/features/shell/Shell.tsx
 msgid "Skip to content"
 msgstr "Skip to content"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
+msgstr "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
+
+#: src/features/auth/messages.ts
+msgid "Something went wrong. Try again."
+msgstr "Something went wrong. Try again."
 
 #: src/app/Providers.tsx
 msgid "Stopped"
 msgstr "Stopped"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "Such as 1Password, Google Authenticator or Aegis"
+msgstr "Such as 1Password, Google Authenticator or Aegis"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Synced"
+msgstr "Synced"
+
+#: src/features/auth/ClaimPage.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "System"
 msgstr "System"
@@ -722,6 +1247,38 @@ msgctxt "theme"
 msgid "System"
 msgstr "System"
 
+#: src/features/auth/TotpPanel.tsx
+msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
+msgstr "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
+
+#: src/features/auth/messages.ts
+msgid "That code didn't work. Check the email and the code, then try again."
+msgstr "That code didn't work. Check the email and the code, then try again."
+
+#: src/features/auth/messages.ts
+msgid "That code doesn't match. Check that your phone's clock is right, then enter the current code."
+msgstr "That code doesn't match. Check that your phone's clock is right, then enter the current code."
+
+#: src/features/auth/messages.ts
+msgid "That code was already used. Wait for the next one in your authenticator app."
+msgstr "That code was already used. Wait for the next one in your authenticator app."
+
+#: src/features/auth/messages.ts
+msgid "That passkey is already registered. Use it to sign in, or pick another device or security key."
+msgstr "That passkey is already registered. Use it to sign in, or pick another device or security key."
+
+#: src/features/auth/messages.ts
+msgid "That passkey isn't registered for this address, or it couldn't be verified. Try another passkey, or sign in with a code."
+msgstr "That passkey isn't registered for this address, or it couldn't be verified. Try another passkey, or sign in with a code."
+
+#: src/features/auth/messages.ts
+msgid "That passkey reported a lower use count than before, which happens when a passkey is copied, so it no longer signs in. Sign in another way and remove it under Profile and security."
+msgstr "That passkey reported a lower use count than before, which happens when a passkey is copied, so it no longer signs in. Sign in another way and remove it under Profile and security."
+
+#: src/features/auth/messages.ts
+msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
+msgstr "That would leave you no way to sign in. Add another passkey or an authenticator app first."
+
 #: src/features/servers/ServerPanels.tsx
 msgid "The agent hasn't said what this server is yet."
 msgstr "The agent hasn't said what this server is yet."
@@ -729,6 +1286,14 @@ msgstr "The agent hasn't said what this server is yet."
 #: src/features/servers/ServerMetrics.tsx
 msgid "The agent reports no disks"
 msgstr "The agent reports no disks"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "The authenticator app isn't set up yet"
+msgstr "The authenticator app isn't set up yet"
+
+#: src/features/auth/messages.ts
+msgid "The browser couldn't finish with the passkey. Try again, or use another device."
+msgstr "The browser couldn't finish with the passkey. Try again, or use another device."
 
 #: src/features/system/StatusPage.tsx
 msgid "The control plane is running"
@@ -738,9 +1303,22 @@ msgstr "The control plane is running"
 msgid "the control plane runs {controlPlane}"
 msgstr "the control plane runs {controlPlane}"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "The owner account wasn't created"
+msgstr "The owner account wasn't created"
+
+#: src/features/auth/AuthGate.tsx
 #: src/features/system/StatusPage.tsx
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
+
+#: src/features/auth/messages.ts
+msgid "The passkey prompt closed before it finished. Try again when you're ready."
+msgstr "The passkey prompt closed before it finished. Try again when you're ready."
+
+#: src/features/auth/messages.ts
+msgid "The passkey request expired. Try again."
+msgstr "The passkey request expired. Try again."
 
 #: src/features/servers/FleetNotes.tsx
 msgid "The server list didn't load. Dockwell keeps trying."
@@ -755,13 +1333,61 @@ msgstr "Theme"
 msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 msgstr "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 
+#: src/features/auth/SessionsPanel.tsx
+msgid "This browser"
+msgstr "This browser"
+
+#: src/features/auth/messages.ts
+msgid "This browser can't use passkeys at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain over HTTPS."
+msgstr "This browser can't use passkeys at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain over HTTPS."
+
+#: src/features/auth/messages.ts
+msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
+msgstr "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
+
 #: src/features/system/StatusPage.tsx
 msgid "This control plane"
 msgstr "This control plane"
 
+#: src/features/auth/messages.ts
+msgid "This device already has a passkey for your account here. Use it, or pick another device or security key."
+msgstr "This device already has a passkey for your account here. Use it, or pick another device or security key."
+
+#: src/features/auth/ClaimPage.tsx
+msgid "This install already has an owner"
+msgstr "This install already has an owner"
+
+#: src/features/auth/messages.ts
+msgid "This install already has an owner. Sign in instead."
+msgstr "This install already has an owner. Sign in instead."
+
+#: src/features/auth/RecoverPage.tsx
+msgid "This page needs the whole link that dockwell recover printed, including the part after “#”."
+msgstr "This page needs the whole link that dockwell recover printed, including the part after “#”."
+
+#: src/features/auth/ClaimPage.tsx
+msgid "This panel controls {name}. Create the owner account with a passkey."
+msgstr "This panel controls {name}. Create the owner account with a passkey."
+
 #: src/features/shell/NotYet.tsx
 msgid "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
 msgstr "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
+
+#: src/features/auth/ClaimPage.tsx
+msgid "This server"
+msgstr "This server"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "this server's address"
+msgstr "this server's address"
+
+#: src/features/auth/RecoverPage.tsx
+msgid "This sign-in link didn't work"
+msgstr "This sign-in link didn't work"
+
+#: src/features/auth/messages.ts
+msgid "This sign-in link is invalid, already used, replaced by a newer one, or expired. Run dockwell recover on the server for a new link."
+msgstr "This sign-in link is invalid, already used, replaced by a newer one, or expired. Run dockwell recover on the server for a new link."
 
 #: src/app/Providers.tsx
 msgid "to"
@@ -791,10 +1417,35 @@ msgstr "to replace"
 msgid "to run"
 msgstr "to run"
 
+#: src/features/auth/messages.ts
+msgid "Too many requests from your address. Wait a minute, then try again."
+msgstr "Too many requests from your address. Wait a minute, then try again."
+
+#. placeholder {0}: wait(seconds)
+#: src/features/auth/messages.ts
+msgid "Too many wrong codes. Wait {0}, then try again."
+msgstr "Too many wrong codes. Wait {0}, then try again."
+
+#: src/features/auth/messages.ts
+msgid "Too many wrong codes. Wait a moment, then try again."
+msgstr "Too many wrong codes. Wait a moment, then try again."
+
 #. Read after a metric's name to name its chart, as in “CPU trend”.
 #: src/app/Providers.tsx
 msgid "trend"
 msgstr "trend"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Turn off"
+msgstr "Turn off"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Turn off and delete codes"
+msgstr "Turn off and delete codes"
+
+#: src/features/auth/TotpPanel.tsx
+msgid "Turn on"
+msgstr "Turn on"
 
 #: src/app/Providers.tsx
 msgid "Undo"
@@ -804,10 +1455,19 @@ msgstr "Undo"
 msgid "Unknown"
 msgstr "Unknown"
 
+#: src/features/auth/SessionsPanel.tsx
+msgid "Unknown browser"
+msgstr "Unknown browser"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "Unknown system"
 msgstr "Unknown system"
 
+#: src/features/auth/ProfilePage.tsx
+msgid "Unlock"
+msgstr "Unlock"
+
+#: src/features/auth/AuthGate.tsx
 #: src/features/system/StatusPage.tsx
 msgid "Unreachable"
 msgstr "Unreachable"
@@ -824,6 +1484,18 @@ msgstr "up {uptime}"
 msgid "Update in place"
 msgstr "Update in place"
 
+#: src/features/auth/SignInPage.tsx
+msgid "Use a code from your authenticator app"
+msgstr "Use a code from your authenticator app"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Use a passkey instead"
+msgstr "Use a passkey instead"
+
+#: src/features/auth/SignInPage.tsx
+msgid "Use a security key or another device"
+msgstr "Use a security key or another device"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Use the dark theme"
 msgstr "Use the dark theme"
@@ -836,10 +1508,20 @@ msgstr "Use the light theme"
 msgid "Used"
 msgstr "Used"
 
+#. placeholder {0}: ago(passkey.lastUsedTime)
+#: src/features/auth/PasskeysPanel.tsx
+msgid "used {0}"
+msgstr "used {0}"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/system/StatusPage.tsx
 msgid "Version"
 msgstr "Version"
+
+#. placeholder {0}: version.data.build.version
+#: src/features/auth/SignInPage.tsx
+msgid "Version <0>{0}</0>"
+msgstr "Version <0>{0}</0>"
 
 #: src/app/Providers.tsx
 msgid "volume"
@@ -860,3 +1542,71 @@ msgstr "Warning"
 #: src/features/shell/sections.ts
 msgid "Websites"
 msgstr "Websites"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "What happens next"
+msgstr "What happens next"
+
+#. Ends “signed in …”
+#: src/features/auth/ProfilePage.tsx
+msgid "with a one-time link"
+msgstr "with a one-time link"
+
+#. Ends “signed in …”
+#: src/features/auth/ProfilePage.tsx
+msgid "with a passkey"
+msgstr "with a passkey"
+
+#. Ends “signed in …”
+#: src/features/auth/ProfilePage.tsx
+msgid "with a recovery code"
+msgstr "with a recovery code"
+
+#. Ends “signed in …”
+#: src/features/auth/ProfilePage.tsx
+msgid "with an authenticator code"
+msgstr "with an authenticator code"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Works here"
+msgstr "Works here"
+
+#: src/features/auth/PasskeysPanel.tsx
+msgid "Works on {where}"
+msgstr "Works on {where}"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "You become the owner. Nobody else can sign in."
+msgstr "You become the owner. Nobody else can sign in."
+
+#: src/features/auth/ClaimPage.tsx
+msgid "You sign in with it when you use a code."
+msgstr "You sign in with it when you use a code."
+
+#: src/features/auth/ProfilePage.tsx
+msgid "You signed in with a one-time link"
+msgstr "You signed in with a one-time link"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "You used a recovery code"
+msgstr "You used a recovery code"
+
+#: src/features/auth/SignInPage.tsx
+msgid "You're not signed in"
+msgstr "You're not signed in"
+
+#: src/features/auth/AccountPanel.tsx
+msgid "Your account"
+msgstr "Your account"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Your domain gets a certificate automatically."
+msgstr "Your domain gets a certificate automatically."
+
+#: src/features/auth/ClaimPage.tsx
+msgid "Your name"
+msgstr "Your name"
+
+#: src/features/auth/messages.ts
+msgid "Your session ended. Sign in again."
+msgstr "Your session ended. Sign in again."

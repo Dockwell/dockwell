@@ -1,0 +1,35 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Holds the page's height while the sign-in state loads. */
+.auth-reserve {
+  min-height: 168px;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+.auth-error-detail {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.auth-small {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.auth-small code,
+.claim code,
+.signin code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+}

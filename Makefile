@@ -116,6 +116,10 @@ check-breaking: ## Fail if the API schema breaks compatibility with origin/main
 smoke: build ## Start the built binary and check it serves the API and the panel
 	scripts/smoke.sh $(BIN)
 
+.PHONY: e2e
+e2e: build ## Claim, sign out and sign in again in headless Chromium with a virtual passkey (SHOTS=dir saves screenshots)
+	node web/e2e/sign-in.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
+
 .PHONY: budgets
 budgets: build ## Fail if the binary is over its idle memory budgets (takes about 70 s)
 	scripts/budgets.sh $(BIN)

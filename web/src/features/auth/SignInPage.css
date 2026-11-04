@@ -1,0 +1,134 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.signin {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.signin-main {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px var(--space-6) var(--space-8);
+}
+
+.signin-column {
+  width: 100%;
+  max-width: 416px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.signin-logo {
+  display: flex;
+  justify-content: center;
+  padding-bottom: var(--space-2);
+  color: var(--ink);
+}
+
+.signin-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-8);
+}
+
+.signin-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.signin-head h1 {
+  margin: 0;
+}
+
+.signin-head p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.signin-head code {
+  font-size: 13px;
+}
+
+.signin-buttons,
+.signin-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.signin-form {
+  gap: 20px;
+}
+
+.signin-buttons > .dw-btn {
+  width: 100%;
+}
+
+.signin-buttons > .signin-switch {
+  align-self: center;
+  width: auto;
+  margin-top: var(--space-1);
+  color: var(--ink-muted);
+}
+
+.signin-recover {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.signin-recover-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.signin-recover h2 {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 550;
+}
+
+.signin-recover p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.signin-footer {
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--space-6) var(--space-6);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+
+.signin-footer code {
+  font-size: 11.5px;
+}
+
+@media (max-width: 639px) {
+  .signin-main {
+    align-items: flex-start;
+    padding: var(--space-12) var(--space-4) var(--space-8);
+    padding-left: max(var(--space-4), env(safe-area-inset-left));
+    padding-right: max(var(--space-4), env(safe-area-inset-right));
+  }
+
+  .signin-panel {
+    padding: var(--space-6) var(--space-4);
+  }
+}

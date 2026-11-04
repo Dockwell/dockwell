@@ -7,11 +7,12 @@ import type { BuildInfo } from "@dockwell/api";
 import { SystemService } from "@dockwell/api";
 import { Button, Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useEffect, useState } from "react";
 
 import { formatDateTime } from "../../lib/format";
 import { useElapsed } from "../../lib/useElapsed";
+import { AccountPanel } from "../auth/AccountPanel";
 import { ServersPanel } from "../servers/ServersPanel";
+import { CopyCommand } from "./CopyCommand";
 import { StandalonePage } from "./StandalonePage";
 import "./StatusPage.css";
 
@@ -75,6 +76,7 @@ function Running({ host, build }: { host: string; build: BuildInfo | undefined }
       <Panel title={t`Check it from a terminal`}>
         <CopyCommand command={`curl -fsS ${window.location.origin}/healthz`} />
       </Panel>
+      <AccountPanel />
     </>
   );
 }
@@ -176,41 +178,5 @@ function Unreachable({ host, error, retrying, onRetry }: UnreachableProps) {
         <code className="status-error">{error.rawMessage || error.message}</code>
       </div>
     </>
-  );
-}
-
-function CopyCommand({ command }: { command: string }) {
-  const { t } = useLingui();
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(command);
-      setCopied(true);
-    } catch {
-      // Clipboard access was refused; the command stays selectable.
-    }
-  };
-
-  return (
-    <div className="status-command">
-      <code>{command}</code>
-      <Button
-        variant="ghost"
-        size="sm"
-        icon={copied ? "check" : "copy"}
-        aria-label={copied ? t`Command copied` : t`Copy command`}
-        onClick={() => void copy()}
-      />
-      <span className="dw-sr" aria-live="polite">
-        {copied ? t`Command copied` : ""}
-      </span>
-    </div>
   );
 }

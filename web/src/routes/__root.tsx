@@ -2,9 +2,14 @@
 
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 
+import { AuthGate } from "../features/auth/AuthGate";
 import { NotFound } from "../features/system/NotFound";
 
 export const Route = createRootRoute({
-  component: Outlet,
+  component: () => (
+    <AuthGate>
+      <Outlet />
+    </AuthGate>
+  ),
   notFoundComponent: NotFound,
 });

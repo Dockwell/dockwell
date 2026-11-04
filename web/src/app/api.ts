@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Code, ConnectError, type Transport } from "@connectrpc/connect";
+import { createConnectQueryKey } from "@connectrpc/connect-query";
 import { createConnectTransport } from "@connectrpc/connect-web";
-import { QueryClient } from "@tanstack/react-query";
+import { AuthService } from "@dockwell/api";
+import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
+
+import { isSignedOut } from "../lib/errors";
 
 /**
  * The panel talks to the control plane that served it, over the Connect
@@ -24,8 +28,24 @@ export function isTransient(error: unknown): boolean {
   return transient.has(ConnectError.from(error).code);
 }
 
+/** The key of the sign-in state that the auth gate reads. */
+export const authStateKey = createConnectQueryKey({ schema: AuthService.method.getAuthState, cardinality: undefined });
+
+/**
+ * Caches that send the panel back to the gate when a session ends mid-use:
+ * any call that fails as unauthenticated makes the gate check the sign-in
+ * state again.
+ */
+export function signOutAwareCaches(client: () => QueryClient) {
+  const recheck = (error: unknown) => {
+    if (isSignedOut(error)) void client().invalidateQueries({ queryKey: authStateKey });
+  };
+  return { queryCache: new QueryCache({ onError: recheck }), mutationCache: new MutationCache({ onError: recheck }) };
+}
+
 export function createQueryClient(): QueryClient {
-  return new QueryClient({
+  const client: QueryClient = new QueryClient({
+    ...signOutAwareCaches(() => client),
     defaultOptions: {
       queries: {
         staleTime: 30_000,
@@ -34,4 +54,5 @@ export function createQueryClient(): QueryClient {
       },
     },
   });
+  return client;
 }

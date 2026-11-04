@@ -10,6 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ShellRouteImport } from './routes/_shell'
+import { Route as ClaimRouteImport } from './routes/claim'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as RecoverRouteImport } from './routes/recover'
+import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as StatusRouteImport } from './routes/status'
 import { Route as ShellIndexRouteImport } from './routes/_shell/index'
 import { Route as ShellSectionRouteImport } from './routes/_shell/$section'
@@ -19,6 +23,26 @@ import { Route as ShellServersServerIdRouteImport } from './routes/_shell/server
 
 const ShellRoute = ShellRouteImport.update({
   id: '/_shell',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClaimRoute = ClaimRouteImport.update({
+  id: '/claim',
+  path: '/claim',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecoverRoute = RecoverRouteImport.update({
+  id: '/recover',
+  path: '/recover',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StatusRoute = StatusRouteImport.update({
@@ -54,6 +78,10 @@ const ShellServersServerIdRoute = ShellServersServerIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof ShellIndexRoute
+  '/claim': typeof ClaimRoute
+  '/profile': typeof ProfileRoute
+  '/recover': typeof RecoverRoute
+  '/sign-in': typeof SignInRoute
   '/status': typeof StatusRoute
   '/$section': typeof ShellSectionRoute
   '/more': typeof ShellMoreRoute
@@ -61,6 +89,10 @@ export interface FileRoutesByFullPath {
   '/servers/': typeof ShellServersIndexRoute
 }
 export interface FileRoutesByTo {
+  '/claim': typeof ClaimRoute
+  '/profile': typeof ProfileRoute
+  '/recover': typeof RecoverRoute
+  '/sign-in': typeof SignInRoute
   '/status': typeof StatusRoute
   '/$section': typeof ShellSectionRoute
   '/more': typeof ShellMoreRoute
@@ -71,6 +103,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_shell': typeof ShellRouteWithChildren
+  '/claim': typeof ClaimRoute
+  '/profile': typeof ProfileRoute
+  '/recover': typeof RecoverRoute
+  '/sign-in': typeof SignInRoute
   '/status': typeof StatusRoute
   '/_shell/$section': typeof ShellSectionRoute
   '/_shell/more': typeof ShellMoreRoute
@@ -81,13 +117,35 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/status' | '/$section' | '/more' | '/servers/$serverId' | '/servers/'
+    | '/'
+    | '/claim'
+    | '/profile'
+    | '/recover'
+    | '/sign-in'
+    | '/status'
+    | '/$section'
+    | '/more'
+    | '/servers/$serverId'
+    | '/servers/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/status' | '/$section' | '/more' | '/' | '/servers/$serverId' | '/servers'
+    | '/claim'
+    | '/profile'
+    | '/recover'
+    | '/sign-in'
+    | '/status'
+    | '/$section'
+    | '/more'
+    | '/'
+    | '/servers/$serverId'
+    | '/servers'
   id:
     | '__root__'
     | '/_shell'
+    | '/claim'
+    | '/profile'
+    | '/recover'
+    | '/sign-in'
     | '/status'
     | '/_shell/$section'
     | '/_shell/more'
@@ -98,6 +156,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   ShellRoute: typeof ShellRouteWithChildren
+  ClaimRoute: typeof ClaimRoute
+  ProfileRoute: typeof ProfileRoute
+  RecoverRoute: typeof RecoverRoute
+  SignInRoute: typeof SignInRoute
   StatusRoute: typeof StatusRoute
 }
 
@@ -108,6 +170,34 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof ShellRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/claim': {
+      id: '/claim'
+      path: '/claim'
+      fullPath: '/claim'
+      preLoaderRoute: typeof ClaimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recover': {
+      id: '/recover'
+      path: '/recover'
+      fullPath: '/recover'
+      preLoaderRoute: typeof RecoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/status': {
@@ -175,6 +265,10 @@ const ShellRouteWithChildren = ShellRoute._addFileChildren(ShellRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   ShellRoute: ShellRouteWithChildren,
+  ClaimRoute: ClaimRoute,
+  ProfileRoute: ProfileRoute,
+  RecoverRoute: RecoverRoute,
+  SignInRoute: SignInRoute,
   StatusRoute: StatusRoute,
 }
 export const routeTree = rootRouteImport

@@ -99,11 +99,23 @@ describe("ServersPanel", () => {
 
   it("explains a list that didn't load", async () => {
     const watch = feed<WatchServersResponse>();
-    watch.fail(new ConnectError("sign in to see servers", Code.Unauthenticated));
+    watch.fail(new ConnectError("the fleet is still loading", Code.Unavailable));
     renderPanel(watch);
 
     expect(await screen.findByText("The server list didn't load. Dockwell keeps trying.")).toBeVisible();
-    expect(screen.getByText("sign in to see servers")).toBeVisible();
+    expect(screen.getByText("the fleet is still loading")).toBeVisible();
+  });
+
+  it("hands an ended session to the sign-in gate instead of retrying", async () => {
+    const watchServers = vi.fn(() => {
+      throw new ConnectError("your session ended", Code.Unauthenticated);
+    });
+    const getAuthState = vi.fn(() => ({}));
+    renderWithApi(<ServersPanel />, { servers: { watchServers }, auth: { getAuthState } });
+    await vi.waitFor(() => expect(watchServers).toHaveBeenCalledOnce());
+    expect(screen.queryByText("your session ended")).toBeNull();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(watchServers).toHaveBeenCalledOnce();
   });
 
   it("speaks Simplified Chinese", async () => {

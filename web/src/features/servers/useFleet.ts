@@ -4,8 +4,11 @@ import { type Timestamp, timestampMs } from "@bufbuild/protobuf/wkt";
 import { ConnectError, createClient, type Transport } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { Connection, type Server, ServerService } from "@dockwell/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { createContext, createElement, type ReactNode, useContext, useEffect, useState } from "react";
 
+import { authStateKey } from "../../app/api";
+import { isSignedOut } from "../../lib/errors";
 import { useNow } from "../../lib/time";
 import { appendSample } from "./history";
 import { type FleetView, fleetView } from "./server";
@@ -86,6 +89,7 @@ const CONNECTING: FleetState = { status: "connecting" };
 
 function useWatch(enabled: boolean): Watched {
   const transport = useTransport();
+  const queryClient = useQueryClient();
   const [watched, setWatched] = useState<Watched>(() => ({
     state: CONNECTING,
     view: fleetView(CONNECTING),
@@ -95,11 +99,16 @@ function useWatch(enabled: boolean): Watched {
   useEffect(() => {
     if (!enabled) return;
     const abort = new AbortController();
-    void watch(transport, abort.signal, (state, skewMs) =>
-      setWatched((prev) => ({ state, view: fleetView(state, prev.view), skewMs })),
+    // A session that ended can't watch again: hand over to the sign-in gate.
+    const signedOut = () => void queryClient.invalidateQueries({ queryKey: authStateKey });
+    void watch(
+      transport,
+      abort.signal,
+      (state, skewMs) => setWatched((prev) => ({ state, view: fleetView(state, prev.view), skewMs })),
+      signedOut,
     );
     return () => abort.abort();
-  }, [transport, enabled]);
+  }, [transport, queryClient, enabled]);
 
   return watched;
 }
@@ -108,6 +117,7 @@ async function watch(
   transport: Transport,
   signal: AbortSignal,
   publish: (s: FleetState, skewMs: number) => void,
+  signedOut: () => void,
 ): Promise<void> {
   const client = createClient(ServerService, transport);
   const clock = new SkewEstimate();
@@ -135,6 +145,10 @@ async function watch(
       throw new ConnectError("the watch ended");
     } catch (err) {
       if (signal.aborted) return;
+      if (isSignedOut(err)) {
+        signedOut();
+        return;
+      }
       publish(
         known
           ? { status: "reconnecting", servers: known, error: ConnectError.from(err) }
