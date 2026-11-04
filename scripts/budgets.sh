@@ -292,12 +292,18 @@ if ((agent_rss >= agent_warn && agent_rss < agent_budget)); then
 fi
 comparison=
 if [[ -n $baseline ]]; then
+  # Plain variables: shellcheck 0.9, as CI runs it, can't parse an
+  # associative array's index inside $(( )).
+  base_agent_rss=${base[agent_rss]}
+  base_control_rss=${base[control_rss]}
+  agent_change=$((agent_rss - base_agent_rss))
+  control_change=$((control_rss - base_control_rss))
   comparison=$(
     cat <<EOF
 | Idle, after $settle s, RSS | This build | $baseline_name | Change | Runs of this build | Runs of $baseline_name |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| An agent on its own | $(mb "$agent_rss") | $(mb "${base[agent_rss]}") | $(delta $((agent_rss - base[agent_rss]))) | ${this[agent_rss_range]} | ${base[agent_rss_range]} |
-| A control plane with its own agent | $(mb "$control_rss") | $(mb "${base[control_rss]}") | $(delta $((control_rss - base[control_rss]))) | ${this[control_rss_range]} | ${base[control_rss_range]} |
+| An agent on its own | $(mb "$agent_rss") | $(mb "${base[agent_rss]}") | $(delta "$agent_change") | ${this[agent_rss_range]} | ${base[agent_rss_range]} |
+| A control plane with its own agent | $(mb "$control_rss") | $(mb "${base[control_rss]}") | $(delta "$control_change") | ${this[control_rss_range]} | ${base[control_rss_range]} |
 EOF
   )
   echo
