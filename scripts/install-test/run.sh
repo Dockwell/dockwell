@@ -75,6 +75,19 @@ get_html() {
 	fi
 }
 
+# connected_now counts the servers connected now, by a control plane's log:
+# each server's last "server connected" or "server disconnected" line says
+# whether it is. The API would say so too, but it needs a session, and a
+# session needs a passkey, which a script doesn't have.
+connected_now() {
+	awk '
+		function server(s) { s = $0; sub(/.*"server":"/, "", s); sub(/".*/, "", s); return s }
+		/"msg":"server connected"/ { up[server()] = 1 }
+		/"msg":"server disconnected"/ { up[server()] = 0 }
+		END { n = 0; for (s in up) n += up[s]; print n }
+	' "$1"
+}
+
 # run_install runs the install script from a release tree, piped to sh, and
 # keeps what it printed in $log/out.
 run_install() {
@@ -259,9 +272,7 @@ start_direct
 [ -e "$DATA/agent/agent.json" ] || die "joining left no identity in $DATA/agent"
 [ ! -e "$DATA/control" ] || die "a server that joined has a control plane"
 i=0
-# The API needs a session, so count the servers the control plane says
-# connected, in its log.
-until [ "$({ grep '"msg":"server connected"' "$log/fixture.log" | grep -o '"server":"srv_[^"]*"' || true; } | sort -u | wc -l)" -ge 2 ]; do
+until [ "$(connected_now "$log/fixture.log")" -ge 2 ]; do
 	i=$((i + 1))
 	[ "$i" -lt 150 ] || die "the agent didn't connect to the control plane within 15 s"
 	sleep 0.1
