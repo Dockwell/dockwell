@@ -1486,9 +1486,10 @@ export enum ActorKind {
 
   /**
    * Someone in a shell on the control server, running a dockwell command
-   * there, such as dockwell recover. They are named by their account and
-   * the server's host name, as "mira@hz-1", since Dockwell hasn't signed
-   * them in.
+   * there, such as dockwell recover, or the CLI making its own API token
+   * for local access. They are named by their account and the server's
+   * host name, as "mira@hz-1", since Dockwell hasn't signed them in. What
+   * the CLI then does with that token is the token's.
    *
    * @generated from enum value: ACTOR_KIND_SHELL = 5;
    */
@@ -1502,7 +1503,11 @@ export const ActorKindSchema: GenEnum<ActorKind> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_change, 1);
 
 /**
- * Surface is where a change, or what an event records, came from.
+ * Surface is where a change, or what an event records, came from. A call
+ * with an API token is from the CLI or the API, as its User-Agent says, for
+ * a change and its audit events alike. What someone in a shell on the
+ * control server does with a dockwell command, and a server joining with
+ * dockwell join, are from the CLI too.
  *
  * @generated from enum dockwell.v1.Surface
  */

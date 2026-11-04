@@ -16,6 +16,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/cli/apicli"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -448,6 +449,79 @@ func testProjectEventsAndResources(t *testing.T, backend store.Backend) {
 	}
 	if !slices.Equal(paged, made) {
 		t.Errorf("every resource, in pages of 4, is %v", paged)
+	}
+}
+
+// The CLI's local access on the control server is on the timeline as one
+// notion: the shell account that ran dockwell makes the token, and what
+// the CLI does with it is the token's, from the CLI. Its changes and every
+// audit event its calls cause record the CLI the same way.
+func TestTheCLIOnTheTimeline(t *testing.T) { storetest.Each(t, testTheCLIOnTheTimeline) }
+
+func testTheCLIOnTheTimeline(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	ev := eventClient(b, b.origin)
+
+	// As dockwell does with no token on the control server.
+	const shell = "cli:mira@hz-1"
+	local, err := f.auth.CreateLocalToken(t.Context(), shell, "Local access on hz-1, read-write", store.ScopeReadWrite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cli := &apicli.Client{HTTP: apicli.NewHTTPClient(), URL: "http://" + f.api, Token: local.Secret, Local: true, Version: "v0.4.0"}
+	added := apply(t, cli.Changes(), propose(t, cli.Changes(), "Add the shop", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Name: "shop"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}},
+	}))
+
+	events := listEvents(t, ev, &dockwellv1.ListEventsRequest{})
+	var made, change *dockwellv1.Event
+	for _, e := range events {
+		switch {
+		case e.GetAction() == "token.create" && e.GetSubject().GetId() == local.Token.ID:
+			made = e
+		case e.GetId() == added.GetId():
+			change = e
+		}
+	}
+	if made.GetActor().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_SHELL || made.GetActor().GetName() != "mira@hz-1" ||
+		made.GetSurface() != dockwellv1.Surface_SURFACE_CLI || made.GetSubject().GetName() != "Local access on hz-1, read-write" {
+		t.Errorf("local access's token on the timeline = %v, want mira@hz-1 making it from the CLI", made)
+	}
+	for _, by := range []*dockwellv1.Actor{change.GetChange().GetProposedBy(), change.GetChange().GetAppliedBy(), change.GetActor()} {
+		if by.GetKind() != dockwellv1.ActorKind_ACTOR_KIND_TOKEN || by.GetId() != local.Token.ID || by.GetName() != "Local access on hz-1, read-write" {
+			t.Errorf("the CLI's change is by %v, want local access's token", by)
+		}
+	}
+	if c := change.GetChange(); change.GetSurface() != dockwellv1.Surface_SURFACE_CLI ||
+		c.GetProposedVia() != dockwellv1.Surface_SURFACE_CLI || c.GetAppliedVia() != dockwellv1.Surface_SURFACE_CLI {
+		t.Errorf("the CLI's change came from %v, proposed from %v and applied from %v, want the CLI each time",
+			change.GetSurface(), c.GetProposedVia(), c.GetAppliedVia())
+	}
+
+	// The audit log behind it: the change's events, and the token's first
+	// use, which stays off the timeline, all from the CLI.
+	if _, err := f.auth.RevokeLocalToken(t.Context(), shell, local.Token.ID); err != nil {
+		t.Fatal(err)
+	}
+	from := map[string]string{}
+	_ = f.store.View(t.Context(), func(tx *store.Tx) error {
+		all, err := tx.ListEvents(t.Context(), 100)
+		for i := range all {
+			if strings.HasPrefix(all[i].Action, "change.") || strings.HasPrefix(all[i].Action, "token.") {
+				from[all[i].Action+" "+all[i].Actor] = all[i].Surface
+			}
+		}
+		return err
+	})
+	tokenActor := "token:" + local.Token.ID
+	for _, what := range []string{
+		"token.create " + shell, "token.use " + tokenActor, "change.planned " + tokenActor, "change.applied " + tokenActor, "token.revoke " + shell,
+	} {
+		if from[what] != store.SurfaceCLI {
+			t.Errorf("the audit log has %s from %q, want the CLI", what, from[what])
+		}
 	}
 }
 

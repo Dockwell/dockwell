@@ -205,6 +205,27 @@ type Client struct {
 	UserAgent string
 }
 
+// CLIUserAgent starts the User-Agent of the dockwell CLI, which says so to
+// have what it does recorded as from the CLI. See
+// docs/adr/0019-a-cli-generated-from-the-schema.md.
+const CLIUserAgent = "dockwell-cli/"
+
+// Surface is where a call from this client with p comes from, as changes
+// and the audit log record it: a session's from the panel, and an API
+// token's from the CLI when the User-Agent says it is the CLI, or from the
+// API otherwise. It is the one place that tells the CLI from the API. The
+// surface is what a client says it is, for the timeline; who is held to
+// account is the actor, p's, which the client can't choose.
+func (c Client) Surface(p Principal) string {
+	switch {
+	case p.Token == nil:
+		return store.SurfacePanel
+	case strings.HasPrefix(c.UserAgent, CLIUserAgent):
+		return store.SurfaceCLI
+	}
+	return store.SurfaceAPI
+}
+
 // Claimed reports whether the install has an owner.
 func (s *Service) Claimed(ctx context.Context) (bool, error) {
 	var n int
@@ -241,24 +262,33 @@ func hashToken(token string) []byte {
 }
 
 // audit records an event in the audit log, from where its actor works: a
-// session from the panel, a token from the API, a shell account from the
-// CLI. Someone else's account that it is about is its target, such as the
-// person a sign-in link is for.
+// session from the panel, and someone in a shell on the control server
+// from the CLI (store.SurfaceOf). Someone else's account that it is about
+// is its target, such as the person a sign-in link is for.
 func (s *Service) audit(ctx context.Context, tx *store.Tx, actor, action, subject, detail string) error {
+	return s.auditFrom(ctx, tx, actor, store.SurfaceOf(actor), action, subject, detail)
+}
+
+// auditFrom is audit for a call that says where it comes from, as one with
+// an API token does: from the CLI or the API, as Client.Surface says.
+func (s *Service) auditFrom(ctx context.Context, tx *store.Tx, actor, surface, action, subject, detail string) error {
 	target := ""
 	if strings.HasPrefix(subject, id.User+"_") && actor != "user:"+subject {
 		target = subject
 	}
-	return s.auditOn(ctx, tx, actor, action, subject, target, detail)
+	return s.record(ctx, tx, store.Event{Actor: actor, Surface: surface, Action: action, Subject: subject, Target: target, Detail: detail})
 }
 
 // auditOn records an event that acted on target, such as the API token or
-// passkey made or removed.
+// passkey made or removed, from where its actor works.
 func (s *Service) auditOn(ctx context.Context, tx *store.Tx, actor, action, subject, target, detail string) error {
-	return tx.RecordEvent(ctx, store.Event{
-		ID: id.New(id.Event), At: s.now(), Actor: actor, Action: action, Subject: subject, Detail: detail,
-		Surface: store.SurfaceOf(actor), Target: target,
-	})
+	return s.record(ctx, tx, store.Event{Actor: actor, Surface: store.SurfaceOf(actor), Action: action, Subject: subject, Target: target, Detail: detail})
+}
+
+// record appends e to the audit log, now.
+func (s *Service) record(ctx context.Context, tx *store.Tx, e store.Event) error {
+	e.ID, e.At = id.New(id.Event), s.now()
+	return tx.RecordEvent(ctx, e)
 }
 
 // normalizeEmail lowercases and trims an email and checks its shape.

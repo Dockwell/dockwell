@@ -14,13 +14,13 @@ import (
 	"connectrpc.com/connect"
 
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
-	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/auth"
 )
 
 // UserAgentPrefix starts the CLI's User-Agent, which tells the control
 // plane that a call with an API token came from the CLI, for the surface
-// its changes record.
-const UserAgentPrefix = changes.CLIUserAgent
+// its changes and audit events record (auth.Client.Surface).
+const UserAgentPrefix = auth.CLIUserAgent
 
 // Client calls one control plane with one API token.
 type Client struct {

@@ -20,7 +20,7 @@ const (
 	user      = "user:"
 	token     = "token:"
 	server    = "server:"
-	shell     = "cli:"
+	shell     = "cli:" // someone in a shell on the control server, as "cli:mira@hz-1"
 	anonymous = "anonymous:"
 	// Dockwell is "dockwell" in the revision store, and "system" in the
 	// audit log's older events.

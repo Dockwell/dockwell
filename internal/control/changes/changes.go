@@ -57,28 +57,17 @@ func New(engine *revision.Engine, db *store.DB, logger *slog.Logger) *Handler {
 	return &Handler{engine: engine, db: db, logger: logger}
 }
 
-// CLIUserAgent starts the User-Agent of the dockwell CLI, which says so to
-// have its changes recorded as the CLI's (ADR 0019).
-const CLIUserAgent = "dockwell-cli/"
-
-// by is who is calling, and from where: a session is the panel, and an API
-// token the API, or the CLI when its User-Agent says so. The surface is
-// what the client says it is, for the timeline; the actor is what the
-// audit log holds to account.
+// by is who is calling, and from where, as auth.Client.Surface says: a
+// session is the panel, and an API token the API, or the CLI when its
+// User-Agent says so. A change's audit events record the same.
 func by(ctx context.Context) (revision.By, auth.Principal, error) {
 	p, ok := authapi.PrincipalFrom(ctx)
 	if !ok {
 		// The interceptor lets no call here through without one.
 		return revision.By{}, p, connect.NewError(connect.CodeUnauthenticated, auth.ErrUnauthenticated)
 	}
-	via := revision.ViaPanel
-	if p.Token != nil {
-		via = revision.ViaAPI
-		if client, ok := authapi.ClientFrom(ctx); ok && strings.HasPrefix(client.UserAgent, CLIUserAgent) {
-			via = revision.ViaCLI
-		}
-	}
-	return revision.By{Actor: p.Actor(), Via: via}, p, nil
+	client, _ := authapi.ClientFrom(ctx)
+	return revision.By{Actor: p.Actor(), Via: client.Surface(p)}, p, nil
 }
 
 // ProposeChange plans edits as a new change.

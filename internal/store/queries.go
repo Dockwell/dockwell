@@ -252,14 +252,17 @@ type Event struct {
 const (
 	SurfacePanel     = "panel"
 	SurfaceAPI       = "api"
-	SurfaceCLI       = "cli" // the dockwell command, such as dockwell join or dockwell recover
+	SurfaceCLI       = "cli" // the dockwell CLI: calling the API with a token, or run on a server, such as dockwell join or dockwell recover
 	SurfaceAutomatic = "automatic"
 )
 
 // SurfaceOf is where what an actor does on its own behalf comes from: a
-// person's session from the panel, an API token from the API, a shell
-// account from the CLI, and Dockwell on its own, automatically. A writer
-// that knows better, such as a server joining with dockwell join, says so.
+// person's session from the panel, a shell account from the CLI, and
+// Dockwell on its own, automatically. A writer that knows better says so:
+// a server joins with dockwell join, from the CLI, and a call with an API
+// token is from the CLI or the API as the call says, which
+// auth.Client.Surface decides. Knowing only the actor, SurfaceOf says a
+// token's is the API's.
 func SurfaceOf(actor string) string {
 	kind, _, _ := strings.Cut(actor, ":")
 	switch kind {
