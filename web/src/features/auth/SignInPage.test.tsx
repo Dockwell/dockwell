@@ -132,23 +132,75 @@ describe("SignInPage", () => {
     expect(calls.auth.signInWithCode).not.toHaveBeenCalled();
   });
 
-  it("sends a recovery code sign-in to the profile", async () => {
-    stubPasskeys();
-    const calls = api();
-    calls.auth.signInWithCode = vi.fn(() => {
-      calls.auth.getAuthState = () => authState();
-      return { usedRecoveryCode: true, recoveryCodesLeft: 9 };
-    });
-    const { router } = renderAt("/sign-in?next=%2F", {
-      ...calls,
-      auth: { ...calls.auth, listPasskeys: () => ({}), listSessions: () => ({}), getTotp: () => ({}) },
-    });
+  /** An API where a recovery code signs in, and the profile has nothing to list. */
+  function recoveryApi() {
+    let signedIn = false;
+    return {
+      ...api(),
+      auth: {
+        getAuthState: () => authState(signedIn ? {} : { user: undefined }),
+        signInWithCode: vi.fn(() => {
+          signedIn = true;
+          return { usedRecoveryCode: true, recoveryCodesLeft: 9 };
+        }),
+        listPasskeys: () => ({}),
+        listSessions: () => ({}),
+        getTotp: () => ({}),
+      },
+    };
+  }
+
+  async function signInWithRecoveryCode() {
     await userEvent.click(await screen.findByRole("button", { name: "Use a code from your authenticator app" }));
     await userEvent.type(screen.getByLabelText("Email"), "mira@acme.dev");
     await userEvent.type(screen.getByLabelText("Code"), "7KQ2-M9XD-4TPA-ZR3C");
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    await waitFor(() => expect(router.state.location.pathname).toBe("/profile"));
+  }
+
+  it("sends a recovery code sign-in to the profile", async () => {
+    stubPasskeys();
+    const { router } = renderAt("/sign-in?next=%2F", recoveryApi());
+    await signInWithRecoveryCode();
+    expect(await screen.findByRole("heading", { level: 1, name: "Profile and security" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/profile");
     expect(router.state.location.search).toEqual({ via: "recovery-code" });
+  });
+
+  it("sends a recovery code sign-in to the profile, never where the visit was headed", async () => {
+    stubPasskeys();
+    const { router } = renderAt("/sign-in?next=%2Fstatus", recoveryApi());
+    const visited: string[] = [];
+    router.subscribe("onBeforeNavigate", (e) => visited.push(e.toLocation.pathname));
+    // The profile's code loads on demand, so getting there can take a moment,
+    // in which the page sees the new sign-in state.
+    const navigate = router.navigate.bind(router);
+    router.navigate = async (opts) => {
+      if (opts.to === "/profile") await new Promise((resolve) => setTimeout(resolve, 50));
+      return navigate(opts);
+    };
+    await signInWithRecoveryCode();
+    expect(await screen.findByRole("heading", { level: 1, name: "Profile and security" })).toBeVisible();
+    // Long enough for a second navigation to land, if there were one.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(router.state.location.pathname).toBe("/profile");
+    expect(visited).not.toContain("/status");
+  });
+
+  it("explains why a call was refused for want of a session", async () => {
+    stubPasskeys();
+    for (const [reason, text] of [
+      ["session_ended", "Your session ended, so this didn't happen. Sign in again, then try again."],
+      ["unauthenticated", "You're not signed in. Sign in, then try again."],
+      ["origin", "The control plane refused this because it didn't come from the panel's own address."],
+    ] as const) {
+      const { unmount } = renderAt(
+        "/sign-in",
+        api({ beginPasskeySignIn: () => Promise.reject(authError(Code.Unauthenticated, reason)) }),
+      );
+      await userEvent.click(await screen.findByRole("button", { name: "Sign in with a passkey" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent(text);
+      unmount();
+    }
   });
 
   it("never sends the visit to another site", () => {

@@ -50,6 +50,9 @@ export function useFragmentToken(path: "/claim" | "/recover"): string {
  */
 export function ClaimPage() {
   const linkToken = useFragmentToken("/claim");
+  // Set once the claim here succeeds, so the owner it made isn't told the
+  // install already has one on the way to the overview.
+  const [claimedHere, setClaimedHere] = useState(false);
   const [code, setCode] = useState(linkToken);
   const token = tokenFrom(code);
   const auth = useAuthState();
@@ -65,7 +68,7 @@ export function ClaimPage() {
     },
   );
 
-  if (auth.data?.claimed) {
+  if (auth.data?.claimed && !claimedHere) {
     return <AlreadyClaimed signedIn={Boolean(auth.data.user)} />;
   }
   const server = check.data?.server;
@@ -95,6 +98,7 @@ export function ClaimPage() {
               linkProblem={check.isError ? check.error : undefined}
               domain={auth.data?.domain ?? ""}
               publicAddress={check.data?.publicAddress ?? ""}
+              onClaimed={() => setClaimedHere(true)}
             />
             <div className="claim-aside">
               {server ? <ThisServer server={server} claim={check.data} /> : null}
@@ -115,9 +119,11 @@ interface OwnerFormProps {
   linkProblem: unknown;
   domain: string;
   publicAddress: string;
+  /** Called once the owner exists, before the sign-in state is read again. */
+  onClaimed: () => void;
 }
 
-function OwnerForm({ name, code, onCode, token, linkProblem, domain, publicAddress }: OwnerFormProps) {
+function OwnerForm({ name, code, onCode, token, linkProblem, domain, publicAddress, onClaimed }: OwnerFormProps) {
   const { t } = useLingui();
   const titleId = useId();
   const transport = useTransport();
@@ -148,8 +154,10 @@ function OwnerForm({ name, code, onCode, token, linkProblem, domain, publicAddre
       const begin = await client.beginClaim({ token, name: person, email });
       const credentialJson = await createPasskey(begin.optionsJson);
       await client.finishClaim({ ceremonyId: begin.ceremonyId, token, credentialJson, passkeyName: device });
+      onClaimed();
       await refreshAuth();
-      await navigate({ to: "/" });
+      // The claim page has done its work: Back mustn't return to it.
+      await navigate({ to: "/", replace: true });
     } catch (err) {
       setProblem(err);
     } finally {
@@ -352,7 +360,7 @@ function ThisServer({ server, claim }: { server: Server; claim: CheckClaimRespon
               <Trans>Link expires</Trans>
             </dt>
             <dd>
-              <LinkExpiry ms={timestampDate(claim.expireTime).getTime() - Date.now()} />
+              <LinkExpiry at={timestampDate(claim.expireTime).getTime()} />
             </dd>
           </>
         ) : null}
@@ -361,11 +369,26 @@ function ThisServer({ server, claim }: { server: Server; claim: CheckClaimRespon
   );
 }
 
-function LinkExpiry({ ms }: { ms: number }) {
+/** When the claim link stops working, kept current: "in 23 h", "in 4 min", "Expired". */
+function LinkExpiry({ at }: { at: number }) {
   const { t } = useLingui();
+  const now = useNow(30_000);
+  const ms = at - now;
+  if (ms <= 0) return <>{t`Expired`}</>;
   const hours = Math.floor(ms / 3_600_000);
-  const minutes = Math.max(1, Math.round(ms / 60_000));
-  return <>{hours >= 1 ? t`in ${hours} h` : t`in ${minutes} min`}</>;
+  if (hours >= 1) return <>{t`in ${hours} h`}</>;
+  const minutes = Math.floor(ms / 60_000);
+  return <>{minutes >= 1 ? t`in ${minutes} min` : t`in under a minute`}</>;
+}
+
+/** The time now, read again every interval ms. */
+function useNow(interval: number): number {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), interval);
+    return () => clearInterval(timer);
+  }, [interval]);
+  return now;
 }
 
 function WhatHappensNext() {

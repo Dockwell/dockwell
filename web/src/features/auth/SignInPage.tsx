@@ -22,8 +22,12 @@ export function SignInPage({ next }: { next?: string }) {
   const auth = useAuthState();
   const version = useQuery(SystemService.method.getVersion, {});
   const [mode, setMode] = useState<"passkey" | "code">("passkey");
+  // Set once a sign-in here succeeds: from then on, finishing it decides
+  // where to go, and GoTo stays out of its way.
+  const [signingIn, setSigningIn] = useState(false);
+  const finish = useFinishSignIn(next, () => setSigningIn(true));
 
-  if (auth.data?.user) {
+  if (auth.data?.user && !signingIn) {
     return <GoTo href={safeNext(next)} />;
   }
   if (auth.data && !auth.data.claimed) {
@@ -41,12 +45,12 @@ export function SignInPage({ next }: { next?: string }) {
           {mode === "passkey" ? (
             <PasskeySignIn
               name={name}
-              next={next}
+              finish={finish}
               onDomain={Boolean(auth.data?.domain) && auth.data?.rpId === auth.data?.domain}
               onUseCode={() => setMode("code")}
             />
           ) : (
-            <CodeSignIn name={name} next={next} onUsePasskey={() => setMode("passkey")} />
+            <CodeSignIn name={name} finish={finish} onUsePasskey={() => setMode("passkey")} />
           )}
           <section className="signin-recover" aria-labelledby="signin-recover-title">
             <div className="signin-recover-text">
@@ -78,7 +82,7 @@ export function SignInPage({ next }: { next?: string }) {
   );
 }
 
-/** Already signed in: on to where the visit was going. */
+/** Already signed in on arrival: on to where the visit was going. */
 function GoTo({ href }: { href: string }) {
   const navigate = useNavigate();
   useEffect(() => {
@@ -106,12 +110,20 @@ function SignInHead({ name }: { name: string }) {
   );
 }
 
-function useFinishSignIn(next: string | undefined) {
+/**
+ * After a sign-in succeeds: reads the sign-in state again, then goes where
+ * the visit was headed, or to the profile after a recovery code, which is
+ * worth a look at what's left. onStart runs first, so the page knows not to
+ * send the visit anywhere itself once the new state arrives.
+ */
+type FinishSignIn = (usedRecoveryCode?: boolean) => Promise<void>;
+
+function useFinishSignIn(next: string | undefined, onStart: () => void): FinishSignIn {
   const navigate = useNavigate();
   const refreshAuth = useRefreshAuth();
   return async (usedRecoveryCode = false) => {
+    onStart();
     await refreshAuth();
-    // A spent recovery code is worth a look at what's left.
     if (usedRecoveryCode) await navigate({ to: "/profile", search: { via: "recovery-code" }, replace: true });
     else await navigate({ href: safeNext(next), replace: true });
   };
@@ -119,17 +131,16 @@ function useFinishSignIn(next: string | undefined) {
 
 interface PasskeySignInProps {
   name: string;
-  next?: string;
+  finish: FinishSignIn;
   /** True on the panel's domain, where passkeys made through the tunnel don't work. */
   onDomain: boolean;
   onUseCode: () => void;
 }
 
-function PasskeySignIn({ name, next, onDomain, onUseCode }: PasskeySignInProps) {
+function PasskeySignIn({ name, finish, onDomain, onUseCode }: PasskeySignInProps) {
   const { t } = useLingui();
   const transport = useTransport();
   const explain = useAuthError();
-  const finish = useFinishSignIn(next);
   const [busy, setBusy] = useState<PasskeyHint | undefined>();
   const [problem, setProblem] = useState<unknown>();
   const canUsePasskeys = passkeysAvailable();
@@ -203,11 +214,10 @@ function PasskeySignIn({ name, next, onDomain, onUseCode }: PasskeySignInProps) 
   );
 }
 
-function CodeSignIn({ name, next, onUsePasskey }: { name: string; next?: string; onUsePasskey: () => void }) {
+function CodeSignIn({ name, finish, onUsePasskey }: { name: string; finish: FinishSignIn; onUsePasskey: () => void }) {
   const { t } = useLingui();
   const transport = useTransport();
   const explain = useAuthError();
-  const finish = useFinishSignIn(next);
   const formId = useId();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");

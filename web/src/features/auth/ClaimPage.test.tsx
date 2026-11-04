@@ -10,7 +10,7 @@ import {
   GetVersionResponseSchema,
   ServerInventorySchema,
 } from "@dockwell/api";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -86,9 +86,20 @@ describe("ClaimPage", () => {
     await userEvent.type(screen.getByLabelText("Email"), "mira@acme.dev");
     // Signed in from here on.
     calls.auth.getAuthState = () => authState();
+    // The new owner is never told the install already has one.
+    const seen = new Set<string>();
+    const watch = new MutationObserver(() => {
+      if (document.body.textContent?.includes("This install already has an owner")) seen.add("already claimed");
+    });
+    watch.observe(document.body, { childList: true, subtree: true, characterData: true });
     await userEvent.click(screen.getByRole("button", { name: "Create passkey" }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    watch.disconnect();
+    expect(seen).toEqual(new Set());
+    // Back doesn't return to the spent claim page.
+    expect(router.history.length).toBe(1);
+    expect(router.history.canGoBack()).toBe(false);
     expect(calls.auth.beginClaim).toHaveBeenCalledWith(
       expect.objectContaining({ token: TOKEN, name: "Mira Chen", email: "mira@acme.dev" }),
       expect.anything(),
@@ -102,6 +113,26 @@ describe("ClaimPage", () => {
     expect(finish.ceremonyId).toBe("cer_1");
     expect(finish.token).toBe(TOKEN);
     expect(JSON.parse(finish.credentialJson).response.attestationObject).toBe("Bgc");
+  });
+
+  it("keeps the link's expiry current, and says when it has expired", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const soon = () =>
+        create(CheckClaimResponseSchema, {
+          ...checked(),
+          expireTime: timestampFromDate(new Date(Date.now() + 90_000)),
+        });
+      renderAt(`/claim#${TOKEN}`, api({ checkClaim: soon }));
+      const server = await screen.findByRole("region", { name: "This server" });
+      expect(server).toHaveTextContent("in 1 min");
+      await act(() => vi.advanceTimersByTimeAsync(60_000));
+      expect(server).toHaveTextContent("in under a minute");
+      await act(() => vi.advanceTimersByTimeAsync(60_000));
+      expect(server).toHaveTextContent("Link expiresExpired");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("checks the form before asking for a passkey", async () => {
