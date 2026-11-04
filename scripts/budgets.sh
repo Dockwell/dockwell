@@ -97,11 +97,12 @@ ticket=$("$bin" token create --data-dir "$work/control" 2>>"$work/control.log" |
 agent=$!
 pids+=("$agent")
 
+# connected_now counts the servers connected now, by the control plane's log.
+connected_now() { awk -f "$(dirname "$0")/connected.awk" "$1"; }
+
 connected=0
 for _ in $(seq 100); do
-  servers=$(curl -fsS -H 'Content-Type: application/json' -d '{}' "$base/dockwell.v1.ServerService/ListServers" 2>/dev/null || true)
-  # grep finds nothing until both connect; that mustn't end the script.
-  connected=$({ grep -o '"connection": \{0,1\}"CONNECTION_CONNECTED"' <<<"$servers" || true; } | wc -l)
+  connected=$(connected_now "$work/control.log")
   ((connected >= 2)) && break
   sleep 0.1
 done

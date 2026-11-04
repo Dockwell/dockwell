@@ -4,6 +4,7 @@
 //
 //	<root>/control/key        the key that seals secrets at rest (0600)
 //	<root>/control/state.db   the control plane's state
+//	<root>/control/acme/      the ACME account key and the panel's certificates (0700)
 //	<root>/agent/agent.json   the agent's identity and its control plane
 //	<root>/agent/server.key   the agent's private key (0600)
 //	<root>/agent/server.crt   the agent's certificate
@@ -54,6 +55,9 @@ func (d Dir) SealKey() string { return filepath.Join(d.Control(), "key") }
 
 // StateDB is the control plane's database.
 func (d Dir) StateDB() string { return filepath.Join(d.Control(), "state.db") }
+
+// ACME holds the ACME account key and the panel's certificates.
+func (d Dir) ACME() string { return filepath.Join(d.Control(), "acme") }
 
 // Ensure creates dir with owner-only permissions.
 func Ensure(dir string) error {

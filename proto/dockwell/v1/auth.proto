@@ -1,0 +1,521 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "dockwell/v1/server.proto";
+import "google/protobuf/timestamp.proto";
+
+// AuthService claims a new install, signs people in and out, and manages how
+// they sign in: passkeys, an authenticator app with recovery codes, and
+// sessions. See docs/adr/0011-claim-and-sign-in.md.
+//
+// GetAuthState, the claim calls and the sign-in calls work without a session.
+// Every other call needs one, carried in the session cookie the sign-in calls
+// set.
+//
+// Passkey ceremonies take two calls. Begin returns WebAuthn options as JSON
+// (PublicKeyCredentialCreationOptionsJSON or
+// PublicKeyCredentialRequestOptionsJSON, WebAuthn Level 3) and a ceremony ID;
+// Finish takes that ID and the browser's credential as JSON
+// (RegistrationResponseJSON or AuthenticationResponseJSON). A ceremony works
+// once and expires after 5 minutes.
+//
+// A failed call's error metadata names the reason under "Dockwell-Error", such
+// as "code_rejected" or "claim_link_rejected", so clients can explain it in
+// their own words; a slowed-down one also carries "Retry-After" in seconds.
+// A call to any service refused for want of a session names one too:
+// "unauthenticated" when it came with no session, and "session_ended" when
+// its session cookie no longer works or a stream's session ended while it
+// was open. A browser's request from another origin gets "origin".
+service AuthService {
+  // GetAuthState says whether the install has an owner, who is signed in on
+  // this request, and which address passkeys are made for here.
+  rpc GetAuthState(GetAuthStateRequest) returns (GetAuthStateResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+
+  // CheckClaim checks a claim link without spending it, and describes the
+  // server it claims.
+  rpc CheckClaim(CheckClaimRequest) returns (CheckClaimResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+
+  // BeginClaim starts creating the owner's first passkey.
+  rpc BeginClaim(BeginClaimRequest) returns (BeginClaimResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+
+  // FinishClaim spends the claim link, creates the owner with the new
+  // passkey, and signs them in. It works once per install.
+  rpc FinishClaim(FinishClaimRequest) returns (FinishClaimResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+
+  // BeginPasskeySignIn starts signing in with a passkey.
+  rpc BeginPasskeySignIn(BeginPasskeySignInRequest) returns (BeginPasskeySignInResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+
+  // FinishPasskeySignIn checks the passkey's signature and signs in.
+  rpc FinishPasskeySignIn(FinishPasskeySignInRequest) returns (FinishPasskeySignInResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+
+  // SignInWithCode signs in with a code from an authenticator app, or with a
+  // recovery code. Failed attempts slow down, and too many lock code sign-in
+  // for the account.
+  rpc SignInWithCode(SignInWithCodeRequest) returns (SignInWithCodeResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+
+  // SignInWithLink spends a one-time sign-in link from dockwell recover.
+  rpc SignInWithLink(SignInWithLinkRequest) returns (SignInWithLinkResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+
+  // SignOut ends this session.
+  rpc SignOut(SignOutRequest) returns (SignOutResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+
+  // ListSessions returns your sessions that haven't ended, newest first.
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+
+  // RevokeSession ends one of your sessions. Its open streams close.
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+  }
+
+  // RevokeOtherSessions ends every session of yours except this one.
+  rpc RevokeOtherSessions(RevokeOtherSessionsRequest) returns (RevokeOtherSessionsResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+  }
+
+  // ListPasskeys returns your passkeys, oldest first.
+  rpc ListPasskeys(ListPasskeysRequest) returns (ListPasskeysResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+
+  // BeginAddPasskey starts adding a passkey for the address of this request.
+  rpc BeginAddPasskey(BeginAddPasskeyRequest) returns (BeginAddPasskeyResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+
+  // FinishAddPasskey saves the new passkey.
+  rpc FinishAddPasskey(FinishAddPasskeyRequest) returns (FinishAddPasskeyResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+
+  // RemovePasskey removes one of your passkeys. It refuses to remove your last
+  // way to sign in.
+  rpc RemovePasskey(RemovePasskeyRequest) returns (RemovePasskeyResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+  }
+
+  // GetTotp says whether you sign in with an authenticator app, and how many
+  // recovery codes are left.
+  rpc GetTotp(GetTotpRequest) returns (GetTotpResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+
+  // BeginTotpSetup makes a new authenticator secret. It takes effect only
+  // once ConfirmTotpSetup checks a code from it.
+  rpc BeginTotpSetup(BeginTotpSetupRequest) returns (BeginTotpSetupResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+
+  // ConfirmTotpSetup checks a code from the new secret, turns code sign-in
+  // on, and returns new recovery codes. They are shown once.
+  rpc ConfirmTotpSetup(ConfirmTotpSetupRequest) returns (ConfirmTotpSetupResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+
+  // DisableTotp turns code sign-in off and deletes the secret and recovery
+  // codes. It refuses when that would leave no way to sign in.
+  rpc DisableTotp(DisableTotpRequest) returns (DisableTotpResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+  }
+
+  // RegenerateRecoveryCodes replaces your recovery codes. The old ones stop
+  // working.
+  rpc RegenerateRecoveryCodes(RegenerateRecoveryCodesRequest) returns (RegenerateRecoveryCodesResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+  }
+
+  // UnlockCodeSignIn turns code sign-in back on after too many wrong codes
+  // locked it.
+  rpc UnlockCodeSignIn(UnlockCodeSignInRequest) returns (UnlockCodeSignInResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+}
+
+// Role is what a person may do.
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  // Everything, on every server. The first person, who claimed the install.
+  ROLE_OWNER = 1;
+}
+
+// SignInMethod is how a session began.
+enum SignInMethod {
+  SIGN_IN_METHOD_UNSPECIFIED = 0;
+  // Claiming the install, which creates the first passkey.
+  SIGN_IN_METHOD_CLAIM = 1;
+  // A passkey.
+  SIGN_IN_METHOD_PASSKEY = 2;
+  // A code from an authenticator app.
+  SIGN_IN_METHOD_AUTHENTICATOR_CODE = 3;
+  // A one-time recovery code.
+  SIGN_IN_METHOD_RECOVERY_CODE = 4;
+  // A one-time link from dockwell recover.
+  SIGN_IN_METHOD_LINK = 5;
+}
+
+// User is a person who signs in to the panel.
+message User {
+  // The user's ID, such as "usr_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // What they are called, such as "Mira Chen".
+  string name = 2;
+  // Their email, which signs in with a code.
+  string email = 3;
+  // What they may do.
+  Role role = 4;
+  // When the account was made.
+  google.protobuf.Timestamp create_time = 5;
+}
+
+// GetAuthStateRequest takes no parameters.
+message GetAuthStateRequest {}
+
+// GetAuthStateResponse describes the install and this request's session.
+message GetAuthStateResponse {
+  // True once the install has an owner. Until then, only a claim link from
+  // dockwell run or dockwell claim can create one.
+  bool claimed = 1;
+  // The signed-in user. Unset when the request has no valid session.
+  User user = 2;
+  // This session's ID. Empty when not signed in.
+  string session_id = 3;
+  // The control server's name, such as "hz-1".
+  string server_name = 4;
+  // The WebAuthn relying party ID for this address: "localhost", or the
+  // panel's domain. Passkeys made here work only here.
+  string rp_id = 5;
+  // The panel's own domain, such as "panel.acme.dev". Empty when the panel is
+  // reachable only on loopback.
+  string domain = 6;
+  // How this session began. Unset when not signed in.
+  SignInMethod sign_in_method = 7;
+}
+
+// CheckClaimRequest carries a claim link's token.
+message CheckClaimRequest {
+  // The token from the claim link, the part after "#".
+  string token = 1;
+}
+
+// CheckClaimResponse describes the server a valid claim link claims.
+message CheckClaimResponse {
+  // The control server, as its agent last reported it.
+  Server server = 1;
+  // This server's public IP address, such as "203.0.113.7", for pointing a
+  // domain at: an A record, or AAAA for an IPv6 address. Empty when the
+  // server doesn't know one, as behind NAT, where its own address is private.
+  string public_address = 2;
+  // When the link stops working.
+  google.protobuf.Timestamp expire_time = 3;
+}
+
+// BeginClaimRequest names the owner.
+message BeginClaimRequest {
+  // The token from the claim link.
+  string token = 1;
+  // The owner's name, such as "Mira Chen".
+  string name = 2;
+  // The owner's email.
+  string email = 3;
+}
+
+// BeginClaimResponse carries the options for creating the passkey.
+message BeginClaimResponse {
+  // Pass back to FinishClaim.
+  string ceremony_id = 1;
+  // PublicKeyCredentialCreationOptionsJSON.
+  string options_json = 2;
+}
+
+// FinishClaimRequest carries the new passkey.
+message FinishClaimRequest {
+  // From BeginClaim.
+  string ceremony_id = 1;
+  // The token from the claim link, again: it is spent only here.
+  string token = 2;
+  // RegistrationResponseJSON from navigator.credentials.create.
+  string credential_json = 3;
+  // What to call the passkey, such as "Chrome on macOS". Optional.
+  string passkey_name = 4;
+}
+
+// FinishClaimResponse carries the new owner. The response sets the session
+// cookie.
+message FinishClaimResponse {
+  // The owner.
+  User user = 1;
+}
+
+// BeginPasskeySignInRequest takes no parameters: the browser offers the
+// passkeys it holds for this address.
+message BeginPasskeySignInRequest {}
+
+// BeginPasskeySignInResponse carries the options for the passkey assertion.
+message BeginPasskeySignInResponse {
+  // Pass back to FinishPasskeySignIn.
+  string ceremony_id = 1;
+  // PublicKeyCredentialRequestOptionsJSON.
+  string options_json = 2;
+}
+
+// FinishPasskeySignInRequest carries the passkey's assertion.
+message FinishPasskeySignInRequest {
+  // From BeginPasskeySignIn.
+  string ceremony_id = 1;
+  // AuthenticationResponseJSON from navigator.credentials.get.
+  string credential_json = 2;
+}
+
+// FinishPasskeySignInResponse carries who signed in. The response sets the
+// session cookie.
+message FinishPasskeySignInResponse {
+  // The user.
+  User user = 1;
+}
+
+// SignInWithCodeRequest carries an email and a code.
+message SignInWithCodeRequest {
+  // The account's email.
+  string email = 1;
+  // A 6-digit code from the authenticator app, or a recovery code such as
+  // "7KQ2-M9XD-4TPA-ZR3C".
+  string code = 2;
+}
+
+// SignInWithCodeResponse carries who signed in. The response sets the session
+// cookie.
+message SignInWithCodeResponse {
+  // The user.
+  User user = 1;
+  // True when a recovery code was used. It now no longer works.
+  bool used_recovery_code = 2;
+  // Recovery codes still unused.
+  int32 recovery_codes_left = 3;
+}
+
+// SignInWithLinkRequest carries a sign-in link's token.
+message SignInWithLinkRequest {
+  // The token from the link, the part after "#".
+  string token = 1;
+}
+
+// SignInWithLinkResponse carries who signed in. The response sets the session
+// cookie.
+message SignInWithLinkResponse {
+  // The user.
+  User user = 1;
+}
+
+// SignOutRequest takes no parameters.
+message SignOutRequest {}
+
+// SignOutResponse is empty. The response clears the session cookie.
+message SignOutResponse {}
+
+// ListSessionsRequest takes no parameters.
+message ListSessionsRequest {}
+
+// ListSessionsResponse lists sessions.
+message ListSessionsResponse {
+  // Sessions, newest first.
+  repeated Session sessions = 1;
+}
+
+// Session is one signed-in browser.
+message Session {
+  // The session's ID, such as "ses_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // The browser's User-Agent when it signed in.
+  string user_agent = 2;
+  // The address it was last seen from.
+  string address = 3;
+  // When it signed in.
+  google.protobuf.Timestamp create_time = 4;
+  // When it last made a request.
+  google.protobuf.Timestamp last_seen_time = 5;
+  // When it ends unless it is revoked first: the earlier of its idle and
+  // absolute limits.
+  google.protobuf.Timestamp expire_time = 6;
+  // True for the session making this request.
+  bool current = 7;
+  // How it signed in.
+  SignInMethod sign_in_method = 8;
+  // The address it works on: "localhost" or the panel's domain.
+  string rp_id = 9;
+}
+
+// RevokeSessionRequest names a session.
+message RevokeSessionRequest {
+  // The session's ID.
+  string id = 1;
+}
+
+// RevokeSessionResponse is empty.
+message RevokeSessionResponse {}
+
+// RevokeOtherSessionsRequest takes no parameters.
+message RevokeOtherSessionsRequest {}
+
+// RevokeOtherSessionsResponse says how many sessions ended.
+message RevokeOtherSessionsResponse {
+  // How many sessions were revoked.
+  int32 revoked = 1;
+}
+
+// ListPasskeysRequest takes no parameters.
+message ListPasskeysRequest {}
+
+// ListPasskeysResponse lists passkeys.
+message ListPasskeysResponse {
+  // Passkeys, oldest first.
+  repeated Passkey passkeys = 1;
+}
+
+// Passkey is one of a user's passkeys.
+message Passkey {
+  // The passkey's ID, such as "pky_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // What it is called. Empty when it was given no name.
+  string name = 2;
+  // The address it works on: "localhost" or the panel's domain.
+  string rp_id = 3;
+  // When it was added.
+  google.protobuf.Timestamp create_time = 4;
+  // When it last signed in. Unset if never.
+  google.protobuf.Timestamp last_used_time = 5;
+  // True when the passkey can sync between devices, as with iCloud Keychain
+  // or Google Password Manager.
+  bool synced = 6;
+  // True when it once reported a lower use count than before, which happens
+  // when a passkey is copied. It no longer signs in; remove it.
+  bool suspected_copy = 7;
+}
+
+// BeginAddPasskeyRequest takes no parameters.
+message BeginAddPasskeyRequest {}
+
+// BeginAddPasskeyResponse carries the options for creating the passkey.
+message BeginAddPasskeyResponse {
+  // Pass back to FinishAddPasskey.
+  string ceremony_id = 1;
+  // PublicKeyCredentialCreationOptionsJSON.
+  string options_json = 2;
+}
+
+// FinishAddPasskeyRequest carries the new passkey.
+message FinishAddPasskeyRequest {
+  // From BeginAddPasskey.
+  string ceremony_id = 1;
+  // RegistrationResponseJSON from navigator.credentials.create.
+  string credential_json = 2;
+  // What to call it, such as "YubiKey 5C". Optional.
+  string name = 3;
+}
+
+// FinishAddPasskeyResponse carries the saved passkey.
+message FinishAddPasskeyResponse {
+  // The passkey.
+  Passkey passkey = 1;
+}
+
+// RemovePasskeyRequest names a passkey.
+message RemovePasskeyRequest {
+  // The passkey's ID.
+  string id = 1;
+}
+
+// RemovePasskeyResponse is empty.
+message RemovePasskeyResponse {}
+
+// GetTotpRequest takes no parameters.
+message GetTotpRequest {}
+
+// GetTotpResponse describes code sign-in.
+message GetTotpResponse {
+  // Code sign-in.
+  Totp totp = 1;
+}
+
+// Totp is the state of signing in with an authenticator app.
+message Totp {
+  // True when code sign-in is on.
+  bool enabled = 1;
+  // Recovery codes still unused.
+  int32 recovery_codes_left = 2;
+  // Wrong codes in a row since the last good one.
+  int32 failed_attempts = 3;
+  // When too many wrong codes locked code sign-in. Unset when it isn't locked.
+  // Recovery codes still work while it is locked.
+  google.protobuf.Timestamp lock_time = 4;
+}
+
+// BeginTotpSetupRequest takes no parameters.
+message BeginTotpSetupRequest {}
+
+// BeginTotpSetupResponse carries the new secret.
+message BeginTotpSetupResponse {
+  // The secret in base32, for typing into an authenticator app.
+  string secret = 1;
+  // The otpauth:// URI, for a QR code.
+  string uri = 2;
+}
+
+// ConfirmTotpSetupRequest carries a code from the new secret.
+message ConfirmTotpSetupRequest {
+  // A 6-digit code from the authenticator app.
+  string code = 1;
+}
+
+// ConfirmTotpSetupResponse carries the recovery codes.
+message ConfirmTotpSetupResponse {
+  // Ten one-time recovery codes. They are shown only now; store them safely.
+  repeated string recovery_codes = 1;
+}
+
+// DisableTotpRequest takes no parameters.
+message DisableTotpRequest {}
+
+// DisableTotpResponse is empty.
+message DisableTotpResponse {}
+
+// RegenerateRecoveryCodesRequest takes no parameters.
+message RegenerateRecoveryCodesRequest {}
+
+// RegenerateRecoveryCodesResponse carries the new codes.
+message RegenerateRecoveryCodesResponse {
+  // Ten one-time recovery codes. They are shown only now.
+  repeated string recovery_codes = 1;
+}
+
+// UnlockCodeSignInRequest takes no parameters.
+message UnlockCodeSignInRequest {}
+
+// UnlockCodeSignInResponse is empty.
+message UnlockCodeSignInResponse {}

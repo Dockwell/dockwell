@@ -33,10 +33,14 @@ const (
 
 // Shutdown timing. In-flight requests get StreamGrace to finish on their
 // own; after that, request contexts are cancelled so long-lived streams end,
-// and anything still open at ShutdownTimeout is closed.
+// and a second later anything still open is closed. ShutdownTimeout caps the
+// whole shutdown.
 const (
 	DefaultStreamGrace     = 2 * time.Second
 	DefaultShutdownTimeout = 15 * time.Second
+	// drainAfterCancel is how long cancelled requests have to finish before
+	// what is left is closed.
+	drainAfterCancel = time.Second
 )
 
 // Options configures Serve.
@@ -102,8 +106,15 @@ func Serve(ctx context.Context, ln net.Listener, h http.Handler, opts Options) e
 	}
 
 	logger.Info("shutting down")
+	// Streams get the grace period to finish, then their requests are
+	// cancelled. A moment later, whatever is still open holds nothing worth
+	// waiting for, such as a handler that ignores cancellation, or an HTTP/2
+	// connection that began just as shutdown did and never heard of it. So
+	// it is closed, rather than waited on until the timeout.
 	endStreams := time.AfterFunc(grace, cancelRequests)
 	defer endStreams.Stop()
+	closeRest := time.AfterFunc(grace+drainAfterCancel, func() { _ = srv.Close() })
+	defer closeRest.Stop()
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {

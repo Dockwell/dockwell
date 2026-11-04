@@ -14,6 +14,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0008](0008-panel-libraries.md) | Libraries and tooling for the panel | Accepted |
 | [0009](0009-resources-revisions-and-plans.md) | One resource model, with revisions and plans for every kind | Accepted |
 | [0010](0010-install-script-verifies-with-pinned-cosign.md) | The install script verifies releases with a pinned cosign | Accepted |
+| [0011](0011-claim-and-sign-in.md) | Claim over a tunnel or a domain, then sign in with passkeys | Accepted |
 
 Still open from the PRD: the config-as-code format (extended Compose is recommended; needed in phase 3), and the [open questions](../product/prd.md#risks-open-questions-and-decisions).
 

@@ -419,26 +419,57 @@ role() {
 	}
 }
 
-# panel_url prints where the panel answers here: the listen address the service
-# is given, as in a systemd drop-in or /etc/conf.d/dockwell, or the default.
-panel_url() {
-	listen=
+# service_listen prints the panel's listen address as the service sets it, in
+# a systemd drop-in or /etc/conf.d/dockwell, or nothing when it doesn't.
+service_listen() {
 	case $init in
 	systemd)
 		[ -z "$booted" ] ||
-			listen=$(systemctl show -p Environment --value dockwell 2>/dev/null | tr ' ' '\n' | sed -n 's/^DOCKWELL_LISTEN=//p' | tail -n 1)
+			systemctl show -p Environment --value dockwell 2>/dev/null | tr ' ' '\n' | sed -n 's/^DOCKWELL_LISTEN=//p' | tail -n 1
 		;;
 	openrc)
 		[ ! -r /etc/conf.d/dockwell ] ||
-			listen=$(sed -n 's/^[[:space:]]*\(export[[:space:]]*\)\{0,1\}DOCKWELL_LISTEN=["'"'"']\{0,1\}\([^"'"'"'[:space:]]*\).*/\2/p' /etc/conf.d/dockwell | tail -n 1)
+			sed -n 's/^[[:space:]]*\(export[[:space:]]*\)\{0,1\}DOCKWELL_LISTEN=["'"'"']\{0,1\}\([^"'"'"'[:space:]]*\).*/\2/p' /etc/conf.d/dockwell | tail -n 1
 		;;
 	esac
+}
+
+# panel_url prints where the panel answers here: the listen address the service
+# sets, which check_listen keeps on loopback, or the default.
+panel_url() {
+	listen=$(service_listen)
 	listen=${listen:-127.0.0.1:7600}
-	host=${listen%:*}
-	case $host in
-	'' | 0.0.0.0 | '[::]') host=127.0.0.1 ;;
+	printf 'http://%s:%s\n' "${listen%:*}" "${listen##*:}"
+}
+
+# serves_panel is true when this server runs the control plane, which serves
+# the panel, or will once installed: it has no ticket and hasn't joined one.
+serves_panel() {
+	[ -z "$ticket" ] || return 1
+	[ -x "$BIN" ] || return 0
+	case $("$BIN" role --data-dir "$DATA" 2>/dev/null </dev/null) in
+	agent\ *) return 1 ;;
 	esac
-	printf 'http://%s:%s\n' "$host" "${listen##*:}"
+}
+
+# check_listen refuses, before anything changes, a listen address that
+# dockwell run refuses: the panel stays on loopback, and only a domain serves
+# it beyond this server, over HTTPS. An address without a port is left for
+# dockwell run to explain.
+check_listen() {
+	listen=$(service_listen)
+	case $listen in
+	*:*) ;;
+	*) return 0 ;;
+	esac
+	case ${listen%:*} in
+	127.* | localhost | '[::1]') return 0 ;;
+	esac
+	case $init in
+	systemd) how="with systemctl edit dockwell" ;;
+	openrc) how="from /etc/conf.d/dockwell" ;;
+	esac
+	fail "The service sets DOCKWELL_LISTEN=$listen, which would serve the panel over plain HTTP beyond this server, so Dockwell refuses to start with it. Nothing was installed. Remove it $how, or set it to a loopback address such as 127.0.0.1:7700, then run this again. To reach the panel from elsewhere, set DOCKWELL_DOMAIN instead, which serves it over HTTPS."
 }
 
 # steady is true when the service stays up past its restart delay: a crash
@@ -469,6 +500,15 @@ logs_hint() {
 	case $init in
 	systemd) say "journalctl -u dockwell -n 50" ;;
 	openrc) say "tail -n 50 $OPENRC_LOG" ;;
+	esac
+}
+
+# show_log prints the service's last log lines, which say why it stopped,
+# such as a setting dockwell run refuses.
+show_log() {
+	case $init in
+	systemd) journalctl -u dockwell -n 10 --no-pager -o cat 2>/dev/null >&2 || true ;;
+	openrc) tail -n 10 "$OPENRC_LOG" 2>/dev/null >&2 || true ;;
 	esac
 }
 
@@ -507,8 +547,10 @@ start() {
 		panel=$(panel_url)
 		deadline=$(($(date +%s) + 30))
 		until answers "$panel/healthz"; do
-			[ "$(date +%s)" -lt "$deadline" ] ||
-				fail "Dockwell started, but its panel didn't answer on $panel within 30 s. See what it logged with: $(logs_hint)"
+			if [ "$(date +%s)" -ge "$deadline" ]; then
+				show_log
+				fail "Dockwell started, but its panel didn't answer on $panel within 30 s. Its last log lines, above, say why; see more with: $(logs_hint)"
+			fi
 			nap
 		done
 	else
@@ -523,6 +565,9 @@ install_dockwell() {
 	trap 'exit 130' INT
 	trap 'exit 143' TERM
 
+	if serves_panel; then
+		check_listen
+	fi
 	resolve
 	current=$(installed_version)
 	changed=
@@ -567,12 +612,34 @@ install_dockwell() {
 	if [ "$current_role" = control ]; then
 		panel=$(panel_url)
 		port=${panel##*:}
-		cat <<EOF
+		bound=${panel#http://}
+		bound=${bound%:*}
+		# A new install has no owner yet: print a fresh one-time claim link
+		# and how to open it. Once someone has claimed it, dockwell claim
+		# exits with status 3, and the summary says where the panel is
+		# instead. Any other failure is shown as it is.
+		code=0
+		claim=$("$BIN" claim --data-dir "$DATA" 2>"$tmp/claim.log" </dev/null) || code=$?
+		case $code in
+		0)
+			say "Dockwell v$version is running, and this is your control server."
+			printf '%s\n' "$claim"
+			;;
+		3)
+			cat <<EOF
 Dockwell v$version is running, and this is your control server. Its panel
 listens on $panel. To open it from your computer, forward the port over
 SSH, then open http://localhost:$port there:
 
-  ssh -L $port:127.0.0.1:$port <user>@<this server>
+  ssh -L $port:$bound:$port <user>@<this server>
+EOF
+			;;
+		*)
+			cat "$tmp/claim.log" >&2
+			fail "Dockwell v$version is running, but dockwell claim failed, so there's no link to claim it with. Fix what it says above, then run dockwell claim on this server for a link."
+			;;
+		esac
+		cat <<EOF
 
 To add a server, run dockwell token create here and follow what it prints.
 Other servers reach this one on TCP port 7443, so open it to them.

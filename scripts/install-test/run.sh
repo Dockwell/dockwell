@@ -27,6 +27,8 @@ UNIT=/etc/systemd/system/dockwell.service
 INITD=/etc/init.d/dockwell
 PANEL=http://127.0.0.1:7600
 FIXTURE=http://127.0.0.1:7601
+CONNECTED=$(dirname "$0")/../connected.awk
+[ -r "$CONNECTED" ] || { echo "can't read $CONNECTED, which counts connected servers" >&2; exit 1; }
 MEMORY_LIMIT=$(sed -n 's/^MEMORY_LIMIT=//p' "$INSTALL")
 [ -n "$MEMORY_LIMIT" ] || { echo "can't read MEMORY_LIMIT from $INSTALL" >&2; exit 1; }
 LIMIT=GOMEMLIMIT=$MEMORY_LIMIT
@@ -75,12 +77,9 @@ get_html() {
 	fi
 }
 
-post() {
-	if command -v curl >/dev/null 2>&1; then
-		curl -fsS --max-time 5 -H 'Content-Type: application/json' -d '{}' "$1"
-	else
-		wget -q -T 5 -O - --header 'Content-Type: application/json' --post-data '{}' "$1"
-	fi
+# connected_now counts the servers connected now, by a control plane's log.
+connected_now() {
+	awk -f "$CONNECTED" "$1"
 }
 
 # run_install runs the install script from a release tree, piped to sh, and
@@ -267,7 +266,7 @@ start_direct
 [ -e "$DATA/agent/agent.json" ] || die "joining left no identity in $DATA/agent"
 [ ! -e "$DATA/control" ] || die "a server that joined has a control plane"
 i=0
-until [ "$(post "$FIXTURE/dockwell.v1.ServerService/ListServers" | grep -o '"connection": \{0,1\}"CONNECTION_CONNECTED"' | wc -l)" -ge 2 ]; do
+until [ "$(connected_now "$log/fixture.log")" -ge 2 ]; do
 	i=$((i + 1))
 	[ "$i" -lt 150 ] || die "the agent didn't connect to the control plane within 15 s"
 	sleep 0.1
