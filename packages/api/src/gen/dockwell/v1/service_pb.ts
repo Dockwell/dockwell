@@ -6,9 +6,9 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { Service } from "../resource/v1alpha1/specs_pb";
+import type { Protocol, Service } from "../resource/v1alpha1/specs_pb";
 import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
-import type { Change, FieldChange, ResourceRef } from "./change_pb";
+import type { Change, ChangeState, FieldChange, ResourceRef } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
@@ -20,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/service.proto.
  */
 export const file_dockwell_v1_service: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9zZXJ2aWNlLnByb3RvEgtkb2Nrd2VsbC52MSJiChNMaXN0U2VydmljZXNSZXF1ZXN0Eg8KB3Byb2plY3QYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkSEQoJcGFnZV9zaXplGAMgASgFEhIKCnBhZ2VfdG9rZW4YBCABKAkiWwoUTGlzdFNlcnZpY2VzUmVzcG9uc2USKgoIc2VydmljZXMYASADKAsyGC5kb2Nrd2VsbC52MS5TZXJ2aWNlSW5mbxIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiogIKC1NlcnZpY2VJbmZvEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSEAoIcmV2aXNpb24YAyABKAMSLwoLdXBkYXRlX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjEKBHNwZWMYBSABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5TZXJ2aWNlEjMKC2RlcGxveW1lbnRzGAYgAygLMh4uZG9ja3dlbGwudjEuU2VydmljZURlcGxveW1lbnQSEQoJY2hhbmdlX2lkGAcgASgJEh0KFXJvbGxlZF9iYWNrX2NoYW5nZV9pZBgIIAEoCSKoAQoRU2VydmljZURlcGxveW1lbnQSEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEisKBXN0YXRlGAMgASgOMhwuZG9ja3dlbGwudjEuRGVwbG95bWVudFN0YXRlEg0KBWVycm9yGAQgASgJEi8KC3VwZGF0ZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJQChtMaXN0U2VydmljZVJldmlzaW9uc1JlcXVlc3QSCgoCaWQYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkiaAocTGlzdFNlcnZpY2VSZXZpc2lvbnNSZXNwb25zZRIvCglyZXZpc2lvbnMYASADKAsyHC5kb2Nrd2VsbC52MS5TZXJ2aWNlUmV2aXNpb24SFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIvcBCg9TZXJ2aWNlUmV2aXNpb24SDgoGbnVtYmVyGAEgASgDEi8KC2NyZWF0ZV90aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVpbWFnZRgDIAEoCRIPCgdkZWxldGVkGAQgASgIEiMKBmNoYW5nZRgFIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZRIpCgdjaGFuZ2VzGAYgAygLMhguZG9ja3dlbGwudjEuRmllbGRDaGFuZ2USMwoLZGVwbG95bWVudHMYByADKAsyHi5kb2Nrd2VsbC52MS5TZXJ2aWNlRGVwbG95bWVudCJCChREZXBsb3lTZXJ2aWNlUmVxdWVzdBIKCgJpZBgBIAEoCRINCgVpbWFnZRgCIAEoCRIPCgdzdW1tYXJ5GAMgASgJIjwKFURlcGxveVNlcnZpY2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiRwoWUm9sbEJhY2tTZXJ2aWNlUmVxdWVzdBIKCgJpZBgBIAEoCRIQCghyZXZpc2lvbhgCIAEoAxIPCgdzdW1tYXJ5GAMgASgJIj4KF1JvbGxCYWNrU2VydmljZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSqqAQoPRGVwbG95bWVudFN0YXRlEiAKHERFUExPWU1FTlRfU1RBVEVfVU5TUEVDSUZJRUQQABIcChhERVBMT1lNRU5UX1NUQVRFX1BFTkRJTkcQARIZChVERVBMT1lNRU5UX1NUQVRFX0xJVkUQAhIbChdERVBMT1lNRU5UX1NUQVRFX0ZBSUxFRBADEh8KG0RFUExPWU1FTlRfU1RBVEVfU1VQRVJTRURFRBAEMrYECg5TZXJ2aWNlU2VydmljZRJwCgxMaXN0U2VydmljZXMSIC5kb2Nrd2VsbC52MS5MaXN0U2VydmljZXNSZXF1ZXN0GiEuZG9ja3dlbGwudjEuTGlzdFNlcnZpY2VzUmVzcG9uc2UiG5ACAaC7GAGC0+STAg4SDC92MS9zZXJ2aWNlcxKmAQoUTGlzdFNlcnZpY2VSZXZpc2lvbnMSKC5kb2Nrd2VsbC52MS5MaXN0U2VydmljZVJldmlzaW9uc1JlcXVlc3QaKS5kb2Nrd2VsbC52MS5MaXN0U2VydmljZVJldmlzaW9uc1Jlc3BvbnNlIjmQAgGguxgBqrsYCxIJcmV2aXNpb25zgtPkkwIdEhsvdjEvc2VydmljZXMve2lkfS9yZXZpc2lvbnMSfwoNRGVwbG95U2VydmljZRIhLmRvY2t3ZWxsLnYxLkRlcGxveVNlcnZpY2VSZXF1ZXN0GiIuZG9ja3dlbGwudjEuRGVwbG95U2VydmljZVJlc3BvbnNlIieguxgCgtPkkwIdOgEqIhgvdjEvc2VydmljZXMve2lkfTpkZXBsb3kShwEKD1JvbGxCYWNrU2VydmljZRIjLmRvY2t3ZWxsLnYxLlJvbGxCYWNrU2VydmljZVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5Sb2xsQmFja1NlcnZpY2VSZXNwb25zZSIpoLsYAoLT5JMCHzoBKiIaL3YxL3NlcnZpY2VzL3tpZH06cm9sbGJhY2tCpQEKD2NvbS5kb2Nrd2VsbC52MUIMU2VydmljZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9zZXJ2aWNlLnByb3RvEgtkb2Nrd2VsbC52MSJiChNMaXN0U2VydmljZXNSZXF1ZXN0Eg8KB3Byb2plY3QYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkSEQoJcGFnZV9zaXplGAMgASgFEhIKCnBhZ2VfdG9rZW4YBCABKAkiWwoUTGlzdFNlcnZpY2VzUmVzcG9uc2USKgoIc2VydmljZXMYASADKAsyGC5kb2Nrd2VsbC52MS5TZXJ2aWNlSW5mbxIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAki0gIKC1NlcnZpY2VJbmZvEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSEAoIcmV2aXNpb24YAyABKAMSLwoLdXBkYXRlX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjEKBHNwZWMYBSABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5TZXJ2aWNlEjMKC2RlcGxveW1lbnRzGAYgAygLMh4uZG9ja3dlbGwudjEuU2VydmljZURlcGxveW1lbnQSEQoJY2hhbmdlX2lkGAcgASgJEh0KFXJvbGxlZF9iYWNrX2NoYW5nZV9pZBgIIAEoCRIuCgxjaGFuZ2Vfc3RhdGUYCSABKA4yGC5kb2Nrd2VsbC52MS5DaGFuZ2VTdGF0ZSKoAQoRU2VydmljZURlcGxveW1lbnQSEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEisKBXN0YXRlGAMgASgOMhwuZG9ja3dlbGwudjEuRGVwbG95bWVudFN0YXRlEg0KBWVycm9yGAQgASgJEi8KC3VwZGF0ZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJ2ChtMaXN0U2VydmljZVJldmlzaW9uc1JlcXVlc3QSCgoCaWQYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkSDwoHcHJvamVjdBgEIAEoCRITCgtlbnZpcm9ubWVudBgFIAEoCSJoChxMaXN0U2VydmljZVJldmlzaW9uc1Jlc3BvbnNlEi8KCXJldmlzaW9ucxgBIAMoCzIcLmRvY2t3ZWxsLnYxLlNlcnZpY2VSZXZpc2lvbhIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkipwIKD1NlcnZpY2VSZXZpc2lvbhIOCgZudW1iZXIYASABKAMSLwoLY3JlYXRlX3RpbWUYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWltYWdlGAMgASgJEg8KB2RlbGV0ZWQYBCABKAgSIwoGY2hhbmdlGAUgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlEikKB2NoYW5nZXMYBiADKAsyGC5kb2Nrd2VsbC52MS5GaWVsZENoYW5nZRIzCgtkZXBsb3ltZW50cxgHIAMoCzIeLmRvY2t3ZWxsLnYxLlNlcnZpY2VEZXBsb3ltZW50EhYKDm1hdGNoZXNfbGF0ZXN0GAggASgIEhYKDnJvbGxlZF9iYWNrX3RvGAkgASgDImgKFERlcGxveVNlcnZpY2VSZXF1ZXN0EgoKAmlkGAEgASgJEg0KBWltYWdlGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSDwoHcHJvamVjdBgEIAEoCRITCgtlbnZpcm9ubWVudBgFIAEoCSI8ChVEZXBsb3lTZXJ2aWNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIm0KFlJvbGxCYWNrU2VydmljZVJlcXVlc3QSCgoCaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAMSDwoHc3VtbWFyeRgDIAEoCRIPCgdwcm9qZWN0GAQgASgJEhMKC2Vudmlyb25tZW50GAUgASgJIj4KF1JvbGxCYWNrU2VydmljZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSLOAQoVQWRkU2VydmljZVBvcnRSZXF1ZXN0EgoKAmlkGAEgASgJEhEKCWhvc3RfcG9ydBgCIAEoDRIWCg5jb250YWluZXJfcG9ydBgDIAEoDRI2Cghwcm90b2NvbBgEIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlByb3RvY29sEg8KB2hvc3RfaXAYBSABKAkSDwoHc3VtbWFyeRgGIAEoCRIPCgdwcm9qZWN0GAcgASgJEhMKC2Vudmlyb25tZW50GAggASgJIj0KFkFkZFNlcnZpY2VQb3J0UmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlKqoBCg9EZXBsb3ltZW50U3RhdGUSIAocREVQTE9ZTUVOVF9TVEFURV9VTlNQRUNJRklFRBAAEhwKGERFUExPWU1FTlRfU1RBVEVfUEVORElORxABEhkKFURFUExPWU1FTlRfU1RBVEVfTElWRRACEhsKF0RFUExPWU1FTlRfU1RBVEVfRkFJTEVEEAMSHwobREVQTE9ZTUVOVF9TVEFURV9TVVBFUlNFREVEEAQyyAUKDlNlcnZpY2VTZXJ2aWNlEnAKDExpc3RTZXJ2aWNlcxIgLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2aWNlc1JlcXVlc3QaIS5kb2Nrd2VsbC52MS5MaXN0U2VydmljZXNSZXNwb25zZSIbkAIBoLsYAYLT5JMCDhIML3YxL3NlcnZpY2VzEqYBChRMaXN0U2VydmljZVJldmlzaW9ucxIoLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2aWNlUmV2aXNpb25zUmVxdWVzdBopLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2aWNlUmV2aXNpb25zUmVzcG9uc2UiOZACAaC7GAGquxgLEglyZXZpc2lvbnOC0+STAh0SGy92MS9zZXJ2aWNlcy97aWR9L3JldmlzaW9ucxJ/Cg1EZXBsb3lTZXJ2aWNlEiEuZG9ja3dlbGwudjEuRGVwbG95U2VydmljZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5EZXBsb3lTZXJ2aWNlUmVzcG9uc2UiJ6C7GAKC0+STAh06ASoiGC92MS9zZXJ2aWNlcy97aWR9OmRlcGxveRKHAQoPUm9sbEJhY2tTZXJ2aWNlEiMuZG9ja3dlbGwudjEuUm9sbEJhY2tTZXJ2aWNlUmVxdWVzdBokLmRvY2t3ZWxsLnYxLlJvbGxCYWNrU2VydmljZVJlc3BvbnNlIimguxgCgtPkkwIfOgEqIhovdjEvc2VydmljZXMve2lkfTpyb2xsYmFjaxKPAQoOQWRkU2VydmljZVBvcnQSIi5kb2Nrd2VsbC52MS5BZGRTZXJ2aWNlUG9ydFJlcXVlc3QaIy5kb2Nrd2VsbC52MS5BZGRTZXJ2aWNlUG9ydFJlc3BvbnNlIjSguxgCqrsYChIIYWRkLXBvcnSC0+STAhw6ASoiFy92MS9zZXJ2aWNlcy97aWR9L3BvcnRzQqUBCg9jb20uZG9ja3dlbGwudjFCDFNlcnZpY2VQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListServicesRequest asks for a page of services.
@@ -140,8 +140,9 @@ export type ServiceInfo = Message<"dockwell.v1.ServiceInfo"> & {
   spec?: Service | undefined;
 
   /**
-   * The latest revision on each server it is placed on. Empty on a service
-   * no server has, as when each server it ran on was removed.
+   * The latest revision on each server it is placed on, even a server that
+   * has since left the fleet, which is how a surface tells that no server
+   * runs it any more. Empty only on a revision that placed it nowhere.
    *
    * @generated from field: repeated dockwell.v1.ServiceDeployment deployments = 6;
    */
@@ -162,6 +163,14 @@ export type ServiceInfo = Message<"dockwell.v1.ServiceInfo"> & {
    * @generated from field: string rolled_back_change_id = 8;
    */
   rolledBackChangeId: string;
+
+  /**
+   * How the change that made its latest revision stands. A deployment still
+   * pending under a change that has failed will not move again.
+   *
+   * @generated from field: dockwell.v1.ChangeState change_state = 9;
+   */
+  changeState: ChangeState;
 };
 
 /**
@@ -227,7 +236,7 @@ export const ServiceDeploymentSchema: GenMessage<ServiceDeployment> = /*@__PURE_
  */
 export type ListServiceRevisionsRequest = Message<"dockwell.v1.ListServiceRevisionsRequest"> & {
   /**
-   * The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   * The service, by ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or by name.
    *
    * @generated from field: string id = 1;
    */
@@ -247,6 +256,22 @@ export type ListServiceRevisionsRequest = Message<"dockwell.v1.ListServiceRevisi
    * @generated from field: string page_token = 3;
    */
   pageToken: string;
+
+  /**
+   * The project of a service named by name, by name or ID, when more than one
+   * has a service of that name.
+   *
+   * @generated from field: string project = 4;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID, when its
+   * project has more than one.
+   *
+   * @generated from field: string environment = 5;
+   */
+  environment: string;
 };
 
 /**
@@ -341,6 +366,22 @@ export type ServiceRevision = Message<"dockwell.v1.ServiceRevision"> & {
    * @generated from field: repeated dockwell.v1.ServiceDeployment deployments = 7;
    */
   deployments: ServiceDeployment[];
+
+  /**
+   * True when going back to it would do nothing: it has the spec of the latest
+   * revision, on the same servers.
+   *
+   * @generated from field: bool matches_latest = 8;
+   */
+  matchesLatest: boolean;
+
+  /**
+   * The revision it put back, for a revision made by RollBackService. 0 for
+   * any other.
+   *
+   * @generated from field: int64 rolled_back_to = 9;
+   */
+  rolledBackTo: bigint;
 };
 
 /**
@@ -357,7 +398,7 @@ export const ServiceRevisionSchema: GenMessage<ServiceRevision> = /*@__PURE__*/
  */
 export type DeployServiceRequest = Message<"dockwell.v1.DeployServiceRequest"> & {
   /**
-   * The service's ID.
+   * The service, by ID or by name.
    *
    * @generated from field: string id = 1;
    */
@@ -376,6 +417,22 @@ export type DeployServiceRequest = Message<"dockwell.v1.DeployServiceRequest"> &
    * @generated from field: string summary = 3;
    */
   summary: string;
+
+  /**
+   * The project of a service named by name, by name or ID, when more than one
+   * has a service of that name.
+   *
+   * @generated from field: string project = 4;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID, when its
+   * project has more than one.
+   *
+   * @generated from field: string environment = 5;
+   */
+  environment: string;
 };
 
 /**
@@ -413,7 +470,7 @@ export const DeployServiceResponseSchema: GenMessage<DeployServiceResponse> = /*
  */
 export type RollBackServiceRequest = Message<"dockwell.v1.RollBackServiceRequest"> & {
   /**
-   * The service's ID.
+   * The service, by ID or by name.
    *
    * @generated from field: string id = 1;
    */
@@ -433,6 +490,22 @@ export type RollBackServiceRequest = Message<"dockwell.v1.RollBackServiceRequest
    * @generated from field: string summary = 3;
    */
   summary: string;
+
+  /**
+   * The project of a service named by name, by name or ID, when more than one
+   * has a service of that name.
+   *
+   * @generated from field: string project = 4;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID, when its
+   * project has more than one.
+   *
+   * @generated from field: string environment = 5;
+   */
+  environment: string;
 };
 
 /**
@@ -462,6 +535,100 @@ export type RollBackServiceResponse = Message<"dockwell.v1.RollBackServiceRespon
  */
 export const RollBackServiceResponseSchema: GenMessage<RollBackServiceResponse> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_service, 10);
+
+/**
+ * AddServicePortRequest names a service and the port to publish.
+ *
+ * @generated from message dockwell.v1.AddServicePortRequest
+ */
+export type AddServicePortRequest = Message<"dockwell.v1.AddServicePortRequest"> & {
+  /**
+   * The service, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The port on the server, such as 8080.
+   *
+   * @generated from field: uint32 host_port = 2;
+   */
+  hostPort: number;
+
+  /**
+   * The port in the app, such as 80.
+   *
+   * @generated from field: uint32 container_port = 3;
+   */
+  containerPort: number;
+
+  /**
+   * TCP when unset.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.Protocol protocol = 4;
+   */
+  protocol: Protocol;
+
+  /**
+   * The server's address to publish on, such as "127.0.0.1". Empty publishes
+   * on every address.
+   *
+   * @generated from field: string host_ip = 5;
+   */
+  hostIp: string;
+
+  /**
+   * What the change is for, for the timeline. Empty says which port it adds.
+   *
+   * @generated from field: string summary = 6;
+   */
+  summary: string;
+
+  /**
+   * The project of a service named by name, by name or ID, when more than one
+   * has a service of that name.
+   *
+   * @generated from field: string project = 7;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID, when its
+   * project has more than one.
+   *
+   * @generated from field: string environment = 8;
+   */
+  environment: string;
+};
+
+/**
+ * Describes the message dockwell.v1.AddServicePortRequest.
+ * Use `create(AddServicePortRequestSchema)` to create a new message.
+ */
+export const AddServicePortRequestSchema: GenMessage<AddServicePortRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service, 11);
+
+/**
+ * AddServicePortResponse carries the planned change.
+ *
+ * @generated from message dockwell.v1.AddServicePortResponse
+ */
+export type AddServicePortResponse = Message<"dockwell.v1.AddServicePortResponse"> & {
+  /**
+   * The change, planned, with its plan.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.AddServicePortResponse.
+ * Use `create(AddServicePortResponseSchema)` to create a new message.
+ */
+export const AddServicePortResponseSchema: GenMessage<AddServicePortResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service, 12);
 
 /**
  * DeploymentState is where one revision is on one server.
@@ -516,8 +683,11 @@ export const DeploymentStateSchema: GenEnum<DeploymentState> = /*@__PURE__*/
  * image, or an earlier revision. Each plan is a change, ready to apply or
  * discard, as ProposeChange makes. See docs/adr/0026-the-app-screens.md.
  *
- * It never carries a secret: a spec's sensitive values are blanked, so an
- * environment variable shows by name alone.
+ * It blanks a spec's sensitive values, so an environment variable shows by name
+ * alone. What isn't marked sensitive it shows, as seeing a command is useful:
+ * a Compose file that writes a variable's value into a command, entrypoint,
+ * label or health check has it read back from there, which importing the file
+ * says (ExposedVariable).
  *
  * @generated from service dockwell.v1.ServiceService
  */
@@ -536,7 +706,8 @@ export const ServiceService: GenService<{
   /**
    * ListServiceRevisions returns a service's revisions, newest first, a page
    * at a time: what each changed, who made it and from where, and how each
-   * deployed.
+   * deployed. A service goes by its ID, or by its name where that is enough
+   * to say which.
    *
    * @generated from rpc dockwell.v1.ServiceService.ListServiceRevisions
    */
@@ -562,7 +733,9 @@ export const ServiceService: GenService<{
    * it, on the servers that revision ran on that are still in the fleet.
    * Unlike UndoChange it takes any earlier revision, and touches this
    * service alone, whatever else the change that made the revision did. It
-   * brings back the spec, not the data in a volume.
+   * brings back the spec, not the data in a volume, which the plan's notes
+   * say. It refuses a revision that already matches what runs, as that plan
+   * would do nothing (matches_latest).
    *
    * @generated from rpc dockwell.v1.ServiceService.RollBackService
    */
@@ -570,6 +743,18 @@ export const ServiceService: GenService<{
     methodKind: "unary";
     input: typeof RollBackServiceRequestSchema;
     output: typeof RollBackServiceResponseSchema;
+  },
+  /**
+   * AddServicePort plans publishing one more port, with the rest of the
+   * service as it is: like DeployService, it needs no one to read the service's
+   * environment back.
+   *
+   * @generated from rpc dockwell.v1.ServiceService.AddServicePort
+   */
+  addServicePort: {
+    methodKind: "unary";
+    input: typeof AddServicePortRequestSchema;
+    output: typeof AddServicePortResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_service, 0);

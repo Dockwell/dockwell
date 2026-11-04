@@ -227,6 +227,32 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 	return c, rows.Err()
 }
 
+// GetChanges reads the changes named, by ID, in one query, without their
+// items. A change that isn't there isn't in the map.
+func (t *Tx) GetChanges(ctx context.Context, changeIDs []string) (map[string]Change, error) {
+	out := make(map[string]Change, len(changeIDs))
+	if len(changeIDs) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(changeIDs))
+	for i, id := range changeIDs {
+		args[i] = id
+	}
+	rows, err := t.query(ctx, `SELECT `+changeColumns+` FROM changes WHERE id IN (`+marks(len(args))+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read changes: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		c, err := scanChange(rows)
+		if err != nil {
+			return nil, fmt.Errorf("can't read changes: %w", err)
+		}
+		out[c.ID] = c
+	}
+	return out, rows.Err()
+}
+
 // ChangePage names where a page of changes starts: after the change with
 // this creation time and ID, going back in time. The zero value starts with
 // the newest.
@@ -720,6 +746,37 @@ func (t *Tx) Deployments(ctx context.Context, resourceID string, revision int) (
 		}
 		d.Error, d.CreatedAt, d.UpdatedAt = errText.String, fromMillis(created), fromMillis(updated)
 		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+// DeploymentsOf returns where each of a resource's revisions named was placed,
+// by revision and then server, in one query.
+func (t *Tx) DeploymentsOf(ctx context.Context, resourceID string, revisions []int) (map[int][]Deployment, error) {
+	out := make(map[int][]Deployment, len(revisions))
+	if len(revisions) == 0 {
+		return out, nil
+	}
+	args := make([]any, 0, len(revisions)+1)
+	args = append(args, resourceID)
+	for _, n := range revisions {
+		args = append(args, n)
+	}
+	rows, err := t.query(ctx, `SELECT resource_id, revision, server_id, state, error, created_at, updated_at
+		FROM deployments WHERE resource_id = ? AND revision IN (`+marks(len(revisions))+`) ORDER BY revision, server_id`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the deployments of %s: %w", resourceID, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var d Deployment
+		var errText sql.NullString
+		var created, updated int64
+		if err := rows.Scan(&d.ResourceID, &d.Revision, &d.Server, &d.State, &errText, &created, &updated); err != nil {
+			return nil, fmt.Errorf("can't read the deployments of %s: %w", resourceID, err)
+		}
+		d.Error, d.CreatedAt, d.UpdatedAt = errText.String, fromMillis(created), fromMillis(updated)
+		out[d.Revision] = append(out[d.Revision], d)
 	}
 	return out, rows.Err()
 }

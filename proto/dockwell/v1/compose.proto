@@ -10,18 +10,21 @@ import "dockwell/v1/options.proto";
 import "dockwell/v1/service.proto";
 import "google/api/annotations.proto";
 
-// ComposeService turns a Docker Compose file into an environment's
-// services, volumes and networks, and any of them back into one. An
-// environment is one Compose project: its containers carry the labels
-// Docker Compose gives its own, so docker compose sees them, and an
-// exported file runs the same with docker compose alone (PRD principle 6).
-// See docs/adr/0021-the-docker-driver.md.
+// ComposeService turns a Docker Compose file into a project's services,
+// volumes and networks, and any of them back into one. Each file gets a
+// project of its own, so two files with a service of one name run side by
+// side, on networks of their own, as they do under docker compose. An
+// environment is one Compose project: its containers carry the labels Docker
+// Compose gives its own, so docker compose sees them, and an exported file
+// runs the same with docker compose alone (PRD principle 6). See
+// docs/adr/0021-the-docker-driver.md and docs/adr/0026-the-app-screens.md.
 service ComposeService {
-  // ImportCompose plans a Compose file into an environment as a change,
-  // ready to apply or discard, as ProposeChange does with edits. Each
-  // Compose service becomes a service, and each named volume and network
-  // one of its own. A field of the file that Dockwell can't run yet is
-  // refused, by name, rather than dropped.
+  // ImportCompose plans a Compose file into a project as a change, ready to
+  // apply or discard, as ProposeChange does with edits. Each Compose service
+  // becomes a service, and each named volume and network one of its own. A
+  // field of the file that Dockwell can't run yet is refused, by name, rather
+  // than dropped. The plan brings the project to life if it doesn't exist yet,
+  // and importing into one that does shows as updates.
   rpc ImportCompose(ImportComposeRequest) returns (ImportComposeResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (google.api.http) = {
@@ -54,16 +57,20 @@ service ComposeService {
   }
 }
 
-// ImportComposeRequest is a Compose file to plan into an environment.
+// ImportComposeRequest is a Compose file to plan into a project.
 message ImportComposeRequest {
   // What the change is for, such as "Run the shop's stack". Empty says it
   // came from a Compose file.
   string summary = 1;
-  // The project of the environment, by name or ID. Leave it out while
-  // there is only one project, or when environment is an ID.
+  // The project it belongs to, by name or ID, such as "shop". One that doesn't
+  // exist yet comes to life with the plan. Left out, the file's name: names
+  // it. With neither, the file goes in the default project, only while that
+  // has no apps: otherwise it is refused, as a service of the same name would
+  // change the one that is there.
   string project = 2;
   // The environment, by name or ID. Leave it out while its project has
-  // only one.
+  // only one. A project the plan brings to life starts with this one, or
+  // with production.
   string environment = 3;
   // The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
   // up to 256 KiB. A path relative to the file needs directory, as it runs on
@@ -97,6 +104,9 @@ message ImportComposeRequest {
 message ImportComposeResponse {
   // The change, planned, with its plan.
   Change change = 1;
+  // Where the file writes a variable's value in plain sight, which the plan's
+  // notes say too.
+  repeated ExposedVariable exposed_variables = 2;
 }
 
 // CheckComposeRequest is a Compose file to read.
@@ -123,6 +133,30 @@ message CheckComposeResponse {
   repeated string volumes = 4;
   // The networks it would make, by name. Empty when it is refused.
   repeated string networks = 5;
+  // The project the file names for itself, for a form to fill in, whether or
+  // not the file can be read further than that: its name:, or, for a file
+  // exported from an environment here, that environment's project. Empty when
+  // it names none, or names itself with a variable that has no value yet.
+  string name = 6;
+  // Where the file writes a variable's value in plain sight, as far as the
+  // values given let it read. A variable with no value yet counts, so a form
+  // can say so before anyone types a secret.
+  repeated ExposedVariable exposed_variables = 7;
+}
+
+// ExposedVariable is a variable whose value a Compose file writes where anyone
+// who can read the service sees it. Only a service's environment is blanked:
+// a command, entrypoint, label or health check isn't, as seeing them is useful
+// and they rarely hold a secret. One that has to stays hidden belongs in
+// environment, with $$NAME in the command for the container's shell to read.
+message ExposedVariable {
+  // The variable, such as "REDIS_PASSWORD".
+  string name = 1;
+  // The service whose spec holds its value, such as "shop".
+  string service = 2;
+  // The field that holds it: "command", "entrypoint", "labels" or
+  // "healthcheck".
+  string field = 3;
 }
 
 // ComposeRefusal is why a Compose file can't be imported.

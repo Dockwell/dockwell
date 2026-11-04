@@ -199,7 +199,7 @@ func apiRoutes(cfg Config, ui http.Handler) (http.Handler, error) {
 	if cfg.Changes != nil {
 		ch := changes.New(cfg.Changes, cfg.Store, cfg.Logger)
 		handle(dockwellv1connect.NewChangeServiceHandler(ch, opts...))
-		handle(dockwellv1connect.NewComposeServiceHandler(composeapi.New(ch, cfg.Changes.Kinds(), cfg.Store, cfg.Secrets, cfg.Logger), opts...))
+		handle(dockwellv1connect.NewComposeServiceHandler(composeapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
 		if cfg.Secrets != nil && cfg.Auth != nil {

@@ -36,29 +36,41 @@ type Variable struct {
 	Required bool
 }
 
-// Variables lists the variables a file uses, by name, as Parse reads them:
-// $NAME, ${NAME} and ${NAME:?why} need a value, and ${NAME:-default} and
-// ${NAME:+other} have what they need. A $$ is a dollar sign. A file Parse
-// wouldn't read further than this uses none: one that isn't YAML, or comes to
-// too much once its aliases are read, which reading each alias again here
-// would pay for.
-func Variables(ctx context.Context, file []byte) []Variable {
+// Inspection is what a file says of itself, whether or not Parse would take
+// it: what a form shows as someone types one.
+type Inspection struct {
+	// Name is what its name: calls it. Empty for a file with none, or one
+	// named by a variable that has no value yet.
+	Name string
+	// Variables are the variables it uses, by name.
+	Variables []Variable
+	// Exposed says where it writes a value in plain sight, from the values
+	// given, as far as they let it read.
+	Exposed []Exposed
+}
+
+// Inspect reads what a file says of itself, as Parse reads it: $NAME, ${NAME}
+// and ${NAME:?why} need a value, and ${NAME:-default} and ${NAME:+other} have
+// what they need. A $$ is a dollar sign. A file Parse wouldn't read further
+// than this says nothing: one that isn't YAML, or comes to too much once its
+// aliases are read, which reading each alias again here would pay for.
+func Inspect(ctx context.Context, file []byte, given map[string]string) Inspection {
 	if len(file) > MaxFile {
-		return nil
+		return Inspection{}
 	}
 	select {
 	case parsing <- struct{}{}:
 		defer func() { <-parsing }()
 	case <-ctx.Done():
-		return nil
+		return Inspection{}
 	}
 	var raw map[string]any
 	if yaml.Unmarshal(file, &raw) != nil {
-		return nil
+		return Inspection{}
 	}
 	dropExtensions(raw)
 	if measure(raw) != nil {
-		return nil
+		return Inspection{}
 	}
 	seen := map[string]bool{}
 	note := func(name string, required bool) { seen[name] = seen[name] || required }
@@ -78,12 +90,30 @@ func Variables(ctx context.Context, file []byte) []Variable {
 		}
 	}
 	walk(raw)
-	out := make([]Variable, 0, len(seen))
+	out := Inspection{Variables: make([]Variable, 0, len(seen))}
 	for name, required := range seen {
-		out = append(out, Variable{Name: name, Required: required})
+		out.Variables = append(out.Variables, Variable{Name: name, Required: required})
 	}
-	slices.SortFunc(out, func(a, b Variable) int { return cmp.Compare(a.Name, b.Name) })
+	slices.SortFunc(out.Variables, func(a, b Variable) int { return cmp.Compare(a.Name, b.Name) })
+	// What it finds up to a refusal is still true, and Parse says the refusal.
+	in := &interpolator{variables: given, missing: map[string]bool{}}
+	read, _ := in.walk(place{owner: fileOwner}, raw)
+	out.Exposed = in.report()
+	if name, ok := raw["name"].(string); ok {
+		if !strings.Contains(name, "$") {
+			out.Name = name
+		} else if resolved, ok := read.(map[string]any); ok && !usesMissing(name, in.missing) {
+			out.Name, _ = resolved["name"].(string)
+		}
+	}
 	return out
+}
+
+// usesMissing reports a string that uses a variable with no value.
+func usesMissing(s string, missing map[string]bool) bool {
+	found := false
+	scanVariables(s, 0, func(name string, _ bool) { found = found || missing[name] })
+	return found
 }
 
 // scanVariables notes each variable s uses, with the syntax substitute

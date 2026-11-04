@@ -48,32 +48,19 @@ type Item[T any] struct {
 // make it: networks and volumes first, then services, each after those it
 // depends on.
 type Stack struct {
+	// Name is what the file's name: calls it, as written once its variables
+	// are read: the project it belongs to, unless a request names another.
+	// Empty for a file with none.
+	Name     string
 	Networks []Item[*resourcev1.Network]
 	Volumes  []Item[*resourcev1.Volume]
 	Services []Item[*resourcev1.Service]
 	// Variables are the values of the environment's variables, by name, for
 	// Export to write for the services that use them. Never a secret's.
 	Variables map[string]string
-	// Notices are what the plan should say of the file that no step does.
-	Notices []Notice
-	// Exposed says where the file writes a variable's value that anyone who can
-	// read what it makes sees, for the plan to warn of.
+	// Exposed says where the file writes a variable's value that anyone who
+	// can read the service can see, for a surface to warn about.
 	Exposed []Exposed
-	// ExposedMore says the file writes more than Exposed lists.
-	ExposedMore bool
-}
-
-// Notice is what a plan should say of a file that no step does, such as an
-// image the file builds and Dockwell doesn't.
-type Notice struct {
-	// Reason says what it is about, for a surface with words of its own.
-	Reason string
-	// Service is the service it is about.
-	Service string
-	// Message says it, for people. It holds only what has been checked.
-	Message string
-	// Names are what it is about, such as the image.
-	Names []string
 }
 
 // ErrInvalid is a Compose file Dockwell can't take, with why.
@@ -456,15 +443,7 @@ func parse(in Input) (*Stack, error) {
 	// matters comes back as an error.
 	quiet.Do(func() { logrus.SetOutput(io.Discard) })
 
-	built, err := takeBuilds(raw)
-	if err != nil {
-		return nil, err
-	}
 	dict, exposed, err := interpolate(raw, variables)
-	if err != nil {
-		return nil, err
-	}
-	limits, unkept, err := takeResources(dict)
 	if err != nil {
 		return nil, err
 	}
@@ -488,55 +467,13 @@ func parse(in Input) (*Stack, error) {
 	if err := m.resolve(variables, in.Directory); err != nil {
 		return nil, err
 	}
-	for _, name := range built {
-		image := m.Services[name].Image
-		if err := container.CheckImage(image); err != nil {
-			return nil, invalid("the service %s: %v", name, err)
-		}
-		m.notices = append(m.notices, Notice{
-			Reason: "no_build", Service: name, Names: []string{image},
-			Message: fmt.Sprintf("%s has build beside image, and Dockwell builds nothing, so it runs %s as named: that image must be on the server, or a pull must be able to get it", name, image),
-		})
-	}
 	out, err := stack(&m)
 	if err != nil {
 		return nil, err
 	}
-	out.Exposed, out.ExposedMore = exposed.report()
-	if err := checkPlanWords(out); err != nil {
-		return nil, err
-	}
+	out.Name, _ = dict["name"].(string)
+	out.Exposed = exposed
 	return out, nil
-}
-
-// A name a plan's notes say: what a service, a network, a container, an image, a
-// variable or a field can be called, and nothing that could read as words. Square
-// brackets are for an image's registry at an IPv6 address.
-var planName = regexp.MustCompile(`^[A-Za-z0-9_\[][A-Za-z0-9_.:/@+\[\]-]*$`)
-
-// maxPlanName is the most of one that a plan says: an image with a long tag and a
-// digest fits.
-const maxPlanName = 512
-
-// checkPlanWords refuses a file whose names a plan couldn't say as they are, since
-// a plan's notes are Dockwell's words with names in them. Each name has a check of
-// its own, which says more. This is what holds if a new note names something that
-// doesn't, so a file's values can't write what a person reads as the plan's. It
-// doesn't repeat the name, as it may come from a variable.
-func checkPlanWords(s *Stack) error {
-	var names []string
-	for _, n := range s.Notices {
-		names = append(append(names, n.Service), n.Names...)
-	}
-	for _, e := range s.Exposed {
-		names = append(names, e.Variable, e.Owner, e.Field)
-	}
-	for _, name := range names {
-		if len(name) > maxPlanName || !planName.MatchString(name) {
-			return invalid("the Compose file names something a plan can't say as it is. Use letters, digits, dots, dashes and underscores in its names")
-		}
-	}
-	return nil
 }
 
 // decode reads a canonical Compose model into compose-go's types, as its

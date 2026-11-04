@@ -195,6 +195,24 @@ type Edit struct {
 	// server is never one of them. Other kinds ignore it: a host-level
 	// resource is on its server, and projects and environments run on none.
 	Servers []string
+	// ID is what a new resource is called, so another edit in the change can
+	// live in it (NewProject). Empty gets it a new one. A resource that has
+	// been made before keeps the one it has.
+	ID string
+}
+
+// Note is something a person should know before applying a plan that no step
+// says, as it is about what stays as it is or what can be read. It never stops
+// anyone applying it.
+type Note struct {
+	// Reason says what it is about, for a surface with words of its own.
+	Reason string
+	// Message says it, for people.
+	Message string
+	// Ref is the resource it is about.
+	Ref resource.Ref
+	// Names are what it is about, as the API's PlanNote says.
+	Names []string `json:",omitempty"`
 }
 
 // Note is something a person should know before applying a plan that no step
@@ -218,6 +236,8 @@ type Proposal struct {
 	Via     string // where it comes from, such as ViaPanel
 	Edits   []Edit
 	Notes   []Note // what the plan should say beside its steps
+	// RollsBackTo is the revision it puts back, for RollBackTo to record.
+	RollsBackTo int
 }
 
 // Plan is what applying a change would do.
@@ -242,6 +262,8 @@ type Plan struct {
 	// Notes are what a person should know before applying it. They aren't in
 	// the fingerprint: they say nothing about what it does.
 	Notes []Note `json:",omitempty"`
+	// RollsBackTo is the revision it puts back, for a plan RollBackTo made.
+	RollsBackTo int `json:",omitempty"`
 }
 
 // How a change's fingerprint is made, as its record says (ADR 0022).
@@ -453,7 +475,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err != nil {
 		return nil, err
 	}
-	plan.Change, plan.Summary, plan.Reverts, plan.Notes = changeID, p.Summary, reverts, p.Notes
+	plan.Change, plan.Summary, plan.Reverts, plan.Notes, plan.RollsBackTo = changeID, p.Summary, reverts, p.Notes, p.RollsBackTo
 	record, err := json.Marshal(plan)
 	if err != nil {
 		return nil, err
@@ -550,7 +572,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 				return err
 			}
 			if it.id == "" {
-				it.id = e.newID(ed.Ref.Kind)
+				it.id = cmp.Or(ed.ID, e.newID(ed.Ref.Kind))
 			}
 			if ed.Spec != nil {
 				if err := e.checkName(ed.Ref); err != nil {
@@ -917,6 +939,39 @@ func (e *Engine) checkScope(ctx context.Context, tx *store.Tx, it *item, byID ma
 		return missing(string(want))
 	}
 	return err
+}
+
+// NewProject is the edits that bring a project to life with an environment,
+// for a change that puts something in it at once, and the environment's ID
+// for that something's scope. One made before, and deleted, continues its
+// history, as it would through a change of its own (ADR 0014).
+func (e *Engine) NewProject(ctx context.Context, tx *store.Tx, org, name, environment string) (edits []Edit, environmentID string, err error) {
+	project := resource.Ref{Kind: scope.ProjectKind, Scope: org, Name: name}
+	projectID, err := e.knownID(ctx, tx, project)
+	if err != nil {
+		return nil, "", err
+	}
+	env := resource.Ref{Kind: scope.EnvironmentKind, Scope: projectID, Name: cmp.Or(environment, scope.DefaultEnvironment)}
+	environmentID, err = e.knownID(ctx, tx, env)
+	if err != nil {
+		return nil, "", err
+	}
+	return []Edit{
+		{Ref: project, Spec: &resourcev1.Project{}, ID: projectID},
+		{Ref: env, Spec: &resourcev1.Environment{}, ID: environmentID},
+	}, environmentID, nil
+}
+
+// knownID is the ID a resource has from before, or a new one.
+func (e *Engine) knownID(ctx context.Context, tx *store.Tx, ref resource.Ref) (string, error) {
+	r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return e.newID(ref.Kind), nil
+	case err != nil:
+		return "", err
+	}
+	return r.ID, nil
 }
 
 // withFirstEnvironments gives each project the change brings to life an

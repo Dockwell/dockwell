@@ -47,6 +47,9 @@ const (
 	// ServiceServiceRollBackServiceProcedure is the fully-qualified name of the ServiceService's
 	// RollBackService RPC.
 	ServiceServiceRollBackServiceProcedure = "/dockwell.v1.ServiceService/RollBackService"
+	// ServiceServiceAddServicePortProcedure is the fully-qualified name of the ServiceService's
+	// AddServicePort RPC.
+	ServiceServiceAddServicePortProcedure = "/dockwell.v1.ServiceService/AddServicePort"
 )
 
 // ServiceServiceClient is a client for the dockwell.v1.ServiceService service.
@@ -56,7 +59,8 @@ type ServiceServiceClient interface {
 	ListServices(context.Context, *connect.Request[v1.ListServicesRequest]) (*connect.Response[v1.ListServicesResponse], error)
 	// ListServiceRevisions returns a service's revisions, newest first, a page
 	// at a time: what each changed, who made it and from where, and how each
-	// deployed.
+	// deployed. A service goes by its ID, or by its name where that is enough
+	// to say which.
 	ListServiceRevisions(context.Context, *connect.Request[v1.ListServiceRevisionsRequest]) (*connect.Response[v1.ListServiceRevisionsResponse], error)
 	// DeployService plans running another image, with the rest of the service
 	// as it is: its environment, ports and mounts need no one to read them
@@ -66,8 +70,14 @@ type ServiceServiceClient interface {
 	// it, on the servers that revision ran on that are still in the fleet.
 	// Unlike UndoChange it takes any earlier revision, and touches this
 	// service alone, whatever else the change that made the revision did. It
-	// brings back the spec, not the data in a volume.
+	// brings back the spec, not the data in a volume, which the plan's notes
+	// say. It refuses a revision that already matches what runs, as that plan
+	// would do nothing (matches_latest).
 	RollBackService(context.Context, *connect.Request[v1.RollBackServiceRequest]) (*connect.Response[v1.RollBackServiceResponse], error)
+	// AddServicePort plans publishing one more port, with the rest of the
+	// service as it is: like DeployService, it needs no one to read the service's
+	// environment back.
+	AddServicePort(context.Context, *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error)
 }
 
 // NewServiceServiceClient constructs a client for the dockwell.v1.ServiceService service. By
@@ -107,6 +117,12 @@ func NewServiceServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(serviceServiceMethods.ByName("RollBackService")),
 			connect.WithClientOptions(opts...),
 		),
+		addServicePort: connect.NewClient[v1.AddServicePortRequest, v1.AddServicePortResponse](
+			httpClient,
+			baseURL+ServiceServiceAddServicePortProcedure,
+			connect.WithSchema(serviceServiceMethods.ByName("AddServicePort")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -116,6 +132,7 @@ type serviceServiceClient struct {
 	listServiceRevisions *connect.Client[v1.ListServiceRevisionsRequest, v1.ListServiceRevisionsResponse]
 	deployService        *connect.Client[v1.DeployServiceRequest, v1.DeployServiceResponse]
 	rollBackService      *connect.Client[v1.RollBackServiceRequest, v1.RollBackServiceResponse]
+	addServicePort       *connect.Client[v1.AddServicePortRequest, v1.AddServicePortResponse]
 }
 
 // ListServices calls dockwell.v1.ServiceService.ListServices.
@@ -138,6 +155,11 @@ func (c *serviceServiceClient) RollBackService(ctx context.Context, req *connect
 	return c.rollBackService.CallUnary(ctx, req)
 }
 
+// AddServicePort calls dockwell.v1.ServiceService.AddServicePort.
+func (c *serviceServiceClient) AddServicePort(ctx context.Context, req *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error) {
+	return c.addServicePort.CallUnary(ctx, req)
+}
+
 // ServiceServiceHandler is an implementation of the dockwell.v1.ServiceService service.
 type ServiceServiceHandler interface {
 	// ListServices returns the services that exist now, in every environment
@@ -145,7 +167,8 @@ type ServiceServiceHandler interface {
 	ListServices(context.Context, *connect.Request[v1.ListServicesRequest]) (*connect.Response[v1.ListServicesResponse], error)
 	// ListServiceRevisions returns a service's revisions, newest first, a page
 	// at a time: what each changed, who made it and from where, and how each
-	// deployed.
+	// deployed. A service goes by its ID, or by its name where that is enough
+	// to say which.
 	ListServiceRevisions(context.Context, *connect.Request[v1.ListServiceRevisionsRequest]) (*connect.Response[v1.ListServiceRevisionsResponse], error)
 	// DeployService plans running another image, with the rest of the service
 	// as it is: its environment, ports and mounts need no one to read them
@@ -155,8 +178,14 @@ type ServiceServiceHandler interface {
 	// it, on the servers that revision ran on that are still in the fleet.
 	// Unlike UndoChange it takes any earlier revision, and touches this
 	// service alone, whatever else the change that made the revision did. It
-	// brings back the spec, not the data in a volume.
+	// brings back the spec, not the data in a volume, which the plan's notes
+	// say. It refuses a revision that already matches what runs, as that plan
+	// would do nothing (matches_latest).
 	RollBackService(context.Context, *connect.Request[v1.RollBackServiceRequest]) (*connect.Response[v1.RollBackServiceResponse], error)
+	// AddServicePort plans publishing one more port, with the rest of the
+	// service as it is: like DeployService, it needs no one to read the service's
+	// environment back.
+	AddServicePort(context.Context, *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error)
 }
 
 // NewServiceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -192,6 +221,12 @@ func NewServiceServiceHandler(svc ServiceServiceHandler, opts ...connect.Handler
 		connect.WithSchema(serviceServiceMethods.ByName("RollBackService")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serviceServiceAddServicePortHandler := connect.NewUnaryHandler(
+		ServiceServiceAddServicePortProcedure,
+		svc.AddServicePort,
+		connect.WithSchema(serviceServiceMethods.ByName("AddServicePort")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ServiceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ServiceServiceListServicesProcedure:
@@ -202,6 +237,8 @@ func NewServiceServiceHandler(svc ServiceServiceHandler, opts ...connect.Handler
 			serviceServiceDeployServiceHandler.ServeHTTP(w, r)
 		case ServiceServiceRollBackServiceProcedure:
 			serviceServiceRollBackServiceHandler.ServeHTTP(w, r)
+		case ServiceServiceAddServicePortProcedure:
+			serviceServiceAddServicePortHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -225,4 +262,8 @@ func (UnimplementedServiceServiceHandler) DeployService(context.Context, *connec
 
 func (UnimplementedServiceServiceHandler) RollBackService(context.Context, *connect.Request[v1.RollBackServiceRequest]) (*connect.Response[v1.RollBackServiceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServiceService.RollBackService is not implemented"))
+}
+
+func (UnimplementedServiceServiceHandler) AddServicePort(context.Context, *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServiceService.AddServicePort is not implemented"))
 }

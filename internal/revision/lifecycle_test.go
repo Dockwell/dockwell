@@ -1017,3 +1017,45 @@ func testARollbackDoesntWriteOverANewerRevision(t *testing.T, backend store.Back
 		t.Errorf("http's latest revision is %d, from %s; want 3, the newer one, kept", latest.Revision, latest.ChangeID)
 	}
 }
+
+// History reads a page of revisions in a few queries, however many it holds,
+// as a screen reads it again each time a change moves.
+func TestHistoryReadsInFewQueries(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, _ := setup(t, b, "srv_A")
+		read := func() int64 {
+			t.Helper()
+			var n atomic.Int64
+			list, err := e.History(store.CountingQueries(t.Context(), &n), first(t, e), 0, 20)
+			if err != nil || len(list) == 0 {
+				t.Fatalf("History = %v, %v", list, err)
+			}
+			return n.Load()
+		}
+		apply(t, e, propose(t, e, "Run web", web("nginx:1.0")))
+		few := read()
+		for i := 1; i <= 8; i++ {
+			apply(t, e, propose(t, e, "Run web", web(fmt.Sprintf("nginx:1.%d", i))))
+		}
+		if many := read(); many != few {
+			t.Errorf("History takes %d queries for 9 revisions, and %d for one; want the same", many, few)
+		}
+	})
+}
+
+func first(t *testing.T, e *Engine) string {
+	t.Helper()
+	var out string
+	err := e.db.View(t.Context(), func(tx *store.Tx) error {
+		list, err := tx.ListResources(t.Context(), web("x").Ref.Scope, "")
+		if err != nil {
+			return err
+		}
+		out = list[0].ID
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}

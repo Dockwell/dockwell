@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package composeapi serves dockwell.v1.ComposeService: a Compose file
-// planned into an environment as a change, and an environment, or one
+// planned into a project of its own as a change, and an environment, or one
 // service, exported as a Compose file. See
-// docs/adr/0021-the-docker-driver.md.
+// docs/adr/0021-the-docker-driver.md and docs/adr/0026-the-app-screens.md.
 package composeapi
 
 import (
@@ -25,6 +25,8 @@ import (
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/services"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -39,7 +41,7 @@ import (
 // Handler implements ComposeService.
 type Handler struct {
 	changes *changes.Handler
-	kinds   *resource.Registry
+	engine  *revision.Engine
 	db      *store.DB
 	keeper  *secrets.Keeper
 	logger  *slog.Logger
@@ -47,27 +49,23 @@ type Handler struct {
 
 var _ dockwellv1connect.ComposeServiceHandler = (*Handler)(nil)
 
-// New returns a handler that plans through changes, and reads specs from
-// db with kinds, opening the sealed ones with keeper.
-func New(ch *changes.Handler, kinds *resource.Registry, db *store.DB, keeper *secrets.Keeper, logger *slog.Logger) *Handler {
-	return &Handler{changes: ch, kinds: kinds, db: db, keeper: keeper, logger: logger}
+// New returns a handler that plans through ch and engine, and reads specs from
+// db, opening the sealed ones with keeper.
+func New(ch *changes.Handler, engine *revision.Engine, db *store.DB, keeper *secrets.Keeper, logger *slog.Logger) *Handler {
+	return &Handler{changes: ch, engine: engine, db: db, keeper: keeper, logger: logger}
 }
 
 func invalid(err error) error {
 	return authapi.ReasonError(connect.CodeInvalidArgument, errors.New(compose.Message(err)), "invalid")
 }
 
-// ImportCompose plans a Compose file into an environment.
+// ImportCompose plans a Compose file into a project of its own.
 func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwellv1.ImportComposeRequest]) (*connect.Response[dockwellv1.ImportComposeResponse], error) {
 	m := req.Msg
 	if strings.TrimSpace(m.GetCompose()) == "" {
 		return nil, invalid(errors.New("the request has no Compose file. Pass one in compose, such as --compose \"$(cat compose.yaml)\""))
 	}
-	p, env, err := h.changes.Environment(ctx, m.GetProject(), m.GetEnvironment())
-	if err != nil {
-		return nil, err
-	}
-	stack, err := compose.Read(ctx, compose.Input{File: []byte(m.GetCompose()), Variables: m.GetVariables(), Env: m.GetEnv(), Directory: m.GetDirectory()})
+	stack, err := compose.Parse(ctx, []byte(m.GetCompose()), m.GetVariables())
 	if err != nil {
 		switch {
 		case errors.Is(err, compose.ErrInvalid):
@@ -77,7 +75,12 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 		}
 		return nil, err
 	}
-	if err := h.useVariables(ctx, env.ID, stack); err != nil {
+	place, err := h.destination(ctx, m.GetProject(), m.GetEnvironment(), stack.Name)
+	if err != nil {
+		return nil, err
+	}
+	env := place.environment
+	if err := h.useVariables(ctx, env, stack); err != nil {
 		return nil, h.internal(ctx, err)
 	}
 	var edits []*dockwellv1.Edit
@@ -85,7 +88,7 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 	add := func(kind resource.Kind, name string, spec *resourcev1.Spec) {
 		keep[string(kind)+"/"+name] = true
 		edits = append(edits, &dockwellv1.Edit{
-			Resource: &dockwellv1.ResourceRef{Kind: string(kind), Scope: env.ID, Name: name},
+			Resource: &dockwellv1.ResourceRef{Kind: string(kind), Scope: env, Name: name},
 			Spec:     spec, Servers: m.GetServers(),
 		})
 	}
@@ -104,7 +107,7 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 		for _, kind := range []resource.Kind{network.Kind, service.Kind} {
 			var orphans []string
 			err := h.db.View(ctx, func(tx *store.Tx) error {
-				list, err := tx.ListResources(ctx, env.ID, string(kind))
+				list, err := tx.ListResources(ctx, env, string(kind))
 				for _, r := range list {
 					if !keep[string(kind)+"/"+r.Name] {
 						orphans = append(orphans, r.Name)
@@ -118,16 +121,16 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 			slices.Sort(orphans)
 			for _, name := range orphans {
 				edits = append(edits, &dockwellv1.Edit{
-					Resource: &dockwellv1.ResourceRef{Kind: string(kind), Scope: env.ID, Name: name}, Delete: true,
+					Resource: &dockwellv1.ResourceRef{Kind: string(kind), Scope: env, Name: name}, Delete: true,
 				})
 			}
 		}
 	}
 	summary := strings.TrimSpace(m.GetSummary())
 	if summary == "" {
-		summary = "Run a Compose file in " + env.Name
-		if p.Name != "" {
-			summary = fmt.Sprintf("Run a Compose file in %s of %s", env.Name, p.Name)
+		summary = "Run a Compose file"
+		if place.project != scope.DefaultProject {
+			summary = fmt.Sprintf("Run %s from a Compose file", place.project)
 		}
 	}
 	c, err := h.changes.Propose(ctx, summary, edits, func(choice *scope.ChoiceError, _ string) string {
@@ -135,11 +138,178 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Notes: slices.Concat(planNotes(env.ID, stack.Notices), exposedNotes(env.ID, stack.Exposed, stack.ExposedMore, m.GetVariables()))})
+	}, changes.Also{Edits: place.made, Notes: exposedNotes(env, stack.Exposed)})
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&dockwellv1.ImportComposeResponse{Change: c}), nil
+	return connect.NewResponse(&dockwellv1.ImportComposeResponse{Change: c, ExposedVariables: exposedProtos(stack.Exposed)}), nil
+}
+
+// destination is where a Compose file goes.
+type destination struct {
+	project     string // its project's name
+	environment string // its environment's ID, which may not exist yet
+	made        []revision.Edit
+}
+
+// destination says where a file goes (ADR 0026): an environment named by ID;
+// else the project a request or the file names, brought to life if it isn't
+// there; else the default project, while that has no apps, as a file with
+// nothing to say otherwise could change what is there.
+func (h *Handler) destination(ctx context.Context, project, environment, fileName string) (destination, error) {
+	var out destination
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		place := func(p scope.Project, e scope.Environment) {
+			out.project, out.environment = p.Name, e.ID
+		}
+		named := project
+		switch {
+		case strings.HasPrefix(environment, id.Environment+"_"):
+			p, e, err := tree.Resolve(project, environment)
+			if err != nil {
+				return err
+			}
+			place(p, e)
+			return nil
+		case named == "" && isExported(fileName):
+			// The name an export gives a file is its environment's Compose
+			// project, so docker compose finds what Dockwell runs.
+			p, e, ok := exportedFrom(tree, fileName)
+			if !ok {
+				return invalid(fmt.Errorf("the Compose file's name, %s, is an environment's Compose project, and no environment here has it, so it was exported from elsewhere. Change name: in the file, or pass project, to say where it goes", fileName))
+			}
+			place(p, e)
+			return nil
+		case named == "" && fileName != "":
+			if err := (scope.ProjectType{}).CheckName(fileName); err != nil {
+				return invalid(fmt.Errorf("the Compose file names itself %s, which can't name a project: %w. Change name: in the file, or pass project", fileName, err))
+			}
+			named = fileName
+		}
+		if named == "" {
+			return h.intoDefault(ctx, tx, tree, environment, &out)
+		}
+		known := slices.ContainsFunc(tree.Projects, func(p scope.Project) bool { return p.ID == named || p.Name == named })
+		if known || strings.HasPrefix(named, id.Project+"_") {
+			p, e, err := tree.Resolve(named, environment)
+			if err != nil {
+				return err
+			}
+			place(p, e)
+			return nil
+		}
+		// The change makes the project, and what lives in it, in one go.
+		made, env, err := h.engine.NewProject(ctx, tx, tree.Organization.ID, named, environment)
+		if err != nil {
+			return err
+		}
+		out = destination{project: named, environment: env, made: made}
+		return nil
+	})
+	var said *connect.Error
+	if errors.As(err, &said) {
+		return out, said
+	}
+	if err != nil {
+		var choice *scope.ChoiceError
+		if errors.As(err, &choice) || errors.Is(err, scope.ErrNotFound) {
+			// Environment says these with the request's field names.
+			_, _, err = h.changes.Environment(ctx, project, environment)
+			return out, err
+		}
+		return out, h.changes.Error(ctx, err)
+	}
+	return out, nil
+}
+
+// intoDefault puts a file that names no project in the default one, or refuses
+// it once that holds apps a service of the same name would change.
+func (h *Handler) intoDefault(ctx context.Context, tx *store.Tx, tree scope.Tree, environment string, out *destination) error {
+	p, e, err := tree.Resolve(scope.DefaultProject, environment)
+	if errors.Is(err, scope.ErrNotFound) && len(tree.Projects) == 1 {
+		// The default was renamed: it is still the only one.
+		p, e, err = tree.Resolve("", environment)
+	}
+	if errors.Is(err, scope.ErrNotFound) {
+		return needsProject("the Compose file names no project, and there's no default project for it")
+	}
+	if err != nil {
+		return err
+	}
+	var apps []string
+	for _, env := range p.Environments {
+		list, err := tx.ListResources(ctx, env.ID, string(service.Kind))
+		if err != nil {
+			return err
+		}
+		for i := range list {
+			apps = append(apps, list[i].Name)
+		}
+	}
+	if len(apps) > 0 {
+		slices.Sort(apps)
+		return needsProject(fmt.Sprintf("the Compose file names no project, and %s already holds %s, which a service of the same name would change", p.Name, human.List(apps)))
+	}
+	out.project, out.environment = p.Name, e.ID
+	return nil
+}
+
+// needsProject refuses a file with nowhere of its own to go.
+func needsProject(why string) error {
+	return authapi.ReasonError(connect.CodeInvalidArgument,
+		fmt.Errorf("%s. Give it a project of its own: pass project, or add name: to the file, such as name: shop. To change what is there on purpose, pass project %s", why, scope.DefaultProject),
+		"needs_project")
+}
+
+// isExported reports the name an export gives a file: its environment's
+// Compose project, which isn't a name a project can have.
+func isExported(name string) bool {
+	return strings.HasPrefix(strings.ToLower(name), id.Environment+"_")
+}
+
+// exportedFrom finds the environment whose Compose project a name is.
+func exportedFrom(tree scope.Tree, name string) (scope.Project, scope.Environment, bool) {
+	for _, p := range tree.Projects {
+		for _, e := range p.Environments {
+			if docker.Project(e.ID) == strings.ToLower(name) {
+				return p, e, true
+			}
+		}
+	}
+	return scope.Project{}, scope.Environment{}, false
+}
+
+// exposedProtos are where a file writes a value in plain sight, for the schema.
+func exposedProtos(exposed []compose.Exposed) []*dockwellv1.ExposedVariable {
+	out := make([]*dockwellv1.ExposedVariable, len(exposed))
+	for i, e := range exposed {
+		out[i] = &dockwellv1.ExposedVariable{Name: e.Variable, Service: e.Service, Field: e.Field}
+	}
+	return out
+}
+
+// exposedNotes are what a plan says of them: the fact, what it means, and how
+// to keep the value hidden.
+func exposedNotes(env string, exposed []compose.Exposed) []revision.Note {
+	out := make([]revision.Note, len(exposed))
+	for i, e := range exposed {
+		field := e.Field
+		if field == "healthcheck" {
+			field = "health check"
+		}
+		out[i] = revision.Note{
+			Reason: "exposed_variable",
+			Message: fmt.Sprintf("%s's %s holds the value of %s, and anyone who can read this app can see it. To keep it hidden, pass it in environment, and use $$%s in the %s",
+				e.Service, field, e.Variable, e.Variable, field),
+			Ref:   resource.Ref{Kind: service.Kind, Scope: env, Name: e.Service},
+			Names: []string{e.Variable, e.Field},
+		}
+	}
+	return out
 }
 
 // CheckCompose reads a Compose file as ImportCompose would, and says what
@@ -147,12 +317,18 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 func (h *Handler) CheckCompose(ctx context.Context, req *connect.Request[dockwellv1.CheckComposeRequest]) (*connect.Response[dockwellv1.CheckComposeResponse], error) {
 	m := req.Msg
 	res := &dockwellv1.CheckComposeResponse{}
+	var err error
 	file := []byte(m.GetCompose())
 	if strings.TrimSpace(m.GetCompose()) == "" {
 		return connect.NewResponse(res), nil
 	}
-	for _, v := range compose.Variables(ctx, file) {
+	seen := compose.Inspect(ctx, file, m.GetVariables())
+	for _, v := range seen.Variables {
 		res.Variables = append(res.Variables, &dockwellv1.ComposeVariable{Name: v.Name, Required: v.Required})
+	}
+	res.ExposedVariables = exposedProtos(seen.Exposed)
+	if res.Name, err = h.fileName(ctx, seen.Name); err != nil {
+		return nil, h.internal(ctx, err)
 	}
 	refuse := func(err error) (*connect.Response[dockwellv1.CheckComposeResponse], error) {
 		res.Refusal = &dockwellv1.ComposeRefusal{Message: compose.Message(err), Line: int32(compose.Line(ctx, file, err))} //nolint:gosec // a line of a file under compose.MaxFile
@@ -168,18 +344,18 @@ func (h *Handler) CheckCompose(ctx context.Context, req *connect.Request[dockwel
 	// What a change's edits go through when they are proposed: the rules on
 	// images, ports and server paths are the drivers', not the file's.
 	for _, s := range stack.Services {
-		if err := h.kinds.Validate(service.Kind, s.Spec); err != nil {
+		if err := h.engine.Kinds().Validate(service.Kind, s.Spec); err != nil {
 			return refuse(fmt.Errorf("%w: the service %s isn't valid: %w", compose.ErrInvalid, s.Name, err))
 		}
 	}
 	for _, v := range stack.Volumes {
-		if err := h.kinds.Validate(volume.Kind, v.Spec); err != nil {
+		if err := h.engine.Kinds().Validate(volume.Kind, v.Spec); err != nil {
 			return refuse(fmt.Errorf("%w: the volume %s isn't valid: %w", compose.ErrInvalid, v.Name, err))
 		}
 		res.Volumes = append(res.Volumes, v.Name)
 	}
 	for _, n := range stack.Networks {
-		if err := h.kinds.Validate(network.Kind, n.Spec); err != nil {
+		if err := h.engine.Kinds().Validate(network.Kind, n.Spec); err != nil {
 			return refuse(fmt.Errorf("%w: the network %s isn't valid: %w", compose.ErrInvalid, n.Name, err))
 		}
 		res.Networks = append(res.Networks, n.Name)
@@ -191,6 +367,27 @@ func (h *Handler) CheckCompose(ctx context.Context, req *connect.Request[dockwel
 		})
 	}
 	return connect.NewResponse(res), nil
+}
+
+// fileName is the project a file's name: says it belongs to, for a form: an
+// export's name is its environment's project, and one from elsewhere says
+// nothing.
+func (h *Handler) fileName(ctx context.Context, name string) (string, error) {
+	if !isExported(name) {
+		return name, nil
+	}
+	out := ""
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		if p, _, ok := exportedFrom(tree, name); ok {
+			out = p.Name
+		}
+		return nil
+	})
+	return out, err
 }
 
 // ExportCompose writes an environment, or one service, as a Compose file.

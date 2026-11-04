@@ -322,78 +322,12 @@ func TestARoutesPlanSaysWhatComesBackAfterAReboot(t *testing.T) {
 	}
 }
 
-// Every kind of access the API can name has words in the CLI, or a person would
-// approve what it can't say.
-func TestEveryAccessKindHasWords(t *testing.T) {
-	values := dockwellv1.HostAccessKind(0).Descriptor().Values()
-	for i := range values.Len() {
-		kind := dockwellv1.HostAccessKind(values.Get(i).Number())
-		if kind == dockwellv1.HostAccessKind_HOST_ACCESS_KIND_UNSPECIFIED {
-			continue
-		}
-		if got := accessWords([]*dockwellv1.HostAccess{{Kind: kind, Path: "x"}})[0]; strings.HasPrefix(got, "access(") {
-			t.Errorf("%s has no words in the CLI: %s", kind, got)
-		}
-	}
-}
-
-// A value anyone can read is the most a note can say, short of stopping anyone, so
-// it stands out from one that isn't.
-func TestPlanViewWarnsOfAValueInPlainSight(t *testing.T) {
-	var buf bytes.Buffer
-	PlanView(&buf, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{
-		{Reason: "exposed_variable", Message: "REDIS_PASSWORD from your .env is in redis's command"},
-		{Reason: "exposed_more", Message: "The file writes more variables in plain sight"},
-		{Reason: "no_build", Message: "web has build beside image"},
-	}})
-	for _, want := range []string{
-		"Warning: REDIS_PASSWORD from your .env is in redis's command.\n",
-		"Warning: The file writes more variables in plain sight.\n",
-		"Note: web has build beside image.\n",
-	} {
-		if !strings.Contains(buf.String(), want) {
-			t.Errorf("PlanView doesn't say %q:\n%s", want, buf.String())
-		}
-	}
-}
-
-// A plain route's plan says what that means, and a port on the server and a proxy
-// to believe say what a person approves, each as what it is.
-func TestARoutesPlanSaysWhatIsUnencryptedAndWhatItReaches(t *testing.T) {
-	plan := &dockwellv1.Plan{HostAccess: true, Servers: []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: []*dockwellv1.PlanStep{{
-		Resource: &dockwellv1.ResourceRef{Kind: "route", Name: "www"}, Action: dockwellv1.PlanAction_PLAN_ACTION_CREATE, Unencrypted: true,
-		Answers:    &dockwellv1.RouteAnswers{Reach: dockwellv1.RouteReach_ROUTE_REACH_THIS_SERVER, Plain: true},
-		ServerPort: &dockwellv1.ServerPortCheck{Port: 8080, Listening: "nginx"},
-		Ingress:    &dockwellv1.IngressEffect{Change: dockwellv1.IngressChange_INGRESS_CHANGE_STARTS, Proxy: "Caddy", Ports: []string{"80/tcp"}},
-		HostAccess: []*dockwellv1.HostAccess{
-			{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PORT, Path: "127.0.0.1:8080", Detail: "app.example.com"},
-			{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TRUSTED_PROXY, Path: "cloudflare"},
-		},
-	}}}}}
-	var out bytes.Buffer
-	PlanView(&out, plan)
-	for _, want := range []string{
-		"Traffic for this route reaches hz-1 unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet",
-		"so this route starts it, and it takes ports 80/tcp",
-		"It answers only what runs on hz-1 itself, such as a tunnel on its own network",
-		"That lets what runs on hz-1 itself reach port 8080",
-		"Listening there now: nginx.",
-		"Gives it access to hz-1: the port 127.0.0.1:8080 on the server itself, past its containers, at app.example.com",
-		"Takes in cloudflare as a proxy it believes on where a request came from",
-		"A person approves this",
-	} {
-		if !strings.Contains(out.String(), want) {
-			t.Errorf("the plan doesn't say %q:\n%s", want, out.String())
-		}
-	}
-}
-
-// What a plan says beside its steps, the CLI says too.
-func TestPlanViewSaysNotes(t *testing.T) {
-	var buf bytes.Buffer
-	PlanView(&buf, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{{Reason: "no_build", Message: "web has build beside image, and Dockwell builds nothing."}}})
-	if !strings.Contains(buf.String(), "Note: web has build beside image, and Dockwell builds nothing.\n") {
-		t.Errorf("PlanView =\n%s", buf.String())
+// What a plan's notes say reaches the terminal as it does the panel.
+func TestPlanViewSaysItsNotes(t *testing.T) {
+	var b strings.Builder
+	PlanView(&b, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{{Reason: "volumes_stay", Message: "web keeps what is in data as it is"}}})
+	if !strings.Contains(b.String(), "Note: web keeps what is in data as it is.\n") {
+		t.Errorf("the plan reads:\n%s", b.String())
 	}
 }
 

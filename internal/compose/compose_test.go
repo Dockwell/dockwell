@@ -234,8 +234,17 @@ func TestExportRoundTrips(t *testing.T) {
 	if want := []string{"db.POSTGRES_DB", "web.API_KEY", "web.DATABASE_URL"}; !slices.Equal(out.Omitted, want) {
 		t.Errorf("omitted %v, want %v", out.Omitted, want)
 	}
-	if !strings.Contains(text, "name: "+project) || !strings.Contains(text, "network_mode: bridge") || !strings.Contains(text, container.LabelSet) {
+	if !strings.Contains(text, "name: "+project) || !strings.Contains(text, "network_mode: bridge") {
 		t.Errorf("export:\n%s", text)
+	}
+
+	// A person reads this file: what Dockwell keeps for itself isn't in it, and
+	// what looks like a mistake says why it isn't.
+	if strings.Contains(text, container.LabelSet) || strings.Contains(text, "dev.dockwell") {
+		t.Errorf("the export carries Dockwell's own label:\n%s", text)
+	}
+	if !strings.Contains(text, "NAME: null is there on purpose") {
+		t.Errorf("the export doesn't explain a variable with no value:\n%s", text)
 	}
 
 	// Set the variables it left out, as the shell would, and read it back.

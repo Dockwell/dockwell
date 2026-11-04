@@ -6,11 +6,14 @@
 package services
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
+	"strings"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
@@ -23,10 +26,13 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/paging"
+	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -72,18 +78,18 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 	if err != nil {
 		return nil, err
 	}
-	scope := ""
+	in := ""
 	if m.GetProject() != "" || m.GetEnvironment() != "" {
 		_, env, err := h.changes.Environment(ctx, m.GetProject(), m.GetEnvironment())
 		if err != nil {
 			return nil, err
 		}
-		scope = env.ID
+		in = env.ID
 	}
 	res := &dockwellv1.ListServicesResponse{}
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		// One more than asked for says whether there is a next page.
-		list, err := tx.PageResources(ctx, string(service.Kind), scope, after.ID, size+1)
+		list, err := tx.PageResources(ctx, string(service.Kind), in, after.ID, size+1)
 		if err != nil {
 			return err
 		}
@@ -122,7 +128,9 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 			if info.Deployments, err = names.deployments(ctx, deployments[r.ID]); err != nil {
 				return err
 			}
-			if c := origins[r.ChangeID]; revision.IsRollback(c) {
+			c := origins[r.ChangeID]
+			info.ChangeState = changes.State(c.State)
+			if revision.IsRollback(c) {
 				info.RolledBackChangeId = c.Reverts
 			}
 			res.Services = append(res.Services, info)
@@ -166,10 +174,11 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 			return nil, authapi.Invalid(errors.New("page_token isn't one ListServiceRevisions gave. Pass next_page_token from the page before, or leave it out to start with the latest"))
 		}
 	}
-	if !h.isService(ctx, m.GetId()) {
-		return nil, h.readError(ctx, m.GetId(), store.ErrNotFound)
+	target, err := h.find(ctx, m.GetId(), m.GetProject(), m.GetEnvironment())
+	if err != nil {
+		return nil, err
 	}
-	records, err := h.engine.History(ctx, m.GetId(), before, size+1)
+	records, err := h.engine.History(ctx, target.ID, before, size+1)
 	if err != nil {
 		return nil, h.changes.Error(ctx, err)
 	}
@@ -196,6 +205,9 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 				Deleted:    r.Spec == nil,
 				Change:     protos[i],
 				Changes:    resourcepb.Changes(r.Changes),
+
+				MatchesLatest: r.MatchesLatest,
+				RolledBackTo:  int64(r.RolledBackTo),
 			}
 			if r.Spec != nil {
 				spec, err := h.spec(r.Spec)
@@ -224,44 +236,72 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 	if m.GetImage() == "" {
 		return nil, authapi.Invalid(errors.New("the deploy names no image. Pass one in image, such as ghcr.io/acme/web:1.4.2"))
 	}
-	var edit *dockwellv1.Edit
-	var name string
-	err := h.db.View(ctx, func(tx *store.Tx) error {
-		r, err := tx.GetResourceByID(ctx, m.GetId())
-		if err != nil {
-			return err
-		}
-		name = r.Name
-		if r.Kind != string(service.Kind) || r.Spec == nil {
-			return store.ErrNotFound
-		}
-		spec, err := h.spec(r.Spec)
-		if err != nil {
-			return err
-		}
-		app := spec.GetApp()
+	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), func(name string, app *resourcev1.Container) (string, error) {
 		if app.GetImage() == m.GetImage() {
-			return authapi.Invalid(fmt.Errorf("%s already runs %s. Name another image, such as a new tag", r.Name, m.GetImage()))
+			return "", authapi.Invalid(fmt.Errorf("%s already runs %s. Name another image, such as a new tag", name, m.GetImage()))
 		}
 		app.Image = m.GetImage()
-		edit = &dockwellv1.Edit{
-			Resource: resourcepb.Ref(resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}),
-			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},
-		}
-		return nil
+		return cmp.Or(m.GetSummary(), fmt.Sprintf("Deploy %s to %s", m.GetImage(), name)), nil
 	})
-	if err != nil {
-		return nil, h.readError(ctx, m.GetId(), err)
-	}
-	summary := m.GetSummary()
-	if summary == "" {
-		summary = fmt.Sprintf("Deploy %s to %s", m.GetImage(), name)
-	}
-	c, err := h.changes.Propose(ctx, summary, []*dockwellv1.Edit{edit}, nil)
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.DeployServiceResponse{Change: c}), nil
+}
+
+// AddServicePort plans publishing one more port.
+func (h *Handler) AddServicePort(ctx context.Context, req *connect.Request[dockwellv1.AddServicePortRequest]) (*connect.Response[dockwellv1.AddServicePortResponse], error) {
+	m := req.Msg
+	if m.GetHostPort() == 0 || m.GetContainerPort() == 0 {
+		return nil, authapi.Invalid(errors.New("the port needs a number on the server and one in the app. Pass host_port and container_port, such as 8080 and 80"))
+	}
+	protocol := m.GetProtocol()
+	if protocol == resourcev1.Protocol_PROTOCOL_UNSPECIFIED {
+		protocol = resourcev1.Protocol_PROTOCOL_TCP
+	}
+	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), func(name string, app *resourcev1.Container) (string, error) {
+		for _, p := range app.GetPorts() {
+			if p.GetHostPort() == m.GetHostPort() && p.GetProtocol() == protocol && p.GetHostIp() == m.GetHostIp() {
+				return "", authapi.Invalid(fmt.Errorf("%s already publishes port %d. Choose another port on the server", name, m.GetHostPort()))
+			}
+		}
+		app.Ports = append(app.Ports, &resourcev1.PortMapping{
+			HostPort: m.GetHostPort(), ContainerPort: m.GetContainerPort(), Protocol: protocol, HostIp: m.GetHostIp(),
+		})
+		return cmp.Or(m.GetSummary(), fmt.Sprintf("Publish port %d on %s", m.GetHostPort(), name)), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.AddServicePortResponse{Change: c}), nil
+}
+
+// edit plans a change to one service's container, read as it stands on the
+// control plane and proposed as any edit, with the rest of its spec as it is.
+// So anyone may make it without being able to read a secret back, and what
+// the spec holds that no response carries survives. It says what the change is
+// for, and refuses what it can't do.
+func (h *Handler) edit(ctx context.Context, named, project, environment string, change func(name string, app *resourcev1.Container) (string, error)) (*dockwellv1.Change, error) {
+	r, err := h.find(ctx, named, project, environment)
+	if err != nil {
+		return nil, err
+	}
+	spec, err := h.spec(r.Spec)
+	if err != nil {
+		return nil, h.internal(ctx, "reading a service", err)
+	}
+	app := spec.GetApp()
+	if app == nil {
+		return nil, authapi.Invalid(fmt.Errorf("%s doesn't run an image, so it has nothing to change here", r.Name))
+	}
+	summary, err := change(r.Name, app)
+	if err != nil {
+		return nil, err
+	}
+	return h.changes.Propose(ctx, summary, []*dockwellv1.Edit{{
+		Resource: resourcepb.Ref(resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}),
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},
+	}}, nil, changes.Also{})
 }
 
 // RollBackService plans going back to an earlier revision.
@@ -270,15 +310,14 @@ func (h *Handler) RollBackService(ctx context.Context, req *connect.Request[dock
 	if m.GetRevision() <= 0 {
 		return nil, authapi.Invalid(errors.New("the rollback names no revision. Pass the number of the revision to go back to, which ListServiceRevisions lists"))
 	}
-	if !h.isService(ctx, m.GetId()) {
-		return nil, h.readError(ctx, m.GetId(), store.ErrNotFound)
+	target, err := h.find(ctx, m.GetId(), m.GetProject(), m.GetEnvironment())
+	if err != nil {
+		return nil, err
 	}
 	c, err := h.changes.Planned(ctx, func(who revision.By) (*revision.Plan, error) {
-		return h.engine.RollBackTo(ctx, m.GetId(), int(m.GetRevision()), func(latest store.Resource) string {
-			if m.GetSummary() != "" {
-				return m.GetSummary()
-			}
-			return fmt.Sprintf("Roll back %s to r%d", latest.Name, m.GetRevision())
+		return h.engine.RollBackTo(ctx, target.ID, int(m.GetRevision()), func(latest store.Resource, spec proto.Message) (string, []revision.Note) {
+			summary := cmp.Or(m.GetSummary(), fmt.Sprintf("Roll back %s to r%d", latest.Name, m.GetRevision()))
+			return summary, keptData(latest, spec)
 		}, who)
 	})
 	if err != nil {
@@ -287,25 +326,111 @@ func (h *Handler) RollBackService(ctx context.Context, req *connect.Request[dock
 	return connect.NewResponse(&dockwellv1.RollBackServiceResponse{Change: c}), nil
 }
 
-func (h *Handler) isService(ctx context.Context, id string) bool {
-	var kind string
+// keptData is what a plan says of a rollback of a service that keeps data: its
+// volumes and server paths stay as they are, whatever the revision it goes back
+// to did with them.
+func keptData(latest store.Resource, spec proto.Message) []revision.Note {
+	s, ok := spec.(*resourcev1.Service)
+	if !ok {
+		return nil
+	}
+	var names []string
+	for _, m := range s.GetApp().GetMounts() {
+		names = append(names, cmp.Or(m.GetVolume(), m.GetHostPath()))
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	slices.Sort(names)
+	names = slices.Compact(names)
+	return []revision.Note{{
+		Reason: "volumes_stay",
+		Message: fmt.Sprintf("%s keeps what is in %s as it is. A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check before you apply, and restore a backup if it won't",
+			latest.Name, human.List(names)),
+		Ref:   resource.Ref{Kind: resource.Kind(latest.Kind), Scope: latest.Scope, Name: latest.Name},
+		Names: names,
+	}}
+}
+
+// find reads the service a request names, by ID or by name. A name may need
+// its project or environment to say which, as two Compose files can each have
+// a service called db.
+func (h *Handler) find(ctx context.Context, named, project, environment string) (store.Resource, error) {
+	var out store.Resource
 	err := h.db.View(ctx, func(tx *store.Tx) error {
-		r, err := tx.GetResourceByID(ctx, id)
-		kind = r.Kind
-		return err
+		if named == "" {
+			return authapi.Invalid(errors.New("the request names no service. Pass its ID, or its name"))
+		}
+		if strings.HasPrefix(named, id.Service+"_") {
+			r, err := tx.GetResourceByID(ctx, named)
+			if err != nil {
+				return err
+			}
+			if r.Kind != string(service.Kind) || r.Spec == nil {
+				return store.ErrNotFound
+			}
+			out = r
+			return nil
+		}
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		var found []store.Resource
+		var where []string
+		for _, p := range tree.Projects {
+			if project != "" && project != p.ID && project != p.Name {
+				continue
+			}
+			for _, e := range p.Environments {
+				if environment != "" && environment != e.ID && environment != e.Name {
+					continue
+				}
+				r, err := tx.GetResource(ctx, string(service.Kind), e.ID, named)
+				if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
+					continue
+				}
+				if err != nil {
+					return err
+				}
+				found = append(found, r)
+				where = append(where, placeName(tree, p, e))
+			}
+		}
+		switch len(found) {
+		case 0:
+			return store.ErrNotFound
+		case 1:
+			out = found[0]
+			return nil
+		}
+		return authapi.ReasonError(connect.CodeInvalidArgument,
+			fmt.Errorf("more than one service is named %s: in %s. Pass project or environment to say which, or use its ID", named, human.List(where)), "invalid")
 	})
-	return err == nil && kind == string(service.Kind)
+	if err != nil {
+		return store.Resource{}, h.readError(ctx, named, err)
+	}
+	return out, nil
+}
+
+// placeName says where a service lives: its project, and its environment once
+// its project has more than one to choose from.
+func placeName(tree scope.Tree, p scope.Project, e scope.Environment) string {
+	if tree.Shown(p.ID).Environment {
+		return p.Name + "/" + e.Name
+	}
+	return p.Name
 }
 
 // readError says a service wasn't found, or passes on what the caller is
 // told already.
-func (h *Handler) readError(ctx context.Context, id string, err error) error {
+func (h *Handler) readError(ctx context.Context, named string, err error) error {
 	var said *connect.Error
 	switch {
 	case errors.As(err, &said):
 		return said
 	case errors.Is(err, store.ErrNotFound):
-		return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no service %s. It may have been removed; list what exists with ListServices", id), "not_found")
+		return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no service %s. It may have been removed, or go by another name; check the list of services", named), "not_found")
 	}
 	return h.internal(ctx, "reading a service", err)
 }
@@ -316,19 +441,19 @@ type serverNames struct {
 	known map[string]string
 }
 
-func (n *serverNames) name(ctx context.Context, id string) (string, error) {
-	if name, ok := n.known[id]; ok {
+func (n *serverNames) name(ctx context.Context, server string) (string, error) {
+	if name, ok := n.known[server]; ok {
 		return name, nil
 	}
-	s, err := n.tx.GetServer(ctx, id)
+	s, err := n.tx.GetServer(ctx, server)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		n.known[id] = id
-		return id, nil
+		n.known[server] = server
+		return server, nil
 	case err != nil:
 		return "", err
 	}
-	n.known[id] = s.Name
+	n.known[server] = s.Name
 	return s.Name, nil
 }
 

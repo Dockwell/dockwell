@@ -48,11 +48,12 @@ const (
 
 // ComposeServiceClient is a client for the dockwell.v1.ComposeService service.
 type ComposeServiceClient interface {
-	// ImportCompose plans a Compose file into an environment as a change,
-	// ready to apply or discard, as ProposeChange does with edits. Each
-	// Compose service becomes a service, and each named volume and network
-	// one of its own. A field of the file that Dockwell can't run yet is
-	// refused, by name, rather than dropped.
+	// ImportCompose plans a Compose file into a project as a change, ready to
+	// apply or discard, as ProposeChange does with edits. Each Compose service
+	// becomes a service, and each named volume and network one of its own. A
+	// field of the file that Dockwell can't run yet is refused, by name, rather
+	// than dropped. The plan brings the project to life if it doesn't exist yet,
+	// and importing into one that does shows as updates.
 	ImportCompose(context.Context, *connect.Request[v1.ImportComposeRequest]) (*connect.Response[v1.ImportComposeResponse], error)
 	// CheckCompose reads a Compose file as ImportCompose would and says what
 	// it would make, or why it can't, without planning anything or recording a
@@ -124,11 +125,12 @@ func (c *composeServiceClient) ExportCompose(ctx context.Context, req *connect.R
 
 // ComposeServiceHandler is an implementation of the dockwell.v1.ComposeService service.
 type ComposeServiceHandler interface {
-	// ImportCompose plans a Compose file into an environment as a change,
-	// ready to apply or discard, as ProposeChange does with edits. Each
-	// Compose service becomes a service, and each named volume and network
-	// one of its own. A field of the file that Dockwell can't run yet is
-	// refused, by name, rather than dropped.
+	// ImportCompose plans a Compose file into a project as a change, ready to
+	// apply or discard, as ProposeChange does with edits. Each Compose service
+	// becomes a service, and each named volume and network one of its own. A
+	// field of the file that Dockwell can't run yet is refused, by name, rather
+	// than dropped. The plan brings the project to life if it doesn't exist yet,
+	// and importing into one that does shows as updates.
 	ImportCompose(context.Context, *connect.Request[v1.ImportComposeRequest]) (*connect.Response[v1.ImportComposeResponse], error)
 	// CheckCompose reads a Compose file as ImportCompose would and says what
 	// it would make, or why it can't, without planning anything or recording a

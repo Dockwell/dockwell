@@ -88,6 +88,14 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 	return connect.NewResponse(&dockwellv1.ProposeChangeResponse{Change: c}), nil
 }
 
+// Also is what another method adds to the edits it plans: edits the API has no
+// words for, as a project it brings to life with an ID its services take, and
+// what the plan should say beside its steps.
+type Also struct {
+	Edits []revision.Edit
+	Notes []revision.Note
+}
+
 // Propose plans edits as a new change, as ProposeChange does, for another
 // method that makes edits of its own, such as ImportCompose. field names
 // the request's field that takes a choice the edits leave out, from the
@@ -99,12 +107,6 @@ func (h *Handler) Propose(ctx context.Context, summary string, edits []*dockwell
 		return nil, err
 	}
 	return h.proposeAlso(ctx, who, summary, edits, field, also)
-}
-
-// Also is what another method adds to the edits it plans: what the plan should
-// say beside its steps.
-type Also struct {
-	Notes []revision.Note
 }
 
 func (h *Handler) propose(ctx context.Context, who revision.By, summary string, in []*dockwellv1.Edit, field func(*scope.ChoiceError, string) string) (*dockwellv1.Change, error) {
@@ -128,7 +130,9 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	if err != nil {
 		return nil, fail(err)
 	}
-	plan, err := h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits, Notes: also.Notes})
+	plan, err := h.engine.Propose(ctx, revision.Proposal{
+		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes,
+	})
 	if err != nil {
 		return nil, fail(err)
 	}
@@ -715,6 +719,9 @@ var states = map[string]dockwellv1.ChangeState{
 	store.ChangeFailed:    dockwellv1.ChangeState_CHANGE_STATE_FAILED,
 	store.ChangeDiscarded: dockwellv1.ChangeState_CHANGE_STATE_DISCARDED,
 }
+
+// State is a change's state, as the store records it, for the schema.
+func State(state string) dockwellv1.ChangeState { return states[state] }
 
 var stepStates = map[revision.StepState]dockwellv1.StepState{
 	revision.StepQueued:  dockwellv1.StepState_STEP_STATE_QUEUED,
