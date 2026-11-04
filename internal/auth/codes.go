@@ -285,6 +285,17 @@ func (s *Service) TOTP(ctx context.Context, p Principal) (TOTPStatus, error) {
 	return st, err
 }
 
+// A setup of code sign-in ends in new recovery codes, which sign in and add
+// a passkey, so it is held as tightly as the step-up that began it: only
+// the session that proved that step-up can finish it, within totpSetupTTL,
+// and totpSetupFailures wrong codes end it. A code sign-in's limits don't
+// fit, as they count by email and source address and lock sign-in itself:
+// a wrong code here says nothing about signing in.
+const (
+	totpSetupTTL      = 10 * time.Minute
+	totpSetupFailures = 5
+)
+
 // TOTPSetup is a new authenticator secret, to show once.
 type TOTPSetup struct {
 	Secret string // base32
@@ -293,8 +304,8 @@ type TOTPSetup struct {
 
 // BeginTOTP makes a new authenticator secret for the principal, with proof
 // of a step-up for setting up code sign-in, spent once nothing else can
-// refuse it. It works only once ConfirmTOTP checks a code from it; until
-// then any current secret keeps working.
+// refuse it. It works only once ConfirmTOTP checks a code from it, in this
+// session; until then any current secret keeps working.
 func (s *Service) BeginTOTP(ctx context.Context, p Principal, proof string) (TOTPSetup, error) {
 	if p.Token != nil || p.Session.ID == "" {
 		return TOTPSetup{}, ErrNeedsSession
@@ -304,7 +315,7 @@ func (s *Service) BeginTOTP(ctx context.Context, p Principal, proof string) (TOT
 		if err := s.confirmed(p, proof, StepUpSetUpCodes); err != nil {
 			return err
 		}
-		return tx.SetTOTPPending(ctx, p.User.ID, s.key.Seal(purposeTOTP(p.User.ID), secret))
+		return tx.SetTOTPPending(ctx, p.User.ID, s.key.Seal(purposeTOTP(p.User.ID), secret), p.Session.ID, s.now().Add(totpSetupTTL))
 	})
 	if err != nil {
 		return TOTPSetup{}, err
@@ -313,21 +324,33 @@ func (s *Service) BeginTOTP(ctx context.Context, p Principal, proof string) (TOT
 }
 
 // ConfirmTOTP checks a code from the pending secret, makes it the
-// principal's, and returns new recovery codes, replacing any old ones.
+// principal's, and returns new recovery codes, replacing any old ones. Only
+// the session that began the setup can, within totpSetupTTL. Any other gets
+// the answer it would get with nothing pending, and changes nothing.
+// totpSetupFailures wrong codes discard the secret, so setting up needs a
+// new step-up, and Activity shows it.
 func (s *Service) ConfirmTOTP(ctx context.Context, p Principal, code string) ([]string, error) {
+	if p.Token != nil || p.Session.ID == "" {
+		return nil, ErrNeedsSession
+	}
 	now := s.now()
 	code, kind := normalizeCode(code)
 	if kind != codeTOTP {
 		return nil, fmt.Errorf("%w: enter the 6-digit code from your authenticator app", ErrInvalid)
 	}
 	var codes []string
+	var refused error // a refusal that keeps what the transaction wrote
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
 		u, err := tx.GetUser(ctx, p.User.ID)
 		if err != nil {
 			return err
 		}
-		if u.TOTPPending == nil {
+		if u.TOTPPending == nil || u.TOTPPendingSession != p.Session.ID {
 			return ErrNoPendingTOTP
+		}
+		if !now.Before(u.TOTPPendingExpires) {
+			refused = ErrNoPendingTOTP
+			return tx.ClearTOTPPending(ctx, u.ID)
 		}
 		secret, err := s.key.Open(purposeTOTP(u.ID), u.TOTPPending)
 		if err != nil {
@@ -335,7 +358,15 @@ func (s *Service) ConfirmTOTP(ctx context.Context, p Principal, code string) ([]
 		}
 		step, ok := matchTOTP(secret, code, now)
 		if !ok {
-			return ErrTOTPMismatch
+			refused = ErrTOTPMismatch
+			if u.TOTPPendingFailures+1 < totpSetupFailures {
+				return tx.CountTOTPPendingFailure(ctx, u.ID)
+			}
+			refused = ErrTOTPSetupEnded
+			if err := tx.ClearTOTPPending(ctx, u.ID); err != nil {
+				return err
+			}
+			return s.audit(ctx, tx, p.Actor(), "totp.setup_discarded", u.ID, fmt.Sprintf("after %d wrong codes", totpSetupFailures))
 		}
 		if err := tx.EnableTOTP(ctx, u.ID, u.TOTPPending, step); err != nil {
 			return err
@@ -351,7 +382,26 @@ func (s *Service) ConfirmTOTP(ctx context.Context, p Principal, code string) ([]
 		}
 		return s.audit(ctx, tx, p.Actor(), "totp.enable", u.ID, fmt.Sprintf("with %d new recovery codes", len(codes)))
 	})
+	if err == nil && refused != nil {
+		return nil, refused
+	}
 	return codes, err
+}
+
+// CancelTOTP forgets the setup the principal's session began, as closing
+// the sheet does, so its key works nowhere. With none waiting, or one that
+// another session began, it does nothing.
+func (s *Service) CancelTOTP(ctx context.Context, p Principal) error {
+	if p.Token != nil || p.Session.ID == "" {
+		return ErrNeedsSession
+	}
+	return s.db.Update(ctx, func(tx *store.Tx) error {
+		u, err := tx.GetUser(ctx, p.User.ID)
+		if err != nil || u.TOTPPending == nil || u.TOTPPendingSession != p.Session.ID {
+			return err
+		}
+		return tx.ClearTOTPPending(ctx, u.ID)
+	})
 }
 
 // DisableTOTP turns code sign-in off for the principal, deleting the secret

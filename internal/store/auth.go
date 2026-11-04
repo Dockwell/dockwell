@@ -19,9 +19,15 @@ type User struct {
 	WebAuthnHandle []byte
 	CreatedAt      time.Time
 	// TOTPSecret and TOTPPending are sealed; nil when unset.
-	TOTPSecret   []byte
-	TOTPPending  []byte
-	TOTPLastStep int64
+	TOTPSecret  []byte
+	TOTPPending []byte
+	// TOTPPendingSession, TOTPPendingExpires and TOTPPendingFailures say
+	// which session may confirm TOTPPending, until when, and how many
+	// wrong codes it has had.
+	TOTPPendingSession  string
+	TOTPPendingExpires  time.Time
+	TOTPPendingFailures int
+	TOTPLastStep        int64
 	// CodesRefused counts codes refused since CodesRefusedReportedAt that
 	// have no audit event of their own.
 	CodesRefused           int
@@ -32,17 +38,21 @@ type User struct {
 const RoleOwner = "owner"
 
 const userColumns = `id, email, name, role, webauthn_handle, created_at, totp_secret, totp_pending, totp_last_step,
-	codes_refused, codes_refused_reported_at`
+	codes_refused, codes_refused_reported_at, totp_pending_session, totp_pending_expires_at, totp_pending_failures`
 
 func scanUser(row interface{ Scan(...any) error }) (User, error) {
 	var u User
 	var created int64
-	var reported sql.NullInt64
+	var reported, pendingExpires sql.NullInt64
+	var pendingSession sql.NullString
 	if err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.WebAuthnHandle, &created, &u.TOTPSecret, &u.TOTPPending,
-		&u.TOTPLastStep, &u.CodesRefused, &reported); err != nil {
+		&u.TOTPLastStep, &u.CodesRefused, &reported, &pendingSession, &pendingExpires, &u.TOTPPendingFailures); err != nil {
 		return User{}, err
 	}
-	u.CreatedAt, u.CodesRefusedReportedAt = fromMillis(created), timePtr(reported)
+	u.CreatedAt, u.CodesRefusedReportedAt, u.TOTPPendingSession = fromMillis(created), timePtr(reported), pendingSession.String
+	if pendingExpires.Valid {
+		u.TOTPPendingExpires = fromMillis(pendingExpires.Int64)
+	}
 	return u, nil
 }
 
@@ -107,21 +117,36 @@ func (t *Tx) updateUser(ctx context.Context, id, query string, args ...any) erro
 	return nil
 }
 
-// SetTOTPPending stores a sealed secret awaiting confirmation.
-func (t *Tx) SetTOTPPending(ctx context.Context, userID string, sealed []byte) error {
-	return t.updateUser(ctx, userID, `UPDATE users SET totp_pending = ? WHERE id = ?`, sealed, userID)
+// SetTOTPPending stores a sealed secret awaiting confirmation, by session
+// alone, until expires. It replaces any other.
+func (t *Tx) SetTOTPPending(ctx context.Context, userID string, sealed []byte, session string, expires time.Time) error {
+	return t.updateUser(ctx, userID, `UPDATE users SET totp_pending = ?, totp_pending_session = ?, totp_pending_expires_at = ?, totp_pending_failures = 0
+		WHERE id = ?`, sealed, session, millis(expires), userID)
 }
+
+// CountTOTPPendingFailure adds a wrong code to a pending secret's count.
+func (t *Tx) CountTOTPPendingFailure(ctx context.Context, userID string) error {
+	return t.updateUser(ctx, userID, `UPDATE users SET totp_pending_failures = totp_pending_failures + 1 WHERE id = ?`, userID)
+}
+
+// ClearTOTPPending forgets a pending secret.
+func (t *Tx) ClearTOTPPending(ctx context.Context, userID string) error {
+	return t.updateUser(ctx, userID, `UPDATE users SET `+noTOTPPending+` WHERE id = ?`, userID)
+}
+
+// noTOTPPending is the SET list that forgets a pending secret.
+const noTOTPPending = `totp_pending = NULL, totp_pending_session = NULL, totp_pending_expires_at = NULL, totp_pending_failures = 0`
 
 // EnableTOTP makes a confirmed secret the user's and records the time step
 // that confirmed it.
 func (t *Tx) EnableTOTP(ctx context.Context, userID string, sealed []byte, step int64) error {
-	return t.updateUser(ctx, userID, `UPDATE users SET totp_secret = ?, totp_pending = NULL, totp_last_step = ? WHERE id = ?`,
+	return t.updateUser(ctx, userID, `UPDATE users SET totp_secret = ?, `+noTOTPPending+`, totp_last_step = ? WHERE id = ?`,
 		sealed, step, userID)
 }
 
 // DisableTOTP deletes the user's secret and recovery codes.
 func (t *Tx) DisableTOTP(ctx context.Context, userID string) error {
-	if err := t.updateUser(ctx, userID, `UPDATE users SET totp_secret = NULL, totp_pending = NULL, totp_last_step = 0 WHERE id = ?`,
+	if err := t.updateUser(ctx, userID, `UPDATE users SET totp_secret = NULL, `+noTOTPPending+`, totp_last_step = 0 WHERE id = ?`,
 		userID); err != nil {
 		return err
 	}

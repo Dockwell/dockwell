@@ -404,7 +404,6 @@ func (it item) desiredOn(server string) proto.Message {
 	return nil
 }
 
-
 // currentOn is what the latest revision has on a server.
 func (it item) currentOn(server string) proto.Message {
 	if slices.Contains(it.placed, server) {

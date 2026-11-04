@@ -96,6 +96,10 @@ export function useAuthError() {
           return t`That would leave you no way to sign in. Add another passkey or an authenticator app first.`;
         case "needs_hostname":
           return t`Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port.`;
+        case "no_pending_totp":
+          return t`This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again.`;
+        case "totp_setup_ended":
+          return t`That was the last try. 5 wrong codes ended this setup, and its key no longer works. Close this and set it up again, which asks for your passkey.`;
         case "totp_mismatch":
           return t`That code doesn't match. Check that your phone's clock is right, then enter the current code.`;
         default:

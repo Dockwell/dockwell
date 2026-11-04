@@ -100,7 +100,8 @@ var (
 	ErrNeedsHostname   = errors.New("passkeys and sign-in need a hostname, not an IP address. Open the panel at http://localhost instead, on the same port")
 	ErrTooManyRequests = errors.New("too many requests from your address. Wait a minute, then try again")
 	ErrNoTOTP          = errors.New("you don't sign in with an authenticator app yet. Set one up first")
-	ErrNoPendingTOTP   = errors.New("start setting up the authenticator app first")
+	ErrNoPendingTOTP   = errors.New("no setup of an authenticator app is waiting in this session: it works for 10 minutes, in the session that began it. Start setting it up again")
+	ErrTOTPSetupEnded  = errors.New("that was the last try: 5 wrong codes ended this setup of an authenticator app, and its key no longer works. Start setting it up again, which asks for your passkey")
 	ErrTOTPMismatch    = errors.New("that code doesn't match the new secret. Check that your phone's clock is right, then enter the current code")
 	// ErrInvalid wraps requests that are malformed: a bad email or name.
 	ErrInvalid = errors.New("invalid request")

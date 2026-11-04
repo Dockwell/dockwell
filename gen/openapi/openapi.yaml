@@ -1183,7 +1183,8 @@ paths:
             description: |-
                 BeginTotpSetup makes a new authenticator secret. It needs a proof from
                  FinishStepUp for setting up code sign-in. The secret takes effect only
-                 once ConfirmTotpSetup checks a code from it.
+                 once ConfirmTotpSetup checks a code from it, in this session, within
+                 10 minutes.
             operationId: AuthService_BeginTotpSetup
             requestBody:
                 content:
@@ -1204,13 +1205,42 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/totp:cancelSetup:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                CancelTotpSetup forgets the setup this session began, so its secret
+                 works nowhere. It does nothing when none is waiting.
+            operationId: AuthService_CancelTotpSetup
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CancelTotpSetupRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CancelTotpSetupResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/totp:confirmSetup:
         post:
             tags:
                 - AuthService
             description: |-
                 ConfirmTotpSetup checks a code from the new secret, turns code sign-in
-                 on, and returns new recovery codes. They are shown once.
+                 on, and returns new recovery codes. They are shown once. Only the
+                 session that began the setup can, and 5 wrong codes end it, so it needs
+                 a new step-up.
             operationId: AuthService_ConfirmTotpSetup
             requestBody:
                 content:
@@ -1601,6 +1631,14 @@ components:
                          there were two, which are all the full build.
                     format: enum
             description: BuildInfo identifies one build of the dockwell binary.
+        CancelTotpSetupRequest:
+            type: object
+            properties: {}
+            description: CancelTotpSetupRequest takes nothing.
+        CancelTotpSetupResponse:
+            type: object
+            properties: {}
+            description: CancelTotpSetupResponse is empty.
         Change:
             type: object
             properties:

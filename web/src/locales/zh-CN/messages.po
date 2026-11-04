@@ -896,6 +896,10 @@ msgstr "如果你丢了身份验证器应用，每个恢复码可以配合你的
 msgid "Email"
 msgstr "邮箱"
 
+#: src/features/activity/describe.ts
+msgid "Ended an authenticator app's setup after 5 wrong codes"
+msgstr "输入 5 次错误代码后结束了身份验证器应用的设置"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Enter an email address, such as mira@acme.dev."
 msgstr "请输入邮箱地址，例如 mira@acme.dev。"
@@ -2219,6 +2223,10 @@ msgid "That passkey reported a lower use count than before, which happens when a
 msgstr "这个通行密钥报告的使用次数比之前少，这在通行密钥被复制时会发生，所以它已不能再用于登录。请用其他方式登录，然后在“个人资料和安全”中移除它。"
 
 #: src/features/auth/messages.ts
+msgid "That was the last try. 5 wrong codes ended this setup, and its key no longer works. Close this and set it up again, which asks for your passkey."
+msgstr "这是最后一次尝试。5 次错误代码已结束此次设置，其密钥不再有效。请关闭此处并重新设置，届时需要使用通行密钥确认。"
+
+#: src/features/auth/messages.ts
 msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 msgstr "这样你将无法登录。请先添加另一个通行密钥或身份验证器应用。"
 
@@ -2394,6 +2402,10 @@ msgstr "这个计划会增加对服务器的访问"
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"
 msgstr "这台服务器"
+
+#: src/features/auth/messages.ts
+msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
+msgstr "此次身份验证器应用的设置已结束：它只在开始设置的会话中有效，时限为 10 分钟。请关闭此处并重新设置。"
 
 #: src/features/auth/RecoverPage.tsx
 msgid "This sign-in link didn't work"

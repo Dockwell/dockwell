@@ -444,6 +444,18 @@ func (h *Handler) ConfirmTotpSetup(ctx context.Context, req *connect.Request[doc
 	return connect.NewResponse(&dockwellv1.ConfirmTotpSetupResponse{RecoveryCodes: codes}), nil
 }
 
+// CancelTotpSetup forgets the setup this session began.
+func (h *Handler) CancelTotpSetup(ctx context.Context, _ *connect.Request[dockwellv1.CancelTotpSetupRequest]) (*connect.Response[dockwellv1.CancelTotpSetupResponse], error) {
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.auth.CancelTOTP(ctx, p); err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return connect.NewResponse(&dockwellv1.CancelTotpSetupResponse{}), nil
+}
+
 // DisableTotp turns code sign-in off.
 func (h *Handler) DisableTotp(ctx context.Context, req *connect.Request[dockwellv1.DisableTotpRequest]) (*connect.Response[dockwellv1.DisableTotpResponse], error) {
 	p, err := principal(ctx)
@@ -568,6 +580,7 @@ var codes = []struct {
 	{auth.ErrNeedsHostname, connect.CodeFailedPrecondition, "needs_hostname"},
 	{auth.ErrNoTOTP, connect.CodeFailedPrecondition, "no_totp"},
 	{auth.ErrNoPendingTOTP, connect.CodeFailedPrecondition, "no_pending_totp"},
+	{auth.ErrTOTPSetupEnded, connect.CodeFailedPrecondition, "totp_setup_ended"},
 	{auth.ErrTOTPMismatch, connect.CodeInvalidArgument, "totp_mismatch"},
 	{auth.ErrPasskeyExists, connect.CodeAlreadyExists, "passkey_exists"},
 	{auth.ErrTooManyRequests, connect.CodeResourceExhausted, "too_many_requests"},

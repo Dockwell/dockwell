@@ -251,7 +251,8 @@ service AuthService {
 
   // BeginTotpSetup makes a new authenticator secret. It needs a proof from
   // FinishStepUp for setting up code sign-in. The secret takes effect only
-  // once ConfirmTotpSetup checks a code from it.
+  // once ConfirmTotpSetup checks a code from it, in this session, within
+  // 10 minutes.
   rpc BeginTotpSetup(BeginTotpSetupRequest) returns (BeginTotpSetupResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (google.api.http) = {
@@ -261,11 +262,23 @@ service AuthService {
   }
 
   // ConfirmTotpSetup checks a code from the new secret, turns code sign-in
-  // on, and returns new recovery codes. They are shown once.
+  // on, and returns new recovery codes. They are shown once. Only the
+  // session that began the setup can, and 5 wrong codes end it, so it needs
+  // a new step-up.
   rpc ConfirmTotpSetup(ConfirmTotpSetupRequest) returns (ConfirmTotpSetupResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (google.api.http) = {
       post: "/v1/totp:confirmSetup"
+      body: "*"
+    };
+  }
+
+  // CancelTotpSetup forgets the setup this session began, so its secret
+  // works nowhere. It does nothing when none is waiting.
+  rpc CancelTotpSetup(CancelTotpSetupRequest) returns (CancelTotpSetupResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/totp:cancelSetup"
       body: "*"
     };
   }
@@ -710,6 +723,12 @@ message ConfirmTotpSetupResponse {
   // Ten one-time recovery codes. They are shown only now; store them safely.
   repeated string recovery_codes = 1;
 }
+
+// CancelTotpSetupRequest takes nothing.
+message CancelTotpSetupRequest {}
+
+// CancelTotpSetupResponse is empty.
+message CancelTotpSetupResponse {}
 
 // DisableTotpRequest confirms turning code sign-in off.
 message DisableTotpRequest {

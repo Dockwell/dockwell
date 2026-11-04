@@ -478,6 +478,7 @@ describe("ProfilePage", () => {
     stubPasskeys();
     const codes = Array.from({ length: 10 }, (_, i) => `7KQ2-M9XD-4TPA-ZR3${i}`);
     const confirmTotpSetup = vi.fn(() => ({ recoveryCodes: codes }));
+    const cancelTotpSetup = vi.fn(() => ({}));
     const beginTotpSetup = confirmed((_req: BeginTotpSetupRequest) => ({
       secret: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP",
       uri: "otpauth://totp/Dockwell:mira%40acme.dev?secret=JBSWY3DP",
@@ -488,6 +489,7 @@ describe("ProfilePage", () => {
         getTotp: () => ({ totp: create(TotpSchema, { enabled: false }) }),
         beginTotpSetup,
         confirmTotpSetup,
+        cancelTotpSetup,
       }),
     );
     await userEvent.click(await screen.findByRole("button", { name: "Set up" }));
@@ -504,6 +506,55 @@ describe("ProfilePage", () => {
     expect(download).toHaveClass("dw-btn", "dw-btn-secondary", "dw-btn-sm");
     expect(confirmTotpSetup).toHaveBeenCalledWith(expect.objectContaining({ code: "123456" }), expect.anything());
     expect(beginTotpSetup.mock.calls.map((c) => c[0].proof)).toEqual(["", proofFor(StepUpAction.SET_UP_CODES)]);
+    await userEvent.click(within(saved).getByRole("button", { name: "I saved them" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // Finished, so there's nothing to forget.
+    expect(cancelTotpSetup).not.toHaveBeenCalled();
+  });
+
+  it("forgets the new key when you close the setup before finishing it", async () => {
+    stubPasskeys();
+    const cancelTotpSetup = vi.fn(() => ({}));
+    renderAt(
+      "/profile",
+      api({
+        getTotp: () => ({ totp: create(TotpSchema, { enabled: false }) }),
+        beginTotpSetup: confirmed(() => ({
+          secret: "JBSWY3DPEHPK3PXP",
+          uri: "otpauth://totp/Dockwell?secret=JBSWY3DP",
+        })),
+        cancelTotpSetup,
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Set up" }));
+    const sheet = await screen.findByRole("dialog", { name: "Set up an authenticator app" });
+    expect(cancelTotpSetup).not.toHaveBeenCalled();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(cancelTotpSetup).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("says when wrong codes ended the setup, and that it takes the passkey again", async () => {
+    stubPasskeys();
+    renderAt(
+      "/profile",
+      api({
+        getTotp: () => ({ totp: create(TotpSchema, { enabled: false }) }),
+        beginTotpSetup: confirmed(() => ({
+          secret: "JBSWY3DPEHPK3PXP",
+          uri: "otpauth://totp/Dockwell?secret=JBSWY3DP",
+        })),
+        confirmTotpSetup: () => Promise.reject(authError(Code.FailedPrecondition, "totp_setup_ended")),
+        cancelTotpSetup: () => ({}),
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Set up" }));
+    const sheet = await screen.findByRole("dialog", { name: "Set up an authenticator app" });
+    await userEvent.type(within(sheet).getByLabelText("Enter the 6-digit code it shows"), "123456");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Turn on" }));
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent(
+      "That was the last try. 5 wrong codes ended this setup, and its key no longer works.",
+    );
   });
 
   it("confirms turning codes off with a passkey", async () => {

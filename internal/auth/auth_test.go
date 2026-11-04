@@ -110,6 +110,19 @@ func (f *fixture) auditDetails(t *testing.T, action string) []string {
 	return out
 }
 
+// user reads p's user as the store has it now.
+func (f *fixture) user(t *testing.T, p Principal) store.User {
+	t.Helper()
+	var u store.User
+	if err := f.db.View(t.Context(), func(tx *store.Tx) (err error) {
+		u, err = tx.GetUser(t.Context(), p.User.ID)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return u
+}
+
 // auditEvents returns every event with action, oldest first.
 func (f *fixture) auditEvents(t *testing.T, action string) []store.Event {
 	t.Helper()

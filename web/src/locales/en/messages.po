@@ -896,6 +896,10 @@ msgstr "Each code signs you in once, with your email, if you lose your authentic
 msgid "Email"
 msgstr "Email"
 
+#: src/features/activity/describe.ts
+msgid "Ended an authenticator app's setup after 5 wrong codes"
+msgstr "Ended an authenticator app's setup after 5 wrong codes"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Enter an email address, such as mira@acme.dev."
 msgstr "Enter an email address, such as mira@acme.dev."
@@ -2219,6 +2223,10 @@ msgid "That passkey reported a lower use count than before, which happens when a
 msgstr "That passkey reported a lower use count than before, which happens when a passkey is copied, so it no longer signs in. Sign in another way and remove it under Profile and security."
 
 #: src/features/auth/messages.ts
+msgid "That was the last try. 5 wrong codes ended this setup, and its key no longer works. Close this and set it up again, which asks for your passkey."
+msgstr "That was the last try. 5 wrong codes ended this setup, and its key no longer works. Close this and set it up again, which asks for your passkey."
+
+#: src/features/auth/messages.ts
 msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 msgstr "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 
@@ -2394,6 +2402,10 @@ msgstr "This plan gives more access to a server"
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"
 msgstr "This server"
+
+#: src/features/auth/messages.ts
+msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
+msgstr "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
 
 #: src/features/auth/RecoverPage.tsx
 msgid "This sign-in link didn't work"

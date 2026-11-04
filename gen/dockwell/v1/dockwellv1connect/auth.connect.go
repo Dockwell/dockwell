@@ -92,6 +92,9 @@ const (
 	// AuthServiceConfirmTotpSetupProcedure is the fully-qualified name of the AuthService's
 	// ConfirmTotpSetup RPC.
 	AuthServiceConfirmTotpSetupProcedure = "/dockwell.v1.AuthService/ConfirmTotpSetup"
+	// AuthServiceCancelTotpSetupProcedure is the fully-qualified name of the AuthService's
+	// CancelTotpSetup RPC.
+	AuthServiceCancelTotpSetupProcedure = "/dockwell.v1.AuthService/CancelTotpSetup"
 	// AuthServiceDisableTotpProcedure is the fully-qualified name of the AuthService's DisableTotp RPC.
 	AuthServiceDisableTotpProcedure = "/dockwell.v1.AuthService/DisableTotp"
 	// AuthServiceRegenerateRecoveryCodesProcedure is the fully-qualified name of the AuthService's
@@ -169,11 +172,17 @@ type AuthServiceClient interface {
 	GetTotp(context.Context, *connect.Request[v1.GetTotpRequest]) (*connect.Response[v1.GetTotpResponse], error)
 	// BeginTotpSetup makes a new authenticator secret. It needs a proof from
 	// FinishStepUp for setting up code sign-in. The secret takes effect only
-	// once ConfirmTotpSetup checks a code from it.
+	// once ConfirmTotpSetup checks a code from it, in this session, within
+	// 10 minutes.
 	BeginTotpSetup(context.Context, *connect.Request[v1.BeginTotpSetupRequest]) (*connect.Response[v1.BeginTotpSetupResponse], error)
 	// ConfirmTotpSetup checks a code from the new secret, turns code sign-in
-	// on, and returns new recovery codes. They are shown once.
+	// on, and returns new recovery codes. They are shown once. Only the
+	// session that began the setup can, and 5 wrong codes end it, so it needs
+	// a new step-up.
 	ConfirmTotpSetup(context.Context, *connect.Request[v1.ConfirmTotpSetupRequest]) (*connect.Response[v1.ConfirmTotpSetupResponse], error)
+	// CancelTotpSetup forgets the setup this session began, so its secret
+	// works nowhere. It does nothing when none is waiting.
+	CancelTotpSetup(context.Context, *connect.Request[v1.CancelTotpSetupRequest]) (*connect.Response[v1.CancelTotpSetupResponse], error)
 	// DisableTotp turns code sign-in off and deletes the secret and recovery
 	// codes. It needs a proof from FinishStepUp for turning code sign-in off.
 	// It refuses when that would leave no way to sign in.
@@ -327,6 +336,12 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("ConfirmTotpSetup")),
 			connect.WithClientOptions(opts...),
 		),
+		cancelTotpSetup: connect.NewClient[v1.CancelTotpSetupRequest, v1.CancelTotpSetupResponse](
+			httpClient,
+			baseURL+AuthServiceCancelTotpSetupProcedure,
+			connect.WithSchema(authServiceMethods.ByName("CancelTotpSetup")),
+			connect.WithClientOptions(opts...),
+		),
 		disableTotp: connect.NewClient[v1.DisableTotpRequest, v1.DisableTotpResponse](
 			httpClient,
 			baseURL+AuthServiceDisableTotpProcedure,
@@ -371,6 +386,7 @@ type authServiceClient struct {
 	getTotp                 *connect.Client[v1.GetTotpRequest, v1.GetTotpResponse]
 	beginTotpSetup          *connect.Client[v1.BeginTotpSetupRequest, v1.BeginTotpSetupResponse]
 	confirmTotpSetup        *connect.Client[v1.ConfirmTotpSetupRequest, v1.ConfirmTotpSetupResponse]
+	cancelTotpSetup         *connect.Client[v1.CancelTotpSetupRequest, v1.CancelTotpSetupResponse]
 	disableTotp             *connect.Client[v1.DisableTotpRequest, v1.DisableTotpResponse]
 	regenerateRecoveryCodes *connect.Client[v1.RegenerateRecoveryCodesRequest, v1.RegenerateRecoveryCodesResponse]
 	unlockCodeSignIn        *connect.Client[v1.UnlockCodeSignInRequest, v1.UnlockCodeSignInResponse]
@@ -481,6 +497,11 @@ func (c *authServiceClient) ConfirmTotpSetup(ctx context.Context, req *connect.R
 	return c.confirmTotpSetup.CallUnary(ctx, req)
 }
 
+// CancelTotpSetup calls dockwell.v1.AuthService.CancelTotpSetup.
+func (c *authServiceClient) CancelTotpSetup(ctx context.Context, req *connect.Request[v1.CancelTotpSetupRequest]) (*connect.Response[v1.CancelTotpSetupResponse], error) {
+	return c.cancelTotpSetup.CallUnary(ctx, req)
+}
+
 // DisableTotp calls dockwell.v1.AuthService.DisableTotp.
 func (c *authServiceClient) DisableTotp(ctx context.Context, req *connect.Request[v1.DisableTotpRequest]) (*connect.Response[v1.DisableTotpResponse], error) {
 	return c.disableTotp.CallUnary(ctx, req)
@@ -563,11 +584,17 @@ type AuthServiceHandler interface {
 	GetTotp(context.Context, *connect.Request[v1.GetTotpRequest]) (*connect.Response[v1.GetTotpResponse], error)
 	// BeginTotpSetup makes a new authenticator secret. It needs a proof from
 	// FinishStepUp for setting up code sign-in. The secret takes effect only
-	// once ConfirmTotpSetup checks a code from it.
+	// once ConfirmTotpSetup checks a code from it, in this session, within
+	// 10 minutes.
 	BeginTotpSetup(context.Context, *connect.Request[v1.BeginTotpSetupRequest]) (*connect.Response[v1.BeginTotpSetupResponse], error)
 	// ConfirmTotpSetup checks a code from the new secret, turns code sign-in
-	// on, and returns new recovery codes. They are shown once.
+	// on, and returns new recovery codes. They are shown once. Only the
+	// session that began the setup can, and 5 wrong codes end it, so it needs
+	// a new step-up.
 	ConfirmTotpSetup(context.Context, *connect.Request[v1.ConfirmTotpSetupRequest]) (*connect.Response[v1.ConfirmTotpSetupResponse], error)
+	// CancelTotpSetup forgets the setup this session began, so its secret
+	// works nowhere. It does nothing when none is waiting.
+	CancelTotpSetup(context.Context, *connect.Request[v1.CancelTotpSetupRequest]) (*connect.Response[v1.CancelTotpSetupResponse], error)
 	// DisableTotp turns code sign-in off and deletes the secret and recovery
 	// codes. It needs a proof from FinishStepUp for turning code sign-in off.
 	// It refuses when that would leave no way to sign in.
@@ -717,6 +744,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("ConfirmTotpSetup")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceCancelTotpSetupHandler := connect.NewUnaryHandler(
+		AuthServiceCancelTotpSetupProcedure,
+		svc.CancelTotpSetup,
+		connect.WithSchema(authServiceMethods.ByName("CancelTotpSetup")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authServiceDisableTotpHandler := connect.NewUnaryHandler(
 		AuthServiceDisableTotpProcedure,
 		svc.DisableTotp,
@@ -779,6 +812,8 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceBeginTotpSetupHandler.ServeHTTP(w, r)
 		case AuthServiceConfirmTotpSetupProcedure:
 			authServiceConfirmTotpSetupHandler.ServeHTTP(w, r)
+		case AuthServiceCancelTotpSetupProcedure:
+			authServiceCancelTotpSetupHandler.ServeHTTP(w, r)
 		case AuthServiceDisableTotpProcedure:
 			authServiceDisableTotpHandler.ServeHTTP(w, r)
 		case AuthServiceRegenerateRecoveryCodesProcedure:
@@ -876,6 +911,10 @@ func (UnimplementedAuthServiceHandler) BeginTotpSetup(context.Context, *connect.
 
 func (UnimplementedAuthServiceHandler) ConfirmTotpSetup(context.Context, *connect.Request[v1.ConfirmTotpSetupRequest]) (*connect.Response[v1.ConfirmTotpSetupResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.ConfirmTotpSetup is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) CancelTotpSetup(context.Context, *connect.Request[v1.CancelTotpSetupRequest]) (*connect.Response[v1.CancelTotpSetupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.CancelTotpSetup is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) DisableTotp(context.Context, *connect.Request[v1.DisableTotpRequest]) (*connect.Response[v1.DisableTotpResponse], error) {

@@ -423,6 +423,53 @@ func testChangingHowYouSignInTakesAPasskeyThroughTheAPI(t *testing.T, backend st
 	})); err != nil {
 		t.Errorf("setting up codes with a step-up: %v", err)
 	}
+	// That setup stays this session's alone, and 5 wrong codes end it, on
+	// the timeline. Another session is told nothing is waiting for it.
+	confirm := func(c dockwellv1connect.AuthServiceClient) error {
+		_, err := c.ConfirmTotpSetup(t.Context(), connect.NewRequest(&dockwellv1.ConfirmTotpSetupRequest{Code: "000000"}))
+		return err
+	}
+	other := newBrowser(t, b.origin, f.api, nil)
+	other.auth = b.auth
+	other.signIn(t)
+	if err := confirm(other.authClient()); reasonOf(err) != "no_pending_totp" {
+		t.Errorf("confirming another session's setup: %v, want no_pending_totp", err)
+	}
+	for i := range 4 {
+		if err := confirm(c); reasonOf(err) != "totp_mismatch" {
+			t.Errorf("wrong code %d: %v, want totp_mismatch", i+1, err)
+		}
+	}
+	if err := confirm(c); reasonOf(err) != "totp_setup_ended" {
+		t.Errorf("the fifth wrong code: %v, want totp_setup_ended", err)
+	}
+	if err := confirm(c); reasonOf(err) != "no_pending_totp" {
+		t.Errorf("a code once the setup ended: %v, want no_pending_totp", err)
+	}
+	timeline, err := eventClient(b, b.origin).ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{
+		Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_ACCESS},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(timeline.Msg.GetEvents(), func(e *dockwellv1.Event) bool { return e.GetAction() == "totp.setup_discarded" }) {
+		t.Errorf("the timeline doesn't show the setup that 5 wrong codes ended: %v", timeline.Msg.GetEvents())
+	}
+	if _, err := c.CancelTotpSetup(t.Context(), connect.NewRequest(&dockwellv1.CancelTotpSetupRequest{})); err != nil {
+		t.Errorf("cancelling with nothing waiting: %v", err)
+	}
+	if _, err := c.BeginTotpSetup(t.Context(), connect.NewRequest(&dockwellv1.BeginTotpSetupRequest{
+		Proof: stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_SET_UP_CODES, ""),
+	})); err != nil {
+		t.Errorf("setting up codes again with a step-up: %v", err)
+	}
+	if _, err := c.CancelTotpSetup(t.Context(), connect.NewRequest(&dockwellv1.CancelTotpSetupRequest{})); err != nil {
+		t.Errorf("cancelling a setup: %v", err)
+	}
+	if err := confirm(c); reasonOf(err) != "no_pending_totp" {
+		t.Errorf("a code for a cancelled setup: %v, want no_pending_totp", err)
+	}
+
 	tokens := dockwellv1connect.NewTokenServiceClient(b, b.origin, connect.WithProtoJSON())
 	if _, err := tokens.CreateToken(t.Context(), connect.NewRequest(&dockwellv1.CreateTokenRequest{
 		Name: "CI", Scope: dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY,

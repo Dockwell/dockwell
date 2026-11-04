@@ -60,7 +60,7 @@ A fresh VPS has an IP address and nothing else. Until #14, the API listened on l
   - RFC 6238 with HMAC-SHA1, 6 digits and 30 s steps, accepting one step either side of now.
   - The newest accepted step is stored, and only a later step is accepted, so a code works once even when requests race.
   - The secret is sealed at rest with `internal/seal`, bound to the user's ID.
-- **Turning codes on** needs a code from the new secret, and since ADR 0022 a step-up to begin. It then returns ten recovery codes, shown once. Each is 80 random bits, written as `XXXX-XXXX-XXXX-XXXX` in Crockford's base32, and stored only as a hash.
+- **Turning codes on** needs a code from the new secret, and since ADR 0022 a step-up to begin, which only that session can finish, within 10 minutes and 5 wrong codes. It then returns ten recovery codes, shown once. Each is 80 random bits, written as `XXXX-XXXX-XXXX-XXXX` in Crockford's base32, and stored only as a hash.
 - **Code sign-in** takes an email and a code. It is the fallback, so its limits are strict:
   - Each source address (IPv6 by /64) gets 5 wrong codes before backoff. Each email address, counted in the database so a restart doesn't reset it, gets 3 wrong authenticator codes.
   - After that, each try waits twice as long as the last, up to 15 minutes.

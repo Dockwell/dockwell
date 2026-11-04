@@ -197,6 +197,22 @@ describe("Activity", () => {
     await waitFor(() => expect(router.state.location.search).toEqual({ environment: "env_prod" }));
   });
 
+  it("marks a setup that wrong codes ended as worth a look", async () => {
+    const watch = feed<WatchEventsResponse>();
+    watch.push(
+      snapshot([
+        auditEvent({
+          id: "evt_ended",
+          action: "totp.setup_discarded",
+          time: timestampFromDate(new Date(Date.now() - HOUR)),
+        }),
+      ]),
+    );
+    renderActivity(watch, {});
+    const row = await screen.findByRole("row", { name: /Ended an authenticator app's setup after 5 wrong codes/ });
+    expect(row.querySelector(".dw-tone-warning, [data-tone='warning']")).not.toBeNull();
+  });
+
   it("marks a passkey added after a recovery code as worth a look", async () => {
     const watch = feed<WatchEventsResponse>();
     const added = auditEvent({

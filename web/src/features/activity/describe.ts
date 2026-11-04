@@ -61,6 +61,9 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return { title: t`Turned on codes from an authenticator app`, icon: "lock" };
         case "totp.disable":
           return { title: t`Turned off codes from an authenticator app`, icon: "lock" };
+        case "totp.setup_discarded":
+          // Wrong codes for a setup someone began, which may not be yours.
+          return { title: t`Ended an authenticator app's setup after 5 wrong codes`, icon: "lock", tone: "warning" };
         case "totp.unlock":
           return {
             title: name ? t`Unlocked codes for ${name}` : t`Unlocked codes from an authenticator app`,

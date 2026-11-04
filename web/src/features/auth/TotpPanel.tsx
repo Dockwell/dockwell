@@ -129,6 +129,13 @@ export function TotpPanel() {
           setSetup(undefined);
           void totp.refetch();
         }}
+        onCancel={() => {
+          // The key it showed works nowhere now. If this doesn't reach the
+          // control plane, the key ends by itself within 10 minutes.
+          void createClient(AuthService, transport)
+            .cancelTotpSetup({})
+            .catch(() => {});
+        }}
       />
       <RegenerateSheet
         open={sheet === "codes"}
@@ -148,8 +155,16 @@ interface Setup {
   uri: string;
 }
 
+interface TotpSetupSheetProps {
+  open: boolean;
+  setup: Setup | undefined;
+  onClose: () => void;
+  /** Called as the sheet closes before the setup finished. */
+  onCancel: () => void;
+}
+
 /** Scan the new key, confirm with a code, then save the recovery codes. */
-function TotpSetupSheet({ open, setup, onClose }: { open: boolean; setup: Setup | undefined; onClose: () => void }) {
+function TotpSetupSheet({ open, setup, onClose, onCancel }: TotpSetupSheetProps) {
   const { t } = useLingui();
   const transport = useTransport();
   const explain = useAuthError();
@@ -204,7 +219,10 @@ function TotpSetupSheet({ open, setup, onClose }: { open: boolean; setup: Setup 
   return (
     <Sheet
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        onCancel();
+        onClose();
+      }}
       title={t`Set up an authenticator app`}
       subtitle={t`Such as 1Password, Google Authenticator or Aegis`}
       footer={

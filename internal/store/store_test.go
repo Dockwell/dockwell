@@ -91,6 +91,37 @@ func TestRefusesNewerSchema(t *testing.T) {
 	})
 }
 
+// A code setup left waiting by an older dockwell has no session that could
+// finish it, so upgrading forgets it, and keeps the secret already in use.
+func TestUpgradeForgetsACodeSetupLeftWaiting(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		location := storetest.New(t, b)
+		old, err := store.OpenAt(t.Context(), location, 15)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = old.Close()
+		blob := "X'0102'"
+		if b == store.Postgres {
+			blob = `'\x0102'::bytea`
+		}
+		storetest.Exec(t, location, `INSERT INTO users (id, email, name, role, webauthn_handle, created_at, totp_secret, totp_pending)
+			VALUES ('usr_1', 'mira@acme.dev', 'Mira Chen', 'owner', `+blob+`, 0, `+blob+`, `+blob+`)`)
+		db, err := store.Open(t.Context(), location)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
+		_ = db.View(t.Context(), func(tx *store.Tx) error {
+			u, err := tx.GetUser(t.Context(), "usr_1")
+			if err != nil || u.TOTPPending != nil || u.TOTPSecret == nil {
+				t.Errorf("after upgrading, the user = %+v, %v; want no pending secret, and the secret in use", u, err)
+			}
+			return nil
+		})
+	})
+}
+
 // OpenExisting opens a store only as it is: it never migrates one an older
 // dockwell left, never creates one, and refuses a schema it doesn't know.
 func TestOpenExistingNeverMigrates(t *testing.T) {

@@ -315,6 +315,156 @@ func testRecoveryCodesAreReplacedTogether(t *testing.T, backend store.Backend) {
 	}
 }
 
+// wrongCodeFor is a code that isn't one of secret's right now, however
+// the clock is off.
+func (f *fixture) wrongCodeFor(secret []byte) string {
+	step := totpStep(f.clock.now())
+	for i := 0; ; i++ {
+		code := fmt.Sprintf("%06d", i)
+		if code != totpCode(secret, step-1) && code != totpCode(secret, step) && code != totpCode(secret, step+1) {
+			return code
+		}
+	}
+}
+
+// begun starts setting up codes in p's session, and returns the new secret.
+func (f *fixture) begun(t *testing.T, p Principal) []byte {
+	t.Helper()
+	setup, err := f.svc.BeginTOTP(t.Context(), p, f.proof(t, p, StepUpSetUpCodes, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret, err := totpEncoding.DecodeString(setup.Secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return secret
+}
+
+// A setup of code sign-in ends in recovery codes, which sign in and add a
+// passkey, so a session that never proved the step-up can't finish one the
+// person began and left. Only the session that proved it can, with a right
+// code, within 10 minutes.
+func TestOnlyTheSessionThatBeganASetupFinishesIt(t *testing.T) {
+	storetest.Each(t, testOnlyTheSessionThatBeganASetupFinishesIt)
+}
+
+func testOnlyTheSessionThatBeganASetupFinishesIt(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
+	a := &authtest.Authenticator{}
+	p := ownerPrincipal(f.claim(t, localhost, a))
+	stolen := ownerPrincipal(must(f.passkeySignIn(t, localhost, a, nil)))
+	ctx := t.Context()
+	right := func(secret []byte) string { return totpCode(secret, totpStep(f.clock.now())) }
+
+	// Another session gets nothing, right code or wrong, however many it
+	// tries, and leaves the setup as it was.
+	secret := f.begun(t, p)
+	for range 20 {
+		if _, err := f.svc.ConfirmTOTP(ctx, stolen, f.wrongCodeFor(secret)); !errors.Is(err, ErrNoPendingTOTP) {
+			t.Fatalf("a wrong code from another session = %v, want ErrNoPendingTOTP", err)
+		}
+	}
+	if codes, err := f.svc.ConfirmTOTP(ctx, stolen, right(secret)); !errors.Is(err, ErrNoPendingTOTP) || codes != nil {
+		t.Fatalf("the right code from another session = %v, %v, want ErrNoPendingTOTP", codes, err)
+	}
+	if err := f.svc.CancelTOTP(ctx, stolen); err != nil {
+		t.Fatal(err)
+	}
+	if codes, err := f.svc.ConfirmTOTP(ctx, p, right(secret)); err != nil || len(codes) != 10 {
+		t.Fatalf("the session that began it, after another's tries = %v, %v, want 10 recovery codes", codes, err)
+	}
+	f.clock.advance(totpPeriod * time.Second)
+
+	// A token has no session to begin one in.
+	token := Principal{User: p.User, Token: &store.APIToken{ID: "tok_1", UserID: p.User.ID}}
+	if _, err := f.svc.ConfirmTOTP(ctx, token, "123456"); !errors.Is(err, ErrNeedsSession) {
+		t.Errorf("a token confirming a setup = %v, want ErrNeedsSession", err)
+	}
+	if err := f.svc.CancelTOTP(ctx, token); !errors.Is(err, ErrNeedsSession) {
+		t.Errorf("a token cancelling a setup = %v, want ErrNeedsSession", err)
+	}
+
+	// 10 minutes end it, and the secret goes with them.
+	secret = f.begun(t, p)
+	f.clock.advance(totpSetupTTL)
+	if _, err := f.svc.ConfirmTOTP(ctx, p, right(secret)); !errors.Is(err, ErrNoPendingTOTP) {
+		t.Errorf("confirming a setup after %s = %v, want ErrNoPendingTOTP", totpSetupTTL, err)
+	}
+	if u := f.user(t, p); u.TOTPPending != nil || u.TOTPPendingSession != "" {
+		t.Errorf("after expiring, the user's row = %+v, want no pending secret", u)
+	}
+
+	// Closing the sheet ends it, once, and only the session's own.
+	secret = f.begun(t, p)
+	if err := f.svc.CancelTOTP(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	if u := f.user(t, p); u.TOTPPending != nil {
+		t.Error("cancelling left the secret pending")
+	}
+	if _, err := f.svc.ConfirmTOTP(ctx, p, right(secret)); !errors.Is(err, ErrNoPendingTOTP) {
+		t.Errorf("confirming a cancelled setup = %v, want ErrNoPendingTOTP", err)
+	}
+	if err := f.svc.CancelTOTP(ctx, p); err != nil {
+		t.Errorf("cancelling with nothing waiting: %v", err)
+	}
+}
+
+// 5 wrong codes end a setup: its secret goes, finishing it takes a new
+// step-up, and Activity shows it. Fewer don't, and a right code clears the
+// count. The count is in the store, so a restart doesn't reset it.
+func TestWrongCodesEndASetup(t *testing.T) { storetest.Each(t, testWrongCodesEndASetup) }
+
+func testWrongCodesEndASetup(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
+	p := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
+	ctx := t.Context()
+	secret := f.begun(t, p)
+	wrong := func() error {
+		_, err := f.svc.ConfirmTOTP(ctx, p, f.wrongCodeFor(secret))
+		return err
+	}
+	for i := range totpSetupFailures - 1 {
+		if err := wrong(); !errors.Is(err, ErrTOTPMismatch) {
+			t.Fatalf("wrong code %d = %v, want ErrTOTPMismatch", i+1, err)
+		}
+		f.svc = f.restart(t)
+	}
+	if got := f.user(t, p).TOTPPendingFailures; got != totpSetupFailures-1 {
+		t.Errorf("wrong codes counted = %d, want %d", got, totpSetupFailures-1)
+	}
+	if ev := f.auditEvents(t, "totp.setup_discarded"); len(ev) != 0 {
+		t.Errorf("events before the last wrong code = %+v", ev)
+	}
+	if err := wrong(); !errors.Is(err, ErrTOTPSetupEnded) {
+		t.Fatalf("wrong code %d = %v, want ErrTOTPSetupEnded", totpSetupFailures, err)
+	}
+	if u := f.user(t, p); u.TOTPPending != nil || u.TOTPPendingFailures != 0 {
+		t.Errorf("after the last wrong code, the user's row = %+v, want no pending secret", u)
+	}
+	if ev := f.auditEvents(t, "totp.setup_discarded"); len(ev) != 1 || ev[0].Actor != p.Actor() || ev[0].Detail != "after 5 wrong codes" {
+		t.Errorf("events after the last wrong code = %+v, want one", ev)
+	}
+	if _, err := f.svc.ConfirmTOTP(ctx, p, totpCode(secret, totpStep(f.clock.now()))); !errors.Is(err, ErrNoPendingTOTP) {
+		t.Errorf("the right code once it ended = %v, want ErrNoPendingTOTP", err)
+	}
+	if _, err := f.svc.BeginTOTP(ctx, p, ""); !errors.Is(err, ErrNeedsStepUp) {
+		t.Errorf("starting again without a step-up = %v, want ErrNeedsStepUp", err)
+	}
+
+	// A new step-up starts a new count.
+	secret = f.begun(t, p)
+	for range totpSetupFailures - 1 {
+		if err := wrong(); !errors.Is(err, ErrTOTPMismatch) {
+			t.Fatalf("a wrong code in a new setup = %v, want ErrTOTPMismatch", err)
+		}
+	}
+	if codes, err := f.svc.ConfirmTOTP(ctx, p, totpCode(secret, totpStep(f.clock.now()))); err != nil || len(codes) != 10 {
+		t.Errorf("the right code in a new setup = %v, %v, want 10 recovery codes", codes, err)
+	}
+}
+
 func TestNeverRemoveTheLastWayIn(t *testing.T) { storetest.Each(t, testNeverRemoveTheLastWayIn) }
 
 func testNeverRemoveTheLastWayIn(t *testing.T, backend store.Backend) {

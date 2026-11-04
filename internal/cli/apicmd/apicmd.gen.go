@@ -609,12 +609,23 @@ func Methods() []*apicli.Method {
 			Noun:      "totp",
 			Verb:      "begin-setup",
 			Short:     "Make a new authenticator secret",
-			Long:      "Make a new authenticator secret. It needs a proof from dockwell sessions\nfinish-step-up for setting up code sign-in. The secret takes effect only once\ndockwell totp confirm-setup checks a code from it.",
+			Long:      "Make a new authenticator secret. It needs a proof from dockwell sessions\nfinish-step-up for setting up code sign-in. The secret takes effect only once\ndockwell totp confirm-setup checks a code from it, in this session, within 10\nminutes.",
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "proof", Help: "The proof from dockwell sessions finish-step-up, for setting up code sign-in."},
 			},
 			Call: apicli.Unary[v1.BeginTotpSetupRequest, v1.BeginTotpSetupResponse](dockwellv1connect.AuthServiceBeginTotpSetupProcedure),
+		},
+		{
+			Name:      "dockwell.v1.AuthService.CancelTotpSetup",
+			Procedure: dockwellv1connect.AuthServiceCancelTotpSetupProcedure,
+			HTTP:      "POST /v1/totp:cancelSetup",
+			Noun:      "totp",
+			Verb:      "cancel-setup",
+			Short:     "Forget the setup this session began",
+			Long:      "Forget the setup this session began, so its secret works nowhere. It does\nnothing when none is waiting.",
+			Effect:    v1.Effect_EFFECT_APPLY,
+			Call:      apicli.Unary[v1.CancelTotpSetupRequest, v1.CancelTotpSetupResponse](dockwellv1connect.AuthServiceCancelTotpSetupProcedure),
 		},
 		{
 			Name:      "dockwell.v1.AuthService.ConfirmTotpSetup",
@@ -623,7 +634,7 @@ func Methods() []*apicli.Method {
 			Noun:      "totp",
 			Verb:      "confirm-setup",
 			Short:     "Check a code from the new secret",
-			Long:      "Check a code from the new secret, turns code sign-in on, and returns new\nrecovery codes. They are shown once.",
+			Long:      "Check a code from the new secret, turns code sign-in on, and returns new\nrecovery codes. They are shown once. Only the session that began the setup can,\nand 5 wrong codes end it, so it needs a new step-up.",
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "code", Help: "A 6-digit code from the authenticator app."},
@@ -716,7 +727,7 @@ func Nouns() []apicli.Noun {
 		{Name: "servers", Short: "List, get or watch servers", Long: "ServerService lists the servers Dockwell manages and streams their live state,\nas each server's agent reports it.\n\ndockwell servers watch has no REST path: REST has no way to stream messages, so\na REST client polls dockwell servers list or dockwell servers get instead, and\nanything that wants the stream opens it with Connect, gRPC or gRPC-Web. See\ndocs/adr/0015-rest-and-openapi-from-the-schema.md."},
 		{Name: "sessions", Short: "List or revoke sessions, and 8 more", Long: "A session is a browser you're signed in on. Signing in takes a passkey, a code\nfrom an authenticator app, a recovery code, or a one-time link from dockwell\nrecover, and sets a session cookie. No API token can sign in, or list or end\nsessions: how you sign in changes only by signing in, in the panel."},
 		{Name: "system", Short: "Return the build of the control plane that answers", Long: "SystemService describes the Dockwell install itself. It needs no sign-in, so the\nCLI, agents and other tools can check what they are talking to first."},
-		{Name: "totp", Short: "Get, disable or unlock TOTP, and 3 more", Long: "Code sign-in lets you sign in with a code from an authenticator app, or with a\none-time recovery code, beside your passkeys. Wrong codes slow it down, and too\nmany lock it until dockwell totp unlock turns it back on. Setting it up needs a\nsigned-in session, which no API token gives, and your passkey to confirm it, so\nyou do it in the panel, under Profile and security."},
+		{Name: "totp", Short: "Get, disable or unlock TOTP, and 4 more", Long: "Code sign-in lets you sign in with a code from an authenticator app, or with a\none-time recovery code, beside your passkeys. Wrong codes slow it down, and too\nmany lock it until dockwell totp unlock turns it back on. Setting it up needs a\nsigned-in session, which no API token gives, and your passkey to confirm it, so\nyou do it in the panel, under Profile and security."},
 		{Name: "variables", Short: "List, create, update or delete variables", Long: "A variable is a value of an environment that its services use, such as\nLOG_LEVEL=info. It isn't secret: plans and the panel show it. Services use\nvariables and secrets by reference, under the names they expect, so changing one\nis a plan that restarts every service that uses it.\n\ndockwell variables create, update and delete each propose a change, show its\nplan, and ask before applying it."},
 	}
 }
