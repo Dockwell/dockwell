@@ -289,10 +289,6 @@ func (p *Plan) HostAccess() bool {
 	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return len(r.HostAccess) > 0 })
 }
 
-// NeedsPerson reports a plan only a signed-in person may apply, with its
-// fingerprint: one that is destructive, or gives host access.
-func (p *Plan) NeedsPerson() bool { return p.Destructive() || p.HostAccess() }
-
 // Destructive reports a plan with a step that destroys data or may cut
 // off access, which applying can't fully undo.
 func (p *Plan) Destructive() bool {
