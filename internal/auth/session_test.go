@@ -115,3 +115,40 @@ func TestRevokeOtherSessionsSkipsEndedOnes(t *testing.T) {
 		t.Errorf("RevokeOtherSessions = %d, %v, want 1: the idle one had already ended", n, err)
 	}
 }
+
+// A stream whose session is revoked after Authenticate read it, but before
+// the stream registered with Track, still ends at once, not at the next
+// recheck.
+func TestARevocationBeforeTrackStillEndsTheStream(t *testing.T) {
+	f := newFixture(t, "")
+	f.svc.recheck = time.Hour
+	a := &authtest.Authenticator{}
+	owner := f.claim(t, localhost, a)
+	other, err := f.passkeySignIn(t, localhost, a, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, end := range map[string]func(p Principal) error{
+		"revoked":    func(p Principal) error { return f.svc.RevokeSession(t.Context(), ownerPrincipal(owner), p.Session.ID) },
+		"signed out": func(p Principal) error { return f.svc.SignOut(t.Context(), p) },
+	} {
+		signedIn := other
+		if name == "signed out" {
+			signedIn = owner
+		}
+		p, err := f.svc.Authenticate(t.Context(), localhost, signedIn.Token)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := end(p); err != nil { // commits and ends the streams registered so far: none
+			t.Fatal(err)
+		}
+		ctx, stop := f.svc.Track(t.Context(), localhost, p)
+		select {
+		case <-ctx.Done():
+		case <-time.After(5 * time.Second):
+			t.Errorf("a stream whose session was %s just before it registered stayed open", name)
+		}
+		stop()
+	}
+}

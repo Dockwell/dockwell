@@ -265,9 +265,18 @@ func (s *Service) RevokeOtherSessions(ctx context.Context, p Principal) (int, er
 // live also counts as using it, at most once a minute like any request. A
 // page left open therefore keeps its session until the absolute limit, 7
 // days after signing in, and the idle limit ends sessions with nothing open.
+//
+// The stream is registered first and its session checked again after, so a
+// revocation that commits after Authenticate read the session still ends it:
+// revoking commits, then ends the session's registered streams. Either the
+// stream was registered by then and is ended, or the check here reads the
+// committed revocation.
 func (s *Service) Track(ctx context.Context, client Client, p Principal) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	entry := s.streams.add(p.Session.ID, cancel)
+	if !s.stillLive(ctx, client, p.Session.ID) {
+		cancel()
+	}
 	done := make(chan struct{})
 	go func() {
 		t := time.NewTicker(s.recheck)
