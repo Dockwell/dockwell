@@ -7,6 +7,7 @@ import { Button, ButtonLink, Callout, Panel, Sheet, StatusBadge, TextField } fro
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { encode } from "uqr";
+
 import { CopyButton } from "../system/CopyCommand";
 import { normalizeCode } from "./code";
 import { useAuthError } from "./messages";
