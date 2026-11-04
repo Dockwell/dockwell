@@ -384,6 +384,36 @@ describe("ProfilePage", () => {
     expect(confirmTotpSetup).toHaveBeenCalledWith(expect.objectContaining({ code: "123456" }), expect.anything());
   });
 
+  it("copies the recovery codes, says so to screen readers, and is ready to copy again", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const writeText = vi.fn(async () => {});
+      vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+      const codes = Array.from({ length: 10 }, (_, i) => `7KQ2-M9XD-4TPA-ZR3${i}`);
+      renderAt(
+        "/profile",
+        api({
+          regenerateRecoveryCodes: () => ({ recoveryCodes: codes }),
+        }),
+      );
+      await userEvent.click(await screen.findByRole("button", { name: "New recovery codes" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Replace codes" }));
+      const saved = await screen.findByRole("dialog", { name: "Save your recovery codes" });
+
+      await userEvent.click(within(saved).getByRole("button", { name: "Copy codes" }));
+      expect(writeText).toHaveBeenCalledWith(codes.join("\n"));
+      expect(within(saved).getByRole("button", { name: "Codes copied" })).toBeVisible();
+      const live = saved.querySelector("[aria-live=polite]");
+      expect(live).toHaveTextContent("Codes copied");
+
+      await act(() => vi.advanceTimersByTimeAsync(2_000));
+      expect(within(saved).getByRole("button", { name: "Copy codes" })).toBeVisible();
+      expect(live).toHaveTextContent("");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps the key you scanned while the sheet is open, whatever the language does", async () => {
     let made = 0;
     const beginTotpSetup = vi.fn(() => {

@@ -7,7 +7,7 @@ import { Button, ButtonLink, Callout, Panel, Sheet, StatusBadge, TextField } fro
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { encode } from "uqr";
-
+import { CopyButton } from "../system/CopyCommand";
 import { normalizeCode } from "./code";
 import { useAuthError } from "./messages";
 
@@ -309,16 +309,7 @@ function RegenerateSheet({ open, left, onClose }: { open: boolean; left: number;
 
 function RecoveryCodes({ codes }: { codes: string[] }) {
   const { t } = useLingui();
-  const [copied, setCopied] = useState(false);
   const text = codes.join("\n");
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-    } catch {
-      // Clipboard access was refused; the codes stay selectable.
-    }
-  };
   return (
     <div className="totp-codes">
       <p className="totp-text">
@@ -335,9 +326,7 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
         ))}
       </ul>
       <div className="profile-actions">
-        <Button size="sm" icon={copied ? "check" : "copy"} onClick={() => void copy()}>
-          {copied ? t`Codes copied` : t`Copy codes`}
-        </Button>
+        <CopyButton text={text} label={t`Copy codes`} copiedLabel={t`Codes copied`} />
         <ButtonLink
           size="sm"
           href={`data:text/plain;charset=utf-8,${encodeURIComponent(`${text}\n`)}`}
