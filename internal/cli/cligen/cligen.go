@@ -106,6 +106,9 @@ type Noun struct {
 	Name  string
 	Short string
 	Long  string
+	// verbs are its methods' verbs, in the schema's order, then those of a
+	// kind that joins it.
+	verbs []string
 }
 
 // Generate writes the commands for every method of dockwell.v1 in the
@@ -123,6 +126,7 @@ func Generate(p *protogen.Plugin) error {
 	if err != nil {
 		return err
 	}
+	nouns = joinKinds(nouns, kinds)
 	g := p.NewGeneratedFile(OutputFile, ImportPath)
 	write(g, methods, nouns, kinds)
 	return nil
@@ -299,10 +303,12 @@ func Methods(p *protogen.Plugin) ([]Method, []Noun, error) {
 		if err != nil {
 			return nil, nil, err
 		}
+		verbs := verbsOf(out[i:j], order)
 		nouns = append(nouns, Noun{
 			Name:  name,
-			Short: nounShort(name, out[i:j], order),
+			Short: nounShort(name, verbs, out[i].Short),
 			Long:  reflow(names.Replace(help)),
+			verbs: verbs,
 		})
 		i = j
 	}
@@ -357,27 +363,60 @@ func commandNames(methods []Method) *strings.Replacer {
 // fewer of its verbs.
 const maxNounShort = 60
 
-// nounShort lists a noun's verbs in the schema's order, as "Propose, get
-// or apply changes". A noun with one verb has its method's help, and one
-// with many lists only those of one word.
-func nounShort(noun string, methods []Method, order map[*protogen.Method]int) string {
-	if len(methods) == 1 {
-		return methods[0].Short
-	}
+// verbsOf lists a noun's methods' verbs in the schema's order.
+func verbsOf(methods []Method, order map[*protogen.Method]int) []string {
 	methods = slices.Clone(methods)
 	slices.SortFunc(methods, func(a, b Method) int { return order[a.Method] - order[b.Method] })
-	var verbs, single []string
-	for _, m := range methods {
-		verbs = append(verbs, strings.ReplaceAll(m.Verb, "-", " "))
-		if !strings.Contains(m.Verb, "-") {
-			single = append(single, m.Verb)
+	verbs := make([]string, len(methods))
+	for i, m := range methods {
+		verbs[i] = m.Verb
+	}
+	return verbs
+}
+
+// nounShort lists a noun's verbs, as "Propose, get or apply changes". A
+// noun with one verb has its method's help, one, and one with many lists
+// only those of one word.
+func nounShort(noun string, verbs []string, one string) string {
+	if len(verbs) == 1 {
+		return one
+	}
+	var all, single []string
+	for _, v := range verbs {
+		all = append(all, strings.ReplaceAll(v, "-", " "))
+		if !strings.Contains(v, "-") {
+			single = append(single, v)
 		}
 	}
-	short := capitalize(list(verbs, "or") + " " + words(noun))
+	short := capitalize(list(all, "or") + " " + words(noun))
 	if len(short) <= maxNounShort || len(single) == 0 {
 		return short
 	}
-	return capitalize(list(single, "or")+" "+words(noun)) + fmt.Sprintf(", and %d more", len(verbs)-len(single))
+	return capitalize(list(single, "or")+" "+words(noun)) + fmt.Sprintf(", and %d more", len(all)-len(single))
+}
+
+// kindVerbs are the commands apicli makes for each kind of resource, in its
+// order. A test in internal/cli checks each noun's help names them.
+var kindVerbs = []string{"create", "update", "delete"}
+
+// joinKinds gives a noun that a kind's verbs join, as secrets has
+// RevealSecret's reveal and the secret kind's create, update and delete,
+// help that covers them all: its short help lists every verb, and its long
+// help says what the kind's do.
+func joinKinds(nouns []Noun, kinds []Kind) []Noun {
+	for i := range nouns {
+		n := &nouns[i]
+		for _, k := range kinds {
+			if k.Noun != n.Name {
+				continue
+			}
+			n.verbs = append(n.verbs, kindVerbs...)
+			n.Short = nounShort(n.Name, n.verbs, n.Short)
+			n.Long += "\n\n" + reflow(fmt.Sprintf("dockwell %s %s each propose a change, show its plan, and ask before applying it.",
+				n.Name, list(kindVerbs, "and")))
+		}
+	}
+	return nouns
 }
 
 // describe names and describes one method.

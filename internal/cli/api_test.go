@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -558,5 +559,46 @@ func TestCommandNamesDontCollide(t *testing.T) {
 	}
 	if !slices.Contains(api, "servers") || !slices.Contains(api, "changes") || !slices.Contains(api, "drift") || !slices.Contains(api, "projects") {
 		t.Errorf("the API commands are %v", api)
+	}
+}
+
+// A noun's short help names what it does: each of its commands, as
+// "Reveal, create, update or delete secrets", or when they are many those
+// of one word, and how many more. A kind's commands that join a noun a
+// service's methods have, as secrets does, are named too.
+func TestNounHelpNamesEveryCommand(t *testing.T) {
+	root, err := newRootCmd(IO{Getenv: func(string) string { return "" }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range root.Commands() {
+		if c.GroupID != apicli.GroupID {
+			continue
+		}
+		var verbs []string
+		for _, sub := range c.Commands() {
+			if !sub.Hidden && sub.Name() != "help" {
+				verbs = append(verbs, sub.Name())
+			}
+		}
+		more := regexp.MustCompile(`, and (\d+) more$`).FindStringSubmatch(c.Short)
+		missing := 0
+		for _, v := range verbs {
+			if len(verbs) > 1 && !strings.Contains(strings.ToLower(c.Short), strings.ReplaceAll(v, "-", " ")) {
+				missing++
+			}
+		}
+		if missing > 0 && (more == nil || more[1] != strconv.Itoa(missing)) {
+			t.Errorf("the help of dockwell %s, %q, names %d of its commands %v", c.Name(), c.Short, len(verbs)-missing, verbs)
+		}
+	}
+	for noun, want := range map[string]string{
+		"secrets":   "Reveal, create, update or delete secrets",
+		"variables": "List, create, update or delete variables",
+	} {
+		c, _, err := root.Find([]string{noun})
+		if err != nil || c.Short != want || !strings.Contains(c.Long, "dockwell "+noun+" create, update and delete each propose a change") {
+			t.Errorf("the help of dockwell %s = %q, %v:\n%s\nwant %q, and to say what create, update and delete do", noun, c.Short, err, c.Long, want)
+		}
 	}
 }
