@@ -17,12 +17,9 @@ export class Scope {
     return new Scope(vars, this);
   }
 
-  has(name: string): boolean {
-    return name in this.#vars || (this.#parent?.has(name) ?? false);
-  }
-
+  /** Only a layer's own names count, so {{constructor}} doesn't find Object's. */
   get(name: string): unknown {
-    if (name in this.#vars) return this.#vars[name];
+    if (Object.hasOwn(this.#vars, name)) return this.#vars[name];
     return this.#parent?.get(name);
   }
 }
@@ -41,12 +38,17 @@ const NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
 const PATH = /^[A-Za-z_$][\w$]*(\.[\w$]+)*$/;
 const QUOTED = /^(['"])(.*)\1$/s;
 
-const LITERALS: Record<string, unknown> = { true: true, false: false, null: null, undefined: undefined };
+const LITERALS = new Map<string, unknown>([
+  ["true", true],
+  ["false", false],
+  ["null", null],
+  ["undefined", undefined],
+]);
 
 /** Evaluates the inside of one {{…}}. Throws HoleError for anything that is not a lookup or a literal. */
 export function evaluate(expression: string, scope: Scope): unknown {
   const expr = expression.trim();
-  if (expr in LITERALS) return LITERALS[expr];
+  if (LITERALS.has(expr)) return LITERALS.get(expr);
   if (NUMBER.test(expr)) return Number(expr);
   const quoted = QUOTED.exec(expr);
   if (quoted) return quoted[2];

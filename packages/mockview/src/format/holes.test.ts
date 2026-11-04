@@ -34,6 +34,15 @@ describe("evaluate", () => {
     expect(evaluate("missing.deeper.still", scope)).toBeUndefined();
   });
 
+  it("finds only names the scope defines, never ones from Object.prototype", () => {
+    for (const name of ["constructor", "toString", "hasOwnProperty", "__proto__", "valueOf"]) {
+      expect(evaluate(name, scope)).toBeUndefined();
+    }
+    expect(evaluate("constructor.name", scope)).toBeUndefined();
+    const shadowed = new Scope({ toString: "root" }).child({ item: 1 });
+    expect(evaluate("toString", shadowed)).toBe("root");
+  });
+
   it("rejects expressions", () => {
     expect(() => evaluate("a + b", scope)).toThrow(HoleError);
     expect(() => evaluate("!x", scope)).toThrow(HoleError);
