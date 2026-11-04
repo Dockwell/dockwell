@@ -343,11 +343,12 @@ func (a *apiAccess) noControlPlane(dir datadir.Dir) error {
 	return errNoControlPlane
 }
 
-// openLocalState opens the control plane's state for local access, as it
-// is. It never migrates it: a migration under a control plane that runs an
-// older dockwell, as between an upgrade and its restart, would change the
-// schema beneath it. A state at another schema version than this
-// dockwell's is refused, with what to do.
+// openLocalState opens the control plane's state for a command run beside
+// it, such as local access or dockwell claim, as it is. It never migrates
+// it: a migration under a control plane that runs an older dockwell, as
+// between an upgrade and its restart, would change the schema beneath it.
+// A state at another schema version than this dockwell's is refused, with
+// what to do.
 func openLocalState(ctx context.Context, dir datadir.Dir, location string) (*store.DB, error) {
 	if err := controlState(dir, location); err != nil {
 		return nil, err
@@ -357,7 +358,7 @@ func openLocalState(ctx context.Context, dir datadir.Dir, location string) (*sto
 	switch {
 	case errors.As(err, &schema) && schema.Database < schema.Binary:
 		return nil, fmt.Errorf("the control plane here runs an older dockwell than this one: its state has schema version %d, and this dockwell's is %d. "+
-			"Local access never upgrades the state, which would change it under the running control plane. "+
+			"Only dockwell run upgrades the state, as it starts the control plane, so nothing changes it under the one running now. "+
 			"Restart the control plane so it runs this dockwell, with sudo systemctl restart dockwell or sudo rc-service dockwell restart, then try again",
 			schema.Database, schema.Binary)
 	case errors.As(err, &schema):

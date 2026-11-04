@@ -140,6 +140,10 @@ func actor() string {
 // openControl opens an existing control plane's key and database at
 // location, for commands that run beside it on the control server. It
 // never creates either. The caller closes the database.
+// It never migrates the state: only dockwell run does, as it starts the
+// control plane on it. A command run between an upgrade and the service's
+// restart would otherwise change the schema under the control plane that is
+// still running.
 func openControl(ctx context.Context, dir datadir.Dir, location string) (*seal.Key, *store.DB, error) {
 	if err := controlState(dir, location); err != nil {
 		return nil, nil, err
@@ -148,7 +152,7 @@ func openControl(ctx context.Context, dir datadir.Dir, location string) (*seal.K
 	if err != nil {
 		return nil, nil, err
 	}
-	db, err := store.Open(ctx, location)
+	db, err := openLocalState(ctx, dir, location)
 	if err != nil {
 		return nil, nil, err
 	}
