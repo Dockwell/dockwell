@@ -92,7 +92,8 @@ func (ChangeState) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{0}
 }
 
-// ActorKind says what kind of actor made a change.
+// ActorKind says what kind of actor made a change, or did what an event
+// records.
 type ActorKind int32
 
 const (
@@ -103,6 +104,15 @@ const (
 	ActorKind_ACTOR_KIND_TOKEN ActorKind = 2
 	// Dockwell itself, such as for a rollback.
 	ActorKind_ACTOR_KIND_DOCKWELL ActorKind = 3
+	// A server's agent, such as when it joins the fleet or renews its
+	// certificate.
+	ActorKind_ACTOR_KIND_SERVER ActorKind = 4
+	// Someone in a shell on the control server, running a dockwell command
+	// there, such as dockwell recover, or the CLI making its own API token
+	// for local access. They are named by their account and the server's
+	// host name, as "mira@hz-1", since Dockwell hasn't signed them in. What
+	// the CLI then does with that token is the token's.
+	ActorKind_ACTOR_KIND_SHELL ActorKind = 5
 )
 
 // Enum value maps for ActorKind.
@@ -112,12 +122,16 @@ var (
 		1: "ACTOR_KIND_USER",
 		2: "ACTOR_KIND_TOKEN",
 		3: "ACTOR_KIND_DOCKWELL",
+		4: "ACTOR_KIND_SERVER",
+		5: "ACTOR_KIND_SHELL",
 	}
 	ActorKind_value = map[string]int32{
 		"ACTOR_KIND_UNSPECIFIED": 0,
 		"ACTOR_KIND_USER":        1,
 		"ACTOR_KIND_TOKEN":       2,
 		"ACTOR_KIND_DOCKWELL":    3,
+		"ACTOR_KIND_SERVER":      4,
+		"ACTOR_KIND_SHELL":       5,
 	}
 )
 
@@ -148,7 +162,11 @@ func (ActorKind) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{1}
 }
 
-// Surface is where a change came from.
+// Surface is where a change, or what an event records, came from. A call
+// with an API token is from the CLI or the API, as its User-Agent says, for
+// a change and its audit events alike. What someone in a shell on the
+// control server does with a dockwell command, and a server joining with
+// dockwell join, are from the CLI too.
 type Surface int32
 
 const (
@@ -2197,15 +2215,16 @@ func (x *Change) GetUndoneBy() string {
 	return ""
 }
 
-// Actor is who made a change, or applied it.
+// Actor is who made a change, or applied it, or did what an event records.
 type Actor struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What kind of actor it is.
 	Kind ActorKind `protobuf:"varint,1,opt,name=kind,proto3,enum=dockwell.v1.ActorKind" json:"kind,omitempty"`
-	// The user's or token's ID. Empty for Dockwell.
+	// The user's, token's or server's ID, or a shell account's name, such as
+	// "mira@hz-1". Empty for Dockwell.
 	Id string `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
-	// The name to show, such as "Mira Chen", or a token's name, such as
-	// "GitHub Actions deploy".
+	// The name to show, such as "Mira Chen", a token's name, such as
+	// "GitHub Actions deploy", or a server's, such as "hz-2".
 	Name          string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3113,12 +3132,14 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x15CHANGE_STATE_APPLYING\x10\x02\x12\x18\n" +
 	"\x14CHANGE_STATE_APPLIED\x10\x03\x12\x17\n" +
 	"\x13CHANGE_STATE_FAILED\x10\x04\x12\x1a\n" +
-	"\x16CHANGE_STATE_DISCARDED\x10\x05*k\n" +
+	"\x16CHANGE_STATE_DISCARDED\x10\x05*\x98\x01\n" +
 	"\tActorKind\x12\x1a\n" +
 	"\x16ACTOR_KIND_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fACTOR_KIND_USER\x10\x01\x12\x14\n" +
 	"\x10ACTOR_KIND_TOKEN\x10\x02\x12\x17\n" +
-	"\x13ACTOR_KIND_DOCKWELL\x10\x03*n\n" +
+	"\x13ACTOR_KIND_DOCKWELL\x10\x03\x12\x15\n" +
+	"\x11ACTOR_KIND_SERVER\x10\x04\x12\x14\n" +
+	"\x10ACTOR_KIND_SHELL\x10\x05*n\n" +
 	"\aSurface\x12\x17\n" +
 	"\x13SURFACE_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rSURFACE_PANEL\x10\x01\x12\x0f\n" +

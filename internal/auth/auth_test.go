@@ -101,8 +101,9 @@ func (f *fixture) restart(t *testing.T) *Service {
 func (f *fixture) auditDetails(t *testing.T, action string) []string {
 	t.Helper()
 	var out []string
-	for _, e := range f.auditEvents(t, action) {
-		out = append(out, e.Detail)
+	events := f.auditEvents(t, action)
+	for i := range events {
+		out = append(out, events[i].Detail)
 	}
 	return out
 }

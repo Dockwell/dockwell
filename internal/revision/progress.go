@@ -70,6 +70,8 @@ func (p *Progress) index(server, resourceID string) int {
 // Update is one event of a watched change: a step moved on, or the change
 // did.
 type Update struct {
+	// Change is the change's ID.
+	Change string
 	// State is the change's state, when it moved on; empty for a step.
 	State string
 	// Progress is the change's progress when its state moved on, if it
@@ -90,14 +92,21 @@ const watcherBuffer = 256
 // each update to it, so nothing is missed between the two.
 func (e *Engine) Watch(ctx context.Context, changeID string) <-chan Update {
 	ch := make(chan Update, watcherBuffer)
+	dropped := make(chan struct{})
 	e.pmu.Lock()
 	if e.watchers[changeID] == nil {
-		e.watchers[changeID] = map[chan Update]struct{}{}
+		e.watchers[changeID] = map[chan Update]chan struct{}{}
 	}
-	e.watchers[changeID][ch] = struct{}{}
+	e.watchers[changeID][ch] = dropped
 	e.pmu.Unlock()
 	go func() {
-		<-ctx.Done()
+		// A watcher dropped for falling behind watches again with the same
+		// ctx, so this ends then too, rather than waiting for ctx.
+		select {
+		case <-ctx.Done():
+		case <-dropped:
+			return
+		}
 		e.pmu.Lock()
 		defer e.pmu.Unlock()
 		e.dropWatcherLocked(changeID, ch)
@@ -105,25 +114,40 @@ func (e *Engine) Watch(ctx context.Context, changeID string) <-chan Update {
 	return ch
 }
 
+// everyChange is the key watchers of every change are filed under, which
+// no change's ID can be.
+const everyChange = "*"
+
+// WatchAll follows every change, as Watch follows one: each update names
+// its change. Read what it is about after calling WatchAll.
+func (e *Engine) WatchAll(ctx context.Context) <-chan Update {
+	return e.Watch(ctx, everyChange)
+}
+
 func (e *Engine) dropWatcherLocked(changeID string, ch chan Update) {
 	ws := e.watchers[changeID]
-	if _, ok := ws[ch]; !ok {
+	dropped, ok := ws[ch]
+	if !ok {
 		return
 	}
 	delete(ws, ch)
 	close(ch)
+	close(dropped)
 	if len(ws) == 0 {
 		delete(e.watchers, changeID)
 	}
 }
 
 func (e *Engine) publishLocked(changeID string, u Update) {
-	for ch := range e.watchers[changeID] {
-		select {
-		case ch <- u:
-		default:
-			// Too far behind: drop it, and it watches again from a snapshot.
-			e.dropWatcherLocked(changeID, ch)
+	u.Change = changeID
+	for _, key := range [...]string{changeID, everyChange} {
+		for ch := range e.watchers[key] {
+			select {
+			case ch <- u:
+			default:
+				// Too far behind: drop it, and it watches again from a snapshot.
+				e.dropWatcherLocked(key, ch)
+			}
 		}
 	}
 }
@@ -496,16 +520,26 @@ func (e *Engine) Changes(ctx context.Context, page store.ChangePage, limit int) 
 		if err != nil {
 			return err
 		}
-		for i := range cs {
-			r := &Record{Change: cs[i]}
-			if r.Brief, err = brief(cs[i].Plan); err != nil {
-				return err
-			}
-			out = append(out, r)
-		}
-		return e.complete(ctx, tx, out)
+		out, err = e.Records(ctx, tx, cs)
+		return err
 	})
 	return out, err
+}
+
+// Records completes changes read with tx, without their items, as Changes
+// does: each with its plan in brief, its progress, and what rolled it back
+// or undid it.
+func (e *Engine) Records(ctx context.Context, tx *store.Tx, changes []store.Change) ([]*Record, error) {
+	out := make([]*Record, len(changes))
+	for i := range changes {
+		r := &Record{Change: changes[i]}
+		var err error
+		if r.Brief, err = brief(changes[i].Plan); err != nil {
+			return nil, err
+		}
+		out[i] = r
+	}
+	return out, e.complete(ctx, tx, out)
 }
 
 // complete reads each record's progress, and what rolled it back or undid

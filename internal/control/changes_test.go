@@ -23,9 +23,9 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
+	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/authapi"
-	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -427,7 +427,8 @@ func testPlanApplyAndUndoThroughTheAPI(t *testing.T, backend store.Backend) {
 		return err
 	})
 	want := map[string]string{planned.GetId(): "change.applied", again.GetId(): "change.discarded", undo.GetId(): "change.applied"}
-	for _, e := range events {
+	for i := range events {
+		e := &events[i]
 		if action, ok := want[e.Subject]; ok && e.Action == action {
 			if !strings.HasPrefix(e.Actor, "user:") || e.Surface != revision.ViaPanel {
 				t.Errorf("event %s %s by %q via %q, want a user via the panel", e.Action, e.Subject, e.Actor, e.Surface)
@@ -836,7 +837,8 @@ func testSecretsNeverLeaveTheAPI(t *testing.T, backend store.Backend) {
 		return nil
 	})
 	var history strings.Builder
-	for _, e := range events {
+	for i := range events {
+		e := &events[i]
 		history.WriteString(e.Actor + e.Action + e.Subject + e.Detail + "\n")
 	}
 	for i := range stored {
@@ -881,7 +883,7 @@ func testDestructivePlansNeedASessionAndAConfirmation(t *testing.T, backend stor
 	cli := dockwellv1connect.NewChangeServiceClient(bearer{token: token, rt: b.client.Transport}, b.origin,
 		connect.WithInterceptors(connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
 			return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-				req.Header().Set("User-Agent", changes.CLIUserAgent+"v0.4.0")
+				req.Header().Set("User-Agent", auth.CLIUserAgent+"v0.4.0")
 				return next(ctx, req)
 			}
 		})))

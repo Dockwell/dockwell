@@ -176,6 +176,7 @@ func TestHistoryIsAppendOnly(t *testing.T) {
 			if err := tx.CreateChange(ctx, store.Change{
 				ID: "chg_1", Summary: "s", Actor: "a", State: store.ChangeApplying,
 				Fingerprint: "f", Plan: []byte("{}"), CreatedAt: now, Items: []store.ChangeItem{{Kind: "firewall.rule", Scope: "srv_A", Name: "ssh", Spec: []byte{1}}},
+				Servers: []string{"srv_A"},
 			}); err != nil {
 				return err
 			}
@@ -200,6 +201,8 @@ func TestHistoryIsAppendOnly(t *testing.T) {
 			`UPDATE deployments SET server_id = 'srv_B'`,
 			`UPDATE deployments SET revision = 2`,
 			`DELETE FROM deployments`,
+			`UPDATE change_servers SET server_id = 'srv_B'`,
+			`DELETE FROM change_servers`,
 		} {
 			err := db.Update(ctx, func(tx *store.Tx) error { return store.ExecForTest(ctx, tx, q) })
 			if err == nil {
@@ -217,6 +220,12 @@ func TestHistoryIsAppendOnly(t *testing.T) {
 				t.Errorf("%s: %v", q, err)
 			}
 		}
+		_ = db.View(ctx, func(tx *store.Tx) error {
+			if got, err := tx.ChangeServers(ctx, "chg_1"); err != nil || !slices.Equal(got, []string{"srv_A"}) {
+				t.Errorf("the change's servers = %v, %v, want srv_A", got, err)
+			}
+			return nil
+		})
 		_ = location
 	})
 }
@@ -284,6 +293,12 @@ func TestUpgradeKeepsM1Revisions(t *testing.T) {
 			if err != nil || len(c.Items) != 2 || c.Items[1].Scope != "srv_A" || strings.Join(c.Items[1].Servers, " ") != "srv_A" ||
 				c.Items[1].ResourceID != "res_1" || c.Items[0].ResourceID != "" {
 				t.Errorf("GetChange = %+v, %v", c, err)
+			}
+			// The timeline finds each change on the servers it placed revisions on.
+			for _, change := range []string{"chg_1", "chg_2", "chg_3"} {
+				if got, err := tx.ChangeServers(ctx, change); err != nil || !slices.Equal(got, []string{"srv_A"}) {
+					t.Errorf("the servers of %s = %v, %v, want srv_A", change, got, err)
+				}
 			}
 			return nil
 		})

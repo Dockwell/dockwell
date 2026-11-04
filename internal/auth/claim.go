@@ -286,7 +286,7 @@ func (s *Service) FinishClaim(ctx context.Context, client Client, ceremonyID, to
 			fmt.Sprintf("%s claimed the install with %s from %s on %s", cer.user.Email, link.ID, client.remoteIP(), client.Site.RPID)); err != nil {
 			return err
 		}
-		if err := s.audit(ctx, tx, actor, "passkey.add", cer.user.ID, pk.ID+" for "+pk.RPID); err != nil {
+		if err := s.auditOn(ctx, tx, actor, "passkey.add", cer.user.ID, pk.ID, pk.ID+" for "+pk.RPID); err != nil {
 			return err
 		}
 		signedIn, err = s.startSession(ctx, tx, cer.user, client, MethodClaim)

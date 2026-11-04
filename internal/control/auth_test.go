@@ -115,6 +115,7 @@ func startFullLogging(t *testing.T, backend store.Backend, public https.Source, 
 	srv, err := New(Config{
 		Logger: logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
 		Changes: engine, Agents: agents, Store: db, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
+		EventPoll: 200 * time.Millisecond,
 	})
 	if err != nil {
 		t.Fatal(err)

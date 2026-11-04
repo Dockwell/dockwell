@@ -319,7 +319,7 @@ func (s *Service) FinishAddPasskey(ctx context.Context, client Client, p Princip
 		if pk, err = s.storePasskey(ctx, tx, p.User, client.Site, cred, name); err != nil {
 			return err
 		}
-		return s.audit(ctx, tx, p.Actor(), "passkey.add", p.User.ID, pk.ID+" for "+pk.RPID+" from "+client.remoteIP())
+		return s.auditOn(ctx, tx, p.Actor(), "passkey.add", p.User.ID, pk.ID, pk.ID+" for "+pk.RPID+" from "+client.remoteIP())
 	})
 	if err != nil {
 		return Passkey{}, err
@@ -367,6 +367,6 @@ func (s *Service) RemovePasskey(ctx context.Context, p Principal, passkeyID stri
 		if err := tx.DeletePasskey(ctx, p.User.ID, passkeyID); err != nil {
 			return err
 		}
-		return s.audit(ctx, tx, p.Actor(), "passkey.remove", p.User.ID, passkeyID)
+		return s.auditOn(ctx, tx, p.Actor(), "passkey.remove", p.User.ID, passkeyID, passkeyID)
 	})
 }

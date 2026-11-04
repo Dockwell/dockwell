@@ -156,8 +156,8 @@ This is safe because reading that directory already gives full control of the in
 - **Kept where only its makers can read it.** The token is kept in `<data>/control/local-token.json`, mode 0600, so each command doesn't make one. Only those who could make it can read it.
 - **On record.**
   - The token is named "Local access on hz-1, read-only" or "read-write", and listed on Profile and security like any other, where it can be revoked.
-  - Its creation and revocation are `token.create` and `token.revoke` events, by `cli:<user>@<host>`, the actor `dockwell token create` and `dockwell claim` already record.
-  - Its calls are the token's, `token:tok_…`, and its changes come from the CLI.
+  - Its creation and revocation are `token.create` and `token.revoke` events, by `cli:<user>@<host>`, the actor `dockwell token create` and `dockwell claim` already record: the shell account on the control server that ran the command. The timeline shows it as a shell account, `mira@hz-1` ([ADR 0020](0020-the-event-timeline.md)).
+  - Its calls are the token's, `token:tok_…`, and its changes, and every audit event its calls cause, come from the CLI.
 - **Within ADR 0016's limits.** A local token is an ordinary token, so it can't apply a destructive plan or manage sign-in, either.
 - **Only for the owner.** An install with no owner refuses it, and says to claim it first.
 - **Not for anyone else.** A user who can't read the data directory gets a message that says to use `sudo` or `dockwell login`. A user other than root looks in a data directory of their own by default, so when the system's, `/var/lib/dockwell`, has a control plane, or only root can look in it, the message says the same. A control plane on Postgres needs `DOCKWELL_DATABASE`, as `dockwell recover` does.
@@ -168,6 +168,8 @@ The other way considered was a Unix socket with the caller's credentials checked
 ### The CLI as a surface
 
 - `Surface` gains `SURFACE_CLI`. A call with an API token whose User-Agent starts with `dockwell-cli/` records its changes, and their audit events, as from the CLI. Any other call with a token is the API, and a session is the panel.
+- One place decides, `auth.Client.Surface`, for a change and for every audit event a call causes, such as a token's first use from an address.
+- What someone in a shell on the control server does with `dockwell`, such as making local access's token or `dockwell recover`, is from the CLI too, by the shell account that ran it. [ADR 0020](0020-the-event-timeline.md) puts both on the timeline.
 - The surface is what a client says it is, for the timeline. Who is held to account is the actor, the token, which the client can't choose.
 
 ## Consequences

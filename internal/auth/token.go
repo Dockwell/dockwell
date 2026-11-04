@@ -186,7 +186,7 @@ func (s *Service) RevokeLocalToken(ctx context.Context, actor, tokenID string) (
 			return err
 		}
 		revoked = true
-		return s.audit(ctx, tx, actor, "token.revoke", tok.UserID, "token "+tokenID)
+		return s.auditOn(ctx, tx, actor, "token.revoke", tok.UserID, tokenID, "token "+tokenID)
 	})
 	if err != nil {
 		return false, fmt.Errorf("can't revoke local access's token %s: %w", tokenID, err)
@@ -248,7 +248,7 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 		if expires != nil {
 			expiry = "expires " + expires.Format(time.RFC3339)
 		}
-		return s.audit(ctx, tx, actor, "token.create", user.ID, fmt.Sprintf("token %s %q, %s, %s", tok.ID, name, scope, expiry))
+		return s.auditOn(ctx, tx, actor, "token.create", user.ID, tok.ID, fmt.Sprintf("token %s %q, %s, %s", tok.ID, name, scope, expiry))
 	})
 	if err != nil {
 		return NewToken{}, err
@@ -280,7 +280,7 @@ func (s *Service) RevokeToken(ctx context.Context, p Principal, tokenID string) 
 		if err != nil {
 			return err
 		}
-		return s.audit(ctx, tx, p.Actor(), "token.revoke", p.User.ID, "token "+tokenID)
+		return s.auditOn(ctx, tx, p.Actor(), "token.revoke", p.User.ID, tokenID, "token "+tokenID)
 	})
 	if err != nil {
 		return err
@@ -344,7 +344,7 @@ func (s *Service) AuthenticateToken(ctx context.Context, client Client, secret s
 	case need != AccessRead && need != AccessWrite:
 		return Principal{}, s.refuseToken(ctx, client, p, p.Actor(), "a token, and the call needs a session", call, ErrNeedsSession)
 	}
-	s.touchToken(ctx, &p, client.remoteIP(), now)
+	s.touchToken(ctx, &p, client, now)
 	return p, nil
 }
 
@@ -364,7 +364,7 @@ func (s *Service) refuseToken(ctx context.Context, client Client, p Principal, a
 		detail += fmt.Sprintf(", and %d more refused since the last report", more)
 	}
 	if err := s.db.Update(ctx, func(tx *store.Tx) error {
-		return s.audit(ctx, tx, actor, "token.refuse", p.User.ID, detail)
+		return s.auditFrom(ctx, tx, actor, client.Surface(p), "token.refuse", p.User.ID, detail)
 	}); err != nil {
 		s.logger.WarnContext(ctx, "can't audit a refused API token", slog.String("token", p.Token.ID), slog.Any("error", err))
 	}
@@ -376,8 +376,8 @@ func (s *Service) refuseToken(ctx context.Context, client Client, p Principal, a
 // its first use from each new address. Like a session's touch it is best
 // effort: a failed write is logged, and the next call tries again, as the
 // token's last use hasn't changed.
-func (s *Service) touchToken(ctx context.Context, p *Principal, ip string, now time.Time) {
-	tok := p.Token
+func (s *Service) touchToken(ctx context.Context, p *Principal, client Client, now time.Time) {
+	tok, ip := p.Token, client.remoteIP()
 	if tok.LastUsedAt != nil && now.Sub(*tok.LastUsedAt) < touchEvery && networkKey(ip) == networkKey(tok.LastIP) {
 		return
 	}
@@ -389,7 +389,7 @@ func (s *Service) touchToken(ctx context.Context, p *Principal, ip string, now t
 		if err != nil || !first {
 			return err
 		}
-		return s.audit(ctx, tx, p.Actor(), "token.use", p.User.ID, fmt.Sprintf("token %s used from %s for the first time", tok.ID, ip))
+		return s.auditFrom(ctx, tx, p.Actor(), client.Surface(*p), "token.use", p.User.ID, fmt.Sprintf("token %s used from %s for the first time", tok.ID, ip))
 	})
 	if err != nil {
 		s.logger.WarnContext(ctx, "can't record that an API token was used; the next call tries again",
@@ -421,7 +421,7 @@ func (s *Service) tokenStillLive(ctx context.Context, client Client, tokenID str
 	if !liveToken(&tok, now) {
 		return false
 	}
-	s.touchToken(ctx, &Principal{User: user, Token: &tok}, client.remoteIP(), now)
+	s.touchToken(ctx, &Principal{User: user, Token: &tok}, client, now)
 	return true
 }
 

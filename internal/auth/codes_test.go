@@ -425,7 +425,8 @@ func testFailedSignInsAreAuditedAsTheirSource(t *testing.T, backend store.Backen
 	if len(failed) != 3 {
 		t.Fatalf("%d failures audited, want 3: %+v", len(failed), failed)
 	}
-	for i, e := range failed {
+	for i := range failed {
+		e := &failed[i]
 		if want := fmt.Sprintf("anonymous:192.0.2.%d", i+1); e.Actor != want || e.Subject != owner.User.ID {
 			t.Errorf("failure %d (%s) audited as %s on %s, want %s on the owner", i+1, e.Detail, e.Actor, e.Subject, want)
 		}

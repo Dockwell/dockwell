@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// ResourceService reads the resources Dockwell manages: projects,
+// environments, services, containers and firewall rules. Change them with
+// ChangeService.
+//
+// It names resources and says where they live, and never carries a spec,
+// which may hold secrets. A spec's display_name, which never does, is the
+// one exception.
+service ResourceService {
+  // ListResources returns the resources that exist now, of every kind or
+  // of one, oldest first, a page at a time. Deleted resources aren't in
+  // it.
+  rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/resources"};
+  }
+}
+
+// ListResourcesRequest asks for a page of resources.
+message ListResourcesRequest {
+  // Only resources of this kind, such as "project" or "environment". Empty
+  // means every kind.
+  string kind = 1;
+  // Only resources that live in this scope, by ID, such as a project's
+  // environments. Empty means every scope.
+  string scope = 2;
+  // How many resources to return: 200 when unset, and at most 1000.
+  int32 page_size = 3;
+  // Where to start: the next_page_token of the page before. Pass the same
+  // filters with it.
+  string page_token = 4;
+}
+
+// ListResourcesResponse is a page of resources.
+message ListResourcesResponse {
+  // The resources, oldest first.
+  repeated Resource resources = 1;
+  // Pass it as page_token for the next page. Empty on the last page.
+  string next_page_token = 2;
+}
+
+// Resource is one managed resource, as its latest revision has it.
+message Resource {
+  // Its ID, such as "prj_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // Its kind, the ID of what it lives in, and its name.
+  ResourceRef resource = 2;
+  // Its latest revision.
+  int64 revision = 3;
+  // When its latest revision was applied.
+  google.protobuf.Timestamp update_time = 4;
+  // The name to show, such as "Storefront", from its spec, for kinds whose
+  // spec has one. Empty when it isn't set.
+  string display_name = 5;
+}

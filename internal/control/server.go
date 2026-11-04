@@ -42,8 +42,10 @@ import (
 	"github.com/dockwell/dockwell/internal/control/apidoc"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/events"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/control/resources"
 	"github.com/dockwell/dockwell/internal/control/servers"
 	"github.com/dockwell/dockwell/internal/control/system"
 	"github.com/dockwell/dockwell/internal/https"
@@ -91,6 +93,9 @@ type Config struct {
 	Changes *revision.Engine
 	Agents  *agentapi.Agents
 	Store   *store.DB
+	// EventPoll is how often a watch of the timeline reads the store again,
+	// for events another process recorded; events.DefaultPoll when zero.
+	EventPoll time.Duration
 	// StepGrace is how long the steps under way get to finish when the
 	// control plane stops, before they are cancelled; DefaultStepGrace when
 	// zero. Their changes finish when it starts again.
@@ -182,6 +187,8 @@ func apiRoutes(cfg Config, ui http.Handler) (http.Handler, error) {
 	}
 	if cfg.Changes != nil {
 		handle(dockwellv1connect.NewChangeServiceHandler(changes.New(cfg.Changes, cfg.Store, cfg.Logger), opts...))
+		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
+		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
 	}
 	restPaths, err := restHandler(rest)
 	if err != nil {

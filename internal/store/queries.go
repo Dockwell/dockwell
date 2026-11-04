@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -234,37 +235,83 @@ type Event struct {
 	Actor   string
 	Action  string
 	Subject string
-	Detail  string
-	// Surface is where it came from, such as "panel", "api" or
-	// "automatic". Empty for events that don't say.
+	// Detail is free text for people, which may hold addresses. Nothing
+	// reads it to find what an event is about: Target says that.
+	Detail string
+	// Surface is where it came from: SurfacePanel, SurfaceAPI, SurfaceCLI
+	// or SurfaceAutomatic. SurfaceOf gives an actor's own.
 	Surface string
+	// Target is who or what the event acted on, other than its actor, by
+	// ID: the server that joined or was removed, the API token or passkey
+	// made or removed, or the person a sign-in link is for. Empty when
+	// there is nothing more to name, such as signing in.
+	Target string
+}
+
+// Where an audit event or a change came from.
+const (
+	SurfacePanel     = "panel"
+	SurfaceAPI       = "api"
+	SurfaceCLI       = "cli" // the dockwell CLI: calling the API with a token, or run on a server, such as dockwell join or dockwell recover
+	SurfaceAutomatic = "automatic"
+)
+
+// SurfaceOf is where what an actor does on its own behalf comes from: a
+// person's session from the panel, a shell account from the CLI, and
+// Dockwell on its own, automatically. A writer that knows better says so:
+// a server joins with dockwell join, from the CLI, and a call with an API
+// token is from the CLI or the API as the call says, which
+// auth.Client.Surface decides. Knowing only the actor, SurfaceOf says a
+// token's is the API's.
+func SurfaceOf(actor string) string {
+	kind, _, _ := strings.Cut(actor, ":")
+	switch kind {
+	case "user", "anonymous":
+		return SurfacePanel
+	case "token":
+		return SurfaceAPI
+	case "cli":
+		return SurfaceCLI
+	}
+	return SurfaceAutomatic
 }
 
 // RecordEvent appends to the audit log.
 func (t *Tx) RecordEvent(ctx context.Context, e Event) error {
-	_, err := t.exec(ctx, `INSERT INTO audit_events (id, at, actor, action, subject, detail, surface) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		e.ID, millis(e.At), e.Actor, e.Action, e.Subject, e.Detail, e.Surface)
+	_, err := t.exec(ctx, `INSERT INTO audit_events (id, at, actor, action, subject, detail, surface, target) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		e.ID, millis(e.At), e.Actor, e.Action, e.Subject, e.Detail, e.Surface, e.Target)
 	if err != nil {
 		return fmt.Errorf("can't record audit event %s: %w", e.Action, err)
+	}
+	if t.recorded != nil {
+		*t.recorded = true
 	}
 	return nil
 }
 
+const eventColumns = `id, at, actor, action, subject, detail, surface, target`
+
+func scanEvent(row interface{ Scan(...any) error }) (Event, error) {
+	var e Event
+	var at int64
+	err := row.Scan(&e.ID, &at, &e.Actor, &e.Action, &e.Subject, &e.Detail, &e.Surface, &e.Target)
+	e.At = fromMillis(at)
+	return e, err
+}
+
 // ListEvents returns the newest audit events first, at most limit of them.
 func (t *Tx) ListEvents(ctx context.Context, limit int) ([]Event, error) {
-	rows, err := t.query(ctx, `SELECT id, at, actor, action, subject, detail, surface FROM audit_events ORDER BY at DESC, id DESC LIMIT ?`, limit)
+	rows, err := t.query(ctx, `SELECT `+eventColumns+` FROM audit_events ORDER BY at DESC, id DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("can't list audit events: %w", err)
 	}
 	defer rows.Close()
 	var out []Event
 	for rows.Next() {
-		var e Event
-		var at int64
-		if err := rows.Scan(&e.ID, &at, &e.Actor, &e.Action, &e.Subject, &e.Detail, &e.Surface); err != nil {
+		e, err := scanEvent(rows)
+		if err != nil {
 			return nil, err
 		}
-		e.At = fromMillis(at)
 		out = append(out, e)
 	}
 	return out, rows.Err()

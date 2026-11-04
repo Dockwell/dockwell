@@ -141,7 +141,7 @@ func (a *Authority) create(ctx context.Context, tx *store.Tx, key *seal.Key) err
 			return err
 		}
 	}
-	if err := a.audit(ctx, tx, "system", "install.create", installID, "CA "+ca.Pin()); err != nil {
+	if err := a.audit(ctx, tx, "system", store.SurfaceAutomatic, "install.create", installID, "", "CA "+ca.Pin()); err != nil {
 		return err
 	}
 	a.installID, a.ca = installID, ca
@@ -213,7 +213,7 @@ func (a *Authority) CreateTicket(ctx context.Context, controlURL, actor string, 
 		if err := tx.CreateJoinToken(ctx, tok); err != nil {
 			return err
 		}
-		return a.audit(ctx, tx, actor, "join_token.create", tok.ID, "expires "+tok.ExpiresAt.UTC().Format(time.RFC3339))
+		return a.audit(ctx, tx, actor, store.SurfaceOf(actor), "join_token.create", tok.ID, "", "expires "+tok.ExpiresAt.UTC().Format(time.RFC3339))
 	})
 	if err != nil {
 		return Ticket{}, err
@@ -254,7 +254,7 @@ func (a *Authority) Join(ctx context.Context, tokenID string, secret, csr []byte
 			}
 			return err
 		}
-		return a.audit(ctx, tx, "server:"+joined.Server.ID, "server.join", joined.Server.ID,
+		return a.audit(ctx, tx, "server:"+joined.Server.ID, store.SurfaceCLI, "server.join", joined.Server.ID, joined.Server.ID,
 			fmt.Sprintf("%s joined with %s from %s", joined.Server.Name, tok.ID, peer))
 	})
 	if err != nil {
@@ -274,7 +274,8 @@ func (a *Authority) EnrollLocal(ctx context.Context, csr []byte, hostname string
 		if err != nil {
 			return err
 		}
-		return a.audit(ctx, tx, "system", "server.join", joined.Server.ID, joined.Server.Name+" is the control server")
+		return a.audit(ctx, tx, "system", store.SurfaceAutomatic, "server.join", joined.Server.ID, joined.Server.ID,
+			joined.Server.Name+" is the control server")
 	})
 	return joined, err
 }
@@ -346,12 +347,12 @@ func (a *Authority) Renew(ctx context.Context, serverID, presentedSerial string,
 		}); err != nil {
 			return err
 		}
-		return a.audit(ctx, tx, "server:"+serverID, "server.renew", serverID, "certificate "+pki.SerialString(cert))
+		return a.audit(ctx, tx, "server:"+serverID, store.SurfaceAutomatic, "server.renew", serverID, serverID, "certificate "+pki.SerialString(cert))
 	})
 	if errors.Is(err, ErrStaleCertificate) {
 		// Outside the failed transaction, so the warning survives.
 		_ = a.db.Update(ctx, func(tx *store.Tx) error {
-			return a.audit(ctx, tx, "server:"+serverID, "server.renew_rejected", serverID, "presented replaced certificate "+presentedSerial)
+			return a.audit(ctx, tx, "server:"+serverID, store.SurfaceAutomatic, "server.renew_rejected", serverID, serverID, "presented replaced certificate "+presentedSerial)
 		})
 		a.logger.Warn("refused to renew a replaced certificate; another machine may hold this server's key",
 			slog.String("server", serverID), slog.String("serial", presentedSerial))
@@ -409,12 +410,17 @@ func (a *Authority) Revoke(ctx context.Context, serverID, actor string) error {
 		if err := tx.RevokeServer(ctx, serverID, a.now()); err != nil {
 			return err
 		}
-		return a.audit(ctx, tx, actor, "server.revoke", serverID, "")
+		return a.audit(ctx, tx, actor, store.SurfaceOf(actor), "server.revoke", serverID, serverID, "")
 	})
 }
 
-func (a *Authority) audit(ctx context.Context, tx *store.Tx, actor, action, subject, detail string) error {
-	return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: a.now(), Actor: actor, Action: action, Subject: subject, Detail: detail})
+// audit records an event in the audit log, from surface, that acted on
+// target: the server, for a server's own events. A server joins with
+// dockwell join, from the CLI, and renews its certificate on its own.
+func (a *Authority) audit(ctx context.Context, tx *store.Tx, actor, surface, action, subject, target, detail string) error {
+	return tx.RecordEvent(ctx, store.Event{
+		ID: id.New(id.Event), At: a.now(), Actor: actor, Action: action, Subject: subject, Detail: detail, Surface: surface, Target: target,
+	})
 }
 
 // ServerName turns a hostname into a server name: lowercase letters, digits

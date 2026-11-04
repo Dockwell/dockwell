@@ -77,10 +77,10 @@ var (
 // Surfaces a change can come from, as the store and the audit log record
 // them.
 const (
-	ViaPanel     = "panel"
-	ViaAPI       = "api"
-	ViaCLI       = "cli"       // the dockwell CLI, with an API token
-	ViaAutomatic = "automatic" // Dockwell on its own, such as a rollback
+	ViaPanel     = store.SurfacePanel
+	ViaAPI       = store.SurfaceAPI
+	ViaCLI       = store.SurfaceCLI       // the dockwell CLI, with an API token
+	ViaAutomatic = store.SurfaceAutomatic // Dockwell on its own, such as a rollback
 )
 
 // By is who does something to a change, and from where.
@@ -125,7 +125,7 @@ type Engine struct {
 	// watches which change, which changes it holds, and whether to resume.
 	pmu      sync.Mutex
 	live     map[string]*Progress
-	watchers map[string]map[chan Update]struct{}
+	watchers map[string]map[chan Update]chan struct{} // each watcher's channel, and one closed when it is dropped
 	// owned are the changes this process holds: being committed, resumed,
 	// or running their steps.
 	owned map[string]bool
@@ -154,7 +154,7 @@ func New(db *store.DB, kinds *resource.Registry, agents Agents, logger *slog.Log
 	return &Engine{
 		db: db, kinds: kinds.With(scope.Types()...), agents: agents, logger: logger, now: time.Now,
 		idle: idle, halted: halted, halt: halt,
-		live: map[string]*Progress{}, watchers: map[string]map[chan Update]struct{}{}, owned: map[string]bool{}, busy: map[string]string{},
+		live: map[string]*Progress{}, watchers: map[string]map[chan Update]chan struct{}{}, owned: map[string]bool{}, busy: map[string]string{},
 		waiters: map[string]bool{},
 	}
 }
@@ -371,6 +371,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string) (*Plan
 	c := store.Change{
 		ID: plan.Change, Summary: p.Summary, Actor: p.Actor, State: store.ChangePlanned, Reverts: reverts,
 		Fingerprint: plan.Fingerprint, Plan: record, CreatedAt: e.now(), ProposedVia: p.Via, Items: changeItems(items),
+		Servers: serversOf(plan),
 	}
 	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error { return e.recordPlanned(ctx, tx, c) })
 	if err != nil {
@@ -1355,7 +1356,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 		if c.Plan, err = json.Marshal(plan); err != nil {
 			return nil, err
 		}
-		c.Fingerprint = plan.Fingerprint
+		c.Fingerprint, c.Servers = plan.Fingerprint, serversOf(plan)
 	}
 	if by.Actor == "" {
 		by = By{Actor: c.Actor, Via: c.ProposedVia}

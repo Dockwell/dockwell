@@ -385,9 +385,9 @@ func (i *interceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) co
 		err = next(tracked, conn)
 		if ctx.Err() == nil && tracked.Err() != nil {
 			if p.Token != nil {
-				return reasonError(connect.CodeUnauthenticated, auth.ErrTokenRejected, ReasonTokenRejected)
+				return ReasonError(connect.CodeUnauthenticated, auth.ErrTokenRejected, ReasonTokenRejected)
 			}
-			return reasonError(connect.CodeUnauthenticated, errSessionEnded, ReasonSessionEnded)
+			return ReasonError(connect.CodeUnauthenticated, errSessionEnded, ReasonSessionEnded)
 		}
 		return err
 	}
@@ -400,7 +400,7 @@ func (i *interceptor) authorize(ctx context.Context, procedure string) (context.
 		if publicProcedures[procedure] && !strings.HasPrefix(procedure, "/"+dockwellv1connect.AuthServiceName+"/") {
 			return ctx, nil
 		}
-		return ctx, reasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
+		return ctx, ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
 	}
 	if req.hasBearer {
 		if publicProcedures[procedure] {
@@ -425,7 +425,7 @@ func (i *interceptor) authorize(ctx context.Context, procedure string) (context.
 			ctx = context.WithValue(ctx, uncheckedKey{}, true)
 		default:
 			i.logger.ErrorContext(ctx, "can't check a session", slog.Any("error", err))
-			return ctx, reasonError(connect.CodeUnavailable, errors.New("can't check your session right now. Try again in a moment"), ReasonUnavailable)
+			return ctx, ReasonError(connect.CodeUnavailable, errors.New("can't check your session right now. Try again in a moment"), ReasonUnavailable)
 		}
 	}
 	if publicProcedures[procedure] {
@@ -433,12 +433,12 @@ func (i *interceptor) authorize(ctx context.Context, procedure string) (context.
 	}
 	if _, ok := PrincipalFrom(ctx); !ok {
 		if req.token != "" {
-			return ctx, reasonError(connect.CodeUnauthenticated, errSessionEnded, ReasonSessionEnded)
+			return ctx, ReasonError(connect.CodeUnauthenticated, errSessionEnded, ReasonSessionEnded)
 		}
-		return ctx, reasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
+		return ctx, ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
 	}
 	if !req.get && !req.sameOrigin {
-		return ctx, reasonError(connect.CodePermissionDenied,
+		return ctx, ReasonError(connect.CodePermissionDenied,
 			errors.New("refused a change made with a session cookie but no Origin header, so it may not come from the panel. Make the change in the panel"),
 			ReasonOrigin)
 	}
@@ -449,22 +449,22 @@ func (i *interceptor) authorize(ctx context.Context, procedure string) (context.
 // covers the procedure. A call with a token needs no origin: see Guard.
 func (i *interceptor) authorizeToken(ctx context.Context, req request, procedure string) (context.Context, error) {
 	if i.svc == nil {
-		return ctx, reasonError(connect.CodeUnauthenticated, auth.ErrTokenRejected, ReasonTokenRejected)
+		return ctx, ReasonError(connect.CodeUnauthenticated, auth.ErrTokenRejected, ReasonTokenRejected)
 	}
 	p, err := i.svc.AuthenticateToken(ctx, req.client, req.bearer, accessFor(procedure), procedure)
 	switch {
 	case err == nil:
 		return context.WithValue(ctx, principalKey{}, p), nil
 	case errors.Is(err, auth.ErrTokenRejected):
-		return ctx, reasonError(connect.CodeUnauthenticated, auth.ErrTokenRejected, ReasonTokenRejected)
+		return ctx, ReasonError(connect.CodeUnauthenticated, auth.ErrTokenRejected, ReasonTokenRejected)
 	case errors.Is(err, auth.ErrTokenScope):
-		return ctx, reasonError(connect.CodePermissionDenied, auth.ErrTokenScope, ReasonTokenScope)
+		return ctx, ReasonError(connect.CodePermissionDenied, auth.ErrTokenScope, ReasonTokenScope)
 	case errors.Is(err, auth.ErrNeedsSession):
-		return ctx, reasonError(connect.CodePermissionDenied, auth.ErrNeedsSession, ReasonNeedsSession)
+		return ctx, ReasonError(connect.CodePermissionDenied, auth.ErrNeedsSession, ReasonNeedsSession)
 	case errors.Is(err, context.Canceled):
 		return ctx, connect.NewError(connect.CodeCanceled, err)
 	default:
 		i.logger.ErrorContext(ctx, "can't check an API token", slog.Any("error", err))
-		return ctx, reasonError(connect.CodeUnavailable, errors.New("can't check your API token right now. Try again in a moment"), ReasonUnavailable)
+		return ctx, ReasonError(connect.CodeUnavailable, errors.New("can't check your API token right now. Try again in a moment"), ReasonUnavailable)
 	}
 }
