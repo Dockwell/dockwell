@@ -7,7 +7,15 @@ SHELL := bash
 MAKEFLAGS += --no-builtin-rules --no-print-directory
 
 GOTOOL    := go tool -modfile=tools/go.mod
+# The two builds of dockwell (docs/adr/0023-a-full-build-and-an-agent-build.md):
+# the full build, which the control server runs, and the agent build, built
+# with -tags agent, which every server that joins runs. Both are called
+# dockwell on a server.
 BIN       := bin/dockwell
+AGENT_BIN := bin/dockwell-agent
+# The packages the agent build links, which vet, lint and test again with its
+# tag. Set only where a target needs it.
+AGENT_PKGS = $(shell scripts/agent-packages.sh)
 GENERATED := gen packages/api/src/gen internal/cli/apicmd internal/control/apidoc/openapi.yaml packages/ui/src/tokens.ts packages/ui/src/styles/tokens.css web/src/routeTree.gen.ts
 # The OpenAPI document for the REST paths (docs/adr/0015-rest-and-openapi-from-the-schema.md).
 OPENAPI   := gen/openapi/openapi.yaml
@@ -33,6 +41,10 @@ build: web build-go ## Build bin/dockwell with the panel built in
 .PHONY: build-go
 build-go: ## Build bin/dockwell with whatever panel build is already there
 	CGO_ENABLED=0 go build -trimpath -o $(BIN) ./cmd/dockwell
+
+.PHONY: build-agent
+build-agent: ## Build the agent build, which every server that joins runs, as bin/dockwell-agent
+	CGO_ENABLED=0 go build -trimpath -tags agent -o $(AGENT_BIN) ./cmd/dockwell
 
 .PHONY: run
 run: build ## Build everything and run Dockwell on 127.0.0.1:7600
@@ -71,8 +83,9 @@ generate: deps ## Regenerate code and the OpenAPI document from proto/, and the 
 	pnpm --filter @dockwell/ui tokens
 
 .PHONY: test
-test: deps ## Run the Go and TypeScript tests
+test: deps ## Run the Go and TypeScript tests, the agent build's with its tag too
 	go test -race ./...
+	go test -race -tags agent $(AGENT_PKGS)
 	pnpm -r --if-present test
 
 .PHONY: lint
@@ -80,7 +93,9 @@ lint: deps ## Lint Go, the schema and its OpenAPI document, TypeScript, CSS, she
 	go mod tidy -diff
 	cd tools && go mod tidy -diff
 	go vet ./...
+	go vet -tags agent $(AGENT_PKGS)
 	$(GOTOOL) golangci-lint run
+	$(GOTOOL) golangci-lint run --build-tags agent $(AGENT_PKGS)
 	$(GOTOOL) golangci-lint fmt --diff
 	$(GOTOOL) buf lint
 	$(GOTOOL) buf format --diff --exit-code
@@ -134,16 +149,17 @@ check-breaking: ## Fail if the API schema breaks compatibility with origin/main
 	fi
 
 .PHONY: smoke
-smoke: build ## Start the built binary and check it serves the API and the panel
+smoke: build build-agent ## Start the built binaries: the full build serves the API and the panel, and the agent build joins it
 	scripts/smoke.sh $(BIN)
+	scripts/smoke-agent.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: e2e
 e2e: build ## Claim, sign out and sign in again in headless Chromium with a virtual passkey (SHOTS=dir saves screenshots)
 	node web/e2e/sign-in.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
 
 .PHONY: budgets
-budgets: build ## Fail if the binary is over its idle memory budgets; BASELINE=other/dockwell measures that too (about 7 minutes)
-	scripts/budgets.sh $(BIN)
+budgets: build build-agent ## Fail if the builds are over their idle memory budgets; BASELINE=other/dockwell and BASELINE_AGENT=other/dockwell-agent measure those too (about 7 minutes)
+	scripts/budgets.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: check
 check: lint test check-generated check-breaking smoke ## Run everything CI runs, except the Install workflow
@@ -157,7 +173,9 @@ release-snapshot: deps ## Build release archives into dist/, as CI does for main
 	$(GOTOOL) goreleaser release --snapshot --clean $(if $(shell command -v syft),,--skip=sbom)
 
 # The install script's tests (scripts/install-test/): a snapshot and an older
-# build, laid out and signed as releases, installed in stock containers.
+# build, laid out and signed as releases, installed in stock containers. The
+# older build stands in for a release from before the agent build: it has
+# only the full build, linked to name no build, as those releases do.
 INSTALL_TEST_IMAGES ?= debian:13 ubuntu:26.04 almalinux:9 alpine:3.24
 COSIGN ?= cosign
 
@@ -165,7 +183,7 @@ COSIGN ?= cosign
 install-test-releases: release-snapshot ## Lay out signed test releases for the install script in dist/install-test (needs cosign v3)
 	for arch in amd64 arm64; do \
 		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build -trimpath \
-			-ldflags "-s -w -X github.com/dockwell/dockwell/internal/buildinfo.version=v0.0.0-test" \
+			-ldflags "-s -w -X github.com/dockwell/dockwell/internal/buildinfo.version=v0.0.0-test -X github.com/dockwell/dockwell/internal/buildinfo.edition=" \
 			-o dist/old/linux_$$arch/dockwell ./cmd/dockwell; \
 	done
 	scripts/install-test/releases.sh dist dist/old dist/install-test $(COSIGN)

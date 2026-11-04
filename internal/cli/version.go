@@ -41,6 +41,9 @@ func newVersionCmd() *cobra.Command {
 func writeVersion(w io.Writer, info buildinfo.Info) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(tw, "dockwell\t%s\n", info.Version)
+	if info.Edition != "" {
+		fmt.Fprintf(tw, "build\t%s\n", info.Edition)
+	}
 	if info.Commit != "" {
 		commit := info.ShortCommit()
 		if info.Modified {

@@ -7,6 +7,8 @@ import (
 	"runtime/debug"
 	"testing"
 	"time"
+
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
 
 func TestFromBuildInfo(t *testing.T) {
@@ -116,5 +118,31 @@ func TestProto(t *testing.T) {
 func TestReadIsStable(t *testing.T) {
 	if a, b := Read(), Read(); a != b {
 		t.Fatalf("Read() changed between calls: %+v then %+v", a, b)
+	}
+}
+
+func TestEachBuildSaysWhichItIs(t *testing.T) {
+	if got := Read().Edition; got != Full && got != Agent {
+		t.Fatalf("Read().Edition = %q, want full or agent", got)
+	}
+	for edition, want := range map[Edition]dockwellv1.BuildEdition{
+		Full:  dockwellv1.BuildEdition_BUILD_EDITION_FULL,
+		Agent: dockwellv1.BuildEdition_BUILD_EDITION_AGENT,
+		// What a release from before there were two builds says.
+		"": dockwellv1.BuildEdition_BUILD_EDITION_UNSPECIFIED,
+	} {
+		if got := (Info{Edition: edition}).Proto().GetEdition(); got != want {
+			t.Errorf("Info{Edition: %q}.Proto() says %v, want %v", edition, got, want)
+		}
+	}
+	for b, want := range map[*dockwellv1.BuildInfo]Edition{
+		{Edition: dockwellv1.BuildEdition_BUILD_EDITION_AGENT}: Agent,
+		{Edition: dockwellv1.BuildEdition_BUILD_EDITION_FULL}:  Full,
+		{Version: "v0.2.0"}: Full,
+		nil:                 Full,
+	} {
+		if got := EditionOf(b); got != want {
+			t.Errorf("EditionOf(%v) = %q, want %q", b, got, want)
+		}
 	}
 }

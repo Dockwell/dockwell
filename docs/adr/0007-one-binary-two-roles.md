@@ -1,6 +1,6 @@
 # 0007. One binary, two roles; agents dial out
 
-- Status: Accepted
+- Status: Partly superseded by [0023](0023-a-full-build-and-an-agent-build.md): every machine runs one of two builds of `dockwell`, not one binary. The roles, and agents that dial out, stand.
 - Date: 2026-11-03
 
 ## Context

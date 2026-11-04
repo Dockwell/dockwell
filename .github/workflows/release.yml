@@ -4,7 +4,8 @@
 # jobs, so no build code ever holds the signing or publishing credentials:
 #
 #   build       read-only, no caches; checks the tag is a green commit on main,
-#               builds with GoReleaser, smoke-tests the binary, uploads dist/.
+#               builds both builds with GoReleaser, smoke-tests them, uploads
+#               dist/.
 #   trust-root  for a tag: the Sigstore trust root install.sh pins for mirrors
 #               is the one Sigstore publishes now (scripts/check-trust-root.sh).
 #   publish     runs no build code; signs the checksums with cosign (keyless),
@@ -66,10 +67,15 @@ jobs:
         env:
           SNAPSHOT: ${{ github.ref_type == 'branch' && '--snapshot' || '' }}
         run: go tool -modfile=tools/go.mod goreleaser release --clean $SNAPSHOT
-      - name: The binary serves the API and the panel
+      - name: The full build serves the API and the panel
         run: |
           tar -xzf dist/dockwell_*_linux_amd64.tar.gz -C dist dockwell
           scripts/smoke.sh dist/dockwell
+      - name: The agent build joins the full build
+        run: |
+          mkdir -p dist/agent
+          tar -xzf dist/dockwell-agent_*_linux_amd64.tar.gz -C dist/agent dockwell
+          scripts/smoke-agent.sh dist/dockwell dist/agent/dockwell
       # Mirrors serve these with the archives (docs/adr/0013-mirrors-for-releases-and-images.md).
       - name: Add the install script and the Sigstore trust root it pins
         run: |
@@ -155,8 +161,11 @@ jobs:
           cat > notes.md <<EOF
           ## Verify this release
 
+          The \`dockwell_\` archives are the full build, for the control server, and the \`dockwell-agent_\` archives the agent build, for servers that join. The install script picks the right one.
+
           \`\`\`sh
           gh attestation verify dockwell_${version}_linux_amd64.tar.gz -R ${GITHUB_REPOSITORY}
+          gh attestation verify dockwell-agent_${version}_linux_amd64.tar.gz -R ${GITHUB_REPOSITORY}
           \`\`\`
 
           Or check the signed checksums with cosign, as [docs/releasing.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/docs/releasing.md#verify-a-release) describes.

@@ -5,7 +5,7 @@
 # test, which is either a container (prepare.sh sets it up) or a VM:
 #
 #   1. A first server: install an older release, refuse a tampered archive and
-#      a bad signature, upgrade in place, re-run, uninstall.
+#      a bad signature, upgrade in place to the full build, re-run, uninstall.
 #   2. With MIRROR set, the same server through a mirror, with GitHub and
 #      Sigstore cut off: install, refuse a changed cosign, archive and
 #      signature on the mirror, upgrade from a mirror without a trust root,
@@ -16,7 +16,11 @@
 #      verify a keyless signature from Sigstore's public instance offline,
 #      against the pinned trust root.
 #   3. A server that joins: install with a ticket from a control plane that
-#      runs beside it, check it runs only the agent and connects, uninstall.
+#      runs beside it, check it gets the agent build, runs only the agent and
+#      connects, uninstall.
+#   4. A server that joined with the older release, which has only the full
+#      build: it gets the full build, connects, keeps the full build when it
+#      upgrades, and connects again.
 #
 # When systemd or OpenRC is running, the install script starts the service and
 # this checks it. In a container where systemd is only installed, not running,
@@ -152,7 +156,7 @@ trust_root() {
 		. "$log/install-steps.sh"
 		# The settings the install script's main and detect would make.
 		# shellcheck disable=SC2034
-		family=other mirror=$1 version=${2:-}
+		family=other mirror=$1 version=${2:-} build=full
 		tmp="$log/trust-root"
 		rm -rf "$tmp" && mkdir -p "$tmp"
 		check_tools
@@ -193,6 +197,22 @@ keyless() {
 version_is() {
 	got=$("$BIN" version | sed -n 's/^dockwell  *//p')
 	[ "$got" = "v$1" ] || die "$BIN is $got, not v$1"
+}
+
+# build_is checks which build of dockwell is installed, as install.sh reads
+# it: agent, full, or none, as a release from before there were two builds
+# says.
+build_is() {
+	json=$("$BIN" version --json)
+	case $1 in
+	none) got=$(printf '%s' "$json" | grep -c '"edition"' || true) && [ "$got" = 0 ] ;;
+	*) printf '%s' "$json" | grep -q "\"edition\": *\"BUILD_EDITION_$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')\"" ;;
+	esac || die "$BIN isn't the $1 build: $json"
+}
+
+# connections counts the times server $2 connected, by a control plane's log $1.
+connections() {
+	grep '"msg":"server connected"' "$1" | grep -c "\"server\":\"$2\"" || true
 }
 
 server_id() {
@@ -278,8 +298,10 @@ ok "--help and unknown options"
 step "Install v$OLD on a first server ($mode)"
 run_install good --version "$OLD" || die "installing v$OLD failed"
 said "The release signature checks out"
+said "Installing the full build of Dockwell v$OLD"
 said "Installed $BIN."
 version_is "$OLD"
+build_is none
 start_direct
 check_service
 wait_panel
@@ -306,6 +328,8 @@ stop_direct
 run_install good || die "upgrading to v$NEW failed"
 said "Upgraded $BIN from v$OLD to v$NEW."
 version_is "$NEW"
+build_is full
+ok "a control server from before the agent build keeps the full build"
 start_direct
 check_service
 wait_panel
@@ -456,7 +480,10 @@ done
 ticket=$("$fixture/dockwell" token create --data-dir "$fixture/data" | awk '$1 == "dockwell" && $2 == "join" { print $3 }')
 [ -n "$ticket" ] || die "dockwell token create printed no ticket"
 run_install good --join "$ticket" || die "installing with a ticket failed"
+said "Installing the agent build of Dockwell v$NEW"
 said "Joined as"
+build_is agent
+ok "a server that joins gets the agent build"
 start_direct
 [ -e "$DATA/agent/agent.json" ] || die "joining left no identity in $DATA/agent"
 [ ! -e "$DATA/control" ] || die "a server that joined has a control plane"
@@ -469,13 +496,60 @@ done
 ok "the agent connected to the control plane"
 if get "$PANEL/healthz" >/dev/null 2>&1; then die "a server that joined serves a panel"; fi
 check_service
-ok "it runs only the agent"
+grep '"msg":"server connected"' "$log/fixture.log" | grep "\"server\":\"$(server_id)\"" | grep -q '"build":"agent"' ||
+	die "the control plane didn't see the agent build in the agent's hello"
+if "$BIN" token create >"$log/out" 2>&1; then die "the agent build made a join ticket"; fi
+said "isn't in the agent build of dockwell"
+ok "it runs only the agent, with the agent build"
 export DOCKWELL_JOIN="$ticket"
 run_install good || die "running it again with the spent ticket failed"
 unset DOCKWELL_JOIN
+said "is already installed on this server, as the agent build"
 said "already belongs to the control plane at"
 stop_direct
 run_install good --uninstall || die "uninstalling the agent failed"
+
+step "A server that joined with v$OLD keeps the full build"
+# v$OLD stands in for a release from before the agent build: it has only the
+# full build, which runs the agent too.
+rm -rf "$DATA"
+ticket=$("$fixture/dockwell" token create --data-dir "$fixture/data" | awk '$1 == "dockwell" && $2 == "join" { print $3 }')
+[ -n "$ticket" ] || die "dockwell token create printed no ticket"
+run_install good --version "$OLD" --join "$ticket" || die "installing v$OLD with a ticket failed"
+said "Dockwell v$OLD has no agent build, so this server gets the full build"
+said "Joined as"
+version_is "$OLD"
+build_is none
+start_direct
+joined=$(server_id)
+[ -n "$joined" ] || die "joining left no identity in $DATA/agent"
+i=0
+until [ "$(connections "$log/fixture.log" "$joined")" -ge 1 ]; do
+	i=$((i + 1))
+	[ "$i" -lt 150 ] || die "the agent of v$OLD didn't connect to the control plane within 15 s"
+	sleep 0.1
+done
+ok "v$OLD's full build joined and connected"
+stop_direct
+run_install good || die "upgrading the server that joined with v$OLD failed"
+said "Upgraded $BIN from v$OLD to v$NEW."
+version_is "$NEW"
+build_is full
+[ "$(server_id)" = "$joined" ] || die "the upgrade changed this server's identity"
+start_direct
+i=0
+until [ "$(connections "$log/fixture.log" "$joined")" -ge 2 ]; do
+	i=$((i + 1))
+	[ "$i" -lt 150 ] || die "the upgraded agent didn't connect to the control plane again within 15 s"
+	sleep 0.1
+done
+if get "$PANEL/healthz" >/dev/null 2>&1; then die "a server that joined serves a panel after its upgrade"; fi
+check_service
+grep '"msg":"server connected"' "$log/fixture.log" | grep "\"server\":\"$joined\"" | tail -n 1 | grep -q '"build":"full"' ||
+	die "the control plane didn't see the full build in the upgraded agent's hello"
+ok "the upgrade kept the full build, and the agent connected again"
+stop_direct
+run_install good --uninstall || die "uninstalling the server that joined with v$OLD failed"
 kill "$fixture_pid" 2>/dev/null || true
 wait "$fixture_pid" 2>/dev/null || true
 rm -rf "$fixture" "$DATA" "$log"

@@ -3,14 +3,16 @@
 # The install script and the footprint budgets from the PRD's non-functional
 # requirements, on every pull request and push to main, and nightly:
 #
-#   Release snapshot       builds the release archives and an older build to
-#                          upgrade from, laid out and signed as test releases
-#   Build of main          on pull requests: main's release binary, built by
+#   Release snapshot       builds the release archives of both builds, and an
+#                          older build to upgrade from, laid out and signed as
+#                          test releases
+#   Build of main          on pull requests: main's release binaries, built by
 #                          main's own release configuration
-#   Memory budgets         idle RSS of an agent, and of a control plane with its
-#                          own agent; warns when an agent passes 30 MB, and fails
+#   Memory budgets         idle RSS of an agent, with the agent build, and of a
+#                          control plane with its own agent, with the full
+#                          build; warns when an agent passes 30 MB, and fails
 #                          at 40 MB and 250 MB. On pull requests it measures
-#                          main's build beside this one, on the same runner
+#                          main's builds beside these, on the same runner
 #   Install on <image>     the install script in stock Debian, Ubuntu,
 #                          AlmaLinux and Alpine containers, amd64 and arm64
 #   Install with systemd   the same on the runner's own Ubuntu, under systemd
@@ -82,7 +84,7 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-  # main's release binary, for the Memory budgets job to measure beside this
+  # main's release binaries, for the Memory budgets job to measure beside this
   # pull request's. Figures from another run would carry the difference
   # between two runners, which is as big as the changes worth reporting.
   base:
@@ -109,10 +111,17 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - name: Build main's binary as its release does
+      - name: Build main's binaries as its release does
         run: |
           mkdir -p footprint-base
-          go tool -modfile=tools/go.mod goreleaser build --snapshot --clean --single-target --output footprint-base/dockwell
+          go tool -modfile=tools/go.mod goreleaser build --snapshot --clean --single-target --id dockwell --output footprint-base/dockwell
+          # The agent build, once main has one
+          # (docs/adr/0023-a-full-build-and-an-agent-build.md). Until then, the
+          # Memory budgets job measures main's full build as its agent too, as
+          # a server that joined ran it, and says so.
+          if grep -q '^  - id: dockwell-agent$' .goreleaser.yaml; then
+            go tool -modfile=tools/go.mod goreleaser build --snapshot --clean --skip=before --single-target --id dockwell-agent --output footprint-base/dockwell-agent
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: footprint-base
@@ -148,16 +157,23 @@ jobs:
           BASE: ${{ needs.base.result == 'success' && github.event.pull_request.base.sha || '' }}
         run: |
           source releases/versions
-          tar -xzf "releases/good/download/v$NEW/dockwell_${NEW}_linux_amd64.tar.gz" dockwell
-          mkdir -p footprint
+          mkdir -p full agent footprint
+          tar -xzf "releases/good/download/v$NEW/dockwell_${NEW}_linux_amd64.tar.gz" -C full dockwell
+          tar -xzf "releases/good/download/v$NEW/dockwell-agent_${NEW}_linux_amd64.tar.gz" -C agent dockwell
           if [[ -n "$BASE" && -f footprint-base/dockwell ]]; then
             # Artifacts don't keep the executable bit.
             chmod +x footprint-base/dockwell
             export BASELINE=footprint-base/dockwell BASELINE_NAME="main at ${BASE:0:7}"
+            # Without it, as before main had an agent build, the comparison
+            # takes main's full build as its agent, and says so.
+            if [[ -f footprint-base/dockwell-agent ]]; then
+              chmod +x footprint-base/dockwell-agent
+              export BASELINE_AGENT=footprint-base/dockwell-agent
+            fi
           elif [[ -n "$PR" ]]; then
             echo "::warning title=No comparison::The Build of main job didn't produce main's build, so there's no comparison with it. Only this pull request's figures can fail this check. Re-run the workflow to compare."
           fi
-          scripts/budgets.sh ./dockwell footprint/budgets.json
+          scripts/budgets.sh full/dockwell agent/dockwell footprint/budgets.json
       # The figures, and the pull request, commit and main they belong to,
       # for footprint-comment.yml, which checks them before it posts anything.
       - name: Keep the figures

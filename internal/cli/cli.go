@@ -14,10 +14,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"github.com/dockwell/dockwell/internal/cli/apicli"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/logging"
-	"github.com/dockwell/dockwell/internal/store"
 )
 
 // Exit codes.
@@ -25,9 +23,6 @@ const (
 	exitOK    = 0
 	exitError = 1
 	exitUsage = 2
-	// exitClaimed is dockwell claim's when the install already has an
-	// owner, which install.sh tells apart from a failure.
-	exitClaimed = 3
 )
 
 // env names the environment variables that set flag defaults.
@@ -80,7 +75,7 @@ func Execute(ctx context.Context, args []string, stdio IO) int {
 	// takes memory a server keeps, and nothing in them can stop a server
 	// from starting.
 	if found, _, _ := root.Find(args); found == root {
-		if err := addAPICommands(root, stdio, g); err != nil {
+		if err := addAPICommands(root, stdio, g, args); err != nil {
 			fmt.Fprintf(stdio.Err, "dockwell: %s\n", err)
 			return exitError
 		}
@@ -92,19 +87,17 @@ func Execute(ctx context.Context, args []string, stdio IO) int {
 	}
 	fmt.Fprintf(stdio.Err, "dockwell: %s\n", err)
 	var usage usageError
-	var apiUsage apicli.UsageError
 	var coded exitCodeError
-	var apiCoded apicli.ExitError
 	switch {
-	case errors.As(err, &usage), errors.As(err, &apiUsage):
+	case errors.As(err, &usage):
 		return exitUsage
 	case errors.As(err, &coded):
 		return coded.code
-	case errors.As(err, &apiCoded):
-		return apiCoded.Code
-	default:
-		return exitError
 	}
+	if code, ok := apiExitCode(err); ok {
+		return code
+	}
+	return exitError
 }
 
 // usageTemplate replaces cobra's default help layout with one that follows
@@ -146,11 +139,12 @@ type exitCodeError struct {
 
 func (e exitCodeError) Unwrap() error { return e.error }
 
-type globalFlags struct {
+// sharedFlags are the flags every command takes in both builds. The
+// globalFlags of each build hold them, and the full build's --database.
+type sharedFlags struct {
 	logLevel  string
 	logFormat string
 	dataDir   string
-	database  string
 }
 
 // dir resolves the data directory: --data-dir, then the default for this user.
@@ -161,56 +155,20 @@ func (g *globalFlags) dir(stdio IO) (datadir.Dir, error) {
 	return datadir.Default(stdio.Getenv)
 }
 
-// databaseOf resolves where the control plane keeps its state: --database,
-// then DOCKWELL_DATABASE, each a postgres:// URL, and otherwise SQLite in
-// the data directory. Neither the URL nor its password is ever echoed: the
-// flag's default isn't the variable, so help doesn't print it, and errors
-// name the setting, not its value.
-func (g *globalFlags) databaseOf(stdio IO, dir datadir.Dir) (string, error) {
-	location, from := g.database, "--database"
-	if location == "" {
-		location, from = stdio.Getenv(envDatabase), envDatabase
-	}
-	switch {
-	case location == "":
-		return dir.StateDB(), nil
-	case !store.IsPostgres(location):
-		return "", usageError{fmt.Errorf("%s must be a postgres:// URL, such as postgres://dockwell@db.internal:5432/dockwell. "+
-			"Leave it unset to keep the control plane's state in SQLite, in the data directory", from)}
-	}
-	return location, nil
-}
-
 // Help groups of the root's commands.
 const groupServer = "server"
 
-// newRootCmd returns the root command with all of its commands: the
-// server's own and the API commands.
-func newRootCmd(stdio IO) (*cobra.Command, error) {
-	root, g := newServerCmd(stdio)
-	return root, addAPICommands(root, stdio, g)
-}
-
-// addAPICommands adds the API commands to root.
-func addAPICommands(root *cobra.Command, stdio IO, g *globalFlags) error {
-	api, err := apiCommands(stdio, g)
-	if err != nil {
-		return fmt.Errorf("can't build the API commands, so dockwell can't run them: %w. This is a bug in this build of dockwell; its own commands, such as dockwell run, still work", err)
-	}
-	root.AddCommand(api...)
-	return nil
-}
-
 // newServerCmd returns the root command with the server's own commands,
-// and the flags every command takes.
+// and the flags every command takes. Which commands those are depends on
+// the build: the full build has them all, and the agent build only those
+// an agent runs, with the rest saying where they are (edition_full.go,
+// edition_agent.go, and docs/adr/0023-a-full-build-and-an-agent-build.md).
 func newServerCmd(stdio IO) (*cobra.Command, *globalFlags) {
 	g := &globalFlags{}
 	root := &cobra.Command{
-		Use:   "dockwell",
-		Short: "Run and manage Dockwell, the control plane for your servers",
-		Long: "Dockwell runs websites, apps, databases and deploys on your servers, " +
-			"from one VPS to a fleet, from one panel.\n\n" +
-			"Every server runs this binary. The first one also runs the control plane.",
+		Use:               "dockwell",
+		Short:             "Run and manage Dockwell, the control plane for your servers",
+		Long:              rootLong,
 		SilenceUsage:      true,
 		SilenceErrors:     true,
 		CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
@@ -229,24 +187,11 @@ func newServerCmd(stdio IO) (*cobra.Command, *globalFlags) {
 		"log format: auto, text or json; auto writes text to a terminal (env "+envLogFormat+")")
 	pf.StringVar(&g.dataDir, "data-dir", envOr(stdio, envDataDir, ""),
 		"where dockwell keeps its state; /var/lib/dockwell for root, ~/.local/state/dockwell otherwise (env "+envDataDir+")")
-	pf.StringVar(&g.database, "database", "",
-		"the control plane's Postgres database, as a postgres:// URL; SQLite in the data directory when unset. "+
-			"Set it with "+envDatabase+" or a .pgpass file rather than here, so its password stays out of the process list (env "+envDatabase+")")
+	addEditionFlags(pf, g)
 
-	root.AddGroup(
-		&cobra.Group{ID: groupServer, Title: "Commands:"},
-		&cobra.Group{ID: apicli.GroupID, Title: "API commands, which call the control plane:"},
-	)
+	root.AddGroup(&cobra.Group{ID: groupServer, Title: "Commands:"})
 	root.SetHelpCommandGroupID(groupServer)
-	for _, cmd := range []*cobra.Command{
-		newVersionCmd(),
-		newRunCmd(stdio, g),
-		newJoinCmd(stdio, g),
-		newTokenCmd(stdio, g),
-		newRoleCmd(stdio, g),
-		newClaimCmd(stdio, g),
-		newRecoverCmd(stdio, g),
-	} {
+	for _, cmd := range append(agentCommands(stdio, g), controlServerCommands(stdio, g)...) {
 		cmd.GroupID = groupServer
 		root.AddCommand(cmd)
 	}
@@ -254,12 +199,23 @@ func newServerCmd(stdio IO) (*cobra.Command, *globalFlags) {
 	// Unknown subcommands are usage errors, with a pointer to the help.
 	root.Args = func(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 {
-			return usageError{fmt.Errorf("unknown command %q. Run %q to see the commands", args[0], "dockwell --help")}
+			return unknownCommand(args[0])
 		}
 		return nil
 	}
 	root.RunE = func(cmd *cobra.Command, _ []string) error { return cmd.Help() }
 	return root, g
+}
+
+// agentCommands are the commands both builds have: what a server that
+// joined a control plane runs.
+func agentCommands(stdio IO, g *globalFlags) []*cobra.Command {
+	return []*cobra.Command{
+		newVersionCmd(),
+		newRunCmd(stdio, g),
+		newJoinCmd(stdio, g),
+		newRoleCmd(stdio, g),
+	}
 }
 
 // noArgs rejects positional arguments as a usage error that points to the

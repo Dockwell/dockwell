@@ -17,7 +17,8 @@ import (
 var verbs = regexp.MustCompile(`%[-+# 0]*\d*[a-zA-Z]`)
 
 // TestTheCLIsErrorsStateTheFactFirst reads every error the API commands
-// write themselves, in api.go and internal/cli/apicli, and checks that it
+// write themselves, in api.go and internal/cli/apicli, and those each build
+// writes about what it has, in the edition files, and checks that it
 // follows the content rules (design/system/README.md): a whole sentence
 // that starts with the fact, lowercase as Go errors are, with no
 // exclamation, and with its consequence or its fix after it. A message
@@ -30,7 +31,7 @@ func TestTheCLIsErrorsStateTheFactFirst(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	files = append(files, "api.go")
+	files = append(files, "api.go", "edition_full.go", "edition_agent.go")
 	fset := token.NewFileSet()
 	checked := 0
 	for _, path := range files {

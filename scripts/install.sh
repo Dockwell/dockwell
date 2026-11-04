@@ -2,19 +2,20 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 #
 # Installs Dockwell on a Linux server. On the first server it runs the control
-# plane and an agent:
+# plane and an agent, with the full build of dockwell:
 #
 #   curl -fsSL https://get.dockwell.dev | sh
 #
 # To add another server, make a ticket on the control server with
 # `dockwell token create`, then run this on the new server. It joins and runs
-# only the agent:
+# only the agent, with the agent build, which links none of the control plane
+# (docs/adr/0023-a-full-build-and-an-agent-build.md):
 #
 #   curl -fsSL https://get.dockwell.dev | sh -s -- --join <ticket>
 #
-# Running it again upgrades in place. `--uninstall` removes Dockwell and leaves
-# your workloads and data where they are. Run it with --help for the options,
-# and see docs/install.md.
+# Running it again upgrades in place, and keeps the build the server has.
+# `--uninstall` removes Dockwell and leaves your workloads and data where they
+# are. Run it with --help for the options, and see docs/install.md.
 #
 # Nothing is installed until the release checks out: a pinned cosign verifies
 # that Dockwell's release workflow signed the checksums, and the archive must
@@ -73,7 +74,8 @@ Usage:
 
 Options:
   --join <ticket>      add this server to a control plane, with a ticket from
-                       dockwell token create; it runs only the agent (env DOCKWELL_JOIN)
+                       dockwell token create; it runs only the agent, with the
+                       agent build (env DOCKWELL_JOIN)
   --version <version>  install that release, such as 0.1.0, instead of the
                        latest (env DOCKWELL_VERSION)
   --mirror <url>       download Dockwell from a mirror of its GitHub releases, and
@@ -85,7 +87,8 @@ Options:
   -h, --help           show this help
 
 Without --join, this server becomes a control server: it runs the control
-plane and its own agent. Run as root. See
+plane and its own agent, with the full build. An upgrade keeps the build the
+server has. Run as root. See
 https://github.com/Dockwell/dockwell/blob/main/docs/install.md
 EOF
 }
@@ -252,6 +255,38 @@ installed_version() {
 	"$BIN" version 2>/dev/null </dev/null | sed -n 's/^dockwell  *v\{0,1\}//p'
 }
 
+# installed_build prints which build of dockwell is installed, agent or full,
+# or nothing when none runs here. Releases from before there were two builds,
+# v0.1.0 and v0.2.0, name none in dockwell version --json: they are the full
+# build.
+installed_build() {
+	[ -n "$(installed_version)" ] || return 0
+	case $("$BIN" version --json 2>/dev/null </dev/null) in
+	*'"BUILD_EDITION_AGENT"'*) say agent ;;
+	*) say full ;;
+	esac
+}
+
+# pick_build sets build to the build of dockwell this server runs. A control
+# server runs the full build, which has the control plane, and a server that
+# joins runs the agent build, which has only the agent. A server that already
+# joined keeps the build it has: one that joined before there was an agent
+# build runs the full build, which runs the agent too. The data directory
+# says what the server is, as dockwell role reads it: a control plane keeps
+# its state in $DATA/control, and an agent its identity in $DATA/agent.
+pick_build() {
+	installed_build=$(installed_build)
+	if [ -d "$DATA/control" ]; then
+		build=full
+	elif [ -n "$installed_build" ] && [ -e "$DATA/agent/agent.json" ]; then
+		build=$installed_build
+	elif [ -n "$ticket" ] || [ -e "$DATA/agent/agent.json" ]; then
+		build=agent
+	else
+		build=full
+	fi
+}
+
 valid_version() {
 	case $1 in
 	'' | *[!0-9A-Za-z.+-]*) return 1 ;;
@@ -293,6 +328,16 @@ resolve() {
 	fi
 	download="$releases/download/v$version"
 	archive="dockwell_${version}_linux_${arch}.tar.gz"
+	# The checksums aren't checked yet, but they only pick the file to ask for:
+	# verify checks their signature, then the archive against them.
+	if [ "$build" = agent ]; then
+		if awk -v f="dockwell-agent_${version}_linux_${arch}.tar.gz" '$2 == f { found = 1 } END { exit !found }' "$tmp/checksums.txt"; then
+			archive="dockwell-agent_${version}_linux_${arch}.tar.gz"
+		else
+			build=full
+			build_note="Dockwell v$version has no agent build, so this server gets the full build, which runs the agent too."
+		fi
+	fi
 }
 
 # get_cosign puts a cosign that matches the pinned SHA-256 at $cosign.
@@ -406,7 +451,7 @@ verify() {
 	[ -n "$want" ] || fail "The signed checksums of Dockwell v$version don't list $archive. That release has no linux/$arch build; pick another with --version."
 	if ! fetch "$download/$archive" "$tmp/$archive"; then
 		[ -z "$mirror" ] ||
-			mirror_failed "download/v$version/$archive" "Dockwell v$version for linux/$arch" \
+			mirror_failed "download/v$version/$archive" "the $build build of Dockwell v$version for linux/$arch" \
 				"Check the mirror holds every file of the release, or pick a version it has with --version, then run this again."
 		fail "Can't download $archive from $download. Check this server can reach it, then run this again."
 	fi
@@ -667,13 +712,16 @@ install_dockwell() {
 	if serves_panel; then
 		check_listen
 	fi
+	pick_build
+	build_note=
 	resolve
 	current=$(installed_version)
 	changed=
-	if [ "$current" = "$version" ]; then
-		say "Dockwell v$version is already installed on this server."
+	if [ "$current" = "$version" ] && [ "$installed_build" = "$build" ]; then
+		say "Dockwell v$version is already installed on this server, as the $build build."
 	else
-		say "Installing Dockwell v$version on $os_name, linux/$arch."
+		say "Installing the $build build of Dockwell v$version on $os_name, linux/$arch."
+		[ -z "$build_note" ] || say "$build_note"
 		[ "$family" != other ] ||
 			say "Dockwell supports Debian, Ubuntu, the RHEL family and Alpine; this system isn't one of them, so it may not work."
 		verify
@@ -684,10 +732,12 @@ install_dockwell() {
 		chmod 0755 "$BIN.new"
 		mv -f "$BIN.new" "$BIN"
 		changed=1
-		if [ -n "$current" ]; then
-			say "Upgraded $BIN from v$current to v$version."
-		else
+		if [ -z "$current" ]; then
 			say "Installed $BIN."
+		elif [ "$installed_build" != "$build" ]; then
+			say "Replaced the $installed_build build of Dockwell v$current in $BIN with the $build build of v$version."
+		else
+			say "Upgraded $BIN from v$current to v$version."
 		fi
 	fi
 

@@ -90,7 +90,7 @@ Every surface writes to the same revision store; the scheduler places revisions 
 
 ### Components
 
-- **Agent** — one static binary under systemd. Runs Docker and Compose workloads, ingress, systemd units, files, firewall, metrics and logs. Connects out over gRPC with mTLS, caches desired state, reconciles locally, and self-updates from signed releases.
+- **Agent** — one static binary under systemd: the agent build of `dockwell`, which links none of the control plane. Runs Docker and Compose workloads, ingress, systemd units, files, firewall, metrics and logs. Connects out over gRPC with mTLS, caches desired state, reconciles locally, and self-updates from signed releases.
 - **Control plane** — the API (one schema generating REST, SDKs, CLI and MCP), the revision store, the scheduler, build orchestration, the event timeline and the web UI. Runs on any node or as Dockwell Cloud.
 - **Mesh** — a WireGuard overlay with built-in DNS service discovery and NAT traversal. Invisible on a single box; switched on when a second node joins.
 - **Builders** — any node can build. Images move node to node layer by layer, so an external registry is optional.
@@ -123,7 +123,7 @@ Every surface writes to the same revision store; the scheduler places revisions 
 
 One control plane, headless agents everywhere: the first install runs both roles on the user's only server, and every server added later runs just the agent, with no web UI and no open ports.
 
-- **One binary, two roles.** Every machine runs `dockwell`. The first install enables `control` (UI, API, state, scheduler) and `agent` (workloads). `dw join` on any later server enables only the agent: about 40 MB, outbound mTLS, so it works behind NAT and on home networks.
+- **Two roles, two builds.** Every machine runs `dockwell`. The first install runs the full build, with `control` (UI, API, state, scheduler) and `agent` (workloads). `dw join` on any later server installs the agent build, which has only the agent: under 40 MB, outbound mTLS, so it works behind NAT and on home networks. Both builds come from one codebase and every release ([ADR 0023](../adr/0023-a-full-build-and-an-agent-build.md)).
 - **The first server becomes the control server.** It still runs apps like any other server; it also hosts the panel. Nothing is replicated between peers, and no server is a lesser copy of another.
 - **Headless is not less manageable.** Every server's page (files, terminal, firewall, processes, packages) works through its agent and looks identical whether or not that server hosts the control plane. One URL serves the whole fleet.
 - **Agents hold their own desired state.** If the control plane is down, servers keep serving and keep reconciling. `dockwell local` on any server shows status and logs and can restart or roll back to a cached revision; those changes report back as drift when the connection returns.

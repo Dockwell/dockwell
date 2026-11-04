@@ -90,6 +90,15 @@ jobs:
           control_budget=$(num pr/budgets.json .control_budget_bytes)
           runs=$(num pr/budgets.json .runs)
           settle=$(num pr/budgets.json .settle_seconds)
+          # Each agent runs its commit's agent build. A main from before there
+          # was one measures its full build as an agent, as a server that
+          # joined ran it (docs/adr/0023-a-full-build-and-an-agent-build.md).
+          # Figures from before there were two builds say neither.
+          like=
+          case "$(jq -r '.agent_build // ""' pr/budgets.json)/$(jq -r '.baseline.agent_build // ""' pr/budgets.json)" in
+          agent/agent) like="Each agent ran its commit's agent build, and each control plane its full build." ;;
+          agent/full) like="main has no agent build, so its agent figure is its full build running as an agent, as a server that joined ran it then. This pull request's agent ran its agent build, and each control plane its full build." ;;
+          esac
 
           existing=$(gh api --paginate "repos/$REPO/issues/$pr/comments" \
             --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | head -n 1)
@@ -120,7 +129,7 @@ jobs:
           | An agent on its own | $(mb "$agent") | $(mb "$base_agent") | $(delta $((agent - base_agent))) | $(budget "$agent_budget") |
           | A control plane with its own agent | $(mb "$control") | $(mb "$base_control") | $(delta $((control - base_control))) | $(budget "$control_budget") |
 
-          The Memory budgets job measured both builds side by side, on one runner, for ${HEAD_SHA:0:7}. Each figure is the median of $runs runs.
+          The Memory budgets job measured both commits side by side, on one runner, for ${HEAD_SHA:0:7}. Each figure is the median of $runs runs.${like:+ $like}
           This comment appears when a figure moves by $(mb "$THRESHOLD") or more: on changes that can't move memory, they differ by up to $(mb "$NOISE").
           The job fails at the budget, and its summary has PSS and anonymous memory too. This comment is updated on every push.
           EOF

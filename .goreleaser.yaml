@@ -2,6 +2,11 @@
 # Release builds, run by .github/workflows/release.yml. GoReleaser only
 # builds: signing, attestation and publishing happen in a separate job that
 # runs none of this build code. See docs/releasing.md.
+#
+# Two builds of dockwell come from the same source, each as a binary called
+# dockwell in its own archive (docs/adr/0023-a-full-build-and-an-agent-build.md):
+# the full build, for the control server, and the agent build, with -tags
+# agent, for every server that joins.
 version: 2
 project_name: dockwell
 
@@ -25,11 +30,28 @@ builds:
       - -X github.com/dockwell/dockwell/internal/buildinfo.version=v{{ .Version }}
     # Reproducible: the same commit gives the same bytes.
     mod_timestamp: "{{ .CommitTimestamp }}"
+  # The agent build: the same, with the agent tag, so it links neither the
+  # control plane nor the panel.
+  - id: dockwell-agent
+    main: ./cmd/dockwell
+    binary: dockwell
+    tags: [agent]
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -buildid=
+      - -X github.com/dockwell/dockwell/internal/buildinfo.version=v{{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
   - id: dockwell
+    ids: [dockwell]
     formats: [tar.gz]
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "dockwell_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     # Fixed metadata, so the archive doesn't depend on the checkout's
     # timestamps, the builder's user or the umask.
     builds_info:
@@ -46,16 +68,33 @@ archives:
           mtime: "{{ .CommitDate }}"
       - src: README.md
         info: *fixed
+  # The agent build, under its own name. The binary in it is called
+  # dockwell too, so a server runs the same commands with either.
+  - id: dockwell-agent
+    ids: [dockwell-agent]
+    formats: [tar.gz]
+    name_template: "dockwell-agent_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    builds_info:
+      owner: root
+      group: root
+      mode: 0755
+      mtime: "{{ .CommitDate }}"
+    files:
+      - src: LICENSE
+        info: *fixed
+      - src: README.md
+        info: *fixed
 
 checksum:
   name_template: checksums.txt
   algorithm: sha256
-  # The archives, and the install script and Sigstore's trust root that every
-  # release carries for mirrors (docs/adr/0013-mirrors-for-releases-and-images.md).
+  # Both builds' archives, and the install script and Sigstore's trust root
+  # that every release carries for mirrors
+  # (docs/adr/0013-mirrors-for-releases-and-images.md).
   # Not the SBOMs: they embed a creation time and a random namespace, so they
   # would make the signed checksums differ from build to build; the provenance
   # attestation covers them instead.
-  ids: [dockwell]
+  ids: [dockwell, dockwell-agent]
   extra_files:
     - glob: scripts/install.sh
     - glob: scripts/sigstore_trusted_root.json

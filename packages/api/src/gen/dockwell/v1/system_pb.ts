@@ -4,8 +4,8 @@
 // @generated from file dockwell/v1/system.proto (package dockwell.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_dockwell_v1_options } from "./options_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/system.proto.
  */
 export const file_dockwell_v1_system: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9zeXN0ZW0ucHJvdG8SC2RvY2t3ZWxsLnYxIhMKEUdldFZlcnNpb25SZXF1ZXN0IjsKEkdldFZlcnNpb25SZXNwb25zZRIlCgVidWlsZBgBIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbyKVAQoJQnVpbGRJbmZvEg8KB3ZlcnNpb24YASABKAkSDgoGY29tbWl0GAIgASgJEi8KC2NvbW1pdF90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghtb2RpZmllZBgEIAEoCBISCgpnb192ZXJzaW9uGAUgASgJEhAKCHBsYXRmb3JtGAYgASgJMo8BCg1TeXN0ZW1TZXJ2aWNlEn4KCkdldFZlcnNpb24SHi5kb2Nrd2VsbC52MS5HZXRWZXJzaW9uUmVxdWVzdBofLmRvY2t3ZWxsLnYxLkdldFZlcnNpb25SZXNwb25zZSIvkAIBoLsYAaq7GBEKBnN5c3RlbRIHdmVyc2lvboLT5JMCDRILL3YxL3ZlcnNpb25CpAEKD2NvbS5kb2Nrd2VsbC52MUILU3lzdGVtUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9zeXN0ZW0ucHJvdG8SC2RvY2t3ZWxsLnYxIhMKEUdldFZlcnNpb25SZXF1ZXN0IjsKEkdldFZlcnNpb25SZXNwb25zZRIlCgVidWlsZBgBIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbyLBAQoJQnVpbGRJbmZvEg8KB3ZlcnNpb24YASABKAkSDgoGY29tbWl0GAIgASgJEi8KC2NvbW1pdF90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghtb2RpZmllZBgEIAEoCBISCgpnb192ZXJzaW9uGAUgASgJEhAKCHBsYXRmb3JtGAYgASgJEioKB2VkaXRpb24YByABKA4yGS5kb2Nrd2VsbC52MS5CdWlsZEVkaXRpb24qXgoMQnVpbGRFZGl0aW9uEh0KGUJVSUxEX0VESVRJT05fVU5TUEVDSUZJRUQQABIWChJCVUlMRF9FRElUSU9OX0ZVTEwQARIXChNCVUlMRF9FRElUSU9OX0FHRU5UEAIyjwEKDVN5c3RlbVNlcnZpY2USfgoKR2V0VmVyc2lvbhIeLmRvY2t3ZWxsLnYxLkdldFZlcnNpb25SZXF1ZXN0Gh8uZG9ja3dlbGwudjEuR2V0VmVyc2lvblJlc3BvbnNlIi+QAgGguxgBqrsYEQoGc3lzdGVtEgd2ZXJzaW9ugtPkkwINEgsvdjEvdmVyc2lvbkKkAQoPY29tLmRvY2t3ZWxsLnYxQgtTeXN0ZW1Qcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * GetVersionRequest takes no parameters.
@@ -104,6 +104,14 @@ export type BuildInfo = Message<"dockwell.v1.BuildInfo"> & {
    * @generated from field: string platform = 6;
    */
   platform: string;
+
+  /**
+   * Which of the two builds of dockwell this is. Unset in builds made before
+   * there were two, which are all the full build.
+   *
+   * @generated from field: dockwell.v1.BuildEdition edition = 7;
+   */
+  edition: BuildEdition;
 };
 
 /**
@@ -112,6 +120,42 @@ export type BuildInfo = Message<"dockwell.v1.BuildInfo"> & {
  */
 export const BuildInfoSchema: GenMessage<BuildInfo> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_system, 2);
+
+/**
+ * BuildEdition says which of the two builds of dockwell a binary is. Both come
+ * from the same source and are called dockwell. See
+ * docs/adr/0023-a-full-build-and-an-agent-build.md.
+ *
+ * @generated from enum dockwell.v1.BuildEdition
+ */
+export enum BuildEdition {
+  /**
+   * @generated from enum value: BUILD_EDITION_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The full build: the control plane with its own agent, the panel, the API
+   * and every command. The control server runs it.
+   *
+   * @generated from enum value: BUILD_EDITION_FULL = 1;
+   */
+  FULL = 1,
+
+  /**
+   * The agent build: only the agent, for a server that joins a control plane.
+   * It has no control plane, panel or API commands.
+   *
+   * @generated from enum value: BUILD_EDITION_AGENT = 2;
+   */
+  AGENT = 2,
+}
+
+/**
+ * Describes the enum dockwell.v1.BuildEdition.
+ */
+export const BuildEditionSchema: GenEnum<BuildEdition> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_system, 0);
 
 /**
  * SystemService describes the Dockwell install itself. It needs no sign-in, so

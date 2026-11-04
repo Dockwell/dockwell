@@ -25,6 +25,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/agent/v1/agentv1connect"
+	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/human"
@@ -208,7 +209,8 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 		return err
 	}
 	log := h.logger.With(slog.String("server", peer.ServerID), slog.String("name", srv.Name))
-	log.InfoContext(ctx, "server connected", slog.String("agent", hello.GetBuild().GetVersion()), slog.Any("kinds", hello.GetKinds()))
+	log.InfoContext(ctx, "server connected", slog.String("agent", hello.GetBuild().GetVersion()),
+		slog.String("build", string(buildinfo.EditionOf(hello.GetBuild()))), slog.Any("kinds", hello.GetKinds()))
 	// The engine reaches the agent's drivers over the stream from now on.
 	// Sends after the welcome go through the session, one at a time.
 	var session *Session
