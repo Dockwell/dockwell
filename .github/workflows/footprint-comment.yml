@@ -3,6 +3,12 @@
 # Posts the idle memory figures on a pull request that moves them, in one
 # comment that is updated in place on every push.
 #
+# The Memory budgets job measures the pull request's build and main's at
+# once, on one runner, and keeps the medians of several runs of each (see
+# scripts/budgets.sh). Comparing those, rather than figures from separate
+# runs, leaves out the difference between runners, which was as big as the
+# changes worth reporting.
+#
 # It runs after the Install workflow finishes, from main's copy of this file,
 # with a token that can comment, so it works for pull requests from forks too.
 # It checks out and runs none of the pull request's code. It reads only the
@@ -28,23 +34,28 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: read # download the figures from the Install runs
+      actions: read # download the figures from the Install run
       pull-requests: write # create or update the one comment
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       RUN_ID: ${{ github.event.workflow_run.id }}
       HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-      # A change smaller than this, in bytes, is noise between runs.
-      THRESHOLD: 1000000
+      # A change smaller than THRESHOLD, in bytes, isn't reported. On a pull
+      # request that can't move memory (#63), 10 comparisons on 10 runners
+      # differed by up to NOISE: 0.23 MB for an agent and 0.15 MB for a
+      # control plane, with a standard deviation of 0.11 MB. The threshold is
+      # twice that, rounded up (#57).
+      THRESHOLD: 500000
+      NOISE: 230000
     steps:
       - name: Post or update the comment
         run: |
           set -euo pipefail
           marker='<!-- dockwell:footprint -->'
 
-          # rss reads one figure, and only a number, from a budgets.json.
-          rss() { jq -er --arg k "$2" '.[$k] | numbers | floor' "$1"; }
+          # num reads one figure, and only a number, from a budgets.json.
+          num() { jq -er "$2 | numbers | floor" "$1"; }
           mb() { awk -v b="$1" 'BEGIN { printf "%.1f MB", b / 1e6 }'; }
           budget() { awk -v b="$1" 'BEGIN { printf "%d MB", b / 1e6 }'; }
           delta() { awk -v d="$1" 'BEGIN { printf "%+.1f MB", d / 1e6 }'; }
@@ -63,45 +74,36 @@ jobs:
             echo "Pull request #$pr is at $head now, not $HEAD_SHA, so these figures are stale."
             exit 0
           fi
-          agent=$(rss pr/budgets.json agent_rss_bytes)
-          control=$(rss pr/budgets.json control_rss_bytes)
-          agent_budget=$(rss pr/budgets.json agent_budget_bytes)
-          control_budget=$(rss pr/budgets.json control_budget_bytes)
-
-          # main's figures: the latest push to main that measured them.
-          found=
-          base=
-          for id in $(gh api "repos/$REPO/actions/workflows/install.yml/runs?branch=main&event=push&status=completed&per_page=20" --jq '.workflow_runs[].id'); do
-            if gh run download "$id" -R "$REPO" -n footprint -D "main/$id" 2>/dev/null &&
-              base_agent=$(rss "main/$id/budgets.json" agent_rss_bytes) &&
-              base_control=$(rss "main/$id/budgets.json" control_rss_bytes); then
-              base=$(head -c 40 "main/$id/sha" 2>/dev/null | tr -dc '0-9a-f' || true)
-              found=1
-              break
-            fi
-          done
+          base=$(head -c 40 pr/base 2>/dev/null | tr -dc '0-9a-f' || true)
+          if [[ ${#base} -ne 40 ]] ||
+            ! base_agent=$(num pr/budgets.json .baseline.agent_rss_bytes) ||
+            ! base_control=$(num pr/budgets.json .baseline.control_rss_bytes); then
+            echo "Run $RUN_ID measured nothing of main to compare with, so there's nothing to post."
+            exit 0
+          fi
+          agent=$(num pr/budgets.json .agent_rss_bytes)
+          control=$(num pr/budgets.json .control_rss_bytes)
+          agent_budget=$(num pr/budgets.json .agent_budget_bytes)
+          control_budget=$(num pr/budgets.json .control_budget_bytes)
+          runs=$(num pr/budgets.json .runs)
+          settle=$(num pr/budgets.json .settle_seconds)
 
           existing=$(gh api --paginate "repos/$REPO/issues/$pr/comments" \
             --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | head -n 1)
 
-          if [[ -z "$found" ]]; then
-            echo "main has no memory figures yet, so there's nothing to compare with."
-            exit 0
-          fi
           moved=
           for d in $((agent - base_agent)) $((control - base_control)); do
             if ((${d#-} >= THRESHOLD)); then moved=1; fi
           done
           if [[ -z "$moved" && -z "$existing" ]]; then
-            echo "Pull request #$pr doesn't move idle memory, so there's nothing to post."
+            echo "Pull request #$pr doesn't move idle memory by $(mb "$THRESHOLD") or more, so there's nothing to post."
             exit 0
           fi
 
-          at=${base:+ at ${base:0:7}}
           if [[ -n "$moved" ]]; then
-            lead="This pull request moves idle memory by 1 MB or more, compared with main$at."
+            lead="This pull request moves idle memory by $(mb "$THRESHOLD") or more, compared with main at ${base:0:7}."
           else
-            lead="This pull request no longer moves idle memory by 1 MB or more, compared with main$at."
+            lead="This pull request no longer moves idle memory by $(mb "$THRESHOLD") or more, compared with main at ${base:0:7}."
           fi
           body=$(
             cat <<EOF
@@ -110,12 +112,14 @@ jobs:
 
           $lead
 
-          | Idle, after 30 s | This pull request | main | Change | Budget |
+          | Idle, after $settle s, RSS | This pull request | main | Change | Budget |
           | --- | ---: | ---: | ---: | ---: |
           | An agent on its own | $(mb "$agent") | $(mb "$base_agent") | $(delta $((agent - base_agent))) | $(budget "$agent_budget") |
           | A control plane with its own agent | $(mb "$control") | $(mb "$base_control") | $(delta $((control - base_control))) | $(budget "$control_budget") |
 
-          Measured at ${HEAD_SHA:0:7} by the Memory budgets job, which fails at the budget. This comment is updated on every push.
+          The Memory budgets job measured both builds at once, on one runner, for ${HEAD_SHA:0:7}. Each figure is the median of $runs runs.
+          This comment appears when a figure moves by $(mb "$THRESHOLD") or more: on changes that can't move memory, they differ by up to $(mb "$NOISE").
+          The job fails at the budget, and its summary has PSS and anonymous memory too. This comment is updated on every push.
           EOF
           )
 
