@@ -375,3 +375,11 @@ func timePtr(n sql.NullInt64) *time.Time {
 }
 
 func nullString(s string) sql.NullString { return sql.NullString{String: s, Valid: s != ""} }
+
+// boolInt stores a bool as the INTEGER column both databases have.
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}

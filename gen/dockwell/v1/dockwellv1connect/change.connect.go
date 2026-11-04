@@ -70,7 +70,14 @@ type ChangeServiceClient interface {
 	// ProposeChange plans a set of edits and records them as a planned
 	// change, ready to apply or discard. Planning asks each server's agent
 	// what the edits would take there, and changes nothing on any server. The
-	// same edits against the same state give the same plan and fingerprint.
+	// same edits against the same state give the same plan, and the same
+	// fingerprint unless they edit a kind that may hold secrets, which each
+	// change digests for itself.
+	//
+	// An edit that sets a sensitive field, such as a secret's value or a
+	// container's environment, is a rotation: it plans as a change, and
+	// restarts what uses the value, whatever the value is. So a plan never
+	// says whether a value is the one already there.
 	ProposeChange(context.Context, *connect.Request[v1.ProposeChangeRequest]) (*connect.Response[v1.ProposeChangeResponse], error)
 	// GetChange returns one change, with its plan and the progress of each of
 	// its steps.
@@ -265,7 +272,14 @@ type ChangeServiceHandler interface {
 	// ProposeChange plans a set of edits and records them as a planned
 	// change, ready to apply or discard. Planning asks each server's agent
 	// what the edits would take there, and changes nothing on any server. The
-	// same edits against the same state give the same plan and fingerprint.
+	// same edits against the same state give the same plan, and the same
+	// fingerprint unless they edit a kind that may hold secrets, which each
+	// change digests for itself.
+	//
+	// An edit that sets a sensitive field, such as a secret's value or a
+	// container's environment, is a rotation: it plans as a change, and
+	// restarts what uses the value, whatever the value is. So a plan never
+	// says whether a value is the one already there.
 	ProposeChange(context.Context, *connect.Request[v1.ProposeChangeRequest]) (*connect.Response[v1.ProposeChangeResponse], error)
 	// GetChange returns one change, with its plan and the progress of each of
 	// its steps.

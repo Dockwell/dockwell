@@ -61,7 +61,7 @@ func Setup(ctx context.Context, db *store.DB, logger *slog.Logger) (bool, error)
 			c.Items = append(c.Items, store.ChangeItem{ResourceID: r.ID, Kind: r.Kind, Scope: r.Scope, Name: r.Name, Spec: r.Spec})
 		}
 		// The plan is what Propose would make: two revisions, no steps.
-		plan, err := (&Engine{}).plan(ctx, items, false)
+		plan, err := (&Engine{}).plan(ctx, c.ID, items, false)
 		if err != nil {
 			return err
 		}

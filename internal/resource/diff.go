@@ -41,7 +41,17 @@ type Change struct {
 // Diff lists the fields that differ from one spec to another, in field
 // order. Either may be nil, for a resource being created or deleted. An
 // unset field and its zero value are the same.
-func Diff(from, to proto.Message) []Change {
+func Diff(from, to proto.Message) []Change { return diff(from, to, false) }
+
+// DiffRotating is Diff for a spec whose sensitive values are set anew, as
+// an edit that sets one does: each sensitive value to sets counts as
+// changed, even when from holds the same. Setting a value is a rotation,
+// so what applying does never depends on whether a value is the one
+// already there, and neither a plan nor a step can confirm a guess at it
+// (ADR 0022). Its values are never compared.
+func DiffRotating(from, to proto.Message) []Change { return diff(from, to, true) }
+
+func diff(from, to proto.Message, rotate bool) []Change {
 	var a, b protoreflect.Message
 	var md protoreflect.MessageDescriptor
 	if from != nil {
@@ -55,9 +65,43 @@ func Diff(from, to proto.Message) []Change {
 	if md == nil {
 		return nil
 	}
-	var d differ
+	d := differ{rotate: rotate}
 	d.message("", md, a, b, false)
 	return d.out
+}
+
+// SetsSensitive reports whether a spec sets a field marked (sensitive), at
+// any depth: a secret's value, or an entry of a container's environment.
+func SetsSensitive(m proto.Message) bool {
+	if m == nil {
+		return false
+	}
+	return setsSensitive(m.ProtoReflect())
+}
+
+func setsSensitive(m protoreflect.Message) bool {
+	found := false
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		switch {
+		case IsSensitive(fd):
+			found = true
+		case fd.IsMap() && fd.MapValue().Message() != nil:
+			v.Map().Range(func(_ protoreflect.MapKey, e protoreflect.Value) bool {
+				found = setsSensitive(e.Message())
+				return !found
+			})
+		case fd.IsList() && fd.Message() != nil:
+			for i := range v.List().Len() {
+				if found = setsSensitive(v.List().Get(i).Message()); found {
+					break
+				}
+			}
+		case !fd.IsMap() && !fd.IsList() && fd.Message() != nil:
+			found = setsSensitive(v.Message())
+		}
+		return !found
+	})
+	return found
 }
 
 // Equal reports whether two specs mean the same: no field differs.
@@ -68,7 +112,12 @@ func Equal(a, b proto.Message) bool {
 	return proto.Equal(a, b)
 }
 
-type differ struct{ out []Change }
+type differ struct {
+	out []Change
+	// rotate counts every sensitive value the new spec sets as changed,
+	// without comparing it (DiffRotating).
+	rotate bool
+}
 
 // add records a change for a value that may be absent on either side. A
 // singular field is absent when it holds its zero value; a map entry when
@@ -78,7 +127,8 @@ func (d *differ) add(path, from, to string, sensitive bool) {
 }
 
 func (d *differ) addPresent(path, from, to string, hasFrom, hasTo, sensitive bool) {
-	if hasFrom == hasTo && from == to {
+	rotated := sensitive && d.rotate && hasTo
+	if !rotated && hasFrom == hasTo && from == to {
 		return
 	}
 	c := Change{Path: path, From: from, To: to, Sensitive: sensitive}
@@ -128,7 +178,9 @@ func (d *differ) list(path string, fd protoreflect.FieldDescriptor, a, b protore
 		// hides the difference, as with ["a, b"] and ["a", "b"], it goes
 		// item by item.
 		ja, jb := joinList(fd, la), joinList(fd, lb)
-		if ja != jb || len(la) == len(lb) && slices.EqualFunc(la, lb, func(x, y protoreflect.Value) bool { return x.Equal(y) }) {
+		// A sensitive list being set anew goes whole, so how it is shown
+		// doesn't depend on its values either.
+		if sensitive && d.rotate || ja != jb || len(la) == len(lb) && slices.EqualFunc(la, lb, func(x, y protoreflect.Value) bool { return x.Equal(y) }) {
 			d.addPresent(path, ja, jb, len(la) > 0, len(lb) > 0, sensitive)
 			return
 		}

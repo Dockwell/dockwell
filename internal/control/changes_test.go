@@ -337,10 +337,12 @@ func testPlanApplyAndUndoThroughTheAPI(t *testing.T, backend store.Backend) {
 		t.Fatal("planning ran a container")
 	}
 
-	// The same proposal against the same state plans the same.
+	// The same proposal against the same state plans the same, with a
+	// fingerprint of its own, as it sets a container's environment.
 	again := propose(t, c, "Run web", webEdit("nginx:1.27", map[string]string{"API_KEY": "s3cret-value"}))
-	if again.GetPlan().GetFingerprint() != plan.GetFingerprint() || again.GetId() == planned.GetId() {
-		t.Errorf("planning again gave fingerprint %s, want %s", again.GetPlan().GetFingerprint(), plan.GetFingerprint())
+	if again.GetPlan().GetFingerprint() == plan.GetFingerprint() || again.GetId() == planned.GetId() ||
+		!proto.Equal(again.GetPlan().GetSummary(), plan.GetSummary()) || len(again.GetPlan().GetServers()) != len(plan.GetServers()) {
+		t.Errorf("planning again gave %v, want %v with a fingerprint of its own", again.GetPlan(), plan)
 	}
 	discarded, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: again.GetId()}))
 	if err != nil || discarded.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_DISCARDED {

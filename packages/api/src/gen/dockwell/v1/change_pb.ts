@@ -978,9 +978,11 @@ export const ActorSchema: GenMessage<Actor> = /*@__PURE__*/
  */
 export type Plan = Message<"dockwell.v1.Plan"> & {
   /**
-   * A hash of what the plan does. The same edits against the same state
-   * have the same fingerprint, and applying checks that a fresh plan still
-   * has it.
+   * A hash of what the plan does, for this change. Applying checks that a
+   * fresh plan still has it. The same edits against the same state have
+   * the same fingerprint, unless they edit a kind that may hold secrets:
+   * that is digested for each change alone, so no two changes'
+   * fingerprints say they set the same value.
    *
    * @generated from field: string fingerprint = 1;
    */
@@ -2003,7 +2005,14 @@ export const ChangeService: GenService<{
    * ProposeChange plans a set of edits and records them as a planned
    * change, ready to apply or discard. Planning asks each server's agent
    * what the edits would take there, and changes nothing on any server. The
-   * same edits against the same state give the same plan and fingerprint.
+   * same edits against the same state give the same plan, and the same
+   * fingerprint unless they edit a kind that may hold secrets, which each
+   * change digests for itself.
+   *
+   * An edit that sets a sensitive field, such as a secret's value or a
+   * container's environment, is a rotation: it plans as a change, and
+   * restarts what uses the value, whatever the value is. So a plan never
+   * says whether a value is the one already there.
    *
    * @generated from rpc dockwell.v1.ChangeService.ProposeChange
    */

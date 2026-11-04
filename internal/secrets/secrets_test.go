@@ -115,19 +115,22 @@ func testSealAndOpen(t *testing.T, backend store.Backend) {
 	}
 }
 
-// A digest is keyed: the same spec digests the same under one install's
-// key, and differently under another's, and isn't its plain hash.
+// A digest is keyed and bound to its change: the same spec digests the
+// same under one install's key for one change, and differently under
+// another's key or for another change, and isn't its plain hash.
 func TestDigestIsKeyed(t *testing.T) {
 	db, _ := storetest.Open(t, store.SQLite)
 	a, b := secretstest.Keeper(db, kinds()), secrets.New(db, otherKey(t), kinds())
 	spec := []byte("password=hunter2")
 	plain := sha256.Sum256(spec)
 	switch {
-	case !bytes.Equal(a.Digest(spec), secretstest.Keeper(db, kinds()).Digest(spec)):
+	case !bytes.Equal(a.Digest("chg_1", spec), secretstest.Keeper(db, kinds()).Digest("chg_1", spec)):
 		t.Error("one key digested one spec two ways")
-	case bytes.Equal(a.Digest(spec), b.Digest(spec)):
+	case bytes.Equal(a.Digest("chg_1", spec), b.Digest("chg_1", spec)):
 		t.Error("two keys digested a spec the same")
-	case bytes.Equal(a.Digest(spec), plain[:]):
+	case bytes.Equal(a.Digest("chg_1", spec), a.Digest("chg_2", spec)):
+		t.Error("two changes digested a spec the same, so their fingerprints can confirm they set one value")
+	case bytes.Equal(a.Digest("chg_1", spec), plain[:]):
 		t.Error("the digest is the spec's plain hash")
 	}
 }

@@ -255,12 +255,17 @@ func (k *Keeper) Decode(ctx context.Context, tx *store.Tx, resourceID string, ki
 	return k.kinds.Decode(kind, plain)
 }
 
-// Digest is a keyed hash of a spec's encoding, for a plan's fingerprint:
-// the same spec always digests the same, and without the install's key
-// the digest says nothing of it, as a plain hash of a short password
-// would.
-func (k *Keeper) Digest(encoded []byte) []byte {
+// Digest is a keyed hash of a spec's encoding, for the fingerprint of the
+// change changeID. Within the change, the same spec always digests the
+// same, so applying finds the plan that was reviewed. Without the install's
+// key it says nothing of the spec, as a plain hash of a short password
+// would, and it differs from change to change, so comparing two changes'
+// fingerprints can't confirm they set the same value either, such as a
+// guess and an undo that puts an old value back.
+func (k *Keeper) Digest(changeID string, encoded []byte) []byte {
 	mac := hmac.New(sha256.New, k.digest)
+	mac.Write([]byte(changeID))
+	mac.Write([]byte{0}) // no change ID holds a zero byte
 	mac.Write(encoded)
 	return mac.Sum(nil)
 }

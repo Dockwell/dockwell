@@ -343,11 +343,13 @@ func testAChangePlannedBeforeTheUpgradeStillApplies(t *testing.T, backend store.
 	// fingerprint hashes specs as they are, and its items aren't sealed.
 	plannedBefore := func(summary string, edits ...Edit) string {
 		t.Helper()
-		items, err := e.items(t.Context(), edits)
+		// An earlier version rotated nothing.
+		items, err := e.items(t.Context(), edits, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		plan, err := e.plan(t.Context(), items, false)
+		changeID := "chg_before_" + strings.ReplaceAll(strings.ToLower(summary), " ", "_")
+		plan, err := e.plan(t.Context(), changeID, items, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -355,7 +357,7 @@ func testAChangePlannedBeforeTheUpgradeStillApplies(t *testing.T, backend store.
 			t.Fatal("the plain fingerprint is the keyed one; the test plans nothing that is sealed")
 		}
 		c := store.Change{
-			ID: "chg_before_" + strings.ReplaceAll(strings.ToLower(summary), " ", "_"), Summary: summary, Actor: "usr_test", State: store.ChangePlanned, Fingerprint: plan.plain,
+			ID: changeID, Summary: summary, Actor: "usr_test", State: store.ChangePlanned, Fingerprint: plan.plain,
 			FingerprintScheme: fingerprintPlain, CreatedAt: time.Now(), ProposedVia: ViaPanel, Servers: serversOf(plan),
 		}
 		plan.Change, plan.Summary = c.ID, summary
@@ -686,8 +688,14 @@ func testWhatAServerReportsIsNormalized(t *testing.T, backend store.Backend) {
 	if d, err := e.Drift(t.Context(), "srv_A"); err != nil || len(d) != 0 {
 		t.Errorf("drift from the server's own order and defaults: %+v, %v", d, err)
 	}
-	if p := propose(t, e, "Nothing", spec); !p.Empty() {
-		t.Errorf("planning the same spec again: %+v", p)
+	// Drift's own plan puts back what the server should have: nothing.
+	if p, err := e.Revert(t.Context(), Drift{Ref: spec.Ref}, By{Actor: "usr_test", Via: ViaPanel}); err != nil || !p.Empty() {
+		t.Errorf("reverting the server's own order and defaults: %+v, %v", p, err)
+	}
+	// Proposing it again sets its environment again: a rotation, which
+	// replaces the container, whatever its values are.
+	if p := propose(t, e, "Rotate", spec); p.Revisions != 1 || len(p.Steps()) != 1 || p.Steps()[0].Action != resource.ActionReplace {
+		t.Errorf("planning the same spec, with its environment, again: %+v", p)
 	}
 }
 

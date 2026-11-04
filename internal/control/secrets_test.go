@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -483,5 +484,39 @@ func testChangingHowYouSignInTakesAPasskeyThroughTheAPI(t *testing.T, backend st
 	if _, err := dockwellv1connect.NewTokenServiceClient(phone, phone.origin, connect.WithProtoJSON()).CreateToken(t.Context(),
 		connect.NewRequest(&dockwellv1.CreateTokenRequest{Name: "CI", Scope: dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY})); reasonOf(err) != authapi.ReasonNeedsStepUp {
 		t.Errorf("making a token just after signing in with a link, without a step-up: %v, want %s", err, authapi.ReasonNeedsStepUp)
+	}
+}
+
+// A read-write API token may propose a secret's value, and its plan can't
+// tell it whether the value is the one the secret has: the right value
+// and a wrong one plan alike, each a rotation, with fingerprints of their
+// own.
+func TestATokenCantConfirmAGuessByProposingIt(t *testing.T) {
+	storetest.Each(t, testATokenCantConfirmAGuessByProposingIt)
+}
+
+func testATokenCantConfirmAGuessByProposingIt(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	c := changeClient(b, b.origin)
+	apply(t, c, propose(t, c, "Add the database password", secretSpec("DB_PASSWORD", "hunter2")))
+	script := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}
+	tc := changeClient(script, b.origin)
+	wrong := propose(t, tc, "Guess", secretSpec("DB_PASSWORD", "letmein")).GetPlan()
+	right := propose(t, tc, "Guess", secretSpec("DB_PASSWORD", "hunter2")).GetPlan()
+	if right.GetFingerprint() == wrong.GetFingerprint() {
+		t.Error("two guesses share a fingerprint")
+	}
+	right.Fingerprint, wrong.Fingerprint = "", ""
+	for _, p := range []*dockwellv1.Plan{right, wrong} {
+		for _, r := range p.GetResources() {
+			r.Id = ""
+		}
+	}
+	if !proto.Equal(right, wrong) {
+		t.Errorf("the right value plans\n%v\nand a wrong one\n%v", right, wrong)
+	}
+	if right.GetSummary().GetChange() != 1 {
+		t.Errorf("setting the value the secret has plans %v, want a change", right.GetSummary())
 	}
 }

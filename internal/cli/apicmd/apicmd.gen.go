@@ -136,7 +136,7 @@ func Methods() []*apicli.Method {
 			Noun:      "changes",
 			Verb:      "propose",
 			Short:     "Plan a set of edits",
-			Long:      "Plan a set of edits and records them as a planned change, ready to apply or\ndiscard. Planning asks each server's agent what the edits would take there, and\nchanges nothing on any server. The same edits against the same state give the\nsame plan and fingerprint.",
+			Long:      "Plan a set of edits and records them as a planned change, ready to apply or\ndiscard. Planning asks each server's agent what the edits would take there, and\nchanges nothing on any server. The same edits against the same state give the\nsame plan, and the same fingerprint unless they edit a kind that may hold\nsecrets, which each change digests for itself.\n\nAn edit that sets a sensitive field, such as a secret's value or a container's\nenvironment, is a rotation: it plans as a change, and restarts what uses the\nvalue, whatever the value is. So a plan never says whether a value is the one\nalready there.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "summary", Help: "What the change is for, in your words, such as \"Add a staging environment\". Required: the timeline shows it."},

@@ -105,6 +105,9 @@ type ChangeItem struct {
 	// host-level kind, and none for a deletion or a kind that runs on no
 	// server.
 	Servers []string
+	// Rotates is true when the edit sets values that may be secret, which
+	// plan as changed whatever they hold (ADR 0022).
+	Rotates bool
 }
 
 // Resource is a managed resource with its latest revision.
@@ -158,9 +161,9 @@ func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
 		return fmt.Errorf("can't record change %s: %w", c.ID, err)
 	}
 	for i, it := range c.Items {
-		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
-			strings.Join(it.Servers, " ")); err != nil {
+		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers, rotates)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
+			strings.Join(it.Servers, " "), boolInt(it.Rotates)); err != nil {
 			return fmt.Errorf("can't record change %s: %w", c.ID, err)
 		}
 	}
@@ -199,7 +202,7 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
 	}
-	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers
+	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers, rotates
 		FROM change_items WHERE change_id = ? ORDER BY position`, changeID)
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
@@ -209,9 +212,11 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 		var it ChangeItem
 		var servers string
 		var deleted bool
-		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers); err != nil {
+		var rotates int64
+		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers, &rotates); err != nil {
 			return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
 		}
+		it.Rotates = rotates != 0
 		it.Spec = spec(it.Spec, deleted)
 		if servers != "" {
 			it.Servers = strings.Fields(servers)

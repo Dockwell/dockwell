@@ -14,6 +14,11 @@ import (
 type Desired struct {
 	Ref  Ref
 	Spec proto.Message
+	// Rotate says the change sets Spec's sensitive values anew, as an edit
+	// that sets one does: each counts as changed, whatever the server has
+	// (DiffRotating). So the step says nothing of whether a value is the
+	// one already there, and applying it restarts what holds the value.
+	Rotate bool
 }
 
 // Agent plans and applies on one server, with that server's drivers. In
@@ -137,11 +142,12 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't read %s: %w", want.Ref, err)
 		}
+		want.Spec = spec
 		var step Step
 		if j, ok := d.(Judge); ok {
-			step, err = judgeStep(ctx, j, want.Ref, actual, spec)
+			step, err = judgeStep(ctx, j, want, actual)
 		} else {
-			step, err = PlanStep(d, want.Ref, actual, spec)
+			step, err = PlanStep(d, want, actual)
 		}
 		if err != nil {
 			return nil, err
@@ -166,16 +172,21 @@ func normalize(d Driver, spec proto.Message) (proto.Message, error) {
 }
 
 // judgeStep is PlanStep with a Judge, which knows the server.
-func judgeStep(ctx context.Context, j Judge, ref Ref, actual, desired proto.Message) (Step, error) {
-	if Equal(actual, desired) {
-		return Step{Ref: ref}, nil
+func judgeStep(ctx context.Context, j Judge, want Desired, actual proto.Message) (Step, error) {
+	desired := want.Spec
+	rotates := want.Rotate && actual != nil && SetsSensitive(desired)
+	if !rotates && Equal(actual, desired) {
+		return Step{Ref: want.Ref}, nil
 	}
 	changes := Diff(actual, desired)
-	dec, err := j.Judge(ctx, ref, actual, desired, changes)
-	if err != nil {
-		return Step{}, fmt.Errorf("can't plan %s: %w", ref, err)
+	if rotates {
+		changes = DiffRotating(actual, desired)
 	}
-	return Step{Ref: ref, Decision: dec, Changes: changes}, nil
+	dec, err := j.Judge(ctx, want.Ref, actual, desired, changes)
+	if err != nil {
+		return Step{}, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+	}
+	return Step{Ref: want.Ref, Decision: dec, Changes: changes}, nil
 }
 
 // Apply carries out step, then checks the server has what was asked for
@@ -234,20 +245,28 @@ func (l Local) Observe(ctx context.Context, refs []Ref) ([]proto.Message, error)
 	return out, nil
 }
 
-// PlanStep judges one step with d: nothing to do when actual already is
-// desired, otherwise the driver's decision on what differs.
-func PlanStep(d Driver, ref Ref, actual, desired proto.Message) (Step, error) {
+// PlanStep judges one step with d, from actual to what want asks: nothing
+// to do when actual already is it, otherwise the driver's decision on what
+// differs. A rotation that sets sensitive values is never nothing to do on
+// a resource that is there: its values count as changed, whatever actual
+// holds, and are never compared.
+func PlanStep(d Driver, want Desired, actual proto.Message) (Step, error) {
+	desired := want.Spec
+	rotates := want.Rotate && actual != nil && SetsSensitive(desired)
 	// Equality decides, not the diff, so a field the diff can't show still
 	// gets applied.
-	if Equal(actual, desired) {
-		return Step{Ref: ref}, nil
+	if !rotates && Equal(actual, desired) {
+		return Step{Ref: want.Ref}, nil
 	}
 	changes := Diff(actual, desired)
+	if rotates {
+		changes = DiffRotating(actual, desired)
+	}
 	dec, err := d.Plan(actual, desired, changes)
 	if err != nil {
-		return Step{}, fmt.Errorf("can't plan %s: %w", ref, err)
+		return Step{}, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 	}
-	return Step{Ref: ref, Decision: dec, Changes: changes}, nil
+	return Step{Ref: want.Ref, Decision: dec, Changes: changes}, nil
 }
 
 // Observe reads a resource through its driver and normalizes it like a

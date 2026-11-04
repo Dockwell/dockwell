@@ -104,9 +104,10 @@ type Sealer interface {
 	// Open decrypts what Seal made, and returns a spec stored unsealed as
 	// it is.
 	Open(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, stored []byte) ([]byte, error)
-	// Digest is a keyed hash of a spec's encoding, which says nothing of
-	// it without the install's key.
-	Digest(encoded []byte) []byte
+	// Digest is a keyed hash of a spec's encoding for one change's
+	// fingerprint, which says nothing of it without the install's key, and
+	// differs from change to change.
+	Digest(changeID string, encoded []byte) []byte
 }
 
 // Agents finds each server's agent.
@@ -229,7 +230,8 @@ const (
 	// change planned then is checked against plain.
 	fingerprintPlain = 1
 	// fingerprintKeyed digests the spec of a kind that may hold secrets
-	// with a key derived from the install's key.
+	// with a key derived from the install's key, bound to the change, and
+	// says which items rotate their values.
 	fingerprintKeyed = 2
 )
 
@@ -343,6 +345,14 @@ type item struct {
 	// sealed says its kind's specs may hold secrets, so the store keeps
 	// them encrypted, and the fingerprint digests them with a key.
 	sealed bool
+	// rotates says the edit sets values that may be secret, which plan as
+	// changed whatever they hold (resource.DiffRotating). Setting a value
+	// is a rotation: it makes a revision and restarts what holds it, even
+	// when the value is the one there, so no plan confirms a guess at it.
+	// Only what someone asks for rotates, and what Dockwell puts back
+	// (undo and rollback); what a change takes in, such as the services
+	// that use a value, and what drift keeps or reverts, don't.
+	rotates bool
 	// id names the resource. A new one gets its ID when the change is
 	// planned, so another item in the change can live in it.
 	id      string
@@ -365,6 +375,9 @@ type item struct {
 // changes reports whether the item makes a new revision: its spec, or
 // where it runs, differs from the latest revision.
 func (it item) changes() bool {
+	if it.rotates {
+		return true // whatever the values are, and without comparing them
+	}
 	cur, err := encodeOrNil(it.current)
 	return err != nil || it.base == 0 || !bytes.Equal(cur, it.encoded) || (it.current == nil) != (it.spec == nil) ||
 		!slices.Equal(it.placed, it.servers)
@@ -387,6 +400,11 @@ func (it item) desiredOn(server string) proto.Message {
 	return nil
 }
 
+// wantOn is what an agent plans the item toward on a server.
+func (it item) wantOn(server string) resource.Desired {
+	return resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Rotate: it.rotates}
+}
+
 // currentOn is what the latest revision has on a server.
 func (it item) currentOn(server string) proto.Message {
 	if slices.Contains(it.placed, server) {
@@ -400,22 +418,25 @@ func (it item) currentOn(server string) proto.Message {
 // life gets its first environment in the same change: production, unless
 // the change makes one in it.
 func (e *Engine) Propose(ctx context.Context, p Proposal) (*Plan, error) {
-	return e.propose(ctx, p, "")
+	return e.propose(ctx, p, "", true)
 }
 
-func (e *Engine) propose(ctx context.Context, p Proposal, reverts string) (*Plan, error) {
+// propose plans and records a change. With rotate, an edit that sets
+// values that may be secret rotates them (item.rotates).
+func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate bool) (*Plan, error) {
 	if len(p.Edits) == 0 {
 		return nil, fault.New(ErrInvalid, "the change has no edits. Add one for each resource to change")
 	}
-	items, err := e.items(ctx, p.Edits)
+	items, err := e.items(ctx, p.Edits, rotate)
 	if err != nil {
 		return nil, err
 	}
-	plan, err := e.plan(ctx, items, false)
+	changeID := id.New(id.Change)
+	plan, err := e.plan(ctx, changeID, items, false)
 	if err != nil {
 		return nil, err
 	}
-	plan.Change, plan.Summary, plan.Reverts = id.New(id.Change), p.Summary, reverts
+	plan.Change, plan.Summary, plan.Reverts = changeID, p.Summary, reverts
 	record, err := json.Marshal(plan)
 	if err != nil {
 		return nil, err
@@ -443,7 +464,7 @@ func (e *Engine) changeItems(ctx context.Context, tx *store.Tx, items []item) ([
 		}
 		out[i] = store.ChangeItem{
 			ResourceID: it.id, Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, BaseRevision: it.base, Spec: spec,
-			Servers: it.servers,
+			Servers: it.servers, Rotates: it.rotates,
 		}
 	}
 	return out, nil
@@ -495,8 +516,9 @@ func (e *Engine) recordPlanned(ctx context.Context, tx *store.RevisionTx, c stor
 }
 
 // items reads where each edit's resource stands and what the edit wants of
-// it, gives new resources their IDs, and checks the edits as a whole.
-func (e *Engine) items(ctx context.Context, edits []Edit) ([]item, error) {
+// it, gives new resources their IDs, and checks the edits as a whole. With
+// rotate, an edit that sets values that may be secret rotates them.
+func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, error) {
 	items := make([]item, 0, len(edits))
 	seen := map[resource.Ref]bool{}
 	err := e.db.View(ctx, func(tx *store.Tx) error {
@@ -523,6 +545,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit) ([]item, error) {
 				if it.encoded, err = resource.Encode(it.spec); err != nil {
 					return err
 				}
+				it.rotates = rotate && resource.SetsSensitive(it.spec)
 			} else if it.current == nil {
 				return fault.New(ErrInvalid, "there's no %s to delete. Check its kind, name and scope", ed.Ref)
 			}
@@ -906,13 +929,16 @@ func (e *Engine) withFirstEnvironments(ctx context.Context, tx *store.Tx, items 
 // revisions without steps.
 //
 // Planning changes nothing on any server, and the same items against the
-// same state give the same plan and fingerprint: the fingerprint leaves
-// out the IDs given to new resources, which differ every time.
+// same state give the same plan. They give the same fingerprint too, for
+// the change changeID: the fingerprint leaves out the IDs given to new
+// resources, which differ every time. A kind that may hold secrets is
+// digested for that change alone, so two changes' fingerprints never say
+// they set the same value.
 //
 // A rollback's plan never fails for an agent: one that can't plan now is
 // planned from its server's last known desired state, like an offline
 // one, and its steps wait for Resume to plan them against the server.
-func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, error) {
+func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollback bool) (*Plan, error) {
 	var servers, removed []string
 	byServer := map[string][]*item{}
 	for i := range items {
@@ -961,11 +987,11 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 			plan.Revisions++
 		}
 		item := func(digest []byte) string {
-			return fmt.Sprintf("item %s|%s|%d|%t|%x|%s\n", stable(it.id), ref(it.ref), it.base, it.spec != nil, digest, strings.Join(it.servers, " "))
+			return fmt.Sprintf("item %s|%s|%d|%t|%x|%s", stable(it.id), ref(it.ref), it.base, it.spec != nil, digest, strings.Join(it.servers, " "))
 		}
 		sum := sha256.Sum256(it.encoded)
-		_, _ = io.WriteString(keyed, item(e.digest(it)))
-		_, _ = io.WriteString(plain, item(sum[:]))
+		_, _ = fmt.Fprintf(keyed, "%s|%t\n", item(e.digest(changeID, it)), it.rotates)
+		_, _ = io.WriteString(plain, item(sum[:])+"\n")
 	}
 	actions := map[string][]resource.Action{} // each item's steps, on every server
 	access := map[string][]resource.Access{}  // what each item gains on its servers
@@ -998,7 +1024,7 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 				if err != nil {
 					return nil, err
 				}
-				step, err := resource.PlanStep(d, it.ref, it.currentOn(server), it.desiredOn(server))
+				step, err := resource.PlanStep(d, it.wantOn(server), it.currentOn(server))
 				if err != nil {
 					return nil, err
 				}
@@ -1108,12 +1134,13 @@ func (e *Engine) named(ctx context.Context, items []item) (before, after map[res
 	return before, after, err
 }
 
-// digest is what the fingerprint says of an item's spec: a hash, keyed for
-// a kind that may hold secrets, so a fingerprint on record can't confirm a
-// guess at one.
-func (e *Engine) digest(it *item) []byte {
+// digest is what the fingerprint of the change changeID says of an item's
+// spec: a hash, keyed for a kind that may hold secrets and bound to the
+// change, so neither a fingerprint on record nor one compared with another
+// change's can confirm a guess at one.
+func (e *Engine) digest(changeID string, it *item) []byte {
 	if it.sealed && e.sealer != nil {
-		return e.sealer.Digest(it.encoded)
+		return e.sealer.Digest(changeID, it.encoded)
 	}
 	sum := sha256.Sum256(it.encoded)
 	return sum[:]
@@ -1123,7 +1150,7 @@ func (e *Engine) digest(it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server)}
+		desired[i] = it.wantOn(server)
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -1147,8 +1174,12 @@ func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name 
 // A kind that runs on no server has no steps, and takes what its revision
 // does. The plan's counts, which PlanDiff shows, follow from these.
 func (it item) resourcePlan(steps []resource.Action) ResourcePlan {
+	diff := resource.Diff
+	if it.rotates {
+		diff = resource.DiffRotating
+	}
 	rp := ResourcePlan{
-		ID: it.id, Ref: it.ref, Base: it.base, Changes: resource.Diff(it.current, it.spec),
+		ID: it.id, Ref: it.ref, Base: it.base, Changes: diff(it.current, it.spec),
 		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed),
 	}
 	switch {
@@ -1518,7 +1549,7 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 // records as its plan is the plan that runs. So a rollback is never left
 // planned: it is on record applying, or not at all.
 func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit) (*committed, error) {
-	items, err := e.items(ctx, edits)
+	items, err := e.items(ctx, edits, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1594,7 +1625,7 @@ func (p *Plan) step(server string, ref resource.Ref) *resource.Step {
 // too, with the plan that runs.
 func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, by By, create bool) (*committed, error) {
 	rollback := IsRollback(c)
-	plan, err := e.plan(ctx, items, rollback)
+	plan, err := e.plan(ctx, c.ID, items, rollback)
 	if err != nil {
 		return nil, err
 	}
@@ -2116,7 +2147,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		return nil, fault.New(ErrPending, "%w", err)
 	}
 	e.logger.InfoContext(ctx, "resuming a change left applying", slog.String("change", c.ID))
-	plan, err := e.plan(ctx, items, false)
+	plan, err := e.plan(ctx, c.ID, items, false)
 	if err != nil {
 		e.letGo(ctx, changeID)
 		return nil, err
@@ -2172,7 +2203,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 				it.id = e.newID(ref.Kind)
 			}
 		}
-		it.servers = ci.Servers
+		it.servers, it.rotates = ci.Servers, ci.Rotates
 		// Opened as the resource it was sealed for, which the base check
 		// above makes the one there now.
 		if it.encoded, err = e.open(ctx, tx, cmp.Or(ci.ResourceID, it.id), ref.Kind, ci.Spec); err != nil {
@@ -2396,7 +2427,7 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	if len(edits) == 0 {
 		return nil, fault.New(ErrCantUndo, "%s made no revisions, so there's nothing to undo", changeID)
 	}
-	return e.propose(ctx, Proposal{Summary: "Undo " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits}, changeID)
+	return e.propose(ctx, Proposal{Summary: "Undo " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits}, changeID, true)
 }
 
 // Drift is a resource that doesn't match its latest revision.
@@ -2479,14 +2510,17 @@ func (e *Engine) Revert(ctx context.Context, d Drift, by By) (*Plan, error) {
 		return nil, err
 	}
 	summary := fmt.Sprintf("Revert %s to revision %d", d.Ref.Name, it.base)
-	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: it.current}}}, "")
+	// The latest revision's own values, which nobody chose now: no
+	// rotation, only what the server needs to match it again.
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: it.current}}}, "", false)
 }
 
 // Adopt plans keeping what a server has for a drifted resource: a new
 // revision that matches it, with nothing to do on the server.
 func (e *Engine) Adopt(ctx context.Context, d Drift, by By) (*Plan, error) {
 	summary := fmt.Sprintf("Keep the changes made to %s outside Dockwell", d.Ref.Name)
-	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: d.Observed}}}, "")
+	// What the server runs already, so nothing restarts.
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: d.Observed}}}, "", false)
 }
 
 func encodeOrNil(m proto.Message) ([]byte, error) {

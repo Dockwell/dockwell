@@ -3,10 +3,15 @@
 package resource_test
 
 import (
+	"slices"
 	"testing"
+
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/container/containertest"
 )
 
 func TestDiffNamesEachFieldAsThePanelShowsIt(t *testing.T) {
@@ -69,6 +74,65 @@ func TestDiffSeesThroughAmbiguousLists(t *testing.T) {
 	got := resource.Diff(a, b)
 	if len(got) != 2 || got[0].Path != "command[0]" || got[1].Path != "command[1]" || got[1].Op != resource.OpRemoved {
 		t.Errorf("changes: %+v", got)
+	}
+}
+
+// A rotation counts every sensitive value the new spec sets as changed,
+// whatever the old one held, and never says which held the same: a map's
+// keys still show, as added, kept or removed.
+func TestDiffRotatingNeverComparesAValue(t *testing.T) {
+	from := &resourcev1.Container{Image: "web:1", Env: map[string]string{"A": "same", "B": "old", "GONE": "x"}}
+	to := &resourcev1.Container{Image: "web:1", Env: map[string]string{"A": "same", "B": "new", "NEW": "y"}}
+	want := []resource.Change{
+		{Path: "env[A]", Op: resource.OpModified, Sensitive: true},
+		{Path: "env[B]", Op: resource.OpModified, Sensitive: true},
+		{Path: "env[GONE]", Op: resource.OpRemoved, Sensitive: true},
+		{Path: "env[NEW]", Op: resource.OpAdded, Sensitive: true},
+	}
+	if got := resource.DiffRotating(from, to); !slices.Equal(got, want) {
+		t.Errorf("DiffRotating = %+v, want %+v", got, want)
+	}
+	if got := resource.Diff(from, to); len(got) != 3 {
+		t.Errorf("Diff = %+v, want the three that differ", got)
+	}
+	same := &resourcev1.Secret{Value: "hunter2"}
+	if got := resource.DiffRotating(same, same); !slices.Equal(got, []resource.Change{{Path: "value", Op: resource.OpModified, Sensitive: true}}) {
+		t.Errorf("rotating a secret to its own value = %+v", got)
+	}
+	if got := resource.DiffRotating(&resourcev1.FirewallRule{Port: 22}, &resourcev1.FirewallRule{Port: 22}); len(got) != 0 {
+		t.Errorf("a rotation of what holds no secret = %+v", got)
+	}
+	for m, want := range map[proto.Message]bool{
+		&resourcev1.Secret{Value: "x"}:                         true,
+		&resourcev1.Secret{}:                                   false,
+		&resourcev1.Container{Env: map[string]string{"A": ""}}: true,
+		&resourcev1.Container{Image: "web:1"}:                  false,
+		&resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Env: map[string]string{"A": "1"}}}}: true,
+		&resourcev1.Service{Secrets: map[string]string{"A": ""}}:                                                         false,
+	} {
+		if got := resource.SetsSensitive(m); got != want {
+			t.Errorf("SetsSensitive(%v) = %v, want %v", m, got, want)
+		}
+	}
+}
+
+// A step that rotates a resource there plans as a change, with every value
+// it sets changed, though the server has the very same.
+func TestAStepThatRotatesIsNeverNothing(t *testing.T) {
+	d := &container.Driver{Runtime: containertest.NewFake()}
+	ref := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}
+	spec := &resourcev1.Container{Image: "web:1", Env: map[string]string{"A": "same"}}
+	plain, err := resource.PlanStep(d, resource.Desired{Ref: ref, Spec: spec}, spec)
+	if err != nil || plain.Action != resource.ActionNone {
+		t.Errorf("planning what the server has = %+v, %v, want nothing", plain, err)
+	}
+	rotated, err := resource.PlanStep(d, resource.Desired{Ref: ref, Spec: spec, Rotate: true}, spec)
+	if err != nil || rotated.Action != resource.ActionReplace || len(rotated.Changes) != 1 || !rotated.Changes[0].Sensitive {
+		t.Errorf("rotating what the server has = %+v, %v, want a replace", rotated, err)
+	}
+	created, err := resource.PlanStep(d, resource.Desired{Ref: ref, Spec: spec, Rotate: true}, nil)
+	if err != nil || created.Action != resource.ActionCreate {
+		t.Errorf("rotating what isn't there = %+v, %v, want a create", created, err)
 	}
 }
 

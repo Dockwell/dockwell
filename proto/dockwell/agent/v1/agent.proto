@@ -262,6 +262,11 @@ message DesiredResource {
   // Its spec, encoded as its kind's message. Unset deletes it; an empty
   // spec is set, with no bytes.
   optional bytes spec = 2;
+  // True when the change sets the spec's sensitive values anew, as an edit
+  // that sets one does. A plan counts each such value as changed, whatever
+  // the server has, and never compares it, so the step says nothing of
+  // whether a value is the one already there. Only a plan call sets it.
+  bool rotate = 3;
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.

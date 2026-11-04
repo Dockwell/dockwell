@@ -1364,7 +1364,12 @@ type DesiredResource struct {
 	Resource *v1.ResourceRef `protobuf:"bytes,1,opt,name=resource,proto3" json:"resource,omitempty"`
 	// Its spec, encoded as its kind's message. Unset deletes it; an empty
 	// spec is set, with no bytes.
-	Spec          []byte `protobuf:"bytes,2,opt,name=spec,proto3,oneof" json:"spec,omitempty"`
+	Spec []byte `protobuf:"bytes,2,opt,name=spec,proto3,oneof" json:"spec,omitempty"`
+	// True when the change sets the spec's sensitive values anew, as an edit
+	// that sets one does. A plan counts each such value as changed, whatever
+	// the server has, and never compares it, so the step says nothing of
+	// whether a value is the one already there. Only a plan call sets it.
+	Rotate        bool `protobuf:"varint,3,opt,name=rotate,proto3" json:"rotate,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1411,6 +1416,13 @@ func (x *DesiredResource) GetSpec() []byte {
 		return x.Spec
 	}
 	return nil
+}
+
+func (x *DesiredResource) GetRotate() bool {
+	if x != nil {
+		return x.Rotate
+	}
+	return false
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.
@@ -1907,10 +1919,11 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"E\n" +
 	"\vObserveCall\x126\n" +
-	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"i\n" +
+	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\x81\x01\n" +
 	"\x0fDesiredResource\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x17\n" +
-	"\x04spec\x18\x02 \x01(\fH\x00R\x04spec\x88\x01\x01B\a\n" +
+	"\x04spec\x18\x02 \x01(\fH\x00R\x04spec\x88\x01\x01\x12\x16\n" +
+	"\x06rotate\x18\x03 \x01(\bR\x06rotateB\a\n" +
 	"\x05_spec\"\x1c\n" +
 	"\n" +
 	"CancelCall\x12\x0e\n" +

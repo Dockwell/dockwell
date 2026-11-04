@@ -2354,9 +2354,11 @@ func (x *Actor) GetName() string {
 // how long.
 type Plan struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// A hash of what the plan does. The same edits against the same state
-	// have the same fingerprint, and applying checks that a fresh plan still
-	// has it.
+	// A hash of what the plan does, for this change. Applying checks that a
+	// fresh plan still has it. The same edits against the same state have
+	// the same fingerprint, unless they edit a kind that may hold secrets:
+	// that is digested for each change alone, so no two changes'
+	// fingerprints say they set the same value.
 	Fingerprint string `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
 	// How many resources it creates, changes, replaces and destroys.
 	Summary *PlanSummary `protobuf:"bytes,2,opt,name=summary,proto3" json:"summary,omitempty"`

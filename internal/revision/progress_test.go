@@ -5,7 +5,9 @@ package revision
 import (
 	"context"
 	"errors"
+	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,9 +19,11 @@ import (
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
-// The same proposal against the same state plans the same, with the same
-// fingerprint, though each plan gives new resources IDs of their own; and
-// planning changes nothing on the servers.
+// The same proposal against the same state plans the same, though each
+// plan gives new resources IDs of their own; and planning changes nothing
+// on the servers. Its fingerprint is the same too, unless it edits a kind
+// that may hold secrets: that is digested for each change alone, so
+// comparing two changes' fingerprints can't confirm they set one value.
 func TestPlansAreReproducibleAndChangeNothing(t *testing.T) {
 	storetest.Each(t, testPlansAreReproducibleAndChangeNothing)
 }
@@ -36,11 +40,31 @@ func testPlansAreReproducibleAndChangeNothing(t *testing.T, backend store.Backen
 	}
 	first := propose(t, e, "Open the shop", edits()...)
 	second := propose(t, e, "Open the shop", edits()...)
-	if first.Fingerprint != second.Fingerprint {
-		t.Errorf("the same proposal planned %s, then %s", first.Fingerprint, second.Fingerprint)
+	if first.Fingerprint == second.Fingerprint {
+		t.Error("two changes that set one container's environment have one fingerprint")
+	}
+	// Planned the same, with each new resource's own ID, which the new
+	// project's environment lives in.
+	same := func(p *Plan) *Plan {
+		c := *p
+		c.Change, c.Fingerprint, c.plain = "", "", ""
+		c.Resources = slices.Clone(p.Resources)
+		for i := range c.Resources {
+			c.Resources[i].ID = ""
+			if c.Resources[i].Ref.Kind == scope.EnvironmentKind {
+				c.Resources[i].Ref.Scope = ""
+			}
+		}
+		return &c
+	}
+	if a, b := same(first), same(second); !reflect.DeepEqual(a, b) {
+		t.Errorf("the same proposal planned\n%+v, then\n%+v", a, b)
 	}
 	if first.Resources[0].ID == second.Resources[0].ID {
 		t.Error("two plans gave a new project the same ID")
+	}
+	if a, b := propose(t, e, "Open", edits()[2]), propose(t, e, "Open", edits()[2]); a.Fingerprint != b.Fingerprint {
+		t.Errorf("the same firewall rule planned %s, then %s", a.Fingerprint, b.Fingerprint)
 	}
 	if f["srv_A"].docker.Runs != 0 || f["srv_A"].firewall.Len() != 0 {
 		t.Error("planning changed the server")
