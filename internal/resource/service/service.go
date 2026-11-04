@@ -9,11 +9,18 @@
 // Docker Compose names and labels a service's first container. Its
 // environment is its Compose project. A Compose file becomes services,
 // with volumes and networks of their own kinds.
+//
+// A service uses its environment's variables and secrets by reference
+// (resource.Binder): the revision store pins each to its revision, and the
+// driver builds the container's environment from the values the agent
+// stream sent for the step, in memory (package binding).
 package service
 
 import (
 	"context"
 	"errors"
+	"fmt"
+	"maps"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -22,8 +29,10 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/network"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 )
 
@@ -36,7 +45,10 @@ type Driver struct {
 	Containers container.Driver
 }
 
-var _ resource.Driver = (*Driver)(nil)
+var (
+	_ resource.Driver = (*Driver)(nil)
+	_ resource.Binder = (*Driver)(nil)
+)
 
 // Kind returns "service".
 func (*Driver) Kind() resource.Kind { return Kind }
@@ -54,11 +66,49 @@ func (*Driver) New() proto.Message { return &resourcev1.Service{} }
 // name goes in its URL and in the name of its container.
 func (*Driver) CheckName(name string) error { return resource.CheckLabel("service", name, "api-v2") }
 
-// Validate requires something to run, and checks it as a container.
+// Validate requires something to run, and checks it as a container. It
+// checks what the service uses, writes an empty name as the name the
+// service sees, and drops a revision for a name it doesn't use, so specs
+// that mean the same compare equal.
 func (d *Driver) Validate(spec proto.Message) error {
-	app := spec.(*resourcev1.Service).GetApp()
+	svc := spec.(*resourcev1.Service)
+	app := svc.GetApp()
 	if app == nil {
 		return errors.New("a service needs something to run: an app from an image, such as nginx:1.27")
+	}
+	if _, ok := app.GetLabels()[binding.LabelKey]; ok {
+		return fmt.Errorf("the label %s is Dockwell's own, which records what a service uses. Use another", binding.LabelKey)
+	}
+	for _, m := range []struct {
+		what  string
+		names map[string]string
+	}{{"variable", svc.GetVariables()}, {"secret", svc.GetSecrets()}} {
+		for as, name := range m.names {
+			if err := variable.CheckName("environment variable", as); err != nil {
+				return err
+			}
+			if name == "" {
+				m.names[as] = as
+			} else if err := variable.CheckName(m.what, name); err != nil {
+				return err
+			}
+			if _, ok := app.GetEnv()[as]; ok {
+				return fmt.Errorf("%s is set in the app's environment and from a %s too. Keep one", as, m.what)
+			}
+		}
+	}
+	for as := range svc.GetSecrets() {
+		if _, ok := svc.GetVariables()[as]; ok {
+			return fmt.Errorf("%s comes from a variable and a secret. Keep one", as)
+		}
+	}
+	maps.DeleteFunc(svc.Revisions, func(as string, rev int64) bool {
+		_, v := svc.GetVariables()[as]
+		_, s := svc.GetSecrets()[as]
+		return !v && !s || rev <= 0
+	})
+	if len(svc.Revisions) == 0 {
+		svc.Revisions = nil
 	}
 	return container.Validate(app)
 }
@@ -92,13 +142,33 @@ func Target(ref resource.Ref) container.Target {
 // ContainerName is the name of a service's container on a server.
 func ContainerName(ref resource.Ref) string { return Target(ref).Name }
 
-// Observe reads the service's container.
+// Uses lists the variables and secrets the service uses.
+func (*Driver) Uses(spec proto.Message) []resource.Use {
+	return binding.Uses(spec.(*resourcev1.Service))
+}
+
+// Pin sets the revision of each variable and secret the service uses.
+func (*Driver) Pin(spec proto.Message, revisions map[string]int) {
+	svc := spec.(*resourcev1.Service)
+	svc.Revisions = nil
+	for _, u := range binding.Uses(svc) {
+		if rev := revisions[u.As]; rev > 0 {
+			if svc.Revisions == nil {
+				svc.Revisions = map[string]int64{}
+			}
+			svc.Revisions[u.As] = int64(rev)
+		}
+	}
+}
+
+// Observe reads the service's container, and what it uses from the
+// container's label. The values themselves never leave the driver.
 func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {
 	c, err := d.Containers.ObserveAt(ctx, Target(ref))
 	if err != nil || c == nil {
 		return nil, err
 	}
-	return &resourcev1.Service{Runs: &resourcev1.Service_App{App: c.(*resourcev1.Container)}}, nil
+	return binding.Restore(c.(*resourcev1.Container))
 }
 
 // Plan judges the step as the container driver does for the app.
@@ -147,11 +217,25 @@ func inner(changes []resource.Change) []resource.Change {
 	return out
 }
 
-// Apply runs, updates or removes the service's container.
+// Apply runs, updates or removes the service's container. Its
+// environment holds the values of what the service uses, which the call
+// brought (resource.WithValues), and a label records what they came from.
 func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
-	var app proto.Message
-	if desired != nil {
-		app = desired.(*resourcev1.Service).GetApp()
+	if desired == nil {
+		return d.Containers.ApplyAt(ctx, Target(step.Ref), step, nil)
+	}
+	svc := desired.(*resourcev1.Service)
+	app := proto.Clone(svc.GetApp()).(*resourcev1.Container)
+	env, err := binding.Environment(ctx, svc)
+	if err != nil {
+		return err
+	}
+	app.Env = env
+	if label := binding.Label(svc); label != "" {
+		if app.Labels == nil {
+			app.Labels = map[string]string{}
+		}
+		app.Labels[binding.LabelKey] = label
 	}
 	return d.Containers.ApplyAt(ctx, Target(step.Ref), step, app)
 }

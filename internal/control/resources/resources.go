@@ -18,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -84,6 +85,9 @@ func (h *Handler) ListResources(ctx context.Context, req *connect.Request[dockwe
 // displayName is a spec's display_name, for kinds whose spec has one. It
 // never holds a secret, so it is the one part of a spec that is shown.
 func (h *Handler) displayName(kind resource.Kind, spec []byte) string {
+	if secrets.Sealed(spec) {
+		return "" // a kind that may hold secrets, whose spec has no display name to show
+	}
 	m, err := h.kinds.Decode(kind, spec)
 	if err != nil || m == nil {
 		return ""

@@ -18,6 +18,7 @@ export type PlanKind =
   | "container"
   | "domain"
   | "secret"
+  | "variable"
   | "database"
   | "job"
   | "volume"
@@ -77,6 +78,7 @@ const KIND_ICON: Readonly<Record<PlanKind, IconName>> = {
   container: "service",
   domain: "globe",
   secret: "key",
+  variable: "settings",
   database: "database",
   job: "clock",
   volume: "archive",

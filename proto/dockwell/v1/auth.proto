@@ -170,6 +170,28 @@ service AuthService {
     };
   }
 
+  // BeginStepUp starts confirming, with a passkey you have for the address
+  // of this request, an action that needs a person right now, such as
+  // revealing a secret. Pass the passkey's answer to FinishStepUp.
+  rpc BeginStepUp(BeginStepUpRequest) returns (BeginStepUpResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {
+      post: "/v1/sessions:beginStepUp"
+      body: "*"
+    };
+  }
+
+  // FinishStepUp checks the passkey's answer and returns a proof for the
+  // action it began with. The proof works once, within a minute, in this
+  // session alone, for that action on that target.
+  rpc FinishStepUp(FinishStepUpRequest) returns (FinishStepUpResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/sessions:finishStepUp"
+      body: "*"
+    };
+  }
+
   // ListPasskeys returns your passkeys, oldest first.
   rpc ListPasskeys(ListPasskeysRequest) returns (ListPasskeysResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -519,6 +541,47 @@ message Passkey {
   // True when it once reported a lower use count than before, which happens
   // when a passkey is copied. It no longer signs in; remove it.
   bool suspected_copy = 7;
+}
+
+// StepUpAction is an action that needs a fresh passkey assertion.
+enum StepUpAction {
+  STEP_UP_ACTION_UNSPECIFIED = 0;
+  // Revealing a secret's value, with RevealSecret. The target is the
+  // secret's ID.
+  STEP_UP_ACTION_REVEAL_SECRET = 1;
+}
+
+// BeginStepUpRequest says what the passkey confirms.
+message BeginStepUpRequest {
+  // The action.
+  StepUpAction action = 1;
+  // What it acts on, such as a secret's ID.
+  string target = 2;
+}
+
+// BeginStepUpResponse carries the options for the passkey's assertion.
+message BeginStepUpResponse {
+  // Pass back to FinishStepUp.
+  string ceremony_id = 1;
+  // PublicKeyCredentialRequestOptionsJSON, which allows only your passkeys
+  // for this address.
+  string options_json = 2;
+}
+
+// FinishStepUpRequest carries the passkey's answer.
+message FinishStepUpRequest {
+  // From BeginStepUp.
+  string ceremony_id = 1;
+  // AuthenticationResponseJSON from navigator.credentials.get.
+  string credential_json = 2;
+}
+
+// FinishStepUpResponse carries the proof.
+message FinishStepUpResponse {
+  // Pass it to the action's method, such as RevealSecret's proof.
+  string proof = 1;
+  // When it stops working, a minute from now.
+  google.protobuf.Timestamp expire_time = 2;
 }
 
 // BeginAddPasskeyRequest takes no parameters.

@@ -34,6 +34,12 @@ const (
 	Project      = "prj"
 	Environment  = "env"
 	Service      = "svc"
+	Variable     = "var"
+	Secret       = "sec"
+
+	// Keys that seal what may be secret at rest (ADR 0022).
+	KeyEncryptionKey = "kek"
+	DataKey          = "dek"
 )
 
 // CrockfordAlphabet is Crockford's base32 alphabet: no I, L, O or U, so IDs

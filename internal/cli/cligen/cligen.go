@@ -200,6 +200,25 @@ func (s *schema) option(d protoreflect.Descriptor, name protoreflect.FullName) (
 	return opts.Get(xd), xd, true
 }
 
+// outputOnly reports a field marked (google.api.field_behavior) =
+// OUTPUT_ONLY, which Dockwell sets and an edit can't, so it has no flag.
+func (s *schema) outputOnly(fd protoreflect.FieldDescriptor) bool {
+	v, _, ok := s.option(fd, "google.api.field_behavior")
+	if !ok || !v.IsValid() {
+		return false
+	}
+	l := v.List()
+	for i := range l.Len() {
+		if l.Get(i).Enum() == outputOnly {
+			return true
+		}
+	}
+	return false
+}
+
+// outputOnly is google.api.FieldBehavior.OUTPUT_ONLY.
+const outputOnly protoreflect.EnumNumber = 3
+
 // flag is a field's (dockwell.v1.flag), or empty when it has none.
 func (s *schema) flag(fd protoreflect.FieldDescriptor) string {
 	if v, _, ok := s.option(fd, flagOption); ok {
@@ -515,6 +534,9 @@ func (s *schema) specFields(m *protogen.Message, prefix string, depth int) []Fie
 	var out []Field
 	for _, f := range m.Fields {
 		path := prefix + string(f.Desc.Name())
+		if s.outputOnly(f.Desc) {
+			continue // Dockwell sets it, and an edit's is ignored
+		}
 		if f.Message != nil && !f.Desc.IsList() && !f.Desc.IsMap() && !wellKnown(f.Message) && depth < 3 {
 			out = append(out, s.specFields(f.Message, path+".", depth+1)...)
 			continue

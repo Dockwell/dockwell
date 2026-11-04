@@ -156,6 +156,7 @@ type Service struct {
 	streams        *streams
 	unflagged      unflagged // passkeys seen to be copied, until the flag is stored
 	refusals       *refusals // refused calls with each API token, since the last audit event
+	stepUps        *stepUps  // proofs of a passkey confirming one action
 	// recheck is how often an open stream checks its session again.
 	recheck time.Duration
 }
@@ -188,6 +189,7 @@ func New(cfg Config) (*Service, error) {
 		begins:     newBuckets(30, 2*time.Second, 10_000),
 		streams:    newStreams(),
 		refusals:   newRefusals(maxRefusalIDs),
+		stepUps:    newStepUps(1024),
 		recheck:    streamRecheck,
 	}, nil
 }
@@ -393,6 +395,10 @@ type ceremony struct {
 	user store.User
 	// claimHash is the claim link's token hash.
 	claimHash []byte
+	// What a step-up confirms: in which session, which action, on what.
+	sessionID string
+	action    StepUpAction
+	target    string
 }
 
 type ceremonyKind int
@@ -401,6 +407,7 @@ const (
 	ceremonyClaim ceremonyKind = iota + 1
 	ceremonySignIn
 	ceremonyAddPasskey
+	ceremonyStepUp
 )
 
 // ceremonies holds ceremonies in memory, at most max of them. They are

@@ -1,0 +1,122 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// VariableService reads an environment's variables and secrets, and reveals
+// a secret's value to the person who asks, once they confirm it with a
+// passkey. Change them with ChangeService, as edits of kind "variable" or
+// "secret": each change is a plan, which lists every service that restarts
+// with the new value. See docs/adr/0022-secrets-encrypted-at-rest.md.
+//
+// Services use variables and secrets by reference. Using one, which is an
+// edit of the service, doesn't let anyone read it: no response carries a
+// secret's value but RevealSecret's, which needs a signed-in session, and
+// no API token can call it.
+service VariableService {
+  option (dockwell.v1.nouns) = {
+    name: "variables"
+    help: "A variable is a value of an environment that its services use, such as LOG_LEVEL=info. It isn't secret: plans and the panel show it. Services use variables and secrets by reference, under the names they expect, so changing one is a plan that restarts every service that uses it."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "secrets"
+    help: "A secret is a value of an environment that its services use without anyone reading it back, such as a database password. Dockwell keeps it encrypted, sends it only to the servers that run a service that uses it, and never shows it in plans, history or logs. Its value is read from standard input or a file, never from a flag. Revealing it takes a passkey, in the panel, and is audited: no API token can."
+  };
+
+  // ListVariables returns an environment's variables and secrets, by name:
+  // each variable with its value, each secret without it, and the services
+  // that use each.
+  rpc ListVariables(ListVariablesRequest) returns (ListVariablesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/variables"};
+  }
+
+  // RevealSecret returns a secret's latest value. It needs a signed-in
+  // session and a proof from FinishStepUp for this secret, made with a
+  // passkey moments before, which works once. No API token can call it.
+  // Every reveal is in the audit log.
+  rpc RevealSecret(RevealSecretRequest) returns (RevealSecretResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/secrets/{id}:reveal"
+      body: "*"
+    };
+  }
+}
+
+// ListVariablesRequest names an environment.
+message ListVariablesRequest {
+  // The environment, by name or ID. Leave it out while its project has only
+  // one; once there are several, leaving it out is an error that names
+  // them.
+  string environment = 1;
+  // The environment's project, by name or ID. Leave it out while there is
+  // only one project, or when environment is an ID.
+  string project = 2;
+}
+
+// ListVariablesResponse is an environment's variables and secrets.
+message ListVariablesResponse {
+  // The environment's ID, such as "env_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string environment_id = 1;
+  // Its variables and secrets, by name.
+  repeated EnvironmentVariable variables = 2;
+}
+
+// EnvironmentVariable is one variable or secret of an environment, as its
+// latest revision has it.
+message EnvironmentVariable {
+  // Its ID: "var_…" for a variable, "sec_…" for a secret.
+  string id = 1;
+  // Its name, such as "DATABASE_URL".
+  string name = 2;
+  // True for a secret, whose value only RevealSecret returns.
+  bool secret = 3;
+  // A variable's value. Always empty for a secret.
+  string value = 4;
+  // Its latest revision.
+  int64 revision = 5;
+  // When its latest revision was applied.
+  google.protobuf.Timestamp update_time = 6;
+  // Who made its latest revision.
+  Actor updated_by = 7;
+  // The change that made its latest revision.
+  string change_id = 8;
+  // The services that use it, by name.
+  repeated VariableUse used_by = 9;
+}
+
+// VariableUse is a service that uses a variable or secret.
+message VariableUse {
+  // The service's ID.
+  string service_id = 1;
+  // The service's name, such as "api".
+  string service = 2;
+  // The name the service sees it as, such as "DATABASE_URL".
+  string name = 3;
+}
+
+// RevealSecretRequest names a secret to reveal.
+message RevealSecretRequest {
+  // The secret's ID, such as "sec_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // The proof from FinishStepUp, for revealing this secret. It works once,
+  // within a minute, in the session that made it.
+  string proof = 2;
+}
+
+// RevealSecretResponse carries a secret's value.
+message RevealSecretResponse {
+  // The value.
+  string value = 1;
+  // The revision it is from.
+  int64 revision = 2;
+}

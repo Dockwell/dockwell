@@ -33,6 +33,7 @@ import {
 import type { I18n } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useMemo, useRef } from "react";
 
 import { sentence } from "../../lib/errors";
@@ -558,7 +559,13 @@ function Scopes({
 }
 
 /** The kinds whose IDs say what they are, by their prefix. */
-const KIND_OF_PREFIX: Readonly<Record<string, string>> = { prj: "project", env: "environment", svc: "service" };
+const KIND_OF_PREFIX: Readonly<Record<string, string>> = {
+  prj: "project",
+  env: "environment",
+  svc: "service",
+  var: "variable",
+  sec: "secret",
+};
 
 /**
  * The kind of resource an ID belongs to, from its prefix, or "" for an ID
@@ -589,6 +596,11 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
   const ago = time.ago(date, now);
   const kindWord = event.actor ? words.actorKind(event.actor.kind) : "";
   const look = change ? words.state(change.state) : undefined;
+  // A change to a variable or secret, or a reveal, leads to the environment's list of them.
+  const valueEnv = full.data?.change?.plan?.resources.find(
+    (r) => r.resource?.kind === "variable" || r.resource?.kind === "secret",
+  )?.resource?.scope;
+  const toVariables = valueEnv !== undefined || event.action === "secret.reveal";
   return (
     <div className="activity-detail">
       <Panel
@@ -690,8 +702,26 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
               )}
             </div>
           ) : null}
+          {toVariables && !change ? (
+            <div className="activity-detail-actions">
+              <Link to="/variables" className="dw-btn dw-btn-ghost dw-btn-md">
+                <Icon name="key" size={16} />
+                <span>
+                  <Trans>Open the variables and secrets</Trans>
+                </span>
+              </Link>
+            </div>
+          ) : null}
           {change ? (
             <div className="activity-detail-actions">
+              {valueEnv !== undefined ? (
+                <Link to="/variables" search={{ environment: valueEnv }} className="dw-btn dw-btn-ghost dw-btn-md">
+                  <Icon name="key" size={16} />
+                  <span>
+                    <Trans>Open the variables and secrets</Trans>
+                  </span>
+                </Link>
+              ) : null}
               {canUndo(change, now) ? (
                 <Button icon="undo" onClick={() => onUndo(change.id)}>
                   <Trans>Undo this change</Trans>

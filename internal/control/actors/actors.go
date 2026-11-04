@@ -66,8 +66,9 @@ type Lookup struct {
 	tx  *store.Tx
 }
 
-// Name returns the name of the user, API token, server or passkey with
-// this ID, or "" when it is gone, has none, or is of another kind.
+// Name returns the name of the user, API token, server, passkey, variable
+// or secret with this ID, or "" when it is gone, has none, or is of another
+// kind.
 func (l Lookup) Name(objectID string) string {
 	now := l.n.now()
 	if s, ok := l.n.seen[objectID]; ok && now.Sub(s.at) < Fresh {
@@ -91,6 +92,10 @@ func (l Lookup) Name(objectID string) string {
 	case id.Passkey:
 		if p, err := l.tx.GetPasskey(l.ctx, objectID); err == nil {
 			name = p.Name
+		}
+	case id.Secret, id.Variable:
+		if r, err := l.tx.GetResourceByID(l.ctx, objectID); err == nil {
+			name = r.Name
 		}
 	default:
 		return ""

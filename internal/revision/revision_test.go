@@ -20,6 +20,8 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/container/containertest"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/variable"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -70,7 +72,7 @@ func setupAt(t *testing.T, b store.Backend, ids ...string) (*Engine, fleet, *sto
 				&container.Driver{Runtime: s.docker, RecreateDowntime: recreate},
 				&firewall.Driver{Backend: s.firewall},
 				&service.Driver{Containers: container.Driver{Runtime: s.docker, RecreateDowntime: recreate}},
-			)}
+			), Server: id, Values: secretstest.Keeper(db, testKinds())}
 			f[id] = s
 		}
 		return nil
@@ -86,9 +88,15 @@ func newEngine(db *store.DB, f fleet) *Engine { return newEngineWith(db, f) }
 
 // newEngineWith is newEngine reaching the servers through agents.
 func newEngineWith(db *store.DB, agents Agents) *Engine {
-	// The control plane's drivers only read specs; they never reach a server.
-	kinds := resource.NewRegistry(&container.Driver{RecreateDowntime: recreate}, &firewall.Driver{}, &service.Driver{})
-	return New(db, kinds, agents, slog.New(slog.DiscardHandler))
+	kinds := testKinds()
+	return New(db, kinds, agents, secretstest.Keeper(db, kinds), slog.New(slog.DiscardHandler))
+}
+
+// testKinds are the kinds the control plane knows. Its drivers only read
+// specs; they never reach a server.
+func testKinds() *resource.Registry {
+	return resource.NewRegistry(&container.Driver{RecreateDowntime: recreate}, &firewall.Driver{}, &service.Driver{},
+		variable.Type{}, variable.SecretType{})
 }
 
 func web(image string) Edit {

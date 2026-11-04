@@ -67,6 +67,11 @@ const (
 	// AuthServiceRevokeOtherSessionsProcedure is the fully-qualified name of the AuthService's
 	// RevokeOtherSessions RPC.
 	AuthServiceRevokeOtherSessionsProcedure = "/dockwell.v1.AuthService/RevokeOtherSessions"
+	// AuthServiceBeginStepUpProcedure is the fully-qualified name of the AuthService's BeginStepUp RPC.
+	AuthServiceBeginStepUpProcedure = "/dockwell.v1.AuthService/BeginStepUp"
+	// AuthServiceFinishStepUpProcedure is the fully-qualified name of the AuthService's FinishStepUp
+	// RPC.
+	AuthServiceFinishStepUpProcedure = "/dockwell.v1.AuthService/FinishStepUp"
 	// AuthServiceListPasskeysProcedure is the fully-qualified name of the AuthService's ListPasskeys
 	// RPC.
 	AuthServiceListPasskeysProcedure = "/dockwell.v1.AuthService/ListPasskeys"
@@ -128,6 +133,14 @@ type AuthServiceClient interface {
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
 	// RevokeOtherSessions ends every session of yours except this one.
 	RevokeOtherSessions(context.Context, *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error)
+	// BeginStepUp starts confirming, with a passkey you have for the address
+	// of this request, an action that needs a person right now, such as
+	// revealing a secret. Pass the passkey's answer to FinishStepUp.
+	BeginStepUp(context.Context, *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error)
+	// FinishStepUp checks the passkey's answer and returns a proof for the
+	// action it began with. The proof works once, within a minute, in this
+	// session alone, for that action on that target.
+	FinishStepUp(context.Context, *connect.Request[v1.FinishStepUpRequest]) (*connect.Response[v1.FinishStepUpResponse], error)
 	// ListPasskeys returns your passkeys, oldest first.
 	ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error)
 	// BeginAddPasskey starts adding a passkey for the address of this request.
@@ -242,6 +255,18 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("RevokeOtherSessions")),
 			connect.WithClientOptions(opts...),
 		),
+		beginStepUp: connect.NewClient[v1.BeginStepUpRequest, v1.BeginStepUpResponse](
+			httpClient,
+			baseURL+AuthServiceBeginStepUpProcedure,
+			connect.WithSchema(authServiceMethods.ByName("BeginStepUp")),
+			connect.WithClientOptions(opts...),
+		),
+		finishStepUp: connect.NewClient[v1.FinishStepUpRequest, v1.FinishStepUpResponse](
+			httpClient,
+			baseURL+AuthServiceFinishStepUpProcedure,
+			connect.WithSchema(authServiceMethods.ByName("FinishStepUp")),
+			connect.WithClientOptions(opts...),
+		),
 		listPasskeys: connect.NewClient[v1.ListPasskeysRequest, v1.ListPasskeysResponse](
 			httpClient,
 			baseURL+AuthServiceListPasskeysProcedure,
@@ -321,6 +346,8 @@ type authServiceClient struct {
 	listSessions            *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
 	revokeSession           *connect.Client[v1.RevokeSessionRequest, v1.RevokeSessionResponse]
 	revokeOtherSessions     *connect.Client[v1.RevokeOtherSessionsRequest, v1.RevokeOtherSessionsResponse]
+	beginStepUp             *connect.Client[v1.BeginStepUpRequest, v1.BeginStepUpResponse]
+	finishStepUp            *connect.Client[v1.FinishStepUpRequest, v1.FinishStepUpResponse]
 	listPasskeys            *connect.Client[v1.ListPasskeysRequest, v1.ListPasskeysResponse]
 	beginAddPasskey         *connect.Client[v1.BeginAddPasskeyRequest, v1.BeginAddPasskeyResponse]
 	finishAddPasskey        *connect.Client[v1.FinishAddPasskeyRequest, v1.FinishAddPasskeyResponse]
@@ -391,6 +418,16 @@ func (c *authServiceClient) RevokeSession(ctx context.Context, req *connect.Requ
 // RevokeOtherSessions calls dockwell.v1.AuthService.RevokeOtherSessions.
 func (c *authServiceClient) RevokeOtherSessions(ctx context.Context, req *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error) {
 	return c.revokeOtherSessions.CallUnary(ctx, req)
+}
+
+// BeginStepUp calls dockwell.v1.AuthService.BeginStepUp.
+func (c *authServiceClient) BeginStepUp(ctx context.Context, req *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error) {
+	return c.beginStepUp.CallUnary(ctx, req)
+}
+
+// FinishStepUp calls dockwell.v1.AuthService.FinishStepUp.
+func (c *authServiceClient) FinishStepUp(ctx context.Context, req *connect.Request[v1.FinishStepUpRequest]) (*connect.Response[v1.FinishStepUpResponse], error) {
+	return c.finishStepUp.CallUnary(ctx, req)
 }
 
 // ListPasskeys calls dockwell.v1.AuthService.ListPasskeys.
@@ -474,6 +511,14 @@ type AuthServiceHandler interface {
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
 	// RevokeOtherSessions ends every session of yours except this one.
 	RevokeOtherSessions(context.Context, *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error)
+	// BeginStepUp starts confirming, with a passkey you have for the address
+	// of this request, an action that needs a person right now, such as
+	// revealing a secret. Pass the passkey's answer to FinishStepUp.
+	BeginStepUp(context.Context, *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error)
+	// FinishStepUp checks the passkey's answer and returns a proof for the
+	// action it began with. The proof works once, within a minute, in this
+	// session alone, for that action on that target.
+	FinishStepUp(context.Context, *connect.Request[v1.FinishStepUpRequest]) (*connect.Response[v1.FinishStepUpResponse], error)
 	// ListPasskeys returns your passkeys, oldest first.
 	ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error)
 	// BeginAddPasskey starts adding a passkey for the address of this request.
@@ -584,6 +629,18 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("RevokeOtherSessions")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceBeginStepUpHandler := connect.NewUnaryHandler(
+		AuthServiceBeginStepUpProcedure,
+		svc.BeginStepUp,
+		connect.WithSchema(authServiceMethods.ByName("BeginStepUp")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceFinishStepUpHandler := connect.NewUnaryHandler(
+		AuthServiceFinishStepUpProcedure,
+		svc.FinishStepUp,
+		connect.WithSchema(authServiceMethods.ByName("FinishStepUp")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authServiceListPasskeysHandler := connect.NewUnaryHandler(
 		AuthServiceListPasskeysProcedure,
 		svc.ListPasskeys,
@@ -672,6 +729,10 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceRevokeSessionHandler.ServeHTTP(w, r)
 		case AuthServiceRevokeOtherSessionsProcedure:
 			authServiceRevokeOtherSessionsHandler.ServeHTTP(w, r)
+		case AuthServiceBeginStepUpProcedure:
+			authServiceBeginStepUpHandler.ServeHTTP(w, r)
+		case AuthServiceFinishStepUpProcedure:
+			authServiceFinishStepUpHandler.ServeHTTP(w, r)
 		case AuthServiceListPasskeysProcedure:
 			authServiceListPasskeysHandler.ServeHTTP(w, r)
 		case AuthServiceBeginAddPasskeyProcedure:
@@ -747,6 +808,14 @@ func (UnimplementedAuthServiceHandler) RevokeSession(context.Context, *connect.R
 
 func (UnimplementedAuthServiceHandler) RevokeOtherSessions(context.Context, *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.RevokeOtherSessions is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) BeginStepUp(context.Context, *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.BeginStepUp is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) FinishStepUp(context.Context, *connect.Request[v1.FinishStepUpRequest]) (*connect.Response[v1.FinishStepUpResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.FinishStepUp is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error) {

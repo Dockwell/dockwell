@@ -29,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 )
 
 // Config configures Run.
@@ -60,6 +61,12 @@ type Config struct {
 // principle 5). The agent tells it after each step it applies and
 // verifies. The cache itself, and reconciling from it, come with #32; this
 // is where it plugs in.
+//
+// What it gets holds references, never values: a service's spec names the
+// variables and secrets it uses and pins each to a revision, and their
+// values reach the agent only sealed to one stream, for one step, and are
+// dropped once the step ends (ADR 0022). A cache that wants to start a
+// service again on its own needs its values from the control plane again.
 type Desired interface {
 	// Applied records a resource's desired spec; nil means it was deleted.
 	Applied(ctx context.Context, ref resource.Ref, spec proto.Message) error
@@ -270,9 +277,16 @@ func session(ctx context.Context, cfg Config) (err error) {
 	stream := client.Connect(ctx)
 	defer func() { _ = stream.CloseRequest(); _ = stream.CloseResponse() }()
 
+	// A delivery key for this stream alone: the values of variables and
+	// secrets come sealed to it, and it is never written anywhere, so
+	// nothing outlives the stream that could open them.
+	delivery, err := binding.NewKey()
+	if err != nil {
+		return err
+	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx)}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: delivery.Public()}
 	hello.Kinds, hello.Unavailable = offered.proto()
 	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: hello}}); err != nil {
 		if errors.Is(err, io.EOF) {
@@ -303,7 +317,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	// The calls outlive the stream's context, which stops the receiver, so
 	// the stream ends in order: refuse new calls, stop receiving, then
 	// cancel what still runs and wait for it.
-	calls := newCalls(parent, cfg, send)
+	calls := newCalls(parent, cfg, send, delivery)
 	recvErr := make(chan error, 1)
 	received := make(chan struct{})
 	go func() {

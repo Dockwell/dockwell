@@ -92,6 +92,21 @@ type By struct {
 // system is Dockwell acting on its own.
 var system = By{Actor: SystemActor, Via: ViaAutomatic}
 
+// Sealer keeps the specs of kinds that may hold secrets encrypted at rest,
+// so revisions and change items never hold one in the clear, and digests
+// them for fingerprints with a key of its own (ADR 0022). secrets.Keeper
+// is one.
+type Sealer interface {
+	// Seal encrypts a spec's encoding for a resource of kind, in tx.
+	Seal(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, encoded []byte) ([]byte, error)
+	// Open decrypts what Seal made, and returns a spec stored unsealed as
+	// it is.
+	Open(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, stored []byte) ([]byte, error)
+	// Digest is a keyed hash of a spec's encoding, which says nothing of
+	// it without the install's key.
+	Digest(encoded []byte) []byte
+}
+
 // Agents finds each server's agent.
 type Agents interface {
 	// Agent returns a server's agent, and whether it is connected now.
@@ -103,6 +118,7 @@ type Engine struct {
 	db     *store.DB
 	kinds  *resource.Registry
 	agents Agents
+	sealer Sealer
 	logger *slog.Logger
 	now    func() time.Time
 	// mu makes commits take turns: checking again that nothing moved since
@@ -144,15 +160,16 @@ type Engine struct {
 	waking, rerun bool
 }
 
-// New returns an engine over db, using kinds to read and check specs, and
-// agents to reach servers. Projects and environments are always among the
+// New returns an engine over db, using kinds to read and check specs,
+// agents to reach servers, and sealer to keep the specs of kinds that may
+// hold secrets encrypted. Projects and environments are always among the
 // kinds.
-func New(db *store.DB, kinds *resource.Registry, agents Agents, logger *slog.Logger) *Engine {
+func New(db *store.DB, kinds *resource.Registry, agents Agents, sealer Sealer, logger *slog.Logger) *Engine {
 	idle := make(chan struct{})
 	close(idle)
 	halted, halt := context.WithCancel(context.Background())
 	return &Engine{
-		db: db, kinds: kinds.With(scope.Types()...), agents: agents, logger: logger, now: time.Now,
+		db: db, kinds: kinds.With(scope.Types()...), agents: agents, sealer: sealer, logger: logger, now: time.Now,
 		idle: idle, halted: halted, halt: halt,
 		live: map[string]*Progress{}, watchers: map[string]map[chan Update]chan struct{}{}, owned: map[string]bool{}, busy: map[string]string{},
 		waiters: map[string]bool{},
@@ -305,6 +322,12 @@ func (p *Plan) Destructive() bool {
 type item struct {
 	ref   resource.Ref
 	level resource.Level
+	// runs says the item's kind runs on servers: a host-level or
+	// environment-level kind that isn't a valuer, such as a service.
+	runs bool
+	// sealed says its kind's specs may hold secrets, so the store keeps
+	// them encrypted, and the fingerprint digests them with a key.
+	sealed bool
 	// id names the resource. A new one gets its ID when the change is
 	// planned, so another item in the change can live in it.
 	id      string
@@ -384,31 +407,69 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string) (*Plan
 	}
 	c := store.Change{
 		ID: plan.Change, Summary: p.Summary, Actor: p.Actor, State: store.ChangePlanned, Reverts: reverts,
-		Fingerprint: plan.Fingerprint, Plan: record, CreatedAt: e.now(), ProposedVia: p.Via, Items: changeItems(items),
-		Servers: serversOf(plan),
+		Fingerprint: plan.Fingerprint, Plan: record, CreatedAt: e.now(), ProposedVia: p.Via, Servers: serversOf(plan),
 	}
-	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error { return e.recordPlanned(ctx, tx, c) })
+	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error { return e.recordPlanned(ctx, tx, c, items) })
 	if err != nil {
 		return nil, err
 	}
 	return plan, nil
 }
 
-// changeItems are what a change asks of each item, as the store keeps it.
-func changeItems(items []item) []store.ChangeItem {
+// changeItems are what a change asks of each item, as the store keeps it:
+// sealed, for a kind that may hold secrets.
+func (e *Engine) changeItems(ctx context.Context, tx *store.Tx, items []item) ([]store.ChangeItem, error) {
 	out := make([]store.ChangeItem, len(items))
 	for i := range items {
 		it := &items[i]
+		spec, err := e.stored(ctx, tx, it)
+		if err != nil {
+			return nil, err
+		}
 		out[i] = store.ChangeItem{
-			ResourceID: it.id, Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, BaseRevision: it.base, Spec: it.encoded,
+			ResourceID: it.id, Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, BaseRevision: it.base, Spec: spec,
 			Servers: it.servers,
 		}
 	}
-	return out
+	return out, nil
 }
 
-// recordPlanned puts a planned change on record, and audits it.
-func (e *Engine) recordPlanned(ctx context.Context, tx *store.RevisionTx, c store.Change) error {
+// stored is the item's spec as the store keeps it: sealed, for a kind that
+// may hold secrets, and nil for a deletion.
+func (e *Engine) stored(ctx context.Context, tx *store.Tx, it *item) ([]byte, error) {
+	if it.encoded == nil || !it.sealed {
+		return it.encoded, nil
+	}
+	if e.sealer == nil {
+		return nil, fmt.Errorf("can't store %s without the install's key, which keeps it encrypted", it.ref)
+	}
+	return e.sealer.Seal(ctx, tx, it.id, it.ref.Kind, it.encoded)
+}
+
+// open reads a stored spec's encoding: opened, if it is sealed.
+func (e *Engine) open(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, stored []byte) ([]byte, error) {
+	if stored == nil || e.sealer == nil {
+		return stored, nil
+	}
+	return e.sealer.Open(ctx, tx, resourceID, kind, stored)
+}
+
+// decode reads a stored spec.
+func (e *Engine) decode(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, stored []byte) (proto.Message, error) {
+	plain, err := e.open(ctx, tx, resourceID, kind, stored)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the stored spec of %s %s: %w", kind, resourceID, err)
+	}
+	return e.kinds.Decode(kind, plain)
+}
+
+// recordPlanned puts a planned change on record, with its items, and
+// audits it.
+func (e *Engine) recordPlanned(ctx context.Context, tx *store.RevisionTx, c store.Change, items []item) error {
+	var err error
+	if c.Items, err = e.changeItems(ctx, tx.Tx, items); err != nil {
+		return err
+	}
 	if err := tx.CreateChange(ctx, c); err != nil {
 		return err
 	}
@@ -458,6 +519,12 @@ func (e *Engine) items(ctx context.Context, edits []Edit) ([]item, error) {
 		if items, err = e.withFirstEnvironments(ctx, tx, items); err != nil {
 			return err
 		}
+		if items, err = e.withUsers(ctx, tx, items); err != nil {
+			return err
+		}
+		if err := e.pinAll(ctx, tx, items); err != nil {
+			return err
+		}
 		items = e.orderByReference(items)
 		return e.check(ctx, tx, items)
 	})
@@ -470,7 +537,8 @@ func (e *Engine) load(ctx context.Context, tx *store.Tx, ref resource.Ref) (item
 	if err != nil {
 		return item{}, fault.New(ErrInvalid, "%w", err)
 	}
-	it := item{ref: ref, level: t.Level()}
+	_, valuer := t.(resource.Valuer)
+	it := item{ref: ref, level: t.Level(), runs: t.Level().RunsOnServers() && !valuer, sealed: secretsIn(t)}
 	r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
@@ -480,7 +548,7 @@ func (e *Engine) load(ctx context.Context, tx *store.Tx, ref resource.Ref) (item
 	}
 	it.id, it.base, it.rev = r.ID, r.Revision, r.Revision
 	if r.Spec != nil {
-		if it.current, err = e.kinds.Decode(ref.Kind, r.Spec); err != nil {
+		if it.current, err = e.decode(ctx, tx, r.ID, ref.Kind, r.Spec); err != nil {
 			return it, err
 		}
 		if it.placed, err = e.placement(ctx, tx, it, r.Revision); err != nil {
@@ -528,7 +596,7 @@ func (e *Engine) placement(ctx context.Context, tx *store.Tx, it item, revision 
 	switch {
 	case it.level == resource.LevelServer:
 		return []string{it.ref.Scope}, nil
-	case !it.level.RunsOnServers() || it.id == "" || revision == 0:
+	case !it.runs || it.id == "" || revision == 0:
 		return nil, nil
 	}
 	servers, err := tx.Placement(ctx, it.id, revision)
@@ -544,7 +612,7 @@ func (e *Engine) placement(ctx context.Context, tx *store.Tx, it item, revision 
 // on a removed server.
 func (e *Engine) place(ctx context.Context, tx *store.Tx, it item, want []string) ([]string, error) {
 	switch {
-	case it.spec == nil || !it.level.RunsOnServers():
+	case it.spec == nil || !it.runs:
 		return nil, nil
 	case it.level == resource.LevelServer:
 		return []string{it.ref.Scope}, nil
@@ -646,6 +714,9 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 			continue
 		}
 		if err := e.checkScope(ctx, tx, it, byID); err != nil {
+			return err
+		}
+		if err := e.checkNames(ctx, tx, items, it); err != nil {
 			return err
 		}
 		if it.level == resource.LevelEnvironment {
@@ -870,8 +941,7 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 		if it.changes() {
 			plan.Revisions++
 		}
-		sum := sha256.Sum256(it.encoded)
-		fmt.Fprintf(fp, "item %s|%s|%d|%t|%x|%s\n", stable(it.id), ref(it.ref), it.base, it.spec != nil, sum, strings.Join(it.servers, " "))
+		fmt.Fprintf(fp, "item %s|%s|%d|%t|%x|%s\n", stable(it.id), ref(it.ref), it.base, it.spec != nil, e.digest(it), strings.Join(it.servers, " "))
 	}
 	actions := map[string][]resource.Action{} // each item's steps, on every server
 	access := map[string][]resource.Access{}  // what each item gains on its servers
@@ -1012,6 +1082,20 @@ func (e *Engine) named(ctx context.Context, items []item) (before, after map[res
 	}
 	return before, after, err
 }
+
+// digest is what the fingerprint says of an item's spec: a hash, keyed for
+// a kind that may hold secrets, so a fingerprint on record can't confirm a
+// guess at one.
+func (e *Engine) digest(it *item) []byte {
+	if it.sealed && e.sealer != nil {
+		return e.sealer.Digest(it.encoded)
+	}
+	sum := sha256.Sum256(it.encoded)
+	return sum[:]
+}
+
+// secretsIn reports a kind whose specs may hold secrets.
+func secretsIn(t resource.Type) bool { return resource.Sensitive(t.New().ProtoReflect().Descriptor()) }
 
 // planOn asks a server's agent what the items would take there.
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
@@ -1418,7 +1502,7 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 	}
 	c := store.Change{
 		ID: id.New(id.Change), Summary: "Roll back " + failed.Summary, Actor: SystemActor, State: store.ChangePlanned, Reverts: failed.ID,
-		CreatedAt: e.now(), ProposedVia: ViaAutomatic, Items: changeItems(items),
+		CreatedAt: e.now(), ProposedVia: ViaAutomatic,
 	}
 	e.own(c.ID)
 	// It takes over the failed change's resources, so nothing slips in
@@ -1517,7 +1601,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 	e.mu.Lock()
 	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error {
 		if create {
-			if err := e.recordPlanned(ctx, tx, c); err != nil {
+			if err := e.recordPlanned(ctx, tx, c, items); err != nil {
 				return err
 			}
 		}
@@ -1535,9 +1619,13 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 			if !it.changes() {
 				continue
 			}
+			spec, err := e.stored(ctx, tx.Tx, it)
+			if err != nil {
+				return err
+			}
 			rev, err := tx.AddRevision(ctx, store.NewRevision{
 				Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, ID: it.id,
-				Spec: it.encoded, Change: c.ID, Position: i, At: now,
+				Spec: spec, Change: c.ID, Position: i, At: now,
 			})
 			if err != nil {
 				return err
@@ -1949,7 +2037,11 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 					return err
 				}
 			}
-			if !bytes.Equal(it.encoded, ci.Spec) || it.base == 0 {
+			asked, err := e.open(ctx, tx, it.id, ref.Kind, ci.Spec)
+			if err != nil {
+				return err
+			}
+			if !bytes.Equal(it.encoded, asked) || it.base == 0 {
 				continue // a later change moved it on
 			}
 			// It goes where the latest revision is placed, from wherever
@@ -2051,9 +2143,12 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 				it.id = e.newID(ref.Kind)
 			}
 		}
-		it.encoded, it.servers = ci.Spec, ci.Servers
+		it.servers = ci.Servers
+		if it.encoded, err = e.open(ctx, tx, it.id, ref.Kind, ci.Spec); err != nil {
+			return nil, fmt.Errorf("can't read what %s asks of %s: %w", c.ID, ref, err)
+		}
 		if ci.Spec != nil {
-			if it.spec, err = e.kinds.Decode(ref.Kind, ci.Spec); err != nil {
+			if it.spec, err = e.kinds.Decode(ref.Kind, it.encoded); err != nil {
 				return nil, err
 			}
 		}
@@ -2061,6 +2156,9 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 	}
 	if err := e.check(ctx, tx, items); err != nil {
 		return nil, fmt.Errorf("%w. %s can't apply as it was planned, so propose the change again", err, c.ID)
+	}
+	if err := e.stillPinned(ctx, tx, c, items); err != nil {
+		return nil, err
 	}
 	return items, nil
 }
@@ -2175,7 +2273,7 @@ func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 					return err
 				}
 				if prev.Spec != nil {
-					if ed.Spec, err = e.kinds.Decode(ref.Kind, prev.Spec); err != nil {
+					if ed.Spec, err = e.decode(ctx, tx, rev.ID, ref.Kind, prev.Spec); err != nil {
 						return err
 					}
 					if ed.Servers, err = inFleet(ctx, tx, ref, rev.ID, prev.Revision, changeID); err != nil {
@@ -2274,10 +2372,19 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 		return nil, fault.New(ErrOffline, "%s isn't connected, so its drift can't be checked. Check it again once its agent reconnects", name)
 	}
 	var resources []store.Resource
+	var desired []proto.Message
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
 		var err error
-		resources, err = tx.ListPlaced(ctx, server)
-		return err
+		if resources, err = tx.ListPlaced(ctx, server); err != nil {
+			return err
+		}
+		desired = make([]proto.Message, len(resources))
+		for i, r := range resources {
+			if desired[i], err = e.decode(ctx, tx, r.ID, resource.Kind(r.Kind), r.Spec); err != nil {
+				return err
+			}
+		}
+		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -2294,18 +2401,14 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 	}
 	var out []Drift
 	for i, r := range resources {
-		desired, err := e.kinds.Decode(refs[i].Kind, r.Spec)
-		if err != nil {
-			return nil, err
-		}
 		// Agents normalize what they observe, so only real differences
 		// are unequal.
-		if resource.Equal(desired, observed[i]) {
+		if resource.Equal(desired[i], observed[i]) {
 			continue
 		}
 		d := Drift{ID: r.ID, Ref: refs[i], Revision: r.Revision, Observed: observed[i], Missing: observed[i] == nil}
 		if !d.Missing {
-			d.Changes = resource.Diff(desired, observed[i])
+			d.Changes = resource.Diff(desired[i], observed[i])
 		}
 		out = append(out, d)
 	}

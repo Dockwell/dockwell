@@ -28,11 +28,13 @@ func Commands() []string {
 		"passkeys",
 		"projects",
 		"resources",
+		"secrets",
 		"servers",
 		"services",
 		"sessions",
 		"system",
 		"totp",
+		"variables",
 		"volumes",
 	}
 }

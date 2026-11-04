@@ -68,7 +68,7 @@ var (
 		"Check that you copied all of it, or create a new one under Profile and security")
 	ErrTokenScope = errors.New("this API token is read-only, so it can't make changes. " +
 		"Create a read-write token under Profile and security")
-	ErrNeedsSession = errors.New("API tokens can't remove data, cut off access, or change how you sign in and your tokens. " +
+	ErrNeedsSession = errors.New("API tokens can't remove data, cut off access, reveal a secret, or change how you sign in and your tokens. " +
 		"Sign in and do it in the panel")
 )
 

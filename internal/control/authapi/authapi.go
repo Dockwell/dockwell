@@ -319,6 +319,48 @@ func (h *Handler) BeginAddPasskey(ctx context.Context, _ *connect.Request[dockwe
 	return connect.NewResponse(&dockwellv1.BeginAddPasskeyResponse{CeremonyId: cer.ID, OptionsJson: string(cer.Options)}), nil
 }
 
+// BeginStepUp starts confirming an action with a passkey.
+func (h *Handler) BeginStepUp(ctx context.Context, req *connect.Request[dockwellv1.BeginStepUpRequest]) (*connect.Response[dockwellv1.BeginStepUpResponse], error) {
+	client, err := h.client(ctx)
+	if err != nil {
+		return nil, err
+	}
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	action, ok := stepUpActions[req.Msg.GetAction()]
+	if !ok {
+		return nil, Invalid(errors.New("say which action the passkey confirms, such as revealing a secret"))
+	}
+	cer, err := h.auth.BeginStepUp(ctx, client, p, action, req.Msg.GetTarget())
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return connect.NewResponse(&dockwellv1.BeginStepUpResponse{CeremonyId: cer.ID, OptionsJson: string(cer.Options)}), nil
+}
+
+var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
+	dockwellv1.StepUpAction_STEP_UP_ACTION_REVEAL_SECRET: auth.StepUpRevealSecret,
+}
+
+// FinishStepUp checks the passkey's answer and returns a proof.
+func (h *Handler) FinishStepUp(ctx context.Context, req *connect.Request[dockwellv1.FinishStepUpRequest]) (*connect.Response[dockwellv1.FinishStepUpResponse], error) {
+	client, err := h.client(ctx)
+	if err != nil {
+		return nil, err
+	}
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	up, err := h.auth.FinishStepUp(ctx, client, p, req.Msg.GetCeremonyId(), []byte(req.Msg.GetCredentialJson()))
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return connect.NewResponse(&dockwellv1.FinishStepUpResponse{Proof: up.Proof, ExpireTime: timestamppb.New(up.Expires)}), nil
+}
+
 // FinishAddPasskey saves a new passkey.
 func (h *Handler) FinishAddPasskey(ctx context.Context, req *connect.Request[dockwellv1.FinishAddPasskeyRequest]) (*connect.Response[dockwellv1.FinishAddPasskeyResponse], error) {
 	client, err := h.client(ctx)
@@ -475,6 +517,10 @@ const (
 	// ReasonNeedsSession: the call came with an API token, and no token may
 	// make it: it is destructive, or manages sign-in or tokens.
 	ReasonNeedsSession = "needs_session"
+	// ReasonNeedsStepUp: the call needs a fresh passkey assertion for it,
+	// from FinishStepUp, and its proof is missing, used, expired, or for
+	// something else.
+	ReasonNeedsStepUp = "needs_step_up"
 )
 
 // ReasonError is a Connect error that names its reason under ReasonKey.
@@ -516,6 +562,8 @@ var codes = []struct {
 	{auth.ErrPasskeyExists, connect.CodeAlreadyExists, "passkey_exists"},
 	{auth.ErrTooManyRequests, connect.CodeResourceExhausted, "too_many_requests"},
 	{auth.ErrNeedsSession, connect.CodePermissionDenied, ReasonNeedsSession},
+	{auth.ErrNeedsStepUp, connect.CodePermissionDenied, ReasonNeedsStepUp},
+	{auth.ErrNoPasskeyHere, connect.CodeFailedPrecondition, "no_passkey_here"},
 }
 
 func (h *Handler) rpcError(ctx context.Context, err error) error {

@@ -49,9 +49,11 @@ import (
 	"github.com/dockwell/dockwell/internal/control/resources"
 	"github.com/dockwell/dockwell/internal/control/servers"
 	"github.com/dockwell/dockwell/internal/control/system"
+	"github.com/dockwell/dockwell/internal/control/variables"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/panel"
 	"github.com/dockwell/dockwell/internal/revision"
+	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/serve"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -94,6 +96,10 @@ type Config struct {
 	Changes *revision.Engine
 	Agents  *agentapi.Agents
 	Store   *store.DB
+	// Secrets keeps what may be secret encrypted, and reveals a secret to
+	// a person who confirms it with a passkey. With Changes and Auth, it
+	// serves VariableService.
+	Secrets *secrets.Keeper
 	// EventPoll is how often a watch of the timeline reads the store again,
 	// for events another process recorded; events.DefaultPoll when zero.
 	EventPoll time.Duration
@@ -192,6 +198,10 @@ func apiRoutes(cfg Config, ui http.Handler) (http.Handler, error) {
 		handle(dockwellv1connect.NewComposeServiceHandler(composeapi.New(ch, cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
+		if cfg.Secrets != nil && cfg.Auth != nil {
+			handle(dockwellv1connect.NewVariableServiceHandler(
+				variables.New(cfg.Changes.Kinds(), cfg.Store, cfg.Secrets, cfg.Auth, cfg.Logger), opts...))
+		}
 	}
 	restPaths, err := restHandler(rest)
 	if err != nil {

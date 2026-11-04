@@ -224,6 +224,14 @@ var file_dockwell_v1_options_proto_extTypes = []protoimpl.ExtensionInfo{
 		Filename:      "dockwell/v1/options.proto",
 	},
 	{
+		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
+		ExtensionType: (*bool)(nil),
+		Field:         50102,
+		Name:          "dockwell.v1.needs_session",
+		Tag:           "varint,50102,opt,name=needs_session",
+		Filename:      "dockwell/v1/options.proto",
+	},
+	{
 		ExtendedType:  (*descriptorpb.ServiceOptions)(nil),
 		ExtensionType: ([]*Noun)(nil),
 		Field:         50100,
@@ -253,6 +261,13 @@ var (
 	//
 	// optional dockwell.v1.Command command = 50101;
 	E_Command = &file_dockwell_v1_options_proto_extTypes[1]
+	// True for a method no API token may call, whatever its scope and
+	// effect, because it needs a person in a signed-in session: revealing a
+	// secret, which also takes a fresh passkey assertion. AuthService and
+	// TokenService, which no token may call at all, leave it unset.
+	//
+	// optional bool needs_session = 50102;
+	E_NeedsSession = &file_dockwell_v1_options_proto_extTypes[2]
 )
 
 // Extension fields to descriptorpb.ServiceOptions.
@@ -262,7 +277,7 @@ var (
 	// unset, and its comment is that noun's help.
 	//
 	// repeated dockwell.v1.Noun nouns = 50100;
-	E_Nouns = &file_dockwell_v1_options_proto_extTypes[2]
+	E_Nouns = &file_dockwell_v1_options_proto_extTypes[3]
 )
 
 // Extension fields to descriptorpb.FieldOptions.
@@ -272,7 +287,7 @@ var (
 	// such as --token for a claim link's token. Most fields leave it unset.
 	//
 	// optional string flag = 50100;
-	E_Flag = &file_dockwell_v1_options_proto_extTypes[3]
+	E_Flag = &file_dockwell_v1_options_proto_extTypes[4]
 )
 
 var File_dockwell_v1_options_proto protoreflect.FileDescriptor
@@ -293,7 +308,8 @@ const file_dockwell_v1_options_proto_rawDesc = "" +
 	"\fEFFECT_APPLY\x10\x03\x12\x16\n" +
 	"\x12EFFECT_DESTRUCTIVE\x10\x04:M\n" +
 	"\x06effect\x12\x1e.google.protobuf.MethodOptions\x18\xb4\x87\x03 \x01(\x0e2\x13.dockwell.v1.EffectR\x06effect:P\n" +
-	"\acommand\x12\x1e.google.protobuf.MethodOptions\x18\xb5\x87\x03 \x01(\v2\x14.dockwell.v1.CommandR\acommand:J\n" +
+	"\acommand\x12\x1e.google.protobuf.MethodOptions\x18\xb5\x87\x03 \x01(\v2\x14.dockwell.v1.CommandR\acommand:E\n" +
+	"\rneeds_session\x12\x1e.google.protobuf.MethodOptions\x18\xb6\x87\x03 \x01(\bR\fneedsSession:J\n" +
 	"\x05nouns\x12\x1f.google.protobuf.ServiceOptions\x18\xb4\x87\x03 \x03(\v2\x11.dockwell.v1.NounR\x05nouns:3\n" +
 	"\x04flag\x12\x1d.google.protobuf.FieldOptions\x18\xb4\x87\x03 \x01(\tR\x04flagB\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fOptionsProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
@@ -323,15 +339,16 @@ var file_dockwell_v1_options_proto_goTypes = []any{
 var file_dockwell_v1_options_proto_depIdxs = []int32{
 	3, // 0: dockwell.v1.effect:extendee -> google.protobuf.MethodOptions
 	3, // 1: dockwell.v1.command:extendee -> google.protobuf.MethodOptions
-	4, // 2: dockwell.v1.nouns:extendee -> google.protobuf.ServiceOptions
-	5, // 3: dockwell.v1.flag:extendee -> google.protobuf.FieldOptions
-	0, // 4: dockwell.v1.effect:type_name -> dockwell.v1.Effect
-	1, // 5: dockwell.v1.command:type_name -> dockwell.v1.Command
-	2, // 6: dockwell.v1.nouns:type_name -> dockwell.v1.Noun
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	4, // [4:7] is the sub-list for extension type_name
-	0, // [0:4] is the sub-list for extension extendee
+	3, // 2: dockwell.v1.needs_session:extendee -> google.protobuf.MethodOptions
+	4, // 3: dockwell.v1.nouns:extendee -> google.protobuf.ServiceOptions
+	5, // 4: dockwell.v1.flag:extendee -> google.protobuf.FieldOptions
+	0, // 5: dockwell.v1.effect:type_name -> dockwell.v1.Effect
+	1, // 6: dockwell.v1.command:type_name -> dockwell.v1.Command
+	2, // 7: dockwell.v1.nouns:type_name -> dockwell.v1.Noun
+	8, // [8:8] is the sub-list for method output_type
+	8, // [8:8] is the sub-list for method input_type
+	5, // [5:8] is the sub-list for extension type_name
+	0, // [0:5] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
 }
 
@@ -347,7 +364,7 @@ func file_dockwell_v1_options_proto_init() {
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_options_proto_rawDesc), len(file_dockwell_v1_options_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   2,
-			NumExtensions: 4,
+			NumExtensions: 5,
 			NumServices:   0,
 		},
 		GoTypes:           file_dockwell_v1_options_proto_goTypes,

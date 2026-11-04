@@ -170,6 +170,44 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		}
 	})
 
+	// shop is there too now, so each names its project.
+	t.Run("a secret's value comes from standard input or a file, never a flag", func(t *testing.T) {
+		r := runIn(t, env, "s3cret-from-stdin\n", false, "secrets", "create", "DB_PASSWORD", "--value-file", "-", "--project", "default", "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "+ secret DB_PASSWORD") || !strings.Contains(r.out, "Applied chg_") {
+			t.Fatalf("secrets create from standard input = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		file := filepath.Join(t.TempDir(), "value")
+		if err := os.WriteFile(file, []byte("s3cret-from-a-file\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		r = run(t, env, "secrets", "update", "DB_PASSWORD", "--value-file", file, "--project", "default", "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "~ secret DB_PASSWORD") {
+			t.Fatalf("secrets update from a file = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		r = run(t, env, "variables", "create", "LOG_LEVEL", "--value", "debug", "--project", "default", "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "debug") {
+			t.Fatalf("variables create = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		list := run(t, env, "variables", "list", "--project", "default")
+		if list.code != exitOK || !strings.Contains(list.out, "DB_PASSWORD") || !strings.Contains(list.out, "LOG_LEVEL") {
+			t.Errorf("variables list = %d:\n%s%s", list.code, list.out, list.err)
+		}
+		r = run(t, env, "secrets", "create", "OTHER", "--value", "s3cret-on-the-command-line", "--project", "default", "--yes")
+		if r.code != exitUsage || !strings.Contains(r.err, "unknown flag: --value") {
+			t.Errorf("a secret's value as a flag = %d %q, want it refused", r.code, r.err)
+		}
+		id := regexp.MustCompile(`sec_[0-9A-Z]{26}`).FindString(run(t, env, "variables", "list", "--project", "default", "--json").out)
+		r = run(t, env, "secrets", "reveal", id, "--proof", "anything")
+		if r.code == exitOK || !strings.Contains(r.err, "reveal a secret") {
+			t.Errorf("secrets reveal with a token = %d %q, want it refused", r.code, r.err)
+		}
+		for _, text := range []string{r.out, r.err, list.out, list.err} {
+			if strings.Contains(text, "s3cret") {
+				t.Errorf("the CLI printed a secret's value:\n%s", text)
+			}
+		}
+	})
+
 	t.Run("no means no", func(t *testing.T) {
 		r := runIn(t, env, "n\n", true, "projects", "create", "blog")
 		if r.code != exitError || !strings.Contains(r.err, "so Dockwell discarded it. Nothing changed") {

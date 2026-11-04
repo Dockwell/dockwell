@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -154,4 +155,74 @@ func FailUpdates(t testing.TB, location, table, column string) (restore func()) 
 	Exec(t, location, fmt.Sprintf(`CREATE TRIGGER %s BEFORE UPDATE OF %s ON %s FOR EACH ROW EXECUTE FUNCTION storetest_fail()`,
 		name, column, table))
 	return func() { Exec(t, location, fmt.Sprintf(`DROP TRIGGER %s ON %s`, name, table)) }
+}
+
+// Dump reads every row of every table of the database at location from
+// outside the store, as a backup would hold it: by table, each row's
+// columns as text, blobs as their raw bytes.
+func Dump(t testing.TB, location string) map[string][]string {
+	t.Helper()
+	var db *sql.DB
+	var err error
+	listTables := `SELECT name FROM sqlite_master WHERE type = 'table'`
+	if store.IsPostgres(location) {
+		db, err = sql.Open("pgx", location)
+		listTables = `SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'`
+	} else {
+		db, err = sql.Open("sqlite", "file:"+location+"?_pragma=busy_timeout(5000)")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	rows, err := db.QueryContext(ctx, listTables)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tables []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		tables = append(tables, name)
+	}
+	_ = rows.Close()
+	out := map[string][]string{}
+	for _, table := range tables {
+		rows, err := db.QueryContext(ctx, `SELECT * FROM `+table) //nolint:gosec // the database's own table names
+		if err != nil {
+			t.Fatalf("can't read %s: %v", table, err)
+		}
+		cols, _ := rows.Columns()
+		for rows.Next() {
+			vals := make([]any, len(cols))
+			ptrs := make([]any, len(cols))
+			for i := range vals {
+				ptrs[i] = &vals[i]
+			}
+			if err := rows.Scan(ptrs...); err != nil {
+				t.Fatal(err)
+			}
+			var row strings.Builder
+			for i, v := range vals {
+				row.WriteString(cols[i] + "=")
+				switch v := v.(type) {
+				case []byte:
+					row.Write(v)
+				case nil:
+				default:
+					fmt.Fprint(&row, v)
+				}
+				row.WriteString("\x00")
+			}
+			out[table] = append(out[table], row.String())
+		}
+		_ = rows.Close()
+	}
+	if len(out) == 0 {
+		t.Fatal("the dump found no rows; the test reads the wrong database")
+	}
+	return out
 }

@@ -57,7 +57,11 @@ export function useAuthError() {
         case "token_scope":
           return t`That API token is read-only, so it can't make changes. Create a read-write token under Profile and security.`;
         case "needs_session":
-          return t`API tokens can't remove data, cut off access, or change how you sign in and your tokens. Sign in and do it in the panel.`;
+          return t`API tokens can't remove data, cut off access, reveal a secret, or change how you sign in and your tokens. Sign in and do it in the panel.`;
+        case "needs_step_up":
+          return t`That needs your passkey just now, and the confirmation was missing, used or expired. Try again, and confirm when your browser asks.`;
+        case "no_passkey_here":
+          return t`Confirming this needs a passkey for this address, and you have none here. Add one under Profile and security, then try again.`;
         case "passkey_rejected":
           return t`That passkey isn't registered for this address, or it couldn't be verified. Try another passkey, or sign in with a code.`;
         case "passkey_copied":

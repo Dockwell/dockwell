@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -193,6 +194,44 @@ func (d *differ) mapField(path string, fd protoreflect.FieldDescriptor, a, b pro
 		}
 		d.addPresent(p, from, to, oka, okb, sensitive)
 	}
+}
+
+// Sensitive reports whether a spec's message type has a field that may hold
+// a secret, at any depth. The revision store keeps every spec of such a
+// kind encrypted (ADR 0022).
+func Sensitive(md protoreflect.MessageDescriptor) bool {
+	sensitiveMu.Lock()
+	defer sensitiveMu.Unlock()
+	v, ok := sensitiveCache[md.FullName()]
+	if !ok {
+		v = sensitiveIn(md, map[protoreflect.FullName]bool{})
+		sensitiveCache[md.FullName()] = v
+	}
+	return v
+}
+
+var (
+	sensitiveMu    sync.Mutex
+	sensitiveCache = map[protoreflect.FullName]bool{}
+)
+
+func sensitiveIn(md protoreflect.MessageDescriptor, seen map[protoreflect.FullName]bool) bool {
+	if seen[md.FullName()] {
+		return false
+	}
+	seen[md.FullName()] = true
+	fields := md.Fields()
+	for i := range fields.Len() {
+		fd := fields.Get(i)
+		value := fd
+		if fd.IsMap() {
+			value = fd.MapValue()
+		}
+		if IsSensitive(fd) || value.Message() != nil && sensitiveIn(value.Message(), seen) {
+			return true
+		}
+	}
+	return false
 }
 
 // IsSensitive reports a field that may hold a secret, by its sensitive

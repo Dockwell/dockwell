@@ -61,6 +61,7 @@ var (
 		"totp.enable", "totp.disable", "totp.unlock", "recovery_codes.regenerate",
 		"token.create", "token.revoke",
 		"sign_in_link.create", "claim_link.create", "join_token.create",
+		"secret.reveal", "secrets.rotate_key",
 	}
 )
 

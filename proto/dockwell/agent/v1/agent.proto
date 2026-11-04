@@ -104,6 +104,12 @@ message Hello {
   // Kinds the agent has drivers for but can't run now, each with why, such
   // as every Docker kind on a server where Docker isn't running.
   repeated UnavailableKind unavailable = 4;
+  // A public key for this stream alone, an X25519 key in its 32-byte form,
+  // which the control plane seals the values of variables and secrets to
+  // with HPKE (ADR 0022). The agent makes a new pair for every stream and
+  // keeps the private key in memory only. An agent that sends none can't
+  // run a service that uses a variable or a secret.
+  bytes delivery_key = 5;
 }
 
 // ConnectResponse is one message from the control plane.
@@ -227,6 +233,20 @@ message ApplyCall {
   dockwell.v1.PlanStep step = 1;
   // The resource as the step leaves it.
   DesiredResource desired = 2;
+  // The values of the variables and secrets the desired spec uses, as a
+  // Values message sealed with HPKE to the stream's delivery_key: DHKEM
+  // (X25519, HKDF-SHA256), HKDF-SHA256 and AES-256-GCM, with the info
+  // "dockwell.values.v1", the server's ID and the resource's kind, scope and
+  // name, each after a zero byte. Unset when it uses none. The agent opens
+  // it in memory for this step alone, and never writes it anywhere.
+  bytes values = 3;
+}
+
+// Values are what a service's variables and secrets resolve to on the
+// server it runs on.
+message Values {
+  // Each value by the name the service sees it as, such as DATABASE_URL.
+  map<string, string> values = 1;
 }
 
 // ObserveCall asks for resources as the server has them.

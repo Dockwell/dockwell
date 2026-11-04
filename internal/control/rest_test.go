@@ -647,6 +647,9 @@ func wantForToken(procedure string, md protoreflect.MethodDescriptor, scope dock
 		return "" // reflection, which shows the public schema
 	}
 	opts, _ := md.Options().(*descriptorpb.MethodOptions)
+	if person, _ := proto.GetExtension(opts, dockwellv1.E_NeedsSession).(bool); person {
+		return authapi.ReasonNeedsSession
+	}
 	switch effect, _ := proto.GetExtension(opts, dockwellv1.E_Effect).(dockwellv1.Effect); effect {
 	case dockwellv1.Effect_EFFECT_READ:
 		return ""

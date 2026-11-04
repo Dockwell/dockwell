@@ -7,11 +7,13 @@ syntax = "proto3";
 // is alpha while the model settles, so it may change without notice.
 package dockwell.resource.v1alpha1;
 
+import "google/api/field_behavior.proto";
 import "google/protobuf/descriptor.proto";
 
 extend google.protobuf.FieldOptions {
   // True for fields that may hold secrets. Plans, history and logs say that
-  // such a field changed, but never show its value.
+  // such a field changed, but never show its value, and the revision store
+  // keeps every spec of a kind that has one encrypted (ADR 0022).
   bool sensitive = 51001;
 }
 
@@ -189,12 +191,49 @@ message Environment {
 // so docker compose sees it. A Compose file becomes services, volumes and
 // networks. Websites, databases, catalog apps and jobs come later. Where it
 // runs isn't part of the spec: each revision is deployed on its servers.
+//
+// A service uses its environment's variables and secrets by reference:
+// the environment holds each value once, and a service names the ones it
+// uses, under the names it expects. So changing a value changes every
+// service that uses it, in one plan.
 message Service {
   // What runs.
   oneof runs {
     // An app from an image.
     Container app = 1;
   }
+  // The environment's variables the service uses, each under the name the
+  // service sees it as: DATABASE_HOST=DB_HOST gives the service the
+  // variable DB_HOST as DATABASE_HOST. An empty value means the variable of
+  // the same name.
+  map<string, string> variables = 2;
+  // The environment's secrets the service uses, named as for variables.
+  // Using a secret doesn't let anyone read it: its value goes only to the
+  // servers the service runs on, and only their agents decrypt it.
+  map<string, string> secrets = 3;
+  // The revision of each variable and secret the service uses, by the name
+  // the service sees it as. Dockwell sets it when a change is planned, so a
+  // service whose variable or secret changes gets a revision of its own,
+  // and restarts with the new value. An edit's is ignored.
+  map<string, int64> revisions = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Variable is a value of an environment that its services use, such as
+// LOG_LEVEL=info. It isn't secret: plans, history and the panel show it.
+// Keep anything that is in a Secret.
+message Variable {
+  // The value.
+  string value = 1;
+}
+
+// Secret is a value of an environment that its services use without anyone
+// reading it back, such as a database password. Dockwell keeps it
+// encrypted, sends it only to the servers that run a service that uses it,
+// and never shows it in plans, history or logs. Revealing it takes a
+// passkey, and is audited.
+message Secret {
+  // The value. Every edit sets it whole.
+  string value = 1 [(sensitive) = true];
 }
 
 // Volume is a Docker volume in an environment, which its services mount
@@ -248,5 +287,9 @@ message Spec {
     Volume volume = 6;
     // A network in an environment, kind "network".
     Network network = 7;
+    // A variable of an environment, kind "variable".
+    Variable variable = 8;
+    // A secret of an environment, kind "secret".
+    Secret secret = 9;
   }
 }

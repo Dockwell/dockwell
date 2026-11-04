@@ -45,9 +45,12 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/seal"
+	"github.com/dockwell/dockwell/internal/secrets"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -57,6 +60,7 @@ type fullServer struct {
 	auth   *auth.Service
 	engine *revision.Engine
 	agents *agentapi.Agents
+	keeper *secrets.Keeper
 	ident  *identity.Authority
 	store  *store.DB
 	// agentAddr is the agent listener's address.
@@ -109,14 +113,16 @@ func startFullLogging(t *testing.T, backend store.Backend, public https.Source, 
 	if _, err := revision.Setup(t.Context(), db, logger); err != nil {
 		t.Fatal(err)
 	}
-	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{})
+	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, variable.Type{}, variable.SecretType{})
+	keeper := secretstest.Keeper(db, kinds)
 	agents := agentapi.NewAgents(kinds, logger)
-	engine := revision.New(db, kinds, agents, logger)
+	agents.SendValues(keeper)
+	engine := revision.New(db, kinds, agents, keeper, logger)
 	agents.OnConnect(func(string) { _ = engine.Resume(context.Background()) })
 	t.Cleanup(engine.Wait)
 	srv, err := New(Config{
 		Logger: logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
-		Changes: engine, Agents: agents, Store: db, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
+		Changes: engine, Agents: agents, Store: db, Secrets: keeper, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
 		EventPoll: 200 * time.Millisecond,
 	})
 	if err != nil {
@@ -132,7 +138,7 @@ func startFullLogging(t *testing.T, backend store.Backend, public https.Source, 
 	}
 	ls := Listeners{API: listen(), Agents: listen()}
 	f := &fullServer{
-		auth: people, engine: engine, agents: agents, ident: ident, store: db, db: path,
+		auth: people, engine: engine, agents: agents, keeper: keeper, ident: ident, store: db, db: path,
 		api: ls.API.Addr().String(), agentAddr: ls.Agents.Addr().String(),
 	}
 	if public != nil {

@@ -405,6 +405,21 @@ func Methods() []*apicli.Method {
 			Call: apicli.Unary[v1.ListResourcesRequest, v1.ListResourcesResponse](dockwellv1connect.ResourceServiceListResourcesProcedure),
 		},
 		{
+			Name:      "dockwell.v1.VariableService.RevealSecret",
+			Procedure: dockwellv1connect.VariableServiceRevealSecretProcedure,
+			HTTP:      "POST /v1/secrets/{id}:reveal",
+			Noun:      "secrets",
+			Verb:      "reveal",
+			Short:     "Return a secret's latest value",
+			Long:      "Return a secret's latest value. It needs a signed-in session and a proof from\ndockwell sessions finish-step-up for this secret, made with a passkey moments\nbefore, which works once. No API token can call it. Every reveal is in the audit\nlog.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "id", Help: "The secret's ID, such as \"sec_01JD6Z3R8M9QF2K7T4XW5BNC0V\".", Arg: true},
+				{Path: "proof", Help: "The proof from dockwell sessions finish-step-up, for revealing this secret. It works once, within a minute, in the session that made it."},
+			},
+			Call: apicli.Unary[v1.RevealSecretRequest, v1.RevealSecretResponse](dockwellv1connect.VariableServiceRevealSecretProcedure),
+		},
+		{
 			Name:      "dockwell.v1.ServerService.GetServer",
 			Procedure: dockwellv1connect.ServerServiceGetServerProcedure,
 			HTTP:      "GET /v1/servers/{id}",
@@ -451,6 +466,21 @@ func Methods() []*apicli.Method {
 			Call:      apicli.Unary[v1.BeginPasskeySignInRequest, v1.BeginPasskeySignInResponse](dockwellv1connect.AuthServiceBeginPasskeySignInProcedure),
 		},
 		{
+			Name:      "dockwell.v1.AuthService.BeginStepUp",
+			Procedure: dockwellv1connect.AuthServiceBeginStepUpProcedure,
+			HTTP:      "POST /v1/sessions:beginStepUp",
+			Noun:      "sessions",
+			Verb:      "begin-step-up",
+			Short:     "Start confirming",
+			Long:      "Start confirming, with a passkey you have for the address of this request, an\naction that needs a person right now, such as revealing a secret. Pass the\npasskey's answer to dockwell sessions finish-step-up.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "action", Help: "The action."},
+				{Path: "target", Help: "What it acts on, such as a secret's ID."},
+			},
+			Call: apicli.Unary[v1.BeginStepUpRequest, v1.BeginStepUpResponse](dockwellv1connect.AuthServiceBeginStepUpProcedure),
+		},
+		{
 			Name:      "dockwell.v1.AuthService.FinishPasskeySignIn",
 			Procedure: dockwellv1connect.AuthServiceFinishPasskeySignInProcedure,
 			HTTP:      "POST /v1/sessions:finishPasskeySignIn",
@@ -464,6 +494,21 @@ func Methods() []*apicli.Method {
 				{Path: "credential_json", Help: "AuthenticationResponseJSON from navigator.credentials.get."},
 			},
 			Call: apicli.Unary[v1.FinishPasskeySignInRequest, v1.FinishPasskeySignInResponse](dockwellv1connect.AuthServiceFinishPasskeySignInProcedure),
+		},
+		{
+			Name:      "dockwell.v1.AuthService.FinishStepUp",
+			Procedure: dockwellv1connect.AuthServiceFinishStepUpProcedure,
+			HTTP:      "POST /v1/sessions:finishStepUp",
+			Noun:      "sessions",
+			Verb:      "finish-step-up",
+			Short:     "Check the passkey's answer",
+			Long:      "Check the passkey's answer and returns a proof for the action it began with. The\nproof works once, within a minute, in this session alone, for that action on\nthat target.",
+			Effect:    v1.Effect_EFFECT_APPLY,
+			Fields: []apicli.Field{
+				{Path: "ceremony_id", Help: "From dockwell sessions begin-step-up."},
+				{Path: "credential_json", Help: "AuthenticationResponseJSON from navigator.credentials.get."},
+			},
+			Call: apicli.Unary[v1.FinishStepUpRequest, v1.FinishStepUpResponse](dockwellv1connect.AuthServiceFinishStepUpProcedure),
 		},
 		{
 			Name:      "dockwell.v1.AuthService.ListSessions",
@@ -621,6 +666,21 @@ func Methods() []*apicli.Method {
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Call:      apicli.Unary[v1.UnlockCodeSignInRequest, v1.UnlockCodeSignInResponse](dockwellv1connect.AuthServiceUnlockCodeSignInProcedure),
 		},
+		{
+			Name:      "dockwell.v1.VariableService.ListVariables",
+			Procedure: dockwellv1connect.VariableServiceListVariablesProcedure,
+			HTTP:      "GET /v1/variables",
+			Noun:      "variables",
+			Verb:      "list",
+			Short:     "Return an environment's variables",
+			Long:      "Return an environment's variables and secrets, by name: each variable with its\nvalue, each secret without it, and the services that use each.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "environment", Help: "The environment, by name or ID. Leave it out while its project has only one; once there are several, leaving it out is an error that names them."},
+				{Path: "project", Help: "The environment's project, by name or ID. Leave it out while there is only one project, or when environment is an ID."},
+			},
+			Call: apicli.Unary[v1.ListVariablesRequest, v1.ListVariablesResponse](dockwellv1connect.VariableServiceListVariablesProcedure),
+		},
 	}
 }
 
@@ -636,10 +696,12 @@ func Nouns() []apicli.Noun {
 		{Name: "events", Short: "List or watch events", Long: "EventService is the timeline: every change to managed state, with who made it\nand from where, beside what servers and people did that belongs with it, such as\na server joining or someone signing in. See docs/adr/0020-the-event-timeline.md.\n\nA change is one event, which moves on as the change does: planned, then\napplying, then applied or failed. Rollbacks and undos are changes of their own,\neach naming the change it reverts. A discarded change isn't on the timeline, and\nnor is the change that set up an install's default project and environment.\nEvery other event comes from the audit log, as it was recorded.\n\nEvents carry no secret, no spec and no address.\n\ndockwell events watch streams, so it has no REST path. A REST client polls GET\n/v1/events, or opens the stream with Connect, gRPC or gRPC-Web, with the same\ncredentials."},
 		{Name: "passkeys", Short: "List, begin add, finish add or remove passkeys", Long: "Passkeys are how you sign in to the panel. A browser, a phone or a security key\nmakes each one, for one address, and only it can use it. Adding and removing\nthem needs a signed-in session, which no API token gives, so you do it in the\npanel, under Profile and security."},
 		{Name: "resources", Short: "Return the resources that exist now", Long: "ResourceService reads the resources Dockwell manages: projects, environments,\nservices, volumes, networks, containers and firewall rules. Change them with\nChangeService.\n\nIt names resources and says where they live, and never carries a spec, which may\nhold secrets. A spec's display_name, which never does, is the one exception."},
+		{Name: "secrets", Short: "Return a secret's latest value", Long: "A secret is a value of an environment that its services use without anyone\nreading it back, such as a database password. Dockwell keeps it encrypted, sends\nit only to the servers that run a service that uses it, and never shows it in\nplans, history or logs. Its value is read from standard input or a file, never\nfrom a flag. Revealing it takes a passkey, in the panel, and is audited: no API\ntoken can."},
 		{Name: "servers", Short: "List, get or watch servers", Long: "ServerService lists the servers Dockwell manages and streams their live state,\nas each server's agent reports it.\n\ndockwell servers watch has no REST path: REST has no way to stream messages, so\na REST client polls dockwell servers list or dockwell servers get instead, and\nanything that wants the stream opens it with Connect, gRPC or gRPC-Web. See\ndocs/adr/0015-rest-and-openapi-from-the-schema.md."},
-		{Name: "sessions", Short: "List or revoke sessions, and 6 more", Long: "A session is a browser you're signed in on. Signing in takes a passkey, a code\nfrom an authenticator app, a recovery code, or a one-time link from dockwell\nrecover, and sets a session cookie. No API token can sign in, or list or end\nsessions: how you sign in changes only by signing in, in the panel."},
+		{Name: "sessions", Short: "List or revoke sessions, and 8 more", Long: "A session is a browser you're signed in on. Signing in takes a passkey, a code\nfrom an authenticator app, a recovery code, or a one-time link from dockwell\nrecover, and sets a session cookie. No API token can sign in, or list or end\nsessions: how you sign in changes only by signing in, in the panel."},
 		{Name: "system", Short: "Return the build of the control plane that answers", Long: "SystemService describes the Dockwell install itself. It needs no sign-in, so the\nCLI, agents and other tools can check what they are talking to first."},
 		{Name: "totp", Short: "Get, disable or unlock TOTP, and 3 more", Long: "Code sign-in lets you sign in with a code from an authenticator app, or with a\none-time recovery code, beside your passkeys. Wrong codes slow it down, and too\nmany lock it until dockwell totp unlock turns it back on. Setting it up needs a\nsigned-in session, which no API token gives, so you do it in the panel, under\nProfile and security."},
+		{Name: "variables", Short: "Return an environment's variables", Long: "A variable is a value of an environment that its services use, such as\nLOG_LEVEL=info. It isn't secret: plans and the panel show it. Services use\nvariables and secrets by reference, under the names they expect, so changing one\nis a plan that restarts every service that uses it."},
 	}
 }
 
@@ -669,7 +731,7 @@ func Kinds() []*apicli.Kind {
 			Field: "service",
 			Noun:  "services",
 			Short: "A service, kind \"service\"",
-			Long:  "Service is anything that runs in an environment, placed on servers: for now an\napp from an image, run as one container on each server it is placed on, with the\nlabels Docker Compose gives a service's container, so docker compose sees it. A\nCompose file becomes services, volumes and networks. Websites, databases,\ncatalog apps and jobs come later. Where it runs isn't part of the spec: each\nrevision is deployed on its servers.",
+			Long:  "Service is anything that runs in an environment, placed on servers: for now an\napp from an image, run as one container on each server it is placed on, with the\nlabels Docker Compose gives a service's container, so docker compose sees it. A\nCompose file becomes services, volumes and networks. Websites, databases,\ncatalog apps and jobs come later. Where it runs isn't part of the spec: each\nrevision is deployed on its servers.\n\nA service uses its environment's variables and secrets by reference: the\nenvironment holds each value once, and a service names the ones it uses, under\nthe names it expects. So changing a value changes every service that uses it, in\none plan.",
 			Fields: []apicli.Field{
 				{Path: "app.image", Help: "The image to run, such as \"ghcr.io/acme/web:1.4.2\"."},
 				{Path: "app.command", Help: "Overrides the image's command when set."},
@@ -688,6 +750,8 @@ func Kinds() []*apicli.Kind {
 				{Path: "app.healthcheck.start_period", Help: "How long the container has to start before failures count, such as \"1m\". Empty takes Docker's default."},
 				{Path: "app.healthcheck.retries", Help: "How many failures in a row make it unhealthy. 0 takes Docker's default."},
 				{Path: "app.no_entrypoint", Help: "Runs no entrypoint, not even the image's, as Compose's \"entrypoint: []\" does: the command runs on its own. Takes no entrypoint beside it."},
+				{Path: "variables", Help: "The environment's variables the service uses, each under the name the service sees it as: DATABASE_HOST=DB_HOST gives the service the variable DB_HOST as DATABASE_HOST. An empty value means the variable of the same name."},
+				{Path: "secrets", Help: "The environment's secrets the service uses, named as for variables. Using a secret doesn't let anyone read it: its value goes only to the servers the service runs on, and only their agents decrypt it."},
 			},
 		},
 		{
@@ -749,6 +813,24 @@ func Kinds() []*apicli.Kind {
 				{Path: "options", Help: "The driver's options."},
 				{Path: "internal", Help: "Cuts the network off from outside the server: only its containers reach each other."},
 				{Path: "labels", Help: "Labels on the network, for tools that read them."},
+			},
+		},
+		{
+			Field: "variable",
+			Noun:  "variables",
+			Short: "A variable of an environment, kind \"variable\"",
+			Long:  "Variable is a value of an environment that its services use, such as\nLOG_LEVEL=info. It isn't secret: plans, history and the panel show it. Keep\nanything that is in a Secret.",
+			Fields: []apicli.Field{
+				{Path: "value", Help: "The value."},
+			},
+		},
+		{
+			Field: "secret",
+			Noun:  "secrets",
+			Short: "A secret of an environment, kind \"secret\"",
+			Long:  "Secret is a value of an environment that its services use without anyone reading\nit back, such as a database password. Dockwell keeps it encrypted, sends it only\nto the servers that run a service that uses it, and never shows it in plans,\nhistory or logs. Revealing it takes a passkey, and is audited.",
+			Fields: []apicli.Field{
+				{Path: "value", Help: "The value. Every edit sets it whole.", Sensitive: true},
 			},
 		},
 	}

@@ -31,8 +31,9 @@ export function useCommandShortcut(): string {
 /**
  * The command bar, open on ⌘K (Ctrl+K off Apple keyboards) from anywhere in
  * the shell and from the search buttons. It reaches every page and server,
- * the activity of each server, project and environment, the latest changes'
- * plans, the control plane's status, your profile and the theme. Its first
+ * the activity of each server, project and environment, each environment's
+ * variables and secrets, the latest changes' plans, the control plane's
+ * status, your profile and the theme. Its first
  * actions make a project or an environment: it asks for the name, then
  * opens the plan. Other verbs come later.
  */
@@ -163,6 +164,13 @@ function Commands({ onClose }: { onClose: () => void }) {
       run: () => navigate({ to: "/activity" }),
     });
     list.push({
+      id: "variables",
+      group: pages,
+      icon: "key",
+      label: t`Open the variables and secrets`,
+      run: () => navigate({ to: "/variables" }),
+    });
+    list.push({
       id: "status",
       group: pages,
       icon: "gauge",
@@ -208,6 +216,14 @@ function Commands({ onClose }: { onClose: () => void }) {
         label: t`Show the activity of ${name}`,
         hint: env.displayName || undefined,
         run: () => navigate({ to: "/activity", search: { resource: env.id } }),
+      });
+      list.push({
+        id: `environment-variables:${env.id}`,
+        group: t`Environments`,
+        icon: "key",
+        label: t`Open the variables and secrets of ${name}`,
+        hint: env.displayName || undefined,
+        run: () => navigate({ to: "/variables", search: { environment: env.id } }),
       });
     }
 

@@ -19,6 +19,7 @@ import { Route as ShellSectionRouteImport } from './routes/_shell/$section'
 import { Route as ShellActivityRouteImport } from './routes/_shell/activity'
 import { Route as ShellMoreRouteImport } from './routes/_shell/more'
 import { Route as ShellProfileRouteImport } from './routes/_shell/profile'
+import { Route as ShellVariablesRouteImport } from './routes/_shell/variables'
 import { Route as ShellChangesChangeIdRouteImport } from './routes/_shell/changes.$changeId'
 import { Route as ShellServersIndexRouteImport } from './routes/_shell/servers.index'
 import { Route as ShellServersServerIdRouteImport } from './routes/_shell/servers.$serverId'
@@ -72,6 +73,11 @@ const ShellProfileRoute = ShellProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellVariablesRoute = ShellVariablesRouteImport.update({
+  id: '/variables',
+  path: '/variables',
+  getParentRoute: () => ShellRoute,
+} as any)
 const ShellChangesChangeIdRoute = ShellChangesChangeIdRouteImport.update({
   id: '/changes/$changeId',
   path: '/changes/$changeId',
@@ -98,6 +104,7 @@ export interface FileRoutesByFullPath {
   '/activity': typeof ShellActivityRoute
   '/more': typeof ShellMoreRoute
   '/profile': typeof ShellProfileRoute
+  '/variables': typeof ShellVariablesRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/servers/$serverId': typeof ShellServersServerIdRoute
   '/servers/': typeof ShellServersIndexRoute
@@ -111,6 +118,7 @@ export interface FileRoutesByTo {
   '/activity': typeof ShellActivityRoute
   '/more': typeof ShellMoreRoute
   '/profile': typeof ShellProfileRoute
+  '/variables': typeof ShellVariablesRoute
   '/': typeof ShellIndexRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/servers/$serverId': typeof ShellServersServerIdRoute
@@ -127,6 +135,7 @@ export interface FileRoutesById {
   '/_shell/activity': typeof ShellActivityRoute
   '/_shell/more': typeof ShellMoreRoute
   '/_shell/profile': typeof ShellProfileRoute
+  '/_shell/variables': typeof ShellVariablesRoute
   '/_shell/': typeof ShellIndexRoute
   '/_shell/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/_shell/servers/$serverId': typeof ShellServersServerIdRoute
@@ -144,6 +153,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/more'
     | '/profile'
+    | '/variables'
     | '/changes/$changeId'
     | '/servers/$serverId'
     | '/servers/'
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/more'
     | '/profile'
+    | '/variables'
     | '/'
     | '/changes/$changeId'
     | '/servers/$serverId'
@@ -172,6 +183,7 @@ export interface FileRouteTypes {
     | '/_shell/activity'
     | '/_shell/more'
     | '/_shell/profile'
+    | '/_shell/variables'
     | '/_shell/'
     | '/_shell/changes/$changeId'
     | '/_shell/servers/$serverId'
@@ -258,6 +270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellProfileRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/variables': {
+      id: '/_shell/variables'
+      path: '/variables'
+      fullPath: '/variables'
+      preLoaderRoute: typeof ShellVariablesRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/changes/$changeId': {
       id: '/_shell/changes/$changeId'
       path: '/changes/$changeId'
@@ -287,6 +306,7 @@ interface ShellRouteChildren {
   ShellActivityRoute: typeof ShellActivityRoute
   ShellMoreRoute: typeof ShellMoreRoute
   ShellProfileRoute: typeof ShellProfileRoute
+  ShellVariablesRoute: typeof ShellVariablesRoute
   ShellIndexRoute: typeof ShellIndexRoute
   ShellChangesChangeIdRoute: typeof ShellChangesChangeIdRoute
   ShellServersServerIdRoute: typeof ShellServersServerIdRoute
@@ -298,6 +318,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellActivityRoute: ShellActivityRoute,
   ShellMoreRoute: ShellMoreRoute,
   ShellProfileRoute: ShellProfileRoute,
+  ShellVariablesRoute: ShellVariablesRoute,
   ShellIndexRoute: ShellIndexRoute,
   ShellChangesChangeIdRoute: ShellChangesChangeIdRoute,
   ShellServersServerIdRoute: ShellServersServerIdRoute,

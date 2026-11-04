@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -1011,7 +1012,8 @@ func testAStopMidApplyLeavesTheChangeForTheNextStart(t *testing.T, backend store
 	// The next start, with hz-1's agent back, finishes it.
 	close(hz1.fw.release)
 	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{})
-	next := revision.New(f.store, kinds, localAgents{hz1.id.ServerID: resource.Local{Drivers: hz1.drivers}}, slog.New(slog.DiscardHandler))
+	next := revision.New(f.store, kinds, localAgents{hz1.id.ServerID: resource.Local{Drivers: hz1.drivers}}, secretstest.Keeper(f.store, kinds),
+		slog.New(slog.DiscardHandler))
 	if err := next.Resume(t.Context()); err != nil {
 		t.Fatal(err)
 	}

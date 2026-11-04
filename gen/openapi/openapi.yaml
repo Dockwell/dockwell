@@ -704,6 +704,42 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/secrets/{id}:reveal:
+        post:
+            tags:
+                - VariableService
+            description: |-
+                RevealSecret returns a secret's latest value. It needs a signed-in
+                 session and a proof from FinishStepUp for this secret, made with a
+                 passkey moments before, which works once. No API token can call it.
+                 Every reveal is in the audit log.
+            operationId: VariableService_RevealSecret
+            parameters:
+                - name: id
+                  in: path
+                  description: The secret's ID, such as "sec_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RevealSecretRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevealSecretResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers:
         get:
             tags:
@@ -825,6 +861,34 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/sessions:beginStepUp:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                BeginStepUp starts confirming, with a passkey you have for the address
+                 of this request, an action that needs a person right now, such as
+                 revealing a secret. Pass the passkey's answer to FinishStepUp.
+            operationId: AuthService_BeginStepUp
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginStepUpRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginStepUpResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/sessions:finishPasskeySignIn:
         post:
             tags:
@@ -844,6 +908,34 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/FinishPasskeySignInResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/sessions:finishStepUp:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                FinishStepUp checks the passkey's answer and returns a proof for the
+                 action it began with. The proof works once, within a minute, in this
+                 session alone, for that action on that target.
+            operationId: AuthService_FinishStepUp
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FinishStepUpRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FinishStepUpResponse'
                 default:
                     description: Default error response
                     content:
@@ -1188,6 +1280,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/variables:
+        get:
+            tags:
+                - VariableService
+            description: |-
+                ListVariables returns an environment's variables and secrets, by name:
+                 each variable with its value, each secret without it, and the services
+                 that use each.
+            operationId: VariableService_ListVariables
+            parameters:
+                - name: environment
+                  in: query
+                  description: |-
+                    The environment, by name or ID. Leave it out while its project has only
+                     one; once there are several, leaving it out is an error that names
+                     them.
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: |-
+                    The environment's project, by name or ID. Leave it out while there is
+                     only one project, or when environment is an ID.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListVariablesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/version:
         get:
             tags:
@@ -1328,6 +1458,32 @@ components:
                     type: string
                     description: PublicKeyCredentialRequestOptionsJSON.
             description: BeginPasskeySignInResponse carries the options for the passkey assertion.
+        BeginStepUpRequest:
+            type: object
+            properties:
+                action:
+                    enum:
+                        - STEP_UP_ACTION_UNSPECIFIED
+                        - STEP_UP_ACTION_REVEAL_SECRET
+                    type: string
+                    description: The action.
+                    format: enum
+                target:
+                    type: string
+                    description: What it acts on, such as a secret's ID.
+            description: BeginStepUpRequest says what the passkey confirms.
+        BeginStepUpResponse:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                    description: Pass back to FinishStepUp.
+                optionsJson:
+                    type: string
+                    description: |-
+                        PublicKeyCredentialRequestOptionsJSON, which allows only your passkeys
+                         for this address.
+            description: BeginStepUpResponse carries the options for the passkey's assertion.
         BeginTotpSetupRequest:
             type: object
             properties: {}
@@ -1764,6 +1920,43 @@ components:
                 Environment is a stage of a project, such as production or staging, with
                  its own config. A project starts with one, named "production", which
                  stays out of sight until there is a second.
+        EnvironmentVariable:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: 'Its ID: "var_…" for a variable, "sec_…" for a secret.'
+                name:
+                    type: string
+                    description: Its name, such as "DATABASE_URL".
+                secret:
+                    type: boolean
+                    description: True for a secret, whose value only RevealSecret returns.
+                value:
+                    type: string
+                    description: A variable's value. Always empty for a secret.
+                revision:
+                    type: string
+                    description: Its latest revision.
+                updateTime:
+                    type: string
+                    description: When its latest revision was applied.
+                    format: date-time
+                updatedBy:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: Who made its latest revision.
+                changeId:
+                    type: string
+                    description: The change that made its latest revision.
+                usedBy:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/VariableUse'
+                    description: The services that use it, by name.
+            description: |-
+                EnvironmentVariable is one variable or secret of an environment, as its
+                 latest revision has it.
         Event:
             type: object
             properties:
@@ -1952,6 +2145,27 @@ components:
             description: |-
                 FinishPasskeySignInResponse carries who signed in. The response sets the
                  session cookie.
+        FinishStepUpRequest:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                    description: From BeginStepUp.
+                credentialJson:
+                    type: string
+                    description: AuthenticationResponseJSON from navigator.credentials.get.
+            description: FinishStepUpRequest carries the passkey's answer.
+        FinishStepUpResponse:
+            type: object
+            properties:
+                proof:
+                    type: string
+                    description: Pass it to the action's method, such as RevealSecret's proof.
+                expireTime:
+                    type: string
+                    description: When it stops working, a minute from now.
+                    format: date-time
+            description: FinishStepUpResponse carries the proof.
         FirewallRule:
             type: object
             properties:
@@ -2287,6 +2501,18 @@ components:
                         $ref: '#/components/schemas/Token'
                     description: Tokens that still work, newest first.
             description: ListTokensResponse lists tokens.
+        ListVariablesResponse:
+            type: object
+            properties:
+                environmentId:
+                    type: string
+                    description: The environment's ID, such as "env_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                variables:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/EnvironmentVariable'
+                    description: Its variables and secrets, by name.
+            description: ListVariablesResponse is an environment's variables and secrets.
         Mount:
             type: object
             properties:
@@ -2700,6 +2926,28 @@ components:
                     type: string
                     description: Its name, unique among its kind in its scope, such as "web".
             description: ResourceRef names a resource.
+        RevealSecretRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The secret's ID, such as "sec_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for revealing this secret. It works once,
+                         within a minute, in the session that made it.
+            description: RevealSecretRequest names a secret to reveal.
+        RevealSecretResponse:
+            type: object
+            properties:
+                value:
+                    type: string
+                    description: The value.
+                revision:
+                    type: string
+                    description: The revision it is from.
+            description: RevealSecretResponse carries a secret's value.
         RevertDriftRequest:
             type: object
             properties:
@@ -2752,6 +3000,18 @@ components:
             type: object
             properties: {}
             description: RevokeTokenResponse is empty.
+        Secret:
+            type: object
+            properties:
+                value:
+                    type: string
+                    description: The value. Every edit sets it whole.
+            description: |-
+                Secret is a value of an environment that its services use without anyone
+                 reading it back, such as a database password. Dockwell keeps it
+                 encrypted, sends it only to the servers that run a service that uses it,
+                 and never shows it in plans, history or logs. Revealing it takes a
+                 passkey, and is audited.
         Server:
             type: object
             properties:
@@ -2944,6 +3204,33 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/Container'
                     description: An app from an image.
+                variables:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The environment's variables the service uses, each under the name the
+                         service sees it as: DATABASE_HOST=DB_HOST gives the service the
+                         variable DB_HOST as DATABASE_HOST. An empty value means the variable of
+                         the same name.
+                secrets:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The environment's secrets the service uses, named as for variables.
+                         Using a secret doesn't let anyone read it: its value goes only to the
+                         servers the service runs on, and only their agents decrypt it.
+                revisions:
+                    readOnly: true
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The revision of each variable and secret the service uses, by the name
+                         the service sees it as. Dockwell sets it when a change is planned, so a
+                         service whose variable or secret changes gets a revision of its own,
+                         and restarts with the new value. An edit's is ignored.
             description: |-
                 Service is anything that runs in an environment, placed on servers: for
                  now an app from an image, run as one container on each server it is
@@ -2951,6 +3238,11 @@ components:
                  so docker compose sees it. A Compose file becomes services, volumes and
                  networks. Websites, databases, catalog apps and jobs come later. Where it
                  runs isn't part of the spec: each revision is deployed on its servers.
+
+                 A service uses its environment's variables and secrets by reference:
+                 the environment holds each value once, and a service names the ones it
+                 uses, under the names it expects. So changing a value changes every
+                 service that uses it, in one plan.
         Session:
             type: object
             properties:
@@ -3080,6 +3372,14 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/Network'
                     description: A network in an environment, kind "network".
+                variable:
+                    allOf:
+                        - $ref: '#/components/schemas/Variable'
+                    description: A variable of an environment, kind "variable".
+                secret:
+                    allOf:
+                        - $ref: '#/components/schemas/Secret'
+                    description: A secret of an environment, kind "secret".
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
@@ -3281,6 +3581,29 @@ components:
                     description: When the account was made.
                     format: date-time
             description: User is a person who signs in to the panel.
+        Variable:
+            type: object
+            properties:
+                value:
+                    type: string
+                    description: The value.
+            description: |-
+                Variable is a value of an environment that its services use, such as
+                 LOG_LEVEL=info. It isn't secret: plans, history and the panel show it.
+                 Keep anything that is in a Secret.
+        VariableUse:
+            type: object
+            properties:
+                serviceId:
+                    type: string
+                    description: The service's ID.
+                service:
+                    type: string
+                    description: The service's name, such as "api".
+                name:
+                    type: string
+                    description: The name the service sees it as, such as "DATABASE_URL".
+            description: VariableUse is a service that uses a variable or secret.
         Volume:
             type: object
             properties:
@@ -3410,3 +3733,15 @@ tags:
          whose effect is EFFECT_READ; a read-write token may also call EFFECT_PLAN
          and EFFECT_APPLY methods. No token may call an EFFECT_DESTRUCTIVE method,
          AuthService, or this service: they need a signed-in session.
+    - name: VariableService
+      description: |-
+        VariableService reads an environment's variables and secrets, and reveals
+         a secret's value to the person who asks, once they confirm it with a
+         passkey. Change them with ChangeService, as edits of kind "variable" or
+         "secret": each change is a plan, which lists every service that restarts
+         with the new value. See docs/adr/0022-secrets-encrypted-at-rest.md.
+
+         Services use variables and secrets by reference. Using one, which is an
+         edit of the service, doesn't let anyone read it: no response carries a
+         secret's value but RevealSecret's, which needs a signed-in session, and
+         no API token can call it.

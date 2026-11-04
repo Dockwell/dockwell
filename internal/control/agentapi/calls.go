@@ -19,6 +19,7 @@ import (
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
 
@@ -52,6 +53,9 @@ var errDraining = errors.New("the agent is moving to a new stream")
 type Agents struct {
 	kinds  *resource.Registry
 	logger *slog.Logger
+	// values finds the values of the variables and secrets a service uses,
+	// for the server it is about to run on.
+	values resource.Values
 
 	mu        sync.Mutex
 	sessions  map[string]*Session // the newest stream of each server
@@ -65,6 +69,15 @@ type Agents struct {
 // send back.
 func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{kinds: kinds, logger: logger, sessions: map[string]*Session{}, opened: make(chan struct{})}
+}
+
+// SendValues has the agents send each step the values of the variables and
+// secrets its spec uses, from values, sealed to the stream's delivery key.
+// Without it, a step that uses any fails.
+func (a *Agents) SendValues(values resource.Values) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.values = values
 }
 
 // OnConnect calls fn, in its own goroutine, each time a server's agent
@@ -92,7 +105,7 @@ func (a *Agents) Agent(server string) (resource.Agent, bool) {
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, server: server, name: name, send: send,
+		agents: a, server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
@@ -129,6 +142,9 @@ type Session struct {
 	// unavailable says why the agent can't run a kind it has a driver
 	// for, such as Docker not running.
 	unavailable map[resource.Kind]string
+	// deliveryKey is the stream's own public key, which the values of
+	// variables and secrets are sealed to.
+	deliveryKey []byte
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -481,7 +497,10 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 	return steps, nil
 }
 
-// Apply asks the agent to carry out a step and verify the result.
+// Apply asks the agent to carry out a step and verify the result. A step
+// whose spec uses variables or secrets carries their values, sealed to
+// this stream's delivery key, which only this agent, on this stream, can
+// open.
 func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
 	if err := s.supports(step.Ref); err != nil {
 		return err
@@ -490,8 +509,41 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err != nil {
 		return err
 	}
-	_, err = s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr}}}, ApplyTimeout)
+	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr}
+	if call.Values, err = s.sealedValues(ctx, step.Ref, desired); err != nil {
+		return err
+	}
+	_, err = s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, ApplyTimeout)
 	return err
+}
+
+// sealedValues are the values of what a desired spec uses, sealed for this
+// stream, or nil when it uses nothing.
+func (s *Session) sealedValues(ctx context.Context, ref resource.Ref, desired proto.Message) ([]byte, error) {
+	t, err := s.agents.kinds.Type(ref.Kind)
+	if err != nil || len(resource.Uses(t, desired)) == 0 {
+		return nil, err
+	}
+	s.agents.mu.Lock()
+	provider := s.agents.values
+	s.agents.mu.Unlock()
+	if provider == nil {
+		return nil, fmt.Errorf("can't send the variables and secrets %s uses to %s: this control plane has no keeper for them", ref, s.name)
+	}
+	if len(s.deliveryKey) == 0 {
+		return nil, fmt.Errorf("the agent on %s sent no delivery key, so it can't receive the variables and secrets %s uses. Update the agent on %s",
+			s.name, ref.Name, s.name)
+	}
+	values, err := provider.Values(ctx, s.server, ref, desired)
+	if err != nil {
+		return nil, err
+	}
+	defer clear(values)
+	sealed, err := binding.Seal(s.deliveryKey, s.server, ref, values)
+	if err != nil {
+		return nil, fmt.Errorf("can't seal the values %s uses for %s: %w", ref.Name, s.name, err)
+	}
+	return sealed, nil
 }
 
 // Observe asks the agent for resources as the server has them.

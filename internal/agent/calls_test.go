@@ -85,7 +85,7 @@ func TestCallsCloseBeforeTheyStop(t *testing.T) {
 	out := &sent{results: map[uint64]*agentv1.CallResult{}}
 	c := newCalls(context.Background(), Config{
 		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw}),
-	}, out.send)
+	}, out.send, nil)
 
 	c.start(applyCall(t, 1, "slow"))
 	<-fw.started
@@ -130,7 +130,7 @@ func TestStoppingCancelsWhatStillRuns(t *testing.T) {
 	out := &sent{results: map[uint64]*agentv1.CallResult{}}
 	c := newCalls(context.Background(), Config{
 		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw}),
-	}, out.send)
+	}, out.send, nil)
 	c.start(applyCall(t, 1, "slow"))
 	<-fw.started
 	c.stop()
@@ -146,7 +146,7 @@ func TestAnApplyWithAnUnknownActionRunsNothing(t *testing.T) {
 	out := &sent{results: map[uint64]*agentv1.CallResult{}}
 	c := newCalls(context.Background(), Config{
 		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw}),
-	}, out.send)
+	}, out.send, nil)
 	call := applyCall(t, 1, "http")
 	call.GetApply().GetStep().Action = 42
 	c.start(call)
@@ -233,7 +233,7 @@ func TestAStepCutShortByStoppingSendsNoResult(t *testing.T) {
 	out := &sent{results: map[uint64]*agentv1.CallResult{}}
 	c := newCalls(context.Background(), Config{
 		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw}),
-	}, out.send)
+	}, out.send, nil)
 	c.start(applyCall(t, 1, "slow"))
 	<-fw.started
 	c.stop()
@@ -246,7 +246,7 @@ func TestAStepCutShortByStoppingSendsNoResult(t *testing.T) {
 	out = &sent{results: map[uint64]*agentv1.CallResult{}}
 	c = newCalls(context.Background(), Config{
 		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw}),
-	}, out.send)
+	}, out.send, nil)
 	defer c.stop()
 	c.start(applyCall(t, 2, "slow"))
 	<-fw.started

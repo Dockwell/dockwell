@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/auth.proto.
  */
 export const file_dockwell_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChZkb2Nrd2VsbC92MS9hdXRoLnByb3RvEgtkb2Nrd2VsbC52MSKBAQoEVXNlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg0KBWVtYWlsGAMgASgJEh8KBHJvbGUYBCABKA4yES5kb2Nrd2VsbC52MS5Sb2xlEi8KC2NyZWF0ZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIVChNHZXRBdXRoU3RhdGVSZXF1ZXN0IsMBChRHZXRBdXRoU3RhdGVSZXNwb25zZRIPCgdjbGFpbWVkGAEgASgIEh8KBHVzZXIYAiABKAsyES5kb2Nrd2VsbC52MS5Vc2VyEhIKCnNlc3Npb25faWQYAyABKAkSEwoLc2VydmVyX25hbWUYBCABKAkSDQoFcnBfaWQYBSABKAkSDgoGZG9tYWluGAYgASgJEjEKDnNpZ25faW5fbWV0aG9kGAcgASgOMhkuZG9ja3dlbGwudjEuU2lnbkluTWV0aG9kIjMKEUNoZWNrQ2xhaW1SZXF1ZXN0Eh4KBXRva2VuGAEgASgJQg+iuxgLY2xhaW0tdG9rZW4iggEKEkNoZWNrQ2xhaW1SZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXISFgoOcHVibGljX2FkZHJlc3MYAiABKAkSLwoLZXhwaXJlX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIlAKEUJlZ2luQ2xhaW1SZXF1ZXN0Eh4KBXRva2VuGAEgASgJQg+iuxgLY2xhaW0tdG9rZW4SDAoEbmFtZRgCIAEoCRINCgVlbWFpbBgDIAEoCSI/ChJCZWdpbkNsYWltUmVzcG9uc2USEwoLY2VyZW1vbnlfaWQYASABKAkSFAoMb3B0aW9uc19qc29uGAIgASgJIngKEkZpbmlzaENsYWltUmVxdWVzdBITCgtjZXJlbW9ueV9pZBgBIAEoCRIeCgV0b2tlbhgCIAEoCUIPorsYC2NsYWltLXRva2VuEhcKD2NyZWRlbnRpYWxfanNvbhgDIAEoCRIUCgxwYXNza2V5X25hbWUYBCABKAkiNgoTRmluaXNoQ2xhaW1SZXNwb25zZRIfCgR1c2VyGAEgASgLMhEuZG9ja3dlbGwudjEuVXNlciIbChlCZWdpblBhc3NrZXlTaWduSW5SZXF1ZXN0IkcKGkJlZ2luUGFzc2tleVNpZ25JblJlc3BvbnNlEhMKC2NlcmVtb255X2lkGAEgASgJEhQKDG9wdGlvbnNfanNvbhgCIAEoCSJKChpGaW5pc2hQYXNza2V5U2lnbkluUmVxdWVzdBITCgtjZXJlbW9ueV9pZBgBIAEoCRIXCg9jcmVkZW50aWFsX2pzb24YAiABKAkiPgobRmluaXNoUGFzc2tleVNpZ25JblJlc3BvbnNlEh8KBHVzZXIYASABKAsyES5kb2Nrd2VsbC52MS5Vc2VyIjQKFVNpZ25JbldpdGhDb2RlUmVxdWVzdBINCgVlbWFpbBgBIAEoCRIMCgRjb2RlGAIgASgJInIKFlNpZ25JbldpdGhDb2RlUmVzcG9uc2USHwoEdXNlchgBIAEoCzIRLmRvY2t3ZWxsLnYxLlVzZXISGgoSdXNlZF9yZWNvdmVyeV9jb2RlGAIgASgIEhsKE3JlY292ZXJ5X2NvZGVzX2xlZnQYAyABKAUiNgoVU2lnbkluV2l0aExpbmtSZXF1ZXN0Eh0KBXRva2VuGAEgASgJQg6iuxgKbGluay10b2tlbiI5ChZTaWduSW5XaXRoTGlua1Jlc3BvbnNlEh8KBHVzZXIYASABKAsyES5kb2Nrd2VsbC52MS5Vc2VyIhAKDlNpZ25PdXRSZXF1ZXN0IhEKD1NpZ25PdXRSZXNwb25zZSIVChNMaXN0U2Vzc2lvbnNSZXF1ZXN0Ij4KFExpc3RTZXNzaW9uc1Jlc3BvbnNlEiYKCHNlc3Npb25zGAEgAygLMhQuZG9ja3dlbGwudjEuU2Vzc2lvbiKjAgoHU2Vzc2lvbhIKCgJpZBgBIAEoCRISCgp1c2VyX2FnZW50GAIgASgJEg8KB2FkZHJlc3MYAyABKAkSLwoLY3JlYXRlX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjIKDmxhc3Rfc2Vlbl90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgtleHBpcmVfdGltZRgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHY3VycmVudBgHIAEoCBIxCg5zaWduX2luX21ldGhvZBgIIAEoDjIZLmRvY2t3ZWxsLnYxLlNpZ25Jbk1ldGhvZBINCgVycF9pZBgJIAEoCSIiChRSZXZva2VTZXNzaW9uUmVxdWVzdBIKCgJpZBgBIAEoCSIXChVSZXZva2VTZXNzaW9uUmVzcG9uc2UiHAoaUmV2b2tlT3RoZXJTZXNzaW9uc1JlcXVlc3QiLgobUmV2b2tlT3RoZXJTZXNzaW9uc1Jlc3BvbnNlEg8KB3Jldm9rZWQYASABKAUiFQoTTGlzdFBhc3NrZXlzUmVxdWVzdCI+ChRMaXN0UGFzc2tleXNSZXNwb25zZRImCghwYXNza2V5cxgBIAMoCzIULmRvY2t3ZWxsLnYxLlBhc3NrZXkivwEKB1Bhc3NrZXkSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRINCgVycF9pZBgDIAEoCRIvCgtjcmVhdGVfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMgoObGFzdF91c2VkX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBnN5bmNlZBgGIAEoCBIWCg5zdXNwZWN0ZWRfY29weRgHIAEoCCIYChZCZWdpbkFkZFBhc3NrZXlSZXF1ZXN0IkQKF0JlZ2luQWRkUGFzc2tleVJlc3BvbnNlEhMKC2NlcmVtb255X2lkGAEgASgJEhQKDG9wdGlvbnNfanNvbhgCIAEoCSJVChdGaW5pc2hBZGRQYXNza2V5UmVxdWVzdBITCgtjZXJlbW9ueV9pZBgBIAEoCRIXCg9jcmVkZW50aWFsX2pzb24YAiABKAkSDAoEbmFtZRgDIAEoCSJBChhGaW5pc2hBZGRQYXNza2V5UmVzcG9uc2USJQoHcGFzc2tleRgBIAEoCzIULmRvY2t3ZWxsLnYxLlBhc3NrZXkiIgoUUmVtb3ZlUGFzc2tleVJlcXVlc3QSCgoCaWQYASABKAkiFwoVUmVtb3ZlUGFzc2tleVJlc3BvbnNlIhAKDkdldFRvdHBSZXF1ZXN0IjIKD0dldFRvdHBSZXNwb25zZRIfCgR0b3RwGAEgASgLMhEuZG9ja3dlbGwudjEuVG90cCJ8CgRUb3RwEg8KB2VuYWJsZWQYASABKAgSGwoTcmVjb3ZlcnlfY29kZXNfbGVmdBgCIAEoBRIXCg9mYWlsZWRfYXR0ZW1wdHMYAyABKAUSLQoJbG9ja190aW1lGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIXChVCZWdpblRvdHBTZXR1cFJlcXVlc3QiNQoWQmVnaW5Ub3RwU2V0dXBSZXNwb25zZRIOCgZzZWNyZXQYASABKAkSCwoDdXJpGAIgASgJIicKF0NvbmZpcm1Ub3RwU2V0dXBSZXF1ZXN0EgwKBGNvZGUYASABKAkiMgoYQ29uZmlybVRvdHBTZXR1cFJlc3BvbnNlEhYKDnJlY292ZXJ5X2NvZGVzGAEgAygJIhQKEkRpc2FibGVUb3RwUmVxdWVzdCIVChNEaXNhYmxlVG90cFJlc3BvbnNlIiAKHlJlZ2VuZXJhdGVSZWNvdmVyeUNvZGVzUmVxdWVzdCI5Ch9SZWdlbmVyYXRlUmVjb3ZlcnlDb2Rlc1Jlc3BvbnNlEhYKDnJlY292ZXJ5X2NvZGVzGAEgAygJIhkKF1VubG9ja0NvZGVTaWduSW5SZXF1ZXN0IhoKGFVubG9ja0NvZGVTaWduSW5SZXNwb25zZSosCgRSb2xlEhQKEFJPTEVfVU5TUEVDSUZJRUQQABIOCgpST0xFX09XTkVSEAEqxgEKDFNpZ25Jbk1ldGhvZBIeChpTSUdOX0lOX01FVEhPRF9VTlNQRUNJRklFRBAAEhgKFFNJR05fSU5fTUVUSE9EX0NMQUlNEAESGgoWU0lHTl9JTl9NRVRIT0RfUEFTU0tFWRACEiUKIVNJR05fSU5fTUVUSE9EX0FVVEhFTlRJQ0FUT1JfQ09ERRADEiAKHFNJR05fSU5fTUVUSE9EX1JFQ09WRVJZX0NPREUQBBIXChNTSUdOX0lOX01FVEhPRF9MSU5LEAUywCEKC0F1dGhTZXJ2aWNlEnEKDEdldEF1dGhTdGF0ZRIgLmRvY2t3ZWxsLnYxLkdldEF1dGhTdGF0ZVJlcXVlc3QaIS5kb2Nrd2VsbC52MS5HZXRBdXRoU3RhdGVSZXNwb25zZSIckAIBoLsYAYLT5JMCDxINL3YxL2F1dGhTdGF0ZRJ9CgpDaGVja0NsYWltEh4uZG9ja3dlbGwudjEuQ2hlY2tDbGFpbVJlcXVlc3QaHy5kb2Nrd2VsbC52MS5DaGVja0NsYWltUmVzcG9uc2UiLqC7GAGquxgMCgpjbGFpbS1saW5rgtPkkwIUOgEqIg8vdjEvY2xhaW06Y2hlY2sSfQoKQmVnaW5DbGFpbRIeLmRvY2t3ZWxsLnYxLkJlZ2luQ2xhaW1SZXF1ZXN0Gh8uZG9ja3dlbGwudjEuQmVnaW5DbGFpbVJlc3BvbnNlIi6guxgBqrsYDAoKY2xhaW0tbGlua4LT5JMCFDoBKiIPL3YxL2NsYWltOmJlZ2luEoEBCgtGaW5pc2hDbGFpbRIfLmRvY2t3ZWxsLnYxLkZpbmlzaENsYWltUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkZpbmlzaENsYWltUmVzcG9uc2UiL6C7GAOquxgMCgpjbGFpbS1saW5rgtPkkwIVOgEqIhAvdjEvY2xhaW06ZmluaXNoEpUBChJCZWdpblBhc3NrZXlTaWduSW4SJi5kb2Nrd2VsbC52MS5CZWdpblBhc3NrZXlTaWduSW5SZXF1ZXN0GicuZG9ja3dlbGwudjEuQmVnaW5QYXNza2V5U2lnbkluUmVzcG9uc2UiLqC7GAGC0+STAiQ6ASoiHy92MS9zZXNzaW9uczpiZWdpblBhc3NrZXlTaWduSW4SmQEKE0ZpbmlzaFBhc3NrZXlTaWduSW4SJy5kb2Nrd2VsbC52MS5GaW5pc2hQYXNza2V5U2lnbkluUmVxdWVzdBooLmRvY2t3ZWxsLnYxLkZpbmlzaFBhc3NrZXlTaWduSW5SZXNwb25zZSIvoLsYA4LT5JMCJToBKiIgL3YxL3Nlc3Npb25zOmZpbmlzaFBhc3NrZXlTaWduSW4ShQEKDlNpZ25JbldpdGhDb2RlEiIuZG9ja3dlbGwudjEuU2lnbkluV2l0aENvZGVSZXF1ZXN0GiMuZG9ja3dlbGwudjEuU2lnbkluV2l0aENvZGVSZXNwb25zZSIqoLsYA4LT5JMCIDoBKiIbL3YxL3Nlc3Npb25zOnNpZ25JbldpdGhDb2RlEoUBCg5TaWduSW5XaXRoTGluaxIiLmRvY2t3ZWxsLnYxLlNpZ25JbldpdGhMaW5rUmVxdWVzdBojLmRvY2t3ZWxsLnYxLlNpZ25JbldpdGhMaW5rUmVzcG9uc2UiKqC7GAOC0+STAiA6ASoiGy92MS9zZXNzaW9uczpzaWduSW5XaXRoTGluaxJpCgdTaWduT3V0EhsuZG9ja3dlbGwudjEuU2lnbk91dFJlcXVlc3QaHC5kb2Nrd2VsbC52MS5TaWduT3V0UmVzcG9uc2UiI6C7GAOC0+STAhk6ASoiFC92MS9zZXNzaW9uczpzaWduT3V0EnAKDExpc3RTZXNzaW9ucxIgLmRvY2t3ZWxsLnYxLkxpc3RTZXNzaW9uc1JlcXVlc3QaIS5kb2Nrd2VsbC52MS5MaXN0U2Vzc2lvbnNSZXNwb25zZSIbkAIBoLsYAYLT5JMCDhIML3YxL3Nlc3Npb25zEn8KDVJldm9rZVNlc3Npb24SIS5kb2Nrd2VsbC52MS5SZXZva2VTZXNzaW9uUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLlJldm9rZVNlc3Npb25SZXNwb25zZSInoLsYBILT5JMCHToBKiIYL3YxL3Nlc3Npb25zL3tpZH06cmV2b2tlEpIBChNSZXZva2VPdGhlclNlc3Npb25zEicuZG9ja3dlbGwudjEuUmV2b2tlT3RoZXJTZXNzaW9uc1JlcXVlc3QaKC5kb2Nrd2VsbC52MS5SZXZva2VPdGhlclNlc3Npb25zUmVzcG9uc2UiKKC7GASC0+STAh46ASoiGS92MS9zZXNzaW9uczpyZXZva2VPdGhlcnMScAoMTGlzdFBhc3NrZXlzEiAuZG9ja3dlbGwudjEuTGlzdFBhc3NrZXlzUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkxpc3RQYXNza2V5c1Jlc3BvbnNlIhuQAgGguxgBgtPkkwIOEgwvdjEvcGFzc2tleXMSggEKD0JlZ2luQWRkUGFzc2tleRIjLmRvY2t3ZWxsLnYxLkJlZ2luQWRkUGFzc2tleVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5CZWdpbkFkZFBhc3NrZXlSZXNwb25zZSIkoLsYAYLT5JMCGjoBKiIVL3YxL3Bhc3NrZXlzOmJlZ2luQWRkEoYBChBGaW5pc2hBZGRQYXNza2V5EiQuZG9ja3dlbGwudjEuRmluaXNoQWRkUGFzc2tleVJlcXVlc3QaJS5kb2Nrd2VsbC52MS5GaW5pc2hBZGRQYXNza2V5UmVzcG9uc2UiJaC7GAOC0+STAhs6ASoiFi92MS9wYXNza2V5czpmaW5pc2hBZGQSdQoNUmVtb3ZlUGFzc2tleRIhLmRvY2t3ZWxsLnYxLlJlbW92ZVBhc3NrZXlSZXF1ZXN0GiIuZG9ja3dlbGwudjEuUmVtb3ZlUGFzc2tleVJlc3BvbnNlIh2guxgEgtPkkwITKhEvdjEvcGFzc2tleXMve2lkfRJdCgdHZXRUb3RwEhsuZG9ja3dlbGwudjEuR2V0VG90cFJlcXVlc3QaHC5kb2Nrd2VsbC52MS5HZXRUb3RwUmVzcG9uc2UiF5ACAaC7GAGC0+STAgoSCC92MS90b3RwEn0KDkJlZ2luVG90cFNldHVwEiIuZG9ja3dlbGwudjEuQmVnaW5Ub3RwU2V0dXBSZXF1ZXN0GiMuZG9ja3dlbGwudjEuQmVnaW5Ub3RwU2V0dXBSZXNwb25zZSIioLsYA4LT5JMCGDoBKiITL3YxL3RvdHA6YmVnaW5TZXR1cBKFAQoQQ29uZmlybVRvdHBTZXR1cBIkLmRvY2t3ZWxsLnYxLkNvbmZpcm1Ub3RwU2V0dXBSZXF1ZXN0GiUuZG9ja3dlbGwudjEuQ29uZmlybVRvdHBTZXR1cFJlc3BvbnNlIiSguxgDgtPkkwIaOgEqIhUvdjEvdG90cDpjb25maXJtU2V0dXAScQoLRGlzYWJsZVRvdHASHy5kb2Nrd2VsbC52MS5EaXNhYmxlVG90cFJlcXVlc3QaIC5kb2Nrd2VsbC52MS5EaXNhYmxlVG90cFJlc3BvbnNlIh+guxgEgtPkkwIVOgEqIhAvdjEvdG90cDpkaXNhYmxlEqUBChdSZWdlbmVyYXRlUmVjb3ZlcnlDb2RlcxIrLmRvY2t3ZWxsLnYxLlJlZ2VuZXJhdGVSZWNvdmVyeUNvZGVzUmVxdWVzdBosLmRvY2t3ZWxsLnYxLlJlZ2VuZXJhdGVSZWNvdmVyeUNvZGVzUmVzcG9uc2UiL6C7GASC0+STAiU6ASoiIC92MS90b3RwOnJlZ2VuZXJhdGVSZWNvdmVyeUNvZGVzEn8KEFVubG9ja0NvZGVTaWduSW4SJC5kb2Nrd2VsbC52MS5VbmxvY2tDb2RlU2lnbkluUmVxdWVzdBolLmRvY2t3ZWxsLnYxLlVubG9ja0NvZGVTaWduSW5SZXNwb25zZSIeoLsYA4LT5JMCFDoBKiIPL3YxL3RvdHA6dW5sb2NrGosLorsYtgEKCmF1dGgtc3RhdGUSpwFUaGUgaW5zdGFsbCdzIGF1dGggc3RhdGUgc2F5cyB3aGV0aGVyIGl0IGhhcyBhbiBvd25lciB5ZXQsIHdobyBpcyBzaWduZWQgaW4gb24gYSByZXF1ZXN0LCBhbmQgd2hpY2ggYWRkcmVzcyBwYXNza2V5cyBhcmUgbWFkZSBmb3IgdGhlcmUuIEdldEF1dGhTdGF0ZSBuZWVkcyBubyBzaWduLWluLqK7GJICCgpjbGFpbS1saW5rEoMCQSBjbGFpbSBsaW5rLCB3aGljaCBkb2Nrd2VsbCBydW4gYW5kIGRvY2t3ZWxsIGNsYWltIHByaW50LCBjcmVhdGVzIHRoZSBpbnN0YWxsJ3Mgb3duZXIgd2l0aCBhIHBhc3NrZXksIGFuZCB3b3JrcyBvbmNlLiBDaGVja0NsYWltIGRlc2NyaWJlcyB0aGUgc2VydmVyIGEgbGluayBjbGFpbXMsIGFuZCBCZWdpbkNsYWltIGFuZCBGaW5pc2hDbGFpbSBtYWtlIHRoZSBwYXNza2V5LCB3aGljaCB0YWtlcyBhIGJyb3dzZXI6IG9wZW4gdGhlIGxpbmsgaW4gb25lLqK7GJoCCghwYXNza2V5cxKNAlBhc3NrZXlzIGFyZSBob3cgeW91IHNpZ24gaW4gdG8gdGhlIHBhbmVsLiBBIGJyb3dzZXIsIGEgcGhvbmUgb3IgYSBzZWN1cml0eSBrZXkgbWFrZXMgZWFjaCBvbmUsIGZvciBvbmUgYWRkcmVzcywgYW5kIG9ubHkgaXQgY2FuIHVzZSBpdC4gQWRkaW5nIGFuZCByZW1vdmluZyB0aGVtIG5lZWRzIGEgc2lnbmVkLWluIHNlc3Npb24sIHdoaWNoIG5vIEFQSSB0b2tlbiBnaXZlcywgc28geW91IGRvIGl0IGluIHRoZSBwYW5lbCwgdW5kZXIgUHJvZmlsZSBhbmQgc2VjdXJpdHkuorsYuQIKCHNlc3Npb25zEqwCQSBzZXNzaW9uIGlzIGEgYnJvd3NlciB5b3UncmUgc2lnbmVkIGluIG9uLiBTaWduaW5nIGluIHRha2VzIGEgcGFzc2tleSwgYSBjb2RlIGZyb20gYW4gYXV0aGVudGljYXRvciBhcHAsIGEgcmVjb3ZlcnkgY29kZSwgb3IgYSBvbmUtdGltZSBsaW5rIGZyb20gZG9ja3dlbGwgcmVjb3ZlciwgYW5kIHNldHMgYSBzZXNzaW9uIGNvb2tpZS4gTm8gQVBJIHRva2VuIGNhbiBzaWduIGluLCBvciBsaXN0IG9yIGVuZCBzZXNzaW9uczogaG93IHlvdSBzaWduIGluIGNoYW5nZXMgb25seSBieSBzaWduaW5nIGluLCBpbiB0aGUgcGFuZWwuorsY1wIKBHRvdHASzgJDb2RlIHNpZ24taW4gbGV0cyB5b3Ugc2lnbiBpbiB3aXRoIGEgY29kZSBmcm9tIGFuIGF1dGhlbnRpY2F0b3IgYXBwLCBvciB3aXRoIGEgb25lLXRpbWUgcmVjb3ZlcnkgY29kZSwgYmVzaWRlIHlvdXIgcGFzc2tleXMuIFdyb25nIGNvZGVzIHNsb3cgaXQgZG93biwgYW5kIHRvbyBtYW55IGxvY2sgaXQgdW50aWwgVW5sb2NrQ29kZVNpZ25JbiB0dXJucyBpdCBiYWNrIG9uLiBTZXR0aW5nIGl0IHVwIG5lZWRzIGEgc2lnbmVkLWluIHNlc3Npb24sIHdoaWNoIG5vIEFQSSB0b2tlbiBnaXZlcywgc28geW91IGRvIGl0IGluIHRoZSBwYW5lbCwgdW5kZXIgUHJvZmlsZSBhbmQgc2VjdXJpdHkuQqIBCg9jb20uZG9ja3dlbGwudjFCCUF1dGhQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_dockwell_v1_server, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("ChZkb2Nrd2VsbC92MS9hdXRoLnByb3RvEgtkb2Nrd2VsbC52MSKBAQoEVXNlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg0KBWVtYWlsGAMgASgJEh8KBHJvbGUYBCABKA4yES5kb2Nrd2VsbC52MS5Sb2xlEi8KC2NyZWF0ZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIVChNHZXRBdXRoU3RhdGVSZXF1ZXN0IsMBChRHZXRBdXRoU3RhdGVSZXNwb25zZRIPCgdjbGFpbWVkGAEgASgIEh8KBHVzZXIYAiABKAsyES5kb2Nrd2VsbC52MS5Vc2VyEhIKCnNlc3Npb25faWQYAyABKAkSEwoLc2VydmVyX25hbWUYBCABKAkSDQoFcnBfaWQYBSABKAkSDgoGZG9tYWluGAYgASgJEjEKDnNpZ25faW5fbWV0aG9kGAcgASgOMhkuZG9ja3dlbGwudjEuU2lnbkluTWV0aG9kIjMKEUNoZWNrQ2xhaW1SZXF1ZXN0Eh4KBXRva2VuGAEgASgJQg+iuxgLY2xhaW0tdG9rZW4iggEKEkNoZWNrQ2xhaW1SZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXISFgoOcHVibGljX2FkZHJlc3MYAiABKAkSLwoLZXhwaXJlX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIlAKEUJlZ2luQ2xhaW1SZXF1ZXN0Eh4KBXRva2VuGAEgASgJQg+iuxgLY2xhaW0tdG9rZW4SDAoEbmFtZRgCIAEoCRINCgVlbWFpbBgDIAEoCSI/ChJCZWdpbkNsYWltUmVzcG9uc2USEwoLY2VyZW1vbnlfaWQYASABKAkSFAoMb3B0aW9uc19qc29uGAIgASgJIngKEkZpbmlzaENsYWltUmVxdWVzdBITCgtjZXJlbW9ueV9pZBgBIAEoCRIeCgV0b2tlbhgCIAEoCUIPorsYC2NsYWltLXRva2VuEhcKD2NyZWRlbnRpYWxfanNvbhgDIAEoCRIUCgxwYXNza2V5X25hbWUYBCABKAkiNgoTRmluaXNoQ2xhaW1SZXNwb25zZRIfCgR1c2VyGAEgASgLMhEuZG9ja3dlbGwudjEuVXNlciIbChlCZWdpblBhc3NrZXlTaWduSW5SZXF1ZXN0IkcKGkJlZ2luUGFzc2tleVNpZ25JblJlc3BvbnNlEhMKC2NlcmVtb255X2lkGAEgASgJEhQKDG9wdGlvbnNfanNvbhgCIAEoCSJKChpGaW5pc2hQYXNza2V5U2lnbkluUmVxdWVzdBITCgtjZXJlbW9ueV9pZBgBIAEoCRIXCg9jcmVkZW50aWFsX2pzb24YAiABKAkiPgobRmluaXNoUGFzc2tleVNpZ25JblJlc3BvbnNlEh8KBHVzZXIYASABKAsyES5kb2Nrd2VsbC52MS5Vc2VyIjQKFVNpZ25JbldpdGhDb2RlUmVxdWVzdBINCgVlbWFpbBgBIAEoCRIMCgRjb2RlGAIgASgJInIKFlNpZ25JbldpdGhDb2RlUmVzcG9uc2USHwoEdXNlchgBIAEoCzIRLmRvY2t3ZWxsLnYxLlVzZXISGgoSdXNlZF9yZWNvdmVyeV9jb2RlGAIgASgIEhsKE3JlY292ZXJ5X2NvZGVzX2xlZnQYAyABKAUiNgoVU2lnbkluV2l0aExpbmtSZXF1ZXN0Eh0KBXRva2VuGAEgASgJQg6iuxgKbGluay10b2tlbiI5ChZTaWduSW5XaXRoTGlua1Jlc3BvbnNlEh8KBHVzZXIYASABKAsyES5kb2Nrd2VsbC52MS5Vc2VyIhAKDlNpZ25PdXRSZXF1ZXN0IhEKD1NpZ25PdXRSZXNwb25zZSIVChNMaXN0U2Vzc2lvbnNSZXF1ZXN0Ij4KFExpc3RTZXNzaW9uc1Jlc3BvbnNlEiYKCHNlc3Npb25zGAEgAygLMhQuZG9ja3dlbGwudjEuU2Vzc2lvbiKjAgoHU2Vzc2lvbhIKCgJpZBgBIAEoCRISCgp1c2VyX2FnZW50GAIgASgJEg8KB2FkZHJlc3MYAyABKAkSLwoLY3JlYXRlX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjIKDmxhc3Rfc2Vlbl90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgtleHBpcmVfdGltZRgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHY3VycmVudBgHIAEoCBIxCg5zaWduX2luX21ldGhvZBgIIAEoDjIZLmRvY2t3ZWxsLnYxLlNpZ25Jbk1ldGhvZBINCgVycF9pZBgJIAEoCSIiChRSZXZva2VTZXNzaW9uUmVxdWVzdBIKCgJpZBgBIAEoCSIXChVSZXZva2VTZXNzaW9uUmVzcG9uc2UiHAoaUmV2b2tlT3RoZXJTZXNzaW9uc1JlcXVlc3QiLgobUmV2b2tlT3RoZXJTZXNzaW9uc1Jlc3BvbnNlEg8KB3Jldm9rZWQYASABKAUiFQoTTGlzdFBhc3NrZXlzUmVxdWVzdCI+ChRMaXN0UGFzc2tleXNSZXNwb25zZRImCghwYXNza2V5cxgBIAMoCzIULmRvY2t3ZWxsLnYxLlBhc3NrZXkivwEKB1Bhc3NrZXkSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRINCgVycF9pZBgDIAEoCRIvCgtjcmVhdGVfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMgoObGFzdF91c2VkX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBnN5bmNlZBgGIAEoCBIWCg5zdXNwZWN0ZWRfY29weRgHIAEoCCJPChJCZWdpblN0ZXBVcFJlcXVlc3QSKQoGYWN0aW9uGAEgASgOMhkuZG9ja3dlbGwudjEuU3RlcFVwQWN0aW9uEg4KBnRhcmdldBgCIAEoCSJAChNCZWdpblN0ZXBVcFJlc3BvbnNlEhMKC2NlcmVtb255X2lkGAEgASgJEhQKDG9wdGlvbnNfanNvbhgCIAEoCSJDChNGaW5pc2hTdGVwVXBSZXF1ZXN0EhMKC2NlcmVtb255X2lkGAEgASgJEhcKD2NyZWRlbnRpYWxfanNvbhgCIAEoCSJWChRGaW5pc2hTdGVwVXBSZXNwb25zZRINCgVwcm9vZhgBIAEoCRIvCgtleHBpcmVfdGltZRgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiGAoWQmVnaW5BZGRQYXNza2V5UmVxdWVzdCJEChdCZWdpbkFkZFBhc3NrZXlSZXNwb25zZRITCgtjZXJlbW9ueV9pZBgBIAEoCRIUCgxvcHRpb25zX2pzb24YAiABKAkiVQoXRmluaXNoQWRkUGFzc2tleVJlcXVlc3QSEwoLY2VyZW1vbnlfaWQYASABKAkSFwoPY3JlZGVudGlhbF9qc29uGAIgASgJEgwKBG5hbWUYAyABKAkiQQoYRmluaXNoQWRkUGFzc2tleVJlc3BvbnNlEiUKB3Bhc3NrZXkYASABKAsyFC5kb2Nrd2VsbC52MS5QYXNza2V5IiIKFFJlbW92ZVBhc3NrZXlSZXF1ZXN0EgoKAmlkGAEgASgJIhcKFVJlbW92ZVBhc3NrZXlSZXNwb25zZSIQCg5HZXRUb3RwUmVxdWVzdCIyCg9HZXRUb3RwUmVzcG9uc2USHwoEdG90cBgBIAEoCzIRLmRvY2t3ZWxsLnYxLlRvdHAifAoEVG90cBIPCgdlbmFibGVkGAEgASgIEhsKE3JlY292ZXJ5X2NvZGVzX2xlZnQYAiABKAUSFwoPZmFpbGVkX2F0dGVtcHRzGAMgASgFEi0KCWxvY2tfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiFwoVQmVnaW5Ub3RwU2V0dXBSZXF1ZXN0IjUKFkJlZ2luVG90cFNldHVwUmVzcG9uc2USDgoGc2VjcmV0GAEgASgJEgsKA3VyaRgCIAEoCSInChdDb25maXJtVG90cFNldHVwUmVxdWVzdBIMCgRjb2RlGAEgASgJIjIKGENvbmZpcm1Ub3RwU2V0dXBSZXNwb25zZRIWCg5yZWNvdmVyeV9jb2RlcxgBIAMoCSIUChJEaXNhYmxlVG90cFJlcXVlc3QiFQoTRGlzYWJsZVRvdHBSZXNwb25zZSIgCh5SZWdlbmVyYXRlUmVjb3ZlcnlDb2Rlc1JlcXVlc3QiOQofUmVnZW5lcmF0ZVJlY292ZXJ5Q29kZXNSZXNwb25zZRIWCg5yZWNvdmVyeV9jb2RlcxgBIAMoCSIZChdVbmxvY2tDb2RlU2lnbkluUmVxdWVzdCIaChhVbmxvY2tDb2RlU2lnbkluUmVzcG9uc2UqLAoEUm9sZRIUChBST0xFX1VOU1BFQ0lGSUVEEAASDgoKUk9MRV9PV05FUhABKsYBCgxTaWduSW5NZXRob2QSHgoaU0lHTl9JTl9NRVRIT0RfVU5TUEVDSUZJRUQQABIYChRTSUdOX0lOX01FVEhPRF9DTEFJTRABEhoKFlNJR05fSU5fTUVUSE9EX1BBU1NLRVkQAhIlCiFTSUdOX0lOX01FVEhPRF9BVVRIRU5USUNBVE9SX0NPREUQAxIgChxTSUdOX0lOX01FVEhPRF9SRUNPVkVSWV9DT0RFEAQSFwoTU0lHTl9JTl9NRVRIT0RfTElOSxAFKlAKDFN0ZXBVcEFjdGlvbhIeChpTVEVQX1VQX0FDVElPTl9VTlNQRUNJRklFRBAAEiAKHFNURVBfVVBfQUNUSU9OX1JFVkVBTF9TRUNSRVQQATK6IwoLQXV0aFNlcnZpY2UScQoMR2V0QXV0aFN0YXRlEiAuZG9ja3dlbGwudjEuR2V0QXV0aFN0YXRlUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkdldEF1dGhTdGF0ZVJlc3BvbnNlIhyQAgGguxgBgtPkkwIPEg0vdjEvYXV0aFN0YXRlEn0KCkNoZWNrQ2xhaW0SHi5kb2Nrd2VsbC52MS5DaGVja0NsYWltUmVxdWVzdBofLmRvY2t3ZWxsLnYxLkNoZWNrQ2xhaW1SZXNwb25zZSIuoLsYAaq7GAwKCmNsYWltLWxpbmuC0+STAhQ6ASoiDy92MS9jbGFpbTpjaGVjaxJ9CgpCZWdpbkNsYWltEh4uZG9ja3dlbGwudjEuQmVnaW5DbGFpbVJlcXVlc3QaHy5kb2Nrd2VsbC52MS5CZWdpbkNsYWltUmVzcG9uc2UiLqC7GAGquxgMCgpjbGFpbS1saW5rgtPkkwIUOgEqIg8vdjEvY2xhaW06YmVnaW4SgQEKC0ZpbmlzaENsYWltEh8uZG9ja3dlbGwudjEuRmluaXNoQ2xhaW1SZXF1ZXN0GiAuZG9ja3dlbGwudjEuRmluaXNoQ2xhaW1SZXNwb25zZSIvoLsYA6q7GAwKCmNsYWltLWxpbmuC0+STAhU6ASoiEC92MS9jbGFpbTpmaW5pc2gSlQEKEkJlZ2luUGFzc2tleVNpZ25JbhImLmRvY2t3ZWxsLnYxLkJlZ2luUGFzc2tleVNpZ25JblJlcXVlc3QaJy5kb2Nrd2VsbC52MS5CZWdpblBhc3NrZXlTaWduSW5SZXNwb25zZSIuoLsYAYLT5JMCJDoBKiIfL3YxL3Nlc3Npb25zOmJlZ2luUGFzc2tleVNpZ25JbhKZAQoTRmluaXNoUGFzc2tleVNpZ25JbhInLmRvY2t3ZWxsLnYxLkZpbmlzaFBhc3NrZXlTaWduSW5SZXF1ZXN0GiguZG9ja3dlbGwudjEuRmluaXNoUGFzc2tleVNpZ25JblJlc3BvbnNlIi+guxgDgtPkkwIlOgEqIiAvdjEvc2Vzc2lvbnM6ZmluaXNoUGFzc2tleVNpZ25JbhKFAQoOU2lnbkluV2l0aENvZGUSIi5kb2Nrd2VsbC52MS5TaWduSW5XaXRoQ29kZVJlcXVlc3QaIy5kb2Nrd2VsbC52MS5TaWduSW5XaXRoQ29kZVJlc3BvbnNlIiqguxgDgtPkkwIgOgEqIhsvdjEvc2Vzc2lvbnM6c2lnbkluV2l0aENvZGUShQEKDlNpZ25JbldpdGhMaW5rEiIuZG9ja3dlbGwudjEuU2lnbkluV2l0aExpbmtSZXF1ZXN0GiMuZG9ja3dlbGwudjEuU2lnbkluV2l0aExpbmtSZXNwb25zZSIqoLsYA4LT5JMCIDoBKiIbL3YxL3Nlc3Npb25zOnNpZ25JbldpdGhMaW5rEmkKB1NpZ25PdXQSGy5kb2Nrd2VsbC52MS5TaWduT3V0UmVxdWVzdBocLmRvY2t3ZWxsLnYxLlNpZ25PdXRSZXNwb25zZSIjoLsYA4LT5JMCGToBKiIUL3YxL3Nlc3Npb25zOnNpZ25PdXQScAoMTGlzdFNlc3Npb25zEiAuZG9ja3dlbGwudjEuTGlzdFNlc3Npb25zUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkxpc3RTZXNzaW9uc1Jlc3BvbnNlIhuQAgGguxgBgtPkkwIOEgwvdjEvc2Vzc2lvbnMSfwoNUmV2b2tlU2Vzc2lvbhIhLmRvY2t3ZWxsLnYxLlJldm9rZVNlc3Npb25SZXF1ZXN0GiIuZG9ja3dlbGwudjEuUmV2b2tlU2Vzc2lvblJlc3BvbnNlIieguxgEgtPkkwIdOgEqIhgvdjEvc2Vzc2lvbnMve2lkfTpyZXZva2USkgEKE1Jldm9rZU90aGVyU2Vzc2lvbnMSJy5kb2Nrd2VsbC52MS5SZXZva2VPdGhlclNlc3Npb25zUmVxdWVzdBooLmRvY2t3ZWxsLnYxLlJldm9rZU90aGVyU2Vzc2lvbnNSZXNwb25zZSIooLsYBILT5JMCHjoBKiIZL3YxL3Nlc3Npb25zOnJldm9rZU90aGVycxJ5CgtCZWdpblN0ZXBVcBIfLmRvY2t3ZWxsLnYxLkJlZ2luU3RlcFVwUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkJlZ2luU3RlcFVwUmVzcG9uc2UiJ6C7GAGC0+STAh06ASoiGC92MS9zZXNzaW9uczpiZWdpblN0ZXBVcBJ9CgxGaW5pc2hTdGVwVXASIC5kb2Nrd2VsbC52MS5GaW5pc2hTdGVwVXBSZXF1ZXN0GiEuZG9ja3dlbGwudjEuRmluaXNoU3RlcFVwUmVzcG9uc2UiKKC7GAOC0+STAh46ASoiGS92MS9zZXNzaW9uczpmaW5pc2hTdGVwVXAScAoMTGlzdFBhc3NrZXlzEiAuZG9ja3dlbGwudjEuTGlzdFBhc3NrZXlzUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkxpc3RQYXNza2V5c1Jlc3BvbnNlIhuQAgGguxgBgtPkkwIOEgwvdjEvcGFzc2tleXMSggEKD0JlZ2luQWRkUGFzc2tleRIjLmRvY2t3ZWxsLnYxLkJlZ2luQWRkUGFzc2tleVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5CZWdpbkFkZFBhc3NrZXlSZXNwb25zZSIkoLsYAYLT5JMCGjoBKiIVL3YxL3Bhc3NrZXlzOmJlZ2luQWRkEoYBChBGaW5pc2hBZGRQYXNza2V5EiQuZG9ja3dlbGwudjEuRmluaXNoQWRkUGFzc2tleVJlcXVlc3QaJS5kb2Nrd2VsbC52MS5GaW5pc2hBZGRQYXNza2V5UmVzcG9uc2UiJaC7GAOC0+STAhs6ASoiFi92MS9wYXNza2V5czpmaW5pc2hBZGQSdQoNUmVtb3ZlUGFzc2tleRIhLmRvY2t3ZWxsLnYxLlJlbW92ZVBhc3NrZXlSZXF1ZXN0GiIuZG9ja3dlbGwudjEuUmVtb3ZlUGFzc2tleVJlc3BvbnNlIh2guxgEgtPkkwITKhEvdjEvcGFzc2tleXMve2lkfRJdCgdHZXRUb3RwEhsuZG9ja3dlbGwudjEuR2V0VG90cFJlcXVlc3QaHC5kb2Nrd2VsbC52MS5HZXRUb3RwUmVzcG9uc2UiF5ACAaC7GAGC0+STAgoSCC92MS90b3RwEn0KDkJlZ2luVG90cFNldHVwEiIuZG9ja3dlbGwudjEuQmVnaW5Ub3RwU2V0dXBSZXF1ZXN0GiMuZG9ja3dlbGwudjEuQmVnaW5Ub3RwU2V0dXBSZXNwb25zZSIioLsYA4LT5JMCGDoBKiITL3YxL3RvdHA6YmVnaW5TZXR1cBKFAQoQQ29uZmlybVRvdHBTZXR1cBIkLmRvY2t3ZWxsLnYxLkNvbmZpcm1Ub3RwU2V0dXBSZXF1ZXN0GiUuZG9ja3dlbGwudjEuQ29uZmlybVRvdHBTZXR1cFJlc3BvbnNlIiSguxgDgtPkkwIaOgEqIhUvdjEvdG90cDpjb25maXJtU2V0dXAScQoLRGlzYWJsZVRvdHASHy5kb2Nrd2VsbC52MS5EaXNhYmxlVG90cFJlcXVlc3QaIC5kb2Nrd2VsbC52MS5EaXNhYmxlVG90cFJlc3BvbnNlIh+guxgEgtPkkwIVOgEqIhAvdjEvdG90cDpkaXNhYmxlEqUBChdSZWdlbmVyYXRlUmVjb3ZlcnlDb2RlcxIrLmRvY2t3ZWxsLnYxLlJlZ2VuZXJhdGVSZWNvdmVyeUNvZGVzUmVxdWVzdBosLmRvY2t3ZWxsLnYxLlJlZ2VuZXJhdGVSZWNvdmVyeUNvZGVzUmVzcG9uc2UiL6C7GASC0+STAiU6ASoiIC92MS90b3RwOnJlZ2VuZXJhdGVSZWNvdmVyeUNvZGVzEn8KEFVubG9ja0NvZGVTaWduSW4SJC5kb2Nrd2VsbC52MS5VbmxvY2tDb2RlU2lnbkluUmVxdWVzdBolLmRvY2t3ZWxsLnYxLlVubG9ja0NvZGVTaWduSW5SZXNwb25zZSIeoLsYA4LT5JMCFDoBKiIPL3YxL3RvdHA6dW5sb2NrGosLorsYtgEKCmF1dGgtc3RhdGUSpwFUaGUgaW5zdGFsbCdzIGF1dGggc3RhdGUgc2F5cyB3aGV0aGVyIGl0IGhhcyBhbiBvd25lciB5ZXQsIHdobyBpcyBzaWduZWQgaW4gb24gYSByZXF1ZXN0LCBhbmQgd2hpY2ggYWRkcmVzcyBwYXNza2V5cyBhcmUgbWFkZSBmb3IgdGhlcmUuIEdldEF1dGhTdGF0ZSBuZWVkcyBubyBzaWduLWluLqK7GJICCgpjbGFpbS1saW5rEoMCQSBjbGFpbSBsaW5rLCB3aGljaCBkb2Nrd2VsbCBydW4gYW5kIGRvY2t3ZWxsIGNsYWltIHByaW50LCBjcmVhdGVzIHRoZSBpbnN0YWxsJ3Mgb3duZXIgd2l0aCBhIHBhc3NrZXksIGFuZCB3b3JrcyBvbmNlLiBDaGVja0NsYWltIGRlc2NyaWJlcyB0aGUgc2VydmVyIGEgbGluayBjbGFpbXMsIGFuZCBCZWdpbkNsYWltIGFuZCBGaW5pc2hDbGFpbSBtYWtlIHRoZSBwYXNza2V5LCB3aGljaCB0YWtlcyBhIGJyb3dzZXI6IG9wZW4gdGhlIGxpbmsgaW4gb25lLqK7GJoCCghwYXNza2V5cxKNAlBhc3NrZXlzIGFyZSBob3cgeW91IHNpZ24gaW4gdG8gdGhlIHBhbmVsLiBBIGJyb3dzZXIsIGEgcGhvbmUgb3IgYSBzZWN1cml0eSBrZXkgbWFrZXMgZWFjaCBvbmUsIGZvciBvbmUgYWRkcmVzcywgYW5kIG9ubHkgaXQgY2FuIHVzZSBpdC4gQWRkaW5nIGFuZCByZW1vdmluZyB0aGVtIG5lZWRzIGEgc2lnbmVkLWluIHNlc3Npb24sIHdoaWNoIG5vIEFQSSB0b2tlbiBnaXZlcywgc28geW91IGRvIGl0IGluIHRoZSBwYW5lbCwgdW5kZXIgUHJvZmlsZSBhbmQgc2VjdXJpdHkuorsYuQIKCHNlc3Npb25zEqwCQSBzZXNzaW9uIGlzIGEgYnJvd3NlciB5b3UncmUgc2lnbmVkIGluIG9uLiBTaWduaW5nIGluIHRha2VzIGEgcGFzc2tleSwgYSBjb2RlIGZyb20gYW4gYXV0aGVudGljYXRvciBhcHAsIGEgcmVjb3ZlcnkgY29kZSwgb3IgYSBvbmUtdGltZSBsaW5rIGZyb20gZG9ja3dlbGwgcmVjb3ZlciwgYW5kIHNldHMgYSBzZXNzaW9uIGNvb2tpZS4gTm8gQVBJIHRva2VuIGNhbiBzaWduIGluLCBvciBsaXN0IG9yIGVuZCBzZXNzaW9uczogaG93IHlvdSBzaWduIGluIGNoYW5nZXMgb25seSBieSBzaWduaW5nIGluLCBpbiB0aGUgcGFuZWwuorsY1wIKBHRvdHASzgJDb2RlIHNpZ24taW4gbGV0cyB5b3Ugc2lnbiBpbiB3aXRoIGEgY29kZSBmcm9tIGFuIGF1dGhlbnRpY2F0b3IgYXBwLCBvciB3aXRoIGEgb25lLXRpbWUgcmVjb3ZlcnkgY29kZSwgYmVzaWRlIHlvdXIgcGFzc2tleXMuIFdyb25nIGNvZGVzIHNsb3cgaXQgZG93biwgYW5kIHRvbyBtYW55IGxvY2sgaXQgdW50aWwgVW5sb2NrQ29kZVNpZ25JbiB0dXJucyBpdCBiYWNrIG9uLiBTZXR0aW5nIGl0IHVwIG5lZWRzIGEgc2lnbmVkLWluIHNlc3Npb24sIHdoaWNoIG5vIEFQSSB0b2tlbiBnaXZlcywgc28geW91IGRvIGl0IGluIHRoZSBwYW5lbCwgdW5kZXIgUHJvZmlsZSBhbmQgc2VjdXJpdHkuQqIBCg9jb20uZG9ja3dlbGwudjFCCUF1dGhQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_dockwell_v1_server, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * User is a person who signs in to the panel.
@@ -855,6 +855,119 @@ export const PasskeySchema: GenMessage<Passkey> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_auth, 28);
 
 /**
+ * BeginStepUpRequest says what the passkey confirms.
+ *
+ * @generated from message dockwell.v1.BeginStepUpRequest
+ */
+export type BeginStepUpRequest = Message<"dockwell.v1.BeginStepUpRequest"> & {
+  /**
+   * The action.
+   *
+   * @generated from field: dockwell.v1.StepUpAction action = 1;
+   */
+  action: StepUpAction;
+
+  /**
+   * What it acts on, such as a secret's ID.
+   *
+   * @generated from field: string target = 2;
+   */
+  target: string;
+};
+
+/**
+ * Describes the message dockwell.v1.BeginStepUpRequest.
+ * Use `create(BeginStepUpRequestSchema)` to create a new message.
+ */
+export const BeginStepUpRequestSchema: GenMessage<BeginStepUpRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_auth, 29);
+
+/**
+ * BeginStepUpResponse carries the options for the passkey's assertion.
+ *
+ * @generated from message dockwell.v1.BeginStepUpResponse
+ */
+export type BeginStepUpResponse = Message<"dockwell.v1.BeginStepUpResponse"> & {
+  /**
+   * Pass back to FinishStepUp.
+   *
+   * @generated from field: string ceremony_id = 1;
+   */
+  ceremonyId: string;
+
+  /**
+   * PublicKeyCredentialRequestOptionsJSON, which allows only your passkeys
+   * for this address.
+   *
+   * @generated from field: string options_json = 2;
+   */
+  optionsJson: string;
+};
+
+/**
+ * Describes the message dockwell.v1.BeginStepUpResponse.
+ * Use `create(BeginStepUpResponseSchema)` to create a new message.
+ */
+export const BeginStepUpResponseSchema: GenMessage<BeginStepUpResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_auth, 30);
+
+/**
+ * FinishStepUpRequest carries the passkey's answer.
+ *
+ * @generated from message dockwell.v1.FinishStepUpRequest
+ */
+export type FinishStepUpRequest = Message<"dockwell.v1.FinishStepUpRequest"> & {
+  /**
+   * From BeginStepUp.
+   *
+   * @generated from field: string ceremony_id = 1;
+   */
+  ceremonyId: string;
+
+  /**
+   * AuthenticationResponseJSON from navigator.credentials.get.
+   *
+   * @generated from field: string credential_json = 2;
+   */
+  credentialJson: string;
+};
+
+/**
+ * Describes the message dockwell.v1.FinishStepUpRequest.
+ * Use `create(FinishStepUpRequestSchema)` to create a new message.
+ */
+export const FinishStepUpRequestSchema: GenMessage<FinishStepUpRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_auth, 31);
+
+/**
+ * FinishStepUpResponse carries the proof.
+ *
+ * @generated from message dockwell.v1.FinishStepUpResponse
+ */
+export type FinishStepUpResponse = Message<"dockwell.v1.FinishStepUpResponse"> & {
+  /**
+   * Pass it to the action's method, such as RevealSecret's proof.
+   *
+   * @generated from field: string proof = 1;
+   */
+  proof: string;
+
+  /**
+   * When it stops working, a minute from now.
+   *
+   * @generated from field: google.protobuf.Timestamp expire_time = 2;
+   */
+  expireTime?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.FinishStepUpResponse.
+ * Use `create(FinishStepUpResponseSchema)` to create a new message.
+ */
+export const FinishStepUpResponseSchema: GenMessage<FinishStepUpResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_auth, 32);
+
+/**
  * BeginAddPasskeyRequest takes no parameters.
  *
  * @generated from message dockwell.v1.BeginAddPasskeyRequest
@@ -867,7 +980,7 @@ export type BeginAddPasskeyRequest = Message<"dockwell.v1.BeginAddPasskeyRequest
  * Use `create(BeginAddPasskeyRequestSchema)` to create a new message.
  */
 export const BeginAddPasskeyRequestSchema: GenMessage<BeginAddPasskeyRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 29);
+  messageDesc(file_dockwell_v1_auth, 33);
 
 /**
  * BeginAddPasskeyResponse carries the options for creating the passkey.
@@ -895,7 +1008,7 @@ export type BeginAddPasskeyResponse = Message<"dockwell.v1.BeginAddPasskeyRespon
  * Use `create(BeginAddPasskeyResponseSchema)` to create a new message.
  */
 export const BeginAddPasskeyResponseSchema: GenMessage<BeginAddPasskeyResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 30);
+  messageDesc(file_dockwell_v1_auth, 34);
 
 /**
  * FinishAddPasskeyRequest carries the new passkey.
@@ -930,7 +1043,7 @@ export type FinishAddPasskeyRequest = Message<"dockwell.v1.FinishAddPasskeyReque
  * Use `create(FinishAddPasskeyRequestSchema)` to create a new message.
  */
 export const FinishAddPasskeyRequestSchema: GenMessage<FinishAddPasskeyRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 31);
+  messageDesc(file_dockwell_v1_auth, 35);
 
 /**
  * FinishAddPasskeyResponse carries the saved passkey.
@@ -951,7 +1064,7 @@ export type FinishAddPasskeyResponse = Message<"dockwell.v1.FinishAddPasskeyResp
  * Use `create(FinishAddPasskeyResponseSchema)` to create a new message.
  */
 export const FinishAddPasskeyResponseSchema: GenMessage<FinishAddPasskeyResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 32);
+  messageDesc(file_dockwell_v1_auth, 36);
 
 /**
  * RemovePasskeyRequest names a passkey.
@@ -972,7 +1085,7 @@ export type RemovePasskeyRequest = Message<"dockwell.v1.RemovePasskeyRequest"> &
  * Use `create(RemovePasskeyRequestSchema)` to create a new message.
  */
 export const RemovePasskeyRequestSchema: GenMessage<RemovePasskeyRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 33);
+  messageDesc(file_dockwell_v1_auth, 37);
 
 /**
  * RemovePasskeyResponse is empty.
@@ -987,7 +1100,7 @@ export type RemovePasskeyResponse = Message<"dockwell.v1.RemovePasskeyResponse">
  * Use `create(RemovePasskeyResponseSchema)` to create a new message.
  */
 export const RemovePasskeyResponseSchema: GenMessage<RemovePasskeyResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 34);
+  messageDesc(file_dockwell_v1_auth, 38);
 
 /**
  * GetTotpRequest takes no parameters.
@@ -1002,7 +1115,7 @@ export type GetTotpRequest = Message<"dockwell.v1.GetTotpRequest"> & {
  * Use `create(GetTotpRequestSchema)` to create a new message.
  */
 export const GetTotpRequestSchema: GenMessage<GetTotpRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 35);
+  messageDesc(file_dockwell_v1_auth, 39);
 
 /**
  * GetTotpResponse describes code sign-in.
@@ -1023,7 +1136,7 @@ export type GetTotpResponse = Message<"dockwell.v1.GetTotpResponse"> & {
  * Use `create(GetTotpResponseSchema)` to create a new message.
  */
 export const GetTotpResponseSchema: GenMessage<GetTotpResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 36);
+  messageDesc(file_dockwell_v1_auth, 40);
 
 /**
  * Totp is the state of signing in with an authenticator app.
@@ -1066,7 +1179,7 @@ export type Totp = Message<"dockwell.v1.Totp"> & {
  * Use `create(TotpSchema)` to create a new message.
  */
 export const TotpSchema: GenMessage<Totp> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 37);
+  messageDesc(file_dockwell_v1_auth, 41);
 
 /**
  * BeginTotpSetupRequest takes no parameters.
@@ -1081,7 +1194,7 @@ export type BeginTotpSetupRequest = Message<"dockwell.v1.BeginTotpSetupRequest">
  * Use `create(BeginTotpSetupRequestSchema)` to create a new message.
  */
 export const BeginTotpSetupRequestSchema: GenMessage<BeginTotpSetupRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 38);
+  messageDesc(file_dockwell_v1_auth, 42);
 
 /**
  * BeginTotpSetupResponse carries the new secret.
@@ -1109,7 +1222,7 @@ export type BeginTotpSetupResponse = Message<"dockwell.v1.BeginTotpSetupResponse
  * Use `create(BeginTotpSetupResponseSchema)` to create a new message.
  */
 export const BeginTotpSetupResponseSchema: GenMessage<BeginTotpSetupResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 39);
+  messageDesc(file_dockwell_v1_auth, 43);
 
 /**
  * ConfirmTotpSetupRequest carries a code from the new secret.
@@ -1130,7 +1243,7 @@ export type ConfirmTotpSetupRequest = Message<"dockwell.v1.ConfirmTotpSetupReque
  * Use `create(ConfirmTotpSetupRequestSchema)` to create a new message.
  */
 export const ConfirmTotpSetupRequestSchema: GenMessage<ConfirmTotpSetupRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 40);
+  messageDesc(file_dockwell_v1_auth, 44);
 
 /**
  * ConfirmTotpSetupResponse carries the recovery codes.
@@ -1151,7 +1264,7 @@ export type ConfirmTotpSetupResponse = Message<"dockwell.v1.ConfirmTotpSetupResp
  * Use `create(ConfirmTotpSetupResponseSchema)` to create a new message.
  */
 export const ConfirmTotpSetupResponseSchema: GenMessage<ConfirmTotpSetupResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 41);
+  messageDesc(file_dockwell_v1_auth, 45);
 
 /**
  * DisableTotpRequest takes no parameters.
@@ -1166,7 +1279,7 @@ export type DisableTotpRequest = Message<"dockwell.v1.DisableTotpRequest"> & {
  * Use `create(DisableTotpRequestSchema)` to create a new message.
  */
 export const DisableTotpRequestSchema: GenMessage<DisableTotpRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 42);
+  messageDesc(file_dockwell_v1_auth, 46);
 
 /**
  * DisableTotpResponse is empty.
@@ -1181,7 +1294,7 @@ export type DisableTotpResponse = Message<"dockwell.v1.DisableTotpResponse"> & {
  * Use `create(DisableTotpResponseSchema)` to create a new message.
  */
 export const DisableTotpResponseSchema: GenMessage<DisableTotpResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 43);
+  messageDesc(file_dockwell_v1_auth, 47);
 
 /**
  * RegenerateRecoveryCodesRequest takes no parameters.
@@ -1196,7 +1309,7 @@ export type RegenerateRecoveryCodesRequest = Message<"dockwell.v1.RegenerateReco
  * Use `create(RegenerateRecoveryCodesRequestSchema)` to create a new message.
  */
 export const RegenerateRecoveryCodesRequestSchema: GenMessage<RegenerateRecoveryCodesRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 44);
+  messageDesc(file_dockwell_v1_auth, 48);
 
 /**
  * RegenerateRecoveryCodesResponse carries the new codes.
@@ -1217,7 +1330,7 @@ export type RegenerateRecoveryCodesResponse = Message<"dockwell.v1.RegenerateRec
  * Use `create(RegenerateRecoveryCodesResponseSchema)` to create a new message.
  */
 export const RegenerateRecoveryCodesResponseSchema: GenMessage<RegenerateRecoveryCodesResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 45);
+  messageDesc(file_dockwell_v1_auth, 49);
 
 /**
  * UnlockCodeSignInRequest takes no parameters.
@@ -1232,7 +1345,7 @@ export type UnlockCodeSignInRequest = Message<"dockwell.v1.UnlockCodeSignInReque
  * Use `create(UnlockCodeSignInRequestSchema)` to create a new message.
  */
 export const UnlockCodeSignInRequestSchema: GenMessage<UnlockCodeSignInRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 46);
+  messageDesc(file_dockwell_v1_auth, 50);
 
 /**
  * UnlockCodeSignInResponse is empty.
@@ -1247,7 +1360,7 @@ export type UnlockCodeSignInResponse = Message<"dockwell.v1.UnlockCodeSignInResp
  * Use `create(UnlockCodeSignInResponseSchema)` to create a new message.
  */
 export const UnlockCodeSignInResponseSchema: GenMessage<UnlockCodeSignInResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_auth, 47);
+  messageDesc(file_dockwell_v1_auth, 51);
 
 /**
  * Role is what a person may do.
@@ -1326,6 +1439,32 @@ export enum SignInMethod {
  */
 export const SignInMethodSchema: GenEnum<SignInMethod> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_auth, 1);
+
+/**
+ * StepUpAction is an action that needs a fresh passkey assertion.
+ *
+ * @generated from enum dockwell.v1.StepUpAction
+ */
+export enum StepUpAction {
+  /**
+   * @generated from enum value: STEP_UP_ACTION_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Revealing a secret's value, with RevealSecret. The target is the
+   * secret's ID.
+   *
+   * @generated from enum value: STEP_UP_ACTION_REVEAL_SECRET = 1;
+   */
+  REVEAL_SECRET = 1,
+}
+
+/**
+ * Describes the enum dockwell.v1.StepUpAction.
+ */
+export const StepUpActionSchema: GenEnum<StepUpAction> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_auth, 2);
 
 /**
  * AuthService claims a new install, signs people in and out, and manages how
@@ -1482,6 +1621,30 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof RevokeOtherSessionsRequestSchema;
     output: typeof RevokeOtherSessionsResponseSchema;
+  },
+  /**
+   * BeginStepUp starts confirming, with a passkey you have for the address
+   * of this request, an action that needs a person right now, such as
+   * revealing a secret. Pass the passkey's answer to FinishStepUp.
+   *
+   * @generated from rpc dockwell.v1.AuthService.BeginStepUp
+   */
+  beginStepUp: {
+    methodKind: "unary";
+    input: typeof BeginStepUpRequestSchema;
+    output: typeof BeginStepUpResponseSchema;
+  },
+  /**
+   * FinishStepUp checks the passkey's answer and returns a proof for the
+   * action it began with. The proof works once, within a minute, in this
+   * session alone, for that action on that target.
+   *
+   * @generated from rpc dockwell.v1.AuthService.FinishStepUp
+   */
+  finishStepUp: {
+    methodKind: "unary";
+    input: typeof FinishStepUpRequestSchema;
+    output: typeof FinishStepUpResponseSchema;
   },
   /**
    * ListPasskeys returns your passkeys, oldest first.

@@ -164,6 +164,7 @@ export const englishStrings: UIStrings = {
       container: "container",
       domain: "domain",
       secret: "secret",
+      variable: "variable",
       database: "database",
       job: "job",
       volume: "volume",

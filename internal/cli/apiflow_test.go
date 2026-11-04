@@ -386,7 +386,9 @@ func TestFieldFlagsAvoidTheCLIsOwn(t *testing.T) {
 			}
 		})
 		for _, c := range cmd.Commands() {
-			walk(c, kind || slices.Contains(kindNouns(), c.Name()))
+			// A kind's verbs; a noun may hold a service's methods beside
+			// them, as secrets does, whose flags are their own.
+			walk(c, kind || slices.Contains(kindNouns(), cmd.Name()) && slices.Contains([]string{"create", "update", "delete"}, c.Name()))
 		}
 	}
 	walk(root, false)

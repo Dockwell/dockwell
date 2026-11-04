@@ -72,6 +72,7 @@ func controlServerCommands(stdio IO, g *globalFlags) []*cobra.Command {
 			Args:   cobra.NoArgs,
 			RunE:   func(*cobra.Command, []string) error { return compose.RunGuard(os.Stdin) },
 		},
+		newRotateKeyCmd(stdio, g),
 	}
 }
 

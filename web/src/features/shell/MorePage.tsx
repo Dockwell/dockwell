@@ -16,8 +16,9 @@ import { shortVersion } from "./version";
 import "./MorePage.css";
 
 /**
- * The phone's More tab: every section the tab bar has no room for, the
- * control plane's status, your profile, the theme, and signing out.
+ * The phone's More tab: every section the tab bar has no room for, an
+ * environment's variables and secrets, the control plane's status, your
+ * profile, the theme, and signing out.
  */
 export function MorePage() {
   const { t, i18n } = useLingui();
@@ -45,6 +46,9 @@ export function MorePage() {
   return (
     <Page title={t`More`}>
       <nav className="dw-panel more-group" aria-label={t`Resources`}>
+        <Link to="/variables" className="more-row">
+          <RowBody icon="key" label={t`Variables and secrets`} />
+        </Link>
         {RESOURCES.filter((id) => UPCOMING[id].inMore).map(section)}
       </nav>
       <nav className="dw-panel more-group" aria-label={t`Operate`}>

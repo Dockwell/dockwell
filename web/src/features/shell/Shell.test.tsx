@@ -395,7 +395,7 @@ describe("the shell on phones", () => {
       within(screen.getByRole("navigation", { name: "Resources" }))
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["Websites", "Databases", "Connections", "Domains", "Backups", "Catalog"]);
+    ).toEqual(["Variables and secrets", "Websites", "Databases", "Connections", "Domains", "Backups", "Catalog"]);
     expect(
       within(screen.getByRole("navigation", { name: "Operate" }))
         .getAllByRole("link")

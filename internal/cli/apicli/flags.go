@@ -3,6 +3,7 @@
 package apicli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -40,8 +41,14 @@ type boundField struct {
 	// sensitive takes a map entry's value from the environment when only
 	// its key is given.
 	sensitive bool
-	env       *Env
+	// fromFile reads a sensitive field's value from a file, or standard
+	// input, which its flag names: never from the command line.
+	fromFile bool
+	env      *Env
 }
+
+// MaxSecretInput bounds a value read from a file or standard input.
+const MaxSecretInput = 1 << 20
 
 // FlagName is the flag for a field's path: "page_size" is "page-size",
 // and "app.image" "app-image".
@@ -75,7 +82,15 @@ func bind(fs *pflag.FlagSet, env *Env, root protoreflect.MessageDescriptor, fiel
 		if name == "" {
 			name = FlagName(f.Path)
 		}
-		bf := &boundField{path: path, flag: name, sensitive: f.Sensitive, env: env}
+		leaf := path[len(path)-1]
+		// A secret's value never comes from the command line, where shell
+		// history and the process list keep it: its flag names a file.
+		fromFile := f.Sensitive && !leaf.IsMap() && !leaf.IsList() &&
+			(leaf.Kind() == protoreflect.StringKind || leaf.Kind() == protoreflect.BytesKind)
+		if fromFile {
+			name += "-file"
+		}
+		bf := &boundField{path: path, flag: name, sensitive: f.Sensitive, fromFile: fromFile, env: env}
 		if f.Arg {
 			b.arg = bf
 			continue
@@ -143,6 +158,9 @@ func flagHelp(fd protoreflect.FieldDescriptor, f Field) string {
 		add("As JSON, or @file to read it from a file, or - from standard input.")
 	}
 	switch {
+	case f.Sensitive && !fd.IsMap() && !fd.IsList() && (fd.Kind() == protoreflect.StringKind || fd.Kind() == protoreflect.BytesKind):
+		add("Name a file to read it from, or - for standard input, which asks for it without showing it on a terminal. " +
+			"It never comes from the command line, so it stays out of your shell's history and the process list. A newline at its end is dropped.")
 	case fd.IsMap() && f.Sensitive:
 		add("As KEY=VALUE, or KEY alone to take the value from your environment, which keeps it out of your shell's history. Repeat it for each.")
 	case fd.IsMap():
@@ -200,6 +218,9 @@ func (b *boundField) Set(s string) error {
 // Type names the kind of value, as help shows it.
 func (b *boundField) Type() string {
 	fd := b.path[len(b.path)-1]
+	if b.fromFile {
+		return "file"
+	}
 	if fd.IsMap() {
 		return "key=value"
 	}
@@ -230,6 +251,12 @@ func (b *boundField) Type() string {
 
 // check parses one value for fd, or for a map's entry.
 func (b *boundField) check(fd protoreflect.FieldDescriptor, s string) (protoreflect.Value, error) {
+	if b.fromFile {
+		if s == "" {
+			return protoreflect.Value{}, errors.New("the value comes from a file, so it stays off the command line. Name one, or - for standard input")
+		}
+		return protoreflect.Value{}, nil // read when applied
+	}
 	if fd.IsMap() {
 		key, value, ok := strings.Cut(s, "=")
 		if key == "" || !ok && !b.sensitive {
@@ -280,6 +307,16 @@ func (b *boundField) apply(msg protoreflect.Message) error {
 			}
 			l.Append(v)
 		}
+	case b.fromFile:
+		text, err := b.readSecret(b.values[len(b.values)-1])
+		if err != nil {
+			return fmt.Errorf("--%s: %w", b.flag, err)
+		}
+		if fd.Kind() == protoreflect.BytesKind {
+			parent.Set(fd, protoreflect.ValueOfBytes([]byte(text)))
+		} else {
+			parent.Set(fd, protoreflect.ValueOfString(text))
+		}
 	default:
 		v, err := scalarOrMessage(fd, b.values[len(b.values)-1], b.env, func() protoreflect.Value { return parent.NewField(fd) })
 		if err != nil {
@@ -288,6 +325,40 @@ func (b *boundField) apply(msg protoreflect.Message) error {
 		parent.Set(fd, v)
 	}
 	return nil
+}
+
+// readSecret reads a sensitive value from a file, or from standard input
+// for -: on a terminal, through Env.ReadSecret, which doesn't echo it. One
+// newline at its end is dropped, as echo and most editors add one.
+func (b *boundField) readSecret(from string) (string, error) {
+	var data []byte
+	switch {
+	case from == "-" && b.env.ReadSecret != nil && b.env.Interactive != nil && b.env.Interactive():
+		text, err := b.env.ReadSecret("Value (it isn't shown as you type): ")
+		if err != nil {
+			return "", fmt.Errorf("can't read the value: %w", err)
+		}
+		return text, nil
+	case from == "-":
+		var err error
+		if data, err = io.ReadAll(io.LimitReader(b.env.In, MaxSecretInput+1)); err != nil {
+			return "", fmt.Errorf("can't read standard input: %w", err)
+		}
+	default:
+		f, err := os.Open(from) //nolint:gosec // the person running the command names the file
+		if err != nil {
+			return "", fmt.Errorf("can't read %s: %w", from, err)
+		}
+		defer f.Close()
+		if data, err = io.ReadAll(io.LimitReader(f, MaxSecretInput+1)); err != nil {
+			return "", fmt.Errorf("can't read %s: %w", from, err)
+		}
+	}
+	if len(data) > MaxSecretInput {
+		return "", fmt.Errorf("the value is over %d KiB, so no secret can hold it. Check that you named the right file", MaxSecretInput>>10)
+	}
+	text := strings.TrimSuffix(strings.TrimSuffix(string(data), "\n"), "\r")
+	return text, nil
 }
 
 // scalarOrMessage parses a value, reading a message field's JSON into a

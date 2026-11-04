@@ -7,6 +7,10 @@ msgstr ""
 "X-Generator: @lingui/cli\n"
 "Language: en\n"
 
+#: src/features/variables/VariablesPage.tsx
+msgid ", secret"
+msgstr ", secret"
+
 #: src/features/system/StatusPage.tsx
 msgid "(modified)"
 msgstr "(modified)"
@@ -183,6 +187,10 @@ msgstr "{out}, which reaches past the server's firewall"
 msgid "{out}, with {detail}"
 msgstr "{out}, with {detail}"
 
+#: src/features/variables/VariablesPage.tsx
+msgid "{plain, plural, one {# variable} other {# variables}}"
+msgstr "{plain, plural, one {# variable} other {# variables}}"
+
 #: src/features/changes/words.ts
 msgid "{reads}, relabelled for SELinux as private"
 msgstr "{reads}, relabelled for SELinux as private"
@@ -202,6 +210,10 @@ msgstr "{samples, plural, one {Trend over # sample, latest {latest}} other {Tren
 #: src/lib/time.ts
 msgid "{seconds} s"
 msgstr "{seconds} s"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "{secrets, plural, one {# secret} other {# secrets}}"
+msgstr "{secrets, plural, one {# secret} other {# secrets}}"
 
 #: src/features/activity/describe.ts
 msgid "{server} joined as the control server"
@@ -272,6 +284,10 @@ msgstr "a {type} mount ({reads})"
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "A claim link works only until someone claims the install. Sign in instead."
 
+#: src/features/variables/VariablesPage.tsx
+msgid "A secret needs a value."
+msgstr "A secret needs a value."
+
 #: src/features/activity/describe.ts
 msgid "a server"
 msgstr "a server"
@@ -305,6 +321,7 @@ msgid "Across {cpus} vCPU"
 msgstr "Across {cpus} vCPU"
 
 #: src/features/shell/CommandMenu.tsx
+#: src/features/variables/VariablesPage.tsx
 msgid "Actions"
 msgstr "Actions"
 
@@ -318,6 +335,10 @@ msgstr "Activity"
 msgid "Actor"
 msgstr "Actor"
 
+#: src/features/variables/VariablesPage.tsx
+msgid "Add"
+msgstr "Add"
+
 #: src/features/auth/ProfilePage.tsx
 msgid "Add a passkey for {rpId} now, so you can sign in here next time without another link."
 msgstr "Add a passkey for {rpId} now, so you can sign in here next time without another link."
@@ -326,10 +347,22 @@ msgstr "Add a passkey for {rpId} now, so you can sign in here next time without 
 msgid "Add a second way to sign in"
 msgstr "Add a second way to sign in"
 
+#: src/features/variables/VariablesPage.tsx
+msgid "Add a variable or secret to {envName}"
+msgstr "Add a variable or secret to {envName}"
+
 #: src/features/auth/PasskeysPanel.tsx
 #: src/features/auth/ProfilePage.tsx
 msgid "Add passkey"
 msgstr "Add passkey"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Add the secret {trimmed}"
+msgstr "Add the secret {trimmed}"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Add the variable {trimmed}"
+msgstr "Add the variable {trimmed}"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Added {added}"
@@ -398,8 +431,8 @@ msgid "API tokens"
 msgstr "API tokens"
 
 #: src/features/auth/messages.ts
-msgid "API tokens can't remove data, cut off access, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API tokens can't remove data, cut off access, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgid "API tokens can't remove data, cut off access, reveal a secret, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API tokens can't remove data, cut off access, reveal a secret, or change how you sign in and your tokens. Sign in and do it in the panel."
 
 #: src/app/Providers.tsx
 msgid "app"
@@ -423,6 +456,11 @@ msgstr "Applying"
 #: src/features/shell/TabBar.tsx
 msgid "Apps"
 msgstr "Apps"
+
+#. placeholder {0}: use.name
+#: src/features/variables/VariablesPage.tsx
+msgid "as {0}"
+msgstr "as {0}"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Authenticator app"
@@ -474,12 +512,29 @@ msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 #: src/features/auth/TokensPanel.tsx
 #: src/features/auth/TotpPanel.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/variables/VariablesPage.tsx
 msgid "Cancel"
 msgstr "Cancel"
 
 #: src/features/shell/sections.ts
 msgid "Catalog"
 msgstr "Catalog"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Change {name}"
+msgstr "Change {name}"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Change {trimmed}"
+msgstr "Change {trimmed}"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Change the secret {trimmed}"
+msgstr "Change the secret {trimmed}"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Change the variable {trimmed}"
+msgstr "Change the variable {trimmed}"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Changes"
@@ -574,6 +629,10 @@ msgstr "Committed"
 msgid "Confirm with Touch ID, Windows Hello or a security key."
 msgstr "Confirm with Touch ID, Windows Hello or a security key."
 
+#: src/features/auth/messages.ts
+msgid "Confirming this needs a passkey for this address, and you have none here. Add one under Profile and security, then try again."
+msgstr "Confirming this needs a passkey for this address, and you have none here. Add one under Profile and security, then try again."
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/system/StatusPage.tsx
 msgid "Connected"
@@ -612,6 +671,10 @@ msgstr "Control plane status"
 msgid "Control server"
 msgstr "Control server"
 
+#: src/features/variables/VariablesPage.tsx
+msgid "Copied {name}"
+msgstr "Copied {name}"
+
 #: src/features/servers/CopyButton.tsx
 msgid "Copied {text}"
 msgstr "Copied {text}"
@@ -619,6 +682,10 @@ msgstr "Copied {text}"
 #: src/features/servers/ServerPanels.tsx
 msgid "Copy {ip}"
 msgstr "Copy {ip}"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Copy {name}"
+msgstr "Copy {name}"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Copy codes"
@@ -846,6 +913,7 @@ msgid "environment"
 msgstr "environment"
 
 #: src/features/changes/words.ts
+#: src/features/variables/VariablesPage.tsx
 msgid "Environment"
 msgstr "Environment"
 
@@ -983,6 +1051,14 @@ msgstr "Healthy"
 msgid "hidden"
 msgstr "hidden"
 
+#: src/features/variables/VariablesPage.tsx
+msgid "Hidden"
+msgstr "Hidden"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Hide {name}"
+msgstr "Hide {name}"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Hostname"
 msgstr "Hostname"
@@ -1100,6 +1176,10 @@ msgstr "Keep it on"
 msgid "Kernel"
 msgstr "Kernel"
 
+#: src/features/variables/VariablesPage.tsx
+msgid "Key"
+msgstr "Key"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "last {span}"
 msgstr "last {span}"
@@ -1148,6 +1228,10 @@ msgstr "Loading the plan"
 msgid "Loading tokens"
 msgstr "Loading tokens"
 
+#: src/features/variables/VariablesPage.tsx
+msgid "Loading variables and secrets"
+msgstr "Loading variables and secrets"
+
 #: src/features/auth/SignInPage.tsx
 msgid "Lost your passkey?"
 msgstr "Lost your passkey?"
@@ -1184,6 +1268,14 @@ msgstr "Made new recovery codes"
 #: src/features/shell/TabBar.tsx
 msgid "Main"
 msgstr "Main"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Make {trimmed} a secret"
+msgstr "Make {trimmed} a secret"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Make {trimmed} a variable"
+msgstr "Make {trimmed} a variable"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Make new recovery codes"
@@ -1222,6 +1314,10 @@ msgstr "Move to another app"
 #: src/features/auth/TokensPanel.tsx
 msgid "Name"
 msgstr "Name"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Name it, such as DATABASE_URL."
+msgstr "Name it, such as DATABASE_URL."
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Name the new environment, such as staging"
@@ -1262,6 +1358,10 @@ msgstr "never used"
 #: src/features/auth/TotpPanel.tsx
 msgid "New recovery codes"
 msgstr "New recovery codes"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "New value"
+msgstr "New value"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "No downtime"
@@ -1307,6 +1407,10 @@ msgstr "No steps: it left the fleet"
 msgid "No tokens yet. Make one for each script or integration, so you can revoke one alone."
 msgstr "No tokens yet. Make one for each script or integration, so you can revoke one alone."
 
+#: src/features/variables/VariablesPage.tsx
+msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
+msgstr "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
+
 #: src/features/servers/ServerPanels.tsx
 msgid "None reported"
 msgstr "None reported"
@@ -1326,6 +1430,10 @@ msgstr "Not in this release yet"
 #: src/features/servers/ServerPanels.tsx
 msgid "Not installed or not running"
 msgstr "Not installed or not running"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Not used yet"
+msgstr "Not used yet"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Nothing here yet"
@@ -1414,6 +1522,15 @@ msgstr "Open the plan: {summary}"
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the server list"
 msgstr "Open the server list"
+
+#: src/features/activity/ActivityPage.tsx
+#: src/features/shell/CommandMenu.tsx
+msgid "Open the variables and secrets"
+msgstr "Open the variables and secrets"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Open the variables and secrets of {name}"
+msgstr "Open the variables and secrets of {name}"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open your profile and security settings"
@@ -1627,12 +1744,21 @@ msgid "Remove"
 msgstr "Remove"
 
 #: src/features/auth/PasskeysPanel.tsx
+#: src/features/variables/VariablesPage.tsx
 msgid "Remove {name}"
 msgstr "Remove {name}"
 
 #: src/app/Providers.tsx
 msgid "Remove {what}"
 msgstr "Remove {what}"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Remove the secret {name}"
+msgstr "Remove the secret {name}"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Remove the variable {name}"
+msgstr "Remove the variable {name}"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Removed"
@@ -1685,8 +1811,25 @@ msgstr "Retry"
 msgid "Retrying"
 msgstr "Retrying"
 
+#: src/features/variables/VariablesPage.tsx
+msgid "Reveal"
+msgstr "Reveal"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Reveal {name}"
+msgstr "Reveal {name}"
+
+#: src/features/activity/describe.ts
+msgid "Revealed a secret"
+msgstr "Revealed a secret"
+
+#: src/features/activity/describe.ts
+msgid "Revealed the secret {name}"
+msgstr "Revealed the secret {name}"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/variables/VariablesPage.tsx
 msgid "Review plan"
 msgstr "Review plan"
 
@@ -1721,6 +1864,10 @@ msgstr "Rolled back by"
 #: src/features/activity/ActivityPage.tsx
 msgid "Rolls back"
 msgstr "Rolls back"
+
+#: src/features/activity/describe.ts
+msgid "Rotated the key that wraps every secret"
+msgstr "Rotated the key that wraps every secret"
 
 #: src/features/overview/Overview.tsx
 msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
@@ -1784,6 +1931,11 @@ msgstr "Search or run a command"
 #: src/app/Providers.tsx
 msgid "secret"
 msgstr "secret"
+
+#: src/features/changes/words.ts
+#: src/features/variables/VariablesPage.tsx
+msgid "Secret"
+msgstr "Secret"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Sending"
@@ -2033,6 +2185,10 @@ msgstr "That code was already used. Wait for the next one in your authenticator 
 #: src/features/changes/ChangeSheet.tsx
 msgid "That didn't work"
 msgstr "That didn't work"
+
+#: src/features/auth/messages.ts
+msgid "That needs your passkey just now, and the confirmation was missing, used or expired. Try again, and confirm when your browser asks."
+msgstr "That needs your passkey just now, and the confirmation was missing, used or expired. Try again, and confirm when your browser asks."
 
 #: src/features/auth/messages.ts
 msgid "That passkey is already registered. Use it to sign in, or pick another device or security key."
@@ -2398,6 +2554,10 @@ msgstr "Up to {stepBound} until healthy"
 msgid "Update in place"
 msgstr "Update in place"
 
+#: src/features/variables/VariablesPage.tsx
+msgid "Updated"
+msgstr "Updated"
+
 #: src/features/auth/SignInPage.tsx
 msgid "Use a code from your authenticator app"
 msgstr "Use a code from your authenticator app"
@@ -2409,6 +2569,10 @@ msgstr "Use a passkey instead"
 #: src/features/auth/SignInPage.tsx
 msgid "Use a security key or another device"
 msgstr "Use a security key or another device"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
+msgstr "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Use the dark theme"
@@ -2430,6 +2594,39 @@ msgstr "used {0}"
 #: src/features/auth/TokensPanel.tsx
 msgid "used {ago} from <0>{lastAddress}</0>"
 msgstr "used {ago} from <0>{lastAddress}</0>"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Used by"
+msgstr "Used by"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "value"
+msgstr "value"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Value"
+msgstr "Value"
+
+#: src/app/Providers.tsx
+msgid "variable"
+msgstr "variable"
+
+#: src/features/changes/words.ts
+msgid "Variable"
+msgstr "Variable"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Variables"
+msgstr "Variables"
+
+#: src/features/shell/MorePage.tsx
+#: src/features/variables/VariablesPage.tsx
+msgid "Variables and secrets"
+msgstr "Variables and secrets"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Variables and secrets in {envName}"
+msgstr "Variables and secrets in {envName}"
 
 #: src/features/servers/ServerPanels.tsx
 #: src/features/system/StatusPage.tsx
@@ -2477,6 +2674,10 @@ msgstr "What changed"
 #: src/features/auth/ClaimPage.tsx
 msgid "What happens next"
 msgstr "What happens next"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
+msgstr "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
 
 #: src/features/auth/TokensPanel.tsx
 msgid "What will use this token?"

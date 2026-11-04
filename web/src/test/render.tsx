@@ -11,6 +11,7 @@ import {
   ServerService,
   SystemService,
   TokenService,
+  VariableService,
 } from "@dockwell/api";
 import { PHONE_QUERY } from "@dockwell/ui";
 import { QueryClient } from "@tanstack/react-query";
@@ -33,6 +34,7 @@ export type Api = {
   changes?: Partial<ServiceImpl<typeof ChangeService>>;
   events?: Partial<ServiceImpl<typeof EventService>>;
   resources?: Partial<ServiceImpl<typeof ResourceService>>;
+  variables?: Partial<ServiceImpl<typeof VariableService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -70,6 +72,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       // The command bar lists projects and recent changes; with none, it lists none.
       service(EventService, { listEvents: () => ({}), watchEvents: quietWatch, ...api.events });
       service(ResourceService, { listResources: () => ({}), ...api.resources });
+      service(VariableService, api.variables ?? {});
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );

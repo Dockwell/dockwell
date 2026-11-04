@@ -10,7 +10,8 @@
 // creates a project from the command bar, reviews its plan in the plan sheet,
 // applies it, and undoes it from Activity. The CLI plans a project with local
 // access, and the panel applies it at the address the CLI sends a person to,
-// /changes/<id>. Everything
+// /changes/<id>. It adds a secret in the panel, reveals it with the
+// passkey, and checks an API token can't. Everything
 // after the claim goes through the panel shell: the rail's link to your
 // profile on wide screens, More on phones. With --shots <dir> it also saves
 // screenshots of every screen at 1440, 800, 390 and 360 px, light and dark.
@@ -561,6 +562,76 @@ async function main() {
   step(
     `  ${changeId}, planned by the CLI's local access, applied at ${origin}/changes/${changeId}; Activity names both`,
   );
+
+  step("secrets: add one in the panel, reveal it with the passkey, and check an API token can't");
+  await page.goto(`${origin}/variables`);
+  await expectPage(page, "Variables and secrets");
+  // By now there are two projects, so the environment goes by default / production.
+  const valueForm = page.getByRole("form", { name: /^Add a variable or secret to (default \/ )?production$/ });
+  await valueForm.getByRole("textbox", { name: "Key" }).fill("DB_PASSWORD");
+  await valueForm.getByRole("switch", { name: "Secret" }).click();
+  const secretValue = "e2e-s3cret-correct-horse";
+  await valueForm.getByLabel("Value").fill(secretValue);
+  await valueForm.getByRole("button", { name: "Add" }).click();
+  const secretPlan = page.getByRole("dialog", { name: "Review plan" });
+  await secretPlan.waitFor();
+  await expectText(secretPlan, "Add the secret DB_PASSWORD");
+  if ((await secretPlan.innerText()).includes(secretValue)) fail("the plan sheet shows the secret's value");
+  await shoot(page, "plan-secret");
+  await secretPlan.getByRole("button", { name: /^Apply plan/ }).click();
+  const secretDone = page.getByRole("dialog", { name: "Applied" });
+  await secretDone.waitFor();
+  await secretDone.getByRole("button", { name: "Done" }).click();
+  const revealButton = page.getByRole("button", { name: "Reveal DB_PASSWORD" });
+  await revealButton.waitFor();
+  if ((await page.content()).includes(secretValue)) fail("the page has the secret's value before it was revealed");
+  await shoot(page, "variables");
+  // The virtual authenticator answers the passkey prompt, as Touch ID would.
+  await revealButton.click();
+  await page.getByText(secretValue, { exact: true }).waitFor();
+  await shoot(page, "variables-revealed");
+  const listed = await page.evaluate(async () => (await fetch("/v1/variables?project=default")).json());
+  const secretId =
+    ((listed as { variables?: { id: string; name: string; value?: string }[] }).variables ?? []).find(
+      (v) => v.name === "DB_PASSWORD",
+    )?.id ?? fail(`GET /v1/variables listed ${JSON.stringify(listed)}`);
+  if (JSON.stringify(listed).includes(secretValue)) fail("GET /v1/variables carries the secret's value");
+  // A script's token, even read-write, is refused, and so is its step-up.
+  const revealToken = await page.evaluate(async () => {
+    const res = await fetch("/v1/tokens", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "e2e reveal", scope: "TOKEN_SCOPE_READ_WRITE" }),
+    });
+    return (await res.json()) as { token?: { id: string }; secret?: string };
+  });
+  const revealer = revealToken.secret ?? fail(`making a token for the reveal: ${JSON.stringify(revealToken)}`);
+  for (const [path, body] of [
+    [`/v1/secrets/${secretId}:reveal`, { proof: "anything" }],
+    ["/v1/sessions:beginStepUp", { action: "STEP_UP_ACTION_REVEAL_SECRET", target: secretId }],
+  ] as const) {
+    const r = await fetch(`http://127.0.0.1:${port}${path}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${revealer}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await r.text();
+    if (r.status !== 403 || r.headers.get("Dockwell-Error") !== "needs_session" || text.includes(secretValue)) {
+      fail(`POST ${path} with a read-write token = ${r.status} ${r.headers.get("Dockwell-Error")}: ${text}`);
+    }
+  }
+  await page.evaluate(
+    async (id) =>
+      fetch(`/v1/tokens/${id}:revoke`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }),
+    revealToken.token?.id ?? "",
+  );
+  await page.getByRole("button", { name: "Hide DB_PASSWORD" }).click();
+  await page.goto(`${origin}/activity`);
+  await page
+    .getByRole("row", { name: /Revealed the secret DB_PASSWORD/ })
+    .first()
+    .waitFor();
+  step(`  ${secretId} added through a plan, revealed with the passkey and on the timeline; a token was refused`);
 
   step("sign out on a phone, from More");
   await page.setViewportSize({ width: 390, height: 844 });

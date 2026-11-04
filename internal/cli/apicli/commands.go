@@ -53,11 +53,15 @@ func Commands(env *Env, methods []*Method, nouns []Noun, kinds []*Kind) ([]*cobr
 		parent.AddCommand(cmd)
 	}
 	for _, k := range kinds {
-		cmd, err := kindCommand(env, k)
+		// A kind whose noun a service's methods have already, such as
+		// secrets, adds its verbs to that noun.
+		cmd, err := kindCommand(env, k, parents[k.Noun], opts[k.Noun])
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, cmd)
+		if _, ok := parents[k.Noun]; !ok {
+			out = append(out, cmd)
+		}
 	}
 	return out, nil
 }
@@ -249,7 +253,9 @@ var kindVerbs = []struct{ verb, short, long string }{
 	{"delete", "Delete a %s", "Proposes a change that deletes %s %s, shows its plan and asks before applying it."},
 }
 
-func kindCommand(env *Env, k *Kind) (*cobra.Command, error) {
+// kindCommand makes a kind's verbs, under parent with its options, or
+// under a noun of its own when parent is nil.
+func kindCommand(env *Env, k *Kind, parent *cobra.Command, o *options) (*cobra.Command, error) {
 	specField := (&resourcev1.Spec{}).ProtoReflect().Descriptor().Fields().ByName(protoreflect.Name(k.Field))
 	if specField == nil || specField.Message() == nil {
 		return nil, fmt.Errorf("the spec has no kind %s; run make generate", k.Field)
@@ -264,18 +270,21 @@ func kindCommand(env *Env, k *Kind) (*cobra.Command, error) {
 		return nil, err
 	}
 	what := strings.ReplaceAll(string(kind), ".", " ")
-	o := &options{}
-	parent := &cobra.Command{
-		Use:     k.Noun,
-		Short:   "Create, update or delete " + what + "s",
-		Long:    strings.TrimSpace(k.Short + ".\n\n" + k.Long + "\n\nEach command proposes a change, shows its plan, and asks before applying it."),
-		GroupID: GroupID,
-		Args:    noVerb,
-		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
-		// A verb two letters off, as "lsit" for list, is named.
-		SuggestionsMinimumDistance: 2,
+	if parent == nil {
+		o = &options{}
+		parent = &cobra.Command{
+			Use:     k.Noun,
+			Short:   "Create, update or delete " + what + "s",
+			Long:    strings.TrimSpace(k.Short + ".\n\n" + k.Long + "\n\nEach command proposes a change, shows its plan, and asks before applying it."),
+			GroupID: GroupID,
+			Args:    noVerb,
+			RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
+			// A verb two letters off, as "lsit" for list, is named.
+			SuggestionsMinimumDistance: 2,
+		}
+		settingsFlags(parent, o)
 	}
-	settingsFlags(parent, o)
+	_, unplaced := t.(resource.Valuer)
 	for _, v := range kindVerbs {
 		cmd := &cobra.Command{
 			Use:   v.verb + " <name>",
@@ -288,7 +297,7 @@ func kindCommand(env *Env, k *Kind) (*cobra.Command, error) {
 			}
 			return nil
 		}
-		where := scopeFlags(cmd, t.Level(), what)
+		where := scopeFlags(cmd, t.Level(), what, unplaced)
 		var summary string
 		cmd.Flags().StringVar(&summary, "summary", "", "what the change is for, in your words, for the timeline; defaults to what the command does, such as \""+capitalize(v.verb)+" "+what+" web\"")
 		cmd.Flags().BoolVarP(&o.yes, "yes", "y", false, "apply without asking")
@@ -356,7 +365,10 @@ func (o *oneServer) Set(s string) error {
 	return nil
 }
 
-func scopeFlags(cmd *cobra.Command, level resource.Level, what string) *placement {
+// scopeFlags adds the flags that say where a resource lives, and where it
+// runs. A kind that runs on no server itself, such as a secret, has no
+// --on.
+func scopeFlags(cmd *cobra.Command, level resource.Level, what string, unplaced bool) *placement {
 	p := &placement{level: level, server: oneServer{kind: what}}
 	f := cmd.Flags()
 	switch level {
@@ -366,8 +378,11 @@ func scopeFlags(cmd *cobra.Command, level resource.Level, what string) *placemen
 	case resource.LevelEnvironment:
 		f.StringVar(&p.project, "project", "", "the project of its environment, by name or ID; leave it out while there's only one")
 		f.StringVar(&p.environment, "environment", "", "the environment it's in, by name or ID; leave it out while its project has only one")
-		f.StringArrayVar(&p.on, "on", nil, "a server it runs on, by ID; repeat it for each. Leave it out to keep it where it runs, or while there's only one server")
-		p.flagProject, p.flagEnv, p.flagOn = true, true, true
+		p.flagProject, p.flagEnv = true, true
+		if !unplaced {
+			f.StringArrayVar(&p.on, "on", nil, "a server it runs on, by ID; repeat it for each. Leave it out to keep it where it runs, or while there's only one server")
+			p.flagOn = true
+		}
 	case resource.LevelServer:
 		f.Var(&p.server, "on", "the server it's on, by name or ID; leave it out while there's only one")
 		p.flagOn = true

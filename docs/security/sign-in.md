@@ -92,7 +92,7 @@ A session ends after 12 hours with no request, or 7 days after signing in. A pan
 
 These are tracked and not yet covered:
 
-- **Re-authentication for sensitive actions.** A signed-in session can add or remove passkeys and turn codes off without proving itself again. A stolen session already controls every server, so this matters less than it would elsewhere, but asking for a passkey again is planned.
+- **Re-authentication for sensitive actions.** Revealing a secret takes a fresh passkey assertion, a step-up ([ADR 0022](../adr/0022-secrets-encrypted-at-rest.md), [secrets.md](secrets.md)). A signed-in session can still add or remove passkeys and turn codes off without one, so a stolen session could add a passkey of its own and step up with it. A stolen session already controls every server, so this matters less than it would elsewhere, but guarding those with a step-up is planned.
 - **The panel behind your own reverse proxy.** Trusted-proxy settings, which would also give rate limits the client's real address, don't exist yet.
 - **Shared state for a highly available control plane.** Ceremonies, the per-address counters and stream tracking are in memory, on one control plane.
 - **Sessions through a tunnel share `localhost`.** Every local service on the operator's machine receives the `localhost` cookie, as described above. A domain avoids it.
