@@ -13,7 +13,6 @@ set -euo pipefail
 usage="usage: scripts/smoke-agent.sh path/to/dockwell path/to/dockwell-agent"
 full=${1:?$usage}
 agent=${2:?$usage}
-addr=127.0.0.1:${SMOKE_AGENT_PORT:-7697}
 work=$(mktemp -d)
 pids=()
 cleanup() {
@@ -54,13 +53,17 @@ for cmd in "token create" claim "servers list"; do
 done
 rm -f "$work/refused.log" "$work/elsewhere.log"
 
-# A control plane of the full build, and the agent build joined to it.
-"$full" run --listen "$addr" --agent-listen 127.0.0.1:0 --data-dir "$work/control.d" --log-format json >"$work/control.log" 2>&1 &
+# A control plane of the full build, and the agent build joined to it. It takes
+# any free port, so this can run beside another test of the built binaries.
+"$full" run --listen 127.0.0.1:0 --agent-listen 127.0.0.1:0 --data-dir "$work/control.d" --log-format json >"$work/control.log" 2>&1 &
 pids+=($!)
+addr=
 for _ in $(seq 100); do
-  curl -fsS "http://$addr/healthz" >/dev/null 2>&1 && break
+  addr=$(sed -n 's/.*"listener":"control plane","addr":"\([^"]*\)".*/\1/p' "$work/control.log")
+  [[ -n "$addr" ]] && curl -fsS "http://$addr/healthz" >/dev/null 2>&1 && break
   sleep 0.1
 done
+[[ -n "$addr" ]] || fail "the full build's control plane didn't say where it listens within 10 s"
 curl -fsS "http://$addr/healthz" >/dev/null 2>&1 || fail "the full build's control plane didn't answer on $addr within 10 s"
 ticket=$("$full" token create --data-dir "$work/control.d" 2>>"$work/control.log" | awk '$1 == "dockwell" && $2 == "join" { print $3 }')
 [[ -n "$ticket" ]] || fail "dockwell token create printed no ticket"

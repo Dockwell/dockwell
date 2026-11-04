@@ -9,14 +9,14 @@
 set -euo pipefail
 
 bin=${1:?usage: scripts/smoke.sh path/to/dockwell}
-addr=127.0.0.1:${SMOKE_PORT:-7699}
-base="http://$addr"
 log=$(mktemp)
 data=$(mktemp -d)
 
-# A throwaway data directory and an ephemeral agent port, so the smoke test
-# never touches a real install's state.
-"$bin" run --listen "$addr" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json >"$log" 2>&1 &
+# A throwaway data directory and ephemeral ports, so the smoke test never
+# touches a real install's state, and can run beside another one or make
+# budgets. On a port someone else holds, it would test their server, and read
+# its own log for what that server did. SMOKE_PORT names a port instead.
+"$bin" run --listen "127.0.0.1:${SMOKE_PORT:-0}" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json >"$log" 2>&1 &
 pid=$!
 cleanup() {
   kill "$pid" 2>/dev/null || true
@@ -32,10 +32,14 @@ fail() {
   exit 1
 }
 
+addr=
 for _ in $(seq 50); do
-  curl -fsS "$base/healthz" >/dev/null 2>&1 && break
+  addr=$(sed -n 's/.*"listener":"control plane","addr":"\([^"]*\)".*/\1/p' "$log")
+  [[ -n "$addr" ]] && curl -fsS "http://$addr/healthz" >/dev/null 2>&1 && break
   sleep 0.1
 done
+[[ -n "$addr" ]] || fail "dockwell run didn't say where it listens within 5 s"
+base="http://$addr"
 [[ "$(curl -fsS "$base/healthz")" == "ok" ]] || fail "/healthz did not answer ok within 5 s"
 
 version=$(curl -fsS -H 'Content-Type: application/json' -d '{}' "$base/dockwell.v1.SystemService/GetVersion")

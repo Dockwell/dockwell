@@ -81,8 +81,7 @@ baseline_name=${BASELINE_NAME:-the baseline}
 settle=${SETTLE:-180}
 runs=${RUNS:-5}
 stagger=${STAGGER:-3}
-# Run k serves its API on port + k.
-port=${BUDGETS_PORT:-7698}
+# Each run's API takes any free port, so this can run beside make check.
 whole() { [[ $2 =~ ^[0-9]+$ ]] || { echo "budgets: $1 must be a whole number, not \"$2\"" >&2; exit 2; }; }
 whole RUNS "$runs"
 whole SETTLE "$settle"
@@ -168,21 +167,23 @@ sample() {
 # agent build $3, called $4, as run $1, and writes their figures to
 # $work/$1/figures.
 run() {
-  local k=$1 dir="$work/$1" api="127.0.0.1:$((port + $1))" control agent ticket connected figures
+  local k=$1 dir="$work/$1" api="" control agent ticket connected figures
   mkdir -p "$dir"
   echo "$4" >"$dir/name"
   cp "$2" "$dir/control"
   cp "$3" "$dir/agent"
 
   # The control plane, with its own agent, in one process.
-  "$dir/control" run --listen "$api" --agent-listen 127.0.0.1:0 --data-dir "$dir/control.d" --log-format json \
+  "$dir/control" run --listen 127.0.0.1:0 --agent-listen 127.0.0.1:0 --data-dir "$dir/control.d" --log-format json \
     >"$dir/control.log" 2>&1 &
   control=$!
   echo "$control" >>"$work/pids"
   for _ in $(seq 300); do
-    curl -fsS "http://$api/healthz" >/dev/null 2>&1 && break
+    api=$(sed -n 's/.*"listener":"control plane","addr":"\([^"]*\)".*/\1/p' "$dir/control.log")
+    [[ -n "$api" ]] && curl -fsS "http://$api/healthz" >/dev/null 2>&1 && break
     sleep 0.1
   done
+  [[ -n "$api" ]] || fail "$k" "the control plane didn't say where it listens within 30 s"
   curl -fsS "http://$api/healthz" >/dev/null 2>&1 || fail "$k" "the control plane didn't answer /healthz on $api within 30 s"
   pause "$settle"
   kill -0 "$control" 2>/dev/null || fail "$k" "the control plane exited before it was measured"
