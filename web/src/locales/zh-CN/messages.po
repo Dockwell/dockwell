@@ -486,6 +486,14 @@ msgstr "API 令牌不能删除数据、切断访问、显示密钥，也不能�
 msgid "app"
 msgstr "应用"
 
+#: src/features/apps/AppLayout.tsx
+msgid "App"
+msgstr "应用"
+
+#: src/features/apps/AppLayout.tsx
+msgid "App sections"
+msgstr "应用分区"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/changes/ChangeSheet.tsx
 msgid "Applied"
@@ -500,7 +508,9 @@ msgstr "应用计划"
 msgid "Applying"
 msgstr "正在应用"
 
-#: src/features/shell/sections.ts
+#: src/features/apps/AppLayout.tsx
+#: src/features/apps/AppsPage.tsx
+#: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Apps"
 msgstr "应用"
@@ -529,6 +539,10 @@ msgstr "备份"
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "备份"
+
+#: src/features/apps/AppLayout.tsx
+msgid "Breadcrumb"
+msgstr "面包屑导航"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Brings back the data the server kept"
@@ -843,6 +857,10 @@ msgstr "部署你的第一个应用"
 msgid "Deploying"
 msgstr "正在部署"
 
+#: src/features/apps/AppLayout.tsx
+msgid "Deployments"
+msgstr "部署"
+
 #: src/app/Providers.tsx
 #: src/features/changes/words.ts
 msgid "Destroy"
@@ -976,6 +994,7 @@ msgstr "请输入你的姓名。"
 msgid "environment"
 msgstr "环境"
 
+#: src/features/apps/AppLayout.tsx
 #: src/features/changes/words.ts
 #: src/features/variables/VariablesPage.tsx
 msgid "Environment"
@@ -1288,6 +1307,10 @@ msgstr "目前在此监听的是：{listening}"
 msgid "Live"
 msgstr "实时"
 
+#: src/routes/_shell/apps.$serviceId.logs.tsx
+msgid "Live logs arrive in this tab with a later change. Until then, read them with docker logs on the server."
+msgstr "实时日志将在后续更新中加入此标签页。在此之前，请在服务器上用 docker logs 查看。"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "Load average"
 msgstr "平均负载"
@@ -1319,6 +1342,13 @@ msgstr "正在加载令牌"
 #: src/features/variables/VariablesPage.tsx
 msgid "Loading variables and secrets"
 msgstr "正在加载变量和密钥"
+#: src/features/apps/AppLayout.tsx
+msgid "Logs"
+msgstr "日志"
+
+#: src/routes/_shell/apps.$serviceId.logs.tsx
+msgid "Logs aren't in this build yet"
+msgstr "此版本尚无日志"
 
 #: src/features/auth/SignInPage.tsx
 msgid "Lost your passkey?"
@@ -1649,6 +1679,7 @@ msgstr "操作系统"
 msgid "Optional"
 msgstr "可选"
 
+#: src/features/apps/AppLayout.tsx
 #: src/features/overview/Overview.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx

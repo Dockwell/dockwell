@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ReactNode } from "react";
+import type { AnchorHTMLAttributes, ReactNode, Ref } from "react";
 
 import { cx } from "../../lib/cx";
 import { handleRovingKeyDown, tabStop } from "../../lib/roving";
@@ -83,5 +83,50 @@ export function Tabs<Id extends string = string>({
         );
       })}
     </div>
+  );
+}
+
+export interface TabNavProps {
+  /** Names the navigation for assistive technology. */
+  label: string;
+  /** TabLinks. */
+  children: ReactNode;
+  className?: string;
+}
+
+/**
+ * Tabs that are places: each one is a page with its own URL, so they are
+ * links in a navigation landmark rather than a tab list. It looks the same
+ * as Tabs. For a view inside one page, use Tabs.
+ */
+export function TabNav({ label, children, className }: TabNavProps) {
+  return (
+    <nav className={cx("dw-tabs", className)} aria-label={label}>
+      {children}
+    </nav>
+  );
+}
+
+export interface TabLinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "children"> {
+  /** One or two words. */
+  children: ReactNode;
+  /** A number only. */
+  count?: number | undefined;
+  /** Only when the count is a problem, such as open alerts; never for totals. */
+  countTone?: "warning" | "critical" | "cobalt" | undefined;
+  ref?: Ref<HTMLAnchorElement>;
+}
+
+/**
+ * One tab of a TabNav. Inside the panel, wrap it with the router's link
+ * factory, such as TanStack Router's createLink, so it navigates without a
+ * reload and sets aria-current on the page it names.
+ */
+export function TabLink({ children, count, countTone, className, ...rest }: TabLinkProps) {
+  return (
+    <a {...rest} className={cx("dw-tab", className)}>
+      <span>{children}</span>
+      {count != null ? <span className={cx("dw-tab-count", countTone && `dw-tone-${countTone}`)}>{count}</span> : null}
+    </a>
   );
 }

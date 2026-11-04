@@ -33,10 +33,13 @@
 .dw-tab:hover {
   color: var(--ink);
 }
-.dw-tab[aria-selected="true"] {
+.dw-tab:is(a) {
+  text-decoration: none;
+}
+.dw-tab:is([aria-selected="true"], [aria-current="page"]) {
   color: var(--ink);
 }
-.dw-tab[aria-selected="true"]::after {
+.dw-tab:is([aria-selected="true"], [aria-current="page"])::after {
   content: "";
   position: absolute;
   left: 0;

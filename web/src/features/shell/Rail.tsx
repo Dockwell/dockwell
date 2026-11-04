@@ -53,6 +53,9 @@ export function Rail({ view }: { view: FleetView }) {
       <Link to="/" activeOptions={{ exact: true }} {...current(segment === "")}>
         <ItemBody icon="home" label={t`Overview`} />
       </Link>
+      <Link to="/apps" {...current(segment === "apps")}>
+        <ItemBody icon="service" label={t`Apps`} />
+      </Link>
       {RESOURCES.map(section)}
       {view.fleet ? (
         <>

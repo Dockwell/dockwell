@@ -37,7 +37,15 @@ export { Sparkline, type SparklineProps, type SparklineTone } from "./components
 export { StatusBadge, type StatusBadgeProps } from "./components/StatusBadge/StatusBadge";
 export { Switch, type SwitchProps } from "./components/Switch/Switch";
 export { type CellKey, type RowKey, Table, type TableColumn, type TableProps } from "./components/Table/Table";
-export { type TabItem, Tabs, type TabsProps } from "./components/Tabs/Tabs";
+export {
+  type TabItem,
+  TabLink,
+  type TabLinkProps,
+  TabNav,
+  type TabNavProps,
+  Tabs,
+  type TabsProps,
+} from "./components/Tabs/Tabs";
 export { Tag, type TagProps } from "./components/Tag/Tag";
 export { TextField, type TextFieldProps } from "./components/TextField/TextField";
 export { Timeline, type TimelineEvent, type TimelineKind, type TimelineProps } from "./components/Timeline/Timeline";

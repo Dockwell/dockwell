@@ -42,7 +42,7 @@ export function TabBar({ view }: { view: FleetView }) {
       <Link to="/" {...props("overview")}>
         <TabBody icon="home" label={t`Overview`} />
       </Link>
-      <Link to="/$section" params={{ section: "apps" }} {...props("apps")}>
+      <Link to="/apps" {...props("apps")}>
         <TabBody icon="service" label={t`Apps`} />
       </Link>
       {view.only ? (

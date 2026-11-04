@@ -486,6 +486,14 @@ msgstr "API tokens can't remove data, cut off access, reveal a secret, or change
 msgid "app"
 msgstr "app"
 
+#: src/features/apps/AppLayout.tsx
+msgid "App"
+msgstr "App"
+
+#: src/features/apps/AppLayout.tsx
+msgid "App sections"
+msgstr "App sections"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/changes/ChangeSheet.tsx
 msgid "Applied"
@@ -500,7 +508,9 @@ msgstr "Apply plan"
 msgid "Applying"
 msgstr "Applying"
 
-#: src/features/shell/sections.ts
+#: src/features/apps/AppLayout.tsx
+#: src/features/apps/AppsPage.tsx
+#: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Apps"
 msgstr "Apps"
@@ -529,6 +539,10 @@ msgstr "backup"
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "Backups"
+
+#: src/features/apps/AppLayout.tsx
+msgid "Breadcrumb"
+msgstr "Breadcrumb"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Brings back the data the server kept"
@@ -843,6 +857,10 @@ msgstr "Deploy your first app"
 msgid "Deploying"
 msgstr "Deploying"
 
+#: src/features/apps/AppLayout.tsx
+msgid "Deployments"
+msgstr "Deployments"
+
 #: src/app/Providers.tsx
 #: src/features/changes/words.ts
 msgid "Destroy"
@@ -976,6 +994,7 @@ msgstr "Enter your name."
 msgid "environment"
 msgstr "environment"
 
+#: src/features/apps/AppLayout.tsx
 #: src/features/changes/words.ts
 #: src/features/variables/VariablesPage.tsx
 msgid "Environment"
@@ -1288,6 +1307,10 @@ msgstr "Listening there now: {listening}"
 msgid "Live"
 msgstr "Live"
 
+#: src/routes/_shell/apps.$serviceId.logs.tsx
+msgid "Live logs arrive in this tab with a later change. Until then, read them with docker logs on the server."
+msgstr "Live logs arrive in this tab with a later change. Until then, read them with docker logs on the server."
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "Load average"
 msgstr "Load average"
@@ -1319,6 +1342,13 @@ msgstr "Loading tokens"
 #: src/features/variables/VariablesPage.tsx
 msgid "Loading variables and secrets"
 msgstr "Loading variables and secrets"
+#: src/features/apps/AppLayout.tsx
+msgid "Logs"
+msgstr "Logs"
+
+#: src/routes/_shell/apps.$serviceId.logs.tsx
+msgid "Logs aren't in this build yet"
+msgstr "Logs aren't in this build yet"
 
 #: src/features/auth/SignInPage.tsx
 msgid "Lost your passkey?"
@@ -1649,6 +1679,7 @@ msgstr "Operating system"
 msgid "Optional"
 msgstr "Optional"
 
+#: src/features/apps/AppLayout.tsx
 #: src/features/overview/Overview.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
