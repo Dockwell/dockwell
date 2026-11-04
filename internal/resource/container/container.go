@@ -245,7 +245,18 @@ func Validate(c *resourcev1.Container) error {
 	return validateHealthcheck(c)
 }
 
+// What one container may ask for, far past what anything needs. Checks and
+// plans compare these with each other, so a request of 8 MiB that repeats
+// them shouldn't cost minutes.
+const (
+	MaxMounts = 256
+	MaxPorts  = 4096
+)
+
 func validatePorts(c *resourcev1.Container) error {
+	if n := len(c.GetPorts()); n > MaxPorts {
+		return fmt.Errorf("the container publishes %d ports, and Dockwell takes up to %d. Put a proxy in front of them, or publish fewer", n, MaxPorts)
+	}
 	type port struct {
 		number   uint32
 		protocol resourcev1.Protocol
@@ -345,6 +356,9 @@ func addressWords(ip string) string {
 }
 
 func validateMounts(c *resourcev1.Container) error {
+	if n := len(c.GetMounts()); n > MaxMounts {
+		return fmt.Errorf("the container has %d mounts, and Dockwell takes up to %d. Mount a parent path, or fewer volumes", n, MaxMounts)
+	}
 	seen := map[string]bool{}
 	for _, m := range c.GetMounts() {
 		target := m.GetTarget()

@@ -51,6 +51,11 @@ const (
 	MaxExpansion = 2 << 20
 	// MaxVariables is how many bytes the variables themselves may hold.
 	MaxVariables = 1 << 20
+	// MaxNesting is how deep variables may sit inside each other's
+	// defaults. Each level reads the rest of its string again and expands
+	// to almost nothing, so the budget above doesn't see it: a file of
+	// 960 KiB nested 160,000 deep took 34 s and 128 MiB of stack.
+	MaxNesting = 16
 )
 
 type interpolator struct {
@@ -58,6 +63,8 @@ type interpolator struct {
 	missing   map[string]bool
 	// expanded counts what variables have expanded to so far.
 	expanded int
+	// depth counts the variables being read inside each other.
+	depth int
 }
 
 // spend counts n bytes against MaxExpansion.
@@ -156,6 +163,11 @@ func (in *interpolator) substitute(at place, s string) (string, error) {
 
 // braced resolves one ${…}.
 func (in *interpolator) braced(at place, whole string) (string, error) {
+	if in.depth == MaxNesting {
+		return "", invalid("%s nests variables more than %d deep, so Dockwell can't read it. Use fewer defaults inside defaults, or pass the value in variables", at, MaxNesting)
+	}
+	in.depth++
+	defer func() { in.depth-- }()
 	inner := whole[2 : len(whole)-1]
 	n := 0
 	for n < len(inner) && (n == 0 && nameStart(inner[n]) || n > 0 && nameRest(inner[n])) {

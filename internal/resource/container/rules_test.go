@@ -3,6 +3,7 @@
 package container_test
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -260,5 +261,40 @@ func TestNetworkSpellings(t *testing.T) {
 		} else {
 			t.Logf("by ID = %v", err)
 		}
+	}
+}
+
+// Checks and plans compare these with each other, so a request that
+// repeats them shouldn't take minutes.
+func TestAContainerAsksForALimitedNumberOfMountsAndPorts(t *testing.T) {
+	mounts := func(n int) *resourcev1.Container {
+		c := &resourcev1.Container{Image: "nginx:1"}
+		for i := range n {
+			c.Mounts = append(c.Mounts, &resourcev1.Mount{
+				Target: fmt.Sprintf("/m/%d", i),
+				Source: &resourcev1.Mount_HostPath{HostPath: fmt.Sprintf("/srv/%d", i)},
+			})
+		}
+		return c
+	}
+	if err := container.Validate(mounts(container.MaxMounts)); err != nil {
+		t.Errorf("%d mounts: %v", container.MaxMounts, err)
+	}
+	if err := container.Validate(mounts(container.MaxMounts + 1)); err == nil {
+		t.Errorf("%d mounts pass", container.MaxMounts+1)
+	}
+
+	ports := func(n int) *resourcev1.Container {
+		c := &resourcev1.Container{Image: "nginx:1"}
+		for i := range n {
+			c.Ports = append(c.Ports, &resourcev1.PortMapping{HostPort: uint32(1 + i), ContainerPort: 80})
+		}
+		return c
+	}
+	if err := container.Validate(ports(container.MaxPorts)); err != nil {
+		t.Errorf("%d ports: %v", container.MaxPorts, err)
+	}
+	if err := container.Validate(ports(container.MaxPorts + 1)); err == nil {
+		t.Errorf("%d ports pass", container.MaxPorts+1)
 	}
 }

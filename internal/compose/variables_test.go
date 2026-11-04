@@ -82,3 +82,29 @@ func TestVariables(t *testing.T) {
 		})
 	}
 }
+
+// Each level of nesting reads the rest of its string again and expands to
+// almost nothing, so the budget for what variables expand to doesn't see
+// it: 160,000 levels in a file under the cap took 34 s of CPU.
+func TestVariablesNestToALimit(t *testing.T) {
+	nested := func(depth int) []byte {
+		return environment(strings.Repeat("${A:-", depth) + "x" + strings.Repeat("}", depth))
+	}
+	s, err := compose.Parse(t.Context(), nested(compose.MaxNesting), nil)
+	if err != nil {
+		t.Fatalf("%d levels: %v", compose.MaxNesting, err)
+	}
+	if got := s.Services[0].Spec.GetApp().GetEnv()["V"]; got != "x" {
+		t.Errorf("%d levels read as %q, want x", compose.MaxNesting, got)
+	}
+	for _, depth := range []int{compose.MaxNesting + 1, 160_000} {
+		_, err := compose.Parse(t.Context(), nested(depth), nil)
+		if !errors.Is(err, compose.ErrInvalid) || !strings.Contains(err.Error(), "nests variables") {
+			t.Errorf("%d levels: Parse = %v, want them refused", depth, err)
+		}
+	}
+	// A default that isn't used costs nothing, and isn't read.
+	if _, err := compose.Parse(t.Context(), environment("${SET:-"+strings.Repeat("${UNSET:-", compose.MaxNesting+1)+"x"+strings.Repeat("}", compose.MaxNesting+2)), vars); err != nil {
+		t.Errorf("a deep default that isn't used: %v", err)
+	}
+}

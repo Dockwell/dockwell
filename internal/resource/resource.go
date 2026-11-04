@@ -197,16 +197,25 @@ const (
 // socket is the same read-only or not, as a socket mounted read-only still
 // takes connections.
 func NewAccess(from, to []Access) []Access {
+	// writable says, for each access with ReadOnly cleared, whether from
+	// has it read-write.
+	writable := make(map[Access]bool, len(from))
+	for _, b := range from {
+		ro := b.ReadOnly
+		b.ReadOnly = false
+		writable[b] = writable[b] || !ro
+	}
 	var out []Access
+	seen := make(map[Access]bool)
 	for _, a := range to {
-		covered := slices.ContainsFunc(from, func(b Access) bool {
-			noMore := a.ReadOnly || !b.ReadOnly || a.Kind == AccessDocker
-			b.ReadOnly = a.ReadOnly
-			return a == b && noMore
-		})
-		if !covered && !slices.Contains(out, a) {
-			out = append(out, a)
+		key := a
+		key.ReadOnly = false
+		rw, has := writable[key]
+		if has && (a.ReadOnly || rw || a.Kind == AccessDocker) || seen[a] {
+			continue
 		}
+		seen[a] = true
+		out = append(out, a)
 	}
 	return out
 }
