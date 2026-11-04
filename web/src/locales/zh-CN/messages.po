@@ -27,8 +27,7 @@ msgstr "{0} 磁盘"
 msgid "{0} vCPU"
 msgstr "{0} vCPU"
 
-#: src/features/auth/ClaimPage.tsx
-#: src/features/auth/SessionsPanel.tsx
+#: src/features/auth/device.ts
 msgid "{browser} on {os}"
 msgstr "{os} 上的 {browser}"
 
@@ -317,7 +316,7 @@ msgstr "正在检查"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Checking again."
-msgstr ""
+msgstr "正在重新检查。"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Checking your session"
@@ -553,6 +552,10 @@ msgstr "请输入你的姓名。"
 msgid "Error"
 msgstr "错误"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Expired"
+msgstr "已过期"
+
 #: src/app/Providers.tsx
 msgid "firewall"
 msgstr "防火墙"
@@ -647,6 +650,10 @@ msgstr "{minutes} 分钟后"
 #: src/app/Providers.tsx
 msgid "In <0>{scope}</0>"
 msgstr "范围：<0>{scope}</0>"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "in under a minute"
+msgstr "不到一分钟后"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Installed"
@@ -1300,11 +1307,11 @@ msgstr "浏览器未能完成通行密钥操作。请重试，或换一台设备
 
 #: src/features/auth/messages.ts
 msgid "The control plane couldn't check your session just now. Try again in a moment."
-msgstr ""
+msgstr "控制平面暂时无法检查你的会话。请稍后重试。"
 
 #: src/features/auth/messages.ts
 msgid "The control plane doesn't answer at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain."
-msgstr ""
+msgstr "控制平面不在这个地址上响应。请通过 SSH 隧道在 http://localhost 打开面板，或在它的域名上打开。"
 
 #: src/features/system/StatusPage.tsx
 msgid "The control plane is running"
@@ -1312,7 +1319,7 @@ msgstr "控制平面正在运行"
 
 #: src/features/auth/messages.ts
 msgid "The control plane refused this because it didn't come from the panel's own address. Open the panel at its usual address and try there."
-msgstr ""
+msgstr "控制平面拒绝了这个请求，因为它不是从面板自己的地址发出的。请在面板的常用地址打开它，然后在那里重试。"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "the control plane runs {controlPlane}"
@@ -1562,7 +1569,7 @@ msgstr "接下来"
 
 #: src/features/auth/AuthGate.tsx
 msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
-msgstr ""
+msgstr "你看到的内容可能已过时。请确认服务器上的 dockwell run 仍在运行，然后重试。"
 
 #. Ends “signed in …”
 #: src/features/auth/ProfilePage.tsx
@@ -1614,7 +1621,7 @@ msgstr "你尚未登录"
 
 #: src/features/auth/messages.ts
 msgid "You're not signed in. Sign in, then try again."
-msgstr ""
+msgstr "你尚未登录。请登录后重试。"
 
 #: src/features/auth/AccountPanel.tsx
 msgid "Your account"
@@ -1630,4 +1637,4 @@ msgstr "你的姓名"
 
 #: src/features/auth/messages.ts
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
-msgstr ""
+msgstr "你的会话已结束，所以这个操作没有执行。请重新登录后重试。"

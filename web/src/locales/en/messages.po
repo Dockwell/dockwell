@@ -27,8 +27,7 @@ msgstr "{0} disk"
 msgid "{0} vCPU"
 msgstr "{0} vCPU"
 
-#: src/features/auth/ClaimPage.tsx
-#: src/features/auth/SessionsPanel.tsx
+#: src/features/auth/device.ts
 msgid "{browser} on {os}"
 msgstr "{browser} on {os}"
 
@@ -553,6 +552,10 @@ msgstr "Enter your name."
 msgid "Error"
 msgstr "Error"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "Expired"
+msgstr "Expired"
+
 #: src/app/Providers.tsx
 msgid "firewall"
 msgstr "firewall"
@@ -647,6 +650,10 @@ msgstr "in {minutes} min"
 #: src/app/Providers.tsx
 msgid "In <0>{scope}</0>"
 msgstr "In <0>{scope}</0>"
+
+#: src/features/auth/ClaimPage.tsx
+msgid "in under a minute"
+msgstr "in under a minute"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Installed"
