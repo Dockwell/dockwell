@@ -11,8 +11,8 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 // ChangeService is the one way to change managed state, for every kind of
-// resource: projects, environments, services, volumes, networks, containers
-// and firewall rules alike. You propose edits and get a plan back; applying the plan writes
+// resource: projects, environments, services, volumes, networks, routes,
+// containers and firewall rules alike. You propose edits and get a plan back; applying the plan writes
 // immutable revisions and runs its steps on the servers; undoing makes a new
 // plan that puts things back. See docs/adr/0009-resources-revisions-and-plans.md
 // and docs/adr/0017-the-change-api-and-the-agent-stream.md.
@@ -177,7 +177,7 @@ message Edit {
   // Deletes the resource. A project or environment goes only once what
   // lives in it has gone, in this change or an earlier one.
   bool delete = 3;
-  // Where a service, volume or network runs, by server ID. Empty keeps it
+  // Where a service, volume, network or route runs, by server ID. Empty keeps it
   // where it runs now; a new one runs on the only server, and must name its
   // servers once there are several. Other kinds ignore it: a container or
   // firewall rule lives on its server, and projects and environments run on
@@ -195,11 +195,11 @@ message Edit {
 // ResourceRef names a resource.
 message ResourceRef {
   // The kind, such as "project", "environment", "service", "volume",
-  // "network", "container" or "firewall.rule".
+  // "network", "route", "container" or "firewall.rule".
   string kind = 1;
   // The ID of what it lives in, which its kind says: the organization
   // ("org_…") for a project, a project ("prj_…") for an environment, an
-  // environment ("env_…") for a service, volume or network, and a server
+  // environment ("env_…") for a service, volume, network or route, and a server
   // ("srv_…") for a container or firewall rule.
   string scope = 2;
   // Its name, unique among its kind in its scope, such as "web".
@@ -622,6 +622,10 @@ enum HostAccessKind {
   // than bridge, such as macvlan, which puts containers on the server's
   // LAN, past its firewall, or options that change how a bridge routes.
   HOST_ACCESS_KIND_NETWORK_DRIVER = 5;
+  // A domain another environment held within the undo window, in path, and
+  // that environment's name, in detail. Claiming it takes that environment's
+  // public traffic and certificate if the name still points here.
+  HOST_ACCESS_KIND_DOMAIN = 6;
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -686,6 +690,69 @@ message PlanStep {
   // True when the server hasn't the image yet, so its own health check
   // isn't known, and until_healthy may be missing or too short.
   bool health_unknown = 13;
+  // What the step does to the server's ingress, beside the route itself.
+  // Unset for a step that leaves it as it is.
+  IngressEffect ingress = 14;
+  // What DNS said of a route's domain when this was planned. It never stops
+  // a plan, and the fingerprint leaves it out, as people often set DNS after.
+  DomainCheck domain_check = 15;
+}
+
+// IngressEffect is what a step does to the proxy that holds a server's public
+// ports.
+message IngressEffect {
+  // What happens to the proxy.
+  IngressChange change = 1;
+  // The proxy, such as "Caddy".
+  string proxy = 2;
+  // The ports it takes or frees, such as "80/tcp", "443/tcp" and "443/udp".
+  repeated string ports = 3;
+  // The panel's domain, when the panel moves behind the proxy as it starts,
+  // or takes the ports back as it stops. The address, passkeys and sessions
+  // stay; HTTPS on it is down while the certificate comes, and the SSH tunnel
+  // keeps working.
+  string panel_domain = 4;
+}
+
+// IngressChange is what happens to the proxy that holds a server's public
+// ports.
+enum IngressChange {
+  INGRESS_CHANGE_UNSPECIFIED = 0;
+  // It starts, as this is the server's first route, and takes the ports.
+  INGRESS_CHANGE_STARTS = 1;
+  // It stops, as this is the server's last route, and frees the ports. Its
+  // certificates stay on the server.
+  INGRESS_CHANGE_STOPS = 2;
+  // It restarts, to a newer version, so what it serves is down for the step's
+  // downtime.
+  INGRESS_CHANGE_RESTARTS = 3;
+}
+
+// DomainCheck is what DNS says of a domain, as a server sees it.
+message DomainCheck {
+  // The domain.
+  string domain = 1;
+  // What it means.
+  DomainCheckState state = 2;
+  // The addresses DNS gives for it.
+  repeated string found = 3;
+  // The addresses the server has, which it compared them with.
+  repeated string here = 4;
+}
+
+// DomainCheckState is whether a domain's DNS points at a server.
+enum DomainCheckState {
+  // Not known: DNS didn't answer in time, or the check didn't run.
+  DOMAIN_CHECK_STATE_UNSPECIFIED = 0;
+  // A record points at this server.
+  DOMAIN_CHECK_STATE_POINTS_HERE = 1;
+  // There's no A or AAAA record yet.
+  DOMAIN_CHECK_STATE_NO_RECORD = 2;
+  // The records point at other addresses.
+  DOMAIN_CHECK_STATE_ELSEWHERE = 3;
+  // The server has only private addresses, as behind NAT, so it can't tell
+  // whether the public address DNS gives is its own.
+  DOMAIN_CHECK_STATE_CANT_TELL = 4;
 }
 
 // PlanAction is what a plan does to a resource.

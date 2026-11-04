@@ -108,7 +108,33 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 		p.Warnings = append(p.Warnings, warnings[w])
 	}
 	p.KeptPaths, p.Restores, p.HostAccess, p.HealthUnknown = s.Kept, s.Restores, HostAccess(s.HostAccess), s.HealthUnknown
+	if i := s.Ingress; i != nil {
+		p.Ingress = &dockwellv1.IngressEffect{Change: ingressChanges[i.Change], Proxy: i.Proxy, Ports: i.Ports, PanelDomain: i.PanelDomain}
+	}
+	p.DomainCheck = DomainCheck(s.Domain)
 	return p
+}
+
+var ingressChanges = map[resource.IngressChange]dockwellv1.IngressChange{
+	resource.IngressStarts:   dockwellv1.IngressChange_INGRESS_CHANGE_STARTS,
+	resource.IngressStops:    dockwellv1.IngressChange_INGRESS_CHANGE_STOPS,
+	resource.IngressRestarts: dockwellv1.IngressChange_INGRESS_CHANGE_RESTARTS,
+}
+
+var domainStates = map[resource.DomainState]dockwellv1.DomainCheckState{
+	resource.DomainUnknown:   dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_UNSPECIFIED,
+	resource.DomainHere:      dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_POINTS_HERE,
+	resource.DomainNoRecord:  dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_NO_RECORD,
+	resource.DomainElsewhere: dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE,
+	resource.DomainCantTell:  dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL,
+}
+
+// DomainCheck converts what DNS says of a domain; nil stays nil.
+func DomainCheck(d *resource.DomainCheck) *dockwellv1.DomainCheck {
+	if d == nil {
+		return nil
+	}
+	return &dockwellv1.DomainCheck{Domain: d.Domain, State: domainStates[d.State], Found: d.Found, Here: d.Here}
 }
 
 var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
@@ -117,6 +143,7 @@ var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
 	resource.AccessNetwork:       dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HOST_NETWORK,
 	resource.AccessMount:         dockwellv1.HostAccessKind_HOST_ACCESS_KIND_VOLUME_MOUNT,
 	resource.AccessNetworkDriver: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_NETWORK_DRIVER,
+	resource.AccessDomain:        dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN,
 }
 
 // HostAccess converts what a resource reaches on its server.
@@ -173,6 +200,19 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 			return resource.Step{}, &UnknownError{What: "warning", Value: int32(w)}
 		}
 		s.Warnings = append(s.Warnings, k)
+	}
+	if i := p.GetIngress(); i != nil {
+		change, ok := from(ingressChanges, i.GetChange())
+		if !ok {
+			return resource.Step{}, &UnknownError{What: "ingress change", Value: int32(i.GetChange())}
+		}
+		s.Ingress = &resource.IngressEffect{Change: change, Proxy: i.GetProxy(), Ports: i.GetPorts(), PanelDomain: i.GetPanelDomain()}
+	}
+	// A check this build doesn't know reads as not known: it never stops a
+	// step, so nothing is misstated by it.
+	if d := p.GetDomainCheck(); d != nil {
+		state, _ := from(domainStates, d.GetState())
+		s.Domain = &resource.DomainCheck{Domain: d.GetDomain(), State: state, Found: d.GetFound(), Here: d.GetHere()}
 	}
 	return s, nil
 }

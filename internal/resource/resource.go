@@ -148,6 +148,70 @@ type Decision struct {
 	// own health check isn't known, and UntilHealthy may be missing or
 	// too short.
 	HealthUnknown bool `json:",omitempty"`
+	// Ingress is what the step does to its server's ingress, beside the
+	// route itself: starting it takes the server's public ports. A plan's
+	// fingerprint covers it.
+	Ingress *IngressEffect `json:",omitempty"`
+	// Domain is what DNS said of a route's domain when this was planned. It
+	// never stops a plan, and a fingerprint leaves it out, as people often
+	// set DNS after.
+	Domain *DomainCheck `json:",omitempty"`
+}
+
+// IngressChange is what happens to the proxy that holds a server's public
+// ports.
+type IngressChange int
+
+// Ingress changes.
+const (
+	// IngressStarts is the server's first route: the proxy starts, and
+	// takes the ports.
+	IngressStarts IngressChange = iota + 1
+	// IngressStops is its last: the proxy stops and frees them, and its
+	// certificates stay on the server.
+	IngressStops
+	// IngressRestarts is a newer version of the proxy, so what it serves is
+	// down for the step's downtime.
+	IngressRestarts
+)
+
+// IngressEffect is what a step does to a server's ingress.
+type IngressEffect struct {
+	Change IngressChange
+	// Proxy names it, such as "Caddy".
+	Proxy string
+	// Ports are the ports it takes or frees, such as "80/tcp".
+	Ports []string `json:",omitempty"`
+	// PanelDomain is the panel's domain, when the panel moves behind the
+	// proxy as it starts, or takes the ports back as it stops.
+	PanelDomain string `json:",omitempty"`
+}
+
+// DomainState is whether a domain's DNS points at a server.
+type DomainState int
+
+// Domain states.
+const (
+	// DomainUnknown is DNS that didn't answer in time.
+	DomainUnknown DomainState = iota
+	// DomainHere is a record that points at this server.
+	DomainHere
+	// DomainNoRecord is a domain with no A or AAAA record yet.
+	DomainNoRecord
+	// DomainElsewhere is records that point at other addresses.
+	DomainElsewhere
+	// DomainCantTell is a server with only private addresses, as behind
+	// NAT, which can't tell whether a public address is its own.
+	DomainCantTell
+)
+
+// DomainCheck is what DNS says of a domain, as a server sees it.
+type DomainCheck struct {
+	Domain string
+	State  DomainState
+	// Found are the addresses DNS gives for it, and Here the server's own.
+	Found []string `json:",omitempty"`
+	Here  []string `json:",omitempty"`
 }
 
 // Access is something on a server a resource reaches beyond what Docker
@@ -192,6 +256,11 @@ const (
 	// AccessNetworkDriver is a network that reaches past the server's own
 	// bridge, such as a macvlan on its LAN, past its firewall.
 	AccessNetworkDriver
+	// AccessDomain is a domain another environment held within the undo
+	// window, in Path, with that environment's name in Detail: claiming it
+	// takes that environment's public traffic and certificate if the name
+	// still points here (ADR 0024).
+	AccessDomain
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -281,6 +350,8 @@ func AccessWords(a Access) string {
 			out += ", with " + a.Detail
 		}
 		return out
+	case AccessDomain:
+		return "the domain " + a.Path + ", which the environment " + a.Detail + " held within the last 7 days"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }
@@ -473,6 +544,43 @@ type Reference struct {
 	// ReadOnly says the spec uses it read-only, as a read-only mount of a
 	// volume does: what the volume reaches, the spec reaches read-only.
 	ReadOnly bool
+	// Apart says the spec gains nothing of what the resource reaches, as a
+	// route sends traffic to a service and has no part in what it mounts.
+	Apart bool
+}
+
+// Claim is something only one resource may hold across an install, whatever
+// its scope, such as a domain and a path.
+type Claim struct {
+	// Key is what one resource alone may hold: app.example.com/api.
+	Key string
+	// Group is what one scope alone may hold, so that no other scope can
+	// claim a part of it: app.example.com.
+	Group string
+	// Words say what Key is, for people: "app.example.com/api".
+	Words string
+	// GroupWords say what Group is, for people: "the domain app.example.com".
+	GroupWords string
+}
+
+// Claimer is a kind whose specs hold something across the install. The
+// engine refuses a change that would have two resources hold one Key, or two
+// scopes hold one Group, and asks for a person when a change claims a Group
+// another scope held within the undo window (ADR 0024).
+type Claimer interface {
+	Claims(spec proto.Message) []Claim
+}
+
+// TakesOver says, for a Claimer, what a person approves when a scope claims
+// a Group another scope held, whose name is held.
+type TakesOver interface {
+	TakesOver(group, held string) Access
+}
+
+// SingleServer is a kind whose resources run on one server at a time, whose
+// answer says why, for people.
+type SingleServer interface {
+	OneServer() string
 }
 
 // References lists what spec names, if its kind is a Referrer.
@@ -494,6 +602,31 @@ func (r *Registry) Named(kind Kind) bool {
 		}
 	}
 	return false
+}
+
+// Claims lists what spec holds across the install, if its kind holds
+// anything.
+func (r *Registry) Claims(kind Kind, spec proto.Message) []Claim {
+	if spec == nil {
+		return nil
+	}
+	if c, ok := r.types[kind].(Claimer); ok {
+		return c.Claims(spec)
+	}
+	return nil
+}
+
+// Claimers lists the kinds whose specs hold something across the install,
+// sorted.
+func (r *Registry) Claimers() []Kind {
+	var out []Kind
+	for k, t := range r.types {
+		if _, ok := t.(Claimer); ok {
+			out = append(out, k)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // HasReferrers reports whether any kind names others.

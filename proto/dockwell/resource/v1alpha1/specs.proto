@@ -267,6 +267,24 @@ message Network {
   map<string, string> labels = 4;
 }
 
+// Route sends a domain's traffic, or a path under it, to a port of a service
+// in the route's environment, over HTTPS with a certificate Dockwell gets for
+// the domain. A server's first route starts its ingress, which takes ports 80
+// and 443; its last stops it and frees them. See
+// docs/adr/0024-the-caddy-ingress-driver.md.
+message Route {
+  // The domain, such as "app.example.com": a lowercase DNS name that a
+  // public certificate authority issues for. Wildcards aren't taken.
+  string domain = 1;
+  // The path it covers, such as "/api": that path and what is under it,
+  // which reach the service as they are. Empty covers the whole domain.
+  string path = 2;
+  // The service to send it to, by name, in the route's environment.
+  string service = 3;
+  // The port the service listens on inside its container, such as 8080.
+  uint32 port = 4;
+}
+
 // Spec is the desired state of one resource, of any kind: the field that is
 // set says which. Edits in the API carry specs in it, so one message takes
 // every kind.
@@ -291,5 +309,7 @@ message Spec {
     Variable variable = 8;
     // A secret of an environment, kind "secret".
     Secret secret = 9;
+    // A domain or path sent to a service, kind "route".
+    Route route = 10;
   }
 }

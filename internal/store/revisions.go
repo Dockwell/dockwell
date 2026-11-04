@@ -424,6 +424,48 @@ func (t *Tx) ListResources(ctx context.Context, scope, kind string) ([]Resource,
 		WHERE r.scope = ? AND (r.kind = ? OR ? = '') AND v.spec IS NOT NULL ORDER BY r.kind, r.name`, scope, kind, kind)
 }
 
+// ListKind returns the resources of a kind in every scope, by scope and name.
+// Deleted ones are left out.
+func (t *Tx) ListKind(ctx context.Context, kind string) ([]Resource, error) {
+	return t.listResources(ctx, `SELECT `+resourceColumns+latest+`
+		WHERE r.kind = ? AND v.spec IS NOT NULL ORDER BY r.scope, r.name`, kind)
+}
+
+// Superseded is a spec a resource had until a later revision replaced or
+// deleted it.
+type Superseded struct {
+	ResourceID, Scope, Name string
+	Spec                    []byte
+	At                      time.Time // when the later revision was made
+}
+
+// SupersededSince returns the specs resources of a kind had until a revision
+// made at since or later, oldest first: what they held, and gave up, that
+// recently.
+func (t *Tx) SupersededSince(ctx context.Context, kind string, since time.Time) ([]Superseded, error) {
+	rows, err := t.query(ctx, `SELECT r.id, r.scope, r.name, prev.spec, v.created_at
+		FROM revisions v
+		JOIN resources r ON r.id = v.resource_id
+		JOIN revisions prev ON prev.resource_id = v.resource_id AND prev.number = v.number - 1
+		WHERE r.kind = ? AND v.created_at >= ? AND prev.spec IS NOT NULL
+		ORDER BY v.created_at, r.id, v.number`, kind, millis(since))
+	if err != nil {
+		return nil, fmt.Errorf("can't read what %s resources held: %w", kind, err)
+	}
+	defer rows.Close()
+	var out []Superseded
+	for rows.Next() {
+		var s Superseded
+		var at int64
+		if err := rows.Scan(&s.ResourceID, &s.Scope, &s.Name, &s.Spec, &at); err != nil {
+			return nil, fmt.Errorf("can't read what %s resources held: %w", kind, err)
+		}
+		s.At = fromMillis(at)
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
 // ListPlaced returns the resources a server should have: every one whose
 // latest revision is deployed there, by kind, scope and name.
 func (t *Tx) ListPlaced(ctx context.Context, server string) ([]Resource, error) {

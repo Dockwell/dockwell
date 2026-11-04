@@ -50,6 +50,7 @@ var agentPackages = []string{
 	"internal/resource/container", // the Docker driver's kinds
 	"internal/resource/network",
 	"internal/resource/resourcepb",
+	"internal/resource/route", // the ingress's kind (ADR 0024)
 	"internal/resource/service",
 	"internal/resource/variable", // the names and kinds a service's Validate checks what it uses by
 	"internal/resource/volume",

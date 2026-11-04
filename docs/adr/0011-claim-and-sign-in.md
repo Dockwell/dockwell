@@ -1,6 +1,6 @@
 # 0011. Claim over a tunnel or a domain, then sign in with passkeys
 
-- Status: Accepted
+- Status: Accepted. [0024](0024-the-caddy-ingress-driver.md) changes who holds ports 80 and 443 on a server with a domain once it has a route: Caddy takes them and serves the panel's domain too, over a unix socket only it can reach. Everything else here stands, the refusal of a loopback proxy included.
 - Date: 2026-11-04
 
 ## Context

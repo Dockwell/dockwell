@@ -250,6 +250,8 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 					// connects.
 					h.agents.connected(peer.ServerID)
 				}
+			case msg.GetDomains() != nil && h.agents != nil:
+				h.agents.Report(peer.ServerID, msg.GetDomains().GetDomains())
 			case msg.GetDraining() != nil && session != nil:
 				session.drain()
 			case msg.GetDraining() != nil:

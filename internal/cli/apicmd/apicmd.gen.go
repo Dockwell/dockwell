@@ -255,6 +255,21 @@ func Methods() []*apicli.Method {
 			Call: apicli.Unary[v1.ImportComposeRequest, v1.ImportComposeResponse](dockwellv1connect.ComposeServiceImportComposeProcedure),
 		},
 		{
+			Name:      "dockwell.v1.DomainService.ListDomains",
+			Procedure: dockwellv1connect.DomainServiceListDomainsProcedure,
+			HTTP:      "GET /v1/domains",
+			Noun:      "domains",
+			Verb:      "list",
+			Short:     "Return the domains of the routes that exist now",
+			Long:      "Return the domains of the routes that exist now, sorted by name, with each one's\nroutes and where its certificate and DNS stand on each server. A domain whose\ncertificate is on its way answers over HTTPS once it's issued; poll this to\nfollow it.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "environment", Help: "Only domains with a route in this environment, by ID. Empty means every environment."},
+				{Path: "service", Help: "Only domains with a route to this service, by name. It needs environment, as a service's name is unique only in its environment."},
+			},
+			Call: apicli.Unary[v1.ListDomainsRequest, v1.ListDomainsResponse](dockwellv1connect.DomainServiceListDomainsProcedure),
+		},
+		{
 			Name:      "dockwell.v1.ChangeService.AdoptDrift",
 			Procedure: dockwellv1connect.ChangeServiceAdoptDriftProcedure,
 			HTTP:      "POST /v1/drift:adopt",
@@ -719,10 +734,11 @@ func Nouns() []apicli.Noun {
 		{Name: "changes", Short: "Propose, get, list, apply, watch, undo or discard changes", Long: "A change is a set of edits to managed state, with the plan that carries them\nout. You propose edits and get a plan back; applying it writes immutable\nrevisions and runs its steps on the servers; undoing it makes a new plan that\nputs things back. A change applies only as it was planned, and a plan never\nshows a secret, only that it changed.\n\nSee docs/adr/0009-resources-revisions-and-plans.md and\ndocs/adr/0017-the-change-api-and-the-agent-stream.md."},
 		{Name: "claim-link", Short: "Check, begin or finish claim link", Long: "A claim link, which dockwell run and dockwell claim print, creates the install's\nowner with a passkey, and works once. dockwell claim-link check describes the\nserver a link claims, and dockwell claim-link begin and dockwell claim-link\nfinish make the passkey, which takes a browser: open the link in one."},
 		{Name: "compose", Short: "Import or export compose", Long: "ComposeService turns a Docker Compose file into an environment's services,\nvolumes and networks, and any of them back into one. An environment is one\nCompose project: its containers carry the labels Docker Compose gives its own,\nso docker compose sees them, and an exported file runs the same with docker\ncompose alone (PRD principle 6). See docs/adr/0021-the-docker-driver.md."},
+		{Name: "domains", Short: "Return the domains of the routes that exist now", Long: "DomainService says where the domains of your routes stand: what each sends\nwhere, and whether its certificate is pending, issued or failed, with what to do\nwhen it failed. Change routes with ChangeService, as kind \"route\". See\ndocs/adr/0024-the-caddy-ingress-driver.md."},
 		{Name: "drift", Short: "List, revert or adopt drift", Long: "Drift is a difference between what a server has and the latest revision of a\nresource it should have, as when someone changed it by hand. dockwell drift list\nasks each connected server's agent, and changes nothing. dockwell drift revert\nplans putting the revision back, and dockwell drift adopt plans keeping what the\nserver has as a new revision: each is a change, with a plan to apply."},
 		{Name: "events", Short: "List or watch events", Long: "EventService is the timeline: every change to managed state, with who made it\nand from where, beside what servers and people did that belongs with it, such as\na server joining or someone signing in. See docs/adr/0020-the-event-timeline.md.\n\nA change is one event, which moves on as the change does: planned, then\napplying, then applied or failed. Rollbacks and undos are changes of their own,\neach naming the change it reverts. A discarded change isn't on the timeline, and\nnor is the change that set up an install's default project and environment.\nEvery other event comes from the audit log, as it was recorded.\n\nEvents carry no secret, no spec and no address.\n\ndockwell events watch streams, so it has no REST path. A REST client polls GET\n/v1/events, or opens the stream with Connect, gRPC or gRPC-Web, with the same\ncredentials."},
 		{Name: "passkeys", Short: "List, begin add, finish add or remove passkeys", Long: "Passkeys are how you sign in to the panel. A browser, a phone or a security key\nmakes each one, for one address, and only it can use it. Adding and removing\nthem needs a signed-in session, which no API token gives, and a passkey you\nalready have to confirm it, so you do it in the panel, under Profile and\nsecurity."},
-		{Name: "resources", Short: "Return the resources that exist now", Long: "ResourceService reads the resources Dockwell manages: projects, environments,\nservices, volumes, networks, containers and firewall rules. Change them with\nChangeService.\n\nIt names resources and says where they live, and never carries a spec, which may\nhold secrets. A spec's display_name, which never does, is the one exception."},
+		{Name: "resources", Short: "Return the resources that exist now", Long: "ResourceService reads the resources Dockwell manages: projects, environments,\nservices, volumes, networks, routes, containers and firewall rules. Change them\nwith ChangeService.\n\nIt names resources and says where they live, and never carries a spec, which may\nhold secrets. A spec's display_name, which never does, is the one exception."},
 		{Name: "secrets", Short: "Reveal, create, update or delete secrets", Long: "A secret is a value of an environment that its services use without anyone\nreading it back, such as a database password. Dockwell keeps it encrypted, sends\nit only to the servers that run a service that uses it, and never shows it in\nplans, history or logs. Its value is read from standard input or a file, never\nfrom a flag. Revealing it takes a passkey, in the panel, and is audited: no API\ntoken can.\n\ndockwell secrets create, update and delete each propose a change, show its plan,\nand ask before applying it."},
 		{Name: "servers", Short: "List, get or watch servers", Long: "ServerService lists the servers Dockwell manages and streams their live state,\nas each server's agent reports it.\n\ndockwell servers watch has no REST path: REST has no way to stream messages, so\na REST client polls dockwell servers list or dockwell servers get instead, and\nanything that wants the stream opens it with Connect, gRPC or gRPC-Web. See\ndocs/adr/0015-rest-and-openapi-from-the-schema.md."},
 		{Name: "sessions", Short: "List or revoke sessions, and 8 more", Long: "A session is a browser you're signed in on. Signing in takes a passkey, a code\nfrom an authenticator app, a recovery code, or a one-time link from dockwell\nrecover, and sets a session cookie. No API token can sign in, or list or end\nsessions: how you sign in changes only by signing in, in the panel."},
@@ -858,6 +874,18 @@ func Kinds() []*apicli.Kind {
 			Long:  "Secret is a value of an environment that its services use without anyone reading\nit back, such as a database password. Dockwell keeps it encrypted, sends it only\nto the servers that run a service that uses it, and never shows it in plans,\nhistory or logs. Revealing it takes a passkey, and is audited.",
 			Fields: []apicli.Field{
 				{Path: "value", Help: "The value. Every edit sets it whole.", Sensitive: true},
+			},
+		},
+		{
+			Field: "route",
+			Noun:  "routes",
+			Short: "A domain or path sent to a service, kind \"route\"",
+			Long:  "Route sends a domain's traffic, or a path under it, to a port of a service in\nthe route's environment, over HTTPS with a certificate Dockwell gets for the\ndomain. A server's first route starts its ingress, which takes ports 80 and 443;\nits last stops it and frees them. See docs/adr/0024-the-caddy-ingress-driver.md.",
+			Fields: []apicli.Field{
+				{Path: "domain", Help: "The domain, such as \"app.example.com\": a lowercase DNS name that a public certificate authority issues for. Wildcards aren't taken."},
+				{Path: "path", Help: "The path it covers, such as \"/api\": that path and what is under it, which reach the service as they are. Empty covers the whole domain."},
+				{Path: "service", Help: "The service to send it to, by name, in the route's environment."},
+				{Path: "port", Help: "The port the service listens on inside its container, such as 8080."},
 			},
 		},
 	}
