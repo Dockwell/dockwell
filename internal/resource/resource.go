@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -246,8 +247,14 @@ func AccessWords(a Access) string {
 			return "the volume driver " + a.Driver + ", which reaches what the plugin does (" + how + ")"
 		}
 		at := a.Path
-		if a.Address != "" {
+		switch {
+		case strings.HasPrefix(a.Path, ":"):
+			// NFS's :/export follows its server, as people write it.
 			at = a.Address + a.Path
+		case a.Address != "":
+			// Run together, an address and a name could read as another
+			// address.
+			at = a.Path + " at " + a.Address
 		}
 		if at == "" {
 			return "a " + a.Type + " mount (" + how + ")"

@@ -200,7 +200,7 @@ type MountOptions struct {
 	// them in order.
 	ReadOnly bool
 	// Address is a remote mount's server: addr=, or ip=, which CIFS takes as
-	// the same option. The last of them counts, as it does for the kernel.
+	// the same option. A volume names one (validateRemote).
 	Address string
 }
 

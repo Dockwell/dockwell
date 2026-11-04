@@ -14,10 +14,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 	"path"
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"google.golang.org/protobuf/proto"
 
@@ -144,69 +146,154 @@ func validateMount(v *resourcev1.Volume) error {
 		return errors.New("a volume's driver options need a type. Use type none with bind, nfs, nfs4, cifs or tmpfs")
 	case !slices.Contains(mountTypes, kind):
 		return fmt.Errorf("the volume mounts type %q, which Dockwell can't run: a plan couldn't show what it reaches. Use type none with bind, nfs, nfs4, cifs or tmpfs", kind)
-	case kind == "cifs":
-		return validateCIFS(options)
-	case strings.HasPrefix(kind, "nfs"):
-		if host, _, ok := strings.Cut(options["device"], ":/"); ok && strings.Contains(host, "@") {
-			return errors.New("the volume's device has an @ before the server's path, and NFS takes no user or password there. Write it as server:/path")
-		}
+	case kind == "cifs" || kind == "nfs" || kind == "nfs4":
+		return validateRemote(kind, options)
 	}
 	return nil
 }
 
-// cifsElsewhere are the options that name another share than device does.
-// A plan shows device, so a person would approve one share and mount
-// another.
-var cifsElsewhere = []string{"unc", "target", "path", "prefixpath"}
+// maxMountText is the most a mount's device or options may hold: the kernel
+// reads one page of options, and a path of up to this long.
+const maxMountText = 4096
 
-// validateCIFS checks that a plan can say which share a CIFS volume
-// mounts. It never repeats device, which may hold a password.
-func validateCIFS(options map[string]string) error {
-	dev := options["device"]
-	if _, ok := cifsServer(dev); !ok {
-		return errors.New("the volume's device isn't a CIFS share. Write it as //server/share")
+// What a remote mount takes in o, by name. A plan shows the server and share
+// a person approves, and masks the rest of o, so an option must not be able
+// to change them. These lists name what is safe, rather than what isn't: the
+// kernel's parsers take more than it looks, such as CIFS's source=, which
+// replaces the device, sep= and ,, which change how the rest reads, and
+// sloppy, which makes NFS skip what it doesn't know. They are plain lists so
+// an agent doesn't build them as it starts.
+var (
+	remoteFlags = []string{
+		"ro", "rw", "defaults", "nosuid", "suid", "nodev", "dev", "noexec", "exec",
+		"noatime", "atime", "nodiratime", "diratime", "relatime", "norelatime", "strictatime", "nostrictatime", "sync", "async",
 	}
-	if strings.Contains(dev, "@") {
-		return errors.New("the volume's device has an @, and the kernel doesn't read a user or password there. Write the device as //server/share, and put them in o, as username=name,password=secret")
+	cifsValues = []string{
+		"addr", "ip", "port", "vers", "sec", "username", "user", "password", "pass", "password2", "domain", "dom", "workgroup",
+		"uid", "gid", "cruid", "file_mode", "dir_mode", "iocharset", "cache", "rsize", "wsize", "bsize", "actimeo", "acregmax", "acdirmax",
+		"closetimeo", "echo_interval", "handletimeout", "max_credits", "esize", "max_channels",
 	}
-	for _, opt := range strings.Split(options["o"], ",") {
-		name, _, _ := strings.Cut(opt, "=")
-		if slices.Contains(cifsElsewhere, strings.ToLower(strings.TrimSpace(name))) {
-			return fmt.Errorf("the volume's o has %s, which names another share than its device does, so a plan couldn't show what it reaches. Write the share and its path in device, as //server/share/path", name)
-		}
+	cifsFlags = []string{
+		"guest", "forceuid", "noforceuid", "forcegid", "noforcegid", "hard", "soft", "seal", "sign", "nodfs",
+		"unix", "nounix", "linux", "nolinux", "posix", "noposix", "serverino", "noserverino", "perm", "noperm", "brl", "nobrl", "nolease",
+		"mfsymlinks", "nomfsymlinks", "sfu", "nosfu", "cifsacl", "nocifsacl", "modefromsid", "idsfromsid", "acl", "noacl",
+		"mapchars", "nomapchars", "mapposix", "nomapposix", "nocase", "ignorecase", "nosharesock", "persistenthandles", "nopersistenthandles",
+		"resilienthandles", "noresilienthandles", "nohandlecache", "handlecache", "multichannel", "nomultichannel", "rdma", "fsc",
 	}
-	return nil
-}
+	nfsValues = []string{
+		"addr", "port", "vers", "nfsvers", "minorversion", "proto", "sec", "clientaddr", "nconnect", "timeo", "retrans", "rsize", "wsize",
+		"acregmin", "acregmax", "acdirmin", "acdirmax", "actimeo", "local_lock", "lookupcache", "namlen",
+	}
+	nfsFlags = []string{
+		"tcp", "udp", "rdma", "soft", "softerr", "hard", "ac", "noac", "cto", "nocto", "lock", "nolock",
+		"sharecache", "nosharecache", "resvport", "noresvport", "rdirplus", "nordirplus", "fsc", "nofsc",
+	}
+)
 
-// cifsServer finds the server in a CIFS device, as the kernel does: two
-// slashes of either kind, then the server, then a slash.
-func cifsServer(dev string) (string, bool) {
-	const slashes = `/\`
-	rest := strings.TrimLeft(dev, slashes)
-	if len(dev)-len(rest) != 2 {
-		return "", false
-	}
-	i := strings.IndexAny(rest, slashes)
-	if i <= 0 {
-		return "", false
-	}
-	return rest[:i], true
-}
-
-// shownDevice is a remote mount's device as a plan shows it. validateMount
-// refuses a password in a device, but a plan shows volumes on the server
-// too, and one made by hand was never checked.
-func shownDevice(kind, dev string) string {
+// remoteOption says whether a remote mount of this kind takes an option, and
+// whether the option takes a value.
+func remoteOption(kind, name string) (known, takesValue bool) {
+	values, flags := nfsValues, nfsFlags
 	if kind == "cifs" {
-		if strings.Contains(dev, "@") {
-			return "//(hidden)"
+		values, flags = cifsValues, cifsFlags
+	}
+	if slices.Contains(values, name) {
+		return true, true
+	}
+	return slices.Contains(flags, name) || slices.Contains(remoteFlags, name), false
+}
+
+// validName is a server's name, as a device or addr= gives it.
+func validName(h string) bool {
+	if h == "" || strings.HasPrefix(h, ".") || strings.HasPrefix(h, "-") || strings.HasSuffix(h, ".") || strings.HasSuffix(h, "-") {
+		return false
+	}
+	return !strings.ContainsFunc(h, func(r rune) bool {
+		return r != '.' && r != '-' && r != '_' && !('0' <= r && r <= '9') && !('a' <= r && r <= 'z') && !('A' <= r && r <= 'Z')
+	})
+}
+
+// validHost is a server in a device: a name, or an IPv6 address in brackets.
+func validHost(h string) bool {
+	if inner, ok := strings.CutPrefix(h, "["); ok {
+		addr, ok := strings.CutSuffix(inner, "]")
+		_, err := netip.ParseAddr(addr)
+		return ok && err == nil
+	}
+	return validName(h)
+}
+
+// validateRemote checks that a plan can say what a CIFS or NFS volume
+// reaches, and that what it says is so. Its errors never repeat device or an
+// option's value, or part of one: a password with a comma in it reads as an
+// option of its own.
+func validateRemote(kind string, options map[string]string) error {
+	if err := validateDevice(kind, options["device"]); err != nil {
+		return err
+	}
+	o, servers := options["o"], 0
+	if len(o) > maxMountText {
+		return fmt.Errorf("the volume's o holds %d bytes, and the kernel reads up to %d. Leave out what you can", len(o), maxMountText)
+	}
+	if o != "" {
+		for i, opt := range strings.Split(o, ",") {
+			name, value, hasValue := strings.Cut(opt, "=")
+			known, takesValue := remoteOption(kind, name)
+			switch {
+			case !known:
+				return fmt.Errorf("option %d of the volume's o isn't one Dockwell takes for a %s mount, as a plan couldn't show what it reaches. "+
+					"See the list in docs/adr/0021-the-docker-driver.md. If it's part of a password, choose a password without a comma", i+1, kind)
+			case takesValue && !hasValue:
+				return fmt.Errorf("the option %s in the volume's o takes a value. Write it as %s=value", name, name)
+			case !takesValue && hasValue:
+				return fmt.Errorf("the option %s in the volume's o takes no value. Write it as %s alone", name, name)
+			case name != "addr" && name != "ip":
+				continue
+			}
+			servers++
+			if _, err := netip.ParseAddr(value); err != nil && (name == "ip" || !validName(value)) {
+				return fmt.Errorf("the option %s in the volume's o isn't a server's address. Give one such as %s=10.0.0.2", name, name)
+			}
 		}
-		return dev
 	}
-	if host, export, ok := strings.Cut(dev, ":/"); ok {
-		return host[strings.LastIndex(host, "@")+1:] + ":/" + export
+	switch {
+	case servers > 1:
+		return errors.New("the volume's o names its server more than once, so a plan couldn't say which it reaches. Keep one addr or ip")
+	case servers == 0 && kind != "cifs":
+		return errors.New("the volume's o doesn't name the NFS server, and the kernel needs it there. Add it as addr=10.0.0.2")
 	}
-	return dev
+	return nil
+}
+
+// validateDevice checks a remote mount's device has the one form a plan can
+// show: no user or password, which belong in o, nothing Docker reads its own
+// way, as it unescapes a CIFS device from version 25, and no words that could
+// read as part of a plan.
+func validateDevice(kind, dev string) error {
+	const cifsForm, nfsForm = "Write it as //server/share", "Write it as :/path, with the server in o as addr=10.0.0.2, or as server:/path"
+	form := nfsForm
+	if kind == "cifs" {
+		form = cifsForm
+	}
+	if len(dev) > maxMountText {
+		return fmt.Errorf("the volume's device holds %d bytes, and the kernel reads up to %d. %s", len(dev), maxMountText, form)
+	}
+	if strings.ContainsAny(dev, "@,()%\\") || strings.ContainsFunc(dev, unicode.IsControl) {
+		return fmt.Errorf("the volume's device has characters a %s device can't, such as @. A user and password go in o, as username=name,password=secret. %s", kind, form)
+	}
+	if kind == "cifs" {
+		rest, ok := strings.CutPrefix(dev, "//")
+		host, share, _ := strings.Cut(rest, "/")
+		if !ok || !validHost(host) || share == "" {
+			return errors.New("the volume's device isn't a CIFS share. " + form)
+		}
+		return nil
+	}
+	host, _, ok := strings.Cut(dev, ":/")
+	if !ok || host != "" && !validHost(host) {
+		return errors.New("the volume's device isn't an NFS export. " + form)
+	}
+	return nil
 }
 
 // HostAccess is what a volume reaches on its server, beyond what Docker
@@ -228,7 +315,7 @@ func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 	}
 	a := resource.Access{Kind: resource.AccessMount, Type: options["type"], Address: o.Address, ReadOnly: o.ReadOnly}
 	if a.Type != "tmpfs" {
-		a.Path = shownDevice(a.Type, options["device"])
+		a.Path = options["device"]
 	}
 	return []resource.Access{a}
 }

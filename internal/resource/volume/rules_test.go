@@ -114,15 +114,15 @@ func TestOverlayIsRefused(t *testing.T) {
 func TestAccessWordsNameItAllAndNoCredentials(t *testing.T) {
 	d := &volume.Driver{}
 	for want, o := range map[string]map[string]string{
-		"the nfs mount 10.0.0.2:/export (read-only)":      {"type": "nfs", "o": "addr=10.0.0.2,ro", "device": ":/export"},
-		"the nfs4 mount 10.0.0.2:/export (read-write)":    {"type": "nfs4", "o": "addr=10.0.0.2,ro,rw", "device": ":/export"},
-		"the cifs mount //nas/share (read-write)":         {"type": "cifs", "o": "username=svc,password=hunter2", "device": "//nas/share"},
-		"the cifs mount 10.0.0.2//nas/share (read-write)": {"type": "cifs", "o": "ip=10.0.0.2,guest", "device": "//nas/share"},
-		"the cifs mount 10.0.0.3//nas/share (read-write)": {"type": "cifs", "o": "ip=10.0.0.2,addr=10.0.0.3", "device": "//nas/share"},
-		"the cifs mount 10.0.0.2//nas/share (read-only)":  {"type": "cifs", "o": "addr=10.0.0.3,ip=10.0.0.2,ro", "device": "//nas/share"},
-		"the nfs mount 10.0.0.2:/snap@1 (read-write)":     {"type": "nfs", "o": "addr=10.0.0.2", "device": ":/snap@1"},
-		"a tmpfs mount (read-write)":                      {"type": "tmpfs", "device": "tmpfs"},
-		"the server path /srv/media (read-only)":          {"type": "none", "o": "rw,bind,ro", "device": "/srv/media"},
+		"the nfs mount 10.0.0.2:/export (read-only)":            {"type": "nfs", "o": "addr=10.0.0.2,ro", "device": ":/export"},
+		"the nfs4 mount 10.0.0.2:/export (read-write)":          {"type": "nfs4", "o": "addr=10.0.0.2,ro,rw", "device": ":/export"},
+		"the cifs mount //nas/share (read-write)":               {"type": "cifs", "o": "username=svc,password=hunter2", "device": "//nas/share"},
+		"the cifs mount //nas/share at 10.0.0.2 (read-write)":   {"type": "cifs", "o": "ip=10.0.0.2,guest", "device": "//nas/share"},
+		"the cifs mount //nas/share at nas.example (read-only)": {"type": "cifs", "o": "addr=nas.example,ro", "device": "//nas/share"},
+		"the nfs mount nas:/export at 10.0.0.2 (read-write)":    {"type": "nfs", "o": "addr=10.0.0.2", "device": "nas:/export"},
+		"the nfs mount 3:/export at 10.0.0.2 (read-write)":      {"type": "nfs", "o": "addr=10.0.0.2", "device": "3:/export"},
+		"a tmpfs mount (read-write)":                            {"type": "tmpfs", "device": "tmpfs"},
+		"the server path /srv/media (read-only)":                {"type": "none", "o": "rw,bind,ro", "device": "/srv/media"},
 	} {
 		v := &resourcev1.Volume{Options: o}
 		if err := d.Validate(v); err != nil {
@@ -192,25 +192,66 @@ func TestABindIsReadOnlyOnlyWhenDockerWouldMakeItSo(t *testing.T) {
 	}
 }
 
-// A plan shows the share a person approves, so nothing else may name
-// another, and a device never shows a password.
+// A plan shows the server and share a person approves, and masks the rest
+// of o, so only what can't change them passes.
 func TestARemoteMountCanOnlyNameWhatThePlanShows(t *testing.T) {
 	d := &volume.Driver{}
+	const share, export = "//nas/share", ":/export"
 	for name, o := range map[string]map[string]string{
-		"unc":                    {"type": "cifs", "o": "unc=//evil/x", "device": "//nas/share"},
-		"target":                 {"type": "cifs", "o": "guest,target=//evil/x", "device": "//nas/share"},
-		"path":                   {"type": "cifs", "o": "path=//evil/x", "device": "//nas/share"},
-		"prefixpath":             {"type": "cifs", "o": "prefixpath=other", "device": "//nas/share"},
-		"another case":           {"type": "cifs", "o": "UNC=//evil/x", "device": "//nas/share"},
-		"a user and password":    {"type": "cifs", "o": "guest", "device": "//svc:hunter2@nas/share"},
-		"a password with a /":    {"type": "cifs", "o": "guest", "device": "//svc:hunter/2@nas/share"},
-		"an @ past the server":   {"type": "cifs", "o": "guest", "device": "//evil.example/x@nas/share"},
-		"backslashes":            {"type": "cifs", "o": "guest", "device": `\\\\svc:hunter2@nas\\share`},
-		"no share":               {"type": "cifs", "o": "guest", "device": "//nas"},
-		"no slashes":             {"type": "cifs", "o": "guest", "device": "nas/share"},
-		"no device":              {"type": "cifs", "o": "guest"},
-		"three slashes":          {"type": "cifs", "o": "guest", "device": "///nas/share"},
-		"a user on an NFS mount": {"type": "nfs", "o": "addr=10.0.0.2", "device": "svc:hunter2@nas:/export"},
+		// Options that name another server or share, or change how the rest reads.
+		"source":                {"type": "cifs", "o": "source=//evil/x", "device": share},
+		"unc":                   {"type": "cifs", "o": "unc=//evil/x", "device": share},
+		"target":                {"type": "cifs", "o": "guest,target=//evil/x", "device": share},
+		"path":                  {"type": "cifs", "o": "path=//evil/x", "device": share},
+		"prefixpath":            {"type": "cifs", "o": "prefixpath=other", "device": share},
+		"sep":                   {"type": "cifs", "o": "sep=;;ip=6.6.6.6", "device": share},
+		"a double comma":        {"type": "cifs", "o": "addr=6.6.6.6,password=hunter2,,ip=10.0.0.2", "device": share},
+		"a comma at the end":    {"type": "cifs", "o": "guest,", "device": share},
+		"sloppy on CIFS":        {"type": "cifs", "o": "addr=6.6.6.6,sloppy,ip=", "device": share},
+		"sloppy on NFS":         {"type": "nfs", "o": "addr=6.6.6.6,sloppy,ip=10.0.0.2", "device": export},
+		"ip on NFS":             {"type": "nfs", "o": "addr=10.0.0.2,ip=6.6.6.6", "device": export},
+		"mountaddr":             {"type": "nfs", "o": "addr=10.0.0.2,mountaddr=6.6.6.6", "device": export},
+		"mounthost":             {"type": "nfs4", "o": "addr=10.0.0.2,mounthost=evil", "device": export},
+		"source on NFS":         {"type": "nfs", "o": "addr=10.0.0.2,source=evil:/x", "device": export},
+		"anything unknown":      {"type": "cifs", "o": "whatever=1", "device": share},
+		"another case":          {"type": "cifs", "o": "ADDR=6.6.6.6", "device": share},
+		"a space":               {"type": "cifs", "o": "guest, ip=6.6.6.6", "device": share},
+		"a comma in a password": {"type": "cifs", "o": "password=a,hunter2", "device": share},
+
+		// Which server, once.
+		"two servers":    {"type": "cifs", "o": "addr=10.0.0.2,addr=6.6.6.6", "device": share},
+		"addr and ip":    {"type": "cifs", "o": "addr=10.0.0.2,ip=6.6.6.6", "device": share},
+		"no NFS server":  {"type": "nfs", "o": "rw", "device": export},
+		"an empty addr":  {"type": "nfs", "o": "addr=", "device": export},
+		"a name for ip":  {"type": "cifs", "o": "ip=nas.example", "device": share},
+		"words for addr": {"type": "nfs", "o": "addr=10.0.0.2 and more", "device": export},
+
+		// A value where none goes, and the other way round.
+		"ro=1":           {"type": "nfs", "o": "addr=10.0.0.2,ro=1", "device": export},
+		"username alone": {"type": "cifs", "o": "username", "device": share},
+		"addr alone":     {"type": "nfs", "o": "addr", "device": export},
+		"guest=1":        {"type": "cifs", "o": "guest=1", "device": share},
+
+		// Devices.
+		"a user and password":       {"type": "cifs", "o": "guest", "device": "//svc:hunter2@nas/share"},
+		"a password with a /":       {"type": "cifs", "o": "guest", "device": "//svc:hunter/2@nas/share"},
+		"an @ past the server":      {"type": "cifs", "o": "guest", "device": "//evil.example/x@nas/share"},
+		"backslashes":               {"type": "cifs", "o": "guest", "device": `\\\\nas\\share`},
+		"an escape":                 {"type": "cifs", "o": "guest", "device": "//nas/a%2Fb"},
+		"words in a device":         {"type": "cifs", "o": "guest", "device": "//nas/x (read-only), and more"},
+		"a line in a device":        {"type": "cifs", "o": "guest", "device": "//nas/x\nthe cifs mount //other/y"},
+		"no share":                  {"type": "cifs", "o": "guest", "device": "//nas"},
+		"no slashes":                {"type": "cifs", "o": "guest", "device": "nas/share"},
+		"no device":                 {"type": "cifs", "o": "guest"},
+		"three slashes":             {"type": "cifs", "o": "guest", "device": "///nas/share"},
+		"a colon in the server":     {"type": "cifs", "o": "guest", "device": "//svc:hunter2/share"},
+		"a user on NFS":             {"type": "nfs", "o": "addr=10.0.0.2", "device": "svc:hunter2@nas:/export"},
+		"a password in an NFS path": {"type": "nfs", "o": "addr=10.0.0.2", "device": "svc:/hunter2@nas:/export"},
+		"no NFS path":               {"type": "nfs", "o": "addr=10.0.0.2", "device": "svc:hunter2@nas:export"},
+		"a CIFS share on NFS":       {"type": "nfs", "o": "addr=10.0.0.2", "device": "//svc:hunter2@nas/share"},
+		"a colon in an NFS server":  {"type": "nfs", "o": "addr=10.0.0.2", "device": "svc:hunter2:/export"},
+		"too long":                  {"type": "cifs", "o": "password=" + strings.Repeat("a", 4096), "device": share},
+		"a device too long":         {"type": "nfs", "o": "addr=10.0.0.2", "device": ":/" + strings.Repeat("a", 4096)},
 	} {
 		err := d.Validate(&resourcev1.Volume{Options: o})
 		if err == nil {
@@ -222,14 +263,19 @@ func TestARemoteMountCanOnlyNameWhatThePlanShows(t *testing.T) {
 		}
 	}
 
-	// One made by hand wasn't checked, and a plan shows it as it adopts it.
-	for name, o := range map[string]map[string]string{
-		"cifs": {"type": "cifs", "o": "guest", "device": "//svc:hunter/2@nas/share"},
-		"nfs":  {"type": "nfs", "o": "addr=10.0.0.2", "device": "svc:hunter2@nas:/export"},
+	// What people really write still passes.
+	for _, o := range []map[string]string{
+		{"type": "cifs", "o": "username=svc,password=p@ss=w0rd,vers=3.0,uid=1000,gid=1000,file_mode=0644,dir_mode=0755", "device": share},
+		{"type": "cifs", "o": "addr=10.0.0.2,username=svc,password=x,domain=corp,sec=ntlmssp,iocharset=utf8,nounix,noperm", "device": "//10.0.0.2/My Share/sub"},
+		{"type": "cifs", "o": "guest", "device": "//nas_1.example/share$"},
+		{"type": "cifs", "device": share},
+		{"type": "nfs", "o": "addr=10.0.0.2,rw", "device": ":/srv/nfs/data"},
+		{"type": "nfs", "o": "addr=10.0.0.2,nfsvers=4.1,rw,noatime,hard,timeo=600,retrans=2,noresvport", "device": "nas.example:/export"},
+		{"type": "nfs4", "o": "addr=nas.example,nolock,soft,ro", "device": ":/"},
+		{"type": "nfs", "o": "addr=fe80::1", "device": "[fe80::1]:/export"},
 	} {
-		got := resource.AccessWords(d.HostAccess(&resourcev1.Volume{Options: o})[0])
-		if strings.Contains(got, "hunter") {
-			t.Errorf("%s made by hand reads %q", name, got)
+		if err := d.Validate(&resourcev1.Volume{Options: o}); err != nil {
+			t.Errorf("%v: %v", o, err)
 		}
 	}
 }
@@ -240,7 +286,7 @@ func TestAnotherRemoteIsNewAccess(t *testing.T) {
 	access := func(o string) []resource.Access {
 		return d.HostAccess(&resourcev1.Volume{Options: map[string]string{"type": "cifs", "o": o, "device": "//nas/share"}})
 	}
-	if got := resource.NewAccess(access("addr=10.0.0.2"), access("addr=10.0.0.2,ip=6.6.6.6")); len(got) != 1 {
+	if got := resource.NewAccess(access("addr=10.0.0.2"), access("ip=6.6.6.6")); len(got) != 1 {
 		t.Errorf("another ip= reads as no new access: %v", got)
 	}
 	if got := resource.NewAccess(access("ip=10.0.0.2"), access("addr=10.0.0.2")); len(got) != 0 {

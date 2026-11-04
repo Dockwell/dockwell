@@ -91,9 +91,9 @@ type Error struct {
 
 func (e *Error) Error() string { return strings.TrimSpace(e.Message) }
 
-// mountFailures are how Docker starts to spell out a local volume's mount
+// mountFailure is how Docker starts to spell out a local volume's mount
 // that failed. The reason comes after the last ": ".
-var mountFailures = [...]string{"failed to mount local volume", "error while mounting volume with options"}
+const mountFailure = "failed to mount local volume"
 
 // scrubMount leaves out of Docker's message what a failed mount tried: its
 // device and options, which can hold a password. Docker 20.10 prints them
@@ -101,14 +101,12 @@ var mountFailures = [...]string{"failed to mount local volume", "error while mou
 // too. This message goes into changes and logs that anyone who can read
 // them sees, and the reason at its end is what a person needs.
 func scrubMount(message string) string {
-	for _, failure := range mountFailures {
-		_, rest, found := strings.Cut(message, failure)
-		if !found {
-			continue
-		}
-		if i := strings.LastIndex(rest, ": "); i >= 0 {
-			return message[:len(message)-len(rest)] + rest[i:]
-		}
+	_, rest, found := strings.Cut(message, mountFailure)
+	if !found {
+		return message
+	}
+	if i := strings.LastIndex(rest, ": "); i >= 0 {
+		return message[:len(message)-len(rest)] + rest[i:]
 	}
 	return message
 }

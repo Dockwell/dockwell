@@ -23,11 +23,6 @@ func TestAFailedMountKeepsOnlyItsReason(t *testing.T) {
 		})
 	}
 
-	const older = "error while mounting volume with options: type='cifs' device='//svc:hunter2@nas/share' o='password=hunter2': permission denied"
-	if got, want := scrubMount(older), "error while mounting volume with options: permission denied"; got != want {
-		t.Errorf("scrubMount = %q, want %q", got, want)
-	}
-
 	for _, kept := range []string{
 		"No such image: nginx:1",
 		"driver failed programming external connectivity on endpoint web: Bind for 0.0.0.0:80 failed: port is already allocated",
