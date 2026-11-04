@@ -151,3 +151,47 @@ func TestLevelFor(t *testing.T) {
 		}
 	}
 }
+
+// Once requests are cancelled, whatever stays open holds nothing worth
+// waiting for: a handler that ignores cancellation, or a connection that
+// began just as shutdown did. It is closed soon after, not waited on until
+// the timeout.
+func TestShutdownDoesntWaitOnWhatIgnoresCancellation(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	defer close(release)
+	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		close(started)
+		<-release // ignores the request's context
+	})
+	ln := listen(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- Serve(ctx, ln, h, Options{Name: "test", Logger: discard(), StreamGrace: 50 * time.Millisecond, ShutdownTimeout: 10 * time.Second})
+	}()
+	go func() {
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+ln.Addr().String()+"/stream", http.NoBody)
+		if res, err := http.DefaultClient.Do(req); err == nil {
+			_, _ = io.Copy(io.Discard, res.Body)
+			res.Body.Close()
+		}
+	}()
+	<-started
+
+	begin := time.Now()
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Serve = %v, want a clean shutdown", err)
+		}
+		if took := time.Since(begin); took > 3*time.Second {
+			t.Errorf("shutdown took %v; it should close what's left soon after cancelling requests", took)
+		}
+	case <-time.After(8 * time.Second):
+		t.Fatal("Serve waited on a handler that ignores cancellation")
+	}
+}
