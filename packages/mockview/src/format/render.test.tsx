@@ -67,7 +67,7 @@ async function render(
     act(() => root.unmount());
     container.remove();
   });
-  return { container, problems: problems.map((p) => p.message), library };
+  return { container, problems: problems.map((p) => p.message), library, root };
 }
 
 describe("templates", () => {
@@ -316,6 +316,29 @@ Deploy <b>{{what}}</b>
     expect(container.textContent).toContain("before");
     expect(container.textContent).toContain("after");
     expect(container.querySelector("[data-mockview-problem]")?.textContent).toBe("DS.Broken: bad props");
+  });
+
+  it("tries a component again once its props change", async () => {
+    const Flaky = ({ n }: Props) => {
+      if (n === 1) throw new Error("one is bad");
+      return <output>{String(n)}</output>;
+    };
+    const file = "A.dc.html";
+    const { container, library, root } = await render(
+      {
+        [file]: artboard(
+          `<x-import component-from-global-scope="DS.Flaky" n="{{n}}"></x-import>`,
+          logic(`{ n: this.props.n }`),
+          `{"n":{"default":1}}`,
+        ),
+      },
+      file,
+      { components: { "DS.Flaky": Flaky } },
+    );
+    expect(container.querySelector("[data-mockview-problem]")?.textContent).toBe("DS.Flaky: one is bad");
+    await act(async () => root.render(library.element(file, { n: 2 })));
+    expect(container.querySelector("[data-mockview-problem]")).toBeNull();
+    expect(container.querySelector("output")?.textContent).toBe("2");
   });
 });
 

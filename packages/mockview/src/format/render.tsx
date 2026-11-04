@@ -110,11 +110,21 @@ interface BoundaryProps {
   children?: ReactNode;
 }
 
-/** Keeps one broken component from blanking the whole artboard, and says which one broke. */
-class Boundary extends ReactModule.Component<BoundaryProps, { error: unknown }> {
-  override state: { error: unknown } = { error: null };
+interface BoundaryState {
+  error: unknown;
+  /** The children the error came from. New children, as when the artboard's state changes, get a fresh try. */
+  children: ReactNode;
+}
 
-  static getDerivedStateFromError(error: unknown) {
+/** Keeps one broken component from blanking the whole artboard, and says which one broke. */
+class Boundary extends ReactModule.Component<BoundaryProps, BoundaryState> {
+  override state: BoundaryState = { error: null, children: undefined };
+
+  static getDerivedStateFromProps(props: BoundaryProps, state: BoundaryState): Partial<BoundaryState> | null {
+    return props.children === state.children ? null : { error: null, children: props.children };
+  }
+
+  static getDerivedStateFromError(error: unknown): Partial<BoundaryState> {
     return { error };
   }
 
