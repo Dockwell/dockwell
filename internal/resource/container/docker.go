@@ -337,10 +337,10 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 	}
 	out.Healthcheck = projectHealthcheck(c.Config.Healthcheck, img.Healthcheck, set)
 	for key, bindings := range c.HostConfig.PortBindings {
-		port, proto, _ := strings.Cut(key, "/")
+		port, transport, _ := strings.Cut(key, "/")
 		cp, _ := strconv.ParseUint(port, 10, 16)
 		protocol := resourcev1.Protocol_PROTOCOL_TCP
-		if proto == "udp" {
+		if transport == "udp" {
 			protocol = resourcev1.Protocol_PROTOCOL_UDP
 		}
 		for _, b := range bindings {
