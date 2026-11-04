@@ -2,7 +2,7 @@
 
 import { useQuery } from "@connectrpc/connect-query";
 import { AuthService } from "@dockwell/api";
-import { useQueryClient } from "@tanstack/react-query";
+import { type Query, type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 
 import { authStateKey } from "../../app/api";
@@ -26,10 +26,37 @@ export function useSignedInUser() {
 export function useRefreshAuth() {
   const client = useQueryClient();
   return useCallback(async () => {
-    // Everything cached belonged to the previous session.
-    client.removeQueries({ predicate: (q) => q.queryKey[0] === "connect-query" && !matchesAuth(q.queryKey) });
+    forgetSession(client);
     await client.invalidateQueries({ queryKey: authStateKey });
   }, [client]);
+}
+
+/**
+ * Forgets what the cache holds from the session before, other than the
+ * sign-in state itself: what nothing on screen shows goes now, and what a
+ * page still shows goes as the page leaves. Taken from under a page still on
+ * screen, its queries would empty and ask again without the session they
+ * belonged to: the profile flashing "Loading" as you sign out, or the claim
+ * page checking its spent link on its way to the overview.
+ */
+function forgetSession(client: QueryClient) {
+  const cache = client.getQueryCache();
+  const shown = new Set<Query>();
+  for (const query of cache.findAll({
+    predicate: (q) => q.queryKey[0] === "connect-query" && !matchesAuth(q.queryKey),
+  })) {
+    if (query.getObserversCount() === 0) cache.remove(query);
+    else shown.add(query);
+  }
+  if (shown.size === 0) return;
+  const unsubscribe = cache.subscribe((event) => {
+    if (!shown.has(event.query)) return;
+    const left = event.type === "observerRemoved" && event.query.getObserversCount() === 0;
+    if (!left && event.type !== "removed") return;
+    shown.delete(event.query);
+    if (left) cache.remove(event.query);
+    if (shown.size === 0) unsubscribe();
+  });
 }
 
 function matchesAuth(key: readonly unknown[]): boolean {

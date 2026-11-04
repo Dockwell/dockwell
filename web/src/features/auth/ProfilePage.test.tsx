@@ -183,6 +183,73 @@ describe("ProfilePage", () => {
     expect(callout).toHaveTextContent("Code sign-in is locked");
   });
 
+  it("signs out without emptying the page or asking again on its way out", async () => {
+    let signedIn = true;
+    const signOut = vi.fn(() => {
+      signedIn = false;
+      return {};
+    });
+    const calls = api({ getAuthState: () => authState(signedIn ? {} : { user: undefined }), signOut });
+    renderAt("/profile", calls);
+    await within(await screen.findByRole("region", { name: "Sessions" })).findAllByRole("listitem");
+    const seen = new Set<string>();
+    const watch = new MutationObserver(() => {
+      if (document.body.textContent?.includes("Loading")) seen.add("loading");
+    });
+    watch.observe(document.body, { childList: true, subtree: true, characterData: true });
+    await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Sign in to Dockwell" })).toBeVisible();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    watch.disconnect();
+    expect(seen).toEqual(new Set());
+    // Asked once each, and never again without a session, which would only send the gate to check once more.
+    expect(calls.auth.listPasskeys).toHaveBeenCalledOnce();
+    expect(calls.auth.listSessions).toHaveBeenCalledOnce();
+    expect(calls.auth.getTotp).toHaveBeenCalledOnce();
+  });
+
+  it("shows nothing from the session before after signing in again", async () => {
+    let signedIn = true;
+    let passkeys = [create(PasskeySchema, { id: "pky_0", name: "Old laptop", rpId: "localhost" })];
+    const removePasskey = vi.fn(() => {
+      signedIn = false;
+      return Promise.reject(authError(Code.Unauthenticated, "session_ended"));
+    });
+    const signInWithCode = vi.fn(() => {
+      signedIn = true;
+      return {};
+    });
+    renderAt(
+      "/profile",
+      api({
+        getAuthState: () => authState(signedIn ? {} : { user: undefined }),
+        listPasskeys: () => ({ passkeys }),
+        removePasskey,
+        signInWithCode,
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Remove Old laptop" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+    await screen.findByRole("heading", { level: 1, name: "Sign in to Dockwell" });
+
+    passkeys = [yubikey];
+    await userEvent.click(screen.getByRole("button", { name: "Use a code from your authenticator app" }));
+    await userEvent.type(screen.getByLabelText("Email"), "mira@acme.dev");
+    await userEvent.type(screen.getByLabelText("Code"), "123456");
+    const seen = new Set<string>();
+    const watch = new MutationObserver(() => {
+      if (document.body.textContent?.includes("Old laptop")) seen.add("old passkey");
+    });
+    watch.observe(document.body, { childList: true, subtree: true, characterData: true });
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    const keys = within(await screen.findByRole("region", { name: "Passkeys" }));
+    expect(await keys.findByText("YubiKey 5C")).toBeVisible();
+    watch.disconnect();
+    expect(seen).toEqual(new Set());
+  });
+
   it("says why signing out failed, and stays signed in", async () => {
     const signOut = vi.fn(() => Promise.reject(new ConnectError("connection refused", Code.Unavailable)));
     renderAt("/profile", api({ signOut }));

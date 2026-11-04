@@ -9,6 +9,7 @@ import {
   Connection,
   GetVersionResponseSchema,
   ServerInventorySchema,
+  SignInMethod,
 } from "@dockwell/api";
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -80,12 +81,18 @@ describe("ClaimPage", () => {
 
   it("creates the owner with a passkey and goes to the overview", async () => {
     const passkeys = stubPasskeys();
-    const calls = api();
+    let claimed = false;
+    const calls = api({
+      // Signed in once the claim finishes.
+      getAuthState: () => (claimed ? authState() : authState({ claimed: false, user: undefined })),
+      finishClaim: vi.fn(() => {
+        claimed = true;
+        return {};
+      }),
+    });
     const { router } = renderAt(`/claim#${TOKEN}`, calls);
     await userEvent.type(await screen.findByLabelText("Your name"), "Mira Chen");
     await userEvent.type(screen.getByLabelText("Email"), "mira@acme.dev");
-    // Signed in from here on.
-    calls.auth.getAuthState = () => authState();
     // The new owner is never told the install already has one.
     const seen = new Set<string>();
     const watch = new MutationObserver(() => {
@@ -95,6 +102,7 @@ describe("ClaimPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create passkey" }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect(await screen.findByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
     watch.disconnect();
     expect(seen).toEqual(new Set());
     // Back doesn't return to the spent claim page.
@@ -113,6 +121,39 @@ describe("ClaimPage", () => {
     expect(finish.ceremonyId).toBe("cer_1");
     expect(finish.token).toBe(TOKEN);
     expect(JSON.parse(finish.credentialJson).response.attestationObject).toBe("Bgc");
+  });
+
+  it("doesn't check the spent link again on its way to the overview", async () => {
+    stubPasskeys();
+    let spent = false;
+    const calls = api({
+      // Claimed and signed in once the claim finishes.
+      getAuthState: () =>
+        spent ? authState({ signInMethod: SignInMethod.CLAIM }) : authState({ claimed: false, user: undefined }),
+      checkClaim: vi.fn(() =>
+        spent ? Promise.reject(authError(Code.PermissionDenied, "claim_link_rejected")) : checked(),
+      ),
+      finishClaim: vi.fn(() => {
+        spent = true;
+        return {};
+      }),
+    });
+    const { router } = renderAt(`/claim#${TOKEN}`, calls);
+    await screen.findByRole("region", { name: "This server" });
+    await userEvent.type(screen.getByLabelText("Your name"), "Mira Chen");
+    await userEvent.type(screen.getByLabelText("Email"), "mira@acme.dev");
+    const seen = new Set<string>();
+    const watch = new MutationObserver(() => {
+      if (document.body.textContent?.includes("The owner account wasn't created")) seen.add("not created");
+    });
+    watch.observe(document.body, { childList: true, subtree: true, characterData: true });
+    await userEvent.click(screen.getByRole("button", { name: "Create passkey" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    await screen.findByRole("heading", { level: 1, name: "Overview" });
+    watch.disconnect();
+    expect(seen).toEqual(new Set());
+    expect(calls.auth.checkClaim).toHaveBeenCalledOnce();
   });
 
   it("keeps the link's expiry current, and says when it has expired", async () => {
