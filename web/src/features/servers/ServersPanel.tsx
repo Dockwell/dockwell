@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { durationMs } from "@bufbuild/protobuf/wkt";
 import { Connection, type Server } from "@dockwell/api";
 import { Panel, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -8,7 +7,7 @@ import { Link } from "@tanstack/react-router";
 
 import { formatBytesOf, formatPercent } from "../../lib/format";
 import { Connecting, Reconnecting } from "./FleetNotes";
-import { serverStatus } from "./server";
+import { serverStatus, useServerWords } from "./server";
 import { useFleet } from "./useFleet";
 import "./ServersPanel.css";
 
@@ -57,9 +56,7 @@ function ServerRow({ server, linked }: { server: Server; linked: boolean }) {
   const { t, i18n } = useLingui();
   const stats = server.stats;
   const [used, total] = stats ? formatBytesOf(stats.memoryUsedBytes, stats.memoryTotalBytes, i18n.locale) : ["", ""];
-  const up = stats?.uptime ? splitUptime(durationMs(stats.uptime)) : undefined;
-  const count = up?.count ?? 0;
-  const uptime = !up ? "–" : up.unit === "d" ? t`${count} d` : up.unit === "h" ? t`${count} h` : t`${count} min`;
+  const { uptime = "–" } = useServerWords(server);
   const connected = server.connection === Connection.CONNECTED;
   const meta =
     server.connection === Connection.PENDING
@@ -114,14 +111,4 @@ function ServerRow({ server, linked }: { server: Server; linked: boolean }) {
       ) : null}
     </li>
   );
-}
-
-/** Uptime rounded to what a person acts on: days, then hours, then minutes. */
-function splitUptime(ms: number): { count: number; unit: "d" | "h" | "min" } {
-  const minutes = Math.floor(ms / 60_000);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  if (days >= 1) return { count: days, unit: "d" };
-  if (hours >= 1) return { count: hours, unit: "h" };
-  return { count: minutes, unit: "min" };
 }

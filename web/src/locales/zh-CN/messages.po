@@ -20,13 +20,8 @@ msgid "{count, plural, one {# hour} other {# hours}}"
 msgstr "{count, plural, other {# 小时}}"
 
 #: src/app/Providers.tsx
-#: src/features/overview/Overview.tsx
 msgid "{count, plural, one {# server} other {# servers}}"
 msgstr "{count, plural, other {# 台服务器}}"
-
-#: src/features/servers/ServersPanel.tsx
-msgid "{count} d"
-msgstr "{count} 天"
 
 #: src/app/Providers.tsx
 msgid "{count} degraded"
@@ -40,10 +35,6 @@ msgstr "{count} 台正在部署"
 msgid "{count} down"
 msgstr "{count} 台宕机"
 
-#: src/features/servers/ServersPanel.tsx
-msgid "{count} h"
-msgstr "{count} 小时"
-
 #: src/lib/time.ts
 msgid "{count} h ago"
 msgstr "{count} 小时前"
@@ -52,7 +43,6 @@ msgstr "{count} 小时前"
 msgid "{count} healthy"
 msgstr "{count} 台健康"
 
-#: src/features/servers/ServersPanel.tsx
 #: src/lib/time.ts
 msgid "{count} min"
 msgstr "{count} 分钟"
@@ -826,8 +816,7 @@ msgstr "无法访问"
 msgid "Up"
 msgstr "运行时间"
 
-#: src/features/overview/Overview.tsx
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/server.ts
 msgid "up {uptime}"
 msgstr "已运行 {uptime}"
 

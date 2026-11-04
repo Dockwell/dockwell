@@ -34,7 +34,8 @@ describe("ServersPanel", () => {
     expect(first).toHaveTextContent("Ubuntu 24.04.1 LTS");
     expect(first).toHaveTextContent("CPU12%");
     expect(first).toHaveTextContent("Memory2.4 of 8 GB");
-    expect(first).toHaveTextContent("Up3 d");
+    // Uptime in the same words as the server's page: "up 3 days".
+    expect(within(first as HTMLElement).getByText("Up").nextElementSibling).toHaveTextContent(/^3 days$/);
 
     expect(second).toHaveTextContent("Stopped: hz-2");
     expect(second).toHaveTextContent("Waiting for its agent");

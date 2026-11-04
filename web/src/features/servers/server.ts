@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { durationMs } from "@bufbuild/protobuf/wkt";
 import { Connection, type Server } from "@dockwell/api";
-import type { Status } from "@dockwell/ui";
+import { type Status, useUIStrings } from "@dockwell/ui";
+import { useLingui } from "@lingui/react/macro";
 
+import { useTimeWords } from "../../lib/time";
 import type { FleetState } from "./useFleet";
 
 const STATUS: Partial<Record<Connection, Status>> = {
@@ -18,6 +21,31 @@ const STATUS: Partial<Record<Connection, Status>> = {
  */
 export function serverStatus(server: Pick<Server, "connection">): Status {
   return STATUS[server.connection] ?? "stopped";
+}
+
+/** How a page puts a server in words, from useServerWords. */
+export interface ServerWords {
+  /** How long it has been up, "3 days", while its agent reports. */
+  uptime: string | undefined;
+  /** The same for a line of facts, "up 3 days", or empty. */
+  up: string;
+  /** The phone header's line under its name: "Healthy · up 3 days". */
+  phoneSub: string;
+}
+
+/**
+ * A server's state and uptime in words, as the overview, its own page and
+ * the server list say them. Uptime is from the last report, so it says
+ * nothing once the agent stops reporting.
+ */
+export function useServerWords(server: Server): ServerWords {
+  const { t } = useLingui();
+  const strings = useUIStrings();
+  const words = useTimeWords();
+  const live = server.connection === Connection.CONNECTED;
+  const uptime = live && server.stats?.uptime ? words.span(durationMs(server.stats.uptime)) : undefined;
+  const up = uptime ? t`up ${uptime}` : "";
+  return { uptime, up, phoneSub: [strings.status[serverStatus(server)], up].filter(Boolean).join(" · ") };
 }
 
 /** What the shell shows of one server: what changes when it is renamed, connects or drops, not with each sample. */

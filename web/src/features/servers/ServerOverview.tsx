@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { durationMs } from "@bufbuild/protobuf/wkt";
-import { Connection, type Server } from "@dockwell/api";
-import { PHONE_QUERY, Tag, useMediaQuery, useUIStrings } from "@dockwell/ui";
+import type { Server } from "@dockwell/api";
+import { PHONE_QUERY, Tag, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { Fragment, type ReactNode } from "react";
 
-import { useTimeWords } from "../../lib/time";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { Connecting, Reconnecting } from "./FleetNotes";
 import { ServerCallout } from "./ServerCallout";
 import { ServerMetrics } from "./ServerMetrics";
 import { AgentPanel, DisksPanel, NetworkPanel, SystemPanel } from "./ServerPanels";
-import { primaryAddress, serverStatus } from "./server";
+import { primaryAddress, useServerWords } from "./server";
 import { useFleet } from "./useFleet";
 import "./ServerOverview.css";
 
@@ -60,15 +58,10 @@ export function ServerOverview({ id }: { id: string }) {
 
 function ServerPage({ server, fleet, status }: { server: Server; fleet: boolean; status: ReactNode }) {
   const { t } = useLingui();
-  const strings = useUIStrings();
-  const words = useTimeWords();
+  const { up, phoneSub } = useServerWords(server);
   const phone = useMediaQuery(PHONE_QUERY);
   const inv = server.inventory;
   const address = primaryAddress(inv?.addresses ?? []);
-  // Uptime is from the last report, so it says nothing once the agent stops reporting.
-  const live = server.connection === Connection.CONNECTED;
-  const uptime = live && server.stats?.uptime ? words.span(durationMs(server.stats.uptime)) : undefined;
-  const up = uptime ? t`up ${uptime}` : "";
   const hostname = inv?.hostname && inv.hostname !== server.name ? inv.hostname : undefined;
   const lead =
     hostname || address || up
@@ -85,7 +78,7 @@ function ServerPage({ server, fleet, status }: { server: Server; fleet: boolean;
       machineTitle
       badge={server.controlServer ? <Tag>{t`Runs the control plane`}</Tag> : null}
       lead={lead}
-      phoneSub={[strings.status[serverStatus(server)], up].filter(Boolean).join(" · ")}
+      phoneSub={phoneSub}
       back={fleet ? "/servers" : undefined}
       status={status}
     >

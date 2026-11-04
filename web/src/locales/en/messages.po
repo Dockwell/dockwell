@@ -20,13 +20,8 @@ msgid "{count, plural, one {# hour} other {# hours}}"
 msgstr "{count, plural, one {# hour} other {# hours}}"
 
 #: src/app/Providers.tsx
-#: src/features/overview/Overview.tsx
 msgid "{count, plural, one {# server} other {# servers}}"
 msgstr "{count, plural, one {# server} other {# servers}}"
-
-#: src/features/servers/ServersPanel.tsx
-msgid "{count} d"
-msgstr "{count} d"
 
 #: src/app/Providers.tsx
 msgid "{count} degraded"
@@ -40,10 +35,6 @@ msgstr "{count} deploying"
 msgid "{count} down"
 msgstr "{count} down"
 
-#: src/features/servers/ServersPanel.tsx
-msgid "{count} h"
-msgstr "{count} h"
-
 #: src/lib/time.ts
 msgid "{count} h ago"
 msgstr "{count} h ago"
@@ -52,7 +43,6 @@ msgstr "{count} h ago"
 msgid "{count} healthy"
 msgstr "{count} healthy"
 
-#: src/features/servers/ServersPanel.tsx
 #: src/lib/time.ts
 msgid "{count} min"
 msgstr "{count} min"
@@ -826,8 +816,7 @@ msgstr "Unreachable"
 msgid "Up"
 msgstr "Up"
 
-#: src/features/overview/Overview.tsx
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/server.ts
 msgid "up {uptime}"
 msgstr "up {uptime}"
 
