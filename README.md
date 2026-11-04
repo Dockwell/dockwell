@@ -57,3 +57,5 @@ To report a security problem, follow [SECURITY.md](SECURITY.md) rather than open
 ## License
 
 Dockwell is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+
+The API schema and the clients generated from it are licensed under the [Apache License 2.0](proto/LICENSE), so you can build them into your own tools, closed source included. That covers [`proto/`](proto/), [`gen/`](gen/) and [`packages/api/`](packages/api/). [ADR 0012](docs/adr/0012-apache-for-api-schema-and-clients.md) says why.

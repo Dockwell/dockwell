@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Code generated from proto/. Run `make generate`; never edit the output by hand.
 version: v2
+# Empties each output directory first; make generate puts gen/LICENSE back.
 clean: true
 managed:
   enabled: true

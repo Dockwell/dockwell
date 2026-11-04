@@ -26,5 +26,5 @@ An open-source control plane for servers, from one VPS to a fleet. One Go binary
 - The panel uses only the public API through the generated client. Nothing is UI-only.
 - Memory budgets: the agent stays under 40 MB RSS at idle, and the control plane plus agent under 250 MB.
 - Work on a branch and open a pull request to `main` that references its issue and milestone.
-- Every source file starts with `SPDX-License-Identifier: AGPL-3.0-only` (`scripts/check-spdx.sh`).
+- Every source file starts with `SPDX-License-Identifier: AGPL-3.0-only`, except in `proto/`, `gen/` and `packages/api/`, which are `Apache-2.0` (ADR 0012). `scripts/check-spdx.sh` checks both.
 - Go: errors and log messages follow the content rules too. Wrap errors with context, and when the operator can fix something, end the message with how.

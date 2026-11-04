@@ -53,6 +53,8 @@ mock-snapshots: deps ## Write PNGs of every mock, light and dark, to packages/mo
 .PHONY: generate
 generate: deps ## Regenerate code from proto/, and the design tokens
 	$(GOTOOL) buf generate
+# buf empties gen/ first, so the schema's license goes back in beside the code.
+	cp proto/LICENSE gen/LICENSE
 	pnpm --filter @dockwell/ui tokens
 
 .PHONY: test

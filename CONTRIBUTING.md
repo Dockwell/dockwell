@@ -28,6 +28,8 @@ The product has one voice, set out in the design system's [content fundamentals]
 
 Before we merge your first pull request, you sign the [Contributor License Agreement](CLA.md) once. Dockwell's core is licensed under the AGPL-3.0, and the paid Organization edition and Dockwell Cloud are built on that same core. The CLA lets the project ship your contribution there too. Your contribution always stays available under the AGPL in the open-source core, and you keep the copyright.
 
+The API schema in `proto/` and the clients generated from it in `gen/` and `packages/api/` are licensed under the Apache-2.0 instead, so anyone can build the clients into their own tools. Contributions there are published under the Apache-2.0, under the same CLA ([ADR 0012](docs/adr/0012-apache-for-api-schema-and-clients.md)).
+
 The CLA is still a draft, and the bot that collects signatures isn't set up yet. Until it is, we can review outside pull requests but can't merge them.
 
 ## Development setup
@@ -53,7 +55,7 @@ Run `make` on its own to list every target. Developer tools such as buf and gola
 
 The panel's text goes through Lingui: write it in English inside `<Trans>` or `` t`…` ``, run `make i18n` to extract it, and add the Simplified Chinese translation to `web/src/locales/zh-CN/messages.po`. CI fails on a missing translation.
 
-The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and `packages/api/src/gen/` (TypeScript). After changing the schema, run `make generate` and commit the result. Every method must set `(dockwell.v1.effect)`, and a test fails the build when one doesn't.
+The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and `packages/api/src/gen/` (TypeScript). After changing the schema, run `make generate` and commit the result. Files in these directories start with `SPDX-License-Identifier: Apache-2.0`, and generated files take that header from their `.proto` file. Every method must set `(dockwell.v1.effect)`, and a test fails the build when one doesn't.
 
 ## Repository layout
 
@@ -70,8 +72,8 @@ The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and
 | `internal/serve/` | What every HTTP listener shares: timeouts, TLS, shutdown, recovery, RPC logging |
 | `internal/panel/` | Serves the panel embedded in the binary |
 | `internal/buildinfo/`, `internal/logging/` | Build information and structured logging |
-| `proto/` | The API schema ([ADR 0003](docs/adr/0003-one-schema-protobuf-connect.md)) |
-| `gen/`, `packages/api/` | Code generated from the schema, for Go and TypeScript |
+| `proto/` | The API schema ([ADR 0003](docs/adr/0003-one-schema-protobuf-connect.md)), under the Apache-2.0 |
+| `gen/`, `packages/api/` | Code generated from the schema, for Go and TypeScript, under the Apache-2.0 |
 | `packages/ui/` | The design system as typed React components, with tokens generated from `design/system/tokens.json` |
 | `packages/mockview/` | A local viewer and snapshot tool for the screen mocks in `design/mocks/` (`make mocks`) |
 | `web/` | The panel ([ADR 0008](docs/adr/0008-panel-libraries.md)) |

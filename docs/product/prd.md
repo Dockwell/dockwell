@@ -403,7 +403,7 @@ The largest risk is scope — this is three products in one — so every mitigat
 
 **Decisions needed** (recommendation first):
 
-- [x] License: AGPL-3.0 core with source-available Organization modules, or Apache 2.0 throughout. Recommend AGPL — keeps self-hosting free and deters hosted resale. **Decided:** AGPL-3.0, with a CLA ([ADR 0001](../adr/0001-license-agpl-and-cla.md)).
+- [x] License: AGPL-3.0 core with source-available Organization modules, or Apache 2.0 throughout. Recommend AGPL — keeps self-hosting free and deters hosted resale. **Decided:** AGPL-3.0, with a CLA ([ADR 0001](../adr/0001-license-agpl-and-cla.md)). The API schema and its generated clients are Apache-2.0, so integrations can embed them ([ADR 0012](../adr/0012-apache-for-api-schema-and-clients.md)).
 - [x] Agent and control-plane language: Go or Rust. Recommend Go for the Docker SDK, ecosystem and contributor pool. **Decided:** Go ([ADR 0002](../adr/0002-go.md)).
 - [x] State store: recommend SQLite for single-node and Postgres for HA, behind one interface. **Decided** ([ADR 0004](../adr/0004-sqlite-then-postgres.md)).
 - [x] Ingress: recommend Caddy by default, with OpenResty available per node for PHP-heavy hosts and 1Panel parity. **Decided:** Caddy first; OpenResty later ([ADR 0005](../adr/0005-caddy-ingress.md)).
