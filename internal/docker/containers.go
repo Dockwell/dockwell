@@ -17,9 +17,10 @@ import (
 // it: the fields Dockwell uses. The engine fills in what a container
 // leaves out from its image, such as Cmd and Env.
 type Config struct {
-	Image        string              `json:"Image,omitempty"`
-	Cmd          []string            `json:"Cmd,omitempty"`
-	Entrypoint   []string            `json:"Entrypoint,omitempty"`
+	Image string   `json:"Image,omitempty"`
+	Cmd   []string `json:"Cmd,omitempty"`
+	// Entrypoint nil takes the image's, and empty runs none.
+	Entrypoint   []string            `json:"Entrypoint"`
 	Env          []string            `json:"Env,omitempty"`
 	Labels       map[string]string   `json:"Labels,omitempty"`
 	User         string              `json:"User,omitempty"`

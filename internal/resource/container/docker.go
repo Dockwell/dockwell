@@ -102,6 +102,7 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 	}
 	add("command", len(spec.GetCommand()) > 0)
 	add("entrypoint", len(spec.GetEntrypoint()) > 0)
+	add("no_entrypoint", spec.GetNoEntrypoint())
 	add("user", spec.GetUser() != "")
 	add("working_dir", spec.GetWorkingDir() != "")
 	if hc := spec.GetHealthcheck(); hc != nil {
@@ -199,6 +200,10 @@ func (d *Docker) createRequest(t Target, spec *resourcev1.Container, old *docker
 		WorkingDir:  spec.GetWorkingDir(),
 		Healthcheck: healthcheck(spec.GetHealthcheck()),
 	}}
+	if spec.GetNoEntrypoint() {
+		// Empty, not left out, as Compose sends entrypoint: [].
+		req.Entrypoint = []string{}
+	}
 	req.Env = environment(spec)
 	req.HostConfig.RestartPolicy = docker.RestartPolicy{Name: restartNames[spec.GetRestart()]}
 	for _, p := range spec.GetPorts() {
@@ -301,7 +306,13 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 	if set["command"] || !slices.Equal(c.Config.Cmd, img.Cmd) {
 		out.Command = c.Config.Cmd
 	}
-	if set["entrypoint"] || !slices.Equal(c.Config.Entrypoint, img.Entrypoint) {
+	// Docker gives a container the image's entrypoint unless it was asked
+	// for none: one with none, of an image that has one, runs none. The
+	// label tells for an image without one.
+	switch {
+	case len(c.Config.Entrypoint) == 0 && (set["no_entrypoint"] || len(img.Entrypoint) > 0):
+		out.NoEntrypoint = true
+	case set["entrypoint"] || !slices.Equal(c.Config.Entrypoint, img.Entrypoint):
 		out.Entrypoint = c.Config.Entrypoint
 	}
 	if set["user"] || c.Config.User != img.User {

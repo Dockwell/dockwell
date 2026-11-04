@@ -60,7 +60,7 @@ func (d *Driver) Validate(spec proto.Message) error {
 	if app == nil {
 		return errors.New("a service needs something to run: an app from an image, such as nginx:1.27")
 	}
-	return d.Containers.Validate(app)
+	return container.Validate(app)
 }
 
 // References are the volumes the service mounts and the networks it

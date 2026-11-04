@@ -1556,7 +1556,9 @@ components:
                     type: array
                     items:
                         type: string
-                    description: Overrides the image's entrypoint when set.
+                    description: |-
+                        Overrides the image's entrypoint when set. Empty takes the image's;
+                         no_entrypoint runs none.
                 mounts:
                     type: array
                     items:
@@ -1584,6 +1586,11 @@ components:
                     description: |-
                         How Docker checks the container is healthy. Unset takes the image's
                          check, if it has one.
+                noEntrypoint:
+                    type: boolean
+                    description: |-
+                        Runs no entrypoint, not even the image's, as Compose's "entrypoint: []"
+                         does: the command runs on its own. Takes no entrypoint beside it.
             description: |-
                 Container is one Docker container: run by hand on a server, or a
                  service's app. Docker fills in from the image what a container leaves

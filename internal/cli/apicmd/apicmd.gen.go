@@ -677,7 +677,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "app.ports", Help: "Ports published on the server."},
 				{Path: "app.restart", Help: "What Docker does when the container stops."},
 				{Path: "app.labels", Help: "Labels on the container, for tools that read them. Keys that start with \"com.docker.compose.\" or \"dev.dockwell.\" are Dockwell's own."},
-				{Path: "app.entrypoint", Help: "Overrides the image's entrypoint when set."},
+				{Path: "app.entrypoint", Help: "Overrides the image's entrypoint when set. Empty takes the image's; no_entrypoint runs none."},
 				{Path: "app.mounts", Help: "Volumes and server paths mounted into the container."},
 				{Path: "app.networks", Help: "The networks the container joins, by name. A service's are networks in its environment; a container's on its own are Docker's. Empty joins Docker's default bridge network."},
 				{Path: "app.user", Help: "The user the command runs as, such as \"1000\" or \"node\". Empty takes the image's."},
@@ -687,6 +687,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "app.healthcheck.timeout", Help: "How long one check may take, such as \"5s\". Empty takes Docker's default."},
 				{Path: "app.healthcheck.start_period", Help: "How long the container has to start before failures count, such as \"1m\". Empty takes Docker's default."},
 				{Path: "app.healthcheck.retries", Help: "How many failures in a row make it unhealthy. 0 takes Docker's default."},
+				{Path: "app.no_entrypoint", Help: "Runs no entrypoint, not even the image's, as Compose's \"entrypoint: []\" does: the command runs on its own. Takes no entrypoint beside it."},
 			},
 		},
 		{
@@ -701,7 +702,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "ports", Help: "Ports published on the server."},
 				{Path: "restart", Help: "What Docker does when the container stops."},
 				{Path: "labels", Help: "Labels on the container, for tools that read them. Keys that start with \"com.docker.compose.\" or \"dev.dockwell.\" are Dockwell's own."},
-				{Path: "entrypoint", Help: "Overrides the image's entrypoint when set."},
+				{Path: "entrypoint", Help: "Overrides the image's entrypoint when set. Empty takes the image's; no_entrypoint runs none."},
 				{Path: "mounts", Help: "Volumes and server paths mounted into the container."},
 				{Path: "networks", Help: "The networks the container joins, by name. A service's are networks in its environment; a container's on its own are Docker's. Empty joins Docker's default bridge network."},
 				{Path: "user", Help: "The user the command runs as, such as \"1000\" or \"node\". Empty takes the image's."},
@@ -711,6 +712,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "healthcheck.timeout", Help: "How long one check may take, such as \"5s\". Empty takes Docker's default."},
 				{Path: "healthcheck.start_period", Help: "How long the container has to start before failures count, such as \"1m\". Empty takes Docker's default."},
 				{Path: "healthcheck.retries", Help: "How many failures in a row make it unhealthy. 0 takes Docker's default."},
+				{Path: "no_entrypoint", Help: "Runs no entrypoint, not even the image's, as Compose's \"entrypoint: []\" does: the command runs on its own. Takes no entrypoint beside it."},
 			},
 		},
 		{

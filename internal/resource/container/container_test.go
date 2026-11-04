@@ -109,3 +109,62 @@ func TestOnlyServerPathsAreRelabelled(t *testing.T) {
 		t.Errorf("Validate = %v", err)
 	}
 }
+
+// An image reference Docker won't take is refused when a change is
+// proposed, saying what is wrong, rather than failing as the server pulls
+// it and rolling back.
+func TestImageReferencesAreChecked(t *testing.T) {
+	for _, ok := range []string{
+		"nginx", "nginx:1.27", "library/nginx:1.27-alpine", "ghcr.io/acme/web:1.4.2", "registry.acme.dev:5000/team/app_x:v2",
+		"localhost/app", "localhost:5000/app:dev", "nginx@sha256:" + strings.Repeat("a", 64), "nginx:1.27@sha256:" + strings.Repeat("0", 64),
+		"[::1]:5000/app:1", "My.Registry.io/app:1", "a__b/c-d/e.f:G_1",
+	} {
+		if err := container.CheckImage(ok); err != nil {
+			t.Errorf("%s: %v", ok, err)
+		}
+	}
+	for ref, want := range map[string]string{
+		"":                                  "needs an image",
+		"nginx :1.27":                       "has a space in it",
+		"nginx:":                            "has the tag \"\"",
+		"nginx:.1":                          "has the tag \".1\"",
+		"nginx:" + strings.Repeat("a", 129): "A tag is up to 128",
+		"nginx@sha256:abc":                  "has the digest \"sha256:abc\"",
+		"Nginx:1.27":                        "Write it in lowercase, as nginx:1.27",
+		"ghcr.io/Acme/Web:1":                "Write it in lowercase, as ghcr.io/acme/web:1",
+		"acme//web":                         "an empty part between slashes",
+		"acme/web-:1":                       `has "web-" in its name`,
+		":1.27":                             "has no name before its tag",
+		"bad_host.io:x/app":                 `names the registry "bad_host.io:x"`,
+		strings.Repeat("a", 256) + ":1":     "a name of 256 characters",
+	} {
+		err := container.CheckImage(ref)
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q = %v, want it refused, saying %q", ref, err, want)
+		}
+		if ref == "" {
+			continue
+		}
+		if err := container.Validate(&resourcev1.Container{Image: ref}); err == nil {
+			t.Errorf("Validate takes the image %q", ref)
+		}
+	}
+}
+
+// A container on its own that names Docker's bridge network alone joins
+// it as one that names none does, and its spec says so; a service's
+// bridge is a network of its environment's, and stays.
+func TestBridgeAloneIsTheDefault(t *testing.T) {
+	c := &resourcev1.Container{Image: "nginx:1.27", Networks: []string{"bridge"}}
+	if err := (&container.Driver{}).Validate(c); err != nil || len(c.GetNetworks()) != 0 {
+		t.Errorf("networks [bridge] = %v, %v; want none", c.GetNetworks(), err)
+	}
+	c = &resourcev1.Container{Image: "nginx:1.27", Networks: []string{"bridge", "back"}}
+	if err := (&container.Driver{}).Validate(c); err != nil || len(c.GetNetworks()) != 2 {
+		t.Errorf("networks [bridge, back] = %v, %v; want both", c.GetNetworks(), err)
+	}
+	app := &resourcev1.Container{Image: "nginx:1.27", Networks: []string{"bridge"}}
+	if err := container.Validate(app); err != nil || len(app.GetNetworks()) != 1 {
+		t.Errorf("a service's networks [bridge] = %v, %v; want the environment's bridge", app.GetNetworks(), err)
+	}
+}

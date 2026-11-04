@@ -267,7 +267,8 @@ type Container struct {
 	// Labels on the container, for tools that read them. Keys that start with
 	// "com.docker.compose." or "dev.dockwell." are Dockwell's own.
 	Labels map[string]string `protobuf:"bytes,6,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Overrides the image's entrypoint when set.
+	// Overrides the image's entrypoint when set. Empty takes the image's;
+	// no_entrypoint runs none.
 	Entrypoint []string `protobuf:"bytes,7,rep,name=entrypoint,proto3" json:"entrypoint,omitempty"`
 	// Volumes and server paths mounted into the container.
 	Mounts []*Mount `protobuf:"bytes,8,rep,name=mounts,proto3" json:"mounts,omitempty"`
@@ -282,7 +283,10 @@ type Container struct {
 	WorkingDir string `protobuf:"bytes,11,opt,name=working_dir,json=workingDir,proto3" json:"working_dir,omitempty"`
 	// How Docker checks the container is healthy. Unset takes the image's
 	// check, if it has one.
-	Healthcheck   *Healthcheck `protobuf:"bytes,12,opt,name=healthcheck,proto3" json:"healthcheck,omitempty"`
+	Healthcheck *Healthcheck `protobuf:"bytes,12,opt,name=healthcheck,proto3" json:"healthcheck,omitempty"`
+	// Runs no entrypoint, not even the image's, as Compose's "entrypoint: []"
+	// does: the command runs on its own. Takes no entrypoint beside it.
+	NoEntrypoint  bool `protobuf:"varint,13,opt,name=no_entrypoint,json=noEntrypoint,proto3" json:"no_entrypoint,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -399,6 +403,13 @@ func (x *Container) GetHealthcheck() *Healthcheck {
 		return x.Healthcheck
 	}
 	return nil
+}
+
+func (x *Container) GetNoEntrypoint() bool {
+	if x != nil {
+		return x.NoEntrypoint
+	}
+	return false
 }
 
 // Mount puts a volume, or a directory on the server, into a container.
@@ -1276,7 +1287,7 @@ var File_dockwell_resource_v1alpha1_specs_proto protoreflect.FileDescriptor
 
 const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\n" +
-	"&dockwell/resource/v1alpha1/specs.proto\x12\x1adockwell.resource.v1alpha1\x1a google/protobuf/descriptor.proto\"\xbc\x05\n" +
+	"&dockwell/resource/v1alpha1/specs.proto\x12\x1adockwell.resource.v1alpha1\x1a google/protobuf/descriptor.proto\"\xe1\x05\n" +
 	"\tContainer\x12\x14\n" +
 	"\x05image\x18\x01 \x01(\tR\x05image\x12\x18\n" +
 	"\acommand\x18\x02 \x03(\tR\acommand\x12F\n" +
@@ -1293,7 +1304,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	" \x01(\tR\x04user\x12\x1f\n" +
 	"\vworking_dir\x18\v \x01(\tR\n" +
 	"workingDir\x12I\n" +
-	"\vhealthcheck\x18\f \x01(\v2'.dockwell.resource.v1alpha1.HealthcheckR\vhealthcheck\x1a6\n" +
+	"\vhealthcheck\x18\f \x01(\v2'.dockwell.resource.v1alpha1.HealthcheckR\vhealthcheck\x12#\n" +
+	"\rno_entrypoint\x18\r \x01(\bR\fnoEntrypoint\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +

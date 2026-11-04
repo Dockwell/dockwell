@@ -128,15 +128,37 @@ func (*Driver) CheckName(name string) error {
 }
 
 // Validate requires an image and valid ports, mounts and networks, and
-// fills in defaults, so specs that mean the same compare equal.
+// fills in defaults, so specs that mean the same compare equal. A
+// container on its own that joins Docker's bridge network alone joins it
+// as one that names no network does: Docker reads both back the same.
 func (*Driver) Validate(spec proto.Message) error {
-	return Validate(spec.(*resourcev1.Container))
+	c := spec.(*resourcev1.Container)
+	if err := Validate(c); err != nil {
+		return err
+	}
+	if slices.Equal(c.Networks, []string{bridge}) {
+		c.Networks = nil
+	}
+	return nil
 }
 
-// Validate checks a container's spec and normalizes it in place.
+// bridge is Docker's default network.
+const bridge = "bridge"
+
+// Validate checks a container's spec and normalizes it in place. A
+// service's app is checked with it, as a container whose networks are its
+// environment's.
 func Validate(c *resourcev1.Container) error {
-	if strings.TrimSpace(c.GetImage()) == "" {
-		return errors.New("a container needs an image, such as nginx:1.27")
+	if err := CheckImage(c.GetImage()); err != nil {
+		return err
+	}
+	// An entrypoint of one empty string is how docker run --entrypoint ""
+	// says to run none.
+	if slices.Equal(c.Entrypoint, []string{""}) {
+		c.Entrypoint, c.NoEntrypoint = nil, true
+	}
+	if c.GetNoEntrypoint() && len(c.GetEntrypoint()) > 0 {
+		return errors.New("a container with no_entrypoint runs no entrypoint, so it takes none in entrypoint too. Leave out one of them")
 	}
 	if c.Restart == resourcev1.RestartPolicy_RESTART_POLICY_UNSPECIFIED {
 		c.Restart = resourcev1.RestartPolicy_RESTART_POLICY_UNLESS_STOPPED

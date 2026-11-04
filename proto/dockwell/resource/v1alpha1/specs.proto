@@ -32,7 +32,8 @@ message Container {
   // Labels on the container, for tools that read them. Keys that start with
   // "com.docker.compose." or "dev.dockwell." are Dockwell's own.
   map<string, string> labels = 6;
-  // Overrides the image's entrypoint when set.
+  // Overrides the image's entrypoint when set. Empty takes the image's;
+  // no_entrypoint runs none.
   repeated string entrypoint = 7;
   // Volumes and server paths mounted into the container.
   repeated Mount mounts = 8;
@@ -48,6 +49,9 @@ message Container {
   // How Docker checks the container is healthy. Unset takes the image's
   // check, if it has one.
   Healthcheck healthcheck = 12;
+  // Runs no entrypoint, not even the image's, as Compose's "entrypoint: []"
+  // does: the command runs on its own. Takes no entrypoint beside it.
+  bool no_entrypoint = 13;
 }
 
 // Mount puts a volume, or a directory on the server, into a container.

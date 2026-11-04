@@ -40,6 +40,7 @@ func images(e *dockertest.Engine) {
 		Healthcheck: &docker.Healthcheck{Test: []string{"CMD", "pg_isready"}, Interval: 10 * time.Second, Retries: 5},
 	}}
 	e.Registry["crash:1"] = dockertest.Image{Exits: true, Config: docker.Config{Cmd: []string{"false"}}}
+	e.Registry["busybox:1.37"] = dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}}
 	e.Registry["sick:1"] = dockertest.Image{Unhealthy: true, Config: docker.Config{
 		Cmd: []string{"sleep", "inf"}, Healthcheck: &docker.Healthcheck{Test: []string{"CMD", "false"}},
 	}}
@@ -125,8 +126,11 @@ func TestContainersReadBackAsTheirSpec(t *testing.T) {
 			Labels: map[string]string{"maintainer": "NGINX Docker Maintainers"},
 		},
 		"entrypoint-only": {Image: "nginx:1.27", Entrypoint: []string{"/bin/sh", "-c", "sleep inf"}},
-		"partial-health":  {Image: "postgres:17", Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD-SHELL", "pg_isready -U app"}}},
-		"no-health":       {Image: "postgres:17", Healthcheck: &resourcev1.Healthcheck{Test: []string{"NONE"}}},
+		// No entrypoint, not even the image's, as Compose's entrypoint: [].
+		"no-entrypoint":         {Image: "nginx:1.27", NoEntrypoint: true, Command: []string{"sleep", "inf"}},
+		"no-entrypoint-of-none": {Image: "busybox:1.37", NoEntrypoint: true},
+		"partial-health":        {Image: "postgres:17", Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD-SHELL", "pg_isready -U app"}}},
+		"no-health":             {Image: "postgres:17", Healthcheck: &resourcev1.Healthcheck{Test: []string{"NONE"}}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			ref := resource.Ref{Kind: container.Kind, Scope: "srv_01KAT4ZR6E3V0Y5XBKZB5D9Q6M", Name: name}
@@ -134,6 +138,16 @@ func TestContainersReadBackAsTheirSpec(t *testing.T) {
 				t.Fatalf("first apply = %s, want create", step.Action)
 			}
 			unchanged(t, l, ref, spec)
+			if got := e.Container(name).Config.Entrypoint; spec.GetNoEntrypoint() && (got == nil || len(got) > 0) {
+				t.Errorf("Docker runs the entrypoint %q, want none, not even the image's", got)
+			}
+			if name == "bare" {
+				// Left unset, the image's entrypoint runs, and the spec
+				// still reads back without one.
+				if got := e.Container(name).Config.Entrypoint; !slices.Equal(got, []string{"/docker-entrypoint.sh"}) {
+					t.Errorf("Docker runs the entrypoint %q, want the image's", got)
+				}
+			}
 			if name == "full" {
 				binds := e.Container(name).HostConfig.Binds
 				if !slices.Contains(binds, "/srv/certs:/etc/certs:ro,z") || !slices.Contains(binds, "/srv/run:/run/nginx:Z") {
@@ -521,5 +535,38 @@ func TestComposeListsContainers(t *testing.T) {
 	c := container.ConfigHash(&resourcev1.Container{Image: "nginx:1.28", Env: map[string]string{"KEY": "secret-1"}})
 	if a != b || a == c {
 		t.Errorf("config hashes %s, %s, %s: want the same for values alone, another for an image", a, b, c)
+	}
+}
+
+// The agent checks and normalizes each desired spec again, as the control
+// plane did: one that skipped that plans and applies as the control plane
+// would have it, rather than failing to read back as asked for. The spec
+// it was given stays as it was.
+func TestTheAgentValidatesWhatItPlans(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	l := resource.Local{Drivers: drivers(e)}
+	ref := resource.Ref{Kind: container.Kind, Scope: "srv_01KAT4ZR6E3V0Y5XBKZB5D9Q6M", Name: "web"}
+	// No restart policy, which Validate fills in, and ports out of order.
+	spec := &resourcev1.Container{Image: "nginx:1.27", Ports: []*resourcev1.PortMapping{
+		{HostPort: 8443, ContainerPort: 443}, {HostPort: 8080, ContainerPort: 80},
+	}}
+	given := proto.CloneOf(spec)
+	steps, err := l.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: spec}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Apply(t.Context(), steps[0], spec); err != nil {
+		t.Fatalf("applying a spec that skipped validation: %v", err)
+	}
+	if !proto.Equal(spec, given) {
+		t.Errorf("the agent changed the spec it was given: %v", spec)
+	}
+	unchanged(t, l, ref, spec)
+
+	// One that isn't valid is refused, before anything runs.
+	_, err = l.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: &resourcev1.Container{}}})
+	if err == nil || !strings.Contains(err.Error(), "needs an image") {
+		t.Errorf("planning a container with no image: %v", err)
 	}
 }

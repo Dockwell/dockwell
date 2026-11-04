@@ -50,6 +50,8 @@ func TestContainersOnRealDocker(t *testing.T) {
 	}
 	for name, app := range map[string]*resourcev1.Container{
 		"bare": {Image: image},
+		// No entrypoint, not even the image's, as Compose's entrypoint: [].
+		"no-entrypoint": {Image: image, NoEntrypoint: true, Command: []string{"nginx", "-g", "daemon off;"}},
 		"repeats": {
 			Image: image, Command: img.Config.Cmd, Entrypoint: img.Config.Entrypoint, Env: env, Labels: labels,
 			WorkingDir: "/", User: "root",
