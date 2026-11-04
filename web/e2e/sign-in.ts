@@ -6,10 +6,14 @@
 // codes, signs in with a recovery code, opens a link from `dockwell recover`
 // on a phone, and signs that phone out from the first browser. It makes an
 // API token in the panel, calls REST and Connect with it as a script would,
-// makes a project with a plan and undoes it, and revokes the token. Everything
+// makes a project with a plan and undoes it, and revokes the token. Then it
+// creates a project from the command bar, reviews its plan in the plan sheet,
+// applies it, and undoes it from Activity. The CLI plans a project with local
+// access, and the panel applies it at the address the CLI sends a person to,
+// /changes/<id>. Everything
 // after the claim goes through the panel shell: the rail's link to your
 // profile on wide screens, More on phones. With --shots <dir> it also saves
-// screenshots of every screen at 1440, 390 and 360 px, light and dark.
+// screenshots of every screen at 1440, 800, 390 and 360 px, light and dark.
 //
 //   make e2e
 //   node web/e2e/sign-in.ts bin/dockwell --shots /tmp/shots
@@ -18,7 +22,7 @@
 
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -139,8 +143,10 @@ async function shoot(page: Page, name: string) {
   if (!shots) return;
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
-    for (const width of [1440, 390, 360]) {
+    for (const width of [1440, 800, 390, 360]) {
       await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+      // A full-page shot of a long page starts at its top, as someone arriving would see it.
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.waitForTimeout(100);
       await page.screenshot({ path: join(shots, `${name}-${width}-${scheme}.png`), fullPage: true });
     }
@@ -455,6 +461,106 @@ async function main() {
     }
   }
   step("  the profile showed where it was last used; once revoked, REST and Connect refused it");
+
+  step("the panel: create a project from the command bar, review and apply its plan, then undo it from Activity");
+  await page.goto(`${origin}/activity`);
+  await expectPage(page, "Activity");
+  // The changes the token made are on the timeline already, with who made them.
+  await page
+    .getByRole("row", { name: /Add the shop project/ })
+    .first()
+    .waitFor();
+  await page.keyboard.press("Control+k");
+  const bar = page.getByRole("dialog", { name: "Command bar" });
+  await bar.getByRole("option", { name: /^Create a project/ }).click();
+  await bar.getByRole("combobox").fill("garden");
+  await shoot(page, "command-bar");
+  await bar.getByRole("option", { name: /^Create the project garden/ }).click();
+  const review = page.getByRole("dialog", { name: "Review plan" });
+  await review.waitFor();
+  await expectText(review, "Create the project garden");
+  await review.getByText("2", { exact: true }).first().waitFor();
+  const plannedText = await review.innerText();
+  if (!/2\s*to create/.test(plannedText) || !plannedText.includes("production")) {
+    fail(`the plan sheet for a new project shows ${JSON.stringify(plannedText)}`);
+  }
+  await shoot(page, "plan-sheet");
+  await review.getByRole("button", { name: /^Apply plan/ }).click();
+  // A project runs on no server, so the change has no steps: it goes from planned to applied in the sheet.
+  const done = page.getByRole("dialog", { name: "Applied" });
+  await done.waitFor();
+  await expectText(done, "Recorded and applied");
+  await shoot(page, "plan-applied");
+  await done.getByRole("button", { name: "Done" }).click();
+  // The timeline has it at once, from its watch.
+  const garden = page.getByRole("row", { name: /Create the project garden/ });
+  await garden.waitFor();
+  await garden.click();
+  const detail = page.getByRole("region", { name: "Create the project garden" });
+  await expectText(detail, "Mira Chen");
+  await shoot(page, "activity-selected");
+  await detail.getByRole("button", { name: "Undo this change" }).click();
+  const undoReview = page.getByRole("dialog", { name: "Review plan" });
+  await undoReview.waitFor();
+  if (!/2\s*to destroy/.test(await undoReview.innerText())) {
+    fail(`the undo's plan shows ${JSON.stringify(await undoReview.innerText())}`);
+  }
+  await shoot(page, "plan-undo");
+  await undoReview.getByRole("button", { name: /^Apply plan/ }).click();
+  await page.getByRole("dialog", { name: "Applied" }).getByRole("button", { name: "Done" }).click();
+  await page.getByRole("row", { name: /Undo: Create the project garden/ }).waitFor();
+  await detail.getByText("Undone by").waitFor();
+  if ((await detail.getByRole("button", { name: "Undo this change" }).count()) !== 0) {
+    fail("Activity still offers to undo a change that was undone");
+  }
+  await page.getByRole("button", { name: "Close details" }).click();
+  await shoot(page, "activity");
+  step("  planned, applied and undone in the panel; Activity followed it live and stopped offering undo");
+
+  step("the CLI: local access plans a project, and the panel applies it at the address the CLI gives a person");
+  const cli = (...args: string[]) =>
+    execFileSync(bin, [...args, "--data-dir", data, "--log-format", "json"], {
+      encoding: "utf8",
+      // No login of the person running this: local access, as on a fresh control server.
+      env: { ...process.env, USER: "mira", DOCKWELL_URL: "", DOCKWELL_TOKEN: "", XDG_CONFIG_HOME: join(data, "cli") },
+    });
+  cli("login", "--local");
+  const proposed = JSON.parse(
+    cli("projects", "create", "tools", "--summary", "Add the tools project", "--plan-only", "--json"),
+  ) as { change?: { id?: string } };
+  const changeId = proposed.change?.id ?? fail(`dockwell projects create printed ${JSON.stringify(proposed)}`);
+  // The CLI calls the loopback address dockwell run recorded, and sends a
+  // person to the panel there on localhost, where passkeys work: the
+  // origin this browser signed in on.
+  const local = JSON.parse(readFileSync(join(data, "control", "local-token.json"), "utf8")) as { url?: string };
+  if (local.url !== `http://127.0.0.1:${port}`)
+    fail(`local access calls ${local.url}, not the panel's loopback address`);
+  await page.goto(`${origin}/changes/${changeId}`);
+  const fromCLI = page.getByRole("dialog", { name: "Review plan" });
+  await fromCLI.waitFor();
+  await expectText(fromCLI, "Add the tools project");
+  await shoot(page, "plan-from-cli");
+  await fromCLI.getByRole("button", { name: /^Apply plan/ }).click();
+  const cliDone = page.getByRole("dialog", { name: "Applied" });
+  await cliDone.waitFor();
+  await cliDone.getByRole("button", { name: "Done" }).click();
+  if (new URL(page.url()).pathname !== "/activity") fail(`closing the sheet left ${page.url()}, not Activity`);
+  // Applied here, by Mira Chen from the panel; proposed by local access's token, from the CLI.
+  const tools = page.getByRole("region", { name: "Add the tools project" });
+  await expectText(tools, "Proposed by");
+  await expectText(tools, "Mira Chen");
+  await expectText(tools, "From the CLI");
+  await expectText(tools, "Local access on");
+  await shoot(page, "activity-from-cli");
+  // Local access's token, on the timeline as the shell account that made it.
+  await page
+    .getByRole("row", { name: /Created the API token Local access on .*, read-write/ })
+    .first()
+    .waitFor();
+  cli("logout", "--local");
+  step(
+    `  ${changeId}, planned by the CLI's local access, applied at ${origin}/changes/${changeId}; Activity names both`,
+  );
 
   step("sign out on a phone, from More");
   await page.setViewportSize({ width: 390, height: 844 });

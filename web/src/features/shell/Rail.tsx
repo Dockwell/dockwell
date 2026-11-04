@@ -8,7 +8,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { useSignedInUser } from "../auth/useAuthState";
 import { initials, useRoleName } from "../auth/user";
 import type { FleetView } from "../servers/server";
-import { firstSegment, OPERATE, RESOURCES, UPCOMING, type UpcomingSection } from "./sections";
+import { firstSegment, inActivity, OPERATE, RESOURCES, UPCOMING, type UpcomingSection } from "./sections";
 import { shortVersion } from "./version";
 
 /**
@@ -82,6 +82,9 @@ export function Rail({ view }: { view: FleetView }) {
         </>
       )}
       <div className="rail-section">{t`Operate`}</div>
+      <Link to="/activity" activeOptions={{ exact: true }} {...current(inActivity(segment))}>
+        <ItemBody icon="activity" label={t`Activity`} />
+      </Link>
       {OPERATE.map(section)}
       <div className="rail-fill" />
       {section("settings")}

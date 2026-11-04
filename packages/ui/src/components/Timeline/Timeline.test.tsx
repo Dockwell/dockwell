@@ -33,6 +33,15 @@ const events: TimelineEvent[] = [
 ];
 
 describe("Timeline", () => {
+  it("takes another mark for events its kinds don't name", () => {
+    const { container } = render(
+      <Timeline events={[{ id: "sign-in", kind: "config", icon: "user", title: "Signed in", time: "14:02" }]} />,
+    );
+    const mark = container.querySelector(".dw-tl-mark svg");
+    const plain = render(<Timeline events={[{ id: "config", kind: "config", title: "Changed", time: "14:02" }]} />);
+    expect(mark?.innerHTML).not.toEqual(plain.container.querySelector(".dw-tl-mark svg")?.innerHTML);
+  });
+
   it("is an ordered list of events with their times", async () => {
     const { container } = render(<Timeline events={events} onUndo={() => {}} />);
     const items = within(screen.getByRole("list")).getAllByRole("listitem");

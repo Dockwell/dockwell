@@ -7,6 +7,7 @@ import { Connection, type Server, ServerService } from "@dockwell/api";
 import { createContext, createElement, type ReactNode, useContext, useEffect, useState } from "react";
 
 import { isSessionEnded } from "../../lib/errors";
+import { keepTrying } from "../../lib/retry";
 import { useNow } from "../../lib/time";
 import { appendSample } from "./history";
 import { type FleetView, fleetView } from "./server";
@@ -16,8 +17,7 @@ export type FleetState =
   | { status: "live"; servers: Server[] }
   | { status: "reconnecting"; servers: Server[]; error: ConnectError };
 
-const MIN_BACKOFF_MS = 1_000;
-const MAX_BACKOFF_MS = 15_000;
+const BACKOFF = { minMs: 1_000, maxMs: 15_000 };
 
 /**
  * A watch's state; the shell's view of it, which keeps its identity while
@@ -112,12 +112,13 @@ async function watch(
 ): Promise<void> {
   const client = createClient(ServerService, transport);
   const clock = new SkewEstimate();
-  let backoff = MIN_BACKOFF_MS;
   let known: Server[] | undefined;
-  while (!signal.aborted) {
-    const servers = new Map<string, Server>();
-    let synced = false;
-    try {
+  await keepTrying(
+    signal,
+    BACKOFF,
+    async (connected) => {
+      const servers = new Map<string, Server>();
+      let synced = false;
       for await (const msg of client.watchServers({}, { signal })) {
         const next = msg.server;
         if (next && msg.removed) {
@@ -131,11 +132,11 @@ async function watch(
         if (!synced) continue;
         known = [...servers.values()];
         publish({ status: "live", servers: known }, clock.skewMs);
-        backoff = MIN_BACKOFF_MS;
+        connected();
       }
       throw new ConnectError("the watch ended");
-    } catch (err) {
-      if (signal.aborted) return;
+    },
+    (err) => {
       // A session that ended is the gate's to handle: the transport has told
       // it, and it takes the page away if the session is really gone. Until
       // then the watch keeps trying, without showing an error for it.
@@ -147,10 +148,9 @@ async function watch(
           clock.skewMs,
         );
       }
-      await delay(backoff + Math.random() * backoff, signal);
-      backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
-    }
-  }
+      return undefined;
+    },
+  );
 }
 
 /**
@@ -191,18 +191,4 @@ function merge(prev: Server | undefined, next: Server): Server {
 
 function sameTime(a: Timestamp | undefined, b: Timestamp | undefined): boolean {
   return a !== undefined && b !== undefined && a.seconds === b.seconds && a.nanos === b.nanos;
-}
-
-function delay(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        resolve();
-      },
-      { once: true },
-    );
-  });
 }

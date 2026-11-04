@@ -157,8 +157,11 @@ export const englishStrings: UIStrings = {
       destroy: "Destroy",
     },
     kind: {
+      project: "project",
+      environment: "environment",
       app: "app",
       service: "service",
+      container: "container",
       domain: "domain",
       secret: "secret",
       database: "database",

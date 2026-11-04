@@ -2,7 +2,16 @@
 
 import { create } from "@bufbuild/protobuf";
 import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@connectrpc/connect";
-import { AuthService, GetVersionResponseSchema, ServerService, SystemService, TokenService } from "@dockwell/api";
+import {
+  AuthService,
+  ChangeService,
+  EventService,
+  GetVersionResponseSchema,
+  ResourceService,
+  ServerService,
+  SystemService,
+  TokenService,
+} from "@dockwell/api";
 import { PHONE_QUERY } from "@dockwell/ui";
 import { QueryClient } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
@@ -21,6 +30,9 @@ export type Api = {
   servers?: Partial<ServiceImpl<typeof ServerService>>;
   auth?: Partial<ServiceImpl<typeof AuthService>>;
   tokens?: Partial<ServiceImpl<typeof TokenService>>;
+  changes?: Partial<ServiceImpl<typeof ChangeService>>;
+  events?: Partial<ServiceImpl<typeof EventService>>;
+  resources?: Partial<ServiceImpl<typeof ResourceService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -37,15 +49,27 @@ export function untilAborted(signal: AbortSignal): Promise<void> {
   });
 }
 
+/** How a test's query cache behaves. */
+export interface CacheOptions {
+  /** How long what it read stays fresh: 0, unless a test needs the panel's 30 s, as createQueryClient has. */
+  staleTime?: number;
+}
+
 /** The real providers, and the real session watch, around an in-memory API and a query cache that doesn't retry. */
-function apiWrapper(api: Api) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function apiWrapper(api: Api, cache: CacheOptions = {}) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: cache.staleTime ?? 0 } },
+  });
   const transport = createRouterTransport(
     ({ service }) => {
       service(SystemService, api.system ?? {});
       service(ServerService, { watchServers: quietWatch, ...api.servers });
       service(AuthService, api.auth ?? {});
       service(TokenService, api.tokens ?? {});
+      service(ChangeService, api.changes ?? {});
+      // The command bar lists projects and recent changes; with none, it lists none.
+      service(EventService, { listEvents: () => ({}), watchEvents: quietWatch, ...api.events });
+      service(ResourceService, { listResources: () => ({}), ...api.resources });
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );
@@ -57,8 +81,8 @@ function apiWrapper(api: Api) {
 }
 
 /** Renders ui against api. */
-export function renderWithApi(ui: ReactElement, api: Api) {
-  return render(ui, { wrapper: apiWrapper(api) });
+export function renderWithApi(ui: ReactElement, api: Api, cache?: CacheOptions) {
+  return render(ui, { wrapper: apiWrapper(api, cache) });
 }
 
 /** The control plane's build in tests that don't ask for another. */
@@ -70,13 +94,17 @@ export const version = () =>
  * browser would load it. Unless api says otherwise, the control plane
  * answers GetVersion with v0.4.0, and GetAuthState with Mira signed in.
  */
-export function renderAt(path: string, api: Api = {}) {
+export function renderAt(path: string, api: Api = {}, cache?: CacheOptions) {
   const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) });
-  const result = renderWithApi(<RouterProvider router={router} />, {
-    ...api,
-    system: { getVersion: version, ...api.system },
-    auth: { getAuthState: () => authState(), ...api.auth },
-  });
+  const result = renderWithApi(
+    <RouterProvider router={router} />,
+    {
+      ...api,
+      system: { getVersion: version, ...api.system },
+      auth: { getAuthState: () => authState(), ...api.auth },
+    },
+    cache,
+  );
   return { ...result, router };
 }
 

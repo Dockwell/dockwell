@@ -50,6 +50,8 @@ export interface CommandBarProps {
   onSelect?: (item: CommandItem) => void;
   placeholder?: string;
   defaultQuery?: string;
+  /** Called with the query as it is typed, for items that take what is typed, such as a name to create. */
+  onQueryChange?: (query: string) => void;
   /** Footer text naming where commands apply, such as "Acme / storefront". */
   scope?: string;
   /** Render the panel in place, without scrim, portal or fixed positioning. */
@@ -105,6 +107,7 @@ function CommandPanel({
   onSelect,
   placeholder,
   defaultQuery = "",
+  onQueryChange,
   scope,
   inline = false,
   autoFocus,
@@ -249,6 +252,7 @@ function CommandPanel({
           onChange={(event) => {
             setQuery(event.target.value);
             setActive(0);
+            onQueryChange?.(event.target.value);
           }}
           onKeyDown={onInputKeyDown}
         />

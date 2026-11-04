@@ -1,0 +1,182 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.plan-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.plan-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.plan-heading {
+  margin: 0;
+}
+
+.plan-loading {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+/* Each server's steps: the server, then a row a step. */
+.plan-server {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.plan-server-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 10px var(--space-4);
+  color: var(--ink-muted);
+}
+
+.plan-server-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.plan-server-meta {
+  margin-left: auto;
+  font-size: 12.5px;
+}
+
+.plan-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-step {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px var(--space-4);
+  border-top: 1px solid var(--line);
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.plan-step-what {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.plan-step-what code {
+  font-size: 12.5px;
+}
+
+.plan-step-kind {
+  color: var(--ink-muted);
+}
+
+.plan-step-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-3);
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.plan-step-warn {
+  color: var(--critical);
+}
+
+/* What applying means, a row each, as M-Plan-Approve has them. */
+.plan-effects {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.plan-effect {
+  display: flex;
+  gap: var(--space-3);
+  padding: 14px var(--space-4);
+  color: var(--ink-muted);
+}
+
+.plan-effect + .plan-effect {
+  border-top: 1px solid var(--line);
+}
+
+.plan-effect > .dw-icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.plan-effect-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.plan-effect-title {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 550;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.plan-effect-detail {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.plan-confirm {
+  padding: 14px var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+/* On a phone the sheet is the screen: edge to edge, with the actions in reach of a thumb. */
+.dw-sheet.plan-sheet.is-phone {
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  border-radius: 0;
+}
+
+.plan-sheet.is-phone .dw-sheet-head {
+  padding: var(--space-4) var(--space-2) var(--space-3) var(--space-4);
+}
+
+.plan-sheet.is-phone .dw-sheet-body {
+  padding: var(--space-5) var(--space-4) var(--space-4);
+}
+
+.plan-sheet.is-phone .dw-sheet-foot {
+  flex-wrap: wrap;
+  gap: 10px var(--space-2);
+  padding: var(--space-3) var(--space-4) max(22px, env(safe-area-inset-bottom));
+}
+
+.plan-sheet.is-phone .dw-sheet-note {
+  flex: 1 1 100%;
+}
+
+.plan-sheet.is-phone .dw-sheet-foot .dw-btn {
+  --h: 48px;
+  min-width: 104px;
+  font-size: 15px;
+}
+
+.plan-sheet.is-phone .dw-sheet-foot .dw-btn:last-child {
+  flex: 1 1 auto;
+}

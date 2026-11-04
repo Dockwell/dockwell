@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { SystemService } from "@dockwell/api";
+import { EventKind, EventService, type Resource, ResourceService, SystemService } from "@dockwell/api";
 import { CommandBar, type CommandItem, type ThemePreference, useThemePreference, useUIStrings } from "@dockwell/ui";
+import type { I18n } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
+import { onApple } from "../../lib/platform";
 import { useSignedInUser } from "../auth/useAuthState";
+import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { serverStatus } from "../servers/server";
 import { useFleetView } from "../servers/useFleet";
 import { shortVersion } from "./version";
@@ -19,13 +23,6 @@ export function useOpenCommandBar(): () => void {
   return useContext(OpenContext);
 }
 
-/** Apple keyboards say ⌘K; everyone else's say Ctrl K. */
-function onApple(): boolean {
-  const platform =
-    (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform;
-  return /mac|iphone|ipad|ipod/i.test(platform ?? "");
-}
-
 /** The shortcut that opens the command bar, as key caps for this keyboard. */
 export function useCommandShortcut(): string {
   return useMemo(() => (onApple() ? "⌘K" : "Ctrl K"), []);
@@ -33,9 +30,11 @@ export function useCommandShortcut(): string {
 
 /**
  * The command bar, open on ⌘K (Ctrl+K off Apple keyboards) from anywhere in
- * the shell and from the search buttons. For now it reaches every page and
- * server that exists, the control plane's status, your profile, and the
- * theme.
+ * the shell and from the search buttons. It reaches every page and server,
+ * the activity of each server, project and environment, the latest changes'
+ * plans, the control plane's status, your profile and the theme. Its first
+ * actions make a project or an environment: it asks for the name, then
+ * opens the plan. Other verbs come later.
  */
 export function CommandMenu({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -75,18 +74,51 @@ function isK(event: KeyboardEvent): boolean {
 
 type Run = () => void;
 
+/**
+ * A command. Choosing one closes the bar, unless it keeps it open: a step
+ * of a question, which asks the next one in an empty bar, or a note, such
+ * as why what you typed can't be a name, which leaves what you typed.
+ */
+type Command = CommandItem & { run: Run; keepOpen?: "step" | "note" };
+
+/** A name Dockwell takes for a project or environment: a DNS label, such as "api-v2". */
+const NAME = /^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/**
+ * What the bar is asking for, after an action that takes a name. An
+ * environment's project is asked for only once there is a choice.
+ */
+type Prompt = { kind: "project" } | { kind: "environment"; project?: Resource | undefined };
+
+/** The project a new environment is for: the one chosen, or the only one there is. */
+function projectFor(prompt: Prompt, projects: readonly Resource[] | undefined): Resource | undefined {
+  if (prompt.kind !== "environment") return undefined;
+  return prompt.project ?? (projects?.length === 1 ? projects[0] : undefined);
+}
+
 function Commands({ onClose }: { onClose: () => void }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const strings = useUIStrings();
   const navigate = useNavigate();
+  const sheet = useChangeSheet();
   // The view keeps its identity between samples, so the list isn't rebuilt while you type.
   const { servers, fleet } = useFleetView();
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
   const [theme, setTheme] = useThemePreference();
   const email = useSignedInUser()?.email;
+  const projects = useQuery(ResourceService.method.listResources, { kind: "project" }).data?.resources;
+  const environments = useQuery(ResourceService.method.listResources, { kind: "environment" }).data?.resources;
+  const recent = useQuery(EventService.method.listEvents, { kinds: [EventKind.CHANGE], pageSize: 8 }).data?.events;
+  const [prompt, setPrompt] = useState<Prompt>();
+  const [query, setQuery] = useState("");
 
   const commands = useMemo(() => {
-    const list: (CommandItem & { run: Run })[] = [];
+    const list: Command[] = [];
+    if (prompt)
+      return promptItems(prompt, query.trim(), projects, i18n, setPrompt, (opening) => {
+        onClose();
+        sheet.open(opening);
+      });
     const pages = t`Pages`;
     list.push({
       id: "overview",
@@ -115,7 +147,21 @@ function Commands({ onClose }: { onClose: () => void }) {
         hint: [strings.status[serverStatus(server)], server.address].filter(Boolean).join(" · "),
         run: () => navigate({ to: "/servers/$serverId", params: { serverId: server.id } }),
       });
+      list.push({
+        id: `server-activity:${server.id}`,
+        group: fleet ? t`Servers` : pages,
+        icon: "activity",
+        label: t`Show what happened on ${name}`,
+        run: () => navigate({ to: "/activity", search: { server: server.id } }),
+      });
     }
+    list.push({
+      id: "activity",
+      group: pages,
+      icon: "activity",
+      label: t`Open the activity`,
+      run: () => navigate({ to: "/activity" }),
+    });
     list.push({
       id: "status",
       group: pages,
@@ -132,6 +178,74 @@ function Commands({ onClose }: { onClose: () => void }) {
       hint: email,
       run: () => navigate({ to: "/profile" }),
     });
+
+    // Projects and environments, once there is a choice of them (PRD principle 4).
+    const shownProjects = (projects?.length ?? 0) > 1 ? (projects ?? []) : [];
+    for (const project of shownProjects) {
+      const name = project.resource?.name ?? project.id;
+      list.push({
+        id: `project:${project.id}`,
+        group: t`Projects`,
+        icon: "folder",
+        label: t`Show the activity of ${name}`,
+        hint: project.displayName || undefined,
+        run: () => navigate({ to: "/activity", search: { resource: project.id } }),
+      });
+    }
+    const perProject = new Map<string, number>();
+    for (const env of environments ?? [])
+      perProject.set(env.resource?.scope ?? "", (perProject.get(env.resource?.scope ?? "") ?? 0) + 1);
+    for (const env of environments ?? []) {
+      const scope = env.resource?.scope ?? "";
+      if ((perProject.get(scope) ?? 0) < 2) continue;
+      const projectName = projects?.find((p) => p.id === scope)?.resource?.name;
+      const envName = env.resource?.name ?? env.id;
+      const name = shownProjects.length > 0 && projectName ? `${projectName} / ${envName}` : envName;
+      list.push({
+        id: `environment:${env.id}`,
+        group: t`Environments`,
+        icon: "layers",
+        label: t`Show the activity of ${name}`,
+        hint: env.displayName || undefined,
+        run: () => navigate({ to: "/activity", search: { resource: env.id } }),
+      });
+    }
+
+    for (const event of recent ?? []) {
+      const change = event.change;
+      if (!change) continue;
+      const summary = change.summary;
+      list.push({
+        id: `change:${change.id}`,
+        group: t`Recent changes`,
+        icon: change.reverts ? "undo" : "commit",
+        label: t`Open the plan: ${summary}`,
+        hint: event.actor?.name || undefined,
+        run: () => sheet.open({ kind: "change", id: change.id }),
+      });
+    }
+
+    const actions = t`Actions`;
+    list.push({
+      id: "create-project",
+      group: actions,
+      icon: "plus",
+      label: t`Create a project`,
+      hint: t`Opens a plan`,
+      keepOpen: "step",
+      run: () => setPrompt({ kind: "project" }),
+    });
+    list.push({
+      id: "create-environment",
+      group: actions,
+      icon: "plus",
+      label: t`Create an environment`,
+      hint: t`Opens a plan`,
+      keepOpen: "step",
+      // Which project it is for is asked once the projects are in, and only if there is a choice.
+      run: () => setPrompt({ kind: "environment" }),
+    });
+
     const themes: { id: ThemePreference; label: string; icon: CommandItem["icon"] }[] = [
       { id: "light", label: t`Use the light theme`, icon: "sun" },
       { id: "dark", label: t`Use the dark theme`, icon: "moon" },
@@ -148,17 +262,138 @@ function Commands({ onClose }: { onClose: () => void }) {
       });
     }
     return list;
-  }, [t, strings, navigate, servers, fleet, version, email, theme, setTheme]);
+  }, [
+    t,
+    i18n,
+    strings,
+    navigate,
+    servers,
+    fleet,
+    version,
+    email,
+    theme,
+    setTheme,
+    projects,
+    environments,
+    recent,
+    prompt,
+    query,
+    sheet,
+    onClose,
+  ]);
+
+  const project = prompt ? projectFor(prompt, projects) : undefined;
+  const placeholder = !prompt
+    ? undefined
+    : prompt.kind === "project"
+      ? t`Name the new project, such as shop`
+      : project
+        ? t`Name the new environment, such as staging`
+        : projects
+          ? t`Which project is it for?`
+          : t`Finding your projects`;
+
+  // Each question has a bar of its own, which starts empty.
+  const question = prompt ? `${prompt.kind}:${project?.id ?? (projects ? "choose" : "loading")}` : "commands";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new question starts with an empty query, as its bar does
+  useEffect(() => setQuery(""), [question]);
 
   return (
     <CommandBar
+      key={question}
       open
       items={commands}
+      placeholder={placeholder}
+      onQueryChange={setQuery}
       onClose={onClose}
       onSelect={(item) => {
-        onClose();
-        commands.find((command) => command.id === item.id)?.run();
+        const command = commands.find((c) => c.id === item.id);
+        // A step asks its next question in a new, empty bar; a note leaves what you typed as it is.
+        if (command?.keepOpen === "step") setQuery("");
+        else if (!command?.keepOpen) onClose();
+        command?.run();
       }}
     />
   );
+}
+
+/** The items while the bar asks for a name, or which project, for a new project or environment. */
+function promptItems(
+  prompt: Prompt,
+  name: string,
+  loaded: readonly Resource[] | undefined,
+  i18n: I18n,
+  setPrompt: (p: Prompt) => void,
+  propose: (opening: Opening) => void,
+): Command[] {
+  const projects = loaded ?? [];
+  if (prompt.kind === "environment" && !projectFor(prompt, loaded)) {
+    // Until the projects are in, there is nothing to choose from yet.
+    if (!loaded) return [];
+    return projects.map((project) => {
+      const projectName = project.resource?.name ?? project.id;
+      return {
+        id: `prompt:project:${project.id}`,
+        icon: "folder",
+        label: i18n._(msg`In ${projectName}`),
+        hint: project.displayName || undefined,
+        keepOpen: "step",
+        run: () => setPrompt({ kind: "environment", project }),
+      };
+    });
+  }
+  if (name === "") return [];
+  if (!NAME.test(name)) {
+    return [
+      {
+        id: "prompt:invalid",
+        icon: "alert",
+        label: i18n._(msg`${name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter`),
+        keepOpen: "note",
+        run: () => {},
+      },
+    ];
+  }
+  if (prompt.kind === "project") {
+    return [
+      {
+        id: "create",
+        icon: "plus",
+        label: i18n._(msg`Create the project ${name}`),
+        hint: i18n._(msg`Opens a plan`),
+        run: () =>
+          propose({
+            kind: "propose",
+            summary: i18n._(msg`Create the project ${name}`),
+            edits: [{ resource: { kind: "project", name }, spec: { kind: { case: "project", value: {} } } }],
+          }),
+      },
+    ];
+  }
+  const project = projectFor(prompt, loaded);
+  const projectName = project?.resource?.name ?? "";
+  // With one project it goes unnamed, as everywhere until there is a choice.
+  const label =
+    projects.length > 1
+      ? i18n._(msg`Create the environment ${name} in ${projectName}`)
+      : i18n._(msg`Create the environment ${name}`);
+  return [
+    {
+      id: "create",
+      icon: "plus",
+      label,
+      hint: i18n._(msg`Opens a plan`),
+      run: () =>
+        propose({
+          kind: "propose",
+          summary: label,
+          edits: [
+            {
+              resource: { kind: "environment", name, scope: projects.length > 1 ? (project?.id ?? "") : "" },
+              spec: { kind: { case: "environment", value: {} } },
+            },
+          ],
+        }),
+    },
+  ];
 }

@@ -11,10 +11,35 @@ msgstr ""
 msgid "(modified)"
 msgstr "(modified)"
 
+#. placeholder {0}: offline.join(", ")
+#: src/features/changes/ChangeSheet.tsx
+msgid "{0} can't take its steps until its agent reconnects, so the plan can't apply until then."
+msgstr "{0} can't take its steps until its agent reconnects, so the plan can't apply until then."
+
 #. placeholder {0}: formatBytes(disk.sizeBytes, i18n.locale)
 #: src/features/auth/ClaimPage.tsx
 msgid "{0} disk"
 msgstr "{0} disk"
+
+#. placeholder {0}: s.change
+#: src/features/activity/describe.ts
+msgid "{0} to change"
+msgstr "{0} to change"
+
+#. placeholder {0}: s.create
+#: src/features/activity/describe.ts
+msgid "{0} to create"
+msgstr "{0} to create"
+
+#. placeholder {0}: s.destroy
+#: src/features/activity/describe.ts
+msgid "{0} to destroy"
+msgstr "{0} to destroy"
+
+#. placeholder {0}: s.replace
+#: src/features/activity/describe.ts
+msgid "{0} to replace"
+msgstr "{0} to replace"
 
 #. placeholder {0}: inv.cpuCount
 #: src/features/auth/ClaimPage.tsx
@@ -24,6 +49,10 @@ msgstr "{0} vCPU"
 #: src/features/auth/device.ts
 msgid "{browser} on {os}"
 msgstr "{browser} on {os}"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "{count, plural, one {{long} · # event} other {{long} · # events}}"
+msgstr "{count, plural, one {{long} · # event} other {{long} · # events}}"
 
 #: src/lib/time.ts
 msgid "{count, plural, one {# day} other {# days}}"
@@ -98,6 +127,10 @@ msgstr "{memShare} in use"
 msgid "{mount}: {used} used, {free} free, of {size}"
 msgstr "{mount}: {used} used, {free} free, of {size}"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
+msgstr "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
+
 #: src/features/auth/Unclaimed.tsx
 msgid "{name} has no owner yet"
 msgstr "{name} has no owner yet"
@@ -118,6 +151,14 @@ msgstr "{name}, {status}"
 msgid "{name}, {status}, CPU {cpu}%"
 msgstr "{name}, {status}, CPU {cpu}%"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "{names} · about {span} down"
+msgstr "{names} · about {span} down"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{names} · no downtime expected"
+msgstr "{names} · no downtime expected"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "{now} now"
 msgstr "{now} now"
@@ -130,9 +171,25 @@ msgstr "{rx} in · {tx} out"
 msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 msgstr "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 
+#: src/features/activity/describe.ts
+msgid "{server} joined as the control server"
+msgstr "{server} joined as the control server"
+
+#: src/features/activity/describe.ts
+msgid "{server} joined the fleet"
+msgstr "{server} joined the fleet"
+
+#: src/features/activity/describe.ts
+msgid "{server} renewed its certificate"
+msgstr "{server} renewed its certificate"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "{share} of {size} used"
 msgstr "{share} of {size} used"
+
+#: src/features/activity/describe.ts
+msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
+msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 
 #: src/features/shell/Topbar.tsx
 msgid "{unknown} in an unknown state"
@@ -171,14 +228,47 @@ msgstr "6 digits from your authenticator app, or one of your recovery codes."
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "A claim link works only until someone claims the install. Sign in instead."
 
+#: src/features/activity/describe.ts
+msgid "a server"
+msgstr "a server"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "A step failed, so the change stopped there"
+msgstr "A step failed, so the change stopped there"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "About"
+msgstr "About"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "About {span} down"
+msgstr "About {span} down"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "About {stepSpan} down"
+msgstr "About {stepSpan} down"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Access"
+msgstr "Access"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "Across {cpus} vCPU"
 msgstr "Across {cpus} vCPU"
 
-#: src/features/shell/sections.ts
+#: src/features/shell/CommandMenu.tsx
+msgid "Actions"
+msgstr "Actions"
+
+#: src/features/activity/ActivityPage.tsx
+#: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Activity"
 msgstr "Activity"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Actor"
+msgstr "Actor"
 
 #: src/features/auth/ProfilePage.tsx
 msgid "Add a passkey for {rpId} now, so you can sign in here next time without another link."
@@ -196,6 +286,14 @@ msgstr "Add passkey"
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Added {added}"
 msgstr "Added {added}"
+
+#: src/features/activity/describe.ts
+msgid "Added a passkey"
+msgstr "Added a passkey"
+
+#: src/features/activity/describe.ts
+msgid "Added the passkey {name}"
+msgstr "Added the passkey {name}"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Addresses"
@@ -223,6 +321,14 @@ msgstr "Agent starting"
 msgid "Alerts"
 msgstr "Alerts"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "All"
+msgstr "All"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "All actors"
+msgstr "All actors"
+
 #: src/features/shell/Topbar.tsx
 msgid "All healthy"
 msgstr "All healthy"
@@ -234,6 +340,10 @@ msgstr "Already claimed"
 #: src/features/auth/TokensPanel.tsx
 msgid "Also plans and applies changes that can be undone. Never removes data or cuts off access."
 msgstr "Also plans and applies changes that can be undone. Never removes data or cuts off access."
+
+#: src/features/changes/words.ts
+msgid "API token"
+msgstr "API token"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "API tokens"
@@ -247,6 +357,20 @@ msgstr "API tokens can't remove data, cut off access, or change how you sign in 
 msgid "app"
 msgstr "app"
 
+#: src/features/activity/ActivityPage.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "Applied"
+msgstr "Applied"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Apply plan"
+msgstr "Apply plan"
+
+#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/words.ts
+msgid "Applying"
+msgstr "Applying"
+
 #: src/features/shell/sections.ts
 #: src/features/shell/TabBar.tsx
 msgid "Apps"
@@ -255,6 +379,10 @@ msgstr "Apps"
 #: src/features/auth/TotpPanel.tsx
 msgid "Authenticator app"
 msgstr "Authenticator app"
+
+#: src/features/changes/words.ts
+msgid "Automatic"
+msgstr "Automatic"
 
 #: src/features/shell/Page.tsx
 msgid "Back"
@@ -268,9 +396,17 @@ msgstr "backup"
 msgid "Backups"
 msgstr "Backups"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "By"
+msgstr "By"
+
 #: src/features/auth/AuthGate.tsx
 msgid "Can't check your session"
 msgstr "Can't check your session"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Can't load the activity yet"
+msgstr "Can't load the activity yet"
 
 #: src/features/auth/AuthGate.tsx
 #: src/features/system/Unreachable.tsx
@@ -285,12 +421,21 @@ msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 #: src/app/Providers.tsx
 #: src/features/auth/TokensPanel.tsx
 #: src/features/auth/TotpPanel.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "Cancel"
 msgstr "Cancel"
 
 #: src/features/shell/sections.ts
 msgid "Catalog"
 msgstr "Catalog"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Changes"
+msgstr "Changes"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Changes, servers joining and sign-ins show up here as they happen."
+msgstr "Changes, servers joining and sign-ins show up here as they happen."
 
 #: src/features/system/StatusPage.tsx
 msgid "Check it from a terminal"
@@ -328,9 +473,18 @@ msgstr "Claim it with the one-time link that <0>dockwell run</0> printed when it
 msgid "Claim this server"
 msgstr "Claim this server"
 
+#: src/features/activity/describe.ts
+msgid "Claimed this install"
+msgstr "Claimed this install"
+
 #: src/app/Providers.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "Close"
 msgstr "Close"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Close details"
+msgstr "Close details"
 
 #: src/features/auth/SignInPage.tsx
 msgid "Code"
@@ -385,6 +539,14 @@ msgstr "Connecting to the control plane"
 msgid "Connections"
 msgstr "Connections"
 
+#: src/app/Providers.tsx
+msgid "container"
+msgstr "container"
+
+#: src/features/changes/words.ts
+msgid "Container"
+msgstr "Container"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Control plane"
@@ -429,16 +591,37 @@ msgid "CPU"
 msgstr "CPU"
 
 #: src/app/Providers.tsx
+#: src/features/changes/words.ts
 msgid "Create"
 msgstr "Create"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Create a project"
+msgstr "Create a project"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Create an API token"
 msgstr "Create an API token"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Create an environment"
+msgstr "Create an environment"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Create passkey"
 msgstr "Create passkey"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Create the environment {name}"
+msgstr "Create the environment {name}"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Create the environment {name} in {projectName}"
+msgstr "Create the environment {name} in {projectName}"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Create the project {name}"
+msgstr "Create the project {name}"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Create token"
@@ -451,6 +634,14 @@ msgstr "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer<
 #: src/features/auth/TokensPanel.tsx
 msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
 msgstr "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
+
+#: src/features/activity/describe.ts
+msgid "Created an API token"
+msgstr "Created an API token"
+
+#: src/features/activity/describe.ts
+msgid "Created the API token {name}"
+msgstr "Created the API token {name}"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Creating passkey"
@@ -486,8 +677,18 @@ msgid "Deploying"
 msgstr "Deploying"
 
 #: src/app/Providers.tsx
+#: src/features/changes/words.ts
 msgid "Destroy"
 msgstr "Destroy"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Destroys data"
+msgstr "Destroys data"
+
+#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/words.ts
+msgid "Discarded"
+msgstr "Discarded"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "Disk"
@@ -513,6 +714,18 @@ msgstr "Dockwell {short}: control plane status"
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Dockwell keeps trying."
+msgstr "Dockwell keeps trying."
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Dockwell made this change to roll back a failed one"
+msgstr "Dockwell made this change to roll back a failed one"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Dockwell rolled back the steps already done."
+msgstr "Dockwell rolled back the steps already done."
+
 #: src/features/auth/TokensPanel.tsx
 msgid "doesn't expire"
 msgstr "doesn't expire"
@@ -526,6 +739,8 @@ msgid "Domains"
 msgstr "Domains"
 
 #: src/features/auth/TokensPanel.tsx
+#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/words.ts
 msgid "Done"
 msgstr "Done"
 
@@ -571,8 +786,40 @@ msgid "Enter your name."
 msgstr "Enter your name."
 
 #: src/app/Providers.tsx
+msgid "environment"
+msgstr "environment"
+
+#: src/features/changes/words.ts
+msgid "Environment"
+msgstr "Environment"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Environments"
+msgstr "Environments"
+
+#: src/app/Providers.tsx
 msgid "Error"
 msgstr "Error"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Event"
+msgstr "Event"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Event type"
+msgstr "Event type"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Events: {caption}"
+msgstr "Events: {caption}"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Every change, server event and access grant, newest first"
+msgstr "Every change, server event and access grant, newest first"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Every step ran"
+msgstr "Every step ran"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Expired"
@@ -590,9 +837,21 @@ msgstr "expires {day}"
 msgid "Expires in {remaining}"
 msgstr "Expires in {remaining}"
 
+#: src/features/changes/words.ts
+msgid "Failed"
+msgstr "Failed"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Finding your projects"
+msgstr "Finding your projects"
+
 #: src/app/Providers.tsx
 msgid "firewall"
 msgstr "firewall"
+
+#: src/features/changes/words.ts
+msgid "Firewall rule"
+msgstr "Firewall rule"
 
 #: src/features/shell/Rail.tsx
 msgid "Fleet"
@@ -622,13 +881,29 @@ msgstr "Free"
 msgid "from"
 msgstr "from"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "From"
+msgstr "From"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "From Git, a Docker image, a Compose file or the catalog."
 msgstr "From Git, a Docker image, a Compose file or the catalog."
 
+#: src/features/changes/words.ts
+msgid "From the API"
+msgstr "From the API"
+
+#: src/features/changes/words.ts
+msgid "From the CLI"
+msgstr "From the CLI"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "From the link <0>dockwell run</0> printed. Run <1>dockwell claim</1> on {name} for a new one."
 msgstr "From the link <0>dockwell run</0> printed. Run <1>dockwell claim</1> on {name} for a new one."
+
+#: src/features/changes/words.ts
+msgid "From the panel"
+msgstr "From the panel"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Full access to {name}"
@@ -684,6 +959,10 @@ msgstr "in {hours} h"
 msgid "in {minutes} min"
 msgstr "in {minutes} min"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "In {projectName}"
+msgstr "In {projectName}"
+
 #: src/app/Providers.tsx
 msgid "In <0>{scope}</0>"
 msgstr "In <0>{scope}</0>"
@@ -700,6 +979,10 @@ msgstr "In 30 days"
 msgid "In 90 days"
 msgstr "In 90 days"
 
+#: src/features/changes/words.ts
+msgid "In a shell on the control server"
+msgstr "In a shell on the control server"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "in under a minute"
 msgstr "in under a minute"
@@ -708,9 +991,17 @@ msgstr "in under a minute"
 msgid "Installed"
 msgstr "Installed"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "It has been undone since."
+msgstr "It has been undone since."
+
 #: src/features/servers/ServerCallout.tsx
 msgid "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
 msgstr "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "It keeps applying if you close this."
+msgstr "It keeps applying if you close this."
 
 #: src/features/auth/ClaimPage.tsx
 msgid "It's live with HTTPS"
@@ -773,6 +1064,10 @@ msgstr "Live"
 msgid "Load average"
 msgstr "Load average"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Loading activity"
+msgstr "Loading activity"
+
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Loading passkeys"
 msgstr "Loading passkeys"
@@ -784,6 +1079,10 @@ msgstr "Loading servers"
 #: src/features/auth/SessionsPanel.tsx
 msgid "Loading sessions"
 msgstr "Loading sessions"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Loading the plan"
+msgstr "Loading the plan"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Loading tokens"
@@ -801,6 +1100,26 @@ msgstr "Lost your passkey? Run this on the server over SSH. It prints a sign-in 
 msgid "Machine"
 msgstr "Machine"
 
+#: src/features/activity/describe.ts
+msgid "Made a join ticket for a new server"
+msgstr "Made a join ticket for a new server"
+
+#: src/features/activity/describe.ts
+msgid "Made a link to claim this install"
+msgstr "Made a link to claim this install"
+
+#: src/features/activity/describe.ts
+msgid "Made a one-time sign-in link"
+msgstr "Made a one-time sign-in link"
+
+#: src/features/activity/describe.ts
+msgid "Made a one-time sign-in link for {name}"
+msgstr "Made a one-time sign-in link for {name}"
+
+#: src/features/activity/describe.ts
+msgid "Made new recovery codes"
+msgstr "Made new recovery codes"
+
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Main"
@@ -813,6 +1132,11 @@ msgstr "Make new recovery codes"
 #: src/features/shell/CommandMenu.tsx
 msgid "Match the system theme"
 msgstr "Match the system theme"
+
+#. placeholder {0}: server.serverName
+#: src/features/changes/ChangeSheet.tsx
+msgid "May cut off access to {0}"
+msgstr "May cut off access to {0}"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "May have been copied; it no longer signs in"
@@ -838,6 +1162,14 @@ msgstr "Move to another app"
 #: src/features/auth/TokensPanel.tsx
 msgid "Name"
 msgstr "Name"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Name the new environment, such as staging"
+msgstr "Name the new environment, such as staging"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Name the new project, such as shop"
+msgstr "Name the new project, such as shop"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Name the token after what will use it, such as GitHub Actions deploy."
@@ -866,6 +1198,10 @@ msgstr "never used"
 msgid "New recovery codes"
 msgstr "New recovery codes"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "No downtime"
+msgstr "No downtime"
+
 #: src/features/auth/Unclaimed.tsx
 msgid "No owner yet"
 msgstr "No owner yet"
@@ -882,6 +1218,10 @@ msgstr "No passkey for this address? Passkeys belong to the address they were ma
 msgid "No passkey works at {rpId} yet"
 msgstr "No passkey works at {rpId} yet"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "No server · nothing goes down"
+msgstr "No server · nothing goes down"
+
 #: src/features/servers/ServerOverview.tsx
 msgid "No server with this ID"
 msgstr "No server with this ID"
@@ -893,6 +1233,10 @@ msgstr "No servers yet"
 #: src/features/servers/ServersPanel.tsx
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "No servers yet. Add one with <0>dockwell token create</0> on this server."
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "No steps: it left the fleet"
+msgstr "No steps: it left the fleet"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "No tokens yet. Make one for each script or integration, so you can revoke one alone."
@@ -906,6 +1250,10 @@ msgstr "None reported"
 msgid "Not connected"
 msgstr "Not connected"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Not every server is connected"
+msgstr "Not every server is connected"
+
 #: src/features/shell/NotYet.tsx
 msgid "Not in this release yet"
 msgstr "Not in this release yet"
@@ -914,6 +1262,10 @@ msgstr "Not in this release yet"
 msgid "Not installed or not running"
 msgstr "Not installed or not running"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Nothing here yet"
+msgstr "Nothing here yet"
+
 #: src/app/Providers.tsx
 msgid "Nothing here yet."
 msgstr "Nothing here yet."
@@ -921,6 +1273,18 @@ msgstr "Nothing here yet."
 #: src/app/Providers.tsx
 msgid "Nothing matches “{query}”. Try a server, app or action name."
 msgstr "Nothing matches “{query}”. Try a server, app or action name."
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Nothing matches these filters. Clear them to see everything."
+msgstr "Nothing matches these filters. Clear them to see everything."
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Nothing runs on a server: Dockwell records it and it applies at once."
+msgstr "Nothing runs on a server: Dockwell records it and it applies at once."
+
+#: src/features/changes/words.ts
+msgid "Nothing to do"
+msgstr "Nothing to do"
 
 #: src/features/auth/SessionsPanel.tsx
 msgid "now"
@@ -933,6 +1297,10 @@ msgstr "of {total}"
 #: src/features/auth/TotpPanel.tsx
 msgid "Off"
 msgstr "Off"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Offline"
+msgstr "Offline"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "On"
@@ -950,6 +1318,14 @@ msgstr "Only through your SSH tunnel, and your passkey works only here. For HTTP
 msgid "Open {name}"
 msgstr "Open {name}"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Open plan"
+msgstr "Open plan"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Open the activity"
+msgstr "Open the activity"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
 msgstr "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
@@ -963,12 +1339,20 @@ msgid "Open the panel through your SSH tunnel at <0>http://localhost</0>, or on 
 msgstr "Open the panel through your SSH tunnel at <0>http://localhost</0>, or on its domain over HTTPS. You can still sign in with a code."
 
 #: src/features/shell/CommandMenu.tsx
+msgid "Open the plan: {summary}"
+msgstr "Open the plan: {summary}"
+
+#: src/features/shell/CommandMenu.tsx
 msgid "Open the server list"
 msgstr "Open the server list"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open your profile and security settings"
 msgstr "Open your profile and security settings"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Opens a plan"
+msgstr "Opens a plan"
 
 #: src/features/shell/MorePage.tsx
 #: src/features/shell/Rail.tsx
@@ -1042,6 +1426,23 @@ msgstr "Pause"
 msgid "Paused"
 msgstr "Paused"
 
+#: src/features/activity/ActivityPage.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "Plan"
+msgstr "Plan"
+
+#: src/features/changes/words.ts
+msgid "Planned"
+msgstr "Planned"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Planning"
+msgstr "Planning"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Planning: asking each server what this would take"
+msgstr "Planning: asking each server what this would take"
+
 #: src/features/system/StatusPage.tsx
 msgid "Platform"
 msgstr "Platform"
@@ -1058,6 +1459,22 @@ msgstr "Processor"
 #: src/features/shell/MorePage.tsx
 msgid "Profile and security"
 msgstr "Profile and security"
+
+#: src/app/Providers.tsx
+msgid "project"
+msgstr "project"
+
+#: src/features/changes/words.ts
+msgid "Project"
+msgstr "Project"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Projects"
+msgstr "Projects"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Proposed by"
+msgstr "Proposed by"
 
 #: src/app/Providers.tsx
 msgid "Protected environment"
@@ -1079,6 +1496,10 @@ msgstr "Public IPv6"
 msgid "QR code for your authenticator app"
 msgstr "QR code for your authenticator app"
 
+#: src/features/changes/words.ts
+msgid "Queued"
+msgstr "Queued"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Read and write"
 msgstr "Read and write"
@@ -1095,13 +1516,25 @@ msgstr "Reads servers and their state. Changes nothing."
 msgid "Receiving"
 msgstr "Receiving"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Recent changes"
+msgstr "Recent changes"
+
 #: src/features/servers/FleetNotes.tsx
 msgid "Reconnecting"
 msgstr "Reconnecting"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Recorded and applied"
+msgstr "Recorded and applied"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Recovery codes"
 msgstr "Recovery codes"
+
+#: src/features/changes/words.ts
+msgid "Recreated"
+msgstr "Recreated"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Refused"
@@ -1119,7 +1552,24 @@ msgstr "Remove {name}"
 msgid "Remove {what}"
 msgstr "Remove {what}"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Removed"
+msgstr "Removed"
+
+#: src/features/activity/describe.ts
+msgid "Removed {server} from the fleet"
+msgstr "Removed {server} from the fleet"
+
+#: src/features/activity/describe.ts
+msgid "Removed a passkey"
+msgstr "Removed a passkey"
+
+#: src/features/activity/describe.ts
+msgid "Removed the passkey {name}"
+msgstr "Removed the passkey {name}"
+
 #: src/app/Providers.tsx
+#: src/features/changes/words.ts
 msgid "Replace"
 msgstr "Replace"
 
@@ -1127,9 +1577,17 @@ msgstr "Replace"
 msgid "Replace codes"
 msgstr "Replace codes"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "resource"
+msgstr "resource"
+
 #: src/features/shell/MorePage.tsx
 msgid "Resources"
 msgstr "Resources"
+
+#: src/features/changes/words.ts
+msgid "Restarts"
+msgstr "Restarts"
 
 #: src/app/Providers.tsx
 msgid "Results"
@@ -1145,6 +1603,11 @@ msgstr "Retry"
 msgid "Retrying"
 msgstr "Retrying"
 
+#: src/features/activity/ActivityPage.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "Review plan"
+msgstr "Review plan"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Revoke"
 msgstr "Revoke"
@@ -1152,6 +1615,30 @@ msgstr "Revoke"
 #: src/features/auth/TokensPanel.tsx
 msgid "Revoke {name}"
 msgstr "Revoke {name}"
+
+#: src/features/activity/describe.ts
+msgid "Revoked an API token"
+msgstr "Revoked an API token"
+
+#: src/features/activity/describe.ts
+msgid "Revoked the API token {name}"
+msgstr "Revoked the API token {name}"
+
+#: src/features/activity/describe.ts
+msgid "Roll back: {reverted}"
+msgstr "Roll back: {reverted}"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Rolled back"
+msgstr "Rolled back"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Rolled back by"
+msgstr "Rolled back by"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Rolls back"
+msgstr "Rolls back"
 
 #: src/features/overview/Overview.tsx
 msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
@@ -1168,6 +1655,10 @@ msgstr "Run this on the server over SSH for a new link. It works once, for 15 mi
 #: src/features/auth/SignInPage.tsx
 msgid "Run this on the server over SSH. It prints a sign-in link that works once."
 msgstr "Run this on the server over SSH. It prints a sign-in link that works once."
+
+#: src/features/changes/words.ts
+msgid "Running"
+msgstr "Running"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Runs on another server"
@@ -1217,9 +1708,11 @@ msgid "Sending"
 msgstr "Sending"
 
 #: src/app/Providers.tsx
+#: src/features/activity/ActivityPage.tsx
 msgid "server"
 msgstr "server"
 
+#: src/features/changes/words.ts
 #: src/features/servers/ServerOverview.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
@@ -1227,6 +1720,7 @@ msgid "Server"
 msgstr "Server"
 
 #: src/app/Providers.tsx
+#: src/features/activity/ActivityPage.tsx
 #: src/features/servers/ServersPage.tsx
 #: src/features/servers/ServersPanel.tsx
 #: src/features/shell/CommandMenu.tsx
@@ -1238,6 +1732,10 @@ msgstr "Servers"
 #: src/app/Providers.tsx
 msgid "service"
 msgstr "service"
+
+#: src/features/changes/words.ts
+msgid "Service"
+msgstr "Service"
 
 #: src/features/auth/SessionsPanel.tsx
 msgid "Sessions"
@@ -1258,6 +1756,18 @@ msgstr "Settings"
 #: src/features/shell/MorePage.tsx
 msgid "Settings, status and account"
 msgstr "Settings, status and account"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Show earlier events"
+msgstr "Show earlier events"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Show the activity of {name}"
+msgstr "Show the activity of {name}"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Show what happened on {name}"
+msgstr "Show what happened on {name}"
 
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/SignInPage.tsx
@@ -1303,6 +1813,10 @@ msgstr "Sign out {device}"
 msgid "Sign out everywhere else"
 msgstr "Sign out everywhere else"
 
+#: src/features/activity/describe.ts
+msgid "Signed in"
+msgstr "Signed in"
+
 #: src/features/auth/ProfilePage.tsx
 msgid "signed in by claiming this install"
 msgstr "signed in by claiming this install"
@@ -1322,6 +1836,10 @@ msgstr "signed in with a recovery code"
 #: src/features/auth/ProfilePage.tsx
 msgid "signed in with an authenticator code"
 msgstr "signed in with an authenticator code"
+
+#: src/features/activity/describe.ts
+msgid "Signed out other sessions"
+msgstr "Signed out other sessions"
 
 #: src/features/auth/RecoverPage.tsx
 #: src/features/auth/SignInPage.tsx
@@ -1344,6 +1862,14 @@ msgstr "Size"
 msgid "Skip to content"
 msgstr "Skip to content"
 
+#: src/features/changes/words.ts
+msgid "Skipped"
+msgstr "Skipped"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Someone"
+msgstr "Someone"
+
 #: src/features/auth/ProfilePage.tsx
 msgid "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
 msgstr "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
@@ -1355,6 +1881,18 @@ msgstr "Something went wrong. Try again."
 #: src/features/auth/TokensPanel.tsx
 msgid "Start with read only, and allow writes only when the job needs them."
 msgstr "Start with read only, and allow writes only when the job needs them."
+
+#: src/features/activity/ActivityPage.tsx
+msgid "State"
+msgstr "State"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Steps by server"
+msgstr "Steps by server"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Steps run one at a time on each server, servers side by side."
+msgstr "Steps run one at a time on each server, servers side by side."
 
 #: src/app/Providers.tsx
 msgid "Stopped"
@@ -1402,6 +1940,10 @@ msgstr "That code doesn't match. Check that your phone's clock is right, then en
 msgid "That code was already used. Wait for the next one in your authenticator app."
 msgstr "That code was already used. Wait for the next one in your authenticator app."
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "That didn't work"
+msgstr "That didn't work"
+
 #: src/features/auth/messages.ts
 msgid "That passkey is already registered. Use it to sign in, or pick another device or security key."
 msgstr "That passkey is already registered. Use it to sign in, or pick another device or security key."
@@ -1426,6 +1968,10 @@ msgstr "The agent hasn't said what this server is yet."
 msgid "The agent reports no disks"
 msgstr "The agent reports no disks"
 
+#: src/features/changes/words.ts
+msgid "The API"
+msgstr "The API"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "The authenticator app isn't set up yet"
 msgstr "The authenticator app isn't set up yet"
@@ -1433,6 +1979,14 @@ msgstr "The authenticator app isn't set up yet"
 #: src/features/auth/messages.ts
 msgid "The browser couldn't finish with the passkey. Try again, or use another device."
 msgstr "The browser couldn't finish with the passkey. Try again, or use another device."
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "The change failed"
+msgstr "The change failed"
+
+#: src/features/changes/words.ts
+msgid "The CLI"
+msgstr "The CLI"
 
 #: src/features/auth/messages.ts
 msgid "The control plane couldn't check your session just now. Try again in a moment."
@@ -1458,6 +2012,10 @@ msgstr "the control plane runs {controlPlane}"
 msgid "The owner account wasn't created"
 msgstr "The owner account wasn't created"
 
+#: src/features/changes/words.ts
+msgid "The panel"
+msgstr "The panel"
+
 #: src/features/system/Unreachable.tsx
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
@@ -1470,9 +2028,25 @@ msgstr "The passkey prompt closed before it finished. Try again when you're read
 msgid "The passkey request expired. Try again."
 msgstr "The passkey request expired. Try again."
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "The plan didn't work"
+msgstr "The plan didn't work"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "the resource filter"
+msgstr "the resource filter"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "the server filter"
+msgstr "the server filter"
+
 #: src/features/servers/FleetNotes.tsx
 msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "The server list didn't load. Dockwell keeps trying."
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "The start of this plan's fingerprint, so you apply exactly what you reviewed."
+msgstr "The start of this plan's fingerprint, so you apply exactly what you reviewed."
 
 #: src/features/auth/TokensPanel.tsx
 msgid "The token wasn't created"
@@ -1527,6 +2101,10 @@ msgstr "This panel controls {name}. Create the owner account with a passkey."
 msgid "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
 msgstr "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "This plan destroys data or may cut off access"
+msgstr "This plan destroys data or may cut off access"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"
 msgstr "This server"
@@ -1567,6 +2145,10 @@ msgstr "to replace"
 msgid "to run"
 msgstr "to run"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Today"
+msgstr "Today"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Token copied"
 msgstr "Token copied"
@@ -1605,10 +2187,62 @@ msgstr "Turn off and delete codes"
 msgid "Turn on"
 msgstr "Turn on"
 
+#: src/features/activity/describe.ts
+msgid "Turned off codes from an authenticator app"
+msgstr "Turned off codes from an authenticator app"
+
+#: src/features/activity/describe.ts
+msgid "Turned on codes from an authenticator app"
+msgstr "Turned on codes from an authenticator app"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Type <0>{confirmWith}</0> to apply it"
+msgstr "Type <0>{confirmWith}</0> to apply it"
+
 #: src/app/Providers.tsx
+#: src/features/activity/ActivityPage.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "Undo"
 msgstr "Undo"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Undo for {undoDays} days"
+msgstr "Undo for {undoDays} days"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Undo is a plan too"
+msgstr "Undo is a plan too"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Undo may not bring everything back."
+msgstr "Undo may not bring everything back."
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Undo this change"
+msgstr "Undo this change"
+
+#: src/features/activity/describe.ts
+msgid "Undo: {reverted}"
+msgstr "Undo: {reverted}"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Undoes"
+msgstr "Undoes"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Undoing makes a plan of its own, for you to review."
+msgstr "Undoing makes a plan of its own, for you to review."
+
+#: src/features/activity/ActivityPage.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "Undone"
+msgstr "Undone"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Undone by"
+msgstr "Undone by"
+
+#: src/features/changes/words.ts
 #: src/features/servers/ServerPanels.tsx
 msgid "Unknown"
 msgstr "Unknown"
@@ -1625,6 +2259,14 @@ msgstr "Unknown system"
 msgid "Unlock"
 msgstr "Unlock"
 
+#: src/features/activity/describe.ts
+msgid "Unlocked codes for {name}"
+msgstr "Unlocked codes for {name}"
+
+#: src/features/activity/describe.ts
+msgid "Unlocked codes from an authenticator app"
+msgstr "Unlocked codes from an authenticator app"
+
 #: src/features/system/Unreachable.tsx
 msgid "Unreachable"
 msgstr "Unreachable"
@@ -1638,6 +2280,7 @@ msgid "up {uptime}"
 msgstr "up {uptime}"
 
 #: src/app/Providers.tsx
+#: src/features/changes/words.ts
 msgid "Update in place"
 msgstr "Update in place"
 
@@ -1688,6 +2331,7 @@ msgstr "Version <0>{0}</0>"
 msgid "volume"
 msgstr "volume"
 
+#: src/features/changes/words.ts
 #: src/features/servers/ServerPanels.tsx
 msgid "Waiting"
 msgstr "Waiting"
@@ -1703,6 +2347,14 @@ msgstr "Warning"
 #: src/features/shell/sections.ts
 msgid "Websites"
 msgstr "Websites"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "What applying means"
+msgstr "What applying means"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "What changed"
+msgstr "What changed"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "What happens next"
@@ -1721,6 +2373,22 @@ msgstr "What you see may be out of date. {0}"
 msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
 msgstr "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
 
+#: src/features/activity/ActivityPage.tsx
+msgid "When"
+msgstr "When"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Which project is it for?"
+msgstr "Which project is it for?"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Who"
+msgstr "Who"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Why it failed"
+msgstr "Why it failed"
+
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Works here"
 msgstr "Works here"
@@ -1729,9 +2397,18 @@ msgstr "Works here"
 msgid "Works on {where}"
 msgstr "Works on {where}"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Yesterday"
+msgstr "Yesterday"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "You become the owner. Nobody else can sign in."
 msgstr "You become the owner. Nobody else can sign in."
+
+#. placeholder {0}: formatDateTime(timestampDate(change.undoDeadline), i18n.locale)
+#: src/features/changes/ChangeSheet.tsx
+msgid "You can undo it until {0}."
+msgstr "You can undo it until {0}."
 
 #: src/features/auth/TokensPanel.tsx
 msgid "You see the token once, right after you create it."

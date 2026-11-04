@@ -91,8 +91,11 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
           destroy: t`Destroy`,
         },
         kind: {
+          project: t`project`,
+          environment: t`environment`,
           app: t`app`,
           service: t`service`,
+          container: t`container`,
           domain: t`domain`,
           secret: t`secret`,
           database: t`database`,

@@ -11,10 +11,35 @@ msgstr ""
 msgid "(modified)"
 msgstr "（有未提交的修改）"
 
+#. placeholder {0}: offline.join(", ")
+#: src/features/changes/ChangeSheet.tsx
+msgid "{0} can't take its steps until its agent reconnects, so the plan can't apply until then."
+msgstr "{0} 的代理重新连接之前无法执行其步骤，所以在此之前这个计划无法应用。"
+
 #. placeholder {0}: formatBytes(disk.sizeBytes, i18n.locale)
 #: src/features/auth/ClaimPage.tsx
 msgid "{0} disk"
 msgstr "{0} 磁盘"
+
+#. placeholder {0}: s.change
+#: src/features/activity/describe.ts
+msgid "{0} to change"
+msgstr "{0} 项更改"
+
+#. placeholder {0}: s.create
+#: src/features/activity/describe.ts
+msgid "{0} to create"
+msgstr "{0} 项创建"
+
+#. placeholder {0}: s.destroy
+#: src/features/activity/describe.ts
+msgid "{0} to destroy"
+msgstr "{0} 项销毁"
+
+#. placeholder {0}: s.replace
+#: src/features/activity/describe.ts
+msgid "{0} to replace"
+msgstr "{0} 项替换"
 
 #. placeholder {0}: inv.cpuCount
 #: src/features/auth/ClaimPage.tsx
@@ -24,6 +49,10 @@ msgstr "{0} vCPU"
 #: src/features/auth/device.ts
 msgid "{browser} on {os}"
 msgstr "{os} 上的 {browser}"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "{count, plural, one {{long} · # event} other {{long} · # events}}"
+msgstr "{count, plural, other {{long} · # 个事件}}"
 
 #: src/lib/time.ts
 msgid "{count, plural, one {# day} other {# days}}"
@@ -98,6 +127,10 @@ msgstr "已使用 {memShare}"
 msgid "{mount}: {used} used, {free} free, of {size}"
 msgstr "{mount}：共 {size}，已用 {used}，可用 {free}"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
+msgstr "{name} 不能用作名称。请使用小写字母、数字和连字符，并以字母开头"
+
 #: src/features/auth/Unclaimed.tsx
 msgid "{name} has no owner yet"
 msgstr "{name} 还没有所有者"
@@ -118,6 +151,14 @@ msgstr "{name}，{status}"
 msgid "{name}, {status}, CPU {cpu}%"
 msgstr "{name}，{status}，CPU {cpu}%"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "{names} · about {span} down"
+msgstr "{names} · 约 {span} 不可用"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{names} · no downtime expected"
+msgstr "{names} · 预计不会停机"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "{now} now"
 msgstr "当前 {now}"
@@ -130,9 +171,25 @@ msgstr "接收 {rx} · 发送 {tx}"
 msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 msgstr "{samples, plural, other {# 个样本的趋势，最新值 {latest}}}"
 
+#: src/features/activity/describe.ts
+msgid "{server} joined as the control server"
+msgstr "{server} 作为控制服务器加入"
+
+#: src/features/activity/describe.ts
+msgid "{server} joined the fleet"
+msgstr "{server} 加入了集群"
+
+#: src/features/activity/describe.ts
+msgid "{server} renewed its certificate"
+msgstr "{server} 更新了证书"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "{share} of {size} used"
 msgstr "{size} 中已用 {share}"
+
+#: src/features/activity/describe.ts
+msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
+msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
 
 #: src/features/shell/Topbar.tsx
 msgid "{unknown} in an unknown state"
@@ -171,14 +228,47 @@ msgstr "身份验证器应用里的 6 位数字，或你的一个恢复码。"
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "认领链接只在有人认领之前有效。请直接登录。"
 
+#: src/features/activity/describe.ts
+msgid "a server"
+msgstr "一台服务器"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "A step failed, so the change stopped there"
+msgstr "有一个步骤失败，变更在那里停止了"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "About"
+msgstr "关于"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "About {span} down"
+msgstr "约 {span} 不可用"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "About {stepSpan} down"
+msgstr "约 {stepSpan} 不可用"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Access"
+msgstr "访问"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "Across {cpus} vCPU"
 msgstr "{cpus} 个 vCPU 合计"
 
-#: src/features/shell/sections.ts
+#: src/features/shell/CommandMenu.tsx
+msgid "Actions"
+msgstr "操作"
+
+#: src/features/activity/ActivityPage.tsx
+#: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Activity"
 msgstr "动态"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Actor"
+msgstr "执行者"
 
 #: src/features/auth/ProfilePage.tsx
 msgid "Add a passkey for {rpId} now, so you can sign in here next time without another link."
@@ -196,6 +286,14 @@ msgstr "添加通行密钥"
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Added {added}"
 msgstr "{added}添加"
+
+#: src/features/activity/describe.ts
+msgid "Added a passkey"
+msgstr "添加了通行密钥"
+
+#: src/features/activity/describe.ts
+msgid "Added the passkey {name}"
+msgstr "添加了通行密钥 {name}"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Addresses"
@@ -223,6 +321,14 @@ msgstr "代理正在启动"
 msgid "Alerts"
 msgstr "告警"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "All"
+msgstr "全部"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "All actors"
+msgstr "所有执行者"
+
 #: src/features/shell/Topbar.tsx
 msgid "All healthy"
 msgstr "全部健康"
@@ -234,6 +340,10 @@ msgstr "已被认领"
 #: src/features/auth/TokensPanel.tsx
 msgid "Also plans and applies changes that can be undone. Never removes data or cuts off access."
 msgstr "还能规划并应用可撤销的更改。绝不会删除数据或切断访问。"
+
+#: src/features/changes/words.ts
+msgid "API token"
+msgstr "API 令牌"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "API tokens"
@@ -247,6 +357,20 @@ msgstr "API 令牌不能删除数据、切断访问，也不能更改你的登�
 msgid "app"
 msgstr "应用"
 
+#: src/features/activity/ActivityPage.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "Applied"
+msgstr "已应用"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Apply plan"
+msgstr "应用计划"
+
+#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/words.ts
+msgid "Applying"
+msgstr "正在应用"
+
 #: src/features/shell/sections.ts
 #: src/features/shell/TabBar.tsx
 msgid "Apps"
@@ -255,6 +379,10 @@ msgstr "应用"
 #: src/features/auth/TotpPanel.tsx
 msgid "Authenticator app"
 msgstr "身份验证器应用"
+
+#: src/features/changes/words.ts
+msgid "Automatic"
+msgstr "自动"
 
 #: src/features/shell/Page.tsx
 msgid "Back"
@@ -268,9 +396,17 @@ msgstr "备份"
 msgid "Backups"
 msgstr "备份"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "By"
+msgstr "执行者"
+
 #: src/features/auth/AuthGate.tsx
 msgid "Can't check your session"
 msgstr "无法检查你的会话"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Can't load the activity yet"
+msgstr "暂时无法加载动态"
 
 #: src/features/auth/AuthGate.tsx
 #: src/features/system/Unreachable.tsx
@@ -285,12 +421,21 @@ msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
 #: src/app/Providers.tsx
 #: src/features/auth/TokensPanel.tsx
 #: src/features/auth/TotpPanel.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "Cancel"
 msgstr "取消"
 
 #: src/features/shell/sections.ts
 msgid "Catalog"
 msgstr "应用目录"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Changes"
+msgstr "变更"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Changes, servers joining and sign-ins show up here as they happen."
+msgstr "变更、服务器加入和登录会在发生时显示在这里。"
 
 #: src/features/system/StatusPage.tsx
 msgid "Check it from a terminal"
@@ -328,9 +473,18 @@ msgstr "用 <0>dockwell run</0> 启动时打印的一次性链接认领它。如
 msgid "Claim this server"
 msgstr "认领这台服务器"
 
+#: src/features/activity/describe.ts
+msgid "Claimed this install"
+msgstr "认领了这个安装"
+
 #: src/app/Providers.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "Close"
 msgstr "关闭"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Close details"
+msgstr "关闭详情"
 
 #: src/features/auth/SignInPage.tsx
 msgid "Code"
@@ -385,6 +539,14 @@ msgstr "正在连接控制平面"
 msgid "Connections"
 msgstr "连接"
 
+#: src/app/Providers.tsx
+msgid "container"
+msgstr "容器"
+
+#: src/features/changes/words.ts
+msgid "Container"
+msgstr "容器"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Control plane"
@@ -429,16 +591,37 @@ msgid "CPU"
 msgstr "CPU"
 
 #: src/app/Providers.tsx
+#: src/features/changes/words.ts
 msgid "Create"
 msgstr "创建"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Create a project"
+msgstr "创建项目"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Create an API token"
 msgstr "创建 API 令牌"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Create an environment"
+msgstr "创建环境"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Create passkey"
 msgstr "创建通行密钥"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Create the environment {name}"
+msgstr "创建环境 {name}"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Create the environment {name} in {projectName}"
+msgstr "在 {projectName} 中创建环境 {name}"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Create the project {name}"
+msgstr "创建项目 {name}"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Create token"
@@ -451,6 +634,14 @@ msgstr "已创建 <0>{name}</0>。请在 Authorization 标头中发送 <1>Bearer
 #: src/features/auth/TokensPanel.tsx
 msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
 msgstr "已创建 <0>{name}</0>。请在 Authorization 标头中发送 <1>Bearer</1> 加上令牌。它将于 {expires} 过期。"
+
+#: src/features/activity/describe.ts
+msgid "Created an API token"
+msgstr "创建了 API 令牌"
+
+#: src/features/activity/describe.ts
+msgid "Created the API token {name}"
+msgstr "创建了 API 令牌 {name}"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Creating passkey"
@@ -486,8 +677,18 @@ msgid "Deploying"
 msgstr "正在部署"
 
 #: src/app/Providers.tsx
+#: src/features/changes/words.ts
 msgid "Destroy"
 msgstr "销毁"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Destroys data"
+msgstr "会销毁数据"
+
+#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/words.ts
+msgid "Discarded"
+msgstr "已丢弃"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "Disk"
@@ -513,6 +714,18 @@ msgstr "Dockwell {short}：控制平面状态"
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方；应用和部署功能即将推出。"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Dockwell keeps trying."
+msgstr "Dockwell 会继续尝试。"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Dockwell made this change to roll back a failed one"
+msgstr "Dockwell 发起这个变更来回滚一个失败的变更"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Dockwell rolled back the steps already done."
+msgstr "Dockwell 已回滚已完成的步骤。"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "doesn't expire"
 msgstr "不会过期"
@@ -526,6 +739,8 @@ msgid "Domains"
 msgstr "域名"
 
 #: src/features/auth/TokensPanel.tsx
+#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/words.ts
 msgid "Done"
 msgstr "完成"
 
@@ -571,8 +786,40 @@ msgid "Enter your name."
 msgstr "请输入你的姓名。"
 
 #: src/app/Providers.tsx
+msgid "environment"
+msgstr "环境"
+
+#: src/features/changes/words.ts
+msgid "Environment"
+msgstr "环境"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Environments"
+msgstr "环境"
+
+#: src/app/Providers.tsx
 msgid "Error"
 msgstr "错误"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Event"
+msgstr "事件"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Event type"
+msgstr "事件类型"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Events: {caption}"
+msgstr "事件：{caption}"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Every change, server event and access grant, newest first"
+msgstr "所有变更、服务器事件和访问授权，最新的在前"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Every step ran"
+msgstr "所有步骤都已运行"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Expired"
@@ -590,9 +837,21 @@ msgstr "{day}过期"
 msgid "Expires in {remaining}"
 msgstr "{remaining}后过期"
 
+#: src/features/changes/words.ts
+msgid "Failed"
+msgstr "失败"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Finding your projects"
+msgstr "正在查找你的项目"
+
 #: src/app/Providers.tsx
 msgid "firewall"
 msgstr "防火墙"
+
+#: src/features/changes/words.ts
+msgid "Firewall rule"
+msgstr "防火墙规则"
 
 #: src/features/shell/Rail.tsx
 msgid "Fleet"
@@ -622,13 +881,29 @@ msgstr "可用"
 msgid "from"
 msgstr "从"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "From"
+msgstr "来源"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "From Git, a Docker image, a Compose file or the catalog."
 msgstr "来自 Git、Docker 镜像、Compose 文件或应用目录。"
 
+#: src/features/changes/words.ts
+msgid "From the API"
+msgstr "来自 API"
+
+#: src/features/changes/words.ts
+msgid "From the CLI"
+msgstr "来自 CLI"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "From the link <0>dockwell run</0> printed. Run <1>dockwell claim</1> on {name} for a new one."
 msgstr "来自 <0>dockwell run</0> 打印的链接。在 {name} 上运行 <1>dockwell claim</1> 可获取新的认领码。"
+
+#: src/features/changes/words.ts
+msgid "From the panel"
+msgstr "来自面板"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Full access to {name}"
@@ -684,6 +959,10 @@ msgstr "{hours} 小时后"
 msgid "in {minutes} min"
 msgstr "{minutes} 分钟后"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "In {projectName}"
+msgstr "在 {projectName} 中"
+
 #: src/app/Providers.tsx
 msgid "In <0>{scope}</0>"
 msgstr "范围：<0>{scope}</0>"
@@ -700,6 +979,10 @@ msgstr "30 天后"
 msgid "In 90 days"
 msgstr "90 天后"
 
+#: src/features/changes/words.ts
+msgid "In a shell on the control server"
+msgstr "在控制服务器的 shell 中"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "in under a minute"
 msgstr "不到一分钟后"
@@ -708,9 +991,17 @@ msgstr "不到一分钟后"
 msgid "Installed"
 msgstr "安装时间"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "It has been undone since."
+msgstr "它之后已被撤销。"
+
 #: src/features/servers/ServerCallout.tsx
 msgid "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
 msgstr "它已加入，但代理尚未连接，所以还没有数据。请在该服务器上运行 <0>dockwell run</0> 启动代理。"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "It keeps applying if you close this."
+msgstr "关闭这里后它会继续应用。"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "It's live with HTTPS"
@@ -773,6 +1064,10 @@ msgstr "实时"
 msgid "Load average"
 msgstr "平均负载"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Loading activity"
+msgstr "正在加载动态"
+
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Loading passkeys"
 msgstr "正在加载通行密钥"
@@ -784,6 +1079,10 @@ msgstr "正在加载服务器"
 #: src/features/auth/SessionsPanel.tsx
 msgid "Loading sessions"
 msgstr "正在加载会话"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Loading the plan"
+msgstr "正在加载计划"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Loading tokens"
@@ -801,6 +1100,26 @@ msgstr "丢了通行密钥？请通过 SSH 在服务器上运行这条命令。�
 msgid "Machine"
 msgstr "机器"
 
+#: src/features/activity/describe.ts
+msgid "Made a join ticket for a new server"
+msgstr "为新服务器生成了加入票据"
+
+#: src/features/activity/describe.ts
+msgid "Made a link to claim this install"
+msgstr "生成了认领这个安装的链接"
+
+#: src/features/activity/describe.ts
+msgid "Made a one-time sign-in link"
+msgstr "生成了一次性登录链接"
+
+#: src/features/activity/describe.ts
+msgid "Made a one-time sign-in link for {name}"
+msgstr "为 {name} 生成了一次性登录链接"
+
+#: src/features/activity/describe.ts
+msgid "Made new recovery codes"
+msgstr "生成了新的恢复码"
+
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Main"
@@ -813,6 +1132,11 @@ msgstr "生成新的恢复码"
 #: src/features/shell/CommandMenu.tsx
 msgid "Match the system theme"
 msgstr "跟随系统主题"
+
+#. placeholder {0}: server.serverName
+#: src/features/changes/ChangeSheet.tsx
+msgid "May cut off access to {0}"
+msgstr "可能会切断对 {0} 的访问"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "May have been copied; it no longer signs in"
@@ -838,6 +1162,14 @@ msgstr "换到另一个应用"
 #: src/features/auth/TokensPanel.tsx
 msgid "Name"
 msgstr "名称"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Name the new environment, such as staging"
+msgstr "为新环境命名，例如 staging"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Name the new project, such as shop"
+msgstr "为新项目命名，例如 shop"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Name the token after what will use it, such as GitHub Actions deploy."
@@ -866,6 +1198,10 @@ msgstr "从未使用"
 msgid "New recovery codes"
 msgstr "新的恢复码"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "No downtime"
+msgstr "不会停机"
+
 #: src/features/auth/Unclaimed.tsx
 msgid "No owner yet"
 msgstr "还没有所有者"
@@ -882,6 +1218,10 @@ msgstr "这个地址没有通行密钥？通行密钥属于创建它的地址，
 msgid "No passkey works at {rpId} yet"
 msgstr "{rpId} 上还没有可用的通行密钥"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "No server · nothing goes down"
+msgstr "不涉及服务器 · 不会停机"
+
 #: src/features/servers/ServerOverview.tsx
 msgid "No server with this ID"
 msgstr "没有这个 ID 的服务器"
@@ -893,6 +1233,10 @@ msgstr "还没有服务器"
 #: src/features/servers/ServersPanel.tsx
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "还没有服务器。在这台服务器上运行 <0>dockwell token create</0> 来添加一台。"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "No steps: it left the fleet"
+msgstr "没有步骤：它已离开集群"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "No tokens yet. Make one for each script or integration, so you can revoke one alone."
@@ -906,6 +1250,10 @@ msgstr "未上报"
 msgid "Not connected"
 msgstr "未连接"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Not every server is connected"
+msgstr "并非所有服务器都已连接"
+
 #: src/features/shell/NotYet.tsx
 msgid "Not in this release yet"
 msgstr "此版本尚未提供"
@@ -914,6 +1262,10 @@ msgstr "此版本尚未提供"
 msgid "Not installed or not running"
 msgstr "未安装或未运行"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Nothing here yet"
+msgstr "这里还没有内容"
+
 #: src/app/Providers.tsx
 msgid "Nothing here yet."
 msgstr "这里还没有内容。"
@@ -921,6 +1273,18 @@ msgstr "这里还没有内容。"
 #: src/app/Providers.tsx
 msgid "Nothing matches “{query}”. Try a server, app or action name."
 msgstr "没有与“{query}”匹配的结果。试试服务器、应用或操作的名称。"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Nothing matches these filters. Clear them to see everything."
+msgstr "没有符合这些筛选条件的内容。清除筛选即可查看全部。"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Nothing runs on a server: Dockwell records it and it applies at once."
+msgstr "不会在服务器上运行任何内容：Dockwell 记录后立即应用。"
+
+#: src/features/changes/words.ts
+msgid "Nothing to do"
+msgstr "无需操作"
 
 #: src/features/auth/SessionsPanel.tsx
 msgid "now"
@@ -933,6 +1297,10 @@ msgstr "/ {total}"
 #: src/features/auth/TotpPanel.tsx
 msgid "Off"
 msgstr "关闭"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Offline"
+msgstr "离线"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "On"
@@ -950,6 +1318,14 @@ msgstr "只能通过你的 SSH 隧道访问，你的通行密钥也只在这里�
 msgid "Open {name}"
 msgstr "打开 {name}"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Open plan"
+msgstr "打开计划"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Open the activity"
+msgstr "打开动态"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
 msgstr "请通过 SSH 隧道在 <0>http://localhost</0> 打开认领链接，或通过 HTTPS 在面板的域名上打开。"
@@ -963,12 +1339,20 @@ msgid "Open the panel through your SSH tunnel at <0>http://localhost</0>, or on 
 msgstr "请通过 SSH 隧道在 <0>http://localhost</0> 打开面板，或通过 HTTPS 在它的域名上打开。你仍然可以用验证码登录。"
 
 #: src/features/shell/CommandMenu.tsx
+msgid "Open the plan: {summary}"
+msgstr "打开计划：{summary}"
+
+#: src/features/shell/CommandMenu.tsx
 msgid "Open the server list"
 msgstr "打开服务器列表"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open your profile and security settings"
 msgstr "打开你的个人资料和安全设置"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Opens a plan"
+msgstr "会打开计划"
 
 #: src/features/shell/MorePage.tsx
 #: src/features/shell/Rail.tsx
@@ -1042,6 +1426,23 @@ msgstr "暂停"
 msgid "Paused"
 msgstr "已暂停"
 
+#: src/features/activity/ActivityPage.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "Plan"
+msgstr "计划"
+
+#: src/features/changes/words.ts
+msgid "Planned"
+msgstr "已计划"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Planning"
+msgstr "正在计划"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Planning: asking each server what this would take"
+msgstr "正在计划：询问每台服务器需要做什么"
+
 #: src/features/system/StatusPage.tsx
 msgid "Platform"
 msgstr "平台"
@@ -1058,6 +1459,22 @@ msgstr "处理器"
 #: src/features/shell/MorePage.tsx
 msgid "Profile and security"
 msgstr "个人资料和安全"
+
+#: src/app/Providers.tsx
+msgid "project"
+msgstr "项目"
+
+#: src/features/changes/words.ts
+msgid "Project"
+msgstr "项目"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Projects"
+msgstr "项目"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Proposed by"
+msgstr "提议者"
 
 #: src/app/Providers.tsx
 msgid "Protected environment"
@@ -1079,6 +1496,10 @@ msgstr "公网 IPv6"
 msgid "QR code for your authenticator app"
 msgstr "身份验证器应用的二维码"
 
+#: src/features/changes/words.ts
+msgid "Queued"
+msgstr "排队中"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Read and write"
 msgstr "读写"
@@ -1095,13 +1516,25 @@ msgstr "读取服务器及其状态，不做任何更改。"
 msgid "Receiving"
 msgstr "接收"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Recent changes"
+msgstr "最近的变更"
+
 #: src/features/servers/FleetNotes.tsx
 msgid "Reconnecting"
 msgstr "正在重新连接"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Recorded and applied"
+msgstr "已记录并应用"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Recovery codes"
 msgstr "恢复码"
+
+#: src/features/changes/words.ts
+msgid "Recreated"
+msgstr "重新创建"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Refused"
@@ -1119,7 +1552,24 @@ msgstr "移除 {name}"
 msgid "Remove {what}"
 msgstr "移除 {what}"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Removed"
+msgstr "已移除"
+
+#: src/features/activity/describe.ts
+msgid "Removed {server} from the fleet"
+msgstr "从集群中移除了 {server}"
+
+#: src/features/activity/describe.ts
+msgid "Removed a passkey"
+msgstr "移除了通行密钥"
+
+#: src/features/activity/describe.ts
+msgid "Removed the passkey {name}"
+msgstr "移除了通行密钥 {name}"
+
 #: src/app/Providers.tsx
+#: src/features/changes/words.ts
 msgid "Replace"
 msgstr "替换"
 
@@ -1127,9 +1577,17 @@ msgstr "替换"
 msgid "Replace codes"
 msgstr "替换恢复码"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "resource"
+msgstr "资源"
+
 #: src/features/shell/MorePage.tsx
 msgid "Resources"
 msgstr "资源"
+
+#: src/features/changes/words.ts
+msgid "Restarts"
+msgstr "会重启"
 
 #: src/app/Providers.tsx
 msgid "Results"
@@ -1145,6 +1603,11 @@ msgstr "重试"
 msgid "Retrying"
 msgstr "正在重试"
 
+#: src/features/activity/ActivityPage.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "Review plan"
+msgstr "审查计划"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Revoke"
 msgstr "撤销"
@@ -1152,6 +1615,30 @@ msgstr "撤销"
 #: src/features/auth/TokensPanel.tsx
 msgid "Revoke {name}"
 msgstr "撤销 {name}"
+
+#: src/features/activity/describe.ts
+msgid "Revoked an API token"
+msgstr "撤销了 API 令牌"
+
+#: src/features/activity/describe.ts
+msgid "Revoked the API token {name}"
+msgstr "撤销了 API 令牌 {name}"
+
+#: src/features/activity/describe.ts
+msgid "Roll back: {reverted}"
+msgstr "回滚：{reverted}"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Rolled back"
+msgstr "已回滚"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Rolled back by"
+msgstr "回滚者"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Rolls back"
+msgstr "回滚"
 
 #: src/features/overview/Overview.tsx
 msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
@@ -1168,6 +1655,10 @@ msgstr "请通过 SSH 在服务器上运行这条命令获取新链接。它只�
 #: src/features/auth/SignInPage.tsx
 msgid "Run this on the server over SSH. It prints a sign-in link that works once."
 msgstr "请通过 SSH 在服务器上运行这条命令。它会打印一个只能用一次的登录链接。"
+
+#: src/features/changes/words.ts
+msgid "Running"
+msgstr "正在运行"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Runs on another server"
@@ -1217,9 +1708,11 @@ msgid "Sending"
 msgstr "发送"
 
 #: src/app/Providers.tsx
+#: src/features/activity/ActivityPage.tsx
 msgid "server"
 msgstr "服务器"
 
+#: src/features/changes/words.ts
 #: src/features/servers/ServerOverview.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
@@ -1227,6 +1720,7 @@ msgid "Server"
 msgstr "服务器"
 
 #: src/app/Providers.tsx
+#: src/features/activity/ActivityPage.tsx
 #: src/features/servers/ServersPage.tsx
 #: src/features/servers/ServersPanel.tsx
 #: src/features/shell/CommandMenu.tsx
@@ -1237,6 +1731,10 @@ msgstr "服务器"
 
 #: src/app/Providers.tsx
 msgid "service"
+msgstr "服务"
+
+#: src/features/changes/words.ts
+msgid "Service"
 msgstr "服务"
 
 #: src/features/auth/SessionsPanel.tsx
@@ -1258,6 +1756,18 @@ msgstr "设置"
 #: src/features/shell/MorePage.tsx
 msgid "Settings, status and account"
 msgstr "设置、状态和账户"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Show earlier events"
+msgstr "显示更早的事件"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Show the activity of {name}"
+msgstr "显示 {name} 的动态"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Show what happened on {name}"
+msgstr "显示 {name} 上发生的事"
 
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/SignInPage.tsx
@@ -1303,6 +1813,10 @@ msgstr "让 {device} 退出登录"
 msgid "Sign out everywhere else"
 msgstr "在其他所有地方退出登录"
 
+#: src/features/activity/describe.ts
+msgid "Signed in"
+msgstr "登录了"
+
 #: src/features/auth/ProfilePage.tsx
 msgid "signed in by claiming this install"
 msgstr "通过认领此安装登录"
@@ -1322,6 +1836,10 @@ msgstr "通过恢复码登录"
 #: src/features/auth/ProfilePage.tsx
 msgid "signed in with an authenticator code"
 msgstr "通过身份验证器验证码登录"
+
+#: src/features/activity/describe.ts
+msgid "Signed out other sessions"
+msgstr "退出了其他会话"
 
 #: src/features/auth/RecoverPage.tsx
 #: src/features/auth/SignInPage.tsx
@@ -1344,6 +1862,14 @@ msgstr "规格"
 msgid "Skip to content"
 msgstr "跳到主要内容"
 
+#: src/features/changes/words.ts
+msgid "Skipped"
+msgstr "已跳过"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Someone"
+msgstr "某人"
+
 #: src/features/auth/ProfilePage.tsx
 msgid "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
 msgstr "有人为你的账户连续输错了 {count} 次验证码，最后一次在{when}。只有确认是你本人时才解锁验证码登录。否则可能有人知道了你的邮箱；你的通行密钥和恢复码仍然可用。"
@@ -1355,6 +1881,18 @@ msgstr "出了点问题。请重试。"
 #: src/features/auth/TokensPanel.tsx
 msgid "Start with read only, and allow writes only when the job needs them."
 msgstr "先从只读开始，只在任务需要时才允许写入。"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "State"
+msgstr "状态"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Steps by server"
+msgstr "各服务器的步骤"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Steps run one at a time on each server, servers side by side."
+msgstr "每台服务器上的步骤依次运行，各服务器同时进行。"
 
 #: src/app/Providers.tsx
 msgid "Stopped"
@@ -1402,6 +1940,10 @@ msgstr "验证码不匹配。请确认手机时间准确，然后输入当前的
 msgid "That code was already used. Wait for the next one in your authenticator app."
 msgstr "这个验证码已经用过了。请等待身份验证器应用中的下一个。"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "That didn't work"
+msgstr "操作没有成功"
+
 #: src/features/auth/messages.ts
 msgid "That passkey is already registered. Use it to sign in, or pick another device or security key."
 msgstr "这个通行密钥已经注册过了。请用它登录，或选择其他设备或安全密钥。"
@@ -1426,6 +1968,10 @@ msgstr "代理尚未上报这台服务器的信息。"
 msgid "The agent reports no disks"
 msgstr "代理没有上报磁盘"
 
+#: src/features/changes/words.ts
+msgid "The API"
+msgstr "API"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "The authenticator app isn't set up yet"
 msgstr "身份验证器应用尚未设置"
@@ -1433,6 +1979,14 @@ msgstr "身份验证器应用尚未设置"
 #: src/features/auth/messages.ts
 msgid "The browser couldn't finish with the passkey. Try again, or use another device."
 msgstr "浏览器未能完成通行密钥操作。请重试，或换一台设备。"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "The change failed"
+msgstr "变更失败"
+
+#: src/features/changes/words.ts
+msgid "The CLI"
+msgstr "CLI"
 
 #: src/features/auth/messages.ts
 msgid "The control plane couldn't check your session just now. Try again in a moment."
@@ -1458,6 +2012,10 @@ msgstr "控制平面为 {controlPlane}"
 msgid "The owner account wasn't created"
 msgstr "所有者账户未创建"
 
+#: src/features/changes/words.ts
+msgid "The panel"
+msgstr "面板"
+
 #: src/features/system/Unreachable.tsx
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务器上的 <0>dockwell run</0> 仍在运行，然后重试。"
@@ -1470,9 +2028,25 @@ msgstr "通行密钥提示在完成前关闭了。准备好后请重试。"
 msgid "The passkey request expired. Try again."
 msgstr "通行密钥请求已过期。请重试。"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "The plan didn't work"
+msgstr "计划没有成功"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "the resource filter"
+msgstr "资源筛选"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "the server filter"
+msgstr "服务器筛选"
+
 #: src/features/servers/FleetNotes.tsx
 msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "服务器列表未能加载。Dockwell 会继续重试。"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "The start of this plan's fingerprint, so you apply exactly what you reviewed."
+msgstr "这个计划指纹的开头，确保你应用的正是你审查过的内容。"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "The token wasn't created"
@@ -1527,6 +2101,10 @@ msgstr "这个面板控制 {name}。请用通行密钥创建所有者账户。"
 msgid "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
 msgstr "Dockwell 的这一部分尚未完成，会在之后的版本中推出。在此之前，可以在概览中查看服务器的运行情况。"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "This plan destroys data or may cut off access"
+msgstr "这个计划会销毁数据，或可能切断访问"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"
 msgstr "这台服务器"
@@ -1567,6 +2145,10 @@ msgstr "项待替换"
 msgid "to run"
 msgstr "运行"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Today"
+msgstr "今天"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Token copied"
 msgstr "令牌已复制"
@@ -1605,10 +2187,62 @@ msgstr "关闭并删除恢复码"
 msgid "Turn on"
 msgstr "开启"
 
+#: src/features/activity/describe.ts
+msgid "Turned off codes from an authenticator app"
+msgstr "关闭了身份验证器应用验证码"
+
+#: src/features/activity/describe.ts
+msgid "Turned on codes from an authenticator app"
+msgstr "开启了身份验证器应用验证码"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Type <0>{confirmWith}</0> to apply it"
+msgstr "输入 <0>{confirmWith}</0> 以应用"
+
 #: src/app/Providers.tsx
+#: src/features/activity/ActivityPage.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "Undo"
 msgstr "撤销"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Undo for {undoDays} days"
+msgstr "{undoDays} 天内可撤销"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Undo is a plan too"
+msgstr "撤销也是一个计划"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Undo may not bring everything back."
+msgstr "撤销可能无法恢复所有内容。"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Undo this change"
+msgstr "撤销这个变更"
+
+#: src/features/activity/describe.ts
+msgid "Undo: {reverted}"
+msgstr "撤销：{reverted}"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Undoes"
+msgstr "撤销"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Undoing makes a plan of its own, for you to review."
+msgstr "撤销会生成单独的计划，供你审查。"
+
+#: src/features/activity/ActivityPage.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "Undone"
+msgstr "已撤销"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Undone by"
+msgstr "撤销者"
+
+#: src/features/changes/words.ts
 #: src/features/servers/ServerPanels.tsx
 msgid "Unknown"
 msgstr "未知"
@@ -1625,6 +2259,14 @@ msgstr "未知系统"
 msgid "Unlock"
 msgstr "解锁"
 
+#: src/features/activity/describe.ts
+msgid "Unlocked codes for {name}"
+msgstr "为 {name} 解锁了验证码"
+
+#: src/features/activity/describe.ts
+msgid "Unlocked codes from an authenticator app"
+msgstr "解锁了身份验证器应用验证码"
+
 #: src/features/system/Unreachable.tsx
 msgid "Unreachable"
 msgstr "无法访问"
@@ -1638,6 +2280,7 @@ msgid "up {uptime}"
 msgstr "已运行 {uptime}"
 
 #: src/app/Providers.tsx
+#: src/features/changes/words.ts
 msgid "Update in place"
 msgstr "原地更新"
 
@@ -1688,6 +2331,7 @@ msgstr "版本 <0>{0}</0>"
 msgid "volume"
 msgstr "卷"
 
+#: src/features/changes/words.ts
 #: src/features/servers/ServerPanels.tsx
 msgid "Waiting"
 msgstr "等待中"
@@ -1703,6 +2347,14 @@ msgstr "警告"
 #: src/features/shell/sections.ts
 msgid "Websites"
 msgstr "网站"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "What applying means"
+msgstr "应用的影响"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "What changed"
+msgstr "变更内容"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "What happens next"
@@ -1721,6 +2373,22 @@ msgstr "你看到的内容可能已过时。{0}"
 msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
 msgstr "你看到的内容可能已过时。请确认服务器上的 dockwell run 仍在运行，然后重试。"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "When"
+msgstr "时间"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Which project is it for?"
+msgstr "它属于哪个项目？"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Who"
+msgstr "执行者"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Why it failed"
+msgstr "失败原因"
+
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Works here"
 msgstr "在此处可用"
@@ -1729,9 +2397,18 @@ msgstr "在此处可用"
 msgid "Works on {where}"
 msgstr "在 {where} 上可用"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Yesterday"
+msgstr "昨天"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "You become the owner. Nobody else can sign in."
 msgstr "你将成为所有者。其他人无法登录。"
+
+#. placeholder {0}: formatDateTime(timestampDate(change.undoDeadline), i18n.locale)
+#: src/features/changes/ChangeSheet.tsx
+msgid "You can undo it until {0}."
+msgstr "你可以在 {0} 之前撤销它。"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "You see the token once, right after you create it."
