@@ -151,7 +151,8 @@ func (e *Engine) users(ctx context.Context, tx *store.Tx, items []item) ([]resou
 				if err != nil {
 					return nil, err
 				}
-				for _, u := range users {
+				for i := range users {
+					u := &users[i]
 					ref := resource.Ref{Kind: resource.Kind(u.Kind), Scope: u.Scope, Name: u.Name}
 					if !in[ref] {
 						in[ref] = true

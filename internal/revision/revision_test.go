@@ -16,7 +16,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
-	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/container/containertest"
@@ -356,14 +355,15 @@ func testAChangePlannedBeforeTheUpgradeStillApplies(t *testing.T, backend store.
 			t.Fatal("the plain fingerprint is the keyed one; the test plans nothing that is sealed")
 		}
 		c := store.Change{
-			ID: id.New(id.Change), Summary: summary, Actor: "usr_test", State: store.ChangePlanned, Fingerprint: plan.plain,
+			ID: "chg_before_" + strings.ReplaceAll(strings.ToLower(summary), " ", "_"), Summary: summary, Actor: "usr_test", State: store.ChangePlanned, Fingerprint: plan.plain,
 			FingerprintScheme: fingerprintPlain, CreatedAt: time.Now(), ProposedVia: ViaPanel, Servers: serversOf(plan),
 		}
 		plan.Change, plan.Summary = c.ID, summary
 		if c.Plan, err = json.Marshal(plan); err != nil {
 			t.Fatal(err)
 		}
-		for _, it := range items {
+		for i := range items {
+			it := &items[i]
 			c.Items = append(c.Items, store.ChangeItem{
 				ResourceID: it.id, Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, BaseRevision: it.base, Spec: it.encoded, Servers: it.servers,
 			})

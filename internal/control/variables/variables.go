@@ -149,7 +149,8 @@ func usedBy(ctx context.Context, tx *store.Tx, envID string, list []store.NamedR
 		if err != nil {
 			return nil, err
 		}
-		for _, u := range users {
+		for i := range users {
+			u := &users[i]
 			k := usedKey{resource.Kind(u.Uses.Kind), u.Uses.Name}
 			used[k] = append(used[k], &dockwellv1.VariableUse{ServiceId: u.ID, Service: u.Name, Name: u.Uses.As})
 		}

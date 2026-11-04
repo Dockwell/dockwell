@@ -167,32 +167,44 @@ func (*Driver) Pin(spec proto.Message, revisions map[string]int) {
 func (*Driver) Rebind(spec proto.Message, name string, from, to resource.Kind) {
 	svc := spec.(*resourcev1.Service)
 	src, dst := usesOfKind(svc, from), usesOfKind(svc, to)
-	if src == nil || dst == nil {
+	if from == to || !known(from) || !known(to) {
 		return
 	}
-	for as, n := range *src {
+	for as, n := range src {
 		if n == name || n == "" && as == name {
-			delete(*src, as)
-			if *dst == nil {
-				*dst = map[string]string{}
+			delete(src, as)
+			if dst == nil {
+				dst = map[string]string{}
 			}
-			(*dst)[as] = name
+			dst[as] = name
 		}
 	}
-	if len(*src) == 0 {
-		*src = nil
+	if len(src) == 0 {
+		src = nil
 	}
+	setUses(svc, from, src)
+	setUses(svc, to, dst)
+}
+
+func known(kind resource.Kind) bool {
+	return kind == variable.VariableKind || kind == variable.SecretKind
 }
 
 // usesOfKind is the map of a service's uses of kind.
-func usesOfKind(svc *resourcev1.Service, kind resource.Kind) *map[string]string {
-	switch kind {
-	case variable.VariableKind:
-		return &svc.Variables
-	case variable.SecretKind:
-		return &svc.Secrets
+func usesOfKind(svc *resourcev1.Service, kind resource.Kind) map[string]string {
+	if kind == variable.SecretKind {
+		return svc.GetSecrets()
 	}
-	return nil
+	return svc.GetVariables()
+}
+
+// setUses sets the map of a service's uses of kind.
+func setUses(svc *resourcev1.Service, kind resource.Kind, uses map[string]string) {
+	if kind == variable.SecretKind {
+		svc.Secrets = uses
+	} else {
+		svc.Variables = uses
+	}
 }
 
 // Observe reads the service's container, and what it uses from the

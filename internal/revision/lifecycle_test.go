@@ -983,8 +983,10 @@ func testARollbackDoesntWriteOverANewerRevision(t *testing.T, backend store.Back
 				return err
 			}
 			if err := db.Revise(ctx, func(tx *store.RevisionTx) error {
-				if err := tx.CreateChange(ctx, store.Change{ID: "chg_newer", Summary: "Move http", Actor: "usr_other", State: store.ChangePlanned,
-					Plan: []byte("{}"), CreatedAt: time.Now(), ProposedVia: ViaAPI}); err != nil {
+				if err := tx.CreateChange(ctx, store.Change{
+					ID: "chg_newer", Summary: "Move http", Actor: "usr_other", State: store.ChangePlanned,
+					Plan: []byte("{}"), CreatedAt: time.Now(), ProposedVia: ViaAPI,
+				}); err != nil {
 					return err
 				}
 				_, err := tx.AddRevision(ctx, store.NewRevision{Kind: string(firewall.Kind), Scope: "srv_A", Name: "http", Spec: newer, Change: "chg_newer", At: time.Now()})
