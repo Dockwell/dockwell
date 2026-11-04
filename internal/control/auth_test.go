@@ -111,9 +111,10 @@ func startFull(t *testing.T, public https.Source) *fullServer {
 // browser is an HTTP client that behaves like one: it keeps cookies, dials
 // the listener whatever the URL's host, and says which origin it is on.
 type browser struct {
-	origin string
-	client *http.Client
-	auth   *authtest.Authenticator
+	origin    string
+	client    *http.Client
+	auth      *authtest.Authenticator
+	userAgent string
 }
 
 func newBrowser(t *testing.T, origin, dialAddr string, roots *x509.CertPool) *browser {
@@ -134,6 +135,9 @@ func newBrowser(t *testing.T, origin, dialAddr string, roots *x509.CertPool) *br
 func (b *browser) Do(r *http.Request) (*http.Response, error) {
 	r.Header.Set("Origin", b.origin)
 	r.Header.Set("Sec-Fetch-Site", "same-origin")
+	if b.userAgent != "" {
+		r.Header.Set("User-Agent", b.userAgent)
+	}
 	return b.client.Do(r)
 }
 
@@ -252,6 +256,21 @@ func TestClaimSignOutAndSignInOverLocalhost(t *testing.T) {
 	servers := dockwellv1connect.NewServerServiceClient(b, b.origin)
 	if _, err := servers.ListServers(t.Context(), connect.NewRequest(&dockwellv1.ListServersRequest{})); err != nil {
 		t.Errorf("ListServers when signed in: %v", err)
+	}
+}
+
+// A browser can send any bytes as its User-Agent. The session list still
+// answers.
+func TestSessionsListWithAnyUserAgent(t *testing.T) {
+	srv := startFull(t, nil)
+	_, port, _ := net.SplitHostPort(srv.api)
+	b := newBrowser(t, "http://localhost:"+port, srv.api, nil)
+	b.userAgent = "Mozilla/5.0 \xff\xfe " + strings.Repeat("é", 400)
+	link, _ := srv.auth.CreateClaimLink(t.Context(), "test")
+	b.claim(t, link.Token)
+	list, err := b.authClient().ListSessions(t.Context(), connect.NewRequest(&dockwellv1.ListSessionsRequest{}))
+	if err != nil || len(list.Msg.GetSessions()) != 1 || !strings.HasPrefix(list.Msg.GetSessions()[0].GetUserAgent(), "Mozilla/5.0 \uFFFD é") {
+		t.Errorf("ListSessions = %v, %v", list, err)
 	}
 }
 

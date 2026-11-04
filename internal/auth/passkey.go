@@ -39,7 +39,7 @@ func decodePasskey(p store.Passkey) (Passkey, error) {
 }
 
 func cleanPasskeyName(name string) string {
-	n := strings.Join(strings.Fields(name), " ")
+	n := strings.Join(strings.Fields(cleanText(name)), " ")
 	if r := []rune(n); len(r) > maxPasskeyName {
 		n = string(r[:maxPasskeyName])
 	}

@@ -33,6 +33,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -148,6 +150,8 @@ type Service struct {
 	begins     *buckets  // unauthenticated ceremonies and links, by source
 	streams    *streams
 	unflagged  unflagged // passkeys seen to be copied, until the flag is stored
+	// recheck is how often an open stream checks its session again.
+	recheck time.Duration
 }
 
 // New returns a Service.
@@ -177,6 +181,7 @@ func New(cfg Config) (*Service, error) {
 		sources:    newFailures(freeSourceFailures, 10_000),
 		begins:     newBuckets(30, 2*time.Second, 10_000),
 		streams:    newStreams(),
+		recheck:    streamRecheck,
 	}, nil
 }
 
@@ -233,14 +238,15 @@ func (s *Service) audit(ctx context.Context, tx *store.Tx, actor, action, subjec
 func normalizeEmail(email string) (string, error) {
 	e := strings.ToLower(strings.TrimSpace(email))
 	at := strings.LastIndexByte(e, '@')
-	if len(e) > maxEmailLen || at < 1 || at == len(e)-1 || strings.ContainsAny(e, " \t\r\n<>\"") {
+	if len(e) > maxEmailLen || at < 1 || at == len(e)-1 || strings.ContainsAny(e, " \t\r\n<>\"") ||
+		!utf8.ValidString(e) || strings.IndexFunc(e, unicode.IsControl) >= 0 {
 		return "", fmt.Errorf("%w: enter an email address, such as mira@acme.dev", ErrInvalid)
 	}
 	return e, nil
 }
 
 func normalizeName(name string) (string, error) {
-	n := strings.Join(strings.Fields(name), " ")
+	n := strings.Join(strings.Fields(cleanText(name)), " ")
 	if n == "" || len([]rune(n)) > maxNameLen {
 		return "", fmt.Errorf("%w: enter your name, up to %d characters", ErrInvalid, maxNameLen)
 	}

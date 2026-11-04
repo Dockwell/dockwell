@@ -8,8 +8,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/store"
@@ -62,17 +65,13 @@ func (s *Service) startSession(ctx context.Context, tx *store.Tx, user store.Use
 	now := s.now()
 	token, hash := newToken()
 	ip := client.remoteIP()
-	ua := client.UserAgent
-	if len(ua) > 512 {
-		ua = ua[:512]
-	}
 	sess := store.Session{
 		ID:         id.New(id.Session),
 		TokenHash:  hash,
 		UserID:     user.ID,
 		RPID:       client.Site.RPID,
 		Method:     method,
-		UserAgent:  ua,
+		UserAgent:  clientText(client.UserAgent, maxUserAgent),
 		CreatedIP:  ip,
 		LastIP:     ip,
 		CreatedAt:  now,
@@ -145,12 +144,23 @@ func (s *Service) Authenticate(ctx context.Context, client Client, token string)
 	}
 	ip := client.remoteIP()
 	if now.Sub(p.Session.LastSeenAt) >= touchEvery || ip != p.Session.LastIP {
-		if err := s.db.Update(ctx, func(tx *store.Tx) error { return tx.TouchSession(ctx, p.Session.ID, now, ip) }); err != nil {
-			return Principal{}, err
+		if s.touch(ctx, p.Session.ID, now, ip) {
+			p.Session.LastSeenAt, p.Session.LastIP = now, ip
 		}
-		p.Session.LastSeenAt, p.Session.LastIP = now, ip
 	}
 	return p, nil
+}
+
+// touch records that a session was used, and reports whether it could. It
+// is best effort: the request already proved its session, and the next one
+// tries again, so a failed write is logged and nothing more.
+func (s *Service) touch(ctx context.Context, sessionID string, now time.Time, ip string) bool {
+	if err := s.db.Update(ctx, func(tx *store.Tx) error { return tx.TouchSession(ctx, sessionID, now, ip) }); err != nil {
+		s.logger.WarnContext(ctx, "can't record that a session was used; its idle limit runs from its last recorded use",
+			slog.String("session", sessionID), slog.Any("error", err))
+		return false
+	}
+	return true
 }
 
 // SignOut ends the principal's session.
@@ -171,21 +181,28 @@ func (s *Service) SignOut(ctx context.Context, p Principal) error {
 // ListSessions returns the principal's sessions that still work, newest
 // first.
 func (s *Service) ListSessions(ctx context.Context, p Principal) ([]store.Session, error) {
-	now := s.now()
 	var out []store.Session
-	err := s.db.View(ctx, func(tx *store.Tx) error {
-		all, err := tx.ListActiveSessions(ctx, p.User.ID, now)
-		if err != nil {
-			return err
-		}
-		for i := range all {
-			if now.Before(sessionEnd(all[i])) {
-				out = append(out, all[i])
-			}
-		}
-		return nil
+	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
+		out, err = openSessions(ctx, tx, p.User.ID, s.now())
+		return err
 	})
 	return out, err
+}
+
+// openSessions returns a user's sessions that still work at now: neither
+// revoked nor past their idle or absolute limit.
+func openSessions(ctx context.Context, tx *store.Tx, userID string, now time.Time) ([]store.Session, error) {
+	all, err := tx.ListActiveSessions(ctx, userID, now)
+	if err != nil {
+		return nil, err
+	}
+	out := all[:0]
+	for i := range all {
+		if now.Before(sessionEnd(all[i])) {
+			out = append(out, all[i])
+		}
+	}
+	return out, nil
 }
 
 // RevokeSession ends one of the principal's sessions. Its open streams close.
@@ -213,7 +230,7 @@ func (s *Service) RevokeOtherSessions(ctx context.Context, p Principal) (int, er
 	now := s.now()
 	var ended []string
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
-		all, err := tx.ListActiveSessions(ctx, p.User.ID, now)
+		all, err := openSessions(ctx, tx, p.User.ID, now)
 		if err != nil {
 			return err
 		}
@@ -243,12 +260,17 @@ func (s *Service) RevokeOtherSessions(ctx context.Context, p Principal) (int, er
 // Track ties a stream's context to its session: the returned context ends
 // when the session is revoked, signed out or expires. Call stop when the
 // stream ends.
+//
+// An open stream is a page in use, so each recheck that finds the session
+// live also counts as using it, at most once a minute like any request. A
+// page left open therefore keeps its session until the absolute limit, 7
+// days after signing in, and the idle limit ends sessions with nothing open.
 func (s *Service) Track(ctx context.Context, client Client, p Principal) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	entry := s.streams.add(p.Session.ID, cancel)
 	done := make(chan struct{})
 	go func() {
-		t := time.NewTicker(streamRecheck)
+		t := time.NewTicker(s.recheck)
 		defer t.Stop()
 		for {
 			select {
@@ -272,6 +294,8 @@ func (s *Service) Track(ctx context.Context, client Client, p Principal) (contex
 	}
 }
 
+// stillLive reports whether a stream's session still works, and records
+// the stream as a use of it.
 func (s *Service) stillLive(ctx context.Context, client Client, sessionID string) bool {
 	var sess store.Session
 	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
@@ -283,9 +307,44 @@ func (s *Service) stillLive(ctx context.Context, client Client, sessionID string
 		return false
 	case err != nil:
 		return true // a failed read isn't a reason to close; the next check decides
-	default:
-		return live(sess, client.Site, s.now())
 	}
+	now := s.now()
+	if !live(sess, client.Site, now) {
+		return false
+	}
+	if ip := client.remoteIP(); now.Sub(sess.LastSeenAt) >= touchEvery || ip != sess.LastIP {
+		s.touch(ctx, sessionID, now, ip)
+	}
+	return true
+}
+
+// maxUserAgent is how much of a browser's User-Agent header is kept.
+const maxUserAgent = 512
+
+// clientText makes text a client sent fit to store and to send back, as
+// cleanText does, and at most maxBytes long, cut between characters.
+func clientText(text string, maxBytes int) string {
+	text = cleanText(text)
+	if len(text) <= maxBytes {
+		return text
+	}
+	cut := maxBytes
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return text[:cut]
+}
+
+// cleanText makes text valid UTF-8, replacing anything else, with spaces
+// for control characters. Protobuf strings must be valid UTF-8, so text that
+// isn't would make every response that carries it fail.
+func cleanText(text string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, strings.ToValidUTF8(text, "\uFFFD"))
 }
 
 // streams are the open streams of each session, so revoking one closes them.
