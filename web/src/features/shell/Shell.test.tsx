@@ -322,6 +322,16 @@ describe("the command bar", () => {
     expect(screen.getByRole("option", { name: "Open the server list 2" })).toBeVisible();
     await expectAccessible(document.body);
   });
+
+  it("opens a server's own page", async () => {
+    const user = userEvent.setup();
+    const { router } = await renderWith("/", hz1, hz2);
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(screen.getByRole("option", { name: "Open hz-2 Healthy" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/servers/srv_2"));
+    expect(await screen.findByRole("heading", { level: 1, name: "hz-2" })).toBeVisible();
+  });
 });
 
 describe("the shell on phones", () => {
