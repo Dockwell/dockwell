@@ -1,7 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["vite/client", "node"]
+    "types": ["vite/client", "node"],
+    // The snapshot script runs in Node as it is, which needs the .ts in "../src/canvas.ts".
+    "allowImportingTsExtensions": true
   },
   "include": ["src", "scripts", "vite.config.ts"]
 }

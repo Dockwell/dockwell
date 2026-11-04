@@ -19,6 +19,8 @@ import { parseArgs } from "node:util";
 import { type Browser, type ConsoleMessage, chromium, type Page } from "playwright-core";
 import { createServer, type ViteDevServer } from "vite";
 
+import { type Canvas, canvasBoards } from "../src/canvas.ts";
+
 const here = resolve(import.meta.dirname, "..");
 const repo = resolve(here, "../..");
 
@@ -78,29 +80,22 @@ if (!existsSync(executablePath)) {
   );
 }
 
-const canvas = JSON.parse(await readFile(join(repo, "design/mocks/canvas.json"), "utf8")) as {
-  boards: Record<string, { w: number; h: number }>;
-  order?: string[];
-};
-const files = [
-  ...(canvas.order ?? []).filter((f) => f in canvas.boards),
-  ...Object.keys(canvas.boards)
-    .filter((f) => !canvas.order?.includes(f))
-    .sort(),
-];
+const canvas = JSON.parse(await readFile(join(repo, "design/mocks/canvas.json"), "utf8")) as Canvas;
+const boards = canvasBoards(canvas);
 const only = (values.only ?? []).map((s) => s.toLowerCase().replace(/\.dc\.html$/, ""));
 const base = (file: string) => file.toLowerCase().replace(/\.dc\.html$/, "");
 // An exact artboard name picks that artboard; anything else picks every file name that contains it.
 const picked = only.length
-  ? files.filter((f) => only.some((s) => (files.some((g) => base(g) === s) ? base(f) === s : base(f).includes(s))))
-  : files;
+  ? boards.filter((b) =>
+      only.some((s) => (boards.some((g) => base(g.file) === s) ? base(b.file) === s : base(b.file).includes(s))),
+    )
+  : boards;
 if (picked.length === 0)
   fail(`No artboard matches --only ${values.only?.join(", ")}. Use part of a file name in design/mocks.`);
 
-const queue: Job[] = picked.flatMap((file) => {
-  const board = canvas.boards[file] ?? { w: 1440, h: 900 };
-  return themes.map((theme) => ({ file, theme: theme as Job["theme"], width: board.w, height: board.h }));
-});
+const queue: Job[] = picked.flatMap(({ file, width, height }) =>
+  themes.map((theme) => ({ file, theme: theme as Job["theme"], width, height })),
+);
 
 async function shoot(page: Page, base: string, job: Job): Promise<string[]> {
   const messages: string[] = [];
@@ -164,7 +159,7 @@ try {
 
   // Headless Chromium repeats tiles in a capture taller than its window, so
   // the window fits the largest page, including pages that scroll past their canvas height.
-  const widest = Math.max(...picked.map((f) => canvas.boards[f]?.w ?? 1440));
+  const widest = Math.max(...picked.map((b) => b.width));
   browser = await chromium.launch({
     executablePath,
     headless: true,

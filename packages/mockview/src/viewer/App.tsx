@@ -2,7 +2,7 @@
 
 import { applyThemePreference, Button, Icon, Logo } from "@dockwell/ui";
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-
+import type { Board } from "../canvas";
 import {
   frameUrl,
   isKeyMessage,
@@ -14,7 +14,7 @@ import {
   type ViewerRoute,
   viewerHash,
 } from "../links";
-import { type Board, boards, findBoard, pages } from "../mocks";
+import { boards, findBoard, pages } from "../mocks";
 
 function subscribeHash(onChange: () => void) {
   window.addEventListener("hashchange", onChange);
