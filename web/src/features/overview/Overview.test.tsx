@@ -11,7 +11,7 @@ import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { expectMetric, metric } from "../../test/metrics";
 import { feed, onPhone, renderAt } from "../../test/render";
-import { aServer, changed, history, sample, snapshotComplete } from "../../test/servers";
+import { aServer, changed, gap, history, sample, snapshotComplete } from "../../test/servers";
 
 const GiB = 1024 ** 3;
 
@@ -42,7 +42,8 @@ describe("Overview with one server", () => {
 
     expect(await screen.findByText("4 vCPU · 8 GB · Ubuntu 24.04.1 LTS · up 3 days")).toBeVisible();
     expect(screen.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
-    expectMetric("CPU", "23.4", "%", "Across 4 vCPU · last 10 s");
+    // Three samples, 5 s apart, cover 15 s.
+    expectMetric("CPU", "23.4", "%", "Across 4 vCPU · last 15 s");
     expectMetric("Memory", "2.4", "of 8 GB", "30% in use");
     expectMetric("Disk", "61", "of 160 GB", "99 GB free");
     expectMetric("Network", "12", "Mbit/s", "8 Mbit/s in · 4.4 Mbit/s out");
@@ -62,7 +63,29 @@ describe("Overview with one server", () => {
 
     await waitFor(() => expect(value).toHaveTextContent("57.0"));
     expect(value).toBeInTheDocument();
-    expect(metric("CPU")).toHaveTextContent("last 15 s");
+    expect(metric("CPU")).toHaveTextContent("last 20 s");
+  });
+
+  it("captions a full history as the 5 min the control plane keeps", async () => {
+    const { watch } = renderOverview();
+    const full = history(...Array.from({ length: 60 }, (_, i) => 20 + (i % 5)));
+    watch.push(changed(aServer({ ...hz1, stats: full.at(-1), history: full })), snapshotComplete);
+
+    await waitFor(() => expectMetric("CPU", "%", "Across 4 vCPU · last 5 min"));
+    expect(screen.getByRole("img", { name: "CPU trend" })).toBeVisible();
+  });
+
+  it("draws the trend from the last gap in reporting, not across it", async () => {
+    const { watch } = renderOverview();
+    const before = history(80, 85, 90, 95);
+    gap(2 * 60_000);
+    const after = history(10, 11, 12);
+    const all = [...before, ...after];
+    watch.push(changed(aServer({ ...hz1, stats: all.at(-1), history: all })), snapshotComplete);
+
+    await waitFor(() => expectMetric("CPU", "12.0", "%", "Across 4 vCPU · last 15 s"));
+    // One point per sample since the gap.
+    expect(metric("CPU").querySelector(".dw-spark-line")?.getAttribute("d")?.match(/[ML]/g)).toHaveLength(after.length);
   });
 
   it("says when the server stops reporting, and how to fix it", async () => {
@@ -117,7 +140,7 @@ describe("Overview with one server", () => {
     expect(screen.getByText("Healthy · up 3 days")).toBeVisible();
     expectMetric("CPU", "23.4", "%");
     expect(screen.queryByRole("img", { name: "CPU trend" })).toBeNull();
-    expect(screen.queryByText("Across 4 vCPU · last 10 s")).toBeNull();
+    expect(screen.queryByText("Across 4 vCPU · last 15 s")).toBeNull();
     await expectAccessible(container);
   });
 

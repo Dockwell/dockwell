@@ -30,8 +30,13 @@ import (
 const (
 	// StatsInterval is how often agents send stats.
 	StatsInterval = 5 * time.Second
-	// HistoryLength is how many samples are kept per server: 5 min.
+	// HistoryLength is how many samples are kept per server.
 	HistoryLength = 60
+	// HistoryWindow is how far back the samples kept go: 5 min. A server
+	// that stops reporting keeps its last samples, but once it reports
+	// again, samples from before a gap this long are dropped, so the
+	// history never draws an outage as part of a trend.
+	HistoryWindow = HistoryLength * StatsInterval
 	// watcherBuffer is how far a watcher may fall behind before it is
 	// dropped; it reconnects and gets a fresh snapshot.
 	watcherBuffer = 256
@@ -50,7 +55,7 @@ type live struct {
 	srv       store.Server
 	inventory *dockwellv1.ServerInventory
 	build     *dockwellv1.BuildInfo
-	history   []*dockwellv1.ServerStats // oldest first, at most HistoryLength
+	history   []*dockwellv1.ServerStats // oldest first, at most HistoryLength, within HistoryWindow of the newest
 	streams   int
 	lastSeen  time.Time
 	// connectedAt is when the first of the open streams opened; zero
@@ -197,6 +202,15 @@ func (h *Hub) Record(id string, stats *dockwellv1.ServerStats) {
 		return
 	}
 	l.lastSeen = h.now()
+	// Samples carry the agent's clock, so the window is measured on it
+	// too, and a control plane whose clock differs drops nothing it
+	// shouldn't.
+	if t := stats.GetTime(); t != nil {
+		cutoff := t.AsTime().Add(-HistoryWindow)
+		l.history = slices.DeleteFunc(l.history, func(s *dockwellv1.ServerStats) bool {
+			return s.GetTime() != nil && !s.GetTime().AsTime().After(cutoff)
+		})
+	}
 	l.history = append(l.history, stats)
 	if over := len(l.history) - HistoryLength; over > 0 {
 		l.history = slices.Delete(l.history, 0, over)

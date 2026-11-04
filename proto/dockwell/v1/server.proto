@@ -98,7 +98,9 @@ message Server {
   ServerInventory inventory = 6;
   // The newest stats. Unset until the agent reports.
   ServerStats stats = 7;
-  // Recent stats, oldest first, for sparklines. Empty in lists.
+  // Recent stats, oldest first, for sparklines: at most 60 samples, from
+  // the 5 minutes before the newest by the samples' own times, so a server
+  // that reports again after a longer outage starts over. Empty in lists.
   repeated ServerStats history = 8;
   // The agent's build.
   BuildInfo agent_build = 9;

@@ -379,7 +379,9 @@ type Server struct {
 	Inventory *ServerInventory `protobuf:"bytes,6,opt,name=inventory,proto3" json:"inventory,omitempty"`
 	// The newest stats. Unset until the agent reports.
 	Stats *ServerStats `protobuf:"bytes,7,opt,name=stats,proto3" json:"stats,omitempty"`
-	// Recent stats, oldest first, for sparklines. Empty in lists.
+	// Recent stats, oldest first, for sparklines: at most 60 samples, from
+	// the 5 minutes before the newest by the samples' own times, so a server
+	// that reports again after a longer outage starts over. Empty in lists.
 	History []*ServerStats `protobuf:"bytes,8,rep,name=history,proto3" json:"history,omitempty"`
 	// The agent's build.
 	AgentBuild *BuildInfo `protobuf:"bytes,9,opt,name=agent_build,json=agentBuild,proto3" json:"agent_build,omitempty"`

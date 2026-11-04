@@ -41,6 +41,11 @@ export function sample(cpu: number, usedGiB = 2.4, uptimeHours = 76): ServerStat
   });
 }
 
+/** Moves the samples' clock on by ms, as if the agent stopped reporting for that long. */
+export function gap(ms: number): void {
+  clock += ms;
+}
+
 /** Samples 5 s apart with these CPU shares, for a server's history. */
 export function history(...cpu: number[]): ServerStats[] {
   return cpu.map((c) => sample(c));

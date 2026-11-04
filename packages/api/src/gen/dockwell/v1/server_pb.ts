@@ -208,7 +208,9 @@ export type Server = Message<"dockwell.v1.Server"> & {
   stats?: ServerStats | undefined;
 
   /**
-   * Recent stats, oldest first, for sparklines. Empty in lists.
+   * Recent stats, oldest first, for sparklines: at most 60 samples, from
+   * the 5 minutes before the newest by the samples' own times, so a server
+   * that reports again after a longer outage starts over. Empty in lists.
    *
    * @generated from field: repeated dockwell.v1.ServerStats history = 8;
    */

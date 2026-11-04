@@ -6,10 +6,8 @@ import { useTransport } from "@connectrpc/connect-query";
 import { type Server, ServerService } from "@dockwell/api";
 import { createContext, createElement, type ReactNode, useContext, useEffect, useState } from "react";
 
+import { appendSample } from "./history";
 import { type FleetView, fleetView } from "./server";
-
-/** How many samples each server keeps for sparklines, matching the control plane. */
-export const HISTORY_LENGTH = 60;
 
 export type FleetState =
   | { status: "connecting"; error?: ConnectError }
@@ -118,13 +116,14 @@ async function watch(transport: Transport, signal: AbortSignal, publish: (s: Fle
 
 /**
  * Folds a new message into what is known: history arrives once, then each
- * new sample appends. Messages about something else, such as the agent
- * disconnecting, repeat the latest sample, which is already there.
+ * new sample appends, as the control plane keeps it. Messages about
+ * something else, such as the agent disconnecting, repeat the latest
+ * sample, which is already there.
  */
 function merge(prev: Server | undefined, next: Server): Server {
   if (next.history.length > 0 || !prev) return next;
   const fresh = next.stats && !sameTime(next.stats.time, prev.stats?.time);
-  const history = fresh && next.stats ? [...prev.history, next.stats].slice(-HISTORY_LENGTH) : prev.history;
+  const history = fresh && next.stats ? appendSample(prev.history, next.stats) : prev.history;
   return { ...next, history };
 }
 

@@ -116,6 +116,51 @@ func TestConnectTimeSpansTheConnection(t *testing.T) {
 	}
 }
 
+func TestHistoryStartsAgainAfterAGap(t *testing.T) {
+	h, _ := newHub(t, "hz-1")
+	detach, err := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The agent's clock, an hour behind the control plane's: the window is
+	// measured on the samples' own times.
+	start := time.Now().Add(-time.Hour)
+	at := func(d time.Duration, cpu float64) *dockwellv1.ServerStats {
+		return &dockwellv1.ServerStats{Time: timestamppb.New(start.Add(d)), CpuPercent: cpu}
+	}
+	for i := range 10 {
+		h.Record("srv_A", at(time.Duration(i)*StatsInterval, float64(i)))
+	}
+	detach()
+	if s, _ := h.Get("srv_A"); len(s.GetHistory()) != 10 {
+		t.Errorf("a server that stopped reporting keeps its last %d samples, want 10", len(s.GetHistory()))
+	}
+
+	// Back after two hours: the first sample starts the history again.
+	if _, err := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil); err != nil {
+		t.Fatal(err)
+	}
+	h.Record("srv_A", at(2*time.Hour, 50))
+	if s, _ := h.Get("srv_A"); len(s.GetHistory()) != 1 || s.GetHistory()[0].GetCpuPercent() != 50 {
+		t.Errorf("after a 2-hour gap the history is %v, want only the new sample", s.GetHistory())
+	}
+
+	// Back after one minute: the samples still inside the window stay.
+	for i := range 3 {
+		h.Record("srv_A", at(2*time.Hour+time.Minute+time.Duration(i)*StatsInterval, float64(60+i)))
+	}
+	if s, _ := h.Get("srv_A"); len(s.GetHistory()) != 4 {
+		t.Errorf("after a 1-minute gap the history has %d samples, want 4", len(s.GetHistory()))
+	}
+
+	// Exactly a window later, the oldest drops out.
+	h.Record("srv_A", at(2*time.Hour+HistoryWindow, 70))
+	s, _ := h.Get("srv_A")
+	if got := s.GetHistory(); len(got) != 4 || got[0].GetCpuPercent() != 60 {
+		t.Errorf("a window on, the history is %v, want it to start at the sample a minute in", got)
+	}
+}
+
 func TestHistoryIsCapped(t *testing.T) {
 	h, _ := newHub(t, "hz-1")
 	if _, err := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil); err != nil {

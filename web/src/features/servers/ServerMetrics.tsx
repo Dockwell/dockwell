@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { timestampMs } from "@bufbuild/protobuf/wkt";
 import type { Server, ServerStats } from "@dockwell/api";
 import { cx, Metric, type MetricProps } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 
 import { formatBitRate, formatBytes, formatFixed, formatLiveBytesOf, formatPercent } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
+import { recentRun } from "./history";
 import "./ServerMetrics.css";
 
 export interface ServerMetricsProps {
@@ -19,7 +19,7 @@ export interface ServerMetricsProps {
 
 /**
  * A server's live CPU, memory, disk and network or load, each with its
- * trend over the history the control plane keeps. Values keep their number
+ * trend over the history the control plane keeps, since the last gap. Values keep their number
  * of decimals, so they update in place without shifting.
  */
 export function ServerMetrics({ server, fourth, compact = false }: ServerMetricsProps) {
@@ -29,11 +29,9 @@ export function ServerMetrics({ server, fourth, compact = false }: ServerMetrics
   const stats = server.stats;
   if (!stats) return null;
   const locale = i18n.locale;
-  const history = server.history.length > 0 ? server.history : [stats];
+  // Trends start after the last gap in reporting, so an outage isn't drawn as part of one.
+  const { samples: history, spanMs } = recentRun(server.history.length > 0 ? server.history : [stats]);
   const cpus = server.inventory?.cpuCount ?? 0;
-  const first = history[0];
-  const last = history[history.length - 1];
-  const spanMs = first?.time && last?.time ? timestampMs(last.time) - timestampMs(first.time) : 0;
   const span = words.span(spanMs);
 
   const [memUsed, memTotal] = formatLiveBytesOf(stats.memoryUsedBytes, stats.memoryTotalBytes, locale);
