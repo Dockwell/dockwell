@@ -5,6 +5,7 @@ package auth
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -266,26 +267,6 @@ func TestWrongCodesFromOneSourceSlowDown(t *testing.T) {
 	}
 }
 
-func TestUnknownEmailsLookLikeRealOnes(t *testing.T) {
-	f := newFixture(t, "")
-	var last error
-	for i := 0; i < lockAfter; i++ {
-		client := localhost
-		client.Addr = "203.0.113." + string(rune('0'+i)) + ":1"
-		_, err := f.svc.SignInWithCode(t.Context(), client, "nobody@acme.dev", "123456")
-		var slow *SlowDown
-		if errors.As(err, &slow) {
-			f.clock.advance(slow.Wait)
-			i--
-			continue
-		}
-		last = err
-	}
-	if !errors.Is(last, ErrCodesLocked) {
-		t.Errorf("ten wrong codes for an unknown email ended with %v, want ErrCodesLocked as for a real one", last)
-	}
-}
-
 func TestRecoveryCodesAreReplacedTogether(t *testing.T) {
 	f := newFixture(t, "")
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
@@ -520,6 +501,226 @@ func TestLimiters(t *testing.T) {
 	} {
 		if got := sourceKey(in); got != want {
 			t.Errorf("sourceKey(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// wrongCode returns a 6-digit code that doesn't match secret around now.
+func wrongCode(t *testing.T, secret []byte, now time.Time) string {
+	t.Helper()
+	step := totpStep(now)
+	for _, c := range []string{"111111", "222222", "333333", "444444"} {
+		if c != totpCode(secret, step-1) && c != totpCode(secret, step) && c != totpCode(secret, step+1) {
+			return c
+		}
+	}
+	t.Fatal("no wrong code")
+	return ""
+}
+
+// fromAddress is a client on localhost from its own source address, so the
+// limit per source never applies.
+func fromAddress(i int) Client {
+	c := localhost
+	c.Addr = fmt.Sprintf("[2001:db8:%x:%x::1]:443", i/0x10000, i%0x10000)
+	return c
+}
+
+// lockCodes sends wrong authenticator codes for email, each from its own
+// address and waiting out every slow-down, until code sign-in locks. It
+// returns how many addresses it used.
+func (f *fixture) lockCodes(t *testing.T, email string, secret []byte, from int) int {
+	t.Helper()
+	for i := from; ; i++ {
+		_, err := f.svc.SignInWithCode(t.Context(), fromAddress(i), email, wrongCode(t, secret, f.clock.now()))
+		var slow *SlowDown
+		switch {
+		case errors.As(err, &slow):
+			f.clock.advance(slow.Wait)
+		case errors.Is(err, ErrCodesLocked):
+			return i + 1
+		case !errors.Is(err, ErrCodeRejected):
+			t.Fatalf("wrong code %d = %v", i, err)
+		}
+	}
+}
+
+// Anyone with the owner's email can keep sending codes while code sign-in is
+// locked, from as many addresses as they hold. The audit log mustn't grow
+// with them: one event an hour, with the count.
+func TestCodesRefusedWhileLockedAreAuditedOnceAnHour(t *testing.T) {
+	f := newFixture(t, "")
+	owner := f.claim(t, localhost, &authtest.Authenticator{})
+	secret, _ := f.enableTOTP(t, ownerPrincipal(owner))
+	next := f.lockCodes(t, "mira@acme.dev", secret, 0)
+	before := len(f.auditDetails(t, "auth.sign_in_failed"))
+
+	const tries = 300
+	for i := range tries {
+		_, err := f.svc.SignInWithCode(t.Context(), fromAddress(next+i), "mira@acme.dev", wrongCode(t, secret, f.clock.now()))
+		if !errors.Is(err, ErrCodesLocked) {
+			t.Fatalf("a code while locked = %v, want ErrCodesLocked", err)
+		}
+		f.clock.advance(time.Second)
+	}
+	failed := f.auditDetails(t, "auth.sign_in_failed")
+	if got := len(failed) - before; got != 1 {
+		t.Fatalf("%d codes while locked made %d audit events, want 1", tries, got)
+	}
+	if !strings.Contains(failed[len(failed)-1], "authenticator code while code sign-in is locked") {
+		t.Errorf("the event says %q", failed[len(failed)-1])
+	}
+
+	// An hour after the last event, the next refusal gets one, with the count.
+	f.clock.advance(time.Hour)
+	if _, err := f.svc.SignInWithCode(t.Context(), fromAddress(next+tries), "mira@acme.dev", "123456"); !errors.Is(err, ErrCodesLocked) {
+		t.Fatal(err)
+	}
+	failed = f.auditDetails(t, "auth.sign_in_failed")
+	if got := len(failed) - before; got != 2 || !strings.Contains(failed[len(failed)-1], fmt.Sprintf("and %d more codes refused since", tries-1)) {
+		t.Errorf("after an hour: %d events, the last %q", got, failed[len(failed)-1])
+	}
+
+	// Unlocking counts the ones no event has counted yet.
+	for i := range 5 {
+		_, _ = f.svc.SignInWithCode(t.Context(), fromAddress(next+tries+1+i), "mira@acme.dev", "123456")
+	}
+	link, _, _ := f.svc.CreateSignInLink(t.Context(), "", "test")
+	in, err := f.svc.SignInWithLink(t.Context(), localhost, link.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.UnlockCodes(t.Context(), ownerPrincipal(in)); err != nil {
+		t.Fatal(err)
+	}
+	if unlock := f.auditDetails(t, "totp.unlock"); len(unlock) != 1 || !strings.HasPrefix(unlock[0], "5 codes refused since") {
+		t.Errorf("unlock events %q, want one that counts the 5 refused codes", unlock)
+	}
+}
+
+// Nothing anyone else does can stop a right recovery code: not wrong
+// authenticator codes, not the lock, and not wrong recovery codes, however
+// recent.
+func TestARecoveryCodeWorksWhateverOthersSend(t *testing.T) {
+	f := newFixture(t, "")
+	owner := f.claim(t, localhost, &authtest.Authenticator{})
+	secret, recovery := f.enableTOTP(t, ownerPrincipal(owner))
+	stranger, _ := newRecoveryCodes()
+
+	// Wrong authenticator codes keep the email slowed down.
+	for i := range freeAccountFailures + 2 {
+		_, _ = f.svc.SignInWithCode(t.Context(), fromAddress(i), "mira@acme.dev", wrongCode(t, secret, f.clock.now()))
+	}
+	// Wrong recovery codes, the last a moment ago.
+	for i, c := range stranger {
+		if _, err := f.svc.SignInWithCode(t.Context(), fromAddress(100+i), "mira@acme.dev", c); !errors.Is(err, ErrCodeRejected) {
+			t.Fatalf("a wrong recovery code = %v, want ErrCodeRejected", err)
+		}
+	}
+	in, err := f.svc.SignInWithCode(t.Context(), fromAddress(200), "mira@acme.dev", recovery[0])
+	if err != nil || !in.UsedRecoveryCode {
+		t.Fatalf("the owner's recovery code while others send wrong codes = %+v, %v", in, err)
+	}
+
+	// Wrong recovery codes don't count towards the lock, and aren't each
+	// audited.
+	st, _ := f.svc.TOTP(t.Context(), ownerPrincipal(in.SignedIn))
+	if st.LockedAt != nil {
+		t.Errorf("code sign-in locked after %d wrong recovery codes", len(stranger))
+	}
+	f.lockCodes(t, "mira@acme.dev", secret, 300)
+	for i, c := range stranger {
+		_, _ = f.svc.SignInWithCode(t.Context(), fromAddress(400+i), "mira@acme.dev", c)
+	}
+	if in, err := f.svc.SignInWithCode(t.Context(), fromAddress(500), "mira@acme.dev", recovery[1]); err != nil || in.RecoveryCodesLeft != 8 {
+		t.Errorf("a recovery code while locked and under attack = %+v, %v", in, err)
+	}
+	refused := 0
+	for _, d := range f.auditDetails(t, "auth.sign_in_failed") {
+		if strings.HasPrefix(d, "wrong recovery code") || strings.HasPrefix(d, "authenticator code while") {
+			refused++
+		}
+	}
+	if refused > 2 {
+		t.Errorf("%d wrong recovery codes made %d audit events, want at most one an hour", 2*len(stranger), refused)
+	}
+
+	// The limit per source still applies to recovery codes.
+	var slowed bool
+	for range freeSourceFailures + 1 {
+		_, err := f.svc.SignInWithCode(t.Context(), onDomain, "mira@acme.dev", stranger[0])
+		var slow *SlowDown
+		slowed = slowed || errors.As(err, &slow)
+	}
+	if !slowed {
+		t.Error("one address sending wrong recovery codes never slowed down")
+	}
+}
+
+// answers sends wrong authenticator codes for email, each from its own
+// address, waiting out every slow-down, and returns what each answer was.
+func (f *fixture) answers(t *testing.T, email string, secret []byte, n, from int) []string {
+	t.Helper()
+	var out []string
+	for i := range n {
+		_, err := f.svc.SignInWithCode(t.Context(), fromAddress(from+i), email, wrongCode(t, secret, f.clock.now()))
+		var slow *SlowDown
+		if errors.As(err, &slow) {
+			out = append(out, "wait "+slow.Wait.String())
+			f.clock.advance(slow.Wait)
+			continue
+		}
+		out = append(out, err.Error())
+	}
+	return out
+}
+
+// An email with no account gets the same answers as the owner's, through
+// the lock, after a restart, and however many other emails are tried.
+func TestUnknownEmailsGetTheSameAnswers(t *testing.T) {
+	f := newFixture(t, "")
+	owner := f.claim(t, localhost, &authtest.Authenticator{})
+	secret, _ := f.enableTOTP(t, ownerPrincipal(owner))
+
+	const n = 3 * lockAfter
+	owners := f.answers(t, "mira@acme.dev", secret, n, 0)
+	unknown := f.answers(t, "nobody@acme.dev", secret, n, 1000)
+	if strings.Join(owners, "\n") != strings.Join(unknown, "\n") {
+		t.Fatalf("answers differ:\nowner:   %q\nunknown: %q", owners, unknown)
+	}
+	if owners[len(owners)-1] != ErrCodesLocked.Error() {
+		t.Errorf("the last answer is %q, want the lock", owners[len(owners)-1])
+	}
+
+	// A restart forgets what is in memory, and a flood of other emails
+	// can't push either out.
+	f.svc = f.restart(t)
+	for i := range 200 {
+		_, _ = f.svc.SignInWithCode(t.Context(), fromAddress(2000+i), fmt.Sprintf("flood%d@acme.dev", i), "123456")
+	}
+	for _, email := range []string{"mira@acme.dev", "nobody@acme.dev"} {
+		if _, err := f.svc.SignInWithCode(t.Context(), fromAddress(3000), email, "123456"); !errors.Is(err, ErrCodesLocked) {
+			t.Errorf("%s after a restart = %v, want ErrCodesLocked", email, err)
+		}
+	}
+	// A recovery code gets the same answer either way.
+	codes, _ := newRecoveryCodes()
+	for _, email := range []string{"mira@acme.dev", "nobody@acme.dev"} {
+		if _, err := f.svc.SignInWithCode(t.Context(), fromAddress(4000), email, codes[0]); !errors.Is(err, ErrCodeRejected) {
+			t.Errorf("a wrong recovery code for %s = %v, want ErrCodeRejected", email, err)
+		}
+	}
+}
+
+func TestSlowDownRoundsUp(t *testing.T) {
+	for wait, want := range map[time.Duration]string{
+		300 * time.Millisecond:  "Wait 1 s,",
+		time.Second:             "Wait 1 s,",
+		1200 * time.Millisecond: "Wait 2 s,",
+		15 * time.Minute:        "Wait 15 min,",
+	} {
+		if got := (&SlowDown{Wait: wait}).Error(); !strings.Contains(got, want) {
+			t.Errorf("SlowDown{%s} = %q, want %q", wait, got, want)
 		}
 	}
 }

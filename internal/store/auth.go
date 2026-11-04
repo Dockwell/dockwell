@@ -22,26 +22,27 @@ type User struct {
 	TOTPSecret   []byte
 	TOTPPending  []byte
 	TOTPLastStep int64
-	CodeFailures int
-	CodeFailedAt *time.Time
-	CodesLocked  *time.Time
+	// CodesRefused counts codes refused since CodesRefusedReportedAt that
+	// have no audit event of their own.
+	CodesRefused           int
+	CodesRefusedReportedAt *time.Time
 }
 
 // RoleOwner is the one role so far.
 const RoleOwner = "owner"
 
 const userColumns = `id, email, name, role, webauthn_handle, created_at, totp_secret, totp_pending, totp_last_step,
-	code_failures, code_failed_at, codes_locked_at`
+	codes_refused, codes_refused_reported_at`
 
 func scanUser(row interface{ Scan(...any) error }) (User, error) {
 	var u User
 	var created int64
-	var failedAt, lockedAt sql.NullInt64
+	var reported sql.NullInt64
 	if err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.WebAuthnHandle, &created, &u.TOTPSecret, &u.TOTPPending,
-		&u.TOTPLastStep, &u.CodeFailures, &failedAt, &lockedAt); err != nil {
+		&u.TOTPLastStep, &u.CodesRefused, &reported); err != nil {
 		return User{}, err
 	}
-	u.CreatedAt, u.CodeFailedAt, u.CodesLocked = fromMillis(created), timePtr(failedAt), timePtr(lockedAt)
+	u.CreatedAt, u.CodesRefusedReportedAt = fromMillis(created), timePtr(reported)
 	return u, nil
 }
 
@@ -111,17 +112,17 @@ func (t *Tx) SetTOTPPending(ctx context.Context, userID string, sealed []byte) e
 	return t.updateUser(ctx, userID, `UPDATE users SET totp_pending = ? WHERE id = ?`, sealed, userID)
 }
 
-// EnableTOTP makes a confirmed secret the user's, records the time step that
-// confirmed it, and clears any lock.
+// EnableTOTP makes a confirmed secret the user's and records the time step
+// that confirmed it.
 func (t *Tx) EnableTOTP(ctx context.Context, userID string, sealed []byte, step int64) error {
-	return t.updateUser(ctx, userID, `UPDATE users SET totp_secret = ?, totp_pending = NULL, totp_last_step = ?,
-		code_failures = 0, code_failed_at = NULL, codes_locked_at = NULL WHERE id = ?`, sealed, step, userID)
+	return t.updateUser(ctx, userID, `UPDATE users SET totp_secret = ?, totp_pending = NULL, totp_last_step = ? WHERE id = ?`,
+		sealed, step, userID)
 }
 
 // DisableTOTP deletes the user's secret and recovery codes.
 func (t *Tx) DisableTOTP(ctx context.Context, userID string) error {
-	if err := t.updateUser(ctx, userID, `UPDATE users SET totp_secret = NULL, totp_pending = NULL, totp_last_step = 0,
-		code_failures = 0, code_failed_at = NULL, codes_locked_at = NULL WHERE id = ?`, userID); err != nil {
+	if err := t.updateUser(ctx, userID, `UPDATE users SET totp_secret = NULL, totp_pending = NULL, totp_last_step = 0 WHERE id = ?`,
+		userID); err != nil {
 		return err
 	}
 	if _, err := t.tx.ExecContext(ctx, `DELETE FROM recovery_codes WHERE user_id = ?`, userID); err != nil {
@@ -144,31 +145,70 @@ func (t *Tx) SpendTOTPStep(ctx context.Context, userID string, step int64) error
 	return nil
 }
 
-// RecordCodeFailure counts a wrong code, locks code sign-in once there have
-// been lockAfter in a row, and returns the count.
-func (t *Tx) RecordCodeFailure(ctx context.Context, userID string, at time.Time, lockAfter int) (int, error) {
-	err := t.updateUser(ctx, userID, `UPDATE users SET code_failures = code_failures + 1, code_failed_at = ?,
-		codes_locked_at = CASE WHEN codes_locked_at IS NULL AND code_failures + 1 >= ? THEN ? ELSE codes_locked_at END
-		WHERE id = ?`, millis(at), lockAfter, millis(at), userID)
+// CountRefusedCode counts a refused code that has no audit event of its own.
+func (t *Tx) CountRefusedCode(ctx context.Context, userID string) error {
+	return t.updateUser(ctx, userID, `UPDATE users SET codes_refused = codes_refused + 1 WHERE id = ?`, userID)
+}
+
+// ReportedRefusedCodes records that an audit event at has counted the
+// user's refused codes so far.
+func (t *Tx) ReportedRefusedCodes(ctx context.Context, userID string, at time.Time) error {
+	return t.updateUser(ctx, userID, `UPDATE users SET codes_refused = 0, codes_refused_reported_at = ? WHERE id = ?`, millis(at), userID)
+}
+
+// CodeGuard is the wrong-code count and lock for one bucket of email
+// addresses. A bucket nobody has tried has the zero value.
+type CodeGuard struct {
+	Bucket   int
+	Failures int
+	FailedAt *time.Time
+	LockedAt *time.Time
+}
+
+// GetCodeGuard returns a bucket's wrong-code state.
+func (t *Tx) GetCodeGuard(ctx context.Context, bucket int) (CodeGuard, error) {
+	g := CodeGuard{Bucket: bucket}
+	var failed, locked sql.NullInt64
+	err := t.tx.QueryRowContext(ctx, `SELECT failures, failed_at, locked_at FROM code_guards WHERE bucket = ?`, bucket).
+		Scan(&g.Failures, &failed, &locked)
+	if errors.Is(err, sql.ErrNoRows) {
+		return g, nil
+	}
 	if err != nil {
-		return 0, err
+		return CodeGuard{}, fmt.Errorf("can't read wrong codes: %w", err)
 	}
-	var n int
-	if err := t.tx.QueryRowContext(ctx, `SELECT code_failures FROM users WHERE id = ?`, userID).Scan(&n); err != nil {
-		return 0, fmt.Errorf("can't read code failures: %w", err)
-	}
-	return n, nil
+	g.FailedAt, g.LockedAt = timePtr(failed), timePtr(locked)
+	return g, nil
 }
 
-// ResetCodeFailures clears the wrong-code count after a good code. It leaves
-// a lock in place: only UnlockCodes lifts it.
-func (t *Tx) ResetCodeFailures(ctx context.Context, userID string) error {
-	return t.updateUser(ctx, userID, `UPDATE users SET code_failures = 0, code_failed_at = NULL WHERE id = ?`, userID)
+// RecordCodeFailure counts a wrong code against a bucket, locks it once there
+// have been lockAfter in a row, and returns its new state.
+func (t *Tx) RecordCodeFailure(ctx context.Context, bucket int, at time.Time, lockAfter int) (CodeGuard, error) {
+	if _, err := t.tx.ExecContext(ctx, `INSERT INTO code_guards (bucket, failures, failed_at, locked_at)
+		VALUES (?1, 1, ?2, CASE WHEN ?3 <= 1 THEN ?2 END)
+		ON CONFLICT (bucket) DO UPDATE SET failures = failures + 1, failed_at = ?2,
+			locked_at = CASE WHEN locked_at IS NULL AND failures + 1 >= ?3 THEN ?2 ELSE locked_at END`,
+		bucket, millis(at), lockAfter); err != nil {
+		return CodeGuard{}, fmt.Errorf("can't count a wrong code: %w", err)
+	}
+	return t.GetCodeGuard(ctx, bucket)
 }
 
-// UnlockCodes lifts a lock on code sign-in and clears the count.
-func (t *Tx) UnlockCodes(ctx context.Context, userID string) error {
-	return t.updateUser(ctx, userID, `UPDATE users SET code_failures = 0, code_failed_at = NULL, codes_locked_at = NULL WHERE id = ?`, userID)
+// ResetCodeFailures clears a bucket's wrong-code count after a good code. It
+// leaves a lock in place: only UnlockCodes lifts it.
+func (t *Tx) ResetCodeFailures(ctx context.Context, bucket int) error {
+	if _, err := t.tx.ExecContext(ctx, `UPDATE code_guards SET failures = 0, failed_at = NULL WHERE bucket = ?`, bucket); err != nil {
+		return fmt.Errorf("can't reset wrong codes: %w", err)
+	}
+	return nil
+}
+
+// UnlockCodes lifts a bucket's lock and clears its count.
+func (t *Tx) UnlockCodes(ctx context.Context, bucket int) error {
+	if _, err := t.tx.ExecContext(ctx, `DELETE FROM code_guards WHERE bucket = ?`, bucket); err != nil {
+		return fmt.Errorf("can't unlock code sign-in: %w", err)
+	}
+	return nil
 }
 
 // Passkey is a stored WebAuthn credential.

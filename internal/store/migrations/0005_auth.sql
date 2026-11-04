@@ -15,13 +15,26 @@ CREATE TABLE users (
   totp_secret     BLOB,                   -- sealed; set once a code confirmed it
   totp_pending    BLOB,                   -- sealed; awaiting a confirming code
   totp_last_step  INTEGER NOT NULL DEFAULT 0, -- newest time step accepted, so each code works once
-  code_failures   INTEGER NOT NULL DEFAULT 0, -- wrong codes in a row
-  code_failed_at  INTEGER,
-  codes_locked_at INTEGER                 -- set after too many wrong codes
+  -- Codes refused without an audit event of their own (authenticator codes
+  -- while code sign-in is locked, and wrong recovery codes), and when the
+  -- last event that counted them was written: at most one an hour.
+  codes_refused             INTEGER NOT NULL DEFAULT 0,
+  codes_refused_reported_at INTEGER
 );
 
 CREATE UNIQUE INDEX users_email ON users (email);
 CREATE UNIQUE INDEX users_one_owner ON users (role) WHERE role = 'owner';
+
+-- Wrong authenticator codes, counted for every email address tried, whether
+-- or not it has an account, so the answers don't say which do. Addresses
+-- share 65,536 buckets by a hash of the email, which bounds the table however
+-- many addresses are tried. See docs/security/sign-in.md.
+CREATE TABLE code_guards (
+  bucket    INTEGER PRIMARY KEY,
+  failures  INTEGER NOT NULL DEFAULT 0, -- wrong codes in a row
+  failed_at INTEGER,
+  locked_at INTEGER                     -- set after too many wrong codes; only the owner lifts it
+);
 
 -- Passkeys. Each works only on the relying party ID (address) it was made on.
 CREATE TABLE passkeys (

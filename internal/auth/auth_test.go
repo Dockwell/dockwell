@@ -4,6 +4,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"path/filepath"
@@ -36,10 +37,12 @@ func (c *clock) advance(d time.Duration) {
 }
 
 type fixture struct {
-	svc   *Service
-	db    *store.DB
-	key   *seal.Key
-	clock *clock
+	svc    *Service
+	db     *store.DB
+	key    *seal.Key
+	clock  *clock
+	path   string // the database file
+	domain string
 }
 
 func newFixture(t *testing.T, domain string) *fixture {
@@ -49,25 +52,68 @@ func newFixture(t *testing.T, domain string) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := store.Open(t.Context(), filepath.Join(dir, "state.db"))
+	path := filepath.Join(dir, "state.db")
+	db, err := store.Open(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	// Mid-step, so ±1 step tests aren't at a boundary.
 	c := &clock{t: time.Date(2026, 11, 4, 9, 30, 15, 0, time.UTC)}
+	f := &fixture{db: db, key: key, clock: c, path: path, domain: domain}
+	f.svc = f.restart(t)
+	return f
+}
+
+// restart returns a new Service on the fixture's database and clock, as
+// after dockwell run restarts: whatever it kept in memory is gone.
+func (f *fixture) restart(t *testing.T) *Service {
+	t.Helper()
 	svc, err := New(Config{
-		DB:         db,
-		Key:        key,
+		DB:         f.db,
+		Key:        f.key,
 		Logger:     slog.New(slog.DiscardHandler),
-		Sites:      Sites{Domain: domain},
+		Sites:      Sites{Domain: f.domain},
 		ServerName: func() string { return "hz-1" },
-		Now:        c.now,
+		Now:        f.clock.now,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &fixture{svc: svc, db: db, key: key, clock: c}
+	return svc
+}
+
+// execSQL runs a statement on the fixture's database from outside the
+// store, to make its writes fail as a full disk or a bug elsewhere would.
+func (f *fixture) execSQL(t *testing.T, query string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", "file:"+f.path+"?_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.ExecContext(t.Context(), query); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// auditDetails returns the details of every event with action, oldest first.
+func (f *fixture) auditDetails(t *testing.T, action string) []string {
+	t.Helper()
+	var out []string
+	err := f.db.View(t.Context(), func(tx *store.Tx) error {
+		evs, err := tx.ListEvents(t.Context(), 100_000)
+		for i := len(evs) - 1; i >= 0; i-- {
+			if evs[i].Action == action {
+				out = append(out, evs[i].Detail)
+			}
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
 }
 
 var (

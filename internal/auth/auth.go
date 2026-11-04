@@ -108,7 +108,17 @@ type SlowDown struct {
 }
 
 func (e *SlowDown) Error() string {
-	return fmt.Sprintf("too many wrong codes. Wait %s, then try again", human.Duration(e.Wait.Round(time.Second)))
+	return fmt.Sprintf("too many wrong codes. Wait %s, then try again", human.Duration(e.RetryAfter()))
+}
+
+// RetryAfter is the wait rounded up to whole seconds, as a Retry-After
+// header says it, so that waiting that long is always enough: 0.3 s is 1 s,
+// never 0.
+func (e *SlowDown) RetryAfter() time.Duration {
+	if e.Wait <= 0 {
+		return 0
+	}
+	return (e.Wait + time.Second - 1).Truncate(time.Second)
 }
 
 // Config configures a Service.
@@ -135,7 +145,6 @@ type Service struct {
 
 	ceremonies *ceremonies
 	sources    *failures // wrong codes by source address
-	accounts   *failures // wrong codes for emails that match no account
 	begins     *buckets  // unauthenticated ceremonies and links, by source
 	streams    *streams
 }
@@ -165,7 +174,6 @@ func New(cfg Config) (*Service, error) {
 		now:        cfg.Now,
 		ceremonies: newCeremonies(1024),
 		sources:    newFailures(freeSourceFailures, 10_000),
-		accounts:   newFailures(freeAccountFailures, 10_000),
 		begins:     newBuckets(30, 2*time.Second, 10_000),
 		streams:    newStreams(),
 	}, nil

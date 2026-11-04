@@ -8,16 +8,19 @@ import (
 	"time"
 )
 
-// Code sign-in limits. Each account and each source address may get a few
-// codes wrong; after that every further try waits twice as long as the one
-// before, up to maxBackoff. After lockAfter wrong codes in a row, code
-// sign-in locks for the account until the owner unlocks it.
+// Code sign-in limits. Each email address and each source address may get a
+// few codes wrong; after that every further try waits twice as long as the
+// one before, up to maxBackoff. After lockAfter wrong authenticator codes in
+// a row, code sign-in locks for the email until the owner unlocks it. Codes
+// refused without counting towards the lock are audited at most once every
+// refusedReportEvery per account.
 const (
 	freeAccountFailures = 3
 	freeSourceFailures  = 5
 	baseBackoff         = time.Second
 	maxBackoff          = 15 * time.Minute
 	lockAfter           = 10
+	refusedReportEvery  = time.Hour
 )
 
 // backoff is how long to wait after failures wrong attempts in a row.
@@ -32,9 +35,8 @@ func backoff(failures, free int) time.Duration {
 	return min(baseBackoff<<n, maxBackoff)
 }
 
-// failures counts wrong attempts in a row for each key (a source address,
-// or an email that matches no account) and says how long the next attempt
-// must wait. It forgets keys that have been quiet for a while, and holds at
+// failures counts wrong attempts in a row for each source address and says
+// how long the next attempt must wait. It forgets keys that have been quiet for a while, and holds at
 // most maxKeys.
 type failures struct {
 	mu      sync.Mutex

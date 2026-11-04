@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
-	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -474,7 +473,7 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 	if errors.As(err, &slow) {
 		cerr := connect.NewError(connect.CodeResourceExhausted, slow)
 		cerr.Meta().Set(ReasonKey, "slow_down")
-		cerr.Meta().Set("Retry-After", strconv.Itoa(int(slow.Wait.Round(time.Second).Seconds())))
+		cerr.Meta().Set("Retry-After", strconv.Itoa(int(slow.RetryAfter().Seconds())))
 		return cerr
 	}
 	for _, c := range codes {
