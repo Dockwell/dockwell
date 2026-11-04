@@ -220,6 +220,43 @@ type Readier interface {
 	Ready(ctx context.Context) error
 }
 
+// Referrer is a kind whose specs name other resources in their scope, as
+// a service names the volumes it mounts and the networks it joins. The
+// engine refuses a change that would leave one naming what isn't there,
+// or isn't on its servers, and makes what is named first.
+type Referrer interface {
+	References(spec proto.Message) []Reference
+}
+
+// Reference is a resource a spec names, in the spec's own scope.
+type Reference struct {
+	Kind Kind
+	Name string
+	// Verb says how the spec uses it, for people: "mount", or "join".
+	Verb string
+}
+
+// References lists what spec names, if its kind is a Referrer.
+func (r *Registry) References(kind Kind, spec proto.Message) []Reference {
+	if spec == nil {
+		return nil
+	}
+	if ref, ok := r.types[kind].(Referrer); ok {
+		return ref.References(spec)
+	}
+	return nil
+}
+
+// HasReferrers reports whether any kind names others.
+func (r *Registry) HasReferrers() bool {
+	for _, t := range r.types {
+		if _, ok := t.(Referrer); ok {
+			return true
+		}
+	}
+	return false
+}
+
 // SharedReadier is a Readier whose answer others share, such as each
 // Docker driver's, which is whether one Docker Engine answers.
 type SharedReadier interface {

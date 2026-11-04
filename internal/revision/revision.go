@@ -444,6 +444,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit) ([]item, error) {
 		if items, err = e.withFirstEnvironments(ctx, tx, items); err != nil {
 			return err
 		}
+		items = e.orderByReference(items)
 		return e.check(ctx, tx, items)
 	})
 	return items, err
@@ -614,7 +615,9 @@ func (e *Engine) checkName(ref resource.Ref) error {
 //   - an item placed on a server that was removed;
 //   - a project that would come to life with no environment;
 //   - deleting a scope that would still hold something, or the last
-//     environment of a project, or the organization's last project.
+//     environment of a project, or the organization's last project;
+//   - a resource naming one that isn't there, or isn't on its servers,
+//     such as a service mounting a volume (checkReferences).
 //
 // It runs when proposing, and again in the transaction that applies, so a
 // change planned before the world moved can't slip through.
@@ -690,7 +693,7 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 				it.ref.Name, it.ref.Kind, where)
 		}
 	}
-	return nil
+	return e.checkReferences(ctx, tx, items)
 }
 
 // liveIn names what lives in a scope once the change applies, of one kind

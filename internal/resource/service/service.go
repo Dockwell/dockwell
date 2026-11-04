@@ -23,6 +23,8 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/network"
+	"github.com/dockwell/dockwell/internal/resource/volume"
 )
 
 // Kind is the service kind.
@@ -59,6 +61,22 @@ func (d *Driver) Validate(spec proto.Message) error {
 		return errors.New("a service needs something to run: an app from an image, such as nginx:1.27")
 	}
 	return d.Containers.Validate(app)
+}
+
+// References are the volumes the service mounts and the networks it
+// joins, in its environment.
+func (*Driver) References(spec proto.Message) []resource.Reference {
+	app := spec.(*resourcev1.Service).GetApp()
+	var out []resource.Reference
+	for _, m := range app.GetMounts() {
+		if v := m.GetVolume(); v != "" {
+			out = append(out, resource.Reference{Kind: volume.Kind, Name: v, Verb: "mount"})
+		}
+	}
+	for _, n := range app.GetNetworks() {
+		out = append(out, resource.Reference{Kind: network.Kind, Name: n, Verb: "join"})
+	}
+	return out
 }
 
 // Target is where a service runs on a server: in its environment's
