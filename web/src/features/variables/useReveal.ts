@@ -6,7 +6,7 @@ import { StepUpAction, VariableService } from "@dockwell/api";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuthError } from "../auth/messages";
-import { stepUp } from "../auth/stepUp";
+import { withStepUpIfAsked } from "../auth/stepUp";
 
 /** How long a revealed value stays on screen before it hides again. */
 export const REVEALED_FOR = 60_000;
@@ -41,11 +41,18 @@ export function useReveals(): Reveals {
   const explain = useAuthError();
   const [shown, setShown] = useState<Readonly<Record<string, Shown>>>({});
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  // Ends the reveals in flight when the page goes: a value that arrives
+  // after is dropped, rather than kept until its timer would hide it.
+  const leaving = useRef(new AbortController());
 
   useEffect(() => {
     const pending = timers.current;
+    const left = new AbortController();
+    leaving.current = left;
     return () => {
+      left.abort();
       for (const timer of pending.values()) clearTimeout(timer);
+      pending.clear();
     };
   }, []);
 
@@ -63,10 +70,13 @@ export function useReveals(): Reveals {
   const reveal = useCallback(
     (id: string) => {
       set(id, { busy: true });
+      const signal = leaving.current.signal;
       void (async () => {
         try {
-          const proof = await stepUp(transport, StepUpAction.REVEAL_SECRET, id);
-          const revealed = await createClient(VariableService, transport).revealSecret({ id, proof });
+          const revealed = await withStepUpIfAsked(transport, StepUpAction.REVEAL_SECRET, id, (proof) =>
+            createClient(VariableService, transport).revealSecret({ id, proof }, { signal }),
+          );
+          if (signal.aborted) return; // the page is gone, and the value with this call
           set(id, { value: revealed.value });
           clearTimeout(timers.current.get(id));
           timers.current.set(
@@ -74,7 +84,7 @@ export function useReveals(): Reveals {
             setTimeout(() => hide(id), REVEALED_FOR),
           );
         } catch (err) {
-          set(id, { problem: explain(err) });
+          if (!signal.aborted) set(id, { problem: explain(err) });
         }
       })();
     },

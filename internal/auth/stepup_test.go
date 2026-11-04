@@ -4,6 +4,7 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -268,6 +269,91 @@ func testChangingHowYouSignInTakesAStepUp(t *testing.T, backend store.Backend) {
 	}
 	if _, err := f.svc.BeginStepUp(ctx, localhost, token, StepUpCreateToken, ""); !errors.Is(err, ErrNeedsSession) {
 		t.Errorf("a token beginning a step-up to make a token = %v, want ErrNeedsSession", err)
+	}
+}
+
+// Every action a step-up confirms checks everything else first: a
+// refusal for another reason comes before it asks for a proof, and leaves
+// a proof it was given unspent, so the same one works once the reason is
+// gone. Adding a passkey and setting up codes have no other reason to
+// refuse; revealing has, in the API (internal/control).
+func TestARefusalForAnotherReasonLeavesTheProof(t *testing.T) {
+	storetest.Each(t, testARefusalForAnotherReasonLeavesTheProof)
+}
+
+func testARefusalForAnotherReasonLeavesTheProof(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
+	p := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
+	ctx := t.Context()
+	keys, err := f.svc.ListPasskeys(ctx, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	only := keys[0].ID
+
+	// Codes are off: turning them off and making recovery codes refuse
+	// that first, with no proof, and with one, which works once codes do.
+	disable, regenerate := f.proof(t, p, StepUpDisableCodes, ""), f.proof(t, p, StepUpRecoveryCodes, "")
+	for _, proof := range []string{"", disable} {
+		if err := f.svc.DisableTOTP(ctx, p, proof); !errors.Is(err, ErrNoTOTP) {
+			t.Errorf("turning codes off while they're off, proof %t = %v, want ErrNoTOTP", proof != "", err)
+		}
+	}
+	for _, proof := range []string{"", regenerate} {
+		if _, err := f.svc.RegenerateRecoveryCodes(ctx, p, proof); !errors.Is(err, ErrNoTOTP) {
+			t.Errorf("new recovery codes without codes, proof %t = %v, want ErrNoTOTP", proof != "", err)
+		}
+	}
+	// The only passkey can't go, with or without a proof.
+	remove := f.proof(t, p, StepUpRemovePasskey, only)
+	for _, proof := range []string{"", remove} {
+		if err := f.svc.RemovePasskey(ctx, p, only, proof); !errors.Is(err, ErrLastWayIn) {
+			t.Errorf("removing the only passkey, proof %t = %v, want ErrLastWayIn", proof != "", err)
+		}
+	}
+	// A token with no name, or one too many.
+	create := f.proof(t, p, StepUpCreateToken, "")
+	for _, proof := range []string{"", create} {
+		if _, err := f.svc.CreateToken(ctx, p, " ", store.ScopeReadOnly, nil, proof); !errors.Is(err, ErrInvalid) {
+			t.Errorf("a token with no name, proof %t = %v, want ErrInvalid", proof != "", err)
+		}
+	}
+	var last string
+	_ = f.db.Update(ctx, func(tx *store.Tx) error {
+		for i := range maxTokens {
+			tok := store.APIToken{ID: fmt.Sprintf("tok_%03d", i), TokenHash: []byte{byte(i), byte(i >> 8)}, UserID: p.User.ID, Name: "CI",
+				Hint: "dwt_…", Scope: store.ScopeReadOnly, CreatedAt: f.clock.now()}
+			if err := tx.CreateAPIToken(ctx, tok); err != nil {
+				t.Fatal(err)
+			}
+			last = tok.ID
+		}
+		return nil
+	})
+	for _, proof := range []string{"", create} {
+		if _, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, proof); !errors.Is(err, ErrInvalid) ||
+			!strings.Contains(err.Error(), "the most you can have") {
+			t.Errorf("one token too many, proof %t = %v, want it refused for the most tokens", proof != "", err)
+		}
+	}
+
+	// Each reason gone, each proof still works.
+	if err := f.svc.RevokeToken(ctx, p, last); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, create); err != nil {
+		t.Errorf("making a token with the proof a refusal left: %v", err)
+	}
+	f.enableTOTP(t, p)
+	if _, err := f.svc.RegenerateRecoveryCodes(ctx, p, regenerate); err != nil {
+		t.Errorf("new recovery codes with the proof a refusal left: %v", err)
+	}
+	if err := f.svc.RemovePasskey(ctx, p, only, remove); err != nil {
+		t.Errorf("removing a passkey with the proof a refusal left: %v", err)
+	}
+	// With no passkey left, codes can't go: that refusal comes first too.
+	if err := f.svc.DisableTOTP(ctx, p, disable); !errors.Is(err, ErrLastWayIn) {
+		t.Errorf("turning off the last way in = %v, want ErrLastWayIn", err)
 	}
 }
 

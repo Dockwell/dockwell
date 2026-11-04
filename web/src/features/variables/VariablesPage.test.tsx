@@ -213,6 +213,8 @@ describe("the variables and secrets page", () => {
         variables: {
           revealSecret: (req) => {
             reveals.push(req);
+            // As the control plane: a passkey, once the secret is there.
+            if (req.proof === "") throw authError(Code.PermissionDenied, "needs_step_up");
             return { value: "hunter2-hunter2", revision: 3n };
           },
         },
@@ -224,7 +226,10 @@ describe("the variables and secrets page", () => {
     expect(await screen.findByText("hunter2-hunter2")).toBeVisible();
     expect(passkeys.get).toHaveBeenCalledOnce();
     expect(steps).toEqual([expect.objectContaining({ action: StepUpAction.REVEAL_SECRET, target: "sec_db" })]);
-    expect(reveals).toEqual([expect.objectContaining({ id: "sec_db", proof: "proof_1" })]);
+    expect(reveals).toEqual([
+      expect.objectContaining({ id: "sec_db", proof: "" }),
+      expect.objectContaining({ id: "sec_db", proof: "proof_1" }),
+    ]);
 
     await user.click(screen.getByRole("button", { name: "Copy DB_PASSWORD" }));
     expect(writeText).toHaveBeenCalledWith("hunter2-hunter2");
@@ -247,12 +252,65 @@ describe("the variables and secrets page", () => {
             throw authError(Code.FailedPrecondition, "no_passkey_here");
           },
         },
+        variables: {
+          revealSecret: () => {
+            throw authError(Code.PermissionDenied, "needs_step_up");
+          },
+        },
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Reveal DB_PASSWORD" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Confirming this needs a passkey for this address, and you have none here.",
     );
+  });
+
+  it("asks for no passkey when the secret isn't there to reveal", async () => {
+    const user = userEvent.setup();
+    const passkeys = stubPasskeys();
+    renderAt(
+      "/variables",
+      api([production], {
+        variables: {
+          revealSecret: () => {
+            throw authError(Code.NotFound, "not_found", "there's no secret sec_db. Check its ID with dockwell variables list");
+          },
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Reveal DB_PASSWORD" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("There's no secret sec_db.");
+    expect(passkeys.get).not.toHaveBeenCalled();
+  });
+
+  it("drops a value that arrives after the page is gone", async () => {
+    const user = userEvent.setup();
+    stubPasskeys();
+    let answer: (v: { value: string; revision: bigint }) => void = () => {};
+    let signal: AbortSignal | undefined;
+    const { unmount } = renderAt(
+      "/variables",
+      api([production], {
+        variables: {
+          revealSecret: (_req, ctx) => {
+            signal = ctx.signal;
+            return new Promise((resolve) => {
+              answer = resolve;
+            });
+          },
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Reveal DB_PASSWORD" }));
+    await waitFor(() => expect(signal).toBeDefined());
+    const timers = vi.spyOn(globalThis, "setTimeout");
+    unmount();
+    expect(signal?.aborted).toBe(true);
+    answer({ value: "hunter2-hunter2", revision: 3n });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // No timer holds the value until it would have hidden it.
+    expect(timers.mock.calls.filter(([, ms]) => ms === REVEALED_FOR)).toEqual([]);
+    timers.mockRestore();
   });
 
   it("adds a secret, changes a variable into one, and removes one, each through the plan sheet", async () => {

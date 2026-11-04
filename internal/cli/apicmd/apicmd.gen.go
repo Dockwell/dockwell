@@ -477,7 +477,7 @@ func Methods() []*apicli.Method {
 			Noun:      "sessions",
 			Verb:      "begin-step-up",
 			Short:     "Start confirming",
-			Long:      "Start confirming, with a passkey you have for the address of this request, an\naction that needs a person right now: revealing a secret, or changing how you\nsign in or your API tokens. Pass the passkey's answer to dockwell sessions\nfinish-step-up.",
+			Long:      "Start confirming, with a passkey you have for the address of this request, an\naction that needs a person right now: revealing a secret, or changing how you\nsign in or your API tokens. Pass the passkey's answer to dockwell sessions\nfinish-step-up.\n\nCall the action without a proof first. It checks everything else, such as the\nlast way in or a token's name, and only then refuses with the reason\nneeds_step_up. Step up, and call it again with the proof, which the action\nspends only once nothing else refuses it.",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "action", Help: "The action."},

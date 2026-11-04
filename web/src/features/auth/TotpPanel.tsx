@@ -11,7 +11,7 @@ import { encode } from "uqr";
 import { CopyButton } from "../system/CopyCommand";
 import { normalizeCode } from "./code";
 import { useAuthError } from "./messages";
-import { stepUp } from "./stepUp";
+import { withStepUpIfAsked } from "./stepUp";
 
 /** Code sign-in with an authenticator app, and its recovery codes. */
 export function TotpPanel() {
@@ -34,8 +34,9 @@ export function TotpPanel() {
     setStarting(true);
     setProblem(undefined);
     try {
-      const proof = await stepUp(transport, StepUpAction.SET_UP_CODES);
-      const res = await createClient(AuthService, transport).beginTotpSetup({ proof });
+      const res = await withStepUpIfAsked(transport, StepUpAction.SET_UP_CODES, "", (proof) =>
+        createClient(AuthService, transport).beginTotpSetup({ proof }),
+      );
       setSetup({ secret: res.secret, uri: res.uri });
       setSheet("setup");
     } catch (err) {
@@ -49,8 +50,9 @@ export function TotpPanel() {
     setBusy(true);
     setProblem(undefined);
     try {
-      const proof = await stepUp(transport, StepUpAction.DISABLE_CODES);
-      await createClient(AuthService, transport).disableTotp({ proof });
+      await withStepUpIfAsked(transport, StepUpAction.DISABLE_CODES, "", (proof) =>
+        createClient(AuthService, transport).disableTotp({ proof }),
+      );
       setConfirmOff(false);
       await totp.refetch();
     } catch (err) {
@@ -272,8 +274,9 @@ function RegenerateSheet({ open, left, onClose }: { open: boolean; left: number;
     setBusy(true);
     setProblem(undefined);
     try {
-      const proof = await stepUp(transport, StepUpAction.REGENERATE_RECOVERY_CODES);
-      const res = await createClient(AuthService, transport).regenerateRecoveryCodes({ proof });
+      const res = await withStepUpIfAsked(transport, StepUpAction.REGENERATE_RECOVERY_CODES, "", (proof) =>
+        createClient(AuthService, transport).regenerateRecoveryCodes({ proof }),
+      );
       setCodes(res.recoveryCodes);
     } catch (err) {
       setProblem(explain(err));

@@ -22,13 +22,17 @@ export async function stepUp(transport: Transport, action: StepUpAction, target 
 }
 
 /**
- * Calls call without a proof first, and with one from a step-up when the
- * control plane asks for it: as for adding a passkey just after signing in
- * with a code or a link, which confirms it already.
+ * Does something a step-up confirms, as every such action in the panel
+ * does: it calls without a proof first, so the control plane refuses for
+ * any other reason, such as the last way in or a missing name, before the
+ * browser asks for a passkey. Only once it answers needs_step_up does the
+ * browser ask, and the call go again with the proof. Adding a passkey just
+ * after signing in another way may need none.
  */
 export async function withStepUpIfAsked<T>(
   transport: Transport,
   action: StepUpAction,
+  target: string,
   call: (proof: string) => Promise<T>,
 ): Promise<T> {
   try {
@@ -36,5 +40,5 @@ export async function withStepUpIfAsked<T>(
   } catch (err) {
     if (reasonOf(err) !== "needs_step_up") throw err;
   }
-  return call(await stepUp(transport, action));
+  return call(await stepUp(transport, action, target));
 }

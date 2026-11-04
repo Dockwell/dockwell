@@ -170,12 +170,15 @@ func (h *Handler) RevealSecret(ctx context.Context, req *connect.Request[dockwel
 		return nil, authapi.ReasonError(connect.CodePermissionDenied, auth.ErrNeedsSession, authapi.ReasonNeedsSession)
 	}
 	client, _ := authapi.ClientFrom(ctx)
-	if err := h.auth.UseStepUp(p, req.Msg.GetProof(), auth.StepUpRevealSecret, req.Msg.GetId()); err != nil {
-		h.logger.InfoContext(ctx, "refused to reveal a secret without a passkey's confirmation", slog.String("secret", req.Msg.GetId()),
-			slog.String("user", p.User.ID))
-		return nil, h.rpcError(ctx, err)
+	// The proof is asked for, and spent, once nothing else refuses.
+	proof := req.Msg.GetProof()
+	got, err := h.keeper.Reveal(ctx, req.Msg.GetId(), p.Actor(), client.Surface(p), func() error {
+		return h.auth.UseStepUp(p, proof, auth.StepUpRevealSecret, req.Msg.GetId())
+	})
+	if errors.Is(err, auth.ErrNeedsStepUp) && proof != "" {
+		h.logger.InfoContext(ctx, "refused to reveal a secret with a confirmation that is used, expired or for something else",
+			slog.String("secret", req.Msg.GetId()), slog.String("user", p.User.ID))
 	}
-	got, err := h.keeper.Reveal(ctx, req.Msg.GetId(), p.Actor(), client.Surface(p))
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}

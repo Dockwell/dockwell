@@ -119,7 +119,7 @@ The install's key is a separate file, and a backup of the database without it op
   | Making new recovery codes | `RegenerateRecoveryCodes` | you |
   | Creating an API token | `TokenService.CreateToken` | you |
 
-  - A proof is spent once the action's own checks pass, so a refusal for another reason, such as the last way in or a token's missing name, doesn't cost another prompt.
+  - **Everything else is checked first, and the passkey asked for last.** Called without a proof, each action, revealing included, checks what else would refuse it: the last way in, codes that are off, a token's name or the most tokens, a secret that isn't there. Only then does it refuse with `needs_step_up`. The panel calls each so, and asks for the passkey only when that is the answer, then calls again with the proof. A proof given is spent only once nothing else refuses, in the transaction that acts, so a refusal for another reason neither prompts for a passkey nor costs one.
   - The ceremony that adds a passkey works only in the session that began it.
   - `RemovePasskey` is `POST /v1/passkeys/{id}:remove`, so its proof is in the body, never in a URL.
   - Revoking sessions and tokens, signing out and unlocking codes need none: they take access away, and someone who lost their passkey must still be able to.

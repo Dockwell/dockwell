@@ -14,7 +14,7 @@ import { createPasskey, passkeysAvailable } from "../../lib/webauthn";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { useDeviceName } from "./device";
 import { useAuthError } from "./messages";
-import { stepUp, withStepUpIfAsked } from "./stepUp";
+import { withStepUpIfAsked } from "./stepUp";
 
 /**
  * Adds a passkey for this address, and refreshes the list. Your browser
@@ -33,7 +33,7 @@ export function useAddPasskey() {
     setProblem(undefined);
     try {
       const client = createClient(AuthService, transport);
-      const begin = await withStepUpIfAsked(transport, StepUpAction.ADD_PASSKEY, (proof) =>
+      const begin = await withStepUpIfAsked(transport, StepUpAction.ADD_PASSKEY, "", (proof) =>
         client.beginAddPasskey({ proof }),
       );
       const credentialJson = await createPasskey(begin.optionsJson);
@@ -120,8 +120,9 @@ function PasskeyRow({ passkey, here, now, onRemoved }: PasskeyRowProps) {
     setBusy(true);
     setProblem(undefined);
     try {
-      const proof = await stepUp(transport, StepUpAction.REMOVE_PASSKEY, passkey.id);
-      await createClient(AuthService, transport).removePasskey({ id: passkey.id, proof });
+      await withStepUpIfAsked(transport, StepUpAction.REMOVE_PASSKEY, passkey.id, (proof) =>
+        createClient(AuthService, transport).removePasskey({ id: passkey.id, proof }),
+      );
       onRemoved();
     } catch (err) {
       setProblem(explain(err));

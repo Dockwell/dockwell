@@ -141,6 +141,20 @@ func testRevealingASecretTakesAPasskey(t *testing.T, backend store.Backend) {
 	if _, err := reveal(other); reasonOf(err) != authapi.ReasonNeedsStepUp {
 		t.Errorf("revealing with an assertion for another secret: %v, want %s", err, authapi.ReasonNeedsStepUp)
 	}
+	// What isn't a secret is refused as that, before any passkey is asked
+	// for, and a proof given with it stays unspent: here, a secret while
+	// it is deleted, whose proof works once it is made again, with its ID.
+	apply(t, c, propose(t, c, "Remove it", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "secret", Name: "DB_PASSWORD"}, Delete: true}))
+	waiting := stepUp(t, b, secret.GetId())
+	for _, proof := range []string{"", waiting} {
+		if _, err := reveal(proof); reasonOf(err) != "not_found" {
+			t.Errorf("revealing a deleted secret, proof %t: %v, want not_found", proof != "", err)
+		}
+	}
+	apply(t, c, propose(t, c, "Add it back", secretSpec("DB_PASSWORD", "s3cret-reveal-me")))
+	if got, err := reveal(waiting); err != nil || got.GetValue() != "s3cret-reveal-me" {
+		t.Errorf("revealing with the proof a refusal left = %v, %v", got, err)
+	}
 
 	var reveals []store.Event
 	_ = f.store.View(t.Context(), func(tx *store.Tx) error {
@@ -152,7 +166,7 @@ func testRevealingASecretTakesAPasskey(t *testing.T, backend store.Backend) {
 		}
 		return err
 	})
-	if len(reveals) != 1 || reveals[0].Target != secret.GetId() || !strings.HasPrefix(reveals[0].Actor, "user:") || reveals[0].Surface != store.SurfacePanel ||
+	if len(reveals) != 2 || reveals[0].Target != secret.GetId() || !strings.HasPrefix(reveals[0].Actor, "user:") || reveals[0].Surface != store.SurfacePanel ||
 		strings.Contains(reveals[0].Detail, "s3cret") {
 		t.Errorf("reveals in the audit log = %+v", reveals)
 	}

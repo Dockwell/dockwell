@@ -137,8 +137,9 @@ func liveToken(tok *store.APIToken, now time.Time) bool {
 // CreateToken makes a token for the principal, who must have signed in: a
 // token can't make another. It needs proof of a step-up for creating a
 // token, so a stolen session can't make one to keep. Unset expires makes
-// one that doesn't expire. A request it refuses as invalid leaves the
-// proof unspent.
+// one that doesn't expire. A request it refuses for anything else, such as
+// an invalid name or the most tokens, leaves the proof unspent, and is
+// refused before the proof is asked for.
 func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope string, expires *time.Time, proof string) (NewToken, error) {
 	if p.Token != nil || p.Session.ID == "" {
 		return NewToken{}, ErrNeedsSession
@@ -200,8 +201,9 @@ func (s *Service) RevokeLocalToken(ctx context.Context, actor, tokenID string) (
 }
 
 // createToken makes a token for the user who returns, in the transaction
-// that stores it. confirm, when set, is called once the request is valid
-// and before anything is stored, to check it may be made.
+// that stores it. confirm, when set, is called once nothing else refuses
+// it, the most tokens included, and before anything is stored, to check it
+// may be made: it may spend a step-up's proof.
 func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, name, scope string, expires *time.Time,
 	confirm func() error,
 ) (NewToken, error) {
@@ -220,11 +222,6 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 			return NewToken{}, fmt.Errorf("%w: choose an expiry in the future, or none", ErrInvalid)
 		}
 		expires = &at
-	}
-	if confirm != nil {
-		if err := confirm(); err != nil {
-			return NewToken{}, err
-		}
 	}
 	secret, hash := newTokenSecret()
 	tok := store.APIToken{
@@ -252,6 +249,11 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 		if live >= maxTokens {
 			return fmt.Errorf("%w: you have %d API tokens, the most you can have. Revoke one you no longer use, then try again",
 				ErrInvalid, maxTokens)
+		}
+		if confirm != nil {
+			if err := confirm(); err != nil {
+				return err
+			}
 		}
 		if err := tx.CreateAPIToken(ctx, tok); err != nil {
 			return err

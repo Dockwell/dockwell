@@ -292,17 +292,18 @@ type TOTPSetup struct {
 }
 
 // BeginTOTP makes a new authenticator secret for the principal, with proof
-// of a step-up for setting up code sign-in. It works only once ConfirmTOTP
-// checks a code from it; until then any current secret keeps working.
+// of a step-up for setting up code sign-in, spent once nothing else can
+// refuse it. It works only once ConfirmTOTP checks a code from it; until
+// then any current secret keeps working.
 func (s *Service) BeginTOTP(ctx context.Context, p Principal, proof string) (TOTPSetup, error) {
 	if p.Token != nil || p.Session.ID == "" {
 		return TOTPSetup{}, ErrNeedsSession
 	}
-	if err := s.confirmed(p, proof, StepUpSetUpCodes); err != nil {
-		return TOTPSetup{}, err
-	}
 	secret := newTOTPSecret()
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
+		if err := s.confirmed(p, proof, StepUpSetUpCodes); err != nil {
+			return err
+		}
 		return tx.SetTOTPPending(ctx, p.User.ID, s.key.Seal(purposeTOTP(p.User.ID), secret))
 	})
 	if err != nil {
@@ -390,7 +391,8 @@ func (s *Service) DisableTOTP(ctx context.Context, p Principal, proof string) er
 }
 
 // RegenerateRecoveryCodes replaces the principal's recovery codes, with
-// proof of a step-up for making them.
+// proof of a step-up for making them. A refusal for anything else, as
+// without code sign-in, leaves the proof unspent.
 func (s *Service) RegenerateRecoveryCodes(ctx context.Context, p Principal, proof string) ([]string, error) {
 	if p.Token != nil || p.Session.ID == "" {
 		return nil, ErrNeedsSession

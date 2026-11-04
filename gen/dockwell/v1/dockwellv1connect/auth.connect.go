@@ -137,6 +137,11 @@ type AuthServiceClient interface {
 	// of this request, an action that needs a person right now: revealing a
 	// secret, or changing how you sign in or your API tokens. Pass the
 	// passkey's answer to FinishStepUp.
+	//
+	// Call the action without a proof first. It checks everything else, such
+	// as the last way in or a token's name, and only then refuses with the
+	// reason needs_step_up. Step up, and call it again with the proof, which
+	// the action spends only once nothing else refuses it.
 	BeginStepUp(context.Context, *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error)
 	// FinishStepUp checks the passkey's answer and returns a proof for the
 	// action it began with. The proof works once, within a minute, in this
@@ -526,6 +531,11 @@ type AuthServiceHandler interface {
 	// of this request, an action that needs a person right now: revealing a
 	// secret, or changing how you sign in or your API tokens. Pass the
 	// passkey's answer to FinishStepUp.
+	//
+	// Call the action without a proof first. It checks everything else, such
+	// as the last way in or a token's name, and only then refuses with the
+	// reason needs_step_up. Step up, and call it again with the proof, which
+	// the action spends only once nothing else refuses it.
 	BeginStepUp(context.Context, *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error)
 	// FinishStepUp checks the passkey's answer and returns a proof for the
 	// action it began with. The proof works once, within a minute, in this

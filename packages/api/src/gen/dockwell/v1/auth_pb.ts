@@ -1708,6 +1708,11 @@ export const AuthService: GenService<{
    * secret, or changing how you sign in or your API tokens. Pass the
    * passkey's answer to FinishStepUp.
    *
+   * Call the action without a proof first. It checks everything else, such
+   * as the last way in or a token's name, and only then refuses with the
+   * reason needs_step_up. Step up, and call it again with the proof, which
+   * the action spends only once nothing else refuses it.
+   *
    * @generated from rpc dockwell.v1.AuthService.BeginStepUp
    */
   beginStepUp: {

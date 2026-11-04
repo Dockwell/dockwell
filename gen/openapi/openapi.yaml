@@ -893,6 +893,11 @@ paths:
                  of this request, an action that needs a person right now: revealing a
                  secret, or changing how you sign in or your API tokens. Pass the
                  passkey's answer to FinishStepUp.
+
+                 Call the action without a proof first. It checks everything else, such
+                 as the last way in or a token's name, and only then refuses with the
+                 reason needs_step_up. Step up, and call it again with the proof, which
+                 the action spends only once nothing else refuses it.
             operationId: AuthService_BeginStepUp
             requestBody:
                 content:
