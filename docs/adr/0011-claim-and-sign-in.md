@@ -26,7 +26,7 @@ A fresh VPS has an IP address and nothing else. Until #14, the API listened on l
 
 **Two ways to reach the panel.**
 - **Without a domain:**
-  - The panel and API stay on `127.0.0.1:7600`. `dockwell run` refuses a non-loopback `--listen`, so the panel is never served over plain HTTP to the network.
+  - The panel and API stay on `127.0.0.1:7600`. `dockwell run` refuses a non-loopback `--listen`, so the panel is never served over plain HTTP to the network. A domain doesn't lift this: it adds an HTTPS listener beside the loopback one. `install.sh` refuses such a `DOCKWELL_LISTEN` before it installs anything.
   - You reach it through an SSH tunnel, `ssh -L 7600:127.0.0.1:7600 you@server`, at `http://localhost:7600`. The printed command forwards to the address the panel is bound to, such as `[::1]` for `--listen [::1]:7600`.
   - The RP ID is `localhost`.
   - Any local port works for the tunnel, because the origin is taken from the browser's `Host`. Page loads on `127.0.0.1` redirect to `localhost`, where passkeys work.
@@ -39,9 +39,9 @@ A fresh VPS has an IP address and nothing else. Until #14, the API listened on l
 - **Every request** is checked against these hosts. Any other `Host` gets 421, which also defeats DNS rebinding against the loopback listener.
 
 **The first owner comes only from a claim link.**
-- On start with no owner, `dockwell run` makes a claim link and prints the exact steps: the tunnel and `http://localhost:7600/claim#<token>`, or `https://<domain>/claim#<token>`. When a link it printed before still works, as after a restart, it keeps that link and says so: the link `install.sh` showed must survive the service restarting.
+- On start with no owner, `dockwell run` makes a claim link and prints the exact steps: the tunnel and `http://localhost:7600/claim#<token>`, or `https://<domain>/claim#<token>`. When a link it printed before still works, as after a restart, it keeps that link and says so: the link `install.sh` showed must survive the service restarting. That holds only while the link works as printed, so the address each claim link is printed for is recorded, and a restart where the panel answers elsewhere, on another port or at a domain, prints a new link instead.
 - The token is 256 random bits. Only its SHA-256 is stored. It works once, expires in 24 h, and sits in the URL fragment, so it never reaches a server log or a `Referer` header.
-- A new link replaces any earlier unused one, so at most one works at a time. `dockwell claim` prints a fresh link, and is the only way to replace one that still works; like `dockwell token create`, it needs local access to the data directory.
+- A new link replaces any earlier unused one, so at most one works at a time. `dockwell claim` prints a fresh link, and is the only way to replace one that still works; like `dockwell token create`, it needs local access to the data directory. Once the install has an owner, it exits with status 3, so `install.sh` can tell that from a failure, which it shows.
 - Claiming takes two calls. `BeginClaim` checks the link without spending it and starts a passkey registration. `FinishClaim` verifies the passkey, then spends the link, creates the owner, stores the passkey and starts a session, all in one transaction.
 - The spend is a conditional update, and a partial unique index allows one owner, so racing claims can't make two. No other code path creates a user.
 
