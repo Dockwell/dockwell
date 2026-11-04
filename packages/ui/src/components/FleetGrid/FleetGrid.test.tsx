@@ -77,6 +77,54 @@ describe("FleetGrid", () => {
     expect(readout).toHaveTextContent("ams-1-03");
   });
 
+  it("keeps the readout on the latest data, and lets go of a server that goes away", async () => {
+    const user = userEvent.setup();
+    const live = (cpu: number): FleetGroup[] => [
+      {
+        label: "fra-1",
+        servers: [
+          { id: "fra-1-01", name: "fra-1-01", status: "healthy", cpu: 31 },
+          { id: "fra-1-07", name: "fra-1-07", status: "degraded", cpu },
+        ],
+      },
+    ];
+    const { container, rerender } = render(<FleetGrid groups={live(92)} />);
+    const readout = container.querySelector(".dw-fleet-readout");
+    await user.hover(screen.getByRole("button", { name: /^fra-1-07/ }));
+    expect(readout).toHaveTextContent("CPU 92%");
+    rerender(<FleetGrid groups={live(97)} />);
+    expect(readout).toHaveTextContent("CPU 97%");
+
+    screen.getByRole("button", { name: /^fra-1-07/ }).focus();
+    rerender(<FleetGrid groups={[{ servers: live(97)[0]?.servers.slice(0, 1) ?? [] }]} />);
+    expect(screen.queryByRole("button", { name: /^fra-1-07/ })).toBeNull();
+    expect(readout).toHaveTextContent("Hover or focus a server to inspect it.");
+    // Back again, it isn't hovered or focused.
+    rerender(<FleetGrid groups={live(97)} />);
+    expect(readout).toHaveTextContent("Hover or focus a server to inspect it.");
+  });
+
+  it("redraws only the readout on hover, and only the tiles that change on a render", async () => {
+    const user = userEvent.setup();
+    const tile = vi.fn(englishStrings.fleetGrid.tile);
+    const strings = { ...englishStrings, fleetGrid: { ...englishStrings.fleetGrid, tile } };
+    const grid = (selectedId?: string) => (
+      <UIStringsProvider strings={strings}>
+        <FleetGrid groups={groups} selectedId={selectedId} />
+      </UIStringsProvider>
+    );
+    const { container, rerender } = render(grid());
+    expect(tile).toHaveBeenCalledTimes(5);
+    tile.mockClear();
+    await user.hover(screen.getByRole("button", { name: /^fra-1-07/ }));
+    expect(container.querySelector(".dw-fleet-readout")).toHaveTextContent("fra-1-07");
+    await user.unhover(screen.getByRole("button", { name: /^fra-1-07/ }));
+    await user.tab();
+    expect(tile).not.toHaveBeenCalled();
+    rerender(grid("ams-1-03"));
+    expect(tile.mock.calls.map(([name]) => name)).toEqual(["ams-1-03"]);
+  });
+
   it("opens a server on click", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();

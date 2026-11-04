@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useState } from "react";
+import { memo, useEffect, useState, useSyncExternalStore } from "react";
 
 import { cx } from "../../lib/cx";
 import { STATUS, type Status } from "../../lib/status";
@@ -51,6 +51,35 @@ export interface FleetGridProps {
 const ORDER: readonly Status[] = ["healthy", "degraded", "down", "deploying", "stopped"];
 
 /**
+ * The id of the hovered or focused server, outside React state, so moving
+ * across tiles re-renders only the readout and not every tile.
+ */
+interface Inspection {
+  get: () => string | null;
+  set: (id: string | null) => void;
+  subscribe: (listener: () => void) => () => void;
+}
+
+function createInspection(): Inspection {
+  let current: string | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => current,
+    set: (id) => {
+      if (id === current) return;
+      current = id;
+      for (const listener of listeners) listener();
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
+
+/**
  * Every server as one tile, grouped by region or pool, so the fleet's state
  * reads at a glance. Healthy tiles stay quiet; problems get full colour and
  * a glyph. Each tile is a button named with the server and its state, in
@@ -68,12 +97,11 @@ export function FleetGrid({
   className,
 }: FleetGridProps) {
   const strings = useUIStrings();
-  const [inspected, setInspected] = useState<FleetServer | null>(null);
+  const [inspection] = useState(createInspection);
   const shownGroups: readonly FleetGroup[] = groups ?? [{ servers: servers ?? [] }];
   const all = shownGroups.flatMap((group) => group.servers);
   const counts = new Map<Status, number>();
   for (const server of all) counts.set(server.status, (counts.get(server.status) ?? 0) + 1);
-  const shown = inspected ?? (selectedId != null ? all.find((server) => server.id === selectedId) : undefined);
 
   return (
     <div className={cx("dw-fleet", `dw-fleet-${size}`, className)}>
@@ -100,55 +128,96 @@ export function FleetGrid({
               </div>
             ) : null}
             <ul className="dw-fleet-tiles" aria-label={group.label ?? strings.fleetGrid.group}>
-              {group.servers.map((server) => {
-                const spec = STATUS[server.status];
-                const selected = server.id === selectedId;
-                return (
-                  <li key={server.id}>
-                    <button
-                      type="button"
-                      className={cx("dw-tile", `dw-tile-${server.status}`, selected && "is-selected")}
-                      aria-label={strings.fleetGrid.tile(server.name, strings.status[server.status], server.cpu)}
-                      aria-current={selected ? "true" : undefined}
-                      onMouseEnter={() => setInspected(server)}
-                      onMouseLeave={() => setInspected(null)}
-                      onFocus={() => setInspected(server)}
-                      onBlur={() => setInspected(null)}
-                      onClick={onSelect ? () => onSelect(server) : undefined}
-                    >
-                      {server.status === "healthy" ? null : <Glyph shape={spec.shape} size={8} />}
-                    </button>
-                  </li>
-                );
-              })}
+              {group.servers.map((server) => (
+                <Tile
+                  key={server.id}
+                  server={server}
+                  selected={server.id === selectedId}
+                  inspection={inspection}
+                  onSelect={onSelect}
+                />
+              ))}
             </ul>
           </div>
         ))}
       </div>
-      {readout ? (
-        <div className="dw-fleet-readout" aria-live="polite">
-          {shown ? (
-            <>
-              <StatusBadge status={shown.status} label={shown.name} />
-              <span aria-hidden="true">{strings.status[shown.status]}</span>
-              {shown.cpu != null ? (
-                <span>
-                  {strings.fleetGrid.cpu} <b>{shown.cpu}%</b>
-                </span>
-              ) : null}
-              {shown.mem != null ? (
-                <span>
-                  {strings.fleetGrid.memory} <b>{shown.mem}%</b>
-                </span>
-              ) : null}
-              {shown.ip ? <code>{shown.ip}</code> : null}
-              {shown.note ? <span>{shown.note}</span> : null}
-            </>
-          ) : (
-            <span>{hint ?? strings.fleetGrid.hint}</span>
-          )}
-        </div>
-      ) : null}
+      {readout ? <Readout inspection={inspection} servers={all} selectedId={selectedId} hint={hint} /> : null}
+    </div>
+  );
+}
+
+interface TileProps {
+  server: FleetServer;
+  selected: boolean;
+  inspection: Inspection;
+  onSelect: ((server: FleetServer) => void) | undefined;
+}
+
+/** One server. Memoized, so a render of the grid redraws only the tiles whose server or selection changed. */
+const Tile = memo(function Tile({ server, selected, inspection, onSelect }: TileProps) {
+  const strings = useUIStrings();
+  const { id } = server;
+  // A tile that goes away while hovered or focused gets no mouseleave or blur.
+  useEffect(
+    () => () => {
+      if (inspection.get() === id) inspection.set(null);
+    },
+    [inspection, id],
+  );
+  return (
+    <li>
+      <button
+        type="button"
+        className={cx("dw-tile", `dw-tile-${server.status}`, selected && "is-selected")}
+        aria-label={strings.fleetGrid.tile(server.name, strings.status[server.status], server.cpu)}
+        aria-current={selected ? "true" : undefined}
+        onMouseEnter={() => inspection.set(id)}
+        onMouseLeave={() => inspection.set(null)}
+        onFocus={() => inspection.set(id)}
+        onBlur={() => inspection.set(null)}
+        onClick={onSelect ? () => onSelect(server) : undefined}
+      >
+        {server.status === "healthy" ? null : <Glyph shape={STATUS[server.status].shape} size={8} />}
+      </button>
+    </li>
+  );
+});
+
+interface ReadoutProps {
+  inspection: Inspection;
+  servers: readonly FleetServer[];
+  selectedId: string | undefined;
+  hint: string | undefined;
+}
+
+/** The line naming the hovered, focused or selected server, looked up by id so it shows the latest data. */
+function Readout({ inspection, servers, selectedId, hint }: ReadoutProps) {
+  const strings = useUIStrings();
+  const inspectedId = useSyncExternalStore(inspection.subscribe, inspection.get, inspection.get);
+  const find = (id: string | null | undefined) => (id == null ? undefined : servers.find((server) => server.id === id));
+  const shown = find(inspectedId) ?? find(selectedId);
+  return (
+    <div className="dw-fleet-readout" aria-live="polite">
+      {shown ? (
+        <>
+          <StatusBadge status={shown.status} label={shown.name} />
+          <span aria-hidden="true">{strings.status[shown.status]}</span>
+          {shown.cpu != null ? (
+            <span>
+              {strings.fleetGrid.cpu} <b>{shown.cpu}%</b>
+            </span>
+          ) : null}
+          {shown.mem != null ? (
+            <span>
+              {strings.fleetGrid.memory} <b>{shown.mem}%</b>
+            </span>
+          ) : null}
+          {shown.ip ? <code>{shown.ip}</code> : null}
+          {shown.note ? <span>{shown.note}</span> : null}
+        </>
+      ) : (
+        <span>{hint ?? strings.fleetGrid.hint}</span>
+      )}
     </div>
   );
 }
