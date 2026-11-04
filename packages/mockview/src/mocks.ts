@@ -14,8 +14,6 @@ export interface Board {
   page: string;
   width: number;
   height: number;
-  /** "fill" artboards are pages: they fill the window and scroll. Others are fixed-size frames. */
-  expand: string | null;
 }
 
 export interface Page {
@@ -29,7 +27,6 @@ interface CanvasBoard {
   page?: string;
   w?: number;
   h?: number;
-  expand?: string;
 }
 
 const canvas = canvasJson as unknown as {
@@ -51,7 +48,6 @@ export const boards: readonly Board[] = (() => {
       page: b.page ?? "",
       width: b.w ?? 1440,
       height: b.h ?? 900,
-      expand: b.expand ?? null,
     };
   });
 })();

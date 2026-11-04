@@ -20,8 +20,6 @@ export interface Artboard {
   /** Source of `class Component extends DCLogic`, or null when the artboard has no logic. */
   script: string | null;
   props: Record<string, PropSpec>;
-  /** The preferred preview size from data-props.$preview. */
-  preview: { width: number; height: number } | null;
   /** Files this artboard pulls in with <dc-import>, in document order and without repeats. */
   imports: string[];
   /** Markup the parser had to guess at. Empty for a well-formed file. */
@@ -44,8 +42,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseProps(file: string, raw: string | null | undefined): Pick<Artboard, "props" | "preview"> {
-  if (raw == null || raw.trim() === "") return { props: {}, preview: null };
+function parseProps(file: string, raw: string | null | undefined): Artboard["props"] {
+  if (raw == null || raw.trim() === "") return {};
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -54,17 +52,12 @@ function parseProps(file: string, raw: string | null | undefined): Pick<Artboard
   }
   if (!isRecord(parsed)) throw new ArtboardError(file, "data-props must be a JSON object. Fix the attribute.");
   const props: Record<string, PropSpec> = {};
-  let preview: Artboard["preview"] = null;
   for (const [name, spec] of Object.entries(parsed)) {
-    if (name === "$preview") {
-      if (isRecord(spec) && typeof spec["width"] === "number" && typeof spec["height"] === "number") {
-        preview = { width: spec["width"], height: spec["height"] };
-      }
-      continue;
-    }
+    // $preview is the artboard's size, which the viewer reads from canvas.json instead. It isn't a prop.
+    if (name === "$preview") continue;
     props[name] = isRecord(spec) ? (spec as PropSpec) : {};
   }
-  return { props, preview };
+  return props;
 }
 
 /** Reads one .dc.html file. Throws ArtboardError when the file is not an artboard at all. */
@@ -88,7 +81,7 @@ export function parseArtboard(file: string, source: string): Artboard {
 
   const [scriptEl] = findElements(nodes, (el) => el.tag === "script" && hasAttr(el, "data-dc-script"));
   const script = scriptEl ? textContent(scriptEl.children) : null;
-  const { props, preview } = parseProps(file, scriptEl ? attr(scriptEl, "data-props") : null);
+  const props = parseProps(file, scriptEl ? attr(scriptEl, "data-props") : null);
 
   const imports: string[] = [];
   for (const el of findElements(template, (e) => e.tag === "dc-import")) {
@@ -99,7 +92,7 @@ export function parseArtboard(file: string, source: string): Artboard {
     }
   }
 
-  return { file, title, head, template, script, props, preview, imports, problems };
+  return { file, title, head, template, script, props, imports, problems };
 }
 
 /** The props an artboard starts with: every data-props default. */

@@ -58,7 +58,7 @@ async function render(
     onProblem: (p) => problems.push(p),
     ...(options.components ? { resolveComponent: (path: string) => options.components?.[path] } : {}),
   });
-  await library.load(entry);
+  const loaded = await library.load(entry);
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
@@ -67,7 +67,7 @@ async function render(
     act(() => root.unmount());
     container.remove();
   });
-  return { container, problems: problems.map((p) => p.message), library, root };
+  return { container, problems: problems.map((p) => p.message), library, root, loaded };
 }
 
 describe("templates", () => {
@@ -244,14 +244,14 @@ describe("logic", () => {
   renderVals() { return { n: this.state.n, theme: this.props.theme, size: this.props.size }; }
 }`;
     const props = `{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"size":{"default":"md"},"$preview":{"width":10,"height":10}}`;
-    const { container, library } = await render(
+    const { container, loaded } = await render(
       { "A.dc.html": artboard(`<p data-theme="{{theme}}">{{n}} {{size}}</p>`, script, props) },
       "A.dc.html",
       { props: { theme: "dark" } },
     );
     expect(container.querySelector("p")?.outerHTML).toBe('<p data-theme="dark">2 md</p>');
-    expect(library.artboard("A.dc.html")?.preview).toEqual({ width: 10, height: 10 });
-    expect(library.artboard("A.dc.html")?.title).toBe("Test board");
+    expect(loaded.title).toBe("Test board");
+    expect(Object.keys(loaded.props)).toEqual(["theme", "size"]);
   });
 
   it("reports a script that doesn't define the Component class, and still draws the markup", async () => {

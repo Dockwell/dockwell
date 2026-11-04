@@ -212,10 +212,6 @@ export class MockLibrary {
     return pending;
   }
 
-  artboard(file: string): Artboard | undefined {
-    return this.#artboards.get(file);
-  }
-
   /** The props an artboard renders with: its data-props defaults, overridden by the ones given. */
   props(file: string, given: Props = {}): Props {
     const artboard = this.#artboards.get(file);
