@@ -26,12 +26,34 @@ function refocus() {
 }
 
 describe("the sign-in gate", () => {
-  it("shows the overview to someone signed in", async () => {
+  it("shows the overview to someone signed in, in the shell", async () => {
     renderAt("/", { system, auth: { getAuthState: () => authState() } });
-    expect(await screen.findByRole("heading", { level: 1, name: "The control plane is running" })).toBeVisible();
-    expect(screen.getByRole("region", { name: "Your account" })).toHaveTextContent(
-      "Signed in as Mira Chen (mira@acme.dev)",
-    );
+    expect(await screen.findByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    const rail = screen.getByRole("navigation", { name: "Main" });
+    expect(within(rail).getByRole("link", { name: "Mira Chen Owner" })).toHaveAttribute("href", "/profile");
+  });
+
+  it.each(["/", "/servers", "/more", "/backups", "/profile", "/status"])(
+    "keeps %s behind it, shell or not",
+    async (path) => {
+      const { router } = renderAt(path, { system, auth: { getAuthState: () => authState({ user: undefined }) } });
+      expect(await screen.findByRole("heading", { level: 1, name: "Sign in to Dockwell" })).toBeVisible();
+      expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+      expect(router.state.location.pathname).toBe(path);
+      expect(document.title).toBe("Sign in · Dockwell");
+    },
+  );
+
+  it.each([
+    ["/sign-in", authState({ user: undefined }), "Sign in to Dockwell", "Sign in · Dockwell"],
+    ["/claim", authState({ claimed: false, user: undefined }), "Claim hz-1", "Claim hz-1 · Dockwell"],
+    ["/recover", authState({ user: undefined }), "This sign-in link didn't work", "Sign in with a link · Dockwell"],
+  ])("shows %s on its own, outside the shell", async (path, state, heading, title) => {
+    renderAt(path, { system, auth: { getAuthState: () => state } });
+    expect(await screen.findByRole("heading", { level: 1, name: heading })).toBeVisible();
+    expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Search or run a command" })).toBeNull();
+    expect(document.title).toBe(title);
   });
 
   it("asks everyone else to sign in, in place of the page", async () => {
@@ -74,7 +96,7 @@ describe("the sign-in gate", () => {
       return authState();
     });
     renderAt("/", { system, auth: { getAuthState } });
-    expect(await screen.findByRole("heading", { level: 1, name: "The control plane is running" })).toBeVisible();
+    expect(await screen.findByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
 
     up = false;
     refocus();
@@ -82,7 +104,7 @@ describe("the sign-in gate", () => {
     const stale = notice.closest<HTMLElement>("[role=status]");
     if (!stale) throw new Error("the stale notice isn't a status");
     expect(stale).toHaveTextContent("Can't reach the control plane");
-    expect(screen.getByRole("heading", { level: 1, name: "The control plane is running" })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Can't reach the control plane" })).toBeNull();
 
     up = true;

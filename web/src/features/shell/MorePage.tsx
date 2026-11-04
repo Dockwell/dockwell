@@ -7,6 +7,8 @@ import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
+import { useSignedInUser } from "../auth/useAuthState";
+import { useSignOut } from "../auth/useSignOut";
 import { useFleetView } from "../servers/useFleet";
 import { Page } from "./Page";
 import { RESOURCES, UPCOMING, type UpcomingSection } from "./sections";
@@ -15,13 +17,15 @@ import "./MorePage.css";
 
 /**
  * The phone's More tab: every section the tab bar has no room for, the
- * control plane's status, and the theme.
+ * control plane's status, your profile, the theme, and signing out.
  */
 export function MorePage() {
   const { t, i18n } = useLingui();
   const { fleet } = useFleetView();
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
   const [theme, setTheme] = useThemePreference();
+  const user = useSignedInUser();
+  const signOut = useSignOut();
   const themes: Record<ThemePreference, string> = {
     system: t({ message: "System", context: "theme" }),
     light: t`Light`,
@@ -46,13 +50,16 @@ export function MorePage() {
       <nav className="dw-panel more-group" aria-label={t`Operate`}>
         {operate.map(section)}
       </nav>
-      <nav className="dw-panel more-group" aria-label={t`Settings and status`}>
+      <nav className="dw-panel more-group" aria-label={t`Settings, status and account`}>
         {section("settings")}
         <Link to="/status" className="more-row">
           <RowBody icon="gauge" label={t`Control plane`} value={version ? shortVersion(version) : undefined} />
         </Link>
+        <Link to="/profile" className="more-row">
+          <RowBody icon="user" label={t`Profile and security`} value={user?.name} />
+        </Link>
       </nav>
-      <div className="dw-panel more-group">
+      <div className="dw-panel more-group more-split">
         <div className="more-row more-choice">
           <RowBody icon="sun" label={t`Theme`} value={themes[theme]} chevron="chevron-up-down" />
           <select
@@ -68,7 +75,24 @@ export function MorePage() {
             ))}
           </select>
         </div>
+        <button
+          type="button"
+          className="more-row more-button"
+          aria-busy={signOut.busy}
+          disabled={signOut.busy}
+          onClick={() => void signOut.run()}
+        >
+          <span className="more-icon">
+            <Icon name="logout" size={18} />
+          </span>
+          <span className="more-label">{t`Sign out`}</span>
+        </button>
       </div>
+      {signOut.problem ? (
+        <p className="more-error" role="alert">
+          {signOut.problem}
+        </p>
+      ) : null}
     </Page>
   );
 }

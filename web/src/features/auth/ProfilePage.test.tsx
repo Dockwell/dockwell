@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { authError, authState, creationOptions, stubPasskeys } from "../../test/auth";
-import { renderAt } from "../../test/render";
+import { onPhone, renderAt } from "../../test/render";
 import { groupSecret } from "./TotpPanel";
 
 const minutesAgo = (m: number) => timestampFromDate(new Date(Date.now() - m * 60_000));
@@ -191,18 +191,61 @@ describe("ProfilePage", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Profile and security" })).toBeVisible();
   });
 
-  it("is reached from the account panel, through the router", async () => {
-    const { router } = renderAt("/", {
-      system: { getVersion: () => ({}) },
-      auth: { ...api().auth, signOut: () => Promise.reject(new ConnectError("connection refused", Code.Unavailable)) },
-    });
-    const account = await screen.findByRole("region", { name: "Your account" });
-    await userEvent.click(within(account).getByRole("button", { name: "Sign out" }));
-    expect(await within(account).findByRole("alert")).toHaveTextContent("Connection refused.");
-    const link = within(account).getByRole("link", { name: "Profile and security" });
-    expect(link).toHaveClass("dw-btn", "dw-btn-sm");
-    await userEvent.click(link);
+  it("sits in the shell, reached from you at the foot of the rail", async () => {
+    const { router } = renderAt("/", api());
+    await screen.findByRole("heading", { level: 1, name: "Overview" });
+    const rail = screen.getByRole("navigation", { name: "Main" });
+    await userEvent.click(within(rail).getByRole("link", { name: "Mira Chen Owner" }));
+
     await waitFor(() => expect(router.state.location.pathname).toBe("/profile"));
+    expect(await screen.findByRole("heading", { level: 1, name: "Profile and security" })).toBeVisible();
+    expect(within(rail).getByRole("link", { name: "Mira Chen Owner" })).toHaveAttribute("aria-current", "page");
+    expect(within(rail).getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("main")).toContainElement(screen.getByRole("heading", { level: 1 }));
+    await waitFor(() => expect(screen.getByRole("main")).toHaveFocus());
+    expect(document.title).toBe("Profile and security · Dockwell");
+  });
+
+  it("is under More on phones, with a way back to it", async () => {
+    onPhone();
+    const { router } = renderAt("/more", api());
+    await userEvent.click(await screen.findByRole("link", { name: "Profile and security Mira Chen" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/profile"));
+    expect(await screen.findByRole("heading", { level: 1, name: "Profile and security" })).toBeVisible();
+    const tabs = screen.getByRole("navigation", { name: "Main" });
+    expect(within(tabs).getByRole("link", { name: "More" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/more");
+    // Signing out is on More, as the phone mock has it, not in the header.
+    expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
+  });
+
+  it("signs out from More on phones, then asks to sign in", async () => {
+    onPhone();
+    let signedIn = true;
+    const signOut = vi.fn(() => {
+      signedIn = false;
+      return {};
+    });
+    const { router } = renderAt(
+      "/more",
+      api({ getAuthState: () => authState(signedIn ? {} : { user: undefined }), signOut }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Sign in to Dockwell" })).toBeVisible();
+    expect(signOut).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+    expect(router.state.location.pathname).toBe("/more");
+  });
+
+  it("says on More why signing out failed, and stays signed in", async () => {
+    onPhone();
+    const signOut = vi.fn(() => Promise.reject(new ConnectError("connection refused", Code.Unavailable)));
+    renderAt("/more", api({ signOut }));
+    await userEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Connection refused.");
+    expect(screen.getByRole("heading", { level: 1, name: "More" })).toBeVisible();
   });
 
   it("sets up an authenticator app and shows the recovery codes once", async () => {

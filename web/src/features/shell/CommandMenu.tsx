@@ -7,6 +7,7 @@ import { useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
+import { useSignedInUser } from "../auth/useAuthState";
 import { serverStatus } from "../servers/server";
 import { useFleetView } from "../servers/useFleet";
 import { shortVersion } from "./version";
@@ -33,7 +34,8 @@ export function useCommandShortcut(): string {
 /**
  * The command bar, open on ⌘K (Ctrl+K off Apple keyboards) from anywhere in
  * the shell and from the search buttons. For now it reaches every page and
- * server that exists, the control plane's status, and the theme.
+ * server that exists, the control plane's status, your profile, and the
+ * theme.
  */
 export function CommandMenu({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -81,6 +83,7 @@ function Commands({ onClose }: { onClose: () => void }) {
   const { servers, fleet } = useFleetView();
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
   const [theme, setTheme] = useThemePreference();
+  const email = useSignedInUser()?.email;
 
   const commands = useMemo(() => {
     const list: (CommandItem & { run: Run })[] = [];
@@ -121,6 +124,14 @@ function Commands({ onClose }: { onClose: () => void }) {
       hint: version ? shortVersion(version) : undefined,
       run: () => navigate({ to: "/status" }),
     });
+    list.push({
+      id: "profile",
+      group: pages,
+      icon: "user",
+      label: t`Open your profile and security settings`,
+      hint: email,
+      run: () => navigate({ to: "/profile" }),
+    });
     const themes: { id: ThemePreference; label: string; icon: CommandItem["icon"] }[] = [
       { id: "light", label: t`Use the light theme`, icon: "sun" },
       { id: "dark", label: t`Use the dark theme`, icon: "moon" },
@@ -137,7 +148,7 @@ function Commands({ onClose }: { onClose: () => void }) {
       });
     }
     return list;
-  }, [t, strings, navigate, servers, fleet, version, theme, setTheme]);
+  }, [t, strings, navigate, servers, fleet, version, email, theme, setTheme]);
 
   return (
     <CommandBar

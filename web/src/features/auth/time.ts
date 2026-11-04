@@ -4,6 +4,8 @@ import { type Timestamp, timestampDate } from "@bufbuild/protobuf/wkt";
 import { useLingui } from "@lingui/react/macro";
 import { useCallback } from "react";
 
+import { formatDay } from "../../lib/format";
+
 /**
  * How long ago something happened, the way the product writes it: "just
  * now", "3 min ago" and "2 h ago" under a day, then a date ("12 Oct").
@@ -23,15 +25,4 @@ export function useAgo() {
     },
     [t, i18n.locale],
   );
-}
-
-/** A date in the product's style: "12 Oct", with the year when it isn't this one. */
-export function formatDay(date: Date, locale: string, now: number = Date.now()): string {
-  const tag = locale === "en" ? "en-GB" : locale;
-  const sameYear = date.getFullYear() === new Date(now).getFullYear();
-  return new Intl.DateTimeFormat(tag, {
-    day: "numeric",
-    month: "short",
-    ...(sameYear ? {} : { year: "numeric" }),
-  }).format(date);
 }

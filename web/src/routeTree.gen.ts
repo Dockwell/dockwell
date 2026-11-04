@@ -11,13 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ShellRouteImport } from './routes/_shell'
 import { Route as ClaimRouteImport } from './routes/claim'
-import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RecoverRouteImport } from './routes/recover'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as StatusRouteImport } from './routes/status'
 import { Route as ShellIndexRouteImport } from './routes/_shell/index'
 import { Route as ShellSectionRouteImport } from './routes/_shell/$section'
 import { Route as ShellMoreRouteImport } from './routes/_shell/more'
+import { Route as ShellProfileRouteImport } from './routes/_shell/profile'
 import { Route as ShellServersIndexRouteImport } from './routes/_shell/servers.index'
 import { Route as ShellServersServerIdRouteImport } from './routes/_shell/servers.$serverId'
 
@@ -28,11 +28,6 @@ const ShellRoute = ShellRouteImport.update({
 const ClaimRoute = ClaimRouteImport.update({
   id: '/claim',
   path: '/claim',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProfileRoute = ProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecoverRoute = RecoverRouteImport.update({
@@ -65,6 +60,11 @@ const ShellMoreRoute = ShellMoreRouteImport.update({
   path: '/more',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellProfileRoute = ShellProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => ShellRoute,
+} as any)
 const ShellServersIndexRoute = ShellServersIndexRouteImport.update({
   id: '/servers/',
   path: '/servers/',
@@ -79,23 +79,23 @@ const ShellServersServerIdRoute = ShellServersServerIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof ShellIndexRoute
   '/claim': typeof ClaimRoute
-  '/profile': typeof ProfileRoute
   '/recover': typeof RecoverRoute
   '/sign-in': typeof SignInRoute
   '/status': typeof StatusRoute
   '/$section': typeof ShellSectionRoute
   '/more': typeof ShellMoreRoute
+  '/profile': typeof ShellProfileRoute
   '/servers/$serverId': typeof ShellServersServerIdRoute
   '/servers/': typeof ShellServersIndexRoute
 }
 export interface FileRoutesByTo {
   '/claim': typeof ClaimRoute
-  '/profile': typeof ProfileRoute
   '/recover': typeof RecoverRoute
   '/sign-in': typeof SignInRoute
   '/status': typeof StatusRoute
   '/$section': typeof ShellSectionRoute
   '/more': typeof ShellMoreRoute
+  '/profile': typeof ShellProfileRoute
   '/': typeof ShellIndexRoute
   '/servers/$serverId': typeof ShellServersServerIdRoute
   '/servers': typeof ShellServersIndexRoute
@@ -104,12 +104,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_shell': typeof ShellRouteWithChildren
   '/claim': typeof ClaimRoute
-  '/profile': typeof ProfileRoute
   '/recover': typeof RecoverRoute
   '/sign-in': typeof SignInRoute
   '/status': typeof StatusRoute
   '/_shell/$section': typeof ShellSectionRoute
   '/_shell/more': typeof ShellMoreRoute
+  '/_shell/profile': typeof ShellProfileRoute
   '/_shell/': typeof ShellIndexRoute
   '/_shell/servers/$serverId': typeof ShellServersServerIdRoute
   '/_shell/servers/': typeof ShellServersIndexRoute
@@ -119,23 +119,23 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/claim'
-    | '/profile'
     | '/recover'
     | '/sign-in'
     | '/status'
     | '/$section'
     | '/more'
+    | '/profile'
     | '/servers/$serverId'
     | '/servers/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/claim'
-    | '/profile'
     | '/recover'
     | '/sign-in'
     | '/status'
     | '/$section'
     | '/more'
+    | '/profile'
     | '/'
     | '/servers/$serverId'
     | '/servers'
@@ -143,12 +143,12 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_shell'
     | '/claim'
-    | '/profile'
     | '/recover'
     | '/sign-in'
     | '/status'
     | '/_shell/$section'
     | '/_shell/more'
+    | '/_shell/profile'
     | '/_shell/'
     | '/_shell/servers/$serverId'
     | '/_shell/servers/'
@@ -157,7 +157,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   ShellRoute: typeof ShellRouteWithChildren
   ClaimRoute: typeof ClaimRoute
-  ProfileRoute: typeof ProfileRoute
   RecoverRoute: typeof RecoverRoute
   SignInRoute: typeof SignInRoute
   StatusRoute: typeof StatusRoute
@@ -177,13 +176,6 @@ declare module '@tanstack/react-router' {
       path: '/claim'
       fullPath: '/claim'
       preLoaderRoute: typeof ClaimRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/profile': {
-      id: '/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/recover': {
@@ -228,6 +220,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellMoreRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/profile': {
+      id: '/_shell/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ShellProfileRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/servers/': {
       id: '/_shell/servers/'
       path: '/servers'
@@ -248,6 +247,7 @@ declare module '@tanstack/react-router' {
 interface ShellRouteChildren {
   ShellSectionRoute: typeof ShellSectionRoute
   ShellMoreRoute: typeof ShellMoreRoute
+  ShellProfileRoute: typeof ShellProfileRoute
   ShellIndexRoute: typeof ShellIndexRoute
   ShellServersServerIdRoute: typeof ShellServersServerIdRoute
   ShellServersIndexRoute: typeof ShellServersIndexRoute
@@ -256,6 +256,7 @@ interface ShellRouteChildren {
 const ShellRouteChildren: ShellRouteChildren = {
   ShellSectionRoute: ShellSectionRoute,
   ShellMoreRoute: ShellMoreRoute,
+  ShellProfileRoute: ShellProfileRoute,
   ShellIndexRoute: ShellIndexRoute,
   ShellServersServerIdRoute: ShellServersServerIdRoute,
   ShellServersIndexRoute: ShellServersIndexRoute,
@@ -266,7 +267,6 @@ const ShellRouteWithChildren = ShellRoute._addFileChildren(ShellRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   ShellRoute: ShellRouteWithChildren,
   ClaimRoute: ClaimRoute,
-  ProfileRoute: ProfileRoute,
   RecoverRoute: RecoverRoute,
   SignInRoute: SignInRoute,
   StatusRoute: StatusRoute,

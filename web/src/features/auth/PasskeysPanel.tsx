@@ -8,10 +8,11 @@ import { Button, Icon, Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
+import { formatDay } from "../../lib/format";
 import { createPasskey, passkeysAvailable } from "../../lib/webauthn";
 import { useDeviceName } from "./device";
 import { useAuthError } from "./messages";
-import { formatDay, useAgo } from "./time";
+import { useAgo } from "./time";
 
 /** Adds a passkey for this address, and refreshes the list. */
 export function useAddPasskey() {

@@ -85,10 +85,15 @@ export function formatBitRate(bytesPerSecond: number | bigint, locale: string): 
   return [new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(value), RATE_UNITS[unit] ?? ""];
 }
 
-/** A day and month the way the product writes dates: "12 Oct". */
-export function formatDay(date: Date, locale: string): string {
+/** A day and month the way the product writes dates: "12 Oct", with the year when it isn't this one. */
+export function formatDay(date: Date, locale: string, now: number = Date.now()): string {
   const tag = locale === "en" ? "en-GB" : locale;
-  return new Intl.DateTimeFormat(tag, { day: "numeric", month: "short" }).format(date);
+  const sameYear = date.getFullYear() === new Date(now).getFullYear();
+  return new Intl.DateTimeFormat(tag, {
+    day: "numeric",
+    month: "short",
+    ...(sameYear ? {} : { year: "numeric" }),
+  }).format(date);
 }
 
 /**

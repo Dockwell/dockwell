@@ -11,8 +11,8 @@ msgstr ""
 msgid "(modified)"
 msgstr "（有未提交的修改）"
 
-#. placeholder {0}: auth.data.user.name
-#. placeholder {1}: auth.data.user.email
+#. placeholder {0}: user.name
+#. placeholder {1}: user.email
 #: src/features/auth/ProfilePage.tsx
 msgid "{0} · {1} · signed in {how}"
 msgstr "{0} · {1} · {how}登录"
@@ -601,7 +601,6 @@ msgid "Go"
 msgstr "Go"
 
 #: src/features/auth/ClaimPage.tsx
-#: src/features/auth/ProfilePage.tsx
 #: src/features/servers/ServerOverview.tsx
 #: src/features/shell/NotYet.tsx
 msgid "Go to the overview"
@@ -897,6 +896,10 @@ msgstr "请通过 SSH 隧道在 <0>http://localhost</0> 打开面板，或通过
 msgid "Open the server list"
 msgstr "打开服务器列表"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Open your profile and security settings"
+msgstr "打开你的个人资料和安全设置"
+
 #: src/features/shell/MorePage.tsx
 #: src/features/shell/Rail.tsx
 msgid "Operate"
@@ -915,6 +918,10 @@ msgstr "可选"
 #: src/features/shell/TabBar.tsx
 msgid "Overview"
 msgstr "概览"
+
+#: src/features/auth/user.ts
+msgid "Owner"
+msgstr "所有者"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Owner account"
@@ -977,8 +984,8 @@ msgstr "私有地址"
 msgid "Processor"
 msgstr "处理器"
 
-#: src/features/auth/AccountPanel.tsx
 #: src/features/auth/ProfilePage.tsx
+#: src/features/shell/MorePage.tsx
 msgid "Profile and security"
 msgstr "个人资料和安全"
 
@@ -1153,8 +1160,8 @@ msgid "Settings"
 msgstr "设置"
 
 #: src/features/shell/MorePage.tsx
-msgid "Settings and status"
-msgstr "设置与状态"
+msgid "Settings, status and account"
+msgstr "设置、状态和账户"
 
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/SignInPage.tsx
@@ -1186,9 +1193,9 @@ msgstr "用链接登录"
 msgid "Sign in with a passkey"
 msgstr "使用通行密钥登录"
 
-#: src/features/auth/AccountPanel.tsx
 #: src/features/auth/ProfilePage.tsx
 #: src/features/auth/SessionsPanel.tsx
+#: src/features/shell/MorePage.tsx
 msgid "Sign out"
 msgstr "退出登录"
 
@@ -1199,12 +1206,6 @@ msgstr "让 {device} 退出登录"
 #: src/features/auth/SessionsPanel.tsx
 msgid "Sign out everywhere else"
 msgstr "在其他所有地方退出登录"
-
-#. placeholder {0}: user.name
-#. placeholder {1}: user.email
-#: src/features/auth/AccountPanel.tsx
-msgid "Signed in as <0>{0}</0> <1>({1})</1>"
-msgstr "已登录为 <0>{0}</0> <1>（{1}）</1>"
 
 #: src/features/auth/RecoverPage.tsx
 #: src/features/auth/SignInPage.tsx
@@ -1622,10 +1623,6 @@ msgstr "你尚未登录"
 #: src/features/auth/messages.ts
 msgid "You're not signed in. Sign in, then try again."
 msgstr "你尚未登录。请登录后重试。"
-
-#: src/features/auth/AccountPanel.tsx
-msgid "Your account"
-msgstr "你的账户"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Your domain gets a certificate automatically."

@@ -9,12 +9,12 @@ import { firstSegment, isUpcoming, UPCOMING } from "./sections";
 
 type Tab = "overview" | "apps" | "servers" | "activity" | "more";
 
-/** The tab a path belongs to. Sections without a tab of their own live under More. */
+/** The tab a path belongs to. Sections without a tab of their own, and your profile, live under More. */
 export function tabOf(pathname: string): Tab {
   const segment = firstSegment(pathname);
   if (segment === "") return "overview";
   if (segment === "apps" || segment === "activity" || segment === "servers") return segment;
-  if (segment === "more" || (isUpcoming(segment) && UPCOMING[segment].inMore)) return "more";
+  if (segment === "more" || segment === "profile" || (isUpcoming(segment) && UPCOMING[segment].inMore)) return "more";
   return "overview";
 }
 

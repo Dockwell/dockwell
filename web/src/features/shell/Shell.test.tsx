@@ -102,7 +102,11 @@ describe("the shell on wide screens", () => {
       "Alerts",
       "Scheduled tasks",
       "Settings",
+      "Mira Chen Owner",
     ]);
+    const you = within(rail()).getByRole("link", { name: "Mira Chen Owner" });
+    expect(you).toHaveAttribute("href", "/profile");
+    expect(you.querySelector(".rail-avatar")).toHaveTextContent("MC");
   });
 
   it("names each item once, keeping the narrow rail's tooltip from screen readers", async () => {
@@ -321,6 +325,16 @@ describe("the command bar", () => {
     await expectAccessible(document.body);
   });
 
+  it("opens your profile", async () => {
+    const user = userEvent.setup();
+    const { router } = await renderWith("/", hz1);
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(screen.getByRole("option", { name: "Open your profile and security settings mira@acme.dev" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/profile"));
+    expect(await screen.findByRole("heading", { level: 1, name: "Profile and security" })).toBeVisible();
+  });
+
   it("opens a server's own page", async () => {
     const user = userEvent.setup();
     const { router } = await renderWith("/", hz1, hz2);
@@ -383,6 +397,8 @@ describe("the shell on phones", () => {
         .map((link) => link.textContent),
     ).toEqual(["Alerts", "Scheduled tasks"]);
     expect(await screen.findByRole("link", { name: "Control plane 0.4.0" })).toHaveAttribute("href", "/status");
+    expect(screen.getByRole("link", { name: "Profile and security Mira Chen" })).toHaveAttribute("href", "/profile");
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeVisible();
 
     await user.selectOptions(screen.getByRole("combobox", { name: "Theme" }), "Dark");
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");

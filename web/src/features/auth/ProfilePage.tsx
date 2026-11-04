@@ -3,12 +3,12 @@
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { AuthService, SignInMethod } from "@dockwell/api";
-import { Button, Callout, Logo } from "@dockwell/ui";
+import { Button, Callout } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { passkeysAvailable } from "../../lib/webauthn";
+import { Page } from "../shell/Page";
 import { useAuthError } from "./messages";
 import { PasskeysPanel, useAddPasskey } from "./PasskeysPanel";
 import { SessionsPanel } from "./SessionsPanel";
@@ -23,53 +23,47 @@ import "./ProfilePage.css";
 export type ProfileVia = "link" | "recovery-code";
 
 /**
- * Your passkeys, authenticator app and sessions. It stands on its own until
- * the panel shell lands; the mock (Profile.dc.html) puts it under Account.
+ * Your passkeys, authenticator app and sessions, in the shell. Sign out sits
+ * with the title on wide screens; on phones it is on the More tab, which
+ * this page's header leads back to.
  */
 export function ProfilePage({ via }: { via?: ProfileVia }) {
   const { t } = useLingui();
   const auth = useAuthState();
   const signOut = useSignOut();
   const how = useSignedInWith(auth.data?.signInMethod ?? SignInMethod.UNSPECIFIED);
+  const user = auth.data?.user;
 
   return (
-    <div className="profile">
-      <header className="profile-bar">
-        <Link to="/" className="profile-home" aria-label={t`Go to the overview`}>
-          <Logo variant="logotype" height={14} title="Dockwell" />
-        </Link>
-        <Button size="sm" variant="ghost" icon="logout" loading={signOut.busy} onClick={() => void signOut.run()}>
+    <Page
+      title={t`Profile and security`}
+      lead={
+        user ? (
+          <Trans>
+            {user.name} · {user.email} · signed in {how}
+          </Trans>
+        ) : null
+      }
+      phoneSub={user?.email}
+      actions={
+        <Button size="sm" icon="logout" loading={signOut.busy} onClick={() => void signOut.run()}>
           <Trans>Sign out</Trans>
         </Button>
-      </header>
-      <main className="profile-main">
-        <div className="profile-column">
-          <div className="profile-head">
-            <h1 className="dw-text-title">
-              <Trans>Profile and security</Trans>
-            </h1>
-            <p>
-              {auth.data?.user ? (
-                <Trans>
-                  {auth.data.user.name} · {auth.data.user.email} · signed in {how}
-                </Trans>
-              ) : null}
-            </p>
-          </div>
-          {signOut.problem ? (
-            <p className="profile-error" role="alert">
-              {signOut.problem}
-            </p>
-          ) : null}
-          <ProfileCallout via={via} rpId={auth.data?.rpId ?? ""} />
-          <div className="profile-grid">
-            <PasskeysPanel rpId={auth.data?.rpId ?? ""} />
-            <TotpPanel />
-            <SessionsPanel />
-          </div>
-        </div>
-      </main>
-    </div>
+      }
+      back="/more"
+    >
+      {signOut.problem ? (
+        <p className="profile-error" role="alert">
+          {signOut.problem}
+        </p>
+      ) : null}
+      <ProfileCallout via={via} rpId={auth.data?.rpId ?? ""} />
+      <div className="profile-grid">
+        <PasskeysPanel rpId={auth.data?.rpId ?? ""} />
+        <TotpPanel />
+        <SessionsPanel />
+      </div>
+    </Page>
   );
 }
 

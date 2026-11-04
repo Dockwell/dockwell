@@ -175,6 +175,43 @@
   flex: 1 1 var(--space-6);
 }
 
+/* You, at the foot of the rail: your initials, your name, and your role under it. */
+.rail-profile {
+  height: 40px;
+  margin-top: var(--space-1);
+}
+
+.rail-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.rail-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 16px;
+}
+
+.rail-name {
+  color: var(--ink);
+}
+
+.rail-role {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
 /* ---------- Top bar ---------- */
 
 .topbar {
@@ -324,7 +361,8 @@
   }
 
   .rail-label,
-  .rail-count {
+  .rail-count,
+  .rail-who {
     position: absolute;
     width: 1px;
     height: 1px;

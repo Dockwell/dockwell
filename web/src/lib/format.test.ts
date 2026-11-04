@@ -78,9 +78,15 @@ describe("formatBitRate", () => {
 });
 
 describe("formatDay", () => {
+  const now = new Date(2026, 10, 4).getTime();
+
   it("puts the day first in English, and follows the locale elsewhere", () => {
-    expect(formatDay(new Date(2026, 9, 12), "en")).toBe("12 Oct");
-    expect(formatDay(new Date(2026, 9, 12), "zh-CN")).toBe("10月12日");
+    expect(formatDay(new Date(2026, 9, 12), "en", now)).toBe("12 Oct");
+    expect(formatDay(new Date(2026, 9, 12), "zh-CN", now)).toBe("10月12日");
+  });
+
+  it("adds the year for another year", () => {
+    expect(formatDay(new Date(2025, 9, 12), "en", now)).toBe("12 Oct 2025");
   });
 });
 

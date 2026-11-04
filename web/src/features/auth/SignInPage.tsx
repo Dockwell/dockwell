@@ -9,6 +9,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useEffect, useId, useState } from "react";
 
 import { reasonOf } from "../../lib/errors";
+import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import { getPasskey, PasskeyError, type PasskeyHint, passkeysAvailable } from "../../lib/webauthn";
 import { CopyCommand } from "../system/CopyCommand";
 import { useAuthError } from "./messages";
@@ -92,6 +93,8 @@ function GoTo({ href }: { href: string }) {
 }
 
 function SignInHead({ name }: { name: string }) {
+  const { t } = useLingui();
+  useDocumentTitle(t`Sign in`);
   return (
     <div className="signin-head">
       <h1 id="signin-title" className="dw-text-title">

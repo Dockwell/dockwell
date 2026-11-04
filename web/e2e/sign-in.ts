@@ -3,9 +3,11 @@
 // Claims a fresh install, signs out and signs in again in headless Chromium,
 // against a real `dockwell run` on a temporary data directory, with the
 // DevTools virtual authenticator standing in for Touch ID. Then it turns on
-// codes, signs in with a recovery code, and opens a link from
-// `dockwell recover`. With --shots <dir> it also saves screenshots of every
-// screen at 1440, 390 and 360 px, light and dark.
+// codes, signs in with a recovery code, opens a link from `dockwell recover`
+// on a phone, and signs that phone out from the first browser. Everything
+// after the claim goes through the panel shell: the rail's link to your
+// profile on wide screens, More on phones. With --shots <dir> it also saves
+// screenshots of every screen at 1440, 390 and 360 px, light and dark.
 //
 //   make e2e
 //   node web/e2e/sign-in.ts bin/dockwell --shots /tmp/shots
@@ -43,6 +45,16 @@ function fail(message: string): never {
 
 async function expectText(page: Page, text: string, timeout = 10_000) {
   await page.getByText(text, { exact: false }).first().waitFor({ timeout });
+}
+
+/** Waits for the page whose one h1 is name. */
+async function expectPage(page: Page, name: string, timeout = 10_000) {
+  await page.getByRole("heading", { level: 1, name, exact: true }).waitFor({ timeout });
+}
+
+/** The shell's navigation: the rail on wide screens, the tab bar on phones. */
+function nav(page: Page) {
+  return page.getByRole("navigation", { name: "Main" });
 }
 
 /** Starts dockwell run and waits for the claim link it prints. */
@@ -156,7 +168,10 @@ async function main() {
   await page.getByLabel("Your name").fill("Mira Chen");
   await page.getByLabel("Email").fill("mira@acme.dev");
   await page.getByRole("button", { name: "Create passkey" }).click();
-  await page.getByRole("heading", { name: "The control plane is running" }).waitFor({ timeout: 15_000 });
+  await expectPage(page, "Overview", 15_000);
+  // The control plane's own agent reports within a few seconds, and its live stats follow.
+  await page.locator(".dw-metric", { hasText: "CPU" }).waitFor({ timeout: 15_000 });
+  await nav(page).getByRole("link", { name: "Mira Chen Owner" }).waitFor();
   const { credentials } = await cdp.send("WebAuthn.getCredentials", { authenticatorId });
   if (credentials.length !== 1 || credentials[0]?.rpId !== "localhost" || !credentials[0]?.isResidentCredential) {
     fail(`expected one discoverable passkey for localhost, got ${JSON.stringify(credentials)}`);
@@ -175,12 +190,28 @@ async function main() {
   await expectText(reuse, "This install already has an owner");
   await reuse.close();
 
-  step("sign out, then sign in again with the passkey");
-  await page.getByRole("region", { name: "Your account" }).getByRole("button", { name: "Sign out" }).click();
-  await page.getByRole("heading", { name: "Sign in to Dockwell" }).waitFor();
+  step("the status page sits behind the gate too, outside the shell");
+  await page.goto(`${origin}/status`);
+  await expectPage(page, "The control plane is running");
+  if ((await nav(page).count()) !== 0) fail("the status page shows the shell's navigation");
+
+  step("sign out from your profile, reached from the rail, then sign in again with the passkey");
+  await page.goto(`${origin}/`);
+  await expectPage(page, "Overview");
+  await nav(page).getByRole("link", { name: "Mira Chen Owner" }).click();
+  await expectPage(page, "Profile and security");
+  if ((await nav(page).getByRole("link", { name: "Mira Chen Owner" }).getAttribute("aria-current")) !== "page") {
+    fail("the rail doesn't mark your profile as the current page");
+  }
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expectPage(page, "Sign in to Dockwell");
+  if ((await nav(page).count()) !== 0) fail("the sign-in screen shows the shell's navigation");
   await shoot(page, "sign-in");
+  await page.goto(`${origin}/status`);
+  await expectPage(page, "Sign in to Dockwell");
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();
-  await page.getByRole("heading", { name: "The control plane is running" }).waitFor({ timeout: 15_000 });
+  await expectPage(page, "The control plane is running", 15_000);
+  step("  signed out, /status asked to sign in, and the passkey returned there");
   const api = await page.evaluate(async () => {
     const r = await fetch("/dockwell.v1.AuthService/ListSessions", {
       method: "POST",
@@ -194,8 +225,9 @@ async function main() {
   step(`  signed in again; ${api.body.sessions.length} open session`);
 
   step("profile: set up an authenticator app");
-  await page.getByRole("link", { name: "Profile and security" }).click();
-  await page.getByRole("heading", { name: "Profile and security" }).waitFor();
+  await page.goto(`${origin}/`);
+  await nav(page).getByRole("link", { name: "Mira Chen Owner" }).click();
+  await expectPage(page, "Profile and security");
   await page.getByRole("region", { name: "Passkeys" }).getByRole("listitem").first().waitFor();
   await shoot(page, "profile");
   await page.getByRole("button", { name: "Set up" }).click();
@@ -213,8 +245,8 @@ async function main() {
   step(`  codes on, ${codes.length} recovery codes shown once`);
 
   step("sign out, then sign in with a recovery code");
-  await page.getByRole("button", { name: "Sign out" }).first().click();
-  await page.getByRole("heading", { name: "Sign in to Dockwell" }).waitFor();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expectPage(page, "Sign in to Dockwell");
   await page.getByRole("button", { name: "Use a code from your authenticator app" }).click();
   await page.getByLabel("Email").fill("mira@acme.dev");
   await page.getByLabel("Code").fill("000000");
@@ -238,9 +270,18 @@ async function main() {
   const phone = await other.newPage();
   await phone.goto(link);
   await expectText(phone, "You signed in with a one-time link");
+  await expectPage(phone, "Profile and security");
+  if ((await phone.getByRole("link", { name: "Back" }).getAttribute("href")) !== "/more") {
+    fail("the phone's profile header doesn't lead back to More");
+  }
+  await nav(phone).getByRole("link", { name: "More" }).click();
+  await expectPage(phone, "More");
+  await phone.getByRole("link", { name: "Profile and security Mira Chen" }).waitFor();
+  await phone.getByRole("button", { name: "Sign out", exact: true }).waitFor();
+  await shoot(phone, "more");
   await phone.goto(link);
   await expectText(phone, "This sign-in link didn't work");
-  step("  signed in with the link once; the second visit was refused");
+  step("  signed in with the link once, More offers the profile and signing out; the second visit was refused");
 
   step("the first browser sees two sessions, and signs the other out");
   await page.reload();
@@ -248,9 +289,26 @@ async function main() {
   await sessions.getByRole("listitem").nth(1).waitFor();
   await sessions.getByRole("button", { name: "Sign out everywhere else" }).click();
   await sessions.getByRole("listitem").nth(1).waitFor({ state: "detached" });
-  await phone.goto(`${origin}/profile`);
-  await expectText(phone, "Sign in to Dockwell");
+  await phone.goto(`${origin}/more`);
+  await expectPage(phone, "Sign in to Dockwell");
   step("  the other browser is signed out");
+
+  step("sign out on a phone, from More");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${origin}/more`);
+  await expectPage(page, "More");
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expectPage(page, "Sign in to Dockwell");
+  const left = await page.evaluate(
+    async () =>
+      (await fetch("/dockwell.v1.AuthService/GetAuthState", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      }).then((r) => r.json())) as { user?: unknown },
+  );
+  if (left.user) fail(`still signed in after signing out on More: ${JSON.stringify(left)}`);
+  step("  signed out");
 
   try {
     const audit = execFileSync(

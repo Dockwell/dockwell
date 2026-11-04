@@ -10,6 +10,7 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useEffect, useId, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
+import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import { createPasskey, passkeysAvailable } from "../../lib/webauthn";
 import { CopyCommand } from "../system/CopyCommand";
 import { StandalonePage } from "../system/StandalonePage";
@@ -49,6 +50,7 @@ export function useFragmentToken(path: "/claim" | "/recover"): string {
  * link that dockwell run printed on the server.
  */
 export function ClaimPage() {
+  const { t } = useLingui();
   const linkToken = useFragmentToken("/claim");
   // Set once the claim here succeeds, so the owner it made isn't told the
   // install already has one on the way to the overview.
@@ -68,11 +70,15 @@ export function ClaimPage() {
     },
   );
 
-  if (auth.data?.claimed && !claimedHere) {
-    return <AlreadyClaimed signedIn={Boolean(auth.data.user)} />;
-  }
+  const alreadyClaimed = Boolean(auth.data?.claimed) && !claimedHere;
   const server = check.data?.server;
   const name = server?.name || auth.data?.serverName || window.location.hostname;
+  // The title for both pages. A component's effects run after its children's, so this is the one that stays.
+  useDocumentTitle(alreadyClaimed ? t`Already claimed` : t`Claim ${name}`);
+
+  if (alreadyClaimed) {
+    return <AlreadyClaimed signedIn={Boolean(auth.data?.user)} />;
+  }
   return (
     <div className="claim">
       <header className="claim-bar">

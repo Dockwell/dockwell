@@ -9,7 +9,6 @@ import { Trans, useLingui } from "@lingui/react/macro";
 
 import { formatDateTime } from "../../lib/format";
 import { useElapsed } from "../../lib/useElapsed";
-import { AccountPanel } from "../auth/AccountPanel";
 import { ServersPanel } from "../servers/ServersPanel";
 import { CopyCommand } from "./CopyCommand";
 import { StandalonePage } from "./StandalonePage";
@@ -71,7 +70,6 @@ function Running({ host, build }: { host: string; build: BuildInfo | undefined }
       <Panel title={t`Check it from a terminal`}>
         <CopyCommand command={`curl -fsS ${window.location.origin}/healthz`} />
       </Panel>
-      <AccountPanel />
     </>
   );
 }

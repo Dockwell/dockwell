@@ -11,8 +11,8 @@ msgstr ""
 msgid "(modified)"
 msgstr "(modified)"
 
-#. placeholder {0}: auth.data.user.name
-#. placeholder {1}: auth.data.user.email
+#. placeholder {0}: user.name
+#. placeholder {1}: user.email
 #: src/features/auth/ProfilePage.tsx
 msgid "{0} · {1} · signed in {how}"
 msgstr "{0} · {1} · signed in {how}"
@@ -601,7 +601,6 @@ msgid "Go"
 msgstr "Go"
 
 #: src/features/auth/ClaimPage.tsx
-#: src/features/auth/ProfilePage.tsx
 #: src/features/servers/ServerOverview.tsx
 #: src/features/shell/NotYet.tsx
 msgid "Go to the overview"
@@ -897,6 +896,10 @@ msgstr "Open the panel through your SSH tunnel at <0>http://localhost</0>, or on
 msgid "Open the server list"
 msgstr "Open the server list"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Open your profile and security settings"
+msgstr "Open your profile and security settings"
+
 #: src/features/shell/MorePage.tsx
 #: src/features/shell/Rail.tsx
 msgid "Operate"
@@ -915,6 +918,10 @@ msgstr "Optional"
 #: src/features/shell/TabBar.tsx
 msgid "Overview"
 msgstr "Overview"
+
+#: src/features/auth/user.ts
+msgid "Owner"
+msgstr "Owner"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Owner account"
@@ -977,8 +984,8 @@ msgstr "Private addresses"
 msgid "Processor"
 msgstr "Processor"
 
-#: src/features/auth/AccountPanel.tsx
 #: src/features/auth/ProfilePage.tsx
+#: src/features/shell/MorePage.tsx
 msgid "Profile and security"
 msgstr "Profile and security"
 
@@ -1153,8 +1160,8 @@ msgid "Settings"
 msgstr "Settings"
 
 #: src/features/shell/MorePage.tsx
-msgid "Settings and status"
-msgstr "Settings and status"
+msgid "Settings, status and account"
+msgstr "Settings, status and account"
 
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/SignInPage.tsx
@@ -1186,9 +1193,9 @@ msgstr "Sign in with a link"
 msgid "Sign in with a passkey"
 msgstr "Sign in with a passkey"
 
-#: src/features/auth/AccountPanel.tsx
 #: src/features/auth/ProfilePage.tsx
 #: src/features/auth/SessionsPanel.tsx
+#: src/features/shell/MorePage.tsx
 msgid "Sign out"
 msgstr "Sign out"
 
@@ -1199,12 +1206,6 @@ msgstr "Sign out {device}"
 #: src/features/auth/SessionsPanel.tsx
 msgid "Sign out everywhere else"
 msgstr "Sign out everywhere else"
-
-#. placeholder {0}: user.name
-#. placeholder {1}: user.email
-#: src/features/auth/AccountPanel.tsx
-msgid "Signed in as <0>{0}</0> <1>({1})</1>"
-msgstr "Signed in as <0>{0}</0> <1>({1})</1>"
 
 #: src/features/auth/RecoverPage.tsx
 #: src/features/auth/SignInPage.tsx
@@ -1622,10 +1623,6 @@ msgstr "You're not signed in"
 #: src/features/auth/messages.ts
 msgid "You're not signed in. Sign in, then try again."
 msgstr "You're not signed in. Sign in, then try again."
-
-#: src/features/auth/AccountPanel.tsx
-msgid "Your account"
-msgstr "Your account"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Your domain gets a certificate automatically."
