@@ -56,8 +56,11 @@ func TestContainersOnRealDocker(t *testing.T) {
 		},
 		"full": {
 			Image: image, Command: []string{"nginx", "-g", "daemon off;"}, Env: map[string]string{"A": "1"},
-			Ports:       []*resourcev1.PortMapping{{HostPort: uint32(freePort(t)), ContainerPort: 80, HostIp: "127.0.0.1"}},
-			Mounts:      []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/etc/hostname"}, Target: "/srv/host-name", ReadOnly: true}},
+			Ports: []*resourcev1.PortMapping{{HostPort: uint32(freePort(t)), ContainerPort: 80, HostIp: "127.0.0.1"}},
+			Mounts: []*resourcev1.Mount{
+				{Source: &resourcev1.Mount_HostPath{HostPath: "/etc/hostname"}, Target: "/srv/host-name", ReadOnly: true},
+				{Source: &resourcev1.Mount_HostPath{HostPath: t.TempDir()}, Target: "/srv/shared", Relabel: resourcev1.Relabel_RELABEL_SHARED},
+			},
 			Restart:     resourcev1.RestartPolicy_RESTART_POLICY_ON_FAILURE,
 			Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"}, Interval: "1s", Retries: 30},
 		},

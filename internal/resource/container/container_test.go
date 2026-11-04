@@ -98,3 +98,14 @@ func TestTheFakeBindsPortsAsDockerDoes(t *testing.T) {
 		t.Error("started on 10.0.0.1 beside 0.0.0.0 on one port")
 	}
 }
+
+// Dockwell relabels a server path for SELinux, as Docker's z and Z do,
+// but not a volume.
+func TestOnlyServerPathsAreRelabelled(t *testing.T) {
+	err := container.Validate(&resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{
+		{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data", Relabel: resourcev1.Relabel_RELABEL_SHARED},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "the volume data mounted at /data is relabelled for SELinux, which Dockwell can do for a server path alone") {
+		t.Errorf("Validate = %v", err)
+	}
+}

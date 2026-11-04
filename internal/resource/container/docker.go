@@ -199,11 +199,7 @@ func (d *Docker) createRequest(t Target, spec *resourcev1.Container, old *docker
 				Type: "volume", Source: t.DockerName(src.Volume), Target: m.GetTarget(), ReadOnly: m.GetReadOnly(),
 			})
 		case *resourcev1.Mount_HostPath:
-			bind := src.HostPath + ":" + m.GetTarget()
-			if m.GetReadOnly() {
-				bind += ":ro"
-			}
-			req.HostConfig.Binds = append(req.HostConfig.Binds, bind)
+			req.HostConfig.Binds = append(req.HostConfig.Binds, bind(src.HostPath, m))
 		}
 	}
 	if old != nil {
@@ -233,6 +229,26 @@ func (d *Docker) createRequest(t Target, spec *resourcev1.Container, old *docker
 		req.NetworkingConfig.EndpointsConfig[name] = &docker.EndpointSettings{Aliases: aliases}
 	}
 	return req, later
+}
+
+// relabels are Docker's options for relabelling a server path.
+var relabels = map[resourcev1.Relabel]string{resourcev1.Relabel_RELABEL_SHARED: "z", resourcev1.Relabel_RELABEL_PRIVATE: "Z"}
+
+// bind is a server path's mount as Docker's binds have it, such as
+// /srv/data:/data:ro,z.
+func bind(source string, m *resourcev1.Mount) string {
+	var options []string
+	if m.GetReadOnly() {
+		options = append(options, "ro")
+	}
+	if o, ok := relabels[m.GetRelabel()]; ok {
+		options = append(options, o)
+	}
+	b := source + ":" + m.GetTarget()
+	if len(options) > 0 {
+		b += ":" + strings.Join(options, ",")
+	}
+	return b
 }
 
 // environment is a spec's environment as Docker takes it. Values are
@@ -336,7 +352,23 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		if len(parts) < 2 {
 			continue
 		}
-		m := &resourcev1.Mount{Target: parts[1], ReadOnly: len(parts) > 2 && slices.Contains(strings.Split(parts[2], ","), "ro")}
+		m := &resourcev1.Mount{Target: parts[1]}
+		if len(parts) > 2 {
+			for _, o := range strings.Split(parts[2], ",") {
+				switch o {
+				case "ro":
+					m.ReadOnly = true
+				case "z", "Z":
+					// Dockwell relabels a server path alone.
+					if strings.HasPrefix(parts[0], "/") {
+						m.Relabel = resourcev1.Relabel_RELABEL_SHARED
+						if o == "Z" {
+							m.Relabel = resourcev1.Relabel_RELABEL_PRIVATE
+						}
+					}
+				}
+			}
+		}
 		switch {
 		case strings.HasPrefix(parts[0], "/"):
 			m.Source = &resourcev1.Mount_HostPath{HostPath: parts[0]}

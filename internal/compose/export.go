@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"slices"
 	"strconv"
+	"strings"
 
 	"go.yaml.in/yaml/v4"
 
@@ -104,9 +105,20 @@ func Export(project string, stack *Stack) (*Exported, error) {
 			if src == "" {
 				src = m.GetHostPath()
 			}
-			v := src + ":" + m.GetTarget()
+			var options []string
 			if m.GetReadOnly() {
-				v += ":ro"
+				options = append(options, "ro")
+			}
+			switch m.GetRelabel() {
+			case resourcev1.Relabel_RELABEL_SHARED:
+				options = append(options, "z")
+			case resourcev1.Relabel_RELABEL_PRIVATE:
+				options = append(options, "Z")
+			case resourcev1.Relabel_RELABEL_UNSPECIFIED:
+			}
+			v := src + ":" + m.GetTarget()
+			if len(options) > 0 {
+				v += ":" + strings.Join(options, ",")
 			}
 			entry.Volumes = append(entry.Volumes, v)
 		}

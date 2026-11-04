@@ -111,6 +111,8 @@ func TestContainersReadBackAsTheirSpec(t *testing.T) {
 			Mounts: []*resourcev1.Mount{
 				{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/conf"}, Target: "/etc/nginx/conf.d", ReadOnly: true},
 				{Source: &resourcev1.Mount_Volume{Volume: "cache"}, Target: "/var/cache/nginx"},
+				{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/certs"}, Target: "/etc/certs", ReadOnly: true, Relabel: resourcev1.Relabel_RELABEL_SHARED},
+				{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/run"}, Target: "/run/nginx", Relabel: resourcev1.Relabel_RELABEL_PRIVATE},
 			},
 			Restart:     resourcev1.RestartPolicy_RESTART_POLICY_ALWAYS,
 			Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD", "curl", "-f", "http://localhost"}, Interval: "30000ms"},
@@ -132,6 +134,12 @@ func TestContainersReadBackAsTheirSpec(t *testing.T) {
 				t.Fatalf("first apply = %s, want create", step.Action)
 			}
 			unchanged(t, l, ref, spec)
+			if name == "full" {
+				binds := e.Container(name).HostConfig.Binds
+				if !slices.Contains(binds, "/srv/certs:/etc/certs:ro,z") || !slices.Contains(binds, "/srv/run:/run/nginx:Z") {
+					t.Errorf("Docker got the binds %q, want the server paths relabelled", binds)
+				}
+			}
 		})
 	}
 }

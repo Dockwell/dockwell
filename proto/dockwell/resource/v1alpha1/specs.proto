@@ -64,6 +64,21 @@ message Mount {
   string target = 3;
   // Mounts it read-only.
   bool read_only = 4;
+  // Relabels a server path for SELinux, as Docker's z and Z options do, so
+  // the container can use it on a server that enforces SELinux. Only a
+  // server path takes one; elsewhere Docker changes nothing.
+  Relabel relabel = 5;
+}
+
+// Relabel is how Docker labels a server path for SELinux when it mounts
+// it.
+enum Relabel {
+  // Not at all: the path keeps its label.
+  RELABEL_UNSPECIFIED = 0;
+  // Shared, Docker's z: every container may use the path.
+  RELABEL_SHARED = 1;
+  // Private, Docker's Z: only this container may use it.
+  RELABEL_PRIVATE = 2;
 }
 
 // Healthcheck is a command Docker runs in the container to check it is

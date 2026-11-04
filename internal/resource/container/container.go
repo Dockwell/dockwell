@@ -266,6 +266,9 @@ func validateMounts(c *resourcev1.Container) error {
 			if !NameRE.MatchString(src.Volume) {
 				return fmt.Errorf("%q isn't a valid volume name: use letters, digits, dots, dashes and underscores, such as data", src.Volume)
 			}
+			if m.GetRelabel() != resourcev1.Relabel_RELABEL_UNSPECIFIED {
+				return fmt.Errorf("the volume %s mounted at %s is relabelled for SELinux, which Dockwell can do for a server path alone. Leave relabel out, or mount a server path", src.Volume, m.Target)
+			}
 		case *resourcev1.Mount_HostPath:
 			if !path.IsAbs(src.HostPath) {
 				return fmt.Errorf("the server path %q mounted at %s isn't absolute; start it with /, such as /srv/data", src.HostPath, m.Target)

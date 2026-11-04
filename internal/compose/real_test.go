@@ -69,11 +69,15 @@ func TestComposeOnRealDocker(t *testing.T) {
 	l := resource.Local{Drivers: reg}
 
 	port := freePort(t)
+	// A server path relabelled for SELinux, as :z does; docker compose
+	// writes its own binds for it when it recreates web.
+	shared := t.TempDir()
 	file := fmt.Sprintf(`
 services:
   web:
     image: nginx:1.27-alpine
     ports: ["127.0.0.1:%d:80"]
+    volumes: ["%s:/srv/shared:z"]
     environment: {GREETING: hello}
     labels: {team: web}
     networks: [front]
@@ -96,7 +100,7 @@ volumes:
   cache-data: {}
 networks:
   front: {}
-`, port)
+`, port, shared)
 	stack, err := compose.Parse(t.Context(), []byte(file), nil)
 	if err != nil {
 		t.Fatal(err)

@@ -49,6 +49,12 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
       - /srv/backups:/backups:ro
+      - /srv/conf:/etc/postgresql:ro,z
+      - /srv/run:/var/run/postgresql:Z,cached
+      - type: bind
+        source: /srv/logs
+        target: /logs
+        bind: {selinux: z}
     environment:
       - POSTGRES_DB=shop
     healthcheck:
@@ -112,6 +118,16 @@ func TestParse(t *testing.T) {
 		t.Errorf("web = %v\nwant %v", web, want)
 	}
 	db := s.Services[0].Spec.GetApp()
+	wantMounts := []*resourcev1.Mount{
+		{Source: &resourcev1.Mount_Volume{Volume: "db-data"}, Target: "/var/lib/postgresql/data"},
+		{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/backups"}, Target: "/backups", ReadOnly: true},
+		{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/conf"}, Target: "/etc/postgresql", ReadOnly: true, Relabel: resourcev1.Relabel_RELABEL_SHARED},
+		{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/run"}, Target: "/var/run/postgresql", Relabel: resourcev1.Relabel_RELABEL_PRIVATE},
+		{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/logs"}, Target: "/logs", Relabel: resourcev1.Relabel_RELABEL_SHARED},
+	}
+	if !slices.EqualFunc(db.GetMounts(), wantMounts, func(a, b *resourcev1.Mount) bool { return proto.Equal(a, b) }) {
+		t.Errorf("db mounts %v\nwant %v", db.GetMounts(), wantMounts)
+	}
 	if hc := db.GetHealthcheck(); !slices.Equal(hc.GetTest(), []string{"CMD-SHELL", "pg_isready -U shop"}) || hc.GetInterval() != "10s" || hc.GetRetries() != 5 {
 		t.Errorf("db's health check = %v", hc)
 	}
@@ -133,28 +149,44 @@ func TestParse(t *testing.T) {
 // than quietly dropped; and the control plane never reads a file for one.
 func TestParseRefuses(t *testing.T) {
 	for name, tc := range map[string]struct{ file, want string }{
-		"build":         {"services: {web: {build: .}}", "the service web builds an image, which Dockwell can't do yet"},
-		"env_file":      {"services: {web: {image: a, env_file: /etc/shadow}}", "the service web reads env_file"},
-		"extends":       {"services: {web: {image: a, extends: {file: /etc/passwd, service: x}}}", "the service web extends another service"},
-		"include":       {"include: [/etc/passwd]\nservices: {web: {image: a}}", "the Compose file includes other files"},
-		"unknown":       {"services: {web: {image: a, cap_add: [NET_ADMIN]}}", "the service web uses cap_add, which Dockwell can't run yet. Remove it from the Compose file to import it"},
-		"relative bind": {"services: {web: {image: a, volumes: ['./data:/data']}}", "the service web mounts ./data, a path relative to the Compose file"},
-		"anonymous":     {"services: {web: {image: a, volumes: ['/data']}}", "the service web mounts an unnamed volume at /data"},
-		"random port":   {"services: {web: {image: a, ports: ['80']}}", "the service web publishes port 80 on a server port Docker would pick"},
-		"unset":         {"services: {web: {image: 'a:${TAG}'}}", "the Compose file uses TAG, with no value"},
-		"bad name":      {"services: {my_app: {image: a}}", `"my_app" isn't a valid service name`},
-		"external":      {"services: {web: {image: a}}\nvolumes: {data: {external: true}}", "the volume data is external"},
-		"aliases":       {"services: {web: {image: a, networks: {n: {aliases: [x]}}}}\nnetworks: {n: {}}", "the service web sets options for the network n"},
-		"host network":  {"services: {web: {image: a, network_mode: host}}", "the service web has network_mode host"},
-		"no value":      {"services: {web: {image: a, environment: [SECRET]}}", "the service web's variable SECRET has no value"},
-		"restart count": {"services: {web: {image: a, restart: 'on-failure:3'}}", `the service web restarts "on-failure:3"`},
-		"no services":   {"volumes: {data: {}}", "the Compose file has no services"},
-		"not yaml":      {"services: [", "the Compose file isn't valid YAML"},
-		"no volume":     {"services: {web: {image: a, volumes: ['data:/data']}}", "the service web mounts the volume data, which the file doesn't list under volumes"},
-		"no network":    {"services: {web: {image: a, networks: [back]}}", "the service web joins the network back, which the file doesn't list under networks"},
-		"no dependency": {"services: {web: {image: a, depends_on: [db]}}", "the service web depends on db, which isn't a service in the file"},
-		"cycle":         {"services: {a: {image: x, depends_on: [b]}, b: {image: x, depends_on: [a]}}", "the services depend on each other in a circle, a → b → a"},
-		"bad port":      {"services: {web: {image: a, ports: ['eighty:80']}}", "the Compose file isn't valid"},
+		"build":          {"services: {web: {build: .}}", "the service web builds an image, which Dockwell can't do yet"},
+		"env_file":       {"services: {web: {image: a, env_file: /etc/shadow}}", "the service web reads env_file"},
+		"extends":        {"services: {web: {image: a, extends: {file: /etc/passwd, service: x}}}", "the service web extends another service"},
+		"include":        {"include: [/etc/passwd]\nservices: {web: {image: a}}", "the Compose file includes other files"},
+		"unknown":        {"services: {web: {image: a, cap_add: [NET_ADMIN]}}", "the service web uses cap_add, which Dockwell can't run yet. Remove it from the Compose file to import it"},
+		"relative bind":  {"services: {web: {image: a, volumes: ['./data:/data']}}", "the service web mounts ./data, a path relative to the Compose file"},
+		"anonymous":      {"services: {web: {image: a, volumes: ['/data']}}", "the service web mounts an unnamed volume at /data"},
+		"random port":    {"services: {web: {image: a, ports: ['80']}}", "the service web publishes port 80 on a server port Docker would pick"},
+		"unset":          {"services: {web: {image: 'a:${TAG}'}}", "the Compose file uses TAG, with no value"},
+		"bad name":       {"services: {my_app: {image: a}}", `"my_app" isn't a valid service name`},
+		"external":       {"services: {web: {image: a}}\nvolumes: {data: {external: true}}", "the volume data is external"},
+		"aliases":        {"services: {web: {image: a, networks: {n: {aliases: [x]}}}}\nnetworks: {n: {}}", "the service web sets options for the network n"},
+		"host network":   {"services: {web: {image: a, network_mode: host}}", "the service web has network_mode host"},
+		"no value":       {"services: {web: {image: a, environment: [SECRET]}}", "the service web's variable SECRET has no value"},
+		"restart count":  {"services: {web: {image: a, restart: 'on-failure:3'}}", `the service web restarts "on-failure:3"`},
+		"no services":    {"volumes: {data: {}}", "the Compose file has no services"},
+		"not yaml":       {"services: [", "the Compose file isn't valid YAML"},
+		"no volume":      {"services: {web: {image: a, volumes: ['data:/data']}}", "the service web mounts the volume data, which the file doesn't list under volumes"},
+		"no network":     {"services: {web: {image: a, networks: [back]}}", "the service web joins the network back, which the file doesn't list under networks"},
+		"no dependency":  {"services: {web: {image: a, depends_on: [db]}}", "the service web depends on db, which isn't a service in the file"},
+		"cycle":          {"services: {a: {image: x, depends_on: [b]}, b: {image: x, depends_on: [a]}}", "the services depend on each other in a circle, a → b → a"},
+		"bad port":       {"services: {web: {image: a, ports: ['eighty:80']}}", "the Compose file isn't valid"},
+		"propagation":    {"services: {web: {image: a, volumes: ['/srv:/data:ro,rshared']}}", "the service web mounts /srv at /data with rshared propagation, which Dockwell can't run yet. Remove :rshared"},
+		"nocopy":         {"services: {web: {image: a, volumes: ['data:/data:nocopy']}}\nvolumes: {data: {}}", "the service web mounts data at /data with nocopy, which Dockwell can't run yet"},
+		"no such option": {"services: {web: {image: a, volumes: ['/srv:/data:rx']}}", `the service web mounts /srv at /data with the option "rx", which Docker doesn't take`},
+		"long propagation": {
+			"services: {web: {image: a, volumes: [{type: bind, source: /srv, target: /data, bind: {propagation: rshared}}]}}",
+			"the service web's volume's bind uses propagation, which Dockwell can't run yet",
+		},
+		"long nocopy": {
+			"services: {web: {image: a, volumes: [{type: volume, source: data, target: /data, volume: {nocopy: true}}]}}\nvolumes: {data: {}}",
+			"the service web's volume uses volume, which Dockwell can't run yet",
+		},
+		"relabelled volume": {"services: {web: {image: a, volumes: ['data:/data:z']}}\nvolumes: {data: {}}", "the service web mounts the volume data at /data with :z, which Dockwell can do for a server path alone"},
+		"no such relabel": {
+			"services: {web: {image: a, volumes: [{type: bind, source: /srv, target: /data, bind: {selinux: q}}]}}",
+			"the service web relabels /srv with selinux q, which Docker doesn't take",
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := compose.Parse(t.Context(), []byte(tc.file), nil)
@@ -185,8 +217,11 @@ func TestExportRoundTrips(t *testing.T) {
 	// A service run from an image, on Docker's bridge, exports as one.
 	s.Services = append(s.Services, compose.Item[*resourcev1.Service]{Name: "solo", Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
 		Image: "nginx:1.27", Restart: resourcev1.RestartPolicy_RESTART_POLICY_UNLESS_STOPPED,
-		Ports:  []*resourcev1.PortMapping{{HostPort: 8443, ContainerPort: 443, HostIp: "::1", Protocol: resourcev1.Protocol_PROTOCOL_TCP}},
-		Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/www"}, Target: "/usr/share/nginx/html", ReadOnly: true}},
+		Ports: []*resourcev1.PortMapping{{HostPort: 8443, ContainerPort: 443, HostIp: "::1", Protocol: resourcev1.Protocol_PROTOCOL_TCP}},
+		Mounts: []*resourcev1.Mount{
+			{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/tls"}, Target: "/etc/tls", Relabel: resourcev1.Relabel_RELABEL_SHARED},
+			{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/www"}, Target: "/usr/share/nginx/html", ReadOnly: true, Relabel: resourcev1.Relabel_RELABEL_PRIVATE},
+		},
 	}}}})
 	out, err := compose.Export(project, s)
 	if err != nil {

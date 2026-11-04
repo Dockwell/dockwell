@@ -72,7 +72,8 @@ var (
 	networkKeys = keys("driver", "driver_opts", "internal", "labels")
 	healthKeys  = keys("test", "interval", "timeout", "start_period", "retries", "disable")
 	portKeys    = keys("target", "published", "host_ip", "protocol", "mode")
-	mountKeys   = keys("type", "source", "target", "read_only")
+	mountKeys   = keys("type", "source", "target", "read_only", "bind", "consistency")
+	bindKeys    = keys("selinux")
 	dependsKeys = keys("condition", "required", "restart")
 
 	// why says why a key Dockwell can't run is refused, and what to do,
@@ -159,6 +160,11 @@ func checkRaw(file []byte) (map[string]any, error) {
 				if err := check(what+"'s volume", m, mountKeys); err != nil {
 					return nil, err
 				}
+				if b, ok := m["bind"].(map[string]any); ok {
+					if err := check(what+"'s volume's bind", b, bindKeys); err != nil {
+						return nil, err
+					}
+				}
 			}
 		}
 		if nets, ok := svc["networks"].(map[string]any); ok {
@@ -189,6 +195,49 @@ func checkRaw(file []byte) (map[string]any, error) {
 		}
 	}
 	return raw, nil
+}
+
+// mountOptions are what Dockwell runs of the options a volume takes in
+// Compose's short syntax, /srv/data:/data:ro,z. compose-go drops those it
+// doesn't know, so they are checked here, on the file.
+var mountOptions = map[string]string{
+	"ro": "", "rw": "", "z": "", "Z": "",
+	// Docker takes these only on macOS; on Linux they change nothing.
+	"cached": "", "delegated": "", "consistent": "",
+	"nocopy":   "with nocopy, which Dockwell can't run yet. Remove :nocopy",
+	"shared":   "with shared propagation, which Dockwell can't run yet. Remove :shared",
+	"rshared":  "with rshared propagation, which Dockwell can't run yet. Remove :rshared",
+	"slave":    "with slave propagation, which Dockwell can't run yet. Remove :slave",
+	"rslave":   "with rslave propagation, which Dockwell can't run yet. Remove :rslave",
+	"private":  "with private propagation, which Dockwell can't run yet. Remove :private",
+	"rprivate": "with rprivate propagation, which Dockwell can't run yet. Remove :rprivate",
+}
+
+// checkMountOptions refuses an option in a volume's short syntax that
+// Dockwell can't run, by name.
+func checkMountOptions(dict map[string]any) error {
+	services, _ := dict["services"].(map[string]any)
+	for _, name := range slices.Sorted(maps.Keys(services)) {
+		svc, _ := services[name].(map[string]any)
+		for _, v := range list(svc["volumes"]) {
+			spec, ok := v.(string)
+			parts := strings.Split(spec, ":")
+			if !ok || len(parts) != 3 {
+				continue
+			}
+			for _, o := range strings.Split(parts[2], ",") {
+				why, known := mountOptions[o]
+				switch {
+				case !known:
+					return invalid("the service %s mounts %s at %s with the option %q, which Docker doesn't take. Use ro, rw, z or Z, or leave it out",
+						name, parts[0], parts[1], o)
+				case why != "":
+					return invalid("the service %s mounts %s at %s %s", name, parts[0], parts[1], why)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func list(v any) []any {
@@ -229,6 +278,9 @@ func Parse(_ context.Context, file []byte, variables map[string]string) (*Stack,
 
 	dict, err := interpolate(raw, variables)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkMountOptions(dict); err != nil {
 		return nil, err
 	}
 	if dict, err = transform.Canonical(dict, false); err != nil {
@@ -459,6 +511,9 @@ func app(name string, s *types.ServiceConfig) (*resourcev1.Container, error) {
 	}
 	for _, v := range s.Volumes {
 		m := &resourcev1.Mount{Target: v.Target, ReadOnly: v.ReadOnly}
+		if err := mountBind(what, &v, m); err != nil {
+			return nil, err
+		}
 		switch {
 		case v.Type == types.VolumeTypeVolume && v.Source == "":
 			return nil, invalid("%s mounts an unnamed volume at %s. Name it, and list it under volumes, so Dockwell can keep its data", what, v.Target)
@@ -498,6 +553,35 @@ func app(name string, s *types.ServiceConfig) (*resourcev1.Container, error) {
 		}
 	}
 	return c, nil
+}
+
+// mountBind reads what a mount says of binding a server path: relabelling
+// it, which Dockwell runs, and its propagation and nocopy, which it can't
+// yet. Each is refused by name.
+func mountBind(what string, v *types.ServiceVolumeConfig, m *resourcev1.Mount) error {
+	if v.Volume != nil && v.Volume.NoCopy {
+		return invalid("%s mounts %s at %s with nocopy, which Dockwell can't run yet. Remove nocopy", what, v.Source, v.Target)
+	}
+	if v.Bind == nil {
+		return nil
+	}
+	if p := v.Bind.Propagation; p != "" {
+		return invalid("%s mounts %s at %s with %s propagation, which Dockwell can't run yet. Remove it", what, v.Source, v.Target, p)
+	}
+	switch v.Bind.SELinux {
+	case "":
+		return nil
+	case "z":
+		m.Relabel = resourcev1.Relabel_RELABEL_SHARED
+	case "Z":
+		m.Relabel = resourcev1.Relabel_RELABEL_PRIVATE
+	default:
+		return invalid("%s relabels %s with selinux %s, which Docker doesn't take. Use z, shared with other containers, or Z, private to this one", what, v.Source, v.Bind.SELinux)
+	}
+	if v.Type != types.VolumeTypeBind {
+		return invalid("%s mounts the volume %s at %s with :%s, which Dockwell can do for a server path alone. Remove it", what, v.Source, v.Target, v.Bind.SELinux)
+	}
+	return nil
 }
 
 // port turns a Compose port into a published one. Ports must name the

@@ -2246,6 +2246,17 @@ components:
                 readOnly:
                     type: boolean
                     description: Mounts it read-only.
+                relabel:
+                    enum:
+                        - RELABEL_UNSPECIFIED
+                        - RELABEL_SHARED
+                        - RELABEL_PRIVATE
+                    type: string
+                    description: |-
+                        Relabels a server path for SELinux, as Docker's z and Z options do, so
+                         the container can use it on a server that enforces SELinux. Only a
+                         server path takes one; elsewhere Docker changes nothing.
+                    format: enum
             description: Mount puts a volume, or a directory on the server, into a container.
         Network:
             type: object

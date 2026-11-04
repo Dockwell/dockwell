@@ -602,7 +602,16 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		covered[parts[1]] = true
-		mp := docker.MountPoint{Type: "bind", Source: parts[0], Destination: parts[1], RW: len(parts) < 3 || parts[2] != "ro"}
+		mp := docker.MountPoint{Type: "bind", Source: parts[0], Destination: parts[1], RW: true}
+		if len(parts) > 2 {
+			for _, mode := range strings.Split(parts[2], ",") {
+				if !bindModes[mode] {
+					fail(w, http.StatusBadRequest, "invalid mode: %s", mode)
+					return
+				}
+				mp.RW = mp.RW && mode != "ro"
+			}
+		}
 		if !strings.HasPrefix(parts[0], "/") {
 			e.ensureVolume(parts[0], nil)
 			mp.Type, mp.Name = "volume", parts[0]
@@ -620,6 +629,13 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 	e.containers[c.ID] = c
 	e.Creates++
 	writeJSON(w, http.StatusCreated, map[string]any{"Id": c.ID, "Warnings": []string{}})
+}
+
+// bindModes are the options the engine takes in a bind on Linux.
+var bindModes = map[string]bool{
+	"rw": true, "ro": true, "z": true, "Z": true, "nocopy": true,
+	"shared": true, "rshared": true, "slave": true, "rslave": true, "private": true, "rprivate": true,
+	"consistent": true, "cached": true, "delegated": true,
 }
 
 // merge fills in what a container leaves out from its image, as the

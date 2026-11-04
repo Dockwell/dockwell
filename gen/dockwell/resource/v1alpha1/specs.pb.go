@@ -28,6 +28,60 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Relabel is how Docker labels a server path for SELinux when it mounts
+// it.
+type Relabel int32
+
+const (
+	// Not at all: the path keeps its label.
+	Relabel_RELABEL_UNSPECIFIED Relabel = 0
+	// Shared, Docker's z: every container may use the path.
+	Relabel_RELABEL_SHARED Relabel = 1
+	// Private, Docker's Z: only this container may use it.
+	Relabel_RELABEL_PRIVATE Relabel = 2
+)
+
+// Enum value maps for Relabel.
+var (
+	Relabel_name = map[int32]string{
+		0: "RELABEL_UNSPECIFIED",
+		1: "RELABEL_SHARED",
+		2: "RELABEL_PRIVATE",
+	}
+	Relabel_value = map[string]int32{
+		"RELABEL_UNSPECIFIED": 0,
+		"RELABEL_SHARED":      1,
+		"RELABEL_PRIVATE":     2,
+	}
+)
+
+func (x Relabel) Enum() *Relabel {
+	p := new(Relabel)
+	*p = x
+	return p
+}
+
+func (x Relabel) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Relabel) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[0].Descriptor()
+}
+
+func (Relabel) Type() protoreflect.EnumType {
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[0]
+}
+
+func (x Relabel) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Relabel.Descriptor instead.
+func (Relabel) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{0}
+}
+
 // RestartPolicy says when Docker restarts a stopped container.
 type RestartPolicy int32
 
@@ -73,11 +127,11 @@ func (x RestartPolicy) String() string {
 }
 
 func (RestartPolicy) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[0].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[1].Descriptor()
 }
 
 func (RestartPolicy) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[0]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[1]
 }
 
 func (x RestartPolicy) Number() protoreflect.EnumNumber {
@@ -86,7 +140,7 @@ func (x RestartPolicy) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RestartPolicy.Descriptor instead.
 func (RestartPolicy) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{1}
 }
 
 // Protocol is a transport protocol.
@@ -126,11 +180,11 @@ func (x Protocol) String() string {
 }
 
 func (Protocol) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[1].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[2].Descriptor()
 }
 
 func (Protocol) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[1]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[2]
 }
 
 func (x Protocol) Number() protoreflect.EnumNumber {
@@ -139,7 +193,7 @@ func (x Protocol) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Protocol.Descriptor instead.
 func (Protocol) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{2}
 }
 
 // FirewallAction is what a rule does with matching traffic.
@@ -179,11 +233,11 @@ func (x FirewallAction) String() string {
 }
 
 func (FirewallAction) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[2].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[3].Descriptor()
 }
 
 func (FirewallAction) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[2]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[3]
 }
 
 func (x FirewallAction) Number() protoreflect.EnumNumber {
@@ -192,7 +246,7 @@ func (x FirewallAction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FirewallAction.Descriptor instead.
 func (FirewallAction) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{3}
 }
 
 // Container is one Docker container: run by hand on a server, or a
@@ -360,7 +414,11 @@ type Mount struct {
 	// Where it appears in the container, as an absolute path.
 	Target string `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
 	// Mounts it read-only.
-	ReadOnly      bool `protobuf:"varint,4,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
+	ReadOnly bool `protobuf:"varint,4,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
+	// Relabels a server path for SELinux, as Docker's z and Z options do, so
+	// the container can use it on a server that enforces SELinux. Only a
+	// server path takes one; elsewhere Docker changes nothing.
+	Relabel       Relabel `protobuf:"varint,5,opt,name=relabel,proto3,enum=dockwell.resource.v1alpha1.Relabel" json:"relabel,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -432,6 +490,13 @@ func (x *Mount) GetReadOnly() bool {
 		return x.ReadOnly
 	}
 	return false
+}
+
+func (x *Mount) GetRelabel() Relabel {
+	if x != nil {
+		return x.Relabel
+	}
+	return Relabel_RELABEL_UNSPECIFIED
 }
 
 type isMount_Source interface {
@@ -1234,12 +1299,13 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x7f\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbe\x01\n" +
 	"\x05Mount\x12\x18\n" +
 	"\x06volume\x18\x01 \x01(\tH\x00R\x06volume\x12\x1d\n" +
 	"\thost_path\x18\x02 \x01(\tH\x00R\bhostPath\x12\x16\n" +
 	"\x06target\x18\x03 \x01(\tR\x06target\x12\x1b\n" +
-	"\tread_only\x18\x04 \x01(\bR\breadOnlyB\b\n" +
+	"\tread_only\x18\x04 \x01(\bR\breadOnly\x12=\n" +
+	"\arelabel\x18\x05 \x01(\x0e2#.dockwell.resource.v1alpha1.RelabelR\arelabelB\b\n" +
 	"\x06source\"\x94\x01\n" +
 	"\vHealthcheck\x12\x12\n" +
 	"\x04test\x18\x01 \x03(\tR\x04test\x12\x1a\n" +
@@ -1294,7 +1360,11 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\rfirewall_rule\x18\x05 \x01(\v2(.dockwell.resource.v1alpha1.FirewallRuleH\x00R\ffirewallRule\x12<\n" +
 	"\x06volume\x18\x06 \x01(\v2\".dockwell.resource.v1alpha1.VolumeH\x00R\x06volume\x12?\n" +
 	"\anetwork\x18\a \x01(\v2#.dockwell.resource.v1alpha1.NetworkH\x00R\anetworkB\x06\n" +
-	"\x04kind*\xa3\x01\n" +
+	"\x04kind*K\n" +
+	"\aRelabel\x12\x17\n" +
+	"\x13RELABEL_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eRELABEL_SHARED\x10\x01\x12\x13\n" +
+	"\x0fRELABEL_PRIVATE\x10\x02*\xa3\x01\n" +
 	"\rRestartPolicy\x12\x1e\n" +
 	"\x1aRESTART_POLICY_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11RESTART_POLICY_NO\x10\x01\x12\x1d\n" +
@@ -1325,59 +1395,61 @@ func file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP() []byte {
 	return file_dockwell_resource_v1alpha1_specs_proto_rawDescData
 }
 
-var file_dockwell_resource_v1alpha1_specs_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_dockwell_resource_v1alpha1_specs_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
 var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
-	(RestartPolicy)(0),                // 0: dockwell.resource.v1alpha1.RestartPolicy
-	(Protocol)(0),                     // 1: dockwell.resource.v1alpha1.Protocol
-	(FirewallAction)(0),               // 2: dockwell.resource.v1alpha1.FirewallAction
-	(*Container)(nil),                 // 3: dockwell.resource.v1alpha1.Container
-	(*Mount)(nil),                     // 4: dockwell.resource.v1alpha1.Mount
-	(*Healthcheck)(nil),               // 5: dockwell.resource.v1alpha1.Healthcheck
-	(*PortMapping)(nil),               // 6: dockwell.resource.v1alpha1.PortMapping
-	(*FirewallRule)(nil),              // 7: dockwell.resource.v1alpha1.FirewallRule
-	(*Project)(nil),                   // 8: dockwell.resource.v1alpha1.Project
-	(*Environment)(nil),               // 9: dockwell.resource.v1alpha1.Environment
-	(*Service)(nil),                   // 10: dockwell.resource.v1alpha1.Service
-	(*Volume)(nil),                    // 11: dockwell.resource.v1alpha1.Volume
-	(*Network)(nil),                   // 12: dockwell.resource.v1alpha1.Network
-	(*Spec)(nil),                      // 13: dockwell.resource.v1alpha1.Spec
-	nil,                               // 14: dockwell.resource.v1alpha1.Container.EnvEntry
-	nil,                               // 15: dockwell.resource.v1alpha1.Container.LabelsEntry
-	nil,                               // 16: dockwell.resource.v1alpha1.Volume.OptionsEntry
-	nil,                               // 17: dockwell.resource.v1alpha1.Volume.LabelsEntry
-	nil,                               // 18: dockwell.resource.v1alpha1.Network.OptionsEntry
-	nil,                               // 19: dockwell.resource.v1alpha1.Network.LabelsEntry
-	(*descriptorpb.FieldOptions)(nil), // 20: google.protobuf.FieldOptions
+	(Relabel)(0),                      // 0: dockwell.resource.v1alpha1.Relabel
+	(RestartPolicy)(0),                // 1: dockwell.resource.v1alpha1.RestartPolicy
+	(Protocol)(0),                     // 2: dockwell.resource.v1alpha1.Protocol
+	(FirewallAction)(0),               // 3: dockwell.resource.v1alpha1.FirewallAction
+	(*Container)(nil),                 // 4: dockwell.resource.v1alpha1.Container
+	(*Mount)(nil),                     // 5: dockwell.resource.v1alpha1.Mount
+	(*Healthcheck)(nil),               // 6: dockwell.resource.v1alpha1.Healthcheck
+	(*PortMapping)(nil),               // 7: dockwell.resource.v1alpha1.PortMapping
+	(*FirewallRule)(nil),              // 8: dockwell.resource.v1alpha1.FirewallRule
+	(*Project)(nil),                   // 9: dockwell.resource.v1alpha1.Project
+	(*Environment)(nil),               // 10: dockwell.resource.v1alpha1.Environment
+	(*Service)(nil),                   // 11: dockwell.resource.v1alpha1.Service
+	(*Volume)(nil),                    // 12: dockwell.resource.v1alpha1.Volume
+	(*Network)(nil),                   // 13: dockwell.resource.v1alpha1.Network
+	(*Spec)(nil),                      // 14: dockwell.resource.v1alpha1.Spec
+	nil,                               // 15: dockwell.resource.v1alpha1.Container.EnvEntry
+	nil,                               // 16: dockwell.resource.v1alpha1.Container.LabelsEntry
+	nil,                               // 17: dockwell.resource.v1alpha1.Volume.OptionsEntry
+	nil,                               // 18: dockwell.resource.v1alpha1.Volume.LabelsEntry
+	nil,                               // 19: dockwell.resource.v1alpha1.Network.OptionsEntry
+	nil,                               // 20: dockwell.resource.v1alpha1.Network.LabelsEntry
+	(*descriptorpb.FieldOptions)(nil), // 21: google.protobuf.FieldOptions
 }
 var file_dockwell_resource_v1alpha1_specs_proto_depIdxs = []int32{
-	14, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
-	6,  // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
-	0,  // 2: dockwell.resource.v1alpha1.Container.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
-	15, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
-	4,  // 4: dockwell.resource.v1alpha1.Container.mounts:type_name -> dockwell.resource.v1alpha1.Mount
-	5,  // 5: dockwell.resource.v1alpha1.Container.healthcheck:type_name -> dockwell.resource.v1alpha1.Healthcheck
-	1,  // 6: dockwell.resource.v1alpha1.PortMapping.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
-	2,  // 7: dockwell.resource.v1alpha1.FirewallRule.action:type_name -> dockwell.resource.v1alpha1.FirewallAction
-	1,  // 8: dockwell.resource.v1alpha1.FirewallRule.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
-	3,  // 9: dockwell.resource.v1alpha1.Service.app:type_name -> dockwell.resource.v1alpha1.Container
-	16, // 10: dockwell.resource.v1alpha1.Volume.options:type_name -> dockwell.resource.v1alpha1.Volume.OptionsEntry
-	17, // 11: dockwell.resource.v1alpha1.Volume.labels:type_name -> dockwell.resource.v1alpha1.Volume.LabelsEntry
-	18, // 12: dockwell.resource.v1alpha1.Network.options:type_name -> dockwell.resource.v1alpha1.Network.OptionsEntry
-	19, // 13: dockwell.resource.v1alpha1.Network.labels:type_name -> dockwell.resource.v1alpha1.Network.LabelsEntry
-	8,  // 14: dockwell.resource.v1alpha1.Spec.project:type_name -> dockwell.resource.v1alpha1.Project
-	9,  // 15: dockwell.resource.v1alpha1.Spec.environment:type_name -> dockwell.resource.v1alpha1.Environment
-	10, // 16: dockwell.resource.v1alpha1.Spec.service:type_name -> dockwell.resource.v1alpha1.Service
-	3,  // 17: dockwell.resource.v1alpha1.Spec.container:type_name -> dockwell.resource.v1alpha1.Container
-	7,  // 18: dockwell.resource.v1alpha1.Spec.firewall_rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
-	11, // 19: dockwell.resource.v1alpha1.Spec.volume:type_name -> dockwell.resource.v1alpha1.Volume
-	12, // 20: dockwell.resource.v1alpha1.Spec.network:type_name -> dockwell.resource.v1alpha1.Network
-	20, // 21: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
-	22, // [22:22] is the sub-list for method output_type
-	22, // [22:22] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	21, // [21:22] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	15, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
+	7,  // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
+	1,  // 2: dockwell.resource.v1alpha1.Container.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
+	16, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
+	5,  // 4: dockwell.resource.v1alpha1.Container.mounts:type_name -> dockwell.resource.v1alpha1.Mount
+	6,  // 5: dockwell.resource.v1alpha1.Container.healthcheck:type_name -> dockwell.resource.v1alpha1.Healthcheck
+	0,  // 6: dockwell.resource.v1alpha1.Mount.relabel:type_name -> dockwell.resource.v1alpha1.Relabel
+	2,  // 7: dockwell.resource.v1alpha1.PortMapping.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
+	3,  // 8: dockwell.resource.v1alpha1.FirewallRule.action:type_name -> dockwell.resource.v1alpha1.FirewallAction
+	2,  // 9: dockwell.resource.v1alpha1.FirewallRule.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
+	4,  // 10: dockwell.resource.v1alpha1.Service.app:type_name -> dockwell.resource.v1alpha1.Container
+	17, // 11: dockwell.resource.v1alpha1.Volume.options:type_name -> dockwell.resource.v1alpha1.Volume.OptionsEntry
+	18, // 12: dockwell.resource.v1alpha1.Volume.labels:type_name -> dockwell.resource.v1alpha1.Volume.LabelsEntry
+	19, // 13: dockwell.resource.v1alpha1.Network.options:type_name -> dockwell.resource.v1alpha1.Network.OptionsEntry
+	20, // 14: dockwell.resource.v1alpha1.Network.labels:type_name -> dockwell.resource.v1alpha1.Network.LabelsEntry
+	9,  // 15: dockwell.resource.v1alpha1.Spec.project:type_name -> dockwell.resource.v1alpha1.Project
+	10, // 16: dockwell.resource.v1alpha1.Spec.environment:type_name -> dockwell.resource.v1alpha1.Environment
+	11, // 17: dockwell.resource.v1alpha1.Spec.service:type_name -> dockwell.resource.v1alpha1.Service
+	4,  // 18: dockwell.resource.v1alpha1.Spec.container:type_name -> dockwell.resource.v1alpha1.Container
+	8,  // 19: dockwell.resource.v1alpha1.Spec.firewall_rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
+	12, // 20: dockwell.resource.v1alpha1.Spec.volume:type_name -> dockwell.resource.v1alpha1.Volume
+	13, // 21: dockwell.resource.v1alpha1.Spec.network:type_name -> dockwell.resource.v1alpha1.Network
+	21, // 22: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
+	23, // [23:23] is the sub-list for method output_type
+	23, // [23:23] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	22, // [22:23] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_resource_v1alpha1_specs_proto_init() }
@@ -1406,7 +1478,7 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_resource_v1alpha1_specs_proto_rawDesc), len(file_dockwell_resource_v1alpha1_specs_proto_rawDesc)),
-			NumEnums:      3,
+			NumEnums:      4,
 			NumMessages:   17,
 			NumExtensions: 1,
 			NumServices:   0,
