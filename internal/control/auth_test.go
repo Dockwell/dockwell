@@ -388,7 +388,7 @@ func TestOriginAndHostChecks(t *testing.T) {
 	b.claim(t, link.Token)
 	cookie := b.cookies()[0]
 
-	post := func(headers map[string]string) (int, string) {
+	post := func(headers map[string]string) (int, string, string) {
 		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, origin+dockwellv1connect.AuthServiceListSessionsProcedure, strings.NewReader("{}"))
 		req.Header.Set("Content-Type", "application/json")
 		req.AddCookie(cookie)
@@ -405,7 +405,7 @@ func TestOriginAndHostChecks(t *testing.T) {
 		}
 		defer res.Body.Close()
 		body, _ := io.ReadAll(res.Body)
-		return res.StatusCode, string(body)
+		return res.StatusCode, string(body), res.Header.Get(authapi.ReasonKey)
 	}
 	for _, tt := range []struct {
 		name    string
@@ -422,9 +422,13 @@ func TestOriginAndHostChecks(t *testing.T) {
 		{"DNS rebinding", map[string]string{"Host": "evil.test:" + port, "Origin": "http://evil.test:" + port}, http.StatusMisdirectedRequest},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			status, body := post(tt.headers)
+			status, body, why := post(tt.headers)
 			if status != tt.status {
 				t.Errorf("status %d, want %d: %s", status, tt.status, body)
+			}
+			want := map[int]string{http.StatusForbidden: authapi.ReasonOrigin, http.StatusMisdirectedRequest: authapi.ReasonMisdirected}[tt.status]
+			if why != want {
+				t.Errorf("reason %q, want %q", why, want)
 			}
 		})
 	}
@@ -529,8 +533,8 @@ func TestStreamsEndWhenTheirSessionIsRevoked(t *testing.T) {
 	}()
 	select {
 	case err := <-done:
-		if connect.CodeOf(err) != connect.CodeUnauthenticated {
-			t.Errorf("the revoked session's stream ended with %v, want unauthenticated", err)
+		if connect.CodeOf(err) != connect.CodeUnauthenticated || reason(err) != authapi.ReasonSessionEnded {
+			t.Errorf("the revoked session's stream ended with %v (reason %q), want unauthenticated with reason session_ended", err, reason(err))
 		}
 	case <-time.After(5 * time.Second):
 		t.Error("the revoked session's stream stayed open")
@@ -630,3 +634,70 @@ func TestClaimOverHTTPSWithADomain(t *testing.T) {
 		t.Errorf("another Host on HTTPS = %d, want 421", resp.StatusCode)
 	}
 }
+
+// reason is the Dockwell-Error reason an error carries.
+func reason(err error) string {
+	var cerr *connect.Error
+	if errors.As(err, &cerr) {
+		return cerr.Meta().Get(authapi.ReasonKey)
+	}
+	return ""
+}
+
+// Every refusal for want of a session says why, so the panel can tell a
+// session that ended from a wrong code.
+func TestRefusalsSayWhy(t *testing.T) {
+	srv := startFull(t, nil)
+	_, port, _ := net.SplitHostPort(srv.api)
+	origin := "http://localhost:" + port
+	laptop := newBrowser(t, origin, srv.api, nil)
+	servers := func(b *browser) error {
+		_, err := dockwellv1connect.NewServerServiceClient(b, origin).ListServers(t.Context(), connect.NewRequest(&dockwellv1.ListServersRequest{}))
+		return err
+	}
+	if err := servers(laptop); connect.CodeOf(err) != connect.CodeUnauthenticated || reason(err) != authapi.ReasonUnauthenticated {
+		t.Errorf("no session = %v (reason %q), want reason unauthenticated", err, reason(err))
+	}
+	link, _ := srv.auth.CreateClaimLink(t.Context(), "test")
+	laptop.claim(t, link.Token)
+	phone := newBrowser(t, origin, srv.api, nil)
+	phone.auth = laptop.auth
+	phone.signIn(t)
+	if _, err := laptop.authClient().RevokeOtherSessions(t.Context(), connect.NewRequest(&dockwellv1.RevokeOtherSessionsRequest{})); err != nil {
+		t.Fatal(err)
+	}
+	if err := servers(phone); connect.CodeOf(err) != connect.CodeUnauthenticated || reason(err) != authapi.ReasonSessionEnded {
+		t.Errorf("a revoked session = %v (reason %q), want reason session_ended", err, reason(err))
+	}
+	// A wrong code is unauthenticated too, for its own reason.
+	_, err := phone.authClient().SignInWithCode(t.Context(), connect.NewRequest(&dockwellv1.SignInWithCodeRequest{Email: "mira@acme.dev", Code: "123456"}))
+	if reason(err) != "code_rejected" {
+		t.Errorf("a wrong code = %v (reason %q), want reason code_rejected", err, reason(err))
+	}
+
+	// A write with the cookie but no Origin.
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, origin+dockwellv1connect.AuthServiceRevokeOtherSessionsProcedure, strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(laptop.cookies()[0])
+	res, err := laptop.client.Transport.RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusForbidden || !strings.Contains(res.Header.Get("Content-Type"), "json") {
+		t.Fatalf("a write without Origin = %d %s", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+	noOrigin := dockwellv1connect.NewAuthServiceClient(connectFunc(func(r *http.Request) (*http.Response, error) {
+		r.AddCookie(laptop.cookies()[0])
+		return laptop.client.Transport.RoundTrip(r)
+	}), origin, connect.WithProtoJSON())
+	_, err = noOrigin.RevokeOtherSessions(t.Context(), connect.NewRequest(&dockwellv1.RevokeOtherSessionsRequest{}))
+	if connect.CodeOf(err) != connect.CodePermissionDenied || reason(err) != authapi.ReasonOrigin {
+		t.Errorf("a write without Origin = %v (reason %q), want reason origin", err, reason(err))
+	}
+}
+
+// connectFunc adapts a function to connect.HTTPClient.
+type connectFunc func(*http.Request) (*http.Response, error)
+
+func (f connectFunc) Do(r *http.Request) (*http.Response, error) { return f(r) }

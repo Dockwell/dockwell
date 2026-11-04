@@ -62,7 +62,7 @@ func (h *Handler) client(ctx context.Context) (auth.Client, error) {
 func principal(ctx context.Context) (auth.Principal, error) {
 	p, ok := PrincipalFrom(ctx)
 	if !ok {
-		return auth.Principal{}, connect.NewError(connect.CodeUnauthenticated, auth.ErrUnauthenticated)
+		return auth.Principal{}, reasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
 	}
 	return p, nil
 }
@@ -436,10 +436,35 @@ func withCookie[T any](res *connect.Response[T], site auth.Site, s auth.SignedIn
 	return res, nil
 }
 
-// ReasonKey is the error metadata key that names why an AuthService call
-// failed, such as "code_rejected", so clients can explain it in their own
-// words and language. The message says the same in English.
+// ReasonKey is the error metadata key that names why a call failed, such as
+// "code_rejected", so clients can explain it in their own words and
+// language. The message says the same in English. AuthService's errors
+// carry one, and so does every call refused for want of a session.
 const ReasonKey = "Dockwell-Error"
+
+// Reasons for refusing a call on any service of the API listener.
+const (
+	// ReasonUnauthenticated: the call needs a session and came with none.
+	ReasonUnauthenticated = "unauthenticated"
+	// ReasonSessionEnded: the call came with a session cookie, but the
+	// session ended (signed out, revoked, idle, too old, or made on another
+	// address), or a stream's session ended while it was open.
+	ReasonSessionEnded = "session_ended"
+	// ReasonOrigin: a browser sent the call from another origin, or a write
+	// with a session cookie didn't say it came from the panel.
+	ReasonOrigin = "origin"
+	// ReasonMisdirected: the call was for a host the panel doesn't answer on.
+	ReasonMisdirected = "misdirected"
+	// ReasonUnavailable: the session couldn't be checked just now.
+	ReasonUnavailable = "unavailable"
+)
+
+// reasonError is a Connect error that names its reason under ReasonKey.
+func reasonError(code connect.Code, err error, reason string) *connect.Error {
+	cerr := connect.NewError(code, err)
+	cerr.Meta().Set(ReasonKey, reason)
+	return cerr
+}
 
 // codes maps the auth package's errors to API codes and reasons. Their
 // messages are written for people; anything else is logged and reported as
@@ -449,7 +474,7 @@ var codes = []struct {
 	code   connect.Code
 	reason string
 }{
-	{auth.ErrUnauthenticated, connect.CodeUnauthenticated, "unauthenticated"},
+	{auth.ErrUnauthenticated, connect.CodeUnauthenticated, ReasonUnauthenticated},
 	{auth.ErrPasskeyRejected, connect.CodeUnauthenticated, "passkey_rejected"},
 	{auth.ErrPasskeyCopied, connect.CodeUnauthenticated, "passkey_copied"},
 	{auth.ErrCodeRejected, connect.CodeUnauthenticated, "code_rejected"},

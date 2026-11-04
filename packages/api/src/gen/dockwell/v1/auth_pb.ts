@@ -1344,6 +1344,10 @@ export const SignInMethodSchema: GenEnum<SignInMethod> = /*@__PURE__*/
  * A failed call's error metadata names the reason under "Dockwell-Error", such
  * as "code_rejected" or "claim_link_rejected", so clients can explain it in
  * their own words; a slowed-down one also carries "Retry-After" in seconds.
+ * A call to any service refused for want of a session names one too:
+ * "unauthenticated" when it came with no session, and "session_ended" when
+ * its session cookie no longer works or a stream's session ended while it
+ * was open. A browser's request from another origin gets "origin".
  *
  * @generated from service dockwell.v1.AuthService
  */

@@ -88,7 +88,7 @@ func Guard(sites auth.Sites, logger *slog.Logger, next http.Handler) http.Handle
 		site, err := sites.Resolve(r)
 		if err != nil {
 			logger.DebugContext(r.Context(), "refused a request for another host", slog.String("host", r.Host), slog.String("from", r.RemoteAddr))
-			plain(w, http.StatusMisdirectedRequest, sentence(strings.TrimPrefix(err.Error(), auth.ErrMisdirected.Error()+": ")))
+			plain(w, http.StatusMisdirectedRequest, ReasonMisdirected, sentence(strings.TrimPrefix(err.Error(), auth.ErrMisdirected.Error()+": ")))
 			return
 		}
 		if site.Secure {
@@ -113,7 +113,7 @@ func Guard(sites auth.Sites, logger *slog.Logger, next http.Handler) http.Handle
 			if sameOrigin, err = checkOrigin(r, site); err != nil {
 				logger.InfoContext(r.Context(), "refused a cross-origin request", slog.String("origin", r.Header.Get("Origin")),
 					slog.String("path", r.URL.Path), slog.String("from", r.RemoteAddr))
-				plain(w, http.StatusForbidden, err.Error())
+				plain(w, http.StatusForbidden, ReasonOrigin, err.Error())
 				return
 			}
 			w.Header().Set("Cache-Control", "no-store")
@@ -165,7 +165,10 @@ func isRPC(path string) bool {
 	return ok && strings.Contains(service, ".")
 }
 
-func plain(w http.ResponseWriter, code int, msg string) {
+// plain answers with a message for people, and its reason under ReasonKey
+// for clients, which Connect clients read as the error's metadata.
+func plain(w http.ResponseWriter, code int, reason, msg string) {
+	w.Header().Set(ReasonKey, reason)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -184,6 +187,9 @@ func sentence(s string) string {
 	}
 	return s
 }
+
+// errSessionEnded answers a session cookie that no longer works.
+var errSessionEnded = errors.New("your session ended. Sign in again")
 
 // Interceptor enforces sign-in on every procedure it wraps: a procedure not
 // in publicProcedures needs a live session, and a write authenticated by
@@ -228,7 +234,7 @@ func (i *interceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) co
 		defer stop()
 		err = next(tracked, conn)
 		if ctx.Err() == nil && tracked.Err() != nil {
-			return connect.NewError(connect.CodeUnauthenticated, errors.New("your session ended. Sign in again"))
+			return reasonError(connect.CodeUnauthenticated, errSessionEnded, ReasonSessionEnded)
 		}
 		return err
 	}
@@ -241,7 +247,7 @@ func (i *interceptor) authorize(ctx context.Context, procedure string) (context.
 		if publicProcedures[procedure] && !strings.HasPrefix(procedure, "/"+dockwellv1connect.AuthServiceName+"/") {
 			return ctx, nil
 		}
-		return ctx, connect.NewError(connect.CodeUnauthenticated, auth.ErrUnauthenticated)
+		return ctx, reasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
 	}
 	if req.token != "" && i.svc != nil {
 		p, err := i.svc.Authenticate(ctx, req.client, req.token)
@@ -251,18 +257,22 @@ func (i *interceptor) authorize(ctx context.Context, procedure string) (context.
 		case errors.Is(err, auth.ErrUnauthenticated):
 		default:
 			i.logger.ErrorContext(ctx, "can't check a session", slog.Any("error", err))
-			return ctx, connect.NewError(connect.CodeUnavailable, errors.New("can't check your session right now. Try again in a moment"))
+			return ctx, reasonError(connect.CodeUnavailable, errors.New("can't check your session right now. Try again in a moment"), ReasonUnavailable)
 		}
 	}
 	if publicProcedures[procedure] {
 		return ctx, nil
 	}
 	if _, ok := PrincipalFrom(ctx); !ok {
-		return ctx, connect.NewError(connect.CodeUnauthenticated, auth.ErrUnauthenticated)
+		if req.token != "" {
+			return ctx, reasonError(connect.CodeUnauthenticated, errSessionEnded, ReasonSessionEnded)
+		}
+		return ctx, reasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
 	}
 	if !req.get && !req.sameOrigin {
-		return ctx, connect.NewError(connect.CodePermissionDenied,
-			errors.New("refused a change made with a session cookie but no Origin header, so it may not come from the panel. Make the change in the panel"))
+		return ctx, reasonError(connect.CodePermissionDenied,
+			errors.New("refused a change made with a session cookie but no Origin header, so it may not come from the panel. Make the change in the panel"),
+			ReasonOrigin)
 	}
 	return ctx, nil
 }
