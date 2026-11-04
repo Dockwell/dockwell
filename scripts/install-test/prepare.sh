@@ -25,7 +25,8 @@ case " $ID ${ID_LIKE:-} " in
 	apt-get install -y -qq --no-install-recommends curl ca-certificates systemd >/dev/null
 	;;
 *" rhel "* | *" fedora "*)
-	dnf install -y -q curl tar gzip systemd >/dev/null
+	# curl-minimal is already there, and conflicts with the curl package.
+	dnf install -y -q tar gzip systemd >/dev/null
 	;;
 *)
 	echo "prepare.sh: $PRETTY_NAME isn't one of the systems the install tests cover." >&2

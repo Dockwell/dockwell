@@ -61,7 +61,7 @@ test: deps ## Run the Go and TypeScript tests
 	pnpm -r --if-present test
 
 .PHONY: lint
-lint: deps ## Lint Go, the schema, TypeScript, CSS, translations, license headers and doc links
+lint: deps ## Lint Go, the schema, TypeScript, CSS, shell scripts, translations, license headers and doc links
 	go mod tidy -diff
 	cd tools && go mod tidy -diff
 	go vet ./...
@@ -74,6 +74,8 @@ lint: deps ## Lint Go, the schema, TypeScript, CSS, translations, license header
 	pnpm --filter @dockwell/ui tokens:check
 	pnpm --filter @dockwell/web i18n:check
 	scripts/check-spdx.sh
+	@if command -v shellcheck >/dev/null; then git ls-files -z '*.sh' | xargs -0 shellcheck; \
+	else echo "shellcheck isn't installed, so the shell scripts weren't linted. CI lints them."; fi
 	go run ./scripts/checklinks
 
 .PHONY: fmt

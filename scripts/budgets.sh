@@ -34,7 +34,7 @@ export GOMEMLIMIT=200MiB
 
 work=$(mktemp -d)
 pids=()
-# shellcheck disable=SC2329 # the EXIT trap runs it
+# shellcheck disable=SC2317,SC2329 # the EXIT trap runs it
 cleanup() {
   for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; done
   for pid in "${pids[@]}"; do wait "$pid" 2>/dev/null || true; done

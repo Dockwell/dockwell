@@ -56,11 +56,20 @@ else
 	mode=direct
 fi
 
+# get prints what a URL answers, with curl or, on Alpine, busybox wget.
 get() {
 	if command -v curl >/dev/null 2>&1; then
-		curl -fsS --max-time 5 "$@"
+		curl -fsS --max-time 5 "$1"
 	else
-		wget -q -T 5 -O - "$@"
+		wget -q -T 5 -O - "$1"
+	fi
+}
+
+get_html() {
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsS --max-time 5 -H 'Accept: text/html' "$1"
+	else
+		wget -q -T 5 -O - --header 'Accept: text/html' "$1"
 	fi
 }
 
@@ -77,6 +86,7 @@ post() {
 run_install() {
 	tree=$1
 	shift
+	# shellcheck disable=SC2002 # piped on purpose, as curl pipes it
 	if cat "$INSTALL" | DOCKWELL_RELEASES_URL="$RELEASES/$tree" DOCKWELL_VERIFY_KEY="$KEY" sh -s -- "$@" >"$log/out" 2>&1; then
 		status=0
 	else
@@ -136,7 +146,7 @@ wait_panel() {
 		[ "$i" -lt 100 ] || die "the panel didn't answer on $PANEL within 10 s"
 		sleep 0.1
 	done
-	get -H 'Accept: text/html' "$PANEL/" | grep -q '<div id="root"></div>' || die "$PANEL/ doesn't serve the panel"
+	get_html "$PANEL/" | grep -q '<div id="root"></div>' || die "$PANEL/ doesn't serve the panel"
 	ok "the panel answers on $PANEL"
 }
 
@@ -224,7 +234,7 @@ stop_direct
 run_install good --uninstall || die "uninstalling failed"
 said "Removed Dockwell"
 [ ! -e "$BIN" ] || die "$BIN is still there"
-[ ! -e "$UNIT" ] && [ ! -e "$INITD" ] || die "the service is still there"
+if [ -e "$UNIT" ] || [ -e "$INITD" ]; then die "the service is still there"; fi
 [ ! -e /etc/systemd/system/multi-user.target.wants/dockwell.service ] || die "dockwell.service is still enabled"
 [ ! -e /etc/runlevels/default/dockwell ] || die "dockwell is still in the default runlevel"
 [ -e "$DATA/control/state.db" ] || die "uninstalling removed the data in $DATA"
