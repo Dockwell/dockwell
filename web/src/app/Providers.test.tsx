@@ -18,7 +18,12 @@ function DesignSystemWords() {
       />
       <Sparkline data={[1, 2.345]} />
       <CommandBar inline items={[]} scope="Acme / storefront" />
-      <PlanDiff resources={[{ id: "x", action: "update", kind: "app", name: "api" }]} />
+      <PlanDiff
+        resources={[
+          { id: "x", action: "update", kind: "app", name: "api" },
+          { id: "y", action: "replace", kind: "database", name: "postgres" },
+        ]}
+      />
     </>
   );
 }
@@ -35,6 +40,7 @@ describe("Providers", () => {
     expect(screen.getByRole("img", { name: "Trend over 2 samples, latest 2.35" })).toBeVisible();
     expect(screen.getByText("Acme / storefront").tagName).toBe("B");
     expect(screen.getByText("Update in place")).toBeVisible();
+    expect(screen.getByText("to replace")).toBeVisible();
   });
 
   it("translates them when the locale changes", async () => {
@@ -48,5 +54,6 @@ describe("Providers", () => {
     expect(screen.getByText("Acme / storefront").closest(".dw-cmd-scope")).toHaveTextContent("范围：Acme / storefront");
     expect(screen.getByText("原地更新")).toBeVisible();
     expect(screen.getByText("应用")).toBeVisible();
+    expect(screen.getByText("项待替换")).toBeVisible();
   });
 });

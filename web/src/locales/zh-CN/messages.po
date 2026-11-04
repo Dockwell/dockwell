@@ -355,6 +355,10 @@ msgid "to move"
 msgstr "移动"
 
 #: src/app/Providers.tsx
+msgid "to replace"
+msgstr "项待替换"
+
+#: src/app/Providers.tsx
 msgid "to run"
 msgstr "运行"
 

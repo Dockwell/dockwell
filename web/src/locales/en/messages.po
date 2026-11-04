@@ -355,6 +355,10 @@ msgid "to move"
 msgstr "to move"
 
 #: src/app/Providers.tsx
+msgid "to replace"
+msgstr "to replace"
+
+#: src/app/Providers.tsx
 msgid "to run"
 msgstr "to run"
 

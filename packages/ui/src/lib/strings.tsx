@@ -82,8 +82,8 @@ export interface UIStrings {
     action: Readonly<Record<PlanAction, string>>;
     /** The kind shown after a resource's name. */
     kind: Readonly<Record<PlanKind, string>>;
-    /** The summary, each after a count: "3 to create". */
-    summary: Readonly<{ create: string; change: string; destroy: string }>;
+    /** The summary, each after a count: "3 to create". Replacements count apart from changes. */
+    summary: Readonly<{ create: string; change: string; replace: string; destroy: string }>;
     /** Stands in for a secret value, which is never shown. */
     hidden: string;
     /** Read before an old and a new value. */
@@ -166,7 +166,7 @@ export const englishStrings: UIStrings = {
       server: "server",
       firewall: "firewall",
     },
-    summary: { create: "to create", change: "to change", destroy: "to destroy" },
+    summary: { create: "to create", change: "to change", replace: "to replace", destroy: "to destroy" },
     hidden: "hidden",
     from: "from",
     to: "to",

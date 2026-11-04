@@ -102,7 +102,7 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
           server: t`server`,
           firewall: t`firewall`,
         },
-        summary: { create: t`to create`, change: t`to change`, destroy: t`to destroy` },
+        summary: { create: t`to create`, change: t`to change`, replace: t`to replace`, destroy: t`to destroy` },
         hidden: t`hidden`,
         from: t`from`,
         to: t`to`,

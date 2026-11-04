@@ -43,12 +43,19 @@ const resources: PlanResource[] = [
 ];
 
 describe("PlanDiff", () => {
-  it("sums up the plan, counting replacements as changes", async () => {
-    const { container } = render(<PlanDiff resources={resources} impact="One replica at a time · no downtime" />);
-    const counts = Array.from(container.querySelectorAll(".dw-plan-count")).map((c) => c.textContent);
-    expect(counts).toEqual(["+2 to create", "~2 to change", "−1 to destroy"]);
+  it("sums up the plan, counting replacements apart from changes", async () => {
+    const { container, rerender } = render(
+      <PlanDiff resources={resources} impact="One replica at a time · no downtime" />,
+    );
+    const counts = () => Array.from(container.querySelectorAll(".dw-plan-count")).map((c) => c.textContent);
+    expect(counts()).toEqual(["+2 to create", "~1 to change", "±1 to replace", "−1 to destroy"]);
     expect(screen.getByText("One replica at a time · no downtime")).toHaveClass("dw-plan-impact");
     await expectAccessible(container);
+    // A plan that only replaces a database says so; it never reads as a change with nothing destroyed.
+    rerender(<PlanDiff resources={[{ id: "db", action: "replace", kind: "database", name: "postgres" }]} />);
+    expect(counts()).toEqual(["+0 to create", "~0 to change", "±1 to replace", "−0 to destroy"]);
+    rerender(<PlanDiff resources={resources.filter((resource) => resource.action !== "replace")} />);
+    expect(counts()).toEqual(["+2 to create", "~1 to change", "−1 to destroy"]);
   });
 
   it("shows each resource with its kind and action, struck through when destroyed", () => {
@@ -98,7 +105,7 @@ describe("PlanDiff", () => {
             ...englishStrings.planDiff,
             action: { ...englishStrings.planDiff.action, update: "原地更新" },
             kind: { ...englishStrings.planDiff.kind, app: "应用" },
-            summary: { create: "待创建", change: "待更改", destroy: "待销毁" },
+            summary: { create: "待创建", change: "待更改", replace: "待替换", destroy: "待销毁" },
           },
         }}
       >

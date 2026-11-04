@@ -81,23 +81,26 @@ const KIND_ICON: Readonly<Record<PlanKind, IconName>> = {
 
 /**
  * Shows exactly what a change will do before it runs: what is created,
- * changed, replaced or destroyed, and the impact. Old values are struck
- * through as well as coloured, so the diff reads in grayscale.
+ * changed, replaced or destroyed, and the impact. The summary counts
+ * replacements apart from changes, so a plan that replaces a database never
+ * reads as a plain change. Old values are struck through as well as
+ * coloured, so the diff reads in grayscale.
  */
 export function PlanDiff({ resources, impact, className }: PlanDiffProps) {
   const strings = useUIStrings();
   const baseId = useId();
   // Only what the reader toggled is stored, so resources added later start the default way.
   const [toggled, setToggled] = useState<Readonly<Record<string, boolean>>>({});
-  const counts = { create: 0, change: 0, destroy: 0 };
-  for (const resource of resources) {
-    if (resource.action === "create") counts.create += 1;
-    else if (resource.action === "destroy") counts.destroy += 1;
-    else counts.change += 1;
-  }
+  const counts: Record<PlanAction, number> = { create: 0, update: 0, replace: 0, destroy: 0 };
+  for (const resource of resources) counts[resource.action] += 1;
+  // A replace removes what is there now, so it gets its own count rather than hiding among the changes.
+  // It shows only when the plan has one; the other three always show, so a zero reads as a promise.
   const summary = [
     { key: "create", count: counts.create, tone: "add", symbol: ACTIONS.create.symbol },
-    { key: "change", count: counts.change, tone: "change", symbol: ACTIONS.update.symbol },
+    { key: "change", count: counts.update, tone: "change", symbol: ACTIONS.update.symbol },
+    ...(counts.replace > 0
+      ? [{ key: "replace", count: counts.replace, tone: "change", symbol: ACTIONS.replace.symbol } as const]
+      : []),
     { key: "destroy", count: counts.destroy, tone: "remove", symbol: ACTIONS.destroy.symbol },
   ] as const;
 
