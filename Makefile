@@ -159,6 +159,10 @@ smoke: build build-agent ## Start the built binaries: the full build serves the 
 e2e: build ## Claim, sign out and sign in again in headless Chromium with a virtual passkey (SHOTS=dir saves screenshots)
 	node web/e2e/sign-in.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
 
+.PHONY: docker-e2e
+docker-e2e: build-go ## Run, change, undo and export a service through the CLI on this machine's Docker, and import a Compose file
+	scripts/docker-e2e.sh $(BIN)
+
 .PHONY: budgets
 budgets: build build-agent ## Fail if the builds are over their idle memory budgets; BASELINE=other/dockwell and BASELINE_AGENT=other/dockwell-agent measure those too (about 7 minutes)
 	scripts/budgets.sh $(BIN) $(AGENT_BIN)

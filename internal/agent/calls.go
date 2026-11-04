@@ -217,6 +217,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		step.Ref = ref
+		ctx = resource.WithProgress(ctx, c.progress(call.GetId()))
 		if err := c.local.Apply(ctx, step, spec); err != nil {
 			return fail(err)
 		}
@@ -252,6 +253,27 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
 		Message: "this agent doesn't know that call; update it to the control plane's version",
 	}}}
+}
+
+// progressEvery is how often a call says how it is going, at most.
+const progressEvery = time.Second
+
+// progress returns what a call's drivers tell how it is going, which goes
+// to the control plane at most once every progressEvery. The step's own
+// end says the last word, so a message dropped in between is no loss.
+func (c *calls) progress(id uint64) func(string) {
+	var mu sync.Mutex
+	var last time.Time
+	return func(message string) {
+		mu.Lock()
+		if time.Since(last) < progressEvery {
+			mu.Unlock()
+			return
+		}
+		last = time.Now()
+		mu.Unlock()
+		_ = c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Progress{Progress: &agentv1.CallProgress{Id: id, Message: message}}})
+	}
 }
 
 // decode reads a desired resource with the agent's drivers.

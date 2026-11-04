@@ -1588,9 +1588,12 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			}
 			return stop(qi, fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run", q.name))
 		}
-		_, u := e.step(c.ID, q.index, StepRunning, message(StepRunning, q.step.Action, q.step.Ref, q.name))
+		running := message(StepRunning, q.step.Action, q.step.Ref, q.name)
+		_, u := e.step(c.ID, q.index, StepRunning, running)
 		e.announce(c.ID, u)
 		callCtx, called := e.calling(ctx)
+		index := q.index
+		callCtx = resource.WithProgress(callCtx, func(m string) { e.progressed(c.ID, index, running+": "+m) })
 		err := agent.Apply(callCtx, *q.step, it.desiredOn(q.server))
 		called()
 		switch {

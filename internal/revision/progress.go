@@ -311,6 +311,23 @@ func (e *Engine) step(changeID string, i int, state StepState, message string) (
 	return &c, &Update{Index: i, Step: &step}
 }
 
+// progressed updates the message of a step that is running, as its
+// driver says how it is going, such as how much of an image it has
+// pulled, and tells the change's watchers. It isn't recorded: the step's
+// end is. A word that comes once the step is no longer running is
+// dropped.
+func (e *Engine) progressed(changeID string, i int, message string) {
+	e.pmu.Lock()
+	defer e.pmu.Unlock()
+	p, ok := e.live[changeID]
+	if !ok || i < 0 || i >= len(p.Steps) || p.Steps[i].State != StepRunning {
+		return
+	}
+	p.Steps[i].Message = message
+	step := p.Steps[i]
+	e.publishLocked(changeID, Update{Index: i, Step: &step})
+}
+
 // announce tells a change's watchers that a step moved on; nil tells them
 // nothing.
 func (e *Engine) announce(changeID string, u *Update) {

@@ -82,6 +82,31 @@ jobs:
       - name: The agent build joins the full build
         run: scripts/smoke-agent.sh bin/dockwell-linux-amd64 bin/dockwell-agent-linux-amd64
 
+  docker:
+    name: Docker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # The drivers' tests against the runner's Docker Engine, and a service
+    # through the CLI end to end, beside docker compose (ADR 0021).
+    env:
+      DOCKWELL_TEST_DOCKER: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      - name: Docker
+        run: |
+          docker version
+          docker compose version
+      - name: Tests against Docker
+        run: go test -race -run 'OnRealDocker' -v ./internal/...
+      - name: A service end to end
+        run: make docker-e2e
+
   schema:
     name: API schema
     runs-on: ubuntu-24.04

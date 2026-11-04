@@ -13,7 +13,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"math/rand/v2"
+	"slices"
 	"sync"
 	"time"
 
@@ -40,12 +42,17 @@ type Config struct {
 	Build buildinfo.Info
 	// Collector samples the server. Nil means this machine.
 	Collector *collect.Collector
-	// Drivers are the kinds of resource this agent manages, which it
-	// reports in its hello. Nil manages none: the Docker and firewall
-	// drivers come in M3 (#26, #27).
+	// Drivers are the kinds of resource this agent manages. It offers
+	// those that can run now in its hello, and says why it can't run the
+	// rest, such as the Docker kinds while Docker isn't running; it checks
+	// again every KindsEvery and tells the control plane what changed. Nil
+	// manages none.
 	Drivers *resource.Registry
 	// Desired hears of each step the agent applies. Nil keeps nothing.
 	Desired Desired
+	// KindsEvery is how often the agent checks which kinds it can run.
+	// Zero means DefaultKindsEvery.
+	KindsEvery time.Duration
 }
 
 // Desired keeps what the control plane told this agent to apply, so the
@@ -72,7 +79,62 @@ const (
 	// endWait bounds how long a stream that ends on purpose waits for the
 	// control plane to end it.
 	endWait = 10 * time.Second
+	// DefaultKindsEvery is how often the agent checks which kinds it can
+	// run, such as whether Docker answers.
+	DefaultKindsEvery = 30 * time.Second
+	// readyWait bounds one check of every driver.
+	readyWait = 5 * time.Second
 )
+
+// kinds is what an agent says it can run, in its hello or after.
+type kinds struct {
+	ready       []string
+	unavailable map[string]string
+}
+
+// readyKinds checks which kinds the agent's drivers can run now.
+func readyKinds(ctx context.Context, drivers *resource.Registry) kinds {
+	ctx, cancel := context.WithTimeout(ctx, readyWait)
+	defer cancel()
+	ready, unavailable := drivers.Ready(ctx)
+	k := kinds{ready: make([]string, 0, len(ready))}
+	for _, r := range ready {
+		k.ready = append(k.ready, string(r))
+	}
+	for kind, why := range unavailable {
+		if k.unavailable == nil {
+			k.unavailable = map[string]string{}
+		}
+		k.unavailable[string(kind)] = why
+	}
+	return k
+}
+
+func (k kinds) equal(o kinds) bool {
+	return slices.Equal(k.ready, o.ready) && maps.Equal(k.unavailable, o.unavailable)
+}
+
+func (k kinds) proto() ([]string, []*agentv1.UnavailableKind) {
+	var out []*agentv1.UnavailableKind
+	for _, kind := range slices.Sorted(maps.Keys(k.unavailable)) {
+		out = append(out, &agentv1.UnavailableKind{Kind: kind, Reason: k.unavailable[kind]})
+	}
+	return k.ready, out
+}
+
+// log says which kinds the agent can't run, and why, once per reason.
+func (k kinds) log(ctx context.Context, logger *slog.Logger) {
+	byReason := map[string][]string{}
+	for kind, why := range k.unavailable {
+		byReason[why] = append(byReason[why], kind)
+	}
+	for _, why := range slices.Sorted(maps.Keys(byReason)) {
+		names := byReason[why]
+		slices.Sort(names)
+		logger.WarnContext(ctx, "the agent can't run some kinds of resource; it offers them once it can",
+			slog.Any("kinds", names), slog.String("reason", why))
+	}
+}
 
 // Run keeps the server's certificate fresh and its stream to the control
 // plane open, until ctx is done.
@@ -181,11 +243,10 @@ func session(ctx context.Context, cfg Config) (err error) {
 	stream := client.Connect(ctx)
 	defer func() { _ = stream.CloseRequest(); _ = stream.CloseResponse() }()
 
-	kinds := cfg.Drivers.Kinds()
+	offered := readyKinds(ctx, cfg.Drivers)
+	offered.log(ctx, cfg.Logger)
 	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx)}
-	for _, k := range kinds {
-		hello.Kinds = append(hello.Kinds, string(k))
-	}
+	hello.Kinds, hello.Unavailable = offered.proto()
 	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: hello}}); err != nil {
 		if errors.Is(err, io.EOF) {
 			// The control plane ended the stream; Receive says why.
@@ -276,6 +337,12 @@ func session(ctx context.Context, cfg Config) (err error) {
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	every := cfg.KindsEvery
+	if every <= 0 {
+		every = DefaultKindsEvery
+	}
+	recheck := time.NewTicker(every)
+	defer recheck.Stop()
 	if err := sendStats(); err != nil {
 		return err
 	}
@@ -283,6 +350,22 @@ func session(ctx context.Context, cfg Config) (err error) {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-recheck.C:
+			now := readyKinds(ctx, cfg.Drivers)
+			if now.equal(offered) {
+				continue
+			}
+			if len(now.unavailable) == 0 {
+				cfg.Logger.InfoContext(ctx, "the agent can run every kind of resource it has a driver for", slog.Any("kinds", now.ready))
+			} else {
+				now.log(ctx, cfg.Logger)
+			}
+			msg := &agentv1.Kinds{}
+			msg.Kinds, msg.Unavailable = now.proto()
+			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Kinds{Kinds: msg}}); err != nil {
+				return err
+			}
+			offered = now
 		case <-renewed:
 			// Finish the calls under way first, so moving the stream
 			// doesn't cut a step off halfway.

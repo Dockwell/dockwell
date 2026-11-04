@@ -33,7 +33,9 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/serve"
@@ -90,7 +92,7 @@ func runCommand(cmd *cobra.Command, stdio IO, g *globalFlags) runRole {
 			return err
 		}
 		if role == roleAgent {
-			return runAgent(ctx, logger, dir, id, build)
+			return runAgent(ctx, stdio, logger, dir, id, build)
 		}
 		f.listenFromEnv = !cmd.Flags().Changed("listen") && stdio.Getenv(envListen) != ""
 		if f.database, err = g.databaseOf(stdio, dir); err != nil {
@@ -261,7 +263,7 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		stopAgent()
 	})
 	wg.Go(func() {
-		agentErr = runAgent(agentCtx, logger, dir, own, build)
+		agentErr = runAgent(agentCtx, stdio, logger, dir, own, build)
 		cancel()
 	})
 	wg.Wait()
@@ -270,12 +272,10 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 
 // controlKinds are the kinds the control plane knows: it checks their specs
 // and plans them for a server that is offline. Servers run them only where
-// their agents have drivers, which they report in their hello; the agent in
-// this build has none, so for now only projects and environments, which run
-// on no server, apply end to end. The Docker and firewall drivers come in
-// M3 (#26, #27).
+// their agents have drivers, which they report in their hello: the Docker
+// kinds while Docker answers. The firewall's driver comes with #27.
 func controlKinds() *resource.Registry {
-	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{})
+	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{})
 }
 
 // openState opens the control plane's key, its state and its identity,

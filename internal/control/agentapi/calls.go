@@ -89,15 +89,12 @@ func (a *Agents) Agent(server string) (resource.Agent, bool) {
 
 // open starts a session for a stream that has said hello. send writes to
 // the stream; Session.close ends the session when the stream does.
-func (a *Agents) open(server, name string, kinds []string, send func(*agentv1.ConnectResponse) error) *Session {
+func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, server: server, name: name, send: send,
-		pending: map[uint64]chan *agentv1.CallResult{}, done: make(chan struct{}),
+		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, done: make(chan struct{}),
 	}
-	for _, k := range kinds {
-		s.kinds = append(s.kinds, resource.Kind(k))
-	}
-	slices.Sort(s.kinds)
+	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
 	a.mu.Lock()
 	a.sessions[server] = s
 	close(a.opened)
@@ -115,7 +112,12 @@ type Session struct {
 	agents *Agents
 	server string
 	name   string
-	kinds  []resource.Kind
+
+	kindsMu sync.Mutex
+	kinds   []resource.Kind
+	// unavailable says why the agent can't run a kind it has a driver
+	// for, such as Docker not running.
+	unavailable map[resource.Kind]string
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -129,8 +131,37 @@ type Session struct {
 	mu      sync.Mutex
 	next    uint64
 	pending map[uint64]chan *agentv1.CallResult
-	done    chan struct{}
-	closed  bool
+	// progress hears how each pending call is going, where its caller
+	// follows it.
+	progress map[uint64]func(string)
+	done     chan struct{}
+	closed   bool
+}
+
+// setKinds records what the agent says it can run, in its hello or
+// after.
+func (s *Session) setKinds(kinds []string, unavailable []*agentv1.UnavailableKind) {
+	s.kindsMu.Lock()
+	defer s.kindsMu.Unlock()
+	s.kinds = s.kinds[:0]
+	for _, k := range kinds {
+		s.kinds = append(s.kinds, resource.Kind(k))
+	}
+	slices.Sort(s.kinds)
+	s.unavailable = map[resource.Kind]string{}
+	for _, u := range unavailable {
+		s.unavailable[resource.Kind(u.GetKind())] = u.GetReason()
+	}
+}
+
+// progressed passes on how a call is going to its caller, if it follows.
+func (s *Session) progressed(p *agentv1.CallProgress) {
+	s.mu.Lock()
+	fn := s.progress[p.GetId()]
+	s.mu.Unlock()
+	if fn != nil {
+		fn(p.GetMessage())
+	}
 }
 
 var _ resource.Agent = (*Session)(nil)
@@ -196,6 +227,7 @@ func (s *Session) deliver(r *agentv1.CallResult) {
 	s.mu.Lock()
 	ch, ok := s.pending[r.GetId()]
 	delete(s.pending, r.GetId())
+	delete(s.progress, r.GetId())
 	s.mu.Unlock()
 	if ok {
 		ch <- r
@@ -292,10 +324,14 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 	c.Id = s.next
 	ch := make(chan *agentv1.CallResult, 1)
 	s.pending[c.Id] = ch
+	if fn := resource.ProgressFunc(ctx); fn != nil {
+		s.progress[c.Id] = fn
+	}
 	s.mu.Unlock()
 	forget := func() {
 		s.mu.Lock()
 		delete(s.pending, c.GetId())
+		delete(s.progress, c.GetId())
 		s.mu.Unlock()
 	}
 	deadline, _ := ctx.Deadline()
@@ -344,10 +380,16 @@ func (s *Session) notConnected() error {
 	return fault.New(resource.ErrNotConnected, "%s's agent disconnected before the call reached it, so it didn't run", s.name)
 }
 
-// supports refuses a kind the agent has no driver for.
+// supports refuses a kind the agent has no driver for, or can't run now,
+// with the agent's reason, such as Docker not running.
 func (s *Session) supports(ref resource.Ref) error {
+	s.kindsMu.Lock()
+	defer s.kindsMu.Unlock()
 	if slices.Contains(s.kinds, ref.Kind) {
 		return nil
+	}
+	if why, ok := s.unavailable[ref.Kind]; ok {
+		return fault.New(resource.ErrNoDriver, "%s can't run %s %s now: %s", s.name, ref.Kind, ref.Name, why)
 	}
 	have := "none"
 	if len(s.kinds) > 0 {

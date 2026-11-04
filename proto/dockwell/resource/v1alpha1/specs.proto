@@ -15,7 +15,9 @@ extend google.protobuf.FieldOptions {
   bool sensitive = 51001;
 }
 
-// Container is one Docker container on a server.
+// Container is one Docker container: run by hand on a server, or a
+// service's app. Docker fills in from the image what a container leaves
+// out, such as its command or working directory, and that isn't drift.
 message Container {
   // The image to run, such as "ghcr.io/acme/web:1.4.2".
   string image = 1;
@@ -27,8 +29,59 @@ message Container {
   repeated PortMapping ports = 4;
   // What Docker does when the container stops.
   RestartPolicy restart = 5;
-  // Labels on the container, for tools that read them.
+  // Labels on the container, for tools that read them. Keys that start with
+  // "com.docker.compose." or "dev.dockwell." are Dockwell's own.
   map<string, string> labels = 6;
+  // Overrides the image's entrypoint when set.
+  repeated string entrypoint = 7;
+  // Volumes and server paths mounted into the container.
+  repeated Mount mounts = 8;
+  // The networks the container joins, by name. A service's are networks in
+  // its environment; a container's on its own are Docker's. Empty joins
+  // Docker's default bridge network.
+  repeated string networks = 9;
+  // The user the command runs as, such as "1000" or "node". Empty takes the
+  // image's.
+  string user = 10;
+  // The directory the command runs in. Empty takes the image's.
+  string working_dir = 11;
+  // How Docker checks the container is healthy. Unset takes the image's
+  // check, if it has one.
+  Healthcheck healthcheck = 12;
+}
+
+// Mount puts a volume, or a directory on the server, into a container.
+message Mount {
+  // What is mounted: one of the two.
+  oneof source {
+    // A volume, by name. A service's are volumes in its environment; a
+    // container's on its own are Docker's.
+    string volume = 1;
+    // An absolute path on the server, such as "/srv/uploads".
+    string host_path = 2;
+  }
+  // Where it appears in the container, as an absolute path.
+  string target = 3;
+  // Mounts it read-only.
+  bool read_only = 4;
+}
+
+// Healthcheck is a command Docker runs in the container to check it is
+// healthy.
+message Healthcheck {
+  // The check, as Docker takes it: ["CMD", "curl", "-f", "http://localhost"],
+  // ["CMD-SHELL", "curl -f http://localhost || exit 1"], or ["NONE"] to turn
+  // off the image's check.
+  repeated string test = 1;
+  // How often it runs, such as "30s". Empty takes Docker's default.
+  string interval = 2;
+  // How long one check may take, such as "5s". Empty takes Docker's default.
+  string timeout = 3;
+  // How long the container has to start before failures count, such as
+  // "1m". Empty takes Docker's default.
+  string start_period = 4;
+  // How many failures in a row make it unhealthy. 0 takes Docker's default.
+  uint32 retries = 5;
 }
 
 // PortMapping publishes a container port on the server.
@@ -39,6 +92,9 @@ message PortMapping {
   uint32 container_port = 2;
   // TCP unless set.
   Protocol protocol = 3;
+  // The server address it listens on, such as "127.0.0.1". Empty listens on
+  // every address.
+  string host_ip = 4;
 }
 
 // RestartPolicy says when Docker restarts a stopped container.
@@ -110,15 +166,45 @@ message Environment {
 
 // Service is anything that runs in an environment, placed on servers: for
 // now an app from an image, run as one container on each server it is
-// placed on. Compose stacks, websites, databases, catalog apps and jobs
-// come later. Where it runs isn't part of the spec: each revision is
-// deployed on its servers.
+// placed on, with the labels Docker Compose gives a service's container,
+// so docker compose sees it. A Compose file becomes services, volumes and
+// networks. Websites, databases, catalog apps and jobs come later. Where it
+// runs isn't part of the spec: each revision is deployed on its servers.
 message Service {
   // What runs.
   oneof runs {
     // An app from an image.
     Container app = 1;
   }
+}
+
+// Volume is a Docker volume in an environment, which its services mount
+// by name, as a Compose file's volumes. Deleting one destroys its data,
+// though Dockwell keeps it for 7 days first. Docker can't change a volume,
+// so its spec can't change once it is made.
+message Volume {
+  // The volume driver: "local" unless set.
+  string driver = 1;
+  // The driver's options, such as type, device and o for an NFS mount.
+  map<string, string> options = 2;
+  // Labels on the volume, for tools that read them.
+  map<string, string> labels = 3;
+}
+
+// Network is a Docker network in an environment, which its services join
+// by name, as a Compose file's networks. A service reaches another on a
+// network they share by the other's name. Docker can't change a network,
+// so its spec can't change once it is made.
+message Network {
+  // The network driver: "bridge" unless set.
+  string driver = 1;
+  // The driver's options.
+  map<string, string> options = 2;
+  // Cuts the network off from outside the server: only its containers
+  // reach each other.
+  bool internal = 3;
+  // Labels on the network, for tools that read them.
+  map<string, string> labels = 4;
 }
 
 // Spec is the desired state of one resource, of any kind: the field that is
@@ -137,5 +223,9 @@ message Spec {
     Container container = 4;
     // A firewall rule on a server, kind "firewall.rule".
     FirewallRule firewall_rule = 5;
+    // A volume in an environment, kind "volume".
+    Volume volume = 6;
+    // A network in an environment, kind "network".
+    Network network = 7;
   }
 }

@@ -364,7 +364,7 @@ func testPlanApplyAndUndoThroughTheAPI(t *testing.T, backend store.Backend) {
 		done.GetUndoDeadline().AsTime().Sub(done.GetApplyTime().AsTime()) != revision.UndoWindow {
 		t.Errorf("the applied change = %v", done)
 	}
-	if got, _ := hz1.docker.Inspect(t.Context(), "web"); got.GetImage() != "nginx:1.27" {
+	if got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"}); got.GetImage() != "nginx:1.27" {
 		t.Errorf("hz-1 runs %v, want nginx:1.27", got)
 	}
 
@@ -390,7 +390,7 @@ func testPlanApplyAndUndoThroughTheAPI(t *testing.T, backend store.Backend) {
 	if got := apply(t, c, undo); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("the undo = %v", got)
 	}
-	if got, _ := hz1.docker.Inspect(t.Context(), "web"); got.GetImage() != "nginx:1.27" {
+	if got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"}); got.GetImage() != "nginx:1.27" {
 		t.Errorf("after the undo hz-1 runs %v, want nginx:1.27", got)
 	}
 	got, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: update.GetId()}))
@@ -717,9 +717,9 @@ func testDriftThroughTheAPI(t *testing.T, backend store.Backend) {
 		t.Fatalf("drift right after applying = %v", d)
 	}
 	changed := func(image string) {
-		got, _ := hz1.docker.Inspect(t.Context(), "web")
+		got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"})
 		got.Image = image
-		_ = hz1.docker.Run(t.Context(), "web", got)
+		_ = hz1.docker.Run(t.Context(), container.Target{Name: "web"}, got)
 	}
 	changed("nginx:hand-edit")
 	d := listDrift().GetDrift()
@@ -732,7 +732,7 @@ func testDriftThroughTheAPI(t *testing.T, backend store.Backend) {
 		t.Fatal(err)
 	}
 	apply(t, c, revert.Msg.GetChange())
-	if got, _ := hz1.docker.Inspect(t.Context(), "web"); got.GetImage() != "nginx:1.27" {
+	if got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"}); got.GetImage() != "nginx:1.27" {
 		t.Errorf("after reverting, hz-1 runs %s", got.GetImage())
 	}
 
@@ -792,9 +792,9 @@ func testSecretsNeverLeaveTheAPI(t *testing.T, backend store.Backend) {
 	}
 	apply(t, c, undo.Msg.GetChange())
 
-	got, _ := hz1.docker.Inspect(t.Context(), "web")
+	got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"})
 	got.Env["API_KEY"] = "s3cret-by-hand"
-	_ = hz1.docker.Run(t.Context(), "web", got)
+	_ = hz1.docker.Run(t.Context(), container.Target{Name: "web"}, got)
 	drift, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{ServerId: hz1.id.ServerID}))
 	if err != nil || len(drift.Msg.GetDrift()) != 1 {
 		t.Fatalf("ListDrift = %v, %v", drift, err)
@@ -1056,9 +1056,9 @@ func testDriftReportsEachServerItCantCheck(t *testing.T, backend store.Backend) 
 	waitConnected(t, f, hz2.id.ServerID, false)
 	hz2.drivers = nil
 	hz2.connect(t, f)
-	got, _ := hz1.docker.Inspect(t.Context(), "web")
+	got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"})
 	got.Image = "nginx:hand-edit"
-	_ = hz1.docker.Run(t.Context(), "web", got)
+	_ = hz1.docker.Run(t.Context(), container.Target{Name: "web"}, got)
 
 	res, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
 	if err != nil {

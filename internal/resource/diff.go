@@ -103,7 +103,7 @@ func (d *differ) message(prefix string, md protoreflect.MessageDescriptor, a, b 
 		if prefix != "" {
 			path = prefix + "." + path
 		}
-		s := sensitive || isSensitive(fd)
+		s := sensitive || IsSensitive(fd)
 		switch {
 		case fd.IsMap():
 			d.mapField(path, fd, get(a, fd), get(b, fd), s)
@@ -195,7 +195,10 @@ func (d *differ) mapField(path string, fd protoreflect.FieldDescriptor, a, b pro
 	}
 }
 
-func isSensitive(fd protoreflect.FieldDescriptor) bool {
+// IsSensitive reports a field that may hold a secret, by its sensitive
+// option: plans, history, logs and exports say it is there, never what it
+// holds.
+func IsSensitive(fd protoreflect.FieldDescriptor) bool {
 	opts := fd.Options()
 	return opts != nil && proto.GetExtension(opts, resourcev1.E_Sensitive).(bool)
 }

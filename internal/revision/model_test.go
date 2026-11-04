@@ -78,7 +78,7 @@ func deployments(t *testing.T, db *store.DB, ref resource.Ref) []string {
 
 func running(t *testing.T, s *server, ref resource.Ref) string {
 	t.Helper()
-	c, err := s.docker.Inspect(t.Context(), service.ContainerName(ref))
+	c, err := s.docker.Inspect(t.Context(), service.Target(ref))
 	if err != nil {
 		t.Fatal(err)
 	}

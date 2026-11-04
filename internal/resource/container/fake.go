@@ -32,10 +32,10 @@ func NewFake() *Fake {
 var _ Runtime = (*Fake)(nil)
 
 // Inspect returns a copy, as Docker would.
-func (f *Fake) Inspect(_ context.Context, name string) (*resourcev1.Container, error) {
+func (f *Fake) Inspect(_ context.Context, t Target) (*resourcev1.Container, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	c, ok := f.containers[name]
+	c, ok := f.containers[t.Name]
 	if !ok {
 		return nil, nil
 	}
@@ -43,42 +43,42 @@ func (f *Fake) Inspect(_ context.Context, name string) (*resourcev1.Container, e
 }
 
 // Run replaces any container with the name.
-func (f *Fake) Run(_ context.Context, name string, spec *resourcev1.Container) error {
+func (f *Fake) Run(_ context.Context, t Target, spec *resourcev1.Container) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.containers[name] = proto.Clone(spec).(*resourcev1.Container)
+	f.containers[t.Name] = proto.Clone(spec).(*resourcev1.Container)
 	f.Runs++
 	return nil
 }
 
 // SetRestart updates the policy in place.
-func (f *Fake) SetRestart(_ context.Context, name string, policy resourcev1.RestartPolicy) error {
+func (f *Fake) SetRestart(_ context.Context, t Target, policy resourcev1.RestartPolicy) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	c, ok := f.containers[name]
+	c, ok := f.containers[t.Name]
 	if !ok {
-		return fmt.Errorf("no container %s", name)
+		return fmt.Errorf("no container %s", t.Name)
 	}
 	c.Restart = policy
 	return nil
 }
 
 // Remove deletes the container.
-func (f *Fake) Remove(_ context.Context, name string) error {
+func (f *Fake) Remove(_ context.Context, t Target) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	delete(f.containers, name)
+	delete(f.containers, t.Name)
 	return nil
 }
 
 // Healthy fails for broken images.
-func (f *Fake) Healthy(_ context.Context, name string) error {
+func (f *Fake) Healthy(_ context.Context, t Target) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	c, ok := f.containers[name]
+	c, ok := f.containers[t.Name]
 	switch {
 	case !ok:
-		return fmt.Errorf("no container %s", name)
+		return fmt.Errorf("no container %s", t.Name)
 	case f.Broken[c.GetImage()]:
 		return fmt.Errorf("%s exited with code 1 on start", c.GetImage())
 	}

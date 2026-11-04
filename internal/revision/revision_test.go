@@ -139,7 +139,7 @@ func change(t *testing.T, steps []resource.Step, path string) resource.Change {
 
 func image(t *testing.T, s *server) string {
 	t.Helper()
-	c, err := s.docker.Inspect(context.Background(), "web")
+	c, err := s.docker.Inspect(context.Background(), container.Target{Name: "web"})
 	if err != nil || c == nil {
 		t.Fatalf("no web container: %v", err)
 	}
@@ -229,7 +229,7 @@ func testDeletesRunLastAndUndoBringsThemBack(t *testing.T, backend store.Backend
 		t.Errorf("order: creates first, then deletes in reverse: %v, %v, %v", steps[0].Ref, steps[1].Ref, steps[2].Ref)
 	}
 	apply(t, e, remove)
-	if c, _ := f["srv_A"].docker.Inspect(t.Context(), "web"); c != nil {
+	if c, _ := f["srv_A"].docker.Inspect(t.Context(), container.Target{Name: "web"}); c != nil {
 		t.Fatal("web is still running")
 	}
 
@@ -334,7 +334,7 @@ func testAFailedApplyRollsBack(t *testing.T, backend store.Backend) {
 	if image(t, hz1) != "nginx:1.27" || hz1.firewall.Len() != 0 {
 		t.Errorf("after rollback: image %s, %d rules; want 1.27 and none", image(t, hz1), hz1.firewall.Len())
 	}
-	if err := hz1.docker.Healthy(t.Context(), "web"); err != nil {
+	if err := hz1.docker.Healthy(t.Context(), container.Target{Name: "web"}); err != nil {
 		t.Errorf("web isn't healthy after rollback: %v", err)
 	}
 	_ = db.View(t.Context(), func(tx *store.Tx) error {
@@ -592,7 +592,7 @@ func testAServerThatDropsMidApplyIsRolledBackWhenItReturns(t *testing.T, backend
 		}
 		return nil
 	})
-	if c, _ := f["srv_B"].docker.Inspect(t.Context(), "web"); c != nil {
+	if c, _ := f["srv_B"].docker.Inspect(t.Context(), container.Target{Name: "web"}); c != nil {
 		t.Error("web runs on srv_B although its change was rolled back")
 	}
 }

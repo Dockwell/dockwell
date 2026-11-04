@@ -205,7 +205,7 @@ When a new release comes out, copy it the same way, and replace what's in `lates
 
 ### Container images
 
-Dockwell starts running apps as Docker containers in M3. Until then, Docker on your servers pulls images the way it is set up there. To pull Docker Hub images through a registry mirror, add it to `/etc/docker/daemon.json`:
+Dockwell runs apps as Docker containers, and Docker on each server pulls their images the way it is set up there. To pull Docker Hub images through a registry mirror, add it to `/etc/docker/daemon.json`:
 
 ```json
 {
@@ -213,7 +213,7 @@ Dockwell starts running apps as Docker containers in M3. Until then, Docker on y
 }
 ```
 
-Then run `systemctl reload docker`. Docker reloads this setting without restarting, so running containers keep running. `docker info` lists it under "Registry Mirrors". The setting covers Docker Hub only: Docker has no setting to mirror other registries, such as `ghcr.io`. Dockwell's Docker driver will add one, and it pulls each image by digest, so a mirror can't change what runs ([ADR 0013](adr/0013-mirrors-for-releases-and-images.md#container-images-from-m3)).
+Then run `systemctl reload docker`. Docker reloads this setting without restarting, so running containers keep running. `docker info` lists it under "Registry Mirrors". The setting covers Docker Hub only: Docker has no setting to mirror other registries, such as `ghcr.io`. Dockwell's Docker driver will add one, and pull each image by digest, so a mirror can't change what runs ([ADR 0013](adr/0013-mirrors-for-releases-and-images.md#container-images-from-m3)). For now it pulls by tag ([ADR 0021](adr/0021-the-docker-driver.md#consequences)).
 
 ## Read it first
 

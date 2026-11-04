@@ -312,6 +312,82 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/compose:
+        get:
+            tags:
+                - ComposeService
+            description: |-
+                ExportCompose writes a Compose file of an environment, or of one service
+                 with the volumes and networks it uses. It never includes a secret: an
+                 environment variable whose value may hold one is listed by name, for
+                 docker compose to take from the shell it runs in. The CLI prints the
+                 file alone, so it pipes into docker compose -f -.
+            operationId: ComposeService_ExportCompose
+            parameters:
+                - name: project
+                  in: query
+                  description: |-
+                    The project of the environment, by name or ID. Leave it out while
+                     there is only one project, or when environment is an ID.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: |-
+                    The environment, by name or ID. Leave it out while its project has
+                     only one.
+                  schema:
+                    type: string
+                - name: service
+                  in: query
+                  description: |-
+                    One service to export, by name, with the volumes and networks it uses.
+                     Empty exports the whole environment.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ExportComposeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/compose:import:
+        post:
+            tags:
+                - ComposeService
+            description: |-
+                ImportCompose plans a Compose file into an environment as a change,
+                 ready to apply or discard, as ProposeChange does with edits. Each
+                 Compose service becomes a service, and each named volume and network
+                 one of its own. A field of the file that Dockwell can't run yet is
+                 refused, by name, rather than dropped.
+            operationId: ComposeService_ImportCompose
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ImportComposeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ImportComposeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/drift:
         get:
             tags:
@@ -1473,8 +1549,45 @@ components:
                     type: object
                     additionalProperties:
                         type: string
-                    description: Labels on the container, for tools that read them.
-            description: Container is one Docker container on a server.
+                    description: |-
+                        Labels on the container, for tools that read them. Keys that start with
+                         "com.docker.compose." or "dev.dockwell." are Dockwell's own.
+                entrypoint:
+                    type: array
+                    items:
+                        type: string
+                    description: Overrides the image's entrypoint when set.
+                mounts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Mount'
+                    description: Volumes and server paths mounted into the container.
+                networks:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The networks the container joins, by name. A service's are networks in
+                         its environment; a container's on its own are Docker's. Empty joins
+                         Docker's default bridge network.
+                user:
+                    type: string
+                    description: |-
+                        The user the command runs as, such as "1000" or "node". Empty takes the
+                         image's.
+                workingDir:
+                    type: string
+                    description: The directory the command runs in. Empty takes the image's.
+                healthcheck:
+                    allOf:
+                        - $ref: '#/components/schemas/Healthcheck'
+                    description: |-
+                        How Docker checks the container is healthy. Unset takes the image's
+                         check, if it has one.
+            description: |-
+                Container is one Docker container: run by hand on a server, or a
+                 service's app. Docker fills in from the image what a container leaves
+                 out, such as its command or working directory, and that isn't drift.
         CreateTokenRequest:
             type: object
             properties:
@@ -1717,6 +1830,24 @@ components:
                          Empty when it has none, or when it is gone and Dockwell no longer
                          keeps it.
             description: EventSubject names what an event is about.
+        ExportComposeResponse:
+            type: object
+            properties:
+                compose:
+                    type: string
+                    description: |-
+                        The Compose file, as YAML. Its project name is the environment's
+                         Compose project, so docker compose -f <file> ps lists what Dockwell
+                         runs.
+                omitted:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Environment variables whose values were left out, as SERVICE.NAME,
+                         such as "web.API_KEY". Set them in the shell, or in an .env file beside
+                         the file, before docker compose up.
+            description: ExportComposeResponse is a Compose file.
         FieldChange:
             type: object
             properties:
@@ -1925,6 +2056,89 @@ components:
                     description: The type of the serialized message.
             additionalProperties: true
             description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        Healthcheck:
+            type: object
+            properties:
+                test:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The check, as Docker takes it: ["CMD", "curl", "-f", "http://localhost"],
+                         ["CMD-SHELL", "curl -f http://localhost || exit 1"], or ["NONE"] to turn
+                         off the image's check.
+                interval:
+                    type: string
+                    description: How often it runs, such as "30s". Empty takes Docker's default.
+                timeout:
+                    type: string
+                    description: How long one check may take, such as "5s". Empty takes Docker's default.
+                startPeriod:
+                    type: string
+                    description: |-
+                        How long the container has to start before failures count, such as
+                         "1m". Empty takes Docker's default.
+                retries:
+                    type: integer
+                    description: How many failures in a row make it unhealthy. 0 takes Docker's default.
+                    format: uint32
+            description: |-
+                Healthcheck is a command Docker runs in the container to check it is
+                 healthy.
+        ImportComposeRequest:
+            type: object
+            properties:
+                summary:
+                    type: string
+                    description: |-
+                        What the change is for, such as "Run the shop's stack". Empty says it
+                         came from a Compose file.
+                project:
+                    type: string
+                    description: |-
+                        The project of the environment, by name or ID. Leave it out while
+                         there is only one project, or when environment is an ID.
+                environment:
+                    type: string
+                    description: |-
+                        The environment, by name or ID. Leave it out while its project has
+                         only one.
+                compose:
+                    type: string
+                    description: |-
+                        The Compose file, as YAML, such as --compose "$(cat compose.yaml)".
+                         Paths in it must be absolute, as it runs on servers where a path
+                         relative to the file means nothing.
+                variables:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        Values for the variables the file uses, such as ${TAG}. A variable
+                         with no value here and no default in the file is refused.
+                servers:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Where the services, volumes and networks run, by server ID, as an
+                         edit's servers. Empty keeps what exists where it runs, and puts what
+                         is new on the only server; once there are several, name them.
+                removeOrphans:
+                    type: boolean
+                    description: |-
+                        Also deletes the environment's services and networks that aren't in
+                         the file, as docker compose up --remove-orphans does. Volumes stay,
+                         with their data; delete one on its own to remove it.
+            description: ImportComposeRequest is a Compose file to plan into an environment.
+        ImportComposeResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: ImportComposeResponse carries the planned change.
         ListChangesResponse:
             type: object
             properties:
@@ -2014,6 +2228,50 @@ components:
                         $ref: '#/components/schemas/Token'
                     description: Tokens that still work, newest first.
             description: ListTokensResponse lists tokens.
+        Mount:
+            type: object
+            properties:
+                volume:
+                    type: string
+                    description: |-
+                        A volume, by name. A service's are volumes in its environment; a
+                         container's on its own are Docker's.
+                hostPath:
+                    type: string
+                    description: An absolute path on the server, such as "/srv/uploads".
+                target:
+                    type: string
+                    description: Where it appears in the container, as an absolute path.
+                readOnly:
+                    type: boolean
+                    description: Mounts it read-only.
+            description: Mount puts a volume, or a directory on the server, into a container.
+        Network:
+            type: object
+            properties:
+                driver:
+                    type: string
+                    description: 'The network driver: "bridge" unless set.'
+                options:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: The driver's options.
+                internal:
+                    type: boolean
+                    description: |-
+                        Cuts the network off from outside the server: only its containers
+                         reach each other.
+                labels:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: Labels on the network, for tools that read them.
+            description: |-
+                Network is a Docker network in an environment, which its services join
+                 by name, as a Compose file's networks. A service reaches another on a
+                 network they share by the other's name. Docker can't change a network,
+                 so its spec can't change once it is made.
         Passkey:
             type: object
             properties:
@@ -2220,6 +2478,11 @@ components:
                     type: string
                     description: TCP unless set.
                     format: enum
+                hostIp:
+                    type: string
+                    description: |-
+                        The server address it listens on, such as "127.0.0.1". Empty listens on
+                         every address.
             description: PortMapping publishes a container port on the server.
         Project:
             type: object
@@ -2556,9 +2819,10 @@ components:
             description: |-
                 Service is anything that runs in an environment, placed on servers: for
                  now an app from an image, run as one container on each server it is
-                 placed on. Compose stacks, websites, databases, catalog apps and jobs
-                 come later. Where it runs isn't part of the spec: each revision is
-                 deployed on its servers.
+                 placed on, with the labels Docker Compose gives a service's container,
+                 so docker compose sees it. A Compose file becomes services, volumes and
+                 networks. Websites, databases, catalog apps and jobs come later. Where it
+                 runs isn't part of the spec: each revision is deployed on its servers.
         Session:
             type: object
             properties:
@@ -2680,6 +2944,14 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/FirewallRule'
                     description: A firewall rule on a server, kind "firewall.rule".
+                volume:
+                    allOf:
+                        - $ref: '#/components/schemas/Volume'
+                    description: A volume in an environment, kind "volume".
+                network:
+                    allOf:
+                        - $ref: '#/components/schemas/Network'
+                    description: A network in an environment, kind "network".
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
@@ -2881,6 +3153,27 @@ components:
                     description: When the account was made.
                     format: date-time
             description: User is a person who signs in to the panel.
+        Volume:
+            type: object
+            properties:
+                driver:
+                    type: string
+                    description: 'The volume driver: "local" unless set.'
+                options:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: The driver's options, such as type, device and o for an NFS mount.
+                labels:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: Labels on the volume, for tools that read them.
+            description: |-
+                Volume is a Docker volume in an environment, which its services mount
+                 by name, as a Compose file's volumes. Deleting one destroys its data,
+                 though Dockwell keeps it for 7 days first. Docker can't change a volume,
+                 so its spec can't change once it is made.
 tags:
     - name: AuthService
       description: |-
@@ -2926,6 +3219,14 @@ tags:
          change by polling GET /v1/changes/{id}, which carries the same progress,
          or opens the stream with Connect, gRPC or gRPC-Web, with the same
          credentials.
+    - name: ComposeService
+      description: |-
+        ComposeService turns a Docker Compose file into an environment's
+         services, volumes and networks, and any of them back into one. An
+         environment is one Compose project: its containers carry the labels
+         Docker Compose gives its own, so docker compose sees them, and an
+         exported file runs the same with docker compose alone (PRD principle 6).
+         See docs/adr/0021-the-docker-driver.md.
     - name: EventService
       description: |-
         EventService is the timeline: every change to managed state, with who

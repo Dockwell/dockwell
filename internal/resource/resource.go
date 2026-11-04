@@ -212,6 +212,35 @@ func NewRegistry(types ...Type) *Registry {
 	return r
 }
 
+// Readier is a driver that can't always run, such as one that needs
+// Docker. An agent offers its kind only while Ready says it can.
+type Readier interface {
+	// Ready says why the driver can't run now, for people, with how to
+	// fix it, such as "Docker isn't running. Start it with …".
+	Ready(ctx context.Context) error
+}
+
+// Ready lists the kinds whose drivers can run now, sorted, and why each
+// other kind with a driver can't.
+func (r *Registry) Ready(ctx context.Context) (ready []Kind, unavailable map[Kind]string) {
+	for _, k := range r.Kinds() {
+		d, _ := r.types[k].(Readier)
+		if d == nil {
+			ready = append(ready, k)
+			continue
+		}
+		if err := d.Ready(ctx); err != nil {
+			if unavailable == nil {
+				unavailable = map[Kind]string{}
+			}
+			unavailable[k] = err.Error()
+			continue
+		}
+		ready = append(ready, k)
+	}
+	return ready, unavailable
+}
+
 // With returns a registry with more types, which replace any of the same
 // kind.
 func (r *Registry) With(types ...Type) *Registry {

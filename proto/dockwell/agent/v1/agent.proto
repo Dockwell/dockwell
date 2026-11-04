@@ -53,7 +53,40 @@ message ConnectRequest {
     // arrive. It finishes the calls under way, and once the control plane
     // answers with Drained, ends the stream.
     Draining draining = 4;
+    // How a call under way is going, such as an image being pulled.
+    CallProgress progress = 5;
+    // The kinds the agent can run changed since its hello, as when Docker
+    // stopped or started.
+    Kinds kinds = 6;
   }
+}
+
+// CallProgress says how a call under way is going.
+message CallProgress {
+  // The call's ID.
+  uint64 id = 1;
+  // What is happening, for people, such as "Pulling nginx:1.27: 12 of 48
+  // MB".
+  string message = 2;
+}
+
+// Kinds lists the kinds of resource an agent can run now, and why it
+// can't run the others it has drivers for.
+message Kinds {
+  // The kinds it can run, such as "container". The control plane plans no
+  // other kind on this server.
+  repeated string kinds = 1;
+  // Kinds it has drivers for but can't run now, each with why.
+  repeated UnavailableKind unavailable = 2;
+}
+
+// UnavailableKind is a kind an agent has a driver for, but can't run now.
+message UnavailableKind {
+  // The kind, such as "service".
+  string kind = 1;
+  // Why, for people, with how to fix it, such as "Docker isn't running on
+  // this server. Start it with systemctl start docker".
+  string reason = 2;
 }
 
 // Draining says the agent takes no more calls on this stream.
@@ -65,9 +98,12 @@ message Hello {
   dockwell.v1.BuildInfo build = 1;
   // What the server is, as the agent sees it now.
   dockwell.v1.ServerInventory inventory = 2;
-  // The kinds of resource the agent has drivers for, such as "container".
-  // The control plane plans no other kind on this server.
+  // The kinds of resource the agent can run, such as "container". The
+  // control plane plans no other kind on this server.
   repeated string kinds = 3;
+  // Kinds the agent has drivers for but can't run now, each with why, such
+  // as every Docker kind on a server where Docker isn't running.
+  repeated UnavailableKind unavailable = 4;
 }
 
 // ConnectResponse is one message from the control plane.
