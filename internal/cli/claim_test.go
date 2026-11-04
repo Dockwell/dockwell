@@ -6,6 +6,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth/authtest"
+	"github.com/dockwell/dockwell/internal/datadir"
 )
 
 var linkRE = regexp.MustCompile(`(https?://\S+)/(claim|recover)#(\S+)`)
@@ -211,5 +213,69 @@ func TestSSHTarget(t *testing.T) {
 		if got := addr.url(); got != want {
 			t.Errorf("%+v.url() = %q, want %q", addr, got, want)
 		}
+	}
+}
+
+// Restarting dockwell run keeps the claim link it printed before, which may
+// be the one install.sh showed. Only dockwell claim replaces it.
+func TestARestartKeepsTheClaimLink(t *testing.T) {
+	dir := t.TempDir()
+	out, stop := startRunWithOutput(t, dir, "/claim#")
+	first := linkRE.FindString(out.String())
+	stop()
+
+	port := strings.TrimPrefix(linkRE.FindStringSubmatch(first)[1], "http://localhost:")
+	out, _ = startRunWithOutput(t, dir, "still works", "--listen", "127.0.0.1:"+port)
+	if strings.Contains(out.String(), "/claim#") || !strings.Contains(out.String(), "run dockwell claim for a new one") {
+		t.Errorf("after a restart:\n%s", out.String())
+	}
+	claimOverHTTP(t, first)
+}
+
+func TestTheTunnelGoesToTheListenersAddress(t *testing.T) {
+	env := func(string) string { return "" }
+	for host, want := range map[string]string{
+		"":          "ssh -L 7600:127.0.0.1:7600 root@203.0.113.7",
+		"127.0.0.1": "ssh -L 7600:127.0.0.1:7600 root@203.0.113.7",
+		"127.0.0.2": "ssh -L 7600:127.0.0.2:7600 root@203.0.113.7",
+		"::1":       "ssh -L 7600:[::1]:7600 root@203.0.113.7",
+	} {
+		var b strings.Builder
+		printLink(&b, panelAddress{Host: host, Port: "7600", PublicHost: "203.0.113.7"}, "/claim#x", env)
+		if !strings.Contains(b.String(), want) {
+			t.Errorf("listening on %q:\n%s\nwant %q", host, b.String(), want)
+		}
+	}
+	if got := ipOf(&net.TCPAddr{IP: net.IPv6loopback, Port: 7600}); got != "::1" {
+		t.Errorf("ipOf([::1]:7600) = %q", got)
+	}
+}
+
+// Plain HTTP redirects to the port HTTPS is bound to, however
+// --https-listen spells it.
+func TestTheRedirectGoesToTheBoundPort(t *testing.T) {
+	var lc net.ListenConfig
+	ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	_, port, _ := net.SplitHostPort(ln.Addr().String())
+	for _, listen := range []string{"127.0.0.1:0", ":https", ":" + port} {
+		src, err := acmeSource(runFlags{domain: "panel.example.com", httpsListen: listen}, datadir.Dir{Root: t.TempDir()}, ln.Addr())
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := httptest.NewRecorder()
+		src.HTTPHandler().ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://panel.example.com/servers", http.NoBody))
+		if want := "https://panel.example.com:" + port + "/servers"; rec.Header().Get("Location") != want {
+			t.Errorf("--https-listen %s redirects to %q, want %q", listen, rec.Header().Get("Location"), want)
+		}
+	}
+	src, _ := acmeSource(runFlags{domain: "panel.example.com"}, datadir.Dir{Root: t.TempDir()}, &net.TCPAddr{Port: 443})
+	rec := httptest.NewRecorder()
+	src.HTTPHandler().ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://panel.example.com/x", http.NoBody))
+	if rec.Header().Get("Location") != "https://panel.example.com/x" {
+		t.Errorf("on 443: %q", rec.Header().Get("Location"))
 	}
 }

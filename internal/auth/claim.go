@@ -58,6 +58,24 @@ func (s *Service) CreateClaimLink(ctx context.Context, actor string) (Link, erro
 	return Link{Token: token, ExpiresAt: l.ExpiresAt}, nil
 }
 
+// WaitingClaimLink reports when the newest claim link that still works
+// expires, if there is one. The link itself can't be shown again: only its
+// hash is kept.
+func (s *Service) WaitingClaimLink(ctx context.Context) (time.Time, bool, error) {
+	var l store.LinkToken
+	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
+		l, err = tx.LiveLinkToken(ctx, store.LinkClaim, "", s.now())
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	return l.ExpiresAt, true, nil
+}
+
 // CreateSignInLink makes a one-time link that signs in as the user with
 // email, or as the owner when email is empty, replacing any earlier link
 // for them. It is for dockwell recover, which needs local access to the

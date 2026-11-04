@@ -509,12 +509,16 @@ func (t *Tx) CreateLinkToken(ctx context.Context, l LinkToken) error {
 // ErrNotFound. Used, revoked and expired links are returned too; callers
 // check.
 func (t *Tx) GetLinkTokenByHash(ctx context.Context, hash []byte) (LinkToken, error) {
+	return t.getLinkToken(ctx, `token_hash = ?`, hash)
+}
+
+func (t *Tx) getLinkToken(ctx context.Context, where string, arg any) (LinkToken, error) {
 	var l LinkToken
 	var created, expires int64
 	var used, revoked sql.NullInt64
 	var user sql.NullString
 	err := t.tx.QueryRowContext(ctx, `SELECT id, purpose, token_hash, user_id, created_at, created_by, expires_at, used_at, revoked_at
-		FROM link_tokens WHERE token_hash = ?`, hash).Scan(&l.ID, &l.Purpose, &l.TokenHash, &user, &created, &l.CreatedBy, &expires, &used, &revoked)
+		FROM link_tokens WHERE `+where, arg).Scan(&l.ID, &l.Purpose, &l.TokenHash, &user, &created, &l.CreatedBy, &expires, &used, &revoked)
 	if errors.Is(err, sql.ErrNoRows) {
 		return LinkToken{}, fmt.Errorf("link: %w", ErrNotFound)
 	}
@@ -523,6 +527,22 @@ func (t *Tx) GetLinkTokenByHash(ctx context.Context, hash []byte) (LinkToken, er
 	}
 	l.UserID, l.CreatedAt, l.ExpiresAt, l.UsedAt, l.RevokedAt = user.String, fromMillis(created), fromMillis(expires), timePtr(used), timePtr(revoked)
 	return l, nil
+}
+
+// LiveLinkToken returns the newest link for purpose and user that is still
+// unused, unrevoked and unexpired at now, or ErrNotFound.
+func (t *Tx) LiveLinkToken(ctx context.Context, purpose, userID string, now time.Time) (LinkToken, error) {
+	var id string
+	err := t.tx.QueryRowContext(ctx, `SELECT id FROM link_tokens
+		WHERE purpose = ? AND COALESCE(user_id, '') = ? AND used_at IS NULL AND revoked_at IS NULL AND expires_at > ?
+		ORDER BY created_at DESC, id DESC LIMIT 1`, purpose, userID, millis(now)).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return LinkToken{}, fmt.Errorf("live %s link: %w", purpose, ErrNotFound)
+	}
+	if err != nil {
+		return LinkToken{}, fmt.Errorf("can't read links: %w", err)
+	}
+	return t.getLinkToken(ctx, `id = ?`, id)
 }
 
 // SpendLinkToken marks a link used. It fails with ErrNotFound when the link

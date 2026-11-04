@@ -32,6 +32,9 @@ type panelAddress struct {
 	Domain string `json:"domain,omitempty"`
 	// HTTPSPort is the HTTPS listener's port, when it isn't 443.
 	HTTPSPort string `json:"https_port,omitempty"`
+	// Host is the loopback address the panel's listener is bound to, such
+	// as "127.0.0.1" or "::1". Empty means 127.0.0.1.
+	Host string `json:"host,omitempty"`
 	// Port is the loopback listener's port.
 	Port string `json:"port"`
 	// PublicHost is this server's address as other machines reach it.
@@ -48,6 +51,19 @@ func (a panelAddress) url() string {
 		return "https://" + a.Domain
 	default:
 		return "http://localhost:" + a.Port
+	}
+}
+
+// tunnelHost is the address an SSH tunnel forwards to on this server, as
+// ssh -L takes it: an IPv6 address in brackets.
+func (a panelAddress) tunnelHost() string {
+	switch {
+	case a.Host == "":
+		return "127.0.0.1"
+	case strings.Contains(a.Host, ":"):
+		return "[" + a.Host + "]"
+	default:
+		return a.Host
 	}
 }
 
@@ -99,6 +115,18 @@ func announce(ctx context.Context, stdio IO, logger *slog.Logger, db *store.DB, 
 		return err
 	}
 	if !claimed {
+		// A restart keeps the link it printed before, which may be the one
+		// install.sh showed. Only dockwell claim replaces a link that works.
+		expires, waiting, err := people.WaitingClaimLink(ctx)
+		if err != nil {
+			return err
+		}
+		if waiting {
+			logger.Info("this install has no owner yet; the claim link printed earlier still works", slog.Time("expires", expires))
+			fmt.Fprintf(stdio.Out, "\nThis install has no owner yet. The claim link printed earlier still works for %s. "+
+				"If you don't have it, run dockwell claim for a new one; it replaces the earlier link.\n\n", until(expires))
+			return nil
+		}
 		link, err := people.CreateClaimLink(ctx, "system")
 		if err != nil {
 			return err
@@ -126,7 +154,7 @@ func announce(ctx context.Context, stdio IO, logger *slog.Logger, db *store.DB, 
 // printClaim prints the claim link and how to reach it.
 func printClaim(w io.Writer, addr panelAddress, link auth.Link, getenv func(string) string) {
 	fmt.Fprintf(w, "\nThis install has no owner yet. Claim it within %s with the link below; it works once.\n\n",
-		human.Duration(time.Until(link.ExpiresAt).Round(time.Hour)))
+		until(link.ExpiresAt))
 	printLink(w, addr, "/claim#"+link.Token, getenv)
 	if addr.Domain == "" {
 		fmt.Fprintf(w, "The panel stays on this server's loopback address until you give it a domain. "+
@@ -144,9 +172,24 @@ func printLink(w io.Writer, addr panelAddress, path string, getenv func(string) 
 		fmt.Fprintf(w, "  %s%s\n\n", addr.url(), path)
 		return
 	}
-	fmt.Fprintf(w, "On your computer, open a tunnel to this server:\n\n  ssh -L %[1]s:127.0.0.1:%[1]s %[2]s\n\n"+
-		"Then open this link. On this server's own desktop, open it directly.\n\n  %[3]s%[4]s\n\n",
-		addr.Port, sshTarget(addr, getenv), addr.url(), path)
+	fmt.Fprintf(w, "On your computer, open a tunnel to this server:\n\n  ssh -L %[1]s:%[2]s:%[1]s %[3]s\n\n"+
+		"Then open this link. On this server's own desktop, open it directly.\n\n  %[4]s%[5]s\n\n",
+		addr.Port, addr.tunnelHost(), sshTarget(addr, getenv), addr.url(), path)
+}
+
+// until says how long is left before t, to the nearest minute and then no
+// more than there is: whole hours from two hours on, minutes below that.
+func until(t time.Time) string {
+	d := time.Until(t).Round(time.Minute)
+	switch {
+	case d >= 2*time.Hour:
+		d = d.Truncate(time.Hour)
+	case d >= time.Minute:
+		d = d.Truncate(time.Minute)
+	default:
+		d = time.Minute
+	}
+	return human.Duration(d)
 }
 
 // sshTarget guesses the user@host the operator reaches this server with:

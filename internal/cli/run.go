@@ -207,21 +207,14 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		return err
 	}
 	var public https.Source
-	if f.domain != "" {
-		_, httpsPort, _ := net.SplitHostPort(f.httpsListen)
-		public, err = https.NewACME(https.ACMEConfig{
-			Domain:       f.domain,
-			CacheDir:     dir.ACME(),
-			DirectoryURL: f.acmeDirector,
-			HTTPSPort:    httpsPort,
-		})
-		if err != nil {
+	if ls.HTTPS != nil {
+		if public, err = acmeSource(f, dir, ls.HTTPS.Addr()); err != nil {
 			closeAll()
 			return err
 		}
 	}
 
-	addr := panelAddress{Domain: f.domain, Port: portOf(ls.API.Addr()), PublicHost: hostOf(agentURL)}
+	addr := panelAddress{Domain: f.domain, Host: ipOf(ls.API.Addr()), Port: portOf(ls.API.Addr()), PublicHost: hostOf(agentURL)}
 	if ls.HTTPS != nil {
 		addr.HTTPSPort = portOf(ls.HTTPS.Addr())
 	}
@@ -261,6 +254,18 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 	return errors.Join(controlErr, agentErr)
 }
 
+// acmeSource gets the panel's certificates from an ACME CA. Plain HTTP
+// redirects to the port the HTTPS listener is bound to, which --https-listen
+// may not spell as a number, as in :https or :0.
+func acmeSource(f runFlags, dir datadir.Dir, httpsAddr net.Addr) (*https.ACME, error) {
+	return https.NewACME(https.ACMEConfig{
+		Domain:       f.domain,
+		CacheDir:     dir.ACME(),
+		DirectoryURL: f.acmeDirector,
+		HTTPSPort:    portOf(httpsAddr),
+	})
+}
+
 func onLoopback(addr net.Addr) bool {
 	tcp, ok := addr.(*net.TCPAddr)
 	return ok && tcp.IP.IsLoopback()
@@ -271,6 +276,14 @@ func portOf(addr net.Addr) string {
 		return strconv.Itoa(tcp.Port)
 	}
 	return "7600"
+}
+
+// ipOf is the address a listener is bound to.
+func ipOf(addr net.Addr) string {
+	if tcp, ok := addr.(*net.TCPAddr); ok && tcp.IP != nil {
+		return tcp.IP.String()
+	}
+	return ""
 }
 
 func hostOf(rawURL string) string {
