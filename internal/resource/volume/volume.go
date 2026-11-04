@@ -14,6 +14,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -53,7 +55,9 @@ type Runtime interface {
 	// or if it was deleted and is only kept.
 	Inspect(ctx context.Context, t Target) (*resourcev1.Volume, error)
 	// Create makes the volume, or brings back one deleted and kept.
-	Create(ctx context.Context, t Target, spec *resourcev1.Volume) error
+	// restore says the plan expected to bring one back: if it is gone, as
+	// a prune removed it, Create fails rather than make it empty.
+	Create(ctx context.Context, t Target, spec *resourcev1.Volume, restore bool) error
 	// Delete deletes the volume, which stays on the server for KeepFor.
 	Delete(ctx context.Context, t Target) error
 }
@@ -86,11 +90,20 @@ func (*Driver) CheckName(name string) error {
 	return nil
 }
 
-// Validate fills in the local driver, and refuses Dockwell's own labels.
+// Validate fills in the local driver, and refuses Dockwell's own labels,
+// and a bind of a server path no container may mount.
 func (*Driver) Validate(spec proto.Message) error {
 	v := spec.(*resourcev1.Volume)
 	if v.Driver == "" {
 		v.Driver = "local"
+	}
+	if dev, ok := bindDevice(v); ok {
+		if !path.IsAbs(dev) {
+			return fmt.Errorf("the volume binds the server path %q, which isn't absolute; start its device with /, such as /srv/data", dev)
+		}
+		if err := container.DefaultHost.CheckPath(dev, "the server path "+path.Clean(dev)+" that the volume binds"); err != nil {
+			return err
+		}
 	}
 	for k := range v.GetLabels() {
 		if docker.IsOwnLabel(k) {
@@ -103,6 +116,74 @@ func (*Driver) Validate(spec proto.Message) error {
 		}
 	}
 	return nil
+}
+
+// bindDevice is the server path a volume binds, as the local driver's
+// options type: none, o: bind and device: /srv/data have it.
+func bindDevice(v *resourcev1.Volume) (string, bool) {
+	o := v.GetOptions()
+	if v.GetDriver() != "local" && v.GetDriver() != "" {
+		return "", false
+	}
+	for _, opt := range strings.Split(o["o"], ",") {
+		if opt == "bind" || opt == "rbind" {
+			return o["device"], true
+		}
+	}
+	return "", false
+}
+
+// HostAccess is what a volume reaches on its server, beyond what Docker
+// keeps for it: the server path it binds, or the mount its options make,
+// such as an NFS share. A service of its environment that mounts it
+// reaches that too, as a person approved when the volume was made.
+func (*Driver) HostAccess(spec proto.Message) []resource.Access {
+	v := spec.(*resourcev1.Volume)
+	if dev, ok := bindDevice(v); ok {
+		readOnly := slices.Contains(strings.Split(v.GetOptions()["o"], ","), "ro")
+		return []resource.Access{container.PathAccess(path.Clean(dev), readOnly)}
+	}
+	if len(v.GetOptions()) == 0 {
+		return nil
+	}
+	return []resource.Access{{Kind: resource.AccessMount, Type: v.GetOptions()["type"], Path: v.GetOptions()["device"]}}
+}
+
+// checker is a Runtime that checks a spec on its server, as Docker does.
+type checker interface {
+	CheckHost(ctx context.Context, spec *resourcev1.Volume) error
+}
+
+// Check refuses a volume that binds a server path no container may mount,
+// as the agent's server has it.
+func (d *Driver) Check(ctx context.Context, _ resource.Ref, desired proto.Message) error {
+	if c, ok := d.Runtime.(checker); ok {
+		return c.CheckHost(ctx, desired.(*resourcev1.Volume))
+	}
+	return nil
+}
+
+// restorer is a Runtime that keeps deleted volumes, as Docker does.
+type restorer interface {
+	// Restores reports whether creating the volume at t brings back one
+	// deleted and kept, with its data.
+	Restores(ctx context.Context, t Target) (bool, error)
+}
+
+// Judge plans a step as Plan does, and says whether a create brings back
+// a volume the server kept, as undoing its deletion does: the plan says
+// so, and its fingerprint differs from one that makes the volume empty.
+func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
+	dec, err := d.Plan(actual, desired, changes)
+	if err != nil || dec.Action != resource.ActionCreate {
+		return dec, err
+	}
+	if r, ok := d.Runtime.(restorer); ok {
+		if dec.Restores, err = r.Restores(ctx, TargetOf(ref)); err != nil {
+			return resource.Decision{}, err
+		}
+	}
+	return dec, nil
 }
 
 // Observe asks Docker.
@@ -137,7 +218,7 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 	t := TargetOf(step.Ref)
 	switch step.Action {
 	case resource.ActionCreate:
-		return d.Runtime.Create(ctx, t, desired.(*resourcev1.Volume))
+		return d.Runtime.Create(ctx, t, desired.(*resourcev1.Volume), step.Restores)
 	case resource.ActionDelete:
 		return d.Runtime.Delete(ctx, t)
 	case resource.ActionUpdate, resource.ActionReplace:

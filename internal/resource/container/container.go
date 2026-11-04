@@ -62,8 +62,11 @@ type Runtime interface {
 	// Inspect returns the container's spec as Docker has it, or nil if
 	// there is no such container.
 	Inspect(ctx context.Context, t Target) (*resourcev1.Container, error)
-	// Run creates and starts a container, replacing any with the name.
-	Run(ctx context.Context, t Target, spec *resourcev1.Container) error
+	// Run creates and starts a container, replacing the one with the name.
+	// restore says the plan expected it to mount again the data its image
+	// kept, which the server keeps for 7 days after a deletion: if that is
+	// gone, Run fails rather than make the container with it empty.
+	Run(ctx context.Context, t Target, spec *resourcev1.Container, restore bool) error
 	// SetRestart changes the restart policy of a running container.
 	SetRestart(ctx context.Context, t Target, policy resourcev1.RestartPolicy) error
 	// Remove stops and removes the container.
@@ -296,6 +299,9 @@ func validateMounts(c *resourcev1.Container) error {
 				return fmt.Errorf("the server path %q mounted at %s isn't absolute; start it with /, such as /srv/data", src.HostPath, m.Target)
 			}
 			src.HostPath = path.Clean(src.HostPath)
+			if err := DefaultHost.CheckPath(src.HostPath, fmt.Sprintf("the server path %s mounted at %s", src.HostPath, m.Target)); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("the mount at %s needs a volume or a server path to mount", m.Target)
 		}
@@ -355,7 +361,9 @@ func (d *Driver) ObserveAt(ctx context.Context, t Target) (proto.Message, error)
 }
 
 // Plan recreates the container for any change Docker can't make in place,
-// which is all of them except the restart policy.
+// which is all of them except the restart policy. A recreated container
+// with a health check is down for the recreate, and may take until its
+// check passes to be healthy again (UntilHealthy).
 func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
 	switch {
 	case actual == nil:
@@ -378,19 +386,98 @@ func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) 
 	if downtime == 0 {
 		downtime = DefaultRecreateDowntime
 	}
-	return resource.Decision{Action: resource.ActionReplace, Effect: resource.EffectRecreate, Downtime: downtime}, nil
+	dec := resource.Decision{Action: resource.ActionReplace, Effect: resource.EffectRecreate, Downtime: downtime}
+	if b := HealthBound(desired.(*resourcev1.Container).GetHealthcheck(), nil); b > 0 {
+		dec.UntilHealthy = downtime + b
+	}
+	return dec, nil
+}
+
+// Docker's defaults for a health check's interval and retries.
+const (
+	defaultInterval = 30 * time.Second
+	defaultRetries  = 3
+)
+
+// DefaultHealthWait is how long Verify waits for a container's health
+// check to pass, at most.
+const DefaultHealthWait = 5 * time.Minute
+
+// HealthBound is how long a container may take to turn healthy once it
+// starts, at most, by its health check: its start period, then as many
+// failed checks as its retries, an interval apart, which is when Docker
+// calls it unhealthy; and no longer than DefaultHealthWait, after which
+// Verify stops waiting. What the spec's check leaves out takes the
+// image's, then Docker's defaults. Zero for a container without a check.
+func HealthBound(spec *resourcev1.Healthcheck, img *docker.Healthcheck) time.Duration {
+	var hc docker.Healthcheck
+	if img != nil {
+		hc = *img
+	}
+	if s := healthcheck(spec); s != nil {
+		if len(s.Test) > 0 {
+			hc.Test = s.Test
+		}
+		if s.Interval > 0 {
+			hc.Interval = s.Interval
+		}
+		if s.StartPeriod > 0 {
+			hc.StartPeriod = s.StartPeriod
+		}
+		if s.Retries > 0 {
+			hc.Retries = s.Retries
+		}
+	}
+	if len(hc.Test) == 0 || hc.Test[0] == "NONE" {
+		return 0
+	}
+	interval, retries := or(hc.Interval, defaultInterval), hc.Retries
+	if retries <= 0 {
+		retries = defaultRetries
+	}
+	return min(hc.StartPeriod+time.Duration(retries)*interval, DefaultHealthWait)
+}
+
+// judge is a Runtime that knows its server, as Docker does: whose
+// container has a name, what its image keeps, and how long its health
+// check may take.
+type judge interface {
+	Judge(ctx context.Context, t Target, desired *resourcev1.Container, dec *resource.Decision) error
+}
+
+// Judge plans a step as Plan does, then with what the server has.
+func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
+	return d.JudgeAt(ctx, HostTarget(ref), actual, desired, changes)
+}
+
+// JudgeAt judges the step for the container at t.
+func (d *Driver) JudgeAt(ctx context.Context, t Target, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
+	dec, err := d.Plan(actual, desired, changes)
+	if err != nil {
+		return dec, err
+	}
+	if j, ok := d.Runtime.(judge); ok {
+		var spec *resourcev1.Container
+		if desired != nil {
+			spec = desired.(*resourcev1.Container)
+		}
+		if err := j.Judge(ctx, t, spec, &dec); err != nil {
+			return resource.Decision{}, err
+		}
+	}
+	return dec, nil
 }
 
 // Apply runs, updates or removes the container.
 func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
-	return d.ApplyAt(ctx, HostTarget(step.Ref), step.Action, desired)
+	return d.ApplyAt(ctx, HostTarget(step.Ref), step, desired)
 }
 
-// ApplyAt carries out action on the container at t.
-func (d *Driver) ApplyAt(ctx context.Context, t Target, action resource.Action, desired proto.Message) error {
-	switch action {
+// ApplyAt carries out step on the container at t.
+func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desired proto.Message) error {
+	switch step.Action {
 	case resource.ActionCreate, resource.ActionReplace:
-		return d.Runtime.Run(ctx, t, desired.(*resourcev1.Container))
+		return d.Runtime.Run(ctx, t, desired.(*resourcev1.Container), step.Restores)
 	case resource.ActionUpdate:
 		return d.Runtime.SetRestart(ctx, t, desired.(*resourcev1.Container).GetRestart())
 	case resource.ActionDelete:

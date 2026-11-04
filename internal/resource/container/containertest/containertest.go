@@ -47,7 +47,7 @@ func (f *Fake) Inspect(_ context.Context, t container.Target) (*resourcev1.Conta
 }
 
 // Run replaces any container with the name.
-func (f *Fake) Run(_ context.Context, t container.Target, spec *resourcev1.Container) error {
+func (f *Fake) Run(_ context.Context, t container.Target, spec *resourcev1.Container, _ bool) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.containers[t.Name] = proto.Clone(spec).(*resourcev1.Container)

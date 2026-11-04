@@ -103,18 +103,42 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 
 // Plan judges the step as the container driver does for the app.
 func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
-	app := func(m proto.Message) proto.Message {
-		if m == nil {
-			return nil
-		}
-		return m.(*resourcev1.Service).GetApp()
+	return d.Containers.Plan(app(actual), app(desired), inner(changes))
+}
+
+// Judge judges the step as the container driver does for the app, with
+// what its server has.
+func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
+	return d.Containers.JudgeAt(ctx, Target(ref), app(actual), app(desired), inner(changes))
+}
+
+// Check checks the app on its server, as the container driver does.
+func (d *Driver) Check(ctx context.Context, _ resource.Ref, desired proto.Message) error {
+	return d.Containers.CheckApp(ctx, desired.(*resourcev1.Service).GetApp())
+}
+
+// HostAccess is what the app reaches on its server: the server paths it
+// mounts. Its networks are its environment's, never the server's own.
+func (*Driver) HostAccess(spec proto.Message) []resource.Access {
+	return container.ServiceAccess(spec.(*resourcev1.Service).GetApp())
+}
+
+// app is a service's app, or nil.
+func app(m proto.Message) proto.Message {
+	if m == nil {
+		return nil
 	}
-	inner := make([]resource.Change, len(changes))
+	return m.(*resourcev1.Service).GetApp()
+}
+
+// inner are changes to a service as changes to its app.
+func inner(changes []resource.Change) []resource.Change {
+	out := make([]resource.Change, len(changes))
 	for i, c := range changes {
 		c.Path = strings.TrimPrefix(c.Path, "app.")
-		inner[i] = c
+		out[i] = c
 	}
-	return d.Containers.Plan(app(actual), app(desired), inner)
+	return out
 }
 
 // Apply runs, updates or removes the service's container.
@@ -123,7 +147,7 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 	if desired != nil {
 		app = desired.(*resourcev1.Service).GetApp()
 	}
-	return d.Containers.ApplyAt(ctx, Target(step.Ref), step.Action, app)
+	return d.Containers.ApplyAt(ctx, Target(step.Ref), step, app)
 }
 
 // Verify checks the service's container is healthy.

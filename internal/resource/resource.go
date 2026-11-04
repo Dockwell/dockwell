@@ -124,6 +124,79 @@ type Decision struct {
 	// back.
 	Destroys bool
 	Warnings []Warning
+	// UntilHealthy is how long until what the resource serves is healthy
+	// again, at most, counting Downtime, when its health check may take
+	// longer than Downtime; zero when Downtime says it all. Drivers must
+	// not understate it either.
+	UntilHealthy time.Duration `json:",omitempty"`
+	// Kept says where data was that the step takes out of use, which the
+	// server keeps for 7 days, such as the paths in a container where its
+	// image kept data. Undoing the step brings it back.
+	Kept []string `json:",omitempty"`
+	// Restores is true when the step brings back data the server kept, as
+	// undoing a deletion does. Applying it fails if the data is gone by
+	// then, rather than making the resource anew, empty.
+	Restores bool `json:",omitempty"`
+	// HostAccess is what the step lets the resource reach on its server
+	// that it couldn't before. The control plane sets it from the specs,
+	// whatever an agent says: a step with any needs a person to apply it.
+	HostAccess []Access `json:",omitempty"`
+}
+
+// Access is something on a server a resource reaches beyond what Docker
+// keeps for it, such as a server path a container mounts (HostAccesser).
+type Access struct {
+	Kind AccessKind
+	// Path is the server path or socket, or the volume's device. Empty for
+	// the server's network.
+	Path string `json:",omitempty"`
+	// ReadOnly is true for a server path mounted read-only.
+	ReadOnly bool `json:",omitempty"`
+	// Type is a volume's mount type, such as nfs.
+	Type string `json:",omitempty"`
+}
+
+// AccessKind is what a resource reaches on its server.
+type AccessKind int
+
+// Kinds of access.
+const (
+	// AccessPath is a server path, mounted into a container or by a
+	// volume's bind option.
+	AccessPath AccessKind = iota + 1
+	// AccessDocker is Docker's or containerd's socket, or a path that
+	// holds one: control of Docker, which is the same as root.
+	AccessDocker
+	// AccessNetwork is the server's own network.
+	AccessNetwork
+	// AccessMount is a mount Docker makes from a volume's options, such as
+	// an NFS share.
+	AccessMount
+)
+
+// HostAccesser is a kind whose specs can reach their server beyond what
+// Docker keeps for them, as a container that mounts a server path does. A
+// change that adds to or changes what one reaches needs a person to apply
+// it, as one that destroys data does (ADR 0021).
+type HostAccesser interface {
+	HostAccess(spec proto.Message) []Access
+}
+
+// NewAccess lists what to reaches that from doesn't: access it didn't
+// have, or has another way, as read-write where it was read-only. Access
+// to Docker's socket is the same read-only or not, as a socket mounted
+// read-only still takes connections.
+func NewAccess(from, to []Access) []Access {
+	var out []Access
+	for _, a := range to {
+		covered := slices.ContainsFunc(from, func(b Access) bool {
+			return a.Kind == b.Kind && a.Path == b.Path && a.Type == b.Type && (a.ReadOnly || !b.ReadOnly || a.Kind == AccessDocker)
+		})
+		if !covered && !slices.Contains(out, a) {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // Step is what applying a change does to one resource.
@@ -210,6 +283,18 @@ func NewRegistry(types ...Type) *Registry {
 		r.types[t.Kind()] = t
 	}
 	return r
+}
+
+// HostAccess lists what spec reaches on its server, if its kind can reach
+// anything.
+func (r *Registry) HostAccess(kind Kind, spec proto.Message) []Access {
+	if spec == nil {
+		return nil
+	}
+	if h, ok := r.types[kind].(HostAccesser); ok {
+		return h.HostAccess(spec)
+	}
+	return nil
 }
 
 // Readier is a driver that can't always run, such as one that needs

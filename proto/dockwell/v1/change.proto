@@ -523,6 +523,10 @@ message Plan {
   // True when a step destroys data or may cut off access. Applying it needs
   // the fingerprint and a signed-in session.
   bool destructive = 6;
+  // True when the change adds to, or changes, what a container can reach
+  // on its server (host_access), which a person approves: applying it needs
+  // the fingerprint and a signed-in session, as a destructive plan does.
+  bool host_access = 7;
 }
 
 // PlanSummary counts the resources a plan touches by what it does to them.
@@ -558,6 +562,39 @@ message PlannedResource {
   repeated string servers = 6;
   // Where it runs now, by server ID.
   repeated string previous_servers = 7;
+  // What the change lets it reach on its servers that it couldn't before,
+  // or reach in another way, which a person approves. The control plane
+  // decides this from the specs, not from what the servers report.
+  repeated HostAccess host_access = 8;
+}
+
+// HostAccess is something on a server that a resource reaches beyond what
+// Docker keeps for it, such as a server path a container mounts.
+message HostAccess {
+  // What it is.
+  HostAccessKind kind = 1;
+  // The server path or socket, or the volume's device, such as
+  // "/srv/app/config" or ":/export/media". Empty for the server's network.
+  string path = 2;
+  // True when a server path is mounted read-only.
+  bool read_only = 3;
+  // A volume's mount type, such as "nfs" or "cifs".
+  string type = 4;
+}
+
+// HostAccessKind is what a resource reaches on its server.
+enum HostAccessKind {
+  HOST_ACCESS_KIND_UNSPECIFIED = 0;
+  // A server path, mounted into a container, or by a volume's bind option.
+  HOST_ACCESS_KIND_SERVER_PATH = 1;
+  // Docker's or containerd's socket, or a path that holds one: control of
+  // Docker on the server, which is the same as root.
+  HOST_ACCESS_KIND_DOCKER_SOCKET = 2;
+  // The server's own network, Docker's host network.
+  HOST_ACCESS_KIND_HOST_NETWORK = 3;
+  // A mount Docker makes from a volume's driver options, such as an NFS or
+  // CIFS share, or a disk.
+  HOST_ACCESS_KIND_VOLUME_MOUNT = 4;
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -576,6 +613,11 @@ message ServerPlan {
   google.protobuf.Duration downtime = 5;
   // The steps, in the order they run.
   repeated PlanStep steps = 6;
+  // How long until everything the steps touch is healthy again, at most,
+  // when a health check may take longer than the downtime: each step's
+  // until_healthy, or its downtime, added up. Unset when the downtime says
+  // it all.
+  google.protobuf.Duration until_healthy = 7;
 }
 
 // PlanStep is what applying does to one resource on one server.
@@ -596,6 +638,24 @@ message PlanStep {
   repeated PlanWarning warnings = 7;
   // The fields that differ from what the server has now.
   repeated FieldChange changes = 8;
+  // How long until what the resource serves is healthy again, at most,
+  // counting the downtime, when its health check may take longer than the
+  // downtime, as after a container is recreated. Unset when the downtime
+  // says it all.
+  google.protobuf.Duration until_healthy = 9;
+  // Where data was that the step takes out of use, which the server keeps
+  // for 7 days: for a container, the paths in it where its image keeps
+  // data, which deleting it, or mounting something else there, leaves
+  // behind. Undoing the step mounts them again.
+  repeated string kept_paths = 10;
+  // True when the step brings back data its server kept, as undoing a
+  // deletion does. Applying it fails if the server no longer has the data,
+  // rather than making the resource anew, empty.
+  bool restores = 11;
+  // What the step lets the resource reach on its server that it couldn't
+  // before, or reach in another way, which a person approves. The control
+  // plane decides this from the specs, not from what the server reports.
+  repeated HostAccess host_access = 12;
 }
 
 // PlanAction is what a plan does to a resource.

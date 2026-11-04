@@ -52,6 +52,9 @@ type Engine struct {
 	Socket string
 	// APIVersion and MinAPIVersion are what /version reports.
 	APIVersion, MinAPIVersion string
+	// DockerRoot is where /info says the engine keeps its data:
+	// /var/lib/docker unless set.
+	DockerRoot string
 
 	srv *httptest.Server
 
@@ -180,6 +183,12 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	case path == "/version":
 		writeJSON(w, http.StatusOK, map[string]string{"Version": "27.3.1", "ApiVersion": e.APIVersion, "MinAPIVersion": e.MinAPIVersion})
+	case path == "/info":
+		root := e.DockerRoot
+		if root == "" {
+			root = "/var/lib/docker"
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"DockerRootDir": root})
 	case parts[0] == "containers":
 		e.serveContainers(w, r, parts[1:])
 	case parts[0] == "images":

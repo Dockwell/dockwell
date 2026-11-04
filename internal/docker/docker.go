@@ -180,6 +180,21 @@ func (c *Client) Ping(ctx context.Context) error {
 	return nil
 }
 
+// Info is what the engine says of itself: the fields Dockwell uses.
+type Info struct {
+	// DockerRootDir is where it keeps its data, such as /var/lib/docker.
+	DockerRootDir string
+}
+
+// Info asks the engine about itself.
+func (c *Client) Info(ctx context.Context) (*Info, error) {
+	var out Info
+	if err := c.do(ctx, http.MethodGet, "/info", nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // Version is the API version agreed by the last Ping, and the engine's
 // own version; both are empty before one succeeds.
 func (c *Client) Version() (api, engine string) {

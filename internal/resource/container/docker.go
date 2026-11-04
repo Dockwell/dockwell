@@ -55,11 +55,29 @@ type Docker struct {
 	// Logger hears what the runtime can't do on its own time, such as
 	// cleaning up after a change that failed. Nil means slog's default.
 	Logger *slog.Logger
+	// Paths finds what no container may mount on this server, and follows
+	// symlinks there. Nil checks only what Validate does.
+	Paths *Paths
 }
 
-// Deleted reports a volume deleted through a plan, by its name in Docker.
+// Deleted is the list of volumes the server keeps for 7 days once a plan
+// takes them out of use: the agent's volume.Kept. It has an environment's
+// volumes, which a service can't mount, as they aren't in its environment
+// any more; and the volumes Docker made for a container's image, which
+// deleting the container, or mounting something else at their paths,
+// leaves behind, and which a container of the same name mounts again.
 type Deleted interface {
+	// Has reports a volume on the list, by its name in Docker.
 	Has(name string) (bool, error)
+	// KeepImageVolumes lists the volumes a container's image kept data in,
+	// by the path each was mounted at, from now.
+	KeepImageVolumes(container string, byPath map[string]string) error
+	// ImageVolumes returns the volumes listed for a container's image, by
+	// path, and when each was listed.
+	ImageVolumes(container string) (map[string]string, map[string]time.Time, error)
+	// TakeImageVolumes takes the volumes at paths off the list, as the
+	// container mounts them again; undo puts them back.
+	TakeImageVolumes(container string, paths []string) (undo func(), err error)
 }
 
 var _ Runtime = (*Docker)(nil)
@@ -196,8 +214,10 @@ func anonymous(name string) bool {
 
 // createRequest is what Docker is asked to create for spec at t. Volumes
 // Docker made for paths the image declares move from old, the container
-// it replaces, if any, so their data stays, as Compose keeps them.
-func (d *Docker) createRequest(t Target, spec *resourcev1.Container, old *docker.Container) (*docker.CreateRequest, []string) {
+// it replaces, if any, so their data stays, as Compose keeps them. Where
+// old has none, one kept for the container's image, as a deletion left it,
+// is mounted again: those are returned, by path.
+func (d *Docker) createRequest(t Target, spec *resourcev1.Container, old *docker.Container, kept map[string]string) (*docker.CreateRequest, []string, map[string]string) {
 	req := &docker.CreateRequest{Config: docker.Config{
 		Image:       spec.GetImage(),
 		Cmd:         spec.GetCommand(),
@@ -235,11 +255,16 @@ func (d *Docker) createRequest(t Target, spec *resourcev1.Container, old *docker
 			req.HostConfig.Binds = append(req.HostConfig.Binds, bind(src.HostPath, m))
 		}
 	}
-	if old != nil {
-		for _, m := range old.Mounts {
-			if m.Type == "volume" && anonymous(m.Name) && !targets[m.Destination] {
-				req.HostConfig.Mounts = append(req.HostConfig.Mounts, docker.Mount{Type: "volume", Source: m.Name, Target: m.Destination})
-			}
+	from := imageVolumes(old)
+	restored := map[string]string{}
+	for _, p := range slices.Sorted(maps.Keys(kept)) {
+		if _, ok := from[p]; !ok && !targets[p] {
+			from[p], restored[p] = kept[p], kept[p]
+		}
+	}
+	for _, p := range slices.Sorted(maps.Keys(from)) {
+		if !targets[p] {
+			req.HostConfig.Mounts = append(req.HostConfig.Mounts, docker.Mount{Type: "volume", Source: from[p], Target: p})
 		}
 	}
 	var aliases []string
@@ -261,7 +286,70 @@ func (d *Docker) createRequest(t Target, spec *resourcev1.Container, old *docker
 		}
 		req.NetworkingConfig.EndpointsConfig[name] = &docker.EndpointSettings{Aliases: aliases}
 	}
-	return req, later
+	return req, later, restored
+}
+
+// imageVolumes are the volumes Docker made for c's image, by the path
+// each is mounted at. They hold data, such as a database's, that no spec
+// names.
+func imageVolumes(c *docker.Container) map[string]string {
+	out := map[string]string{}
+	if c == nil {
+		return out
+	}
+	for _, m := range c.Mounts {
+		if m.Type == "volume" && anonymous(m.Name) {
+			out[m.Destination] = m.Name
+		}
+	}
+	return out
+}
+
+// covered are the volumes of c's image at paths spec mounts something
+// else at, which a replace leaves behind.
+func covered(c *docker.Container, spec *resourcev1.Container) map[string]string {
+	out := map[string]string{}
+	for p, name := range imageVolumes(c) {
+		if slices.ContainsFunc(spec.GetMounts(), func(m *resourcev1.Mount) bool { return m.GetTarget() == p }) {
+			out[p] = name
+		}
+	}
+	return out
+}
+
+// keptVolumes are the volumes kept for the image of the container at t,
+// by path, that are still on the server.
+func (d *Docker) keptVolumes(ctx context.Context, t Target) (map[string]string, error) {
+	if d.Deleted == nil {
+		return nil, nil
+	}
+	byPath, _, err := d.Deleted.ImageVolumes(t.Name)
+	if err != nil {
+		return nil, err
+	}
+	for p, name := range byPath {
+		_, err := d.Client.InspectVolume(ctx, name)
+		switch {
+		case docker.IsNotFound(err):
+			delete(byPath, p)
+		case err != nil:
+			return nil, err
+		}
+	}
+	return byPath, nil
+}
+
+// keep lists the volumes of the container at t's image as kept, which a
+// change took out of use. They stay on the server whatever happens: one
+// the list can't take is logged, and stays until a docker volume prune.
+func (d *Docker) keep(t Target, byPath map[string]string) {
+	if d.Deleted == nil || len(byPath) == 0 {
+		return
+	}
+	if err := d.Deleted.KeepImageVolumes(t.Name, byPath); err != nil {
+		d.logger().Warn("can't list the volumes a container's image kept data in, so they stay on the server until docker volume prune removes them",
+			slog.String("container", t.Name), slog.Any("volumes", byPath), slog.String("error", err.Error()))
+	}
 }
 
 // relabels are Docker's options for relabelling a server path.
@@ -552,11 +640,17 @@ func (d *Docker) checkRefs(ctx context.Context, t Target, spec *resourcev1.Conta
 	return nil
 }
 
-// Run creates and starts the container, replacing any of the name. The new
-// one is made, under a name of its own, before the old one stops, so only
-// stopping one and starting the other is downtime.
-func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) error {
+// Run creates and starts the container, replacing the one of the name,
+// which must be Dockwell's. The new one is made, under a name of its own,
+// before the old one stops, so only stopping one and starting the other is
+// downtime. The volumes Docker made for the old one's image move to the
+// new one, and those a mount now covers are kept for 7 days, as a deleted
+// container's are; a container made again mounts those kept for it.
+func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, restore bool) error {
 	if err := d.ensureImage(ctx, spec.GetImage()); err != nil {
+		return err
+	}
+	if err := d.CheckHost(ctx, spec); err != nil {
 		return err
 	}
 	if err := d.checkRefs(ctx, t, spec); err != nil {
@@ -566,17 +660,34 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) 
 	if err != nil {
 		return err
 	}
-	if old == nil {
-		if old, err = d.unfinished(ctx, t); err != nil {
+	if old != nil {
+		if err := owned(t, old); err != nil {
+			return err
+		}
+	} else if old, err = d.unfinished(ctx, t); err != nil {
+		return err
+	}
+	kept, err := d.keptVolumes(ctx, t)
+	if err != nil {
+		return err
+	}
+	req, later, restored := d.createRequest(t, spec, old, kept)
+	if restore && len(restored) == 0 {
+		return fmt.Errorf("the data %s's image kept, which this change was to mount again, is gone: the server keeps it for 7 days after a change takes it out of use, then removes it. "+
+			"Plan the change again: it makes %s with its image's volumes empty", t.Name, t.Name)
+	}
+	undo := func() {}
+	if len(restored) > 0 {
+		if undo, err = d.Deleted.TakeImageVolumes(t.Name, slices.Collect(maps.Keys(restored))); err != nil {
 			return err
 		}
 	}
-	req, later := d.createRequest(t, spec, old)
 	name := t.Name
 	if old != nil {
 		// As Compose names a container it is about to swap in.
 		name = old.ID[:12] + "_" + t.Name
 		if left, err := d.find(ctx, name); err != nil {
+			undo()
 			return err
 		} else if left != nil {
 			_ = d.Client.RemoveContainer(ctx, left.ID, true) // a try that failed before
@@ -584,10 +695,12 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) 
 	}
 	id, err := d.Client.CreateContainer(ctx, name, req)
 	if err != nil {
+		undo()
 		return fmt.Errorf("docker can't create %s: %w", t.Name, err)
 	}
 	discard := func(err error) error {
 		d.discard(ctx, id, name)
+		undo()
 		return err
 	}
 	var aliases []string
@@ -607,6 +720,7 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) 
 		if err := d.Client.RemoveContainer(ctx, old.ID, true); err != nil && !docker.IsNotFound(err) {
 			return discard(fmt.Errorf("can't remove the old %s: %w", t.Name, err))
 		}
+		d.keep(t, covered(old, spec))
 		// The old one is gone: finish the swap even if the caller stops
 		// waiting, as a service left with no container is worse than a
 		// step that ends late. If the new one can't take the name, the
@@ -623,6 +737,95 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) 
 		return fmt.Errorf("docker can't start %s: %w", t.Name, err)
 	}
 	return nil
+}
+
+// owned refuses a container at t's name that Dockwell didn't make: one
+// without the Compose project and service Dockwell labels t's with, such
+// as one someone started by hand. Dockwell never stops, replaces or
+// removes it.
+func owned(t Target, c *docker.Container) error {
+	l := c.Config.Labels
+	if l[docker.LabelProject] == t.Project && l[docker.LabelService] == t.Service {
+		return nil
+	}
+	return fmt.Errorf("a container named %s is on this server, but Dockwell didn't make it: it doesn't have the labels %s=%s and %s=%s that Dockwell's has, "+
+		"so Dockwell leaves it alone. Rename it with docker rename %s <another name>, or remove it with docker rm -f %s, then plan again",
+		t.Name, docker.LabelProject, t.Project, docker.LabelService, t.Service, t.Name, t.Name)
+}
+
+// Judge says what a step does on this server beyond what the specs say:
+// it refuses a container at the name that Dockwell didn't make; a step
+// that takes data the image keeps out of use destroys it, as the server
+// keeps it for 7 days; a step that mounts such data again restores it;
+// and a recreated container's health check, its image's included, says
+// how long it may take to be healthy.
+func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Container, dec *resource.Decision) error {
+	c, err := d.current(ctx, t)
+	if err != nil {
+		return err
+	}
+	if c != nil {
+		if err := owned(t, c); err != nil {
+			return err
+		}
+	}
+	var out map[string]string
+	switch dec.Action {
+	case resource.ActionDelete:
+		out = imageVolumes(c)
+	case resource.ActionCreate, resource.ActionReplace:
+		out = covered(c, desired)
+		kept, err := d.keptVolumes(ctx, t)
+		if err != nil {
+			return err
+		}
+		have := imageVolumes(c)
+		for p := range kept {
+			_, moves := have[p]
+			dec.Restores = dec.Restores || !moves && !slices.ContainsFunc(desired.GetMounts(), func(m *resourcev1.Mount) bool { return m.GetTarget() == p })
+		}
+	case resource.ActionNone, resource.ActionUpdate:
+	}
+	if len(out) > 0 {
+		dec.Destroys, dec.Kept = true, slices.Sorted(maps.Keys(out))
+	}
+	if hc := desired.GetHealthcheck(); dec.Action == resource.ActionReplace && !complete(hc) {
+		img, err := d.Client.InspectImage(ctx, docker.WithTag(desired.GetImage()))
+		switch {
+		case err == nil:
+			if b := HealthBound(hc, img.Config.Healthcheck); b > 0 {
+				dec.UntilHealthy = dec.Downtime + b
+			}
+		case !docker.IsNotFound(err):
+			return err
+		}
+	}
+	return nil
+}
+
+// complete reports a health check that says all HealthBound reads, so
+// the image's can't change it.
+func complete(hc *resourcev1.Healthcheck) bool {
+	t := hc.GetTest()
+	return len(t) > 0 && (t[0] == "NONE" || hc.GetInterval() != "" && hc.GetStartPeriod() != "" && hc.GetRetries() > 0)
+}
+
+// current is the container at t: the one of its name, or the newest a
+// replace left under another, which the next Run takes as the old one.
+func (d *Docker) current(ctx context.Context, t Target) (*docker.Container, error) {
+	c, err := d.find(ctx, t.Name)
+	if err != nil || c != nil {
+		return c, err
+	}
+	left, err := d.leftovers(ctx, t)
+	if err != nil || len(left) == 0 {
+		return nil, err
+	}
+	c, err = d.Client.InspectContainer(ctx, left[0].ID)
+	if docker.IsNotFound(err) {
+		return nil, nil
+	}
+	return c, err
 }
 
 // finishWait bounds finishing a replace once the old container is gone.
@@ -693,36 +896,45 @@ func (d *Docker) SetRestart(ctx context.Context, t Target, policy resourcev1.Res
 	case c == nil:
 		return fmt.Errorf("there's no container %s on this server to change. Plan the change again, which makes it", t.Name)
 	}
+	if err := owned(t, c); err != nil {
+		return err
+	}
 	return d.Client.UpdateRestartPolicy(ctx, c.ID, docker.RestartPolicy{Name: restartNames[policy]})
 }
 
-// Remove stops the container, giving it StopTimeout, and removes it. Its
-// volumes stay: an environment's are resources of their own, and those
-// Docker made for its image stay until a prune.
+// Remove stops the container, giving it StopTimeout, and removes it, if
+// it is Dockwell's. Its volumes stay: an environment's are resources of
+// their own, and those Docker made for its image are kept for 7 days, so
+// a container of the name made again in that time, as undoing the
+// deletion does, mounts them again.
 func (d *Docker) Remove(ctx context.Context, t Target) error {
-	left, err := d.leftovers(ctx, t)
+	c, err := d.find(ctx, t.Name)
 	if err != nil {
 		return err
 	}
-	for _, l := range left {
-		if err := d.Client.RemoveContainer(ctx, l.ID, true); err != nil && !docker.IsNotFound(err) {
+	if c != nil {
+		if err := owned(t, c); err != nil {
 			return err
 		}
-	}
-	c, err := d.find(ctx, t.Name)
-	if err != nil || c == nil {
+		left, err := d.leftovers(ctx, t)
+		if err != nil {
+			return err
+		}
+		for _, l := range left {
+			if err := d.Client.RemoveContainer(ctx, l.ID, true); err != nil && !docker.IsNotFound(err) {
+				return err
+			}
+		}
+	} else if c, err = d.unfinished(ctx, t); err != nil || c == nil {
 		return err
 	}
-	err = d.Client.StopContainer(ctx, c.ID, StopTimeout)
-	switch {
-	case docker.IsNotFound(err):
-		return nil
-	case err != nil:
+	if err := d.Client.StopContainer(ctx, c.ID, StopTimeout); err != nil && !docker.IsNotFound(err) {
 		return err
 	}
 	if err := d.Client.RemoveContainer(ctx, c.ID, true); err != nil && !docker.IsNotFound(err) {
 		return err
 	}
+	d.keep(t, imageVolumes(c))
 	return nil
 }
 
@@ -738,7 +950,7 @@ func or(d, def time.Duration) time.Duration {
 // fails its check isn't healthy. Messages name the container and how to
 // see why, never what it printed, which may hold secrets.
 func (d *Docker) Healthy(ctx context.Context, t Target) error {
-	wait := or(d.HealthWait, 5*time.Minute)
+	wait := or(d.HealthWait, DefaultHealthWait)
 	ctx, cancel := context.WithTimeoutCause(ctx, wait, errWaited)
 	defer cancel()
 	settle := or(d.Settle, 2*time.Second)

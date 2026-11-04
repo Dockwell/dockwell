@@ -225,8 +225,8 @@ func TestTheKeptListIsReadOnce(t *testing.T) {
 }
 
 // Prune and an undo never cross: a volume an undo brings back while the
-// prune is removing it either stays, data and all, or is made anew, and
-// is there either way.
+// prune is removing it either stays, data and all, or the undo fails,
+// saying the data is gone. It is never made anew, empty, without a word.
 func TestPruneNeverRemovesAVolumeBroughtBack(t *testing.T) {
 	e := dockertest.New(t)
 	now := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
@@ -261,13 +261,27 @@ func TestPruneNeverRemovesAVolumeBroughtBack(t *testing.T) {
 	if err := rt.Prune(t.Context(), slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatal(err)
 	}
-	if err := <-undone; err != nil {
-		t.Fatalf("the undo = %v", err)
+	// The prune holds the list as it removes the volume, so it wins here:
+	// the undo, which expected the data back, says it is gone.
+	if err := <-undone; err == nil || !strings.Contains(err.Error(), "it's gone now") {
+		t.Fatalf("the undo = %v, want it refused, as the prune removed the data first", err)
 	}
-	if e.Volume(name) == nil {
-		t.Error("the prune removed the volume an undo brought back")
+	if e.Volume(name) != nil {
+		t.Error("the refused undo made the volume anew, empty")
 	}
 	if kept, _ := rt.Kept.Has(name); kept {
-		t.Error("the volume brought back is still listed as deleted")
+		t.Error("the pruned volume is still listed as deleted")
+	}
+	// An undo that comes first keeps the data: one brought back is never
+	// pruned.
+	apply(t, l, plan(t, l, data, spec), spec)
+	apply(t, l, plan(t, l, data, nil), nil)
+	apply(t, l, plan(t, l, data, spec), spec)
+	now = now.Add(2 * volume.KeepFor)
+	if err := rt.Prune(t.Context(), slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatal(err)
+	}
+	if e.Volume(name) == nil {
+		t.Error("the prune removed a volume an undo brought back")
 	}
 }

@@ -2093,6 +2093,33 @@ components:
             description: |-
                 Healthcheck is a command Docker runs in the container to check it is
                  healthy.
+        HostAccess:
+            type: object
+            properties:
+                kind:
+                    enum:
+                        - HOST_ACCESS_KIND_UNSPECIFIED
+                        - HOST_ACCESS_KIND_SERVER_PATH
+                        - HOST_ACCESS_KIND_DOCKER_SOCKET
+                        - HOST_ACCESS_KIND_HOST_NETWORK
+                        - HOST_ACCESS_KIND_VOLUME_MOUNT
+                    type: string
+                    description: What it is.
+                    format: enum
+                path:
+                    type: string
+                    description: |-
+                        The server path or socket, or the volume's device, such as
+                         "/srv/app/config" or ":/export/media". Empty for the server's network.
+                readOnly:
+                    type: boolean
+                    description: True when a server path is mounted read-only.
+                type:
+                    type: string
+                    description: A volume's mount type, such as "nfs" or "cifs".
+            description: |-
+                HostAccess is something on a server that a resource reaches beyond what
+                 Docker keeps for it, such as a server path a container mounts.
         ImportComposeRequest:
             type: object
             properties:
@@ -2356,6 +2383,12 @@ components:
                     description: |-
                         True when a step destroys data or may cut off access. Applying it needs
                          the fingerprint and a signed-in session.
+                hostAccess:
+                    type: boolean
+                    description: |-
+                        True when the change adds to, or changes, what a container can reach
+                         on its server (host_access), which a person approves: applying it needs
+                         the fingerprint and a signed-in session, as a destructive plan does.
             description: |-
                 Plan is what applying a change would do: what changes, where, and for
                  how long.
@@ -2410,6 +2443,37 @@ components:
                     items:
                         $ref: '#/components/schemas/FieldChange'
                     description: The fields that differ from what the server has now.
+                untilHealthy:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: |-
+                        How long until what the resource serves is healthy again, at most,
+                         counting the downtime, when its health check may take longer than the
+                         downtime, as after a container is recreated. Unset when the downtime
+                         says it all.
+                keptPaths:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Where data was that the step takes out of use, which the server keeps
+                         for 7 days: for a container, the paths in it where its image keeps
+                         data, which deleting it, or mounting something else there, leaves
+                         behind. Undoing the step mounts them again.
+                restores:
+                    type: boolean
+                    description: |-
+                        True when the step brings back data its server kept, as undoing a
+                         deletion does. Applying it fails if the server no longer has the data,
+                         rather than making the resource anew, empty.
+                hostAccess:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HostAccess'
+                    description: |-
+                        What the step lets the resource reach on its server that it couldn't
+                         before, or reach in another way, which a person approves. The control
+                         plane decides this from the specs, not from what the server reports.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -2477,6 +2541,14 @@ components:
                     items:
                         type: string
                     description: Where it runs now, by server ID.
+                hostAccess:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HostAccess'
+                    description: |-
+                        What the change lets it reach on its servers that it couldn't before,
+                         or reach in another way, which a person approves. The control plane
+                         decides this from the specs, not from what the servers report.
             description: PlannedResource is what a plan does to one resource as a whole.
         PortMapping:
             type: object
@@ -2782,6 +2854,14 @@ components:
                     items:
                         $ref: '#/components/schemas/PlanStep'
                     description: The steps, in the order they run.
+                untilHealthy:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: |-
+                        How long until everything the steps touch is healthy again, at most,
+                         when a health check may take longer than the downtime: each step's
+                         until_healthy, or its downtime, added up. Unset when the downtime says
+                         it all.
             description: ServerPlan is the part of a plan on one server.
         ServerStats:
             type: object
