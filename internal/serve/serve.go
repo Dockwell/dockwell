@@ -15,10 +15,11 @@ import (
 	"net"
 	"net/http"
 	"runtime/debug"
-	"strconv"
 	"time"
 
 	"connectrpc.com/connect"
+
+	"github.com/dockwell/dockwell/internal/human"
 )
 
 // Limits applied to every request.
@@ -107,7 +108,7 @@ func Serve(ctx context.Context, ln net.Listener, h http.Handler, opts Options) e
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		_ = srv.Close()
-		return fmt.Errorf("%s didn't stop within %s, so its remaining connections were closed: %w", opts.Name, Seconds(timeout), err)
+		return fmt.Errorf("%s didn't stop within %s, so its remaining connections were closed: %w", opts.Name, human.Duration(timeout), err)
 	}
 	if err := <-errc; !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("%s stopped: %w", opts.Name, err)
@@ -171,12 +172,6 @@ func Recover(logger *slog.Logger, next http.Handler) http.Handler {
 		}()
 		next.ServeHTTP(w, r)
 	})
-}
-
-// Seconds formats d the way Dockwell writes durations: a number, a space
-// and a unit, such as "15 s".
-func Seconds(d time.Duration) string {
-	return strconv.FormatFloat(d.Seconds(), 'f', -1, 64) + " s"
 }
 
 func orDefault(v, fallback time.Duration) time.Duration {

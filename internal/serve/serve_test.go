@@ -133,18 +133,6 @@ func TestRecoverKeepsServing(t *testing.T) {
 	}
 }
 
-func TestSeconds(t *testing.T) {
-	for d, want := range map[time.Duration]string{
-		15 * time.Second:        "15 s",
-		1500 * time.Millisecond: "1.5 s",
-		0:                       "0 s",
-	} {
-		if got := Seconds(d); got != want {
-			t.Errorf("Seconds(%v) = %q, want %q", d, got, want)
-		}
-	}
-}
-
 func TestLevelFor(t *testing.T) {
 	for _, tt := range []struct {
 		code connect.Code

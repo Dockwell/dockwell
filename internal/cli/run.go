@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -162,42 +163,74 @@ func runControl(ctx context.Context, logger *slog.Logger, dir datadir.Dir, build
 
 // localIdentity loads the control server's own agent identity, enrolling it
 // directly with the authority the first time: it shares the machine, and
-// the data directory, with the CA, so it needs no ticket.
+// the data directory, with the CA, so it needs no ticket. On every start it
+// points the agent at the listener's current address, and renews directly
+// if the certificate is due, which also rescues one that expired while the
+// control server was off.
 func localIdentity(ctx context.Context, auth *identity.Authority, dir datadir.Dir, agentAddr net.Addr) (*enroll.Identity, error) {
+	controlURL := loopbackURL(agentAddr)
 	id, err := enroll.Load(dir.Agent())
-	if !errors.Is(err, enroll.ErrNotJoined) {
-		return id, err
-	}
-	key, csr, err := pki.NewServerKey()
-	if err != nil {
+	switch {
+	case errors.Is(err, enroll.ErrNotJoined):
+		key, csr, err := pki.NewServerKey()
+		if err != nil {
+			return nil, err
+		}
+		hostname, _ := os.Hostname()
+		joined, err := auth.EnrollLocal(ctx, csr, hostname)
+		if err != nil {
+			return nil, err
+		}
+		id = enroll.New(joined.Server.ID, joined.Server.Name, controlURL, key, joined.Cert, auth.CA().Certificate())
+		if err := id.Save(dir.Agent()); err != nil {
+			return nil, err
+		}
+		return id, nil
+	case err != nil:
 		return nil, err
 	}
-	hostname, _ := os.Hostname()
-	joined, err := auth.EnrollLocal(ctx, csr, hostname)
-	if err != nil {
-		return nil, err
+
+	if id.ControlURL != controlURL {
+		id.ControlURL = controlURL
+		if err := id.Save(dir.Agent()); err != nil {
+			return nil, err
+		}
 	}
-	id = &enroll.Identity{
-		ServerID:   joined.Server.ID,
-		ServerName: joined.Server.Name,
-		ControlURL: loopbackURL(agentAddr),
-		Key:        key,
-		Cert:       joined.Cert,
-		CA:         auth.CA().Certificate(),
-	}
-	if err := id.Save(dir.Agent()); err != nil {
-		return nil, err
+	if id.NeedsRenewal(time.Now()) {
+		next, err := id.NextKey()
+		if err != nil {
+			return nil, err
+		}
+		csr, err := pki.CSR(next)
+		if err != nil {
+			return nil, err
+		}
+		cert, err := auth.Renew(ctx, id.ServerID, pki.SerialString(id.Cert()), csr)
+		if err != nil {
+			return nil, fmt.Errorf("can't renew this server's own certificate: %w", err)
+		}
+		id.Replace(next, cert)
+		if err := id.Save(dir.Agent()); err != nil {
+			return nil, err
+		}
 	}
 	return id, nil
 }
 
-// loopbackURL is how the control server's own agent reaches the agent listener.
+// loopbackURL is how the control server's own agent reaches the agent
+// listener: the address it is bound to, or loopback when it listens on all
+// addresses.
 func loopbackURL(addr net.Addr) string {
-	port := "7443"
+	host, port := "127.0.0.1", "7443"
 	if tcp, ok := addr.(*net.TCPAddr); ok {
 		port = strconv.Itoa(tcp.Port)
+		switch {
+		case tcp.IP == nil, tcp.IP.IsUnspecified():
+		default:
+			host = tcp.IP.String()
+		}
 	}
-	return "https://" + net.JoinHostPort("127.0.0.1", port)
+	return "https://" + net.JoinHostPort(host, port)
 }
 
 // advertiseURL is where other servers reach the agent listener: the given
@@ -259,6 +292,10 @@ func exists(path string) bool {
 
 // withListenHint adds the fix to listen errors an operator can resolve.
 func withListenHint(err error, flag string) error {
+	example := control.DefaultListen
+	if flag == "--agent-listen" {
+		example = control.DefaultAgentListen
+	}
 	var addrErr *net.AddrError
 	var dnsErr *net.DNSError
 	switch {
@@ -269,7 +306,7 @@ func withListenHint(err error, flag string) error {
 	case errors.Is(err, syscall.EACCES):
 		return fmt.Errorf("%w. Ports below 1024 need root or the CAP_NET_BIND_SERVICE capability; pass a higher port with %s", err, flag)
 	case errors.As(err, &addrErr), errors.As(err, &dnsErr):
-		return fmt.Errorf("%w. Pass %s as host:port, such as %s", err, flag, control.DefaultListen)
+		return fmt.Errorf("%w. Pass %s as host:port, such as %s", err, flag, example)
 	default:
 		return err
 	}

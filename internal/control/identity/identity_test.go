@@ -183,7 +183,7 @@ func TestJoinRejects(t *testing.T) {
 	f.a.now = time.Now
 
 	// A bad CSR fails without spending the ticket.
-	if _, err := f.a.Join(t.Context(), tk.GetTokenId(), tk.GetSecret(), []byte("garbage"), "a", "x"); err == nil || errors.Is(err, ErrTicketRejected) {
+	if _, err := f.a.Join(t.Context(), tk.GetTokenId(), tk.GetSecret(), []byte("garbage"), "a", "x"); !errors.Is(err, ErrBadRequest) {
 		t.Errorf("bad CSR = %v", err)
 	}
 	if _, err := f.a.Join(t.Context(), tk.GetTokenId(), tk.GetSecret(), csr(t), "a", "x"); err != nil {
@@ -207,35 +207,111 @@ func TestNamesStayUnique(t *testing.T) {
 	}
 }
 
-func TestRenewAndRevoke(t *testing.T) {
+func TestRenewRotatesKeysAndRefusesReplacedCertificates(t *testing.T) {
 	f := newFixture(t)
 	joined, err := f.a.EnrollLocal(t.Context(), csr(t), "hz-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	renewed, err := f.a.Renew(t.Context(), joined.Server.ID, csr(t))
+	first := pki.SerialString(joined.Cert)
+
+	// The current certificate renews, with a new key.
+	keyB := csr(t)
+	second, err := f.a.Renew(t.Context(), joined.Server.ID, first, keyB)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pki.SerialString(renewed) == pki.SerialString(joined.Cert) {
-		t.Error("renewal must issue a new certificate")
-	}
 	s, err := f.a.CheckServer(t.Context(), joined.Server.ID)
-	if err != nil || s.CertSerial != pki.SerialString(renewed) {
-		t.Errorf("after renewal: %+v, %v", s, err)
+	if err != nil || s.CertSerial != pki.SerialString(second) || s.PrevCertSerial != first {
+		t.Fatalf("after renewal: %+v, %v", s, err)
 	}
 
+	// The same key again is refused: renewal must rotate.
+	if _, err := f.a.Renew(t.Context(), joined.Server.ID, pki.SerialString(second), keyB); !errors.Is(err, ErrBadRequest) {
+		t.Errorf("renewing with the same key = %v", err)
+	}
+
+	// A lost answer: the agent retries with its old certificate and the key
+	// it already sent. That works, and changes nothing else.
+	retried, err := f.a.Renew(t.Context(), joined.Server.ID, first, keyB)
+	if err != nil {
+		t.Fatalf("retry after a lost answer: %v", err)
+	}
+
+	// Someone with a copy of the first key can't renew with it.
+	if _, err := f.a.Renew(t.Context(), joined.Server.ID, first, csr(t)); !errors.Is(err, ErrStaleCertificate) {
+		t.Errorf("renewing a replaced certificate with another key = %v", err)
+	}
+	// And once the server renews again, the old certificate is out entirely.
+	if _, err := f.a.Renew(t.Context(), joined.Server.ID, pki.SerialString(retried), csr(t)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.a.Renew(t.Context(), joined.Server.ID, first, keyB); !errors.Is(err, ErrStaleCertificate) {
+		t.Errorf("a certificate two renewals old = %v", err)
+	}
+
+	_ = f.db.View(t.Context(), func(tx *store.Tx) error {
+		events, _ := tx.ListEvents(t.Context(), 20)
+		var rejected int
+		for _, e := range events {
+			if e.Action == "server.renew_rejected" {
+				rejected++
+			}
+		}
+		if rejected != 2 {
+			t.Errorf("%d rejected renewals audited, want 2", rejected)
+		}
+		return nil
+	})
+}
+
+func TestRevokedServersCantRenew(t *testing.T) {
+	f := newFixture(t)
+	joined, err := f.a.EnrollLocal(t.Context(), csr(t), "hz-1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := f.a.Revoke(t.Context(), joined.Server.ID, "cli:test"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.a.CheckServer(t.Context(), joined.Server.ID); !errors.Is(err, ErrRevoked) {
 		t.Errorf("revoked server = %v", err)
 	}
-	if _, err := f.a.Renew(t.Context(), joined.Server.ID, csr(t)); !errors.Is(err, ErrRevoked) {
+	if _, err := f.a.Renew(t.Context(), joined.Server.ID, pki.SerialString(joined.Cert), csr(t)); !errors.Is(err, ErrRevoked) {
 		t.Errorf("a revoked server renewed: %v", err)
 	}
 	if _, err := f.a.CheckServer(t.Context(), "srv_nope"); !errors.Is(err, ErrUnknownServer) {
 		t.Errorf("unknown server = %v", err)
+	}
+}
+
+func TestOpenNeverCreatesAnInstall(t *testing.T) {
+	dir := t.TempDir()
+	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(t.Context(), filepath.Join(dir, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := Open(t.Context(), db, key, slog.New(slog.DiscardHandler)); !errors.Is(err, ErrNoInstall) {
+		t.Fatalf("Open on an empty database = %v", err)
+	}
+	if _, err := Bootstrap(t.Context(), db, key, slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(t.Context(), db, key, slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatalf("Open after Bootstrap = %v", err)
+	}
+}
+
+func TestTicketLifetimeErrorReadsWell(t *testing.T) {
+	f := newFixture(t)
+	_, err := f.a.CreateTicket(t.Context(), "https://x:7443", "cli:test", 25*time.Hour)
+	if err == nil || err.Error() != "a join ticket can last from 1 s to 24 h, not 25 h" {
+		t.Errorf("error = %v", err)
 	}
 }
 

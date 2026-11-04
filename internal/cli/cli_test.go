@@ -176,6 +176,13 @@ func TestWithListenHint(t *testing.T) {
 	if got := withListenHint(eacces, "--agent-listen").Error(); !strings.Contains(got, "CAP_NET_BIND_SERVICE") || !strings.Contains(got, "--agent-listen") {
 		t.Errorf("EACCES hint = %q", got)
 	}
+	malformed := fmt.Errorf("can't listen on foo: %w", &net.AddrError{Err: "missing port in address", Addr: "foo"})
+	if got := withListenHint(malformed, "--agent-listen").Error(); !strings.Contains(got, "such as :7443") {
+		t.Errorf("the agent listener's example should be its own default, got %q", got)
+	}
+	if got := withListenHint(eacces, "--listen").Error(); !strings.Contains(got, "CAP_NET_BIND_SERVICE") {
+		t.Errorf("EACCES hint = %q", got)
+	}
 	other := errors.New("something else")
 	if got := withListenHint(other, "--listen"); !errors.Is(got, other) || got.Error() != "something else" {
 		t.Errorf("unrelated errors should pass through untouched, got %q", got)
@@ -288,16 +295,18 @@ func TestAddAServerThroughTheCLI(t *testing.T) {
 	}
 }
 
-func TestHumanDuration(t *testing.T) {
-	for d, want := range map[time.Duration]string{
-		time.Hour:        "1 h",
-		24 * time.Hour:   "24 h",
-		30 * time.Minute: "30 min",
-		90 * time.Minute: "90 min",
-		45 * time.Second: "45 s",
+func TestLoopbackURL(t *testing.T) {
+	for _, tt := range []struct {
+		addr *net.TCPAddr
+		want string
+	}{
+		{&net.TCPAddr{IP: net.IPv4zero, Port: 7443}, "https://127.0.0.1:7443"},
+		{&net.TCPAddr{IP: net.IPv6unspecified, Port: 7443}, "https://127.0.0.1:7443"},
+		{&net.TCPAddr{IP: net.ParseIP("10.0.0.5"), Port: 9443}, "https://10.0.0.5:9443"},
+		{&net.TCPAddr{IP: net.IPv6loopback, Port: 7443}, "https://[::1]:7443"},
 	} {
-		if got := humanDuration(d); got != want {
-			t.Errorf("humanDuration(%v) = %q, want %q", d, got, want)
+		if got := loopbackURL(tt.addr); got != tt.want {
+			t.Errorf("loopbackURL(%v) = %q, want %q", tt.addr, got, tt.want)
 		}
 	}
 }

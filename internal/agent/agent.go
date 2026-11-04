@@ -35,9 +35,9 @@ func Run(ctx context.Context, cfg Config) error {
 	id := cfg.Identity
 	log := cfg.Logger.With(slog.String("server", id.ServerID))
 	log.Info("agent running", slog.String("name", id.ServerName), slog.String("control_plane", id.ControlURL),
-		slog.Time("certificate_expires", id.Cert.NotAfter))
+		slog.Time("certificate_expires", id.Cert().NotAfter))
 	for {
-		wait := time.Until(pki.RenewAt(id.Cert))
+		wait := time.Until(pki.RenewAt(id.Cert()))
 		if wait > 0 {
 			select {
 			case <-ctx.Done():
@@ -50,7 +50,7 @@ func Run(ctx context.Context, cfg Config) error {
 			return nil //nolint:nilerr // stopping; a renewal cut short isn't a failure
 		}
 		if err != nil {
-			left := time.Until(id.Cert.NotAfter)
+			left := time.Until(id.Cert().NotAfter)
 			log.Warn("can't renew the server certificate; retrying", slog.String("error", err.Error()),
 				slog.Duration("valid_for", left.Round(time.Minute)))
 			select {
@@ -71,7 +71,7 @@ func renew(ctx context.Context, cfg Config) error {
 	if err := cfg.Identity.Save(cfg.Dir); err != nil {
 		return fmt.Errorf("renewed, but can't save the new certificate: %w", err)
 	}
-	cfg.Logger.Info("renewed the server certificate", slog.Time("expires", cfg.Identity.Cert.NotAfter))
+	cfg.Logger.Info("renewed the server certificate", slog.Time("expires", cfg.Identity.Cert().NotAfter))
 	return nil
 }
 

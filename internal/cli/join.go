@@ -16,6 +16,7 @@ import (
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/datadir"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -60,7 +61,7 @@ func newJoinCmd(stdio IO, g *globalFlags) *cobra.Command {
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Joined as %s (%s). The certificate is valid until %s and renews itself.\n"+
 				"Start the agent with: systemctl enable --now dockwell, or dockwell run.\n",
-				id.ServerName, id.ServerID, id.Cert.NotAfter.UTC().Format("2 Jan 2006"))
+				id.ServerName, id.ServerID, id.Cert().NotAfter.UTC().Format("2 Jan 2006"))
 			return nil
 		},
 	}
@@ -112,7 +113,7 @@ func newTokenCmd(stdio IO, g *globalFlags) *cobra.Command {
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Run this on the server you're adding, as root:\n\n  dockwell join %s\n\n"+
 				"The ticket adds one server through %s. It works once and expires in %s, at %s.\n",
-				tk.Value, controlURL, humanDuration(ttl), tk.ExpiresAt.UTC().Format("15:04 MST on 2 Jan"))
+				tk.Value, controlURL, human.Duration(ttl), tk.ExpiresAt.UTC().Format("15:04 MST on 2 Jan"))
 			return nil
 		},
 	}
@@ -132,18 +133,6 @@ func actor() string {
 	return fmt.Sprintf("cli:%s@%s", user, host)
 }
 
-// humanDuration writes durations the way Dockwell does: "1 h", "30 min", "90 s".
-func humanDuration(d time.Duration) string {
-	switch {
-	case d >= time.Hour && d%time.Hour == 0:
-		return fmt.Sprintf("%d h", d/time.Hour)
-	case d >= time.Minute && d%time.Minute == 0:
-		return fmt.Sprintf("%d min", d/time.Minute)
-	default:
-		return fmt.Sprintf("%d s", d/time.Second)
-	}
-}
-
 // openAuthority opens an existing control plane's authority, for commands
 // that run beside it. It never creates a key or an install.
 func openAuthority(ctx context.Context, dir datadir.Dir, logger *slog.Logger) (*identity.Authority, func(), error) {
@@ -155,7 +144,7 @@ func openAuthority(ctx context.Context, dir datadir.Dir, logger *slog.Logger) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	auth, err := identity.Bootstrap(ctx, db, key, logger)
+	auth, err := identity.Open(ctx, db, key, logger)
 	if err != nil {
 		_ = db.Close()
 		return nil, nil, err

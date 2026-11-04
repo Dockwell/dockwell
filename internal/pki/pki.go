@@ -203,6 +203,12 @@ func (ca *CA) ServerID(cert *x509.Certificate) (string, error) {
 	return "", errors.New("the certificate doesn't identify a server of this install")
 }
 
+// KeyHash is the SHA-256 of a certificate's public key.
+func KeyHash(cert *x509.Certificate) []byte {
+	sum := sha256.Sum256(cert.RawSubjectPublicKeyInfo)
+	return sum[:]
+}
+
 // Pin returns "sha256:<hex>" of a certificate's public key.
 func Pin(cert *x509.Certificate) string {
 	sum := sha256.Sum256(cert.RawSubjectPublicKeyInfo)

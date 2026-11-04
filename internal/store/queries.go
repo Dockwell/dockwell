@@ -41,17 +41,21 @@ type Server struct {
 	CreatedAt    time.Time
 	CertSerial   string
 	CertNotAfter time.Time
-	LastSeenAt   *time.Time
-	RevokedAt    *time.Time
+	// CertKeyHash is the SHA-256 of the current certificate's public key.
+	CertKeyHash []byte
+	// PrevCertSerial is the certificate the current one replaced.
+	PrevCertSerial string
+	LastSeenAt     *time.Time
+	RevokedAt      *time.Time
 }
 
-const serverColumns = `id, name, created_at, cert_serial, cert_not_after, last_seen_at, revoked_at`
+const serverColumns = `id, name, created_at, cert_serial, cert_not_after, cert_key_hash, prev_cert_serial, last_seen_at, revoked_at`
 
 func scanServer(row interface{ Scan(...any) error }) (Server, error) {
 	var s Server
 	var created, notAfter int64
 	var lastSeen, revoked sql.NullInt64
-	if err := row.Scan(&s.ID, &s.Name, &created, &s.CertSerial, &notAfter, &lastSeen, &revoked); err != nil {
+	if err := row.Scan(&s.ID, &s.Name, &created, &s.CertSerial, &notAfter, &s.CertKeyHash, &s.PrevCertSerial, &lastSeen, &revoked); err != nil {
 		return Server{}, err
 	}
 	s.CreatedAt, s.CertNotAfter = fromMillis(created), fromMillis(notAfter)
@@ -62,8 +66,12 @@ func scanServer(row interface{ Scan(...any) error }) (Server, error) {
 // CreateServer records a new server. A name already used by an active
 // server is ErrConflict.
 func (t *Tx) CreateServer(ctx context.Context, s Server) error {
-	_, err := t.tx.ExecContext(ctx, `INSERT INTO servers (`+serverColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		s.ID, s.Name, millis(s.CreatedAt), s.CertSerial, millis(s.CertNotAfter), nullMillis(s.LastSeenAt), nullMillis(s.RevokedAt))
+	if s.CertKeyHash == nil {
+		s.CertKeyHash = []byte{}
+	}
+	_, err := t.tx.ExecContext(ctx, `INSERT INTO servers (`+serverColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.ID, s.Name, millis(s.CreatedAt), s.CertSerial, millis(s.CertNotAfter), s.CertKeyHash, s.PrevCertSerial,
+		nullMillis(s.LastSeenAt), nullMillis(s.RevokedAt))
 	if isUniqueViolation(err) {
 		return fmt.Errorf("a server named %s %w", s.Name, ErrConflict)
 	}
@@ -100,9 +108,18 @@ func (t *Tx) ListServers(ctx context.Context) ([]Server, error) {
 	return out, rows.Err()
 }
 
+// CertUpdate is a renewed certificate.
+type CertUpdate struct {
+	Serial     string
+	KeyHash    []byte
+	NotAfter   time.Time
+	PrevSerial string
+}
+
 // UpdateServerCert records a renewed certificate.
-func (t *Tx) UpdateServerCert(ctx context.Context, id, serial string, notAfter time.Time) error {
-	return t.updateServer(ctx, id, `UPDATE servers SET cert_serial = ?, cert_not_after = ? WHERE id = ?`, serial, millis(notAfter), id)
+func (t *Tx) UpdateServerCert(ctx context.Context, id string, c CertUpdate) error {
+	return t.updateServer(ctx, id, `UPDATE servers SET cert_serial = ?, cert_key_hash = ?, cert_not_after = ?, prev_cert_serial = ? WHERE id = ?`,
+		c.Serial, c.KeyHash, millis(c.NotAfter), c.PrevSerial, id)
 }
 
 // TouchServer records that a server was heard from.

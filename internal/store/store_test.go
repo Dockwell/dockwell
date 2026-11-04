@@ -126,7 +126,7 @@ func TestServers(t *testing.T) {
 		if err := tx.TouchServer(ctx, "srv_1", seen); err != nil {
 			return err
 		}
-		return tx.UpdateServerCert(ctx, "srv_1", "03", now.Add(1440*time.Hour))
+		return tx.UpdateServerCert(ctx, "srv_1", CertUpdate{Serial: "03", KeyHash: []byte{3}, NotAfter: now.Add(1440 * time.Hour), PrevSerial: "01"})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestServers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.LastSeenAt == nil || !got.LastSeenAt.Equal(seen) || got.CertSerial != "03" {
+		if got.LastSeenAt == nil || !got.LastSeenAt.Equal(seen) || got.CertSerial != "03" || got.PrevCertSerial != "01" || len(got.CertKeyHash) != 1 {
 			t.Errorf("server after updates = %+v", got)
 		}
 		return nil

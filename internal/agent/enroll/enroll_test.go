@@ -106,31 +106,106 @@ func TestJoinSaveLoadRenew(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.ServerID != id.ServerID || !loaded.Key.Equal(id.Key) || pki.SerialString(loaded.Cert) != pki.SerialString(id.Cert) {
+	if loaded.ServerID != id.ServerID || !loaded.Key().Equal(id.Key()) || pki.SerialString(loaded.Cert()) != pki.SerialString(id.Cert()) {
 		t.Fatal("Load didn't return what Save wrote")
 	}
+	joinedAt := loaded.JoinedAt
 
-	before := pki.SerialString(loaded.Cert)
+	oldKey, oldSerial := loaded.Key(), pki.SerialString(loaded.Cert())
 	if err := loaded.Renew(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if pki.SerialString(loaded.Cert) == before {
-		t.Error("Renew kept the old certificate")
+	if pki.SerialString(loaded.Cert()) == oldSerial || loaded.Key().Equal(oldKey) {
+		t.Error("Renew must bring a new certificate for a new key")
 	}
-	if loaded.NeedsRenewal(time.Now()) {
-		t.Error("a fresh certificate shouldn't need renewal")
+	if err := loaded.Save(dir); err != nil {
+		t.Fatal(err)
 	}
-	if !loaded.NeedsRenewal(time.Now().Add(pki.ServerLifetime)) {
-		t.Error("a certificate at the end of its life needs renewal")
+	if _, err := os.Stat(filepath.Join(dir, "server.key.next")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the renewal key file should be gone after a successful renewal: %v", err)
+	}
+	again, err := enroll.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !again.JoinedAt.Equal(joinedAt) {
+		t.Errorf("JoinedAt moved from %v to %v on renewal", joinedAt, again.JoinedAt)
+	}
+	if loaded.NeedsRenewal(time.Now()) || !loaded.NeedsRenewal(time.Now().Add(pki.ServerLifetime)) {
+		t.Error("NeedsRenewal should be false now and true at the end of the certificate's life")
 	}
 
 	// A removed server can no longer renew.
 	if err := cp.auth.Revoke(t.Context(), id.ServerID, "cli:test"); err != nil {
 		t.Fatal(err)
 	}
-	err = loaded.Renew(t.Context())
-	if connect.CodeOf(errors.Unwrap(err)) != connect.CodePermissionDenied || !strings.Contains(err.Error(), "removed from Dockwell") {
+	if err := again.Renew(t.Context()); err == nil || !strings.Contains(err.Error(), "removed from Dockwell") {
 		t.Errorf("renewing a revoked server = %v", err)
+	}
+}
+
+func TestRenewalSurvivesALostAnswer(t *testing.T) {
+	cp := startControlPlane(t)
+	id, err := enroll.Join(t.Context(), cp.ticket(t), "hz-2", buildinfo.Read())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := id.Save(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	// The agent makes its renewal key (it lands on disk), and the control
+	// plane signs it, but the answer never arrives and the agent restarts.
+	next, err := id.NextKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	csr, err := pki.CSR(next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cp.auth.Renew(t.Context(), id.ServerID, pki.SerialString(id.Cert()), csr); err != nil {
+		t.Fatal(err)
+	}
+	restarted, err := enroll.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// It retries with its old certificate and the saved key, and that works.
+	if err := restarted.Renew(t.Context()); err != nil {
+		t.Fatalf("retry after a lost answer: %v", err)
+	}
+	if !restarted.Key().Equal(next) {
+		t.Error("the retry must use the key already on disk")
+	}
+}
+
+func TestACopiedKeyStopsWorkingOnceTheServerRenews(t *testing.T) {
+	cp := startControlPlane(t)
+	id, err := enroll.Join(t.Context(), cp.ticket(t), "hz-2", buildinfo.Read())
+	if err != nil {
+		t.Fatal(err)
+	}
+	genuine, stolen := t.TempDir(), t.TempDir()
+	for _, d := range []string{genuine, stolen} {
+		if err := id.Save(d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	server, err := enroll.Load(genuine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.Renew(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	thief, err := enroll.Load(stolen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := thief.Renew(t.Context()); err == nil || !strings.Contains(err.Error(), "another machine has its key") {
+		t.Errorf("renewing with a copied, replaced certificate = %v", err)
 	}
 }
 

@@ -27,12 +27,19 @@ import (
 	"github.com/dockwell/dockwell/internal/serve"
 )
 
-type serverKey struct{}
+type peerKey struct{}
 
-// ServerID returns the server a request's verified certificate names.
-func ServerID(ctx context.Context) (string, bool) {
-	id, ok := ctx.Value(serverKey{}).(string)
-	return id, ok
+// Peer is the server a request's verified client certificate names.
+type Peer struct {
+	ServerID string
+	// Serial is the serial of the certificate it connected with.
+	Serial string
+}
+
+// PeerFrom returns the verified server behind a request, if any.
+func PeerFrom(ctx context.Context) (Peer, bool) {
+	p, ok := ctx.Value(peerKey{}).(Peer)
+	return p, ok
 }
 
 // Handler implements AgentService.
@@ -56,8 +63,10 @@ func NewHandler(auth *identity.Authority, logger *slog.Logger) http.Handler {
 func identify(auth *identity.Authority, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.TLS != nil && len(r.TLS.VerifiedChains) > 0 {
-			if id, err := auth.CA().ServerID(r.TLS.VerifiedChains[0][0]); err == nil {
-				r = r.WithContext(context.WithValue(r.Context(), serverKey{}, id))
+			leaf := r.TLS.VerifiedChains[0][0]
+			if id, err := auth.CA().ServerID(leaf); err == nil {
+				p := Peer{ServerID: id, Serial: pki.SerialString(leaf)}
+				r = r.WithContext(context.WithValue(r.Context(), peerKey{}, p))
 			}
 		}
 		next.ServeHTTP(w, r)
@@ -68,11 +77,8 @@ func identify(auth *identity.Authority, next http.Handler) http.Handler {
 func (h *Handler) Join(ctx context.Context, req *connect.Request[agentv1.JoinRequest]) (*connect.Response[agentv1.JoinResponse], error) {
 	m := req.Msg
 	joined, err := h.auth.Join(ctx, m.GetTokenId(), m.GetSecret(), m.GetCsr(), m.GetHostname(), req.Peer().Addr)
-	switch {
-	case errors.Is(err, identity.ErrTicketRejected):
-		return nil, connect.NewError(connect.CodePermissionDenied, err)
-	case err != nil:
-		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
 	}
 	return connect.NewResponse(&agentv1.JoinResponse{
 		ServerId:      joined.Server.ID,
@@ -84,28 +90,41 @@ func (h *Handler) Join(ctx context.Context, req *connect.Request[agentv1.JoinReq
 
 // RenewCertificate signs a fresh certificate for the calling server.
 func (h *Handler) RenewCertificate(ctx context.Context, req *connect.Request[agentv1.RenewCertificateRequest]) (*connect.Response[agentv1.RenewCertificateResponse], error) {
-	serverID, err := requireServer(ctx)
+	peer, err := requireServer(ctx)
 	if err != nil {
 		return nil, err
 	}
-	cert, err := h.auth.Renew(ctx, serverID, req.Msg.GetCsr())
-	switch {
-	case errors.Is(err, identity.ErrRevoked), errors.Is(err, identity.ErrUnknownServer):
-		return nil, connect.NewError(connect.CodePermissionDenied, err)
-	case err != nil:
-		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	cert, err := h.auth.Renew(ctx, peer.ServerID, peer.Serial, req.Msg.GetCsr())
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
 	}
-	h.logger.InfoContext(ctx, "server renewed its certificate", slog.String("server", serverID), slog.Time("not_after", cert.NotAfter))
+	h.logger.InfoContext(ctx, "server renewed its certificate", slog.String("server", peer.ServerID), slog.Time("not_after", cert.NotAfter))
 	return connect.NewResponse(&agentv1.RenewCertificateResponse{Certificate: cert.Raw}), nil
 }
 
-func requireServer(ctx context.Context) (string, error) {
-	id, ok := ServerID(ctx)
+func requireServer(ctx context.Context) (Peer, error) {
+	p, ok := PeerFrom(ctx)
 	if !ok {
-		return "", connect.NewError(connect.CodeUnauthenticated,
+		return Peer{}, connect.NewError(connect.CodeUnauthenticated,
 			errors.New("this method needs the server's certificate. Join the server first with dockwell join"))
 	}
-	return id, nil
+	return p, nil
+}
+
+// rpcError maps the authority's errors to codes. Anything unexpected is a
+// fault on this side: it is logged, and the caller, who may not be
+// authenticated, learns nothing about it.
+func (h *Handler) rpcError(ctx context.Context, err error) error {
+	switch {
+	case errors.Is(err, identity.ErrTicketRejected), errors.Is(err, identity.ErrRevoked),
+		errors.Is(err, identity.ErrUnknownServer), errors.Is(err, identity.ErrStaleCertificate):
+		return connect.NewError(connect.CodePermissionDenied, err)
+	case errors.Is(err, identity.ErrBadRequest):
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	default:
+		h.logger.ErrorContext(ctx, "agent request failed", slog.String("error", err.Error()))
+		return connect.NewError(connect.CodeInternal, errors.New("the control plane couldn't complete the request; try again, and check its logs if it keeps failing"))
+	}
 }
 
 // TLSConfig is the agent listener's TLS configuration: TLS 1.3, a serving

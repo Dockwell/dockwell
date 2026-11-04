@@ -23,6 +23,7 @@ import (
 	"time"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/seal"
@@ -51,6 +52,15 @@ var (
 	ErrTicketRejected = errors.New("this join ticket is invalid, already used or expired. Create a new one on the control server with dockwell token create")
 	ErrRevoked        = errors.New("this server was removed from Dockwell. Join it again with a new ticket")
 	ErrUnknownServer  = errors.New("this server isn't known to the control plane. Join it with a ticket")
+	// ErrStaleCertificate means a renewal presented a certificate that was
+	// already replaced: either a lost retry gone wrong, or another machine
+	// holding a copy of the server's key.
+	ErrStaleCertificate = errors.New("this server's certificate was already replaced by a newer one. " +
+		"If this server didn't renew it, another machine has its key: remove the server and join it again")
+	// ErrBadRequest wraps requests that are malformed, such as an invalid CSR.
+	ErrBadRequest = errors.New("invalid request")
+	// ErrNoInstall means the database has no install yet.
+	ErrNoInstall = errors.New("this data directory has no Dockwell install yet. Start the control plane with dockwell run first")
 )
 
 // Authority issues and checks identities for one install.
@@ -65,10 +75,23 @@ type Authority struct {
 // Bootstrap loads the install's identity, creating the install ID and CA on
 // the first start.
 func Bootstrap(ctx context.Context, db *store.DB, key *seal.Key, logger *slog.Logger) (*Authority, error) {
+	return load(ctx, db, key, logger, true)
+}
+
+// Open loads an existing install's identity and never creates one, for
+// commands that run beside the control plane.
+func Open(ctx context.Context, db *store.DB, key *seal.Key, logger *slog.Logger) (*Authority, error) {
+	return load(ctx, db, key, logger, false)
+}
+
+func load(ctx context.Context, db *store.DB, key *seal.Key, logger *slog.Logger, create bool) (*Authority, error) {
 	a := &Authority{db: db, logger: logger, now: time.Now}
 	err := db.Update(ctx, func(tx *store.Tx) error {
 		installID, err := tx.GetSetting(ctx, settingInstallID)
 		if errors.Is(err, store.ErrNotFound) {
+			if !create {
+				return ErrNoInstall
+			}
 			return a.create(ctx, tx, key)
 		}
 		if err != nil {
@@ -163,8 +186,8 @@ type Ticket struct {
 // CreateTicket makes a single-use join ticket for the control plane at
 // controlURL, valid for ttl.
 func (a *Authority) CreateTicket(ctx context.Context, controlURL, actor string, ttl time.Duration) (Ticket, error) {
-	if ttl <= 0 || ttl > MaxTicketTTL {
-		return Ticket{}, fmt.Errorf("a join ticket can last from 1 s to %s, not %s", MaxTicketTTL, ttl)
+	if ttl < time.Second || ttl > MaxTicketTTL {
+		return Ticket{}, fmt.Errorf("a join ticket can last from 1 s to %s, not %s", human.Duration(MaxTicketTTL), human.Duration(ttl))
 	}
 	secret := make([]byte, ticket.SecretSize)
 	_, _ = rand.Read(secret)
@@ -260,7 +283,7 @@ func (a *Authority) enroll(ctx context.Context, tx *store.Tx, csr []byte, hostna
 	serverID := id.New(id.Server)
 	cert, err := a.ca.SignServer(csr, serverID, now)
 	if err != nil {
-		return Joined{}, err
+		return Joined{}, fmt.Errorf("%w: %w", ErrBadRequest, err)
 	}
 	base := ServerName(hostname)
 	for n := 1; n <= 100; n++ {
@@ -274,6 +297,7 @@ func (a *Authority) enroll(ctx context.Context, tx *store.Tx, csr []byte, hostna
 			CreatedAt:    now,
 			CertSerial:   pki.SerialString(cert),
 			CertNotAfter: cert.NotAfter,
+			CertKeyHash:  pki.KeyHash(cert),
 			LastSeenAt:   &now,
 		}
 		err := tx.CreateServer(ctx, s)
@@ -288,21 +312,54 @@ func (a *Authority) enroll(ctx context.Context, tx *store.Tx, csr []byte, hostna
 	return Joined{}, fmt.Errorf("100 servers are already named like %s; join with a different hostname", base)
 }
 
-// Renew signs a fresh certificate for a known, active server.
-func (a *Authority) Renew(ctx context.Context, serverID string, csr []byte) (*x509.Certificate, error) {
+// Renew signs a fresh certificate for a known, active server that proved
+// itself with presentedSerial, the serial of the certificate it connected
+// with. Each renewal must bring a new key, and only the current certificate
+// may renew. One exception lets an agent whose renewal answer was lost
+// retry: its previous certificate, with the key it already sent.
+func (a *Authority) Renew(ctx context.Context, serverID, presentedSerial string, csr []byte) (*x509.Certificate, error) {
 	var cert *x509.Certificate
 	err := a.db.Update(ctx, func(tx *store.Tx) error {
-		if _, err := a.checkServer(ctx, tx, serverID); err != nil {
-			return err
-		}
-		var err error
-		cert, err = a.ca.SignServer(csr, serverID, a.now())
+		s, err := a.checkServer(ctx, tx, serverID)
 		if err != nil {
 			return err
 		}
-		return tx.UpdateServerCert(ctx, serverID, pki.SerialString(cert), cert.NotAfter)
+		cert, err = a.ca.SignServer(csr, serverID, a.now())
+		if err != nil {
+			return fmt.Errorf("%w: %w", ErrBadRequest, err)
+		}
+		keyHash := pki.KeyHash(cert)
+		var prev string
+		switch {
+		case presentedSerial == s.CertSerial:
+			if subtle.ConstantTimeCompare(keyHash, s.CertKeyHash) == 1 {
+				return fmt.Errorf("%w: a renewal must use a new key", ErrBadRequest)
+			}
+			prev = s.CertSerial
+		case presentedSerial != "" && presentedSerial == s.PrevCertSerial && subtle.ConstantTimeCompare(keyHash, s.CertKeyHash) == 1:
+			prev = s.PrevCertSerial // a retry of a renewal whose answer was lost
+		default:
+			return ErrStaleCertificate
+		}
+		if err := tx.UpdateServerCert(ctx, serverID, store.CertUpdate{
+			Serial: pki.SerialString(cert), KeyHash: keyHash, NotAfter: cert.NotAfter, PrevSerial: prev,
+		}); err != nil {
+			return err
+		}
+		return a.audit(ctx, tx, "server:"+serverID, "server.renew", serverID, "certificate "+pki.SerialString(cert))
 	})
-	return cert, err
+	if errors.Is(err, ErrStaleCertificate) {
+		// Outside the failed transaction, so the warning survives.
+		_ = a.db.Update(ctx, func(tx *store.Tx) error {
+			return a.audit(ctx, tx, "server:"+serverID, "server.renew_rejected", serverID, "presented replaced certificate "+presentedSerial)
+		})
+		a.logger.Warn("refused to renew a replaced certificate; another machine may hold this server's key",
+			slog.String("server", serverID), slog.String("serial", presentedSerial))
+	}
+	if err != nil {
+		return nil, err
+	}
+	return cert, nil
 }
 
 // CheckServer returns a server if it may connect: it exists and isn't revoked.
