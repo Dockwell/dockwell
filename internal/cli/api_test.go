@@ -226,6 +226,23 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 				t.Errorf("the CLI printed a secret's value:\n%s", text)
 			}
 		}
+
+		// Making a variable a secret is one change, which deletes the one
+		// and makes the other; the CLI proposes its edits, the secret's
+		// from a file, so the value stays off the command line.
+		if r = run(t, env, "variables", "create", "MAIL_TOKEN", "--value", "plain-for-now", "--project", "default", "--yes"); r.code != exitOK {
+			t.Fatalf("variables create = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		edit := filepath.Join(t.TempDir(), "secret.json")
+		if err := os.WriteFile(edit, []byte(`{"resource":{"name":"MAIL_TOKEN"},"project":"default","spec":{"secret":{"value":"s3cret-mail-token"}}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		r = run(t, env, "changes", "propose", "--summary", "Make MAIL_TOKEN a secret",
+			"--edits", `{"resource":{"kind":"variable","name":"MAIL_TOKEN"},"project":"default","delete":true}`, "--edits", "@"+edit, "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "- variable MAIL_TOKEN") || !strings.Contains(r.out, "+ secret MAIL_TOKEN") ||
+			strings.Contains(r.out+r.err, "s3cret") {
+			t.Errorf("making a variable a secret = %d:\n%s\n%s", r.code, r.out, r.err)
+		}
 	})
 
 	t.Run("no means no", func(t *testing.T) {

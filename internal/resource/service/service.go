@@ -46,8 +46,9 @@ type Driver struct {
 }
 
 var (
-	_ resource.Driver = (*Driver)(nil)
-	_ resource.Binder = (*Driver)(nil)
+	_ resource.Driver   = (*Driver)(nil)
+	_ resource.Binder   = (*Driver)(nil)
+	_ resource.Rebinder = (*Driver)(nil)
 )
 
 // Kind returns "service".
@@ -159,6 +160,39 @@ func (*Driver) Pin(spec proto.Message, revisions map[string]int) {
 			svc.Revisions[u.As] = int64(rev)
 		}
 	}
+}
+
+// Rebind moves each use of the variable or secret name, of kind from, to
+// the one of kind to, under the same name the service sees it as.
+func (*Driver) Rebind(spec proto.Message, name string, from, to resource.Kind) {
+	svc := spec.(*resourcev1.Service)
+	src, dst := usesOfKind(svc, from), usesOfKind(svc, to)
+	if src == nil || dst == nil {
+		return
+	}
+	for as, n := range *src {
+		if n == name || n == "" && as == name {
+			delete(*src, as)
+			if *dst == nil {
+				*dst = map[string]string{}
+			}
+			(*dst)[as] = name
+		}
+	}
+	if len(*src) == 0 {
+		*src = nil
+	}
+}
+
+// usesOfKind is the map of a service's uses of kind.
+func usesOfKind(svc *resourcev1.Service, kind resource.Kind) *map[string]string {
+	switch kind {
+	case variable.VariableKind:
+		return &svc.Variables
+	case variable.SecretKind:
+		return &svc.Secrets
+	}
+	return nil
 }
 
 // Observe reads the service's container, and what it uses from the

@@ -419,7 +419,8 @@ interface ValueFormProps {
  * Adds a variable or secret, or changes one: either way it opens the plan
  * sheet, and nothing changes until the plan is applied. Making a variable a
  * secret, or a secret a variable, is one change that deletes the one and
- * makes the other. A secret's current value is never filled in.
+ * makes the other; the control plane takes in every service that uses it,
+ * moved to the new kind. A secret's current value is never filled in.
  */
 function ValueForm({ scope, envName, editing, onDone }: ValueFormProps) {
   const { t } = useLingui();

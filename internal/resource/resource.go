@@ -380,6 +380,16 @@ type Binder interface {
 	Pin(spec proto.Message, revisions map[string]int)
 }
 
+// Rebinder is a Binder that can use a resource of another kind in place of
+// one it uses, by the same name, as when a variable becomes a secret. The
+// revision store rebinds every resource that uses a value which a change
+// replaces with one of another kind, so the switch is one plan.
+type Rebinder interface {
+	// Rebind makes spec use the resource of kind to named name wherever
+	// it uses the one of kind from, under the same names.
+	Rebind(spec proto.Message, name string, from, to Kind)
+}
+
 // Driver manages one kind of resource on a server. Drivers run where the
 // resource is: on the agent. Kinds whose level doesn't run on servers have
 // a Type and no driver.

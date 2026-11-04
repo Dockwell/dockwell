@@ -283,3 +283,69 @@ func testARotationOpensOnlyTheServicesThatUseIt(t *testing.T, backend store.Back
 		}
 	}
 }
+
+// Making a value a secret, or a secret a variable, is one change: it
+// deletes the one and makes the other under the same name, and takes in
+// every service that uses it, moved to the new kind, under the same names,
+// so the switch applies as one plan, restarting each with the same value.
+// A service the change edits itself keeps what it says, and so is refused
+// if it still uses what the change deletes. Undoing it puts both back.
+func TestSwitchingAValuesKindTakesInItsServices(t *testing.T) {
+	storetest.Each(t, testSwitchingAValuesKindTakesInItsServices)
+}
+
+func testSwitchingAValuesKindTakesInItsServices(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A")
+	env := production(t, db)
+	apply(t, e, propose(t, e, "Set up",
+		variableEdit(env, "API_TOKEN", "tok-1"),
+		user(env, "api", "srv_A", nil, map[string]string{"TOKEN": "API_TOKEN", "LOG_LEVEL": "API_TOKEN"}),
+		user(env, "worker", "srv_A", nil, map[string]string{"API_TOKEN": ""}),
+	))
+	deleteVar := Edit{Ref: resource.Ref{Kind: variable.VariableKind, Scope: env, Name: "API_TOKEN"}}
+
+	_, err := e.Propose(t.Context(), Proposal{Summary: "Make API_TOKEN a secret, but keep api on the variable", Actor: "usr_test", Edits: []Edit{
+		deleteVar, secretEdit(env, "API_TOKEN", "tok-1"), user(env, "api", "srv_A", nil, map[string]string{"TOKEN": "API_TOKEN"}),
+	}})
+	if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "uses variable API_TOKEN as TOKEN, which this change deletes") {
+		t.Errorf("switching while editing a service that still uses the variable = %v, want it refused", err)
+	}
+
+	p := propose(t, e, "Make API_TOKEN a secret", deleteVar, secretEdit(env, "API_TOKEN", "tok-1"))
+	var names []string
+	for i := range p.Resources {
+		names = append(names, p.Resources[i].Ref.Name+" "+string(p.Resources[i].Ref.Kind)+" "+p.Resources[i].Action.String())
+	}
+	if got := strings.Join(names, ", "); got != "API_TOKEN variable delete, API_TOKEN secret create, api service replace, worker service replace" {
+		t.Errorf("the switch's plan touches %s, want both kinds and the two services", got)
+	}
+	if c := change(t, p.Steps(), "secrets[TOKEN]"); c.Op != resource.OpAdded || c.To != "API_TOKEN" {
+		t.Errorf("api's step = %+v, want it to use the secret as TOKEN", c)
+	}
+	apply(t, e, p)
+	api := containerOf(t, f["srv_A"], env, "api")
+	if api.GetEnv()["TOKEN"] != "tok-1" || api.GetEnv()["LOG_LEVEL"] != "tok-1" ||
+		api.GetLabels()[binding.LabelKey] != "LOG_LEVEL=secret:API_TOKEN@1,TOKEN=secret:API_TOKEN@1" {
+		t.Errorf("after the switch api runs with %v, labelled %q; want the secret under both names", api.GetEnv(), api.GetLabels()[binding.LabelKey])
+	}
+	if worker := containerOf(t, f["srv_A"], env, "worker"); worker.GetLabels()[binding.LabelKey] != "API_TOKEN=secret:API_TOKEN@1" {
+		t.Errorf("after the switch worker is labelled %q", worker.GetLabels()[binding.LabelKey])
+	}
+
+	back := propose(t, e, "Make API_TOKEN a variable",
+		Edit{Ref: resource.Ref{Kind: variable.SecretKind, Scope: env, Name: "API_TOKEN"}}, variableEdit(env, "API_TOKEN", "tok-2"))
+	apply(t, e, back)
+	// The variable was made, deleted, and made again: its third revision.
+	if got := containerOf(t, f["srv_A"], env, "worker").GetLabels()[binding.LabelKey]; got != "API_TOKEN=variable:API_TOKEN@3" {
+		t.Errorf("after switching back worker is labelled %q, want the variable's third revision", got)
+	}
+
+	undo, err := e.Undo(t.Context(), back.Change, By{Actor: "usr_test", Via: ViaPanel})
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply(t, e, undo)
+	if got := containerOf(t, f["srv_A"], env, "api").GetLabels()[binding.LabelKey]; got != "LOG_LEVEL=secret:API_TOKEN@3,TOKEN=secret:API_TOKEN@3" {
+		t.Errorf("after undoing the switch back api is labelled %q, want the secret again, at its third revision", got)
+	}
+}

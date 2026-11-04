@@ -66,12 +66,22 @@ func (e *Engine) withUsers(ctx context.Context, tx *store.Tx, items []item) ([]i
 	if err != nil {
 		return nil, err
 	}
+	switched := e.switched(items)
 	for _, ref := range refs {
 		it, err := e.load(ctx, tx, ref)
 		if err != nil {
 			return nil, err
 		}
 		it.spec = proto.Clone(it.current)
+		// A value the change replaces with one of another kind, by the
+		// same name, is used as the new one.
+		if rb, ok := e.rebinder(ref.Kind); ok {
+			for _, u := range e.usesOf(&it, it.current) {
+				if to, ok := switched[resource.Ref{Kind: u.Kind, Scope: ref.Scope, Name: u.Name}]; ok {
+					rb.Rebind(it.spec, u.Name, u.Kind, to)
+				}
+			}
+		}
 		if it.encoded, err = resource.Encode(it.spec); err != nil {
 			return nil, err
 		}
@@ -81,6 +91,39 @@ func (e *Engine) withUsers(ctx context.Context, tx *store.Tx, items []item) ([]i
 		items = append(items, it)
 	}
 	return items, nil
+}
+
+// switched finds the values a change replaces with a value of another
+// kind by the same name, as when it makes a variable a secret: for each
+// one it deletes, the kind that takes its place.
+func (e *Engine) switched(items []item) map[resource.Ref]resource.Kind {
+	made := map[resource.Ref]resource.Kind{} // by the name of what is made, and its scope
+	for i := range items {
+		if it := &items[i]; e.valuer(it.ref.Kind) && it.spec != nil && it.current == nil {
+			made[resource.Ref{Scope: it.ref.Scope, Name: it.ref.Name}] = it.ref.Kind
+		}
+	}
+	out := map[resource.Ref]resource.Kind{}
+	for i := range items {
+		it := &items[i]
+		if !e.valuer(it.ref.Kind) || it.spec != nil || it.current == nil {
+			continue
+		}
+		if to, ok := made[resource.Ref{Scope: it.ref.Scope, Name: it.ref.Name}]; ok && to != it.ref.Kind {
+			out[it.ref] = to
+		}
+	}
+	return out
+}
+
+// rebinder returns a kind as a Rebinder, if it is one.
+func (e *Engine) rebinder(kind resource.Kind) (resource.Rebinder, bool) {
+	t, err := e.kinds.Type(kind)
+	if err != nil {
+		return nil, false
+	}
+	rb, ok := t.(resource.Rebinder)
+	return rb, ok
 }
 
 // users lists the resources that use a value the change changes or
