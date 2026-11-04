@@ -1,0 +1,93 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--control-sm);
+}
+.dw-code-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* A well in surface-sunken: 20px lines, so a line number and its line stay level. */
+.dw-code-input {
+  --dw-code-line-height: 20px;
+  --dw-code-pad: var(--space-2);
+  display: flex;
+  height: calc(var(--dw-code-lines) * var(--dw-code-line-height) + 2 * var(--dw-code-pad) + 2px);
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  font: 400 13px / var(--dw-code-line-height) var(--font-mono);
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+.dw-code-input:hover {
+  border-color: var(--ink-muted);
+}
+.dw-code-input:focus-within {
+  border-color: var(--cobalt);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cobalt) 24%, transparent);
+}
+.dw-code-field.is-invalid .dw-code-input {
+  border-color: var(--critical);
+}
+.dw-code-field.is-invalid .dw-code-input:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 24%, transparent);
+}
+.dw-code-gutter {
+  flex: none;
+  min-width: 36px;
+  overflow: hidden;
+  padding: var(--dw-code-pad) var(--space-2);
+  border-right: 1px solid var(--line);
+  color: var(--ink-muted);
+  text-align: right;
+  user-select: none;
+}
+.dw-code-numbers {
+  white-space: pre;
+}
+.dw-code-body {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.dw-code-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.dw-code-mark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--dw-code-pad) + var(--dw-code-line) * var(--dw-code-line-height));
+  height: var(--dw-code-line-height);
+  background: var(--critical-soft);
+  pointer-events: none;
+}
+.dw-code-el {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: var(--dw-code-pad) var(--space-3);
+  border: 0;
+  outline: 0;
+  resize: none;
+  overflow: auto;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  white-space: pre;
+}
+.dw-code-el::placeholder {
+  color: var(--ink-muted);
+  opacity: 1;
+}

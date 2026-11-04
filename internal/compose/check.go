@@ -4,6 +4,7 @@ package compose
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -37,14 +38,26 @@ type Variable struct {
 
 // Variables lists the variables a file uses, by name, as Parse reads them:
 // $NAME, ${NAME} and ${NAME:?why} need a value, and ${NAME:-default} and
-// ${NAME:+other} have what they need. A $$ is a dollar sign. A file that
-// isn't YAML uses none.
-func Variables(file []byte) []Variable {
+// ${NAME:+other} have what they need. A $$ is a dollar sign. A file Parse
+// wouldn't read further than this uses none: one that isn't YAML, or comes to
+// too much once its aliases are read, which reading each alias again here
+// would pay for.
+func Variables(ctx context.Context, file []byte) []Variable {
 	if len(file) > MaxFile {
+		return nil
+	}
+	select {
+	case parsing <- struct{}{}:
+		defer func() { <-parsing }()
+	case <-ctx.Done():
 		return nil
 	}
 	var raw map[string]any
 	if yaml.Unmarshal(file, &raw) != nil {
+		return nil
+	}
+	dropExtensions(raw)
+	if measure(raw) != nil {
 		return nil
 	}
 	seen := map[string]bool{}
@@ -53,7 +66,7 @@ func Variables(file []byte) []Variable {
 	walk = func(v any) {
 		switch v := v.(type) {
 		case string:
-			scanVariables(v, note)
+			scanVariables(v, 0, note)
 		case map[string]any:
 			for _, e := range v {
 				walk(e)
@@ -74,8 +87,12 @@ func Variables(file []byte) []Variable {
 }
 
 // scanVariables notes each variable s uses, with the syntax substitute
-// reads.
-func scanVariables(s string, note func(name string, required bool)) {
+// reads, as far down as substitute goes: each level reads the rest of its
+// string again, so what is nested deeper isn't looked at. Parse refuses it.
+func scanVariables(s string, depth int, note func(name string, required bool)) {
+	if depth >= MaxNesting {
+		return
+	}
 	for i := 0; i < len(s)-1; {
 		if s[i] != '$' {
 			i++
@@ -98,7 +115,7 @@ func scanVariables(s string, note func(name string, required bool)) {
 				rest := strings.TrimPrefix(inner[n:], ":")
 				note(inner[:n], rest == "" || strings.HasPrefix(rest, "?"))
 				if rest != "" {
-					scanVariables(rest[1:], note)
+					scanVariables(rest[1:], depth+1, note)
 				}
 			}
 			i = end + 1
@@ -125,7 +142,16 @@ var (
 // Line says which line of file err, from Parse, is about, from 1, or 0 when
 // it is about the file as a whole. It only points the way, so it is the
 // nearest line it can find, such as the service's own.
-func Line(file []byte, err error) int {
+func Line(ctx context.Context, file []byte, err error) int {
+	if len(file) > MaxFile {
+		return 0
+	}
+	select {
+	case parsing <- struct{}{}:
+		defer func() { <-parsing }()
+	case <-ctx.Done():
+		return 0
+	}
 	var doc yaml.Node
 	if yerr := yaml.Unmarshal(file, &doc); yerr != nil || len(doc.Content) == 0 {
 		if m := yamlLine.FindStringSubmatch(Message(err)); m != nil {

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { describe, expect, it } from "vitest";
 
 import { englishStrings, UIStringsProvider } from "../../lib/strings";
@@ -223,5 +223,20 @@ describe("Sheet", () => {
       </UIStringsProvider>,
     );
     expect(screen.getByRole("button", { name: "关闭" })).toBeVisible();
+  });
+
+  it("gives focus to the field it is told to, and keeps its head out of the page's landmarks", async () => {
+    function WithField() {
+      const field = useRef<HTMLInputElement>(null);
+      return (
+        <Sheet open title="New app" initialFocusRef={field} footer={<button type="button">Go</button>}>
+          <input ref={field} aria-label="Image" />
+        </Sheet>
+      );
+    }
+    render(<WithField />);
+    await waitFor(() => expect(screen.getByLabelText("Image")).toHaveFocus());
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
   });
 });

@@ -7,6 +7,7 @@
 
 export { Button, ButtonLink, type ButtonLinkProps, type ButtonProps } from "./components/Button/Button";
 export { Callout, type CalloutProps } from "./components/Callout/Callout";
+export { CodeField, type CodeFieldProps } from "./components/CodeField/CodeField";
 export { CommandBar, type CommandBarProps, type CommandItem } from "./components/CommandBar/CommandBar";
 export { FleetGrid, type FleetGridProps, type FleetGroup, type FleetServer } from "./components/FleetGrid/FleetGrid";
 export { Glyph, type GlyphProps } from "./components/Glyph/Glyph";
@@ -32,6 +33,7 @@ export {
   type SegmentedControlProps,
   type SegmentedOption,
 } from "./components/SegmentedControl/SegmentedControl";
+export { SelectField, type SelectFieldProps, type SelectOption } from "./components/SelectField/SelectField";
 export { Sheet, type SheetProps } from "./components/Sheet/Sheet";
 export { Sparkline, type SparklineProps, type SparklineTone } from "./components/Sparkline/Sparkline";
 export { StatusBadge, type StatusBadgeProps } from "./components/StatusBadge/StatusBadge";

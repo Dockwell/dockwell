@@ -80,4 +80,14 @@ describe("Timeline", () => {
     );
     expect(screen.getByRole("button", { name: "撤销" })).toBeVisible();
   });
+
+  it("takes a word for its status where the status's own says too much", () => {
+    render(
+      <Timeline
+        events={[{ id: 1, kind: "deploy", title: "Deploy web", time: "now", status: "healthy", statusLabel: "Live" }]}
+      />,
+    );
+    expect(screen.getByText("Live")).toBeVisible();
+    expect(screen.queryByText("Healthy")).not.toBeInTheDocument();
+  });
 });

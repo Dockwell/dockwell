@@ -127,6 +127,16 @@ jobs:
         run: go test -race -run 'OnRealCaddy' -v ./internal/ingress/...
       - name: A service end to end
         run: make docker-e2e
+      # The app screens on real Docker. The runner image has Chrome.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: The app screens end to end
+        env:
+          CHROMIUM_PATH: /usr/bin/google-chrome
+        run: make docker-panel-e2e
 
   schema:
     name: API schema

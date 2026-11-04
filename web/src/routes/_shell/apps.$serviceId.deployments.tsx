@@ -5,8 +5,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppDeployments } from "../../features/apps/AppDeployments";
 
 export const Route = createFileRoute("/_shell/apps/$serviceId/deployments")({
-  component: function Deployments() {
-    const { serviceId } = Route.useParams();
-    return <AppDeployments serviceId={serviceId} />;
+  validateSearch: (search: Record<string, unknown>): { revision?: string } => {
+    const revision = search["revision"];
+    // A number in the address reads back as a number.
+    return typeof revision === "string" || typeof revision === "number" ? { revision: String(revision) } : {};
   },
+  component: AppDeployments,
 });

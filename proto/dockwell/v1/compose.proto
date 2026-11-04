@@ -32,10 +32,10 @@ service ComposeService {
 
   // CheckCompose reads a Compose file as ImportCompose would and says what
   // it would make, or why it can't, without planning anything or recording a
-  // change, so a form can check a file as someone types it.
-  // It is a POST, as a file of 1 MiB doesn't fit in a URL.
+  // change, so a form can check a file as someone types it. It is a POST, as
+  // a file doesn't fit in a URL.
   rpc CheckCompose(CheckComposeRequest) returns (CheckComposeResponse) {
-    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.effect) = EFFECT_PLAN;
     option (google.api.http) = {
       post: "/v1/compose:check"
       body: "*"
@@ -101,7 +101,7 @@ message ImportComposeResponse {
 
 // CheckComposeRequest is a Compose file to read.
 message CheckComposeRequest {
-  // The Compose file, as YAML, of up to 1 MiB.
+  // The Compose file, as YAML, as ImportCompose takes it.
   string compose = 1;
   // Values for the variables the file uses, as ImportCompose takes them.
   map<string, string> variables = 2;

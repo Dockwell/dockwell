@@ -209,7 +209,7 @@ func (x *ImportComposeResponse) GetChange() *Change {
 // CheckComposeRequest is a Compose file to read.
 type CheckComposeRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The Compose file, as YAML, of up to 1 MiB.
+	// The Compose file, as YAML, as ImportCompose takes it.
 	Compose string `protobuf:"bytes,1,opt,name=compose,proto3" json:"compose,omitempty"`
 	// Values for the variables the file uses, as ImportCompose takes them.
 	Variables     map[string]string `protobuf:"bytes,2,rep,name=variables,proto3" json:"variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -633,7 +633,7 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\aomitted\x18\x02 \x03(\tR\aomitted2\xf6\x02\n" +
 	"\x0eComposeService\x12y\n" +
 	"\rImportCompose\x12!.dockwell.v1.ImportComposeRequest\x1a\".dockwell.v1.ImportComposeResponse\"!\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/compose:import\x12u\n" +
-	"\fCheckCompose\x12 .dockwell.v1.CheckComposeRequest\x1a!.dockwell.v1.CheckComposeResponse\" \xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:check\x12r\n" +
+	"\fCheckCompose\x12 .dockwell.v1.CheckComposeRequest\x1a!.dockwell.v1.CheckComposeResponse\" \xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:check\x12r\n" +
 	"\rExportCompose\x12!.dockwell.v1.ExportComposeRequest\x1a\".dockwell.v1.ExportComposeResponse\"\x1a\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/compose\x90\x02\x01B\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fComposeProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 

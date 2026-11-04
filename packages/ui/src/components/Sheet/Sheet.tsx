@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type CSSProperties, type ReactNode, type Ref, useId, useRef } from "react";
+import { type CSSProperties, type ReactNode, type Ref, type RefObject, useId, useRef } from "react";
 
 import { cx, hasContent } from "../../lib/cx";
 import { ModalLayer } from "../../lib/modal";
@@ -22,6 +22,8 @@ export interface SheetProps {
   width?: number | string;
   /** Render the panel in place, without scrim, portal or fixed positioning. */
   inline?: boolean;
+  /** Receives focus on open, such as a form's first field. Defaults to the sheet itself. */
+  initialFocusRef?: RefObject<HTMLElement | null> | undefined;
   className?: string;
 }
 
@@ -39,7 +41,12 @@ export function Sheet(props: SheetProps) {
 function SheetLayer(props: SheetProps) {
   const panelRef = useRef<HTMLElement>(null);
   return (
-    <ModalLayer className="dw-sheet-layer" containerRef={panelRef} onClose={props.onClose}>
+    <ModalLayer
+      className="dw-sheet-layer"
+      containerRef={panelRef}
+      initialFocusRef={props.initialFocusRef}
+      onClose={props.onClose}
+    >
       <SheetPanel {...props} modal ref={panelRef} />
     </ModalLayer>
   );
@@ -56,7 +63,7 @@ function SheetPanel({
   className,
   modal,
   ref,
-}: SheetProps & { modal: boolean; ref?: Ref<HTMLElement> }) {
+}: Omit<SheetProps, "initialFocusRef"> & { initialFocusRef?: unknown; modal: boolean; ref?: Ref<HTMLElement> }) {
   const strings = useUIStrings();
   const titleId = useId();
   const subtitleId = useId();
@@ -73,7 +80,8 @@ function SheetPanel({
       aria-describedby={hasSubtitle ? subtitleId : undefined}
       style={style}
     >
-      <header className="dw-sheet-head">
+      {/* Not a <header> or <footer>: inside a dialog they'd read as the page's banner and footer. */}
+      <div className="dw-sheet-head">
         <div className="dw-sheet-heading">
           <h2 id={titleId} className="dw-sheet-title">
             {title}
@@ -85,9 +93,9 @@ function SheetPanel({
           ) : null}
         </div>
         {onClose ? <Button variant="ghost" size="sm" icon="x" aria-label={strings.close} onClick={onClose} /> : null}
-      </header>
+      </div>
       <div className="dw-sheet-body">{children}</div>
-      {hasContent(footer) ? <footer className="dw-sheet-foot">{footer}</footer> : null}
+      {hasContent(footer) ? <div className="dw-sheet-foot">{footer}</div> : null}
     </section>
   );
 }

@@ -57,7 +57,7 @@ func (h *Handler) internal(ctx context.Context, what string, err error) error {
 	if errors.Is(err, context.Canceled) {
 		return connect.NewError(connect.CodeCanceled, err)
 	}
-	h.logger.ErrorContext(ctx, what, slog.String("error", err.Error()))
+	h.logger.ErrorContext(ctx, "a service call failed", slog.String("doing", what), slog.String("error", err.Error()))
 	return connect.NewError(connect.CodeInternal, errors.New("the control plane couldn't read its services; try again, and check its logs if it keeps failing"))
 }
 
@@ -130,7 +130,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 		return nil
 	})
 	if err != nil {
-		return nil, h.internal(ctx, "can't list services", err)
+		return nil, h.internal(ctx, "listing services", err)
 	}
 	return connect.NewResponse(res), nil
 }
@@ -166,6 +166,9 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 			return nil, authapi.Invalid(errors.New("page_token isn't one ListServiceRevisions gave. Pass next_page_token from the page before, or leave it out to start with the latest"))
 		}
 	}
+	if !h.isService(ctx, m.GetId()) {
+		return nil, h.readError(ctx, m.GetId(), store.ErrNotFound)
+	}
 	records, err := h.engine.History(ctx, m.GetId(), before, size+1)
 	if err != nil {
 		return nil, h.changes.Error(ctx, err)
@@ -181,7 +184,7 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 	}
 	protos, err := h.changes.Protos(ctx, made...)
 	if err != nil {
-		return nil, h.internal(ctx, "can't name the actors of revisions", err)
+		return nil, h.internal(ctx, "naming the actors of revisions", err)
 	}
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		names := serverNames{tx: tx, known: map[string]string{}}
@@ -210,7 +213,7 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 		return nil
 	})
 	if err != nil {
-		return nil, h.internal(ctx, "can't read revisions", err)
+		return nil, h.internal(ctx, "reading revisions", err)
 	}
 	return connect.NewResponse(res), nil
 }
@@ -304,7 +307,7 @@ func (h *Handler) readError(ctx context.Context, id string, err error) error {
 	case errors.Is(err, store.ErrNotFound):
 		return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no service %s. It may have been removed; list what exists with ListServices", id), "not_found")
 	}
-	return h.internal(ctx, "can't read a service", err)
+	return h.internal(ctx, "reading a service", err)
 }
 
 // serverNames names servers, removed ones included, reading each once.

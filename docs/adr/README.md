@@ -28,6 +28,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0022](0022-secrets-encrypted-at-rest.md) | Variables and secrets, encrypted at rest and referenced by services | Accepted |
 | [0023](0023-a-full-build-and-an-agent-build.md) | A full build and an agent build, from one codebase | Accepted |
 | [0024](0024-the-caddy-ingress-driver.md) | The Caddy ingress driver, on the server's own network | Accepted |
+| [0026](0026-the-app-screens.md) | The app screens, and what they needed of the API | Accepted |
 | [0029](0029-a-catalog-format-fed-from-other-catalogs.md) | A catalog format of our own, fed from other catalogs | Accepted |
 | [0030](0030-routes-behind-a-tunnel-or-a-proxy.md) | Routes behind a tunnel or a proxy | Accepted |
 

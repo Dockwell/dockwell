@@ -48,6 +48,8 @@ export interface TableProps<Row extends object = Record<string, unknown>> {
   onRowClick?: (row: Row) => void;
   /** The key of the row whose details are open. */
   selectedKey?: string | number | null;
+  /** A class for a row, for rows that differ, such as a group's head above its members. */
+  rowClassName?: (row: Row) => string | undefined;
   /** Says what would appear and how to add the first one. */
   empty?: ReactNode;
   /** Names the table for assistive technology; the panel's title usually shows it. */
@@ -79,6 +81,7 @@ export function Table<Row extends object = Record<string, unknown>>({
   density = "comfortable",
   onRowClick,
   selectedKey,
+  rowClassName,
   empty,
   caption,
   maxHeight,
@@ -127,7 +130,7 @@ export function Table<Row extends object = Record<string, unknown>>({
               return (
                 <tr
                   key={key}
-                  className={cx(clickable && "is-clickable", selected && "is-selected")}
+                  className={cx(clickable && "is-clickable", selected && "is-selected", rowClassName?.(row))}
                   aria-current={selected ? "true" : undefined}
                   tabIndex={clickable ? 0 : undefined}
                   onClick={

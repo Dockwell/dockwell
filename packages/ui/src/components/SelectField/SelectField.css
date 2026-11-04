@@ -1,0 +1,24 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-select {
+  position: relative;
+}
+.dw-select-el {
+  appearance: none;
+  width: 100%;
+  padding-right: calc(var(--space-3) + 16px + var(--space-1));
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+.dw-select-icon {
+  position: absolute;
+  top: 50%;
+  right: var(--space-2);
+  transform: translateY(-50%);
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+/* Native menus take their own colours from the surface they open on. */
+.dw-select-el option {
+  background: var(--surface-raised);
+  color: var(--ink);
+}

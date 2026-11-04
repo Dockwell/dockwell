@@ -4,6 +4,7 @@ package compose
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -31,10 +32,10 @@ services:
 		{Name: "TAG"},
 		{Name: "TWICE", Required: true},
 	}
-	if got := Variables([]byte(file)); !slices.Equal(got, want) {
+	if got := Variables(t.Context(), []byte(file)); !slices.Equal(got, want) {
 		t.Errorf("Variables = %+v, want %+v", got, want)
 	}
-	if got := Variables([]byte("not: [yaml")); got != nil {
+	if got := Variables(t.Context(), []byte("not: [yaml")); got != nil {
 		t.Errorf("Variables of what isn't YAML = %+v", got)
 	}
 }
@@ -58,9 +59,45 @@ func TestLineFindsWhatIsRefused(t *testing.T) {
 			if err == nil {
 				t.Fatal("Parse took it")
 			}
-			if got := Line([]byte(tt.file), err); got != tt.line {
+			if got := Line(t.Context(), []byte(tt.file), err); got != tt.line {
 				t.Errorf("Line = %d, want %d, for %v", got, tt.line, err)
 			}
 		})
+	}
+}
+
+// Each level of a nested default reads the rest of its string again, so a
+// file of nothing else mustn't take time or stack.
+func TestVariablesStopsAtTheDepthParseDoes(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("services:\n  web:\n    image: nginx\n    command: \"")
+	const depth = 40_000
+	for range depth {
+		b.WriteString("${A:-")
+	}
+	b.WriteString("x")
+	for range depth {
+		b.WriteString("}")
+	}
+	b.WriteString("\"\n")
+	got := Variables(t.Context(), []byte(b.String()))
+	if len(got) != 1 || got[0].Name != "A" || got[0].Required {
+		t.Errorf("Variables = %+v", got)
+	}
+}
+
+// Reading each alias again would cost what the aliases come to, which isn't
+// what the file does: 256 KiB can come to 87 GiB.
+func TestVariablesLeavesAFileThatComesToTooMuch(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("x-a: &a \"${LONG}" + strings.Repeat("v", 128<<10) + "\"\nservices:\n  web:\n    image: nginx\n    command:\n")
+	for range 8000 {
+		b.WriteString("      - *a\n")
+	}
+	if b.Len() > MaxFile {
+		t.Fatalf("the file is %d bytes, over the cap", b.Len())
+	}
+	if got := Variables(t.Context(), []byte(b.String())); got != nil {
+		t.Errorf("Variables = %+v, want none", got)
 	}
 }

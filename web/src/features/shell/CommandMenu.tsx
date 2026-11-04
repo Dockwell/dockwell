@@ -10,6 +10,9 @@ import { useNavigate } from "@tanstack/react-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { onApple } from "../../lib/platform";
+import { appState, imageOf, nameOf } from "../apps/app";
+import { useServices } from "../apps/useServices";
+import { useAppWords } from "../apps/words";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { serverStatus } from "../servers/server";
@@ -30,12 +33,11 @@ export function useCommandShortcut(): string {
 
 /**
  * The command bar, open on ⌘K (Ctrl+K off Apple keyboards) from anywhere in
- * the shell and from the search buttons. It reaches every page and server,
- * the activity of each server, project and environment, each environment's
- * variables and secrets, the latest changes' plans, the control plane's
- * status, your profile and the theme. Its first
- * actions make a project or an environment: it asks for the name, then
- * opens the plan. Other verbs come later.
+ * the shell and from the search buttons. It reaches every page, server and
+ * app, the activity of each server, project and environment, each environment's
+ * variables and secrets, the latest changes' plans, the control plane's status,
+ * your profile and the theme. Its first actions make an app, a project or an
+ * environment. Other verbs come later.
  */
 export function CommandMenu({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -110,6 +112,8 @@ function Commands({ onClose }: { onClose: () => void }) {
   const projects = useQuery(ResourceService.method.listResources, { kind: "project" }).data?.resources;
   const environments = useQuery(ResourceService.method.listResources, { kind: "environment" }).data?.resources;
   const recent = useQuery(EventService.method.listEvents, { kinds: [EventKind.CHANGE], pageSize: 8 }).data?.events;
+  const apps = useServices().data;
+  const appWords = useAppWords();
   const [prompt, setPrompt] = useState<Prompt>();
   const [query, setQuery] = useState("");
 
@@ -127,6 +131,14 @@ function Commands({ onClose }: { onClose: () => void }) {
       icon: "home",
       label: t`Open the overview`,
       run: () => navigate({ to: "/" }),
+    });
+    list.push({
+      id: "apps",
+      group: pages,
+      icon: "service",
+      label: t`Open the apps`,
+      hint: apps ? String(apps.length) : undefined,
+      run: () => navigate({ to: "/apps" }),
     });
     if (fleet) {
       list.push({
@@ -187,6 +199,18 @@ function Commands({ onClose }: { onClose: () => void }) {
       run: () => navigate({ to: "/profile" }),
     });
 
+    for (const app of apps ?? []) {
+      const name = nameOf(app);
+      list.push({
+        id: `app:${app.id}`,
+        group: t`Apps`,
+        icon: "service",
+        label: t`Open ${name}`,
+        hint: [appWords.state(appState(app, servers)), imageOf(app)].join(" · "),
+        run: () => navigate({ to: "/apps/$serviceId", params: { serviceId: app.id } }),
+      });
+    }
+
     // Projects and environments, once there is a choice of them (PRD principle 4).
     const shownProjects = (projects?.length ?? 0) > 1 ? (projects ?? []) : [];
     for (const project of shownProjects) {
@@ -243,6 +267,14 @@ function Commands({ onClose }: { onClose: () => void }) {
 
     const actions = t`Actions`;
     list.push({
+      id: "new-app",
+      group: actions,
+      icon: "plus",
+      label: t`New app`,
+      hint: t`Opens a plan`,
+      run: () => navigate({ to: "/apps/new" }),
+    });
+    list.push({
       id: "create-project",
       group: actions,
       icon: "plus",
@@ -292,6 +324,8 @@ function Commands({ onClose }: { onClose: () => void }) {
     projects,
     environments,
     recent,
+    apps,
+    appWords,
     prompt,
     query,
     sheet,

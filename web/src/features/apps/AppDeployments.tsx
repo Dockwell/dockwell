@@ -1,6 +1,579 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-/** One app's deployments. */
-export function AppDeployments(_: { serviceId: string }) {
-  return null;
+import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
+import { createClient } from "@connectrpc/connect";
+import { useTransport } from "@connectrpc/connect-query";
+import {
+  type Actor,
+  ActorKind,
+  ChangeState,
+  DeploymentState,
+  FieldOp,
+  type ServiceRevision,
+  ServiceService,
+  Surface,
+} from "@dockwell/api";
+import {
+  Button,
+  Callout,
+  cx,
+  Icon,
+  type IconName,
+  Panel,
+  PHONE_QUERY,
+  PlanDiff,
+  type PlanResource,
+  Sheet,
+  type Status,
+  StatusBadge,
+  Table,
+  type TableColumn,
+  useMediaQuery,
+} from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useCallback, useMemo, useRef } from "react";
+
+import { sentence } from "../../lib/errors";
+import { formatDateTime } from "../../lib/format";
+import { useTimeWords } from "../../lib/time";
+import { useChangeSheet } from "../changes/ChangeSheet";
+import { useChangeWords } from "../changes/words";
+import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { useApp, useRevisions } from "./AppContext";
+import { ListSkeleton } from "./AppsPage";
+import { canRollBackTo, fieldName, nameOf, revisionName, shortImages, tidyMessage } from "./app";
+import { type Look, useRevisionLook, useRevisionTitle } from "./revision";
+import { useAppWords } from "./words";
+
+const DEPLOYMENT_LOOKS: Partial<Record<DeploymentState, Status>> = {
+  [DeploymentState.LIVE]: "healthy",
+  [DeploymentState.FAILED]: "down",
+  [DeploymentState.PENDING]: "deploying",
+};
+
+/** Where a change came from, by its mark: a person, a token, or Dockwell. */
+function triggerIcon(rev: ServiceRevision): IconName {
+  if (rev.change?.reverts) return "undo";
+  const kind = (rev.change?.appliedBy ?? rev.change?.proposedBy)?.kind;
+  if (kind === ActorKind.TOKEN) return "key";
+  if (kind === ActorKind.SHELL) return "terminal";
+  if (kind === ActorKind.DOCKWELL) return "activity";
+  return "user";
+}
+
+/** How long a change's steps took, from the first start to the last finish. */
+function took(rev: ServiceRevision): number | undefined {
+  let start: number | undefined;
+  let finish: number | undefined;
+  for (const step of rev.change?.steps ?? []) {
+    if (step.startTime) start = Math.min(start ?? Number.POSITIVE_INFINITY, timestampMs(step.startTime));
+    if (step.finishTime) finish = Math.max(finish ?? 0, timestampMs(step.finishTime));
+  }
+  return start !== undefined && finish !== undefined ? finish - start : undefined;
+}
+
+/**
+ * Each revision, newest first: what changed, who did it, from where, and how
+ * it went (App-Deployments). The chosen one opens beside the list, on phones
+ * in a sheet, with its diff and the way back to it, which is a plan too.
+ */
+export function AppDeployments() {
+  const { t, i18n } = useLingui();
+  const { service } = useApp();
+  const phone = useMediaQuery(PHONE_QUERY);
+  const time = useTimeWords();
+  const now = useControlPlaneNow(30_000);
+  const look = useRevisionLook();
+  const revisionTitle = useRevisionTitle();
+  const navigate = useNavigate();
+  const words = useChangeWords();
+  const search: { revision?: string } = useSearch({ strict: false });
+  const history = useRevisions(service.id);
+  const appName = nameOf(service);
+  const { revisions } = history;
+  const rollBack = useRollBack();
+  const latest = service.revision;
+  const selectedNumber = search.revision;
+  // Without a choice, wide screens show the one that is live; on a phone the list comes first.
+  const selected =
+    revisions?.find((r) => r.number.toString() === selectedNumber) ??
+    (phone || selectedNumber ? undefined : revisions?.[0]);
+
+  // Below the list, where a narrow screen puts it, the one chosen comes into view.
+  const layout = useRef<HTMLDivElement>(null);
+  const select = (rev: ServiceRevision | undefined) => {
+    void navigate({
+      to: "/apps/$serviceId/deployments",
+      params: { serviceId: service.id },
+      search: rev ? { revision: rev.number.toString() } : {},
+      replace: true,
+    });
+    requestAnimationFrame(() => {
+      const panel = layout.current?.querySelector<HTMLElement>(".deploy-panel");
+      const list = layout.current?.querySelector<HTMLElement>(".deploy-list");
+      if (panel && list && panel.offsetTop > list.offsetTop + 8)
+        panel.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    });
+  };
+
+  const columns = useMemo<TableColumn<ServiceRevision & { id: string }>[]>(() => {
+    const out: TableColumn<ServiceRevision & { id: string }>[] = [
+      {
+        key: "number",
+        header: t`Revision`,
+        width: 80,
+        render: (rev) => <code className="deploy-number">{revisionName(rev.number)}</code>,
+      },
+      {
+        key: "status",
+        header: t`Status`,
+        width: 116,
+        render: (rev) => {
+          const { status, word } = look(rev, latest);
+          return <StatusBadge status={status} label={word} labelIsState />;
+        },
+      },
+      {
+        key: "what",
+        header: t`What changed`,
+        render: (rev) => (
+          <span className="dw-cell">
+            <span className="dw-cell-title deploy-clip">{revisionTitle(rev)}</span>
+            <span className="deploy-what">
+              <ChangedLine rev={rev} />
+            </span>
+          </span>
+        ),
+      },
+      {
+        key: "who",
+        header: t`By`,
+        width: 164,
+        render: (rev) => {
+          const actor: Actor | undefined = rev.change?.appliedBy ?? rev.change?.proposedBy;
+          const via = rev.change ? words.via(rev.change.appliedVia || rev.change.proposedVia) : "";
+          return (
+            <span className="dw-cell deploy-who">
+              <span className="deploy-who-name">
+                <Icon name={triggerIcon(rev)} size={14} />
+                <span className="deploy-clip">{actor?.name || t`Someone`}</span>
+              </span>
+              <span className="deploy-who-via">{via}</span>
+            </span>
+          );
+        },
+      },
+    ];
+    out.push({
+      key: "took",
+      header: t`Took`,
+      width: 76,
+      align: "right",
+      muted: true,
+      render: (rev) => {
+        const ms = took(rev);
+        return ms === undefined ? "" : time.bound(ms);
+      },
+    });
+    out.push({
+      key: "at",
+      header: t`Deployed`,
+      width: 100,
+      align: "right",
+      muted: true,
+      render: (rev) => {
+        const when = rev.createTime ? timestampDate(rev.createTime) : new Date(0);
+        return (
+          <time dateTime={when.toISOString()} title={formatDateTime(when, i18n.locale)}>
+            {time.ago(when, now)}
+          </time>
+        );
+      },
+    });
+    return out;
+  }, [t, i18n, latest, look, revisionTitle, words, time, now]);
+
+  const newest = revisions?.[0] ? revisionName(revisions[0].number) : undefined;
+  const lastShown = revisions?.[revisions.length - 1];
+  const oldest = lastShown ? revisionName(lastShown.number) : undefined;
+  const rows = useMemo(() => (revisions ?? []).map((rev) => ({ ...rev, id: rev.number.toString() })), [revisions]);
+
+  if (history.error && !revisions) {
+    return (
+      <Callout
+        tone="critical"
+        title={t`Can't load the deployments`}
+        actions={
+          <Button onClick={() => void history.refetch()} loading={history.isFetching}>
+            <Trans>Try again</Trans>
+          </Button>
+        }
+      >
+        {sentence(history.error)}
+      </Callout>
+    );
+  }
+
+  const list = (
+    <section className="deploy-list" aria-label={t`Revisions`}>
+      <div className="deploy-list-head">
+        <h2 className="dw-text-heading">
+          <Trans>Revisions</Trans>
+        </h2>
+        <span className="app-muted">
+          {plural(Number(latest), { one: "# revision · newest first", other: "# revisions · newest first" })}
+        </span>
+      </div>
+      {!revisions ? (
+        <ListSkeleton label={t`Loading revisions`} />
+      ) : phone ? (
+        <Panel flush>
+          <ul className="deploy-phone">
+            {revisions.map((rev) => {
+              const { status, word } = look(rev, latest);
+              const when = rev.createTime ? timestampDate(rev.createTime) : new Date(0);
+              return (
+                <li key={rev.number.toString()}>
+                  <button type="button" className="deploy-phone-row" onClick={() => select(rev)}>
+                    <span className="deploy-phone-top">
+                      <code className="deploy-number">{revisionName(rev.number)}</code>
+                      <StatusBadge status={status} label={word} labelIsState />
+                      <span className="deploy-phone-time">{time.ago(when, now)}</span>
+                    </span>
+                    <span className="deploy-phone-summary">{revisionTitle(rev)}</span>
+                    <span className="deploy-phone-by">
+                      {rev.change?.appliedBy?.name || rev.change?.proposedBy?.name}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </Panel>
+      ) : (
+        <Table
+          className="deploy-table"
+          columns={columns}
+          rows={rows}
+          selectedKey={selected?.number.toString() ?? null}
+          caption={t`Revisions of ${appName}`}
+          onRowClick={(rev) => select(rev)}
+        />
+      )}
+      {history.hasNextPage && oldest !== undefined ? (
+        <div className="deploy-more">
+          <span className="app-muted">
+            <Trans>
+              Showing {oldest} to {newest}
+            </Trans>
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="chevron-down"
+            loading={history.isFetchingNextPage}
+            onClick={() => void history.fetchNextPage()}
+          >
+            <Trans>Show older revisions</Trans>
+          </Button>
+        </div>
+      ) : null}
+    </section>
+  );
+
+  return (
+    <div ref={layout} className="deploy-layout">
+      {list}
+      {selected && !phone ? (
+        <RevisionPanel
+          rev={selected}
+          latest={latest}
+          look={look(selected, latest)}
+          onRollBack={rollBack}
+          revisions={revisions ?? []}
+        />
+      ) : null}
+      {selected && phone ? (
+        <Sheet
+          open
+          title={revisionName(selected.number)}
+          subtitle={revisionTitle(selected)}
+          onClose={() => select(undefined)}
+          className="app-sheet is-phone"
+          footer={
+            <RollBackButton target={rollBackTarget(selected, latest, revisions ?? [])} onRollBack={rollBack} wide />
+          }
+        >
+          <RevisionBody rev={selected} />
+        </Sheet>
+      ) : null}
+    </div>
+  );
+}
+
+/** Plans going back to a revision, and opens the plan. */
+function useRollBack() {
+  const { t } = useLingui();
+  const { service } = useApp();
+  const name = nameOf(service);
+  const transport = useTransport();
+  const sheet = useChangeSheet();
+  return useCallback(
+    (rev: ServiceRevision) => {
+      const target = revisionName(rev.number);
+      sheet.open({
+        kind: "plan",
+        make: () =>
+          createClient(ServiceService, transport).rollBackService({
+            id: service.id,
+            revision: rev.number,
+            summary: t`Roll back ${name} to ${target}`,
+          }),
+      });
+    },
+    [t, name, service.id, transport, sheet],
+  );
+}
+
+/**
+ * Where the way back from a revision goes: from the one that is live, to the
+ * one before it that ran; from any other, to it. Nowhere while it is moving.
+ */
+function rollBackTarget(
+  rev: ServiceRevision,
+  latest: bigint,
+  revisions: readonly ServiceRevision[],
+): ServiceRevision | undefined {
+  if (revisions[0]?.deployments.some((d) => d.state === DeploymentState.PENDING)) return undefined;
+  if (rev.number === latest) return revisions.find((r) => r.number < latest && canRollBackTo(r));
+  return canRollBackTo(rev) ? rev : undefined;
+}
+
+/** A revision's changes in a line: the first field and how many more. */
+function ChangedLine({ rev }: { rev: ServiceRevision }) {
+  const { t } = useLingui();
+  const changes = rev.changes;
+  const [first] = changes;
+  if (rev.deleted) return <span>{t`Deleted`}</span>;
+  if (!first || rev.number === 1n) return <code className="deploy-clip">{rev.image}</code>;
+  const more = changes.length - 1;
+  const name = fieldName(first.path);
+  const secret = first.sensitive;
+  return (
+    <>
+      <code className="deploy-field">{name}</code>
+      {secret ? (
+        <span>{t`changed`}</span>
+      ) : first.from || first.to ? (
+        <code className="deploy-clip">
+          {first.op === FieldOp.ADDED
+            ? first.to
+            : first.op === FieldOp.REMOVED
+              ? first.from
+              : name === "image"
+                ? shortImages(first.from, first.to)
+                : `${first.from} → ${first.to}`}
+        </code>
+      ) : null}
+      {more > 0 ? <span className="deploy-more-count">{t`and ${more} more`}</span> : null}
+    </>
+  );
+}
+
+function RollBackButton({
+  target,
+  onRollBack,
+  wide = false,
+}: {
+  target: ServiceRevision | undefined;
+  onRollBack: (rev: ServiceRevision) => void;
+  wide?: boolean;
+}) {
+  if (!target) return null;
+  const name = revisionName(target.number);
+  return (
+    <Button
+      icon="undo"
+      size={wide ? "lg" : "md"}
+      onClick={() => onRollBack(target)}
+      className={cx(wide && "deploy-wide")}
+    >
+      <Trans>Roll back to {name}</Trans>
+    </Button>
+  );
+}
+
+function RevisionPanel({
+  rev,
+  latest,
+  look,
+  revisions,
+  onRollBack,
+}: {
+  rev: ServiceRevision;
+  latest: bigint;
+  look: Look;
+  revisions: readonly ServiceRevision[];
+  onRollBack: (rev: ServiceRevision) => void;
+}) {
+  const { i18n } = useLingui();
+  const time = useTimeWords();
+  const now = useControlPlaneNow(30_000);
+  const when = rev.createTime ? timestampDate(rev.createTime) : new Date(0);
+  const name = revisionName(rev.number);
+  const target = rollBackTarget(rev, latest, revisions);
+  return (
+    <div className="deploy-panel">
+      <Panel
+        title={
+          <span className="deploy-panel-title">
+            <span className="deploy-number">{name}</span>
+            <StatusBadge status={look.status} label={look.word} labelIsState />
+          </span>
+        }
+        actions={
+          <span className="app-muted deploy-panel-time" title={formatDateTime(when, i18n.locale)}>
+            {time.ago(when, now)}
+          </span>
+        }
+        flush
+      >
+        <div className="deploy-panel-body">
+          <RevisionBody rev={rev} />
+        </div>
+        {target ? (
+          <div className="deploy-foot">
+            <span className="app-muted">
+              <Trans>Opens a plan to review first</Trans>
+            </span>
+            <RollBackButton target={target} onRollBack={onRollBack} />
+          </div>
+        ) : null}
+      </Panel>
+    </div>
+  );
+}
+
+/** What a revision did and how it went. */
+function RevisionBody({ rev }: { rev: ServiceRevision }) {
+  const { t, i18n } = useLingui();
+  const appWords = useAppWords();
+  const { service } = useApp();
+  const { fleet } = useFleetView();
+  const change = rev.change;
+  const words = useChangeWords();
+  const time = useTimeWords();
+  const failed = rev.deployments.find((d) => d.state === DeploymentState.FAILED);
+  const actor = change?.appliedBy ?? change?.proposedBy;
+  const via = change ? words.surface(change.appliedVia || change.proposedVia) : "";
+  const proposedApart =
+    change?.appliedBy && change.proposedBy && change.proposedBy.id !== change.appliedBy.id
+      ? change.proposedBy
+      : undefined;
+  const duration = took(rev);
+  const resources = useMemo<PlanResource[]>(
+    () => [
+      {
+        id: rev.number.toString(),
+        action: rev.deleted ? "destroy" : rev.number === 1n ? "create" : "update",
+        kind: "service",
+        name: nameOf(service),
+        changes: rev.changes.map((c) => {
+          const out: { path: string; from?: string | { secret: true }; to?: string | { secret: true } } = {
+            path: fieldName(c.path),
+          };
+          if (c.op !== FieldOp.ADDED) out.from = c.sensitive ? { secret: true } : c.from;
+          if (c.op !== FieldOp.REMOVED) out.to = c.sensitive ? { secret: true } : c.to;
+          return out;
+        }),
+      },
+    ],
+    [rev, service],
+  );
+  const when = rev.createTime ? timestampDate(rev.createTime) : new Date(0);
+  return (
+    <div className="deploy-body">
+      {change?.state === ChangeState.FAILED || failed ? (
+        <Callout tone="critical" title={t`Why it failed`}>
+          {tidyMessage(failed?.error || change?.error || "")}
+          {change?.rolledBackBy ? (
+            <>
+              {" "}
+              <Trans>Dockwell rolled back the steps already done.</Trans>
+            </>
+          ) : null}
+        </Callout>
+      ) : null}
+      {rev.deleted ? null : (
+        <div className="deploy-part">
+          <h3 className="dw-text-label">
+            <Trans>What changed</Trans>
+          </h3>
+          {rev.changes.length > 0 ? (
+            <PlanDiff resources={resources} />
+          ) : (
+            <p className="app-note">
+              <Trans>Nothing in its spec changed. It moved, or came back as it was.</Trans>
+            </p>
+          )}
+        </div>
+      )}
+      <dl className="app-facts">
+        <dt>{t`Who`}</dt>
+        <dd>{actor?.name || t`Someone`}</dd>
+        <dt>{t`From`}</dt>
+        <dd>{via}</dd>
+        {proposedApart ? (
+          <>
+            <dt>{t`Proposed by`}</dt>
+            <dd>
+              {proposedApart.name}
+              <span className="app-muted"> · {words.surface(change?.proposedVia ?? Surface.UNSPECIFIED)}</span>
+            </dd>
+          </>
+        ) : null}
+        <dt>{t`When`}</dt>
+        <dd>{formatDateTime(when, i18n.locale)}</dd>
+        {duration !== undefined ? (
+          <>
+            <dt>{t`Took`}</dt>
+            <dd>{time.bound(duration)}</dd>
+          </>
+        ) : null}
+        {rev.image ? (
+          <>
+            <dt>{t`Image`}</dt>
+            <dd className="deploy-image">
+              <code>{rev.image}</code>
+            </dd>
+          </>
+        ) : null}
+      </dl>
+      {fleet && rev.deployments.length > 0 ? (
+        <div className="deploy-part">
+          <h3 className="dw-text-label">
+            <Trans>Rollout</Trans>
+          </h3>
+          <dl className="deploy-rollout">
+            {rev.deployments.map((d) => (
+              <div key={d.serverId} className="deploy-rollout-row">
+                <dt>
+                  <code>{d.serverName}</code>
+                </dt>
+                <dd>
+                  <StatusBadge
+                    status={DEPLOYMENT_LOOKS[d.state] ?? "stopped"}
+                    label={appWords.deployment(d.state)}
+                    labelIsState
+                  />
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ) : null}
+    </div>
+  );
 }

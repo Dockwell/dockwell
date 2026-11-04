@@ -126,7 +126,13 @@ export function TabLink({ children, count, countTone, className, ...rest }: TabL
   return (
     <a {...rest} className={cx("dw-tab", className)}>
       <span>{children}</span>
-      {count != null ? <span className={cx("dw-tab-count", countTone && `dw-tone-${countTone}`)}>{count}</span> : null}
+      {/* The space keeps the name "Deployments 128" where styles don't separate the two. */}
+      {count != null ? (
+        <>
+          {" "}
+          <span className={cx("dw-tab-count", countTone && `dw-tone-${countTone}`)}>{count}</span>
+        </>
+      ) : null}
     </a>
   );
 }

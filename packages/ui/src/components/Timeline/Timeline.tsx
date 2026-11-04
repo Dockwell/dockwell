@@ -23,6 +23,8 @@ export interface TimelineEvent {
   /** Only for an alert or an outcome worth noticing. Routine events stay neutral. */
   tone?: "healthy" | "warning" | "critical" | "cobalt";
   status?: Status;
+  /** The word beside the status, where it says more than the status's own, such as "Live". */
+  statusLabel?: string;
   revision?: string;
   actor?: string;
   meta?: ReactNode;
@@ -84,7 +86,12 @@ function TimelineItem({
           {event.title}
         </div>
         <div className="dw-tl-meta">
-          {event.status ? <StatusBadge status={event.status} /> : null}
+          {event.status ? (
+            <StatusBadge
+              status={event.status}
+              {...(event.statusLabel ? { label: event.statusLabel, labelIsState: true } : {})}
+            />
+          ) : null}
           {event.revision ? <code className="dw-tl-rev">{event.revision}</code> : null}
           {event.actor ? <span>{event.actor}</span> : null}
           {hasContent(event.meta) ? <span>{event.meta}</span> : null}

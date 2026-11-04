@@ -77,11 +77,8 @@ type Engine struct {
 	intercept func(*http.Request) error
 	// Registry has the images a pull can find, by reference.
 	Registry map[string]Image
-	// RegistryDown has the registry not answer, so the engine can't say what it
-	// has.
-	RegistryDown bool
-	// NCPU is how many CPUs the fake server has. Zero means 8.
-	NCPU       int
+	// Find, when set, finds an image Registry doesn't have.
+	Find       func(ref string) (Image, bool)
 	images     map[string]*image // pulled, by reference and by ID
 	containers map[string]*container
 	volumes    map[string]*docker.Volume
@@ -311,6 +308,9 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 		w.Header().Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
 		src, ok := e.Registry[ref]
+		if !ok && e.Find != nil {
+			src, ok = e.Find(ref)
+		}
 		if !ok {
 			_ = enc.Encode(map[string]any{
 				"error":       "pull access denied for " + ref + ", repository does not exist or may require 'docker login'",

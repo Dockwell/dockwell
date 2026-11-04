@@ -151,11 +151,11 @@ func (h *Handler) CheckCompose(ctx context.Context, req *connect.Request[dockwel
 	if strings.TrimSpace(m.GetCompose()) == "" {
 		return connect.NewResponse(res), nil
 	}
-	for _, v := range compose.Variables(file) {
+	for _, v := range compose.Variables(ctx, file) {
 		res.Variables = append(res.Variables, &dockwellv1.ComposeVariable{Name: v.Name, Required: v.Required})
 	}
 	refuse := func(err error) (*connect.Response[dockwellv1.CheckComposeResponse], error) {
-		res.Refusal = &dockwellv1.ComposeRefusal{Message: compose.Message(err), Line: int32(compose.Line(file, err))} //nolint:gosec // a line of a file of 1 MiB at most
+		res.Refusal = &dockwellv1.ComposeRefusal{Message: compose.Message(err), Line: int32(compose.Line(ctx, file, err))} //nolint:gosec // a line of a file under compose.MaxFile
 		return connect.NewResponse(res), nil
 	}
 	stack, err := compose.Parse(ctx, file, m.GetVariables())

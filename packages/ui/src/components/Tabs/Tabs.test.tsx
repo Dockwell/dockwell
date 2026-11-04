@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
-import { type TabItem, Tabs } from "./Tabs";
+import { type TabItem, TabLink, TabNav, Tabs } from "./Tabs";
 
 const tabs: TabItem[] = [
   { id: "overview", label: "Overview", controls: "panel" },
@@ -97,5 +97,25 @@ describe("Tabs", () => {
     rerender(<Tabs label="App sections" tabs={tabs} value="alerts" onChange={onChange} />);
     expect(tab("Alerts")).toHaveAttribute("aria-selected", "true");
     expect(tab("Alerts")).toHaveAttribute("tabindex", "0");
+  });
+});
+
+describe("TabNav", () => {
+  it("is links in a named navigation, the current one marked by its link", async () => {
+    const { container } = render(
+      <TabNav label="App sections">
+        <TabLink href="/a" aria-current="page">
+          Overview
+        </TabLink>
+        <TabLink href="/b" count={128}>
+          Deployments
+        </TabLink>
+      </TabNav>,
+    );
+    const nav = screen.getByRole("navigation", { name: "App sections" });
+    expect(nav).toHaveClass("dw-tabs");
+    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Deployments 128" })).toHaveAttribute("href", "/b");
+    await expectAccessible(container);
   });
 });

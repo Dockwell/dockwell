@@ -72,9 +72,9 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 	return e.propose(ctx, Proposal{Summary: words, Actor: by.Actor, Via: by.Via, Edits: []Edit{ed}}, reverts)
 }
 
-// RevisionRecord is one revision of a resource, with the change that made
+// ResourceRevision is one revision of a resource, with the change that made
 // it, what it changed, and where it was placed.
-type RevisionRecord struct {
+type ResourceRevision struct {
 	store.Revision
 	// Record is the change that made it, with its plan in brief.
 	Record *Record
@@ -86,8 +86,8 @@ type RevisionRecord struct {
 
 // History reads at most limit of a resource's revisions, newest first, from
 // before revision before, or from its latest when before is 0.
-func (e *Engine) History(ctx context.Context, resourceID string, before, limit int) ([]RevisionRecord, error) {
-	var out []RevisionRecord
+func (e *Engine) History(ctx context.Context, resourceID string, before, limit int) ([]ResourceRevision, error) {
+	var out []ResourceRevision
 	err := e.db.View(ctx, func(tx *store.Tx) error {
 		if _, err := tx.GetResourceByID(ctx, resourceID); err != nil {
 			return err
@@ -122,7 +122,7 @@ func (e *Engine) History(ctx context.Context, resourceID string, before, limit i
 		}
 		for i := range revs {
 			rev := revs[i]
-			r := RevisionRecord{Revision: rev, Record: records[seen[rev.ChangeID]]}
+			r := ResourceRevision{Revision: rev, Record: records[seen[rev.ChangeID]]}
 			if p := full[rev.ChangeID]; p != nil {
 				for j := range p.Resources {
 					if p.Resources[j].ID == resourceID {

@@ -56,8 +56,8 @@ type ComposeServiceClient interface {
 	ImportCompose(context.Context, *connect.Request[v1.ImportComposeRequest]) (*connect.Response[v1.ImportComposeResponse], error)
 	// CheckCompose reads a Compose file as ImportCompose would and says what
 	// it would make, or why it can't, without planning anything or recording a
-	// change, so a form can check a file as someone types it.
-	// It is a POST, as a file of 1 MiB doesn't fit in a URL.
+	// change, so a form can check a file as someone types it. It is a POST, as
+	// a file doesn't fit in a URL.
 	CheckCompose(context.Context, *connect.Request[v1.CheckComposeRequest]) (*connect.Response[v1.CheckComposeResponse], error)
 	// ExportCompose writes a Compose file of an environment, or of one service
 	// with the volumes and networks it uses. It never includes a secret: an
@@ -132,8 +132,8 @@ type ComposeServiceHandler interface {
 	ImportCompose(context.Context, *connect.Request[v1.ImportComposeRequest]) (*connect.Response[v1.ImportComposeResponse], error)
 	// CheckCompose reads a Compose file as ImportCompose would and says what
 	// it would make, or why it can't, without planning anything or recording a
-	// change, so a form can check a file as someone types it.
-	// It is a POST, as a file of 1 MiB doesn't fit in a URL.
+	// change, so a form can check a file as someone types it. It is a POST, as
+	// a file doesn't fit in a URL.
 	CheckCompose(context.Context, *connect.Request[v1.CheckComposeRequest]) (*connect.Response[v1.CheckComposeResponse], error)
 	// ExportCompose writes a Compose file of an environment, or of one service
 	// with the volumes and networks it uses. It never includes a secret: an
