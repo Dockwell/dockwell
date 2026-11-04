@@ -34,13 +34,15 @@ import (
 )
 
 type runFlags struct {
-	listen       string
-	agentListen  string
-	advertise    string
-	domain       string
-	httpsListen  string
-	httpListen   string
-	acmeDirector string
+	listen string
+	// listenFromEnv is true when DOCKWELL_LISTEN set listen, not the flag.
+	listenFromEnv bool
+	agentListen   string
+	advertise     string
+	domain        string
+	httpsListen   string
+	httpListen    string
+	acmeDirector  string
 }
 
 func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
@@ -73,6 +75,7 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			f.listenFromEnv = !cmd.Flags().Changed("listen") && stdio.Getenv(envListen) != ""
 			if role == roleControl {
 				err = runControl(cmd.Context(), stdio, logger, dir, build, f)
 			} else {
@@ -89,7 +92,7 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 	}
 	fl := cmd.Flags()
 	fl.StringVar(&f.listen, "listen", envOr(stdio, envListen, control.DefaultListen),
-		"address for the API and panel, as host:port (env "+envListen+")")
+		"loopback address for the API and panel, as host:port; to reach the panel from elsewhere, add --domain (env "+envListen+")")
 	fl.StringVar(&f.agentListen, "agent-listen", envOr(stdio, envAgentListen, control.DefaultAgentListen),
 		"address for other servers' agents, as host:port (env "+envAgentListen+")")
 	fl.StringVar(&f.advertise, "advertise-url", envOr(stdio, envAdvertise, ""),
@@ -148,8 +151,7 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 	}
 	if !onLoopback(ls.API.Addr()) {
 		closeAll()
-		return usageError{fmt.Errorf("--listen %s would serve the panel over plain HTTP beyond this server, which Dockwell refuses. "+
-			"Keep it on loopback, such as %s, and reach it through an SSH tunnel, or pass --domain to serve it over HTTPS", f.listen, control.DefaultListen)}
+		return usageError{beyondLoopback(f)}
 	}
 	if ls.Agents, err = serve.Listen(ctx, f.agentListen); err != nil {
 		closeAll()
@@ -252,6 +254,21 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 	})
 	wg.Wait()
 	return errors.Join(controlErr, agentErr)
+}
+
+// beyondLoopback explains why a --listen address beyond loopback is
+// refused, and how to fix it as it was set: by the flag or DOCKWELL_LISTEN.
+// A domain doesn't lift the rule: it adds an HTTPS listener, and the panel's
+// own listener stays on loopback.
+func beyondLoopback(f runFlags) error {
+	setting, given, domain := "--listen", "--listen "+f.listen, "--domain"
+	if f.listenFromEnv {
+		setting, given, domain = envListen, envListen+"="+f.listen, envDomain
+	}
+	return fmt.Errorf("%[1]s would serve the panel over plain HTTP beyond this server, so Dockwell refuses it. "+
+		"Remove %[2]s to keep the panel on %[3]s, or set it to another loopback address, such as 127.0.0.1:7700, and reach the panel through an SSH tunnel. "+
+		"To reach the panel from elsewhere, keep %[2]s on loopback and add %[4]s, which serves it over HTTPS",
+		given, setting, control.DefaultListen, domain)
 }
 
 // acmeSource gets the panel's certificates from an ACME CA. Plain HTTP

@@ -167,12 +167,43 @@ func TestRunSaysWhenThePanelGainsADomain(t *testing.T) {
 }
 
 func TestRunRefusesToServeThePanelBeyondLoopback(t *testing.T) {
-	r := run(t, map[string]string{envLogFormat: "json", envDataDir: t.TempDir()},
-		"run", "--listen", "0.0.0.0:0", "--agent-listen", "127.0.0.1:0")
-	if r.code != exitUsage || !strings.Contains(r.err, "would serve the panel over plain HTTP beyond this server") || !strings.Contains(r.err, "--domain") {
-		t.Errorf("run --listen 0.0.0.0 = %d %q", r.code, r.err)
+	// The fix names the setting as it was given, and never suggests that a
+	// domain would let the panel's own listener leave loopback.
+	for _, tt := range []struct {
+		env  map[string]string
+		args []string
+		want []string
+	}{
+		{nil, []string{"--listen", "0.0.0.0:0"}, []string{
+			"--listen 0.0.0.0:0 would serve the panel over plain HTTP beyond this server, so Dockwell refuses it.",
+			"Remove --listen to keep the panel on 127.0.0.1:7600",
+			"keep --listen on loopback and add --domain, which serves it over HTTPS",
+		}},
+		{map[string]string{envListen: "0.0.0.0:0"}, nil, []string{
+			"DOCKWELL_LISTEN=0.0.0.0:0 would serve the panel over plain HTTP beyond this server",
+			"Remove DOCKWELL_LISTEN to keep the panel on 127.0.0.1:7600",
+			"keep DOCKWELL_LISTEN on loopback and add DOCKWELL_DOMAIN",
+		}},
+		{nil, []string{"--listen", "0.0.0.0:0", "--domain", "panel.example.com"}, []string{
+			"--listen 0.0.0.0:0 would serve the panel over plain HTTP",
+			"keep --listen on loopback and add --domain",
+		}},
+	} {
+		env := map[string]string{envLogFormat: "json", envDataDir: t.TempDir()}
+		for k, v := range tt.env {
+			env[k] = v
+		}
+		r := run(t, env, append([]string{"run", "--agent-listen", "127.0.0.1:0"}, tt.args...)...)
+		if r.code != exitUsage {
+			t.Errorf("run %v with %v = %d %q, want a usage error", tt.args, tt.env, r.code, r.err)
+		}
+		for _, want := range tt.want {
+			if !strings.Contains(r.err, want) {
+				t.Errorf("run %v with %v said %q, want %q", tt.args, tt.env, r.err, want)
+			}
+		}
 	}
-	r = run(t, map[string]string{envLogFormat: "json", envDataDir: t.TempDir()},
+	r := run(t, map[string]string{envLogFormat: "json", envDataDir: t.TempDir()},
 		"run", "--domain", "203.0.113.7")
 	if r.code != exitUsage || !strings.Contains(r.err, "is an IP address. Passkeys need a hostname") {
 		t.Errorf("run --domain <IP> = %d %q", r.code, r.err)
