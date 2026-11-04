@@ -184,6 +184,10 @@ func TestHistoryIsAppendOnly(t *testing.T) {
 			if _, err := tx.AddRevision(ctx, store.NewRevision{Kind: "firewall.rule", Scope: "srv_A", Name: "ssh", ID: "res_1", Spec: []byte{1}, Change: "chg_1", At: now}); err != nil {
 				return err
 			}
+			if _, err := tx.AddRevision(ctx, store.NewRevision{Kind: "service", Scope: "env_1", Name: "api", ID: "svc_1", Spec: []byte{1}, Change: "chg_1", At: now,
+				Uses: []store.Use{{As: "DB", Kind: "secret", Name: "DB", Revision: 3}}}); err != nil {
+				return err
+			}
 			return tx.PlaceRevision(ctx, "res_1", 1, []string{"srv_A"}, now)
 		})
 		for _, q := range []string{
@@ -194,6 +198,11 @@ func TestHistoryIsAppendOnly(t *testing.T) {
 			`UPDATE changes SET plan = 'x'`,
 			`UPDATE changes SET fingerprint = 'x'`,
 			`UPDATE changes SET proposed_via = 'x'`,
+			`UPDATE changes SET fingerprint_scheme = 1`,
+			`UPDATE change_items SET rotates = 1`,
+			`UPDATE revision_uses SET used_revision = 1`,
+			`UPDATE revision_uses SET used_name = 'OTHER'`,
+			`DELETE FROM revision_uses`,
 			`UPDATE changes SET state = 'abandoned'`,
 			`DELETE FROM changes`,
 			`UPDATE resources SET revision = 5`,
