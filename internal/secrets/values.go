@@ -50,7 +50,7 @@ func (k *Keeper) Values(ctx context.Context, server string, ref resource.Ref, de
 		if !slices.Contains(placed, server) {
 			return fault.New(ErrNotPlaced, "%s %s doesn't run on %s, so its variables and secrets don't go there", ref.Kind, ref.Name, server)
 		}
-		latest, err := k.Decode(ctx, tx, r.ID, ref.Kind, r.Spec)
+		latest, err := k.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
 		if err != nil {
 			return err
 		}
@@ -100,7 +100,7 @@ func (k *Keeper) valueAt(ctx context.Context, tx *store.Tx, scopeID string, u re
 	if rev.Spec == nil {
 		return "", fmt.Errorf("%s uses %s %s at revision %d, which deleted it", u.As, u.Kind, u.Name, u.Revision)
 	}
-	spec, err := k.Decode(ctx, tx, r.ID, u.Kind, rev.Spec)
+	spec, err := k.Decode(ctx, tx, store.InRevision(r.ID, string(u.Kind), rev.Revision), rev.Spec)
 	if err != nil {
 		return "", err
 	}
@@ -130,7 +130,7 @@ func (k *Keeper) Reveal(ctx context.Context, secretID, actor, surface string) (R
 		if err != nil {
 			return err
 		}
-		spec, err := k.Decode(ctx, tx, r.ID, variable.SecretKind, r.Spec)
+		spec, err := k.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
 		if err != nil {
 			return err
 		}

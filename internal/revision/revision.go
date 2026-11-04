@@ -99,11 +99,13 @@ var system = By{Actor: SystemActor, Via: ViaAutomatic}
 // them for fingerprints with a key of its own (ADR 0022). secrets.Keeper
 // is one.
 type Sealer interface {
-	// Seal encrypts a spec's encoding for a resource of kind, in tx.
-	Seal(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, encoded []byte) ([]byte, error)
-	// Open decrypts what Seal made, and returns a spec stored unsealed as
-	// it is.
-	Open(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, stored []byte) ([]byte, error)
+	// Seal encrypts a spec's encoding for where it will be stored, in tx,
+	// so it opens there alone: a revision, or a change's item.
+	Seal(ctx context.Context, tx *store.Tx, at store.SpecAt, encoded []byte) ([]byte, error)
+	// Open decrypts what Seal made for where it is stored. A spec of a kind
+	// that holds no secret comes back as it is, and one of a kind that may
+	// hold a secret must be sealed.
+	Open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored []byte) ([]byte, error)
 	// Digest is a keyed hash of a spec's encoding for one change's
 	// fingerprint, which says nothing of it without the install's key, and
 	// differs from change to change.
@@ -452,13 +454,14 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	return plan, nil
 }
 
-// changeItems are what a change asks of each item, as the store keeps it:
-// sealed, for a kind that may hold secrets.
-func (e *Engine) changeItems(ctx context.Context, tx *store.Tx, items []item) ([]store.ChangeItem, error) {
+// changeItems are what the change changeID asks of each item, as the store
+// keeps it: sealed, for a kind that may hold secrets, for that item of that
+// change.
+func (e *Engine) changeItems(ctx context.Context, tx *store.Tx, changeID string, items []item) ([]store.ChangeItem, error) {
 	out := make([]store.ChangeItem, len(items))
 	for i := range items {
 		it := &items[i]
-		spec, err := e.stored(ctx, tx, it)
+		spec, err := e.stored(ctx, tx, it, store.InChange(it.id, string(it.ref.Kind), changeID, i))
 		if err != nil {
 			return nil, err
 		}
@@ -470,33 +473,33 @@ func (e *Engine) changeItems(ctx context.Context, tx *store.Tx, items []item) ([
 	return out, nil
 }
 
-// stored is the item's spec as the store keeps it: sealed, for a kind that
-// may hold secrets, and nil for a deletion.
-func (e *Engine) stored(ctx context.Context, tx *store.Tx, it *item) ([]byte, error) {
+// stored is the item's spec as the store keeps it at at: sealed for there,
+// for a kind that may hold secrets, and nil for a deletion.
+func (e *Engine) stored(ctx context.Context, tx *store.Tx, it *item, at store.SpecAt) ([]byte, error) {
 	if it.encoded == nil || !it.sealed {
 		return it.encoded, nil
 	}
 	if e.sealer == nil {
 		return nil, fmt.Errorf("can't store %s without the install's key, which keeps it encrypted", it.ref)
 	}
-	return e.sealer.Seal(ctx, tx, it.id, it.ref.Kind, it.encoded)
+	return e.sealer.Seal(ctx, tx, at, it.encoded)
 }
 
-// open reads a stored spec's encoding: opened, if it is sealed.
-func (e *Engine) open(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, stored []byte) ([]byte, error) {
+// open reads the encoding of a spec stored at at: opened, if it is sealed.
+func (e *Engine) open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored []byte) ([]byte, error) {
 	if stored == nil || e.sealer == nil {
 		return stored, nil
 	}
-	return e.sealer.Open(ctx, tx, resourceID, kind, stored)
+	return e.sealer.Open(ctx, tx, at, stored)
 }
 
-// decode reads a stored spec.
-func (e *Engine) decode(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, stored []byte) (proto.Message, error) {
-	plain, err := e.open(ctx, tx, resourceID, kind, stored)
+// decode reads a spec stored at at.
+func (e *Engine) decode(ctx context.Context, tx *store.Tx, at store.SpecAt, stored []byte) (proto.Message, error) {
+	plain, err := e.open(ctx, tx, at, stored)
 	if err != nil {
-		return nil, fmt.Errorf("can't read the stored spec of %s %s: %w", kind, resourceID, err)
+		return nil, fmt.Errorf("can't read the stored spec of %s %s: %w", at.Kind, at.ResourceID, err)
 	}
-	return e.kinds.Decode(kind, plain)
+	return e.kinds.Decode(resource.Kind(at.Kind), plain)
 }
 
 // recordPlanned puts a planned change on record, with its items, and
@@ -504,7 +507,7 @@ func (e *Engine) decode(ctx context.Context, tx *store.Tx, resourceID string, ki
 func (e *Engine) recordPlanned(ctx context.Context, tx *store.RevisionTx, c store.Change, items []item) error {
 	c.FingerprintScheme = fingerprintKeyed
 	var err error
-	if c.Items, err = e.changeItems(ctx, tx.Tx, items); err != nil {
+	if c.Items, err = e.changeItems(ctx, tx.Tx, c.ID, items); err != nil {
 		return err
 	}
 	if err := tx.CreateChange(ctx, c); err != nil {
@@ -587,7 +590,7 @@ func (e *Engine) load(ctx context.Context, tx *store.Tx, ref resource.Ref) (item
 	}
 	it.id, it.base, it.rev = r.ID, r.Revision, r.Revision
 	if r.Spec != nil {
-		if it.current, err = e.decode(ctx, tx, r.ID, ref.Kind, r.Spec); err != nil {
+		if it.current, err = e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec); err != nil {
 			return it, err
 		}
 		if it.placed, err = e.placement(ctx, tx, it, r.Revision); err != nil {
@@ -1673,12 +1676,15 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 			if !it.changes() {
 				continue
 			}
-			spec, err := e.stored(ctx, tx.Tx, it)
+			// Sealed for the revision it makes: the next after its base,
+			// which unmoved found the latest in this transaction.
+			number := it.base + 1
+			spec, err := e.stored(ctx, tx.Tx, it, store.InRevision(it.id, string(it.ref.Kind), number))
 			if err != nil {
 				return err
 			}
 			rev, err := tx.AddRevision(ctx, store.NewRevision{
-				Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, ID: it.id,
+				Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, ID: it.id, Number: number,
 				Spec: spec, Change: c.ID, Position: i, At: now, Uses: storeUses(e.usesOf(it, it.spec)),
 			})
 			if err != nil {
@@ -2086,7 +2092,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		if c.State != store.ChangeApplying {
 			return nil // it finished meanwhile
 		}
-		for _, ci := range c.Items {
+		for i, ci := range c.Items {
 			ref := resource.Ref{Kind: resource.Kind(ci.Kind), Scope: ci.Scope, Name: ci.Name}
 			it, err := e.load(ctx, tx, ref)
 			if err != nil {
@@ -2097,7 +2103,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 					return err
 				}
 			}
-			asked, err := e.open(ctx, tx, cmp.Or(ci.ResourceID, it.id), ref.Kind, ci.Spec)
+			asked, err := e.open(ctx, tx, store.InChange(cmp.Or(ci.ResourceID, it.id), ci.Kind, c.ID, i), ci.Spec)
 			if err != nil {
 				return err
 			}
@@ -2183,7 +2189,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 // and that its scope is still there, and reads them as they stand.
 func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]item, error) {
 	items := make([]item, 0, len(c.Items))
-	for _, ci := range c.Items {
+	for i, ci := range c.Items {
 		ref := resource.Ref{Kind: resource.Kind(ci.Kind), Scope: ci.Scope, Name: ci.Name}
 		it, err := e.load(ctx, tx, ref)
 		if err != nil {
@@ -2204,9 +2210,13 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 			}
 		}
 		it.servers, it.rotates = ci.Servers, ci.Rotates
-		// Opened as the resource it was sealed for, which the base check
-		// above makes the one there now.
-		if it.encoded, err = e.open(ctx, tx, cmp.Or(ci.ResourceID, it.id), ref.Kind, ci.Spec); err != nil {
+		// Opened as the item of the change it was sealed for, of the
+		// resource the base check above makes the one there now.
+		if it.encoded, err = e.open(ctx, tx, store.InChange(cmp.Or(ci.ResourceID, it.id), ci.Kind, c.ID, i), ci.Spec); err != nil {
+			if c.FingerprintScheme < fingerprintKeyed {
+				return nil, fault.New(ErrPlanChanged, "%s was planned by an earlier version of Dockwell, which kept what it asks of %s unencrypted, "+
+					"so it can't apply. Propose the change again and review the new plan", c.ID, ref)
+			}
 			return nil, fmt.Errorf("can't read what %s asks of %s: %w", c.ID, ref, err)
 		}
 		if ci.Spec != nil {
@@ -2357,7 +2367,7 @@ func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 					return err
 				}
 				if prev.Spec != nil {
-					if ed.Spec, err = e.decode(ctx, tx, rev.ID, ref.Kind, prev.Spec); err != nil {
+					if ed.Spec, err = e.decode(ctx, tx, store.InRevision(rev.ID, rev.Kind, prev.Revision), prev.Spec); err != nil {
 						return err
 					}
 					if ed.Servers, err = inFleet(ctx, tx, ref, rev.ID, prev.Revision, changeID); err != nil {
@@ -2464,7 +2474,7 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 		}
 		desired = make([]proto.Message, len(resources))
 		for i, r := range resources {
-			if desired[i], err = e.decode(ctx, tx, r.ID, resource.Kind(r.Kind), r.Spec); err != nil {
+			if desired[i], err = e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec); err != nil {
 				return err
 			}
 		}

@@ -220,11 +220,11 @@ type opening struct {
 	opened map[string]int
 }
 
-func (o *opening) Open(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, stored []byte) ([]byte, error) {
+func (o *opening) Open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored []byte) ([]byte, error) {
 	o.mu.Lock()
-	o.opened[resourceID]++
+	o.opened[at.ResourceID]++
 	o.mu.Unlock()
-	return o.Sealer.Open(ctx, tx, resourceID, kind, stored)
+	return o.Sealer.Open(ctx, tx, at, stored)
 }
 
 func (o *opening) count(resourceID string) int {
@@ -347,5 +347,51 @@ func testSwitchingAValuesKindTakesInItsServices(t *testing.T, backend store.Back
 	apply(t, e, undo)
 	if got := containerOf(t, f["srv_A"], env, "api").GetLabels()[binding.LabelKey]; got != "LOG_LEVEL=secret:API_TOKEN@3,TOKEN=secret:API_TOKEN@3" {
 		t.Errorf("after undoing the switch back api is labelled %q, want the secret again, at its third revision", got)
+	}
+}
+
+// A sealed spec opens only where it was sealed for. Someone who can write
+// the database, without the key file, can't pass one revision of a secret
+// off as another, such as a leaked value as its rotation, nor put a spec
+// of their own in the clear where a sealed one belongs.
+func TestASealedSpecOpensOnlyInItsOwnRevision(t *testing.T) {
+	storetest.Each(t, testASealedSpecOpensOnlyInItsOwnRevision)
+}
+
+func testASealedSpecOpensOnlyInItsOwnRevision(t *testing.T, backend store.Backend) {
+	e, _, db, location := setupAt(t, backend, "srv_A")
+	env := production(t, db)
+	apply(t, e, propose(t, e, "Set up", secretEdit(env, "DB_PASSWORD", "old-leaked")))
+	apply(t, e, propose(t, e, "Rotate", secretEdit(env, "DB_PASSWORD", "new-rotated")))
+	var id string
+	_ = db.View(t.Context(), func(tx *store.Tx) error {
+		r, err := tx.GetResource(t.Context(), string(variable.SecretKind), env, "DB_PASSWORD")
+		if err != nil {
+			t.Fatal(err)
+		}
+		id = r.ID
+		return nil
+	})
+	if backend == store.Postgres {
+		storetest.Exec(t, location, `DROP TRIGGER revisions_never_change ON revisions`)
+	} else {
+		storetest.Exec(t, location, `DROP TRIGGER revisions_never_change`)
+	}
+	k := secretstest.Keeper(db, e.Kinds())
+	for what, q := range map[string]string{
+		"revision 1's sealed spec": `UPDATE revisions SET spec = (SELECT r1.spec FROM revisions r1 WHERE r1.resource_id = '` + id + `' AND r1.number = 1)
+			WHERE resource_id = '` + id + `' AND number = 2`,
+		"a spec in the clear": `UPDATE revisions SET spec = X'0a0a6d792d6f776e2d6b6579' WHERE resource_id = '` + id + `' AND number = 2`,
+	} {
+		if backend == store.Postgres {
+			q = strings.ReplaceAll(q, `X'0a0a6d792d6f776e2d6b6579'`, `'\x0a0a6d792d6f776e2d6b6579'::bytea`)
+		}
+		storetest.Exec(t, location, q)
+		if got, err := k.Reveal(t.Context(), id, "user:usr_test", store.SurfacePanel); err == nil {
+			t.Errorf("with %s in revision 2's row, revealing gave %+v, want it refused", what, got)
+		}
+		if _, err := e.Propose(t.Context(), Proposal{Summary: "Rotate", Actor: "usr_test", Edits: []Edit{secretEdit(env, "DB_PASSWORD", "x")}}); err == nil {
+			t.Errorf("with %s in revision 2's row, planning from it worked, want it refused", what)
+		}
 	}
 }

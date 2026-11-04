@@ -128,7 +128,11 @@ func TestTheObjectModel(t *testing.T) {
 			}); err != nil {
 				return err
 			}
-			rev, err := tx.AddRevision(ctx, store.NewRevision{Kind: "service", Scope: "env_1", Name: "web", Spec: []byte{4}, Change: "chg_2", At: later})
+			// A revision sealed for a number other than its own isn't written.
+			if _, err := tx.AddRevision(ctx, store.NewRevision{Kind: "service", Scope: "env_1", Name: "web", Number: 3, Spec: []byte{4}, Change: "chg_2", At: later}); !errors.Is(err, store.ErrConflict) {
+				t.Errorf("AddRevision as number 3 of a resource at 1 = %v, want ErrConflict", err)
+			}
+			rev, err := tx.AddRevision(ctx, store.NewRevision{Kind: "service", Scope: "env_1", Name: "web", Number: 2, Spec: []byte{4}, Change: "chg_2", At: later})
 			if err != nil || rev.Revision != 2 || rev.ID != "svc_1" {
 				t.Errorf("AddRevision = %+v, %v", rev, err)
 			}

@@ -10,7 +10,9 @@
 //     key, which wraps every data key and rotates on its own (RotateKEK);
 //   - a data key for each stored spec of a kind that may hold a secret,
 //     kept in the database wrapped under the key-encryption key;
-//   - the spec, sealed under its data key, bound to its resource and kind.
+//   - the spec, sealed under its data key, bound to where it is stored: its
+//     resource and kind, and the revision, or the change and item, that
+//     keeps it (store.SpecAt).
 //
 // The revision store seals and opens specs through a Keeper, so revisions
 // and change items never hold such a spec in the clear. A plan's
@@ -48,9 +50,14 @@ var magic = []byte{0, 'd', 'w', 's', 1}
 const keySize = 32
 
 // ErrOpen reports a sealed spec that can't be opened: it was sealed for
-// another resource, or with keys this install doesn't have, or it was
-// changed.
+// another resource, revision or change item, or with keys this install
+// doesn't have, or it was changed.
 var ErrOpen = errors.New("can't open a sealed spec")
+
+// ErrUnsealed reports a spec of a kind that may hold secrets stored in the
+// clear: written outside Dockwell, or by a version before it sealed them.
+// It isn't read, as nothing says it is what Dockwell stored.
+var ErrUnsealed = errors.New("the stored spec isn't sealed, as every spec of its kind is")
 
 // Keeper seals and opens specs, and keeps the keys that do it.
 type Keeper struct {
@@ -107,8 +114,17 @@ func kekPurpose(kekID string) string { return "secrets.kek|" + kekID }
 
 func dataKeyAD(dekID, kekID string) []byte { return []byte("dockwell.data-key|" + dekID + "|" + kekID) }
 
-func specAD(resourceID string, kind resource.Kind) []byte {
-	return []byte("dockwell.spec|" + resourceID + "|" + string(kind))
+// specAD binds a sealed spec to where it is stored.
+func specAD(at store.SpecAt) ([]byte, error) {
+	switch {
+	case at.ResourceID == "" || at.Kind == "":
+		return nil, errors.New("a sealed spec needs its resource and kind")
+	case at.Revision > 0 && at.Change == "":
+		return fmt.Appendf(nil, "dockwell.spec|%s|%s|revision|%d", at.ResourceID, at.Kind, at.Revision), nil
+	case at.Revision == 0 && at.Change != "" && at.Position >= 0:
+		return fmt.Appendf(nil, "dockwell.spec|%s|%s|change|%s|%d", at.ResourceID, at.Kind, at.Change, at.Position), nil
+	}
+	return nil, fmt.Errorf("a sealed spec of %s is either a revision's or a change item's, not %+v", at.ResourceID, at)
 }
 
 // kek returns a key-encryption key, unsealed with the install's key.
@@ -180,9 +196,13 @@ func (k *Keeper) newKEK(ctx context.Context, tx *store.Tx) (string, cipher.AEAD,
 	return kekID, aead, nil
 }
 
-// Seal encrypts a spec's encoding for a resource of kind, under a new data
-// key that it records in tx. tx must be a write transaction.
-func (k *Keeper) Seal(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, encoded []byte) ([]byte, error) {
+// Seal encrypts a spec's encoding for where it will be stored, under a new
+// data key that it records in tx. tx must be a write transaction.
+func (k *Keeper) Seal(ctx context.Context, tx *store.Tx, at store.SpecAt, encoded []byte) ([]byte, error) {
+	ad, err := specAD(at)
+	if err != nil {
+		return nil, err
+	}
 	kekID, kek, err := k.activeKEK(ctx, tx)
 	if err != nil {
 		return nil, err
@@ -205,14 +225,23 @@ func (k *Keeper) Seal(ctx context.Context, tx *store.Tx, resourceID string, kind
 	}
 	prefix := append(slices.Clone(magic), byte(len(dekID))) //nolint:gosec // checked above: it fits in a byte
 	prefix = append(prefix, dekID...)
-	return sealWith(dek, encoded, specAD(resourceID, kind), prefix), nil
+	return sealWith(dek, encoded, ad, prefix), nil
 }
 
-// Open decrypts what Seal made for a resource of kind. A spec stored before
-// sealing, which isn't sealed, comes back as it is.
-func (k *Keeper) Open(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, stored []byte) ([]byte, error) {
+// Open decrypts what Seal made for where it is stored. A spec of a kind
+// that holds no secret isn't sealed, and comes back as it is; one of a
+// kind that may hold a secret must be sealed, and is refused otherwise
+// (ErrUnsealed).
+func (k *Keeper) Open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored []byte) ([]byte, error) {
 	if !Sealed(stored) {
+		if k.sealedKind(resource.Kind(at.Kind)) {
+			return nil, fmt.Errorf("%s %s: %w, so it was written outside Dockwell or by a version before it sealed them", at.Kind, at.ResourceID, ErrUnsealed)
+		}
 		return stored, nil
+	}
+	ad, err := specAD(at)
+	if err != nil {
+		return nil, err
 	}
 	rest := stored[len(magic):]
 	if len(rest) < 1 || len(rest) < 1+int(rest[0]) {
@@ -239,20 +268,27 @@ func (k *Keeper) Open(ctx context.Context, tx *store.Tx, resourceID string, kind
 	if err != nil {
 		return nil, err
 	}
-	plain, err := openWith(dek, sealed, specAD(resourceID, kind))
+	plain, err := openWith(dek, sealed, ad)
 	if err != nil {
-		return nil, fmt.Errorf("the spec of %s: %w", resourceID, err)
+		return nil, fmt.Errorf("the spec of %s: %w", at.ResourceID, err)
 	}
 	return plain, nil
 }
 
-// Decode opens a stored spec of kind and reads it.
-func (k *Keeper) Decode(ctx context.Context, tx *store.Tx, resourceID string, kind resource.Kind, stored []byte) (proto.Message, error) {
-	plain, err := k.Open(ctx, tx, resourceID, kind, stored)
+// sealedKind reports a kind whose specs are kept sealed. One this keeper
+// doesn't know counts, as nothing says it holds no secret.
+func (k *Keeper) sealedKind(kind resource.Kind) bool {
+	t, err := k.kinds.Type(kind)
+	return err != nil || resource.Sealed(t)
+}
+
+// Decode opens a stored spec and reads it as its kind.
+func (k *Keeper) Decode(ctx context.Context, tx *store.Tx, at store.SpecAt, stored []byte) (proto.Message, error) {
+	plain, err := k.Open(ctx, tx, at, stored)
 	if err != nil {
 		return nil, err
 	}
-	return k.kinds.Decode(kind, plain)
+	return k.kinds.Decode(resource.Kind(at.Kind), plain)
 }
 
 // Digest is a keyed hash of a spec's encoding, for the fingerprint of the

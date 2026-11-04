@@ -328,10 +328,12 @@ func testApplyRefusesWhenTheServerMovedSinceThePlan(t *testing.T, backend store.
 }
 
 // A change planned before ADR 0022 has a fingerprint that hashed every
-// spec as it is, a container's environment included, and applying it now
-// digests such specs with a key. It still applies while its plan is the one
-// reviewed, read as it was fingerprinted then; one whose plan moved says it
-// was planned by an earlier version, rather than that the servers changed.
+// spec as it is, and applying it now digests some specs with a key. It
+// still applies while its plan is the one reviewed, read as it was
+// fingerprinted then; one whose plan moved says it was planned by an
+// earlier version, rather than that the servers changed. One that asks
+// for a container kept its environment unsealed, which is no longer read:
+// it says so, and to propose it again.
 func TestAChangePlannedBeforeTheUpgradeStillApplies(t *testing.T) {
 	storetest.Each(t, testAChangePlannedBeforeTheUpgradeStillApplies)
 }
@@ -354,7 +356,7 @@ func testAChangePlannedBeforeTheUpgradeStillApplies(t *testing.T, backend store.
 			t.Fatal(err)
 		}
 		if plan.plain == plan.Fingerprint {
-			t.Fatal("the plain fingerprint is the keyed one; the test plans nothing that is sealed")
+			t.Fatal("the plain fingerprint is the keyed one, so the test can't tell which applying checks")
 		}
 		c := store.Change{
 			ID: changeID, Summary: summary, Actor: "usr_test", State: store.ChangePlanned, Fingerprint: plan.plain,
@@ -376,17 +378,29 @@ func testAChangePlannedBeforeTheUpgradeStillApplies(t *testing.T, backend store.
 		return c.ID
 	}
 
-	held := plannedBefore("Upgrade web", web("nginx:1.28"))
+	held := plannedBefore("Open http", rule("srv_A", "http", 80))
 	if err := e.Apply(t.Context(), held); err != nil {
 		t.Errorf("applying a change planned before the upgrade, whose plan holds = %v, want it applied", err)
 	}
 
-	moved := plannedBefore("Upgrade web again", web("nginx:1.29"))
-	f["srv_A"].docker.Edit("web", func(c *resourcev1.Container) { c.Image = "nginx:1.26" })
+	moved := plannedBefore("Open https", rule("srv_A", "https", 443))
+	if err := f["srv_A"].firewall.Put(t.Context(), "https", rule("srv_A", "https", 443).Spec.(*resourcev1.FirewallRule)); err != nil {
+		t.Fatal(err)
+	}
 	err := e.Apply(t.Context(), moved)
 	if !errors.Is(err, ErrPlanChanged) || !strings.Contains(err.Error(), "was planned by an earlier version of Dockwell") ||
 		strings.Contains(err.Error(), "the servers changed since") {
 		t.Errorf("applying a change planned before the upgrade, whose plan moved = %v, want ErrPlanChanged saying it was planned before", err)
+	}
+
+	unsealed := plannedBefore("Upgrade web", web("nginx:1.28"))
+	err = e.Apply(t.Context(), unsealed)
+	if !errors.Is(err, ErrPlanChanged) || !strings.Contains(err.Error(), "kept what it asks of container web in srv_A unencrypted") ||
+		!strings.Contains(err.Error(), "Propose the change again") {
+		t.Errorf("applying a change planned before the upgrade, with a container's environment in the clear = %v, want it refused", err)
+	}
+	if image(t, f["srv_A"]) != "nginx:1.27" {
+		t.Error("a change whose spec was stored in the clear ran")
 	}
 }
 

@@ -431,11 +431,40 @@ func (t *Tx) ListPlaced(ctx context.Context, server string) ([]Resource, error) 
 		WHERE d.server_id = ? AND v.spec IS NOT NULL ORDER BY r.kind, r.scope, r.name`, server)
 }
 
+// SpecAt says where a stored spec lives: in a revision of a resource, by
+// its number, or in an item of a change, by its position. The secrets
+// keeper binds a sealed spec to it, so one copied anywhere else, even to
+// another revision of the same resource, doesn't open (ADR 0022).
+type SpecAt struct {
+	ResourceID string
+	Kind       string
+	// Revision is the revision's number, for a spec in a revision.
+	Revision int
+	// Change and Position name the change and the item's place in it, for
+	// a spec a change asks for.
+	Change   string
+	Position int
+}
+
+// InRevision is where a revision keeps its spec.
+func InRevision(resourceID, kind string, number int) SpecAt {
+	return SpecAt{ResourceID: resourceID, Kind: kind, Revision: number}
+}
+
+// InChange is where a change keeps the spec its item at position asks
+// for.
+func InChange(resourceID, kind, changeID string, position int) SpecAt {
+	return SpecAt{ResourceID: resourceID, Kind: kind, Change: changeID, Position: position}
+}
+
 // NewRevision is the next revision of a resource.
 type NewRevision struct {
 	Kind, Scope, Name string
 	// ID names the resource if this is its first revision.
-	ID       string
+	ID string
+	// Number is the number the revision must get, which a sealed spec is
+	// bound to; 0 takes the next, whatever it is.
+	Number   int
 	Spec     []byte // nil deletes
 	Change   string
 	Position int // of the change item asking for it
@@ -469,6 +498,9 @@ func (t *RevisionTx) AddRevision(ctx context.Context, n NewRevision) (Revision, 
 		return Revision{}, err
 	}
 	r.Revision++
+	if n.Number != 0 && n.Number != r.Revision {
+		return Revision{}, fmt.Errorf("%s %s is at revision %d, so its next is %d, not %d: %w", n.Kind, n.Name, r.Revision-1, r.Revision, n.Number, ErrConflict)
+	}
 	r.Spec, r.ChangeID = n.Spec, n.Change
 	if _, err := t.exec(ctx, `INSERT INTO revisions (resource_id, number, spec, change_id, position, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
 		r.ID, r.Revision, n.Spec, n.Change, n.Position, millis(n.At)); err != nil {

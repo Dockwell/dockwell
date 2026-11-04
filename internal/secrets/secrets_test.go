@@ -50,12 +50,22 @@ func otherKey(t *testing.T) *seal.Key {
 	return k
 }
 
-// sealIn seals a secret's spec.
+// secretAt is where revision 1 of a secret keeps its spec.
+func secretAt(resourceID string) store.SpecAt {
+	return store.InRevision(resourceID, string(variable.SecretKind), 1)
+}
+
+// sealIn seals revision 1 of a secret's spec.
 func sealIn(t *testing.T, db *store.DB, k *secrets.Keeper, resourceID string, plain []byte) []byte {
+	t.Helper()
+	return sealAt(t, db, k, secretAt(resourceID), plain)
+}
+
+func sealAt(t *testing.T, db *store.DB, k *secrets.Keeper, at store.SpecAt, plain []byte) []byte {
 	t.Helper()
 	var out []byte
 	if err := db.Update(t.Context(), func(tx *store.Tx) (err error) {
-		out, err = k.Seal(t.Context(), tx, resourceID, variable.SecretKind, plain)
+		out, err = k.Seal(t.Context(), tx, at, plain)
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -63,18 +73,20 @@ func sealIn(t *testing.T, db *store.DB, k *secrets.Keeper, resourceID string, pl
 	return out
 }
 
-func openIn(t *testing.T, db *store.DB, k *secrets.Keeper, resourceID string, kind resource.Kind, sealed []byte) ([]byte, error) {
+func openIn(t *testing.T, db *store.DB, k *secrets.Keeper, at store.SpecAt, sealed []byte) ([]byte, error) {
 	t.Helper()
 	var out []byte
 	err := db.View(t.Context(), func(tx *store.Tx) (err error) {
-		out, err = k.Open(t.Context(), tx, resourceID, kind, sealed)
+		out, err = k.Open(t.Context(), tx, at, sealed)
 		return err
 	})
 	return out, err
 }
 
-// A sealed spec holds nothing of the spec, opens only for the resource and
-// kind it was sealed for, under this install's key, and not once changed.
+// A sealed spec holds nothing of the spec, and opens only where it was
+// sealed for: that resource and kind, and that revision of it, or that item
+// of that change, under this install's key, and not once changed. A spec of
+// a kind that may hold secrets that isn't sealed is refused.
 func TestSealAndOpen(t *testing.T) { storetest.Each(t, testSealAndOpen) }
 
 func testSealAndOpen(t *testing.T, backend store.Backend) {
@@ -85,33 +97,54 @@ func testSealAndOpen(t *testing.T, backend store.Backend) {
 	if !secrets.Sealed(sealed) || bytes.Contains(sealed, []byte("hunter2")) {
 		t.Fatalf("a sealed spec: %q", sealed)
 	}
-	if got, err := openIn(t, db, k, "sec_A", variable.SecretKind, sealed); err != nil || !bytes.Equal(got, plain) {
+	if got, err := openIn(t, db, k, secretAt("sec_A"), sealed); err != nil || !bytes.Equal(got, plain) {
 		t.Fatalf("Open = %q, %v", got, err)
 	}
 	again := sealIn(t, db, k, "sec_A", plain)
 	if bytes.Equal(again, sealed) {
 		t.Error("sealing the same spec twice gave the same bytes")
 	}
+	item := store.InChange("sec_A", string(variable.SecretKind), "chg_1", 0)
+	inItem := sealAt(t, db, k, item, plain)
+	if got, err := openIn(t, db, k, item, inItem); err != nil || !bytes.Equal(got, plain) {
+		t.Fatalf("Open of a change item's = %q, %v", got, err)
+	}
+	secret := string(variable.SecretKind)
 	for what, try := range map[string]func() ([]byte, error){
-		"for another resource": func() ([]byte, error) { return openIn(t, db, k, "sec_B", variable.SecretKind, sealed) },
-		"as another kind":      func() ([]byte, error) { return openIn(t, db, k, "sec_A", variable.VariableKind, sealed) },
+		"for another resource": func() ([]byte, error) { return openIn(t, db, k, secretAt("sec_B"), sealed) },
+		"as another kind":      func() ([]byte, error) { return openIn(t, db, k, store.InRevision("sec_A", string(variable.VariableKind), 1), sealed) },
+		"as another revision":  func() ([]byte, error) { return openIn(t, db, k, store.InRevision("sec_A", secret, 2), sealed) },
+		"as a change item":     func() ([]byte, error) { return openIn(t, db, k, store.InChange("sec_A", secret, "chg_1", 1), sealed) },
+		"as a revision, from a change item": func() ([]byte, error) {
+			return openIn(t, db, k, secretAt("sec_A"), inItem)
+		},
+		"as another item": func() ([]byte, error) { return openIn(t, db, k, store.InChange("sec_A", secret, "chg_1", 1), inItem) },
+		"as another change's item": func() ([]byte, error) {
+			return openIn(t, db, k, store.InChange("sec_A", secret, "chg_2", 0), inItem)
+		},
 		"changed": func() ([]byte, error) {
 			bad := bytes.Clone(sealed)
 			bad[len(bad)-1] ^= 1
-			return openIn(t, db, k, "sec_A", variable.SecretKind, bad)
+			return openIn(t, db, k, secretAt("sec_A"), bad)
 		},
-		"cut short": func() ([]byte, error) { return openIn(t, db, k, "sec_A", variable.SecretKind, sealed[:8]) },
+		"cut short": func() ([]byte, error) { return openIn(t, db, k, secretAt("sec_A"), sealed[:8]) },
 		"under another install's key": func() ([]byte, error) {
-			return openIn(t, db, secrets.New(db, otherKey(t), kinds()), "sec_A", variable.SecretKind, sealed)
+			return openIn(t, db, secrets.New(db, otherKey(t), kinds()), secretAt("sec_A"), sealed)
+		},
+		// In the clear, as someone with the database and not the key file
+		// might write one of their own.
+		"for a kind that may hold secrets, not sealed": func() ([]byte, error) {
+			return openIn(t, db, k, store.InRevision("res_A", string(container.Kind), 1), []byte{0x0a, 0x01, 'x'})
 		},
 	} {
 		if got, err := try(); err == nil || got != nil {
 			t.Errorf("opening a sealed spec %s = %q, %v; want it refused", what, got, err)
 		}
 	}
-	// A spec stored before sealing comes back as it is.
-	if got, err := openIn(t, db, k, "res_A", container.Kind, []byte{0x0a, 0x01, 'x'}); err != nil || !bytes.Equal(got, []byte{0x0a, 0x01, 'x'}) {
-		t.Errorf("an unsealed spec opened as %q, %v", got, err)
+	// A spec of a kind that holds no secret isn't sealed, and comes back as
+	// it is.
+	if got, err := openIn(t, db, k, store.InRevision("res_A", string(firewall.Kind), 1), []byte{0x18, 0x16}); err != nil || !bytes.Equal(got, []byte{0x18, 0x16}) {
+		t.Errorf("an unsealed firewall rule opened as %q, %v", got, err)
 	}
 }
 
@@ -159,7 +192,7 @@ func testRotateKEK(t *testing.T, backend store.Backend) {
 	fresh := secretstest.Keeper(db, kinds())
 	for id, s := range sealed {
 		for _, keeper := range []*secrets.Keeper{k, fresh} {
-			if got, err := openIn(t, db, keeper, id, variable.SecretKind, s); err != nil || string(got) != "value of "+id {
+			if got, err := openIn(t, db, keeper, secretAt(id), s); err != nil || string(got) != "value of "+id {
 				t.Errorf("after rotating, %s opens as %q, %v", id, got, err)
 			}
 		}
@@ -180,7 +213,7 @@ func testRotateKEK(t *testing.T, backend store.Backend) {
 	})
 	// New specs are sealed under the new key.
 	s := sealIn(t, db, k, "sec_4", []byte("four"))
-	if got, err := openIn(t, db, fresh, "sec_4", variable.SecretKind, s); err != nil || string(got) != "four" {
+	if got, err := openIn(t, db, fresh, secretAt("sec_4"), s); err != nil || string(got) != "four" {
 		t.Errorf("a spec sealed after rotating opens as %q, %v", got, err)
 	}
 }
@@ -250,7 +283,7 @@ func testValuesGoOnlyWhereTheServiceRuns(t *testing.T, backend store.Backend) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		pinned, err = k.Decode(t.Context(), tx, r.ID, service.Kind, r.Spec)
+		pinned, err = k.Decode(t.Context(), tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
 		return err
 	})
 	values, err := k.Values(t.Context(), "srv_A", ref, pinned)
