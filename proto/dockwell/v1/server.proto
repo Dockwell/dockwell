@@ -6,27 +6,35 @@ package dockwell.v1;
 
 import "dockwell/v1/options.proto";
 import "dockwell/v1/system.proto";
+import "google/api/annotations.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 // ServerService lists the servers Dockwell manages and streams their live
 // state, as each server's agent reports it.
+//
+// WatchServers has no REST path: REST has no way to stream messages, so a
+// REST client polls ListServers or GetServer instead, and anything that wants
+// the stream opens it with Connect, gRPC or gRPC-Web. See
+// docs/adr/0015-rest-and-openapi-from-the-schema.md.
 service ServerService {
   // ListServers returns every server, connected or not, without history.
   rpc ListServers(ListServersRequest) returns (ListServersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/servers"};
   }
 
   // GetServer returns one server, with its recent history.
   rpc GetServer(GetServerRequest) returns (GetServerResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/servers/{id}"};
   }
 
   // WatchServers streams every server once, with recent history, marks the
   // end of that snapshot, and then streams each change within a second of
-  // the agent reporting it.
+  // the agent reporting it. It has no REST path, as streams have none.
   rpc WatchServers(WatchServersRequest) returns (stream WatchServersResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
   }

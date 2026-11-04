@@ -88,6 +88,8 @@ jobs:
         run: $GOTOOL buf lint
       - name: Formatting
         run: $GOTOOL buf format --diff --exit-code
+      - name: OpenAPI document is valid
+        run: make check-openapi
       - name: No breaking changes
         if: github.event_name == 'pull_request'
         env:

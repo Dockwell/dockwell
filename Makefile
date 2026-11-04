@@ -8,7 +8,9 @@ MAKEFLAGS += --no-builtin-rules --no-print-directory
 
 GOTOOL    := go tool -modfile=tools/go.mod
 BIN       := bin/dockwell
-GENERATED := gen packages/api/src/gen packages/ui/src/tokens.ts packages/ui/src/styles/tokens.css web/src/routeTree.gen.ts
+GENERATED := gen packages/api/src/gen internal/control/apidoc/openapi.yaml packages/ui/src/tokens.ts packages/ui/src/styles/tokens.css web/src/routeTree.gen.ts
+# The OpenAPI document for the REST paths (docs/adr/0015-rest-and-openapi-from-the-schema.md).
+OPENAPI   := gen/openapi/openapi.yaml
 
 .PHONY: help
 help: ## Show the targets
@@ -51,12 +53,21 @@ mock-snapshots: deps ## Write PNGs of every mock, light and dark, to packages/mo
 	pnpm --filter @dockwell/mockview snapshots $(if $(ONLY),$(foreach o,$(ONLY),--only $(o)))
 
 .PHONY: generate
-generate: deps ## Regenerate code from proto/, and the design tokens
+generate: deps ## Regenerate code and the OpenAPI document from proto/, and the design tokens
 	$(GOTOOL) buf generate
 # buf empties gen/ first, so the schema's license goes back in beside the code.
 # buf can't leave a file in an output directory it cleans, which is why buf
 # generate on its own deletes gen/LICENSE; scripts/check-spdx.sh names it then.
 	cp proto/LICENSE gen/LICENSE
+# The TypeScript generated from googleapis carries Google's Apache-2.0 notice
+# but no SPDX line, which every source file has (ADR 0012); it goes on top.
+	find packages/api/src/gen/google -name '*.ts' -print0 | while IFS= read -r -d '' f; do \
+		if ! grep -q 'SPDX-License-Identifier' "$$f"; then \
+			{ printf '// SPDX-License-Identifier: Apache-2.0\n\n'; cat "$$f"; } >"$$f.spdx" && mv "$$f.spdx" "$$f"; \
+		fi; \
+	done
+# The control plane serves the OpenAPI document, and go:embed can't reach gen/.
+	cp $(OPENAPI) internal/control/apidoc/openapi.yaml
 	pnpm --filter @dockwell/ui tokens
 
 .PHONY: test
@@ -65,7 +76,7 @@ test: deps ## Run the Go and TypeScript tests
 	pnpm -r --if-present test
 
 .PHONY: lint
-lint: deps ## Lint Go, the schema, TypeScript, CSS, shell scripts, translations, license headers and doc links
+lint: deps ## Lint Go, the schema and its OpenAPI document, TypeScript, CSS, shell scripts, translations, license headers and doc links
 	go mod tidy -diff
 	cd tools && go mod tidy -diff
 	go vet ./...
@@ -73,6 +84,7 @@ lint: deps ## Lint Go, the schema, TypeScript, CSS, shell scripts, translations,
 	$(GOTOOL) golangci-lint fmt --diff
 	$(GOTOOL) buf lint
 	$(GOTOOL) buf format --diff --exit-code
+	$(MAKE) check-openapi
 	pnpm exec biome ci .
 	pnpm -r --if-present typecheck
 	pnpm --filter @dockwell/ui tokens:check
@@ -99,6 +111,11 @@ check-generated: generate web ## Fail if generated code is out of date
 		echo "Generated code is out of date. Run make generate and make web, then commit the result." >&2; \
 		exit 1; \
 	fi
+
+.PHONY: check-openapi
+check-openapi: ## Fail if the OpenAPI document isn't valid OpenAPI 3
+	$(GOTOOL) validate --multi $(OPENAPI)
+	@echo "$(OPENAPI) is valid OpenAPI 3."
 
 # The schema is compared with main upstream, not a local branch that may be stale.
 BREAKING_BASE ?= origin/main

@@ -9,6 +9,7 @@
 package dockwellv1
 
 import (
+	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
@@ -924,7 +925,7 @@ var File_dockwell_v1_server_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/server.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/system.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x14\n" +
+	"\x18dockwell/v1/server.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/system.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x14\n" +
 	"\x12ListServersRequest\"D\n" +
 	"\x13ListServersResponse\x12-\n" +
 	"\aservers\x18\x01 \x03(\v2\x13.dockwell.v1.ServerR\aservers\"\"\n" +
@@ -1004,10 +1005,10 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x16CONNECTION_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14CONNECTION_CONNECTED\x10\x01\x12\x1a\n" +
 	"\x16CONNECTION_UNREACHABLE\x10\x02\x12\x16\n" +
-	"\x12CONNECTION_PENDING\x10\x032\x9c\x02\n" +
-	"\rServerService\x12Y\n" +
-	"\vListServers\x12\x1f.dockwell.v1.ListServersRequest\x1a .dockwell.v1.ListServersResponse\"\a\xa0\xbb\x18\x01\x90\x02\x01\x12S\n" +
-	"\tGetServer\x12\x1d.dockwell.v1.GetServerRequest\x1a\x1e.dockwell.v1.GetServerResponse\"\a\xa0\xbb\x18\x01\x90\x02\x01\x12[\n" +
+	"\x12CONNECTION_PENDING\x10\x032\xc7\x02\n" +
+	"\rServerService\x12l\n" +
+	"\vListServers\x12\x1f.dockwell.v1.ListServersRequest\x1a .dockwell.v1.ListServersResponse\"\x1a\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/servers\x90\x02\x01\x12k\n" +
+	"\tGetServer\x12\x1d.dockwell.v1.GetServerRequest\x1a\x1e.dockwell.v1.GetServerResponse\"\x1f\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/servers/{id}\x90\x02\x01\x12[\n" +
 	"\fWatchServers\x12 .dockwell.v1.WatchServersRequest\x1a!.dockwell.v1.WatchServersResponse\"\x04\xa0\xbb\x18\x010\x01B\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vServerProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 

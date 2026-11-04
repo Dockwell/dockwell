@@ -52,6 +52,12 @@ export function useAuthError() {
           return t`The control plane doesn't answer at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain.`;
         case "unavailable":
           return t`The control plane couldn't check your session just now. Try again in a moment.`;
+        case "token_rejected":
+          return t`That API token is unknown, revoked or expired. Check you copied all of it, or create a new one under Profile and security.`;
+        case "token_scope":
+          return t`That API token is read-only, so it can't make changes. Create a read-write token under Profile and security.`;
+        case "needs_session":
+          return t`API tokens can't remove data, cut off access, or change how you sign in and your tokens. Sign in and do it in the panel.`;
         case "passkey_rejected":
           return t`That passkey isn't registered for this address, or it couldn't be verified. Try another passkey, or sign in with a code.`;
         case "passkey_copied":

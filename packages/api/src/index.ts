@@ -12,3 +12,4 @@ export * from "./gen/dockwell/v1/auth_pb";
 export * from "./gen/dockwell/v1/options_pb";
 export * from "./gen/dockwell/v1/server_pb";
 export * from "./gen/dockwell/v1/system_pb";
+export * from "./gen/dockwell/v1/token_pb";

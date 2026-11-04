@@ -8,8 +8,11 @@
 # - each Apache-2.0 directory has a LICENSE file with the canonical text.
 # The API schema in proto/ and the clients generated from it (gen/ and
 # packages/api/) are Apache-2.0; everything else is AGPL-3.0-only. Generated
-# code carries the header of the .proto file it comes from. The imported
-# design files are exempt. See docs/adr/0001-license-agpl-and-cla.md and
+# code carries the header of the .proto file it comes from. The TypeScript
+# generated from googleapis (packages/api/src/gen/google/) also keeps
+# Google's own Apache-2.0 notice, below the SPDX line make generate adds,
+# which is checked for. The imported design files are exempt. See
+# docs/adr/0001-license-agpl-and-cla.md and
 # docs/adr/0012-apache-for-api-schema-and-clients.md.
 set -euo pipefail
 
@@ -62,6 +65,30 @@ done < <(
   list_files '*.go' '*.proto' '*.ts' '*.tsx' '*.js' '*.mjs' '*.css' '*.sh' 'Makefile' \
     ':!:**/*.gen.ts' ':!:design/**'
 )
+
+# Code generated from googleapis, which the TypeScript client imports, also
+# keeps Google's Apache-2.0 notice from the .proto file, below its SPDX line.
+# The files are picked out here: git can list none for a pathspec naming
+# their directory beside the exclusion in list_files.
+googleapis=packages/api/src/gen/google/
+googleapis_files=0
+while IFS= read -r -d '' file; do
+  [[ -f "$file" && $file == "$googleapis"* ]] || continue
+  googleapis_files=$((googleapis_files + 1))
+  mapfile -t -n 15 lines <"$file"
+  notice=no
+  for line in "${lines[@]}"; do
+    [[ $line == "// Copyright "*" Google LLC" ]] && notice=yes
+  done
+  if ((${#lines[@]} == 0)); then
+    headers+=("$file: empty, needs the code make generate writes from googleapis, with Google's Apache-2.0 notice")
+  elif [[ $notice == no || "${lines[*]}" != *"Licensed under the Apache License, Version 2.0"* ]]; then
+    headers+=("$file: no Google Apache-2.0 notice in its first 15 lines, needs one, as generated from googleapis")
+  fi
+done < <(list_files '*.ts')
+if ((googleapis_files == 0)); then
+  headers+=("$googleapis: no files, needs the TypeScript make generate writes from googleapis")
+fi
 
 # Package manifests declare the license of their directory. Node reads them as
 # JSON, so the field's spelling and position don't matter.

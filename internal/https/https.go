@@ -115,18 +115,26 @@ func (s *Static) HTTPHandler() http.Handler { return Redirect(s.Name, s.HTTPSPor
 
 // Redirect sends GET and HEAD requests to the same path on
 // https://domain, and refuses anything else: a request body sent over
-// plain HTTP has already been exposed, so it isn't forwarded. The target is
-// built from domain, never from the request's Host header.
+// plain HTTP has already been exposed, so it isn't forwarded. It also
+// refuses any request with an Authorization header, such as an API token:
+// many clients follow a redirect with the header still on, so a script set up
+// with http:// would work while sending its token in the clear on every
+// call. The target is built from domain, never from the request's Host
+// header.
 func Redirect(domain, httpsPort string) http.Handler {
 	host := domain
 	if httpsPort != "" && httpsPort != "443" {
 		host = net.JoinHostPort(domain, httpsPort)
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			refuse(w, fmt.Sprintf("Dockwell answers only over HTTPS, and this request sent an Authorization header over plain HTTP, "+
+				"so anyone on the network may have seen it. If it carried an API token, revoke the token under Profile and security "+
+				"and create a new one. Then send requests to https://%s instead.", host))
+			return
+		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = fmt.Fprintf(w, "Dockwell answers only over HTTPS. Send this request to https://%s instead.\n", host)
+			refuse(w, fmt.Sprintf("Dockwell answers only over HTTPS. Send this request to https://%s instead.", host))
 			return
 		}
 		target := "https://" + host + r.URL.EscapedPath()
@@ -138,4 +146,13 @@ func Redirect(domain, httpsPort string) http.Handler {
 		}
 		http.Redirect(w, r, target, http.StatusMovedPermanently) //nolint:gosec // the host is the configured domain
 	})
+}
+
+// refuse answers a plain-HTTP request that isn't redirected.
+func refuse(w http.ResponseWriter, msg string) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusBadRequest)
+	_, _ = fmt.Fprintln(w, msg)
 }

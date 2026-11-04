@@ -42,7 +42,19 @@ func (l logInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) 
 	}
 }
 
+type protocolKey struct{}
+
+// WithProtocol records the protocol a request arrived with, for one that
+// reaches its handler through another: a REST call reaches it through
+// Vanguard as Connect. RPC logs name the protocol it arrived with.
+func WithProtocol(ctx context.Context, protocol string) context.Context {
+	return context.WithValue(ctx, protocolKey{}, protocol)
+}
+
 func (l logInterceptor) log(ctx context.Context, procedure, protocol string, start time.Time, err error) {
+	if p, ok := ctx.Value(protocolKey{}).(string); ok {
+		protocol = p
+	}
 	attrs := []slog.Attr{
 		slog.String("procedure", procedure),
 		slog.String("protocol", protocol),

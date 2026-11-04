@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"math/big"
@@ -317,13 +318,14 @@ func testEveryProcedureNeedsASession(t *testing.T, backend store.Backend) {
 			if md.IsStreamingClient() {
 				via = h2c
 			}
-			code := callEmpty(t, via, procedure, md)
+			err := callEmptyWith(t, via, via.origin, procedure, md)
 			checked++
+			unauthenticated := err != nil && connect.CodeOf(err) == connect.CodeUnauthenticated
 			switch {
-			case public[procedure] && code == connect.CodeUnauthenticated:
+			case public[procedure] && unauthenticated:
 				t.Errorf("%s is public but answered unauthenticated", procedure)
-			case !public[procedure] && code != connect.CodeUnauthenticated:
-				t.Errorf("%s answered %v without a session, want unauthenticated", procedure, code)
+			case !public[procedure] && !unauthenticated:
+				t.Errorf("%s %s without a session, want unauthenticated", procedure, outcome(err))
 			}
 		}
 	}
@@ -352,15 +354,41 @@ func testEveryProcedureNeedsASession(t *testing.T, backend store.Backend) {
 	if checked < 25 {
 		t.Errorf("checked only %d procedures", checked)
 	}
+
+	// The REST paths reach the same procedures, through Vanguard.
+	var paths int
+	for _, m := range restMethods(t) {
+		status, why, body := callREST(t, b, m.verb, m.path, nil, "")
+		paths++
+		switch {
+		case public[m.procedure] && status == http.StatusUnauthorized:
+			t.Errorf("%s %s (%s) is public but answered 401: %s", m.verb, m.path, m.procedure, body)
+		case !public[m.procedure] && (status != http.StatusUnauthorized || why != authapi.ReasonUnauthenticated):
+			t.Errorf("%s %s (%s) answered %d (reason %q) without a session, want 401 unauthenticated: %s", m.verb, m.path, m.procedure, status, why, body)
+		}
+	}
+	if paths < 25 {
+		t.Errorf("checked only %d REST paths", paths)
+	}
 }
 
-// callEmpty calls a procedure with an empty request, whatever its shape, and
-// returns the code it ends with.
-func callEmpty(t *testing.T, b *browser, procedure string, md protoreflect.MethodDescriptor) connect.Code {
+// outcome says how a call ended, for a test's message: a success says so,
+// where connect.CodeOf would call it unknown.
+func outcome(err error) string {
+	if err == nil {
+		return "succeeded"
+	}
+	return fmt.Sprintf("answered %v", connect.CodeOf(err))
+}
+
+// callEmptyWith calls a procedure through client with an empty request,
+// whatever its shape, and returns the error it ends with: nil when it
+// answered at all.
+func callEmptyWith(t *testing.T, b connect.HTTPClient, origin, procedure string, md protoreflect.MethodDescriptor) error {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	target := b.origin + procedure
+	target := origin + procedure
 	newOut := connect.WithResponseInitializer(func(_ connect.Spec, msg any) error {
 		*msg.(*dynamicpb.Message) = *dynamicpb.NewMessage(md.Output())
 		return nil
@@ -381,10 +409,10 @@ func callEmpty(t *testing.T, b *browser, procedure string, md protoreflect.Metho
 	case md.IsStreamingServer():
 		stream, serr := client.CallServerStream(ctx, connect.NewRequest(in))
 		if err = serr; err == nil {
-			// A public watch that answers at all has passed the guard.
+			// A watch that answers at all has passed the guard.
 			if stream.Receive() {
 				_ = stream.Close()
-				return connect.Code(0)
+				return nil
 			}
 			err = stream.Err()
 			_ = stream.Close()
@@ -393,9 +421,9 @@ func callEmpty(t *testing.T, b *browser, procedure string, md protoreflect.Metho
 		_, err = client.CallUnary(ctx, connect.NewRequest(in))
 	}
 	if err == nil || errors.Is(err, io.EOF) {
-		return connect.Code(0)
+		return nil
 	}
-	return connect.CodeOf(err)
+	return err
 }
 
 func TestOriginAndHostChecks(t *testing.T) { storetest.Each(t, testOriginAndHostChecks) }

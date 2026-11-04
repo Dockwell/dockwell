@@ -5,6 +5,7 @@ syntax = "proto3";
 package dockwell.v1;
 
 import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
 // SystemService describes the Dockwell install itself. It needs no sign-in, so
@@ -14,6 +15,7 @@ service SystemService {
   rpc GetVersion(GetVersionRequest) returns (GetVersionResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/version"};
   }
 }
 

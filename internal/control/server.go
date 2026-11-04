@@ -5,11 +5,13 @@
 // store and the scheduler.
 //
 // The API listener serves the Connect, gRPC and gRPC-Web protocols over
-// HTTP/1.1 and HTTP/2, the panel at every other path, and /healthz for
-// process supervisors. It stays on loopback. With a domain, the same
+// HTTP/1.1 and HTTP/2, REST paths under /v1/ through Vanguard with their
+// OpenAPI document (ADR 0015), the panel at every other path, and /healthz
+// for process supervisors. It stays on loopback. With a domain, the same
 // handler also serves HTTPS on the panel's domain, and a plain-HTTP
 // listener answers certificate challenges and redirects to HTTPS (ADR
-// 0011). Every procedure but sign-in needs a session (internal/auth).
+// 0011). Every procedure but sign-in needs a session or an API token whose
+// scope covers it (internal/auth, ADR 0016), whatever the protocol.
 //
 // The agent listener speaks only to agents, over TLS 1.3 with client
 // certificates (ADR 0007).
@@ -23,17 +25,20 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/grpchealth"
 	"connectrpc.com/grpcreflect"
+	"connectrpc.com/vanguard"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/control/apidoc"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
@@ -105,7 +110,11 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Public != nil && (cfg.Auth == nil || cfg.Auth.Sites().Domain != cfg.Public.Domain()) {
 		return nil, errors.New("control: Config.Public needs Config.Auth for the same domain")
 	}
-	s := &Server{logger: cfg.Logger, api: apiRoutes(cfg, ui), public: cfg.Public}
+	api, err := apiRoutes(cfg, ui)
+	if err != nil {
+		return nil, err
+	}
+	s := &Server{logger: cfg.Logger, api: api, public: cfg.Public}
 	if (cfg.Identity == nil) != (cfg.Fleet == nil) {
 		return nil, errors.New("control: Config.Identity and Config.Fleet go together")
 	}
@@ -119,24 +128,37 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler) http.Handler {
+func apiRoutes(cfg Config, ui http.Handler) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
-	mux.Handle(dockwellv1connect.NewSystemServiceHandler(system.New(cfg.Build), opts...))
-	services := []string{dockwellv1connect.SystemServiceName}
+	var services []string
+	var rest []*vanguard.Service
+	// handle serves a service's procedures, and its REST paths through
+	// Vanguard, which calls the same handler, interceptors and all.
+	handle := func(path string, h http.Handler) {
+		mux.Handle(path, h)
+		rest = append(rest, vanguard.NewService(path, h))
+		services = append(services, strings.Trim(path, "/"))
+	}
+	handle(dockwellv1connect.NewSystemServiceHandler(system.New(cfg.Build), opts...))
 	if cfg.Auth != nil {
 		controlServer := func() *dockwellv1.Server { return nil }
 		if cfg.Fleet != nil {
 			controlServer = cfg.Fleet.ControlServer
 		}
 		h := authapi.New(authapi.Config{Auth: cfg.Auth, Logger: cfg.Logger, ControlServer: controlServer, PublicAddress: cfg.PublicAddress})
-		mux.Handle(dockwellv1connect.NewAuthServiceHandler(h, opts...))
-		services = append(services, dockwellv1connect.AuthServiceName)
+		handle(dockwellv1connect.NewAuthServiceHandler(h, opts...))
+		handle(dockwellv1connect.NewTokenServiceHandler(h, opts...))
 	}
 	if cfg.Fleet != nil {
-		mux.Handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet), opts...))
-		services = append(services, dockwellv1connect.ServerServiceName)
+		handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet), opts...))
 	}
+	restPaths, err := restHandler(rest)
+	if err != nil {
+		return nil, err
+	}
+	mux.Handle(authapi.RESTPrefix, restPaths)
+	mux.Handle("GET "+apidoc.Path, apidoc.Handler())
 
 	mux.Handle(grpchealth.NewHandler(grpchealth.NewStaticChecker(services...), opts...))
 	reflector := grpcreflect.NewStaticReflector(services...)
@@ -156,7 +178,7 @@ func apiRoutes(cfg Config, ui http.Handler) http.Handler {
 	if cfg.Auth != nil {
 		sites = cfg.Auth.Sites()
 	}
-	return serve.Recover(cfg.Logger, authapi.Guard(sites, cfg.Logger, mux))
+	return serve.Recover(cfg.Logger, authapi.Guard(sites, cfg.Logger, mux)), nil
 }
 
 // Serve serves the API and panel on ln until ctx is done.

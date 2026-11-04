@@ -3,6 +3,10 @@
 version: v2
 modules:
   - path: proto
+deps:
+  # For google.api.http, which maps each method to a REST path (ADR 0015).
+  # Pinned to a commit at least 14 days old, like every other dependency.
+  - buf.build/googleapis/googleapis:8ac61b9e502343289c8c42b17aa5b245
 lint:
   use:
     - STANDARD

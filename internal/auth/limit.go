@@ -35,14 +35,57 @@ func backoff(failures, free int) time.Duration {
 	return min(baseBackoff<<n, maxBackoff)
 }
 
+// bounded holds state for each key, such as a source address or a token, in
+// memory, for at most max keys: a flood of new keys mustn't grow memory
+// without bound. When a new key would pass max, it first drops the keys
+// whose state forgettable says can go, then, if that isn't enough,
+// arbitrary ones. Its owner locks it.
+type bounded[V any] struct {
+	max         int
+	m           map[string]*V
+	forgettable func(v *V, now time.Time) bool
+}
+
+func newBounded[V any](maxKeys int, forgettable func(*V, time.Time) bool) bounded[V] {
+	return bounded[V]{max: maxKeys, m: map[string]*V{}, forgettable: forgettable}
+}
+
+// get returns key's state, and whether it was just made, as the zero V.
+func (b *bounded[V]) get(key string, now time.Time) (*V, bool) {
+	if v, ok := b.m[key]; ok {
+		return v, false
+	}
+	if len(b.m) >= b.max {
+		b.prune(now)
+	}
+	v := new(V)
+	b.m[key] = v
+	return v, true
+}
+
+func (b *bounded[V]) prune(now time.Time) {
+	for k, v := range b.m {
+		if b.forgettable(v, now) {
+			delete(b.m, k)
+		}
+	}
+	for k := range b.m {
+		if len(b.m) < b.max {
+			break
+		}
+		delete(b.m, k)
+	}
+}
+
+func (b *bounded[V]) forget(key string) { delete(b.m, key) }
+
 // failures counts wrong attempts in a row for each source address and says
 // how long the next attempt must wait. It forgets keys that have been quiet
-// for a while, and holds at most maxKeys.
+// for longer than the longest backoff first, and holds at most maxKeys.
 type failures struct {
-	mu      sync.Mutex
-	free    int
-	maxKeys int
-	keys    map[string]*failureCount
+	mu   sync.Mutex
+	free int
+	keys bounded[failureCount]
 }
 
 type failureCount struct {
@@ -51,7 +94,9 @@ type failureCount struct {
 }
 
 func newFailures(free, maxKeys int) *failures {
-	return &failures{free: free, maxKeys: maxKeys, keys: map[string]*failureCount{}}
+	return &failures{free: free, keys: newBounded(maxKeys, func(c *failureCount, now time.Time) bool {
+		return now.Sub(c.last) > 2*maxBackoff
+	})}
 }
 
 // try counts an attempt for key and returns zero, or, when key must wait
@@ -61,14 +106,7 @@ func newFailures(free, maxKeys int) *failures {
 func (f *failures) try(key string, now time.Time) time.Duration {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	c, ok := f.keys[key]
-	if !ok {
-		if len(f.keys) >= f.maxKeys {
-			f.pruneLocked(now)
-		}
-		c = &failureCount{}
-		f.keys[key] = c
-	}
+	c, _ := f.keys.get(key, now)
 	if w := c.last.Add(backoff(c.n, f.free)).Sub(now); c.n > 0 && w > 0 {
 		return w
 	}
@@ -81,35 +119,18 @@ func (f *failures) try(key string, now time.Time) time.Duration {
 func (f *failures) reset(key string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	delete(f.keys, key)
-}
-
-// pruneLocked drops keys quiet for longer than the longest backoff, and if
-// that isn't enough, arbitrary ones: a flood of new keys mustn't grow memory
-// without bound.
-func (f *failures) pruneLocked(now time.Time) {
-	for k, c := range f.keys {
-		if now.Sub(c.last) > 2*maxBackoff {
-			delete(f.keys, k)
-		}
-	}
-	for k := range f.keys {
-		if len(f.keys) < f.maxKeys {
-			break
-		}
-		delete(f.keys, k)
-	}
+	f.keys.forget(key)
 }
 
 // buckets limits how often each source address may start a ceremony or try
 // a link: a burst, then a steady rate. It keeps unauthenticated callers from
-// filling the ceremony store.
+// filling the ceremony store. It forgets full buckets first, and holds at
+// most maxKeys.
 type buckets struct {
-	mu      sync.Mutex
-	burst   float64
-	perSec  float64
-	maxKeys int
-	keys    map[string]*bucket
+	mu     sync.Mutex
+	burst  float64
+	perSec float64
+	keys   bounded[bucket]
 }
 
 type bucket struct {
@@ -118,24 +139,20 @@ type bucket struct {
 }
 
 func newBuckets(burst int, every time.Duration, maxKeys int) *buckets {
-	return &buckets{burst: float64(burst), perSec: 1 / every.Seconds(), maxKeys: maxKeys, keys: map[string]*bucket{}}
+	b := &buckets{burst: float64(burst), perSec: 1 / every.Seconds()}
+	b.keys = newBounded(maxKeys, func(k *bucket, now time.Time) bool {
+		return k.tokens+now.Sub(k.last).Seconds()*b.perSec >= b.burst
+	})
+	return b
 }
 
 // take spends one token for key, and reports false when it has none.
 func (b *buckets) take(key string, now time.Time) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	k, ok := b.keys[key]
-	if !ok {
-		if len(b.keys) >= b.maxKeys {
-			for old, v := range b.keys {
-				if now.Sub(v.last).Seconds()*b.perSec >= b.burst || len(b.keys) >= b.maxKeys {
-					delete(b.keys, old)
-				}
-			}
-		}
-		k = &bucket{tokens: b.burst, last: now}
-		b.keys[key] = k
+	k, made := b.keys.get(key, now)
+	if made {
+		*k = bucket{tokens: b.burst, last: now}
 	}
 	k.tokens = min(b.burst, k.tokens+now.Sub(k.last).Seconds()*b.perSec)
 	k.last = now
@@ -146,19 +163,25 @@ func (b *buckets) take(key string, now time.Time) bool {
 	return true
 }
 
-// sourceKey groups addresses an attacker could easily hold many of: an IPv6
-// /64 counts as one source.
-func sourceKey(addr string) string {
+// sourceKey is the key for limits by source address.
+func sourceKey(addr string) string { return "src:" + networkKey(addr) }
+
+// networkKey groups addresses that one client can easily hold many of, as
+// it rotates through them: an IPv6 /64 counts as one, as "2001:db8:1:2::/64".
+// An IPv4 address is itself, whether written as IPv4 or as IPv6
+// ("::ffff:203.0.113.9"). addr may have a port; anything that isn't an
+// address is itself.
+func networkKey(addr string) string {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		host = addr
 	}
 	ip := net.ParseIP(host)
 	if ip == nil {
-		return "src:" + host
+		return host
 	}
 	if v4 := ip.To4(); v4 != nil {
-		return "src:" + v4.String()
+		return v4.String()
 	}
-	return "src:" + ip.Mask(net.CIDRMask(64, 128)).String() + "/64"
+	return ip.Mask(net.CIDRMask(64, 128)).String() + "/64"
 }

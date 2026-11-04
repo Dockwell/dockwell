@@ -9,6 +9,7 @@
 package dockwellv1
 
 import (
+	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -205,7 +206,7 @@ var File_dockwell_v1_system_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_system_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/system.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x13\n" +
+	"\x18dockwell/v1/system.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x13\n" +
 	"\x11GetVersionRequest\"B\n" +
 	"\x12GetVersionResponse\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\"\xd1\x01\n" +
@@ -217,10 +218,10 @@ const file_dockwell_v1_system_proto_rawDesc = "" +
 	"\bmodified\x18\x04 \x01(\bR\bmodified\x12\x1d\n" +
 	"\n" +
 	"go_version\x18\x05 \x01(\tR\tgoVersion\x12\x1a\n" +
-	"\bplatform\x18\x06 \x01(\tR\bplatform2g\n" +
-	"\rSystemService\x12V\n" +
+	"\bplatform\x18\x06 \x01(\tR\bplatform2z\n" +
+	"\rSystemService\x12i\n" +
 	"\n" +
-	"GetVersion\x12\x1e.dockwell.v1.GetVersionRequest\x1a\x1f.dockwell.v1.GetVersionResponse\"\a\xa0\xbb\x18\x01\x90\x02\x01B\xa4\x01\n" +
+	"GetVersion\x12\x1e.dockwell.v1.GetVersionRequest\x1a\x1f.dockwell.v1.GetVersionResponse\"\x1a\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/version\x90\x02\x01B\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vSystemProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
