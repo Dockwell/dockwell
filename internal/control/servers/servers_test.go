@@ -84,7 +84,7 @@ func TestWatchMarksTheEndOfTheSnapshot(t *testing.T) {
 		t.Fatalf("got %v, want the end of the snapshot", msg)
 	}
 
-	if _, err := hub.Attach(ctx, "srv_B", &dockwellv1.ServerInventory{OsName: "Debian GNU/Linux 13"}, nil); err != nil {
+	if _, err := hub.Attach(ctx, store.Server{ID: "srv_B", Name: "hz-2"}, &dockwellv1.ServerInventory{OsName: "Debian GNU/Linux 13"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	hub.Record("srv_B", &dockwellv1.ServerStats{Time: timestamppb.Now(), CpuPercent: 42})

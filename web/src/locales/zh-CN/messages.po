@@ -84,8 +84,8 @@ msgid "Deploying"
 msgstr "正在部署"
 
 #: src/features/system/StatusPage.tsx
-msgid "Dockwell answers on {host}. Servers appear below as their agents connect; apps and deploys come next."
-msgstr "Dockwell 正在 {host} 上响应。服务器会在其代理连接后显示在下方；应用和部署功能即将推出。"
+msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
+msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方；应用和部署功能即将推出。"
 
 #: src/app/Providers.tsx
 msgid "Down"
@@ -112,8 +112,8 @@ msgid "No page here"
 msgstr "页面不存在"
 
 #: src/features/servers/ServersPanel.tsx
-msgid "No servers yet. Their agents appear here once they connect. Add one with <0>dockwell token create</0> on this server."
-msgstr "还没有服务器。代理连接后会显示在这里。在这台服务器上运行 <0>dockwell token create</0> 来添加一台。"
+msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
+msgstr "还没有服务器。在这台服务器上运行 <0>dockwell token create</0> 来添加一台。"
 
 #: src/features/system/StatusPage.tsx
 msgid "Platform"

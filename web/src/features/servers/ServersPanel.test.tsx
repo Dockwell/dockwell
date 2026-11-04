@@ -71,9 +71,7 @@ describe("ServersPanel", () => {
     renderPanel(watch);
 
     const empty = await screen.findByText(/No servers yet/);
-    expect(empty).toHaveTextContent(
-      "No servers yet. Their agents appear here once they connect. Add one with dockwell token create on this server.",
-    );
+    expect(empty).toHaveTextContent("No servers yet. Add one with dockwell token create on this server.");
     expect(within(empty).getByText("dockwell token create").tagName).toBe("CODE");
   });
 

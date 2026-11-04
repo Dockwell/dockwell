@@ -4,6 +4,7 @@ package agentapi_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"path/filepath"
@@ -181,18 +182,29 @@ func TestRevokingClosesAnOpenStream(t *testing.T) {
 	if err := s.auth.Revoke(t.Context(), id.ServerID, "cli:test"); err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, s.hub, id.ServerID, "the revoked server's stream closes", func(srv *dockwellv1.Server) bool {
-		return srv.GetConnection() != dockwellv1.Connection_CONNECTION_CONNECTED
-	})
+	// The stream closes and the server leaves the fleet, rather than
+	// lingering as unreachable.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		_, err := s.hub.Get(id.ServerID)
+		if errors.Is(err, fleet.ErrNotFound) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the revoked server is still in the fleet (%v)", err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func TestASilentStreamIsClosed(t *testing.T) {
 	s := startStack(t, 150*time.Millisecond)
 	id := s.enrollLocal(t)
-	client, err := id.Client()
+	client, release, err := id.Client()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer release()
 	stream := client.Connect(t.Context())
 	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: &agentv1.Hello{}}}); err != nil {
 		t.Fatal(err)
@@ -207,13 +219,84 @@ func TestASilentStreamIsClosed(t *testing.T) {
 	}
 }
 
-func TestAStreamMustStartWithHello(t *testing.T) {
-	s := startStack(t, 5*time.Second)
+func TestAStreamMustSayHelloInTime(t *testing.T) {
+	s := startStack(t, 150*time.Millisecond)
 	id := s.enrollLocal(t)
-	client, err := id.Client()
+	client, release, err := id.Client()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer release()
+	stream := client.Connect(t.Context())
+	// Open the stream with an empty send of headers only, then say nothing.
+	if err := stream.Send(nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stream.Receive(); connect.CodeOf(err) != connect.CodeDeadlineExceeded {
+		t.Errorf("a stream without a hello = %v, want DeadlineExceeded", err)
+	}
+}
+
+func TestAnOutdatedCertificateCantConnect(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	old := s.enrollLocal(t)
+	// Two renewals later, the first certificate is neither current nor the
+	// one being replaced.
+	serial := pki.SerialString(old.Cert())
+	for range 2 {
+		_, csr, err := pki.NewServerKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+		cert, err := s.auth.Renew(t.Context(), old.ServerID, serial, csr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		serial = pki.SerialString(cert)
+	}
+	client, release, err := old.Client()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	stream := client.Connect(t.Context())
+	_ = stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: &agentv1.Hello{}}})
+	if _, err := stream.Receive(); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Errorf("connecting with an outdated certificate = %v, want PermissionDenied", err)
+	}
+}
+
+func TestRenewalsWorkWhileTheStreamIsOpen(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go func() {
+		_ = agent.Run(ctx, agent.Config{Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(), Collector: fakeCollector()})
+	}()
+	waitFor(t, s.hub, id.ServerID, "the agent connects", func(srv *dockwellv1.Server) bool {
+		return srv.GetConnection() == dockwellv1.Connection_CONNECTION_CONNECTED
+	})
+	// Each renewal must present the certificate before it, not the one the
+	// stream's connection was made with.
+	for i := range 3 {
+		if err := id.Renew(t.Context()); err != nil {
+			t.Fatalf("renewal %d: %v", i+1, err)
+		}
+	}
+	waitFor(t, s.hub, id.ServerID, "the stream comes back on the new certificate", func(srv *dockwellv1.Server) bool {
+		return srv.GetConnection() == dockwellv1.Connection_CONNECTION_CONNECTED
+	})
+}
+
+func TestAStreamMustStartWithHello(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	client, release, err := id.Client()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
 	stream := client.Connect(t.Context())
 	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Stats{Stats: &dockwellv1.ServerStats{}}}); err != nil {
 		t.Fatal(err)

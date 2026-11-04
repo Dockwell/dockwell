@@ -141,33 +141,13 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 	if err != nil {
 		return err
 	}
-	srv, err := h.auth.CheckServer(ctx, peer.ServerID)
+	srv, err := h.auth.CheckConnection(ctx, peer.ServerID, peer.Serial)
 	if err != nil {
-		return h.rpcError(ctx, err)
+		return h.refuse(ctx, peer, err)
 	}
-	first, err := stream.Receive()
-	if err != nil {
-		return err
-	}
-	hello := first.GetHello()
-	if hello == nil {
-		return connect.NewError(connect.CodeInvalidArgument, errors.New("a stream must start with a hello"))
-	}
-	detach, err := h.fleet.Attach(ctx, peer.ServerID, hello.GetInventory(), hello.GetBuild())
-	if err != nil {
-		return h.rpcError(ctx, err)
-	}
-	defer detach()
-	if err := stream.Send(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Welcome{Welcome: &agentv1.Welcome{
-		ServerName:    srv.Name,
-		StatsInterval: durationpb.New(fleet.StatsInterval),
-	}}}); err != nil {
-		return err
-	}
-	log := h.logger.With(slog.String("server", peer.ServerID), slog.String("name", srv.Name))
-	log.InfoContext(ctx, "server connected", slog.String("agent", hello.GetBuild().GetVersion()))
 
-	// Receive in the background, so silence and revocation can end the stream.
+	// Receive in the background, so silence and revocation can end the
+	// stream, before the hello as much as after it.
 	msgs := make(chan *agentv1.ConnectRequest)
 	recvErr := make(chan error, 1)
 	go func() {
@@ -184,9 +164,45 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 			}
 		}
 	}()
-
 	silence := time.NewTimer(h.silence)
 	defer silence.Stop()
+	silent := func() error {
+		return connect.NewError(connect.CodeDeadlineExceeded,
+			fmt.Errorf("the agent sent nothing for %s, so the control plane closed the stream", human.Duration(h.silence)))
+	}
+
+	var hello *agentv1.Hello
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-recvErr:
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return err
+	case <-silence.C:
+		return silent()
+	case first := <-msgs:
+		if hello = first.GetHello(); hello == nil {
+			return connect.NewError(connect.CodeInvalidArgument, errors.New("a stream must start with a hello"))
+		}
+	}
+	silence.Reset(h.silence)
+
+	detach, err := h.fleet.Attach(ctx, srv, hello.GetInventory(), hello.GetBuild())
+	if err != nil {
+		return h.rpcError(ctx, err)
+	}
+	defer detach()
+	if err := stream.Send(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Welcome{Welcome: &agentv1.Welcome{
+		ServerName:    srv.Name,
+		StatsInterval: durationpb.New(fleet.StatsInterval),
+	}}}); err != nil {
+		return err
+	}
+	log := h.logger.With(slog.String("server", peer.ServerID), slog.String("name", srv.Name))
+	log.InfoContext(ctx, "server connected", slog.String("agent", hello.GetBuild().GetVersion()))
+
 	recheck := time.NewTicker(h.recheck)
 	defer recheck.Stop()
 	for {
@@ -205,15 +221,25 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 			}
 		case <-silence.C:
 			log.WarnContext(ctx, "closing a silent stream", slog.String("silent_for", human.Duration(h.silence)))
-			return connect.NewError(connect.CodeDeadlineExceeded,
-				fmt.Errorf("the agent sent nothing for %s, so the control plane closed the stream", human.Duration(h.silence)))
+			return silent()
 		case <-recheck.C:
-			if _, err := h.auth.CheckServer(ctx, peer.ServerID); errors.Is(err, identity.ErrRevoked) || errors.Is(err, identity.ErrUnknownServer) {
-				log.InfoContext(ctx, "closing the stream of a removed server")
-				return h.rpcError(ctx, err)
+			_, err := h.auth.CheckConnection(ctx, peer.ServerID, peer.Serial)
+			if errors.Is(err, identity.ErrRevoked) || errors.Is(err, identity.ErrUnknownServer) || errors.Is(err, identity.ErrStaleCertificate) {
+				log.InfoContext(ctx, "closing a stream the server may no longer hold", slog.String("reason", err.Error()))
+				return h.refuse(ctx, peer, err)
 			}
 		}
 	}
+}
+
+// refuse answers a stream the server may not hold. A server that was
+// removed leaves the fleet too, so watchers drop it rather than show it as
+// unreachable.
+func (h *Handler) refuse(ctx context.Context, peer Peer, err error) error {
+	if errors.Is(err, identity.ErrRevoked) || errors.Is(err, identity.ErrUnknownServer) {
+		h.fleet.Removed(peer.ServerID)
+	}
+	return h.rpcError(ctx, err)
 }
 
 func requireServer(ctx context.Context) (Peer, error) {

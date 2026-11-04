@@ -124,10 +124,16 @@ func TestStatsRates(t *testing.T) {
 		t.Errorf("network = %d in, %d out per second", second.GetNetworkRxBytesPerSecond(), second.GetNetworkTxBytesPerSecond())
 	}
 
-	// A counter that goes backwards (an interface was reset) reports 0, not a wrapped huge number.
+	// A counter that goes backwards (an interface was reset, or the kernel's
+	// CPU accounting wobbled) reports 0, not a wrapped huge number.
+	fsys["proc/stat"].Data = []byte("cpu 290 0 200 1600 0 0 0 0 0 0\n")
 	fsys["proc/net/dev"].Data = []byte(netdev(10, 10))
-	if third := c.Stats(t0.Add(10 * time.Second)); third.GetNetworkRxBytesPerSecond() != 0 {
+	third := c.Stats(t0.Add(10 * time.Second))
+	if third.GetNetworkRxBytesPerSecond() != 0 {
 		t.Errorf("after a reset, rx = %d", third.GetNetworkRxBytesPerSecond())
+	}
+	if third.GetCpuPercent() != 0 {
+		t.Errorf("after busy time went backwards, CPU = %v%%", third.GetCpuPercent())
 	}
 }
 

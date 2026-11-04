@@ -127,9 +127,12 @@ func (h *Hub) Removed(id string) {
 	h.broadcastLocked(Update{Server: h.toProtoLocked(id, l, false), Removed: true})
 }
 
-// Attach records an agent's stream opening with a hello. The returned
-// function records it closing.
-func (h *Hub) Attach(ctx context.Context, id string, inventory *dockwellv1.ServerInventory, build *dockwellv1.BuildInfo) (detach func(), err error) {
+// Attach records the stream of srv's agent opening with a hello. srv is
+// the server as the caller just read it, so a server that joined after the
+// hub loaded needs no second read. The returned function records the
+// stream closing.
+func (h *Hub) Attach(ctx context.Context, srv store.Server, inventory *dockwellv1.ServerInventory, build *dockwellv1.BuildInfo) (detach func(), err error) {
+	id := srv.ID
 	now := h.now()
 	report := store.ServerReport{}
 	if report.Inventory, err = proto.Marshal(inventory); err != nil {
@@ -142,20 +145,10 @@ func (h *Hub) Attach(ctx context.Context, id string, inventory *dockwellv1.Serve
 		return nil, err
 	}
 
-	// A server that joined after the hub loaded isn't in memory yet.
-	var joined store.Server
-	if err := h.db.View(ctx, func(tx *store.Tx) error {
-		var err error
-		joined, err = tx.GetServer(ctx, id)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-
 	h.mu.Lock()
 	l, ok := h.servers[id]
 	if !ok {
-		l = &live{srv: joined}
+		l = &live{srv: srv}
 		h.servers[id] = l
 	}
 	l.inventory, l.build, l.lastSeen = inventory, build, now

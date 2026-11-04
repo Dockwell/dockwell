@@ -58,9 +58,7 @@ function Running({ host, build }: { host: string; build: BuildInfo | undefined }
           <Trans>The control plane is running</Trans>
         </h1>
         <p className="standalone-lead">
-          <Trans>
-            Dockwell answers on {host}. Servers appear below as their agents connect; apps and deploys come next.
-          </Trans>
+          <Trans>Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next.</Trans>
         </p>
       </header>
       <ServersPanel />

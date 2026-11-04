@@ -5,6 +5,7 @@ package enroll_test
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"log/slog"
 	"net"
@@ -259,5 +260,26 @@ func TestMethodsNeedAServerCertificate(t *testing.T) {
 func TestLoadWithoutJoining(t *testing.T) {
 	if _, err := enroll.Load(t.TempDir()); !errors.Is(err, enroll.ErrNotJoined) {
 		t.Errorf("Load on an empty directory = %v", err)
+	}
+}
+
+func TestRenewedSignalsEachReplacement(t *testing.T) {
+	id := enroll.New("srv_1", "hz-1", "https://127.0.0.1:7443", nil, &x509.Certificate{}, &x509.Certificate{})
+	first := id.Renewed()
+	select {
+	case <-first:
+		t.Fatal("Renewed fired before any renewal")
+	default:
+	}
+	id.Replace(nil, &x509.Certificate{})
+	select {
+	case <-first:
+	default:
+		t.Fatal("Renewed didn't fire on a renewal")
+	}
+	select {
+	case <-id.Renewed():
+		t.Fatal("a new wait fired for an old renewal")
+	default:
 	}
 }

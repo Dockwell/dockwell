@@ -84,8 +84,8 @@ msgid "Deploying"
 msgstr "Deploying"
 
 #: src/features/system/StatusPage.tsx
-msgid "Dockwell answers on {host}. Servers appear below as their agents connect; apps and deploys come next."
-msgstr "Dockwell answers on {host}. Servers appear below as their agents connect; apps and deploys come next."
+msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
+msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 
 #: src/app/Providers.tsx
 msgid "Down"
@@ -112,8 +112,8 @@ msgid "No page here"
 msgstr "No page here"
 
 #: src/features/servers/ServersPanel.tsx
-msgid "No servers yet. Their agents appear here once they connect. Add one with <0>dockwell token create</0> on this server."
-msgstr "No servers yet. Their agents appear here once they connect. Add one with <0>dockwell token create</0> on this server."
+msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
+msgstr "No servers yet. Add one with <0>dockwell token create</0> on this server."
 
 #: src/features/system/StatusPage.tsx
 msgid "Platform"

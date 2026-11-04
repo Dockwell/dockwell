@@ -50,8 +50,7 @@ export function ServersPanel() {
       ) : fleet.servers.length === 0 ? (
         <p className="servers-empty">
           <Trans>
-            No servers yet. Their agents appear here once they connect. Add one with <code>dockwell token create</code>{" "}
-            on this server.
+            No servers yet. Add one with <code>dockwell token create</code> on this server.
           </Trans>
         </p>
       ) : (

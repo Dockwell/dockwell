@@ -116,7 +116,9 @@ func (c *Collector) Stats(now time.Time) *dockwellv1.ServerStats {
 
 	if busy, total, ok := cpuTimes(c.read("proc/stat")); ok {
 		cur.cpuBusy, cur.cpuTotal, cur.haveCPU = busy, total, true
-		if p := c.prev; p != nil && p.haveCPU && total > p.cpuTotal {
+		// The kernel's busy and idle counters can disagree between reads; a
+		// busy count that went backwards reports 0, not a wrapped 100%.
+		if p := c.prev; p != nil && p.haveCPU && total > p.cpuTotal && busy >= p.cpuBusy {
 			st.CpuPercent = clamp(float64(busy-p.cpuBusy) / float64(total-p.cpuTotal) * 100)
 		}
 	}

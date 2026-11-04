@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math/rand/v2"
 	"sync"
@@ -114,6 +115,10 @@ func keepConnected(ctx context.Context, cfg Config) {
 		if ctx.Err() != nil {
 			return
 		}
+		if errors.Is(err, errRenewed) {
+			cfg.Logger.Info("moving the stream to the renewed certificate")
+			continue
+		}
 		if time.Since(start) >= stableSession {
 			backoff = minBackoff
 		}
@@ -132,12 +137,19 @@ func keepConnected(ctx context.Context, cfg Config) {
 	}
 }
 
-// session runs one stream: hello, welcome, then stats until it breaks.
+// errRenewed ends a session whose certificate was renewed, so the next one
+// connects with the new certificate.
+var errRenewed = errors.New("the certificate was renewed")
+
+// session runs one stream: hello, welcome, then stats until it breaks or
+// the certificate is renewed.
 func session(ctx context.Context, cfg Config) error {
-	client, err := cfg.Identity.Client()
+	renewed := cfg.Identity.Renewed()
+	client, release, err := cfg.Identity.Client()
 	if err != nil {
 		return err
 	}
+	defer release() // after the stream closes, so its connection goes too
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stream := client.Connect(ctx)
@@ -147,6 +159,10 @@ func session(ctx context.Context, cfg Config) error {
 		Build:     cfg.Build.Proto(),
 		Inventory: cfg.Collector.Inventory(ctx),
 	}}}); err != nil {
+		if errors.Is(err, io.EOF) {
+			// The control plane ended the stream; Receive says why.
+			_, err = stream.Receive()
+		}
 		return err
 	}
 	first, err := stream.Receive()
@@ -175,27 +191,40 @@ func session(ctx context.Context, cfg Config) error {
 		}
 	}()
 
+	// When the control plane ends the stream, Send only says EOF; the
+	// reason comes from Receive.
+	sendStats := func() error {
+		err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Stats{Stats: cfg.Collector.Stats(time.Now())}})
+		if !errors.Is(err, io.EOF) {
+			return err
+		}
+		select {
+		case err := <-recvErr:
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	if err := sendStats(stream, cfg.Collector); err != nil {
+	if err := sendStats(); err != nil {
 		return err
 	}
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-renewed:
+			return errRenewed
 		case err := <-recvErr:
 			return err
 		case <-ticker.C:
-			if err := sendStats(stream, cfg.Collector); err != nil {
+			if err := sendStats(); err != nil {
 				return err
 			}
 		}
 	}
-}
-
-func sendStats(stream *connect.BidiStreamForClient[agentv1.ConnectRequest, agentv1.ConnectResponse], c *collect.Collector) error {
-	return stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Stats{Stats: c.Stats(time.Now())}})
 }
 
 // sleep waits for d or ctx, and reports whether to carry on.

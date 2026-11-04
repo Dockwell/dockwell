@@ -373,6 +373,22 @@ func (a *Authority) CheckServer(ctx context.Context, serverID string) (store.Ser
 	return s, err
 }
 
+// CheckConnection is CheckServer for a connection made with the
+// certificate whose serial is given. Only the current certificate passes,
+// or the one it replaced, which an agent still holds when a renewal's
+// answer got lost. Anything older is ErrStaleCertificate: another machine
+// may hold a copy of this server's old key.
+func (a *Authority) CheckConnection(ctx context.Context, serverID, serial string) (store.Server, error) {
+	s, err := a.CheckServer(ctx, serverID)
+	if err != nil {
+		return store.Server{}, err
+	}
+	if serial == "" || (serial != s.CertSerial && serial != s.PrevCertSerial) {
+		return store.Server{}, ErrStaleCertificate
+	}
+	return s, nil
+}
+
 func (a *Authority) checkServer(ctx context.Context, tx *store.Tx, serverID string) (store.Server, error) {
 	s, err := tx.GetServer(ctx, serverID)
 	if errors.Is(err, store.ErrNotFound) {

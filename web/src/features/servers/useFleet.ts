@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { ConnectError, createClient, type Transport } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { type Server, ServerService } from "@dockwell/api";
@@ -71,11 +72,20 @@ async function watch(transport: Transport, signal: AbortSignal, publish: (s: Fle
   }
 }
 
-/** Folds a new message into what is known: history arrives once, then samples append. */
+/**
+ * Folds a new message into what is known: history arrives once, then each
+ * new sample appends. Messages about something else, such as the agent
+ * disconnecting, repeat the latest sample, which is already there.
+ */
 function merge(prev: Server | undefined, next: Server): Server {
   if (next.history.length > 0 || !prev) return next;
-  const history = next.stats ? [...prev.history, next.stats].slice(-HISTORY_LENGTH) : prev.history;
+  const fresh = next.stats && !sameTime(next.stats.time, prev.stats?.time);
+  const history = fresh && next.stats ? [...prev.history, next.stats].slice(-HISTORY_LENGTH) : prev.history;
   return { ...next, history };
+}
+
+function sameTime(a: Timestamp | undefined, b: Timestamp | undefined): boolean {
+  return a !== undefined && b !== undefined && a.seconds === b.seconds && a.nanos === b.nanos;
 }
 
 function delay(ms: number, signal: AbortSignal): Promise<void> {

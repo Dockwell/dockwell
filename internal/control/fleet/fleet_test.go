@@ -53,7 +53,7 @@ func TestConnectionStates(t *testing.T) {
 	if got := h.List()[0].GetConnection(); got != dockwellv1.Connection_CONNECTION_PENDING {
 		t.Errorf("before the agent connects: %v", got)
 	}
-	detach, err := h.Attach(t.Context(), "srv_A", inventory, &dockwellv1.BuildInfo{Version: "v0.4.0"})
+	detach, err := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, &dockwellv1.BuildInfo{Version: "v0.4.0"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,8 +70,8 @@ func TestConnectionStates(t *testing.T) {
 
 func TestTwoStreamsMustBothClose(t *testing.T) {
 	h, _ := newHub(t, "hz-1")
-	a, _ := h.Attach(t.Context(), "srv_A", inventory, nil)
-	b, _ := h.Attach(t.Context(), "srv_A", inventory, nil)
+	a, _ := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)
+	b, _ := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)
 	a()
 	if got := h.List()[0].GetConnection(); got != dockwellv1.Connection_CONNECTION_CONNECTED {
 		t.Errorf("with one stream left: %v", got)
@@ -84,7 +84,7 @@ func TestTwoStreamsMustBothClose(t *testing.T) {
 
 func TestHistoryIsCapped(t *testing.T) {
 	h, _ := newHub(t, "hz-1")
-	if _, err := h.Attach(t.Context(), "srv_A", inventory, nil); err != nil {
+	if _, err := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil); err != nil {
 		t.Fatal(err)
 	}
 	for i := range HistoryLength + 15 {
@@ -113,7 +113,7 @@ func TestWatch(t *testing.T) {
 		t.Fatalf("snapshot = %v", snapshot)
 	}
 
-	if _, err := h.Attach(t.Context(), "srv_B", inventory, nil); err != nil {
+	if _, err := h.Attach(t.Context(), store.Server{ID: "srv_B"}, inventory, nil); err != nil {
 		t.Fatal(err)
 	}
 	h.Record("srv_B", stats(42))
@@ -153,7 +153,7 @@ func TestWatch(t *testing.T) {
 func TestASlowWatcherIsDroppedNotWaitedFor(t *testing.T) {
 	h, _ := newHub(t, "hz-1")
 	_, updates := h.Watch(t.Context())
-	if _, err := h.Attach(t.Context(), "srv_A", inventory, nil); err != nil {
+	if _, err := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan struct{})
@@ -175,7 +175,7 @@ func TestASlowWatcherIsDroppedNotWaitedFor(t *testing.T) {
 
 func TestInventorySurvivesARestart(t *testing.T) {
 	h, db := newHub(t, "hz-1")
-	detach, err := h.Attach(t.Context(), "srv_A", inventory, &dockwellv1.BuildInfo{Version: "v0.4.0"})
+	detach, err := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, &dockwellv1.BuildInfo{Version: "v0.4.0"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,15 +190,14 @@ func TestInventorySurvivesARestart(t *testing.T) {
 	}
 }
 
-func TestAttachFindsServersThatJoinedLater(t *testing.T) {
+func TestAttachAddsServersThatJoinedLater(t *testing.T) {
 	h, db := newHub(t)
 	now := time.Now()
-	if err := db.Update(t.Context(), func(tx *store.Tx) error {
-		return tx.CreateServer(t.Context(), store.Server{ID: "srv_late", Name: "hz-9", CreatedAt: now, CertSerial: "x", CertNotAfter: now})
-	}); err != nil {
+	late := store.Server{ID: "srv_late", Name: "hz-9", CreatedAt: now, CertSerial: "x", CertNotAfter: now}
+	if err := db.Update(t.Context(), func(tx *store.Tx) error { return tx.CreateServer(t.Context(), late) }); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.Attach(t.Context(), "srv_late", inventory, nil); err != nil {
+	if _, err := h.Attach(t.Context(), late, inventory, nil); err != nil {
 		t.Fatal(err)
 	}
 	h.SetControlServer("srv_late")

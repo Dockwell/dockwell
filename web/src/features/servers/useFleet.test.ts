@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Code, ConnectError } from "@connectrpc/connect";
-import type { WatchServersResponse } from "@dockwell/api";
+import { Connection, type WatchServersResponse } from "@dockwell/api";
 import { act, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -78,6 +78,29 @@ describe("useFleet", () => {
       expect(server?.history).toHaveLength(HISTORY_LENGTH);
       expect(server?.history.at(0)?.cpuPercent).toBe(1);
       expect(server?.history.at(-1)?.cpuPercent).toBe(99);
+    });
+  });
+
+  it("doesn't count a repeated sample twice", async () => {
+    const latest = sample(40);
+    const watch = feed<WatchServersResponse>();
+    watch.push(
+      changed(aServer({ id: "srv_1", name: "hz-1", stats: latest, history: [sample(30), latest] })),
+      snapshotComplete,
+    );
+    const { result } = watchWith(watch);
+    await waitFor(() => expect(result.current.status).toBe("live"));
+
+    // The agent disconnects: the message carries the same latest sample.
+    act(() =>
+      watch.push(changed(aServer({ id: "srv_1", name: "hz-1", connection: Connection.UNREACHABLE, stats: latest }))),
+    );
+
+    await waitFor(() => {
+      if (result.current.status !== "live") throw new Error("not live");
+      const [server] = result.current.servers;
+      expect(server?.connection).toBe(Connection.UNREACHABLE);
+      expect(server?.history.map((s) => s.cpuPercent)).toEqual([30, 40]);
     });
   });
 
