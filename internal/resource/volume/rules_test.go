@@ -114,12 +114,15 @@ func TestOverlayIsRefused(t *testing.T) {
 func TestAccessWordsNameItAllAndNoCredentials(t *testing.T) {
 	d := &volume.Driver{}
 	for want, o := range map[string]map[string]string{
-		"the nfs mount 10.0.0.2:/export (read-only)":   {"type": "nfs", "o": "addr=10.0.0.2,ro", "device": ":/export"},
-		"the nfs4 mount 10.0.0.2:/export (read-write)": {"type": "nfs4", "o": "addr=10.0.0.2,ro,rw", "device": ":/export"},
-		"the cifs mount //nas/share (read-write)":      {"type": "cifs", "o": "username=svc,password=hunter2", "device": "//nas/share"},
-		"the cifs mount nas/share (read-write)":        {"type": "cifs", "o": "guest", "device": "//svc:hunter2@nas/share"},
-		"a tmpfs mount (read-write)":                   {"type": "tmpfs", "device": "tmpfs"},
-		"the server path /srv/media (read-only)":       {"type": "none", "o": "rw,bind,ro", "device": "/srv/media"},
+		"the nfs mount 10.0.0.2:/export (read-only)":      {"type": "nfs", "o": "addr=10.0.0.2,ro", "device": ":/export"},
+		"the nfs4 mount 10.0.0.2:/export (read-write)":    {"type": "nfs4", "o": "addr=10.0.0.2,ro,rw", "device": ":/export"},
+		"the cifs mount //nas/share (read-write)":         {"type": "cifs", "o": "username=svc,password=hunter2", "device": "//nas/share"},
+		"the cifs mount 10.0.0.2//nas/share (read-write)": {"type": "cifs", "o": "ip=10.0.0.2,guest", "device": "//nas/share"},
+		"the cifs mount 10.0.0.3//nas/share (read-write)": {"type": "cifs", "o": "ip=10.0.0.2,addr=10.0.0.3", "device": "//nas/share"},
+		"the cifs mount 10.0.0.2//nas/share (read-only)":  {"type": "cifs", "o": "addr=10.0.0.3,ip=10.0.0.2,ro", "device": "//nas/share"},
+		"the nfs mount 10.0.0.2:/snap@1 (read-write)":     {"type": "nfs", "o": "addr=10.0.0.2", "device": ":/snap@1"},
+		"a tmpfs mount (read-write)":                      {"type": "tmpfs", "device": "tmpfs"},
+		"the server path /srv/media (read-only)":          {"type": "none", "o": "rw,bind,ro", "device": "/srv/media"},
 	} {
 		v := &resourcev1.Volume{Options: o}
 		if err := d.Validate(v); err != nil {
@@ -153,5 +156,94 @@ func TestAPluginDriverIsHostAccess(t *testing.T) {
 	}
 	if len(d.HostAccess(v)) == 0 {
 		t.Error("a volume on a plugin driver with no options counts as no host access, so a token applies it")
+	}
+}
+
+// Docker takes a flag only when an option is exactly its name, and hands
+// anything else to the filesystem, which ignores it on a bind. A plan that
+// said read-only here would have a person approve write access.
+func TestABindIsReadOnlyOnlyWhenDockerWouldMakeItSo(t *testing.T) {
+	d := &volume.Driver{}
+	for o, want := range map[string]bool{
+		"bind,ro":     true,
+		"ro,bind":     true,
+		"bind,rw,ro":  true,
+		"bind,ro,rw":  false,
+		"bind, ro":    false,
+		"bind,ro ":    false,
+		"bind,ro=1":   false,
+		"bind,RO":     false,
+		"bind,\"ro\"": false,
+	} {
+		v := &resourcev1.Volume{Options: map[string]string{"type": "none", "o": o, "device": "/srv/x"}}
+		if err := d.Validate(v); err != nil {
+			t.Fatalf("o: %q: %v", o, err)
+		}
+		if got := d.HostAccess(v)[0].ReadOnly; got != want {
+			t.Errorf("o: %q reads as read-only: %v, want %v", o, got, want)
+		}
+	}
+	// A bind Docker wouldn't make isn't a bind.
+	for _, o := range []string{" bind", "bind=1", "BIND"} {
+		v := &resourcev1.Volume{Options: map[string]string{"type": "none", "o": o, "device": "/srv/x"}}
+		if err := d.Validate(v); err == nil {
+			t.Errorf("o: %q passes as a bind", o)
+		}
+	}
+}
+
+// A plan shows the share a person approves, so nothing else may name
+// another, and a device never shows a password.
+func TestARemoteMountCanOnlyNameWhatThePlanShows(t *testing.T) {
+	d := &volume.Driver{}
+	for name, o := range map[string]map[string]string{
+		"unc":                    {"type": "cifs", "o": "unc=//evil/x", "device": "//nas/share"},
+		"target":                 {"type": "cifs", "o": "guest,target=//evil/x", "device": "//nas/share"},
+		"path":                   {"type": "cifs", "o": "path=//evil/x", "device": "//nas/share"},
+		"prefixpath":             {"type": "cifs", "o": "prefixpath=other", "device": "//nas/share"},
+		"another case":           {"type": "cifs", "o": "UNC=//evil/x", "device": "//nas/share"},
+		"a user and password":    {"type": "cifs", "o": "guest", "device": "//svc:hunter2@nas/share"},
+		"a password with a /":    {"type": "cifs", "o": "guest", "device": "//svc:hunter/2@nas/share"},
+		"an @ past the server":   {"type": "cifs", "o": "guest", "device": "//evil.example/x@nas/share"},
+		"backslashes":            {"type": "cifs", "o": "guest", "device": `\\\\svc:hunter2@nas\\share`},
+		"no share":               {"type": "cifs", "o": "guest", "device": "//nas"},
+		"no slashes":             {"type": "cifs", "o": "guest", "device": "nas/share"},
+		"no device":              {"type": "cifs", "o": "guest"},
+		"three slashes":          {"type": "cifs", "o": "guest", "device": "///nas/share"},
+		"a user on an NFS mount": {"type": "nfs", "o": "addr=10.0.0.2", "device": "svc:hunter2@nas:/export"},
+	} {
+		err := d.Validate(&resourcev1.Volume{Options: o})
+		if err == nil {
+			t.Errorf("%s passes", name)
+			continue
+		}
+		if strings.Contains(err.Error(), "hunter") {
+			t.Errorf("%s: the refusal repeats the password: %v", name, err)
+		}
+	}
+
+	// One made by hand wasn't checked, and a plan shows it as it adopts it.
+	for name, o := range map[string]map[string]string{
+		"cifs": {"type": "cifs", "o": "guest", "device": "//svc:hunter/2@nas/share"},
+		"nfs":  {"type": "nfs", "o": "addr=10.0.0.2", "device": "svc:hunter2@nas:/export"},
+	} {
+		got := resource.AccessWords(d.HostAccess(&resourcev1.Volume{Options: o})[0])
+		if strings.Contains(got, "hunter") {
+			t.Errorf("%s made by hand reads %q", name, got)
+		}
+	}
+}
+
+// The server changes what the plan shows, so a token can't change it alone.
+func TestAnotherRemoteIsNewAccess(t *testing.T) {
+	d := &volume.Driver{}
+	access := func(o string) []resource.Access {
+		return d.HostAccess(&resourcev1.Volume{Options: map[string]string{"type": "cifs", "o": o, "device": "//nas/share"}})
+	}
+	if got := resource.NewAccess(access("addr=10.0.0.2"), access("addr=10.0.0.2,ip=6.6.6.6")); len(got) != 1 {
+		t.Errorf("another ip= reads as no new access: %v", got)
+	}
+	if got := resource.NewAccess(access("ip=10.0.0.2"), access("addr=10.0.0.2")); len(got) != 0 {
+		t.Errorf("ip= and addr= of one server read as new access: %v", got)
 	}
 }

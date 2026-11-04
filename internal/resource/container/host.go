@@ -199,24 +199,30 @@ type MountOptions struct {
 	// ReadOnly is true when ro comes last of ro and rw, as the kernel takes
 	// them in order.
 	ReadOnly bool
-	// Address is addr=, a remote mount's server.
+	// Address is a remote mount's server: addr=, or ip=, which CIFS takes as
+	// the same option. The last of them counts, as it does for the kernel.
 	Address string
 }
 
-// ReadMountOptions reads a volume's o option, in order.
+// ReadMountOptions reads a volume's o option, in order, as Docker does. It
+// takes a flag only when an option is exactly its name, and passes anything
+// else to the filesystem, which ignores it on a bind. So " ro" and "ro=1"
+// don't make a mount read-only, and a plan mustn't say they do.
 func ReadMountOptions(o string) MountOptions {
 	var out MountOptions
 	for _, opt := range strings.Split(o, ",") {
-		name, value, _ := strings.Cut(strings.TrimSpace(opt), "=")
-		switch name {
+		switch opt {
 		case "bind", "rbind":
 			out.Bind = true
 		case "ro":
 			out.ReadOnly = true
 		case "rw":
 			out.ReadOnly = false
-		case "addr":
-			out.Address = value
+		default:
+			name, value, _ := strings.Cut(opt, "=")
+			if name == "addr" || name == "ip" {
+				out.Address = value
+			}
 		}
 	}
 	return out

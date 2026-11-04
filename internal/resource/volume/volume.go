@@ -144,8 +144,69 @@ func validateMount(v *resourcev1.Volume) error {
 		return errors.New("a volume's driver options need a type. Use type none with bind, nfs, nfs4, cifs or tmpfs")
 	case !slices.Contains(mountTypes, kind):
 		return fmt.Errorf("the volume mounts type %q, which Dockwell can't run: a plan couldn't show what it reaches. Use type none with bind, nfs, nfs4, cifs or tmpfs", kind)
+	case kind == "cifs":
+		return validateCIFS(options)
+	case strings.HasPrefix(kind, "nfs"):
+		if host, _, ok := strings.Cut(options["device"], ":/"); ok && strings.Contains(host, "@") {
+			return errors.New("the volume's device has an @ before the server's path, and NFS takes no user or password there. Write it as server:/path")
+		}
 	}
 	return nil
+}
+
+// cifsElsewhere are the options that name another share than device does.
+// A plan shows device, so a person would approve one share and mount
+// another.
+var cifsElsewhere = []string{"unc", "target", "path", "prefixpath"}
+
+// validateCIFS checks that a plan can say which share a CIFS volume
+// mounts. It never repeats device, which may hold a password.
+func validateCIFS(options map[string]string) error {
+	dev := options["device"]
+	if _, ok := cifsServer(dev); !ok {
+		return errors.New("the volume's device isn't a CIFS share. Write it as //server/share")
+	}
+	if strings.Contains(dev, "@") {
+		return errors.New("the volume's device has an @, and the kernel doesn't read a user or password there. Write the device as //server/share, and put them in o, as username=name,password=secret")
+	}
+	for _, opt := range strings.Split(options["o"], ",") {
+		name, _, _ := strings.Cut(opt, "=")
+		if slices.Contains(cifsElsewhere, strings.ToLower(strings.TrimSpace(name))) {
+			return fmt.Errorf("the volume's o has %s, which names another share than its device does, so a plan couldn't show what it reaches. Write the share and its path in device, as //server/share/path", name)
+		}
+	}
+	return nil
+}
+
+// cifsServer finds the server in a CIFS device, as the kernel does: two
+// slashes of either kind, then the server, then a slash.
+func cifsServer(dev string) (string, bool) {
+	const slashes = `/\`
+	rest := strings.TrimLeft(dev, slashes)
+	if len(dev)-len(rest) != 2 {
+		return "", false
+	}
+	i := strings.IndexAny(rest, slashes)
+	if i <= 0 {
+		return "", false
+	}
+	return rest[:i], true
+}
+
+// shownDevice is a remote mount's device as a plan shows it. validateMount
+// refuses a password in a device, but a plan shows volumes on the server
+// too, and one made by hand was never checked.
+func shownDevice(kind, dev string) string {
+	if kind == "cifs" {
+		if strings.Contains(dev, "@") {
+			return "//(hidden)"
+		}
+		return dev
+	}
+	if host, export, ok := strings.Cut(dev, ":/"); ok {
+		return host[strings.LastIndex(host, "@")+1:] + ":/" + export
+	}
+	return dev
 }
 
 // HostAccess is what a volume reaches on its server, beyond what Docker
@@ -167,9 +228,7 @@ func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 	}
 	a := resource.Access{Kind: resource.AccessMount, Type: options["type"], Address: o.Address, ReadOnly: o.ReadOnly}
 	if a.Type != "tmpfs" {
-		// A device may carry a user and password before an @.
-		dev := options["device"]
-		a.Path = dev[strings.LastIndex(dev, "@")+1:]
+		a.Path = shownDevice(a.Type, options["device"])
 	}
 	return []resource.Access{a}
 }
