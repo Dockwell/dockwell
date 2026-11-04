@@ -167,25 +167,70 @@ func TestAFileNestsToALimit(t *testing.T) {
 		t.Errorf("%d levels: Parse = %.200v, want them through to the rules", compose.MaxDepth, err)
 	}
 
-	// An extension isn't read, wherever it is and however it is made.
-	for name, file := range map[string]string{
-		"at the top":        "x-deep: " + nested(9000) + "\nservices:\n  web:\n    image: nginx:1\n",
-		"on a service":      "services:\n  web:\n    image: nginx:1\n    x-deep: " + nested(9000) + "\n",
-		"on a volume":       "services:\n  web:\n    image: nginx:1\nvolumes:\n  data:\n    x-deep: " + nested(9000) + "\n",
-		"wide on a service": "services:\n  web:\n    image: nginx:1\n    x-wide: " + strings.Repeat("[", 30) + strings.Repeat("a,", 100_000) + "a" + strings.Repeat("]", 30) + "\n",
-	} {
-		if _, err := compose.Parse(t.Context(), []byte(file), nil); err != nil {
-			t.Errorf("%s: %.200v", name, err)
-		}
+	// An extension at the top is there for its anchors, so it isn't read.
+	if _, err := compose.Parse(t.Context(), []byte("x-deep: "+nested(9000)+"\nservices:\n  web:\n    image: nginx:1\n"), nil); err != nil {
+		t.Errorf("an extension at the top: %.200v", err)
 	}
 
-	// In what a file sets for a service, x- is a name like any other.
-	s, err := compose.Parse(t.Context(), []byte("services:\n  web:\n    image: nginx:1\n    labels: {x-team: a}\n    environment: {x-key: b}\n"), nil)
+	// Elsewhere x- can be a name, and it stays one.
+	const named = `services:
+  x-worker:
+    image: nginx:1
+    labels: {x-team: a}
+    environment: {x-key: b}
+    networks: [x-net]
+    volumes: ["x-data:/data"]
+  web:
+    image: nginx:1
+    depends_on: {x-worker: {condition: service_started}}
+volumes:
+  x-data: {}
+networks:
+  x-net: {}
+`
+	st, err := compose.Parse(t.Context(), []byte(named), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := s.Services[0].Spec.GetApp()
+	if len(st.Services) != 2 || st.Services[0].Name != "x-worker" {
+		t.Fatalf("services = %v, want x-worker first, then web", st.Services)
+	}
+	if len(st.Volumes) != 1 || st.Volumes[0].Name != "x-data" {
+		t.Errorf("volumes = %v, want x-data", st.Volumes)
+	}
+	found := false
+	for _, n := range st.Networks {
+		found = found || n.Name == "x-net"
+	}
+	if !found {
+		t.Errorf("networks = %v, want x-net", st.Networks)
+	}
+	app := st.Services[0].Spec.GetApp()
 	if app.GetLabels()["x-team"] != "a" || app.GetEnv()["x-key"] != "b" {
 		t.Errorf("x- names in labels and environment are gone: %v, %v", app.GetLabels(), app.GetEnv())
+	}
+}
+
+// compose-go makes one entry for each port of a range, so 400 ranges in a
+// file of 4 KiB took all the memory there was.
+func TestAPortRangeIsRefusedBeforeItIsRead(t *testing.T) {
+	for name, c := range map[string]struct {
+		ports string
+		vars  map[string]string
+	}{
+		"a range":          {ports: `["1-65535"]`},
+		"mapped":           {ports: `["8000-8010:80"]`},
+		"on an address":    {ports: `["127.0.0.1:8000-8010:80/tcp"]`},
+		"from a variable":  {ports: `["${R}"]`, vars: map[string]string{"R": "1-65535"}},
+		"in the long form": {ports: `[{target: 80, published: "8000-8010"}]`},
+	} {
+		file := "services:\n  web:\n    image: nginx:1\n    ports: " + c.ports + "\n"
+		_, err := compose.Parse(t.Context(), []byte(file), c.vars)
+		if !errors.Is(err, compose.ErrInvalid) || !strings.Contains(err.Error(), "port range") {
+			t.Errorf("%s: Parse = %.200v, want it refused by name", name, err)
+		}
+	}
+	if _, err := compose.Parse(t.Context(), []byte("services:\n  web:\n    image: nginx:1\n    ports: [\"8080:80\", \"127.0.0.1:443:443/tcp\"]\n"), nil); err != nil {
+		t.Errorf("ordinary ports: %v", err)
 	}
 }

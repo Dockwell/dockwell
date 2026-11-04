@@ -134,6 +134,18 @@ volumes:
 networks:
   back: {}
 EOF
+# A file made to cost too much is stopped by the limited child that reads it
+# first, and the control plane carries on. One long word through a variable
+# goes through a quadratic splitter, for far longer than a child is allowed.
+long=$(head -c 120000 /dev/zero | tr '\0' x)
+# shellcheck disable=SC2016 # ${A} is Compose's, for dockwell to read.
+costly_file=$(printf 'services:\n  slow:\n    image: nginx:1.27-alpine\n    command: ${A}${A}${A}${A}\n')
+if costly=$(dw compose import --compose "$costly_file" --variables "A=$long" --yes 2>&1); then
+  fail "a file made to cost too much was read: ${costly:0:300}"
+fi
+[[ "$costly" == *"more time or memory"* ]] || fail "a file made to cost too much failed some other way: ${costly:0:300}"
+dw services list >/dev/null || fail "the control plane didn't carry on after a file that cost too much"
+
 dw compose import --compose "$(cat "$data/stack.yaml")" --yes || fail "compose import failed"
 services=$(docker compose -p "$project" ps --format '{{.Service}}' | sort | tr '\n' ' ') || fail "docker compose -p $project ps failed"
 [[ "$services" == "cache web " ]] || fail "after the import, docker compose lists '$services', want cache and web"

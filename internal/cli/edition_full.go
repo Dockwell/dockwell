@@ -7,12 +7,14 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/cli/apicli"
+	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -62,6 +64,14 @@ func controlServerCommands(stdio IO, g *globalFlags) []*cobra.Command {
 		newTokenCmd(stdio, g),
 		newClaimCmd(stdio, g),
 		newRecoverCmd(stdio, g),
+		{
+			// The control plane runs this as a child with limits, to read a
+			// Compose file someone sent (compose.UseGuard).
+			Use:    compose.GuardCommand,
+			Hidden: true,
+			Args:   cobra.NoArgs,
+			RunE:   func(*cobra.Command, []string) error { return compose.RunGuard(os.Stdin) },
+		},
 	}
 }
 

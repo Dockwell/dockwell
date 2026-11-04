@@ -130,7 +130,11 @@ func checkRaw(file []byte) (map[string]any, error) {
 	if err := check("the Compose file", raw, topKeys); err != nil {
 		return nil, err
 	}
-	dropExtensions(raw)
+	// Extensions at the top are there for their anchors, which are read by
+	// now, and nothing looks at them after this, so one costs nothing however
+	// large or deep. Elsewhere x- can be a name, of a service, a volume or a
+	// network, which must stay.
+	maps.DeleteFunc(raw, func(k string, _ any) bool { return strings.HasPrefix(k, "x-") })
 	if err := measure(raw); err != nil {
 		return nil, err
 	}
@@ -244,6 +248,34 @@ func checkMountOptions(dict map[string]any) error {
 	return nil
 }
 
+// checkPortRanges refuses a port range, which Dockwell can't run yet, by name
+// and before compose-go reads it: it makes one entry for each port, so 400
+// ranges in a file of 4 KiB took all the memory there was. A variable can hold
+// a range too, so this comes after they are read.
+func checkPortRanges(dict map[string]any) error {
+	services, _ := dict["services"].(map[string]any)
+	for _, name := range slices.Sorted(maps.Keys(services)) {
+		svc, _ := services[name].(map[string]any)
+		for _, p := range list(svc["ports"]) {
+			ranged := ""
+			switch p := p.(type) {
+			case string:
+				if strings.Contains(p, "-") {
+					ranged = p
+				}
+			case map[string]any:
+				if published, ok := p["published"].(string); ok && strings.Contains(published, "-") {
+					ranged = published
+				}
+			}
+			if ranged != "" {
+				return invalid("the service %s publishes the port range %s, which Dockwell can't run yet. List each port on its own", name, ranged)
+			}
+		}
+	}
+	return nil
+}
+
 func list(v any) []any {
 	l, _ := v.([]any)
 	return l
@@ -260,14 +292,13 @@ type model struct {
 }
 
 // MaxFile is the largest Compose file Parse reads: 256 KiB, far more than
-// any real file. The YAML library's check for repeated names and compose-go's
-// canonical forms take time and memory that grow faster than a file does: at
-// 1 MiB a file took up to 13 s of CPU, and at this size it takes up to 2 s and
-// 44 MiB of heap.
+// any real file. Reading one takes time and memory that grow faster than a
+// file does, so a real file at this size takes up to 2 s and 44 MiB of heap, as
+// against 13 s at 1 MiB. One made to cost more is stopped by guard.
 const MaxFile = 256 << 10
 
-// parsing limits how many files are read at once, as each takes what MaxFile
-// says, and a write token can send as many as it likes.
+// parsing limits how many files are read at once, as a write token can send
+// as many as it likes.
 var parsing = make(chan struct{}, 2)
 
 // Parse reads a Compose file into what it makes in an environment.
@@ -293,6 +324,14 @@ func Parse(ctx context.Context, file []byte, variables map[string]string) (*Stac
 	case <-ctx.Done():
 		return nil, fmt.Errorf("stopped waiting to read the Compose file: %w", ctx.Err())
 	}
+	if err := guard(ctx, file, variables); err != nil {
+		return nil, err
+	}
+	return parse(file, variables)
+}
+
+// parse reads a file in this process.
+func parse(file []byte, variables map[string]string) (*Stack, error) {
 	raw, err := checkRaw(file)
 	if err != nil {
 		return nil, err
@@ -306,6 +345,9 @@ func Parse(ctx context.Context, file []byte, variables map[string]string) (*Stac
 		return nil, err
 	}
 	if err := checkMountOptions(dict); err != nil {
+		return nil, err
+	}
+	if err := checkPortRanges(dict); err != nil {
 		return nil, err
 	}
 	if dict, err = transform.Canonical(dict, false); err != nil {

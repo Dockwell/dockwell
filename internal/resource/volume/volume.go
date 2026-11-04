@@ -171,7 +171,7 @@ var (
 	cifsValues = []string{
 		"addr", "ip", "port", "vers", "sec", "username", "user", "password", "pass", "password2", "domain", "dom", "workgroup",
 		"uid", "gid", "cruid", "file_mode", "dir_mode", "iocharset", "cache", "rsize", "wsize", "bsize", "actimeo", "acregmax", "acdirmax",
-		"closetimeo", "echo_interval", "handletimeout", "max_credits", "esize", "max_channels",
+		"closetimeo", "echo_interval", "handletimeout", "max_credits", "esize", "max_channels", "dirmode",
 	}
 	cifsFlags = []string{
 		"guest", "forceuid", "noforceuid", "forcegid", "noforcegid", "hard", "soft", "seal", "sign", "nodfs",
@@ -179,14 +179,17 @@ var (
 		"mfsymlinks", "nomfsymlinks", "sfu", "nosfu", "cifsacl", "nocifsacl", "modefromsid", "idsfromsid", "acl", "noacl",
 		"mapchars", "nomapchars", "mapposix", "nomapposix", "nocase", "ignorecase", "nosharesock", "persistenthandles", "nopersistenthandles",
 		"resilienthandles", "noresilienthandles", "nohandlecache", "handlecache", "multichannel", "nomultichannel", "rdma", "fsc",
+		"_netdev", "nostrictsync", "nosetuids", "nouser_xattr", "dynperm", "intr",
 	}
 	nfsValues = []string{
 		"addr", "port", "vers", "nfsvers", "minorversion", "proto", "sec", "clientaddr", "nconnect", "timeo", "retrans", "rsize", "wsize",
 		"acregmin", "acregmax", "acdirmin", "acdirmax", "actimeo", "local_lock", "lookupcache", "namlen",
+		"retry", "mountproto", "mountvers", "mountport",
 	}
 	nfsFlags = []string{
 		"tcp", "udp", "rdma", "soft", "softerr", "hard", "ac", "noac", "cto", "nocto", "lock", "nolock",
 		"sharecache", "nosharecache", "resvport", "noresvport", "rdirplus", "nordirplus", "fsc", "nofsc",
+		"intr", "nointr", "bg", "fg",
 	}
 )
 
@@ -215,7 +218,10 @@ func validName(h string) bool {
 			return false
 		}
 	}
-	return true
+	// A name that looks like a number can resolve as one, in another form
+	// than a plan shows: glibc reads 010.0.0.2 as 8.0.0.2.
+	last := strings.ToLower(h[strings.LastIndex(h, ".")+1:])
+	return strings.Trim(last, "0123456789") != "" && !strings.HasPrefix(last, "0x")
 }
 
 // validHost is a server in a device: a name, or an IPv6 address in brackets.
@@ -224,6 +230,9 @@ func validHost(h string) bool {
 		addr, ok := strings.CutSuffix(inner, "]")
 		_, err := netip.ParseAddr(addr)
 		return ok && err == nil
+	}
+	if addr, err := netip.ParseAddr(h); err == nil && addr.Is4() {
+		return true
 	}
 	return validName(h)
 }
@@ -272,8 +281,8 @@ func validateRemote(kind string, options map[string]string) error {
 
 // validateDevice checks a remote mount's device has the one form a plan can
 // show: no user or password, which belong in o, nothing Docker reads its own
-// way, as it unescapes a CIFS device from version 25, and no words that could
-// read as part of a plan.
+// way, as it unescapes a CIFS device from version 25, and nothing a person
+// couldn't see, or that could read as part of a plan.
 func validateDevice(kind, dev string) error {
 	const cifsForm, nfsForm = "Write it as //server/share", "Write it as :/path, with the server in o as addr=10.0.0.2, or as server:/path"
 	form := nfsForm
@@ -283,7 +292,7 @@ func validateDevice(kind, dev string) error {
 	if len(dev) > maxMountText {
 		return fmt.Errorf("the volume's device holds %d bytes, and the kernel reads up to %d. %s", len(dev), maxMountText, form)
 	}
-	if strings.ContainsAny(dev, "@,()%\\") || strings.ContainsFunc(dev, unicode.IsControl) {
+	if strings.ContainsAny(dev, "@,()%+#\\") || strings.TrimSpace(dev) != dev || strings.ContainsFunc(dev, func(r rune) bool { return !unicode.IsPrint(r) }) {
 		return fmt.Errorf("the volume's device has characters a %s device can't, such as @. A user and password go in o, as username=name,password=secret. %s", kind, form)
 	}
 	if kind == "cifs" {

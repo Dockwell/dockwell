@@ -2,8 +2,6 @@
 
 package compose
 
-import "strings"
-
 // What a file may come to once its aliases are read, before anything else
 // looks at it. The cap on a file means little if a short one can repeat a
 // long string: the YAML library counts nodes, not bytes, so a file under the
@@ -24,29 +22,6 @@ const (
 	// than twice what it took.
 	nodeCost = 2
 )
-
-// dropExtensions removes x- extensions from v, wherever Compose allows them.
-// They are there for their anchors, which are read by now, and nothing looks
-// at them after this, so one costs nothing however large or deep. In what
-// a file sets for the service, such as its environment, x- is a name like any
-// other.
-func dropExtensions(v any) {
-	switch v := v.(type) {
-	case []any:
-		for _, e := range v {
-			dropExtensions(e)
-		}
-	case map[string]any:
-		for k, e := range v {
-			switch {
-			case strings.HasPrefix(k, "x-"):
-				delete(v, k)
-			case k != "environment" && k != "labels" && k != "driver_opts" && k != "sysctls":
-				dropExtensions(e)
-			}
-		}
-	}
-}
 
 // measure refuses a file that comes to too much, or nests too deep.
 func measure(raw map[string]any) error {

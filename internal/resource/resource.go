@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -248,13 +249,20 @@ func AccessWords(a Access) string {
 		}
 		at := a.Path
 		switch {
-		case strings.HasPrefix(a.Path, ":"):
+		case strings.Contains(at, " "):
+			// So a device can't spell out the rest of this line, such as
+			// "//6.6.6.6/x at 10.0.0.2".
+			at = strconv.Quote(at)
+			if a.Address != "" {
+				at += " at " + a.Address
+			}
+		case strings.HasPrefix(at, ":"):
 			// NFS's :/export follows its server, as people write it.
-			at = a.Address + a.Path
+			at = a.Address + at
 		case a.Address != "":
 			// Run together, an address and a name could read as another
 			// address.
-			at = a.Path + " at " + a.Address
+			at += " at " + a.Address
 		}
 		if at == "" {
 			return "a " + a.Type + " mount (" + how + ")"

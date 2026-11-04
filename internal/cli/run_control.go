@@ -23,6 +23,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/buildinfo"
+	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/control"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
@@ -110,6 +111,7 @@ const (
 
 // runControl runs the control plane and this server's own agent.
 func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, build buildinfo.Info, f runFlags) error {
+	compose.UseGuard()
 	if f.domain != "" {
 		if err := auth.ValidDomain(f.domain); err != nil {
 			return usageError{fmt.Errorf("--domain %w", err)}
