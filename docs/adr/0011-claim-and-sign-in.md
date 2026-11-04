@@ -72,7 +72,7 @@ A fresh VPS has an IP address and nothing else. Until #14, the API listened on l
 - A session is an opaque 256-bit token in a cookie, stored as a hash.
 - The cookie is HttpOnly and SameSite=Strict. On HTTPS it is also Secure, with the `__Host-` prefix (`__Host-dockwell_session`). On localhost it is `dockwell_session` without Secure. Plain HTTP anywhere else never gets a cookie.
 - A session is bound to the RP ID it was made on. It ends after 12 hours idle, or 7 days after sign-in, whichever comes first. An open stream counts as use, so a panel page left open keeps its session until the 7 days are up.
-- Revoking a session, or signing out, closes its open streams at once. Every stream also re-checks its session every 30 s.
+- Revoking a session, or signing out, closes its open streams at once. A stream registers before it checks its session a last time, so one that opens as its session is revoked closes too. Every stream also re-checks its session every 30 s.
 - You can list your sessions (browser, address, created, last seen, which one is this), revoke any of them, or revoke all the others.
 
 **Protecting the API.**
