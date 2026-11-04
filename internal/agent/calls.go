@@ -211,7 +211,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if err != nil {
 				return fail(err)
 			}
-			desired = append(desired, resource.Desired{Ref: ref, Spec: spec, Rotate: d.GetRotate()})
+			desired = append(desired, resource.Desired{Ref: ref, Spec: spec})
 		}
 		steps, err := c.local.Plan(ctx, desired)
 		if err != nil {

@@ -480,7 +480,6 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		if err != nil {
 			return nil, err
 		}
-		dr.Rotate = d.Rotate
 		call.Desired = append(call.Desired, dr)
 	}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: call}}, PlanTimeout, nil)

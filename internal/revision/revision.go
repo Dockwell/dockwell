@@ -404,10 +404,6 @@ func (it item) desiredOn(server string) proto.Message {
 	return nil
 }
 
-// wantOn is what an agent plans the item toward on a server.
-func (it item) wantOn(server string) resource.Desired {
-	return resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Rotate: it.rotates}
-}
 
 // currentOn is what the latest revision has on a server.
 func (it item) currentOn(server string) proto.Message {
@@ -1029,7 +1025,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				if err != nil {
 					return nil, err
 				}
-				step, err := resource.PlanStep(d, it.wantOn(server), it.currentOn(server))
+				step, err := resource.PlanStep(d, it.ref, it.currentOn(server), it.desiredOn(server))
 				if err != nil {
 					return nil, err
 				}
@@ -1170,7 +1166,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = it.wantOn(server)
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server)}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()

@@ -10,8 +10,6 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
-	"github.com/dockwell/dockwell/internal/resource/container"
-	"github.com/dockwell/dockwell/internal/resource/container/containertest"
 )
 
 func TestDiffNamesEachFieldAsThePanelShowsIt(t *testing.T) {
@@ -113,26 +111,6 @@ func TestDiffRotatingNeverComparesAValue(t *testing.T) {
 		if got := resource.SetsSensitive(m); got != want {
 			t.Errorf("SetsSensitive(%v) = %v, want %v", m, got, want)
 		}
-	}
-}
-
-// A step that rotates a resource there plans as a change, with every value
-// it sets changed, though the server has the very same.
-func TestAStepThatRotatesIsNeverNothing(t *testing.T) {
-	d := &container.Driver{Runtime: containertest.NewFake()}
-	ref := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}
-	spec := &resourcev1.Container{Image: "web:1", Env: map[string]string{"A": "same"}}
-	plain, err := resource.PlanStep(d, resource.Desired{Ref: ref, Spec: spec}, spec)
-	if err != nil || plain.Action != resource.ActionNone {
-		t.Errorf("planning what the server has = %+v, %v, want nothing", plain, err)
-	}
-	rotated, err := resource.PlanStep(d, resource.Desired{Ref: ref, Spec: spec, Rotate: true}, spec)
-	if err != nil || rotated.Action != resource.ActionReplace || len(rotated.Changes) != 1 || !rotated.Changes[0].Sensitive {
-		t.Errorf("rotating what the server has = %+v, %v, want a replace", rotated, err)
-	}
-	created, err := resource.PlanStep(d, resource.Desired{Ref: ref, Spec: spec, Rotate: true}, nil)
-	if err != nil || created.Action != resource.ActionCreate {
-		t.Errorf("rotating what isn't there = %+v, %v, want a create", created, err)
 	}
 }
 
