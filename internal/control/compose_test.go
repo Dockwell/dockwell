@@ -3,6 +3,8 @@
 package control
 
 import (
+	"errors"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -276,5 +278,56 @@ func testComposeThroughTheAPI(t *testing.T, backend store.Backend) {
 	}
 	if e.Volume(project+"_db-data") == nil {
 		t.Error("the deleted volume is gone from Docker; it should be kept for 7 days")
+	}
+}
+
+// Docker's error for a mount that fails can hold the volume's password,
+// and a change's error is there for anyone who can read changes.
+func TestAFailedMountDoesNotShowItsPassword(t *testing.T) {
+	storetest.Each(t, testAFailedMountDoesNotShowItsPassword)
+}
+
+func testAFailedMountDoesNotShowItsPassword(t *testing.T, backend store.Backend) {
+	const file = `services:
+  app:
+    image: ghcr.io/acme/shop:1.4
+    volumes: ["share:/x"]
+volumes:
+  share:
+    driver_opts: {type: cifs, device: //nas/share, o: "username=svc,password=hunter2"}
+`
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	engine := f.addDockerServer(t)
+	changes := changeClient(b, b.origin)
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	reader := changeClient(bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY), rt: b.client.Transport}, b.origin)
+
+	engine.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/start") {
+			return errors.New("error while mounting volume '/var/lib/docker/volumes/x/_data': failed to mount local volume: " +
+				"mount //nas/share:/var/lib/docker/volumes/x/_data, data: username=svc,password=hunter2: permission denied")
+		}
+		return nil
+	})
+	change := importCompose(t, imports, file, nil, false)
+	w := watch(t, changes, change.GetId())
+	if _, err := changes.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{
+		Id: change.GetId(), Fingerprint: change.GetPlan().GetFingerprint(),
+	})); err != nil {
+		t.Fatal(err)
+	}
+	waitWatch(t, w)
+
+	got, err := reader.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: change.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := got.Msg.String()
+	if strings.Contains(text, "hunter2") {
+		t.Errorf("a read-only token reads the volume's password in the change: %s", text)
+	}
+	if !strings.Contains(text, "permission denied") {
+		t.Errorf("the change doesn't say why the mount failed: %s", text)
 	}
 }

@@ -91,6 +91,28 @@ type Error struct {
 
 func (e *Error) Error() string { return strings.TrimSpace(e.Message) }
 
+// mountFailures are how Docker starts to spell out a local volume's mount
+// that failed. The reason comes after the last ": ".
+var mountFailures = [...]string{"failed to mount local volume", "error while mounting volume with options"}
+
+// scrubMount leaves out of Docker's message what a failed mount tried: its
+// device and options, which can hold a password. Docker 20.10 prints them
+// all, and later versions mask only password=, while the kernel takes pass=
+// too. This message goes into changes and logs that anyone who can read
+// them sees, and the reason at its end is what a person needs.
+func scrubMount(message string) string {
+	for _, failure := range mountFailures {
+		_, rest, found := strings.Cut(message, failure)
+		if !found {
+			continue
+		}
+		if i := strings.LastIndex(rest, ": "); i >= 0 {
+			return message[:len(message)-len(rest)] + rest[i:]
+		}
+	}
+	return message
+}
+
 // IsNotFound reports the engine saying what was asked for doesn't exist.
 func IsNotFound(err error) bool { return status(err) == http.StatusNotFound }
 
@@ -324,7 +346,7 @@ func (c *Client) send(ctx context.Context, method, path string, query url.Values
 		if e.Message == "" {
 			e.Message = http.StatusText(res.StatusCode)
 		}
-		return nil, &Error{Status: res.StatusCode, Message: e.Message}
+		return nil, &Error{Status: res.StatusCode, Message: scrubMount(e.Message)}
 	}
 	return res, nil
 }
