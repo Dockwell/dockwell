@@ -109,8 +109,8 @@ type ListEventsRequest struct {
 	// shell account's ("mira@hz-1"). A change counts for whoever proposed it
 	// and whoever applied it.
 	ActorId string `protobuf:"bytes,6,opt,name=actor_id,json=actorId,proto3" json:"actor_id,omitempty"`
-	// Only what actors of one kind did, such as ACTOR_KIND_DOCKWELL for what
-	// Dockwell did on its own.
+	// Only what actors of one kind did, such as Dockwell on its own, or
+	// someone in a shell on the control server.
 	ActorKind     ActorKind `protobuf:"varint,7,opt,name=actor_kind,json=actorKind,proto3,enum=dockwell.v1.ActorKind" json:"actor_kind,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

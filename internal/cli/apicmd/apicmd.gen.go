@@ -277,7 +277,7 @@ func Methods() []*apicli.Method {
 				{Path: "server_id", Help: "Only what happened on or to one server, by ID: the changes with steps on it, and its own events, such as joining."},
 				{Path: "resource_id", Help: "Only the changes to one resource, by ID, or to what lives in it: a service's changes, or a project's with those of its environments and their services."},
 				{Path: "actor_id", Help: "Only what one actor did, by the ID their Actor has: a user's (\"usr_…\"), an API token's (\"tok_…\"), a server's (\"srv_…\"), or a shell account's (\"mira@hz-1\"). A change counts for whoever proposed it and whoever applied it."},
-				{Path: "actor_kind", Help: "Only what actors of one kind did, such as ACTOR_KIND_DOCKWELL for what Dockwell did on its own."},
+				{Path: "actor_kind", Help: "Only what actors of one kind did, such as Dockwell on its own, or someone in a shell on the control server."},
 			},
 			Call: apicli.Unary[v1.ListEventsRequest, v1.ListEventsResponse](dockwellv1connect.EventServiceListEventsProcedure),
 		},

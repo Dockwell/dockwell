@@ -78,8 +78,8 @@ export type ListEventsRequest = Message<"dockwell.v1.ListEventsRequest"> & {
   actorId: string;
 
   /**
-   * Only what actors of one kind did, such as ACTOR_KIND_DOCKWELL for what
-   * Dockwell did on its own.
+   * Only what actors of one kind did, such as Dockwell on its own, or
+   * someone in a shell on the control server.
    *
    * @generated from field: dockwell.v1.ActorKind actor_kind = 7;
    */

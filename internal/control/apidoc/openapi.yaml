@@ -456,8 +456,8 @@ paths:
                 - name: actorKind
                   in: query
                   description: |-
-                    Only what actors of one kind did, such as ACTOR_KIND_DOCKWELL for what
-                     Dockwell did on its own.
+                    Only what actors of one kind did, such as Dockwell on its own, or
+                     someone in a shell on the control server.
                   schema:
                     enum:
                         - ACTOR_KIND_UNSPECIFIED

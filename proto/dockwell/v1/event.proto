@@ -67,8 +67,8 @@ message ListEventsRequest {
   // shell account's ("mira@hz-1"). A change counts for whoever proposed it
   // and whoever applied it.
   string actor_id = 6;
-  // Only what actors of one kind did, such as ACTOR_KIND_DOCKWELL for what
-  // Dockwell did on its own.
+  // Only what actors of one kind did, such as Dockwell on its own, or
+  // someone in a shell on the control server.
   ActorKind actor_kind = 7;
 }
 
