@@ -17,3 +17,6 @@ coverage/
 
 # The panel build, embedded by `make build` (internal/panel/dist/README.md)
 /internal/panel/dist/app/
+
+# PNGs of the mocks, written by `make mock-snapshots`. Never committed.
+/packages/mockview/snapshots/

@@ -32,7 +32,14 @@ Each `.dc.html` file is one screen, written in Claude Design's component format:
 - Desktop screens are fluid pages drawn at 1440 px wide; phone screens are 390 × 844.
 - Eight artboards default to the dark theme: `App-Logs`, `Incident`, `Server-Terminal`, `Sign-In`, `M-Incident`, `M-Logs`, `M-Overview-Fleet` and `M-Terminal`. The rest default to light.
 
-The mocks don't open in a browser as they are. They load `./support.js`, which is Claude Design's runtime and not ours to redistribute, and `ds/dockwell/…`, which is this folder's `system/` (it was byte-identical at import, so it isn't duplicated). A small local viewer is tracked as an issue.
+The mocks don't open in a browser as they are. They load `./support.js`, which is Claude Design's runtime and not ours to redistribute, and `ds/dockwell/…`, which is this folder's `system/` (it was byte-identical at import, so it isn't duplicated). Use the local viewer in [`packages/mockview`](../packages/mockview/README.md) instead:
+
+- `make mocks` serves it on http://127.0.0.1:5174. The index lists every artboard by canvas page, with its size. Open one to see it at its canvas size, shrunk to the window's width unless you pick "Actual size". Links inside a screen open the screen they point to, the arrow keys step through the canvas order, and Escape goes back to the list.
+- The theme switch shows every artboard light, dark, or as drawn (the theme it defaults to). The shell pieces have no theme of their own and follow the switch.
+- `make mock-snapshots` writes a PNG of every artboard, light and dark, to `packages/mockview/snapshots/`, which git ignores. `make mock-snapshots ONLY="Overview-Single M-Logs"` takes just those. It drives the system Chromium at `/usr/bin/chromium`; set `CHROMIUM_PATH` to use another Chrome or Chromium, as nothing is downloaded. It fails when an artboard logs an error or a warning, or doesn't render as written.
+- The viewer reads the files here as they are and draws them with `system/components/bundle.js`, so a re-import shows up without a build step. `make check` renders every artboard in both themes and fails on any error.
+
+The viewer is our own reading of the format, not Claude Design's runtime. Where it can't follow a file it says so in the artboard, in place of the part it couldn't draw.
 
 Sample data in the mocks (acme.dev, hz-1, the Supabase project and so on) is illustrative. Use it for fixtures and copy, never as real configuration.
 

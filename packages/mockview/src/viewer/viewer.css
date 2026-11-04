@@ -1,0 +1,231 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* The viewer's own chrome. Mocks render in frame.html, which never loads this file. */
+
+.mv-bar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--scopebar-height);
+  padding: var(--space-2) var(--space-4);
+  background: var(--canvas);
+  border-bottom: 1px solid var(--line);
+}
+
+.mv-bar a.dw-btn {
+  text-decoration: none;
+}
+
+.mv-spacer {
+  flex: 1 1 auto;
+}
+
+.mv-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--ink);
+  font-weight: 550;
+  text-decoration: none;
+}
+
+.mv-brand span {
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--line);
+  color: var(--ink-muted);
+}
+
+.mv-seg {
+  display: inline-flex;
+  gap: 2px;
+  margin: 0;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius-sm) + 3px);
+  background: var(--surface-sunken);
+}
+
+.mv-seg-item {
+  height: calc(var(--control-sm) - 6px);
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mv-seg-item:hover {
+  color: var(--ink);
+}
+
+.mv-seg-item[aria-pressed="true"] {
+  background: var(--surface-raised);
+  color: var(--ink);
+  box-shadow: var(--shadow-float);
+}
+
+.mv-seg-item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.mv-index {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6) var(--space-12);
+}
+
+.mv-intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 720px;
+}
+
+.mv-intro p {
+  color: var(--ink-muted);
+}
+
+.mv-filter {
+  width: 320px;
+  max-width: 100%;
+  height: var(--control-md);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.mv-filter:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.mv-empty {
+  color: var(--ink-muted);
+}
+
+.mv-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: var(--space-8) var(--space-12);
+  align-items: start;
+}
+
+.mv-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-1);
+  border-bottom: 1px solid var(--line);
+}
+
+.mv-group-head h2 {
+  font: var(--text-heading);
+}
+
+.mv-group-head span {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.mv-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mv-group a {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 calc(-1 * var(--space-2));
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.mv-group a:hover {
+  background: var(--surface-sunken);
+}
+
+.mv-group a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.mv-board-title {
+  font-weight: 550;
+}
+
+.mv-board-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
+.mv-board-meta code {
+  font-size: 12px;
+}
+
+.mv-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.mv-view-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-left: var(--space-2);
+}
+
+.mv-view-title h1 {
+  font: var(--text-label);
+}
+
+.mv-view-title span {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.mv-stage {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--space-6);
+  overflow: auto;
+}
+
+.mv-frame {
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-sizing: content-box;
+}
+
+.mv-frame iframe {
+  display: block;
+  border: 0;
+  transform-origin: 0 0;
+}

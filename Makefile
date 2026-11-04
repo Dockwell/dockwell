@@ -42,6 +42,14 @@ dev: deps build-go ## Run the API on :7600 and the panel with hot reload on :517
 	trap 'kill $$api 2>/dev/null; wait $$api 2>/dev/null' EXIT; \
 	pnpm --filter @dockwell/web dev
 
+.PHONY: mocks
+mocks: deps ## Browse the screen mocks in design/mocks on 127.0.0.1:5174
+	pnpm --filter @dockwell/mockview dev
+
+.PHONY: mock-snapshots
+mock-snapshots: deps ## Write PNGs of every mock, light and dark, to packages/mockview/snapshots
+	pnpm --filter @dockwell/mockview snapshots $(if $(ONLY),$(foreach o,$(ONLY),--only $(o)))
+
 .PHONY: generate
 generate: deps ## Regenerate code from proto/, and the design tokens
 	$(GOTOOL) buf generate
