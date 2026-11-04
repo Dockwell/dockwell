@@ -1,0 +1,50 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.dw-metric-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.dw-metric-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+}
+/* Host Grotesk's default figures are tabular, so the value never shifts as it updates. */
+.dw-metric-value {
+  font-size: 28px;
+  line-height: 32px;
+  font-weight: 550;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.dw-metric-unit {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.dw-metric-delta {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.dw-metric-delta[class*="dw-tone-"] {
+  color: var(--tone);
+}
+.dw-metric-caption {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}

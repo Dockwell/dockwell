@@ -1,0 +1,62 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-scope {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13.5px;
+}
+.dw-scope-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-sm);
+  padding: 0 var(--space-2);
+  min-width: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+}
+/* Only the project name gives way when space runs out; every level stays. */
+.dw-scope-item.dw-scope-project {
+  flex: 0 1 auto;
+}
+.dw-scope-item:hover:not(.is-static) {
+  background: var(--surface-sunken);
+  color: var(--ink);
+}
+.dw-scope-item.is-static {
+  cursor: default;
+}
+.dw-scope-item.is-current {
+  color: var(--ink);
+  font-weight: 550;
+}
+.dw-scope-item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* The project name truncates rather than hiding a level. */
+.dw-scope-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dw-scope-caret {
+  color: var(--ink-muted);
+}
+.dw-scope-lock {
+  color: var(--ink-muted);
+}
+.dw-scope-sep {
+  color: var(--line-strong);
+  font-size: 15px;
+  padding: 0 2px;
+  user-select: none;
+}

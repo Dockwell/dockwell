@@ -1,0 +1,52 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Concentric corners: the outer radius is the inner radius plus the padding. */
+.dw-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius-sm) + 3px);
+  background: var(--surface-sunken);
+}
+.dw-seg-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: calc(var(--control-md) - 6px);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color var(--motion-fast) var(--ease-out),
+    background-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+.dw-seg-sm .dw-seg-item {
+  height: calc(var(--control-sm) - 6px);
+  padding: 0 10px;
+  font-size: 12.5px;
+}
+.dw-seg-item:hover {
+  color: var(--ink);
+}
+.dw-seg-item.is-on {
+  background: var(--surface-raised);
+  color: var(--ink);
+  box-shadow: var(--shadow-float);
+}
+.dw-seg-item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.dw-seg-count {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}

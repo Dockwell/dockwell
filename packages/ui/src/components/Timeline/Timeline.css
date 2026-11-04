@@ -1,0 +1,88 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-tl {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dw-tl-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+}
+.dw-tl-item:last-child {
+  padding-bottom: 0;
+}
+.dw-tl-item:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 13.5px;
+  top: 32px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--line);
+}
+.dw-tl-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink-muted);
+}
+.dw-tl-mark[class*="dw-tone-"] {
+  border-color: transparent;
+  background: var(--tone-soft);
+  color: var(--tone);
+}
+.dw-tl-main {
+  min-width: 0;
+  padding-top: 4px;
+}
+.dw-tl-title {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.dw-tl-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-2);
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.dw-tl-meta .dw-status {
+  font-size: 12.5px;
+}
+.dw-tl-rev {
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 11.5px;
+  line-height: 18px;
+}
+.dw-tl-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  padding-top: 5px;
+}
+.dw-tl-time {
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.dw-tl-side .dw-btn {
+  margin-right: -6px;
+}

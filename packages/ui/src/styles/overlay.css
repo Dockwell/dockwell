@@ -1,0 +1,8 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* The scrim behind modal layers: the command bar and sheets. */
+.dw-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  animation: dw-fade var(--motion-base) var(--ease-out);
+}

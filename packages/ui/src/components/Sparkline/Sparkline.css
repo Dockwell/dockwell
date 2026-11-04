@@ -1,0 +1,21 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-spark {
+  display: block;
+  overflow: visible;
+}
+.dw-spark-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.dw-spark-area {
+  fill: currentColor;
+  opacity: 0.09;
+}
+.dw-spark-threshold {
+  stroke: var(--warning);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}

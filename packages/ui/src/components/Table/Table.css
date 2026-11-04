@@ -1,0 +1,123 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-table-wrap {
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.dw-table-wrap:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.dw-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13.5px;
+  line-height: 18px;
+}
+.dw-table th {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  height: 36px;
+  padding: 0 var(--space-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.dw-table td {
+  height: 48px;
+  padding: 6px var(--space-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.dw-table-compact td {
+  height: 36px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.dw-table th:first-child,
+.dw-table td:first-child {
+  padding-left: var(--space-4);
+}
+.dw-table th:last-child,
+.dw-table td:last-child {
+  padding-right: var(--space-4);
+}
+.dw-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.dw-table .is-num {
+  text-align: right;
+}
+.dw-table td.is-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.dw-table td.is-muted {
+  color: var(--ink-muted);
+}
+.dw-table tr.is-clickable {
+  cursor: pointer;
+}
+.dw-table tr.is-clickable:hover td {
+  background: var(--canvas);
+}
+.dw-table tr:is(.is-selected, .is-clickable:focus-visible) td {
+  background: var(--selection);
+}
+/* A row can't draw a ring around itself, so its cells draw it together. */
+.dw-table tr:focus-visible {
+  outline: none;
+}
+.dw-table tr.is-clickable:focus-visible td {
+  box-shadow:
+    inset 0 2px 0 var(--cobalt),
+    inset 0 -2px 0 var(--cobalt);
+}
+.dw-table tr.is-clickable:focus-visible td:first-child {
+  box-shadow:
+    inset 2px 0 0 var(--cobalt),
+    inset 0 2px 0 var(--cobalt),
+    inset 0 -2px 0 var(--cobalt);
+}
+.dw-table tr.is-clickable:focus-visible td:last-child {
+  box-shadow:
+    inset -2px 0 0 var(--cobalt),
+    inset 0 2px 0 var(--cobalt),
+    inset 0 -2px 0 var(--cobalt);
+}
+.dw-table tr.is-clickable:focus-visible td:only-child {
+  box-shadow: inset 0 0 0 2px var(--cobalt);
+}
+.dw-table-empty {
+  height: 96px;
+  text-align: center;
+  color: var(--ink-muted);
+}
+.dw-table td.dw-table-empty {
+  white-space: normal;
+}
+
+/* A two-line first cell: a title over a mono subtitle. */
+.dw-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.dw-cell-title {
+  font-weight: 550;
+  color: var(--ink);
+}
+.dw-cell-sub {
+  font: 400 12px / 16px var(--font-mono);
+  color: var(--ink-muted);
+}
