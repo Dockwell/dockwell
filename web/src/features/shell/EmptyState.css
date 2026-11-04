@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-/* An empty state: centred, space-12 padding, a 20px icon and one large button. */
-.not-yet {
+/* An empty state: centred on a resting panel, space-12 padding, a 20px icon and at most one large button. */
+.empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -13,7 +13,7 @@
   text-align: center;
 }
 
-.not-yet-icon {
+.empty-state-icon {
   display: grid;
   place-items: center;
   width: 40px;
@@ -24,19 +24,25 @@
   color: var(--ink-muted);
 }
 
-.not-yet-text {
+.empty-state-text {
   max-width: 440px;
-  margin-bottom: var(--space-4);
   color: var(--ink-muted);
   text-wrap: pretty;
 }
 
-.not-yet .dw-btn {
+.empty-state-text code {
+  color: var(--ink);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.empty-state > .dw-btn {
+  margin-top: var(--space-4);
   text-decoration: none;
 }
 
 @media (max-width: 639.98px) {
-  .not-yet {
+  .empty-state {
     padding: var(--space-8) var(--space-4);
   }
 }

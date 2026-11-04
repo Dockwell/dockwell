@@ -63,9 +63,20 @@ export function Rail({ view }: { view: FleetView }) {
       ) : (
         <>
           <div className="rail-section">{t`Machine`}</div>
-          <Link to="/servers" activeOptions={{ exact: true }} {...current(segment === "servers")}>
-            <ItemBody icon="server" label={t`Server`} count={view.only?.name} machineCount />
-          </Link>
+          {view.only ? (
+            <Link
+              to="/servers/$serverId"
+              params={{ serverId: view.only.id }}
+              activeOptions={{ exact: true }}
+              {...current(segment === "servers")}
+            >
+              <ItemBody icon="server" label={t`Server`} count={view.only.name} machineCount />
+            </Link>
+          ) : (
+            <Link to="/servers" activeOptions={{ exact: true }} {...current(segment === "servers")}>
+              <ItemBody icon="server" label={t`Server`} />
+            </Link>
+          )}
         </>
       )}
       <div className="rail-section">{t`Operate`}</div>

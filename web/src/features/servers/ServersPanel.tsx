@@ -1,46 +1,40 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { durationMs } from "@bufbuild/protobuf/wkt";
 import { Connection, type Server } from "@dockwell/api";
-import { cx, Glyph, Panel, StatusBadge, Tag } from "@dockwell/ui";
+import { Panel, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
 
 import { formatBytesOf, formatPercent } from "../../lib/format";
-import { useElapsed } from "../../lib/useElapsed";
-import { serverStatus } from "./server";
+import { Connecting, Reconnecting } from "./FleetNotes";
+import { serverStatus, useServerWords } from "./server";
 import { useFleet } from "./useFleet";
 import "./ServersPanel.css";
 
+export interface ServersPanelProps {
+  /** Each name opens the server's page; that needs the router, which the status page doesn't have. */
+  linked?: boolean;
+  /**
+   * Says "Reconnecting" in the panel's header. Pages in the shell say it in
+   * their own head instead, so it shows and is announced once.
+   */
+  reconnectingNote?: boolean;
+}
+
 /** Every server with its live stats, as their agents report them. */
-export function ServersPanel() {
+export function ServersPanel({ linked = false, reconnectingNote = true }: ServersPanelProps) {
   const { t } = useLingui();
   const fleet = useFleet();
-  const reconnecting = fleet.status === "reconnecting";
-  const slow = useElapsed(fleet.status === "connecting");
   return (
     <Panel
       title={t`Servers`}
-      actions={
-        reconnecting ? (
-          <span className="servers-reconnecting" role="status">
-            <Glyph shape="spinner" />
-            <Trans>Reconnecting</Trans>
-          </span>
-        ) : null
-      }
+      actions={reconnectingNote && fleet.status === "reconnecting" ? <Reconnecting /> : null}
       flush
     >
-      {fleet.status === "connecting" && fleet.error ? (
+      {fleet.status === "connecting" ? (
         <div className="servers-empty">
-          <p>
-            <Trans>The server list didn't load. Dockwell keeps trying.</Trans>
-          </p>
-          <p className="servers-error">{fleet.error.rawMessage}</p>
+          <Connecting error={fleet.error} />
         </div>
-      ) : fleet.status === "connecting" ? (
-        <p className={cx("servers-empty", !slow && "is-quiet")} aria-busy="true">
-          <Trans>Loading servers</Trans>
-        </p>
       ) : fleet.servers.length === 0 ? (
         <p className="servers-empty">
           <Trans>
@@ -50,7 +44,7 @@ export function ServersPanel() {
       ) : (
         <ul className="servers-list">
           {fleet.servers.map((s) => (
-            <ServerRow key={s.id} server={s} />
+            <ServerRow key={s.id} server={s} linked={linked} />
           ))}
         </ul>
       )}
@@ -58,13 +52,11 @@ export function ServersPanel() {
   );
 }
 
-function ServerRow({ server }: { server: Server }) {
+function ServerRow({ server, linked }: { server: Server; linked: boolean }) {
   const { t, i18n } = useLingui();
   const stats = server.stats;
   const [used, total] = stats ? formatBytesOf(stats.memoryUsedBytes, stats.memoryTotalBytes, i18n.locale) : ["", ""];
-  const up = stats?.uptime ? splitUptime(durationMs(stats.uptime)) : undefined;
-  const count = up?.count ?? 0;
-  const uptime = !up ? "–" : up.unit === "d" ? t`${count} d` : up.unit === "h" ? t`${count} h` : t`${count} min`;
+  const { uptime = "–" } = useServerWords(server);
   const connected = server.connection === Connection.CONNECTED;
   const meta =
     server.connection === Connection.PENDING
@@ -75,7 +67,19 @@ function ServerRow({ server }: { server: Server }) {
   return (
     <li className="servers-row">
       <div className="servers-name">
-        <StatusBadge status={serverStatus(server)} label={server.name} meta={meta} />
+        <StatusBadge
+          status={serverStatus(server)}
+          label={
+            linked ? (
+              <Link to="/servers/$serverId" params={{ serverId: server.id }} className="servers-link">
+                {server.name}
+              </Link>
+            ) : (
+              server.name
+            )
+          }
+          meta={meta}
+        />
         {server.controlServer ? <Tag className="servers-role">{t`Control server`}</Tag> : null}
       </div>
       <p className="servers-os">{server.inventory?.osName || t`Unknown system`}</p>
@@ -107,14 +111,4 @@ function ServerRow({ server }: { server: Server }) {
       ) : null}
     </li>
   );
-}
-
-/** Uptime rounded to what a person acts on: days, then hours, then minutes. */
-function splitUptime(ms: number): { count: number; unit: "d" | "h" | "min" } {
-  const minutes = Math.floor(ms / 60_000);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  if (days >= 1) return { count: days, unit: "d" };
-  if (hours >= 1) return { count: hours, unit: "h" };
-  return { count: minutes, unit: "min" };
 }

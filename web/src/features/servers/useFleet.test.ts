@@ -6,8 +6,9 @@ import { act, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { feed, renderHookWithApi } from "../../test/render";
-import { aServer, changed, removed, sample, snapshotComplete } from "../../test/servers";
-import { type FleetState, HISTORY_LENGTH, useFleet } from "./useFleet";
+import { aServer, changed, gap, removed, sample, snapshotComplete } from "../../test/servers";
+import { HISTORY_LENGTH } from "./history";
+import { type FleetState, useFleet } from "./useFleet";
 
 /** Renders useFleet against watches, one per connection, and records every state it publishes. */
 function watchWith(...watches: ReturnType<typeof feed<WatchServersResponse>>[]) {
@@ -111,6 +112,25 @@ describe("useFleet", () => {
     await waitFor(() => expect(result.current.status).toBe("live"));
 
     act(() => watch.push(changed(aServer({ id: "srv_1", name: "hz-1", history: [sample(30)] }))));
+
+    await waitFor(() => {
+      if (result.current.status !== "live") throw new Error("not live");
+      expect(result.current.servers[0]?.history.map((s) => s.cpuPercent)).toEqual([30]);
+    });
+  });
+
+  it("starts the history over when a server reports again after an outage", async () => {
+    const watch = feed<WatchServersResponse>();
+    const before = [sample(10), sample(20)];
+    watch.push(
+      changed(aServer({ id: "srv_1", name: "hz-1", stats: before.at(-1), history: before })),
+      snapshotComplete,
+    );
+    const { result } = watchWith(watch);
+    await waitFor(() => expect(result.current.status).toBe("live"));
+
+    gap(2 * 60 * 60_000);
+    act(() => watch.push(changed(aServer({ id: "srv_1", name: "hz-1", stats: sample(30) }))));
 
     await waitFor(() => {
       if (result.current.status !== "live") throw new Error("not live");

@@ -46,7 +46,7 @@ describe("the shell on wide screens", () => {
     await renderWith("/", hz1);
     const nav = rail();
     await within(nav).findByText("Machine");
-    expect(within(nav).getByRole("link", { name: "Server hz-1" })).toHaveAttribute("href", "/servers");
+    expect(within(nav).getByRole("link", { name: "Server hz-1" })).toHaveAttribute("href", "/servers/srv_1");
     expect(within(nav).queryByText("Fleet")).toBeNull();
     expect(within(nav).queryByRole("link", { name: "Fleet actions" })).toBeNull();
     expect(await within(nav).findByRole("link", { name: "Dockwell 0.4.0: control plane status" })).toHaveAttribute(
@@ -127,7 +127,7 @@ describe("the shell on wide screens", () => {
 
     act(() => watch.fail(new Error("the stream dropped")));
 
-    expect(await within(top).findByText("Reconnecting")).toBeVisible();
+    expect(await within(top).findByRole("status")).toHaveTextContent("Reconnecting");
     expect(top).not.toHaveTextContent("All healthy");
     expect(top).not.toHaveTextContent("Deploying");
     expect(top).toHaveTextContent("2 servers");
@@ -223,9 +223,7 @@ describe("the command bar", () => {
     await user.keyboard("{Control>}k{/Control}");
     const dialog = screen.getByRole("dialog", { name: "Command bar" });
     expect(within(dialog).getByRole("combobox")).toHaveFocus();
-    expect(
-      within(dialog).getByRole("option", { name: "Find hz-1 in the server list Healthy · 49.12.33.7" }),
-    ).toBeVisible();
+    expect(within(dialog).getByRole("option", { name: "Open hz-1 Healthy · 49.12.33.7" })).toBeVisible();
 
     await user.keyboard("control plane{Enter}");
 
@@ -318,9 +316,19 @@ describe("the command bar", () => {
       within(servers)
         .getAllByRole("option")
         .map((o) => o.textContent),
-    ).toEqual(["Find hz-1 in the server list Healthy · 49.12.33.7", "Find hz-2 in the server list Healthy"]);
+    ).toEqual(["Open hz-1 Healthy · 49.12.33.7", "Open hz-2 Healthy"]);
     expect(screen.getByRole("option", { name: "Open the server list 2" })).toBeVisible();
     await expectAccessible(document.body);
+  });
+
+  it("opens a server's own page", async () => {
+    const user = userEvent.setup();
+    const { router } = await renderWith("/", hz1, hz2);
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(screen.getByRole("option", { name: "Open hz-2 Healthy" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/servers/srv_2"));
+    expect(await screen.findByRole("heading", { level: 1, name: "hz-2" })).toBeVisible();
   });
 });
 

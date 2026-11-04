@@ -9,6 +9,8 @@ import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import { useOpenCommandBar } from "./CommandMenu";
 import "./Page.css";
 
+type Back = "/" | "/more" | "/servers";
+
 export interface PageProps {
   /** The page's name: its heading, and the start of the document title. */
   title: string;
@@ -22,10 +24,12 @@ export interface PageProps {
   actions?: ReactNode;
   /** The phone header's title, when it differs, such as the server's name on the overview. */
   phoneTitle?: string;
+  /** Sets the phone header's own title in mono. */
+  phoneMachineTitle?: boolean;
   /** One line under the phone header's title. */
   phoneSub?: ReactNode;
   /** Where the phone header's back button goes. Pages a tab opens have none. */
-  back?: "/" | "/more";
+  back?: Back;
   /** A quiet note on the state of the page's data, such as "Reconnecting". */
   status?: ReactNode;
   children?: ReactNode;
@@ -44,6 +48,7 @@ export function Page({
   lead,
   actions,
   phoneTitle,
+  phoneMachineTitle = false,
   phoneSub,
   back,
   status,
@@ -59,7 +64,7 @@ export function Page({
       {phone ? (
         <MobileHeader
           title={phoneTitle ?? title}
-          machineTitle={phoneTitle === undefined && machineTitle}
+          machineTitle={phoneTitle === undefined ? machineTitle : phoneMachineTitle}
           sub={phoneSub}
           back={back}
         />
@@ -92,7 +97,7 @@ interface MobileHeaderProps {
   title: string;
   machineTitle: boolean;
   sub?: ReactNode;
-  back?: "/" | "/more";
+  back?: Back | undefined;
 }
 
 /** The phone's header: back where there's somewhere to go back to, the title, and search. */

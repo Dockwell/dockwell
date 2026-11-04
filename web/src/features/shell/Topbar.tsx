@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Button, Glyph, Icon, StatusBadge, useUIStrings } from "@dockwell/ui";
+import { Button, Icon, StatusBadge, useUIStrings } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 
+import { Reconnecting } from "../servers/FleetNotes";
 import { type FleetView, serverStatus } from "../servers/server";
 import { useCommandShortcut, useOpenCommandBar } from "./CommandMenu";
 
@@ -30,14 +31,8 @@ function Scope({ view }: { view: FleetView }) {
   const strings = useUIStrings();
   const { servers, only, fleet, counts } = view;
   // While the watch reconnects, the states are the last ones known, so the bar says that instead of vouching for
-  // them. The page announces it; this note only shows it.
-  const reconnecting =
-    view.status === "reconnecting" ? (
-      <span className="topbar-reconnecting">
-        <Glyph shape="spinner" />
-        {t`Reconnecting`}
-      </span>
-    ) : null;
+  // them. It says it for the page below too, which keeps its own note for phones.
+  const reconnecting = view.status === "reconnecting" ? <Reconnecting /> : null;
   if (only) {
     return (
       <div className="topbar-scope">

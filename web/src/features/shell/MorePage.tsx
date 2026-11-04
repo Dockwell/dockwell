@@ -22,7 +22,11 @@ export function MorePage() {
   const { fleet } = useFleetView();
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
   const [theme, setTheme] = useThemePreference();
-  const themes: Record<ThemePreference, string> = { system: t`System`, light: t`Light`, dark: t`Dark` };
+  const themes: Record<ThemePreference, string> = {
+    system: t({ message: "System", context: "theme" }),
+    light: t`Light`,
+    dark: t`Dark`,
+  };
 
   const section = (id: UpcomingSection) => {
     const { label, icon } = UPCOMING[id];

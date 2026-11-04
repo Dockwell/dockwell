@@ -379,12 +379,17 @@ type Server struct {
 	Inventory *ServerInventory `protobuf:"bytes,6,opt,name=inventory,proto3" json:"inventory,omitempty"`
 	// The newest stats. Unset until the agent reports.
 	Stats *ServerStats `protobuf:"bytes,7,opt,name=stats,proto3" json:"stats,omitempty"`
-	// Recent stats, oldest first, for sparklines. Empty in lists.
+	// Recent stats, oldest first, for sparklines: at most 60 samples, from
+	// the 5 minutes before the newest by the samples' own times, so a server
+	// that reports again after a longer outage starts over. Empty in lists.
 	History []*ServerStats `protobuf:"bytes,8,rep,name=history,proto3" json:"history,omitempty"`
 	// The agent's build.
 	AgentBuild *BuildInfo `protobuf:"bytes,9,opt,name=agent_build,json=agentBuild,proto3" json:"agent_build,omitempty"`
 	// True for the server that runs the control plane.
 	ControlServer bool `protobuf:"varint,10,opt,name=control_server,json=controlServer,proto3" json:"control_server,omitempty"`
+	// When the agent connected, if it is connected now. A connection that
+	// moves to a renewed certificate keeps its time. Unset otherwise.
+	ConnectTime   *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=connect_time,json=connectTime,proto3" json:"connect_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -487,6 +492,13 @@ func (x *Server) GetControlServer() bool {
 		return x.ControlServer
 	}
 	return false
+}
+
+func (x *Server) GetConnectTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ConnectTime
+	}
+	return nil
 }
 
 // ServerInventory is what a server is: its system and hardware.
@@ -924,7 +936,7 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x14WatchServersResponse\x12+\n" +
 	"\x06server\x18\x01 \x01(\v2\x13.dockwell.v1.ServerR\x06server\x12\x18\n" +
 	"\aremoved\x18\x02 \x01(\bR\aremoved\x12+\n" +
-	"\x11snapshot_complete\x18\x03 \x01(\bR\x10snapshotComplete\"\xe4\x03\n" +
+	"\x11snapshot_complete\x18\x03 \x01(\bR\x10snapshotComplete\"\xa3\x04\n" +
 	"\x06Server\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12;\n" +
@@ -940,7 +952,8 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\vagent_build\x18\t \x01(\v2\x16.dockwell.v1.BuildInfoR\n" +
 	"agentBuild\x12%\n" +
 	"\x0econtrol_server\x18\n" +
-	" \x01(\bR\rcontrolServer\"\x81\x03\n" +
+	" \x01(\bR\rcontrolServer\x12=\n" +
+	"\fconnect_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\vconnectTime\"\x81\x03\n" +
 	"\x0fServerInventory\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x17\n" +
 	"\aos_name\x18\x02 \x01(\tR\x06osName\x12\x13\n" +
@@ -1040,21 +1053,22 @@ var file_dockwell_v1_server_proto_depIdxs = []int32{
 	10, // 7: dockwell.v1.Server.stats:type_name -> dockwell.v1.ServerStats
 	10, // 8: dockwell.v1.Server.history:type_name -> dockwell.v1.ServerStats
 	13, // 9: dockwell.v1.Server.agent_build:type_name -> dockwell.v1.BuildInfo
-	9,  // 10: dockwell.v1.ServerInventory.disks:type_name -> dockwell.v1.Disk
-	12, // 11: dockwell.v1.ServerStats.time:type_name -> google.protobuf.Timestamp
-	11, // 12: dockwell.v1.ServerStats.disks:type_name -> dockwell.v1.DiskUsage
-	14, // 13: dockwell.v1.ServerStats.uptime:type_name -> google.protobuf.Duration
-	1,  // 14: dockwell.v1.ServerService.ListServers:input_type -> dockwell.v1.ListServersRequest
-	3,  // 15: dockwell.v1.ServerService.GetServer:input_type -> dockwell.v1.GetServerRequest
-	5,  // 16: dockwell.v1.ServerService.WatchServers:input_type -> dockwell.v1.WatchServersRequest
-	2,  // 17: dockwell.v1.ServerService.ListServers:output_type -> dockwell.v1.ListServersResponse
-	4,  // 18: dockwell.v1.ServerService.GetServer:output_type -> dockwell.v1.GetServerResponse
-	6,  // 19: dockwell.v1.ServerService.WatchServers:output_type -> dockwell.v1.WatchServersResponse
-	17, // [17:20] is the sub-list for method output_type
-	14, // [14:17] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	12, // 10: dockwell.v1.Server.connect_time:type_name -> google.protobuf.Timestamp
+	9,  // 11: dockwell.v1.ServerInventory.disks:type_name -> dockwell.v1.Disk
+	12, // 12: dockwell.v1.ServerStats.time:type_name -> google.protobuf.Timestamp
+	11, // 13: dockwell.v1.ServerStats.disks:type_name -> dockwell.v1.DiskUsage
+	14, // 14: dockwell.v1.ServerStats.uptime:type_name -> google.protobuf.Duration
+	1,  // 15: dockwell.v1.ServerService.ListServers:input_type -> dockwell.v1.ListServersRequest
+	3,  // 16: dockwell.v1.ServerService.GetServer:input_type -> dockwell.v1.GetServerRequest
+	5,  // 17: dockwell.v1.ServerService.WatchServers:input_type -> dockwell.v1.WatchServersRequest
+	2,  // 18: dockwell.v1.ServerService.ListServers:output_type -> dockwell.v1.ListServersResponse
+	4,  // 19: dockwell.v1.ServerService.GetServer:output_type -> dockwell.v1.GetServerResponse
+	6,  // 20: dockwell.v1.ServerService.WatchServers:output_type -> dockwell.v1.WatchServersResponse
+	18, // [18:21] is the sub-list for method output_type
+	15, // [15:18] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_server_proto_init() }

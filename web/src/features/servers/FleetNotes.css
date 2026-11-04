@@ -1,0 +1,29 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.fleet-reconnecting {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.fleet-reconnecting .dw-glyph {
+  color: var(--cobalt);
+}
+
+.fleet-note {
+  color: var(--ink-muted);
+}
+
+/* Holds the space without flashing a message at fast answers. */
+.fleet-note.is-quiet {
+  visibility: hidden;
+}
+
+.fleet-error {
+  margin-top: var(--space-1);
+  font: var(--text-code-sm);
+  overflow-wrap: anywhere;
+}
