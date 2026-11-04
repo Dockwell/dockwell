@@ -17,6 +17,8 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/dockwell/dockwell/internal/resource/variable"
 )
 
 // Names of the well-known types a flag takes as a value of its own.
@@ -47,8 +49,9 @@ type boundField struct {
 	env      *Env
 }
 
-// MaxSecretInput bounds a value read from a file or standard input.
-const MaxSecretInput = 1 << 20
+// MaxSecretInput bounds a value read from a file or standard input: what
+// a secret holds, as the control plane checks it.
+const MaxSecretInput = variable.MaxValue
 
 // FlagName is the flag for a field's path: "page_size" is "page-size",
 // and "app.image" "app-image".
@@ -341,7 +344,7 @@ func (b *boundField) readSecret(from string) (string, error) {
 		return text, nil
 	case from == "-":
 		var err error
-		if data, err = io.ReadAll(io.LimitReader(b.env.In, MaxSecretInput+1)); err != nil {
+		if data, err = io.ReadAll(io.LimitReader(b.env.In, maxSecretRead)); err != nil {
 			return "", fmt.Errorf("can't read standard input: %w", err)
 		}
 	default:
@@ -350,16 +353,20 @@ func (b *boundField) readSecret(from string) (string, error) {
 			return "", fmt.Errorf("can't read %s: %w", from, err)
 		}
 		defer f.Close()
-		if data, err = io.ReadAll(io.LimitReader(f, MaxSecretInput+1)); err != nil {
+		if data, err = io.ReadAll(io.LimitReader(f, maxSecretRead)); err != nil {
 			return "", fmt.Errorf("can't read %s: %w", from, err)
 		}
 	}
-	if len(data) > MaxSecretInput {
+	text := strings.TrimSuffix(strings.TrimSuffix(string(data), "\n"), "\r")
+	if len(text) > MaxSecretInput {
 		return "", fmt.Errorf("the value is over %d KiB, so no secret can hold it. Check that you named the right file", MaxSecretInput>>10)
 	}
-	text := strings.TrimSuffix(strings.TrimSuffix(string(data), "\n"), "\r")
 	return text, nil
 }
+
+// maxSecretRead is how much readSecret reads: the most a value can be, the
+// newline it may end with, "\r\n" at most, and a byte to tell a longer one.
+const maxSecretRead = MaxSecretInput + 2 + 1
 
 // scalarOrMessage parses a value, reading a message field's JSON into a
 // new message from blank.

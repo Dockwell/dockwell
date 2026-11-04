@@ -30,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/cli/apicli"
 	"github.com/dockwell/dockwell/internal/cli/apicmd"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 )
 
 // runIn runs the CLI with standard input and, when interactive, as if a
@@ -183,6 +184,24 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		r = run(t, env, "secrets", "update", "DB_PASSWORD", "--value-file", file, "--project", "default", "--yes")
 		if r.code != exitOK || !strings.Contains(r.out, "~ secret DB_PASSWORD") {
 			t.Fatalf("secrets update from a file = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		// The CLI refuses a value no secret can hold, naming the limit a
+		// secret has, before it proposes anything; one at the limit, with
+		// the newline an editor adds, goes through.
+		big := filepath.Join(t.TempDir(), "big")
+		if err := os.WriteFile(big, []byte(strings.Repeat("x", variable.MaxValue+1)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		r = run(t, env, "secrets", "update", "DB_PASSWORD", "--value-file", big, "--project", "default", "--yes")
+		if r.code == exitOK || !strings.Contains(r.err, "the value is over 64 KiB, so no secret can hold it") {
+			t.Errorf("a value over the limit = %d %q, want it refused, naming 64 KiB", r.code, r.err)
+		}
+		if err := os.WriteFile(big, []byte(strings.Repeat("x", variable.MaxValue)+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		r = run(t, env, "secrets", "update", "DB_PASSWORD", "--value-file", big, "--project", "default", "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "~ secret DB_PASSWORD") {
+			t.Fatalf("a value at the limit = %d:\n%s%s", r.code, r.out, r.err)
 		}
 		r = run(t, env, "variables", "create", "LOG_LEVEL", "--value", "debug", "--project", "default", "--yes")
 		if r.code != exitOK || !strings.Contains(r.out, "debug") {
