@@ -188,5 +188,4 @@ func TestAFileNestsToALimit(t *testing.T) {
 	if app.GetLabels()["x-team"] != "a" || app.GetEnv()["x-key"] != "b" {
 		t.Errorf("x- names in labels and environment are gone: %v, %v", app.GetLabels(), app.GetEnv())
 	}
-
 }

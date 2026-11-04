@@ -208,9 +208,14 @@ func validName(h string) bool {
 	if h == "" || strings.HasPrefix(h, ".") || strings.HasPrefix(h, "-") || strings.HasSuffix(h, ".") || strings.HasSuffix(h, "-") {
 		return false
 	}
-	return !strings.ContainsFunc(h, func(r rune) bool {
-		return r != '.' && r != '-' && r != '_' && !('0' <= r && r <= '9') && !('a' <= r && r <= 'z') && !('A' <= r && r <= 'Z')
-	})
+	for _, r := range h {
+		switch {
+		case r == '.', r == '-', r == '_', '0' <= r && r <= '9', 'a' <= r && r <= 'z', 'A' <= r && r <= 'Z':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // validHost is a server in a device: a name, or an IPv6 address in brackets.
