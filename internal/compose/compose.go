@@ -132,6 +132,9 @@ func checkRaw(file []byte) (map[string]any, error) {
 	if err := check("the Compose file", raw, topKeys); err != nil {
 		return nil, err
 	}
+	if err := conform(place{owner: "the Compose file"}, raw, fileShape); err != nil {
+		return nil, err
+	}
 	services, _ := raw["services"].(map[string]any)
 	for _, name := range slices.Sorted(maps.Keys(services)) {
 		what := "the service " + name
