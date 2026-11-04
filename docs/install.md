@@ -22,7 +22,7 @@ ssh -L 7600:127.0.0.1:7600 <user>@<your server>
 
 The install ends with a one-time link, `http://localhost:7600/claim#…`. Open it through the tunnel to create the owner account with a passkey. It works once, for 24 h; `dockwell claim` on the server prints a new one. Open the panel at `localhost`, not `127.0.0.1`: passkeys need a hostname.
 
-To serve the panel over HTTPS on your own domain instead, point the domain's DNS A record at the server, then set `DOCKWELL_DOMAIN` for the service, as in [Change settings](#change-settings). The panel then also answers on `https://<domain>`, with a certificate from Let's Encrypt, on ports 443 and 80. Passkeys belong to the address they were made on, so add one for the domain after you sign in there. [ADR 0011](adr/0011-claim-and-sign-in.md) explains both ways in.
+To serve the panel over HTTPS on your own domain instead, point the domain's DNS A record at the server, then set `DOCKWELL_DOMAIN` for the service, as in [Change settings](#change-settings). The panel then also answers on `https://<domain>`, with a certificate from Let's Encrypt, on ports 443 and 80. Passkeys belong to the address they were made on, so add one for the domain after you sign in there. [ADR 0011](adr/0011-claim-and-sign-in.md) explains both ways in. When that server gets its first route, Caddy takes those ports and serves the panel's domain too. Its address and passkeys stay as they are, and the SSH tunnel works whatever Caddy is doing ([ADR 0024](adr/0024-the-caddy-ingress-driver.md#coexisting-with-the-panel)).
 
 ## Add a server
 
@@ -73,11 +73,17 @@ It changes only these files:
 | `/etc/systemd/system/dockwell.service` | The service, on systemd |
 | `/etc/init.d/dockwell` | The service, on Alpine's OpenRC, which logs to `/var/log/dockwell.log` |
 
-Dockwell itself keeps its state in `/var/lib/dockwell`.
+Dockwell itself keeps its state in `/var/lib/dockwell`. A server's ingress keeps its certificates and ACME account keys in `/var/lib/dockwell/ingress`, which upgrades and reinstalls leave alone, and so does moving the server to another control plane.
 
 On a control server, `/var/lib/dockwell/control/key` is the install's key. It opens every secret the database keeps, the control plane's certificate authority and the authenticator-app secrets, and the database holds them only encrypted ([ADR 0022](adr/0022-secrets-encrypted-at-rest.md)). Back it up, apart from the database: a backup of the database without the key opens none of them, and the key lost is all of them lost. `dockwell rotate-key` rotates the key that wraps every secret's own key, and the control plane can keep running while it does.
 
 The service sets `GOMEMLIMIT=200MiB`, a soft limit on the memory the Go runtime manages. It is sized from the PRD's budget of 250 MB for the control plane and its agent, and leaves the rest for memory Go doesn't manage, such as the binary's own pages and SQLite's cache. A few minutes after starting, an idle agent on its own uses about 19 MB with the agent build, and a control server about 37 MB, most of it pages of the binary, so the limit only comes into play if memory grows far past that.
+
+## Beside another proxy
+
+Dockwell binds nothing on ports 80 and 443 until a server gets its first route, so it can run beside another proxy, such as 1Panel's OpenResty. To reach a service through that proxy, publish its port on loopback and point the proxy at it. A route on such a server is refused when it is planned, naming what holds the ports, and nothing changes.
+
+When you are ready, stop the other proxy and add a route. Caddy starts as a container, on the server's own network, and takes the ports. Removing the last route stops it and frees them, and its certificates stay on the server for when a route comes back. [ADR 0024](adr/0024-the-caddy-ingress-driver.md) has the details.
 
 ## Upgrade
 
@@ -91,7 +97,7 @@ Pass `--version 0.2.0` to install a particular release instead of the latest.
 curl -fsSL https://get.dockwell.dev | sh -s -- --uninstall
 ```
 
-This stops the service and removes the binary and the service file. Your workloads keep running: Dockwell runs apps as Docker containers and its ingress as a service of its own ([ADR 0005](adr/0005-caddy-ingress.md)), so stopping Dockwell's service stops neither. Your data stays in `/var/lib/dockwell`, so installing again picks up where you left off. To delete it too, run `rm -rf /var/lib/dockwell`. That removes the server's identity, and on a control server, the record of every server that joined it.
+This stops the service and removes the binary and the service file. Your workloads keep running: Dockwell runs apps as Docker containers and its ingress as a container of its own ([ADR 0024](adr/0024-the-caddy-ingress-driver.md)), so stopping Dockwell's service stops neither: public traffic keeps flowing, and Caddy keeps its last config across a reboot. Your data stays in `/var/lib/dockwell`, so installing again picks up where you left off. To delete it too, run `rm -rf /var/lib/dockwell`. That removes the server's identity, and on a control server, the record of every server that joined it.
 
 ## Options
 
@@ -216,6 +222,8 @@ Dockwell runs apps as Docker containers, and Docker on each server pulls their i
 ```
 
 Then run `systemctl reload docker`. Docker reloads this setting without restarting, so running containers keep running. `docker info` lists it under "Registry Mirrors". The setting covers Docker Hub only: Docker has no setting to mirror other registries, such as `ghcr.io`. Dockwell's Docker driver will add one, and pull each image by digest, so a mirror can't change what runs ([ADR 0013](adr/0013-mirrors-for-releases-and-images.md#container-images-from-m3)). For now it pulls by tag ([ADR 0021](adr/0021-the-docker-driver.md#consequences)).
+
+A server's first route starts Caddy, as a container, and it is pulled the same way. Its image is pinned by digest, so Docker checks it whatever serves it, and a mirror can't change what runs. `registry-mirrors` covers it, as it is on Docker Hub. To pull it from any other registry, set `DOCKWELL_INGRESS_IMAGE` to the repository, such as `registry.example.com/library/caddy`; the digest stays the same ([ADR 0024](adr/0024-the-caddy-ingress-driver.md#mirrors)).
 
 ## Read it first
 

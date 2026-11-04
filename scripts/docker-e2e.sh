@@ -7,16 +7,19 @@
 # lists; a Compose file imports; a service using a variable and a secret
 # runs with their values, exports without the secret, and imports again
 # with no change; and everything goes again. Then the agent build joins the
-# full build's control plane, and runs a container on the same Docker. It
-# uses throwaway data directories and removes what it made,
-# so it never touches a real install. It needs Docker with the compose
-# plugin, Go, curl, jq and a free port (E2E_WEB_PORT, 18080 by default).
+# full build's control plane, and runs a container on the same Docker. Before
+# that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
+# and serves a real container over HTTPS through Caddy. It uses throwaway data
+# directories and removes what it made, so it never touches a real install. It
+# needs Docker with the compose plugin, Go, curl, jq, openssl and iproute2's ss,
+# a free port (E2E_WEB_PORT, 18080 by default), and ports 80 and 443 free, for
+# the ingress's own part.
 #
 #   scripts/docker-e2e.sh bin/dockwell bin/dockwell-agent
 set -euo pipefail
 
 usage="usage: scripts/docker-e2e.sh path/to/dockwell path/to/dockwell-agent"
-for tool in docker curl go jq; do
+for tool in docker curl go jq openssl ss; do
   command -v "$tool" >/dev/null || {
     echo "docker-e2e: $tool isn't installed, and the script needs it. Install it, such as with apt-get install $tool, then run it again" >&2
     exit 1
@@ -33,22 +36,63 @@ agent_log=$(mktemp)
 project=""
 agent_pid=""
 
-"$bin" run --listen "$addr" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json >"$log" 2>&1 &
-pid=$!
+pebble_dir=$(mktemp -d)
+tools=${E2E_INGRESS_TOOLS:-$(mktemp -d)}
+pebble_pids=()
+
+# The ingress's certificates come from Pebble, on this machine.
+export DOCKWELL_ACME_DIRECTORY_URL=https://localhost:14000/dir
+export DOCKWELL_ACME_ROOTS=$pebble_dir/cert.pem
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 2 -subj /CN=localhost \
+  -addext subjectAltName=DNS:localhost,IP:127.0.0.1 -keyout "$pebble_dir/key.pem" -out "$DOCKWELL_ACME_ROOTS" 2>/dev/null
+
+start_dockwell() {
+  "$bin" run --listen "$addr" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json >>"$log" 2>&1 &
+  pid=$!
+}
+start_dockwell
 cleanup() {
   if [[ -n "$project" ]]; then
     docker compose -p "$project" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   fi
-  docker rm --force e2e-agent-web >/dev/null 2>&1 || true
+  docker rm --force e2e-agent-web e2e-holds-80 dockwell-ingress >/dev/null 2>&1 || true
+  docker network rm dockwell_ingress >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
   kill "$pid" 2>/dev/null || true
+  for p in "${pebble_pids[@]:-}"; do
+    [[ -z "$p" ]] || kill "$p" 2>/dev/null || true
+  done
   wait 2>/dev/null || true
-  rm -rf "$log" "$agent_log" "$data" "$agent_data"
+  rm -rf "$log" "$agent_log" "$data" "$agent_data" "$pebble_dir"
 }
 trap cleanup EXIT
 
+# ingress_state says all there is to know of the ingress, as most of what can
+# go wrong with it is on real Docker, where nobody can run it but CI.
+ingress_state() {
+  echo "--- the ingress's container" >&2
+  docker ps -a --filter name=dockwell-ingress --format '{{.Names}} {{.Image}} {{.Status}} {{.Ports}}' >&2 || true
+  docker inspect --format 'network {{.HostConfig.NetworkMode}}, user {{.Config.User}}, restart {{.HostConfig.RestartPolicy.Name}}, exit {{.State.ExitCode}}, error {{.State.Error}}' dockwell-ingress >&2 2>/dev/null || true
+  echo "--- its log" >&2
+  docker logs --tail 60 dockwell-ingress >&2 2>&1 || true
+  echo "--- the ingress network" >&2
+  docker network inspect --format '{{.Name}} internal={{.Internal}} {{json .IPAM.Config}} {{json .Containers}} {{json .Options}}' dockwell_ingress >&2 2>/dev/null || true
+  echo "--- what certificates are doing" >&2
+  tail -n 40 "$data/ingress/data/dockwell-tls.log" >&2 2>/dev/null || true
+  echo "--- addresses" >&2
+  cat "$data/ingress/addresses.json" >&2 2>/dev/null || true
+  echo "--- who is on ports 80 and 443" >&2
+  ss -ltnup 'sport = :80 or sport = :443' >&2 2>/dev/null || true
+  echo "--- domains, as the API has them" >&2
+  dw domains list --json >&2 2>/dev/null || true
+  echo "--- Pebble" >&2
+  tail -n 30 "$pebble_dir/pebble.out" >&2 2>/dev/null || true
+}
+in_ingress=""
+
 fail() {
   echo "docker-e2e: $*" >&2
+  [[ -z "$in_ingress" ]] || ingress_state
   echo "--- dockwell log" >&2
   cat "$log" >&2
   if [[ -s "$agent_log" ]]; then
@@ -242,6 +286,194 @@ dw volumes delete cache-data --yes >/dev/null 2>&1
 status=$?
 set -e
 [[ "$status" == 4 ]] || fail "volumes delete exited $status, want 4: a plan that destroys data waits for a person"
+
+step "Ingress: Pebble, Let's Encrypt's test CA, on this machine"
+in_ingress=1
+tools=$("$(dirname "$0")/ingress-tools.sh" "$tools") || fail "can't get Caddy and Pebble"
+domain=app.e2e-dockwell.example.net
+cat >"$pebble_dir/pebble.json" <<PEBBLE
+{"pebble":{"listenAddress":"127.0.0.1:14000","managementListenAddress":"127.0.0.1:15000",
+"certificate":"$pebble_dir/cert.pem","privateKey":"$pebble_dir/key.pem","httpPort":80,"tlsPort":443,
+"ocspResponderURL":"","externalAccountBindingRequired":false}}
+PEBBLE
+"$tools/pebble-challtestsrv" -defaultIPv4 127.0.0.1 -defaultIPv6 "" -dnsserver 127.0.0.1:8053 -doh "" -http01 "" -https01 "" -tlsalpn01 "" \
+  -management 127.0.0.1:8055 >"$pebble_dir/challtest.out" 2>&1 &
+pebble_pids+=("$!")
+PEBBLE_VA_NOSLEEP=1 PEBBLE_WFE_NONCEREJECT=0 "$tools/pebble" -config "$pebble_dir/pebble.json" -dnsserver 127.0.0.1:8053 >"$pebble_dir/pebble.out" 2>&1 &
+pebble_pids+=("$!")
+for _ in $(seq 100); do
+  curl -fsS --cacert "$pebble_dir/cert.pem" https://localhost:14000/dir >/dev/null 2>&1 && break
+  sleep 0.1
+done
+curl -fsS --cacert "$pebble_dir/cert.pem" https://localhost:14000/dir >/dev/null || fail "Pebble didn't answer within 10 s"
+
+listening() { [[ -n "$(ss -H -ltn "sport = :$1")" ]]; }
+if listening 80 || listening 443; then
+  fail "something on this machine already holds port 80 or 443, so the ingress's part can't run. Stop it, and run this again"
+fi
+
+dw services create web --app-image nginx:1.27-alpine --app-env GREETING=hello --yes || fail "services create web failed"
+web=$(docker ps --filter label=com.docker.compose.service=web --format '{{.Names}}') || fail "docker ps failed"
+web_id=$(docker inspect --format '{{.Id}}' "$web") || fail "docker inspect $web failed"
+
+step "Ingress: taken ports are refused at plan time, by name"
+docker run -d --name e2e-holds-80 -p 80:80 nginx:1.27-alpine >/dev/null || fail "can't run a container on port 80"
+set +e
+refusal=$(dw routes create www --domain "$domain" --service web --port 80 --yes 2>&1)
+status=$?
+set -e
+[[ "$status" != 0 ]] || fail "a route went through with port 80 taken"
+grep -q 'the container e2e-holds-80' <<<"$refusal" || fail "the refusal doesn't name what holds port 80: $refusal"
+grep -q 'point that proxy at it' <<<"$refusal" || fail "the refusal doesn't say how to fix it: $refusal"
+if docker inspect dockwell-ingress >/dev/null 2>&1; then fail "the ingress started with port 80 taken"; fi
+docker rm --force e2e-holds-80 >/dev/null || fail "can't remove the container on port 80"
+
+step "Ingress: a server's first route starts Caddy, with nothing else stopping"
+if docker inspect dockwell-ingress >/dev/null 2>&1; then fail "the ingress ran before any route"; fi
+dw routes create www --domain "$domain" --service web --port 80 --yes || fail "routes create www failed"
+[[ "$(docker inspect --format '{{.Id}}' "$web")" == "$web_id" ]] || fail "adding a route made the service's container again, which is downtime"
+hardening=$(docker inspect --format '{{.HostConfig.NetworkMode}} {{.HostConfig.ReadonlyRootfs}} {{.HostConfig.RestartPolicy.Name}}' dockwell-ingress) ||
+  fail "there's no dockwell-ingress after the first route"
+[[ "$hardening" == "host true unless-stopped" ]] || fail "dockwell-ingress runs as: $hardening, want the host network, a read-only root, and unless-stopped"
+capabilities=$(docker inspect --format '{{.HostConfig.CapDrop}} {{.HostConfig.CapAdd}}' dockwell-ingress) || fail "docker inspect dockwell-ingress failed"
+[[ "$capabilities" == *ALL*NET_BIND_SERVICE* ]] || fail "dockwell-ingress has the capabilities $capabilities, want all dropped but NET_BIND_SERVICE"
+image=$(docker inspect --format '{{.Config.Image}}' dockwell-ingress) || fail "docker inspect dockwell-ingress failed"
+[[ "$image" == caddy@sha256:* ]] || fail "dockwell-ingress runs $image, want it by digest"
+user=$(docker inspect --format '{{.Config.User}}' dockwell-ingress) || fail "docker inspect dockwell-ingress failed"
+[[ "$user" == "$(id -u):$(id -g)" ]] || fail "dockwell-ingress runs as $user, want this agent's own user, $(id -u):$(id -g)"
+docker inspect --format '{{.State.Running}}' dockwell-ingress | grep -q true || fail "dockwell-ingress isn't running"
+for p in 80 443; do
+  listening "$p" || fail "nothing listens on port $p"
+done
+[[ -n "$(ss -H -lun 'sport = :443')" ]] || fail "nothing listens on UDP 443, for HTTP/3"
+curl -fsS --max-time 2 http://127.0.0.1:2019/config/ >/dev/null 2>&1 && fail "Caddy's admin API answers on TCP"
+[[ -S "$data/ingress/run/admin.sock" ]] || fail "there's no admin socket at $data/ingress/run/admin.sock"
+[[ "$(stat -c '%a' "$data/ingress/run")" == 700 ]] || fail "the admin socket's directory has mode $(stat -c '%a' "$data/ingress/run"), want 700"
+
+step "Ingress: the network is kept to itself"
+network=$(docker network inspect --format '{{.Internal}} {{index .Options "com.docker.network.bridge.enable_icc"}}' dockwell_ingress) ||
+  fail "there's no network dockwell_ingress"
+[[ "$network" == "true false" ]] || fail "dockwell_ingress is internal and enable_icc: $network, want true and false"
+address=$(docker inspect --format '{{(index .NetworkSettings.Networks "dockwell_ingress").IPAddress}}' "$web") || fail "web isn't on dockwell_ingress"
+static=$(docker inspect --format '{{(index .NetworkSettings.Networks "dockwell_ingress").IPAMConfig.IPv4Address}}' "$web") || fail "web has no static address on dockwell_ingress"
+[[ "$address" == "$static" ]] || fail "web is at $address, and asked for $static"
+curl -fsS --max-time 5 "http://$address/" | grep -q nginx || fail "this machine can't reach web on the ingress network, at $address, as Caddy must"
+if docker run --rm --network dockwell_ingress nginx:1.27-alpine wget -q -T 3 -O- "http://$address/" >/dev/null 2>&1; then
+  fail "a container on the ingress network reached web: enable_icc: false isn't keeping them apart"
+fi
+if docker run --rm --network dockwell_ingress nginx:1.27-alpine wget -q -T 3 -O- http://1.1.1.1/ >/dev/null 2>&1; then
+  fail "a container on the ingress network got out through it: internal: true isn't holding"
+fi
+outbound=$(docker exec "$web" wget -q -T 5 --spider http://localhost/ 2>&1 && echo up) || fail "web stopped answering itself: $outbound"
+default_route=$(docker exec "$web" ip route show default 2>/dev/null) || default_route=""
+ingress_gateway=$(docker network inspect --format '{{(index .IPAM.Config 0).Gateway}}' dockwell_ingress) || ingress_gateway=""
+if [[ -n "$ingress_gateway" ]] && grep -qF "$ingress_gateway" <<<"$default_route"; then
+  fail "web's default route moved to the ingress network: $default_route"
+fi
+
+step "Ingress: a real certificate, from a real CA, and a request over HTTPS to a real container"
+state=""
+for _ in $(seq 120); do
+  listed=$(dw domains list --json 2>/dev/null) || listed='{}'
+  state=$(jq -r --arg d "$domain" '.domains[]? | select(.name == $d) | .servers[0].status.certificate.state // empty' <<<"$listed")
+  [[ "$state" == CERTIFICATE_STATE_ISSUED ]] && break
+  sleep 0.5
+done
+[[ "$state" == CERTIFICATE_STATE_ISSUED ]] || fail "$domain's certificate reads '$state' after 60 s, want issued"
+curl -fsS --cacert "$pebble_dir/cert.pem" https://localhost:15000/roots/0 >"$pebble_dir/root.pem" || fail "can't read Pebble's root"
+for intermediate in 0 1; do
+  curl -fsS --cacert "$pebble_dir/cert.pem" "https://localhost:15000/intermediates/$intermediate" >>"$pebble_dir/root.pem" 2>/dev/null || true
+done
+over_https() { curl -fsS --max-time 10 --cacert "$pebble_dir/root.pem" --resolve "$domain:443:127.0.0.1" "$@" "https://$domain/"; }
+over_https | grep -q nginx || fail "https://$domain/ doesn't serve web through Caddy: $(over_https -v 2>&1)"
+redirect=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code} %{redirect_url}' --resolve "$domain:80:127.0.0.1" "http://$domain/x?y=1") || fail "http://$domain/ didn't answer"
+[[ "$redirect" == "308 https://$domain/x?y=1" ]] || fail "http://$domain/x?y=1 answers $redirect, want a redirect to HTTPS"
+
+step "Ingress: the service reads the real client, and Caddy owns the header"
+over_https -H 'X-Forwarded-For: 6.6.6.6' >/dev/null || fail "the request with a forged header failed"
+sleep 0.5
+docker logs --tail 5 "$web" 2>&1 | tail -1 | grep -q '"127.0.0.1"$' ||
+  fail "web's last request doesn't read as from 127.0.0.1, in X-Forwarded-For: $(docker logs --tail 5 "$web" 2>&1)"
+if docker logs --tail 5 "$web" 2>&1 | grep -q '6\.6\.6\.6'; then fail "a forged X-Forwarded-For reached web"; fi
+if curl -fsS --max-time 2 --cacert "$pebble_dir/root.pem" --resolve "$domain:443:[::1]" -o /dev/null "https://$domain/" 2>/dev/null; then
+  sleep 0.5
+  docker logs --tail 5 "$web" 2>&1 | tail -1 | grep -q '"::1"$' ||
+    fail "over IPv6, web's last request doesn't read as from ::1, so a client's real address is lost: $(docker logs --tail 5 "$web" 2>&1)"
+else
+  echo "This machine has no IPv6 on loopback, so the client's real address over IPv6 wasn't checked"
+fi
+
+step "Ingress: a replaced service keeps its address, and goes on serving"
+dw services update web --app-image nginx:1.27-alpine --app-env GREETING=hi --yes || fail "services update web failed"
+[[ "$(docker inspect --format '{{.Id}}' "$web")" != "$web_id" ]] || fail "the update didn't replace web's container"
+now=$(docker inspect --format '{{(index .NetworkSettings.Networks "dockwell_ingress").IPAMConfig.IPv4Address}}' "$web") || fail "the new container isn't on dockwell_ingress"
+[[ "$now" == "$static" ]] || fail "the new container is at $now, want the instance's address, $static"
+over_https | grep -q nginx || fail "after the update, https://$domain/ doesn't serve web"
+listed=$(docker compose -p "$project" ps --format '{{.Service}}') || fail "docker compose -p $project ps failed"
+grep -qx web <<<"$listed" || fail "docker compose doesn't list web on the ingress network: $listed"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after a route and a replace: $drift"
+
+step "Ingress: traffic keeps flowing with Dockwell down, and through a restart of Caddy"
+kill "$pid"
+wait "$pid" 2>/dev/null || true
+over_https | grep -q nginx || fail "with Dockwell down, https://$domain/ stopped serving"
+docker restart --time 5 dockwell-ingress >/dev/null || fail "docker restart dockwell-ingress failed"
+for _ in $(seq 100); do
+  over_https >/dev/null 2>&1 && break
+  sleep 0.1
+done
+over_https | grep -q nginx || fail "with Dockwell down, Caddy came back without its last config"
+start_dockwell
+for _ in $(seq 100); do
+  curl -fsS "http://$addr/healthz" >/dev/null 2>&1 && break
+  sleep 0.1
+done
+
+step "Ingress: a hand edit reads as drift, and a revert puts it back"
+hand='{"handler":"static_response","body":"by hand"}'
+curl -fsS --unix-socket "$data/ingress/run/admin.sock" -X PUT -H 'Content-Type: application/json' -d "$hand" \
+  "http://caddy/id/dockwell.$project.www/handle/0" >/dev/null || fail "can't edit the route by hand"
+over_https | grep -q 'by hand' || fail "the hand edit didn't take"
+drifted=""
+for _ in $(seq 60); do
+  drift=$(dw drift list --json 2>/dev/null) || drift='{}'
+  drifted=$(jq -r '.drift[]? | select(.resource.kind == "route") | .resourceId' <<<"$drift")
+  [[ -n "$drifted" ]] && break
+  sleep 0.5
+done
+[[ -n "$drifted" ]] || fail "a hand edit to the route doesn't read as drift: $drift"
+over_https | grep -q 'by hand' || fail "Dockwell reverted a hand edit on its own: drift is reported, never silently reverted"
+server=$(jq -r '.drift[] | select(.resource.kind == "route") | .serverId' <<<"$drift")
+dw drift revert --server-id "$server" --resource-id "$drifted" --yes || fail "drift revert failed"
+over_https | grep -q nginx || fail "after reverting, https://$domain/ doesn't serve web"
+
+step "Ingress: the last route stops Caddy and frees the ports, and its certificate stays"
+certificate=$(find "$data/ingress/data/caddy/certificates" -name "$domain.crt") || fail "can't look for the certificate"
+[[ -n "$certificate" ]] || fail "there's no certificate on disk for $domain"
+before=$(openssl x509 -in "$certificate" -noout -serial) || fail "can't read the certificate"
+dw routes delete www --yes || fail "routes delete www failed"
+if docker inspect dockwell-ingress >/dev/null 2>&1; then fail "dockwell-ingress is there after the last route"; fi
+if docker network inspect dockwell_ingress >/dev/null 2>&1; then fail "the network dockwell_ingress is there after the last route"; fi
+for p in 80 443; do
+  if listening "$p"; then fail "port $p is still held after the last route"; fi
+done
+[[ -f "$certificate" ]] || fail "the certificate went with Caddy"
+[[ -d "$data/ingress/data/caddy/acme" ]] || fail "the ACME account went with Caddy"
+if docker inspect --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$web" | grep -q dockwell_ingress; then fail "web stayed on the ingress network"; fi
+
+step "Ingress: a route again reuses its certificate"
+dw routes create www --domain "$domain" --service web --port 80 --yes || fail "routes create www, again, failed"
+for _ in $(seq 100); do
+  over_https >/dev/null 2>&1 && break
+  sleep 0.1
+done
+over_https | grep -q nginx || fail "with the route back, https://$domain/ doesn't serve web"
+after=$(openssl x509 -in "$certificate" -noout -serial) || fail "can't read the certificate"
+[[ "$after" == "$before" ]] || fail "a new certificate was issued, $after, where the one kept was $before"
+dw routes delete www --yes || fail "routes delete www, again, failed"
+dw services delete web --yes || fail "services delete web failed"
+in_ingress=""
 
 step "The agent build joins, and runs a container"
 made=$(dw token create 2>>"$log") || fail "dockwell token create failed"

@@ -34,7 +34,7 @@ Five things were decided before this record:
 
 **A container on the host network.** Apps already need Docker, so a route has no use without it. Host networking gives the real client address on both families and direct HTTP/3 with nothing in between, which a bridged container gets only on some daemon setups. A digest pull is verified by Docker and works through a mirror with no code of ours. A unit's only gain, surviving a restart of Docker, is worth little: the apps behind it stop too.
 
-- **Image:** `caddy:2.11.7-alpine`, pinned by the digest of its multi-platform index, `sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5`, in the agent's source (`caddy.Image`). 2.11.7 is the newest release older than the 14 days `CLAUDE.md` asks for. A new pin ships with the agent.
+- **Image:** `caddy@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5`, the digest of the multi-platform index of `caddy:2.11.7-alpine`, in the agent's source (`caddy.Image`). 2.11.7 is the newest release older than the 14 days `CLAUDE.md` asks for. A new pin ships with the agent.
 - **A newer pin is a plan.** An agent with a newer pin keeps the Caddy it has until a route step applies on that server. The plan says Caddy restarts, with its downtime, then replaces the container. An upgrade of Dockwell never restarts public traffic on its own.
 - **It runs with as little as it can.** All capabilities dropped but `NET_BIND_SERVICE`, a read-only root filesystem with a tmpfs at `/tmp`, and uid 65532 when the agent is root. It doesn't run as root because a process with uid 0 on the host's network namespace can reach abstract unix sockets on the host, which CVE-2020-15257 made a way out through containerd's shim. The official image gives its binary the capability as a file capability, which `no-new-privileges` would ignore, so that option stays off. An agent that isn't root, as in CI, runs Caddy as its own uid.
 - **Rootless Docker is refused by name.** Its host network isn't the server's, so Caddy couldn't bind the server's ports, and the agent's `route` kind is unavailable with that reason.
@@ -117,20 +117,27 @@ A host-networked Caddy can't use Docker's DNS, which answers only inside contain
 
 ```go
 // Endpoint reserves the address of an instance and says how a container
-// joins: pass it to ConnectNetwork before the container starts. ok is false
-// for a service with no routes, which needs no address.
-Endpoint(ctx, instance) (ep docker.EndpointSettings, ok bool, err error)
+// joins: pass both to docker.Client.ConnectEndpoint before the container
+// starts. ok is false for a service with no routes, which needs no address.
+Endpoint(ctx, instance) (network string, ep docker.EndpointSettings, ok bool, err error)
 // AddUpstream sends new requests to the instance too, on every route that
 // serves its service.
 AddUpstream(ctx, instance) error
 // Drain stops sending new requests to the instance, and waits until those
-// in flight finish, or ctx is done. Long-lived streams keep running.
+// in flight finish, or ctx is done, which isn't an error: what remains ends
+// with the container. A route keeps its last upstream, so drain the old one
+// only once the new one is added.
 Drain(ctx, instance) error
 // RemoveUpstream forgets the instance and frees its address.
 RemoveUpstream(ctx, instance) error
 ```
 
-A rollout makes the new container as instance 2 with `Endpoint`, starts it, waits for it to be healthy, calls `AddUpstream`, then `Drain` on instance 1, stops and removes that container, and calls `RemoveUpstream`. A service without routes gets `ok == false` from `Endpoint`, and the other three do nothing, so a rollout needn't ask. Which Compose number the service's "first" instance has after a rollout is #28's to settle: `addresses.json` keys on the instance, and nothing here assumes the number is 1 except a service that has never rolled out.
+A rollout makes the new container as instance 2 with `Endpoint`, starts it, waits for it to be healthy, calls `AddUpstream`, then `Drain` on instance 1, stops and removes that container, and calls `RemoveUpstream`. A service without routes gets `ok == false` from `Endpoint`, and the other three do nothing, so a rollout needn't ask.
+
+Three things are #28's to settle, and each has a place to do it:
+- **Which number a service's instance has after a rollout.** `addresses.json` keys on the instance, and a route change goes on using the instances the table has. Only a service with none, on its first route, is taken to be instance 1, and the container driver asks for instance 1 when it replaces a container (`joinIngress`), which #28 replaces with the instance it is making.
+- **How long `Drain` waits.** It takes a context. Long-lived streams would hold it for as long as they last, so #28 gives it a deadline, and what is left ends with the container.
+- **Health.** Caddy's own health checks aren't configured. `reverse_proxy` holds a request for 3 s (`try_duration`) while its upstream refuses connections, which covers a container's stop and start, and #28 adds an upstream only once Docker calls it healthy.
 
 ### Reloads drop nothing
 
@@ -143,7 +150,7 @@ Every change to Caddy's config goes through its admin API, a single `PATCH` of t
 | A server-sent stream across reloads | Finishes | Finishes |
 | A WebSocket across reloads | **Closed at the first reload** | Stays open |
 
-So each route's `reverse_proxy` has `stream_close_delay: 24h`, as Caddy otherwise closes every upgraded connection when its config reloads, and `flush_interval: -1`, so streams flow as they're written. `grace_period` is 24 h too, so an old config lets a long request finish, and is gone a day later at most. A test (`TestReloadsDropNothing`) holds this on real Caddy in CI.
+So each route's `reverse_proxy` has `stream_close_delay: 24h`, as Caddy otherwise closes every upgraded connection when its config reloads, and `flush_interval: -1`, so streams flow as they're written. A WebSocket that stays open past the 24 h is closed then, and the old config it held goes with it, which bounds what reloads leave behind. `grace_period` doesn't cut a request on a reload, as it goes on in the old config until it ends (the test passes with a grace of 1 ms). It matters as Caddy stops, so it is 25 s, under the 30 s Docker waits before it kills it. A test (`TestReloadsDropNothingOnRealCaddy`) holds this on real Caddy in CI: 8 clients of short requests, a WebSocket that echoes, a stream and a slow request, through 32 config changes, of the route they use and of others, and no failure of any of them.
 
 Caddy keeps `X-Forwarded-For` for itself: with no `trusted_proxies`, it overwrites what a client sends, so a service reads the real client. `strict_sni_host` answers 421 to a request whose `Host` isn't its TLS name.
 
@@ -154,7 +161,7 @@ Caddy keeps `X-Forwarded-For` for itself: with no `trusted_proxies`, it overwrit
   - `starts`, on a server with no routes yet, with the ports it takes;
   - `stops`, on the last route's removal, with the ports it frees;
   - `restarts`, on a newer pin;
-  - `panel_moves`, when the panel's domain moves behind Caddy or back.
+  - `panel_domain`, when the panel's domain moves behind Caddy or back.
 - **What DNS says,** `PlanStep.domain_check`: whether the domain points here, has no record, or points elsewhere, with the addresses. It never refuses, as people often set DNS afterwards, and the fingerprint leaves it out, so a record that changes between planning and applying doesn't stale a plan. A server with private addresses alone can't tell whether a public record is its own, and says so.
 - **Taken ports are refused at plan time, by name,** with the consequence and the fix, and checked again on apply. The agent reads who holds 80 and 443 over TCP, and 443 over UDP, from `/proc`, and asks Docker what publishes them, since a published port with the userland proxy off has no listening socket. It names the process and, through its cgroup, its container:
 
@@ -172,7 +179,7 @@ Caddy keeps `X-Forwarded-For` for itself: with no `trusted_proxies`, it overwrit
 
 The agent reports each domain's state, and the API serves it (`DomainService.ListDomains`, `GET /v1/domains`). It isn't managed state, so it isn't a revision.
 
-- **Pending, issued, failed.** Issued means a certificate is in `ingress/data` and hasn't expired. That is read from disk, so it survives every restart. Pending and failed come from what Caddy logs as it works. Caddy has no API for them, so its `tls.*` loggers also write to `ingress/data/tls.log`, which it rolls at 1 MB, and the agent reads what's new: every 5 s while a domain is pending or failed, every minute otherwise.
+- **Pending, issued, failed.** Issued means a certificate is in `ingress/data` and hasn't expired. That is read from disk, so it survives every restart. Pending and failed come from what Caddy logs as it works. Caddy has no API for them, so its `tls.obtain` and `tls.renew` loggers also write to `ingress/data/dockwell-tls.log`, which it rolls at 1 MB, and the agent reads what's new: every 5 s while a domain is pending or failed, every minute otherwise. It also says what DNS says, read every 30 s while a domain has no certificate.
 - **A failure says why, in plain language, with the fix.** The agent classifies by the ACME problem type, RFC 8555's URN, as the wording varies by CA and the type doesn't, and adds what it read from DNS itself:
 
   | Problem | What it means | The fix it gives |
@@ -189,7 +196,7 @@ The agent reports each domain's state, and the API serves it (`DomainService.Lis
 - **Fixing DNS works at once.** Caddy backs off, up to 6 hours between tries, so someone who fixes DNS could wait a long time. A reload starts a pending name's attempt again within about a second, as measured. So while a domain is pending or failed, the agent checks its DNS, and reloads once when the answer changes to this server. A reload made for any other reason does the same, which is one more attempt on the CA's production directory; Caddy's own retries go to the staging directory first, so failures don't use up the production limit.
 - **The panel can poll.** `ListDomains` takes an environment or a service, and returns each domain with its routes and each server's certificate and DNS state. A server that's offline shows what it last reported, marked `stale`.
 
-Issuance is Caddy's own, HTTP-01 and TLS-ALPN-01, from Let's Encrypt unless `DOCKWELL_ACME_DIRECTORY` names another CA, as for Pebble. `DOCKWELL_ACME_ROOTS` names a PEM file of roots to trust for it. No email is sent to the CA.
+Issuance is Caddy's own, HTTP-01 and TLS-ALPN-01, from Let's Encrypt unless `DOCKWELL_ACME_DIRECTORY_URL` names another CA, as for Pebble, the same setting as the panel's. `DOCKWELL_ACME_ROOTS` names a PEM file of roots to trust for it. No email is sent to the CA.
 
 **The seam for phase 3.** `ingress.Proxy.PutRoute` takes a route, not a certificate. In a fleet, the control plane will issue, and the agent will load what it's given into Caddy's `tls.certificates`, with a policy that stops Caddy issuing for those names. `Certificates` keeps reporting their state. A route's one-server rule lifts then. Nothing else moves.
 
@@ -197,11 +204,12 @@ Issuance is Caddy's own, HTTP-01 and TLS-ALPN-01, from Let's Encrypt unless `DOC
 
 With `DOCKWELL_DOMAIN`, the panel holds 80 and 443 through autocert. Only one process can. When such a server gets its first route, Caddy takes them and serves the panel's domain too.
 
-**The handover** is part of the first route's step, and its plan says so (`panel_moves`):
+**The handover** is part of the first route's step, and its plan says so (`panel_domain`):
 
-1. The panel's HTTPS and HTTP listeners stop, gracefully.
+1. Caddy's image is pulled, with nothing stopped yet, as that can take minutes.
 2. `ingress/active` is written, which tells `dockwell run` not to take the ports on its next start.
-3. Caddy starts, with the panel's site and the route.
+3. The panel's HTTPS and HTTP listeners stop, gracefully.
+4. Caddy starts, with the panel's site and the route.
 
 If Caddy can't start, the marker goes, the panel takes the ports back, and the step fails. Removing the last route does the reverse. These run in one process, as the control server's agent is in-process with its control plane. A server that joined has no panel, so none of this applies there. A panel with `--https-listen` and `--http-listen` on other ports, as in CI, holds neither 80 nor 443, and stays as it is.
 
@@ -235,7 +243,7 @@ So no header decides anything:
 
 ### The interface
 
-`internal/ingress` is what stays when OpenResty arrives: the routes and instances table, port checks, DNS checks, the network, the handover, and `Upstreams`. `ingress.Proxy` is all it knows of a proxy: start and stop, read routes, put and delete a route, how many requests an upstream has in flight, certificates, and retrying them. `internal/ingress/caddy` implements it, with its JSON and its Docker container. `internal/resource/route` is the kind, and names no proxy. OpenResty is a second `Proxy`, and a choice on the server.
+`internal/ingress` is what stays when OpenResty arrives: the routes and instances table, port checks, DNS checks, the network, the handover, and `Upstreams`. `ingress.Proxy` is all it knows of a proxy: get ready, start and stop, read routes, put and delete a route, set the panel's site, how many requests an upstream has in flight, certificates, and retrying them. `internal/ingress/caddy` implements it, with its JSON and its Docker container. `internal/resource/route` is the kind, and names no proxy. OpenResty is a second `Proxy`, and a choice on the server.
 
 ### Mirrors
 
@@ -250,4 +258,16 @@ Docker verifies a digest pull whatever serves it, so a mirror can't change what 
 - **A route's first request can't beat its certificate.** Until it's issued the domain doesn't answer over HTTPS, and `http://` redirects to it. That is why the state is on the API.
 - **What's not here:** wildcards and DNS-01, path stripping, per-route settings such as headers or auth, TCP and UDP routes, several servers behind one name, an email for the CA, and hand-editing a site. Each can be a new field or a new kind.
 - **Replacing a service without #28 still has the downtime ADR 0021 states,** though Caddy now holds requests for 3 s while the upstream refuses connections, and answers 502 after.
+- **A daemon with `no-new-privileges: true` in its `daemon.json` can't run Caddy this way.** It ignores the file capability the image relies on, so Caddy can't bind 80 and 443, and the step fails with what Caddy says. Such a server needs that setting off for this one container, which Docker doesn't offer, or the setting off.
+- **Docker's `iptables: false`** leaves the ingress network's rules out, so `internal` and `enable_icc` don't hold, and containers on it can reach each other. Someone who turned that off has taken on the server's rules themselves.
+- **An upgrade of Dockwell doesn't move a server to a newer Caddy on its own,** so a security release of Caddy reaches a server on its next route change. Applying it without one needs a way to ask, which is a follow-up.
 - **The threat model** is in [docs/security/ingress.md](../security/ingress.md).
+
+## Tests
+
+- **Rules:** every refusal, on its own (`route_test.go`), and the engine's claims on both stores, SQLite and Postgres (`internal/revision/claims_test.go`).
+- **The manager,** on a fake Docker Engine and a fake proxy (`internal/ingress`): ports, the network, the handover and its failures, drift, reconciling, the rollout seam and certificate state.
+- **`DOCKWELL_TEST_CADDY`** names a Caddy binary, and tests whose names end `OnRealCaddy` run it on high ports with its admin API on a unix socket, and the same bootstrap config, to prove the JSON and the reloads are real. `TestARouteFromPlanToRequestAndBackOnRealCaddy` runs the route kind, the manager and real Caddy with a fake Docker Engine alone left out, whose subnet is on loopback, so a test server stands where a container would.
+- **`DOCKWELL_TEST_PEBBLE`** names Pebble's binaries, and those tests get real certificates over HTTP-01 and TLS-ALPN-01, and real failures, on high ports.
+- **`make docker-e2e`** runs it all on real Docker, with Caddy in its container on 80 and 443: taken ports refused by name, the hardening of the container, the network kept to itself, a real certificate from Pebble, a request over HTTPS to a real container, the client's address on both families, a replace, traffic with Dockwell down and through a restart of Caddy, a hand edit reading as drift, the last route freeing the ports, and the certificate reused. `scripts/ingress-tools.sh` fetches the binaries, each checked by SHA-256. CI's Docker job runs all of these.
+- **What only CI can show:** the container's capabilities and user on real Docker, `internal` and `enable_icc` as Docker enforces them, and host networking. No machine this was written on has Docker or root.
