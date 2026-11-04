@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { AuthService, SignInMethod } from "@dockwell/api";
@@ -7,13 +8,14 @@ import { Button, Callout } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
+import { useTimeWords } from "../../lib/time";
 import { passkeysAvailable } from "../../lib/webauthn";
+import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { useAuthError } from "./messages";
 import { PasskeysPanel, useAddPasskey } from "./PasskeysPanel";
 import { SessionsPanel } from "./SessionsPanel";
 import { TotpPanel } from "./TotpPanel";
-import { useAgo } from "./time";
 import { useSignedIn } from "./useAuthState";
 import { useSignOut } from "./useSignOut";
 import "./auth.css";
@@ -83,7 +85,8 @@ function useSignedInWith(method: SignInMethod): string {
 /** At most one callout: the most pressing thing to do on this page. */
 function ProfileCallout({ via, rpId }: { via?: ProfileVia; rpId: string }) {
   const { t } = useLingui();
-  const ago = useAgo();
+  const words = useTimeWords();
+  const now = useControlPlaneNow();
   const transport = useTransport();
   const passkeys = useQuery(AuthService.method.listPasskeys, {});
   const totp = useQuery(AuthService.method.getTotp, {});
@@ -111,7 +114,7 @@ function ProfileCallout({ via, rpId }: { via?: ProfileVia; rpId: string }) {
       }
     };
     const count = state.failedAttempts;
-    const when = ago(state.lockTime);
+    const when = words.ago(timestampDate(state.lockTime), now);
     return (
       <Callout
         tone="critical"

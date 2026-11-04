@@ -86,10 +86,6 @@ msgstr "{cpus} 个 vCPU"
 msgid "{free} free"
 msgstr "可用 {free}"
 
-#: src/features/auth/time.ts
-msgid "{hours} h ago"
-msgstr "{hours} 小时前"
-
 #: src/features/auth/ProfilePage.tsx
 msgid "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
 msgstr "还剩 {left} 个（共 10 个），每个只能用一次。如果你丢了身份验证器应用，请在下方重新设置，这也会生成新的恢复码。"
@@ -97,14 +93,6 @@ msgstr "还剩 {left} 个（共 10 个），每个只能用一次。如果你丢
 #: src/features/servers/ServerMetrics.tsx
 msgid "{memShare} in use"
 msgstr "已使用 {memShare}"
-
-#: src/features/auth/messages.ts
-msgid "{minutes} min"
-msgstr "{minutes} 分钟"
-
-#: src/features/auth/time.ts
-msgid "{minutes} min ago"
-msgstr "{minutes} 分钟前"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "{mount}: {used} used, {free} free, of {size}"
@@ -141,10 +129,6 @@ msgstr "接收 {rx} · 发送 {tx}"
 #: src/app/Providers.tsx
 msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 msgstr "{samples, plural, other {# 个样本的趋势，最新值 {latest}}}"
-
-#: src/features/auth/messages.ts
-msgid "{seconds} s"
-msgstr "{seconds} 秒"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "{share} of {size} used"
@@ -674,10 +658,6 @@ msgstr "任务"
 #: src/features/servers/ServerPanels.tsx
 msgid "Joined"
 msgstr "加入时间"
-
-#: src/features/auth/time.ts
-msgid "just now"
-msgstr "刚刚"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Keep"
@@ -1547,7 +1527,7 @@ msgstr "使用浅色主题"
 msgid "Used"
 msgstr "已用"
 
-#. placeholder {0}: ago(passkey.lastUsedTime)
+#. placeholder {0}: words.ago(timestampDate(passkey.lastUsedTime), now)
 #: src/features/auth/PasskeysPanel.tsx
 msgid "used {0}"
 msgstr "{0}使用过"

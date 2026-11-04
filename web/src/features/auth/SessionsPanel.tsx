@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { AuthService, type Session } from "@dockwell/api";
@@ -7,10 +8,11 @@ import { Button, Icon, Panel } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
+import { useTimeWords } from "../../lib/time";
 import { describeUserAgent } from "../../lib/userAgent";
+import { useControlPlaneNow } from "../servers/useFleet";
 import { useDeviceLabel } from "./device";
 import { useAuthError } from "./messages";
-import { useAgo } from "./time";
 
 /** Where you're signed in, and how to sign any of it out. */
 export function SessionsPanel() {
@@ -21,6 +23,8 @@ export function SessionsPanel() {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
   const others = (sessions.data?.sessions ?? []).filter((s) => !s.current).length;
+  // Last seen is on the control plane's clock, as the server pages' times are.
+  const now = useControlPlaneNow();
 
   const signOutOthers = async () => {
     setBusy(true);
@@ -54,7 +58,7 @@ export function SessionsPanel() {
       {sessions.data ? (
         <ul className="profile-list">
           {sessions.data.sessions.map((s) => (
-            <SessionRow key={s.id} session={s} onEnded={() => void sessions.refetch()} />
+            <SessionRow key={s.id} session={s} now={now} onEnded={() => void sessions.refetch()} />
           ))}
         </ul>
       ) : (
@@ -71,9 +75,9 @@ export function SessionsPanel() {
   );
 }
 
-function SessionRow({ session, onEnded }: { session: Session; onEnded: () => void }) {
+function SessionRow({ session, now, onEnded }: { session: Session; now: number; onEnded: () => void }) {
   const { t } = useLingui();
-  const ago = useAgo();
+  const words = useTimeWords();
   const transport = useTransport();
   const explain = useAuthError();
   const [busy, setBusy] = useState(false);
@@ -81,7 +85,9 @@ function SessionRow({ session, onEnded }: { session: Session; onEnded: () => voi
   const label = useDeviceLabel();
   const device = label(session.userAgent) || t`Unknown browser`;
   const { browser } = describeUserAgent(session.userAgent);
-  const seen = session.current ? t`now` : ago(session.lastSeenTime);
+  let seen = "";
+  if (session.current) seen = t`now`;
+  else if (session.lastSeenTime) seen = words.ago(timestampDate(session.lastSeenTime), now);
 
   const end = async () => {
     setBusy(true);

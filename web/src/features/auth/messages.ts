@@ -4,18 +4,18 @@ import { useLingui } from "@lingui/react/macro";
 import { useCallback } from "react";
 
 import { reasonOf, retryAfter, sentence } from "../../lib/errors";
+import { useTimeWords } from "../../lib/time";
 import { PasskeyError } from "../../lib/webauthn";
 
-/** "32 s", "2 min": a wait the way the product writes durations. */
-export function useWait() {
-  const { t } = useLingui();
+/**
+ * "32 s", "2 min": a wait the way the product writes durations, rounded up
+ * to the minute from a minute on, so trying again after it works.
+ */
+function useWait() {
+  const words = useTimeWords();
   return useCallback(
-    (seconds: number) => {
-      if (seconds < 60) return t`${seconds} s`;
-      const minutes = Math.ceil(seconds / 60);
-      return t`${minutes} min`;
-    },
-    [t],
+    (seconds: number) => words.span(seconds < 60 ? seconds * 1_000 : Math.ceil(seconds / 60) * 60_000),
+    [words],
   );
 }
 

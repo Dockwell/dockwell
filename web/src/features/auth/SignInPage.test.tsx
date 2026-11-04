@@ -110,17 +110,22 @@ describe("SignInPage", () => {
     );
   });
 
-  it("says how long to wait after too many wrong codes", async () => {
+  it.each([
+    [32, "32 s"],
+    // Rounded up, so trying again after the wait works.
+    [90, "2 min"],
+    [900, "15 min"],
+  ])("says how long to wait after too many wrong codes: %d s as %s", async (seconds, wait) => {
     stubPasskeys();
     renderAt(
       "/sign-in",
-      api({ signInWithCode: () => Promise.reject(authError(Code.ResourceExhausted, "slow_down", "x", 32)) }),
+      api({ signInWithCode: () => Promise.reject(authError(Code.ResourceExhausted, "slow_down", "x", seconds)) }),
     );
     await userEvent.click(await screen.findByRole("button", { name: "Use a code from your authenticator app" }));
     await userEvent.type(screen.getByLabelText("Email"), "mira@acme.dev");
     await userEvent.type(screen.getByLabelText("Code"), "123456");
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Too many wrong codes. Wait 32 s, then try again.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(`Too many wrong codes. Wait ${wait}, then try again.`);
   });
 
   it("checks a code's shape before sending it", async () => {

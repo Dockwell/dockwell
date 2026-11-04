@@ -21,7 +21,7 @@ const laptop = create(PasskeySchema, {
   name: "Chrome on macOS",
   rpId: "localhost",
   createTime: timestampFromDate(new Date(2026, 2, 12)),
-  lastUsedTime: minutesAgo(0),
+  lastUsedTime: minutesAgo(5),
   synced: true,
 });
 const yubikey = create(PasskeySchema, {
@@ -71,7 +71,7 @@ describe("ProfilePage", () => {
     const keys = within(screen.getByRole("region", { name: "Passkeys" }));
     const [first, second] = await keys.findAllByRole("listitem");
     expect(first).toHaveTextContent("Chrome on macOS");
-    expect(first).toHaveTextContent("Works here · Added 12 Mar · used just now · Synced");
+    expect(first).toHaveTextContent("Works here · Added 12 Mar · used 5 min ago · Synced");
     expect(second).toHaveTextContent("Works on panel.acme.dev · Added 4 Jun · never used");
 
     const list = within(screen.getByRole("region", { name: "Sessions" }));
@@ -98,6 +98,32 @@ describe("ProfilePage", () => {
   it("leaves out how you signed in when the panel doesn't know the way", async () => {
     renderAt("/profile", api({ getAuthState: () => authState({ signInMethod: SignInMethod.UNSPECIFIED }) }));
     expect(await screen.findByText("Mira Chen · mira@acme.dev", { exact: true })).toHaveClass("page-lead");
+  });
+
+  it("words times as the server pages do, and keeps them current", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const secondsAgo = (s: number) => timestampFromDate(new Date(Date.now() - s * 1_000));
+      renderAt(
+        "/profile",
+        api({
+          listPasskeys: () => ({ passkeys: [create(PasskeySchema, { ...laptop, lastUsedTime: secondsAgo(30) })] }),
+          listSessions: () => ({ sessions: [sessions[0], { ...sessions[1], lastSeenTime: secondsAgo(40) }] }),
+        }),
+      );
+      const keys = within(await screen.findByRole("region", { name: "Passkeys" }));
+      const [key] = await keys.findAllByRole("listitem");
+      expect(key).toHaveTextContent(/used 3\d s ago/);
+      const list = within(screen.getByRole("region", { name: "Sessions" }));
+      const [, phone] = await list.findAllByRole("listitem");
+      expect(phone).toHaveTextContent(/panel\.acme\.dev · 4\d s ago/);
+
+      await act(() => vi.advanceTimersByTimeAsync(60_000));
+      expect(key).toHaveTextContent("used 1 min ago");
+      expect(phone).toHaveTextContent("panel.acme.dev · 1 min ago");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("signs out another session", async () => {
@@ -161,7 +187,7 @@ describe("ProfilePage", () => {
             enabled: true,
             recoveryCodesLeft: 10,
             failedAttempts: 10,
-            ...(locked ? { lockTime: minutesAgo(3) } : {}),
+            ...(locked ? { lockTime: minutesAgo(3.5) } : {}),
           }),
         }),
         unlockCodeSignIn,

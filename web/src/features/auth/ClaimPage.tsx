@@ -10,13 +10,13 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useEffect, useId, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
+import { useNow, useTimeWords } from "../../lib/time";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import { createPasskey, passkeysAvailable } from "../../lib/webauthn";
 import { CopyCommand } from "../system/CopyCommand";
 import { StandalonePage } from "../system/StandalonePage";
 import { useDeviceName } from "./device";
 import { useAuthError } from "./messages";
-import { useAgo } from "./time";
 import { useAuthState, useRefreshAuth } from "./useAuthState";
 import "./auth.css";
 import "./ClaimPage.css";
@@ -291,7 +291,8 @@ const CONNECTION: Record<Connection, Status> = {
 
 function ThisServer({ server, claim }: { server: Server; claim: CheckClaimResponse | undefined }) {
   const { t, i18n } = useLingui();
-  const ago = useAgo();
+  const words = useTimeWords();
+  const now = useNow();
   const inv = server.inventory;
   const disk = inv?.disks[0];
   const size = [
@@ -356,7 +357,9 @@ function ThisServer({ server, claim }: { server: Server; claim: CheckClaimRespon
               <Trans>Installed</Trans>
             </dt>
             <dd>
-              <time dateTime={timestampDate(server.createTime).toISOString()}>{ago(server.createTime)}</time>
+              <time dateTime={timestampDate(server.createTime).toISOString()}>
+                {words.ago(timestampDate(server.createTime), now)}
+              </time>
             </dd>
           </>
         ) : null}
@@ -385,16 +388,6 @@ function LinkExpiry({ at }: { at: number }) {
   if (hours >= 1) return <>{t`in ${hours} h`}</>;
   const minutes = Math.floor(ms / 60_000);
   return <>{minutes >= 1 ? t`in ${minutes} min` : t`in under a minute`}</>;
-}
-
-/** The time now, read again every interval ms. */
-function useNow(interval: number): number {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), interval);
-    return () => clearInterval(timer);
-  }, [interval]);
-  return now;
 }
 
 function WhatHappensNext() {

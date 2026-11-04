@@ -86,10 +86,6 @@ msgstr "{cpus} vCPU"
 msgid "{free} free"
 msgstr "{free} free"
 
-#: src/features/auth/time.ts
-msgid "{hours} h ago"
-msgstr "{hours} h ago"
-
 #: src/features/auth/ProfilePage.tsx
 msgid "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
 msgstr "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
@@ -97,14 +93,6 @@ msgstr "{left} of 10 are left, and each works once. If you lost your authenticat
 #: src/features/servers/ServerMetrics.tsx
 msgid "{memShare} in use"
 msgstr "{memShare} in use"
-
-#: src/features/auth/messages.ts
-msgid "{minutes} min"
-msgstr "{minutes} min"
-
-#: src/features/auth/time.ts
-msgid "{minutes} min ago"
-msgstr "{minutes} min ago"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "{mount}: {used} used, {free} free, of {size}"
@@ -141,10 +129,6 @@ msgstr "{rx} in · {tx} out"
 #: src/app/Providers.tsx
 msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 msgstr "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
-
-#: src/features/auth/messages.ts
-msgid "{seconds} s"
-msgstr "{seconds} s"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "{share} of {size} used"
@@ -674,10 +658,6 @@ msgstr "job"
 #: src/features/servers/ServerPanels.tsx
 msgid "Joined"
 msgstr "Joined"
-
-#: src/features/auth/time.ts
-msgid "just now"
-msgstr "just now"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Keep"
@@ -1547,7 +1527,7 @@ msgstr "Use the light theme"
 msgid "Used"
 msgstr "Used"
 
-#. placeholder {0}: ago(passkey.lastUsedTime)
+#. placeholder {0}: words.ago(timestampDate(passkey.lastUsedTime), now)
 #: src/features/auth/PasskeysPanel.tsx
 msgid "used {0}"
 msgstr "used {0}"
