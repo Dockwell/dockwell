@@ -26,16 +26,24 @@ case " $ID ${ID_LIKE:-} " in
 	;;
 *" rhel "* | *" fedora "*)
 	# curl-minimal is already there, and conflicts with the curl package. A
-	# slow mirror can stall dnf for good, so each try has a deadline, and dnf
-	# moves to another mirror when one stops answering.
+	# slow mirror can stall dnf for good, so each try has a deadline. The
+	# first picks the fastest mirror from the list; if the list keeps handing
+	# out slow ones, later tries go to the distribution's own repository
+	# server instead, where its repo files name one.
 	for try in 1 2 3; do
 		timeout 240 dnf install -y -q --setopt=timeout=30 --setopt=retries=3 --setopt=install_weak_deps=False \
+			--setopt=fastestmirror=True --setopt=max_parallel_downloads=10 \
 			tar gzip systemd >/dev/null && break
 		[ "$try" -lt 3 ] || {
 			echo "prepare.sh: dnf couldn't install the packages after 3 tries." >&2
 			exit 1
 		}
-		echo "prepare.sh: dnf didn't finish; trying again." >&2
+		if grep -qs '^# *baseurl=' /etc/yum.repos.d/*.repo; then
+			echo "prepare.sh: dnf didn't finish; trying again from the distribution's own repository server." >&2
+			sed -i -e 's/^mirrorlist=/#mirrorlist=/' -e 's/^# *baseurl=/baseurl=/' /etc/yum.repos.d/*.repo
+		else
+			echo "prepare.sh: dnf didn't finish; trying again." >&2
+		fi
 		dnf clean metadata >/dev/null 2>&1 || true
 	done
 	;;
