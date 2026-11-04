@@ -51,7 +51,7 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
           other: `Trend over # samples, latest ${latest}`,
         });
       },
-      trend: (label) => t`${label} trend`,
+      trend: t({ message: "trend", comment: "Read after a metric's name to name its chart, as in “CPU trend”." }),
       tableEmpty: t`Nothing here yet.`,
       fleetGrid: {
         servers: (count) => plural(count, { one: "# server", other: "# servers" }),

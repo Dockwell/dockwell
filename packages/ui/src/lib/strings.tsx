@@ -47,8 +47,8 @@ export interface UIStrings {
   };
   /** Sparkline: default accessible name, given the number of samples and the latest value. */
   sparkline: (samples: number, latest: number) => string;
-  /** Metric: accessible name of its sparkline, given the metric's label. */
-  trend: (label: string) => string;
+  /** Metric: read after the metric's label to name its sparkline, as in "CPU trend". */
+  trend: string;
   /** Table: shown when there are no rows and the caller gave no empty state. */
   tableEmpty: string;
   fleetGrid: {
@@ -128,7 +128,7 @@ export const englishStrings: UIStrings = {
   },
   sparkline: (samples, latest) =>
     `Trend over ${one(samples, "sample", "samples")}, latest ${latest.toLocaleString("en", { maximumFractionDigits: 2 })}`,
-  trend: (label) => `${label} trend`,
+  trend: "trend",
   tableEmpty: "Nothing here yet.",
   fleetGrid: {
     servers: (n) => one(n, "server", "servers"),

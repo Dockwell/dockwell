@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 
 import { cx, hasContent } from "../../lib/cx";
 import { useUIStrings } from "../../lib/strings";
@@ -47,11 +47,13 @@ export function Metric({
   className,
 }: MetricProps) {
   const strings = useUIStrings();
+  const labelId = useId();
+  const trendId = useId();
   return (
     <div className={cx("dw-metric", className)}>
       <div className="dw-metric-label">
         {icon ? <Icon name={icon} size={14} /> : null}
-        <span>{label}</span>
+        <span id={labelId}>{label}</span>
       </div>
       <div className="dw-metric-row">
         <span className="dw-metric-value">{value}</span>
@@ -61,16 +63,22 @@ export function Metric({
         ) : null}
       </div>
       {data ? (
-        <Sparkline
-          data={data}
-          tone={tone}
-          threshold={threshold}
-          width="100%"
-          height={36}
-          min={min}
-          max={max}
-          label={typeof label === "string" ? strings.trend(label) : undefined}
-        />
+        <>
+          {/* The sparkline is named by the label it sits under, whatever the label holds, and the word after it. */}
+          <span id={trendId} hidden>
+            {strings.trend}
+          </span>
+          <Sparkline
+            data={data}
+            tone={tone}
+            threshold={threshold}
+            width="100%"
+            height={36}
+            min={min}
+            max={max}
+            aria-labelledby={`${labelId} ${trendId}`}
+          />
+        </>
       ) : null}
       {hasContent(caption) ? <div className="dw-metric-caption">{caption}</div> : null}
     </div>

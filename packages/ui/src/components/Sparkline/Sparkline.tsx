@@ -22,6 +22,8 @@ export interface SparklineProps {
   area?: boolean;
   /** Accessible name. Sparklines show shape, not values, so say what the series is and where it ends. */
   label?: string;
+  /** Names the sparkline by text already on the page instead, such as the label of the metric it sits under. */
+  "aria-labelledby"?: string;
   className?: string;
 }
 
@@ -39,6 +41,7 @@ export function Sparkline({
   threshold,
   area = true,
   label,
+  "aria-labelledby": labelledBy,
   className,
 }: SparklineProps) {
   const strings = useUIStrings();
@@ -66,7 +69,8 @@ export function Sparkline({
       width={width}
       height={height}
       role="img"
-      aria-label={label ?? strings.sparkline(data.length, latest)}
+      aria-label={labelledBy ? undefined : (label ?? strings.sparkline(data.length, latest))}
+      aria-labelledby={labelledBy}
       focusable="false"
     >
       {area ? <path d={`${line}L${W} ${height}L0 ${height}Z`} className="dw-spark-area" /> : null}

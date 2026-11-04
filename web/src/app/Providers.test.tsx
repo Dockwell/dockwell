@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { CommandBar, FleetGrid, PlanDiff, Sparkline } from "@dockwell/ui";
+import { CommandBar, FleetGrid, Metric, PlanDiff, Sparkline } from "@dockwell/ui";
 import { act, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -24,6 +24,7 @@ function DesignSystemWords() {
           { id: "y", action: "replace", kind: "database", name: "postgres" },
         ]}
       />
+      <Metric label={<b>CPU</b>} value="23" unit="%" data={[20, 23]} />
     </>
   );
 }
@@ -41,6 +42,7 @@ describe("Providers", () => {
     expect(screen.getByText("Acme / storefront").tagName).toBe("B");
     expect(screen.getByText("Update in place")).toBeVisible();
     expect(screen.getByText("to replace")).toBeVisible();
+    expect(screen.getByRole("img", { name: "CPU trend" })).toBeVisible();
   });
 
   it("translates them when the locale changes", async () => {
@@ -55,5 +57,6 @@ describe("Providers", () => {
     expect(screen.getByText("原地更新")).toBeVisible();
     expect(screen.getByText("应用")).toBeVisible();
     expect(screen.getByText("项待替换")).toBeVisible();
+    expect(screen.getByRole("img", { name: "CPU 趋势" })).toBeVisible();
   });
 });

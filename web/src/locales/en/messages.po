@@ -48,10 +48,6 @@ msgid "{count} stopped"
 msgstr "{count} stopped"
 
 #: src/app/Providers.tsx
-msgid "{label} trend"
-msgstr "{label} trend"
-
-#: src/app/Providers.tsx
 msgid "{name}, {status}"
 msgstr "{name}, {status}"
 
@@ -361,6 +357,11 @@ msgstr "to replace"
 #: src/app/Providers.tsx
 msgid "to run"
 msgstr "to run"
+
+#. Read after a metric's name to name its chart, as in “CPU trend”.
+#: src/app/Providers.tsx
+msgid "trend"
+msgstr "trend"
 
 #: src/app/Providers.tsx
 msgid "Undo"

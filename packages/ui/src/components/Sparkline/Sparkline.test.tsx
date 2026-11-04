@@ -54,6 +54,17 @@ describe("Sparkline", () => {
     expect(screen.getByRole("img", { name: "No data yet" })).toBeVisible();
   });
 
+  it("can be named by text already on the page", () => {
+    render(
+      <>
+        <span id="spark-name">Requests on api</span>
+        <Sparkline data={[1, 2]} aria-labelledby="spark-name" />
+      </>,
+    );
+    const spark = screen.getByRole("img", { name: "Requests on api" });
+    expect(spark).not.toHaveAttribute("aria-label");
+  });
+
   it("uses the translated default name", () => {
     render(
       <UIStringsProvider

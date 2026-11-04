@@ -48,10 +48,6 @@ msgid "{count} stopped"
 msgstr "{count} 台已停止"
 
 #: src/app/Providers.tsx
-msgid "{label} trend"
-msgstr "趋势：{label}"
-
-#: src/app/Providers.tsx
 msgid "{name}, {status}"
 msgstr "{name}，{status}"
 
@@ -361,6 +357,11 @@ msgstr "项待替换"
 #: src/app/Providers.tsx
 msgid "to run"
 msgstr "运行"
+
+#. Read after a metric's name to name its chart, as in “CPU trend”.
+#: src/app/Providers.tsx
+msgid "trend"
+msgstr "趋势"
 
 #: src/app/Providers.tsx
 msgid "Undo"

@@ -42,14 +42,15 @@ describe("Metric", () => {
     expect(screen.getByText("+0.2").className).toBe("dw-metric-delta");
   });
 
-  it("names the sparkline with the translated pattern, or the default when the label isn't text", () => {
+  it("names each sparkline by its label, whatever the label holds, in the app's language", () => {
     render(
-      <UIStringsProvider strings={{ ...englishStrings, trend: (label) => `${label}趋势` }}>
+      <UIStringsProvider strings={{ ...englishStrings, trend: "趋势" }}>
         <Metric label="CPU" value="23.4" unit="%" data={[20, 23.4]} />
+        {/* The panel passes translated elements, such as <Trans>. */}
         <Metric label={<b>Disk</b>} value="61" data={[60, 61]} />
       </UIStringsProvider>,
     );
-    expect(screen.getByRole("img", { name: "CPU趋势" })).toBeVisible();
-    expect(screen.getByRole("img", { name: "Trend over 2 samples, latest 61" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "CPU 趋势" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "Disk 趋势" })).toBeVisible();
   });
 });
