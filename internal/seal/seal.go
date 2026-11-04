@@ -71,6 +71,24 @@ func Load(path string) (*Key, error) {
 	return LoadOrCreate(path)
 }
 
+// Commit moves the key at from to path once what it seals is on record,
+// and syncs the directory so the move survives a crash. The move is
+// atomic: path has the whole key or none.
+func Commit(from, path string) error {
+	if err := os.Rename(from, path); err != nil {
+		return fmt.Errorf("can't move the key from %s to %s: %w", from, path, err)
+	}
+	dir, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return fmt.Errorf("can't sync %s: %w", filepath.Dir(path), err)
+	}
+	defer dir.Close()
+	if err := dir.Sync(); err != nil {
+		return fmt.Errorf("can't sync %s: %w", filepath.Dir(path), err)
+	}
+	return nil
+}
+
 func writeKey(path string, raw []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("can't create %s: %w", filepath.Dir(path), err)

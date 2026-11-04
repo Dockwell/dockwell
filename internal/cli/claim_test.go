@@ -27,13 +27,21 @@ var linkRE = regexp.MustCompile(`(https?://\S+)/(claim|recover)#(\S+)`)
 // stop is called, and returns its standard output once it contains want.
 func startRunWithOutput(t *testing.T, dir, want string, args ...string) (out *syncBuffer, stop func()) {
 	t.Helper()
+	out, _, stop = startRunWithLogs(t, dir, want, args...)
+	return out, stop
+}
+
+// startRunWithLogs is startRunWithOutput that also returns what dockwell
+// run logged.
+func startRunWithLogs(t *testing.T, dir, want string, args ...string) (out, logs *syncBuffer, stop func()) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan int, 1)
 	out = &syncBuffer{}
-	var errOut syncBuffer
+	errOut := &syncBuffer{}
 	all := append([]string{"run", "--listen", "127.0.0.1:0", "--agent-listen", "127.0.0.1:0", "--data-dir", dir, "--log-format", "json"}, args...)
 	go func() {
-		done <- Execute(ctx, all, IO{Out: out, Err: &errOut, Getenv: func(k string) string {
+		done <- Execute(ctx, all, IO{Out: out, Err: errOut, Getenv: func(k string) string {
 			return map[string]string{"USER": "mira", "SSH_CONNECTION": "198.51.100.23 52000 203.0.113.7 22"}[k]
 		}})
 	}()
@@ -56,7 +64,7 @@ func startRunWithOutput(t *testing.T, dir, want string, args ...string) (out *sy
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	return out, stop
+	return out, errOut, stop
 }
 
 // claimOverHTTP claims the install from link with a software passkey, as

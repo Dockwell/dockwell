@@ -4,7 +4,6 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -17,6 +16,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 // clock is a test clock that only moves when told to.
@@ -43,7 +43,7 @@ type fixture struct {
 	key    *seal.Key
 	clock  *clock
 	logs   *logBuffer // what every Service of the fixture logged
-	path   string     // the database file
+	path   string     // where the database is, for store.Open
 	domain string
 }
 
@@ -65,19 +65,13 @@ func (l *logBuffer) String() string {
 	return l.b.String()
 }
 
-func newFixture(t *testing.T, domain string) *fixture {
+func newFixture(t *testing.T, backend store.Backend, domain string) *fixture {
 	t.Helper()
-	dir := t.TempDir()
-	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
+	key, err := seal.LoadOrCreate(filepath.Join(t.TempDir(), "key"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(dir, "state.db")
-	db, err := store.Open(t.Context(), path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db, path := storetest.Open(t, backend)
 	// Mid-step, so ±1 step tests aren't at a boundary.
 	c := &clock{t: time.Date(2026, 11, 4, 9, 30, 15, 0, time.UTC)}
 	f := &fixture{db: db, key: key, clock: c, logs: &logBuffer{}, path: path, domain: domain}
@@ -101,20 +95,6 @@ func (f *fixture) restart(t *testing.T) *Service {
 		t.Fatal(err)
 	}
 	return svc
-}
-
-// execSQL runs a statement on the fixture's database from outside the
-// store, to make its writes fail as a full disk or a bug elsewhere would.
-func (f *fixture) execSQL(t *testing.T, query string) {
-	t.Helper()
-	db, err := sql.Open("sqlite", "file:"+f.path+"?_pragma=busy_timeout(5000)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	if _, err := db.ExecContext(t.Context(), query); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // auditDetails returns the details of every event with action, oldest first.
@@ -212,7 +192,11 @@ func contains(list []string, want string) bool {
 }
 
 func TestClaimThenSignInWithAPasskey(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testClaimThenSignInWithAPasskey)
+}
+
+func testClaimThenSignInWithAPasskey(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	a := &authtest.Authenticator{}
 	if claimed, _ := f.svc.Claimed(t.Context()); claimed {
 		t.Fatal("a new install is claimed")
@@ -247,8 +231,10 @@ func TestClaimThenSignInWithAPasskey(t *testing.T) {
 	}
 }
 
-func TestClaimLinkWorksOnce(t *testing.T) {
-	f := newFixture(t, "")
+func TestClaimLinkWorksOnce(t *testing.T) { storetest.Each(t, testClaimLinkWorksOnce) }
+
+func testClaimLinkWorksOnce(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	a := &authtest.Authenticator{}
 	link, err := f.svc.CreateClaimLink(t.Context(), "test")
 	if err != nil {
@@ -279,8 +265,10 @@ func TestClaimLinkWorksOnce(t *testing.T) {
 	}
 }
 
-func TestClaimLinkRejections(t *testing.T) {
-	f := newFixture(t, "")
+func TestClaimLinkRejections(t *testing.T) { storetest.Each(t, testClaimLinkRejections) }
+
+func testClaimLinkRejections(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	old, err := f.svc.CreateClaimLink(t.Context(), "test")
 	if err != nil {
 		t.Fatal(err)
@@ -313,7 +301,11 @@ func TestClaimLinkRejections(t *testing.T) {
 // A claim whose passkey fails verification logs go-webauthn's reason, as
 // adding a passkey does, and tells the browser only that it was refused.
 func TestARefusedClaimPasskeyIsLogged(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testARefusedClaimPasskeyIsLogged)
+}
+
+func testARefusedClaimPasskeyIsLogged(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	link, err := f.svc.CreateClaimLink(t.Context(), "test")
 	if err != nil {
 		t.Fatal(err)
@@ -351,7 +343,11 @@ func protocolDetailOf(t *testing.T, err error) string {
 }
 
 func TestClaimExpiresBetweenBeginAndFinish(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testClaimExpiresBetweenBeginAndFinish)
+}
+
+func testClaimExpiresBetweenBeginAndFinish(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	a := &authtest.Authenticator{}
 	link, _ := f.svc.CreateClaimLink(t.Context(), "test")
 	f.clock.advance(ClaimLinkTTL - time.Minute)
@@ -369,8 +365,10 @@ func TestClaimExpiresBetweenBeginAndFinish(t *testing.T) {
 	}
 }
 
-func TestRacingClaimsMakeOneOwner(t *testing.T) {
-	f := newFixture(t, "")
+func TestRacingClaimsMakeOneOwner(t *testing.T) { storetest.Each(t, testRacingClaimsMakeOneOwner) }
+
+func testRacingClaimsMakeOneOwner(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	link, err := f.svc.CreateClaimLink(t.Context(), "test")
 	if err != nil {
 		t.Fatal(err)
@@ -426,8 +424,10 @@ func TestRacingClaimsMakeOneOwner(t *testing.T) {
 	}
 }
 
-func TestTheSchemaAllowsOneOwner(t *testing.T) {
-	f := newFixture(t, "")
+func TestTheSchemaAllowsOneOwner(t *testing.T) { storetest.Each(t, testTheSchemaAllowsOneOwner) }
+
+func testTheSchemaAllowsOneOwner(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	err := f.db.Update(t.Context(), func(tx *store.Tx) error {
 		for i, email := range []string{"a@acme.dev", "b@acme.dev"} {
 			if err := tx.CreateUser(t.Context(), store.User{
@@ -445,7 +445,11 @@ func TestTheSchemaAllowsOneOwner(t *testing.T) {
 }
 
 func TestClaimNeedsTheSameSiteAndToken(t *testing.T) {
-	f := newFixture(t, "panel.acme.dev")
+	storetest.Each(t, testClaimNeedsTheSameSiteAndToken)
+}
+
+func testClaimNeedsTheSameSiteAndToken(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "panel.acme.dev")
 	a := &authtest.Authenticator{}
 	link, _ := f.svc.CreateClaimLink(t.Context(), "test")
 	other, _ := f.svc.CreateClaimLink(t.Context(), "test") // replaces link
@@ -474,8 +478,10 @@ func TestClaimNeedsTheSameSiteAndToken(t *testing.T) {
 	}
 }
 
-func TestUserVerificationIsRequired(t *testing.T) {
-	f := newFixture(t, "")
+func TestUserVerificationIsRequired(t *testing.T) { storetest.Each(t, testUserVerificationIsRequired) }
+
+func testUserVerificationIsRequired(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	link, _ := f.svc.CreateClaimLink(t.Context(), "test")
 	cer, _ := f.svc.BeginClaim(t.Context(), localhost, link.Token, "Mira", "mira@acme.dev")
 	lazy := &authtest.Authenticator{SkipUserVerification: true}
@@ -493,7 +499,11 @@ func TestUserVerificationIsRequired(t *testing.T) {
 }
 
 func TestPasskeysWorkOnlyOnTheirAddress(t *testing.T) {
-	f := newFixture(t, "panel.acme.dev")
+	storetest.Each(t, testPasskeysWorkOnlyOnTheirAddress)
+}
+
+func testPasskeysWorkOnlyOnTheirAddress(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "panel.acme.dev")
 	a := &authtest.Authenticator{}
 	f.claim(t, localhost, a)
 	local := a.Credentials()[0]
@@ -508,8 +518,10 @@ func TestPasskeysWorkOnlyOnTheirAddress(t *testing.T) {
 	}
 }
 
-func TestAddAPasskeyForANewAddress(t *testing.T) {
-	f := newFixture(t, "panel.acme.dev")
+func TestAddAPasskeyForANewAddress(t *testing.T) { storetest.Each(t, testAddAPasskeyForANewAddress) }
+
+func testAddAPasskeyForANewAddress(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "panel.acme.dev")
 	a := &authtest.Authenticator{}
 	owner := f.claim(t, localhost, a)
 
@@ -556,7 +568,11 @@ func TestAddAPasskeyForANewAddress(t *testing.T) {
 }
 
 func TestAPasskeyThatCountsBackwardsIsTreatedAsCopied(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testAPasskeyThatCountsBackwardsIsTreatedAsCopied)
+}
+
+func testAPasskeyThatCountsBackwardsIsTreatedAsCopied(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	a := &authtest.Authenticator{Counter: true}
 	f.claim(t, localhost, a)
 	if _, err := f.passkeySignIn(t, localhost, a, nil); err != nil {
@@ -581,8 +597,10 @@ func TestAPasskeyThatCountsBackwardsIsTreatedAsCopied(t *testing.T) {
 	}
 }
 
-func TestSyncedPasskeysCountZero(t *testing.T) {
-	f := newFixture(t, "")
+func TestSyncedPasskeysCountZero(t *testing.T) { storetest.Each(t, testSyncedPasskeysCountZero) }
+
+func testSyncedPasskeysCountZero(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	a := &authtest.Authenticator{Synced: true}
 	owner := f.claim(t, localhost, a)
 	for range 3 {
@@ -596,8 +614,10 @@ func TestSyncedPasskeysCountZero(t *testing.T) {
 	}
 }
 
-func TestUnknownPasskeysAreRefused(t *testing.T) {
-	f := newFixture(t, "")
+func TestUnknownPasskeysAreRefused(t *testing.T) { storetest.Each(t, testUnknownPasskeysAreRefused) }
+
+func testUnknownPasskeysAreRefused(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	f.claim(t, localhost, &authtest.Authenticator{})
 	stranger := &authtest.Authenticator{}
 	cer, _ := f.svc.BeginSignIn(t.Context(), localhost)
@@ -612,8 +632,10 @@ func TestUnknownPasskeysAreRefused(t *testing.T) {
 	}
 }
 
-func TestCeremoniesExpire(t *testing.T) {
-	f := newFixture(t, "")
+func TestCeremoniesExpire(t *testing.T) { storetest.Each(t, testCeremoniesExpire) }
+
+func testCeremoniesExpire(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	a := &authtest.Authenticator{}
 	f.claim(t, localhost, a)
 	cer, _ := f.svc.BeginSignIn(t.Context(), localhost)
@@ -624,8 +646,10 @@ func TestCeremoniesExpire(t *testing.T) {
 	}
 }
 
-func TestSignInNeedsAHostname(t *testing.T) {
-	f := newFixture(t, "")
+func TestSignInNeedsAHostname(t *testing.T) { storetest.Each(t, testSignInNeedsAHostname) }
+
+func testSignInNeedsAHostname(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	ip := Client{Site: Site{Origin: "http://127.0.0.1:7600"}, Addr: "127.0.0.1:1"}
 	if _, err := f.svc.BeginSignIn(t.Context(), ip); !errors.Is(err, ErrNeedsHostname) {
 		t.Errorf("BeginSignIn on an IP = %v, want ErrNeedsHostname", err)
@@ -638,7 +662,11 @@ func TestSignInNeedsAHostname(t *testing.T) {
 // Each site's relying party is made once and kept, and the number kept is
 // bounded however many tunnel ports ask.
 func TestRelyingPartiesAreKeptPerSite(t *testing.T) {
-	f := newFixture(t, "panel.acme.dev")
+	storetest.Each(t, testRelyingPartiesAreKeptPerSite)
+}
+
+func testRelyingPartiesAreKeptPerSite(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "panel.acme.dev")
 	first, err := f.svc.relyingParty(localhost.Site)
 	if err != nil {
 		t.Fatal(err)

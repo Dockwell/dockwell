@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package resource is the model every managed thing shares: a kind, the
-// server it lives on, a name, and a spec. Each kind has a driver that
-// observes, plans, applies and verifies it on its server. The revision
-// package builds history, plans, undo and drift on top, the same way for
-// every kind. See docs/adr/0009-resources-revisions-and-plans.md.
+// scope it lives in, a name, and a spec. A kind's level says what its
+// scope is: a server for host-level kinds, an environment for services, a
+// project for environments, and the organization for projects. Each kind
+// that runs on servers has a driver that observes, plans, applies and
+// verifies it there. The revision package builds history, plans, undo and
+// drift on top, the same way for every kind. See
+// docs/adr/0009-resources-revisions-and-plans.md and
+// docs/adr/0014-object-model-and-store.md.
 package resource
 
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -20,12 +25,48 @@ type Kind string
 
 // Ref names one resource.
 type Ref struct {
-	Kind   Kind
-	Server string // the server's ID
-	Name   string // unique among resources of the kind on the server
+	Kind Kind
+	// Scope is the ID of what the resource lives in, which its kind's level
+	// says: a server (srv_…), an environment (env_…), a project (prj_…) or
+	// the organization (org_…).
+	Scope string
+	Name  string // unique among resources of the kind in the scope
 }
 
-func (r Ref) String() string { return fmt.Sprintf("%s %s on %s", r.Kind, r.Name, r.Server) }
+func (r Ref) String() string { return fmt.Sprintf("%s %s in %s", r.Kind, r.Name, r.Scope) }
+
+// Level says what a kind's resources live in, and so where applying them
+// runs.
+type Level int
+
+// Levels.
+const (
+	// LevelServer kinds are host-level: each lives on one server and
+	// applies there, such as a firewall rule or a container run by hand.
+	LevelServer Level = iota + 1
+	// LevelEnvironment kinds live in an environment and are placed on
+	// servers, where each revision is deployed, such as a service.
+	LevelEnvironment
+	// LevelProject kinds live in a project, and apply on the control plane
+	// alone, such as an environment.
+	LevelProject
+	// LevelOrganization kinds live in the organization, and apply on the
+	// control plane alone, such as a project.
+	LevelOrganization
+)
+
+var levelNames = [...]string{"", "server", "environment", "project", "organization"}
+
+func (l Level) String() string {
+	if l > 0 && int(l) < len(levelNames) {
+		return levelNames[l]
+	}
+	return fmt.Sprintf("level(%d)", int(l))
+}
+
+// RunsOnServers reports whether the level's resources are applied on
+// servers, rather than on the control plane alone.
+func (l Level) RunsOnServers() bool { return l == LevelServer || l == LevelEnvironment }
 
 // Action is what applying does to one resource.
 type Action int
@@ -92,20 +133,58 @@ type Step struct {
 	Changes []Change
 }
 
-// Driver manages one kind of resource on a server. Drivers run where the
-// resource is: on the agent.
-type Driver interface {
-	// Kind is the kind this driver manages.
+// Type is what the control plane knows of a kind: its spec's message, its
+// level, and how to check a spec.
+type Type interface {
+	// Kind is the kind this type describes.
 	Kind() Kind
+	// Level says what the kind's resources live in.
+	Level() Level
 	// New returns an empty spec of the kind's message type.
 	New() proto.Message
 	// Validate checks a spec and fills in its defaults in place, so specs
 	// that mean the same thing compare equal.
 	Validate(spec proto.Message) error
+}
+
+// IDPrefixer is a Type whose resources' IDs say what they are, such as
+// "env" for environments. Others get "res".
+type IDPrefixer interface {
+	IDPrefix() string
+}
+
+// NameChecker is a Type that takes only some names, such as names that fit
+// in a URL. Kinds without one take any name that isn't blank.
+type NameChecker interface {
+	// CheckName says why a name won't do, with an example of one that
+	// would.
+	CheckName(name string) error
+}
+
+var labelRE = regexp.MustCompile(`^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`)
+
+// CheckLabel requires a name that is a DNS label, so it fits in URLs, in
+// hostnames such as a service's URL, and on the command line: 1 to 63
+// lowercase letters, digits and dashes, starting with a letter and ending
+// with a letter or digit. Projects, environments and services take such
+// names. what names the kind, and example is a name that would do.
+func CheckLabel(what, name, example string) error {
+	if !labelRE.MatchString(name) {
+		return fmt.Errorf("%q isn't a valid %s name: use up to 63 lowercase letters, digits and dashes, starting with a letter and ending with a letter or digit, such as %s",
+			name, what, example)
+	}
+	return nil
+}
+
+// Driver manages one kind of resource on a server. Drivers run where the
+// resource is: on the agent. Kinds whose level doesn't run on servers have
+// a Type and no driver.
+type Driver interface {
+	Type
 	// Observe returns the resource as it is on the server, as a spec, or
 	// nil if it doesn't exist. It holds intent only: nothing the server
 	// adds, such as IDs or start times, or every check would see drift.
-	Observe(ctx context.Context, name string) (proto.Message, error)
+	Observe(ctx context.Context, ref Ref) (proto.Message, error)
 	// Plan judges moving the resource from actual to desired, which differ
 	// in changes. A nil actual means create, a nil desired delete.
 	Plan(actual, desired proto.Message, changes []Change) (Decision, error)
@@ -113,28 +192,52 @@ type Driver interface {
 	Apply(ctx context.Context, step Step, desired proto.Message) error
 	// Verify confirms the resource is healthy, once the caller has checked
 	// it matches desired. It isn't called after a deletion.
-	Verify(ctx context.Context, name string, desired proto.Message) error
+	Verify(ctx context.Context, ref Ref, desired proto.Message) error
 }
 
-// Registry holds the drivers for each kind.
+// Registry holds the type, and the driver where there is one, of each
+// kind.
 type Registry struct {
-	drivers map[Kind]Driver
+	types map[Kind]Type
 }
 
-// NewRegistry returns a registry of drivers.
-func NewRegistry(drivers ...Driver) *Registry {
-	r := &Registry{drivers: make(map[Kind]Driver, len(drivers))}
-	for _, d := range drivers {
-		r.drivers[d.Kind()] = d
+// NewRegistry returns a registry of types. Drivers are types too.
+func NewRegistry(types ...Type) *Registry {
+	r := &Registry{types: make(map[Kind]Type, len(types))}
+	for _, t := range types {
+		r.types[t.Kind()] = t
 	}
 	return r
 }
 
-// Driver returns the driver for kind.
-func (r *Registry) Driver(kind Kind) (Driver, error) {
-	d, ok := r.drivers[kind]
+// With returns a registry with more types, which replace any of the same
+// kind.
+func (r *Registry) With(types ...Type) *Registry {
+	all := make([]Type, 0, len(r.types)+len(types))
+	for _, t := range r.types {
+		all = append(all, t)
+	}
+	return NewRegistry(append(all, types...)...)
+}
+
+// Type returns the type of kind.
+func (r *Registry) Type(kind Kind) (Type, error) {
+	t, ok := r.types[kind]
 	if !ok {
 		return nil, fmt.Errorf("dockwell doesn't manage resources of kind %q", kind)
+	}
+	return t, nil
+}
+
+// Driver returns the driver for kind.
+func (r *Registry) Driver(kind Kind) (Driver, error) {
+	t, err := r.Type(kind)
+	if err != nil {
+		return nil, err
+	}
+	d, ok := t.(Driver)
+	if !ok {
+		return nil, fmt.Errorf("%s resources apply on the control plane, not on a server", kind)
 	}
 	return d, nil
 }
@@ -142,7 +245,7 @@ func (r *Registry) Driver(kind Kind) (Driver, error) {
 // Validate checks spec against its kind: the right message type, valid
 // values, and defaults filled in.
 func (r *Registry) Validate(kind Kind, spec proto.Message) error {
-	d, err := r.Driver(kind)
+	d, err := r.Type(kind)
 	if err != nil {
 		return err
 	}
@@ -155,7 +258,7 @@ func (r *Registry) Validate(kind Kind, spec proto.Message) error {
 
 // Decode reads a stored spec of kind.
 func (r *Registry) Decode(kind Kind, b []byte) (proto.Message, error) {
-	d, err := r.Driver(kind)
+	d, err := r.Type(kind)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +269,13 @@ func (r *Registry) Decode(kind Kind, b []byte) (proto.Message, error) {
 	return spec, nil
 }
 
-// Encode writes a spec deterministically, so equal specs encode equal.
+// Encode writes a spec deterministically, so equal specs encode equal. An
+// empty spec encodes to no bytes, but never to nil, which the store keeps
+// for a deletion.
 func Encode(spec proto.Message) ([]byte, error) {
-	return proto.MarshalOptions{Deterministic: true}.Marshal(spec)
+	b, err := proto.MarshalOptions{Deterministic: true}.Marshal(spec)
+	if err == nil && b == nil {
+		b = []byte{}
+	}
+	return b, err
 }

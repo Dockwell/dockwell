@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/dockwell/dockwell/internal/auth/authtest"
+	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 // storedPasskey reads the owner's only passkey as stored.
@@ -57,7 +59,11 @@ func (f *fixture) finishAtOnce(t *testing.T, a *authtest.Authenticator, counts [
 // A copy and the original signing in at once, with the same count: one
 // gets in, and the others are refused as copies.
 func TestRacingSignInsWithOneCountFlagTheCopy(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testRacingSignInsWithOneCountFlagTheCopy)
+}
+
+func testRacingSignInsWithOneCountFlagTheCopy(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	a := &authtest.Authenticator{Counter: true}
 	owner := f.claim(t, localhost, a)
 	const racers = 16
@@ -87,7 +93,11 @@ func TestRacingSignInsWithOneCountFlagTheCopy(t *testing.T) {
 // Sign-ins racing with different counts can't lower the stored count: the
 // one with the lower count, if it comes second, is refused as a copy.
 func TestTheStoredCountNeverGoesBackwards(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testTheStoredCountNeverGoesBackwards)
+}
+
+func testTheStoredCountNeverGoesBackwards(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	a := &authtest.Authenticator{Counter: true}
 	owner := f.claim(t, localhost, a)
 	stored := uint32(1)
@@ -114,7 +124,11 @@ func TestTheStoredCountNeverGoesBackwards(t *testing.T) {
 // error, and the passkey is flagged on its next sign-in, even the
 // original's.
 func TestAFailedCloneFlagIsTriedAgain(t *testing.T) {
-	f := newFixture(t, "")
+	storetest.Each(t, testAFailedCloneFlagIsTriedAgain)
+}
+
+func testAFailedCloneFlagIsTriedAgain(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
 	a := &authtest.Authenticator{Counter: true}
 	owner := f.claim(t, localhost, a)
 	cred := a.Credentials()[0]
@@ -122,7 +136,7 @@ func TestAFailedCloneFlagIsTriedAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f.execSQL(t, `CREATE TRIGGER no_flags BEFORE UPDATE OF clone_warning_at ON passkeys BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END`)
+	restore := storetest.FailUpdates(t, f.path, "passkeys", "clone_warning_at")
 	original := cred.Count
 	cred.Count = 0 // a copy that missed the last uses
 	_, err := f.passkeySignIn(t, localhost, a, nil)
@@ -133,7 +147,7 @@ func TestAFailedCloneFlagIsTriedAgain(t *testing.T) {
 		t.Fatal("flagged in spite of the failed write")
 	}
 
-	f.execSQL(t, `DROP TRIGGER no_flags`)
+	restore()
 	cred.Count = original + 5 // the original, moving on
 	if _, err := f.passkeySignIn(t, localhost, a, nil); !errors.Is(err, ErrPasskeyCopied) {
 		t.Errorf("the next sign-in after a failed flag = %v, want ErrPasskeyCopied", err)

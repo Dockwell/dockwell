@@ -24,7 +24,7 @@ const (
 func decideRole(dir datadir.Dir) (string, *enroll.Identity, error) {
 	id, err := enroll.Load(dir.Agent())
 	switch {
-	case exists(dir.StateDB()) || errors.Is(err, enroll.ErrNotJoined):
+	case hasControlPlane(dir) || errors.Is(err, enroll.ErrNotJoined):
 		return roleControl, nil, nil
 	case err != nil:
 		return "", nil, err
@@ -59,3 +59,8 @@ func newRoleCmd(stdio IO, g *globalFlags) *cobra.Command {
 		},
 	}
 }
+
+// hasControlPlane reports whether the data directory holds a control plane:
+// its key, which every control plane has, or its SQLite state. A control
+// plane on Postgres keeps only the key here.
+func hasControlPlane(dir datadir.Dir) bool { return exists(dir.SealKey()) || exists(dir.StateDB()) }

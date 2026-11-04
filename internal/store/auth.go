@@ -49,7 +49,7 @@ func scanUser(row interface{ Scan(...any) error }) (User, error) {
 // CountUsers returns how many people have accounts.
 func (t *Tx) CountUsers(ctx context.Context) (int, error) {
 	var n int
-	if err := t.tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&n); err != nil {
+	if err := t.queryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&n); err != nil {
 		return 0, fmt.Errorf("can't count users: %w", err)
 	}
 	return n, nil
@@ -58,9 +58,9 @@ func (t *Tx) CountUsers(ctx context.Context) (int, error) {
 // CreateUser records a new user. A taken email, or a second owner, is
 // ErrConflict.
 func (t *Tx) CreateUser(ctx context.Context, u User) error {
-	_, err := t.tx.ExecContext(ctx, `INSERT INTO users (id, email, name, role, webauthn_handle, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+	err := t.insert(ctx, `INSERT INTO users (id, email, name, role, webauthn_handle, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
 		u.ID, u.Email, u.Name, u.Role, u.WebAuthnHandle, millis(u.CreatedAt))
-	if isUniqueViolation(err) {
+	if t.unique(err) {
 		return fmt.Errorf("user %s: %w", u.Email, ErrConflict)
 	}
 	if err != nil {
@@ -70,7 +70,7 @@ func (t *Tx) CreateUser(ctx context.Context, u User) error {
 }
 
 func (t *Tx) getUser(ctx context.Context, where string, arg any) (User, error) {
-	u, err := scanUser(t.tx.QueryRowContext(ctx, `SELECT `+userColumns+` FROM users WHERE `+where+` = ?`, arg))
+	u, err := scanUser(t.queryRow(ctx, `SELECT `+userColumns+` FROM users WHERE `+where+` = ?`, arg))
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, fmt.Errorf("user: %w", ErrNotFound)
 	}
@@ -97,7 +97,7 @@ func (t *Tx) GetUserByHandle(ctx context.Context, handle []byte) (User, error) {
 func (t *Tx) Owner(ctx context.Context) (User, error) { return t.getUser(ctx, "role", RoleOwner) }
 
 func (t *Tx) updateUser(ctx context.Context, id, query string, args ...any) error {
-	res, err := t.tx.ExecContext(ctx, query, args...)
+	res, err := t.exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("can't update user %s: %w", id, err)
 	}
@@ -125,7 +125,7 @@ func (t *Tx) DisableTOTP(ctx context.Context, userID string) error {
 		userID); err != nil {
 		return err
 	}
-	if _, err := t.tx.ExecContext(ctx, `DELETE FROM recovery_codes WHERE user_id = ?`, userID); err != nil {
+	if _, err := t.exec(ctx, `DELETE FROM recovery_codes WHERE user_id = ?`, userID); err != nil {
 		return fmt.Errorf("can't delete recovery codes: %w", err)
 	}
 	return nil
@@ -135,7 +135,7 @@ func (t *Tx) DisableTOTP(ctx context.Context, userID string) error {
 // ErrConflict when that step, or a later one, was already accepted, so a
 // code works once even when two requests race with it.
 func (t *Tx) SpendTOTPStep(ctx context.Context, userID string, step int64) error {
-	res, err := t.tx.ExecContext(ctx, `UPDATE users SET totp_last_step = ? WHERE id = ? AND totp_last_step < ?`, step, userID, step)
+	res, err := t.exec(ctx, `UPDATE users SET totp_last_step = ? WHERE id = ? AND totp_last_step < ?`, step, userID, step)
 	if err != nil {
 		return fmt.Errorf("can't record a code for user %s: %w", userID, err)
 	}
@@ -169,7 +169,7 @@ type CodeGuard struct {
 func (t *Tx) GetCodeGuard(ctx context.Context, bucket int) (CodeGuard, error) {
 	g := CodeGuard{Bucket: bucket}
 	var failed, locked sql.NullInt64
-	err := t.tx.QueryRowContext(ctx, `SELECT failures, failed_at, locked_at FROM code_guards WHERE bucket = ?`, bucket).
+	err := t.queryRow(ctx, `SELECT failures, failed_at, locked_at FROM code_guards WHERE bucket = ?`, bucket).
 		Scan(&g.Failures, &failed, &locked)
 	if errors.Is(err, sql.ErrNoRows) {
 		return g, nil
@@ -184,10 +184,11 @@ func (t *Tx) GetCodeGuard(ctx context.Context, bucket int) (CodeGuard, error) {
 // RecordCodeFailure counts a wrong code against a bucket, locks it once there
 // have been lockAfter in a row, and returns its new state.
 func (t *Tx) RecordCodeFailure(ctx context.Context, bucket int, at time.Time, lockAfter int) (CodeGuard, error) {
-	if _, err := t.tx.ExecContext(ctx, `INSERT INTO code_guards (bucket, failures, failed_at, locked_at)
-		VALUES (?1, 1, ?2, CASE WHEN ?3 <= 1 THEN ?2 END)
-		ON CONFLICT (bucket) DO UPDATE SET failures = failures + 1, failed_at = ?2,
-			locked_at = CASE WHEN locked_at IS NULL AND failures + 1 >= ?3 THEN ?2 ELSE locked_at END`,
+	if _, err := t.exec(ctx, `INSERT INTO code_guards (bucket, failures, failed_at, locked_at)
+		VALUES (?1, 1, ?2, CASE WHEN ?3 <= 1 THEN CAST(?2 AS BIGINT) END)
+		ON CONFLICT (bucket) DO UPDATE SET failures = code_guards.failures + 1, failed_at = ?2,
+			locked_at = CASE WHEN code_guards.locked_at IS NULL AND code_guards.failures + 1 >= ?3 THEN ?2
+				ELSE code_guards.locked_at END`,
 		bucket, millis(at), lockAfter); err != nil {
 		return CodeGuard{}, fmt.Errorf("can't count a wrong code: %w", err)
 	}
@@ -197,7 +198,7 @@ func (t *Tx) RecordCodeFailure(ctx context.Context, bucket int, at time.Time, lo
 // ResetCodeFailures clears a bucket's wrong-code count after a good code. It
 // leaves a lock in place: only UnlockCodes lifts it.
 func (t *Tx) ResetCodeFailures(ctx context.Context, bucket int) error {
-	if _, err := t.tx.ExecContext(ctx, `UPDATE code_guards SET failures = 0, failed_at = NULL WHERE bucket = ?`, bucket); err != nil {
+	if _, err := t.exec(ctx, `UPDATE code_guards SET failures = 0, failed_at = NULL WHERE bucket = ?`, bucket); err != nil {
 		return fmt.Errorf("can't reset wrong codes: %w", err)
 	}
 	return nil
@@ -205,7 +206,7 @@ func (t *Tx) ResetCodeFailures(ctx context.Context, bucket int) error {
 
 // UnlockCodes lifts a bucket's lock and clears its count.
 func (t *Tx) UnlockCodes(ctx context.Context, bucket int) error {
-	if _, err := t.tx.ExecContext(ctx, `DELETE FROM code_guards WHERE bucket = ?`, bucket); err != nil {
+	if _, err := t.exec(ctx, `DELETE FROM code_guards WHERE bucket = ?`, bucket); err != nil {
 		return fmt.Errorf("can't unlock code sign-in: %w", err)
 	}
 	return nil
@@ -241,9 +242,9 @@ func scanPasskey(row interface{ Scan(...any) error }) (Passkey, error) {
 // CreatePasskey records a passkey. A credential ID already stored is
 // ErrConflict.
 func (t *Tx) CreatePasskey(ctx context.Context, p Passkey) error {
-	_, err := t.tx.ExecContext(ctx, `INSERT INTO passkeys (`+passkeyColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	err := t.insert(ctx, `INSERT INTO passkeys (`+passkeyColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		p.ID, p.UserID, p.CredentialID, p.RPID, p.Name, p.Record, millis(p.CreatedAt), nullMillis(p.LastUsedAt), nullMillis(p.CloneWarningAt))
-	if isUniqueViolation(err) {
+	if t.unique(err) {
 		return fmt.Errorf("passkey: %w", ErrConflict)
 	}
 	if err != nil {
@@ -254,7 +255,7 @@ func (t *Tx) CreatePasskey(ctx context.Context, p Passkey) error {
 
 // ListPasskeys returns a user's passkeys, oldest first.
 func (t *Tx) ListPasskeys(ctx context.Context, userID string) ([]Passkey, error) {
-	rows, err := t.tx.QueryContext(ctx, `SELECT `+passkeyColumns+` FROM passkeys WHERE user_id = ? ORDER BY id`, userID)
+	rows, err := t.query(ctx, `SELECT `+passkeyColumns+` FROM passkeys WHERE user_id = ? ORDER BY id`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("can't list passkeys: %w", err)
 	}
@@ -273,7 +274,7 @@ func (t *Tx) ListPasskeys(ctx context.Context, userID string) ([]Passkey, error)
 // GetPasskeyByCredentialID returns a passkey by its WebAuthn credential ID,
 // or ErrNotFound.
 func (t *Tx) GetPasskeyByCredentialID(ctx context.Context, credentialID []byte) (Passkey, error) {
-	p, err := scanPasskey(t.tx.QueryRowContext(ctx, `SELECT `+passkeyColumns+` FROM passkeys WHERE credential_id = ?`, credentialID))
+	p, err := scanPasskey(t.queryRow(ctx, `SELECT `+passkeyColumns+` FROM passkeys WHERE credential_id = ?`, credentialID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Passkey{}, fmt.Errorf("passkey: %w", ErrNotFound)
 	}
@@ -300,7 +301,7 @@ func (t *Tx) DeletePasskey(ctx context.Context, userID, id string) error {
 }
 
 func (t *Tx) updatePasskey(ctx context.Context, id, query string, args ...any) error {
-	res, err := t.tx.ExecContext(ctx, query, args...)
+	res, err := t.exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("can't update passkey %s: %w", id, err)
 	}
@@ -312,11 +313,11 @@ func (t *Tx) updatePasskey(ctx context.Context, id, query string, args ...any) e
 
 // ReplaceRecoveryCodes deletes a user's recovery codes and stores new hashes.
 func (t *Tx) ReplaceRecoveryCodes(ctx context.Context, userID string, hashes [][]byte, at time.Time) error {
-	if _, err := t.tx.ExecContext(ctx, `DELETE FROM recovery_codes WHERE user_id = ?`, userID); err != nil {
+	if _, err := t.exec(ctx, `DELETE FROM recovery_codes WHERE user_id = ?`, userID); err != nil {
 		return fmt.Errorf("can't delete recovery codes: %w", err)
 	}
 	for _, h := range hashes {
-		if _, err := t.tx.ExecContext(ctx, `INSERT INTO recovery_codes (user_id, code_hash, created_at) VALUES (?, ?, ?)`,
+		if _, err := t.exec(ctx, `INSERT INTO recovery_codes (user_id, code_hash, created_at) VALUES (?, ?, ?)`,
 			userID, h, millis(at)); err != nil {
 			return fmt.Errorf("can't store recovery codes: %w", err)
 		}
@@ -327,7 +328,7 @@ func (t *Tx) ReplaceRecoveryCodes(ctx context.Context, userID string, hashes [][
 // SpendRecoveryCode marks an unused recovery code used, or reports
 // ErrNotFound when there is no such unused code.
 func (t *Tx) SpendRecoveryCode(ctx context.Context, userID string, hash []byte, at time.Time) error {
-	res, err := t.tx.ExecContext(ctx, `UPDATE recovery_codes SET used_at = ? WHERE user_id = ? AND code_hash = ? AND used_at IS NULL`,
+	res, err := t.exec(ctx, `UPDATE recovery_codes SET used_at = ? WHERE user_id = ? AND code_hash = ? AND used_at IS NULL`,
 		millis(at), userID, hash)
 	if err != nil {
 		return fmt.Errorf("can't spend a recovery code: %w", err)
@@ -341,7 +342,7 @@ func (t *Tx) SpendRecoveryCode(ctx context.Context, userID string, hash []byte, 
 // CountRecoveryCodes returns how many of a user's recovery codes are unused.
 func (t *Tx) CountRecoveryCodes(ctx context.Context, userID string) (int, error) {
 	var n int
-	if err := t.tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM recovery_codes WHERE user_id = ? AND used_at IS NULL`, userID).Scan(&n); err != nil {
+	if err := t.queryRow(ctx, `SELECT COUNT(*) FROM recovery_codes WHERE user_id = ? AND used_at IS NULL`, userID).Scan(&n); err != nil {
 		return 0, fmt.Errorf("can't count recovery codes: %w", err)
 	}
 	return n, nil
@@ -379,7 +380,7 @@ func scanSession(row interface{ Scan(...any) error }) (Session, error) {
 
 // CreateSession records a new session.
 func (t *Tx) CreateSession(ctx context.Context, s Session) error {
-	_, err := t.tx.ExecContext(ctx, `INSERT INTO sessions (`+sessionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	_, err := t.exec(ctx, `INSERT INTO sessions (`+sessionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		s.ID, s.TokenHash, s.UserID, s.RPID, s.Method, s.UserAgent, s.CreatedIP, s.LastIP,
 		millis(s.CreatedAt), millis(s.LastSeenAt), millis(s.ExpiresAt), nullMillis(s.RevokedAt))
 	if err != nil {
@@ -391,7 +392,7 @@ func (t *Tx) CreateSession(ctx context.Context, s Session) error {
 // GetSessionByTokenHash returns a session by the hash of its token, or
 // ErrNotFound. Expired and revoked sessions are returned too; callers check.
 func (t *Tx) GetSessionByTokenHash(ctx context.Context, hash []byte) (Session, error) {
-	s, err := scanSession(t.tx.QueryRowContext(ctx, `SELECT `+sessionColumns+` FROM sessions WHERE token_hash = ?`, hash))
+	s, err := scanSession(t.queryRow(ctx, `SELECT `+sessionColumns+` FROM sessions WHERE token_hash = ?`, hash))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Session{}, fmt.Errorf("session: %w", ErrNotFound)
 	}
@@ -403,7 +404,7 @@ func (t *Tx) GetSessionByTokenHash(ctx context.Context, hash []byte) (Session, e
 
 // GetSession returns a session by ID, or ErrNotFound.
 func (t *Tx) GetSession(ctx context.Context, id string) (Session, error) {
-	s, err := scanSession(t.tx.QueryRowContext(ctx, `SELECT `+sessionColumns+` FROM sessions WHERE id = ?`, id))
+	s, err := scanSession(t.queryRow(ctx, `SELECT `+sessionColumns+` FROM sessions WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Session{}, fmt.Errorf("session %s: %w", id, ErrNotFound)
 	}
@@ -415,7 +416,7 @@ func (t *Tx) GetSession(ctx context.Context, id string) (Session, error) {
 
 // TouchSession records that a session made a request.
 func (t *Tx) TouchSession(ctx context.Context, id string, at time.Time, ip string) error {
-	_, err := t.tx.ExecContext(ctx, `UPDATE sessions SET last_seen_at = ?, last_ip = ? WHERE id = ? AND revoked_at IS NULL`,
+	_, err := t.exec(ctx, `UPDATE sessions SET last_seen_at = ?, last_ip = ? WHERE id = ? AND revoked_at IS NULL`,
 		millis(at), ip, id)
 	if err != nil {
 		return fmt.Errorf("can't update session %s: %w", id, err)
@@ -426,7 +427,7 @@ func (t *Tx) TouchSession(ctx context.Context, id string, at time.Time, ip strin
 // ListActiveSessions returns a user's sessions that are neither revoked nor
 // past their absolute limit, newest first. Callers apply the idle limit.
 func (t *Tx) ListActiveSessions(ctx context.Context, userID string, now time.Time) ([]Session, error) {
-	rows, err := t.tx.QueryContext(ctx, `SELECT `+sessionColumns+` FROM sessions
+	rows, err := t.query(ctx, `SELECT `+sessionColumns+` FROM sessions
 		WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY id DESC`, userID, millis(now))
 	if err != nil {
 		return nil, fmt.Errorf("can't list sessions: %w", err)
@@ -446,7 +447,7 @@ func (t *Tx) ListActiveSessions(ctx context.Context, userID string, now time.Tim
 // RevokeSession ends one of a user's sessions, or reports ErrNotFound when
 // the user has no such session still open.
 func (t *Tx) RevokeSession(ctx context.Context, userID, id string, at time.Time) error {
-	res, err := t.tx.ExecContext(ctx, `UPDATE sessions SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
+	res, err := t.exec(ctx, `UPDATE sessions SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
 		millis(at), id, userID)
 	if err != nil {
 		return fmt.Errorf("can't revoke session %s: %w", id, err)
@@ -459,7 +460,7 @@ func (t *Tx) RevokeSession(ctx context.Context, userID, id string, at time.Time)
 
 // PruneSessions deletes sessions that ended before cutoff.
 func (t *Tx) PruneSessions(ctx context.Context, cutoff time.Time) error {
-	_, err := t.tx.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at < ? OR revoked_at < ?`, millis(cutoff), millis(cutoff))
+	_, err := t.exec(ctx, `DELETE FROM sessions WHERE expires_at < ? OR revoked_at < ?`, millis(cutoff), millis(cutoff))
 	if err != nil {
 		return fmt.Errorf("can't prune sessions: %w", err)
 	}
@@ -488,7 +489,7 @@ const (
 // CreateLinkToken records a new link and revokes older unused links for the
 // same purpose and user, so only the newest one works.
 func (t *Tx) CreateLinkToken(ctx context.Context, l LinkToken) error {
-	if _, err := t.tx.ExecContext(ctx, `UPDATE link_tokens SET revoked_at = ?
+	if _, err := t.exec(ctx, `UPDATE link_tokens SET revoked_at = ?
 		WHERE purpose = ? AND COALESCE(user_id, '') = ? AND used_at IS NULL AND revoked_at IS NULL`,
 		millis(l.CreatedAt), l.Purpose, l.UserID); err != nil {
 		return fmt.Errorf("can't replace older links: %w", err)
@@ -497,7 +498,7 @@ func (t *Tx) CreateLinkToken(ctx context.Context, l LinkToken) error {
 	if l.UserID != "" {
 		user = sql.NullString{String: l.UserID, Valid: true}
 	}
-	_, err := t.tx.ExecContext(ctx, `INSERT INTO link_tokens (id, purpose, token_hash, user_id, created_at, created_by, expires_at)
+	_, err := t.exec(ctx, `INSERT INTO link_tokens (id, purpose, token_hash, user_id, created_at, created_by, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`, l.ID, l.Purpose, l.TokenHash, user, millis(l.CreatedAt), l.CreatedBy, millis(l.ExpiresAt))
 	if err != nil {
 		return fmt.Errorf("can't record link: %w", err)
@@ -517,7 +518,7 @@ func (t *Tx) getLinkToken(ctx context.Context, where string, arg any) (LinkToken
 	var created, expires int64
 	var used, revoked sql.NullInt64
 	var user sql.NullString
-	err := t.tx.QueryRowContext(ctx, `SELECT id, purpose, token_hash, user_id, created_at, created_by, expires_at, used_at, revoked_at
+	err := t.queryRow(ctx, `SELECT id, purpose, token_hash, user_id, created_at, created_by, expires_at, used_at, revoked_at
 		FROM link_tokens WHERE `+where, arg).Scan(&l.ID, &l.Purpose, &l.TokenHash, &user, &created, &l.CreatedBy, &expires, &used, &revoked)
 	if errors.Is(err, sql.ErrNoRows) {
 		return LinkToken{}, fmt.Errorf("link: %w", ErrNotFound)
@@ -533,7 +534,7 @@ func (t *Tx) getLinkToken(ctx context.Context, where string, arg any) (LinkToken
 // unused, unrevoked and unexpired at now, or ErrNotFound.
 func (t *Tx) LiveLinkToken(ctx context.Context, purpose, userID string, now time.Time) (LinkToken, error) {
 	var id string
-	err := t.tx.QueryRowContext(ctx, `SELECT id FROM link_tokens
+	err := t.queryRow(ctx, `SELECT id FROM link_tokens
 		WHERE purpose = ? AND COALESCE(user_id, '') = ? AND used_at IS NULL AND revoked_at IS NULL AND expires_at > ?
 		ORDER BY created_at DESC, id DESC LIMIT 1`, purpose, userID, millis(now)).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -548,7 +549,7 @@ func (t *Tx) LiveLinkToken(ctx context.Context, purpose, userID string, now time
 // SpendLinkToken marks a link used. It fails with ErrNotFound when the link
 // was already used or revoked, so two requests can't both spend it.
 func (t *Tx) SpendLinkToken(ctx context.Context, id string, at time.Time) error {
-	res, err := t.tx.ExecContext(ctx, `UPDATE link_tokens SET used_at = ? WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL`,
+	res, err := t.exec(ctx, `UPDATE link_tokens SET used_at = ? WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL`,
 		millis(at), id)
 	if err != nil {
 		return fmt.Errorf("can't spend link %s: %w", id, err)

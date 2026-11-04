@@ -13,7 +13,7 @@ import (
 // GetSetting returns a singleton value, or ErrNotFound.
 func (t *Tx) GetSetting(ctx context.Context, key string) ([]byte, error) {
 	var v []byte
-	err := t.tx.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = ?`, key).Scan(&v)
+	err := t.queryRow(ctx, `SELECT value FROM settings WHERE key = ?`, key).Scan(&v)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -25,7 +25,7 @@ func (t *Tx) GetSetting(ctx context.Context, key string) ([]byte, error) {
 
 // PutSetting stores a singleton value, replacing any earlier one.
 func (t *Tx) PutSetting(ctx context.Context, key string, value []byte) error {
-	_, err := t.tx.ExecContext(ctx, `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+	_, err := t.exec(ctx, `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
 		ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
 		key, value, millis(time.Now()))
 	if err != nil {
@@ -69,10 +69,10 @@ func (t *Tx) CreateServer(ctx context.Context, s Server) error {
 	if s.CertKeyHash == nil {
 		s.CertKeyHash = []byte{}
 	}
-	_, err := t.tx.ExecContext(ctx, `INSERT INTO servers (`+serverColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	err := t.insert(ctx, `INSERT INTO servers (`+serverColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		s.ID, s.Name, millis(s.CreatedAt), s.CertSerial, millis(s.CertNotAfter), s.CertKeyHash, s.PrevCertSerial,
 		nullMillis(s.LastSeenAt), nullMillis(s.RevokedAt))
-	if isUniqueViolation(err) {
+	if t.unique(err) {
 		return fmt.Errorf("a server named %s %w", s.Name, ErrConflict)
 	}
 	if err != nil {
@@ -83,7 +83,7 @@ func (t *Tx) CreateServer(ctx context.Context, s Server) error {
 
 // GetServer returns one server by ID, or ErrNotFound.
 func (t *Tx) GetServer(ctx context.Context, id string) (Server, error) {
-	s, err := scanServer(t.tx.QueryRowContext(ctx, `SELECT `+serverColumns+` FROM servers WHERE id = ?`, id))
+	s, err := scanServer(t.queryRow(ctx, `SELECT `+serverColumns+` FROM servers WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Server{}, fmt.Errorf("server %s: %w", id, ErrNotFound)
 	}
@@ -92,7 +92,7 @@ func (t *Tx) GetServer(ctx context.Context, id string) (Server, error) {
 
 // ListServers returns the servers that aren't revoked, oldest first.
 func (t *Tx) ListServers(ctx context.Context) ([]Server, error) {
-	rows, err := t.tx.QueryContext(ctx, `SELECT `+serverColumns+` FROM servers WHERE revoked_at IS NULL ORDER BY id`)
+	rows, err := t.query(ctx, `SELECT `+serverColumns+` FROM servers WHERE revoked_at IS NULL ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("can't list servers: %w", err)
 	}
@@ -136,7 +136,7 @@ func (t *Tx) SaveServerReport(ctx context.Context, id string, r ServerReport, at
 
 // ServerReports returns the stored reports of active servers, by ID.
 func (t *Tx) ServerReports(ctx context.Context) (map[string]ServerReport, error) {
-	rows, err := t.tx.QueryContext(ctx, `SELECT id, inventory, agent_build FROM servers WHERE revoked_at IS NULL AND inventory IS NOT NULL`)
+	rows, err := t.query(ctx, `SELECT id, inventory, agent_build FROM servers WHERE revoked_at IS NULL AND inventory IS NOT NULL`)
 	if err != nil {
 		return nil, fmt.Errorf("can't read server reports: %w", err)
 	}
@@ -164,7 +164,7 @@ func (t *Tx) RevokeServer(ctx context.Context, id string, at time.Time) error {
 }
 
 func (t *Tx) updateServer(ctx context.Context, id, query string, args ...any) error {
-	res, err := t.tx.ExecContext(ctx, query, args...)
+	res, err := t.exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("can't update server %s: %w", id, err)
 	}
@@ -187,7 +187,7 @@ type JoinToken struct {
 
 // CreateJoinToken records a new join token.
 func (t *Tx) CreateJoinToken(ctx context.Context, j JoinToken) error {
-	_, err := t.tx.ExecContext(ctx, `INSERT INTO join_tokens (id, secret_hash, created_at, created_by, expires_at)
+	_, err := t.exec(ctx, `INSERT INTO join_tokens (id, secret_hash, created_at, created_by, expires_at)
 		VALUES (?, ?, ?, ?, ?)`, j.ID, j.SecretHash, millis(j.CreatedAt), j.CreatedBy, millis(j.ExpiresAt))
 	if err != nil {
 		return fmt.Errorf("can't record join token: %w", err)
@@ -201,7 +201,7 @@ func (t *Tx) GetJoinToken(ctx context.Context, id string) (JoinToken, error) {
 	var created, expires int64
 	var used sql.NullInt64
 	var usedBy sql.NullString
-	err := t.tx.QueryRowContext(ctx, `SELECT id, secret_hash, created_at, created_by, expires_at, used_at, used_by
+	err := t.queryRow(ctx, `SELECT id, secret_hash, created_at, created_by, expires_at, used_at, used_by
 		FROM join_tokens WHERE id = ?`, id).Scan(&j.ID, &j.SecretHash, &created, &j.CreatedBy, &expires, &used, &usedBy)
 	if errors.Is(err, sql.ErrNoRows) {
 		return JoinToken{}, fmt.Errorf("join token %s: %w", id, ErrNotFound)
@@ -216,7 +216,7 @@ func (t *Tx) GetJoinToken(ctx context.Context, id string) (JoinToken, error) {
 // MarkJoinTokenUsed spends a token. It fails with ErrNotFound if the token
 // was already used, so two servers can't race to join with one token.
 func (t *Tx) MarkJoinTokenUsed(ctx context.Context, id, serverID string, at time.Time) error {
-	res, err := t.tx.ExecContext(ctx, `UPDATE join_tokens SET used_at = ?, used_by = ? WHERE id = ? AND used_at IS NULL`,
+	res, err := t.exec(ctx, `UPDATE join_tokens SET used_at = ?, used_by = ? WHERE id = ? AND used_at IS NULL`,
 		millis(at), serverID, id)
 	if err != nil {
 		return fmt.Errorf("can't spend join token %s: %w", id, err)
@@ -239,7 +239,7 @@ type Event struct {
 
 // RecordEvent appends to the audit log.
 func (t *Tx) RecordEvent(ctx context.Context, e Event) error {
-	_, err := t.tx.ExecContext(ctx, `INSERT INTO audit_events (id, at, actor, action, subject, detail) VALUES (?, ?, ?, ?, ?, ?)`,
+	_, err := t.exec(ctx, `INSERT INTO audit_events (id, at, actor, action, subject, detail) VALUES (?, ?, ?, ?, ?, ?)`,
 		e.ID, millis(e.At), e.Actor, e.Action, e.Subject, e.Detail)
 	if err != nil {
 		return fmt.Errorf("can't record audit event %s: %w", e.Action, err)
@@ -249,7 +249,7 @@ func (t *Tx) RecordEvent(ctx context.Context, e Event) error {
 
 // ListEvents returns the newest audit events first, at most limit of them.
 func (t *Tx) ListEvents(ctx context.Context, limit int) ([]Event, error) {
-	rows, err := t.tx.QueryContext(ctx, `SELECT id, at, actor, action, subject, detail FROM audit_events ORDER BY at DESC, id DESC LIMIT ?`, limit)
+	rows, err := t.query(ctx, `SELECT id, at, actor, action, subject, detail FROM audit_events ORDER BY at DESC, id DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("can't list audit events: %w", err)
 	}

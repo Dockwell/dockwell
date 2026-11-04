@@ -10,7 +10,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"database/sql"
 	"errors"
 	"io"
 	"log/slog"
@@ -40,12 +39,13 @@ import (
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 // fullServer is a control plane with sign-in, as dockwell run starts it.
 type fullServer struct {
 	auth  *auth.Service
-	db    string // the database file
+	db    string // where the database is, for store.Open
 	api   string // the loopback listener's address
 	https string // the HTTPS listener's address, with a domain
 	http  string // the plain-HTTP listener's address, with a domain
@@ -55,17 +55,10 @@ type fullServer struct {
 // to make its reads or writes fail as a damaged disk or a bug elsewhere would.
 func (f *fullServer) execSQL(t *testing.T, query string) {
 	t.Helper()
-	db, err := sql.Open("sqlite", "file:"+f.db+"?_pragma=busy_timeout(5000)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	if _, err := db.ExecContext(t.Context(), query); err != nil {
-		t.Fatal(err)
-	}
+	storetest.Exec(t, f.db, query)
 }
 
-func startFull(t *testing.T, public https.Source) *fullServer {
+func startFull(t *testing.T, backend store.Backend, public https.Source) *fullServer {
 	t.Helper()
 	dir := t.TempDir()
 	logger := slog.New(slog.DiscardHandler)
@@ -73,12 +66,7 @@ func startFull(t *testing.T, public https.Source) *fullServer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(dir, "state.db")
-	db, err := store.Open(t.Context(), path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db, path := storetest.Open(t, backend)
 	ident, err := identity.Bootstrap(t.Context(), db, key, logger)
 	if err != nil {
 		t.Fatal(err)
@@ -210,7 +198,11 @@ func (b *browser) signIn(t *testing.T) {
 }
 
 func TestClaimSignOutAndSignInOverLocalhost(t *testing.T) {
-	srv := startFull(t, nil)
+	storetest.Each(t, testClaimSignOutAndSignInOverLocalhost)
+}
+
+func testClaimSignOutAndSignInOverLocalhost(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	_, port, _ := net.SplitHostPort(srv.api)
 	b := newBrowser(t, "http://localhost:"+port, srv.api, nil)
 	c := b.authClient()
@@ -279,7 +271,11 @@ func TestClaimSignOutAndSignInOverLocalhost(t *testing.T) {
 // A browser can send any bytes as its User-Agent. The session list still
 // answers.
 func TestSessionsListWithAnyUserAgent(t *testing.T) {
-	srv := startFull(t, nil)
+	storetest.Each(t, testSessionsListWithAnyUserAgent)
+}
+
+func testSessionsListWithAnyUserAgent(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	_, port, _ := net.SplitHostPort(srv.api)
 	b := newBrowser(t, "http://localhost:"+port, srv.api, nil)
 	b.userAgent = "Mozilla/5.0 \xff\xfe " + strings.Repeat("é", 400)
@@ -295,7 +291,11 @@ func TestSessionsListWithAnyUserAgent(t *testing.T) {
 // serves without a session. Only the public ones may answer; a new RPC is
 // refused until someone adds it to the allowlist on purpose.
 func TestEveryProcedureNeedsASession(t *testing.T) {
-	srv := startFull(t, nil)
+	storetest.Each(t, testEveryProcedureNeedsASession)
+}
+
+func testEveryProcedureNeedsASession(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	_, port, _ := net.SplitHostPort(srv.api)
 	b := newBrowser(t, "http://localhost:"+port, srv.api, nil)
 	// Bidi streams need HTTP/2, unencrypted on loopback.
@@ -398,8 +398,10 @@ func callEmpty(t *testing.T, b *browser, procedure string, md protoreflect.Metho
 	return connect.CodeOf(err)
 }
 
-func TestOriginAndHostChecks(t *testing.T) {
-	srv := startFull(t, nil)
+func TestOriginAndHostChecks(t *testing.T) { storetest.Each(t, testOriginAndHostChecks) }
+
+func testOriginAndHostChecks(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	_, port, _ := net.SplitHostPort(srv.api)
 	origin := "http://localhost:" + port
 	b := newBrowser(t, origin, srv.api, nil)
@@ -480,7 +482,11 @@ func TestOriginAndHostChecks(t *testing.T) {
 }
 
 func TestPageLoadsOnALoopbackIPGoToLocalhost(t *testing.T) {
-	srv := startFull(t, nil)
+	storetest.Each(t, testPageLoadsOnALoopbackIPGoToLocalhost)
+}
+
+func testPageLoadsOnALoopbackIPGoToLocalhost(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+srv.api+"/claim", http.NoBody)
 	req.Header.Set("Accept", "text/html")
 	req.Header.Set("Sec-Fetch-Mode", "navigate")
@@ -517,7 +523,11 @@ func TestPageLoadsOnALoopbackIPGoToLocalhost(t *testing.T) {
 }
 
 func TestStreamsEndWhenTheirSessionIsRevoked(t *testing.T) {
-	srv := startFull(t, nil)
+	storetest.Each(t, testStreamsEndWhenTheirSessionIsRevoked)
+}
+
+func testStreamsEndWhenTheirSessionIsRevoked(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	_, port, _ := net.SplitHostPort(srv.api)
 	origin := "http://localhost:" + port
 	laptop := newBrowser(t, origin, srv.api, nil)
@@ -584,10 +594,12 @@ func selfSigned(t *testing.T, name string) (tls.Certificate, *x509.CertPool) {
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key, Leaf: leaf}, pool
 }
 
-func TestClaimOverHTTPSWithADomain(t *testing.T) {
+func TestClaimOverHTTPSWithADomain(t *testing.T) { storetest.Each(t, testClaimOverHTTPSWithADomain) }
+
+func testClaimOverHTTPSWithADomain(t *testing.T, backend store.Backend) {
 	cert, roots := selfSigned(t, "panel.acme.dev")
 	public := &https.Static{Name: "panel.acme.dev", Cert: cert}
-	srv := startFull(t, public)
+	srv := startFull(t, backend, public)
 	_, port, _ := net.SplitHostPort(srv.https)
 	origin := "https://panel.acme.dev:" + port
 	b := newBrowser(t, origin, srv.https, roots)
@@ -665,8 +677,10 @@ func reason(err error) string {
 
 // Every refusal for want of a session says why, so the panel can tell a
 // session that ended from a wrong code.
-func TestRefusalsSayWhy(t *testing.T) {
-	srv := startFull(t, nil)
+func TestRefusalsSayWhy(t *testing.T) { storetest.Each(t, testRefusalsSayWhy) }
+
+func testRefusalsSayWhy(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	_, port, _ := net.SplitHostPort(srv.api)
 	origin := "http://localhost:" + port
 	laptop := newBrowser(t, origin, srv.api, nil)
@@ -721,7 +735,11 @@ func TestRefusalsSayWhy(t *testing.T) {
 // can still start signing in. Calls that need a session say to try again,
 // and the cookie stays, as its session may still work.
 func TestPublicCallsGoAheadWhenTheSessionCantBeChecked(t *testing.T) {
-	srv := startFull(t, nil)
+	storetest.Each(t, testPublicCallsGoAheadWhenTheSessionCantBeChecked)
+}
+
+func testPublicCallsGoAheadWhenTheSessionCantBeChecked(t *testing.T, backend store.Backend) {
+	srv := startFull(t, backend, nil)
 	_, port, _ := net.SplitHostPort(srv.api)
 	b := newBrowser(t, "http://localhost:"+port, srv.api, nil)
 	link, _ := srv.auth.CreateClaimLink(t.Context(), "test")

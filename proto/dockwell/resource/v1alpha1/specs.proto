@@ -89,3 +89,34 @@ enum FirewallAction {
   // Drop it.
   FIREWALL_ACTION_DENY = 2;
 }
+
+// Project is a product or client in the organization. It holds
+// environments, and scopes members, secrets and domains. An install starts
+// with one, named "default", which stays out of sight until there is a
+// second.
+message Project {
+  // How the panel shows it, such as "Acme web". Empty shows its name, which
+  // URLs and the CLI use.
+  string display_name = 1;
+}
+
+// Environment is a stage of a project, such as production or staging, with
+// its own config. A project starts with one, named "production", which
+// stays out of sight until there is a second.
+message Environment {
+  // How the panel shows it, such as "Staging". Empty shows its name.
+  string display_name = 1;
+}
+
+// Service is anything that runs in an environment, placed on servers: for
+// now an app from an image, run as one container on each server it is
+// placed on. Compose stacks, websites, databases, catalog apps and jobs
+// come later. Where it runs isn't part of the spec: each revision is
+// deployed on its servers.
+message Service {
+  // What runs.
+  oneof runs {
+    // An app from an image.
+    Container app = 1;
+  }
+}

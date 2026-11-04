@@ -7,10 +7,49 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
-
-	"github.com/dockwell/dockwell/internal/id"
 )
+
+// The revision store: the organization, every change, the resources it
+// touched, each immutable revision of their specs, and where each revision
+// is deployed. Anyone can read it; only a RevisionTx writes it, and only
+// internal/revision opens one. See docs/adr/0009-resources-revisions-and-plans.md
+// and docs/adr/0014-object-model-and-store.md.
+
+// Organization is the identity, billing and policy boundary. An install
+// has one, made on its first start.
+type Organization struct {
+	ID        string
+	Name      string
+	CreatedAt time.Time
+}
+
+// Organization returns the install's organization, or ErrNotFound before
+// its first start has made it.
+func (t *Tx) Organization(ctx context.Context) (Organization, error) {
+	var o Organization
+	var created int64
+	err := t.queryRow(ctx, `SELECT id, name, created_at FROM organizations ORDER BY created_at, id LIMIT 1`).
+		Scan(&o.ID, &o.Name, &created)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Organization{}, fmt.Errorf("organization: %w", ErrNotFound)
+	}
+	if err != nil {
+		return Organization{}, fmt.Errorf("can't read the organization: %w", err)
+	}
+	o.CreatedAt = fromMillis(created)
+	return o, nil
+}
+
+// CreateOrganization records the install's organization.
+func (t *RevisionTx) CreateOrganization(ctx context.Context, o Organization) error {
+	if _, err := t.exec(ctx, `INSERT INTO organizations (id, name, created_at) VALUES (?, ?, ?)`,
+		o.ID, o.Name, millis(o.CreatedAt)); err != nil {
+		return fmt.Errorf("can't record the organization: %w", err)
+	}
+	return nil
+}
 
 // Change states.
 const (
@@ -37,18 +76,25 @@ type Change struct {
 
 // ChangeItem is what a change asks of one resource.
 type ChangeItem struct {
+	// ResourceID names the resource, and is given to a new one when the
+	// change is planned, so another item can live in it.
+	ResourceID   string
 	Kind         string
-	Server       string
+	Scope        string // the ID of what it lives in
 	Name         string
 	BaseRevision int    // 0 when the resource didn't exist
 	Spec         []byte // nil deletes
+	// Servers is where the new revision is placed, by ID: its server for a
+	// host-level kind, and none for a deletion or a kind that runs on no
+	// server.
+	Servers []string
 }
 
 // Resource is a managed resource with its latest revision.
 type Resource struct {
 	ID       string
 	Kind     string
-	Server   string
+	Scope    string // the ID of the organization, project, environment or server it lives in
 	Name     string
 	Revision int    // the latest revision's number
 	Spec     []byte // the latest spec; nil once deleted
@@ -61,17 +107,39 @@ type Revision struct {
 	CreatedAt time.Time
 }
 
+// Deployment states. A deployment is pending until its server has it, then
+// live or failed. A live or pending one is superseded once a later revision
+// of its resource, or a deletion, takes its place on the server.
+const (
+	DeploymentPending    = "pending"
+	DeploymentLive       = "live"
+	DeploymentFailed     = "failed"
+	DeploymentSuperseded = "superseded"
+)
+
+// Deployment is a revision placed on a server, with its rollout state.
+type Deployment struct {
+	ResourceID string
+	Revision   int
+	Server     string
+	State      string
+	Error      string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
 // CreateChange records a planned change and its items.
-func (t *Tx) CreateChange(ctx context.Context, c Change) error {
-	_, err := t.tx.ExecContext(ctx, `INSERT INTO changes (id, summary, actor, state, reverts, fingerprint, plan, created_at)
+func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
+	_, err := t.exec(ctx, `INSERT INTO changes (id, summary, actor, state, reverts, fingerprint, plan, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		c.ID, c.Summary, c.Actor, c.State, nullString(c.Reverts), c.Fingerprint, c.Plan, millis(c.CreatedAt))
 	if err != nil {
 		return fmt.Errorf("can't record change %s: %w", c.ID, err)
 	}
 	for i, it := range c.Items {
-		if _, err := t.tx.ExecContext(ctx, `INSERT INTO change_items (change_id, position, kind, server_id, name, base_revision, spec)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.Kind, it.Server, it.Name, it.BaseRevision, it.Spec); err != nil {
+		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
+			strings.Join(it.Servers, " ")); err != nil {
 			return fmt.Errorf("can't record change %s: %w", c.ID, err)
 		}
 	}
@@ -84,7 +152,7 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 	var reverts, errText sql.NullString
 	var created int64
 	var applied sql.NullInt64
-	err := t.tx.QueryRowContext(ctx, `SELECT id, summary, actor, state, reverts, fingerprint, plan, error, created_at, applied_at
+	err := t.queryRow(ctx, `SELECT id, summary, actor, state, reverts, fingerprint, plan, error, created_at, applied_at
 		FROM changes WHERE id = ?`, changeID).
 		Scan(&c.ID, &c.Summary, &c.Actor, &c.State, &reverts, &c.Fingerprint, &c.Plan, &errText, &created, &applied)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -97,7 +165,7 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 	if applied.Valid {
 		c.AppliedAt = fromMillis(applied.Int64)
 	}
-	rows, err := t.tx.QueryContext(ctx, `SELECT kind, server_id, name, base_revision, spec
+	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers
 		FROM change_items WHERE change_id = ? ORDER BY position`, changeID)
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
@@ -105,8 +173,14 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 	defer rows.Close()
 	for rows.Next() {
 		var it ChangeItem
-		if err := rows.Scan(&it.Kind, &it.Server, &it.Name, &it.BaseRevision, &it.Spec); err != nil {
+		var servers string
+		var deleted bool
+		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers); err != nil {
 			return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
+		}
+		it.Spec = spec(it.Spec, deleted)
+		if servers != "" {
+			it.Servers = strings.Fields(servers)
 		}
 		c.Items = append(c.Items, it)
 	}
@@ -114,12 +188,12 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 }
 
 // SetChangeState moves a change on. appliedAt is recorded when set.
-func (t *Tx) SetChangeState(ctx context.Context, changeID, state, errText string, appliedAt time.Time) error {
+func (t *RevisionTx) SetChangeState(ctx context.Context, changeID, state, errText string, appliedAt time.Time) error {
 	var applied sql.NullInt64
 	if !appliedAt.IsZero() {
 		applied = sql.NullInt64{Int64: millis(appliedAt), Valid: true}
 	}
-	res, err := t.tx.ExecContext(ctx, `UPDATE changes SET state = ?, error = ?, applied_at = COALESCE(?, applied_at) WHERE id = ?`,
+	res, err := t.exec(ctx, `UPDATE changes SET state = ?, error = ?, applied_at = COALESCE(?, applied_at) WHERE id = ?`,
 		state, nullString(errText), applied, changeID)
 	if err != nil {
 		return fmt.Errorf("can't update change %s: %w", changeID, err)
@@ -132,7 +206,7 @@ func (t *Tx) SetChangeState(ctx context.Context, changeID, state, errText string
 
 // ChangesIn returns the IDs of changes in a state, oldest first.
 func (t *Tx) ChangesIn(ctx context.Context, state string) ([]string, error) {
-	rows, err := t.tx.QueryContext(ctx, `SELECT id FROM changes WHERE state = ? ORDER BY created_at, id`, state)
+	rows, err := t.query(ctx, `SELECT id FROM changes WHERE state = ? ORDER BY created_at, id`, state)
 	if err != nil {
 		return nil, fmt.Errorf("can't list changes: %w", err)
 	}
@@ -148,35 +222,55 @@ func (t *Tx) ChangesIn(ctx context.Context, state string) ([]string, error) {
 	return out, rows.Err()
 }
 
-const resourceColumns = `r.id, r.kind, r.server_id, r.name, r.revision, v.spec, v.change_id`
+const resourceColumns = `r.id, r.kind, r.scope, r.name, r.revision, v.spec, v.spec IS NULL, v.change_id`
+
+const latest = ` FROM resources r JOIN revisions v ON v.resource_id = r.id AND v.number = r.revision`
 
 func scanResource(row interface{ Scan(...any) error }) (Resource, error) {
 	var r Resource
-	err := row.Scan(&r.ID, &r.Kind, &r.Server, &r.Name, &r.Revision, &r.Spec, &r.ChangeID)
+	var deleted bool
+	err := row.Scan(&r.ID, &r.Kind, &r.Scope, &r.Name, &r.Revision, &r.Spec, &deleted, &r.ChangeID)
+	r.Spec = spec(r.Spec, deleted)
 	return r, err
 }
 
-// GetResource returns a resource with its latest revision, or ErrNotFound
-// if it was never managed.
-func (t *Tx) GetResource(ctx context.Context, kind, server, name string) (Resource, error) {
-	r, err := scanResource(t.tx.QueryRowContext(ctx, `SELECT `+resourceColumns+`
-		FROM resources r JOIN revisions v ON v.resource_id = r.id AND v.number = r.revision
-		WHERE r.kind = ? AND r.server_id = ? AND r.name = ?`, kind, server, name))
+// spec returns a stored spec: nil only for a deletion. An empty message
+// encodes to no bytes, which a driver may read back as nil.
+func spec(b []byte, deleted bool) []byte {
+	switch {
+	case deleted:
+		return nil
+	case b == nil:
+		return []byte{}
+	}
+	return b
+}
+
+func (t *Tx) getResource(ctx context.Context, what, where string, args ...any) (Resource, error) {
+	r, err := scanResource(t.queryRow(ctx, `SELECT `+resourceColumns+latest+` WHERE `+where, args...))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Resource{}, ErrNotFound
 	}
 	if err != nil {
-		return Resource{}, fmt.Errorf("can't read %s %s: %w", kind, name, err)
+		return Resource{}, fmt.Errorf("can't read %s: %w", what, err)
 	}
 	return r, nil
 }
 
-// ListResources returns the resources a server should have: every one
-// whose latest revision isn't a deletion, by kind and name.
-func (t *Tx) ListResources(ctx context.Context, server string) ([]Resource, error) {
-	rows, err := t.tx.QueryContext(ctx, `SELECT `+resourceColumns+`
-		FROM resources r JOIN revisions v ON v.resource_id = r.id AND v.number = r.revision
-		WHERE r.server_id = ? AND v.spec IS NOT NULL ORDER BY r.kind, r.name`, server)
+// GetResource returns a resource with its latest revision, or ErrNotFound
+// if it was never managed.
+func (t *Tx) GetResource(ctx context.Context, kind, scope, name string) (Resource, error) {
+	return t.getResource(ctx, kind+" "+name, `r.kind = ? AND r.scope = ? AND r.name = ?`, kind, scope, name)
+}
+
+// GetResourceByID returns a resource with its latest revision, or
+// ErrNotFound.
+func (t *Tx) GetResourceByID(ctx context.Context, id string) (Resource, error) {
+	return t.getResource(ctx, id, `r.id = ?`, id)
+}
+
+func (t *Tx) listResources(ctx context.Context, query string, args ...any) ([]Resource, error) {
+	rows, err := t.query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("can't list resources: %w", err)
 	}
@@ -192,69 +286,178 @@ func (t *Tx) ListResources(ctx context.Context, server string) ([]Resource, erro
 	return out, rows.Err()
 }
 
+// ListResources returns the resources that live in a scope, of one kind or
+// of every kind when kind is empty, by kind and name. Deleted ones are
+// left out.
+func (t *Tx) ListResources(ctx context.Context, scope, kind string) ([]Resource, error) {
+	return t.listResources(ctx, `SELECT `+resourceColumns+latest+`
+		WHERE r.scope = ? AND (r.kind = ? OR ? = '') AND v.spec IS NOT NULL ORDER BY r.kind, r.name`, scope, kind, kind)
+}
+
+// ListPlaced returns the resources a server should have: every one whose
+// latest revision is deployed there, by kind, scope and name.
+func (t *Tx) ListPlaced(ctx context.Context, server string) ([]Resource, error) {
+	return t.listResources(ctx, `SELECT `+resourceColumns+latest+`
+		JOIN deployments d ON d.resource_id = r.id AND d.revision = r.revision
+		WHERE d.server_id = ? AND v.spec IS NOT NULL ORDER BY r.kind, r.scope, r.name`, server)
+}
+
+// NewRevision is the next revision of a resource.
+type NewRevision struct {
+	Kind, Scope, Name string
+	// ID names the resource if this is its first revision.
+	ID       string
+	Spec     []byte // nil deletes
+	Change   string
+	Position int // of the change item asking for it
+	At       time.Time
+}
+
 // AddRevision writes the next revision of a resource, creating the
 // resource on its first.
-func (t *Tx) AddRevision(ctx context.Context, kind, server, name string, spec []byte, changeID string, at time.Time) (Revision, error) {
-	r, err := t.GetResource(ctx, kind, server, name)
+func (t *RevisionTx) AddRevision(ctx context.Context, n NewRevision) (Revision, error) {
+	r, err := t.GetResource(ctx, n.Kind, n.Scope, n.Name)
 	switch {
 	case errors.Is(err, ErrNotFound):
-		r = Resource{ID: id.New(id.Resource), Kind: kind, Server: server, Name: name}
-		if _, err := t.tx.ExecContext(ctx, `INSERT INTO resources (id, kind, server_id, name, revision) VALUES (?, ?, ?, ?, 0)`,
-			r.ID, kind, server, name); err != nil {
-			return Revision{}, fmt.Errorf("can't record %s %s: %w", kind, name, err)
+		r = Resource{ID: n.ID, Kind: n.Kind, Scope: n.Scope, Name: n.Name}
+		if _, err := t.exec(ctx, `INSERT INTO resources (id, kind, scope, name, revision) VALUES (?, ?, ?, ?, 0)`,
+			r.ID, n.Kind, n.Scope, n.Name); err != nil {
+			return Revision{}, fmt.Errorf("can't record %s %s: %w", n.Kind, n.Name, err)
 		}
 	case err != nil:
 		return Revision{}, err
 	}
 	r.Revision++
-	r.Spec, r.ChangeID = spec, changeID
-	if _, err := t.tx.ExecContext(ctx, `INSERT INTO revisions (resource_id, number, spec, change_id, created_at) VALUES (?, ?, ?, ?, ?)`,
-		r.ID, r.Revision, spec, changeID, millis(at)); err != nil {
-		return Revision{}, fmt.Errorf("can't record a revision of %s %s: %w", kind, name, err)
+	r.Spec, r.ChangeID = n.Spec, n.Change
+	if _, err := t.exec(ctx, `INSERT INTO revisions (resource_id, number, spec, change_id, position, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		r.ID, r.Revision, n.Spec, n.Change, n.Position, millis(n.At)); err != nil {
+		return Revision{}, fmt.Errorf("can't record a revision of %s %s: %w", n.Kind, n.Name, err)
 	}
-	if _, err := t.tx.ExecContext(ctx, `UPDATE resources SET revision = ? WHERE id = ?`, r.Revision, r.ID); err != nil {
-		return Revision{}, fmt.Errorf("can't record a revision of %s %s: %w", kind, name, err)
+	if _, err := t.exec(ctx, `UPDATE resources SET revision = ? WHERE id = ?`, r.Revision, r.ID); err != nil {
+		return Revision{}, fmt.Errorf("can't record a revision of %s %s: %w", n.Kind, n.Name, err)
 	}
-	return Revision{Resource: r, CreatedAt: at}, nil
+	return Revision{Resource: r, CreatedAt: n.At}, nil
+}
+
+const revisionColumns = `r.id, r.kind, r.scope, r.name, v.number, v.spec, v.spec IS NULL, v.change_id, v.created_at`
+
+func scanRevision(row interface{ Scan(...any) error }) (Revision, error) {
+	var rev Revision
+	var created int64
+	var deleted bool
+	err := row.Scan(&rev.ID, &rev.Kind, &rev.Scope, &rev.Name, &rev.Revision, &rev.Spec, &deleted, &rev.ChangeID, &created)
+	rev.Spec, rev.CreatedAt = spec(rev.Spec, deleted), fromMillis(created)
+	return rev, err
 }
 
 // GetRevision returns one revision of a resource, or ErrNotFound.
 func (t *Tx) GetRevision(ctx context.Context, resourceID string, number int) (Revision, error) {
-	var rev Revision
-	var created int64
-	err := t.tx.QueryRowContext(ctx, `SELECT r.id, r.kind, r.server_id, r.name, v.number, v.spec, v.change_id, v.created_at
-		FROM revisions v JOIN resources r ON r.id = v.resource_id WHERE v.resource_id = ? AND v.number = ?`, resourceID, number).
-		Scan(&rev.ID, &rev.Kind, &rev.Server, &rev.Name, &rev.Revision, &rev.Spec, &rev.ChangeID, &created)
+	rev, err := scanRevision(t.queryRow(ctx, `SELECT `+revisionColumns+`
+		FROM revisions v JOIN resources r ON r.id = v.resource_id WHERE v.resource_id = ? AND v.number = ?`, resourceID, number))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Revision{}, ErrNotFound
 	}
 	if err != nil {
 		return Revision{}, fmt.Errorf("can't read revision %d of %s: %w", number, resourceID, err)
 	}
-	rev.CreatedAt = fromMillis(created)
 	return rev, nil
 }
 
-// RevisionsOf returns the revisions a change made, in the order it made
-// them.
+// RevisionsOf returns the revisions a change made, in the order it asked
+// for them.
 func (t *Tx) RevisionsOf(ctx context.Context, changeID string) ([]Revision, error) {
-	rows, err := t.tx.QueryContext(ctx, `SELECT r.id, r.kind, r.server_id, r.name, v.number, v.spec, v.change_id, v.created_at
-		FROM revisions v JOIN resources r ON r.id = v.resource_id WHERE v.change_id = ? ORDER BY v.rowid`, changeID)
+	rows, err := t.query(ctx, `SELECT `+revisionColumns+`
+		FROM revisions v JOIN resources r ON r.id = v.resource_id WHERE v.change_id = ? ORDER BY v.position`, changeID)
 	if err != nil {
 		return nil, fmt.Errorf("can't read the revisions of %s: %w", changeID, err)
 	}
 	defer rows.Close()
 	var out []Revision
 	for rows.Next() {
-		var rev Revision
-		var created int64
-		if err := rows.Scan(&rev.ID, &rev.Kind, &rev.Server, &rev.Name, &rev.Revision, &rev.Spec, &rev.ChangeID, &created); err != nil {
+		rev, err := scanRevision(rows)
+		if err != nil {
 			return nil, fmt.Errorf("can't read the revisions of %s: %w", changeID, err)
 		}
-		rev.CreatedAt = fromMillis(created)
 		out = append(out, rev)
 	}
 	return out, rows.Err()
 }
 
-func nullString(s string) sql.NullString { return sql.NullString{String: s, Valid: s != ""} }
+// PlaceRevision deploys a revision on servers, pending until each has it.
+func (t *RevisionTx) PlaceRevision(ctx context.Context, resourceID string, revision int, servers []string, at time.Time) error {
+	for _, s := range servers {
+		if _, err := t.exec(ctx, `INSERT INTO deployments (resource_id, revision, server_id, state, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?)`, resourceID, revision, s, DeploymentPending, millis(at), millis(at)); err != nil {
+			return fmt.Errorf("can't place revision %d of %s on %s: %w", revision, resourceID, s, err)
+		}
+	}
+	return nil
+}
+
+// SetDeploymentState records how a deployment's rollout went. Once one is
+// live, the earlier revisions it replaces on that server are superseded.
+// ErrNotFound means the revision was never placed on the server.
+func (t *RevisionTx) SetDeploymentState(ctx context.Context, d Deployment) error {
+	res, err := t.exec(ctx, `UPDATE deployments SET state = ?, error = ?, updated_at = ?
+		WHERE resource_id = ? AND revision = ? AND server_id = ?`,
+		d.State, nullString(d.Error), millis(d.UpdatedAt), d.ResourceID, d.Revision, d.Server)
+	if err != nil {
+		return fmt.Errorf("can't update the deployment of %s on %s: %w", d.ResourceID, d.Server, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("revision %d of %s on %s: %w", d.Revision, d.ResourceID, d.Server, ErrNotFound)
+	}
+	if d.State == DeploymentLive {
+		return t.Supersede(ctx, d.ResourceID, d.Server, d.Revision, d.UpdatedAt)
+	}
+	return nil
+}
+
+// Supersede marks a resource's live and pending deployments on a server
+// from before revision as superseded: something later, or a deletion,
+// has taken their place there.
+func (t *RevisionTx) Supersede(ctx context.Context, resourceID, server string, revision int, at time.Time) error {
+	if _, err := t.exec(ctx, `UPDATE deployments SET state = ?, updated_at = ?
+		WHERE resource_id = ? AND server_id = ? AND revision < ? AND state IN (?, ?)`,
+		DeploymentSuperseded, millis(at), resourceID, server, revision, DeploymentLive, DeploymentPending); err != nil {
+		return fmt.Errorf("can't update the deployments of %s on %s: %w", resourceID, server, err)
+	}
+	return nil
+}
+
+// Placement returns the servers a revision was placed on, by ID.
+func (t *Tx) Placement(ctx context.Context, resourceID string, revision int) ([]string, error) {
+	deps, err := t.Deployments(ctx, resourceID, revision)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(deps))
+	for i, d := range deps {
+		out[i] = d.Server
+	}
+	return out, nil
+}
+
+// Deployments returns where a revision of a resource was placed, by
+// server ID, or every revision's when revision is 0, newest first.
+func (t *Tx) Deployments(ctx context.Context, resourceID string, revision int) ([]Deployment, error) {
+	rows, err := t.query(ctx, `SELECT resource_id, revision, server_id, state, error, created_at, updated_at
+		FROM deployments WHERE resource_id = ? AND (revision = ? OR ? = 0) ORDER BY revision DESC, server_id`,
+		resourceID, revision, revision)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the deployments of %s: %w", resourceID, err)
+	}
+	defer rows.Close()
+	var out []Deployment
+	for rows.Next() {
+		var d Deployment
+		var errText sql.NullString
+		var created, updated int64
+		if err := rows.Scan(&d.ResourceID, &d.Revision, &d.Server, &d.State, &errText, &created, &updated); err != nil {
+			return nil, fmt.Errorf("can't read the deployments of %s: %w", resourceID, err)
+		}
+		d.Error, d.CreatedAt, d.UpdatedAt = errText.String, fromMillis(created), fromMillis(updated)
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}

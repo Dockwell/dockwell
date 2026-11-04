@@ -304,8 +304,8 @@ func orPlaceholder(s, placeholder string) string {
 
 // openPeople opens an existing control plane's people, for commands that run
 // beside it on the control server.
-func openPeople(ctx context.Context, dir datadir.Dir, logger *slog.Logger) (*auth.Service, *store.DB, panelAddress, error) {
-	key, db, err := openControl(ctx, dir)
+func openPeople(ctx context.Context, dir datadir.Dir, location string, logger *slog.Logger) (*auth.Service, *store.DB, panelAddress, error) {
+	key, db, err := openControl(ctx, dir, location)
 	if err != nil {
 		return nil, nil, panelAddress{}, err
 	}
@@ -343,8 +343,12 @@ func newClaimCmd(stdio IO, g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			location, err := g.databaseOf(stdio, dir)
+			if err != nil {
+				return err
+			}
 			ctx := cmd.Context()
-			people, db, addr, err := openPeople(ctx, dir, logger)
+			people, db, addr, err := openPeople(ctx, dir, location, logger)
 			if err != nil {
 				return err
 			}
@@ -385,8 +389,12 @@ func newRecoverCmd(stdio IO, g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			location, err := g.databaseOf(stdio, dir)
+			if err != nil {
+				return err
+			}
 			ctx := cmd.Context()
-			people, db, addr, err := openPeople(ctx, dir, logger)
+			people, db, addr, err := openPeople(ctx, dir, location, logger)
 			if err != nil {
 				return err
 			}

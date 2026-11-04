@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -52,8 +54,33 @@ var _ resource.Driver = (*Driver)(nil)
 // Kind returns "container".
 func (*Driver) Kind() resource.Kind { return Kind }
 
+// Level is the server: a container run by hand is host-level. Services
+// run containers too, as part of their environment.
+func (*Driver) Level() resource.Level { return resource.LevelServer }
+
 // New returns an empty Container.
 func (*Driver) New() proto.Message { return &resourcev1.Container{} }
+
+var nameRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+
+// serviceForm is in the name of every service's container, which is
+// <service>.<environment ID> (service.ContainerName), and every environment
+// ID starts with env_.
+const serviceForm = "." + id.Environment + "_"
+
+// CheckName requires a name Docker takes, and keeps names of the form
+// services' containers have for services, so a container run by hand never
+// manages one of theirs.
+func (*Driver) CheckName(name string) error {
+	switch {
+	case !nameRE.MatchString(name):
+		return fmt.Errorf("%q isn't a valid container name: use letters, digits, dots, dashes and underscores, starting with a letter or digit, such as web", name)
+	case strings.Contains(name, serviceForm):
+		return fmt.Errorf("%q has the form of a service's container, <service>%s<ID>, so a container run by hand can't take it. Choose a name without %q, or run it as a service",
+			name, serviceForm, serviceForm)
+	}
+	return nil
+}
 
 // Validate requires an image and valid ports, and fills in defaults.
 func (*Driver) Validate(spec proto.Message) error {
@@ -89,8 +116,8 @@ func (*Driver) Validate(spec proto.Message) error {
 }
 
 // Observe asks Docker.
-func (d *Driver) Observe(ctx context.Context, name string) (proto.Message, error) {
-	c, err := d.Runtime.Inspect(ctx, name)
+func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {
+	c, err := d.Runtime.Inspect(ctx, ref.Name)
 	if err != nil || c == nil {
 		return nil, err
 	}
@@ -136,6 +163,6 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 }
 
 // Verify checks the container is running and passes its health check.
-func (d *Driver) Verify(ctx context.Context, name string, _ proto.Message) error {
-	return d.Runtime.Healthy(ctx, name)
+func (d *Driver) Verify(ctx context.Context, ref resource.Ref, _ proto.Message) error {
+	return d.Runtime.Healthy(ctx, ref.Name)
 }

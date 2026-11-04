@@ -45,6 +45,9 @@ var _ resource.Driver = (*Driver)(nil)
 // Kind returns "firewall.rule".
 func (*Driver) Kind() resource.Kind { return Kind }
 
+// Level is the server: a firewall rule is host-level.
+func (*Driver) Level() resource.Level { return resource.LevelServer }
+
 // New returns an empty FirewallRule.
 func (*Driver) New() proto.Message { return &resourcev1.FirewallRule{} }
 
@@ -82,8 +85,8 @@ func (*Driver) Validate(spec proto.Message) error {
 }
 
 // Observe asks the firewall.
-func (d *Driver) Observe(ctx context.Context, name string) (proto.Message, error) {
-	r, err := d.Backend.Rule(ctx, name)
+func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {
+	r, err := d.Backend.Rule(ctx, ref.Name)
 	if err != nil || r == nil {
 		return nil, err
 	}
@@ -139,4 +142,4 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 
 // Verify has nothing to check beyond the rule being there: a rule has no
 // health of its own.
-func (*Driver) Verify(context.Context, string, proto.Message) error { return nil }
+func (*Driver) Verify(context.Context, resource.Ref, proto.Message) error { return nil }

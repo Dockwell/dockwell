@@ -43,7 +43,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, err
 		}
-		actual, err := Observe(ctx, d, want.Ref.Name)
+		actual, err := Observe(ctx, d, want.Ref)
 		if err != nil {
 			return nil, fmt.Errorf("can't read %s: %w", want.Ref, err)
 		}
@@ -66,7 +66,7 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 	if err := d.Apply(ctx, step, desired); err != nil {
 		return fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err)
 	}
-	actual, err := Observe(ctx, d, step.Ref.Name)
+	actual, err := Observe(ctx, d, step.Ref)
 	if err != nil {
 		return fmt.Errorf("applied %s, but can't read it back: %w", step.Ref, err)
 	}
@@ -80,7 +80,7 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 	if desired == nil {
 		return nil
 	}
-	if err := d.Verify(ctx, step.Ref.Name, desired); err != nil {
+	if err := d.Verify(ctx, step.Ref, desired); err != nil {
 		return fmt.Errorf("applied %s, but it isn't healthy: %w", step.Ref, err)
 	}
 	return nil
@@ -94,7 +94,7 @@ func (l Local) Observe(ctx context.Context, refs []Ref) ([]proto.Message, error)
 		if err != nil {
 			return nil, err
 		}
-		if out[i], err = Observe(ctx, d, ref.Name); err != nil {
+		if out[i], err = Observe(ctx, d, ref); err != nil {
 			return nil, fmt.Errorf("can't read %s: %w", ref, err)
 		}
 	}
@@ -121,8 +121,8 @@ func PlanStep(d Driver, ref Ref, actual, desired proto.Message) (Step, error) {
 // desired spec, so what a server reports in its own order or with its own
 // defaults compares equal to the spec that made it. What can't be
 // normalized is returned as read, and shows as a difference.
-func Observe(ctx context.Context, d Driver, name string) (proto.Message, error) {
-	actual, err := d.Observe(ctx, name)
+func Observe(ctx context.Context, d Driver, ref Ref) (proto.Message, error) {
+	actual, err := d.Observe(ctx, ref)
 	if err != nil || actual == nil {
 		return nil, err
 	}

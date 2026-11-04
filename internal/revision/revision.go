@@ -2,9 +2,12 @@
 
 // Package revision is the one path every change to managed state takes:
 // propose edits, plan them against the servers, apply the plan, and undo
-// it later. Applying writes immutable revisions; undo and rollback write
-// new ones. It also finds drift, where a server no longer matches its
-// latest revision. See docs/adr/0009-resources-revisions-and-plans.md.
+// it later. Applying writes immutable revisions and deploys them where they
+// are placed; undo and rollback write new ones. It also finds drift, where
+// a server no longer matches its latest revision. It is the only package
+// that writes managed state (store.DB.Revise). See
+// docs/adr/0009-resources-revisions-and-plans.md and
+// docs/adr/0014-object-model-and-store.md.
 package revision
 
 import (
@@ -24,8 +27,10 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -74,15 +79,23 @@ type Engine struct {
 }
 
 // New returns an engine over db, using kinds to read and check specs, and
-// agents to reach servers.
+// agents to reach servers. Projects and environments are always among the
+// kinds.
 func New(db *store.DB, kinds *resource.Registry, agents Agents, logger *slog.Logger) *Engine {
-	return &Engine{db: db, kinds: kinds, agents: agents, logger: logger, now: time.Now}
+	return &Engine{db: db, kinds: kinds.With(scope.Types()...), agents: agents, logger: logger, now: time.Now}
 }
 
 // Edit sets one resource's desired spec; a nil Spec deletes it.
 type Edit struct {
 	Ref  resource.Ref
 	Spec proto.Message
+	// Servers places a resource of an environment-level kind, such as a
+	// service, by server ID. Nil keeps it where it runs now, on the
+	// servers still in the fleet; a new one runs on the only server when
+	// there is one, and must say where when there are several. A removed
+	// server is never one of them. Other kinds ignore it: a host-level
+	// resource is on its server, and projects and environments run on none.
+	Servers []string
 }
 
 // Proposal is a set of edits someone wants to make.
@@ -97,10 +110,12 @@ type Plan struct {
 	Change  string // the planned change's ID, to apply or discard
 	Summary string
 	Reverts string // the change this undoes or rolls back, if any
-	// Servers lists each server with something to do, in proposal order.
+	// Servers lists each server with something to do, in proposal order,
+	// then each removed server the change takes resources off.
 	Servers []ServerPlan
 	// Revisions is how many resources get a new revision. A plan can have
-	// revisions without steps, such as adopting drift.
+	// revisions without steps, such as adopting drift or making an
+	// environment.
 	Revisions   int
 	Fingerprint string
 }
@@ -111,6 +126,10 @@ type ServerPlan struct {
 	// Offline means the server isn't connected, so the plan is based on
 	// its last known desired state.
 	Offline bool
+	// Removed means the server was removed from the fleet. Nothing runs
+	// there any more, so the plan has no steps on it: what the change
+	// takes off it is only recorded.
+	Removed bool
 	// Downtime adds up the steps' downtime, as they run one at a time.
 	Downtime time.Duration
 	Steps    []resource.Step
@@ -130,21 +149,64 @@ func (p *Plan) Steps() []resource.Step {
 
 // item is one edit with what it starts from.
 type item struct {
-	ref     resource.Ref
+	ref   resource.Ref
+	level resource.Level
+	// id names the resource. A new one gets its ID when the change is
+	// planned, so another item in the change can live in it.
+	id      string
 	base    int           // the latest revision now; 0 if none
 	current proto.Message // the latest spec; nil if none or deleted
 	spec    proto.Message // what is wanted; nil deletes
 	encoded []byte
+	// placed is where the base revision is deployed, and servers where the
+	// new one goes, by server ID and sorted. Both are empty for kinds that
+	// run on no server.
+	placed, servers []string
+	// gone are the servers among those that were removed from the fleet.
+	// The item takes no steps there.
+	gone []string
+	// rev is the revision applying runs toward: the new one, once
+	// committed, or base when the item makes none.
+	rev int
 }
 
-// changes reports whether the item makes a new revision.
+// changes reports whether the item makes a new revision: its spec, or
+// where it runs, differs from the latest revision.
 func (it item) changes() bool {
 	cur, err := encodeOrNil(it.current)
-	return err != nil || it.base == 0 || !bytes.Equal(cur, it.encoded) || (it.current == nil) != (it.spec == nil)
+	return err != nil || it.base == 0 || !bytes.Equal(cur, it.encoded) || (it.current == nil) != (it.spec == nil) ||
+		!slices.Equal(it.placed, it.servers)
+}
+
+// targets are the servers applying the item takes steps on: where it is
+// and where it goes, less the servers that were removed.
+func (it item) targets() []string {
+	out := slices.Concat(it.placed, it.servers)
+	slices.Sort(out)
+	return slices.DeleteFunc(slices.Compact(out), func(s string) bool { return slices.Contains(it.gone, s) })
+}
+
+// desiredOn is what the item wants on a server: its spec where it is
+// placed, and nothing elsewhere.
+func (it item) desiredOn(server string) proto.Message {
+	if slices.Contains(it.servers, server) {
+		return it.spec
+	}
+	return nil
+}
+
+// currentOn is what the latest revision has on a server.
+func (it item) currentOn(server string) proto.Message {
+	if slices.Contains(it.placed, server) {
+		return it.current
+	}
+	return nil
 }
 
 // Propose plans a proposal and records it as a planned change, ready to
-// apply.
+// apply. A new resource gets its ID now. A project the change brings to
+// life gets its first environment in the same change: production, unless
+// the change makes one in it.
 func (e *Engine) Propose(ctx context.Context, p Proposal) (*Plan, error) {
 	return e.propose(ctx, p, "")
 }
@@ -165,7 +227,13 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string) (*Plan
 			if err != nil {
 				return err
 			}
+			if it.id == "" {
+				it.id = e.newID(ed.Ref.Kind)
+			}
 			if ed.Spec != nil {
+				if err := e.checkName(ed.Ref); err != nil {
+					return err
+				}
 				it.spec = proto.Clone(ed.Spec)
 				if err := e.kinds.Validate(ed.Ref.Kind, it.spec); err != nil {
 					return fmt.Errorf("%w: %s: %w", ErrInvalid, ed.Ref, err)
@@ -176,9 +244,16 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string) (*Plan
 			} else if it.current == nil {
 				return fmt.Errorf("%w: there's no %s to delete", ErrInvalid, ed.Ref)
 			}
+			if it.servers, err = e.place(ctx, tx, it, ed.Servers); err != nil {
+				return err
+			}
 			items = append(items, it)
 		}
-		return nil
+		var err error
+		if items, err = e.withFirstEnvironments(ctx, tx, items); err != nil {
+			return err
+		}
+		return e.check(ctx, tx, items)
 	})
 	if err != nil {
 		return nil, err
@@ -197,10 +272,14 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string) (*Plan
 		ID: plan.Change, Summary: p.Summary, Actor: p.Actor, State: store.ChangePlanned, Reverts: reverts,
 		Fingerprint: plan.Fingerprint, Plan: record, CreatedAt: e.now(),
 	}
-	for _, it := range items {
-		c.Items = append(c.Items, store.ChangeItem{Kind: string(it.ref.Kind), Server: it.ref.Server, Name: it.ref.Name, BaseRevision: it.base, Spec: it.encoded})
+	for i := range items {
+		it := &items[i]
+		c.Items = append(c.Items, store.ChangeItem{
+			ResourceID: it.id, Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, BaseRevision: it.base, Spec: it.encoded,
+			Servers: it.servers,
+		})
 	}
-	if err := e.db.Update(ctx, func(tx *store.Tx) error { return tx.CreateChange(ctx, c) }); err != nil {
+	if err := e.db.Revise(ctx, func(tx *store.RevisionTx) error { return tx.CreateChange(ctx, c) }); err != nil {
 		return nil, err
 	}
 	return plan, nil
@@ -208,43 +287,383 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string) (*Plan
 
 // load reads where a resource stands now.
 func (e *Engine) load(ctx context.Context, tx *store.Tx, ref resource.Ref) (item, error) {
-	it := item{ref: ref}
-	r, err := tx.GetResource(ctx, string(ref.Kind), ref.Server, ref.Name)
+	t, err := e.kinds.Type(ref.Kind)
+	if err != nil {
+		return item{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+	}
+	it := item{ref: ref, level: t.Level()}
+	r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		return it, nil
 	case err != nil:
 		return it, err
 	}
-	it.base = r.Revision
+	it.id, it.base, it.rev = r.ID, r.Revision, r.Revision
 	if r.Spec != nil {
 		if it.current, err = e.kinds.Decode(ref.Kind, r.Spec); err != nil {
+			return it, err
+		}
+		if it.placed, err = e.placement(ctx, tx, it, r.Revision); err != nil {
+			return it, err
+		}
+		if err := markGone(ctx, tx, &it); err != nil {
 			return it, err
 		}
 	}
 	return it, nil
 }
 
-// plan asks each server's agent what the items would take there. A server
-// that isn't connected is planned from its last known desired state.
-func (e *Engine) plan(ctx context.Context, items []item) (*Plan, error) {
-	var servers []string
-	byServer := map[string][]item{}
-	for _, it := range items {
-		if _, ok := byServer[it.ref.Server]; !ok {
-			servers = append(servers, it.ref.Server)
+// markGone notes which of the servers the item touches were removed from
+// the fleet. Nothing runs on them any more, so the item takes no steps
+// there.
+func markGone(ctx context.Context, tx *store.Tx, it *item) error {
+	it.gone = nil
+	for _, s := range it.targets() {
+		gone, err := serverGone(ctx, tx, s)
+		if err != nil {
+			return err
 		}
-		byServer[it.ref.Server] = append(byServer[it.ref.Server], it)
+		if gone {
+			it.gone = append(it.gone, s)
+		}
+	}
+	return nil
+}
+
+// serverGone reports a server that was removed from the fleet, or never
+// was in it.
+func serverGone(ctx context.Context, tx *store.Tx, server string) (bool, error) {
+	s, err := tx.GetServer(ctx, server)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return true, nil
+	case err != nil:
+		return false, err
+	}
+	return s.RevokedAt != nil, nil
+}
+
+// placement is where a revision of the item's resource is deployed.
+func (e *Engine) placement(ctx context.Context, tx *store.Tx, it item, revision int) ([]string, error) {
+	switch {
+	case it.level == resource.LevelServer:
+		return []string{it.ref.Scope}, nil
+	case !it.level.RunsOnServers() || it.id == "" || revision == 0:
+		return nil, nil
+	}
+	servers, err := tx.Placement(ctx, it.id, revision)
+	slices.Sort(servers)
+	return servers, err
+}
+
+// place decides where the item's new revision goes. A host-level resource
+// is on its server. An environment-level one goes where it was asked to,
+// or stays where it is, on the servers still in the fleet; a new one, or
+// one whose servers were all removed, goes on the only server, and must be
+// told where when there is a choice (PRD principle 4). Nothing is placed
+// on a removed server.
+func (e *Engine) place(ctx context.Context, tx *store.Tx, it item, want []string) ([]string, error) {
+	switch {
+	case it.spec == nil || !it.level.RunsOnServers():
+		return nil, nil
+	case it.level == resource.LevelServer:
+		return []string{it.ref.Scope}, nil
+	}
+	// removed says why a service that ran only on removed servers is
+	// placed like a new one.
+	var removed string
+	if want == nil && it.current != nil {
+		kept := slices.DeleteFunc(slices.Clone(it.placed), func(s string) bool { return slices.Contains(it.gone, s) })
+		if len(kept) > 0 {
+			return kept, nil
+		}
+		removed = fmt.Sprintf("%s ran on %s, which %s removed from the fleet, and ", it.ref.Name, strings.Join(it.gone, ", "), wasOrWere(len(it.gone)))
+	}
+	active, err := tx.ListServers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if want == nil {
+		switch len(active) {
+		case 1:
+			return []string{active[0].ID}, nil
+		case 0:
+			return nil, fmt.Errorf("%w: %sthere's no server to run %s on. Add a server first", ErrInvalid, removed, it.ref.Name)
+		}
+		names := make([]string, len(active))
+		for i := range active {
+			names[i] = active[i].Name
+		}
+		return nil, fmt.Errorf("%w: %sthere are %d servers, so say which %s runs on: %s", ErrInvalid, removed, len(active), it.ref.Name,
+			strings.Join(names, ", "))
+	}
+	if len(want) == 0 {
+		return nil, fmt.Errorf("%w: %s needs a server to run on. To stop it everywhere, delete it", ErrInvalid, it.ref.Name)
+	}
+	out := slices.Clone(want)
+	slices.Sort(out)
+	out = slices.Compact(out)
+	for _, s := range out {
+		if !slices.ContainsFunc(active, func(a store.Server) bool { return a.ID == s }) {
+			return nil, notInFleet(ctx, tx, s, it.ref.Name)
+		}
+	}
+	return out, nil
+}
+
+// notInFleet explains why a resource can't be placed on a server.
+func notInFleet(ctx context.Context, tx *store.Tx, server, name string) error {
+	if _, err := tx.GetServer(ctx, server); err == nil {
+		return fmt.Errorf("%w: %s was removed from the fleet, so %s can't run there. Choose a server that is still in it", ErrInvalid, server, name)
+	}
+	return fmt.Errorf("%w: there's no server %s to run %s on", ErrInvalid, server, name)
+}
+
+func wasOrWere(n int) string {
+	if n == 1 {
+		return "was"
+	}
+	return "were"
+}
+
+// checkName refuses a name its kind doesn't accept.
+func (e *Engine) checkName(ref resource.Ref) error {
+	if strings.TrimSpace(ref.Name) == "" {
+		return fmt.Errorf("%w: a %s needs a name", ErrInvalid, ref.Kind)
+	}
+	t, err := e.kinds.Type(ref.Kind)
+	if err != nil {
+		return err
+	}
+	if c, ok := t.(resource.NameChecker); ok {
+		if err := c.CheckName(ref.Name); err != nil {
+			return fmt.Errorf("%w: %w", ErrInvalid, err)
+		}
+	}
+	return nil
+}
+
+// check refuses a change that would leave the model broken once it
+// applies. It looks at the change as a whole: what is stored, plus what the
+// change makes and deletes. So it refuses
+//   - an item whose scope isn't there, or goes in the same change;
+//   - an item placed on a server that was removed;
+//   - a project that would come to life with no environment;
+//   - deleting a scope that would still hold something, or the last
+//     environment of a project, or the organization's last project.
+//
+// It runs when proposing, and again in the transaction that applies, so a
+// change planned before the world moved can't slip through.
+func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
+	byID := make(map[string]*item, len(items))
+	for i := range items {
+		byID[items[i].id] = &items[i]
+	}
+	for i := range items {
+		it := &items[i]
+		if it.spec == nil {
+			continue
+		}
+		if err := e.checkScope(ctx, tx, it, byID); err != nil {
+			return err
+		}
+		if it.level == resource.LevelEnvironment {
+			for _, s := range it.servers {
+				gone, err := serverGone(ctx, tx, s)
+				if err != nil {
+					return err
+				}
+				if gone {
+					return notInFleet(ctx, tx, s, it.ref.Name)
+				}
+			}
+		}
+		if it.ref.Kind == scope.ProjectKind && it.current == nil {
+			envs, err := liveIn(ctx, tx, items, it.id, scope.EnvironmentKind)
+			if err != nil {
+				return err
+			}
+			if len(envs) == 0 {
+				return fmt.Errorf("%w: project %s would have no environment. Make one in it in the same change, such as %s", ErrInvalid,
+					it.ref.Name, scope.DefaultEnvironment)
+			}
+		}
+	}
+	for i := range items {
+		it := &items[i]
+		if it.spec != nil || it.current == nil || it.ref.Kind != scope.ProjectKind && it.ref.Kind != scope.EnvironmentKind {
+			continue
+		}
+		// A scope goes only once what lives in it has gone, in this change
+		// or an earlier one.
+		left, err := liveIn(ctx, tx, items, it.id, "")
+		if err != nil {
+			return err
+		}
+		if len(left) > 0 {
+			return fmt.Errorf("%w: %s %s still holds %s. Delete them first, or in the same change", ErrInvalid, it.ref.Kind, it.ref.Name,
+				strings.Join(left, ", "))
+		}
+		// Its parent keeps a place for things to go, unless it goes too: a
+		// project keeps an environment, and the organization a project.
+		if parent, ok := byID[it.ref.Scope]; ok && parent.spec == nil {
+			continue
+		}
+		siblings, err := liveIn(ctx, tx, items, it.ref.Scope, it.ref.Kind)
+		if err != nil {
+			return err
+		}
+		if len(siblings) == 0 {
+			where := "the organization"
+			if it.ref.Kind == scope.EnvironmentKind {
+				project, err := tx.GetResourceByID(ctx, it.ref.Scope)
+				if err != nil {
+					return err
+				}
+				where = "project " + project.Name
+			}
+			return fmt.Errorf("%w: %s is the last %s in %s, which needs one. Make another first, or in the same change", ErrInvalid,
+				it.ref.Name, it.ref.Kind, where)
+		}
+	}
+	return nil
+}
+
+// liveIn names what lives in a scope once the change applies, of one kind
+// or of every kind when kind is empty: what is stored there, less what the
+// change deletes, plus what it makes.
+func liveIn(ctx context.Context, tx *store.Tx, items []item, scopeID string, kind resource.Kind) ([]string, error) {
+	stored, err := tx.ListResources(ctx, scopeID, string(kind))
+	if err != nil {
+		return nil, err
+	}
+	live := make(map[string]string, len(stored)) // ID → name
+	for _, r := range stored {
+		live[r.ID] = r.Name
+	}
+	for i := range items {
+		it := &items[i]
+		switch {
+		case it.ref.Scope != scopeID || kind != "" && it.ref.Kind != kind:
+		case it.spec == nil:
+			delete(live, it.id)
+		default:
+			live[it.id] = it.ref.Name
+		}
+	}
+	return slices.Sorted(maps.Values(live)), nil
+}
+
+// checkScope refuses an item whose scope isn't there once the change
+// applies, or isn't the kind of thing its level lives in.
+func (e *Engine) checkScope(ctx context.Context, tx *store.Tx, it *item, byID map[string]*item) error {
+	missing := func(what string) error {
+		return fmt.Errorf("%w: there's no %s %s for %s %s to live in", ErrInvalid, what, it.ref.Scope, it.ref.Kind, it.ref.Name)
+	}
+	var want resource.Kind
+	switch it.level {
+	case resource.LevelServer:
+		s, err := tx.GetServer(ctx, it.ref.Scope)
+		if errors.Is(err, store.ErrNotFound) || err == nil && s.RevokedAt != nil {
+			return missing("server")
+		}
+		return err
+	case resource.LevelOrganization:
+		org, err := tx.Organization(ctx)
+		if errors.Is(err, store.ErrNotFound) || err == nil && org.ID != it.ref.Scope {
+			return missing("organization")
+		}
+		return err
+	case resource.LevelEnvironment:
+		want = scope.EnvironmentKind
+	case resource.LevelProject:
+		want = scope.ProjectKind
+	}
+	// The change may make its scope, or delete it.
+	if in, ok := byID[it.ref.Scope]; ok && in.ref.Kind == want {
+		if in.spec != nil {
+			return nil
+		}
+		fix := "delete " + it.ref.Name + " too"
+		if it.current == nil {
+			fix = "leave " + it.ref.Name + " out"
+		}
+		return fmt.Errorf("%w: this change deletes %s %s, so %s %s has nowhere to live. Keep %s, or %s", ErrInvalid,
+			in.ref.Kind, in.ref.Name, it.ref.Kind, it.ref.Name, in.ref.Name, fix)
+	}
+	r, err := tx.GetResourceByID(ctx, it.ref.Scope)
+	if errors.Is(err, store.ErrNotFound) || err == nil && (r.Kind != string(want) || r.Spec == nil) {
+		return missing(string(want))
+	}
+	return err
+}
+
+// withFirstEnvironments gives each project the change brings to life an
+// environment in the same change, so no project is ever without one:
+// production, as the install's first project has (PRD principle 4), unless
+// the change makes one in it. A project deleted before keeps its history,
+// and so does its production.
+func (e *Engine) withFirstEnvironments(ctx context.Context, tx *store.Tx, items []item) ([]item, error) {
+	for i := range items {
+		p := items[i]
+		if p.ref.Kind != scope.ProjectKind || p.spec == nil || p.current != nil {
+			continue
+		}
+		envs, err := liveIn(ctx, tx, items, p.id, scope.EnvironmentKind)
+		if err != nil {
+			return items, err
+		}
+		if len(envs) > 0 {
+			continue
+		}
+		env, err := e.load(ctx, tx, resource.Ref{Kind: scope.EnvironmentKind, Scope: p.id, Name: scope.DefaultEnvironment})
+		if err != nil {
+			return items, err
+		}
+		if env.id == "" {
+			env.id = e.newID(scope.EnvironmentKind)
+		}
+		env.spec = &resourcev1.Environment{}
+		if env.encoded, err = resource.Encode(env.spec); err != nil {
+			return items, err
+		}
+		items = append(items, env)
+	}
+	return items, nil
+}
+
+// plan asks each server's agent what the items would take there. A server
+// that isn't connected is planned from its last known desired state, and
+// one that was removed has no steps. Items that run on no server make
+// revisions without steps.
+func (e *Engine) plan(ctx context.Context, items []item) (*Plan, error) {
+	var servers, removed []string
+	byServer := map[string][]*item{}
+	for i := range items {
+		it := &items[i]
+		for _, s := range it.targets() {
+			if _, ok := byServer[s]; !ok {
+				servers = append(servers, s)
+			}
+			byServer[s] = append(byServer[s], it)
+		}
+		for _, s := range it.gone {
+			if !slices.Contains(removed, s) {
+				removed = append(removed, s)
+			}
+		}
 	}
 
 	plan := &Plan{}
 	fp := sha256.New()
-	for _, it := range items {
+	for i := range items {
+		it := &items[i]
 		if it.changes() {
 			plan.Revisions++
 		}
 		sum := sha256.Sum256(it.encoded)
-		fmt.Fprintf(fp, "item %s|%s|%s|%d|%x\n", it.ref.Kind, it.ref.Server, it.ref.Name, it.base, sum)
+		fmt.Fprintf(fp, "item %s|%s|%s|%s|%d|%x|%s\n", it.id, it.ref.Kind, it.ref.Scope, it.ref.Name, it.base, sum, strings.Join(it.servers, " "))
 	}
 	for _, server := range servers {
 		its := byServer[server]
@@ -254,7 +673,7 @@ func (e *Engine) plan(ctx context.Context, items []item) (*Plan, error) {
 		if online {
 			desired := make([]resource.Desired, len(its))
 			for i, it := range its {
-				desired[i] = resource.Desired{Ref: it.ref, Spec: it.spec}
+				desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server)}
 			}
 			var err error
 			if steps, err = agent.Plan(ctx, desired); err != nil {
@@ -267,7 +686,7 @@ func (e *Engine) plan(ctx context.Context, items []item) (*Plan, error) {
 				if err != nil {
 					return nil, err
 				}
-				step, err := resource.PlanStep(d, it.ref, it.current, it.spec)
+				step, err := resource.PlanStep(d, it.ref, it.currentOn(server), it.desiredOn(server))
 				if err != nil {
 					return nil, err
 				}
@@ -282,7 +701,7 @@ func (e *Engine) plan(ctx context.Context, items []item) (*Plan, error) {
 			}
 			sp.Steps = append(sp.Steps, *s)
 			sp.Downtime += s.Downtime
-			fmt.Fprintf(fp, "step %s|%s|%d|%d|%d|%t\n", s.Ref, s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys)
+			fmt.Fprintf(fp, "step %s|%s|%s|%d|%d|%d|%t\n", server, s.Ref, s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys)
 			for _, c := range s.Changes {
 				fmt.Fprintf(fp, "  %s|%d|%s|%s\n", c.Path, c.Op, c.From, c.To)
 			}
@@ -290,6 +709,10 @@ func (e *Engine) plan(ctx context.Context, items []item) (*Plan, error) {
 		if len(sp.Steps) > 0 {
 			plan.Servers = append(plan.Servers, sp)
 		}
+	}
+	for _, s := range removed {
+		plan.Servers = append(plan.Servers, ServerPlan{Server: s, Removed: true})
+		fmt.Fprintf(fp, "removed %s\n", s)
 	}
 	plan.Fingerprint = hex.EncodeToString(fp.Sum(nil)[:16])
 	return plan, nil
@@ -347,9 +770,9 @@ var ErrPending = errors.New("a server it touches reconnects")
 func isRollback(c store.Change) bool { return c.Actor == SystemActor && c.Reverts != "" }
 
 // Apply carries out a planned change: it checks that nothing moved since
-// the plan, commits the revisions, then runs the steps. If a step fails,
-// the steps already done are rolled back in a change of their own, and
-// the error is a *FailedError.
+// the plan, commits the revisions and places them on their servers, then
+// runs the steps. If a step fails, the steps already done are rolled back
+// in a change of their own, and the error is a *FailedError.
 func (e *Engine) Apply(ctx context.Context, changeID string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -395,15 +818,24 @@ func (e *Engine) apply(ctx context.Context, changeID string) error {
 	// Desired state goes on record before anything runs, so agents
 	// reconcile toward it even if the control plane stops halfway.
 	now := e.now()
-	err = e.db.Update(ctx, func(tx *store.Tx) error {
-		if _, err := e.current(ctx, tx, c); err != nil {
+	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error {
+		if _, err := e.current(ctx, tx.Tx, c); err != nil {
 			return err
 		}
-		for _, it := range items {
+		for i := range items {
+			it := &items[i]
 			if !it.changes() {
 				continue
 			}
-			if _, err := tx.AddRevision(ctx, string(it.ref.Kind), it.ref.Server, it.ref.Name, it.encoded, changeID, now); err != nil {
+			rev, err := tx.AddRevision(ctx, store.NewRevision{
+				Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, ID: it.id,
+				Spec: it.encoded, Change: changeID, Position: i, At: now,
+			})
+			if err != nil {
+				return err
+			}
+			it.id, it.rev = rev.ID, rev.Revision
+			if err := tx.PlaceRevision(ctx, rev.ID, rev.Revision, it.servers, now); err != nil {
 				return err
 			}
 		}
@@ -418,14 +850,29 @@ func (e *Engine) apply(ctx context.Context, changeID string) error {
 	return e.run(context.WithoutCancel(ctx), c, items, plan)
 }
 
+// newID names a new resource with its kind's prefix.
+func (e *Engine) newID(kind resource.Kind) string {
+	if t, err := e.kinds.Type(kind); err == nil {
+		if p, ok := t.(resource.IDPrefixer); ok {
+			return id.New(p.IDPrefix())
+		}
+	}
+	return id.New(id.Resource)
+}
+
 // run carries out a committed change. Creates, updates and replaces run on
 // every server before any delete, so what is built comes first and what
-// goes is taken down last. A rollback skips servers that aren't connected
-// and stays applying until Resume reaches them.
+// goes is taken down last. Each step's deployment records how it went. A
+// rollback skips servers that aren't connected and stays applying until
+// Resume reaches them.
 func (e *Engine) run(ctx context.Context, c store.Change, items []item, plan *Plan) error {
-	specs := map[resource.Ref]proto.Message{}
-	for _, it := range items {
-		specs[it.ref] = it.spec
+	type at struct {
+		server string
+		ref    resource.Ref
+	}
+	byRef := map[resource.Ref]*item{}
+	for i := range items {
+		byRef[items[i].ref] = &items[i]
 	}
 	type queued struct {
 		server string
@@ -449,18 +896,47 @@ func (e *Engine) run(ctx context.Context, c store.Change, items []item, plan *Pl
 		return slices.Index(serversOf(plan), b.server) - slices.Index(serversOf(plan), a.server)
 	})
 
+	// A removed server takes no steps. What the change took off it is
+	// superseded there at once; what it was to run there never got there.
+	for i := range items {
+		it := &items[i]
+		for _, s := range it.gone {
+			var failed error
+			if slices.Contains(it.servers, s) {
+				failed = fmt.Errorf("%s was removed from the fleet before %s reached it", s, it.ref.Name)
+			}
+			e.deployed(ctx, it, s, failed)
+		}
+	}
+
 	pending := map[string]bool{}
+	done := map[at]bool{}
 	for _, q := range append(builds, deletes...) {
+		it := byRef[q.step.Ref]
 		agent, online := e.agents.Agent(q.server)
 		if !online || agent == nil {
 			if isRollback(c) {
 				pending[q.server] = true
 				continue
 			}
-			return e.fail(ctx, c, q.step.Ref, fmt.Errorf("%w: %s lost its connection partway through", ErrOffline, q.server))
-		}
-		if err := agent.Apply(ctx, *q.step, specs[q.step.Ref]); err != nil {
+			err := fmt.Errorf("%w: %s lost its connection partway through", ErrOffline, q.server)
+			e.deployed(ctx, it, q.server, err)
 			return e.fail(ctx, c, q.step.Ref, err)
+		}
+		if err := agent.Apply(ctx, *q.step, it.desiredOn(q.server)); err != nil {
+			e.deployed(ctx, it, q.server, err)
+			return e.fail(ctx, c, q.step.Ref, err)
+		}
+		e.deployed(ctx, it, q.server, nil)
+		done[at{q.server, it.ref}] = true
+	}
+	// Where a revision needed no step, the server already has it.
+	for i := range items {
+		it := &items[i]
+		for _, s := range it.servers {
+			if !done[at{s, it.ref}] && !pending[s] && !slices.Contains(it.gone, s) {
+				e.deployed(ctx, it, s, nil)
+			}
 		}
 	}
 	if len(pending) > 0 {
@@ -469,6 +945,32 @@ func (e *Engine) run(ctx context.Context, c store.Change, items []item, plan *Pl
 		return fmt.Errorf("%w: %s", ErrPending, strings.Join(waiting, ", "))
 	}
 	return e.finish(ctx, c, store.ChangeApplied, "", "change.applied")
+}
+
+// deployed records how a step went on a server: the revision is live
+// there, or failed; or, where the step took it off the server, what it
+// had there is superseded. A record that can't be written is logged, not
+// fatal: the step itself happened, and Drift reads the servers, not this.
+func (e *Engine) deployed(ctx context.Context, it *item, server string, failed error) {
+	now := e.now()
+	err := e.db.Revise(ctx, func(tx *store.RevisionTx) error {
+		switch {
+		case failed != nil && slices.Contains(it.servers, server):
+			return tx.SetDeploymentState(ctx, store.Deployment{
+				ResourceID: it.id, Revision: it.rev, Server: server, State: store.DeploymentFailed, Error: failed.Error(), UpdatedAt: now,
+			})
+		case failed != nil:
+			return nil //nolint:nilerr // a failed step off a server leaves its deployment as it was
+		case slices.Contains(it.servers, server):
+			return tx.SetDeploymentState(ctx, store.Deployment{ResourceID: it.id, Revision: it.rev, Server: server, State: store.DeploymentLive, UpdatedAt: now})
+		default:
+			return tx.Supersede(ctx, it.id, server, it.rev+1, now)
+		}
+	})
+	if err != nil {
+		e.logger.WarnContext(ctx, "can't record a deployment", slog.String("resource", it.ref.String()), slog.String("server", server),
+			slog.String("error", err.Error()))
+	}
 }
 
 func serversOf(p *Plan) []string {
@@ -481,7 +983,7 @@ func serversOf(p *Plan) []string {
 
 // Resume finishes every change left applying: by a control plane that
 // stopped partway, or by a rollback waiting for a server. Each resource is
-// planned again against its server, toward the revision the change
+// planned again against its servers, toward the revision the change
 // committed, and the steps that remain run as in Apply. A change waits
 // while any server it touches is offline, and skips resources a later
 // change has moved on. Call it on start and whenever a server reconnects.
@@ -514,7 +1016,7 @@ func (e *Engine) resume(ctx context.Context, changeID string) error {
 			return err
 		}
 		for _, ci := range c.Items {
-			ref := resource.Ref{Kind: resource.Kind(ci.Kind), Server: ci.Server, Name: ci.Name}
+			ref := resource.Ref{Kind: resource.Kind(ci.Kind), Scope: ci.Scope, Name: ci.Name}
 			it, err := e.load(ctx, tx, ref)
 			if err != nil {
 				return err
@@ -524,8 +1026,18 @@ func (e *Engine) resume(ctx context.Context, changeID string) error {
 					return err
 				}
 			}
-			if !bytes.Equal(it.encoded, ci.Spec) {
+			if !bytes.Equal(it.encoded, ci.Spec) || it.base == 0 {
 				continue // a later change moved it on
+			}
+			// It goes where the latest revision is placed, from wherever
+			// the revision the change started from was, so the steps
+			// that remain on servers it left still run.
+			it.servers = it.placed
+			if it.placed, err = e.placement(ctx, tx, it, ci.BaseRevision); err != nil {
+				return err
+			}
+			if err := markGone(ctx, tx, &it); err != nil {
+				return err
 			}
 			items = append(items, it)
 		}
@@ -534,9 +1046,11 @@ func (e *Engine) resume(ctx context.Context, changeID string) error {
 	if err != nil {
 		return err
 	}
-	for _, it := range items {
-		if _, online := e.agents.Agent(it.ref.Server); !online {
-			return fmt.Errorf("%w: %s", ErrPending, it.ref.Server)
+	for i := range items {
+		for _, s := range items[i].targets() {
+			if _, online := e.agents.Agent(s); !online {
+				return fmt.Errorf("%w: %s", ErrPending, s)
+			}
 		}
 	}
 	e.logger.InfoContext(ctx, "resuming a change left applying", slog.String("change", c.ID))
@@ -548,26 +1062,39 @@ func (e *Engine) resume(ctx context.Context, changeID string) error {
 }
 
 // current checks that every item still starts from the latest revision,
-// and reads them as they stand.
+// and that its scope is still there, and reads them as they stand.
 func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]item, error) {
 	items := make([]item, 0, len(c.Items))
 	for _, ci := range c.Items {
-		ref := resource.Ref{Kind: resource.Kind(ci.Kind), Server: ci.Server, Name: ci.Name}
+		ref := resource.Ref{Kind: resource.Kind(ci.Kind), Scope: ci.Scope, Name: ci.Name}
 		it, err := e.load(ctx, tx, ref)
 		if err != nil {
 			return nil, err
 		}
 		if it.base != ci.BaseRevision {
-			r, _ := tx.GetResource(ctx, ci.Kind, ci.Server, ci.Name)
+			r, _ := tx.GetResource(ctx, ci.Kind, ci.Scope, ci.Name)
 			return nil, fmt.Errorf("%w: %s changed in %s after %s was planned. Plan it again", ErrStale, ref, r.ChangeID, c.ID)
 		}
-		it.encoded = ci.Spec
+		if it.id == "" {
+			// A new resource has the ID the change gave it, so what lives
+			// in it is where the plan put it. A change planned before IDs
+			// were given then gets one; its plan no longer matches, so it
+			// is planned again before it applies.
+			it.id = ci.ResourceID
+			if it.id == "" {
+				it.id = e.newID(ref.Kind)
+			}
+		}
+		it.encoded, it.servers = ci.Spec, ci.Servers
 		if ci.Spec != nil {
 			if it.spec, err = e.kinds.Decode(ref.Kind, ci.Spec); err != nil {
 				return nil, err
 			}
 		}
 		items = append(items, it)
+	}
+	if err := e.check(ctx, tx, items); err != nil {
+		return nil, fmt.Errorf("%w. Plan %s again", err, c.ID)
 	}
 	return items, nil
 }
@@ -607,7 +1134,7 @@ func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, caus
 
 func (e *Engine) finish(ctx context.Context, c store.Change, state, errText, event string) error {
 	now := e.now()
-	return e.db.Update(ctx, func(tx *store.Tx) error {
+	return e.db.Revise(ctx, func(tx *store.RevisionTx) error {
 		if err := tx.SetChangeState(ctx, c.ID, state, errText, time.Time{}); err != nil {
 			return err
 		}
@@ -616,7 +1143,8 @@ func (e *Engine) finish(ctx context.Context, c store.Change, state, errText, eve
 }
 
 // reverse returns the edits that put back what a change's revisions
-// replaced, refusing any resource that has changed again since.
+// replaced, where they ran, refusing any resource that has changed again
+// since.
 func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 	var edits []Edit
 	err := e.db.View(ctx, func(tx *store.Tx) error {
@@ -626,31 +1154,61 @@ func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 		}
 		for i := range revs {
 			rev := &revs[i]
-			ref := resource.Ref{Kind: resource.Kind(rev.Kind), Server: rev.Server, Name: rev.Name}
-			latest, err := tx.GetResource(ctx, rev.Kind, rev.Server, rev.Name)
+			ref := resource.Ref{Kind: resource.Kind(rev.Kind), Scope: rev.Scope, Name: rev.Name}
+			latest, err := tx.GetResource(ctx, rev.Kind, rev.Scope, rev.Name)
 			if err != nil {
 				return err
 			}
 			if latest.Revision != rev.Revision {
 				return fmt.Errorf("%w: %s changed again in %s. Undo that first, or edit %s directly", ErrCantUndo, ref, latest.ChangeID, rev.Name)
 			}
-			var before proto.Message
+			ed := Edit{Ref: ref}
 			if rev.Revision > 1 {
 				prev, err := tx.GetRevision(ctx, rev.ID, rev.Revision-1)
 				if err != nil {
 					return err
 				}
 				if prev.Spec != nil {
-					if before, err = e.kinds.Decode(ref.Kind, prev.Spec); err != nil {
+					if ed.Spec, err = e.kinds.Decode(ref.Kind, prev.Spec); err != nil {
+						return err
+					}
+					if ed.Servers, err = inFleet(ctx, tx, ref, rev.ID, prev.Revision, changeID); err != nil {
 						return err
 					}
 				}
 			}
-			edits = append(edits, Edit{Ref: ref, Spec: before})
+			edits = append(edits, ed)
 		}
 		return nil
 	})
 	return edits, err
+}
+
+// inFleet returns where a revision ran, on the servers still in the fleet:
+// putting it back places nothing on a removed server. If every server it
+// ran on was removed, there is nowhere to put it back.
+func inFleet(ctx context.Context, tx *store.Tx, ref resource.Ref, resourceID string, revision int, changeID string) ([]string, error) {
+	placed, err := tx.Placement(ctx, resourceID, revision)
+	if err != nil {
+		return nil, err
+	}
+	var out, gone []string
+	for _, s := range placed {
+		removed, err := serverGone(ctx, tx, s)
+		switch {
+		case err != nil:
+			return nil, err
+		case removed:
+			gone = append(gone, s)
+		default:
+			out = append(out, s)
+		}
+	}
+	if len(placed) > 0 && len(out) == 0 {
+		return nil, fmt.Errorf("%w: before %s, %s ran on %s, which %s removed from the fleet, so there's nowhere to put it back. Edit %s directly instead",
+			ErrCantUndo, changeID, ref.Name, strings.Join(gone, ", "), wasOrWere(len(gone)), ref.Name)
+	}
+	return out, nil
 }
 
 // Undo plans putting back everything an applied change did. Apply the
@@ -696,8 +1254,8 @@ type Drift struct {
 	Observed proto.Message
 }
 
-// Drift compares every resource a server should have with what it
-// actually has.
+// Drift compares every resource a server should have, its own and those
+// deployed on it, with what it actually has.
 func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 	agent, online := e.agents.Agent(server)
 	if !online {
@@ -706,14 +1264,14 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 	var resources []store.Resource
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
 		var err error
-		resources, err = tx.ListResources(ctx, server)
+		resources, err = tx.ListPlaced(ctx, server)
 		return err
 	}); err != nil {
 		return nil, err
 	}
 	refs := make([]resource.Ref, len(resources))
 	for i, r := range resources {
-		refs[i] = resource.Ref{Kind: resource.Kind(r.Kind), Server: r.Server, Name: r.Name}
+		refs[i] = resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}
 	}
 	observed, err := agent.Observe(ctx, refs)
 	if err != nil {

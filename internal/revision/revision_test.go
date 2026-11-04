@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +17,9 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 const recreate = 2 * time.Second
@@ -41,13 +42,12 @@ func (f fleet) Agent(id string) (resource.Agent, bool) {
 	return s.agent, s.online
 }
 
-func setup(t *testing.T, ids ...string) (*Engine, fleet, *store.DB) {
+func setup(t *testing.T, b store.Backend, ids ...string) (*Engine, fleet, *store.DB) {
 	t.Helper()
-	db, err := store.Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
-	if err != nil {
+	db, _ := storetest.Open(t, b)
+	if _, err := Setup(t.Context(), db, slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
 	now := time.Now()
 	f := fleet{}
 	if err := db.Update(t.Context(), func(tx *store.Tx) error {
@@ -59,6 +59,7 @@ func setup(t *testing.T, ids ...string) (*Engine, fleet, *store.DB) {
 			s.agent = resource.Local{Drivers: resource.NewRegistry(
 				&container.Driver{Runtime: s.docker, RecreateDowntime: recreate},
 				&firewall.Driver{Backend: s.firewall},
+				&service.Driver{Containers: container.Driver{Runtime: s.docker, RecreateDowntime: recreate}},
 			)}
 			f[id] = s
 		}
@@ -67,13 +68,13 @@ func setup(t *testing.T, ids ...string) (*Engine, fleet, *store.DB) {
 		t.Fatal(err)
 	}
 	// The control plane's drivers only read specs; they never reach a server.
-	kinds := resource.NewRegistry(&container.Driver{RecreateDowntime: recreate}, &firewall.Driver{})
+	kinds := resource.NewRegistry(&container.Driver{RecreateDowntime: recreate}, &firewall.Driver{}, &service.Driver{})
 	return New(db, kinds, f, slog.New(slog.DiscardHandler)), f, db
 }
 
 func web(image string) Edit {
 	return Edit{
-		Ref: resource.Ref{Kind: container.Kind, Server: "srv_A", Name: "web"},
+		Ref: resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"},
 		Spec: &resourcev1.Container{
 			Image: image,
 			Env:   map[string]string{"API_KEY": "s3cret-value"},
@@ -84,7 +85,7 @@ func web(image string) Edit {
 
 func rule(server, name string, port uint32, sources ...string) Edit {
 	return Edit{
-		Ref:  resource.Ref{Kind: firewall.Kind, Server: server, Name: name},
+		Ref:  resource.Ref{Kind: firewall.Kind, Scope: server, Name: name},
 		Spec: &resourcev1.FirewallRule{Port: port, Sources: sources, Comment: "the web app"},
 	}
 }
@@ -129,8 +130,10 @@ func image(t *testing.T, s *server) string {
 
 // A container and a firewall rule, unlike in every way that matters, go
 // through the same plan, apply and undo.
-func TestPlanApplyUndoAcrossKinds(t *testing.T) {
-	e, f, db := setup(t, "srv_A")
+func TestPlanApplyUndoAcrossKinds(t *testing.T) { storetest.Each(t, testPlanApplyUndoAcrossKinds) }
+
+func testPlanApplyUndoAcrossKinds(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A")
 	hz1 := f["srv_A"]
 
 	first := propose(t, e, "Run web", web("nginx:1.27"), rule("srv_A", "http", 80))
@@ -192,12 +195,16 @@ func TestPlanApplyUndoAcrossKinds(t *testing.T) {
 }
 
 func TestDeletesRunLastAndUndoBringsThemBack(t *testing.T) {
-	e, f, _ := setup(t, "srv_A")
+	storetest.Each(t, testDeletesRunLastAndUndoBringsThemBack)
+}
+
+func testDeletesRunLastAndUndoBringsThemBack(t *testing.T, backend store.Backend) {
+	e, f, _ := setup(t, backend, "srv_A")
 	apply(t, e, propose(t, e, "Run web", web("nginx:1.27"), rule("srv_A", "http", 80)))
 
 	remove := propose(t, e, "Retire web",
-		Edit{Ref: resource.Ref{Kind: firewall.Kind, Server: "srv_A", Name: "http"}},
-		Edit{Ref: resource.Ref{Kind: container.Kind, Server: "srv_A", Name: "web"}},
+		Edit{Ref: resource.Ref{Kind: firewall.Kind, Scope: "srv_A", Name: "http"}},
+		Edit{Ref: resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}},
 		rule("srv_A", "maintenance", 8080))
 	steps := remove.Steps()
 	if steps[0].Ref.Name != "maintenance" || steps[1].Ref.Name != "web" || steps[2].Ref.Name != "http" {
@@ -221,8 +228,10 @@ func TestDeletesRunLastAndUndoBringsThemBack(t *testing.T) {
 	}
 }
 
-func TestSecretsStayOutOfPlans(t *testing.T) {
-	e, _, db := setup(t, "srv_A")
+func TestSecretsStayOutOfPlans(t *testing.T) { storetest.Each(t, testSecretsStayOutOfPlans) }
+
+func testSecretsStayOutOfPlans(t *testing.T, backend store.Backend) {
+	e, _, db := setup(t, backend, "srv_A")
 	p := propose(t, e, "Run web", web("nginx:1.27"))
 	c := change(t, p.Steps(), "env[API_KEY]")
 	if !c.Sensitive || c.From != "" || c.To != "" || c.Op != resource.OpAdded {
@@ -241,7 +250,11 @@ func TestSecretsStayOutOfPlans(t *testing.T) {
 }
 
 func TestAPlanCoversEveryServerItTouches(t *testing.T) {
-	e, f, _ := setup(t, "srv_A", "srv_B")
+	storetest.Each(t, testAPlanCoversEveryServerItTouches)
+}
+
+func testAPlanCoversEveryServerItTouches(t *testing.T, backend store.Backend) {
+	e, f, _ := setup(t, backend, "srv_A", "srv_B")
 	f["srv_B"].online = false
 
 	p := propose(t, e, "Open the API on both", rule("srv_A", "api", 8443), rule("srv_B", "api", 8443))
@@ -256,8 +269,10 @@ func TestAPlanCoversEveryServerItTouches(t *testing.T) {
 	}
 }
 
-func TestApplyRefusesAStalePlan(t *testing.T) {
-	e, _, _ := setup(t, "srv_A")
+func TestApplyRefusesAStalePlan(t *testing.T) { storetest.Each(t, testApplyRefusesAStalePlan) }
+
+func testApplyRefusesAStalePlan(t *testing.T, backend store.Backend) {
+	e, _, _ := setup(t, backend, "srv_A")
 	apply(t, e, propose(t, e, "Run web", web("nginx:1.27")))
 	a := propose(t, e, "Upgrade web", web("nginx:1.28"))
 	b := propose(t, e, "Upgrade web further", web("nginx:1.29"))
@@ -271,7 +286,11 @@ func TestApplyRefusesAStalePlan(t *testing.T) {
 }
 
 func TestApplyRefusesWhenTheServerMovedSinceThePlan(t *testing.T) {
-	e, f, _ := setup(t, "srv_A")
+	storetest.Each(t, testApplyRefusesWhenTheServerMovedSinceThePlan)
+}
+
+func testApplyRefusesWhenTheServerMovedSinceThePlan(t *testing.T, backend store.Backend) {
+	e, f, _ := setup(t, backend, "srv_A")
 	apply(t, e, propose(t, e, "Run web", web("nginx:1.27")))
 	p := propose(t, e, "Upgrade web", web("nginx:1.28"))
 	f["srv_A"].docker.Edit("web", func(c *resourcev1.Container) { c.Image = "nginx:1.26" })
@@ -280,8 +299,10 @@ func TestApplyRefusesWhenTheServerMovedSinceThePlan(t *testing.T) {
 	}
 }
 
-func TestAFailedApplyRollsBack(t *testing.T) {
-	e, f, db := setup(t, "srv_A")
+func TestAFailedApplyRollsBack(t *testing.T) { storetest.Each(t, testAFailedApplyRollsBack) }
+
+func testAFailedApplyRollsBack(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A")
 	hz1 := f["srv_A"]
 	apply(t, e, propose(t, e, "Run web", web("nginx:1.27")))
 	hz1.docker.Broken["nginx:broken"] = true
@@ -309,7 +330,11 @@ func TestAFailedApplyRollsBack(t *testing.T) {
 }
 
 func TestDriftIsFoundThenRevertedOrAdopted(t *testing.T) {
-	e, f, _ := setup(t, "srv_A")
+	storetest.Each(t, testDriftIsFoundThenRevertedOrAdopted)
+}
+
+func testDriftIsFoundThenRevertedOrAdopted(t *testing.T, backend store.Backend) {
+	e, f, _ := setup(t, backend, "srv_A")
 	hz1 := f["srv_A"]
 	apply(t, e, propose(t, e, "Run web", web("nginx:1.27"), rule("srv_A", "http", 80)))
 	if d, err := e.Drift(t.Context(), "srv_A"); err != nil || len(d) != 0 {
@@ -361,8 +386,10 @@ func TestDriftIsFoundThenRevertedOrAdopted(t *testing.T) {
 	}
 }
 
-func TestUndoHasAWindow(t *testing.T) {
-	e, _, _ := setup(t, "srv_A")
+func TestUndoHasAWindow(t *testing.T) { storetest.Each(t, testUndoHasAWindow) }
+
+func testUndoHasAWindow(t *testing.T, backend store.Backend) {
+	e, _, _ := setup(t, backend, "srv_A")
 	p := propose(t, e, "Run web", web("nginx:1.27"))
 	apply(t, e, p)
 	e.now = func() time.Time { return time.Now().Add(UndoWindow + time.Hour) }
@@ -371,13 +398,15 @@ func TestUndoHasAWindow(t *testing.T) {
 	}
 }
 
-func TestProposalsAreChecked(t *testing.T) {
-	e, _, _ := setup(t, "srv_A")
+func TestProposalsAreChecked(t *testing.T) { storetest.Each(t, testProposalsAreChecked) }
+
+func testProposalsAreChecked(t *testing.T, backend store.Backend) {
+	e, _, _ := setup(t, backend, "srv_A")
 	cases := map[string][]Edit{
-		"no image":          {{Ref: resource.Ref{Kind: container.Kind, Server: "srv_A", Name: "web"}, Spec: &resourcev1.Container{}}},
-		"the wrong type":    {{Ref: resource.Ref{Kind: container.Kind, Server: "srv_A", Name: "web"}, Spec: &resourcev1.FirewallRule{Port: 80}}},
-		"an unknown kind":   {{Ref: resource.Ref{Kind: "volume", Server: "srv_A", Name: "data"}, Spec: &resourcev1.FirewallRule{}}},
-		"nothing to delete": {{Ref: resource.Ref{Kind: container.Kind, Server: "srv_A", Name: "web"}}},
+		"no image":          {{Ref: resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}, Spec: &resourcev1.Container{}}},
+		"the wrong type":    {{Ref: resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}, Spec: &resourcev1.FirewallRule{Port: 80}}},
+		"an unknown kind":   {{Ref: resource.Ref{Kind: "volume", Scope: "srv_A", Name: "data"}, Spec: &resourcev1.FirewallRule{}}},
+		"nothing to delete": {{Ref: resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}}},
 		"the same twice":    {web("nginx:1"), web("nginx:2")},
 		"a bad source":      {rule("srv_A", "http", 80, "the office")},
 	}
@@ -389,7 +418,11 @@ func TestProposalsAreChecked(t *testing.T) {
 }
 
 func TestAProposalDoesntChangeTheCallersSpec(t *testing.T) {
-	e, _, _ := setup(t, "srv_A")
+	storetest.Each(t, testAProposalDoesntChangeTheCallersSpec)
+}
+
+func testAProposalDoesntChangeTheCallersSpec(t *testing.T, backend store.Backend) {
+	e, _, _ := setup(t, backend, "srv_A")
 	ed := rule("srv_A", "http", 80, "203.0.113.7")
 	before := proto.Clone(ed.Spec)
 	propose(t, e, "Open http", ed)
@@ -399,9 +432,13 @@ func TestAProposalDoesntChangeTheCallersSpec(t *testing.T) {
 }
 
 func TestARuleThatBlocksSSHFromEverywhereIsFlagged(t *testing.T) {
-	e, _, _ := setup(t, "srv_A")
+	storetest.Each(t, testARuleThatBlocksSSHFromEverywhereIsFlagged)
+}
+
+func testARuleThatBlocksSSHFromEverywhereIsFlagged(t *testing.T, backend store.Backend) {
+	e, _, _ := setup(t, backend, "srv_A")
 	block := Edit{
-		Ref:  resource.Ref{Kind: firewall.Kind, Server: "srv_A", Name: "no-ssh"},
+		Ref:  resource.Ref{Kind: firewall.Kind, Scope: "srv_A", Name: "no-ssh"},
 		Spec: &resourcev1.FirewallRule{Port: 22, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY},
 	}
 	p := propose(t, e, "Close SSH", block)
@@ -425,20 +462,24 @@ func (h hooked) Apply(ctx context.Context, step resource.Step, desired proto.Mes
 		return err // an agent that honours cancellation
 	}
 	if h.applied != nil {
-		*h.applied = append(*h.applied, step.Action.String()+" "+step.Ref.Name+" on "+step.Ref.Server)
+		*h.applied = append(*h.applied, step.Action.String()+" "+step.Ref.Name+" on "+step.Ref.Scope)
 	}
 	return h.Agent.Apply(ctx, step, desired)
 }
 
 func TestBuildsRunOnEveryServerBeforeAnyDelete(t *testing.T) {
-	e, f, _ := setup(t, "srv_A", "srv_B")
+	storetest.Each(t, testBuildsRunOnEveryServerBeforeAnyDelete)
+}
+
+func testBuildsRunOnEveryServerBeforeAnyDelete(t *testing.T, backend store.Backend) {
+	e, f, _ := setup(t, backend, "srv_A", "srv_B")
 	apply(t, e, propose(t, e, "Run web", web("nginx:1.27")))
 	var applied []string
 	for _, id := range []string{"srv_A", "srv_B"} {
 		f[id].agent = hooked{Agent: f[id].agent, applied: &applied}
 	}
 	moved := web("nginx:1.27")
-	moved.Ref.Server = "srv_B"
+	moved.Ref.Scope = "srv_B"
 	apply(t, e, propose(t, e, "Move web to srv_B", Edit{Ref: web("").Ref}, moved))
 	if len(applied) != 2 || applied[0] != "create web on srv_B" || applied[1] != "delete web on srv_A" {
 		t.Errorf("order: %v; the new web must run before the old one goes", applied)
@@ -446,7 +487,11 @@ func TestBuildsRunOnEveryServerBeforeAnyDelete(t *testing.T) {
 }
 
 func TestACancelledApplyStillFinishes(t *testing.T) {
-	e, f, db := setup(t, "srv_A")
+	storetest.Each(t, testACancelledApplyStillFinishes)
+}
+
+func testACancelledApplyStillFinishes(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A")
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { cancel() }}
@@ -466,10 +511,14 @@ func TestACancelledApplyStillFinishes(t *testing.T) {
 }
 
 func TestAServerThatDropsMidApplyIsRolledBackWhenItReturns(t *testing.T) {
-	e, f, db := setup(t, "srv_A", "srv_B")
+	storetest.Each(t, testAServerThatDropsMidApplyIsRolledBackWhenItReturns)
+}
+
+func testAServerThatDropsMidApplyIsRolledBackWhenItReturns(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A", "srv_B")
 	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { f["srv_B"].online = false }}
 	onB := web("nginx:1.27")
-	onB.Ref.Server = "srv_B"
+	onB.Ref.Scope = "srv_B"
 	p := propose(t, e, "Open http and run web", rule("srv_A", "http", 80), onB)
 
 	err := e.Apply(t.Context(), p.Change)
@@ -512,7 +561,11 @@ func TestAServerThatDropsMidApplyIsRolledBackWhenItReturns(t *testing.T) {
 }
 
 func TestWhatAServerReportsIsNormalized(t *testing.T) {
-	e, f, _ := setup(t, "srv_A")
+	storetest.Each(t, testWhatAServerReportsIsNormalized)
+}
+
+func testWhatAServerReportsIsNormalized(t *testing.T, backend store.Backend) {
+	e, f, _ := setup(t, backend, "srv_A")
 	spec := web("nginx:1.27")
 	spec.Spec.(*resourcev1.Container).Ports = []*resourcev1.PortMapping{{HostPort: 443, ContainerPort: 8443}, {HostPort: 80, ContainerPort: 8080}}
 	apply(t, e, propose(t, e, "Run web", spec))
@@ -531,7 +584,11 @@ func TestWhatAServerReportsIsNormalized(t *testing.T) {
 }
 
 func TestTheUndoWindowIsWordedExactly(t *testing.T) {
-	e, _, _ := setup(t, "srv_A")
+	storetest.Each(t, testTheUndoWindowIsWordedExactly)
+}
+
+func testTheUndoWindowIsWordedExactly(t *testing.T, backend store.Backend) {
+	e, _, _ := setup(t, backend, "srv_A")
 	p := propose(t, e, "Run web", web("nginx:1.27"))
 	apply(t, e, p)
 	e.now = func() time.Time { return time.Now().Add(UndoWindow + time.Hour + time.Minute) }
@@ -542,9 +599,13 @@ func TestTheUndoWindowIsWordedExactly(t *testing.T) {
 }
 
 func TestBlockingSSHForEveryAddressIsFlaggedToo(t *testing.T) {
-	e, _, _ := setup(t, "srv_A")
+	storetest.Each(t, testBlockingSSHForEveryAddressIsFlaggedToo)
+}
+
+func testBlockingSSHForEveryAddressIsFlaggedToo(t *testing.T, backend store.Backend) {
+	e, _, _ := setup(t, backend, "srv_A")
 	block := Edit{
-		Ref:  resource.Ref{Kind: firewall.Kind, Server: "srv_A", Name: "no-ssh"},
+		Ref:  resource.Ref{Kind: firewall.Kind, Scope: "srv_A", Name: "no-ssh"},
 		Spec: &resourcev1.FirewallRule{Port: 22, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY, Sources: []string{"0.0.0.0/0", "::/0"}},
 	}
 	if w := propose(t, e, "Close SSH", block).Steps()[0].Warnings; len(w) != 1 {

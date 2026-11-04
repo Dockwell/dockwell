@@ -13,6 +13,7 @@ An open-source control plane for servers, from one VPS to a fleet. One Go binary
 
 - `make check` runs what CI runs: lint for Go, the schema, TypeScript, CSS and shell scripts (with shellcheck, when it is installed), translations, license headers and doc links; Go and TypeScript tests; the generated-code and breaking-change checks; and a smoke test of the built binary. Run it before every push.
 - The Install workflow also runs `make budgets` (idle memory: agent under 40 MB, control plane plus agent under 250 MB) and `make install-test` (the install script in containers; needs Docker and cosign v3). Run them when you change `scripts/install.sh` or anything that could move memory.
+- The store's tests run on SQLite, and on Postgres too when `DOCKWELL_TEST_POSTGRES` names a server, as CI sets it. Set it when you change `internal/store` or any query.
 - `make generate` after any change in `proto/` or `design/system/tokens.json`. Commit what it writes.
 - `make run` builds everything and serves on 127.0.0.1:7600; `make dev` adds the panel with hot reload on :5173.
 - Panel text: English in `<Trans>`/`` t`…` ``, then `make i18n` and translate `web/src/locales/zh-CN/messages.po`. Components come from `@dockwell/ui`; port a design-system component there (from `design/system/components/`) before using it in a screen.
@@ -22,7 +23,7 @@ An open-source control plane for servers, from one VPS to a fleet. One Go binary
 
 - UI text, CLI output, errors and docs follow the content fundamentals in `design/system/README.md`: sentence case, address the reader as "you", no emoji or exclamation marks, fact then consequence then fix.
 - Terminology: *server* and *control server* in the product; *agent* for the binary in docs and the CLI; never *master* or *slave*.
-- Every change to managed state is a revision with a plan (PRD principle 2). Don't add a mutating path that bypasses the revision store.
+- Every change to managed state is a revision with a plan (PRD principle 2). Don't add a mutating path that bypasses the revision store: only `internal/revision` calls `store.DB.Revise`, and a test fails on anything else that does.
 - The panel uses only the public API through the generated client. Nothing is UI-only.
 - Memory budgets: the agent stays under 40 MB RSS at idle, and the control plane plus agent under 250 MB.
 - Work on a branch and open a pull request to `main` that references its issue and milestone.

@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"syscall"
@@ -28,13 +29,17 @@ import (
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/pki"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/serve"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
 type runFlags struct {
-	listen string
+	// database is where the control plane keeps its state: a SQLite file or
+	// a postgres:// URL.
+	database string
+	listen   string
 	// listenFromEnv is true when DOCKWELL_LISTEN set listen, not the flag.
 	listenFromEnv bool
 	agentListen   string
@@ -77,6 +82,9 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 			}
 			f.listenFromEnv = !cmd.Flags().Changed("listen") && stdio.Getenv(envListen) != ""
 			if role == roleControl {
+				if f.database, err = g.databaseOf(stdio, dir); err != nil {
+					return err
+				}
 				err = runControl(cmd.Context(), stdio, logger, dir, build, f)
 			} else {
 				err = agent.Run(cmd.Context(), agent.Config{Logger: logger, Dir: dir.Agent(), Identity: id, Build: build})
@@ -124,19 +132,11 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 	if err := datadir.Ensure(dir.Control()); err != nil {
 		return err
 	}
-	key, err := seal.LoadOrCreate(dir.SealKey())
-	if err != nil {
-		return err
-	}
-	db, err := store.Open(ctx, dir.StateDB())
+	db, authority, key, err := openState(ctx, logger, dir, f.database)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
-	authority, err := identity.Bootstrap(ctx, db, key, logger)
-	if err != nil {
-		return err
-	}
 
 	var ls control.Listeners
 	closeAll := func() {
@@ -254,6 +254,65 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 	})
 	wg.Wait()
 	return errors.Join(controlErr, agentErr)
+}
+
+// openState opens the control plane's key, its state and its identity,
+// and makes the install on the first start. It refuses to make a second
+// install beside an existing one: a data directory whose key belongs to an
+// install must find that install's state, or agents enrolled with it
+// would no longer be recognized.
+//
+// The first start is all or nothing. Its key waits at NewSealKey until the
+// install is on record, and only then moves to SealKey. So a first start
+// that fails, such as with the database out of reach, leaves no key that
+// belongs to an install, and the next start carries on with the key it
+// left.
+func openState(ctx context.Context, logger *slog.Logger, dir datadir.Dir, location string) (*store.DB, *identity.Authority, *seal.Key, error) {
+	installed := exists(dir.SealKey())
+	postgres := store.IsPostgres(location)
+	switch {
+	case postgres && exists(dir.StateDB()):
+		return nil, nil, nil, fmt.Errorf("this control plane keeps its state in %s, and moving it to Postgres isn't supported yet. "+
+			"Unset --database and %s to keep using it", dir.StateDB(), envDatabase)
+	case !postgres && installed && !exists(location):
+		return nil, nil, nil, fmt.Errorf("this data directory holds a control plane's key, but its state isn't in %s. "+
+			"If it keeps its state in Postgres, pass --database or set %s to its URL; otherwise restore %s from a backup",
+			location, envDatabase, filepath.Base(location))
+	}
+	keyPath := dir.SealKey()
+	if !installed {
+		keyPath = dir.NewSealKey()
+	}
+	key, err := seal.LoadOrCreate(keyPath)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	db, err := store.Open(ctx, location)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	logger.Info("opened the control plane's state", slog.String("backend", string(db.Backend())), slog.String("database", db.Where()))
+	var authority *identity.Authority
+	if installed {
+		authority, err = identity.Open(ctx, db, key, logger)
+		if errors.Is(err, identity.ErrNoInstall) {
+			err = fmt.Errorf("%s holds no Dockwell install, but this data directory's key belongs to one. "+
+				"Point --database or %s at that install's database", db.Where(), envDatabase)
+		}
+	} else {
+		authority, err = identity.Bootstrap(ctx, db, key, logger)
+	}
+	if err == nil {
+		_, err = revision.Setup(ctx, db, logger)
+	}
+	if err == nil && !installed {
+		err = seal.Commit(keyPath, dir.SealKey())
+	}
+	if err != nil {
+		_ = db.Close()
+		return nil, nil, nil, err
+	}
+	return db, authority, key, nil
 }
 
 // beyondLoopback explains why a --listen address beyond loopback is

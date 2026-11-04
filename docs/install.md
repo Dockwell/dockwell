@@ -103,6 +103,12 @@ The script replaces the service file on every upgrade, so put your changes somew
 
 The panel itself always stays on loopback. `DOCKWELL_LISTEN` can move it to another loopback address or port, such as `127.0.0.1:7700` or `[::1]:7600`, and the script reads it from the service, so it waits for the panel there. An address beyond loopback, such as `0.0.0.0:7600`, would serve the panel over plain HTTP to the network, so `dockwell run` refuses to start with it, and the script refuses it before it installs anything. To reach the panel from elsewhere, set `DOCKWELL_DOMAIN` instead: the panel is then served over HTTPS on the domain, and its loopback address keeps working.
 
+The control plane keeps its state in SQLite, in `/var/lib/dockwell/control/state.db`. To keep it in Postgres instead, ahead of running more than one control plane, set `DOCKWELL_DATABASE` to a `postgres://` URL before the first start, such as `postgres://dockwell@db.internal:5432/dockwell?sslmode=verify-full`. [ADR 0014](adr/0014-object-model-and-store.md) says how the two compare.
+
+- Keep the password out of the service file, which anyone on the server can read: put it in `/root/.pgpass`, mode 0600, or set `DOCKWELL_DATABASE` in an `EnvironmentFile=` that only root can read. Dockwell never logs or prints the password.
+- Commands you run beside the control plane, such as `dockwell claim`, `dockwell recover` and `dockwell token create`, need the same `DOCKWELL_DATABASE` in your shell.
+- Moving an install that has started on SQLite to Postgres isn't supported yet. `dockwell run` refuses to start that way, rather than begin a second install that your servers wouldn't recognize, and it also refuses when `DOCKWELL_DATABASE` goes missing from an install on Postgres.
+
 `dockwell run --help` lists every setting.
 
 ## What the script needs
