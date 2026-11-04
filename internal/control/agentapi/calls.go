@@ -192,6 +192,13 @@ func (a *Agents) next(ctx context.Context, old *Session) (*Session, error) {
 			grace = time.NewTimer(reconnectGrace)
 			graceC = grace.C
 		case <-graceC:
+			// A stream that opened as the grace ran out still takes the call.
+			a.mu.Lock()
+			current = a.sessions[old.server]
+			a.mu.Unlock()
+			if current != nil && current != old {
+				return current, nil
+			}
 			return nil, fault.New(resource.ErrNotConnected, "%s's agent was moving to a new stream and didn't reconnect within %s, so the call didn't run",
 				old.name, human.Duration(reconnectGrace))
 		case <-ctx.Done():
@@ -343,24 +350,43 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 		}
 		return nil, s.notConnected()
 	}
+	// The result, the stream's end and the call's own end can all be ready
+	// when the select wakes, and Go picks one of them at random. A result
+	// that is there wins, whatever else ended: the agent answered.
+	var r *agentv1.CallResult
 	select {
-	case r := <-ch:
-		switch e := r.GetError(); {
-		case e == nil:
-			return r, nil
-		case e.GetDraining():
-			return nil, errDraining
-		default:
-			return nil, &resource.ServerError{Server: s.name, Err: errors.New(e.GetMessage())}
-		}
+	case r = <-ch:
 	case <-s.done:
-		forget()
-		return nil, s.lost(c)
+		select {
+		case r = <-ch:
+		default:
+			forget()
+			return nil, s.lost(c)
+		}
 	case <-ctx.Done():
-		forget()
-		// Best effort: the agent stops the call when it can.
-		_ = s.write(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Cancel{Cancel: &agentv1.CancelCall{Id: c.GetId()}}})
+		select {
+		case r = <-ch:
+		default:
+			forget()
+			// Best effort: the agent stops the call when it can.
+			_ = s.write(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Cancel{Cancel: &agentv1.CancelCall{Id: c.GetId()}}})
+			return nil, ctx.Err()
+		}
+	}
+	switch e := r.GetError(); {
+	case e == nil:
+		// The call ran, even if its time ran out as the result came.
+		return r, nil
+	case ctx.Err() != nil:
+		// It failed as its time ran out, or as its caller gave up: most
+		// likely for that reason, as the agent stops a call at the
+		// deadline the control plane gave it. Say so, as when the result
+		// comes too late.
 		return nil, ctx.Err()
+	case e.GetDraining():
+		return nil, errDraining
+	default:
+		return nil, &resource.ServerError{Server: s.name, Err: errors.New(e.GetMessage())}
 	}
 }
 
