@@ -56,6 +56,7 @@ An environment is one Compose project, so `docker compose` sees and manages what
 ### The specs
 
 - **A container** gains what a Compose service runs with: an entrypoint, mounts of a volume or a server path, networks, a user, a working directory, a health check, and a port's server address. A service's volumes and networks are its environment's, by name; a container's on its own are Docker's.
+- **Ports Docker can't bind together are refused,** as the new container would fail to start only once the old one was gone. A port published on no address is on every one, IPv4 and IPv6, so it overlaps any other address; `0.0.0.0` overlaps every IPv4 address, and `::` every IPv6 one, but not each other.
 - **Volumes and networks are kinds of their own,** `volume` and `network`, in an environment, with IDs `vol_…` and `net_…`. Docker can't change either once it is made, and making one again would empty a volume or cut off a network's containers, so a plan that changes one is refused with what to do instead: make a new one, move across, delete the old.
 
 ### Running, replacing and checking a container

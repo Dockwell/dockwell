@@ -9,6 +9,7 @@
 package dockertest
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -18,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -441,25 +443,52 @@ func (e *Engine) list(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// portsFree fails a container whose ports another running container, or
+// another of its own, has bound, as the engine fails starting it.
 func (e *Engine) portsFree(c *container) error {
-	for _, o := range e.containers {
-		if o == c || !o.State.Running {
-			continue
-		}
+	type binding struct{ port, proto, ip string }
+	bindings := func(c *container) []binding {
+		var out []binding
 		for port, bs := range c.HostConfig.PortBindings {
 			for _, b := range bs {
-				for oport, obs := range o.HostConfig.PortBindings {
-					for _, ob := range obs {
-						if b.HostPort != "" && b.HostPort == ob.HostPort && proto(port) == proto(oport) {
-							return fmt.Errorf("driver failed programming external connectivity on endpoint %s: Bind for 0.0.0.0:%s failed: port is already allocated",
-								strings.TrimPrefix(c.Name, "/"), b.HostPort)
-						}
-					}
+				if b.HostPort != "" {
+					out = append(out, binding{b.HostPort, proto(port), b.HostIP})
 				}
 			}
 		}
+		return out
+	}
+	var bound []binding
+	for _, o := range e.containers {
+		if o != c && o.State.Running {
+			bound = append(bound, bindings(o)...)
+		}
+	}
+	for _, b := range bindings(c) {
+		for _, o := range bound {
+			if b.port == o.port && b.proto == o.proto && overlap(b.ip, o.ip) {
+				return fmt.Errorf("driver failed programming external connectivity on endpoint %s: Bind for %s:%s failed: port is already allocated",
+					strings.TrimPrefix(c.Name, "/"), cmp.Or(b.ip, "0.0.0.0"), b.port)
+			}
+		}
+		bound = append(bound, b)
 	}
 	return nil
+}
+
+// overlap reports whether two addresses a port is published on can't both
+// be bound: the same one, or every address and any other of its family.
+// No address binds every one, IPv4 and IPv6.
+func overlap(a, b string) bool {
+	if a == "" || b == "" || a == b {
+		return true
+	}
+	x, err1 := netip.ParseAddr(a)
+	y, err2 := netip.ParseAddr(b)
+	if err1 != nil || err2 != nil || x.Is4() != y.Is4() {
+		return false
+	}
+	return x.IsUnspecified() || y.IsUnspecified()
 }
 
 func proto(port string) string {

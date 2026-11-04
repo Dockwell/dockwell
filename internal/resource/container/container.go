@@ -14,6 +14,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -177,7 +178,11 @@ func Validate(c *resourcev1.Container) error {
 }
 
 func validatePorts(c *resourcev1.Container) error {
-	seen := map[string]bool{}
+	type port struct {
+		number   uint32
+		protocol resourcev1.Protocol
+	}
+	seen := map[port][]string{} // the addresses each is published on so far
 	for _, p := range c.GetPorts() {
 		if p.Protocol == resourcev1.Protocol_PROTOCOL_UNSPECIFIED {
 			p.Protocol = resourcev1.Protocol_PROTOCOL_TCP
@@ -192,11 +197,22 @@ func validatePorts(c *resourcev1.Container) error {
 			}
 			p.HostIp = addr.String()
 		}
-		key := fmt.Sprintf("%s:%d/%s", p.GetHostIp(), p.GetHostPort(), p.GetProtocol())
-		if seen[key] {
-			return fmt.Errorf("server port %d is published twice; give each mapping its own port", p.GetHostPort())
+		key := port{p.GetHostPort(), p.GetProtocol()}
+		for _, ip := range seen[key] {
+			if !overlap(ip, p.GetHostIp()) {
+				continue
+			}
+			name := strconv.Itoa(int(p.GetHostPort()))
+			if p.GetProtocol() == resourcev1.Protocol_PROTOCOL_UDP {
+				name += "/udp"
+			}
+			if ip == p.GetHostIp() {
+				return fmt.Errorf("server port %s is published twice on %s; give each mapping its own port", name, addressWords(ip))
+			}
+			return fmt.Errorf("server port %s is published on %s and on %s, which Docker can't bind together. Publish it on one of them, or give each mapping its own port",
+				name, addressWords(ip), addressWords(p.GetHostIp()))
 		}
-		seen[key] = true
+		seen[key] = append(seen[key], p.GetHostIp())
 	}
 	// Order doesn't change what ports mean, so it mustn't show as a change.
 	slices.SortFunc(c.Ports, func(a, b *resourcev1.PortMapping) int {
@@ -209,6 +225,32 @@ func validatePorts(c *resourcev1.Container) error {
 		return strings.Compare(a.GetHostIp(), b.GetHostIp())
 	})
 	return nil
+}
+
+// overlap reports whether a port can't be published on two server
+// addresses together, as Docker binds them: the same address, or every
+// address and any other one. No address means every IPv4 and IPv6 one,
+// 0.0.0.0 every IPv4 one, and :: every IPv6 one, so 0.0.0.0 and :: don't
+// overlap. Addresses are valid and normalized.
+func overlap(a, b string) bool {
+	if a == "" || b == "" || a == b {
+		return true
+	}
+	x, y := netip.MustParseAddr(a), netip.MustParseAddr(b)
+	return x.Is4() == y.Is4() && (x.IsUnspecified() || y.IsUnspecified())
+}
+
+// addressWords names a server address a port is published on.
+func addressWords(ip string) string {
+	switch ip {
+	case "":
+		return "every address"
+	case "0.0.0.0":
+		return "0.0.0.0 (every IPv4 address)"
+	case "::":
+		return ":: (every IPv6 address)"
+	}
+	return ip
 }
 
 func validateMounts(c *resourcev1.Container) error {
