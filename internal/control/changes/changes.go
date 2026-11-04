@@ -10,15 +10,12 @@ package changes
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
@@ -28,7 +25,9 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
+	"github.com/dockwell/dockwell/internal/control/actors"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -90,7 +89,7 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 	}
 	summary := strings.TrimSpace(req.Msg.GetSummary())
 	if summary == "" {
-		return nil, reasonError(connect.CodeInvalidArgument, errors.New("a change needs a summary that says what it is for, such as \"Add a staging environment\""), "invalid")
+		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("a change needs a summary that says what it is for, such as \"Add a staging environment\""), "invalid")
 	}
 	edits, err := h.edits(ctx, req.Msg.GetEdits())
 	if err != nil {
@@ -118,21 +117,16 @@ func (h *Handler) GetChange(ctx context.Context, req *connect.Request[dockwellv1
 
 // ListChanges returns a page of changes, newest first.
 func (h *Handler) ListChanges(ctx context.Context, req *connect.Request[dockwellv1.ListChangesRequest]) (*connect.Response[dockwellv1.ListChangesResponse], error) {
-	size := int(req.Msg.GetPageSize())
-	switch {
-	case size < 0:
-		return nil, reasonError(connect.CodeInvalidArgument, fmt.Errorf("page_size can't be negative; leave it out for %d", DefaultPageSize), "invalid")
-	case size == 0:
-		size = DefaultPageSize
-	case size > MaxPageSize:
-		size = MaxPageSize
-	}
-	page, err := decodePage(req.Msg.GetPageToken())
+	size, err := paging.Size(req.Msg.GetPageSize(), DefaultPageSize, MaxPageSize)
 	if err != nil {
-		return nil, reasonError(connect.CodeInvalidArgument, err, "invalid")
+		return nil, err
+	}
+	after, _, err := paging.Read(req.Msg.GetPageToken(), "ListChanges")
+	if err != nil {
+		return nil, err
 	}
 	// One more than asked for says whether there is a next page.
-	records, err := h.engine.Changes(ctx, page, size+1)
+	records, err := h.engine.Changes(ctx, store.ChangePage{CreatedAt: after.At, ID: after.ID}, size+1)
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
@@ -140,11 +134,10 @@ func (h *Handler) ListChanges(ctx context.Context, req *connect.Request[dockwell
 	if len(records) > size {
 		records = records[:size]
 		last := records[size-1]
-		res.NextPageToken = encodePage(store.ChangePage{CreatedAt: last.CreatedAt, ID: last.ID})
+		res.NextPageToken = paging.Token(paging.Cursor{At: last.CreatedAt, ID: last.ID})
 	}
-	actors := h.actors(ctx)
-	for _, r := range records {
-		res.Changes = append(res.Changes, changeProto(r, actors))
+	if res.Changes, err = h.protos(ctx, records...); err != nil {
+		return nil, h.rpcError(ctx, err)
 	}
 	return connect.NewResponse(res), nil
 }
@@ -162,15 +155,15 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 	fp := req.Msg.GetFingerprint()
 	switch {
 	case fp != "" && fp != r.Fingerprint:
-		return nil, reasonError(connect.CodeFailedPrecondition,
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s's plan has fingerprint %s, not %s, so it isn't the plan you reviewed. Review it again, then apply it", r.ID, r.Fingerprint, fp),
 			"plan_changed")
 	case r.State == store.ChangePlanned && r.Plan.Destructive() && p.Token != nil:
-		return nil, reasonError(connect.CodePermissionDenied,
+		return nil, authapi.ReasonError(connect.CodePermissionDenied,
 			fmt.Errorf("%s destroys data or may cut off access to a server, so no API token may apply it. Sign in and apply it in the panel", r.ID),
 			authapi.ReasonNeedsSession)
 	case r.State == store.ChangePlanned && r.Plan.Destructive() && fp == "":
-		return nil, reasonError(connect.CodeFailedPrecondition,
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s destroys data or may cut off access to a server, and applying it can't bring everything back. Review the plan, then apply it with its fingerprint, %s, to confirm", r.ID, r.Fingerprint),
 			"needs_confirmation")
 	}
@@ -209,7 +202,7 @@ func (h *Handler) WatchChange(ctx context.Context, req *connect.Request[dockwell
 				if ctx.Err() != nil {
 					return nil
 				}
-				return reasonError(connect.CodeUnavailable, errors.New("this watch fell behind the change, so Dockwell ended it. Watch it again"), "watch_behind")
+				return authapi.ReasonError(connect.CodeUnavailable, errors.New("this watch fell behind the change, so Dockwell ended it. Watch it again"), "watch_behind")
 			}
 			msg := &dockwellv1.WatchChangeResponse{}
 			if u.Step != nil {
@@ -402,7 +395,7 @@ func (h *Handler) onDrift(ctx context.Context, server, resourceID string,
 		return nil, err
 	}
 	if server == "" || resourceID == "" {
-		return nil, reasonError(connect.CodeInvalidArgument, errors.New("name the server and the resource, by their IDs, as ListDrift gives them"), "invalid")
+		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("name the server and the resource, by their IDs, as ListDrift gives them"), "invalid")
 	}
 	drift, err := h.engine.Drift(ctx, server)
 	if err != nil {
@@ -410,7 +403,7 @@ func (h *Handler) onDrift(ctx context.Context, server, resourceID string,
 	}
 	i := slices.IndexFunc(drift, func(d revision.Drift) bool { return d.ID == resourceID })
 	if i < 0 {
-		return nil, reasonError(connect.CodeFailedPrecondition,
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s on %s matches its latest revision now, so there's no drift to act on", resourceID, server), "no_drift")
 	}
 	p, err := plan(ctx, drift[i], who)
@@ -426,7 +419,11 @@ func (h *Handler) change(ctx context.Context, changeID string) (*dockwellv1.Chan
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
-	return changeProto(r, h.actors(ctx)), nil
+	cs, err := h.protos(ctx, r)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return cs[0], nil
 }
 
 // edits reads a request's edits, filling in the kinds and scopes it leaves
@@ -565,46 +562,26 @@ func resolve(ctx context.Context, tx *store.Tx, tree *scope.Tree, level resource
 	return "", fault.New(scope.ErrNotFound, "there's no server %s in the fleet", given)
 }
 
-// actors finds the name to show for each actor, once per request.
-func (h *Handler) actors(ctx context.Context) func(actor string) *dockwellv1.Actor {
-	n := map[string]*dockwellv1.Actor{}
-	db := h.db
-	return func(actor string) *dockwellv1.Actor {
-		if actor == "" {
-			return nil
+// protos are records for the schema, with their actors named in one read.
+func (h *Handler) protos(ctx context.Context, records ...*revision.Record) ([]*dockwellv1.Change, error) {
+	out := make([]*dockwellv1.Change, len(records))
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		names := actors.New().In(ctx, tx)
+		for i, r := range records {
+			out[i] = Proto(r, names.Actor)
 		}
-		if a, ok := n[actor]; ok {
-			return a
-		}
-		a := &dockwellv1.Actor{Kind: dockwellv1.ActorKind_ACTOR_KIND_USER, Id: actor, Name: actor}
-		kind, actorID, _ := strings.Cut(actor, ":")
-		_ = db.View(ctx, func(tx *store.Tx) error {
-			switch kind {
-			case "user":
-				a.Id = actorID
-				if u, err := tx.GetUser(ctx, actorID); err == nil {
-					a.Name = u.Name
-				}
-			case "token":
-				a.Kind, a.Id = dockwellv1.ActorKind_ACTOR_KIND_TOKEN, actorID
-				if t, err := tx.GetAPIToken(ctx, actorID); err == nil {
-					a.Name = t.Name
-				}
-			case revision.SystemActor:
-				a.Kind, a.Id, a.Name = dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL, "", "Dockwell"
-			}
-			return nil
-		})
-		n[actor] = a
-		return a
-	}
+		return nil
+	})
+	return out, err
 }
 
-var surfaces = map[string]dockwellv1.Surface{
-	revision.ViaPanel:     dockwellv1.Surface_SURFACE_PANEL,
-	revision.ViaAPI:       dockwellv1.Surface_SURFACE_API,
-	revision.ViaCLI:       dockwellv1.Surface_SURFACE_CLI,
-	revision.ViaAutomatic: dockwellv1.Surface_SURFACE_AUTOMATIC,
+// Surfaces maps where a change or an audit event came from, as the store
+// records it, to the API's Surface.
+var Surfaces = map[string]dockwellv1.Surface{
+	store.SurfacePanel:     dockwellv1.Surface_SURFACE_PANEL,
+	store.SurfaceAPI:       dockwellv1.Surface_SURFACE_API,
+	store.SurfaceCLI:       dockwellv1.Surface_SURFACE_CLI,
+	store.SurfaceAutomatic: dockwellv1.Surface_SURFACE_AUTOMATIC,
 }
 
 var states = map[string]dockwellv1.ChangeState{
@@ -624,11 +601,13 @@ var stepStates = map[revision.StepState]dockwellv1.StepState{
 	revision.StepWaiting: dockwellv1.StepState_STEP_STATE_WAITING,
 }
 
-func changeProto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dockwellv1.Change {
+// Proto is a change for the schema: its plan in full when the record has
+// it, and in brief otherwise. actor names each actor.
+func Proto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dockwellv1.Change {
 	c := &dockwellv1.Change{
-		Id: r.ID, Summary: r.Summary, State: states[r.State], ProposedBy: actor(r.Actor), ProposedVia: surfaces[r.ProposedVia],
+		Id: r.ID, Summary: r.Summary, State: states[r.State], ProposedBy: actor(r.Actor), ProposedVia: Surfaces[r.ProposedVia],
 		CreateTime: timestamppb.New(r.CreatedAt), Plan: planProto(r), Reverts: r.Reverts,
-		Rollback: revision.IsRollback(r.Change), AppliedBy: actor(r.AppliedBy), AppliedVia: surfaces[r.AppliedVia],
+		Rollback: revision.IsRollback(r.Change), AppliedBy: actor(r.AppliedBy), AppliedVia: Surfaces[r.AppliedVia],
 		Error: r.Error, RolledBackBy: r.RolledBackBy, UndoneBy: r.UndoneBy,
 	}
 	if !r.AppliedAt.IsZero() {
@@ -695,35 +674,6 @@ func stepProto(s *revision.StepProgress) *dockwellv1.StepProgress {
 	return p
 }
 
-// A page token is where the page before ended: its last change's creation
-// time and ID, opaque to clients.
-func encodePage(p store.ChangePage) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(strconv.FormatInt(p.CreatedAt.UnixMilli(), 10) + " " + p.ID))
-}
-
-func decodePage(token string) (store.ChangePage, error) {
-	if token == "" {
-		return store.ChangePage{}, nil
-	}
-	bad := errors.New("page_token isn't one ListChanges gave. Pass next_page_token from the page before, or leave it out to start with the newest")
-	b, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil {
-		return store.ChangePage{}, bad
-	}
-	at, changeID, ok := strings.Cut(string(b), " ")
-	ms, err := strconv.ParseInt(at, 10, 64)
-	if !ok || err != nil || changeID == "" {
-		return store.ChangePage{}, bad
-	}
-	return store.ChangePage{CreatedAt: time.UnixMilli(ms), ID: changeID}, nil
-}
-
-func reasonError(code connect.Code, err error, reason string) *connect.Error {
-	cerr := connect.NewError(code, err)
-	cerr.Meta().Set(authapi.ReasonKey, reason)
-	return cerr
-}
-
 // codes maps the engine's errors to codes and reasons. Their messages are
 // written whole, for people, with the kind of error apart from the text
 // (internal/fault), so they go out as they are; anything else is logged and
@@ -757,7 +707,7 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 	var choice *scope.ChoiceError
 	if errors.As(err, &choice) {
 		// The options go in a detail too, so a client can ask which.
-		cerr := reasonError(connect.CodeInvalidArgument, err, "choice")
+		cerr := authapi.ReasonError(connect.CodeInvalidArgument, err, "choice")
 		detail := &dockwellv1.Choice{Level: string(choice.Level), Options: choice.Options, Project: choice.Project}
 		var at *choiceAt
 		if errors.As(err, &at) {
@@ -770,15 +720,15 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 	}
 	for _, c := range codes {
 		if errors.Is(err, c.err) {
-			return reasonError(c.code, err, c.reason)
+			return authapi.ReasonError(c.code, err, c.reason)
 		}
 	}
 	var agent *revision.AgentError
 	switch {
 	case errors.As(err, &agent) && errors.Is(err, context.DeadlineExceeded):
-		return reasonError(connect.CodeDeadlineExceeded, err, "agent_timeout")
+		return authapi.ReasonError(connect.CodeDeadlineExceeded, err, "agent_timeout")
 	case errors.As(err, &agent):
-		return reasonError(connect.CodeFailedPrecondition, err, "agent_failed")
+		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "agent_failed")
 	}
 	h.logger.ErrorContext(ctx, "change call failed", slog.String("error", err.Error()))
 	return connect.NewError(connect.CodeInternal, errors.New("the control plane couldn't complete the request; try again, and check its logs if it keeps failing"))

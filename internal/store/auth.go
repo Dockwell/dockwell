@@ -284,6 +284,18 @@ func (t *Tx) GetPasskeyByCredentialID(ctx context.Context, credentialID []byte) 
 	return p, nil
 }
 
+// GetPasskey returns a passkey by its ID, or ErrNotFound.
+func (t *Tx) GetPasskey(ctx context.Context, id string) (Passkey, error) {
+	p, err := scanPasskey(t.queryRow(ctx, `SELECT `+passkeyColumns+` FROM passkeys WHERE id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Passkey{}, fmt.Errorf("passkey %s: %w", id, ErrNotFound)
+	}
+	if err != nil {
+		return Passkey{}, fmt.Errorf("can't read passkey %s: %w", id, err)
+	}
+	return p, nil
+}
+
 // UsePasskey stores a passkey's record after a sign-in, with its new sign
 // count.
 func (t *Tx) UsePasskey(ctx context.Context, id string, record []byte, at time.Time) error {

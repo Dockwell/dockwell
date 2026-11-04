@@ -186,7 +186,7 @@ func (s *Service) RevokeLocalToken(ctx context.Context, actor, tokenID string) (
 			return err
 		}
 		revoked = true
-		return s.audit(ctx, tx, actor, "token.revoke", tok.UserID, "token "+tokenID)
+		return s.auditOn(ctx, tx, actor, "token.revoke", tok.UserID, tokenID, "token "+tokenID)
 	})
 	if err != nil {
 		return false, fmt.Errorf("can't revoke local access's token %s: %w", tokenID, err)
@@ -248,7 +248,7 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 		if expires != nil {
 			expiry = "expires " + expires.Format(time.RFC3339)
 		}
-		return s.audit(ctx, tx, actor, "token.create", user.ID, fmt.Sprintf("token %s %q, %s, %s", tok.ID, name, scope, expiry))
+		return s.auditOn(ctx, tx, actor, "token.create", user.ID, tok.ID, fmt.Sprintf("token %s %q, %s, %s", tok.ID, name, scope, expiry))
 	})
 	if err != nil {
 		return NewToken{}, err
@@ -280,7 +280,7 @@ func (s *Service) RevokeToken(ctx context.Context, p Principal, tokenID string) 
 		if err != nil {
 			return err
 		}
-		return s.audit(ctx, tx, p.Actor(), "token.revoke", p.User.ID, "token "+tokenID)
+		return s.auditOn(ctx, tx, p.Actor(), "token.revoke", p.User.ID, tokenID, "token "+tokenID)
 	})
 	if err != nil {
 		return err

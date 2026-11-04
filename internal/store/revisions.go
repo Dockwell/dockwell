@@ -81,6 +81,10 @@ type Change struct {
 	// revision store writes it; nil until it applies.
 	Progress []byte
 	Items    []ChangeItem
+	// Servers are the servers its plan touches, removed ones included, by
+	// ID. CreateChange records them; reads leave them out, and
+	// ChangeServers has them.
+	Servers []string
 }
 
 // ChangeItem is what a change asks of one resource.
@@ -149,6 +153,11 @@ func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
 		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
 			strings.Join(it.Servers, " ")); err != nil {
+			return fmt.Errorf("can't record change %s: %w", c.ID, err)
+		}
+	}
+	for _, server := range c.Servers {
+		if _, err := t.exec(ctx, `INSERT INTO change_servers (change_id, server_id) VALUES (?, ?)`, c.ID, server); err != nil {
 			return fmt.Errorf("can't record change %s: %w", c.ID, err)
 		}
 	}

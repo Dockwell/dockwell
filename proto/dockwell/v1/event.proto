@@ -1,0 +1,174 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// EventService is the timeline: every change to managed state, with who
+// made it and from where, beside what servers and people did that belongs
+// with it, such as a server joining or someone signing in. See
+// docs/adr/0020-the-event-timeline.md.
+//
+// A change is one event, which moves on as the change does: planned, then
+// applying, then applied or failed. Rollbacks and undos are changes of
+// their own, each naming the change it reverts. A discarded change isn't
+// on the timeline, and nor is the change that set up an install's default
+// project and environment. Every other event comes from the audit log, as
+// it was recorded.
+//
+// Events carry no secret, no spec and no address.
+//
+// WatchEvents streams, so it has no REST path. A REST client polls GET
+// /v1/events, or opens the stream with Connect, gRPC or gRPC-Web, with the
+// same credentials.
+service EventService {
+  // ListEvents returns events, newest first, a page at a time.
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/events"};
+  }
+
+  // WatchEvents sends the newest page of events, as ListEvents would, then
+  // each event as it happens, and a change's event again each time the
+  // change moves on, such as a step that finishes. Events from another
+  // process sharing the store, such as dockwell recover, arrive within a
+  // few seconds.
+  rpc WatchEvents(WatchEventsRequest) returns (stream WatchEventsResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+}
+
+// ListEventsRequest asks for a page of events. The filters narrow it, and
+// combine: an event must pass each one that is set.
+message ListEventsRequest {
+  // How many events to return: 50 when unset, and at most 200.
+  int32 page_size = 1;
+  // Where to start: the next_page_token of the page before, or of a
+  // watch's snapshot. Empty starts with the newest. Pass the same filters
+  // with it.
+  string page_token = 2;
+  // Only events of these kinds. Empty means every kind.
+  repeated EventKind kinds = 3;
+  // Only what happened on or to one server, by ID: the changes with steps
+  // on it, and its own events, such as joining.
+  string server_id = 4;
+  // Only the changes to one resource, by ID, or to what lives in it: a
+  // service's changes, or a project's with those of its environments and
+  // their services.
+  string resource_id = 5;
+  // Only what one actor did, by the ID their Actor has: a user's
+  // ("usr_…"), an API token's ("tok_…"), a server's ("srv_…"), or a
+  // shell account's ("mira@hz-1"). A change counts for whoever proposed it
+  // and whoever applied it.
+  string actor_id = 6;
+  // Only what actors of one kind did, such as ACTOR_KIND_DOCKWELL for what
+  // Dockwell did on its own.
+  ActorKind actor_kind = 7;
+}
+
+// ListEventsResponse is a page of events.
+message ListEventsResponse {
+  // The events, newest first.
+  repeated Event events = 1;
+  // Pass it as page_token for the next page. Empty on the last page.
+  string next_page_token = 2;
+}
+
+// WatchEventsRequest says which events to watch, with the same filters as
+// ListEventsRequest.
+message WatchEventsRequest {
+  // How many events the snapshot holds: 50 when unset, and at most 200.
+  int32 page_size = 1;
+  // Only events of these kinds. Empty means every kind.
+  repeated EventKind kinds = 2;
+  // Only what happened on or to one server, by ID.
+  string server_id = 3;
+  // Only the changes to one resource, by ID, or to what lives in it.
+  string resource_id = 4;
+  // Only what one actor did, by the ID their Actor has.
+  string actor_id = 5;
+  // Only what actors of one kind did.
+  ActorKind actor_kind = 6;
+}
+
+// WatchEventsResponse is one message of a watch: the snapshot, or what
+// happened since.
+message WatchEventsResponse {
+  // Events, newest first. The first message holds the snapshot: the
+  // newest page, as ListEvents gives it. Each later one holds the events
+  // that are new or moved on since the last. An event sent again replaces
+  // the one with its ID, and may have moved in time, as a change does when
+  // it starts applying.
+  repeated Event events = 1;
+  // The IDs of events that left the timeline since the last message, such
+  // as a planned change that was discarded: each one the filters keep,
+  // whether this watch sent it or the client read it with ListEvents. A
+  // client drops those it has and ignores the rest.
+  repeated string removed = 2;
+  // True on the first message, and only on it.
+  bool snapshot = 3;
+  // On the snapshot, where ListEvents carries on with older events, with
+  // the same filters. Empty when the snapshot holds every event there is.
+  string next_page_token = 4;
+}
+
+// Event is one thing that happened.
+message Event {
+  // The event's ID: a change's own ("chg_…") for a change, and the audit
+  // log's ("evt_…") for the rest.
+  string id = 1;
+  // What sort of event it is.
+  EventKind kind = 2;
+  // What happened, as the audit log names it, such as "server.join",
+  // "auth.sign_in" or "token.create". A change's says where the change is:
+  // "change.planned", "change.applying", "change.applied" or
+  // "change.failed".
+  string action = 3;
+  // When it happened. A change is timed from when it started applying, and
+  // from when it was planned until then.
+  google.protobuf.Timestamp time = 4;
+  // Who did it. For a change, whoever applied it, and whoever proposed it
+  // until then.
+  Actor actor = 5;
+  // Where it came from.
+  Surface surface = 6;
+  // The change, for a change's event: as it stands now, with its plan in
+  // brief, each step's progress, its undo deadline, and what undid it or
+  // rolled it back. GetChange has the plan in full.
+  Change change = 7;
+  // What the event is about, other than its actor: the server that joined
+  // or was removed, the API token or passkey made or removed, or the
+  // person a sign-in link is for. Unset when there is nothing more to name.
+  EventSubject subject = 8;
+}
+
+// EventSubject names what an event is about.
+message EventSubject {
+  // Its ID, such as "srv_…", "tok_…", "pky_…" or "usr_…".
+  string id = 1;
+  // Its name, such as "hz-2", "GitHub Actions deploy" or "Mira Chen".
+  // Empty when it has none, or when it is gone and Dockwell no longer
+  // keeps it.
+  string name = 2;
+}
+
+// EventKind sorts events, for filtering.
+enum EventKind {
+  EVENT_KIND_UNSPECIFIED = 0;
+  // A change to managed state: a plan waiting to be applied, or a change
+  // applying, applied or failed, rollbacks and undos included.
+  EVENT_KIND_CHANGE = 1;
+  // A server joined the fleet, renewed its certificate, or was removed.
+  EVENT_KIND_SERVER = 2;
+  // Someone gained or gave up a way in: claiming the install, signing in,
+  // signing other sessions out, passkeys, authenticator codes, API tokens,
+  // sign-in and claim links, and join tickets. Refusals, such as a wrong
+  // code, stay in the audit log.
+  EVENT_KIND_ACCESS = 3;
+}

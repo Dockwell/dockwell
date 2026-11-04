@@ -395,6 +395,92 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/events:
+        get:
+            tags:
+                - EventService
+            description: ListEvents returns events, newest first, a page at a time.
+            operationId: EventService_ListEvents
+            parameters:
+                - name: pageSize
+                  in: query
+                  description: 'How many events to return: 50 when unset, and at most 200.'
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: |-
+                    Where to start: the next_page_token of the page before, or of a
+                     watch's snapshot. Empty starts with the newest. Pass the same filters
+                     with it.
+                  schema:
+                    type: string
+                - name: kinds
+                  in: query
+                  description: Only events of these kinds. Empty means every kind.
+                  schema:
+                    type: array
+                    items:
+                        enum:
+                            - EVENT_KIND_UNSPECIFIED
+                            - EVENT_KIND_CHANGE
+                            - EVENT_KIND_SERVER
+                            - EVENT_KIND_ACCESS
+                        type: string
+                        format: enum
+                - name: serverId
+                  in: query
+                  description: |-
+                    Only what happened on or to one server, by ID: the changes with steps
+                     on it, and its own events, such as joining.
+                  schema:
+                    type: string
+                - name: resourceId
+                  in: query
+                  description: |-
+                    Only the changes to one resource, by ID, or to what lives in it: a
+                     service's changes, or a project's with those of its environments and
+                     their services.
+                  schema:
+                    type: string
+                - name: actorId
+                  in: query
+                  description: |-
+                    Only what one actor did, by the ID their Actor has: a user's
+                     ("usr_…"), an API token's ("tok_…"), a server's ("srv_…"), or a
+                     shell account's ("mira@hz-1"). A change counts for whoever proposed it
+                     and whoever applied it.
+                  schema:
+                    type: string
+                - name: actorKind
+                  in: query
+                  description: |-
+                    Only what actors of one kind did, such as ACTOR_KIND_DOCKWELL for what
+                     Dockwell did on its own.
+                  schema:
+                    enum:
+                        - ACTOR_KIND_UNSPECIFIED
+                        - ACTOR_KIND_USER
+                        - ACTOR_KIND_TOKEN
+                        - ACTOR_KIND_DOCKWELL
+                        - ACTOR_KIND_SERVER
+                        - ACTOR_KIND_SHELL
+                    type: string
+                    format: enum
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListEventsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/passkeys:
         get:
             tags:
@@ -486,6 +572,56 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/FinishAddPasskeyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/resources:
+        get:
+            tags:
+                - ResourceService
+            description: |-
+                ListResources returns the resources that exist now, of every kind or
+                 of one, oldest first, a page at a time. Deleted resources aren't in
+                 it.
+            operationId: ResourceService_ListResources
+            parameters:
+                - name: kind
+                  in: query
+                  description: |-
+                    Only resources of this kind, such as "project" or "environment". Empty
+                     means every kind.
+                  schema:
+                    type: string
+                - name: scope
+                  in: query
+                  description: |-
+                    Only resources that live in this scope, by ID, such as a project's
+                     environments. Empty means every scope.
+                  schema:
+                    type: string
+                - name: pageSize
+                  in: query
+                  description: 'How many resources to return: 200 when unset, and at most 1000.'
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: |-
+                    Where to start: the next_page_token of the page before. Pass the same
+                     filters with it.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListResourcesResponse'
                 default:
                     description: Default error response
                     content:
@@ -1006,18 +1142,22 @@ components:
                         - ACTOR_KIND_USER
                         - ACTOR_KIND_TOKEN
                         - ACTOR_KIND_DOCKWELL
+                        - ACTOR_KIND_SERVER
+                        - ACTOR_KIND_SHELL
                     type: string
                     description: What kind of actor it is.
                     format: enum
                 id:
                     type: string
-                    description: The user's or token's ID. Empty for Dockwell.
+                    description: |-
+                        The user's, token's or server's ID, or a shell account's name, such as
+                         "mira@hz-1". Empty for Dockwell.
                 name:
                     type: string
                     description: |-
-                        The name to show, such as "Mira Chen", or a token's name, such as
-                         "GitHub Actions deploy".
-            description: Actor is who made a change, or applied it.
+                        The name to show, such as "Mira Chen", a token's name, such as
+                         "GitHub Actions deploy", or a server's, such as "hz-2".
+            description: Actor is who made a change, or applied it, or did what an event records.
         AdoptDriftRequest:
             type: object
             properties:
@@ -1493,6 +1633,80 @@ components:
                 Environment is a stage of a project, such as production or staging, with
                  its own config. A project starts with one, named "production", which
                  stays out of sight until there is a second.
+        Event:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: |-
+                        The event's ID: a change's own ("chg_…") for a change, and the audit
+                         log's ("evt_…") for the rest.
+                kind:
+                    enum:
+                        - EVENT_KIND_UNSPECIFIED
+                        - EVENT_KIND_CHANGE
+                        - EVENT_KIND_SERVER
+                        - EVENT_KIND_ACCESS
+                    type: string
+                    description: What sort of event it is.
+                    format: enum
+                action:
+                    type: string
+                    description: |-
+                        What happened, as the audit log names it, such as "server.join",
+                         "auth.sign_in" or "token.create". A change's says where the change is:
+                         "change.planned", "change.applying", "change.applied" or
+                         "change.failed".
+                time:
+                    type: string
+                    description: |-
+                        When it happened. A change is timed from when it started applying, and
+                         from when it was planned until then.
+                    format: date-time
+                actor:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: |-
+                        Who did it. For a change, whoever applied it, and whoever proposed it
+                         until then.
+                surface:
+                    enum:
+                        - SURFACE_UNSPECIFIED
+                        - SURFACE_PANEL
+                        - SURFACE_API
+                        - SURFACE_AUTOMATIC
+                        - SURFACE_CLI
+                    type: string
+                    description: Where it came from.
+                    format: enum
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: |-
+                        The change, for a change's event: as it stands now, with its plan in
+                         brief, each step's progress, its undo deadline, and what undid it or
+                         rolled it back. GetChange has the plan in full.
+                subject:
+                    allOf:
+                        - $ref: '#/components/schemas/EventSubject'
+                    description: |-
+                        What the event is about, other than its actor: the server that joined
+                         or was removed, the API token or passkey made or removed, or the
+                         person a sign-in link is for. Unset when there is nothing more to name.
+            description: Event is one thing that happened.
+        EventSubject:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, such as "srv_…", "tok_…", "pky_…" or "usr_…".
+                name:
+                    type: string
+                    description: |-
+                        Its name, such as "hz-2", "GitHub Actions deploy" or "Mira Chen".
+                         Empty when it has none, or when it is gone and Dockwell no longer
+                         keeps it.
+            description: EventSubject names what an event is about.
         FieldChange:
             type: object
             properties:
@@ -1730,6 +1944,18 @@ components:
                          isn't connected. The servers that could be checked are in drift all
                          the same.
             description: ListDriftResponse lists what doesn't match its latest revision.
+        ListEventsResponse:
+            type: object
+            properties:
+                events:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Event'
+                    description: The events, newest first.
+                nextPageToken:
+                    type: string
+                    description: Pass it as page_token for the next page. Empty on the last page.
+            description: ListEventsResponse is a page of events.
         ListPasskeysResponse:
             type: object
             properties:
@@ -1739,6 +1965,18 @@ components:
                         $ref: '#/components/schemas/Passkey'
                     description: Passkeys, oldest first.
             description: ListPasskeysResponse lists passkeys.
+        ListResourcesResponse:
+            type: object
+            properties:
+                resources:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Resource'
+                    description: The resources, oldest first.
+                nextPageToken:
+                    type: string
+                    description: Pass it as page_token for the next page. Empty on the last page.
+            description: ListResourcesResponse is a page of resources.
         ListServersResponse:
             type: object
             properties:
@@ -2027,6 +2265,29 @@ components:
             type: object
             properties: {}
             description: RemovePasskeyResponse is empty.
+        Resource:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, such as "prj_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: Its kind, the ID of what it lives in, and its name.
+                revision:
+                    type: string
+                    description: Its latest revision.
+                updateTime:
+                    type: string
+                    description: When its latest revision was applied.
+                    format: date-time
+                displayName:
+                    type: string
+                    description: |-
+                        The name to show, such as "Storefront", from its spec, for kinds whose
+                         spec has one. Empty when it isn't set.
+            description: Resource is one managed resource, as its latest revision has it.
         ResourceRef:
             type: object
             properties:
@@ -2655,6 +2916,34 @@ tags:
          change by polling GET /v1/changes/{id}, which carries the same progress,
          or opens the stream with Connect, gRPC or gRPC-Web, with the same
          credentials.
+    - name: EventService
+      description: |-
+        EventService is the timeline: every change to managed state, with who
+         made it and from where, beside what servers and people did that belongs
+         with it, such as a server joining or someone signing in. See
+         docs/adr/0020-the-event-timeline.md.
+
+         A change is one event, which moves on as the change does: planned, then
+         applying, then applied or failed. Rollbacks and undos are changes of
+         their own, each naming the change it reverts. A discarded change isn't
+         on the timeline, and nor is the change that set up an install's default
+         project and environment. Every other event comes from the audit log, as
+         it was recorded.
+
+         Events carry no secret, no spec and no address.
+
+         WatchEvents streams, so it has no REST path. A REST client polls GET
+         /v1/events, or opens the stream with Connect, gRPC or gRPC-Web, with the
+         same credentials.
+    - name: ResourceService
+      description: |-
+        ResourceService reads the resources Dockwell manages: projects,
+         environments, services, containers and firewall rules. Change them with
+         ChangeService.
+
+         It names resources and says where they live, and never carries a spec,
+         which may hold secrets. A spec's display_name, which never does, is the
+         one exception.
     - name: ServerService
       description: |-
         ServerService lists the servers Dockwell manages and streams their live

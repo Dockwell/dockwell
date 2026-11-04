@@ -240,8 +240,25 @@ func hashToken(token string) []byte {
 	return sum[:]
 }
 
+// audit records an event in the audit log, from where its actor works: a
+// session from the panel, a token from the API, a shell account from the
+// CLI. Someone else's account that it is about is its target, such as the
+// person a sign-in link is for.
 func (s *Service) audit(ctx context.Context, tx *store.Tx, actor, action, subject, detail string) error {
-	return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: s.now(), Actor: actor, Action: action, Subject: subject, Detail: detail})
+	target := ""
+	if strings.HasPrefix(subject, id.User+"_") && actor != "user:"+subject {
+		target = subject
+	}
+	return s.auditOn(ctx, tx, actor, action, subject, target, detail)
+}
+
+// auditOn records an event that acted on target, such as the API token or
+// passkey made or removed.
+func (s *Service) auditOn(ctx context.Context, tx *store.Tx, actor, action, subject, target, detail string) error {
+	return tx.RecordEvent(ctx, store.Event{
+		ID: id.New(id.Event), At: s.now(), Actor: actor, Action: action, Subject: subject, Detail: detail,
+		Surface: store.SurfaceOf(actor), Target: target,
+	})
 }
 
 // normalizeEmail lowercases and trims an email and checks its shape.

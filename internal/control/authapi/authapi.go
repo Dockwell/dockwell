@@ -65,10 +65,10 @@ func (h *Handler) client(ctx context.Context) (auth.Client, error) {
 func principal(ctx context.Context) (auth.Principal, error) {
 	p, ok := PrincipalFrom(ctx)
 	if !ok {
-		return auth.Principal{}, reasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
+		return auth.Principal{}, ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
 	}
 	if p.Token != nil {
-		return auth.Principal{}, reasonError(connect.CodePermissionDenied, auth.ErrNeedsSession, ReasonNeedsSession)
+		return auth.Principal{}, ReasonError(connect.CodePermissionDenied, auth.ErrNeedsSession, ReasonNeedsSession)
 	}
 	return p, nil
 }
@@ -477,11 +477,17 @@ const (
 	ReasonNeedsSession = "needs_session"
 )
 
-// reasonError is a Connect error that names its reason under ReasonKey.
-func reasonError(code connect.Code, err error, reason string) *connect.Error {
+// ReasonError is a Connect error that names its reason under ReasonKey.
+func ReasonError(code connect.Code, err error, reason string) *connect.Error {
 	cerr := connect.NewError(code, err)
 	cerr.Meta().Set(ReasonKey, reason)
 	return cerr
+}
+
+// Invalid is an invalid argument, for the caller to fix: the reason
+// "invalid", with a message that says how.
+func Invalid(err error) *connect.Error {
+	return ReasonError(connect.CodeInvalidArgument, err, "invalid")
 }
 
 // codes maps the auth package's errors to API codes and reasons. Their

@@ -5,6 +5,7 @@ package revision
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -117,6 +118,39 @@ func testStartReportsEachStep(t *testing.T, backend store.Backend) {
 	}
 	if d := r.UndoDeadline(); d.Sub(r.AppliedAt) != UndoWindow {
 		t.Errorf("undo deadline %v, applied at %v", d, r.AppliedAt)
+	}
+}
+
+// A watcher that falls behind is dropped, and lets go of everything it
+// held then, though its ctx goes on: a watch of the timeline that falls
+// behind again and again, and watches again each time with the same ctx,
+// holds one watcher, not one for each time.
+func TestADroppedWatcherLetsGo(t *testing.T) {
+	e, _, _ := setup(t, store.SQLite, "srv_A")
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	before := runtime.NumGoroutine()
+	const times = 20
+	for range times {
+		updates := e.WatchAll(ctx)
+		for range watcherBuffer + 1 {
+			e.published("chg_busy", store.ChangeApplying)
+		}
+		for range updates {
+			// Drain until the engine drops this watcher and closes it.
+		}
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for runtime.NumGoroutine() > before+times/2 {
+		if time.Now().After(deadline) {
+			t.Fatalf("%d goroutines after %d dropped watchers, from %d before: dropped watchers wait for their ctx", runtime.NumGoroutine(), times, before)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	e.pmu.Lock()
+	defer e.pmu.Unlock()
+	if n := len(e.watchers[everyChange]); n != 0 {
+		t.Errorf("%d watchers left, want none", n)
 	}
 }
 

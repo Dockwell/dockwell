@@ -157,8 +157,8 @@ func testJoinSpendsTheTicketOnce(t *testing.T, backend store.Backend) {
 	_ = f.db.View(t.Context(), func(tx *store.Tx) error {
 		events, _ := tx.ListEvents(t.Context(), 10)
 		var actions []string
-		for _, e := range events {
-			actions = append(actions, e.Action)
+		for i := range events {
+			actions = append(actions, events[i].Action)
 		}
 		if strings.Join(actions, ",") != "server.join,join_token.create,install.create" {
 			t.Errorf("audit log = %v", actions)
@@ -266,8 +266,8 @@ func testRenewRotatesKeysAndRefusesReplacedCertificates(t *testing.T, backend st
 	_ = f.db.View(t.Context(), func(tx *store.Tx) error {
 		events, _ := tx.ListEvents(t.Context(), 20)
 		var rejected int
-		for _, e := range events {
-			if e.Action == "server.renew_rejected" {
+		for i := range events {
+			if events[i].Action == "server.renew_rejected" {
 				rejected++
 			}
 		}

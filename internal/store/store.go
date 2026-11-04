@@ -47,6 +47,8 @@ type DB struct {
 	dialect *dialect
 	// where is the store's location for messages, without secrets.
 	where string
+	// recorded fires when a write that recorded an audit event commits.
+	recorded signal
 }
 
 // Backend names a kind of database the store runs on.
@@ -263,6 +265,8 @@ func (db *DB) Close() error {
 type Tx struct {
 	tx      *sql.Tx
 	dialect *dialect
+	// recorded is set once a write records an audit event; nil in a read.
+	recorded *bool
 }
 
 func (t *Tx) exec(ctx context.Context, query string, args ...any) (sql.Result, error) {
@@ -305,7 +309,18 @@ func (db *DB) View(ctx context.Context, fn func(*Tx) error) error {
 // Write transactions run one at a time, across every process using the
 // store.
 func (db *DB) Update(ctx context.Context, fn func(*Tx) error) error {
-	return db.update(ctx, func(tx *sql.Tx) error { return fn(&Tx{tx: tx, dialect: db.dialect}) })
+	return db.writeTx(ctx, fn)
+}
+
+// writeTx runs fn in a write transaction, as Update and Revise do, and
+// fires Recorded once it commits if fn recorded an audit event.
+func (db *DB) writeTx(ctx context.Context, fn func(*Tx) error) error {
+	var recorded bool
+	err := db.update(ctx, func(tx *sql.Tx) error { return fn(&Tx{tx: tx, dialect: db.dialect, recorded: &recorded}) })
+	if err == nil && recorded {
+		db.recorded.fire()
+	}
+	return err
 }
 
 func (db *DB) update(ctx context.Context, fn func(*sql.Tx) error) error {
@@ -337,7 +352,7 @@ type RevisionTx struct {
 // calls it, so every change to managed state goes through a plan; a test
 // fails if anything else does (PRD principle 2, ADR 0009).
 func (db *DB) Revise(ctx context.Context, fn func(*RevisionTx) error) error {
-	return db.update(ctx, func(tx *sql.Tx) error { return fn(&RevisionTx{Tx: &Tx{tx: tx, dialect: db.dialect}}) })
+	return db.writeTx(ctx, func(tx *Tx) error { return fn(&RevisionTx{Tx: tx}) })
 }
 
 func millis(t time.Time) int64 { return t.UnixMilli() }

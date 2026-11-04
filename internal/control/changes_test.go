@@ -427,7 +427,8 @@ func testPlanApplyAndUndoThroughTheAPI(t *testing.T, backend store.Backend) {
 		return err
 	})
 	want := map[string]string{planned.GetId(): "change.applied", again.GetId(): "change.discarded", undo.GetId(): "change.applied"}
-	for _, e := range events {
+	for i := range events {
+		e := &events[i]
 		if action, ok := want[e.Subject]; ok && e.Action == action {
 			if !strings.HasPrefix(e.Actor, "user:") || e.Surface != revision.ViaPanel {
 				t.Errorf("event %s %s by %q via %q, want a user via the panel", e.Action, e.Subject, e.Actor, e.Surface)
@@ -836,7 +837,8 @@ func testSecretsNeverLeaveTheAPI(t *testing.T, backend store.Backend) {
 		return nil
 	})
 	var history strings.Builder
-	for _, e := range events {
+	for i := range events {
+		e := &events[i]
 		history.WriteString(e.Actor + e.Action + e.Subject + e.Detail + "\n")
 	}
 	for i := range stored {
