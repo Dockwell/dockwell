@@ -1072,14 +1072,14 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		plan.Servers = append(plan.Servers, ServerPlan{Server: s, Name: names[s], Removed: true})
 		fmt.Fprintf(fp, "removed %s\n", s)
 	}
-	// A value that becomes a secret under the same name, as when a variable
-	// is made one, may have been one all along: the plan doesn't show it
-	// being deleted either.
-	switched := e.switched(items)
+	// A name that moves between a variable and a secret, either way, as a
+	// switch does, its undo, or a rollback of it: the value may have been a
+	// secret all along, so the plan shows it on neither side.
+	masked := e.switchSides(items)
 	for i := range items {
 		rp := items[i].resourcePlan(actions[items[i].id])
 		rp.HostAccess = access[items[i].id]
-		if to, ok := switched[items[i].ref]; ok && e.sealedKind(to) {
+		if masked[items[i].ref] {
 			for j := range rp.Changes {
 				rp.Changes[j].Sensitive, rp.Changes[j].From, rp.Changes[j].To = true, "", ""
 			}

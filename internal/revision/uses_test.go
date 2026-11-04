@@ -362,6 +362,81 @@ func testSwitchingAValuesKindTakesInItsServices(t *testing.T, backend store.Back
 	}
 }
 
+// A name that moves between a variable and a secret shows its value on
+// neither side of the plan, in either direction: the value may have been a
+// secret all along. That holds for the switch, for undoing it, which puts
+// the variable back, and for a rollback of it, as each plan is kept for
+// Activity and every reader of the change.
+func TestASwitchMasksTheValueOnBothSides(t *testing.T) {
+	storetest.Each(t, testASwitchMasksTheValueOnBothSides)
+}
+
+func testASwitchMasksTheValueOnBothSides(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A")
+	env := production(t, db)
+	const before, after = "old-variable-value", "new-secret-value"
+	variableRef := resource.Ref{Kind: variable.VariableKind, Scope: env, Name: "API_TOKEN"}
+	secretRef := resource.Ref{Kind: variable.SecretKind, Scope: env, Name: "API_TOKEN"}
+	apply(t, e, propose(t, e, "Set up", variableEdit(env, "API_TOKEN", before)))
+	masked := func(what string, changeID string, plan *Plan, value string) {
+		t.Helper()
+		if rec := stored(t, db, changeID); bytes.Contains(rec.Plan, []byte(value)) {
+			t.Errorf("%s: the plan on record holds the value: %s", what, rec.Plan)
+		}
+		if plan == nil {
+			return
+		}
+		for _, ref := range []resource.Ref{variableRef, secretRef} {
+			for i := range plan.Resources {
+				if plan.Resources[i].Ref != ref {
+					continue
+				}
+				for _, c := range plan.Resources[i].Changes {
+					if !c.Sensitive || c.From != "" || c.To != "" {
+						t.Errorf("%s: %s shows %+v, want it masked", what, ref, c)
+					}
+				}
+			}
+		}
+	}
+
+	sw := propose(t, e, "Make it a secret", Edit{Ref: variableRef}, secretEdit(env, "API_TOKEN", after))
+	masked("the switch", sw.Change, sw, before)
+	apply(t, e, sw)
+
+	undo, err := e.Undo(t.Context(), sw.Change, By{Actor: "usr_test", Via: ViaPanel})
+	if err != nil {
+		t.Fatal(err)
+	}
+	masked("its undo", undo.Change, undo, before)
+	apply(t, e, undo)
+
+	// A rollback of a switch: the service takes the secret, and fails.
+	f["srv_A"].docker.Broken["acme/api:broken"] = true
+	apply(t, e, propose(t, e, "Run api", user(env, "api", "srv_A", nil, map[string]string{"API_TOKEN": ""})))
+	broken := user(env, "api", "srv_A", map[string]string{"API_TOKEN": ""}, nil)
+	broken.Spec.(*resourcev1.Service).GetApp().Image = "acme/api:broken"
+	failing := propose(t, e, "Make it a secret, with a broken build", Edit{Ref: variableRef}, secretEdit(env, "API_TOKEN", after), broken)
+	var failed *FailedError
+	if err := e.Apply(t.Context(), failing.Change); !errors.As(err, &failed) || failed.Rollback == "" {
+		t.Fatalf("apply = %v, want it to fail and roll back", err)
+	}
+	masked("its rollback", failed.Rollback, nil, before)
+
+	// The other way, a secret made a variable: the plan shows neither.
+	apply(t, e, propose(t, e, "Make it a secret again", Edit{Ref: variableRef}, secretEdit(env, "API_TOKEN", after),
+		user(env, "api", "srv_A", map[string]string{"API_TOKEN": ""}, nil)))
+	back := propose(t, e, "Make it a variable", Edit{Ref: secretRef}, variableEdit(env, "API_TOKEN", "shown-from-now-on"))
+	masked("the switch back", back.Change, back, "shown-from-now-on")
+
+	// A variable that changes on its own shows its value, as ever.
+	apply(t, e, propose(t, e, "Add another", variableEdit(env, "LOG_LEVEL", "info")))
+	plain := propose(t, e, "Change it", variableEdit(env, "LOG_LEVEL", "debug"))
+	if c := plain.Resources[0].Changes; len(c) != 1 || c[0].Sensitive || c[0].From != "info" || c[0].To != "debug" {
+		t.Errorf("a plain variable's plan = %+v, want its value shown", c)
+	}
+}
+
 // A sealed spec opens only where it was sealed for. Someone who can write
 // the database, without the key file, can't pass one revision of a secret
 // off as another, such as a leaked value as its rotation, nor put a spec

@@ -116,6 +116,20 @@ func (e *Engine) switched(items []item) map[resource.Ref]resource.Kind {
 	return out
 }
 
+// switchSides lists both sides of each switch between a kind that keeps
+// its values sealed and one that doesn't: what the change deletes, and what
+// takes its place under the same name.
+func (e *Engine) switchSides(items []item) map[resource.Ref]bool {
+	out := map[resource.Ref]bool{}
+	for from, to := range e.switched(items) {
+		if e.sealedKind(from.Kind) != e.sealedKind(to) {
+			out[from] = true
+			out[resource.Ref{Kind: to, Scope: from.Scope, Name: from.Name}] = true
+		}
+	}
+	return out
+}
+
 // rebinder returns a kind as a Rebinder, if it is one.
 func (e *Engine) rebinder(kind resource.Kind) (resource.Rebinder, bool) {
 	t, err := e.kinds.Type(kind)
