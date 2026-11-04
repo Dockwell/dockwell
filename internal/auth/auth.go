@@ -145,11 +145,12 @@ type Service struct {
 	serverName func() string
 	now        func() time.Time
 
-	ceremonies *ceremonies
-	sources    *failures // wrong codes by source address
-	begins     *buckets  // unauthenticated ceremonies and links, by source
-	streams    *streams
-	unflagged  unflagged // passkeys seen to be copied, until the flag is stored
+	ceremonies     *ceremonies
+	relyingParties relyingParties
+	sources        *failures // wrong codes by source address
+	begins         *buckets  // unauthenticated ceremonies and links, by source
+	streams        *streams
+	unflagged      unflagged // passkeys seen to be copied, until the flag is stored
 	// recheck is how often an open stream checks its session again.
 	recheck time.Duration
 }
@@ -255,10 +256,50 @@ func normalizeName(name string) (string, error) {
 
 // relyingParty returns the WebAuthn configuration for a site: passkeys made
 // or used here belong to its RP ID, and responses must come from its origin.
+// Each site's is made once and kept.
 func (s *Service) relyingParty(site Site) (*webauthn.WebAuthn, error) {
 	if !site.CanSignIn() {
 		return nil, ErrNeedsHostname
 	}
+	return s.relyingParties.get(site)
+}
+
+// maxRelyingParties bounds the relying parties kept. A site is the domain,
+// or localhost on the port a tunnel uses, so there are a few at most; the
+// bound keeps requests for many ports from growing memory.
+const maxRelyingParties = 16
+
+// relyingParties keeps each site's WebAuthn configuration, which is safe
+// for concurrent use, so a ceremony doesn't build and validate a new one.
+type relyingParties struct {
+	mu sync.Mutex
+	m  map[Site]*webauthn.WebAuthn
+}
+
+func (r *relyingParties) get(site Site) (*webauthn.WebAuthn, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if rp, ok := r.m[site]; ok {
+		return rp, nil
+	}
+	rp, err := newRelyingParty(site)
+	if err != nil {
+		return nil, err
+	}
+	if r.m == nil {
+		r.m = map[Site]*webauthn.WebAuthn{}
+	}
+	for k := range r.m {
+		if len(r.m) < maxRelyingParties {
+			break
+		}
+		delete(r.m, k)
+	}
+	r.m[site] = rp
+	return rp, nil
+}
+
+func newRelyingParty(site Site) (*webauthn.WebAuthn, error) {
 	timeout := webauthn.TimeoutConfig{Enforce: true, Timeout: ceremonyTTL, TimeoutUVD: ceremonyTTL}
 	return webauthn.New(&webauthn.Config{
 		RPID:                  site.RPID,

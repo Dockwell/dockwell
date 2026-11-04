@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"strings"
@@ -631,5 +632,35 @@ func TestSignInNeedsAHostname(t *testing.T) {
 	}
 	if _, err := f.svc.SignInWithCode(t.Context(), ip, "mira@acme.dev", "123456"); !errors.Is(err, ErrNeedsHostname) {
 		t.Errorf("SignInWithCode on an IP = %v, want ErrNeedsHostname", err)
+	}
+}
+
+// Each site's relying party is made once and kept, and the number kept is
+// bounded however many tunnel ports ask.
+func TestRelyingPartiesAreKeptPerSite(t *testing.T) {
+	f := newFixture(t, "panel.acme.dev")
+	first, err := f.svc.relyingParty(localhost.Site)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := f.svc.relyingParty(localhost.Site); again != first {
+		t.Error("a second ceremony on localhost made a new relying party")
+	}
+	domain, _ := f.svc.relyingParty(onDomain.Site)
+	if domain == first || domain.Config.RPID != "panel.acme.dev" || domain.Config.RPOrigins[0] != "https://panel.acme.dev" {
+		t.Errorf("the domain's relying party is for %s at %v", domain.Config.RPID, domain.Config.RPOrigins)
+	}
+	for port := range 3 * maxRelyingParties {
+		site := Site{RPID: "localhost", Origin: fmt.Sprintf("http://localhost:%d", 8000+port)}
+		rp, err := f.svc.relyingParty(site)
+		if err != nil || rp.Config.RPOrigins[0] != site.Origin {
+			t.Fatalf("relying party for %s: %v, %v", site.Origin, rp, err)
+		}
+	}
+	if n := len(f.svc.relyingParties.m); n > maxRelyingParties {
+		t.Errorf("%d relying parties kept, want at most %d", n, maxRelyingParties)
+	}
+	if _, err := f.svc.relyingParty(Site{Origin: "http://127.0.0.1:7600"}); !errors.Is(err, ErrNeedsHostname) {
+		t.Errorf("a relying party for a loopback IP = %v, want ErrNeedsHostname", err)
 	}
 }
