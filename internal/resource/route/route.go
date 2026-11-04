@@ -27,8 +27,9 @@ import (
 const Kind resource.Kind = "route"
 
 // RestartDowntime is how long what a proxy serves is down as it restarts on a
-// newer version, at most: stopping it and starting it again.
-const RestartDowntime = 5 * time.Second
+// newer version, at most: the 30 s it gets to stop before Docker kills it, for
+// what is in flight, and 5 s to start again.
+const RestartDowntime = 35 * time.Second
 
 // Ingress is what runs routes on a server. On the control plane, which only
 // reads and checks specs, there is none.

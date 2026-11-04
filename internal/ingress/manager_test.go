@@ -3,9 +3,11 @@
 package ingress
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -1014,6 +1016,36 @@ func TestDomainsReportEachStateAndRetryWhenDNSComesHere(t *testing.T) {
 	}
 	if c := s.Domains()[0].GetCertificate(); c.GetState().String() != "CERTIFICATE_STATE_ISSUED" || c.GetExpireTime() == nil || c.GetMessage() != "" {
 		t.Errorf("the certificate reads %v", c)
+	}
+}
+
+// The panel's domain isn't a route, so the API has no word of it, and someone
+// who can't reach the panel reads the server's log.
+func TestAPanelCertificateThatFailsIsLogged(t *testing.T) {
+	s := newSetup(t)
+	var logged bytes.Buffer
+	s.Logger = slog.New(slog.NewTextHandler(&logged, nil))
+	calls := &panelCalls{}
+	s.Panel = calls.panel()
+	s.apply(t, "www", spec("app.example.com", "", "web", 80))
+	s.proxy.certs = map[string]CertState{
+		"panel.example.com": {Phase: CertFailed, Problem: ProblemConnection},
+		"app.example.com":   {Phase: CertIssued, NotAfter: time.Now().Add(time.Hour)},
+	}
+	s.watchOnce(t.Context())
+	if !strings.Contains(logged.String(), "SSH tunnel") || !strings.Contains(logged.String(), "port 80 or 443") {
+		t.Errorf("the log says %q", logged.String())
+	}
+	for _, d := range s.Domains() {
+		if d.GetDomain() == "panel.example.com" {
+			t.Error("the panel's domain is listed as a route's")
+		}
+	}
+	// Once is enough, while nothing changes.
+	logged.Reset()
+	s.watchOnce(t.Context())
+	if logged.Len() != 0 {
+		t.Errorf("the same state was logged again: %q", logged.String())
 	}
 }
 

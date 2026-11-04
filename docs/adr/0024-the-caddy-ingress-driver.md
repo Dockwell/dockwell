@@ -165,11 +165,11 @@ Caddy keeps `X-Forwarded-For` for itself: with no `trusted_proxies`, it overwrit
 - **What DNS says,** `PlanStep.domain_check`: whether the domain points here, has no record, or points elsewhere, with the addresses. It never refuses, as people often set DNS afterwards, and the fingerprint leaves it out, so a record that changes between planning and applying doesn't stale a plan. A server with private addresses alone can't tell whether a public record is its own, and says so.
 - **Taken ports are refused at plan time, by name,** with the consequence and the fix, and checked again on apply. The agent reads who holds 80 and 443 over TCP, and 443 over UDP, from `/proc`, and asks Docker what publishes them, since a published port with the userland proxy off has no listening socket. It names the process and, through its cgroup, its container:
 
-  > Port 80 is held by nginx, in the container 1Panel-openresty-abc12, and port 443 by the same, so Caddy can't start on hz-1 and this route can't serve traffic. What runs there keeps running. Stop that proxy, or publish the service's port and point that proxy at it.
+  > Port 80 is held by nginx, in the container 1Panel-openresty-abc12, and port 443 by the same, so Caddy can't start on this server and this route can't serve traffic. What runs there keeps running. Stop that proxy, or publish the service's port and point that proxy at it.
 
   When it can't tell, as an agent that isn't root can't read other users' processes, it says which port, and how to find out: `ss -ltnp 'sport = :80'`.
 - **A service can't publish 80 or 443 while the ingress holds them.** The container driver refuses it at plan time: otherwise the new container would fail to start only once the old one was gone.
-- **Downtime is honest.** A new route has none. A route's update has none. A step that restarts Caddy says so, with the 5 s it takes at most to start. Removing a route ends what it serves on purpose, which the plan says by being a removal; nothing else stops.
+- **Downtime is honest.** A new route has none. A route's update has none. A step that restarts Caddy says so, with 35 s at most: the 30 s it gets to stop before Docker kills it, for what is in flight, and 5 s to start again. Removing a route ends what it serves on purpose, which the plan says by being a removal; nothing else stops.
 
 ### The last route
 
@@ -195,6 +195,7 @@ The agent reports each domain's state, and the API serves it (`DomainService.Lis
   A cancelled attempt, as each reload cancels one and starts again, isn't a failure.
 - **Fixing DNS works at once.** Caddy backs off, up to 6 hours between tries, so someone who fixes DNS could wait a long time. A reload starts a pending name's attempt again within about a second, as measured. So while a domain is pending or failed, the agent checks its DNS, and reloads once when the answer changes to this server. A reload made for any other reason does the same, which is one more attempt on the CA's production directory; Caddy's own retries go to the staging directory first, so failures don't use up the production limit.
 - **The panel can poll.** `ListDomains` takes an environment or a service, and returns each domain with its routes and each server's certificate and DNS state. A server that's offline shows what it last reported, marked `stale`.
+- **The panel's own domain** isn't a route, so it isn't listed. The agent logs where its certificate stands whenever that changes, as someone who can't reach the panel by its domain reads the server's log, through the tunnel's SSH.
 
 Issuance is Caddy's own, HTTP-01 and TLS-ALPN-01, from Let's Encrypt unless `DOCKWELL_ACME_DIRECTORY_URL` names another CA, as for Pebble, the same setting as the panel's. `DOCKWELL_ACME_ROOTS` names a PEM file of roots to trust for it. No email is sent to the CA.
 
@@ -251,7 +252,7 @@ Docker verifies a digest pull whatever serves it, so a mirror can't change what 
 
 ## Consequences
 
-- **Memory.** Caddy is outside the agent's budget, as ADR 0005 says: 63 MB in the run above. `internal/ingress`, `internal/ingress/caddy` and `internal/resource/route` are in the agent build, and bring no module or standard package it didn't link. The pull request has what `make budgets` measured.
+- **Memory.** Caddy is outside the agent's budget, as ADR 0005 says: 63 MB in the run above. `internal/ingress`, `internal/ingress/caddy` and `internal/resource/route` are in the agent build, and bring no module it didn't link. An idle agent of the agent build reads 20.4 MB, 0.6 MB more than the Docker driver's at 86cbf22, and a control plane with its own agent, of the full build, 39.6 MB, 0.7 MB more: medians of 5 runs after 180 s, each beside the other on one machine (ADR 0018). The agent build's binary is 0.5 MB larger.
 - **Docker is required for ingress.** A server without it can't have a route, which is no loss: it has no service to route to either.
 - **An app must listen on every address in its container,** as it must for Compose's ports. One bound to its first interface alone isn't reachable from the ingress network.
 - **The server's firewall applies to 80 and 443.** A published Docker port goes around ufw; Caddy doesn't. A blocked port shows up as `connection`, with the fix.

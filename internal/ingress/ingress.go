@@ -305,17 +305,12 @@ func routesAfter(have []Route, desired []resource.Desired) (left int, first, las
 // package names no proxy, and this one needs none of it but this.
 const routeKind resource.Kind = "route"
 
-// ownedStatus is the proxy's status.
-func (m *Manager) ownedStatus(ctx context.Context) (Status, error) {
-	return m.Proxy.Status(ctx)
-}
-
 // Judge says what a step does to the ingress, given all the plan touches on
 // this server, and what DNS says of the route's domain.
 func (m *Manager) Judge(ctx context.Context, ref resource.Ref, spec *resourcev1.Route, desired []resource.Desired) (*resource.IngressEffect, *resource.DomainCheck, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	st, err := m.ownedStatus(ctx)
+	st, err := m.Proxy.Status(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -354,7 +349,7 @@ func (m *Manager) Check(ctx context.Context, _ resource.Ref, _ []resource.Desire
 }
 
 func (m *Manager) checkPorts(ctx context.Context) error {
-	st, err := m.ownedStatus(ctx)
+	st, err := m.Proxy.Status(ctx)
 	if err != nil {
 		return err
 	}
@@ -434,7 +429,7 @@ func (m *Manager) Apply(ctx context.Context, ref resource.Ref, spec *resourcev1.
 
 // put serves one route, starting the proxy if this is the first.
 func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Route, effect *resource.IngressEffect) error {
-	st, err := m.ownedStatus(ctx)
+	st, err := m.Proxy.Status(ctx)
 	if err != nil {
 		return err
 	}
@@ -546,7 +541,7 @@ func (m *Manager) named(ctx context.Context, startErr error) error {
 
 // remove stops serving a route, and stops the proxy if it was the last.
 func (m *Manager) remove(ctx context.Context, ref resource.Ref) error {
-	st, err := m.ownedStatus(ctx)
+	st, err := m.Proxy.Status(ctx)
 	if err != nil {
 		return err
 	}
@@ -606,7 +601,7 @@ func (m *Manager) stop(ctx context.Context) error {
 func (m *Manager) Verify(ctx context.Context, ref resource.Ref) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	st, err := m.ownedStatus(ctx)
+	st, err := m.Proxy.Status(ctx)
 	if err != nil {
 		return err
 	}
@@ -656,7 +651,7 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 	if m.Panel.Moves() {
 		m.handed = true // dockwell run left the ports alone, as they are the proxy's
 	}
-	st, err := m.ownedStatus(ctx)
+	st, err := m.Proxy.Status(ctx)
 	if err != nil {
 		return err
 	}

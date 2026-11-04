@@ -198,6 +198,8 @@ type statusBoard struct {
 	checks  map[string]*resource.DomainCheck
 	checked map[string]time.Time
 	signal  chan struct{}
+	// panel is what was last logged of the panel's own certificate.
+	panel string
 }
 
 func (s *statusBoard) changed() chan struct{} {
@@ -298,6 +300,7 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 		list = append(list, &dockwellv1.DomainStatus{Domain: name, Certificate: certProto(name, st, check), Dns: resourcepb.DomainCheck(check)})
 	}
 	m.status.publish(list)
+	m.reportPanel(ctx)
 	if retry {
 		m.logger().InfoContext(ctx, "a domain's DNS now points here, so the ingress tries for its certificate at once")
 		if err := m.Proxy.Retry(ctx); err != nil && ctx.Err() == nil {
@@ -305,6 +308,35 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 		}
 	}
 	return waiting
+}
+
+// reportPanel logs where the panel's own certificate stands when that changes.
+// It isn't a route, so the API has no word of it, and someone who can't reach
+// the panel by its domain reads the server's log.
+func (m *Manager) reportPanel(ctx context.Context) {
+	site := m.panelSite()
+	if site == nil {
+		return
+	}
+	certs, err := m.Proxy.Certificates(ctx, []string{site.Domain})
+	if err != nil {
+		return
+	}
+	st := certs[site.Domain]
+	msg := certMessage(site.Domain, st, nil)
+	b := &m.status
+	b.mu.Lock()
+	changed := msg != b.panel
+	b.panel = msg
+	b.mu.Unlock()
+	if !changed || msg == "" {
+		return
+	}
+	if st.Phase == CertFailed {
+		m.logger().WarnContext(ctx, "the panel's domain doesn't answer over HTTPS; reach the panel through an SSH tunnel", slog.String("why", msg))
+		return
+	}
+	m.logger().InfoContext(ctx, "the panel's certificate is on its way", slog.String("domain", site.Domain))
 }
 
 // domainCheck is what DNS says of a domain, read again every dnsEvery while it
