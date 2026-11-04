@@ -755,7 +755,12 @@ func testTokenRefusalsSayWhy(t *testing.T, backend store.Backend) {
 			!strings.Contains(cerr.Message(), "Sign in and do it in the panel") {
 			t.Errorf("RevokeOtherSessions over %s with a token = %v (reason %q), want permission_denied needs_session", name, err, reason(err))
 		}
-		c = dockwellv1connect.NewAuthServiceClient(bearer{token: secret[:52] + "x", rt: b.client.Transport}, origin, opts...)
+		// The last digit is random, so it may already be the one a typo uses.
+		typo := "x"
+		if secret[52:] == typo {
+			typo = "y"
+		}
+		c = dockwellv1connect.NewAuthServiceClient(bearer{token: secret[:52] + typo, rt: b.client.Transport}, origin, opts...)
 		if _, err := c.ListSessions(t.Context(), connect.NewRequest(&dockwellv1.ListSessionsRequest{})); reason(err) != authapi.ReasonTokenRejected {
 			t.Errorf("a mistyped token over %s = %v (reason %q), want token_rejected", name, err, reason(err))
 		}
