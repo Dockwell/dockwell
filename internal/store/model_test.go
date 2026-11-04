@@ -188,8 +188,10 @@ func TestHistoryIsAppendOnly(t *testing.T) {
 			if _, err := tx.AddRevision(ctx, store.NewRevision{Kind: "firewall.rule", Scope: "srv_A", Name: "ssh", ID: "res_1", Spec: []byte{1}, Change: "chg_1", At: now}); err != nil {
 				return err
 			}
-			if _, err := tx.AddRevision(ctx, store.NewRevision{Kind: "service", Scope: "env_1", Name: "api", ID: "svc_1", Spec: []byte{1}, Change: "chg_1", At: now,
-				Uses: []store.Use{{As: "DB", Kind: "secret", Name: "DB", Revision: 3}}}); err != nil {
+			if _, err := tx.AddRevision(ctx, store.NewRevision{
+				Kind: "service", Scope: "env_1", Name: "api", ID: "svc_1", Spec: []byte{1}, Change: "chg_1", At: now,
+				Uses: []store.Use{{As: "DB", Kind: "secret", Name: "DB", Revision: 3}},
+			}); err != nil {
 				return err
 			}
 			return tx.PlaceRevision(ctx, "res_1", 1, []string{"srv_A"}, now)

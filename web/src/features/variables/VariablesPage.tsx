@@ -521,7 +521,11 @@ function ValueForm({ scope, envName, editing, onDone }: ValueFormProps) {
         ) : null}
       </div>
       {toSecret ? (
-        <Callout className="variables-form-note" tone="warning" title={t`The old value stays in this variable's history`}>
+        <Callout
+          className="variables-form-note"
+          tone="warning"
+          title={t`The old value stays in this variable's history`}
+        >
           <Trans>
             It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the
             secret, and rotate the old one wherever it was issued.

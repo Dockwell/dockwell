@@ -13,8 +13,6 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
-var api = resource.Ref{Kind: "service", Scope: "env_1", Name: "api"}
-
 // A service's container gets its app's environment and the values of
 // what it uses; a label says what it used, never a value, and reading
 // the container back gives the service's spec.

@@ -2107,7 +2107,8 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		if c.State != store.ChangeApplying {
 			return nil // it finished meanwhile
 		}
-		for i, ci := range c.Items {
+		for i := range c.Items {
+			ci := &c.Items[i]
 			ref := resource.Ref{Kind: resource.Kind(ci.Kind), Scope: ci.Scope, Name: ci.Name}
 			it, err := e.load(ctx, tx, ref)
 			if err != nil {
@@ -2204,7 +2205,8 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 // and that its scope is still there, and reads them as they stand.
 func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]item, error) {
 	items := make([]item, 0, len(c.Items))
-	for i, ci := range c.Items {
+	for i := range c.Items {
+		ci := &c.Items[i]
 		ref := resource.Ref{Kind: resource.Kind(ci.Kind), Scope: ci.Scope, Name: ci.Name}
 		it, err := e.load(ctx, tx, ref)
 		if err != nil {

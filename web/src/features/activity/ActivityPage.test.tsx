@@ -207,7 +207,9 @@ describe("Activity", () => {
     });
     watch.push(snapshot([added]));
     renderActivity(watch, {});
-    const row = await screen.findByRole("row", { name: /Added the passkey Unknown laptop after signing in with a recovery code/ });
+    const row = await screen.findByRole("row", {
+      name: /Added the passkey Unknown laptop after signing in with a recovery code/,
+    });
     expect(row.querySelector(".dw-tone-warning, [data-tone='warning']")).not.toBeNull();
   });
 

@@ -141,7 +141,7 @@ func TestAStepThatRotatesIsNeverNothing(t *testing.T) {
 // whatever it holds, such as the dots of a label like traefik.enable.
 func TestSensitivePath(t *testing.T) {
 	service := (&resourcev1.Service{}).ProtoReflect().Descriptor()
-	container := (&resourcev1.Container{}).ProtoReflect().Descriptor()
+	ctr := (&resourcev1.Container{}).ProtoReflect().Descriptor()
 	for path, want := range map[string]bool{
 		"app.env[API_KEY]":                          true,
 		"app.env[api.key]":                          true,
@@ -174,8 +174,8 @@ func TestSensitivePath(t *testing.T) {
 			t.Errorf("resource.SensitivePath(Service, %q) = %v, want %v", path, got, want)
 		}
 	}
-	if !resource.SensitivePath(container, "env[API_KEY]") || !resource.SensitivePath(container, "env") || resource.SensitivePath(container, "image") ||
-		resource.SensitivePath(container, "labels[com.example.team]") || resource.SensitivePath(container, "ports") {
+	if !resource.SensitivePath(ctr, "env[API_KEY]") || !resource.SensitivePath(ctr, "env") || resource.SensitivePath(ctr, "image") ||
+		resource.SensitivePath(ctr, "labels[com.example.team]") || resource.SensitivePath(ctr, "ports") {
 		t.Error("SensitivePath misreads a container's paths")
 	}
 	if !resource.SensitivePath((&resourcev1.Secret{}).ProtoReflect().Descriptor(), "value") {

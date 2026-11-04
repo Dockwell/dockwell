@@ -112,9 +112,11 @@ func testSealAndOpen(t *testing.T, backend store.Backend) {
 	secret := string(variable.SecretKind)
 	for what, try := range map[string]func() ([]byte, error){
 		"for another resource": func() ([]byte, error) { return openIn(t, db, k, secretAt("sec_B"), sealed) },
-		"as another kind":      func() ([]byte, error) { return openIn(t, db, k, store.InRevision("sec_A", string(variable.VariableKind), 1), sealed) },
-		"as another revision":  func() ([]byte, error) { return openIn(t, db, k, store.InRevision("sec_A", secret, 2), sealed) },
-		"as a change item":     func() ([]byte, error) { return openIn(t, db, k, store.InChange("sec_A", secret, "chg_1", 1), sealed) },
+		"as another kind": func() ([]byte, error) {
+			return openIn(t, db, k, store.InRevision("sec_A", string(variable.VariableKind), 1), sealed)
+		},
+		"as another revision": func() ([]byte, error) { return openIn(t, db, k, store.InRevision("sec_A", secret, 2), sealed) },
+		"as a change item":    func() ([]byte, error) { return openIn(t, db, k, store.InChange("sec_A", secret, "chg_1", 1), sealed) },
 		"as a revision, from a change item": func() ([]byte, error) {
 			return openIn(t, db, k, secretAt("sec_A"), inItem)
 		},

@@ -273,7 +273,11 @@ describe("the variables and secrets page", () => {
       api([production], {
         variables: {
           revealSecret: () => {
-            throw authError(Code.NotFound, "not_found", "there's no secret sec_db. Check its ID with dockwell variables list");
+            throw authError(
+              Code.NotFound,
+              "not_found",
+              "there's no secret sec_db. Check its ID with dockwell variables list",
+            );
           },
         },
       }),

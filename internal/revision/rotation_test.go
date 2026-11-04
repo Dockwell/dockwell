@@ -5,6 +5,7 @@ package revision
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -16,17 +17,20 @@ import (
 // shape is everything a plan says, but for what tells one change from
 // another: its ID, its fingerprint and the IDs of what it makes.
 func shape(p *Plan) string {
-	out := fmt.Sprintf("revisions %d, counts %+v, destructive %t\n", p.Revisions, p.Counts(), p.Destructive())
-	for _, r := range p.Resources {
-		out += fmt.Sprintf("resource %s: %s from %d, %+v, on %v from %v\n", r.Ref, r.Action, r.Base, r.Changes, r.Servers, r.Previous)
+	var out strings.Builder
+	fmt.Fprintf(&out, "revisions %d, counts %+v, destructive %t\n", p.Revisions, p.Counts(), p.Destructive())
+	for i := range p.Resources {
+		r := &p.Resources[i]
+		fmt.Fprintf(&out, "resource %s: %s from %d, %+v, on %v from %v\n", r.Ref, r.Action, r.Base, r.Changes, r.Servers, r.Previous)
 	}
 	for _, s := range p.Servers {
-		out += fmt.Sprintf("server %s offline %t downtime %s\n", s.Name, s.Offline, s.Downtime)
-		for _, st := range s.Steps {
-			out += fmt.Sprintf("  step %s: %+v %+v\n", st.Ref, st.Decision, st.Changes)
+		fmt.Fprintf(&out, "server %s offline %t downtime %s\n", s.Name, s.Offline, s.Downtime)
+		for i := range s.Steps {
+			st := &s.Steps[i]
+			fmt.Fprintf(&out, "  step %s: %+v %+v\n", st.Ref, st.Decision, st.Changes)
 		}
 	}
-	return out
+	return out.String()
 }
 
 // Proposing a secret's value plans the same whether or not it is the value

@@ -160,7 +160,8 @@ func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
 	if err != nil {
 		return fmt.Errorf("can't record change %s: %w", c.ID, err)
 	}
-	for i, it := range c.Items {
+	for i := range c.Items {
+		it := &c.Items[i]
 		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers, rotates)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
 			strings.Join(it.Servers, " "), boolInt(it.Rotates)); err != nil {

@@ -321,8 +321,10 @@ func testARefusalForAnotherReasonLeavesTheProof(t *testing.T, backend store.Back
 	var last string
 	_ = f.db.Update(ctx, func(tx *store.Tx) error {
 		for i := range maxTokens {
-			tok := store.APIToken{ID: fmt.Sprintf("tok_%03d", i), TokenHash: []byte{byte(i), byte(i >> 8)}, UserID: p.User.ID, Name: "CI",
-				Hint: "dwt_…", Scope: store.ScopeReadOnly, CreatedAt: f.clock.now()}
+			tok := store.APIToken{
+				ID: fmt.Sprintf("tok_%03d", i), TokenHash: []byte{byte(i), byte(i >> 8)}, UserID: p.User.ID, Name: "CI",
+				Hint: "dwt_…", Scope: store.ScopeReadOnly, CreatedAt: f.clock.now(),
+			}
 			if err := tx.CreateAPIToken(ctx, tok); err != nil {
 				t.Fatal(err)
 			}
