@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { ActorKind, ChangeState, PlanAction, StepEffect, StepState, Surface } from "@dockwell/api";
+import {
+  ActorKind,
+  ChangeState,
+  type HostAccess,
+  HostAccessKind,
+  PlanAction,
+  StepEffect,
+  StepState,
+  Surface,
+} from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
@@ -28,6 +37,8 @@ export interface ChangeWords {
   via(surface: Surface): string;
   /** What kind of actor someone is: "API token". Empty for a person. */
   actorKind(kind: ActorKind): string;
+  /** What a container reaches on its server: "the server path /srv/app (read-only)". */
+  access(access: HostAccess): string;
 }
 
 export function useChangeWords(): ChangeWords {
@@ -128,6 +139,24 @@ export function useChangeWords(): ChangeWords {
             return t`Automatic`;
         }
         return "";
+      },
+      access(access) {
+        const path = access.path;
+        switch (access.kind) {
+          case HostAccessKind.SERVER_PATH:
+            return access.readOnly ? t`the server path ${path} (read-only)` : t`the server path ${path}`;
+          case HostAccessKind.DOCKER_SOCKET:
+            return t`Docker's socket at ${path}, which gives control of Docker on the server, the same as root`;
+          case HostAccessKind.HOST_NETWORK:
+            return t`the server's own network`;
+          case HostAccessKind.VOLUME_MOUNT: {
+            const type = access.type;
+            if (type !== "" && path !== "") return t`a ${type} mount of ${path}`;
+            if (type !== "") return t`a ${type} mount`;
+            return t`a mount from the volume's options`;
+          }
+        }
+        return t`something else on the server`;
       },
       actorKind(kind) {
         switch (kind) {

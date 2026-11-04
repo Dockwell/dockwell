@@ -454,16 +454,17 @@ type Record struct {
 }
 
 // Brief is a plan in brief: its fingerprint, its counts, and whether it is
-// destructive.
+// destructive or gives host access.
 type Brief struct {
 	Fingerprint string
 	Counts      Counts
 	Destructive bool
+	HostAccess  bool
 }
 
 // Brief sums up the plan.
 func (p *Plan) Brief() Brief {
-	return Brief{Fingerprint: p.Fingerprint, Counts: p.Counts(), Destructive: p.Destructive()}
+	return Brief{Fingerprint: p.Fingerprint, Counts: p.Counts(), Destructive: p.Destructive(), HostAccess: p.HostAccess()}
 }
 
 // brief reads a stored plan in brief, leaving out the rest: its field
@@ -471,8 +472,11 @@ func (p *Plan) Brief() Brief {
 func brief(b []byte) (Brief, error) {
 	var stored struct {
 		Fingerprint string
-		Resources   []struct{ Action resource.Action }
-		Servers     []struct {
+		Resources   []struct {
+			Action     resource.Action
+			HostAccess []resource.Access
+		}
+		Servers []struct {
 			Steps []struct {
 				Destroys bool
 				Warnings []resource.Warning
@@ -484,7 +488,7 @@ func brief(b []byte) (Brief, error) {
 	}
 	p := Plan{Fingerprint: stored.Fingerprint, Resources: make([]ResourcePlan, len(stored.Resources)), Servers: make([]ServerPlan, len(stored.Servers))}
 	for i := range stored.Resources {
-		p.Resources[i].Action = stored.Resources[i].Action
+		p.Resources[i].Action, p.Resources[i].HostAccess = stored.Resources[i].Action, stored.Resources[i].HostAccess
 	}
 	for i := range stored.Servers {
 		for _, st := range stored.Servers[i].Steps {

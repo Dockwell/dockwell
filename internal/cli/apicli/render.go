@@ -20,6 +20,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 // JSON writes msg as the API's JSON, protojson as REST answers it: field
@@ -453,7 +455,10 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			head += ", offline: its steps are planned from the state it last reported, and the change can't apply until it reconnects"
 		}
 		if d := s.GetDowntime(); d.AsDuration() > 0 {
-			head += " · " + downtime(d) + " of downtime"
+			head += " · about " + downtime(d) + " of downtime"
+			if h := s.GetUntilHealthy(); h.AsDuration() > d.AsDuration() {
+				head += ", and up to " + upTo(h.AsDuration()) + " until healthy"
+			}
 		}
 		fmt.Fprintf(w, "On %s\n", head)
 		tw := newTable(w)
@@ -468,7 +473,11 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			default:
 			}
 			if d := st.GetDowntime(); d.AsDuration() > 0 {
-				details = append(details, downtime(d)+" downtime")
+				what := "about " + downtime(d) + " downtime"
+				if h := st.GetUntilHealthy(); h.AsDuration() > d.AsDuration() {
+					what += ", and up to " + upTo(h.AsDuration()) + " until healthy"
+				}
+				details = append(details, what)
 			}
 			row(tw, "  "+a.symbol+" "+ref(st.GetResource()), strings.Join(details, " · "))
 			changes := st.GetChanges()
@@ -477,8 +486,18 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			}
 			fieldChanges(tw, changes, "      ")
 			// Lines without a tab don't widen the columns.
-			if st.GetDestroysData() {
+			switch {
+			case len(st.GetKeptPaths()) > 0:
+				fmt.Fprintf(tw, "      Takes out of use the data its image keeps at %s. The server keeps it for 7 days, and undoing this mounts it again.\n",
+					human.List(st.GetKeptPaths()))
+			case st.GetDestroysData():
 				fmt.Fprintln(tw, "      Destroys data its spec can't bring back.")
+			}
+			if st.GetRestores() {
+				fmt.Fprintln(tw, "      Brings back the data the server kept. If the server no longer has it, applying fails, and nothing is made empty.")
+			}
+			if access := st.GetHostAccess(); len(access) > 0 {
+				fmt.Fprintf(tw, "      Gives it access to %s: %s. A person approves this.\n", s.GetServerName(), human.List(accessWords(access)))
 			}
 			for _, warning := range st.GetWarnings() {
 				if warning == dockwellv1.PlanWarning_PLAN_WARNING_MAY_LOCK_OUT {
@@ -495,6 +514,41 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 	if p.GetDestructive() {
 		fmt.Fprintln(w, "It destroys data or may cut off access, which undo may not bring back.")
 	}
+	if p.GetHostAccess() {
+		fmt.Fprintln(w, "It gives a container more access to its server, which a person approves.")
+	}
+}
+
+// accessWords says what each access is, for people.
+func accessWords(list []*dockwellv1.HostAccess) []string {
+	out := make([]string, 0, len(list))
+	for _, a := range list {
+		out = append(out, resource.AccessWords(resource.Access{
+			Kind: accessKinds[a.GetKind()], Path: a.GetPath(), ReadOnly: a.GetReadOnly(), Type: a.GetType(),
+		}))
+	}
+	return out
+}
+
+var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH:   resource.AccessPath,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOCKER_SOCKET: resource.AccessDocker,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HOST_NETWORK:  resource.AccessNetwork,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_VOLUME_MOUNT:  resource.AccessMount,
+}
+
+// upTo writes a bound to the second, rounding up, as "1 min 50 s", so it
+// never reads as less than it is.
+func upTo(d time.Duration) string {
+	secs := int((d + time.Second - 1) / time.Second)
+	if secs < 60 {
+		return strconv.Itoa(secs) + " s"
+	}
+	out := strconv.Itoa(secs/60) + " min"
+	if secs%60 > 0 {
+		out += " " + strconv.Itoa(secs%60) + " s"
+	}
+	return out
 }
 
 func downtime(d *durationpb.Duration) string {

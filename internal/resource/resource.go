@@ -174,6 +174,32 @@ const (
 	AccessMount
 )
 
+// AccessWords says what a resource reaches, for people, such as "the
+// server path /srv/app (read-only)".
+func AccessWords(a Access) string {
+	switch a.Kind {
+	case AccessPath:
+		if a.ReadOnly {
+			return "the server path " + a.Path + " (read-only)"
+		}
+		return "the server path " + a.Path
+	case AccessDocker:
+		return "Docker's socket at " + a.Path + ", which gives control of Docker on the server, the same as root"
+	case AccessNetwork:
+		return "the server's own network"
+	case AccessMount:
+		what := "a mount from the volume's options"
+		if a.Type != "" {
+			what = "a " + a.Type + " mount"
+		}
+		if a.Path != "" {
+			what += " of " + a.Path
+		}
+		return what
+	}
+	return fmt.Sprintf("access(%d)", int(a.Kind))
+}
+
 // HostAccesser is a kind whose specs can reach their server beyond what
 // Docker keeps for them, as a container that mounts a server path does. A
 // change that adds to or changes what one reaches needs a person to apply

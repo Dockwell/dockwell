@@ -239,7 +239,7 @@ function ChangeSheet({
 
   const plan = change?.plan;
   const planned = change?.state === ChangeState.PLANNED;
-  const confirmWith = plan?.destructive ? shortFingerprint(plan) : "";
+  const confirmWith = plan?.destructive || plan?.hostAccess ? shortFingerprint(plan) : "";
   const confirmed = confirmWith === "" || typed.trim().toLowerCase() === confirmWith.toLowerCase();
 
   const apply = useCallback(async () => {
@@ -469,6 +469,10 @@ function ServerSteps({
   const time = useTimeWords();
   const down = longestDowntime([server]);
   const span = time.span(down);
+  const healthy = server.untilHealthy
+    ? Number(server.untilHealthy.seconds) * 1000 + server.untilHealthy.nanos / 1e6
+    : 0;
+  const bound = time.bound(healthy);
   return (
     <div className="plan-server">
       <div className="plan-server-head">
@@ -479,6 +483,10 @@ function ServerSteps({
         <span className="plan-server-meta">
           {server.removed ? (
             <Trans>No steps: it left the fleet</Trans>
+          ) : down > 0 && healthy > down ? (
+            <Trans>
+              About {span} down, and up to {bound} until healthy
+            </Trans>
           ) : down > 0 ? (
             <Trans>About {span} down</Trans>
           ) : (
@@ -495,6 +503,12 @@ function ServerSteps({
             const effect = words.effect(step.effect);
             const stepDown = step.downtime ? Number(step.downtime.seconds) * 1000 + step.downtime.nanos / 1e6 : 0;
             const stepSpan = time.span(stepDown);
+            const stepHealthy = step.untilHealthy
+              ? Number(step.untilHealthy.seconds) * 1000 + step.untilHealthy.nanos / 1e6
+              : 0;
+            const stepBound = time.bound(stepHealthy);
+            const kept = step.keptPaths.join(", ");
+            const reach = step.hostAccess.map((a) => words.access(a)).join("; ");
             return (
               <li key={step.resourceId} className="plan-step">
                 <span className="plan-step-what">
@@ -507,7 +521,14 @@ function ServerSteps({
                 <span className="plan-step-meta">
                   {effect ? <span>{effect}</span> : null}
                   {stepDown > 0 ? <span>{t`About ${stepSpan} down`}</span> : null}
-                  {step.destroysData ? <span className="plan-step-warn">{t`Destroys data`}</span> : null}
+                  {stepHealthy > stepDown ? <span>{t`Up to ${stepBound} until healthy`}</span> : null}
+                  {step.keptPaths.length > 0 ? (
+                    <span className="plan-step-warn">{t`Takes out of use what its image keeps at ${kept}, which the server keeps for 7 days`}</span>
+                  ) : step.destroysData ? (
+                    <span className="plan-step-warn">{t`Destroys data`}</span>
+                  ) : null}
+                  {step.restores ? <span>{t`Brings back the data the server kept`}</span> : null}
+                  {reach ? <span className="plan-step-warn">{t`Reaches ${reach} on ${server.serverName}`}</span> : null}
                   {step.warnings.includes(PlanWarning.MAY_LOCK_OUT) ? (
                     <span className="plan-step-warn">{t`May cut off access to ${server.serverName}`}</span>
                   ) : null}
@@ -572,6 +593,18 @@ function Effects({ reach, change, plan, confirmWith, typed, onType }: EffectsPro
       icon: "shield",
       title: <Trans>This plan destroys data or may cut off access</Trans>,
       detail: <Trans>Undo may not bring everything back.</Trans>,
+    });
+  }
+  if (plan?.hostAccess) {
+    rows.push({
+      key: "host-access",
+      icon: "shield",
+      title: <Trans>This plan gives a container more access to its server</Trans>,
+      detail: (
+        <Trans>
+          Only a signed-in person can apply it, as no API token may. Check each step says what it should reach.
+        </Trans>
+      ),
     });
   }
   return (

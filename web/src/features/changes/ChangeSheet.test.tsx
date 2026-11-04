@@ -5,6 +5,8 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   type ApplyChangeRequest,
   ChangeState,
+  HostAccessKind,
+  HostAccessSchema,
   PlanAction,
   StepProgressSchema,
   StepState,
@@ -159,6 +161,50 @@ describe("the plan sheet", () => {
     expect(apply).toBeDisabled();
     await user.clear(field);
     await user.type(field, "A1B2C3D4");
+    expect(apply).toBeEnabled();
+    await expectAccessible(document.body);
+    await user.click(apply);
+    await waitFor(() => expect(applies[0]?.fingerprint).toBe("a1b2c3d4e5f60718293a4b5c6d7e8f90"));
+  });
+
+  it("asks for the fingerprint before giving a container more of its server, and says what it reaches", async () => {
+    const user = userEvent.setup();
+    const applies: ApplyChangeRequest[] = [];
+    const reaching = webPlanned();
+    const plan = reaching.plan;
+    const step = plan?.servers[0]?.steps[0];
+    if (!plan || !step) throw new Error("webPlanned has no step");
+    plan.hostAccess = true;
+    step.hostAccess = [
+      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/app/config", readOnly: true }),
+      create(HostAccessSchema, { kind: HostAccessKind.DOCKER_SOCKET, path: "/var/run/docker.sock" }),
+    ];
+    step.untilHealthy = { $typeName: "google.protobuf.Duration", seconds: 110n, nanos: 0 };
+    step.keptPaths = ["/var/lib/postgresql/data"];
+    step.destroysData = true;
+    renderSheet(proposeWeb, {
+      changes: {
+        proposeChange: () => ({ change: reaching }),
+        watchChange: feed<WatchChangeResponse>().stream,
+        applyChange: (req) => {
+          applies.push(req);
+          return { change: reaching };
+        },
+      },
+    });
+
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(sheet).toHaveTextContent("This plan gives a container more access to its server");
+    expect(sheet).toHaveTextContent(
+      "Reaches the server path /srv/app/config (read-only); Docker's socket at /var/run/docker.sock, which gives control of Docker on the server, the same as root on hz-1",
+    );
+    expect(sheet).toHaveTextContent("Up to 1 min 50 s until healthy");
+    expect(sheet).toHaveTextContent(
+      "Takes out of use what its image keeps at /var/lib/postgresql/data, which the server keeps for 7 days",
+    );
+    const apply = await within(sheet).findByRole("button", { name: /Apply plan/ });
+    expect(apply).toBeDisabled();
+    await user.type(within(sheet).getByLabelText("Type a1b2c3d4 to apply it"), "a1b2c3d4");
     expect(apply).toBeEnabled();
     await expectAccessible(document.body);
     await user.click(apply);

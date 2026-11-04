@@ -36,14 +36,21 @@ func TestPlanView(t *testing.T) {
 		},
 		Servers: []*dockwellv1.ServerPlan{{
 			ServerId: "srv_1", ServerName: "hz-1", Offline: true, Downtime: durationpb.New(40 * time.Second),
+			UntilHealthy: durationpb.New(110 * time.Second),
 			Steps: []*dockwellv1.PlanStep{{
 				ResourceId: "svc_1", Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "web"}, Action: dockwellv1.PlanAction_PLAN_ACTION_REPLACE,
 				Effect: dockwellv1.StepEffect_STEP_EFFECT_RECREATE, Downtime: durationpb.New(40 * time.Second), DestroysData: true,
+				UntilHealthy: durationpb.New(110 * time.Second), KeptPaths: []string{"/var/lib/postgresql/data"}, Restores: true,
 				Warnings: []dockwellv1.PlanWarning{dockwellv1.PlanWarning_PLAN_WARNING_MAY_LOCK_OUT},
+				HostAccess: []*dockwellv1.HostAccess{
+					{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/app/config", ReadOnly: true},
+					{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOCKER_SOCKET, Path: "/var/run/docker.sock"},
+				},
 			}},
 		}},
 		UndoWindow:  durationpb.New(7 * 24 * time.Hour),
 		Destructive: true,
+		HostAccess:  true,
 	}
 	var buf bytes.Buffer
 	PlanView(&buf, plan)
@@ -51,15 +58,18 @@ func TestPlanView(t *testing.T) {
 		"  + environment staging  Create\n" +
 		"      + display_name     Staging\n" +
 		"\n" +
-		"On hz-1, offline: its steps are planned from the state it last reported, and the change can't apply until it reconnects · 40 s of downtime\n" +
-		"  ± service web           Replace · recreated · 40 s downtime\n" +
+		"On hz-1, offline: its steps are planned from the state it last reported, and the change can't apply until it reconnects · about 40 s of downtime, and up to 1 min 50 s until healthy\n" +
+		"  ± service web           Replace · recreated · about 40 s downtime, and up to 1 min 50 s until healthy\n" +
 		"      ~ app.image         ghcr.io/acme/web:1.4.2 → ghcr.io/acme/web:1.4.3\n" +
 		"      ~ app.env[API_KEY]  (hidden)\n" +
-		"      Destroys data its spec can't bring back.\n" +
+		"      Takes out of use the data its image keeps at /var/lib/postgresql/data. The server keeps it for 7 days, and undoing this mounts it again.\n" +
+		"      Brings back the data the server kept. If the server no longer has it, applying fails, and nothing is made empty.\n" +
+		"      Gives it access to hz-1: the server path /srv/app/config (read-only) and Docker's socket at /var/run/docker.sock, which gives control of Docker on the server, the same as root. A person approves this.\n" +
 		"      May cut off remote access to hz-1, such as SSH.\n" +
 		"\n" +
 		"1 to create · 0 to change · 1 to replace · 0 to destroy\n" +
-		"It destroys data or may cut off access, which undo may not bring back.\n"
+		"It destroys data or may cut off access, which undo may not bring back.\n" +
+		"It gives a container more access to its server, which a person approves.\n"
 	if buf.String() != want {
 		t.Errorf("PlanView =\n%s\nwant\n%s", buf.String(), want)
 	}

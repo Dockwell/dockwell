@@ -123,6 +123,14 @@ msgstr "{left} of 10 are left, and each works once. If you lost your authenticat
 msgid "{memShare} in use"
 msgstr "{memShare} in use"
 
+#: src/lib/time.ts
+msgid "{minutes} min"
+msgstr "{minutes} min"
+
+#: src/lib/time.ts
+msgid "{minutes} min {seconds} s"
+msgstr "{minutes} min {seconds} s"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "{mount}: {used} used, {free} free, of {size}"
 msgstr "{mount}: {used} used, {free} free, of {size}"
@@ -170,6 +178,10 @@ msgstr "{rx} in · {tx} out"
 #: src/app/Providers.tsx
 msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 msgstr "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
+
+#: src/lib/time.ts
+msgid "{seconds} s"
+msgstr "{seconds} s"
 
 #: src/features/activity/describe.ts
 msgid "{server} joined as the control server"
@@ -224,9 +236,21 @@ msgstr "1, 5 and 15 min, on {cpus} vCPU"
 msgid "6 digits from your authenticator app, or one of your recovery codes."
 msgstr "6 digits from your authenticator app, or one of your recovery codes."
 
+#: src/features/changes/words.ts
+msgid "a {type} mount"
+msgstr "a {type} mount"
+
+#: src/features/changes/words.ts
+msgid "a {type} mount of {path}"
+msgstr "a {type} mount of {path}"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "A claim link works only until someone claims the install. Sign in instead."
+
+#: src/features/changes/words.ts
+msgid "a mount from the volume's options"
+msgstr "a mount from the volume's options"
 
 #: src/features/activity/describe.ts
 msgid "a server"
@@ -243,6 +267,10 @@ msgstr "About"
 #: src/features/changes/ChangeSheet.tsx
 msgid "About {span} down"
 msgstr "About {span} down"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "About {span} down, and up to {bound} until healthy"
+msgstr "About {span} down, and up to {bound} until healthy"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "About {stepSpan} down"
@@ -395,6 +423,10 @@ msgstr "backup"
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "Backups"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Brings back the data the server kept"
+msgstr "Brings back the data the server kept"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "By"
@@ -705,6 +737,10 @@ msgstr "Dismiss"
 #: src/features/servers/ServerPanels.tsx
 msgid "Docker"
 msgstr "Docker"
+
+#: src/features/changes/words.ts
+msgid "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
+msgstr "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
 
 #: src/features/shell/Rail.tsx
 msgid "Dockwell {short}: control plane status"
@@ -1311,6 +1347,10 @@ msgstr "Offline"
 msgid "On"
 msgstr "On"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Only a signed-in person can apply it, as no API token may. Check each step says what it should reach."
+msgstr "Only a signed-in person can apply it, as no API token may. Check each step says what it should reach."
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its {record} record to <0>{publicAddress}</0>, then restart dockwell with <1>--domain</1>."
 msgstr "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its {record} record to <0>{publicAddress}</0>, then restart dockwell with <1>--domain</1>."
@@ -1504,6 +1544,11 @@ msgstr "QR code for your authenticator app"
 #: src/features/changes/words.ts
 msgid "Queued"
 msgstr "Queued"
+
+#. placeholder {0}: server.serverName
+#: src/features/changes/ChangeSheet.tsx
+msgid "Reaches {reach} on {0}"
+msgstr "Reaches {reach} on {0}"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Read and write"
@@ -1879,6 +1924,10 @@ msgstr "Someone"
 msgid "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
 msgstr "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
 
+#: src/features/changes/words.ts
+msgid "something else on the server"
+msgstr "something else on the server"
+
 #: src/features/auth/messages.ts
 msgid "Something went wrong. Try again."
 msgstr "Something went wrong. Try again."
@@ -1920,6 +1969,10 @@ msgstr "System"
 msgctxt "theme"
 msgid "System"
 msgstr "System"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
+msgstr "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
@@ -2049,6 +2102,18 @@ msgstr "the server filter"
 msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "The server list didn't load. Dockwell keeps trying."
 
+#: src/features/changes/words.ts
+msgid "the server path {path}"
+msgstr "the server path {path}"
+
+#: src/features/changes/words.ts
+msgid "the server path {path} (read-only)"
+msgstr "the server path {path} (read-only)"
+
+#: src/features/changes/words.ts
+msgid "the server's own network"
+msgstr "the server's own network"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "The start of this plan's fingerprint, so you apply exactly what you reviewed."
 msgstr "The start of this plan's fingerprint, so you apply exactly what you reviewed."
@@ -2109,6 +2174,10 @@ msgstr "This part of Dockwell isn't built yet; it arrives in a later release. Un
 #: src/features/changes/ChangeSheet.tsx
 msgid "This plan destroys data or may cut off access"
 msgstr "This plan destroys data or may cut off access"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "This plan gives a container more access to its server"
+msgstr "This plan gives a container more access to its server"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"
@@ -2283,6 +2352,10 @@ msgstr "Up"
 #: src/features/servers/server.ts
 msgid "up {uptime}"
 msgstr "up {uptime}"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Up to {stepBound} until healthy"
+msgstr "Up to {stepBound} until healthy"
 
 #: src/app/Providers.tsx
 #: src/features/changes/words.ts

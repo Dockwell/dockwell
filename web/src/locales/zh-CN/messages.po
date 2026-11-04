@@ -123,6 +123,14 @@ msgstr "还剩 {left} 个（共 10 个），每个只能用一次。如果你丢
 msgid "{memShare} in use"
 msgstr "已使用 {memShare}"
 
+#: src/lib/time.ts
+msgid "{minutes} min"
+msgstr "{minutes} 分钟"
+
+#: src/lib/time.ts
+msgid "{minutes} min {seconds} s"
+msgstr "{minutes} 分 {seconds} 秒"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "{mount}: {used} used, {free} free, of {size}"
 msgstr "{mount}：共 {size}，已用 {used}，可用 {free}"
@@ -170,6 +178,10 @@ msgstr "接收 {rx} · 发送 {tx}"
 #: src/app/Providers.tsx
 msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 msgstr "{samples, plural, other {# 个样本的趋势，最新值 {latest}}}"
+
+#: src/lib/time.ts
+msgid "{seconds} s"
+msgstr "{seconds} 秒"
 
 #: src/features/activity/describe.ts
 msgid "{server} joined as the control server"
@@ -224,9 +236,21 @@ msgstr "1、5 和 15 分钟，共 {cpus} 个 vCPU"
 msgid "6 digits from your authenticator app, or one of your recovery codes."
 msgstr "身份验证器应用里的 6 位数字，或你的一个恢复码。"
 
+#: src/features/changes/words.ts
+msgid "a {type} mount"
+msgstr "一个 {type} 挂载"
+
+#: src/features/changes/words.ts
+msgid "a {type} mount of {path}"
+msgstr "{path} 的 {type} 挂载"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "认领链接只在有人认领之前有效。请直接登录。"
+
+#: src/features/changes/words.ts
+msgid "a mount from the volume's options"
+msgstr "按卷的选项进行的挂载"
 
 #: src/features/activity/describe.ts
 msgid "a server"
@@ -243,6 +267,10 @@ msgstr "关于"
 #: src/features/changes/ChangeSheet.tsx
 msgid "About {span} down"
 msgstr "约 {span} 不可用"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "About {span} down, and up to {bound} until healthy"
+msgstr "约 {span} 不可用，最多 {bound} 后恢复健康"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "About {stepSpan} down"
@@ -395,6 +423,10 @@ msgstr "备份"
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "备份"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Brings back the data the server kept"
+msgstr "恢复服务器保留的数据"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "By"
@@ -705,6 +737,10 @@ msgstr "关闭"
 #: src/features/servers/ServerPanels.tsx
 msgid "Docker"
 msgstr "Docker"
+
+#: src/features/changes/words.ts
+msgid "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
+msgstr "位于 {path} 的 Docker 套接字，可控制服务器上的 Docker，等同于 root 权限"
 
 #: src/features/shell/Rail.tsx
 msgid "Dockwell {short}: control plane status"
@@ -1311,6 +1347,10 @@ msgstr "离线"
 msgid "On"
 msgstr "开启"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Only a signed-in person can apply it, as no API token may. Check each step says what it should reach."
+msgstr "只有已登录的用户才能应用它，任何 API 令牌都不能。请检查每个步骤所列的访问范围是否符合预期。"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its {record} record to <0>{publicAddress}</0>, then restart dockwell with <1>--domain</1>."
 msgstr "只能通过你的 SSH 隧道访问，你的通行密钥也只在这里可用。要在你自己的域名上使用 HTTPS，请先把它的 {record} 记录指向 <0>{publicAddress}</0>，然后用 <1>--domain</1> 重启 dockwell。"
@@ -1504,6 +1544,11 @@ msgstr "身份验证器应用的二维码"
 #: src/features/changes/words.ts
 msgid "Queued"
 msgstr "排队中"
+
+#. placeholder {0}: server.serverName
+#: src/features/changes/ChangeSheet.tsx
+msgid "Reaches {reach} on {0}"
+msgstr "可访问 {0} 上的 {reach}"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Read and write"
@@ -1879,6 +1924,10 @@ msgstr "某人"
 msgid "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
 msgstr "有人为你的账户连续输错了 {count} 次验证码，最后一次在{when}。只有确认是你本人时才解锁验证码登录。否则可能有人知道了你的邮箱；你的通行密钥和恢复码仍然可用。"
 
+#: src/features/changes/words.ts
+msgid "something else on the server"
+msgstr "服务器上的其他内容"
+
 #: src/features/auth/messages.ts
 msgid "Something went wrong. Try again."
 msgstr "出了点问题。请重试。"
@@ -1920,6 +1969,10 @@ msgstr "系统"
 msgctxt "theme"
 msgid "System"
 msgstr "跟随系统"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
+msgstr "停用其镜像在 {kept} 保存的数据，服务器会保留 7 天"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
@@ -2049,6 +2102,18 @@ msgstr "服务器筛选"
 msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "服务器列表未能加载。Dockwell 会继续重试。"
 
+#: src/features/changes/words.ts
+msgid "the server path {path}"
+msgstr "服务器路径 {path}"
+
+#: src/features/changes/words.ts
+msgid "the server path {path} (read-only)"
+msgstr "服务器路径 {path}（只读）"
+
+#: src/features/changes/words.ts
+msgid "the server's own network"
+msgstr "服务器自身的网络"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "The start of this plan's fingerprint, so you apply exactly what you reviewed."
 msgstr "这个计划指纹的开头，确保你应用的正是你审查过的内容。"
@@ -2109,6 +2174,10 @@ msgstr "Dockwell 的这一部分尚未完成，会在之后的版本中推出。
 #: src/features/changes/ChangeSheet.tsx
 msgid "This plan destroys data or may cut off access"
 msgstr "这个计划会销毁数据，或可能切断访问"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "This plan gives a container more access to its server"
+msgstr "这个计划会让容器获得对其服务器的更多访问"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"
@@ -2283,6 +2352,10 @@ msgstr "运行时间"
 #: src/features/servers/server.ts
 msgid "up {uptime}"
 msgstr "已运行 {uptime}"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Up to {stepBound} until healthy"
+msgstr "最多 {stepBound} 后恢复健康"
 
 #: src/app/Providers.tsx
 #: src/features/changes/words.ts

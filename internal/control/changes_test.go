@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -1145,5 +1146,82 @@ func testAnEditNamesAnEnvironmentsProject(t *testing.T, backend store.Backend) {
 	_, err = c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Open http", Edits: []*dockwellv1.Edit{withProject}}))
 	if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "names a project") {
 		t.Errorf("a firewall rule that names a project = %v, want it refused", err)
+	}
+}
+
+// A change that gives a container more of its server, such as a server
+// path or Docker's socket, needs a signed-in person and the fingerprint,
+// as a destructive one does, and its plan lists what it reaches. One that
+// keeps a container's access as it is, such as a new image tag, a token
+// applies, so deploys from CI keep working. The control plane decides
+// from the specs, and a path no container may mount is refused when the
+// change is proposed.
+func TestHostAccessNeedsAPerson(t *testing.T) { storetest.Each(t, testHostAccessNeedsAPerson) }
+
+func testHostAccessNeedsAPerson(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	f.addServer(t, true)
+	c := changeClient(b, b.origin)
+	token := createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
+	script := changeClient(bearer{token: token, rt: b.client.Transport}, b.origin)
+	web := func(image string, mounts ...*resourcev1.Mount) *dockwellv1.Edit {
+		e := webEdit(image, nil)
+		e.Spec.GetContainer().Mounts = mounts
+		return e
+	}
+	config := &resourcev1.Mount{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/app/config"}, Target: "/etc/app", ReadOnly: true}
+
+	// What reaches no more of the server than Docker keeps for it, a token
+	// applies.
+	apply(t, script, propose(t, script, "Run web", web("nginx:1.27")))
+
+	mount := propose(t, script, "Mount the config", web("nginx:1.27", config))
+	p := mount.GetPlan()
+	step := p.GetServers()[0].GetSteps()[0]
+	want := &dockwellv1.HostAccess{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/app/config", ReadOnly: true}
+	if !p.GetHostAccess() || len(step.GetHostAccess()) != 1 || !proto.Equal(step.GetHostAccess()[0], want) || len(p.GetResources()[0].GetHostAccess()) != 1 {
+		t.Fatalf("mounting a server path plans %v, want it to list the path, and need a person", p)
+	}
+	_, err := script.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: mount.GetId(), Fingerprint: p.GetFingerprint()}))
+	if reasonOf(err) != authapi.ReasonNeedsSession || !strings.Contains(err.Error(), "web access to its server: the server path /srv/app/config (read-only)") ||
+		!strings.Contains(err.Error(), "Sign in to the panel and apply it there: the CLI uses an API token, even after dockwell login") {
+		t.Errorf("a token applying host access = %v, want needs_session, saying what and where a person applies it", err)
+	}
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: mount.GetId()})); reasonOf(err) != "needs_confirmation" {
+		t.Errorf("a person applying host access without the fingerprint = %v, want needs_confirmation", err)
+	}
+	w := watch(t, c, mount.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: mount.GetId(), Fingerprint: p.GetFingerprint()})); err != nil {
+		t.Fatal(err)
+	}
+	if got := waitWatch(t, w).last(); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("a person applying host access with the fingerprint = %v", got)
+	}
+
+	// A new image tag keeps the access as it is: a token applies it.
+	tag := propose(t, script, "Deploy 1.28", web("nginx:1.28", config))
+	if tag.GetPlan().GetHostAccess() || len(tag.GetPlan().GetServers()[0].GetSteps()[0].GetHostAccess()) > 0 {
+		t.Errorf("a new tag plans host access: %v", tag.GetPlan())
+	}
+	if got := apply(t, script, tag); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Errorf("a token's deploy of a new tag = %v", got)
+	}
+
+	// Read-write where it was read-only, or Docker's socket, is more.
+	rw := proto.CloneOf(config)
+	rw.ReadOnly = false
+	sock := &resourcev1.Mount{Source: &resourcev1.Mount_HostPath{HostPath: "/var/run/docker.sock"}, Target: "/var/run/docker.sock"}
+	for name, edit := range map[string]*dockwellv1.Edit{"read-write": web("nginx:1.28", rw), "socket": web("nginx:1.28", config, sock)} {
+		if got := propose(t, script, name, edit); !got.GetPlan().GetHostAccess() {
+			t.Errorf("%s plans no host access: %v", name, got.GetPlan())
+		}
+	}
+
+	// A path no container may mount is refused as the change is proposed.
+	root := &resourcev1.Mount{Source: &resourcev1.Mount_HostPath{HostPath: "/"}, Target: "/host"}
+	_, err = script.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Mount the server", Edits: []*dockwellv1.Edit{web("nginx:1.28", root)}}))
+	if err == nil || !strings.Contains(err.Error(), "the server path / mounted at /host is the server's whole file system") {
+		t.Errorf("proposing a mount of / = %v, want it refused", err)
 	}
 }

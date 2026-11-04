@@ -289,7 +289,7 @@ func (r *runner) planned(ctx context.Context, res proto.Message, c *dockwellv1.C
 // follow it, printing more than the plan: then --json prints each message
 // on a line of its own, and otherwise the plan alone, indented.
 func (r *runner) applies(c *dockwellv1.Change) bool {
-	return !r.opts.planOnly && !empty(c.GetPlan()) && !c.GetPlan().GetDestructive() && (r.opts.yes || r.env.interactive())
+	return !r.opts.planOnly && !empty(c.GetPlan()) && !needsPerson(c.GetPlan()) && (r.opts.yes || r.env.interactive())
 }
 
 // empty reports a plan that changes nothing.
@@ -306,17 +306,26 @@ func empty(p *dockwellv1.Plan) bool {
 	return true
 }
 
+// needsPerson reports a plan that only a signed-in person may apply: one
+// that is destructive, or gives a container more of its server.
+func needsPerson(p *dockwellv1.Plan) bool { return p.GetDestructive() || p.GetHostAccess() }
+
 // needsPerson stops at a plan no API token may apply, and says where a
-// person can.
+// person can. The CLI signs in with an API token, even after dockwell
+// login, so that is the panel.
 func (r *runner) needsPerson(c *dockwellv1.Change) error {
-	return ExitError{ExitNeedsPerson, fmt.Errorf("%s destroys data or may cut off access, so it needs a person to approve it, which no API token can. "+
-		"It stays planned: sign in to the panel and apply it at %s", c.GetId(), r.client.PanelURL("/changes/"+c.GetId()))}
+	why := "destroys data or may cut off access"
+	if !c.GetPlan().GetDestructive() {
+		why = "gives a container more access to its server"
+	}
+	return ExitError{ExitNeedsPerson, fmt.Errorf("%s %s, so it needs a person to approve it, which no API token can, and the CLI uses one even after dockwell login. "+
+		"It stays planned: sign in to the panel and apply it at %s", c.GetId(), why, r.client.PanelURL("/changes/"+c.GetId()))}
 }
 
 // confirmAndApply asks before applying a planned change, then applies the
 // plan shown, by its fingerprint, and follows it.
 func (r *runner) confirmAndApply(ctx context.Context, c *dockwellv1.Change, fingerprint string) error {
-	if c.GetPlan().GetDestructive() {
+	if needsPerson(c.GetPlan()) {
 		return r.needsPerson(c)
 	}
 	if !r.opts.yes {

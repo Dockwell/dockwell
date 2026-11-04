@@ -24,6 +24,8 @@ export function useNow(interval = SECOND): number {
 export interface TimeWords {
   /** A length of time, rounded to what a person acts on: "40 s", "12 min", "5 hours", "41 days". */
   span(ms: number): string;
+  /** A length of time that mustn't read as less than it is, to the second, rounded up: "50 s", "1 min 50 s". */
+  bound(ms: number): string;
   /**
    * How long ago something was: "1 s ago" at the least, then "3 min ago",
    * "2 h ago", then a date, "12 Oct". Never "now", which reads oddly after
@@ -53,6 +55,14 @@ export function useTimeWords(): TimeWords {
         }
         const count = Math.floor(ms / DAY);
         return plural(count, { one: "# day", other: "# days" });
+      },
+      bound(ms) {
+        const all = Math.max(0, Math.ceil(ms / SECOND));
+        const minutes = Math.floor(all / 60);
+        const seconds = all % 60;
+        if (minutes === 0) return t`${seconds} s`;
+        if (seconds === 0) return t`${minutes} min`;
+        return t`${minutes} min ${seconds} s`;
       },
       ago(then, now) {
         const ms = now - then.getTime();

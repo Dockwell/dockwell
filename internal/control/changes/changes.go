@@ -29,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -207,11 +208,19 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			"plan_changed")
 	case r.State == store.ChangePlanned && r.Plan.Destructive() && p.Token != nil:
 		return nil, authapi.ReasonError(connect.CodePermissionDenied,
-			fmt.Errorf("%s destroys data or may cut off access to a server, so no API token may apply it. Sign in and apply it in the panel", r.ID),
+			fmt.Errorf("%s destroys data or may cut off access to a server, so no API token may apply it. %s", r.ID, signIn),
+			authapi.ReasonNeedsSession)
+	case r.State == store.ChangePlanned && r.Plan.HostAccess() && p.Token != nil:
+		return nil, authapi.ReasonError(connect.CodePermissionDenied,
+			fmt.Errorf("%s gives %s, which a person approves, so no API token may apply it. %s", r.ID, accessWords(r.Plan), signIn),
 			authapi.ReasonNeedsSession)
 	case r.State == store.ChangePlanned && r.Plan.Destructive() && fp == "":
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s destroys data or may cut off access to a server, and applying it can't bring everything back. Review the plan, then apply it with its fingerprint, %s, to confirm", r.ID, r.Fingerprint),
+			"needs_confirmation")
+	case r.State == store.ChangePlanned && r.Plan.HostAccess() && fp == "":
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s gives %s. Review the plan, then apply it with its fingerprint, %s, to confirm", r.ID, accessWords(r.Plan), r.Fingerprint),
 			"needs_confirmation")
 	}
 	if err := h.engine.Start(ctx, r.ID, who); err != nil {
@@ -222,6 +231,30 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.ApplyChangeResponse{Change: c}), nil
+}
+
+// signIn says where a person applies what no token may. The CLI signs in
+// with an API token, even after dockwell login, so the panel is the place.
+const signIn = "Sign in to the panel and apply it there: the CLI uses an API token, even after dockwell login, so it can't apply it either"
+
+// accessWords says what a plan gives containers on their servers, such as
+// "web access to its server: the server path /srv/app (read-only), and
+// Docker's socket at /var/run/docker.sock, which controls Docker as root
+// does".
+func accessWords(p *revision.Plan) string {
+	var parts []string
+	for i := range p.Resources {
+		r := &p.Resources[i]
+		if len(r.HostAccess) == 0 {
+			continue
+		}
+		var what []string
+		for _, a := range r.HostAccess {
+			what = append(what, resource.AccessWords(a))
+		}
+		parts = append(parts, r.Ref.Name+" access to its server: "+human.List(what))
+	}
+	return strings.Join(parts, "; ")
 }
 
 // WatchChange streams a change until it is applied, failed or discarded.
@@ -680,6 +713,7 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 		},
 		UndoWindow:  durationpb.New(revision.UndoWindow),
 		Destructive: b.Destructive,
+		HostAccess:  b.HostAccess,
 	}
 	p := r.Plan
 	if p == nil {
@@ -692,12 +726,14 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 		out.Resources = append(out.Resources, &dockwellv1.PlannedResource{
 			Id: r.ID, Resource: resourcepb.Ref(r.Ref), Action: resourcepb.Action(r.Action), BaseRevision: int64(r.Base),
 			Changes: resourcepb.Changes(r.Changes), Servers: r.Servers, PreviousServers: r.Previous,
+			HostAccess: resourcepb.HostAccess(r.HostAccess),
 		})
 	}
 	for i := range p.Servers {
 		s := &p.Servers[i]
 		sp := &dockwellv1.ServerPlan{
 			ServerId: s.Server, ServerName: s.Name, Offline: s.Offline, Removed: s.Removed, Downtime: resourcepb.Duration(s.Downtime),
+			UntilHealthy: resourcepb.Duration(s.UntilHealthy),
 		}
 		for j := range s.Steps {
 			sp.Steps = append(sp.Steps, resourcepb.Step(s.Steps[j], ids[s.Steps[j].Ref]))

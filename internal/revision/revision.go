@@ -215,6 +215,10 @@ type ResourcePlan struct {
 	// Servers is where it runs once applied, and Previous where it runs
 	// now, by server ID.
 	Servers, Previous []string
+	// HostAccess is what the change lets it reach on its servers that it
+	// couldn't before, from its specs (resource.HostAccesser). A plan with
+	// any needs a person to apply it.
+	HostAccess []resource.Access `json:",omitempty"`
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -235,7 +239,11 @@ type ServerPlan struct {
 	Removed bool
 	// Downtime adds up the steps' downtime, as they run one at a time.
 	Downtime time.Duration
-	Steps    []resource.Step
+	// UntilHealthy adds up how long until each step's resource is healthy
+	// again, at most, where a health check may take longer than the
+	// downtime; zero when Downtime says it all.
+	UntilHealthy time.Duration `json:",omitempty"`
+	Steps        []resource.Step
 }
 
 // Empty reports whether applying would change nothing at all.
@@ -274,6 +282,16 @@ func (p *Plan) Counts() Counts {
 	}
 	return c
 }
+
+// HostAccess reports a plan that lets a resource reach more of its server
+// than it could, which a person approves (ADR 0021).
+func (p *Plan) HostAccess() bool {
+	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return len(r.HostAccess) > 0 })
+}
+
+// NeedsPerson reports a plan only a signed-in person may apply, with its
+// fingerprint: one that is destructive, or gives host access.
+func (p *Plan) NeedsPerson() bool { return p.Destructive() || p.HostAccess() }
 
 // Destructive reports a plan with a step that destroys data or may cut
 // off access, which applying can't fully undo.
@@ -860,6 +878,7 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 		fmt.Fprintf(fp, "item %s|%s|%d|%t|%x|%s\n", stable(it.id), ref(it.ref), it.base, it.spec != nil, sum, strings.Join(it.servers, " "))
 	}
 	actions := map[string][]resource.Action{} // each item's steps, on every server
+	access := map[string][]resource.Access{}  // what each item gains on its servers
 	for _, server := range servers {
 		its := byServer[server]
 		sp := ServerPlan{Server: server, Name: names[server]}
@@ -891,8 +910,17 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 			}
 		}
 		ids := map[resource.Ref]string{}
+		// What each item reaches on this server that it couldn't, from its
+		// specs: the control plane decides it, whatever the agent says.
+		gains := map[resource.Ref][]resource.Access{}
 		for _, it := range its {
 			ids[it.ref] = it.id
+			gained := resource.NewAccess(e.kinds.HostAccess(it.ref.Kind, it.currentOn(server)), e.kinds.HostAccess(it.ref.Kind, it.desiredOn(server)))
+			if len(gained) > 0 {
+				gains[it.ref] = gained
+				access[it.id] = append(access[it.id], resource.NewAccess(access[it.id], gained)...)
+				fmt.Fprintf(fp, "access %s|%s|%v\n", server, ref(it.ref), gained)
+			}
 		}
 		steps = order(steps)
 		for i := range steps {
@@ -900,13 +928,19 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 			if s.Action == resource.ActionNone {
 				continue
 			}
+			s.HostAccess = gains[s.Ref]
 			sp.Steps = append(sp.Steps, *s)
 			sp.Downtime += s.Downtime
+			sp.UntilHealthy += max(s.Downtime, s.UntilHealthy)
 			actions[ids[s.Ref]] = append(actions[ids[s.Ref]], s.Action)
-			fmt.Fprintf(fp, "step %s|%s|%s|%d|%d|%d|%t|%v\n", server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings)
+			fmt.Fprintf(fp, "step %s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t\n", server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings,
+				s.UntilHealthy, s.Kept, s.Restores)
 			for _, c := range s.Changes {
 				fmt.Fprintf(fp, "  %s|%d|%s|%s|%t\n", c.Path, c.Op, c.From, c.To, c.Sensitive)
 			}
+		}
+		if sp.UntilHealthy == sp.Downtime {
+			sp.UntilHealthy = 0
 		}
 		if len(sp.Steps) > 0 {
 			plan.Servers = append(plan.Servers, sp)
@@ -917,7 +951,9 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 		fmt.Fprintf(fp, "removed %s\n", s)
 	}
 	for i := range items {
-		plan.Resources = append(plan.Resources, items[i].resourcePlan(actions[items[i].id]))
+		rp := items[i].resourcePlan(actions[items[i].id])
+		rp.HostAccess = access[items[i].id]
+		plan.Resources = append(plan.Resources, rp)
 	}
 	plan.Fingerprint = hex.EncodeToString(fp.Sum(nil)[:16])
 	return plan, nil
