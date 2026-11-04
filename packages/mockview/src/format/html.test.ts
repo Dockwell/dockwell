@@ -50,6 +50,16 @@ describe("parseHtml", () => {
     expect(p.children.map((c) => (c.kind === "element" ? c.tag : c.text))).toEqual(["input", "path", "text"]);
   });
 
+  it("ends an unquoted value before the /> that closes the tag", () => {
+    const { nodes, problems } = parseHtml(`<p><x-import name=check/><a href=a/b>x</a></p>`);
+    expect(problems).toEqual([]);
+    const [importEl, link] = only(nodes).children as ElementNode[];
+    expect(importEl?.attrs).toEqual([{ name: "name", value: "check" }]);
+    expect(importEl?.children).toEqual([]);
+    expect(link?.attrs).toEqual([{ name: "href", value: "a/b" }]);
+    expect(link?.children).toEqual([{ kind: "text", text: "x" }]);
+  });
+
   it("skips the doctype and comments and decodes character references", () => {
     const { nodes } = parseHtml(`<!doctype html><!-- note --><b title="a &amp; b">x &lt; y&nbsp;&#8594;&#x2192;</b>`);
     const b = only(nodes);

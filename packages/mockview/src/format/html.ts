@@ -92,7 +92,8 @@ export function decodeEntities(text: string): string {
 const TAG_NAME = /[A-Za-z][A-Za-z0-9:-]*/y;
 const ATTR_NAME = /[^\s"'<>/=]+/y;
 const SPACE = /\s*/y;
-const UNQUOTED = /[^\s>]+/y;
+/** An unquoted value runs to whitespace or ">", and stops before the "/>" that closes a self-closed tag. */
+const UNQUOTED = /(?:[^\s/>]|\/(?!>))+/y;
 
 function matchAt(re: RegExp, source: string, at: number): string | null {
   re.lastIndex = at;
