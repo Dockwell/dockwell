@@ -1139,6 +1139,10 @@ msgstr "It joined, but its agent hasn't connected yet, so there's nothing to sho
 msgid "It keeps applying if you close this."
 msgstr "It keeps applying if you close this."
 
+#: src/features/variables/VariablesPage.tsx
+msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
+msgstr "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
+
 #: src/features/auth/ClaimPage.tsx
 msgid "It's live with HTTPS"
 msgstr "It's live with HTTPS"
@@ -2261,6 +2265,10 @@ msgstr "The control plane refused this because it didn't come from the panel's o
 #: src/features/servers/ServerPanels.tsx
 msgid "the control plane runs {controlPlane}"
 msgstr "the control plane runs {controlPlane}"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "The old value stays in this variable's history"
+msgstr "The old value stays in this variable's history"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "The owner account wasn't created"

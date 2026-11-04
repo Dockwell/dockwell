@@ -284,7 +284,12 @@ describe("the variables and secrets page", () => {
     const change = screen.getByRole("form", { name: "Change LOG_LEVEL" });
     expect(within(change).getByLabelText("Value")).toHaveValue("info");
     await user.click(within(change).getByRole("switch", { name: "Secret" }));
-    await user.clear(within(change).getByLabelText("Value"));
+    // Its value as a variable isn't carried over, and the panel says why.
+    expect(within(change).getByLabelText("Value")).toHaveValue("");
+    expect(within(change).getByText("The old value stays in this variable's history")).toBeVisible();
+    await user.click(within(change).getByRole("button", { name: "Review plan" }));
+    expect(within(change).getByText("A secret needs a value.")).toBeVisible();
+    expect(backend.proposals).toHaveLength(1);
     await user.type(within(change).getByLabelText("Value"), "debug");
     await user.click(within(change).getByRole("button", { name: "Review plan" }));
     await screen.findByRole("dialog", { name: "Review plan" });

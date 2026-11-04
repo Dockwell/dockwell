@@ -14,6 +14,7 @@ import {
 } from "@dockwell/api";
 import {
   Button,
+  Callout,
   Icon,
   PHONE_QUERY,
   SegmentedControl,
@@ -420,7 +421,9 @@ interface ValueFormProps {
  * sheet, and nothing changes until the plan is applied. Making a variable a
  * secret, or a secret a variable, is one change that deletes the one and
  * makes the other; the control plane takes in every service that uses it,
- * moved to the new kind. A secret's current value is never filled in.
+ * moved to the new kind. A secret's current value is never filled in, and
+ * neither is a variable's once it is to become a secret: a value that was
+ * a plain variable stays in its history, so the secret takes a new one.
  */
 function ValueForm({ scope, envName, editing, onDone }: ValueFormProps) {
   const { t } = useLingui();
@@ -429,6 +432,13 @@ function ValueForm({ scope, envName, editing, onDone }: ValueFormProps) {
   const [value, setValue] = useState(editing && !editing.secret ? editing.value : "");
   const [secret, setSecret] = useState(editing?.secret ?? false);
   const [tried, setTried] = useState(false);
+  // A variable on its way to becoming a secret.
+  const toSecret = editing !== undefined && !editing.secret && secret;
+  const switchSecret = (on: boolean) => {
+    setSecret(on);
+    // Its value as a variable isn't carried over: the secret takes a new one.
+    if (editing && !editing.secret) setValue(on ? "" : editing.value);
+  };
   const valueRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -491,7 +501,7 @@ function ValueForm({ scope, envName, editing, onDone }: ValueFormProps) {
           mono
           aria-label={t`Value`}
           type={secret ? "password" : "text"}
-          placeholder={editing?.secret && secret ? t`New value` : t`value`}
+          placeholder={(editing?.secret && secret) || toSecret ? t`New value` : t`value`}
           value={value}
           autoComplete="off"
           spellCheck={false}
@@ -499,7 +509,7 @@ function ValueForm({ scope, envName, editing, onDone }: ValueFormProps) {
           onChange={(e) => setValue(e.target.value)}
         />
       </div>
-      <Switch label={t`Secret`} checked={secret} onChange={setSecret} />
+      <Switch label={t`Secret`} checked={secret} onChange={switchSecret} />
       <div className="variables-form-actions">
         <Button type="submit" icon={editing ? "commit" : "plus"}>
           {editing ? <Trans>Review plan</Trans> : <Trans>Add</Trans>}
@@ -510,6 +520,14 @@ function ValueForm({ scope, envName, editing, onDone }: ValueFormProps) {
           </Button>
         ) : null}
       </div>
+      {toSecret ? (
+        <Callout className="variables-form-note" tone="warning" title={t`The old value stays in this variable's history`}>
+          <Trans>
+            It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the
+            secret, and rotate the old one wherever it was issued.
+          </Trans>
+        </Callout>
+      ) : null}
     </form>
   );
 }

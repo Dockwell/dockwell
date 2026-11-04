@@ -1075,9 +1075,18 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		plan.Servers = append(plan.Servers, ServerPlan{Server: s, Name: names[s], Removed: true})
 		fmt.Fprintf(fp, "removed %s\n", s)
 	}
+	// A value that becomes a secret under the same name, as when a variable
+	// is made one, may have been one all along: the plan doesn't show it
+	// being deleted either.
+	switched := e.switched(items)
 	for i := range items {
 		rp := items[i].resourcePlan(actions[items[i].id])
 		rp.HostAccess = access[items[i].id]
+		if to, ok := switched[items[i].ref]; ok && e.sealedKind(to) {
+			for j := range rp.Changes {
+				rp.Changes[j].Sensitive, rp.Changes[j].From, rp.Changes[j].To = true, "", ""
+			}
+		}
 		plan.Resources = append(plan.Resources, rp)
 	}
 	plan.Fingerprint = hex.EncodeToString(keyed.Sum(nil)[:16])
@@ -1135,6 +1144,12 @@ func (e *Engine) named(ctx context.Context, items []item) (before, after map[res
 		}
 	}
 	return before, after, err
+}
+
+// sealedKind reports a kind whose specs may hold secrets.
+func (e *Engine) sealedKind(kind resource.Kind) bool {
+	t, err := e.kinds.Type(kind)
+	return err == nil && resource.Sealed(t)
 }
 
 // digest is what the fingerprint of the change changeID says of an item's

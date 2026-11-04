@@ -322,6 +322,18 @@ func testSwitchingAValuesKindTakesInItsServices(t *testing.T, backend store.Back
 	if c := change(t, p.Steps(), "secrets[TOKEN]"); c.Op != resource.OpAdded || c.To != "API_TOKEN" {
 		t.Errorf("api's step = %+v, want it to use the secret as TOKEN", c)
 	}
+	// The value may have been a secret all along: the plan of the switch,
+	// as it is kept for Activity and every reader of the change, doesn't
+	// show it going either.
+	if c := p.Resources[0].Changes; len(c) != 1 || c[0] != (resource.Change{Path: "value", Op: resource.OpRemoved, Sensitive: true}) {
+		t.Errorf("the variable's deletion in the switch = %+v, want its value masked", c)
+	}
+	_ = db.View(t.Context(), func(tx *store.Tx) error {
+		if rec, err := tx.GetChange(t.Context(), p.Change); err != nil || bytes.Contains(rec.Plan, []byte("tok-1")) {
+			t.Errorf("the switch's plan on record holds the value: %s, %v", rec.Plan, err)
+		}
+		return nil
+	})
 	apply(t, e, p)
 	api := containerOf(t, f["srv_A"], env, "api")
 	if api.GetEnv()["TOKEN"] != "tok-1" || api.GetEnv()["LOG_LEVEL"] != "tok-1" ||

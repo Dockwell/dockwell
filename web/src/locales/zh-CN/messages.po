@@ -1139,6 +1139,10 @@ msgstr "它已加入，但代理尚未连接，所以还没有数据。请在该
 msgid "It keeps applying if you close this."
 msgstr "关闭这里后它会继续应用。"
 
+#: src/features/variables/VariablesPage.tsx
+msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
+msgstr "它原是普通变量，能查看此环境的人仍能看到它。请为密钥输入新值，并在签发旧值的地方轮换它。"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "It's live with HTTPS"
 msgstr "通过 HTTPS 上线"
@@ -2261,6 +2265,10 @@ msgstr "控制平面拒绝了这个请求，因为它不是从面板自己的地
 #: src/features/servers/ServerPanels.tsx
 msgid "the control plane runs {controlPlane}"
 msgstr "控制平面为 {controlPlane}"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "The old value stays in this variable's history"
+msgstr "旧值仍保留在该变量的历史中"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "The owner account wasn't created"
