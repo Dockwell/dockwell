@@ -82,26 +82,83 @@ func SetsSensitive(m proto.Message) bool {
 func setsSensitive(m protoreflect.Message) bool {
 	found := false
 	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
-		switch {
-		case IsSensitive(fd):
-			found = true
-		case fd.IsMap() && fd.MapValue().Message() != nil:
-			v.Map().Range(func(_ protoreflect.MapKey, e protoreflect.Value) bool {
-				found = setsSensitive(e.Message())
-				return !found
-			})
-		case fd.IsList() && fd.Message() != nil:
-			for i := range v.List().Len() {
-				if found = setsSensitive(v.List().Get(i).Message()); found {
-					break
-				}
-			}
-		case !fd.IsMap() && !fd.IsList() && fd.Message() != nil:
-			found = setsSensitive(v.Message())
-		}
+		found = IsSensitive(fd) || anyMessage(fd, v, setsSensitive)
 		return !found
 	})
 	return found
+}
+
+// SetsSensitiveOf reports whether a message holds a spec of t, at any depth,
+// that sets a sensitive field: a secret's value in a change's edit, but not
+// a container's environment beside it.
+func SetsSensitiveOf(t Type, m proto.Message) bool {
+	if m == nil {
+		return false
+	}
+	return setsSensitiveOf(t.New().ProtoReflect().Descriptor().FullName(), m.ProtoReflect())
+}
+
+func setsSensitiveOf(name protoreflect.FullName, m protoreflect.Message) bool {
+	if m.Descriptor().FullName() == name {
+		return setsSensitive(m)
+	}
+	found := false
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		found = anyMessage(fd, v, func(sub protoreflect.Message) bool { return setsSensitiveOf(name, sub) })
+		return !found
+	})
+	return found
+}
+
+// anyMessage reports whether found holds for a message in a field's value,
+// alone or in a list or map.
+func anyMessage(fd protoreflect.FieldDescriptor, v protoreflect.Value, found func(protoreflect.Message) bool) bool {
+	hit := false
+	switch {
+	case fd.IsMap():
+		if fd.MapValue().Message() != nil {
+			v.Map().Range(func(_ protoreflect.MapKey, e protoreflect.Value) bool {
+				hit = found(e.Message())
+				return !hit
+			})
+		}
+	case fd.IsList():
+		if fd.Message() != nil {
+			for i := 0; i < v.List().Len() && !hit; i++ {
+				hit = found(v.List().Get(i).Message())
+			}
+		}
+	case fd.Message() != nil:
+		hit = found(v.Message())
+	}
+	return hit
+}
+
+// MayHold reports whether a message may hold a spec of t, at any depth, as
+// a change's edit may hold a secret.
+func MayHold(md protoreflect.MessageDescriptor, t Type) bool {
+	return mayHold(md, t.New().ProtoReflect().Descriptor().FullName(), map[protoreflect.FullName]bool{})
+}
+
+func mayHold(md protoreflect.MessageDescriptor, name protoreflect.FullName, seen map[protoreflect.FullName]bool) bool {
+	if md.FullName() == name {
+		return true
+	}
+	if seen[md.FullName()] {
+		return false
+	}
+	seen[md.FullName()] = true
+	fields := md.Fields()
+	for i := range fields.Len() {
+		value := fields.Get(i)
+		if value.IsMap() {
+			value = value.MapValue()
+		}
+		if value.Message() != nil && mayHold(value.Message(), name, seen) {
+			return true
+		}
+	}
+	return false
 }
 
 // Equal reports whether two specs mean the same: no field differs.
@@ -345,10 +402,6 @@ func mapEntryPath(rest string) (string, bool) {
 	}
 	return "", strings.HasSuffix(rest, "]")
 }
-
-// HoldsSensitive reports whether a message has a field marked (sensitive),
-// at any depth, as an edit of a secret does.
-func HoldsSensitive(md protoreflect.MessageDescriptor) bool { return sensitiveMessage(md) }
 
 // Sealed reports whether a kind's specs may hold a secret: whether its
 // message has a field marked (sensitive), at any depth. The revision store

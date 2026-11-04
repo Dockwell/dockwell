@@ -160,8 +160,8 @@ func flagHelp(fd protoreflect.FieldDescriptor, f Field) string {
 		add("A duration such as 90d, 12h or 30m.")
 	case value.Message() != nil:
 		add("As JSON, or @file to read it from a file, or - from standard input.")
-		if resource.HoldsSensitive(value.Message()) {
-			add("JSON that sets a secret's value, or a container's environment, comes from a file or standard input, never the command line.")
+		if resource.MayHold(value.Message(), variable.SecretType{}) {
+			add("JSON that sets a secret's value comes from a file or standard input, never the command line.")
 		}
 	}
 	switch {
@@ -382,9 +382,9 @@ const maxSecretRead = MaxSecretInput + 2 + 1
 
 // scalarOrMessage parses a value, reading a message field's JSON into a
 // new message from blank. JSON given on the command line itself, rather
-// than from a file or standard input, may not set a field marked
-// (sensitive), such as a secret's value: it would stay in shell history
-// and the process list.
+// than from a file or standard input, may not set a secret's value: it
+// would stay in shell history and the process list. Any other field may,
+// as --env KEY=VALUE may set a container's environment.
 func scalarOrMessage(fd protoreflect.FieldDescriptor, s string, env *Env, blank func() protoreflect.Value) (protoreflect.Value, error) {
 	if fd.Kind() != protoreflect.MessageKind {
 		return scalar(fd, s)
@@ -401,16 +401,14 @@ func scalarOrMessage(fd protoreflect.FieldDescriptor, s string, env *Env, blank 
 	if err := protojson.Unmarshal(data, v.Message().Interface()); err != nil {
 		return protoreflect.Value{}, fmt.Errorf("can't read it as a %s in JSON: %w", fd.Message().Name(), err)
 	}
-	if inline(s) && resource.SetsSensitive(v.Message().Interface()) {
-		clear(data)
+	if inline(s) && resource.SetsSensitiveOf(variable.SecretType{}, v.Message().Interface()) {
 		return protoreflect.Value{}, errInlineSecret
 	}
 	return v, nil
 }
 
 // errInlineSecret refuses JSON on the command line that sets a secret.
-var errInlineSecret = errors.New("the JSON sets a value that may be secret, such as a secret's value or a container's environment, " +
-	"so it would stay in your shell history and the process list")
+var errInlineSecret = errors.New("the JSON sets a secret's value, so it would stay in your shell history and the process list")
 
 // inline reports a JSON flag's value given on the command line itself.
 func inline(s string) bool { return s != "-" && !strings.HasPrefix(s, "@") }

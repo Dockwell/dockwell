@@ -9,7 +9,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 )
 
 func TestDiffNamesEachFieldAsThePanelShowsIt(t *testing.T) {
@@ -111,6 +113,32 @@ func TestDiffRotatingNeverComparesAValue(t *testing.T) {
 		if got := resource.SetsSensitive(m); got != want {
 			t.Errorf("SetsSensitive(%v) = %v, want %v", m, got, want)
 		}
+	}
+}
+
+// A message says whether it holds a secret's value, at any depth, apart
+// from any other sensitive field beside it.
+func TestSetsSensitiveOfFindsOneKindsValue(t *testing.T) {
+	secret := variable.SecretType{}
+	edit := func(spec *resourcev1.Spec) *dockwellv1.ProposeChangeRequest {
+		return &dockwellv1.ProposeChangeRequest{Edits: []*dockwellv1.Edit{{Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}}}, {Spec: spec}}}
+	}
+	for what, c := range map[string]struct {
+		m    proto.Message
+		want bool
+	}{
+		"a secret":               {&resourcev1.Secret{Value: "x"}, true},
+		"a secret with no value": {&resourcev1.Secret{}, false},
+		"a secret in an edit":    {edit(&resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: "x"}}}), true},
+		"a container in an edit": {edit(&resourcev1.Spec{Kind: &resourcev1.Spec_Container{Container: &resourcev1.Container{Env: map[string]string{"A": "1"}}}}), false},
+		"a variable":             {&resourcev1.Variable{Value: "x"}, false},
+	} {
+		if got := resource.SetsSensitiveOf(secret, c.m); got != c.want {
+			t.Errorf("SetsSensitiveOf(%s) = %v, want %v", what, got, c.want)
+		}
+	}
+	if !resource.MayHold((&dockwellv1.Edit{}).ProtoReflect().Descriptor(), secret) || resource.MayHold((&resourcev1.Container{}).ProtoReflect().Descriptor(), secret) {
+		t.Error("MayHold misreads what may hold a secret")
 	}
 }
 

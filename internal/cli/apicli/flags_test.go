@@ -169,6 +169,40 @@ func TestFlagHelpSaysHowToWriteValues(t *testing.T) {
 	}
 }
 
+// JSON on the command line can't set a secret's value, which shell history
+// would keep, and says how to give it. A container's environment is
+// configuration: it goes inline, as --env KEY=VALUE does.
+func TestInlineJSONRefusesASecretsValueAlone(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "edit.json")
+	secret := `{"resource":{"name":"DB"},"spec":{"secret":{"value":"s3cret"}}}`
+	if err := os.WriteFile(file, []byte(secret), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fields := []Field{{Path: "edits", Help: "The edits."}}
+	for what, c := range map[string]struct {
+		value string
+		in    string
+		ok    bool
+	}{
+		"a secret's value inline":          {value: secret},
+		"a secret's value from a file":     {value: "@" + file, ok: true},
+		"a secret's value from stdin":      {value: "-", in: secret, ok: true},
+		"a container's environment inline": {value: `{"resource":{"name":"web"},"spec":{"container":{"env":{"TOKEN":"x"}}}}`, ok: true},
+		"a service's environment inline":   {value: `{"resource":{"name":"web"},"spec":{"service":{"app":{"env":{"TOKEN":"x"}}}}}`, ok: true},
+		"a variable's value inline":        {value: `{"resource":{"name":"LOG"},"spec":{"variable":{"value":"info"}}}`, ok: true},
+	} {
+		env := &Env{Getenv: func(string) string { return "" }, In: strings.NewReader(c.in)}
+		var req dockwellv1.ProposeChangeRequest
+		err := parse(t, env, &req, fields, "--edits", c.value)
+		switch {
+		case c.ok && err != nil:
+			t.Errorf("%s = %v, want it read", what, err)
+		case !c.ok && (err == nil || !strings.Contains(err.Error(), "pass --edits @file, or pipe it in with --edits -") || strings.Contains(err.Error(), "s3cret")):
+			t.Errorf("%s = %v, want it refused", what, err)
+		}
+	}
+}
+
 func TestSetPath(t *testing.T) {
 	req := &dockwellv1.ProposeChangeRequest{Edits: []*dockwellv1.Edit{{Resource: &dockwellv1.ResourceRef{Name: "staging"}}}}
 	if err := setPath(req.ProtoReflect(), "edits[0].resource.scope", "shop"); err != nil {

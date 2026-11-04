@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -22,6 +23,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/spf13/pflag"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -31,6 +33,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/cli/apicli"
 	"github.com/dockwell/dockwell/internal/cli/apicmd"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 )
 
@@ -248,14 +251,18 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 			t.Fatalf("variables create = %d:\n%s%s", r.code, r.out, r.err)
 		}
 		secretEdit := `{"resource":{"name":"MAIL_TOKEN"},"project":"default","spec":{"secret":{"value":"s3cret-mail-token"}}}`
-		// Not as JSON on the command line, where shell history keeps it,
-		// nor a container's environment; anything else still goes inline.
-		for _, inline := range []string{secretEdit, `{"resource":{"name":"web"},"spec":{"container":{"image":"nginx","env":{"TOKEN":"x"}}}}`} {
-			r = run(t, env, "changes", "propose", "--summary", "Inline", "--edits", inline, "--yes")
-			if r.code != exitUsage || !strings.Contains(r.err, "--edits: the JSON sets a value that may be secret") ||
-				!strings.Contains(r.err, "pass --edits @file, or pipe it in with --edits -") || strings.Contains(r.err, "s3cret") {
-				t.Errorf("a secret in inline JSON = %d %q, want it refused", r.code, r.err)
-			}
+		// Not as JSON on the command line, where shell history keeps it.
+		r = run(t, env, "changes", "propose", "--summary", "Inline", "--edits", secretEdit, "--yes")
+		if r.code != exitUsage || !strings.Contains(r.err, "--edits: the JSON sets a secret's value") ||
+			!strings.Contains(r.err, "pass --edits @file, or pipe it in with --edits -") || strings.Contains(r.err, "s3cret") {
+			t.Errorf("a secret in inline JSON = %d %q, want it refused", r.code, r.err)
+		}
+		// A container's environment is configuration, and may go inline,
+		// as with --env KEY=VALUE. This agent has no driver to plan it.
+		r = run(t, env, "changes", "propose", "--summary", "Inline", "--yes",
+			"--edits", `{"resource":{"name":"web"},"spec":{"container":{"image":"nginx","env":{"TOKEN":"x"}}}}`)
+		if strings.Contains(r.err, "the JSON sets") || !strings.Contains(r.err, "has no driver for container resources") {
+			t.Errorf("a container's environment in inline JSON = %d %q, want it read, and refused for the driver alone", r.code, r.err)
 		}
 		piped := `{"resource":{"name":"PIPED_TOKEN"},"project":"default","spec":{"secret":{"value":"s3cret-piped"}}}`
 		r = runIn(t, env, piped, false, "changes", "propose", "--summary", "From standard input", "--edits", "-", "--yes")
@@ -569,6 +576,48 @@ func TestEveryMethodHasACommand(t *testing.T) {
 	}
 	if methods == 0 {
 		t.Fatal("no dockwell.v1 methods are registered")
+	}
+}
+
+// A secret's value reaches the CLI only from a file or standard input: its
+// kind's commands have no flag that takes its text, and the one flag that
+// takes JSON that may hold one refuses it inline. A new flag that may hold
+// one fails here, to be looked at.
+func TestASecretsValueNeverComesFromAFlagsText(t *testing.T) {
+	root, err := newRootCmd(IO{Out: io.Discard, Err: io.Discard, Getenv: func(string) string { return "" }, In: strings.NewReader("")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, verb := range []string{"create", "update"} {
+		cmd, _, err := root.Find([]string{"secrets", verb})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cmd.Flags().Lookup("value") != nil || cmd.Flags().Lookup("value-file") == nil {
+			t.Errorf("dockwell secrets %s should take --value-file, and no --value", verb)
+		}
+		cmd.Flags().VisitAll(func(f *pflag.Flag) {
+			if f.Value.Type() == "json" {
+				t.Errorf("dockwell secrets %s --%s takes JSON, which may hold the value", verb, f.Name)
+			}
+		})
+	}
+	var held []string
+	for _, m := range apicmd.Methods() {
+		desc, err := protoregistry.GlobalFiles.FindDescriptorByName(protoreflect.FullName(m.Name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		fields := desc.(protoreflect.MethodDescriptor).Input().Fields()
+		for _, f := range m.Fields {
+			fd := fields.ByName(protoreflect.Name(strings.SplitN(f.Path, ".", 2)[0]))
+			if fd != nil && fd.Message() != nil && resource.MayHold(fd.Message(), variable.SecretType{}) {
+				held = append(held, m.Noun+" "+m.Verb+" "+f.Path)
+			}
+		}
+	}
+	if want := []string{"changes propose edits"}; !slices.Equal(held, want) {
+		t.Errorf("the flags whose JSON may hold a secret's value are %v, want %v, which refuses it inline", held, want)
 	}
 }
 
