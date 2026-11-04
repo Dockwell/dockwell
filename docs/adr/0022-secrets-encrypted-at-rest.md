@@ -36,6 +36,8 @@ Issue #29 asks for all of it: the specs, encryption at rest, delivery, revealing
 - **Rotation is a plan.** A change to a variable or secret takes in every service that uses it, with its uses pinned again. Each gets a revision of its own, and its agent plans the restart. The plan lists the value as changed, without it, and every service and server that restarts, with downtime. Undo and rollback put the old revision back, and the services with it.
 - **A change applies only while its pins hold.** Applying checks again that each pin is still the latest revision, and that no service started using a changed value since the change was planned. Otherwise the plan is out of date, as for a base revision that moved.
 - A service can use only what its environment has, and nothing it uses can be deleted while it does, unless the same change stops using it.
+- **Making a variable a secret, or a secret a variable,** is one change that deletes the one and makes the other under the same name. It takes in every service that uses the value, with its use moved to the new kind under the same names (`resource.Rebinder`), so the switch is one plan, with a restart for each. A service the change edits itself keeps what the edit says, and is refused if it still uses what the change deletes. The panel proposes the two edits; so can REST, and `dockwell changes propose`, with the secret's edit read from a file with `--edits @file`.
+- **What each revision uses is kept in the clear beside it,** in `revision_uses`: the name it sees each value as, the value's kind and name, and the revision it is pinned to, never a value. Finding the services that use a value, as every proposal and commit does, and listing an environment's values with their services, read it and open no spec. A change opens only the specs of the services it pins again.
 - The plan of a rotation reads like any other: the secret's `value` is changed and sensitive, and each service's step shows `revisions[DATABASE_PASSWORD]: 3 → 4`.
 
 ### Keys at rest
@@ -51,8 +53,9 @@ the install's key           <data>/control/key, 0600, never in the database
 - **A data key for each stored spec.** Proposing a change seals each such item under a new data key, and applying it seals the revision under another. Each is AES-256-GCM with a random nonce, and its associated data names the resource's ID and kind, so a sealed spec copied into another resource's row doesn't open.
 - **The key-encryption key** is random, 256 bits, and kept sealed with the install's key, under a purpose that names it (`internal/seal`). Data keys are AES-256-GCM under it, bound to their own ID and the key-encryption key's.
 - A stored spec says whether it is sealed: it starts with a zero byte, which no protobuf encoding does. A spec stored before this change opens as it is.
-- **Fingerprints don't give a secret away.** A plan's fingerprint hashed each item's spec, and a backup holds the fingerprint, so a guess at a short password could be checked against it. A sealed kind's spec is digested with HMAC-SHA256 under a key derived from the install's key (`seal.Key.Derive`), which keeps fingerprints reproducible and useless without the key file.
-- **Plans mask by the schema.** An agent's steps say which field changes are sensitive; the control plane masks every change whose path the schema marks sensitive, whatever the agent says, before a plan is kept.
+- **Fingerprints don't give a secret away.** A plan's fingerprint hashed each item's spec, and a backup holds the fingerprint, so a guess at a short password could be checked against it. A sealed kind's spec is digested with HMAC-SHA256 under a key derived from the install's key (`seal.Key.Derive`), which keeps fingerprints reproducible and useless without the key file. Which kinds are sealed is said once, by `resource.Sealed`.
+- **A change records how its fingerprint was made** (`changes.fingerprint_scheme`): 1 for every spec hashed as it is, 2 for the keyed digests. A change planned before the upgrade has 1, and is checked the way it was fingerprinted, so it applies while its plan is the one reviewed. When it isn't, it says an earlier version planned it, and to propose it again, rather than that the servers changed. Its items, if a server was offline, may hold a container's environment unsealed, as below.
+- **Plans mask by the schema.** An agent's steps say which field changes are sensitive; the control plane masks every change whose path the schema marks sensitive, whatever the agent says, before a plan is kept. It reads a path as `resource.Diff` writes it: field names, a list's index, and a map's key in brackets, which may hold dots, as a label such as `traefik.enable` does.
 - **Revisions stay immutable.** Rotating the key-encryption key wraps every data key again, in their own table, and changes no revision.
 
 ### Rotating the key-encryption key
@@ -77,41 +80,58 @@ The install's key is a separate file, and a backup of the database without it op
 
 - **Only to the servers a service runs on.** When the engine applies a step that runs a service, the agent stream asks the keeper for the values its spec uses (`resource.Values`). The keeper refuses unless the service's latest revision is placed on that server and is the spec being applied. It then reads each value at the revision the spec pins. A deletion carries none, and planning and observing carry none.
 - **Sealed to one stream.** Each agent stream makes an X25519 key pair, keeps the private key in memory, and sends the public key in its hello (`delivery_key`). The values for a step travel in the `ApplyCall` sealed to it with HPKE (RFC 9180: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-256-GCM, Go's `crypto/hpke`). The info binds them to the server and the resource. So values never appear in the clear in a message, even within mTLS. They can't be opened for another resource or server, nor once the stream ends, as the key that opens them is gone.
+- **A call sent again is sealed again.** A step the agent refuses as it moves to a renewed certificate goes to its next stream (ADR 0017). The values are read once, and sealed to the delivery key of each stream the call goes out on.
 - **An agent that sends no delivery key** can't run a service that uses a variable or secret, and the step says to update it.
 
 ### On the agent
 
-- The agent opens the values for one step in memory and hands them to the driver through the call's context (`resource.WithValues`). It clears them when the step ends. They go into no log, error, plan, file, Compose file or image.
+- The agent opens the values for one step in memory and hands them to the driver through the call's context (`resource.WithValues`). It clears them when the step ends. They go into no log, error, plan, file, Compose file or image. `agent.Desired` hears of the step with the call's own context, which holds none.
 - **The seam for the Docker driver (#26).** The service driver builds the container's environment with `binding.Environment(ctx, svc)`: the app's own variables, then each value under the name the service sees. It records which variables and secrets it used, with their revisions and never their values, in the container label `dockwell.uses`. `binding.Restore` reads the service back from that label, so observing a service gives its spec, pins and all, and drift compares like with like. #26 needs only a Runtime that keeps a container's environment and labels as given. If it builds containers another way, it calls `binding.Environment` where it sets the environment, and writes `binding.Label` beside it.
 - **`agent.Desired` gets references, never values.** It hears of each step with the pinned spec, which names what the service uses and at which revision. Values sealed to a stream are useless after it ends, so a cache can hold nothing that opens them. A server that restarts a service on its own while the control plane is away (#32) needs the values from the control plane again. Docker keeps running containers running meanwhile.
 - **Docker itself** keeps a container's environment in its own configuration, on the server's disk, readable by root. That is Docker's, not Dockwell's, and anyone who is root there can read a running process's environment anyway. Files under `/run/secrets`, on tmpfs, avoid it for images that read `*_FILE` variables; they come later, through the same seam.
 
-### Revealing a value: a step-up
+### Revealing a value, and changing how you sign in: a step-up
 
 - **`RevealSecret` needs three things:**
   - a signed-in session;
   - a proof from `FinishStepUp` for revealing that secret;
   - nothing but a person: no API token can call it, whatever its scope.
 - **A step-up is a fresh passkey assertion** that confirms one action on one target in one session (`AuthService.BeginStepUp`, `FinishStepUp`):
-  - The options allow only the person's own passkeys for this address that aren't flagged as copied, and require user verification.
+  - The options allow only the person's own passkeys for this address that aren't flagged as copied, and require user verification. Finishing checks the assertion against every passkey the options allowed, and it must come from one of them.
   - Finishing checks the assertion, its counter and copies as sign-in does, in one transaction, and audits it as `auth.step_up`, or `auth.step_up_failed` when refused.
   - It returns a proof of 256 random bits. Only the proof's hash is kept, in memory. It works once, within a minute, in that session, for that action and target. A proof given for anything else is spent all the same.
+- **Changing how you sign in takes one too.** Otherwise a stolen session could add a passkey of its own and pass every step-up with it. Each of these needs a proof for itself, as its request's `proof`:
+
+  | Action | Method | Target |
+  | --- | --- | --- |
+  | Adding a passkey | `BeginAddPasskey` | you |
+  | Removing a passkey | `RemovePasskey` | the passkey |
+  | Setting up codes, which ends with recovery codes | `BeginTotpSetup` | you |
+  | Turning codes off | `DisableTotp` | you |
+  | Making new recovery codes | `RegenerateRecoveryCodes` | you |
+  | Creating an API token | `TokenService.CreateToken` | you |
+
+  - A proof is spent once the action's own checks pass, so a refusal for another reason, such as the last way in or a token's missing name, doesn't cost another prompt.
+  - The ceremony that adds a passkey works only in the session that began it.
+  - `RemovePasskey` is `POST /v1/passkeys/{id}:remove`, so its proof is in the body, never in a URL.
+  - Revoking sessions and tokens, signing out and unlocking codes need none: they take access away, and someone who lost their passkey must still be able to.
+- **Someone with no passkey here adds one by signing in again.** A sign-in with an authenticator code, a recovery code or a link from `dockwell recover` confirms adding a passkey, as a step-up would, for 10 minutes. That is how someone adds one after adding a domain, or after losing every passkey they had here. It confirms nothing else, and nothing after the 10 minutes; a passkey sign-in confirms nothing, as a step-up with the passkey is at hand. Asked to confirm with none here, `BeginStepUp` says to sign in again (`needs_fresh_sign_in`). The audit log says which confirmed each passkey added. Claiming makes the first passkey in its own transaction, as before.
 - **Revealing reads the value and records `secret.reveal` in one transaction:** who, which secret and revision, from where. If the record can't be written, nothing is revealed.
 - **Reveals are on the timeline** among access events ([ADR 0020](0020-the-event-timeline.md)), as "Revealed the secret DB_PASSWORD", and so are rotations of the key-encryption key. Step-ups, and refused ones, stay in the audit log with the other attempts.
 - **No token, three times over.** A method option, `(dockwell.v1.needs_session)`, puts `RevealSecret` beyond every token in the interceptor. The handler and the auth service refuse a token's principal as well. AuthService, where step-ups begin, was already beyond tokens. The PRD's later `connections:read` scope would be a new scope, decided on its own.
-- **No authenticator-code fallback.** A step-up's worth is that a stolen session can't make one: it needs the person's authenticator, bound to this origin, with their fingerprint, face or PIN. A six-digit code is guessable within code sign-in's limits, and phishable in real time by whoever holds the session. Nobody needs to reveal a secret to use it, since binding isn't reading, and someone without a passkey here can add one and then reveal.
+- **No authenticator-code fallback.** A step-up's worth is that a stolen session can't make one: it needs the person's authenticator, bound to this origin, with their fingerprint, face or PIN. A six-digit code is guessable within code sign-in's limits, and phishable in real time by whoever holds the session. Nobody needs to reveal a secret to use it, since binding isn't reading, and someone without a passkey here can sign in again, add one and then reveal.
 - The ceremony and proofs live in memory, like sign-in's, on one control plane.
 
 ### The API, the CLI and the panel
 
 - **Changing variables and secrets is ChangeService's,** as edits of kind `variable` and `secret`, so every change is a plan, with undo and the timeline.
-- **`VariableService`** reads an environment's variables and secrets (`ListVariables`, `GET /v1/variables`): each variable's value, never a secret's, and the services that use each. It also reveals (`RevealSecret`, `POST /v1/secrets/{id}:reveal`).
+- **`VariableService`** reads an environment's variables and secrets (`ListVariables`, `GET /v1/variables`), by name, a page at a time: each variable's value, never a secret's, and the services that use each, under each name they use it as. It opens no sealed spec. It also reveals (`RevealSecret`, `POST /v1/secrets/{id}:reveal`).
 - **The CLI is generated, as ADR 0019 has it.**
-  - `dockwell variables` and `dockwell secrets` hold the kind's `create`, `update` and `delete` beside the service's `list` and `reveal`: a kind's verbs join a noun a service's methods already have.
-  - A sensitive scalar field takes no value on the command line. Its flag names a file, `--value-file path`, or `-` for standard input, which asks without echo on a terminal. So a secret stays out of shell history and the process list, with no option of its own.
+  - `dockwell variables` and `dockwell secrets` hold the kind's `create`, `update` and `delete` beside the service's `list` and `reveal`: a kind's verbs join a noun a service's methods already have, and the noun's help names them all.
+  - A sensitive scalar field takes no value on the command line. Its flag names a file, `--value-file path`, or `-` for standard input, which asks without echo on a terminal. So a secret stays out of shell history and the process list, with no option of its own. It reads at most what a secret holds, 64 KiB.
   - Kinds that run on no server have no `--on`, and fields Dockwell sets have no flag.
   - `dockwell secrets reveal` needs a person, and says to use the panel.
-- **The panel's screen is an environment's variables and secrets,** at `/variables`, following `App-Environment`. Its environment switch shows once there are two environments. You reach it from the command bar, which has an entry for each environment once there are several, from the More tab on phones, which it sits under, and from Activity, where a change to a variable or secret, and a reveal, link to it. The app screens (#31) will show an app's slice of the same list. Adding, editing and removing each open the plan sheet straight away, rather than the mock's tray of unapplied edits: one review step, the plan sheet, serves one edit. A secret shows masked, with Reveal, which asks for the passkey, then the value with Copy and Hide. It hides again after a minute.
+- **The panel's screen is an environment's variables and secrets,** at `/variables`, following `App-Environment`. Its environment switch shows once there are two environments. You reach it from the command bar, which has an entry for each environment once there are several, from the More tab on phones, which it sits under, and from Activity, where a change to a variable or secret, and a reveal, link to its environment: a reveal's event names the secret's environment as its subject's `scope`. The app screens (#31) will show an app's slice of the same list. Adding, editing and removing each open the plan sheet straight away, rather than the mock's tray of unapplied edits: one review step, the plan sheet, serves one edit. A secret shows masked, with Reveal, which asks for the passkey, then the value with Copy and Hide. It hides again after a minute.
 
 ## Consequences
 
@@ -122,6 +142,7 @@ The install's key is a separate file, and a backup of the database without it op
 - A change can go out of date because of a value it uses, not only its own resources, and says which.
 - The agent can't restart a service that uses secrets on its own while the control plane is away. #32 decides whether its cache keeps values sealed to a key of its own, a trade of principle 5 against what a stolen disk holds.
 - Change items planned before this, for a server that was offline, may still hold a container's environment unsealed. They can't apply (no agent had drivers), and discarding them doesn't erase them. No install is known to have any.
-- Revealing needs a passkey for the panel's current address. After adding a domain, add a passkey there first, as for sign-in.
-- Adding a passkey still needs only a session. So someone who steals a session can add their own passkey and step up with it. Making a step-up guard adding passkeys, removing them and turning codes off is the next use of the same mechanism. Until then, the audit log shows the new passkey and every reveal.
+- Revealing needs a passkey for the panel's current address. After adding a domain, add a passkey there first, as for sign-in: sign in there with a code or a link from `dockwell recover`, then add it within 10 minutes.
+- A stolen session can't add a passkey, codes or a token of its own, nor remove the person's: each takes the person's passkey, just now. People without a passkey at an address make one in the minutes after signing in some other way, and every change to how they sign in prompts for the passkey, as revealing does.
+- Each change records how its fingerprint was made (`changes.fingerprint_scheme`), and each revision of a service what it uses (`revision_uses`). Neither holds a value.
 - The threat model is in [docs/security/secrets.md](../security/secrets.md).
