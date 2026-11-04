@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 )
 
@@ -159,6 +160,9 @@ func flagHelp(fd protoreflect.FieldDescriptor, f Field) string {
 		add("A duration such as 90d, 12h or 30m.")
 	case value.Message() != nil:
 		add("As JSON, or @file to read it from a file, or - from standard input.")
+		if resource.HoldsSensitive(value.Message()) {
+			add("JSON that sets a secret's value, or a container's environment, comes from a file or standard input, never the command line.")
+		}
 	}
 	switch {
 	case f.Sensitive && !fd.IsMap() && !fd.IsList() && (fd.Kind() == protoreflect.StringKind || fd.Kind() == protoreflect.BytesKind):
@@ -306,7 +310,7 @@ func (b *boundField) apply(msg protoreflect.Message) error {
 		for _, s := range b.values {
 			v, err := scalarOrMessage(fd, s, b.env, l.NewElement)
 			if err != nil {
-				return fmt.Errorf("--%s: %w", b.flag, err)
+				return b.valueError(err)
 			}
 			l.Append(v)
 		}
@@ -323,11 +327,19 @@ func (b *boundField) apply(msg protoreflect.Message) error {
 	default:
 		v, err := scalarOrMessage(fd, b.values[len(b.values)-1], b.env, func() protoreflect.Value { return parent.NewField(fd) })
 		if err != nil {
-			return fmt.Errorf("--%s: %w", b.flag, err)
+			return b.valueError(err)
 		}
 		parent.Set(fd, v)
 	}
 	return nil
+}
+
+// valueError says which flag's value is wrong, and how to give it.
+func (b *boundField) valueError(err error) error {
+	if errors.Is(err, errInlineSecret) {
+		return fmt.Errorf("--%s: %w. Put the JSON in a file and pass --%s @file, or pipe it in with --%s -", b.flag, err, b.flag, b.flag)
+	}
+	return fmt.Errorf("--%s: %w", b.flag, err)
 }
 
 // readSecret reads a sensitive value from a file, or from standard input
@@ -369,7 +381,10 @@ func (b *boundField) readSecret(from string) (string, error) {
 const maxSecretRead = MaxSecretInput + 2 + 1
 
 // scalarOrMessage parses a value, reading a message field's JSON into a
-// new message from blank.
+// new message from blank. JSON given on the command line itself, rather
+// than from a file or standard input, may not set a field marked
+// (sensitive), such as a secret's value: it would stay in shell history
+// and the process list.
 func scalarOrMessage(fd protoreflect.FieldDescriptor, s string, env *Env, blank func() protoreflect.Value) (protoreflect.Value, error) {
 	if fd.Kind() != protoreflect.MessageKind {
 		return scalar(fd, s)
@@ -386,8 +401,19 @@ func scalarOrMessage(fd protoreflect.FieldDescriptor, s string, env *Env, blank 
 	if err := protojson.Unmarshal(data, v.Message().Interface()); err != nil {
 		return protoreflect.Value{}, fmt.Errorf("can't read it as a %s in JSON: %w", fd.Message().Name(), err)
 	}
+	if inline(s) && resource.SetsSensitive(v.Message().Interface()) {
+		clear(data)
+		return protoreflect.Value{}, errInlineSecret
+	}
 	return v, nil
 }
+
+// errInlineSecret refuses JSON on the command line that sets a secret.
+var errInlineSecret = errors.New("the JSON sets a value that may be secret, such as a secret's value or a container's environment, " +
+	"so it would stay in your shell history and the process list")
+
+// inline reports a JSON flag's value given on the command line itself.
+func inline(s string) bool { return s != "-" && !strings.HasPrefix(s, "@") }
 
 // readValue is a JSON flag's value: as given, from a file with @path, or
 // from standard input with -.

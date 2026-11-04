@@ -346,6 +346,10 @@ func mapEntryPath(rest string) (string, bool) {
 	return "", strings.HasSuffix(rest, "]")
 }
 
+// HoldsSensitive reports whether a message has a field marked (sensitive),
+// at any depth, as an edit of a secret does.
+func HoldsSensitive(md protoreflect.MessageDescriptor) bool { return sensitiveMessage(md) }
+
 // Sealed reports whether a kind's specs may hold a secret: whether its
 // message has a field marked (sensitive), at any depth. The revision store
 // keeps every spec of such a kind encrypted, and digests it with a key for

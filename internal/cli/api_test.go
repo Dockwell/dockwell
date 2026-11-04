@@ -247,8 +247,23 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		if r = run(t, env, "variables", "create", "MAIL_TOKEN", "--value", "plain-for-now", "--project", "default", "--yes"); r.code != exitOK {
 			t.Fatalf("variables create = %d:\n%s%s", r.code, r.out, r.err)
 		}
+		secretEdit := `{"resource":{"name":"MAIL_TOKEN"},"project":"default","spec":{"secret":{"value":"s3cret-mail-token"}}}`
+		// Not as JSON on the command line, where shell history keeps it,
+		// nor a container's environment; anything else still goes inline.
+		for _, inline := range []string{secretEdit, `{"resource":{"name":"web"},"spec":{"container":{"image":"nginx","env":{"TOKEN":"x"}}}}`} {
+			r = run(t, env, "changes", "propose", "--summary", "Inline", "--edits", inline, "--yes")
+			if r.code != exitUsage || !strings.Contains(r.err, "--edits: the JSON sets a value that may be secret") ||
+				!strings.Contains(r.err, "pass --edits @file, or pipe it in with --edits -") || strings.Contains(r.err, "s3cret") {
+				t.Errorf("a secret in inline JSON = %d %q, want it refused", r.code, r.err)
+			}
+		}
+		piped := `{"resource":{"name":"PIPED_TOKEN"},"project":"default","spec":{"secret":{"value":"s3cret-piped"}}}`
+		r = runIn(t, env, piped, false, "changes", "propose", "--summary", "From standard input", "--edits", "-", "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "+ secret PIPED_TOKEN") || strings.Contains(r.out+r.err, "s3cret") {
+			t.Errorf("a secret's edit from standard input = %d:\n%s\n%s", r.code, r.out, r.err)
+		}
 		edit := filepath.Join(t.TempDir(), "secret.json")
-		if err := os.WriteFile(edit, []byte(`{"resource":{"name":"MAIL_TOKEN"},"project":"default","spec":{"secret":{"value":"s3cret-mail-token"}}}`), 0o600); err != nil {
+		if err := os.WriteFile(edit, []byte(secretEdit), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		r = run(t, env, "changes", "propose", "--summary", "Make MAIL_TOKEN a secret",
