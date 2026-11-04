@@ -1,31 +1,45 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { create } from "@bufbuild/protobuf";
-import { GetVersionResponseSchema } from "@dockwell/api";
-import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { routeTree } from "../routeTree.gen";
-import { renderWithApi } from "../test/render";
-
-function renderAt(path: string) {
-  const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) });
-  return renderWithApi(<RouterProvider router={router} />, {
-    system: { getVersion: () => create(GetVersionResponseSchema, {}) },
-  });
-}
+import { renderAt } from "../test/render";
 
 describe("routes", () => {
-  it("serves the status page at the root", async () => {
+  it("opens on the overview, inside the shell", async () => {
     renderAt("/");
-    expect(await screen.findByRole("heading", { level: 1, name: "The control plane is running" })).toBeVisible();
+    expect(await screen.findByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "Main" })).toBeVisible();
+    expect(screen.getByRole("main")).toContainElement(screen.getByRole("heading", { level: 1 }));
+    expect(document.title).toBe("Overview · Dockwell");
   });
 
-  it("explains a missing page and links home", async () => {
-    renderAt("/servers/hz-9");
+  it("serves the status page on its own, outside the shell", async () => {
+    renderAt("/status");
+    expect(await screen.findByRole("heading", { level: 1, name: "The control plane is running" })).toBeVisible();
+    expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+  });
+
+  it("lists the servers", async () => {
+    renderAt("/servers");
+    expect(await screen.findByRole("heading", { level: 1, name: "Servers" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Servers" })).toBeVisible();
+  });
+
+  it("says plainly that a section from the design isn't built yet", async () => {
+    renderAt("/backups");
+    expect(await screen.findByRole("heading", { level: 1, name: "Backups" })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 2, name: "Not in this release yet" })).toBeVisible();
+    expect(within(screen.getByRole("main")).getByRole("link", { name: "Go to the overview" })).toHaveAttribute(
+      "href",
+      "/",
+    );
+  });
+
+  it.each(["/servers/hz-9/files", "/nowhere"])("explains a missing page at %s and links home", async (path) => {
+    renderAt(path);
     expect(await screen.findByRole("heading", { level: 1, name: "No page here" })).toBeVisible();
-    expect(screen.getByText("/servers/hz-9").tagName).toBe("CODE");
+    expect(screen.getByText(path).tagName).toBe("CODE");
     expect(screen.getByRole("link", { name: "Go to the overview" })).toHaveAttribute("href", "/");
   });
 });

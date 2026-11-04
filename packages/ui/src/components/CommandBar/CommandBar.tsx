@@ -13,8 +13,10 @@ import {
 } from "react";
 
 import { cx } from "../../lib/cx";
+import { keyShortcut } from "../../lib/keyShortcut";
 import { ModalLayer } from "../../lib/modal";
 import { useUIStrings } from "../../lib/strings";
+import { PHONE_QUERY, useMediaQuery } from "../../lib/useMediaQuery";
 import { Icon } from "../Icon/Icon";
 import type { IconName } from "../Icon/icons";
 import { Kbd } from "../Kbd/Kbd";
@@ -30,7 +32,11 @@ export interface CommandItem {
   icon?: IconName;
   /** Muted context on the right, such as "main · 8be41d2". */
   hint?: string;
-  /** Shortcut that runs the item from anywhere, such as "G F". */
+  /**
+   * Shortcut that runs the item from anywhere, such as "G F". It shows as key
+   * caps, and assistive technology gets it as aria-keyshortcuts where the
+   * attribute can say it, never in the option's name.
+   */
   kbd?: string;
 }
 
@@ -57,7 +63,8 @@ export interface CommandBarProps {
  * The keyboard front door: finds any server, app, page or action and runs
  * it. Matching is fuzzy on characters in order. Arrow keys move, Enter runs,
  * Escape closes. In overlay mode focus stays inside until it closes, then
- * returns to where it was.
+ * returns to where it was. On phones the overlay fills the screen and closes
+ * with a Cancel button.
  */
 export function CommandBar(props: CommandBarProps) {
   if (props.inline) return <CommandPanel {...props} modal={false} />;
@@ -107,6 +114,7 @@ function CommandPanel({
   inputRef: givenInputRef,
 }: CommandPanelProps) {
   const strings = useUIStrings();
+  const phone = useMediaQuery(PHONE_QUERY);
   const ownInputRef = useRef<HTMLInputElement>(null);
   const inputRef = givenInputRef ?? ownInputRef;
   const listRef = useRef<HTMLDivElement>(null);
@@ -182,6 +190,7 @@ function CommandPanel({
         id={optionId(index)}
         role="option"
         aria-selected={isActive}
+        aria-keyshortcuts={result.item.kbd ? keyShortcut(result.item.kbd) : undefined}
         data-active={isActive ? "" : undefined}
         className={cx("dw-cmd-item", isActive && "is-active")}
         onMouseMove={() => {
@@ -198,8 +207,15 @@ function CommandPanel({
             part.match ? <mark key={i}>{part.text}</mark> : <Fragment key={i}>{part.text}</Fragment>,
           )}
         </span>
-        {result.item.hint ? <span className="dw-cmd-hint">{result.item.hint}</span> : null}
-        {result.item.kbd ? <Kbd>{result.item.kbd}</Kbd> : null}
+        {/* The space keeps the hint a word apart in the option's name. */}
+        {result.item.hint ? (
+          <>
+            {" "}
+            <span className="dw-cmd-hint">{result.item.hint}</span>
+          </>
+        ) : null}
+        {/* Kept out of the name, so the option reads "Fleet", not "FleetG F". */}
+        {result.item.kbd ? <Kbd aria-hidden="true">{result.item.kbd}</Kbd> : null}
       </div>
     );
   };
@@ -236,7 +252,11 @@ function CommandPanel({
           }}
           onKeyDown={onInputKeyDown}
         />
-        {onClose ? (
+        {onClose && modal && phone ? (
+          <button type="button" className="dw-cmd-cancel" onClick={onClose}>
+            {strings.commandBar.cancel}
+          </button>
+        ) : onClose ? (
           <span aria-hidden="true">
             <Kbd>esc</Kbd>
           </span>
@@ -276,7 +296,7 @@ function CommandPanel({
           ) : null}
         </div>
       </div>
-      <div className="dw-cmd-foot">
+      <div className={cx("dw-cmd-foot", !scope && "is-keys-only")}>
         <span aria-hidden="true">
           <Kbd>↑</Kbd>
           <Kbd>↓</Kbd> {strings.commandBar.move}

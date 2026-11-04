@@ -6,14 +6,17 @@ import type { ReactNode } from "react";
 import "./StandalonePage.css";
 
 /**
- * A page outside the app shell, for moments before there is a shell to show:
- * first contact with the control plane, sign-in, a missing page.
+ * A page outside the app shell: the control plane's status, sign-in, a
+ * missing page. The logo leads back to the overview, since an installed
+ * panel has no back button.
  */
 export function StandalonePage({ children }: { children: ReactNode }) {
   return (
     <main className="standalone">
       <div className="standalone-column">
-        <Logo height={16} className="standalone-logo" />
+        <a href="/" className="standalone-logo">
+          <Logo height={16} />
+        </a>
         {children}
       </div>
     </main>

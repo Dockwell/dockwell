@@ -17,8 +17,16 @@
 }
 
 .standalone-logo {
-  color: var(--ink);
+  align-self: flex-start;
+  display: flex;
   margin-bottom: var(--space-2);
+  border-radius: var(--radius-xs);
+  color: var(--ink);
+}
+
+.standalone-logo:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .standalone-head {

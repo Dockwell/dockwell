@@ -38,6 +38,7 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
         empty: (query) => t`Nothing matches “${query}”. Try a server, app or action name.`,
         move: t`to move`,
         run: t`to run`,
+        cancel: t`Cancel`,
         scope: (scope) => (
           <Trans>
             In <b>{scope}</b>

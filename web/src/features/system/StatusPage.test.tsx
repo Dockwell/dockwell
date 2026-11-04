@@ -34,6 +34,7 @@ describe("StatusPage", () => {
     expect(panel).toHaveTextContent("3 Nov 2026, 21:40");
     expect(panel).toHaveTextContent("linux/arm64");
     expect(panel).toHaveTextContent("Connected");
+    expect(screen.getByRole("link", { name: "Dockwell" })).toHaveAttribute("href", "/");
   });
 
   it("copies the health check command", async () => {

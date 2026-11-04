@@ -45,6 +45,7 @@ export { Toast, type ToastAction, type ToastProps } from "./components/Toast/Toa
 export { cx } from "./lib/cx";
 export { type GlyphShape, STATUS, type Status, TONE, type Tone } from "./lib/status";
 export { englishStrings, type UIStrings, UIStringsProvider, useUIStrings } from "./lib/strings";
+export { PHONE_QUERY, useMediaQuery } from "./lib/useMediaQuery";
 export {
   applyThemePreference,
   type ResolvedTheme,

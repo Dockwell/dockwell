@@ -2,20 +2,14 @@
 
 import { durationMs } from "@bufbuild/protobuf/wkt";
 import { Connection, type Server } from "@dockwell/api";
-import { cx, Glyph, Panel, type Status, StatusBadge, Tag } from "@dockwell/ui";
+import { cx, Glyph, Panel, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 import { formatBytesOf, formatPercent } from "../../lib/format";
 import { useElapsed } from "../../lib/useElapsed";
+import { serverStatus } from "./server";
 import { useFleet } from "./useFleet";
 import "./ServersPanel.css";
-
-const STATUS: Record<Connection, Status> = {
-  [Connection.UNSPECIFIED]: "stopped",
-  [Connection.CONNECTED]: "healthy",
-  [Connection.UNREACHABLE]: "down",
-  [Connection.PENDING]: "stopped",
-};
 
 /** Every server with its live stats, as their agents report them. */
 export function ServersPanel() {
@@ -81,7 +75,7 @@ function ServerRow({ server }: { server: Server }) {
   return (
     <li className="servers-row">
       <div className="servers-name">
-        <StatusBadge status={STATUS[server.connection]} label={server.name} meta={meta} />
+        <StatusBadge status={serverStatus(server)} label={server.name} meta={meta} />
         {server.controlServer ? <Tag className="servers-role">{t`Control server`}</Tag> : null}
       </div>
       <p className="servers-os">{server.inventory?.osName || t`Unknown system`}</p>
