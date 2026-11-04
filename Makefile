@@ -53,6 +53,10 @@ mock-snapshots: deps ## Write PNGs of every mock, light and dark, to packages/mo
 .PHONY: generate
 generate: deps ## Regenerate code from proto/, and the design tokens
 	$(GOTOOL) buf generate
+# buf empties gen/ first, so the schema's license goes back in beside the code.
+# buf can't leave a file in an output directory it cleans, which is why buf
+# generate on its own deletes gen/LICENSE; scripts/check-spdx.sh names it then.
+	cp proto/LICENSE gen/LICENSE
 	pnpm --filter @dockwell/ui tokens
 
 .PHONY: test

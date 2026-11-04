@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 
 // The Dockwell API for TypeScript: messages and service descriptors generated
 // from proto/. Pair a service with a Connect transport to call it:

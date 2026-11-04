@@ -16,7 +16,7 @@ An open-source control plane for servers, from one VPS to a fleet. One Go binary
 - `make generate` after any change in `proto/` or `design/system/tokens.json`. Commit what it writes.
 - `make run` builds everything and serves on 127.0.0.1:7600; `make dev` adds the panel with hot reload on :5173.
 - Panel text: English in `<Trans>`/`` t`…` ``, then `make i18n` and translate `web/src/locales/zh-CN/messages.po`. Components come from `@dockwell/ui`; port a design-system component there (from `design/system/components/`) before using it in a screen.
-- Tools: `go tool -modfile=tools/go.mod <buf|golangci-lint|…>`. pnpm comes from corepack (`packageManager` in package.json). New npm versions are held back 14 days (`minimumReleaseAge`); pin Go modules and actions to releases at least that old too, with actions pinned by commit hash.
+- Tools: `go tool -modfile=tools/go.mod <buf|golangci-lint|…>`. Generate with `make generate`, not `buf generate` on its own, which empties `gen/` and deletes `gen/LICENSE`. pnpm comes from corepack (`packageManager` in package.json). New npm versions are held back 14 days (`minimumReleaseAge`); pin Go modules and actions to releases at least that old too, with actions pinned by commit hash.
 
 ## Rules
 
@@ -26,5 +26,5 @@ An open-source control plane for servers, from one VPS to a fleet. One Go binary
 - The panel uses only the public API through the generated client. Nothing is UI-only.
 - Memory budgets: the agent stays under 40 MB RSS at idle, and the control plane plus agent under 250 MB.
 - Work on a branch and open a pull request to `main` that references its issue and milestone.
-- Every source file starts with `SPDX-License-Identifier: AGPL-3.0-only` (`scripts/check-spdx.sh`).
+- Every source file starts with `SPDX-License-Identifier: AGPL-3.0-only`, except in `proto/`, `gen/` and `packages/api/`, which are `Apache-2.0` (ADR 0012). `scripts/check-spdx.sh` checks both.
 - Go: errors and log messages follow the content rules too. Wrap errors with context, and when the operator can fix something, end the message with how.
