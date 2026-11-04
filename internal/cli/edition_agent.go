@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/buildinfo"
+	"github.com/dockwell/dockwell/internal/cli/apinames"
 	"github.com/dockwell/dockwell/internal/datadir"
 )
 
@@ -66,51 +68,61 @@ func controlServerCommands(IO, *globalFlags) []*cobra.Command {
 	return cmds
 }
 
-// typed is the command as it was given, up to its first flag, such as
-// "dockwell token create".
+// typed is the command as it was given, without its flags, such as
+// "dockwell token create" for dockwell token create --ttl 1h.
 func typed(cmd *cobra.Command, args []string) string {
-	words := []string{cmd.CommandPath()}
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "-") {
-			break
-		}
-		words = append(words, arg)
-	}
-	return strings.Join(words, " ")
+	return strings.Join(append([]string{cmd.CommandPath()}, words(cmd.Root(), args)...), " ")
 }
 
-// addAPICommands adds none: they, and dockwell login and logout, are the
-// full build's. For a command line that names a command this build lacks,
-// it adds a stand-in of that name, which says so, so that a flag only that
-// command has, such as login's --url, isn't refused first.
-func addAPICommands(root *cobra.Command, _ IO, _ *globalFlags, args []string) error {
+// words are the words of a command line that aren't flags: its commands
+// and arguments. Flags that every command takes are left out, and so are
+// others, with what looks like their values. Nil when the flags don't
+// parse, which the command line itself then reports.
+func words(root *cobra.Command, args []string) []string {
 	flags := pflag.NewFlagSet(root.Name(), pflag.ContinueOnError)
 	flags.ParseErrorsAllowlist.UnknownFlags = true
 	flags.SetOutput(io.Discard)
 	flags.AddFlagSet(root.PersistentFlags())
-	if err := flags.Parse(args); err != nil || flags.NArg() == 0 {
-		return nil //nolint:nilerr // the command line itself reports what's wrong with it
+	if err := flags.Parse(args); err != nil {
+		return nil
 	}
-	name := flags.Arg(0)
-	if found, _, err := root.Find([]string{name}); err != nil || found != root || name == "help" {
-		return nil //nolint:nilerr // a command this build has, or help
+	return flags.Args()
+}
+
+// addAPICommands adds none: they, and dockwell login and logout, are the
+// full build's. For a command line that names one of them, it adds a
+// stand-in of that name, which says so, so that a flag only that command
+// has, such as login's --url, isn't refused first. Any other name this
+// build lacks is left to cobra, for its own commands, such as completion
+// and __complete, which it adds as it runs, or to the root's Args, which
+// says it isn't a command.
+func addAPICommands(root *cobra.Command, _ IO, _ *globalFlags, args []string) error {
+	w := words(root, args)
+	if len(w) == 0 || !apiCommand(w[0]) {
+		return nil
 	}
+	name := w[0]
 	root.AddCommand(&cobra.Command{
 		Use:                name,
 		Hidden:             true,
 		DisableFlagParsing: true,
-		RunE:               func(*cobra.Command, []string) error { return unknownCommand(name) },
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return usageError{fmt.Errorf("%s isn't in the agent build of dockwell, which this server runs: "+
+				"the API commands, with dockwell login and logout, are in the full build. "+
+				"Run it on the control server, or with the full build anywhere else", typed(cmd, args))}
+		},
 	})
 	return nil
 }
 
-// unknownCommand explains a command this build doesn't have. The API
-// commands are among them.
-func unknownCommand(name string) error {
-	return usageError{fmt.Errorf("%q isn't a command of the agent build of dockwell, which this server runs. "+
-		"The control plane's commands, such as dockwell servers list and dockwell token create, are in the full build, on the control server. "+
-		"Run %q to see this build's commands", name, "dockwell --help")}
+// apiCommand reports whether the full build has a command of this name
+// that calls the control plane's API, or signs in to it.
+func apiCommand(name string) bool {
+	return slices.Contains(apiAccessCommands, name) || slices.Contains(apinames.Commands(), name)
 }
+
+// apiUsage finds no usage error of the API commands': there are none.
+func apiUsage(error) bool { return false }
 
 // apiExitCode finds no exit code of the API commands' own: there are none.
 func apiExitCode(error) (int, bool) { return 0, false }

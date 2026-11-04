@@ -77,11 +77,6 @@ func addAPICommands(root *cobra.Command, stdio IO, g *globalFlags, _ []string) e
 	return nil
 }
 
-// unknownCommand explains a command that isn't one.
-func unknownCommand(name string) error {
-	return usageError{fmt.Errorf("unknown command %q. Run %q to see the commands", name, "dockwell --help")}
-}
-
 // roleLong says what dockwell role prints in the full build.
 const roleLong = "Prints the role dockwell run takes with this data directory, for scripts:\n\n" +
 	"  control        the control plane and its own agent\n" +
@@ -90,15 +85,17 @@ const roleLong = "Prints the role dockwell run takes with this data directory, f
 // editionRole is the role dockwell run takes in the full build: either.
 func editionRole(dir datadir.Dir) (string, *enroll.Identity, error) { return decideRole(dir) }
 
+// apiUsage reports whether an error is an API command's usage error.
+func apiUsage(err error) bool {
+	var usage apicli.UsageError
+	return errors.As(err, &usage)
+}
+
 // apiExitCode is the exit code of an error from an API command, when it has
 // one of its own.
 func apiExitCode(err error) (int, bool) {
-	var usage apicli.UsageError
 	var coded apicli.ExitError
-	switch {
-	case errors.As(err, &usage):
-		return exitUsage, true
-	case errors.As(err, &coded):
+	if errors.As(err, &coded) {
 		return coded.Code, true
 	}
 	return 0, false

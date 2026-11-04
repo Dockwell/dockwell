@@ -5,6 +5,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -132,4 +133,24 @@ func (b *syncBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
+}
+
+// A usage error comes first, whatever else an error carries.
+func TestExitCodes(t *testing.T) {
+	const claimed = 3 // dockwell claim's, in the full build
+	owned := exitCodeError{claimed, errors.New("this install already has an owner")}
+	for _, tt := range []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"an exit code of its own", owned, claimed},
+		{"a usage error with an exit code of its own", usageError{owned}, exitUsage},
+		{"an exit code of its own with a usage error", exitCodeError{claimed, usageError{errors.New("no such flag")}}, exitUsage},
+		{"any other error", errors.New("something failed"), exitError},
+	} {
+		if got := exitCode(tt.err); got != tt.want {
+			t.Errorf("%s exits %d, want %d", tt.name, got, tt.want)
+		}
+	}
 }

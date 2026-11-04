@@ -51,7 +51,7 @@ The script picks the build from what the server is:
 
 - Without `--join`, the server becomes a control server, and gets the full build.
 - With `--join`, it joins, and gets the agent build. A release from before there were two builds, such as `--version 0.2.0`, has only the full build, which runs the agent too.
-- A server that already runs Dockwell keeps the build it has when it upgrades. Servers that joined with v0.1.0 or v0.2.0 run the full build, and keep it.
+- A server that has joined gets the agent build when it upgrades. Servers that joined with v0.1.0 or v0.2.0 run the full build, which runs the agent too, so their next upgrade switches them to the agent build, and the script says so.
 - A control server always gets the full build, and a server with the agent build that never joined, run again without `--join`, becomes a control server like any first install.
 
 `dockwell version` says which build is installed.
@@ -79,7 +79,7 @@ The service sets `GOMEMLIMIT=200MiB`, a soft limit on the memory the Go runtime 
 
 ## Upgrade
 
-Run the same command again. If a newer release is out, the script verifies and installs it, then restarts the service. It keeps the [build](#two-builds) the server has, and your data stays where it is. If you already have the latest, it changes nothing and doesn't restart the service.
+Run the same command again. If a newer release is out, the script verifies and installs it, then restarts the service. A control server keeps the full [build](#two-builds), a server that has joined gets the agent build, switching to it if it joined with the full build, and your data stays where it is. If you already have the latest, in the build the server needs, it changes nothing and doesn't restart the service.
 
 Pass `--version 0.2.0` to install a particular release instead of the latest.
 
@@ -231,10 +231,12 @@ Everything runs from one function call on its last line, so a download that is c
 
 The Install workflow ([`.github/workflows/install.yml`](../.github/workflows/install.yml)) runs on every pull request against a release snapshot built from that commit. The snapshot is laid out as releases and signed with a throwaway key, so no published release is needed.
 
-- **Containers**: stock Debian 13, Ubuntu 26.04, AlmaLinux 9 and Alpine 3.24 images, on amd64 and arm64. Each one installs an older build, refuses a tampered archive and a bad signature, upgrades in place to the full build, runs again with nothing to do, and uninstalls. Then it joins a control plane, gets the agent build and runs only the agent. Last, it joins with the older build, which stands in for a release from before the agent build and has only the full build, and upgrades: the server keeps the full build, and its agent connects again. systemd isn't running in these containers, so the unit is checked with `systemd-analyze verify` and the binary started the way the unit says. Alpine runs the OpenRC service for real, and uses busybox `wget` instead of curl.
+- **Containers**: stock Debian 13, Ubuntu 26.04, AlmaLinux 9 and Alpine 3.24 images, on amd64 and arm64. Each one installs an older build, refuses a tampered archive and a bad signature, upgrades in place to the full build, runs again with nothing to do, and uninstalls. Then it joins a control plane, beside the key a failed first start as a control server leaves, gets the agent build and runs only the agent. Last, it joins with the older build, which stands in for a release from before the agent build and has only the full build, and upgrades: the server switches to the agent build, its agent connects again, and running the script again keeps it. systemd isn't running in these containers, so the unit is checked with `systemd-analyze verify` and the binary started the way the unit says. Alpine runs the OpenRC service for real, and uses busybox `wget` instead of curl.
 - **Mirror**: in the same containers, the install and upgrade run again through a mirror on a second URL, with GitHub and Sigstore cut off. A cosign, archive or signature changed on the mirror is refused, and so is a version the mirror lacks. The test releases are signed with a key, which needs no trust root, so the upgrade comes from a mirror that carries none. The script's own steps that find the trust root on a mirror are tested on their own, through a mirror that answers 404 for a missing file, one that answers 403 as storage buckets do, and a `file://` path: a release without its own copy takes the latest release's, a changed copy is refused, and the latest release's copy is fetched once. A keyless signature from Sigstore's public instance verifies offline against the pinned trust root.
 - **systemd**: the same steps on the runner's own Ubuntu 24.04, where systemd is running, so the service really starts, restarts and stops.
 - **Install time**: every night, an install to a running panel with the install and the service held to one CPU, which fails at 60 s. It runs once with main's snapshot, and once with the latest published release, checked as a server would check it.
+
+The Go tests, which `make check` and CI run, test the script's own steps that pick the build ([`internal/cli/install_script_test.go`](../internal/cli/install_script_test.go)): against data directories of each kind of server, with a stand-in for the installed binary that is run once, and against `dockwell run`'s own test for a control plane.
 
 Run the container tests locally with `make install-test`, which needs Docker and cosign v3. The scenario itself is [`scripts/install-test/run.sh`](../scripts/install-test/run.sh).
 

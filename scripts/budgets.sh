@@ -26,7 +26,8 @@
 # commit from before there were two builds has no agent build: without
 # BASELINE_AGENT, the baseline's agent runs BASELINE, the full build, as a
 # server that joined ran then, and the comparison says so. footprint-comment.yml
-# posts the comparison on pull requests. Only this build's runs can fail the
+# posts the comparison on pull requests, with the sentence that says which
+# build each figure came from, from the JSON. Only this build's runs can fail the
 # check: when a run of the baseline fails, its logs are shown and there's no
 # comparison.
 #
@@ -317,12 +318,14 @@ if ((agent_rss >= agent_warn && agent_rss < agent_budget)); then
   fi
 fi
 comparison=
-# A baseline without an agent build compares its full build, as an agent.
-like=
-builds="Each agent ran its commit's agent build, and each control plane its full build."
+# builds says which build each figure came from, for the job summary, and in
+# budgets.json for footprint-comment.yml, which posts it as it is. A baseline
+# without an agent build compares its full build, as an agent.
+builds="The agent ran the agent build, and the control plane the full build."
 if [[ -n $baseline && $baseline_agent_build == full ]]; then
-  like="$baseline_name has no agent build, so its agent figure is its full build running as an agent, as a server that joined ran it then."
-  builds="Each control plane ran its commit's full build, and this build's agent its agent build. $like"
+  builds="Each control plane ran its commit's full build. $baseline_name has no agent build, so its agent figure is its full build running as an agent, as a server that joined ran it then, against this commit's agent build."
+elif [[ -n $baseline ]]; then
+  builds="Each agent ran its commit's agent build, and each control plane its full build."
 fi
 if [[ -n $baseline ]]; then
   # Plain variables: shellcheck 0.9, as CI runs it, can't parse an
@@ -341,7 +344,7 @@ EOF
   )
   echo
   echo "$comparison"
-  [[ -z $like ]] || echo "$like"
+  echo "$builds"
 fi
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {
@@ -386,6 +389,15 @@ figures() {
   printf '%s"agent_rss_runs_bytes": [%s],\n%s"control_rss_runs_bytes": [%s]' \
     "$in" "${of[agent_rss_runs]}" "$in" "${of[control_rss_runs]}"
 }
+# json_string prints $1 as a JSON string.
+json_string() {
+  local text=$1
+  text=${text//\\/\\\\}
+  text=${text//\"/\\\"}
+  text=${text//$'\t'/\\t}
+  text=${text//$'\n'/\\n}
+  printf '"%s"' "$text"
+}
 if [[ -n "$out" ]]; then
   {
     echo "{"
@@ -397,6 +409,7 @@ if [[ -n "$out" ]]; then
       echo
       echo "  },"
     fi
+    printf '  "builds": %s,\n' "$(json_string "$builds")"
     printf '  "settle_seconds": %s,\n  "stagger_seconds": %s,\n  "runs": %s,\n' "$settle" "$stagger" "$runs"
     printf '  "agent_budget_bytes": %s,\n  "agent_warn_bytes": %s,\n  "control_budget_bytes": %s\n' \
       "$agent_budget" "$agent_warn" "$control_budget"

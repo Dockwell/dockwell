@@ -37,6 +37,7 @@ var agentPackages = []string{
 	"internal/agent/enroll",
 	"internal/buildinfo",
 	"internal/cli",
+	"internal/cli/apinames", // the API commands' names, to say they're in the full build
 	"internal/datadir",
 	"internal/human",
 	"internal/logging",

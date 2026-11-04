@@ -14,9 +14,11 @@ GOTOOL    := go tool -modfile=tools/go.mod
 BIN       := bin/dockwell
 AGENT_BIN := bin/dockwell-agent
 # The packages the agent build links, which vet, lint and test again with its
-# tag. Set only where a target needs it.
-AGENT_PKGS = $(shell scripts/agent-packages.sh)
-GENERATED := gen packages/api/src/gen internal/cli/apicmd internal/control/apidoc/openapi.yaml packages/ui/src/tokens.ts packages/ui/src/styles/tokens.css web/src/routeTree.gen.ts
+# tag. go list finds them once per make run, the first time a target needs
+# them: that expansion makes AGENT_PKGS simply expanded, holding what it found.
+# A make run that needs none, such as make build, never runs it.
+AGENT_PKGS = $(eval AGENT_PKGS := $$(shell scripts/agent-packages.sh))$(AGENT_PKGS)
+GENERATED := gen packages/api/src/gen internal/cli/apicmd internal/cli/apinames internal/control/apidoc/openapi.yaml packages/ui/src/tokens.ts packages/ui/src/styles/tokens.css web/src/routeTree.gen.ts
 # The OpenAPI document for the REST paths (docs/adr/0015-rest-and-openapi-from-the-schema.md).
 OPENAPI   := gen/openapi/openapi.yaml
 

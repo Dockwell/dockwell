@@ -16,11 +16,13 @@
 #      verify a keyless signature from Sigstore's public instance offline,
 #      against the pinned trust root.
 #   3. A server that joins: install with a ticket from a control plane that
-#      runs beside it, check it gets the agent build, runs only the agent and
-#      connects, uninstall.
+#      runs beside it, over what a failed first start as a control server
+#      leaves, which isn't a control plane yet. Check it gets the agent build,
+#      runs only the agent and connects, uninstall.
 #   4. A server that joined with the older release, which has only the full
-#      build: it gets the full build, connects, keeps the full build when it
-#      upgrades, and connects again.
+#      build: it gets the full build, connects, switches to the agent build
+#      when it upgrades, connects again, and keeps the agent build when the
+#      script runs again.
 #
 # When systemd or OpenRC is running, the install script starts the service and
 # this checks it. In a container where systemd is only installed, not running,
@@ -479,14 +481,19 @@ until get "$FIXTURE/healthz" >/dev/null 2>&1; do
 done
 ticket=$("$fixture/dockwell" token create --data-dir "$fixture/data" | awk '$1 == "dockwell" && $2 == "join" { print $3 }')
 [ -n "$ticket" ] || die "dockwell token create printed no ticket"
+# A first start as a control server that failed leaves its new key, which
+# isn't a control plane until the install is on record, so this server can
+# still join, as dockwell join and dockwell run decide it.
+mkdir -p "$DATA/control"
+printf 'a key from a first start that failed' >"$DATA/control/key.new"
 run_install good --join "$ticket" || die "installing with a ticket failed"
 said "Installing the agent build of Dockwell v$NEW"
 said "Joined as"
 build_is agent
-ok "a server that joins gets the agent build"
+ok "a server that joins gets the agent build, beside what a failed first start left"
 start_direct
 [ -e "$DATA/agent/agent.json" ] || die "joining left no identity in $DATA/agent"
-[ ! -e "$DATA/control" ] || die "a server that joined has a control plane"
+if [ -e "$DATA/control/key" ] || [ -e "$DATA/control/state.db" ]; then die "a server that joined has a control plane"; fi
 i=0
 until [ "$(connected_now "$log/fixture.log")" -ge 2 ]; do
 	i=$((i + 1))
@@ -509,7 +516,7 @@ said "already belongs to the control plane at"
 stop_direct
 run_install good --uninstall || die "uninstalling the agent failed"
 
-step "A server that joined with v$OLD keeps the full build"
+step "A server that joined with v$OLD switches to the agent build"
 # v$OLD stands in for a release from before the agent build: it has only the
 # full build, which runs the agent too.
 rm -rf "$DATA"
@@ -532,9 +539,11 @@ done
 ok "v$OLD's full build joined and connected"
 stop_direct
 run_install good || die "upgrading the server that joined with v$OLD failed"
-said "Upgraded $BIN from v$OLD to v$NEW."
+said "Installing the agent build of Dockwell v$NEW"
+said "This server has joined a control plane and runs only its agent, so it switches to the agent build"
+said "Replaced the full build of Dockwell v$OLD in $BIN with the agent build of v$NEW."
 version_is "$NEW"
-build_is full
+build_is agent
 [ "$(server_id)" = "$joined" ] || die "the upgrade changed this server's identity"
 start_direct
 i=0
@@ -545,9 +554,15 @@ until [ "$(connections "$log/fixture.log" "$joined")" -ge 2 ]; do
 done
 if get "$PANEL/healthz" >/dev/null 2>&1; then die "a server that joined serves a panel after its upgrade"; fi
 check_service
-grep '"msg":"server connected"' "$log/fixture.log" | grep "\"server\":\"$joined\"" | tail -n 1 | grep -q '"build":"full"' ||
-	die "the control plane didn't see the full build in the upgraded agent's hello"
-ok "the upgrade kept the full build, and the agent connected again"
+grep '"msg":"server connected"' "$log/fixture.log" | grep "\"server\":\"$joined\"" | tail -n 1 | grep -q '"build":"agent"' ||
+	die "the control plane didn't see the agent build in the upgraded agent's hello"
+ok "the upgrade switched to the agent build, and the agent connected again"
+before=$(pid)
+run_install good || die "running it again after the switch failed"
+said "Dockwell v$NEW is already installed on this server, as the agent build."
+build_is agent
+[ "$(pid)" = "$before" ] || die "running it again after the switch restarted the service"
+ok "running it again keeps the agent build"
 stop_direct
 run_install good --uninstall || die "uninstalling the server that joined with v$OLD failed"
 kill "$fixture_pid" 2>/dev/null || true

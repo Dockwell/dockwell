@@ -32,13 +32,14 @@ And for how to make two builds:
 
 - `dockwell run` runs the agent with the identity `dockwell join` gave it. Without one, it never becomes a control plane: it says this is the agent build, and how to join a control plane, or to get the full build by running the install script without `--join`. On a data directory that holds a control plane, it refuses, and says to install the full build.
 - `dockwell join`, `role` and `version` work as in the full build. Before the server joins, `dockwell role` prints `none`.
-- The commands that run beside the control plane, `dockwell token create`, `claim` and `recover`, each have a stand-in that says they run on the control server. The API commands, such as `dockwell servers list`, and `dockwell login` and `logout`, say they are in the full build, on the control server. Both exit with status 2, as a usage error does.
+- The commands that run beside the control plane, `dockwell token create`, `claim` and `recover`, each have a stand-in that says they run on the control server. The API commands, such as `dockwell servers list`, and `dockwell login` and `logout`, say they are in the full build, on the control server. The agent build knows the API commands by name from `internal/cli/apinames`, which the generator writes from the schema beside them ([ADR 0019](0019-a-cli-generated-from-the-schema.md)), and imports nothing. Both exit with status 2, as a usage error does.
+- Any other command it lacks is a mistake, as in the full build: `dockwell joni` says it isn't a command, with the nearest one there is, `dockwell join`. Shell completion works as in the full build.
 - `--database`, and the control plane's flags of `dockwell run`, such as `--listen` and `--domain`, aren't there.
 - `dockwell version` says which build it is, and `BuildInfo` in the API carries it as `edition`, `BUILD_EDITION_FULL` or `BUILD_EDITION_AGENT`. A build from before there were two, v0.1.0 or v0.2.0, names none, and is the full build. The agent's hello carries its `BuildInfo`, so the control plane knows each server's build: it logs it when the server connects, and serves it as the server's `agent_build`, which the panel can show on the server page.
 
 ### How the agent build stays apart
 
-- In `internal/cli`, each file that reaches the control plane, its store or the API client carries `//go:build !agent`. `edition_full.go` holds the full build's side of the commands, and `edition_agent.go`, with `//go:build agent`, the agent build's stand-ins. Outside `internal/cli`, only `internal/buildinfo` has build tags, to say which build it is.
+- In `internal/cli`, each file that reaches the control plane, its store or the API client carries `//go:build !agent`. `edition_full.go` holds the full build's side of the commands, and `edition_agent.go`, with `//go:build agent`, the agent build's stand-ins. Outside `internal/cli`, only `internal/buildinfo` has build tags, to say which build it is. Of the API commands, the agent build links only `internal/cli/apinames`, their names, and a test of the full build checks those are exactly its API commands.
 - `cmd/dockwell/build_test.go` runs `go list -deps -tags agent` for linux amd64 and arm64, and fails on a package the agent build may not link: one of Dockwell's own that isn't on `agentPackages`, one of another module that isn't on `agentModules`, or one that only the control plane runs, such as `internal/control`, the store, SQLite, pgx, WebAuthn, Vanguard or compose-go. It names the package, says why, and shows the chain of imports that brought it in. A second test checks that the full build still links the control plane, so the build constraints can't have been turned around.
 - `go vet`, golangci-lint and the tests run for both: once as the full build, and again with `-tags agent` for the packages the agent build links (`scripts/agent-packages.sh`), as `make lint`, `make test` and CI do. CI builds both for amd64 and arm64, and a smoke test joins the agent build to a control plane of the full build (`scripts/smoke-agent.sh`).
 
@@ -57,22 +58,22 @@ And for how to make two builds:
 ### The install script
 
 - It picks the build from what the server is, as its data directory says:
-  - A control plane in `/var/lib/dockwell/control`: the full build.
-  - A server that has joined: the build it has. Servers that joined with v0.1.0 or v0.2.0 run the full build, which runs the agent too, and keep it.
+  - A control plane in `/var/lib/dockwell/control`, its key or its SQLite state, as `dockwell run` decides it: the full build. A first start that failed can leave only `control/key.new`, which isn't a control plane yet.
+  - A server that has joined, with an agent's identity and no control plane: the agent build, whichever build it has, since that runs everything such a server runs. Servers that joined with v0.1.0 or v0.2.0 run the full build, which runs the agent too, so their next upgrade switches them to the agent build, and says so.
   - Otherwise, with `--join`: the agent build. Without it, the server becomes a control server: the full build. So a server with the agent build that never joined, run again without `--join`, becomes a control server, as any first install does.
-- It reads the installed build from `dockwell version --json`, and takes a binary that names none for the full build, which v0.1.0 and v0.2.0 are.
+- It reads the installed version and build from one run of `dockwell version --json`, which every release has, and takes a binary that names no edition for the full build, which v0.1.0 and v0.2.0 are.
 - A release with no agent build, such as `--version 0.2.0 --join <ticket>`, gets the full build, and the script says so.
 - Verification doesn't change: the same signed checksums list both builds' archives, and the archive must match them.
 
 ### Memory budgets
 
 - `scripts/budgets.sh` measures each budget with the build that runs it: an agent on its own with the agent build, joined to a control plane, and a control plane with its own agent, in one process, with the full build.
-- On a pull request, it measures main's two builds beside the pull request's. A main from before there was an agent build has only the full build, so its agent figure is its full build running as an agent, which is what a server that joined ran then. The comparison says so, in the job summary and, once this is on main, in the footprint comment. That happens once: for the pull request that adds the agent build.
+- On a pull request, it measures main's two builds beside the pull request's. A main from before there was an agent build has only the full build, so its agent figure is its full build running as an agent, which is what a server that joined ran then. `budgets.sh` says so in one sentence, in the job summary and in `budgets.json`, which the footprint comment posts as it is, once this is on main. That happens once: for the pull request that adds the agent build.
 
 ### Later work, recorded now
 
-- **Self-updates.** When agents update themselves from signed releases (PRD), each updates to the build it runs, which it knows from its own `buildinfo`: the agent build to a `dockwell-agent_` archive, and the full build to a `dockwell_` archive. A server that joined with the full build keeps it, as the install script keeps it. The control server's own agent runs in the full build's process, so it updates with the control plane.
-- **Moving the control plane.** The plan that moves it (PRD: "Move control plane") installs the full build on the server it moves to, as one of its steps, before the control plane starts there. Promoting an agent with `dockwell control restore` does the same, since the agent build has no control plane to restore. A server that merges into another install (PRD: "Connect to another Dockwell") becomes an agent, and keeps the full build it has.
+- **Self-updates.** When agents update themselves from signed releases (PRD), each picks the build as the install script does: a server that has joined, with no control plane, updates to the agent build, a `dockwell-agent_` archive, so one that joined with the full build switches then too. The control server's own agent runs in the full build's process, so it updates with the control plane, to a `dockwell_` archive.
+- **Moving the control plane.** The plan that moves it (PRD: "Move control plane") installs the full build on the server it moves to, as one of its steps, before the control plane starts there. Promoting an agent with `dockwell control restore` does the same, since the agent build has no control plane to restore. A server that merges into another install (PRD: "Connect to another Dockwell") becomes an agent. It keeps the full build while its data directory still holds a control plane, and gets the agent build at the first upgrade after that, as any server that has joined does.
 
 ## Consequences
 

@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -333,5 +334,53 @@ func TestGenerateNamesFlagsFromTheOption(t *testing.T) {
 	}
 	if len(flags) != len(want) {
 		t.Errorf("fields named token: %v, want %v", flags, want)
+	}
+}
+
+func TestGenerateNamesNamesEveryCommand(t *testing.T) {
+	p := plugin(t, request(t))
+	if err := GenerateNames(p); err != nil {
+		t.Fatal(err)
+	}
+	res := p.Response()
+	if res.Error != nil || len(res.GetFile()) != 1 || res.GetFile()[0].GetName() != NamesFile {
+		t.Fatalf("GenerateNames wrote %v, error %v", res.GetFile(), res.GetError())
+	}
+	src := res.GetFile()[0].GetContent()
+	if !strings.HasPrefix(src, headerLicense+"\n") || !strings.Contains(src, generatedNotice) {
+		t.Errorf("the output doesn't start with the license and the generated notice:\n%.200s", src)
+	}
+	f, err := parser.ParseFile(token.NewFileSet(), NamesFile, src, parser.AllErrors)
+	if err != nil {
+		t.Fatalf("the output isn't Go: %v", err)
+	}
+	// The agent build links it, so it must bring nothing with it.
+	if len(f.Imports) > 0 {
+		t.Errorf("the output imports %d packages, want none", len(f.Imports))
+	}
+	methods, nouns, err := Methods(plugin(t, request(t)))
+	if err != nil || len(methods) == 0 {
+		t.Fatalf("Methods = %d methods, error %v", len(methods), err)
+	}
+	kinds, err := Kinds(plugin(t, request(t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := make([]string, 0, len(nouns)+len(kinds))
+	for _, n := range nouns {
+		want = append(want, n.Name)
+	}
+	for _, k := range kinds {
+		want = append(want, k.Noun)
+	}
+	for _, name := range want {
+		if strings.Count(src, strconv.Quote(name)+",") != 1 {
+			t.Errorf("the output doesn't name dockwell %s once", name)
+		}
+	}
+	for _, name := range []string{"servers", "api-tokens", "firewall-rules"} {
+		if !slices.Contains(want, name) {
+			t.Errorf("the schema has no dockwell %s", name)
+		}
 	}
 }

@@ -175,20 +175,53 @@ func TestTheAgentBuildSaysWhereItsOtherCommandsAre(t *testing.T) {
 		{[]string{"token", "create", "--ttl", "1h"}, "dockwell token create isn't in the agent build of dockwell, which this server runs: it runs on the control server"},
 		{[]string{"claim"}, "dockwell claim isn't in the agent build"},
 		{[]string{"recover", "--help"}, "dockwell recover isn't in the agent build"},
-		{[]string{"servers", "list"}, `"servers" isn't a command of the agent build of dockwell, which this server runs. The control plane's commands`},
-		{[]string{"login", "--url", "https://dockwell.example.com"}, `"login" isn't a command of the agent build`},
-		{[]string{"deploy-everything"}, `"deploy-everything" isn't a command of the agent build`},
+		{[]string{"servers", "list"}, "dockwell servers list isn't in the agent build of dockwell, which this server runs: " +
+			"the API commands, with dockwell login and logout, are in the full build. Run it on the control server"},
+		{[]string{"--log-level", "debug", "firewall-rules", "create", "--name", "ssh"}, "dockwell firewall-rules create isn't in the agent build"},
+		{[]string{"login", "--url", "https://dockwell.example.com"}, "dockwell login isn't in the agent build"},
+		// Anything else isn't a command of either build.
+		{[]string{"deploy-everything"}, `unknown command "deploy-everything". Run "dockwell --help" to see the commands`},
+		{[]string{"joni", "dwj1.anything"}, `unknown command "joni", though there is dockwell join. Run "dockwell --help" to see the commands`},
+		{[]string{"servrs"}, `unknown command "servrs". Run "dockwell --help"`},
 	} {
 		t.Run(tt.args[0], func(t *testing.T) {
 			r := run(t, nil, tt.args...)
 			if r.code != exitUsage || !strings.Contains(r.err, tt.want) {
 				t.Errorf("dockwell %s = %d %q, want %d and %q", strings.Join(tt.args, " "), r.code, r.err, exitUsage, tt.want)
 			}
+			if !strings.HasPrefix(tt.want, "dockwell ") && strings.Contains(r.err, "full build") {
+				t.Errorf("dockwell %s says a command the full build doesn't have is in it: %q", strings.Join(tt.args, " "), r.err)
+			}
 		})
 	}
 	// The flag only the control plane reads isn't there either.
 	if r := run(t, nil, "--database", "postgres://db/dockwell", "role"); r.code != exitUsage || !strings.Contains(r.err, "unknown flag: --database") {
 		t.Errorf("--database = %d %q, want an unknown flag", r.code, r.err)
+	}
+}
+
+// cobra adds completion and __complete as it runs, after the agent build
+// has looked for commands it lacks, and they work as in the full build.
+func TestTheAgentBuildCompletesCommands(t *testing.T) {
+	if r := run(t, nil, "completion", "bash"); r.code != exitOK || !strings.Contains(r.out, "bash completion V2 for dockwell") {
+		t.Errorf("completion bash = %d %q %.100q, want a bash completion script", r.code, r.err, r.out)
+	}
+	r := run(t, nil, "__complete", "")
+	if r.code != exitOK {
+		t.Fatalf("__complete = %d %q", r.code, r.err)
+	}
+	for _, want := range []string{"join\t", "role\t", "run\t", "version\t", ":4\n"} {
+		if !strings.Contains(r.out, want) {
+			t.Errorf("__complete doesn't complete %q:\n%s", strings.TrimSuffix(want, "\t"), r.out)
+		}
+	}
+	for _, banned := range []string{"token", "claim", "recover", "servers", "login"} {
+		if strings.Contains(r.out, "\n"+banned+"\t") {
+			t.Errorf("__complete offers %s, which the agent build doesn't have:\n%s", banned, r.out)
+		}
+	}
+	if r := run(t, nil, "__completeNoDesc", "jo"); r.code != exitOK || !strings.HasPrefix(r.out, "join\n") {
+		t.Errorf("__completeNoDesc jo = %d %q %q, want join", r.code, r.err, r.out)
 	}
 }
 

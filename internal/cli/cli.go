@@ -86,10 +86,17 @@ func Execute(ctx context.Context, args []string, stdio IO) int {
 		return exitOK
 	}
 	fmt.Fprintf(stdio.Err, "dockwell: %s\n", err)
+	return exitCode(err)
+}
+
+// exitCode is the process exit code for an error from a command. A usage
+// error, the CLI's own or an API command's, comes first, then an exit code
+// of the CLI's own, then an API command's.
+func exitCode(err error) int {
 	var usage usageError
 	var coded exitCodeError
 	switch {
-	case errors.As(err, &usage):
+	case errors.As(err, &usage), apiUsage(err):
 		return exitUsage
 	case errors.As(err, &coded):
 		return coded.code
@@ -98,6 +105,16 @@ func Execute(ctx context.Context, args []string, stdio IO) int {
 		return code
 	}
 	return exitError
+}
+
+// unknownCommand explains a command that isn't one, and names the nearest
+// command there is, when one is near.
+func unknownCommand(root *cobra.Command, name string) error {
+	msg := fmt.Sprintf("unknown command %q", name)
+	if near := root.SuggestionsFor(name); len(near) > 0 {
+		msg += ", though there is dockwell " + near[0]
+	}
+	return usageError{fmt.Errorf("%s. Run %q to see the commands", msg, "dockwell --help")}
 }
 
 // usageTemplate replaces cobra's default help layout with one that follows
@@ -172,6 +189,8 @@ func newServerCmd(stdio IO) (*cobra.Command, *globalFlags) {
 		SilenceUsage:      true,
 		SilenceErrors:     true,
 		CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
+		// A command two letters off, as "joni" for join, is named.
+		SuggestionsMinimumDistance: 2,
 	}
 	root.SetOut(stdio.Out)
 	root.SetErr(stdio.Err)
@@ -199,7 +218,7 @@ func newServerCmd(stdio IO) (*cobra.Command, *globalFlags) {
 	// Unknown subcommands are usage errors, with a pointer to the help.
 	root.Args = func(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 {
-			return unknownCommand(args[0])
+			return unknownCommand(cmd, args[0])
 		}
 		return nil
 	}

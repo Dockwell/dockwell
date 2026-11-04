@@ -30,6 +30,13 @@ plugins:
   - local: [go, run, ./cmd/protoc-gen-dockwell-cli]
     out: internal/cli/apicmd
     strategy: all
+  # Only those commands' names, in a package that imports nothing, for the
+  # agent build, which has none of them, to say they are in the full build
+  # (ADR 0023).
+  - local: [go, run, ./cmd/protoc-gen-dockwell-cli]
+    out: internal/cli/apinames
+    strategy: all
+    opt: output=names
   # The OpenAPI document for the REST paths (ADR 0015), in gen/openapi.
   - local: [go, tool, -modfile=tools/go.mod, protoc-gen-openapi]
     out: gen/openapi

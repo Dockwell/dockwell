@@ -13,7 +13,9 @@
 #
 #   curl -fsSL https://get.dockwell.dev | sh -s -- --join <ticket>
 #
-# Running it again upgrades in place, and keeps the build the server has.
+# Running it again upgrades in place. A control server keeps the full build,
+# and a server that joined with the full build, before there was an agent
+# build, switches to the agent build.
 # `--uninstall` removes Dockwell and leaves your workloads and data where they
 # are. Run it with --help for the options, and see docs/install.md.
 #
@@ -87,8 +89,9 @@ Options:
   -h, --help           show this help
 
 Without --join, this server becomes a control server: it runs the control
-plane and its own agent, with the full build. An upgrade keeps the build the
-server has. Run as root. See
+plane and its own agent, with the full build. On upgrade, a server that has
+joined one gets the agent build, and a control server keeps the full build.
+Run as root. See
 https://github.com/Dockwell/dockwell/blob/main/docs/install.md
 EOF
 }
@@ -249,38 +252,50 @@ check_tools() {
 	fi
 }
 
-# installed_version prints the version of the installed binary, without its v.
-installed_version() {
+# read_installed sets installed_version to the installed binary's version,
+# without its v, and installed_build to which build it is, agent or full,
+# from one run of dockwell version --json. Both are empty when no dockwell
+# runs here. Every dockwell has --json, since the command came with it,
+# before this script and v0.1.0. Releases from before there were two builds,
+# v0.1.0 and v0.2.0, name no edition in it: they are the full build.
+read_installed() {
+	installed_version=
+	installed_build=
 	[ -x "$BIN" ] || return 0
-	"$BIN" version 2>/dev/null </dev/null | sed -n 's/^dockwell  *v\{0,1\}//p'
-}
-
-# installed_build prints which build of dockwell is installed, agent or full,
-# or nothing when none runs here. Releases from before there were two builds,
-# v0.1.0 and v0.2.0, name none in dockwell version --json: they are the full
-# build.
-installed_build() {
-	[ -n "$(installed_version)" ] || return 0
-	case $("$BIN" version --json 2>/dev/null </dev/null) in
-	*'"BUILD_EDITION_AGENT"'*) say agent ;;
-	*) say full ;;
+	json=$("$BIN" version --json 2>/dev/null </dev/null) || return 0
+	installed_version=$(printf '%s\n' "$json" | sed -n 's/^[[:space:]]*"version":[[:space:]]*"v\{0,1\}\([^"]*\)".*/\1/p' | head -n 1)
+	[ -n "$installed_version" ] || return 0
+	case $json in
+	*'"BUILD_EDITION_AGENT"'*) installed_build=agent ;;
+	*) installed_build=full ;;
 	esac
 }
 
+# has_control_plane is true when the data directory holds a control plane, as
+# dockwell run and dockwell role decide it (hasControlPlane, in
+# internal/cli/role.go): its key, which every control plane has, or its SQLite
+# state. A first start that failed can leave only control/key.new, which isn't
+# one yet.
+has_control_plane() {
+	[ -e "$DATA/control/key" ] || [ -e "$DATA/control/state.db" ]
+}
+
 # pick_build sets build to the build of dockwell this server runs. A control
-# server runs the full build, which has the control plane, and a server that
-# joins runs the agent build, which has only the agent. A server that already
-# joined keeps the build it has: one that joined before there was an agent
-# build runs the full build, which runs the agent too. The data directory
-# says what the server is, as dockwell role reads it: a control plane keeps
-# its state in $DATA/control, and an agent its identity in $DATA/agent.
+# server runs the full build, which has the control plane, and every server
+# that joins runs the agent build, which has only the agent. One that joined
+# before there was an agent build runs the full build, which runs the agent
+# too, so it switches, and build_note says so. The data directory says what
+# the server is, as dockwell role reads it: a control plane keeps its state in
+# $DATA/control, and an agent its identity in $DATA/agent. read_installed runs
+# first.
 pick_build() {
-	installed_build=$(installed_build)
-	if [ -d "$DATA/control" ]; then
+	if has_control_plane; then
 		build=full
-	elif [ -n "$installed_build" ] && [ -e "$DATA/agent/agent.json" ]; then
-		build=$installed_build
-	elif [ -n "$ticket" ] || [ -e "$DATA/agent/agent.json" ]; then
+	elif [ -e "$DATA/agent/agent.json" ]; then
+		build=agent
+		[ "$installed_build" != full ] ||
+			build_note="This server has joined a control plane and runs only its agent, so it switches to the agent build, which idles in about a third less memory."
+	elif [ -n "$ticket" ]; then
 		build=agent
 	else
 		build=full
@@ -712,10 +727,11 @@ install_dockwell() {
 	if serves_panel; then
 		check_listen
 	fi
-	pick_build
+	read_installed
 	build_note=
+	pick_build
 	resolve
-	current=$(installed_version)
+	current=$installed_version
 	changed=
 	if [ "$current" = "$version" ] && [ "$installed_build" = "$build" ]; then
 		say "Dockwell v$version is already installed on this server, as the $build build."
