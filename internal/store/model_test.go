@@ -289,3 +289,24 @@ func TestUpgradeKeepsM1Revisions(t *testing.T) {
 		})
 	})
 }
+
+// Resume lists the changes left applying on every start, every connect and
+// every wakeup, so the list comes from an index on the state: not from
+// reading every change there ever was.
+func TestChangesInAStateComeFromAnIndex(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		var plan string
+		if err := db.View(t.Context(), func(tx *store.Tx) (err error) {
+			plan, err = store.ChangesInPlanForTest(t.Context(), tx, store.ChangeApplying)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		// The state is a condition of the index, not a filter on each row.
+		want := map[store.Backend]string{store.SQLite: "changes_by_state (state=?)", store.Postgres: "Index Cond: (state = "}[b]
+		if !strings.Contains(plan, want) {
+			t.Errorf("listing the changes left applying runs as\n%s\nwant it to look the state up in an index (%q)", plan, want)
+		}
+	})
+}

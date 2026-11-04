@@ -306,9 +306,14 @@ func (t *RevisionTx) SetChangeState(ctx context.Context, changeID, state, errTex
 	return nil
 }
 
+// changesIn lists the changes in a state, oldest first. The index
+// changes_by_state answers it, as Resume runs it on every start, every
+// connect and every wakeup.
+const changesIn = `SELECT id FROM changes WHERE state = ? ORDER BY created_at, id`
+
 // ChangesIn returns the IDs of changes in a state, oldest first.
 func (t *Tx) ChangesIn(ctx context.Context, state string) ([]string, error) {
-	rows, err := t.query(ctx, `SELECT id FROM changes WHERE state = ? ORDER BY created_at, id`, state)
+	rows, err := t.query(ctx, changesIn, state)
 	if err != nil {
 		return nil, fmt.Errorf("can't list changes: %w", err)
 	}

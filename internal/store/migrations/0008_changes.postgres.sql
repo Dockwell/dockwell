@@ -8,6 +8,8 @@ ALTER TABLE changes ADD CONSTRAINT changes_state_check
 
 CREATE INDEX changes_newest ON changes (created_at, id);
 CREATE INDEX changes_reverts ON changes (reverts);
+-- Resume lists the changes left applying on every start, connect and wakeup.
+CREATE INDEX changes_by_state ON changes (state, created_at, id);
 
 DROP TRIGGER changes_keep_their_plan ON changes;
 CREATE TRIGGER changes_keep_their_plan BEFORE UPDATE OF id, summary, actor, reverts, fingerprint, plan, created_at, proposed_via ON changes FOR EACH ROW

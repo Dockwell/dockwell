@@ -2,7 +2,11 @@
 
 package store
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"strings"
+)
 
 // For the store's tests, which live in package store_test so they can use
 // storetest.
@@ -34,4 +38,40 @@ func OpenAt(ctx context.Context, location string, version int) (*DB, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+// ChangesInPlanForTest says how the database would run ChangesIn's query,
+// as the planner would with a table too big to read whole: Postgres is told
+// to avoid reading the whole table where it can, since a test's table is
+// small enough that it would.
+func ChangesInPlanForTest(ctx context.Context, tx *Tx, state string) (string, error) {
+	explain := "EXPLAIN QUERY PLAN "
+	if tx.dialect.backend == Postgres {
+		if _, err := tx.tx.ExecContext(ctx, `SET LOCAL enable_seqscan = off`); err != nil {
+			return "", err
+		}
+		explain = "EXPLAIN "
+	}
+	rows, err := tx.query(ctx, explain+changesIn, state)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	cols, err := rows.Columns()
+	if err != nil {
+		return "", err
+	}
+	var plan strings.Builder
+	for rows.Next() {
+		vals := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			return "", err
+		}
+		fmt.Fprintln(&plan, vals[len(vals)-1])
+	}
+	return plan.String(), rows.Err()
 }
