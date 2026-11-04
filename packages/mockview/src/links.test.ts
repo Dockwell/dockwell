@@ -2,7 +2,19 @@
 
 import { describe, expect, it } from "vitest";
 
-import { artboardLink, decodePart, frameUrl, isOpenMessage, OPEN_MESSAGE, parseViewerHash, viewerHash } from "./links";
+import {
+  artboardLink,
+  decodePart,
+  frameUrl,
+  isKeyMessage,
+  isOpenMessage,
+  KEY_MESSAGE,
+  OPEN_MESSAGE,
+  parseViewerHash,
+  type Shortcut,
+  shortcutFor,
+  viewerHash,
+} from "./links";
 
 describe("artboardLink", () => {
   it("finds the artboard a link inside a mock points at", () => {
@@ -49,5 +61,69 @@ describe("URLs", () => {
     expect(isOpenMessage({ type: OPEN_MESSAGE, file: "A.dc.html", hash: "" })).toBe(true);
     expect(isOpenMessage({ type: OPEN_MESSAGE, file: 1 })).toBe(false);
     expect(isOpenMessage("x")).toBe(false);
+    expect(isKeyMessage({ type: KEY_MESSAGE, shortcut: "next" })).toBe(true);
+    expect(isKeyMessage({ type: KEY_MESSAGE, shortcut: "reload" })).toBe(false);
+    expect(isKeyMessage({ type: OPEN_MESSAGE, shortcut: "back" })).toBe(false);
+  });
+});
+
+describe("shortcutFor", () => {
+  /** Presses a key on an element, as a person would, and returns the shortcut the document sees. */
+  function press(target: Element, init: KeyboardEventInit, handled = false): Shortcut | null {
+    let seen: Shortcut | null = null;
+    const handle = (event: Event) => event.preventDefault();
+    const read = (event: KeyboardEvent) => {
+      seen = shortcutFor(event);
+    };
+    if (handled) target.addEventListener("keydown", handle);
+    document.addEventListener("keydown", read);
+    target.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }));
+    document.removeEventListener("keydown", read);
+    target.removeEventListener("keydown", handle);
+    return seen;
+  }
+
+  function place(html: string): HTMLElement {
+    const box = document.createElement("div");
+    box.innerHTML = html;
+    document.body.append(box);
+    return box;
+  }
+
+  it("turns the arrow keys and Escape into the viewer's shortcuts", () => {
+    const box = place(`<button type="button">x</button>`);
+    const button = box.querySelector("button") as Element;
+    expect(press(button, { key: "ArrowLeft" })).toBe("previous");
+    expect(press(button, { key: "ArrowRight" })).toBe("next");
+    expect(press(button, { key: "Escape" })).toBe("back");
+    expect(press(button, { key: "ArrowUp" })).toBeNull();
+    expect(press(button, { key: "constructor" })).toBeNull();
+    expect(press(document.body, { key: "Escape" })).toBe("back");
+    box.remove();
+  });
+
+  it("leaves keys with a modifier, and keys the page already handled, alone", () => {
+    const box = place(`<button type="button">x</button>`);
+    const button = box.querySelector("button") as Element;
+    expect(press(button, { key: "ArrowLeft", altKey: true })).toBeNull();
+    expect(press(button, { key: "ArrowLeft", metaKey: true })).toBeNull();
+    expect(press(button, { key: "ArrowRight", ctrlKey: true })).toBeNull();
+    expect(press(button, { key: "ArrowRight" }, true)).toBeNull();
+    box.remove();
+  });
+
+  it("leaves typing alone, in form fields and in editable content", () => {
+    const box = place(
+      `<input><textarea></textarea><select><option>a</option></select>` +
+        `<div contenteditable="true"><b>rich</b></div><p contenteditable>plain</p>` +
+        `<div contenteditable="false"><i>fixed</i></div>`,
+    );
+    for (const selector of ["input", "textarea", "select", "b", "p"]) {
+      const target = box.querySelector(selector) as Element;
+      expect({ selector, shortcut: press(target, { key: "ArrowLeft" }) }).toEqual({ selector, shortcut: null });
+      expect({ selector, shortcut: press(target, { key: "Escape" }) }).toEqual({ selector, shortcut: null });
+    }
+    expect(press(box.querySelector("i") as Element, { key: "Escape" })).toBe("back");
+    box.remove();
   });
 });

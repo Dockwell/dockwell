@@ -3,7 +3,17 @@
 import { applyThemePreference, Button, Icon, Logo } from "@dockwell/ui";
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import { frameUrl, isOpenMessage, parseViewerHash, type ThemeChoice, type ViewerRoute, viewerHash } from "../links";
+import {
+  frameUrl,
+  isKeyMessage,
+  isOpenMessage,
+  parseViewerHash,
+  type Shortcut,
+  shortcutFor,
+  type ThemeChoice,
+  type ViewerRoute,
+  viewerHash,
+} from "../links";
 import { type Board, boards, findBoard, pages } from "../mocks";
 
 function subscribeHash(onChange: () => void) {
@@ -181,16 +191,18 @@ function BoardView({
   );
 
   useEffect(() => {
+    const run = (shortcut: Shortcut | null) => {
+      if (shortcut === "previous" && prev) open(prev.file);
+      else if (shortcut === "next" && next) open(next.file);
+      else if (shortcut === "back") navigate({ file: null, theme: route.theme, hash: "" });
+    };
+    // The frame sends links to other artboards, and the shortcut keys pressed while it has focus.
     const onMessage = (event: MessageEvent) => {
-      if (event.origin === location.origin && isOpenMessage(event.data)) open(event.data.file, event.data.hash);
+      if (event.origin !== location.origin) return;
+      if (isOpenMessage(event.data)) open(event.data.file, event.data.hash);
+      else if (isKeyMessage(event.data)) run(event.data.shortcut);
     };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select")) return;
-      if (event.altKey || event.ctrlKey || event.metaKey) return;
-      if (event.key === "ArrowLeft" && prev) open(prev.file);
-      else if (event.key === "ArrowRight" && next) open(next.file);
-      else if (event.key === "Escape") navigate({ file: null, theme: route.theme, hash: "" });
-    };
+    const onKey = (event: KeyboardEvent) => run(shortcutFor(event));
     window.addEventListener("message", onMessage);
     window.addEventListener("keydown", onKey);
     return () => {

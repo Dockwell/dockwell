@@ -12,7 +12,17 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
 import { MockLibrary, type Problem } from "../format/render";
-import { artboardLink, decodePart, frameUrl, OPEN_MESSAGE, type OpenMessage, parseTheme } from "../links";
+import {
+  artboardLink,
+  decodePart,
+  frameUrl,
+  KEY_MESSAGE,
+  type KeyMessage,
+  OPEN_MESSAGE,
+  type OpenMessage,
+  parseTheme,
+  shortcutFor,
+} from "../links";
 import { loadMock } from "../mocks";
 import { installDesignSystem } from "../runtime/design-system";
 
@@ -62,6 +72,16 @@ document.addEventListener("click", (event) => {
   } else {
     location.assign(frameUrl(link.file, choice, link.hash));
   }
+});
+
+// The viewer's shortcut keys keep working once the mock has focus: inside a
+// frame, key presses never reach the viewer's window, so they're passed on.
+document.addEventListener("keydown", (event) => {
+  if (window.parent === window) return;
+  const shortcut = shortcutFor(event);
+  if (!shortcut) return;
+  const message: KeyMessage = { type: KEY_MESSAGE, shortcut };
+  window.parent.postMessage(message, location.origin);
 });
 
 async function main() {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// URLs shared by the viewer and the frame that renders one artboard.
+// URLs and messages shared by the viewer and the frame that renders one artboard.
 
 /** An explicit theme, or null for the theme each artboard is drawn in. */
 export type ThemeChoice = "light" | "dark" | null;
@@ -18,6 +18,52 @@ export function isOpenMessage(data: unknown): data is OpenMessage {
   if (typeof data !== "object" || data === null) return false;
   const d = data as Record<string, unknown>;
   return d["type"] === OPEN_MESSAGE && typeof d["file"] === "string" && typeof d["hash"] === "string";
+}
+
+/** What the viewer's keys do: the arrow keys step through the canvas order, and Escape goes back to the list. */
+export type Shortcut = "previous" | "next" | "back";
+
+/**
+ * The message a frame sends its viewer for a shortcut key pressed inside the
+ * mock. Focus in the frame keeps key presses from reaching the viewer's window.
+ */
+export const KEY_MESSAGE = "dockwell:mockview-key";
+
+export interface KeyMessage {
+  type: typeof KEY_MESSAGE;
+  shortcut: Shortcut;
+}
+
+const KEYS = new Map<string, Shortcut>([
+  ["ArrowLeft", "previous"],
+  ["ArrowRight", "next"],
+  ["Escape", "back"],
+]);
+
+export function isKeyMessage(data: unknown): data is KeyMessage {
+  if (typeof data !== "object" || data === null) return false;
+  const d = data as Record<string, unknown>;
+  return d["type"] === KEY_MESSAGE && [...KEYS.values()].includes(d["shortcut"] as Shortcut);
+}
+
+/** True when a key press goes to something the person types in, which keeps its arrows and Escape. */
+function isTyping(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  if (target.closest("input, textarea, select")) return true;
+  // jsdom has no isContentEditable, so the attribute stands in for it there.
+  if (target instanceof HTMLElement && typeof target.isContentEditable === "boolean") return target.isContentEditable;
+  return target.closest('[contenteditable]:not([contenteditable="false"])') !== null;
+}
+
+/**
+ * The viewer shortcut a key press stands for, or null. Typing, a key with a
+ * modifier, and a key the mock already handled, such as the arrows in a
+ * segmented control, are left alone.
+ */
+export function shortcutFor(event: KeyboardEvent): Shortcut | null {
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return null;
+  const shortcut = KEYS.get(event.key);
+  return shortcut && !isTyping(event.target) ? shortcut : null;
 }
 
 export function parseTheme(value: string | null | undefined): ThemeChoice {
