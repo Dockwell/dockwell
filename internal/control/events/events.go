@@ -467,7 +467,7 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_SERVER
 	}
 	if a.Target != "" {
-		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target)}
+		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target), Scope: look.Scope(a.Target)}
 	}
 	return e
 }

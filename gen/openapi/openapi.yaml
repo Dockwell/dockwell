@@ -2030,8 +2030,9 @@ components:
                         - $ref: '#/components/schemas/EventSubject'
                     description: |-
                         What the event is about, other than its actor: the server that joined
-                         or was removed, the API token or passkey made or removed, or the
-                         person a sign-in link is for. Unset when there is nothing more to name.
+                         or was removed, the API token or passkey made or removed, the person a
+                         sign-in link is for, or the secret revealed. Unset when there is
+                         nothing more to name.
             description: Event is one thing that happened.
         EventSubject:
             type: object
@@ -2045,6 +2046,12 @@ components:
                         Its name, such as "hz-2", "GitHub Actions deploy" or "Mira Chen".
                          Empty when it has none, or when it is gone and Dockwell no longer
                          keeps it.
+                scope:
+                    type: string
+                    description: |-
+                        What it lives in, by ID, for a resource that lives in another: a
+                         secret's environment, as "env_…", for a secret revealed. Empty
+                         otherwise.
             description: EventSubject names what an event is about.
         ExportComposeResponse:
             type: object

@@ -450,8 +450,9 @@ type Event struct {
 	// rolled it back. GetChange has the plan in full.
 	Change *Change `protobuf:"bytes,7,opt,name=change,proto3" json:"change,omitempty"`
 	// What the event is about, other than its actor: the server that joined
-	// or was removed, the API token or passkey made or removed, or the
-	// person a sign-in link is for. Unset when there is nothing more to name.
+	// or was removed, the API token or passkey made or removed, the person a
+	// sign-in link is for, or the secret revealed. Unset when there is
+	// nothing more to name.
 	Subject       *EventSubject `protobuf:"bytes,8,opt,name=subject,proto3" json:"subject,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -551,7 +552,11 @@ type EventSubject struct {
 	// Its name, such as "hz-2", "GitHub Actions deploy" or "Mira Chen".
 	// Empty when it has none, or when it is gone and Dockwell no longer
 	// keeps it.
-	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// What it lives in, by ID, for a resource that lives in another: a
+	// secret's environment, as "env_…", for a secret revealed. Empty
+	// otherwise.
+	Scope         string `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -600,6 +605,13 @@ func (x *EventSubject) GetName() string {
 	return ""
 }
 
+func (x *EventSubject) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
 var File_dockwell_v1_event_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_event_proto_rawDesc = "" +
@@ -641,10 +653,11 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x05actor\x18\x05 \x01(\v2\x12.dockwell.v1.ActorR\x05actor\x12.\n" +
 	"\asurface\x18\x06 \x01(\x0e2\x14.dockwell.v1.SurfaceR\asurface\x12+\n" +
 	"\x06change\x18\a \x01(\v2\x13.dockwell.v1.ChangeR\x06change\x123\n" +
-	"\asubject\x18\b \x01(\v2\x19.dockwell.v1.EventSubjectR\asubject\"2\n" +
+	"\asubject\x18\b \x01(\v2\x19.dockwell.v1.EventSubjectR\asubject\"H\n" +
 	"\fEventSubject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name*l\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope*l\n" +
 	"\tEventKind\x12\x1a\n" +
 	"\x16EVENT_KIND_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11EVENT_KIND_CHANGE\x10\x01\x12\x15\n" +

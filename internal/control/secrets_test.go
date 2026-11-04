@@ -148,6 +148,23 @@ func testRevealingASecretTakesAPasskey(t *testing.T, backend store.Backend) {
 		strings.Contains(reveals[0].Detail, "s3cret") {
 		t.Errorf("reveals in the audit log = %+v", reveals)
 	}
+	// The timeline names the secret, and the environment it lives in, so
+	// the panel can open that environment's list.
+	timeline, err := eventClient(b, b.origin).ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{
+		Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_ACCESS},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var shown *dockwellv1.Event
+	for _, e := range timeline.Msg.GetEvents() {
+		if e.GetAction() == "secret.reveal" {
+			shown = e
+		}
+	}
+	if s := shown.GetSubject(); s.GetId() != secret.GetId() || s.GetName() != "DB_PASSWORD" || s.GetScope() != listedEnv(t, b) {
+		t.Errorf("the reveal on the timeline is about %v, want DB_PASSWORD in %s", s, listedEnv(t, b))
+	}
 
 	for _, scope := range []dockwellv1.TokenScope{dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE} {
 		token := createToken(t, b, scope)

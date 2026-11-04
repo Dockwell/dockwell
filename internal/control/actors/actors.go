@@ -42,10 +42,10 @@ type Names struct {
 	now  func() time.Time
 }
 
-// read is a name, and when it was read.
+// read is a name, what its object lives in, and when it was read.
 type read struct {
-	name string
-	at   time.Time
+	name, scope string
+	at          time.Time
 }
 
 // New returns empty Names.
@@ -69,12 +69,18 @@ type Lookup struct {
 // Name returns the name of the user, API token, server, passkey, variable
 // or secret with this ID, or "" when it is gone, has none, or is of another
 // kind.
-func (l Lookup) Name(objectID string) string {
+func (l Lookup) Name(objectID string) string { return l.read(objectID).name }
+
+// Scope returns the ID of what the variable or secret with this ID lives
+// in, its environment, or "" for any other ID.
+func (l Lookup) Scope(objectID string) string { return l.read(objectID).scope }
+
+func (l Lookup) read(objectID string) read {
 	now := l.n.now()
 	if s, ok := l.n.seen[objectID]; ok && now.Sub(s.at) < Fresh {
-		return s.name
+		return s
 	}
-	name := ""
+	name, scope := "", ""
 	prefix, _, _ := strings.Cut(objectID, "_")
 	switch prefix {
 	case id.User:
@@ -95,13 +101,14 @@ func (l Lookup) Name(objectID string) string {
 		}
 	case id.Secret, id.Variable:
 		if r, err := l.tx.GetResourceByID(l.ctx, objectID); err == nil {
-			name = r.Name
+			name, scope = r.Name, r.Scope
 		}
 	default:
-		return ""
+		return read{}
 	}
-	l.n.seen[objectID] = read{name: name, at: now}
-	return name
+	r := read{name: name, scope: scope, at: now}
+	l.n.seen[objectID] = r
+	return r
 }
 
 // Actor returns the API's Actor for the store's name for one, or nil for

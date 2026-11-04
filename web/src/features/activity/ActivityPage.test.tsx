@@ -174,7 +174,7 @@ describe("Activity", () => {
       id: "evt_reveal",
       action: "secret.reveal",
       time: timestampFromDate(new Date(Date.now() - 2 * HOUR)),
-      subject: { id: "sec_db", name: "DB_PASSWORD" },
+      subject: { id: "sec_db", name: "DB_PASSWORD", scope: "env_staging" },
     });
     watch.push(snapshot([changeEvent(rotation), reveal]));
     const { router } = renderActivity(watch, {
@@ -183,12 +183,16 @@ describe("Activity", () => {
     });
 
     await user.click(await screen.findByRole("row", { name: /Revealed the secret DB_PASSWORD/ }));
-    await user.click(await screen.findByRole("link", { name: "Open the variables and secrets" }));
+    // One link, to the environment the secret lives in.
+    expect(await screen.findAllByRole("link", { name: "Open the variables and secrets" })).toHaveLength(1);
+    await user.click(screen.getByRole("link", { name: "Open the variables and secrets" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/variables"));
+    expect(router.state.location.search).toEqual({ environment: "env_staging" });
 
     await act(() => router.navigate({ to: "/activity", search: { event: "chg_rotate" } }));
     const detail = await screen.findByRole("region", { name: "Rotate the database password" });
     expect(await within(detail).findByText("DB_PASSWORD")).toBeVisible();
+    expect(within(detail).getAllByRole("link", { name: "Open the variables and secrets" })).toHaveLength(1);
     await user.click(within(detail).getByRole("link", { name: "Open the variables and secrets" }));
     await waitFor(() => expect(router.state.location.search).toEqual({ environment: "env_prod" }));
   });
