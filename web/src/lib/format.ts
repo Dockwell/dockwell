@@ -18,10 +18,15 @@ export function formatDateTime(date: Date, locale: string): string {
 
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"] as const;
 
-/** The largest unit, as an index into BYTE_UNITS, that keeps bytes at 1 or more. */
+/**
+ * The largest unit, as an index into BYTE_UNITS, that keeps bytes at 1 or
+ * more once rounded, so 1,023.6 KB reads "1 MB" rather than "1,024 KB".
+ * From 10 up an amount has no decimals, so rounding to whole numbers is
+ * what shows.
+ */
 function unitFor(bytes: number): number {
   let unit = 0;
-  while (bytes >= 1024 ** (unit + 1) && unit < BYTE_UNITS.length - 1) unit++;
+  while (Math.round(bytes / 1024 ** unit) >= 1024 && unit < BYTE_UNITS.length - 1) unit++;
   return unit;
 }
 
@@ -71,7 +76,8 @@ const RATE_UNITS = ["bit/s", "kbit/s", "Mbit/s", "Gbit/s"] as const;
 export function formatBitRate(bytesPerSecond: number | bigint, locale: string): [string, string] {
   let value = Number(bytesPerSecond) * 8;
   let unit = 0;
-  while (value >= 1000 && unit < RATE_UNITS.length - 1) {
+  // Rounded first, so 999,960 bit/s reads "1 Mbit/s" rather than "1,000 kbit/s".
+  while (Math.round(value) >= 1000 && unit < RATE_UNITS.length - 1) {
     value /= 1000;
     unit++;
   }

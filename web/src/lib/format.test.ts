@@ -25,6 +25,10 @@ describe("formatBytes", () => {
     [8 * GiB, "8 GB"],
     [18.4 * GiB, "18 GB"],
     [1024 * GiB, "1 TB"],
+    // Rounding up to the next unit moves to it.
+    [1023.4 * 1024, "1,023 KB"],
+    [MiB - 1, "1 MB"],
+    [1023.6 * MiB, "1 GB"],
   ])("writes %d bytes as %s", (bytes, text) => {
     expect(formatBytes(bytes, "en")).toBe(text);
   });
@@ -64,6 +68,10 @@ describe("formatBitRate", () => {
     [1_100_000 / 8, "1.1", "Mbit/s"],
     [62_500, "500", "kbit/s"],
     [2.5e9 / 8, "2.5", "Gbit/s"],
+    // Rounding up to the next unit moves to it.
+    [999_499 / 8, "999", "kbit/s"],
+    [999_960 / 8, "1", "Mbit/s"],
+    [999.6 / 8, "1", "kbit/s"],
   ])("writes %d bytes a second as %s %s", (bytes, value, unit) => {
     expect(formatBitRate(bytes, "en")).toEqual([value, unit]);
   });
