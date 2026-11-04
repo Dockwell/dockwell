@@ -23,6 +23,7 @@ That left these questions open:
   - Get and List read a resource or a collection with GET ([AIP-131](https://google.aip.dev/131), [AIP-132](https://google.aip.dev/132)): `GET /v1/servers`, `GET /v1/servers/{id}`.
   - Create posts to the collection ([AIP-133](https://google.aip.dev/133)): `POST /v1/tokens`.
   - Delete uses DELETE when the resource goes away ([AIP-135](https://google.aip.dev/135)): `DELETE /v1/passkeys/{id}`.
+    - Since [ADR 0022](0022-secrets-encrypted-at-rest.md#revealing-a-value-and-changing-how-you-sign-in-a-step-up), that example is a custom method: removing a passkey takes a step-up's proof, which a DELETE could carry only in its URL, where logs keep it. So it is `POST /v1/passkeys/{id}:remove`, with the proof in its body. A delete that takes nothing but the ID still uses DELETE; no method has one now.
   - Everything else is a custom method, a POST to `resource:verb` or `collection:verb` with the whole request as the body ([AIP-136](https://google.aip.dev/136)): `POST /v1/sessions/{id}:revoke`, `POST /v1/sessions:signInWithCode`, `POST /v1/claim:begin`.
   - Things there is one of are singletons, which have no Create or Delete ([AIP-156](https://google.aip.dev/156)): `/v1/authState`, `/v1/totp`, `/v1/version`.
 - Path variables bind the request's `id` field. The schema names resources by ID rather than by [AIP-122](https://google.aip.dev/122) resource names, and renaming the fields would break every client.
