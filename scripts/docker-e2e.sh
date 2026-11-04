@@ -71,10 +71,12 @@ if grep -q "the agent can't run some kinds" "$log"; then
 fi
 
 # Local access acts for the install's owner, so claim it first, with a
-# software passkey, as the panel would.
+# software passkey, as the panel would. Local access is read-only until
+# dockwell login --local lets it make changes.
 link=$(grep -o 'http://localhost:[0-9]*/claim#[A-Za-z0-9_-]*' "$log" | head -1)
 [[ -n "$link" ]] || fail "dockwell run printed no claim link"
 (cd "$(dirname "$0")/.." && go run ./scripts/claim "$link") || fail "can't claim the install"
+dw login --local >/dev/null || fail "dockwell login --local failed"
 
 ports="{\"hostPort\":$web_port,\"containerPort\":80,\"hostIp\":\"127.0.0.1\"}"
 
