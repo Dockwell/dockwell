@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
+	"unicode"
 
 	"google.golang.org/protobuf/proto"
 
@@ -64,12 +64,30 @@ func within(p, base string) bool {
 // instead is what to mount in place of a path no container may mount.
 const instead = "Mount only the directory the container needs, such as /srv/app/data, or a volume"
 
+// CheckSpelling refuses a server path that could read otherwise than it
+// looks. The kernel follows . and .. through symlinks, so /var/run/.. is /,
+// not /var, where /var/run is a symlink: cleaning such a path checks one
+// path and mounts another. A // or a trailing / reads the same either way,
+// so those Validate cleans. what names the mount.
+func CheckSpelling(p, what string) error {
+	if strings.IndexFunc(p, unicode.IsControl) >= 0 {
+		return fmt.Errorf("the server path %q has a control character in it, which Docker can't take. Write it without one", p)
+	}
+	for _, part := range strings.Split(p, "/") {
+		if part == "." || part == ".." {
+			return fmt.Errorf("%s has %s in it, which the server reads through symlinks, so Dockwell can't tell where it leads. Write the path without it, such as /srv/app/data", what, part)
+		}
+	}
+	return nil
+}
+
 // CheckPath refuses a server path that no container may mount, by a bind
 // or a volume's bind option, saying why and what to mount instead. what
-// names the mount, such as "the server path / mounted at /host".
+// names the mount, such as "the server path / mounted at /host". On a
+// server it follows p as Docker will get it, not cleaned.
 func (h Host) CheckPath(p, what string) error {
-	p = path.Clean(p)
-	if why := h.refuse(p); why != "" {
+	clean := path.Clean(p)
+	if why := h.refuse(clean); why != "" {
 		return fmt.Errorf("%s %s, so no container may mount it. %s", what, why, instead)
 	}
 	if h.Resolve == nil {
@@ -79,7 +97,7 @@ func (h Host) CheckPath(p, what string) error {
 	if err != nil {
 		return fmt.Errorf("can't follow %s on this server to check where it leads: %w. Mount a path the agent can read", what, err)
 	}
-	if why := h.refuse(to); to != p && why != "" {
+	if why := h.refuse(to); to != clean && why != "" {
 		return fmt.Errorf("%s leads to %s through a symlink, and %s %s, so no container may mount it. %s", what, to, to, why, instead)
 	}
 	return nil
@@ -156,7 +174,9 @@ func mountAccess(c *resourcev1.Container) []resource.Access {
 	var out []resource.Access
 	for _, m := range c.GetMounts() {
 		if p := m.GetHostPath(); p != "" {
-			out = append(out, PathAccess(p, m.GetReadOnly()))
+			a := PathAccess(p, m.GetReadOnly())
+			a.Relabel = relabels[m.GetRelabel()]
+			out = append(out, a)
 		}
 	}
 	return out
@@ -172,27 +192,81 @@ func PathAccess(p string, readOnly bool) resource.Access {
 	return resource.Access{Kind: resource.AccessPath, Path: p, ReadOnly: readOnly}
 }
 
-// CheckHost refuses a spec that mounts a server path no container may,
-// as the server has it: Dockwell's and Docker's data directories where
-// they are, and where each path leads through symlinks.
-func (d *Docker) CheckHost(ctx context.Context, spec *resourcev1.Container) error {
-	if d.Paths == nil {
+// MountOptions is what the local volume driver's o option says.
+type MountOptions struct {
+	// Bind is true for bind or rbind.
+	Bind bool
+	// ReadOnly is true when ro comes last of ro and rw, as the kernel takes
+	// them in order.
+	ReadOnly bool
+	// Address is addr=, a remote mount's server.
+	Address string
+}
+
+// ReadMountOptions reads a volume's o option, in order.
+func ReadMountOptions(o string) MountOptions {
+	var out MountOptions
+	for _, opt := range strings.Split(o, ",") {
+		name, value, _ := strings.Cut(strings.TrimSpace(opt), "=")
+		switch name {
+		case "bind", "rbind":
+			out.Bind = true
+		case "ro":
+			out.ReadOnly = true
+		case "rw":
+			out.ReadOnly = false
+		case "addr":
+			out.Address = value
+		}
+	}
+	return out
+}
+
+// BindDevice is the server path a volume binds, as the local driver's
+// options type: none, o: bind and device: /srv/data have it.
+func BindDevice(driver string, options map[string]string) (string, bool) {
+	if driver != "" && driver != "local" {
+		return "", false
+	}
+	if !ReadMountOptions(options["o"]).Bind {
+		return "", false
+	}
+	return options["device"], true
+}
+
+// CheckHost refuses a spec that mounts a server path no container may, as
+// the server has it now: Dockwell's and Docker's data directories where
+// they are, and where each path leads through symlinks. That covers a
+// volume that binds a path too, as a symlink may have changed since the
+// volume was made. A bind resolves each time a container starts, so this
+// narrows the window, and can't close it (docs/security/sign-in.md).
+func (d *Docker) CheckHost(ctx context.Context, t Target, spec *resourcev1.Container) error {
+	if d.Paths == nil || len(spec.GetMounts()) == 0 {
 		return nil
 	}
-	var h Host
+	h, err := d.Paths.Host(ctx)
+	if err != nil {
+		return err
+	}
 	for _, m := range spec.GetMounts() {
-		p := m.GetHostPath()
-		if p == "" {
-			continue
-		}
-		if h.Resolve == nil {
-			var err error
-			if h, err = d.Paths.Host(ctx); err != nil {
+		if p := m.GetHostPath(); p != "" {
+			if err := h.CheckPath(p, fmt.Sprintf("the server path %s mounted at %s", p, m.GetTarget())); err != nil {
 				return err
 			}
+			continue
 		}
-		if err := h.CheckPath(p, fmt.Sprintf("the server path %s mounted at %s", p, m.GetTarget())); err != nil {
+		v, err := d.Client.InspectVolume(ctx, t.DockerName(m.GetVolume()))
+		switch {
+		case docker.IsNotFound(err):
+			continue // the change makes it, or checkRefs says what is wrong
+		case err != nil:
 			return err
+		}
+		if dev, ok := BindDevice(v.Driver, v.Options); ok {
+			what := fmt.Sprintf("the server path %s that the volume %s binds", dev, m.GetVolume())
+			if err := h.CheckPath(dev, what); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -201,20 +275,20 @@ func (d *Docker) CheckHost(ctx context.Context, spec *resourcev1.Container) erro
 // hostChecker is a Runtime that checks a spec on its server, as Docker
 // does.
 type hostChecker interface {
-	CheckHost(ctx context.Context, spec *resourcev1.Container) error
+	CheckHost(ctx context.Context, t Target, spec *resourcev1.Container) error
 }
 
 // Check refuses a spec that mounts a server path no container may, as
 // the agent's server has it.
-func (d *Driver) Check(ctx context.Context, _ resource.Ref, desired proto.Message) error {
-	return d.CheckApp(ctx, desired.(*resourcev1.Container))
+func (d *Driver) Check(ctx context.Context, ref resource.Ref, desired proto.Message) error {
+	return d.CheckAt(ctx, HostTarget(ref), desired.(*resourcev1.Container))
 }
 
-// CheckApp checks a container's spec on the server, for a service's app
-// too.
-func (d *Driver) CheckApp(ctx context.Context, c *resourcev1.Container) error {
+// CheckAt checks the container at t's spec on the server, for a service's
+// app too.
+func (d *Driver) CheckAt(ctx context.Context, t Target, c *resourcev1.Container) error {
 	if hc, ok := d.Runtime.(hostChecker); ok {
-		return hc.CheckHost(ctx, c)
+		return hc.CheckHost(ctx, t, c)
 	}
 	return nil
 }
@@ -222,24 +296,17 @@ func (d *Driver) CheckApp(ctx context.Context, c *resourcev1.Container) error {
 // Paths finds, on the agent's own server, what no container may mount:
 // Dockwell's data directory, Docker's, as its engine reports it, and where
 // each leads through symlinks. It follows a path's symlinks on the server
-// too.
+// too. It asks Docker each time: Docker's data root can change with a
+// restart of Docker, which the agent reconnects to without a word.
 type Paths struct {
 	Client *docker.Client
 	// DataDir is the agent's data directory.
 	DataDir string
-
-	mu   sync.Mutex
-	host *Host // once Docker has said where its data is
 }
 
 // Host is what the server keeps that no container may mount, with the
 // defaults the control plane checks too.
 func (p *Paths) Host(ctx context.Context) (Host, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.host != nil {
-		return *p.host, nil
-	}
 	info, err := p.Client.Info(ctx)
 	if err != nil {
 		return Host{}, fmt.Errorf("can't ask Docker where it keeps its data: %w", err)
@@ -259,45 +326,53 @@ func (p *Paths) Host(ctx context.Context) (Host, error) {
 	}
 	add(&h.DataDirs, datadir.SystemRoot, p.DataDir)
 	add(&h.DockerRoots, DefaultDockerRoot, info.DockerRootDir)
-	p.host = &h
 	return h, nil
 }
 
-// resolve follows a path's symlinks on this server. Docker makes a server
-// path that isn't there, so the part that is there is followed, a symlink
-// to what isn't there yet included, and the rest added as it is.
-func resolve(p string) (string, error) {
-	return resolveDepth(p, 0)
-}
-
-// maxLinks bounds the symlinks resolve follows, as the kernel does.
+// maxLinks bounds the symlinks resolve follows, as the kernel's limit does.
 const maxLinks = 40
 
-func resolveDepth(p string, links int) (string, error) {
-	to, err := filepath.EvalSymlinks(p)
-	switch {
-	case err == nil:
-		return to, nil
-	case !errors.Is(err, fs.ErrNotExist) || p == "/":
-		return "", err
-	}
-	parent, err := resolveDepth(filepath.Dir(p), links)
-	if err != nil {
-		return "", err
-	}
-	at := filepath.Join(parent, filepath.Base(p))
-	if fi, err := os.Lstat(at); err == nil && fi.Mode()&fs.ModeSymlink != 0 {
-		if links >= maxLinks {
+// resolve follows an absolute path on this server part by part, as the
+// kernel does: .. goes up from where a symlink led, not from how the path
+// is spelled. Docker makes a server path that isn't there, so what doesn't
+// exist yet is taken as it is: it holds no symlinks.
+func resolve(p string) (string, error) {
+	at := "/"
+	rest := strings.Split(p, "/")
+	for links := 0; len(rest) > 0; {
+		part := rest[0]
+		rest = rest[1:]
+		switch part {
+		case "", ".":
+			continue
+		case "..":
+			at = filepath.Dir(at)
+			continue
+		}
+		next := filepath.Join(at, part)
+		fi, err := os.Lstat(next)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			at = next
+			continue
+		case err != nil:
+			return "", err
+		case fi.Mode()&fs.ModeSymlink == 0:
+			at = next
+			continue
+		}
+		links++
+		if links > maxLinks {
 			return "", fmt.Errorf("%s leads through more than %d symlinks", p, maxLinks)
 		}
-		to, err := os.Readlink(at)
+		to, err := os.Readlink(next)
 		if err != nil {
 			return "", err
 		}
-		if !filepath.IsAbs(to) {
-			to = filepath.Join(parent, to)
+		if filepath.IsAbs(to) {
+			at = "/"
 		}
-		return resolveDepth(filepath.Clean(to), links+1)
+		rest = append(strings.Split(to, "/"), rest...)
 	}
 	return at, nil
 }

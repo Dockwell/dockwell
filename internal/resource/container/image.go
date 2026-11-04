@@ -54,11 +54,16 @@ func CheckImage(ref string) error {
 	// The first part is a registry if it looks like a host: with a dot or
 	// a port, or localhost.
 	if first := parts[0]; len(parts) > 1 && (strings.ContainsAny(first, ".:") || first == "localhost" || first != strings.ToLower(first)) {
-		if !registryRE.MatchString(first) {
+		switch {
+		case registryRE.MatchString(first):
+			parts = parts[1:]
+		case pathPartRE.MatchString(first):
+			// No host, such as one with an underscore, but a name's part
+			// as it stands, which is how Docker reads it.
+		default:
 			return fmt.Errorf("the image %q names the registry %q, which isn't a host Docker takes. Write it as a host name, with a port if it needs one, such as ghcr.io or registry.acme.dev:5000",
 				ref, first)
 		}
-		parts = parts[1:]
 	}
 	for _, p := range parts {
 		switch {

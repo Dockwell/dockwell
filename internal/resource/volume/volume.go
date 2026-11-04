@@ -91,19 +91,12 @@ func (*Driver) CheckName(name string) error {
 }
 
 // Validate fills in the local driver, and refuses Dockwell's own labels,
-// and a bind of a server path no container may mount.
+// a mount the local driver isn't allowed to make, and a bind of a server
+// path no container may mount.
 func (*Driver) Validate(spec proto.Message) error {
 	v := spec.(*resourcev1.Volume)
 	if v.Driver == "" {
 		v.Driver = "local"
-	}
-	if dev, ok := bindDevice(v); ok {
-		if !path.IsAbs(dev) {
-			return fmt.Errorf("the volume binds the server path %q, which isn't absolute; start its device with /, such as /srv/data", dev)
-		}
-		if err := container.DefaultHost.CheckPath(dev, "the server path "+path.Clean(dev)+" that the volume binds"); err != nil {
-			return err
-		}
 	}
 	for k := range v.GetLabels() {
 		if docker.IsOwnLabel(k) {
@@ -115,38 +108,70 @@ func (*Driver) Validate(spec proto.Message) error {
 			return errors.New("a volume's driver options need names, such as type")
 		}
 	}
+	return validateMount(v)
+}
+
+// mountTypes are what the local driver may mount besides a bind. Anything
+// else reads paths the plan can't name: overlay takes them in o, and a
+// disk's filesystem takes a device under /dev.
+var mountTypes = []string{"nfs", "nfs4", "cifs", "tmpfs"}
+
+// validateMount checks what the local driver's options mount, by an
+// allowlist. A bind's device is checked as a container's bind is.
+func validateMount(v *resourcev1.Volume) error {
+	options := v.GetOptions()
+	if v.GetDriver() != "local" || len(options) == 0 {
+		return nil
+	}
+	kind := options["type"]
+	dev, bind := container.BindDevice(v.GetDriver(), options)
+	switch {
+	case bind && kind != "none" && kind != "":
+		return fmt.Errorf("the volume binds %s with type %s, and a bind takes type none. Use type: none, or a mount without bind", dev, kind)
+	case bind:
+		if !path.IsAbs(dev) {
+			return fmt.Errorf("the volume binds the server path %q, which isn't absolute; start its device with /, such as /srv/data", dev)
+		}
+		if err := container.CheckSpelling(dev, "the server path "+dev+" that the volume binds"); err != nil {
+			return err
+		}
+		dev = path.Clean(dev)
+		options["device"] = dev
+		return container.DefaultHost.CheckPath(dev, "the server path "+dev+" that the volume binds")
+	case kind == "none":
+		return errors.New("a volume of type none binds a server path, and this one has no bind. Add bind to o, such as o: bind, with the path in device")
+	case kind == "":
+		return errors.New("a volume's driver options need a type. Use type none with bind, nfs, nfs4, cifs or tmpfs")
+	case !slices.Contains(mountTypes, kind):
+		return fmt.Errorf("the volume mounts type %q, which Dockwell can't run: a plan couldn't show what it reaches. Use type none with bind, nfs, nfs4, cifs or tmpfs", kind)
+	}
 	return nil
 }
 
-// bindDevice is the server path a volume binds, as the local driver's
-// options type: none, o: bind and device: /srv/data have it.
-func bindDevice(v *resourcev1.Volume) (string, bool) {
-	o := v.GetOptions()
-	if v.GetDriver() != "local" && v.GetDriver() != "" {
-		return "", false
-	}
-	for _, opt := range strings.Split(o["o"], ",") {
-		if opt == "bind" || opt == "rbind" {
-			return o["device"], true
-		}
-	}
-	return "", false
-}
-
 // HostAccess is what a volume reaches on its server, beyond what Docker
-// keeps for it: the server path it binds, or the mount its options make,
-// such as an NFS share. A service of its environment that mounts it
-// reaches that too, as a person approved when the volume was made.
+// keeps for it: the server path it binds, the mount its options make, such
+// as an NFS share, or what a plugin driver does. It names the type, where
+// it reaches and how, and never the credentials in its options.
 func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 	v := spec.(*resourcev1.Volume)
-	if dev, ok := bindDevice(v); ok {
-		readOnly := slices.Contains(strings.Split(v.GetOptions()["o"], ","), "ro")
-		return []resource.Access{container.PathAccess(path.Clean(dev), readOnly)}
+	options := v.GetOptions()
+	o := container.ReadMountOptions(options["o"])
+	if v.GetDriver() != "local" && v.GetDriver() != "" {
+		return []resource.Access{{Kind: resource.AccessMount, Driver: v.GetDriver(), ReadOnly: o.ReadOnly}}
 	}
-	if len(v.GetOptions()) == 0 {
+	if dev, ok := container.BindDevice(v.GetDriver(), options); ok {
+		return []resource.Access{container.PathAccess(path.Clean(dev), o.ReadOnly)}
+	}
+	if len(options) == 0 {
 		return nil
 	}
-	return []resource.Access{{Kind: resource.AccessMount, Type: v.GetOptions()["type"], Path: v.GetOptions()["device"]}}
+	a := resource.Access{Kind: resource.AccessMount, Type: options["type"], Address: o.Address, ReadOnly: o.ReadOnly}
+	if a.Type != "tmpfs" {
+		// A device may carry a user and password before an @.
+		dev := options["device"]
+		a.Path = dev[strings.LastIndex(dev, "@")+1:]
+	}
+	return []resource.Access{a}
 }
 
 // checker is a Runtime that checks a spec on its server, as Docker does.

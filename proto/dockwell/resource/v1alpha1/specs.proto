@@ -204,8 +204,10 @@ message Service {
 message Volume {
   // The volume driver: "local" unless set.
   string driver = 1;
-  // The driver's options, such as type, device and o for an NFS mount.
-  map<string, string> options = 2;
+  // The driver's options, such as type, device and o for an NFS mount. They
+  // may hold secrets, as a CIFS mount's password goes in o. The local driver
+  // takes type none with bind, nfs, nfs4, cifs or tmpfs.
+  map<string, string> options = 2 [(sensitive) = true];
   // Labels on the volume, for tools that read them.
   map<string, string> labels = 3;
 }

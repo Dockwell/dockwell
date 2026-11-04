@@ -1852,9 +1852,11 @@ components:
                     items:
                         type: string
                     description: |-
-                        Environment variables whose values were left out, as SERVICE.NAME,
-                         such as "web.API_KEY". Set them in the shell, or in an .env file beside
-                         the file, before docker compose up.
+                        What was left out as it may hold secrets. An environment variable's
+                         value, as SERVICE.NAME, such as "web.API_KEY": set it in the shell, or
+                         in an .env file beside the file, before docker compose up. A volume's
+                         driver options, as "volumes.NAME.driver_opts": the file makes that
+                         volume with none, so write them in by hand if it isn't on the server.
             description: ExportComposeResponse is a Compose file.
         FieldChange:
             type: object
@@ -2103,20 +2105,42 @@ components:
                         - HOST_ACCESS_KIND_DOCKER_SOCKET
                         - HOST_ACCESS_KIND_HOST_NETWORK
                         - HOST_ACCESS_KIND_VOLUME_MOUNT
+                        - HOST_ACCESS_KIND_NETWORK_DRIVER
                     type: string
                     description: What it is.
                     format: enum
                 path:
                     type: string
                     description: |-
-                        The server path or socket, or the volume's device, such as
-                         "/srv/app/config" or ":/export/media". Empty for the server's network.
+                        The server path or socket, the volume's device, or the network's
+                         parent interface, such as "/srv/app/config", ":/export/media" or
+                         "eth0". Empty for the server's network.
                 readOnly:
                     type: boolean
-                    description: True when a server path is mounted read-only.
+                    description: |-
+                        True when it is reached read-only: mounted so, or mounted so by the
+                         service that uses it. False reads and writes.
                 type:
                     type: string
                     description: A volume's mount type, such as "nfs" or "cifs".
+                address:
+                    type: string
+                    description: |-
+                        The remote server of a mount, such as "10.0.0.2". It never holds
+                         credentials.
+                relabel:
+                    type: string
+                    description: |-
+                        How Docker relabels a server path for SELinux: "z", shared with other
+                         containers, or "Z", private to this one. Empty for none.
+                driver:
+                    type: string
+                    description: The plugin a volume runs on, or a network's driver, such as "macvlan".
+                detail:
+                    type: string
+                    description: |-
+                        A network's options beyond the few that keep it to its own bridge, as
+                         "name=value" with commas between, sorted.
             description: |-
                 HostAccess is something on a server that a resource reaches beyond what
                  Docker keeps for it, such as a server path a container mounts.
@@ -2474,6 +2498,11 @@ components:
                         What the step lets the resource reach on its server that it couldn't
                          before, or reach in another way, which a person approves. The control
                          plane decides this from the specs, not from what the server reports.
+                healthUnknown:
+                    type: boolean
+                    description: |-
+                        True when the server hasn't the image yet, so its own health check
+                         isn't known, and until_healthy may be missing or too short.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -3262,7 +3291,10 @@ components:
                     type: object
                     additionalProperties:
                         type: string
-                    description: The driver's options, such as type, device and o for an NFS mount.
+                    description: |-
+                        The driver's options, such as type, device and o for an NFS mount. They
+                         may hold secrets, as a CIFS mount's password goes in o. The local driver
+                         takes type none with bind, nfs, nfs4, cifs or tmpfs.
                 labels:
                     type: object
                     additionalProperties:

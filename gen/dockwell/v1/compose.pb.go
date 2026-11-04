@@ -254,9 +254,11 @@ type ExportComposeResponse struct {
 	// Compose project, so docker compose -f <file> ps lists what Dockwell
 	// runs.
 	Compose string `protobuf:"bytes,1,opt,name=compose,proto3" json:"compose,omitempty"`
-	// Environment variables whose values were left out, as SERVICE.NAME,
-	// such as "web.API_KEY". Set them in the shell, or in an .env file beside
-	// the file, before docker compose up.
+	// What was left out as it may hold secrets. An environment variable's
+	// value, as SERVICE.NAME, such as "web.API_KEY": set it in the shell, or
+	// in an .env file beside the file, before docker compose up. A volume's
+	// driver options, as "volumes.NAME.driver_opts": the file makes that
+	// volume with none, so write them in by hand if it isn't on the server.
 	Omitted       []string `protobuf:"bytes,2,rep,name=omitted,proto3" json:"omitted,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

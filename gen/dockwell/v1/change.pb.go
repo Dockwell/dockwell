@@ -240,8 +240,12 @@ const (
 	// The server's own network, Docker's host network.
 	HostAccessKind_HOST_ACCESS_KIND_HOST_NETWORK HostAccessKind = 3
 	// A mount Docker makes from a volume's driver options, such as an NFS or
-	// CIFS share, or a disk.
+	// CIFS share, or whatever a volume plugin reaches.
 	HostAccessKind_HOST_ACCESS_KIND_VOLUME_MOUNT HostAccessKind = 4
+	// A network that reaches past the server's own bridge: a driver other
+	// than bridge, such as macvlan, which puts containers on the server's
+	// LAN, past its firewall, or options that change how a bridge routes.
+	HostAccessKind_HOST_ACCESS_KIND_NETWORK_DRIVER HostAccessKind = 5
 )
 
 // Enum value maps for HostAccessKind.
@@ -252,13 +256,15 @@ var (
 		2: "HOST_ACCESS_KIND_DOCKER_SOCKET",
 		3: "HOST_ACCESS_KIND_HOST_NETWORK",
 		4: "HOST_ACCESS_KIND_VOLUME_MOUNT",
+		5: "HOST_ACCESS_KIND_NETWORK_DRIVER",
 	}
 	HostAccessKind_value = map[string]int32{
-		"HOST_ACCESS_KIND_UNSPECIFIED":   0,
-		"HOST_ACCESS_KIND_SERVER_PATH":   1,
-		"HOST_ACCESS_KIND_DOCKER_SOCKET": 2,
-		"HOST_ACCESS_KIND_HOST_NETWORK":  3,
-		"HOST_ACCESS_KIND_VOLUME_MOUNT":  4,
+		"HOST_ACCESS_KIND_UNSPECIFIED":    0,
+		"HOST_ACCESS_KIND_SERVER_PATH":    1,
+		"HOST_ACCESS_KIND_DOCKER_SOCKET":  2,
+		"HOST_ACCESS_KIND_HOST_NETWORK":   3,
+		"HOST_ACCESS_KIND_VOLUME_MOUNT":   4,
+		"HOST_ACCESS_KIND_NETWORK_DRIVER": 5,
 	}
 )
 
@@ -2646,13 +2652,26 @@ type HostAccess struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What it is.
 	Kind HostAccessKind `protobuf:"varint,1,opt,name=kind,proto3,enum=dockwell.v1.HostAccessKind" json:"kind,omitempty"`
-	// The server path or socket, or the volume's device, such as
-	// "/srv/app/config" or ":/export/media". Empty for the server's network.
+	// The server path or socket, the volume's device, or the network's
+	// parent interface, such as "/srv/app/config", ":/export/media" or
+	// "eth0". Empty for the server's network.
 	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
-	// True when a server path is mounted read-only.
+	// True when it is reached read-only: mounted so, or mounted so by the
+	// service that uses it. False reads and writes.
 	ReadOnly bool `protobuf:"varint,3,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
 	// A volume's mount type, such as "nfs" or "cifs".
-	Type          string `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
+	Type string `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
+	// The remote server of a mount, such as "10.0.0.2". It never holds
+	// credentials.
+	Address string `protobuf:"bytes,5,opt,name=address,proto3" json:"address,omitempty"`
+	// How Docker relabels a server path for SELinux: "z", shared with other
+	// containers, or "Z", private to this one. Empty for none.
+	Relabel string `protobuf:"bytes,6,opt,name=relabel,proto3" json:"relabel,omitempty"`
+	// The plugin a volume runs on, or a network's driver, such as "macvlan".
+	Driver string `protobuf:"bytes,7,opt,name=driver,proto3" json:"driver,omitempty"`
+	// A network's options beyond the few that keep it to its own bridge, as
+	// "name=value" with commas between, sorted.
+	Detail        string `protobuf:"bytes,8,opt,name=detail,proto3" json:"detail,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2711,6 +2730,34 @@ func (x *HostAccess) GetReadOnly() bool {
 func (x *HostAccess) GetType() string {
 	if x != nil {
 		return x.Type
+	}
+	return ""
+}
+
+func (x *HostAccess) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *HostAccess) GetRelabel() string {
+	if x != nil {
+		return x.Relabel
+	}
+	return ""
+}
+
+func (x *HostAccess) GetDriver() string {
+	if x != nil {
+		return x.Driver
+	}
+	return ""
+}
+
+func (x *HostAccess) GetDetail() string {
+	if x != nil {
+		return x.Detail
 	}
 	return ""
 }
@@ -2856,7 +2903,10 @@ type PlanStep struct {
 	// What the step lets the resource reach on its server that it couldn't
 	// before, or reach in another way, which a person approves. The control
 	// plane decides this from the specs, not from what the server reports.
-	HostAccess    []*HostAccess `protobuf:"bytes,12,rep,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
+	HostAccess []*HostAccess `protobuf:"bytes,12,rep,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
+	// True when the server hasn't the image yet, so its own health check
+	// isn't known, and until_healthy may be missing or too short.
+	HealthUnknown bool `protobuf:"varint,13,opt,name=health_unknown,json=healthUnknown,proto3" json:"health_unknown,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2973,6 +3023,13 @@ func (x *PlanStep) GetHostAccess() []*HostAccess {
 		return x.HostAccess
 	}
 	return nil
+}
+
+func (x *PlanStep) GetHealthUnknown() bool {
+	if x != nil {
+		return x.HealthUnknown
+	}
+	return false
 }
 
 // FieldChange is one field that differs between two specs.
@@ -3310,13 +3367,17 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aservers\x18\x06 \x03(\tR\aservers\x12)\n" +
 	"\x10previous_servers\x18\a \x03(\tR\x0fpreviousServers\x128\n" +
 	"\vhost_access\x18\b \x03(\v2\x17.dockwell.v1.HostAccessR\n" +
-	"hostAccess\"\x82\x01\n" +
+	"hostAccess\"\xe6\x01\n" +
 	"\n" +
 	"HostAccess\x12/\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1b.dockwell.v1.HostAccessKindR\x04kind\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1b\n" +
 	"\tread_only\x18\x03 \x01(\bR\breadOnly\x12\x12\n" +
-	"\x04type\x18\x04 \x01(\tR\x04type\"\xa2\x02\n" +
+	"\x04type\x18\x04 \x01(\tR\x04type\x12\x18\n" +
+	"\aaddress\x18\x05 \x01(\tR\aaddress\x12\x18\n" +
+	"\arelabel\x18\x06 \x01(\tR\arelabel\x12\x16\n" +
+	"\x06driver\x18\a \x01(\tR\x06driver\x12\x16\n" +
+	"\x06detail\x18\b \x01(\tR\x06detail\"\xa2\x02\n" +
 	"\n" +
 	"ServerPlan\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
@@ -3326,7 +3387,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aremoved\x18\x04 \x01(\bR\aremoved\x125\n" +
 	"\bdowntime\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\bdowntime\x12+\n" +
 	"\x05steps\x18\x06 \x03(\v2\x15.dockwell.v1.PlanStepR\x05steps\x12>\n" +
-	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xbe\x04\n" +
+	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xe5\x04\n" +
 	"\bPlanStep\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x124\n" +
@@ -3343,7 +3404,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	" \x03(\tR\tkeptPaths\x12\x1a\n" +
 	"\brestores\x18\v \x01(\bR\brestores\x128\n" +
 	"\vhost_access\x18\f \x03(\v2\x17.dockwell.v1.HostAccessR\n" +
-	"hostAccess\"\x89\x01\n" +
+	"hostAccess\x12%\n" +
+	"\x0ehealth_unknown\x18\r \x01(\bR\rhealthUnknown\"\x89\x01\n" +
 	"\vFieldChange\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12$\n" +
 	"\x02op\x18\x02 \x01(\x0e2\x14.dockwell.v1.FieldOpR\x02op\x12\x12\n" +
@@ -3381,13 +3443,14 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\rSURFACE_PANEL\x10\x01\x12\x0f\n" +
 	"\vSURFACE_API\x10\x02\x12\x15\n" +
 	"\x11SURFACE_AUTOMATIC\x10\x03\x12\x0f\n" +
-	"\vSURFACE_CLI\x10\x04*\xbe\x01\n" +
+	"\vSURFACE_CLI\x10\x04*\xe3\x01\n" +
 	"\x0eHostAccessKind\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_SERVER_PATH\x10\x01\x12\"\n" +
 	"\x1eHOST_ACCESS_KIND_DOCKER_SOCKET\x10\x02\x12!\n" +
 	"\x1dHOST_ACCESS_KIND_HOST_NETWORK\x10\x03\x12!\n" +
-	"\x1dHOST_ACCESS_KIND_VOLUME_MOUNT\x10\x04*\xa0\x01\n" +
+	"\x1dHOST_ACCESS_KIND_VOLUME_MOUNT\x10\x04\x12#\n" +
+	"\x1fHOST_ACCESS_KIND_NETWORK_DRIVER\x10\x05*\xa0\x01\n" +
 	"\n" +
 	"PlanAction\x12\x1b\n" +
 	"\x17PLAN_ACTION_UNSPECIFIED\x10\x00\x12\x14\n" +

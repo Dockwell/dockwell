@@ -953,7 +953,9 @@ type Volume struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The volume driver: "local" unless set.
 	Driver string `protobuf:"bytes,1,opt,name=driver,proto3" json:"driver,omitempty"`
-	// The driver's options, such as type, device and o for an NFS mount.
+	// The driver's options, such as type, device and o for an NFS mount. They
+	// may hold secrets, as a CIFS mount's password goes in o. The local driver
+	// takes type none with bind, nfs, nfs4, cifs or tmpfs.
 	Options map[string]string `protobuf:"bytes,2,rep,name=options,proto3" json:"options,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Labels on the volume, for tools that read them.
 	Labels        map[string]string `protobuf:"bytes,3,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -1342,10 +1344,10 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\"L\n" +
 	"\aService\x129\n" +
 	"\x03app\x18\x01 \x01(\v2%.dockwell.resource.v1alpha1.ContainerH\x00R\x03appB\x06\n" +
-	"\x04runs\"\xaa\x02\n" +
+	"\x04runs\"\xb0\x02\n" +
 	"\x06Volume\x12\x16\n" +
-	"\x06driver\x18\x01 \x01(\tR\x06driver\x12I\n" +
-	"\aoptions\x18\x02 \x03(\v2/.dockwell.resource.v1alpha1.Volume.OptionsEntryR\aoptions\x12F\n" +
+	"\x06driver\x18\x01 \x01(\tR\x06driver\x12O\n" +
+	"\aoptions\x18\x02 \x03(\v2/.dockwell.resource.v1alpha1.Volume.OptionsEntryB\x04\xc8\xf3\x18\x01R\aoptions\x12F\n" +
 	"\x06labels\x18\x03 \x03(\v2..dockwell.resource.v1alpha1.Volume.LabelsEntryR\x06labels\x1a:\n" +
 	"\fOptionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +

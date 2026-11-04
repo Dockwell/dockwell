@@ -28,7 +28,7 @@ import (
 
 // addDockerServer enrolls hz-1, whose agent runs the Docker drivers on a
 // fake Docker Engine.
-func (f *fullServer) addDockerServer(t *testing.T) (*testServer, *dockertest.Engine) {
+func (f *fullServer) addDockerServer(t *testing.T) *dockertest.Engine {
 	t.Helper()
 	key, csr, err := pki.NewServerKey()
 	if err != nil {
@@ -50,7 +50,7 @@ func (f *fullServer) addDockerServer(t *testing.T) (*testServer, *dockertest.Eng
 		drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers}, &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}}, &network.Driver{Client: client}),
 	}
 	s.connect(t, f)
-	return s, e
+	return e
 }
 
 const shopStack = `
@@ -91,7 +91,7 @@ func TestComposeThroughTheAPI(t *testing.T) { storetest.Each(t, testComposeThrou
 func testComposeThroughTheAPI(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
-	hz1, e := f.addDockerServer(t)
+	e := f.addDockerServer(t)
 	c := changeClient(b, b.origin)
 	cc := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
 	vars := map[string]string{"DB_PASSWORD": "s3cret-pw"}
@@ -277,5 +277,4 @@ func testComposeThroughTheAPI(t *testing.T, backend store.Backend) {
 	if e.Volume(project+"_db-data") == nil {
 		t.Error("the deleted volume is gone from Docker; it should be kept for 7 days")
 	}
-	_ = hz1
 }

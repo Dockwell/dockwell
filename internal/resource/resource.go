@@ -141,19 +141,33 @@ type Decision struct {
 	// that it couldn't before. The control plane sets it from the specs,
 	// whatever an agent says: a step with any needs a person to apply it.
 	HostAccess []Access `json:",omitempty"`
+	// HealthUnknown is true when the server hasn't the image yet, so its
+	// own health check isn't known, and UntilHealthy may be missing or
+	// too short.
+	HealthUnknown bool `json:",omitempty"`
 }
 
 // Access is something on a server a resource reaches beyond what Docker
 // keeps for it, such as a server path a container mounts (HostAccesser).
+// Its fields say all a person approves, and NewAccess compares them all. It
+// never holds a credential.
 type Access struct {
 	Kind AccessKind
-	// Path is the server path or socket, or the volume's device. Empty for
-	// the server's network.
+	// Path is the server path or socket, the volume's device, or a
+	// network's parent interface. Empty for the server's network.
 	Path string `json:",omitempty"`
-	// ReadOnly is true for a server path mounted read-only.
+	// ReadOnly is true for what is reached read-only.
 	ReadOnly bool `json:",omitempty"`
 	// Type is a volume's mount type, such as nfs.
 	Type string `json:",omitempty"`
+	// Address is a mount's remote server, such as 10.0.0.2.
+	Address string `json:",omitempty"`
+	// Relabel is how Docker relabels a server path for SELinux: z or Z.
+	Relabel string `json:",omitempty"`
+	// Driver is the plugin a volume runs on, or a network's driver.
+	Driver string `json:",omitempty"`
+	// Detail is a network's other options, as name=value, sorted.
+	Detail string `json:",omitempty"`
 }
 
 // AccessKind is what a resource reaches on its server.
@@ -170,32 +184,78 @@ const (
 	// AccessNetwork is the server's own network.
 	AccessNetwork
 	// AccessMount is a mount Docker makes from a volume's options, such as
-	// an NFS share.
+	// an NFS share, or what a volume plugin reaches.
 	AccessMount
+	// AccessNetworkDriver is a network that reaches past the server's own
+	// bridge, such as a macvlan on its LAN, past its firewall.
+	AccessNetworkDriver
 )
 
+// NewAccess lists what to reaches that from doesn't: access it didn't
+// have, or has another way, as read-write where it was read-only, or
+// relabelled where it wasn't, or at another address. Access to Docker's
+// socket is the same read-only or not, as a socket mounted read-only still
+// takes connections.
+func NewAccess(from, to []Access) []Access {
+	var out []Access
+	for _, a := range to {
+		covered := slices.ContainsFunc(from, func(b Access) bool {
+			noMore := a.ReadOnly || !b.ReadOnly || a.Kind == AccessDocker
+			b.ReadOnly = a.ReadOnly
+			return a == b && noMore
+		})
+		if !covered && !slices.Contains(out, a) {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 // AccessWords says what a resource reaches, for people, such as "the
-// server path /srv/app (read-only)".
+// server path /srv/app (read-only)". It names what a person approves,
+// and never a credential.
 func AccessWords(a Access) string {
+	how := "read-write"
+	if a.ReadOnly {
+		how = "read-only"
+	}
 	switch a.Kind {
 	case AccessPath:
-		if a.ReadOnly {
-			return "the server path " + a.Path + " (read-only)"
+		switch a.Relabel {
+		case "z":
+			how += ", relabelled for SELinux as shared"
+		case "Z":
+			how += ", relabelled for SELinux as private"
 		}
-		return "the server path " + a.Path
+		return "the server path " + a.Path + " (" + how + ")"
 	case AccessDocker:
 		return "Docker's socket at " + a.Path + ", which gives control of Docker on the server, the same as root"
 	case AccessNetwork:
 		return "the server's own network"
 	case AccessMount:
-		what := "a mount from the volume's options"
-		if a.Type != "" {
-			what = "a " + a.Type + " mount"
+		if a.Driver != "" {
+			return "the volume driver " + a.Driver + ", which reaches what the plugin does (" + how + ")"
 		}
+		at := a.Path
+		if a.Address != "" {
+			at = a.Address + a.Path
+		}
+		if at == "" {
+			return "a " + a.Type + " mount (" + how + ")"
+		}
+		return "the " + a.Type + " mount " + at + " (" + how + ")"
+	case AccessNetworkDriver:
+		out := "a " + a.Driver + " network"
 		if a.Path != "" {
-			what += " of " + a.Path
+			out += " on " + a.Path
 		}
-		return what
+		if a.Driver != "bridge" {
+			out += ", which reaches past the server's firewall"
+		}
+		if a.Detail != "" {
+			out += ", with " + a.Detail
+		}
+		return out
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }
@@ -206,23 +266,6 @@ func AccessWords(a Access) string {
 // it, as one that destroys data does (ADR 0021).
 type HostAccesser interface {
 	HostAccess(spec proto.Message) []Access
-}
-
-// NewAccess lists what to reaches that from doesn't: access it didn't
-// have, or has another way, as read-write where it was read-only. Access
-// to Docker's socket is the same read-only or not, as a socket mounted
-// read-only still takes connections.
-func NewAccess(from, to []Access) []Access {
-	var out []Access
-	for _, a := range to {
-		covered := slices.ContainsFunc(from, func(b Access) bool {
-			return a.Kind == b.Kind && a.Path == b.Path && a.Type == b.Type && (a.ReadOnly || !b.ReadOnly || a.Kind == AccessDocker)
-		})
-		if !covered && !slices.Contains(out, a) {
-			out = append(out, a)
-		}
-	}
-	return out
 }
 
 // Step is what applying a change does to one resource.
@@ -331,6 +374,13 @@ type Readier interface {
 	Ready(ctx context.Context) error
 }
 
+// Normalizer is a Type that can order a spec it wouldn't take, as Validate
+// does one it would. Observe uses it, so a resource that a newer rule
+// refuses reads as what it is, and not as drift as well.
+type Normalizer interface {
+	Normalize(spec proto.Message)
+}
+
 // Referrer is a kind whose specs name other resources in their scope, as
 // a service names the volumes it mounts and the networks it joins. The
 // engine refuses a change that would leave one naming what isn't there,
@@ -345,6 +395,9 @@ type Reference struct {
 	Name string
 	// Verb says how the spec uses it, for people: "mount", or "join".
 	Verb string
+	// ReadOnly says the spec uses it read-only, as a read-only mount of a
+	// volume does: what the volume reaches, the spec reaches read-only.
+	ReadOnly bool
 }
 
 // References lists what spec names, if its kind is a Referrer.

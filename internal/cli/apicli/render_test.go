@@ -32,6 +32,21 @@ func TestPlanView(t *testing.T) {
 					{Path: "app.image", Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, From: "ghcr.io/acme/web:1.4.2", To: "ghcr.io/acme/web:1.4.3"},
 					{Path: "app.env[API_KEY]", Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, Sensitive: true},
 				},
+				HostAccess: []*dockwellv1.HostAccess{
+					{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/app/config", ReadOnly: true},
+				},
+			},
+			{
+				Id: "vol_1", Resource: &dockwellv1.ResourceRef{Kind: "volume", Name: "media"}, Action: dockwellv1.PlanAction_PLAN_ACTION_NONE,
+				HostAccess: []*dockwellv1.HostAccess{
+					{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_VOLUME_MOUNT, Type: "nfs", Address: "10.0.0.2", Path: ":/media"},
+				},
+			},
+			{
+				Id: "net_1", Resource: &dockwellv1.ResourceRef{Kind: "network", Name: "lan"}, Action: dockwellv1.PlanAction_PLAN_ACTION_NONE,
+				HostAccess: []*dockwellv1.HostAccess{
+					{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_NETWORK_DRIVER, Driver: "macvlan", Path: "eth0"},
+				},
 			},
 		},
 		Servers: []*dockwellv1.ServerPlan{{
@@ -40,7 +55,7 @@ func TestPlanView(t *testing.T) {
 			Steps: []*dockwellv1.PlanStep{{
 				ResourceId: "svc_1", Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "web"}, Action: dockwellv1.PlanAction_PLAN_ACTION_REPLACE,
 				Effect: dockwellv1.StepEffect_STEP_EFFECT_RECREATE, Downtime: durationpb.New(40 * time.Second), DestroysData: true,
-				UntilHealthy: durationpb.New(110 * time.Second), KeptPaths: []string{"/var/lib/postgresql/data"}, Restores: true,
+				UntilHealthy: durationpb.New(110 * time.Second), KeptPaths: []string{"/var/lib/postgresql/data"}, Restores: true, HealthUnknown: true,
 				Warnings: []dockwellv1.PlanWarning{dockwellv1.PlanWarning_PLAN_WARNING_MAY_LOCK_OUT},
 				HostAccess: []*dockwellv1.HostAccess{
 					{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/app/config", ReadOnly: true},
@@ -65,11 +80,15 @@ func TestPlanView(t *testing.T) {
 		"      Takes out of use the data its image keeps at /var/lib/postgresql/data. The server keeps it for 7 days, and undoing this mounts it again.\n" +
 		"      Brings back the data the server kept. If the server no longer has it, applying fails, and nothing is made empty.\n" +
 		"      Gives it access to hz-1: the server path /srv/app/config (read-only) and Docker's socket at /var/run/docker.sock, which gives control of Docker on the server, the same as root. A person approves this.\n" +
+		"      Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy.\n" +
 		"      May cut off remote access to hz-1, such as SSH.\n" +
 		"\n" +
 		"1 to create · 0 to change · 1 to replace · 0 to destroy\n" +
 		"It destroys data or may cut off access, which undo may not bring back.\n" +
-		"It gives a container more access to its server, which a person approves.\n"
+		"It gives more access to a server, which a person approves:\n" +
+		"  service web: the server path /srv/app/config (read-only)\n" +
+		"  volume media: the nfs mount 10.0.0.2:/media (read-write)\n" +
+		"  network lan: a macvlan network on eth0, which reaches past the server's firewall\n"
 	if buf.String() != want {
 		t.Errorf("PlanView =\n%s\nwant\n%s", buf.String(), want)
 	}

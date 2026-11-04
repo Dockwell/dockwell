@@ -88,6 +88,37 @@ func (*Driver) Validate(spec proto.Message) error {
 	return nil
 }
 
+// plainOptions are the options that keep a bridge network what it is: a
+// network of its own, behind the server's firewall. Any other may change
+// how it routes, such as gateway_mode_ipv4: nat-unprotected, or what it
+// attaches to, such as bridge.name.
+var plainOptions = []string{
+	"com.docker.network.driver.mtu",
+	"com.docker.network.bridge.enable_icc",
+	"com.docker.network.container_iface_prefix",
+}
+
+// HostAccess is what a network reaches past the server's own bridge. A
+// driver but bridge, such as macvlan, puts containers on the server's LAN,
+// past its firewall, and so may an option outside plainOptions.
+func (*Driver) HostAccess(spec proto.Message) []resource.Access {
+	n := spec.(*resourcev1.Network)
+	var other []string
+	for _, k := range slices.Sorted(maps.Keys(n.GetOptions())) {
+		if k != "parent" && !slices.Contains(plainOptions, k) {
+			other = append(other, k+"="+n.GetOptions()[k])
+		}
+	}
+	driver := n.GetDriver()
+	if (driver == "bridge" || driver == "") && len(other) == 0 {
+		return nil
+	}
+	if driver == "" {
+		driver = "bridge"
+	}
+	return []resource.Access{{Kind: resource.AccessNetworkDriver, Driver: driver, Path: n.GetOptions()["parent"], Detail: strings.Join(other, ",")}}
+}
+
 // labelSet lists the driver options a network's spec sets, so options
 // Docker adds of its own, under com.docker.network., don't read as drift.
 const labelSet = docker.OwnPrefix + "set"

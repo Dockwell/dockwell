@@ -76,13 +76,13 @@ func TestDowntimeCountsTheHealthCheck(t *testing.T) {
 	spec := postgres()
 	spec.GetApp().Env = map[string]string{"A": "1"}
 	step := apply(t, l, ref, spec)
-	if step.Downtime != 12*time.Second || step.UntilHealthy != 12*time.Second+50*time.Second {
-		t.Errorf("recreating postgres = down %s, healthy within %s; want 12s, and 1m2s with the image's check", step.Downtime, step.UntilHealthy)
+	if step.Downtime != 12*time.Second || step.UntilHealthy != 12*time.Second+5*(10+30)*time.Second || step.HealthUnknown {
+		t.Errorf("recreating postgres = down %s, healthy within %s, unknown %v; want 12s, and 3m32s with the image's check", step.Downtime, step.UntilHealthy, step.HealthUnknown)
 	}
 	spec.GetApp().Healthcheck = &resourcev1.Healthcheck{Test: []string{"CMD", "pg_isready"}, StartPeriod: "20s", Interval: "15s", Retries: 4}
 	spec.GetApp().Env["A"] = "2"
-	if step := apply(t, l, ref, spec); step.UntilHealthy != 12*time.Second+20*time.Second+60*time.Second {
-		t.Errorf("recreating it with its own check = healthy within %s, want 1m32s", step.UntilHealthy)
+	if step := apply(t, l, ref, spec); step.UntilHealthy != 12*time.Second+20*time.Second+4*(15+30)*time.Second {
+		t.Errorf("recreating it with its own check = healthy within %s, want 3m32s", step.UntilHealthy)
 	}
 	spec.GetApp().Healthcheck = &resourcev1.Healthcheck{Test: []string{"NONE"}}
 	spec.GetApp().Env["A"] = "3"
@@ -94,8 +94,15 @@ func TestDowntimeCountsTheHealthCheck(t *testing.T) {
 	dec, err := (&container.Driver{}).Plan(&resourcev1.Container{Image: "nginx:1.27"}, &resourcev1.Container{
 		Image: "nginx:1.28", Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD", "true"}},
 	}, []resource.Change{{Path: "image"}})
-	if err != nil || dec.UntilHealthy != 12*time.Second+90*time.Second {
-		t.Errorf("planning on the control plane = %s, %v; want 1m42s with Docker's defaults", dec.UntilHealthy, err)
+	if err != nil || dec.UntilHealthy != 12*time.Second+3*time.Minute {
+		t.Errorf("planning on the control plane = %s, %v; want 3m12s with Docker's defaults", dec.UntilHealthy, err)
+	}
+	// An image the server hasn't yet: its own check isn't known, so the
+	// plan says the bound may be missing.
+	other := postgres()
+	other.GetApp().Image = "nginx:1.27"
+	if step := apply(t, l, ref, other); !step.HealthUnknown || step.UntilHealthy != 0 {
+		t.Errorf("recreating it on an image the server hasn't = unknown %v, healthy within %s; want it to say so", step.HealthUnknown, step.UntilHealthy)
 	}
 	// Verify waits 5 minutes at most, and so does the estimate.
 	long := &resourcev1.Healthcheck{Test: []string{"CMD", "true"}, Interval: "10m"}
@@ -109,17 +116,17 @@ func TestDowntimeCountsTheHealthCheck(t *testing.T) {
 // instead; others are host access, which a person approves.
 func TestServerPathsNoContainerMayMount(t *testing.T) {
 	for path, want := range map[string]string{
-		"/":                          "is the server's whole file system",
-		"/proc/1":                    "is in /proc",
-		"/sys":                       "is in /sys",
-		"/dev/sda":                   "is in /dev",
-		"/boot/grub":                 "is in /boot",
-		"/var/lib/dockwell":          "is in Dockwell's data directory, /var/lib/dockwell",
-		"/var/lib/dockwell/agent":    "is in Dockwell's data directory",
-		"/var/lib/docker/volumes/x":  "is in Docker's data directory, /var/lib/docker",
-		"/var":                       "holds Dockwell's data directory",
-		"/var/lib":                   "holds Dockwell's data directory",
-		"/var/lib/../lib/dockwell/.": "is in Dockwell's data directory",
+		"/":                         "is the server's whole file system",
+		"/proc/1":                   "is in /proc",
+		"/sys":                      "is in /sys",
+		"/dev/sda":                  "is in /dev",
+		"/boot/grub":                "is in /boot",
+		"/var/lib/dockwell":         "is in Dockwell's data directory, /var/lib/dockwell",
+		"/var/lib/dockwell/agent":   "is in Dockwell's data directory",
+		"/var/lib/docker/volumes/x": "is in Docker's data directory, /var/lib/docker",
+		"/var":                      "holds Dockwell's data directory",
+		"/var/lib":                  "holds Dockwell's data directory",
+		"//var//lib//dockwell//":    "is in Dockwell's data directory",
 	} {
 		c := &resourcev1.Container{Image: "alpine", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: path}, Target: "/host"}}}
 		err := container.Validate(c)
@@ -167,6 +174,14 @@ func TestServerPathsNoContainerMayMount(t *testing.T) {
 	svc := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "alpine", Networks: []string{"host"}}}}
 	if got := (&service.Driver{}).HostAccess(svc); len(got) != 0 {
 		t.Errorf("a service on its environment's network host reaches %+v, want nothing", got)
+	}
+	// . and .. are refused however they fall: the kernel reads them through
+	// symlinks, so a cleaned path may not be the path it mounts.
+	for _, p := range []string{"/var/lib/../lib/dockwell/.", "/srv/./app", "/var/run/../srv"} {
+		c := &resourcev1.Container{Image: "alpine", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: p}, Target: "/host"}}}
+		if err := container.Validate(c); err == nil || !strings.Contains(err.Error(), "which the server reads through symlinks") {
+			t.Errorf("mounting %s = %v, want it refused for how it is spelled", p, err)
+		}
 	}
 	// More access, or the same another way, is new; less isn't.
 	rw := resource.Access{Kind: resource.AccessPath, Path: "/srv/a"}
@@ -231,4 +246,69 @@ func TestTheAgentFollowsSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	apply(t, l, ref, ok)
+
+	// Docker's data root is asked for each time: a Docker restarted with
+	// another one is followed, with no restart of the agent.
+	moved := filepath.Join(dir, "srv", "docker")
+	mount := &resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: filepath.Join(moved, "volumes")}, Target: "/v"}}}
+	if err := c.Validate(mount); err != nil {
+		t.Fatal(err)
+	}
+	other := resource.Ref{Kind: container.Kind, Scope: srv, Name: "other"}
+	if _, err := l.Plan(t.Context(), []resource.Desired{{Ref: other, Spec: mount}}); err != nil {
+		t.Fatalf("before Docker moved: %v", err)
+	}
+	e.SetDockerRoot(moved)
+	if _, err := l.Plan(t.Context(), []resource.Desired{{Ref: other, Spec: mount}}); err == nil || !strings.Contains(err.Error(), "is in Docker's data directory") {
+		t.Errorf("once Docker's data root moved = %v, want it refused", err)
+	}
+}
+
+// A volume that binds a path is checked when a container mounts it too,
+// as a symlink may have changed since the volume was made.
+func TestABindVolumesSymlinksAreCheckedWhenMounted(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	dir := t.TempDir()
+	data := filepath.Join(dir, "dockwell")
+	for _, d := range []string{data, filepath.Join(dir, "srv")} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(filepath.Join(dir, "srv"), link); err != nil {
+		t.Fatal(err)
+	}
+	paths := &container.Paths{Client: e.Client(), DataDir: data}
+	c := container.Driver{Runtime: &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Paths: paths}}
+	vols := &volume.Docker{Client: e.Client(), Kept: &volume.Kept{}, Paths: paths}
+	l := resource.Local{Drivers: resource.NewRegistry(&service.Driver{Containers: c}, &volume.Driver{Runtime: vols})}
+	v := &resourcev1.Volume{Options: map[string]string{"type": "none", "o": "bind", "device": link}}
+	apply(t, l, resource.Ref{Kind: volume.Kind, Scope: env, Name: "nas"}, v)
+
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{
+		{Source: &resourcev1.Mount_Volume{Volume: "nas"}, Target: "/nas"},
+	}}}}
+	if err := l.Drivers.Validate(service.Kind, spec); err != nil {
+		t.Fatal(err)
+	}
+	ref := resource.Ref{Kind: service.Kind, Scope: env, Name: "web"}
+	if _, err := l.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: spec}}); err != nil {
+		t.Fatalf("while the link leads somewhere fine: %v", err)
+	}
+	// The link moves after the volume was made.
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(data, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: spec}}); err == nil || !strings.Contains(err.Error(), "that the volume nas binds") {
+		t.Errorf("planning a mount once the link leads to the data directory = %v, want it refused", err)
+	}
+	step := resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionCreate}}
+	if err := l.Apply(t.Context(), step, spec); err == nil || !strings.Contains(err.Error(), "that the volume nas binds") {
+		t.Errorf("applying it = %v, want it refused", err)
+	}
 }

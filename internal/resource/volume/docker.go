@@ -347,7 +347,7 @@ func (d *Docker) Restores(ctx context.Context, t Target) (bool, error) {
 // CheckHost refuses a volume that binds a server path no container may
 // mount, as this server has it, symlinks followed.
 func (d *Docker) CheckHost(ctx context.Context, spec *resourcev1.Volume) error {
-	dev, ok := bindDevice(spec)
+	dev, ok := container.BindDevice(spec.GetDriver(), spec.GetOptions())
 	if !ok || d.Paths == nil {
 		return nil
 	}

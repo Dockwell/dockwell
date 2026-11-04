@@ -166,9 +166,11 @@ export type ExportComposeResponse = Message<"dockwell.v1.ExportComposeResponse">
   compose: string;
 
   /**
-   * Environment variables whose values were left out, as SERVICE.NAME,
-   * such as "web.API_KEY". Set them in the shell, or in an .env file beside
-   * the file, before docker compose up.
+   * What was left out as it may hold secrets. An environment variable's
+   * value, as SERVICE.NAME, such as "web.API_KEY": set it in the shell, or
+   * in an .env file beside the file, before docker compose up. A volume's
+   * driver options, as "volumes.NAME.driver_opts": the file makes that
+   * volume with none, so write them in by hand if it isn't on the server.
    *
    * @generated from field: repeated string omitted = 2;
    */

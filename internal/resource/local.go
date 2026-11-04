@@ -208,8 +208,9 @@ func PlanStep(d Driver, ref Ref, actual, desired proto.Message) (Step, error) {
 
 // Observe reads a resource through its driver and normalizes it like a
 // desired spec, so what a server reports in its own order or with its own
-// defaults compares equal to the spec that made it. What can't be
-// normalized is returned as read, and shows as a difference.
+// defaults compares equal to the spec that made it. What Validate refuses,
+// as a newer rule may refuse what is stored, is put in order as far as its
+// kind's Normalizer can, so only what truly differs shows as a difference.
 func Observe(ctx context.Context, d Driver, ref Ref) (proto.Message, error) {
 	actual, err := d.Observe(ctx, ref)
 	if err != nil || actual == nil {
@@ -218,6 +219,9 @@ func Observe(ctx context.Context, d Driver, ref Ref) (proto.Message, error) {
 	normal := proto.Clone(actual)
 	if d.Validate(normal) == nil {
 		return normal, nil
+	}
+	if n, ok := d.(Normalizer); ok {
+		n.Normalize(actual)
 	}
 	return actual, nil
 }

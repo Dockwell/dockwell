@@ -69,7 +69,9 @@ func TestAVolumesOptionsReachTheServer(t *testing.T) {
 		"bind":      {map[string]string{"type": "none", "o": "bind", "device": "/srv/media/"}, []resource.Access{{Kind: resource.AccessPath, Path: "/srv/media"}}},
 		"read-only": {map[string]string{"type": "none", "o": "bind,ro", "device": "/srv/media"}, []resource.Access{{Kind: resource.AccessPath, Path: "/srv/media", ReadOnly: true}}},
 		"socket":    {map[string]string{"type": "none", "o": "bind", "device": "/run/docker.sock"}, []resource.Access{{Kind: resource.AccessDocker, Path: "/run/docker.sock"}}},
-		"nfs":       {map[string]string{"type": "nfs", "o": "addr=10.0.0.2", "device": ":/export"}, []resource.Access{{Kind: resource.AccessMount, Type: "nfs", Path: ":/export"}}},
+		"nfs":       {map[string]string{"type": "nfs", "o": "addr=10.0.0.2,ro", "device": ":/export"}, []resource.Access{{Kind: resource.AccessMount, Type: "nfs", Address: "10.0.0.2", Path: ":/export", ReadOnly: true}}},
+		"cifs":      {map[string]string{"type": "cifs", "o": "username=svc,password=hunter2", "device": "//nas/share"}, []resource.Access{{Kind: resource.AccessMount, Type: "cifs", Path: "//nas/share"}}},
+		"tmpfs":     {map[string]string{"type": "tmpfs", "device": "tmpfs", "o": "size=64m"}, []resource.Access{{Kind: resource.AccessMount, Type: "tmpfs"}}},
 		"none":      {nil, nil},
 	} {
 		v := &resourcev1.Volume{Options: tc.opts}
@@ -85,6 +87,7 @@ func TestAVolumesOptionsReachTheServer(t *testing.T) {
 		"/var/lib/docker/volumes": "is in Docker's data directory",
 		"/var":                    "holds Dockwell's data directory",
 		"srv/data":                "isn't absolute",
+		"/srv/../srv/data":        "which the server reads through symlinks",
 	} {
 		v := &resourcev1.Volume{Options: map[string]string{"type": "none", "o": "bind", "device": dev}}
 		if err := d.Validate(v); err == nil || !strings.Contains(err.Error(), want) {

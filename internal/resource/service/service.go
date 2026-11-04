@@ -70,7 +70,7 @@ func (*Driver) References(spec proto.Message) []resource.Reference {
 	var out []resource.Reference
 	for _, m := range app.GetMounts() {
 		if v := m.GetVolume(); v != "" {
-			out = append(out, resource.Reference{Kind: volume.Kind, Name: v, Verb: "mount"})
+			out = append(out, resource.Reference{Kind: volume.Kind, Name: v, Verb: "mount", ReadOnly: m.GetReadOnly()})
 		}
 	}
 	for _, n := range app.GetNetworks() {
@@ -113,14 +113,20 @@ func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired pr
 }
 
 // Check checks the app on its server, as the container driver does.
-func (d *Driver) Check(ctx context.Context, _ resource.Ref, desired proto.Message) error {
-	return d.Containers.CheckApp(ctx, desired.(*resourcev1.Service).GetApp())
+func (d *Driver) Check(ctx context.Context, ref resource.Ref, desired proto.Message) error {
+	return d.Containers.CheckAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())
 }
 
-// HostAccess is what the app reaches on its server: the server paths it
-// mounts. Its networks are its environment's, never the server's own.
+// HostAccess is what the app itself reaches on its server: the server
+// paths it mounts. Its networks are its environment's, never the server's
+// own. The engine adds what its volumes and networks reach (References).
 func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 	return container.ServiceAccess(spec.(*resourcev1.Service).GetApp())
+}
+
+// Normalize orders the app, as Validate would.
+func (*Driver) Normalize(spec proto.Message) {
+	container.Normalize(spec.(*resourcev1.Service).GetApp())
 }
 
 // app is a service's app, or nil.

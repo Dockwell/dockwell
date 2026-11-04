@@ -308,7 +308,7 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		}
 		// So does one that gives a container a server path.
 		r = run(t, env, "containers", "create", "logs", "--image", "nginx:1.27", "--mounts", `{"hostPath":"/srv/logs","target":"/logs"}`, "--on", "hz-2", "--yes")
-		if r.code != apicli.ExitNeedsPerson || !strings.Contains(r.out, "Gives it access to hz-2: the server path /srv/logs. A person approves this.") ||
+		if r.code != apicli.ExitNeedsPerson || !strings.Contains(r.out, "Gives it access to hz-2: the server path /srv/logs (read-write). A person approves this.") ||
 			!strings.Contains(r.err, "gives a container more access to its server, so it needs a person to approve it") ||
 			!strings.Contains(r.err, "the CLI uses one even after dockwell login") {
 			t.Errorf("containers create with a server path = %d:\n%s%s", r.code, r.out, r.err)

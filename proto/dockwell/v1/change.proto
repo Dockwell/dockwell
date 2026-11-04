@@ -573,13 +573,26 @@ message PlannedResource {
 message HostAccess {
   // What it is.
   HostAccessKind kind = 1;
-  // The server path or socket, or the volume's device, such as
-  // "/srv/app/config" or ":/export/media". Empty for the server's network.
+  // The server path or socket, the volume's device, or the network's
+  // parent interface, such as "/srv/app/config", ":/export/media" or
+  // "eth0". Empty for the server's network.
   string path = 2;
-  // True when a server path is mounted read-only.
+  // True when it is reached read-only: mounted so, or mounted so by the
+  // service that uses it. False reads and writes.
   bool read_only = 3;
   // A volume's mount type, such as "nfs" or "cifs".
   string type = 4;
+  // The remote server of a mount, such as "10.0.0.2". It never holds
+  // credentials.
+  string address = 5;
+  // How Docker relabels a server path for SELinux: "z", shared with other
+  // containers, or "Z", private to this one. Empty for none.
+  string relabel = 6;
+  // The plugin a volume runs on, or a network's driver, such as "macvlan".
+  string driver = 7;
+  // A network's options beyond the few that keep it to its own bridge, as
+  // "name=value" with commas between, sorted.
+  string detail = 8;
 }
 
 // HostAccessKind is what a resource reaches on its server.
@@ -593,8 +606,12 @@ enum HostAccessKind {
   // The server's own network, Docker's host network.
   HOST_ACCESS_KIND_HOST_NETWORK = 3;
   // A mount Docker makes from a volume's driver options, such as an NFS or
-  // CIFS share, or a disk.
+  // CIFS share, or whatever a volume plugin reaches.
   HOST_ACCESS_KIND_VOLUME_MOUNT = 4;
+  // A network that reaches past the server's own bridge: a driver other
+  // than bridge, such as macvlan, which puts containers on the server's
+  // LAN, past its firewall, or options that change how a bridge routes.
+  HOST_ACCESS_KIND_NETWORK_DRIVER = 5;
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -656,6 +673,9 @@ message PlanStep {
   // before, or reach in another way, which a person approves. The control
   // plane decides this from the specs, not from what the server reports.
   repeated HostAccess host_access = 12;
+  // True when the server hasn't the image yet, so its own health check
+  // isn't known, and until_healthy may be missing or too short.
+  bool health_unknown = 13;
 }
 
 // PlanAction is what a plan does to a resource.

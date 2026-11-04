@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"google.golang.org/protobuf/proto"
 
@@ -142,6 +143,48 @@ func (*Driver) Validate(spec proto.Message) error {
 	if slices.Equal(c.Networks, []string{bridge}) {
 		c.Networks = nil
 	}
+	return checkOwnNames(c)
+}
+
+// Normalize orders a spec Validate refuses, as a newer rule may refuse a
+// stored one, as Validate would order it.
+func (*Driver) Normalize(spec proto.Message) { Normalize(spec.(*resourcev1.Container)) }
+
+// Normalize fills in c's defaults and orders it, and refuses nothing.
+func Normalize(c *resourcev1.Container) {
+	if c.Restart == resourcev1.RestartPolicy_RESTART_POLICY_UNSPECIFIED {
+		c.Restart = resourcev1.RestartPolicy_RESTART_POLICY_UNLESS_STOPPED
+	}
+	for _, p := range c.GetPorts() {
+		if p.Protocol == resourcev1.Protocol_PROTOCOL_UNSPECIFIED {
+			p.Protocol = resourcev1.Protocol_PROTOCOL_TCP
+		}
+	}
+	sortPorts(c)
+	sortMounts(c)
+	slices.Sort(c.Networks)
+}
+
+// checkOwnNames keeps a container on its own out of what isn't its own.
+// Its volumes and networks are Docker's, by their names there, so without
+// this one could mount an environment's volume, or one Docker made for
+// another container's image, or take the name of a volume an environment
+// makes later. A service's names are its environment's, so it can't.
+func checkOwnNames(c *resourcev1.Container) error {
+	for _, m := range c.GetMounts() {
+		v := m.GetVolume()
+		switch {
+		case strings.HasPrefix(strings.ToLower(v), serviceForm):
+			return fmt.Errorf("the volume %s has the form of an environment's, %s<ID>_<name>, so a container on its own can't mount it. Mount a volume of its own, or run it as a service", v, serviceForm)
+		case anonymous(v):
+			return fmt.Errorf("the volume %s has the form of one Docker made for an image, so a container on its own can't mount it. Mount a named volume", v)
+		}
+	}
+	for _, n := range c.GetNetworks() {
+		if strings.HasPrefix(strings.ToLower(n), serviceForm) {
+			return fmt.Errorf("the network %s has the form of an environment's, %s<ID>_<name>, so a container on its own can't join it. Join a network of its own, or run it as a service", n, serviceForm)
+		}
+	}
 	return nil
 }
 
@@ -239,7 +282,13 @@ func validatePorts(c *resourcev1.Container) error {
 		}
 		seen[key] = append(seen[key], p.GetHostIp())
 	}
-	// Order doesn't change what ports mean, so it mustn't show as a change.
+	sortPorts(c)
+	return nil
+}
+
+// sortPorts orders ports: order doesn't change what they mean, so it
+// mustn't show as a change.
+func sortPorts(c *resourcev1.Container) {
 	slices.SortFunc(c.Ports, func(a, b *resourcev1.PortMapping) int {
 		switch {
 		case a.GetHostPort() != b.GetHostPort():
@@ -249,6 +298,23 @@ func validatePorts(c *resourcev1.Container) error {
 		}
 		return strings.Compare(a.GetHostIp(), b.GetHostIp())
 	})
+}
+
+// sortMounts orders mounts by where they go, for the same reason.
+func sortMounts(c *resourcev1.Container) {
+	slices.SortFunc(c.Mounts, func(a, b *resourcev1.Mount) int { return strings.Compare(a.GetTarget(), b.GetTarget()) })
+}
+
+// checkMountString refuses what can't go in Docker's source:target:options
+// form of a bind, where a colon would start the next part, so a target of
+// /app:rshared would set an option the spec refuses.
+func checkMountString(p, what string) error {
+	switch {
+	case strings.Contains(p, ":"):
+		return fmt.Errorf("%s %q has a colon in it, which Docker would read as the start of what comes next. Use a path without one", what, p)
+	case strings.IndexFunc(p, unicode.IsControl) >= 0:
+		return fmt.Errorf("%s %q has a control character in it, which Docker can't take. Write it without one", what, p)
+	}
 	return nil
 }
 
@@ -285,6 +351,9 @@ func validateMounts(c *resourcev1.Container) error {
 		if !path.IsAbs(target) {
 			return fmt.Errorf("a mount's target %q isn't an absolute path in the container; start it with /, such as /data", target)
 		}
+		if err := checkMountString(target, "a mount's target"); err != nil {
+			return err
+		}
 		m.Target = path.Clean(target)
 		switch src := m.GetSource().(type) {
 		case *resourcev1.Mount_Volume:
@@ -298,6 +367,12 @@ func validateMounts(c *resourcev1.Container) error {
 			if !path.IsAbs(src.HostPath) {
 				return fmt.Errorf("the server path %q mounted at %s isn't absolute; start it with /, such as /srv/data", src.HostPath, m.Target)
 			}
+			if err := checkMountString(src.HostPath, "the server path"); err != nil {
+				return err
+			}
+			if err := CheckSpelling(src.HostPath, fmt.Sprintf("the server path %s mounted at %s", src.HostPath, m.Target)); err != nil {
+				return err
+			}
 			src.HostPath = path.Clean(src.HostPath)
 			if err := DefaultHost.CheckPath(src.HostPath, fmt.Sprintf("the server path %s mounted at %s", src.HostPath, m.Target)); err != nil {
 				return err
@@ -310,7 +385,7 @@ func validateMounts(c *resourcev1.Container) error {
 		}
 		seen[m.Target] = true
 	}
-	slices.SortFunc(c.Mounts, func(a, b *resourcev1.Mount) int { return strings.Compare(a.GetTarget(), b.GetTarget()) })
+	sortMounts(c)
 	return nil
 }
 
@@ -393,9 +468,10 @@ func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) 
 	return dec, nil
 }
 
-// Docker's defaults for a health check's interval and retries.
+// Docker's defaults for a health check's interval, timeout and retries.
 const (
 	defaultInterval = 30 * time.Second
+	defaultTimeout  = 30 * time.Second
 	defaultRetries  = 3
 )
 
@@ -405,10 +481,11 @@ const DefaultHealthWait = 5 * time.Minute
 
 // HealthBound is how long a container may take to turn healthy once it
 // starts, at most, by its health check: its start period, then as many
-// failed checks as its retries, an interval apart, which is when Docker
-// calls it unhealthy; and no longer than DefaultHealthWait, after which
-// Verify stops waiting. What the spec's check leaves out takes the
-// image's, then Docker's defaults. Zero for a container without a check.
+// failed checks as its retries, which is when Docker calls it unhealthy.
+// Docker waits an interval after each check ends, and a check may take its
+// timeout. It is no longer than DefaultHealthWait, after which Verify stops
+// waiting. What the spec's check leaves out takes the image's, then
+// Docker's defaults. Zero for a container without a check.
 func HealthBound(spec *resourcev1.Healthcheck, img *docker.Healthcheck) time.Duration {
 	var hc docker.Healthcheck
 	if img != nil {
@@ -421,6 +498,9 @@ func HealthBound(spec *resourcev1.Healthcheck, img *docker.Healthcheck) time.Dur
 		if s.Interval > 0 {
 			hc.Interval = s.Interval
 		}
+		if s.Timeout > 0 {
+			hc.Timeout = s.Timeout
+		}
 		if s.StartPeriod > 0 {
 			hc.StartPeriod = s.StartPeriod
 		}
@@ -431,11 +511,11 @@ func HealthBound(spec *resourcev1.Healthcheck, img *docker.Healthcheck) time.Dur
 	if len(hc.Test) == 0 || hc.Test[0] == "NONE" {
 		return 0
 	}
-	interval, retries := or(hc.Interval, defaultInterval), hc.Retries
+	interval, timeout, retries := or(hc.Interval, defaultInterval), or(hc.Timeout, defaultTimeout), hc.Retries
 	if retries <= 0 {
 		retries = defaultRetries
 	}
-	return min(hc.StartPeriod+time.Duration(retries)*interval, DefaultHealthWait)
+	return min(hc.StartPeriod+time.Duration(retries)*(interval+timeout), DefaultHealthWait)
 }
 
 // judge is a Runtime that knows its server, as Docker does: whose

@@ -608,6 +608,17 @@ func (d *Docker) checkRefs(ctx context.Context, t Target, spec *resourcev1.Conta
 				return err
 			}
 		}
+		for _, m := range spec.GetMounts() {
+			v := m.GetVolume()
+			if v == "" || d.Deleted == nil {
+				continue
+			}
+			if deleted, err := d.Deleted.Has(v); err != nil {
+				return err
+			} else if deleted {
+				return fmt.Errorf("the volume %s was deleted, and the server keeps its data for 7 days, so %s can't mount it. Mount a volume of another name", v, t.Name)
+			}
+		}
 		return nil
 	}
 	for _, m := range spec.GetMounts() {
@@ -650,7 +661,7 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 	if err := d.ensureImage(ctx, spec.GetImage()); err != nil {
 		return err
 	}
-	if err := d.CheckHost(ctx, spec); err != nil {
+	if err := d.CheckHost(ctx, t, spec); err != nil {
 		return err
 	}
 	if err := d.checkRefs(ctx, t, spec); err != nil {
@@ -686,10 +697,15 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 	if old != nil {
 		// As Compose names a container it is about to swap in.
 		name = old.ID[:12] + "_" + t.Name
-		if left, err := d.find(ctx, name); err != nil {
+		left, err := d.find(ctx, name)
+		if err == nil && left != nil {
+			err = owned(Target{Name: name, Project: t.Project, Service: t.Service}, left)
+		}
+		if err != nil {
 			undo()
 			return err
-		} else if left != nil {
+		}
+		if left != nil {
 			_ = d.Client.RemoveContainer(ctx, left.ID, true) // a try that failed before
 		}
 	}
@@ -768,6 +784,18 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 		if err := owned(t, c); err != nil {
 			return err
 		}
+		if dec.Action == resource.ActionReplace {
+			// A replace makes the new one under this name, and a try that
+			// failed before leaves one there, but it may be someone's.
+			swap := c.ID[:12] + "_" + t.Name
+			left, err := d.find(ctx, swap)
+			if err == nil && left != nil {
+				err = owned(Target{Name: swap, Project: t.Project, Service: t.Service}, left)
+			}
+			if err != nil {
+				return err
+			}
+		}
 	}
 	var out map[string]string
 	switch dec.Action {
@@ -796,7 +824,10 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 			if b := HealthBound(hc, img.Config.Healthcheck); b > 0 {
 				dec.UntilHealthy = dec.Downtime + b
 			}
-		case !docker.IsNotFound(err):
+		case docker.IsNotFound(err):
+			// It is pulled as the step applies: its own check isn't known.
+			dec.HealthUnknown = true
+		default:
 			return err
 		}
 	}
@@ -807,7 +838,7 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 // the image's can't change it.
 func complete(hc *resourcev1.Healthcheck) bool {
 	t := hc.GetTest()
-	return len(t) > 0 && (t[0] == "NONE" || hc.GetInterval() != "" && hc.GetStartPeriod() != "" && hc.GetRetries() > 0)
+	return len(t) > 0 && (t[0] == "NONE" || hc.GetInterval() != "" && hc.GetTimeout() != "" && hc.GetStartPeriod() != "" && hc.GetRetries() > 0)
 }
 
 // current is the container at t: the one of its name, or the newest a

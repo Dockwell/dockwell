@@ -735,7 +735,7 @@ func Kinds() []*apicli.Kind {
 			Long:  "Volume is a Docker volume in an environment, which its services mount by name,\nas a Compose file's volumes. Deleting one destroys its data, though Dockwell\nkeeps it for 7 days first. Docker can't change a volume, so its spec can't\nchange once it is made.",
 			Fields: []apicli.Field{
 				{Path: "driver", Help: "The volume driver: \"local\" unless set."},
-				{Path: "options", Help: "The driver's options, such as type, device and o for an NFS mount."},
+				{Path: "options", Help: "The driver's options, such as type, device and o for an NFS mount. They may hold secrets, as a CIFS mount's password goes in o. The local driver takes type none with bind, nfs, nfs4, cifs or tmpfs.", Sensitive: true},
 				{Path: "labels", Help: "Labels on the volume, for tools that read them."},
 			},
 		},

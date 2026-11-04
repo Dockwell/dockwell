@@ -896,6 +896,14 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 	}
 }
 
+// SetDockerRoot moves where /info says the engine keeps its data, as
+// restarting Docker with another data root does.
+func (e *Engine) SetDockerRoot(root string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.DockerRoot = root
+}
+
 // Seen lists the requests the engine has had, as "METHOD /path".
 func (e *Engine) Seen() []string {
 	e.mu.Lock()

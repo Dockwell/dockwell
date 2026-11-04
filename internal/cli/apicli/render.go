@@ -499,6 +499,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			if access := st.GetHostAccess(); len(access) > 0 {
 				fmt.Fprintf(tw, "      Gives it access to %s: %s. A person approves this.\n", s.GetServerName(), human.List(accessWords(access)))
 			}
+			if st.GetHealthUnknown() {
+				fmt.Fprintln(tw, "      Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy.")
+			}
 			for _, warning := range st.GetWarnings() {
 				if warning == dockwellv1.PlanWarning_PLAN_WARNING_MAY_LOCK_OUT {
 					fmt.Fprintln(tw, "      May cut off remote access to "+s.GetServerName()+", such as SSH.")
@@ -515,7 +518,14 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		fmt.Fprintln(w, "It destroys data or may cut off access, which undo may not bring back.")
 	}
 	if p.GetHostAccess() {
-		fmt.Fprintln(w, "It gives a container more access to its server, which a person approves.")
+		fmt.Fprintln(w, "It gives more access to a server, which a person approves:")
+		// Here as well as on the steps, as a plan that only writes down
+		// what a server has, such as adopting drift, has none.
+		for _, r := range p.GetResources() {
+			if access := r.GetHostAccess(); len(access) > 0 {
+				fmt.Fprintf(w, "  %s: %s\n", ref(r.GetResource()), human.List(accessWords(access)))
+			}
+		}
 	}
 }
 
@@ -525,16 +535,18 @@ func accessWords(list []*dockwellv1.HostAccess) []string {
 	for _, a := range list {
 		out = append(out, resource.AccessWords(resource.Access{
 			Kind: accessKinds[a.GetKind()], Path: a.GetPath(), ReadOnly: a.GetReadOnly(), Type: a.GetType(),
+			Address: a.GetAddress(), Relabel: a.GetRelabel(), Driver: a.GetDriver(), Detail: a.GetDetail(),
 		}))
 	}
 	return out
 }
 
 var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
-	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH:   resource.AccessPath,
-	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOCKER_SOCKET: resource.AccessDocker,
-	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HOST_NETWORK:  resource.AccessNetwork,
-	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_VOLUME_MOUNT:  resource.AccessMount,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH:    resource.AccessPath,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOCKER_SOCKET:  resource.AccessDocker,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HOST_NETWORK:   resource.AccessNetwork,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_VOLUME_MOUNT:   resource.AccessMount,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_NETWORK_DRIVER: resource.AccessNetworkDriver,
 }
 
 // upTo writes a bound to the second, rounding up, as "1 min 50 s", so it
