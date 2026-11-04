@@ -37,7 +37,9 @@ func freePort(t *testing.T) int {
 }
 
 // composeCLI runs docker compose with the variables an export leaves out
-// set, as a shell would, and returns what it printed.
+// set, as a shell would, and returns what it printed on standard output.
+// Its warnings, such as for a variable left blank, go to standard error,
+// apart from the output a test reads.
 func composeCLI(t *testing.T, env map[string]string, args ...string) string {
 	t.Helper()
 	cmd := exec.CommandContext(t.Context(), "docker", append([]string{"compose"}, args...)...)
@@ -45,9 +47,11 @@ func composeCLI(t *testing.T, env map[string]string, args ...string) string {
 	for k, v := range env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
-	out, err := cmd.CombinedOutput()
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("docker compose %s: %v\n%s", strings.Join(args, " "), err, out)
+		t.Fatalf("docker compose %s: %v\n%s%s", strings.Join(args, " "), err, out, stderr.String())
 	}
 	return string(out)
 }

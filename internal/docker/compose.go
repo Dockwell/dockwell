@@ -14,6 +14,12 @@ const (
 	LabelOneoff   = ComposePrefix + "oneoff"
 	LabelVolume   = ComposePrefix + "volume"
 	LabelNetwork  = ComposePrefix + "network"
+	// LabelConfigHash is the hash of a container's configuration. Compose
+	// lists only the containers that carry one as its project's, and
+	// recreates one whose hash isn't what it computes. A volume or a
+	// network carries none: Compose would recreate one whose hash differs,
+	// which empties a volume.
+	LabelConfigHash = ComposePrefix + "config-hash"
 )
 
 // OwnPrefix starts the labels that are Dockwell's own.

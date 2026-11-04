@@ -5,6 +5,7 @@ package container
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -65,8 +68,26 @@ func Labels(t Target, spec *resourcev1.Container) map[string]string {
 	l[docker.LabelService] = t.Service
 	l[docker.LabelNumber] = "1"
 	l[docker.LabelOneoff] = "False"
+	l[docker.LabelConfigHash] = ConfigHash(spec)
 	maps.Copy(l, OwnLabels(spec))
 	return l
+}
+
+// ConfigHash is the config hash a container carries for spec, without
+// which docker compose doesn't take it as its project's: compose ps leaves
+// it out, and compose up fails on its name. It is a SHA-256 of the spec
+// with its environment's values left out, as they may be secrets, so it
+// changes with the spec. It never equals the hash compose computes from
+// its own types, so docker compose up from an export recreates each
+// container once, and compose's own hash is on it from then on.
+func ConfigHash(spec *resourcev1.Container) string {
+	c := proto.CloneOf(spec)
+	for k := range c.GetEnv() {
+		c.Env[k] = ""
+	}
+	b, _ := proto.MarshalOptions{Deterministic: true}.Marshal(c)
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }
 
 // OwnLabels are Dockwell's own labels for spec, which an exported Compose

@@ -1011,3 +1011,17 @@ func (e *Engine) AddNetwork(n docker.Network) {
 	n.ID += newID()[len(n.ID):] // made up, or filled out from a prefix
 	e.networks[n.Name] = &n
 }
+
+// ComposeFilters are the filters docker compose lists a project's
+// containers with, as its getDefaultFilters in pkg/compose/containers.go
+// has them at v2.38.2: the project's label, a config hash, and not one
+// off, with the service's label when it names one. A container these
+// don't find, docker compose ps leaves out and docker compose up fails
+// on, as its name is taken.
+func ComposeFilters(project string, service ...string) map[string][]string {
+	labels := []string{docker.LabelProject + "=" + project, docker.LabelConfigHash, docker.LabelOneoff + "=False"}
+	if len(service) == 1 {
+		labels = append(labels, docker.LabelService+"="+service[0])
+	}
+	return map[string][]string{"label": labels}
+}

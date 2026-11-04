@@ -492,3 +492,34 @@ func TestNoDocker(t *testing.T) {
 		t.Errorf("Ping without Docker = %v", err)
 	}
 }
+
+// docker compose lists a service's containers, and a container on its
+// own, as its project's, by the filters it lists them with.
+func TestComposeListsContainers(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	l := resource.Local{Drivers: drivers(e)}
+	svc := resource.Ref{Kind: service.Kind, Scope: env, Name: "web"}
+	apply(t, l, svc, &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27"}}})
+	own := resource.Ref{Kind: container.Kind, Scope: "srv_01KAT4ZR6E3V0Y5XBKZB5D9Q6M", Name: "cache"}
+	apply(t, l, own, &resourcev1.Container{Image: "nginx:1.27"})
+	for _, c := range []struct{ project, service, name string }{
+		{docker.Project(env), "web", service.ContainerName(svc)},
+		{docker.Project(own.Scope), "cache", "cache"},
+	} {
+		list, err := e.Client().ListContainers(t.Context(), dockertest.ComposeFilters(c.project, c.service))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list) != 1 || !slices.Contains(list[0].Names, "/"+c.name) {
+			t.Errorf("docker compose -p %s ps %s lists %+v, want %s", c.project, c.service, list, c.name)
+		}
+	}
+	// The hash changes with the spec, and never holds its environment.
+	a := container.ConfigHash(&resourcev1.Container{Image: "nginx:1.27", Env: map[string]string{"KEY": "secret-1"}})
+	b := container.ConfigHash(&resourcev1.Container{Image: "nginx:1.27", Env: map[string]string{"KEY": "secret-2"}})
+	c := container.ConfigHash(&resourcev1.Container{Image: "nginx:1.28", Env: map[string]string{"KEY": "secret-1"}})
+	if a != b || a == c {
+		t.Errorf("config hashes %s, %s, %s: want the same for values alone, another for an image", a, b, c)
+	}
+}
