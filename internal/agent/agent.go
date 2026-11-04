@@ -35,6 +35,9 @@ type Config struct {
 	Identity *enroll.Identity
 	// Build is reported to the control plane.
 	Build buildinfo.Info
+	// Started, when set, is called once, when the first stream is open
+	// and has sent its first stats: the server's startup is over.
+	Started func()
 	// Collector samples the server. Nil means this machine.
 	Collector *collect.Collector
 }
@@ -55,6 +58,9 @@ const (
 // Run keeps the server's certificate fresh and its stream to the control
 // plane open, until ctx is done.
 func Run(ctx context.Context, cfg Config) error {
+	if cfg.Started != nil {
+		cfg.Started = sync.OnceFunc(cfg.Started)
+	}
 	if cfg.Collector == nil {
 		cfg.Collector = collect.New()
 	}
@@ -210,6 +216,9 @@ func session(ctx context.Context, cfg Config) error {
 	defer ticker.Stop()
 	if err := sendStats(); err != nil {
 		return err
+	}
+	if cfg.Started != nil {
+		cfg.Started()
 	}
 	for {
 		select {

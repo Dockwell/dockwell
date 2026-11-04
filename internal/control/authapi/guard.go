@@ -297,12 +297,14 @@ var errSessionEnded = errors.New("your session ended. Sign in again")
 // the panel's own origin. It fails closed: a request that didn't pass
 // through Guard, or a nil service, gets no session.
 func Interceptor(svc *auth.Service, logger *slog.Logger) connect.Interceptor {
-	return &interceptor{svc: svc, logger: logger}
+	return &interceptor{svc: svc, logger: logger, access: tokenAccess()}
 }
 
 type interceptor struct {
 	svc    *auth.Service
 	logger *slog.Logger
+	// access is tokenAccess, built once the control plane starts.
+	access map[string]auth.Access
 }
 
 // sessionOnly are the services no API token may call: how you sign in, and
@@ -311,13 +313,13 @@ var sessionOnly = []string{dockwellv1connect.AuthServiceName, dockwellv1connect.
 
 // accessFor is what a procedure needs of an API token, by its effect.
 // Anything unknown needs a session.
-func accessFor(procedure string) auth.Access {
+func (i *interceptor) accessFor(procedure string) auth.Access {
 	for _, svc := range sessionOnly {
 		if strings.HasPrefix(procedure, "/"+svc+"/") {
 			return auth.AccessSession
 		}
 	}
-	if a, ok := tokenAccess[procedure]; ok {
+	if a, ok := i.access[procedure]; ok {
 		return a
 	}
 	return auth.AccessSession
@@ -325,8 +327,10 @@ func accessFor(procedure string) auth.Access {
 
 // tokenAccess maps each procedure of dockwell.v1 to what it needs of a
 // token, by its (dockwell.v1.effect), and lets any token read the schema
-// through reflection.
-var tokenAccess = func() map[string]auth.Access {
+// through reflection. Reading the effects builds every descriptor of
+// dockwell.v1 in full, so it waits for the control plane to start rather
+// than costing every dockwell process, agents included, at init.
+func tokenAccess() map[string]auth.Access {
 	m := map[string]auth.Access{
 		"/grpc.reflection.v1.ServerReflection/ServerReflectionInfo":      auth.AccessRead,
 		"/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo": auth.AccessRead,
@@ -351,7 +355,7 @@ var tokenAccess = func() map[string]auth.Access {
 		return true
 	})
 	return m
-}()
+}
 
 func (i *interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
@@ -451,7 +455,7 @@ func (i *interceptor) authorizeToken(ctx context.Context, req request, procedure
 	if i.svc == nil {
 		return ctx, reasonError(connect.CodeUnauthenticated, auth.ErrTokenRejected, ReasonTokenRejected)
 	}
-	p, err := i.svc.AuthenticateToken(ctx, req.client, req.bearer, accessFor(procedure), procedure)
+	p, err := i.svc.AuthenticateToken(ctx, req.client, req.bearer, i.accessFor(procedure), procedure)
 	switch {
 	case err == nil:
 		return context.WithValue(ctx, principalKey{}, p), nil

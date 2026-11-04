@@ -87,7 +87,7 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 				}
 				err = runControl(cmd.Context(), stdio, logger, dir, build, f)
 			} else {
-				err = agent.Run(cmd.Context(), agent.Config{Logger: logger, Dir: dir.Agent(), Identity: id, Build: build})
+				err = agent.Run(cmd.Context(), agent.Config{Logger: logger, Dir: dir.Agent(), Identity: id, Build: build, Started: releaseStartup(logger)})
 			}
 			// Asked to stop while still starting: every write so far was a
 			// transaction, so stopping now is clean, not a failure.
@@ -249,7 +249,7 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		cancel()
 	})
 	wg.Go(func() {
-		agentErr = agent.Run(ctx, agent.Config{Logger: logger, Dir: dir.Agent(), Identity: own, Build: build})
+		agentErr = agent.Run(ctx, agent.Config{Logger: logger, Dir: dir.Agent(), Identity: own, Build: build, Started: releaseStartup(logger)})
 		cancel()
 	})
 	wg.Wait()

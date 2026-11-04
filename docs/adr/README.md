@@ -20,6 +20,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0014](0014-object-model-and-store.md) | The object model, and one store on SQLite and Postgres | Accepted |
 | [0015](0015-rest-and-openapi-from-the-schema.md) | REST paths and an OpenAPI document from the schema | Accepted |
 | [0016](0016-scoped-api-tokens.md) | Scoped API tokens | Accepted |
+| [0018](0018-release-the-pages-startup-maps.md) | Release the pages startup maps, and keep the budgets in RSS | Accepted |
 
 Still open from the PRD: the config-as-code format (extended Compose is recommended; needed in phase 3), and the [open questions](../product/prd.md#risks-open-questions-and-decisions).
 
