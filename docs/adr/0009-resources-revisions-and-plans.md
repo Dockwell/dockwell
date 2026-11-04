@@ -66,16 +66,17 @@ The plan carries a fingerprint, a hash of its steps.
    - any resource has a newer revision than the change started from;
    - a fresh plan against the servers no longer matches the approved fingerprint.
 
-   In both cases the fix is to review the plan again.
+   In both cases the fix is to review the plan again. A rollback, which nobody reviews, is the exception to the second check (see below).
 2. It commits the revisions, so the desired state is on record before anything runs. If the control plane stops mid-apply, agents reconcile toward that state rather than toward a half-applied one.
 3. It runs the steps in a fixed order. Creates, updates and replaces run on every server first, in proposal order, and then deletes, last first. So a move starts the new copy before the old one goes.
 4. It verifies each step after applying it.
 
-Once the revisions are committed, apply runs to an end even if the caller goes away: a change left half applied is worse than one that finishes late.
+Once the revisions are committed, apply runs to an end even if the caller goes away: a change left half applied is worse than one that finishes late. A control plane that stops lets the steps under way finish for a while, then stops the change where it is: it stays applying, and Resume finishes it on the next start. The stop doesn't fail it or roll it back (ADR 0017).
 
 If a step fails, apply stops. It then rolls back the steps it already applied, as a new change that undoes the failed one and is applied at once. The history shows both: the deploy that failed and the rollback that followed.
 - A rollback commits even when a server it touches is offline, so desired state goes back at once. It stays applying until that server returns.
-- *Resume* finishes every change left applying, whether a rollback waiting for a server or a change a stopped control plane left halfway. It runs on start and whenever a server reconnects. It plans each resource again against its server and runs what remains, skipping resources a later change has moved on.
+- A rollback commits whatever the servers say: its intent is the desired state before the failed change. It is planned and committed in one step, with the plan it runs as its plan, so it is never left planned, and no fingerprint holds it back. A server whose agent can't plan it is planned from its last known state, like an offline one, and that part waits for Resume.
+- *Resume* finishes every change left applying, whether a rollback waiting for a server or a change a stopped control plane left halfway. It runs on start and whenever a server reconnects, and again when a change it skipped as running ends, so a server that reconnects mid-run isn't forgotten. It plans each resource again against its server and runs what remains, skipping resources a later change has moved on.
 - A rollback that fails isn't rolled back in turn, since that would re-apply what failed.
 
 **Undo is a change like any other.** Undoing change C proposes, for each resource C touched, the spec it had before C, or a deletion if C created it. It then plans and applies like any edit. Undo is refused when:

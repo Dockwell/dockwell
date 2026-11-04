@@ -27,7 +27,6 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
-	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -270,18 +269,20 @@ func (h *Handler) DiscardChange(ctx context.Context, req *connect.Request[dockwe
 // ListDrift checks servers for drift.
 func (h *Handler) ListDrift(ctx context.Context, req *connect.Request[dockwellv1.ListDriftRequest]) (*connect.Response[dockwellv1.ListDriftResponse], error) {
 	var servers []string
+	names := map[string]string{}
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		if want := req.Msg.GetServerId(); want != "" {
 			s, err := tx.GetServer(ctx, want)
 			if errors.Is(err, store.ErrNotFound) || err == nil && s.RevokedAt != nil {
 				return fmt.Errorf("%w: there's no server %s in the fleet", scope.ErrNotFound, want)
 			}
-			servers = []string{want}
+			servers, names[want] = []string{want}, s.Name
 			return err
 		}
 		all, err := tx.ListServers(ctx)
 		for i := range all {
 			servers = append(servers, all[i].ID)
+			names[all[i].ID] = all[i].Name
 		}
 		return err
 	})
@@ -291,12 +292,18 @@ func (h *Handler) ListDrift(ctx context.Context, req *connect.Request[dockwellv1
 	res := &dockwellv1.ListDriftResponse{}
 	for _, s := range servers {
 		drift, err := h.engine.Drift(ctx, s)
-		if errors.Is(err, revision.ErrOffline) {
-			res.UncheckedServers = append(res.UncheckedServers, s)
-			continue
-		}
 		if err != nil {
-			return nil, h.rpcError(ctx, err)
+			// A server that can't be checked leaves the others to report.
+			// The request failing, as when its client goes away, or the
+			// store failing, fails it all.
+			reason, ok := serverReason(err)
+			if !ok || ctx.Err() != nil {
+				return nil, h.rpcError(ctx, err)
+			}
+			res.UncheckedServers = append(res.UncheckedServers, &dockwellv1.UncheckedServer{
+				ServerId: s, ServerName: names[s], Reason: reason, Message: err.Error(),
+			})
+			continue
 		}
 		for _, d := range drift {
 			res.Drift = append(res.Drift, &dockwellv1.Drift{
@@ -406,6 +413,10 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				}
 				return fmt.Errorf("%w: %w", revision.ErrInvalid, err)
 			}
+			if e.GetProject() != "" && t.Level() != resource.LevelEnvironment {
+				return fmt.Errorf("%w: edit %d names a project, which only a resource that lives in an environment, such as a service, takes. "+
+					"Name what a %s lives in with resource.scope instead", revision.ErrInvalid, i+1, ref.Kind)
+			}
 			if tree == nil && t.Level() != resource.LevelServer {
 				loaded, err := scope.Load(ctx, tx)
 				if err != nil {
@@ -413,7 +424,7 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				}
 				tree = &loaded
 			}
-			if ref.Scope, err = resolve(ctx, tx, tree, t.Level(), ref.Scope); err != nil {
+			if ref.Scope, err = resolve(ctx, tx, tree, t.Level(), e.GetProject(), ref.Scope); err != nil {
 				return err
 			}
 			var servers []string // none keeps a service where it runs
@@ -428,8 +439,9 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 }
 
 // resolve finds the ID of what a resource lives in, from an ID, a name,
-// or nothing, which means the only one there is.
-func resolve(ctx context.Context, tx *store.Tx, tree *scope.Tree, level resource.Level, given string) (string, error) {
+// or nothing, which means the only one there is. An environment's project
+// is named apart, by name or ID, for when there is a choice of projects.
+func resolve(ctx context.Context, tx *store.Tx, tree *scope.Tree, level resource.Level, project, given string) (string, error) {
 	switch level {
 	case resource.LevelOrganization:
 		if given == "" || given == tree.Organization.ID || given == tree.Organization.Name {
@@ -440,12 +452,13 @@ func resolve(ctx context.Context, tx *store.Tx, tree *scope.Tree, level resource
 		if strings.HasPrefix(given, id.Project+"_") {
 			return given, nil // checked when the change is planned
 		}
-		return projectOf(tree, given)
+		p, err := tree.Project(given)
+		return p.ID, err
 	case resource.LevelEnvironment:
-		if strings.HasPrefix(given, id.Environment+"_") {
-			return given, nil
+		if project == "" && strings.HasPrefix(given, id.Environment+"_") {
+			return given, nil // checked when the change is planned
 		}
-		_, e, err := tree.Resolve("", given)
+		_, e, err := tree.Resolve(project, given)
 		return e.ID, err
 	case resource.LevelServer:
 	}
@@ -472,27 +485,6 @@ func resolve(ctx context.Context, tx *store.Tx, tree *scope.Tree, level resource
 		}
 	}
 	return "", fmt.Errorf("%w: there's no server %s in the fleet", scope.ErrNotFound, given)
-}
-
-// projectOf finds a project by name, or the only one when given is empty,
-// as scope.Tree.Resolve does for environments.
-func projectOf(tree *scope.Tree, given string) (string, error) {
-	if given == "" {
-		if len(tree.Projects) == 1 {
-			return tree.Projects[0].ID, nil
-		}
-		options := make([]string, len(tree.Projects))
-		for i, p := range tree.Projects {
-			options[i] = p.Name
-		}
-		return "", &scope.ChoiceError{Level: scope.ProjectKind, Options: options}
-	}
-	for _, p := range tree.Projects {
-		if p.Name == given {
-			return p.ID, nil
-		}
-	}
-	return "", fmt.Errorf("%w: there's no project %s", scope.ErrNotFound, given)
 }
 
 // actors finds the name to show for each actor, once per request.
@@ -556,7 +548,7 @@ var stepStates = map[revision.StepState]dockwellv1.StepState{
 func changeProto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dockwellv1.Change {
 	c := &dockwellv1.Change{
 		Id: r.ID, Summary: r.Summary, State: states[r.State], ProposedBy: actor(r.Actor), ProposedVia: surfaces[r.ProposedVia],
-		CreateTime: timestamppb.New(r.CreatedAt), Plan: planProto(r.Plan), Reverts: r.Reverts,
+		CreateTime: timestamppb.New(r.CreatedAt), Plan: planProto(r), Reverts: r.Reverts,
 		Rollback: r.Actor == revision.SystemActor && r.Reverts != "", AppliedBy: actor(r.AppliedBy), AppliedVia: surfaces[r.AppliedVia],
 		Error: r.Error, RolledBackBy: r.RolledBackBy, UndoneBy: r.UndoneBy,
 	}
@@ -572,15 +564,21 @@ func changeProto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dock
 	return c
 }
 
-func planProto(p *revision.Plan) *dockwellv1.Plan {
-	counts := p.Counts()
+// planProto is a change's plan: in full when the record has it, and in
+// brief in a list.
+func planProto(r *revision.Record) *dockwellv1.Plan {
+	b := r.Brief
 	out := &dockwellv1.Plan{
-		Fingerprint: p.Fingerprint,
+		Fingerprint: b.Fingerprint,
 		Summary: &dockwellv1.PlanSummary{
-			Create: int32(counts.Create), Change: int32(counts.Change), Replace: int32(counts.Replace), Destroy: int32(counts.Destroy), //nolint:gosec // small counts
+			Create: int32(b.Counts.Create), Change: int32(b.Counts.Change), Replace: int32(b.Counts.Replace), Destroy: int32(b.Counts.Destroy), //nolint:gosec // small counts
 		},
 		UndoWindow:  durationpb.New(revision.UndoWindow),
-		Destructive: p.Destructive(),
+		Destructive: b.Destructive,
+	}
+	p := r.Plan
+	if p == nil {
+		return out
 	}
 	ids := map[resource.Ref]string{}
 	for i := range p.Resources {
@@ -663,11 +661,18 @@ var codes = []struct {
 	{revision.ErrBusy, connect.CodeFailedPrecondition, "busy"},
 	{revision.ErrCantUndo, connect.CodeFailedPrecondition, "cant_undo"},
 	{revision.ErrOffline, connect.CodeUnavailable, "server_offline"},
-	{agentapi.ErrLost, connect.CodeUnavailable, "server_offline"},
+	{revision.ErrStopping, connect.CodeUnavailable, "stopping"},
+	{resource.ErrLost, connect.CodeUnavailable, "server_offline"},
+	{resource.ErrNotConnected, connect.CodeUnavailable, "server_offline"},
 	{resource.ErrNoDriver, connect.CodeFailedPrecondition, "no_driver"},
 }
 
 func (h *Handler) rpcError(ctx context.Context, err error) error {
+	// A client that went away comes first: what it waited on, such as an
+	// agent's plan, didn't fail.
+	if errors.Is(err, context.Canceled) {
+		return connect.NewError(connect.CodeCanceled, err)
+	}
 	var choice *scope.ChoiceError
 	if errors.As(err, &choice) {
 		return reasonError(connect.CodeInvalidArgument, err, "choice")
@@ -683,9 +688,24 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 		return reasonError(connect.CodeDeadlineExceeded, err, "agent_timeout")
 	case errors.As(err, &agent):
 		return reasonError(connect.CodeFailedPrecondition, err, "agent_failed")
-	case errors.Is(err, context.Canceled):
-		return connect.NewError(connect.CodeCanceled, err)
 	}
 	h.logger.ErrorContext(ctx, "change call failed", slog.String("error", err.Error()))
 	return connect.NewError(connect.CodeInternal, errors.New("the control plane couldn't complete the request; try again, and check its logs if it keeps failing"))
+}
+
+// serverReason says why one server couldn't answer, as an error's reason
+// would, or false for an error that isn't the server's.
+func serverReason(err error) (string, bool) {
+	var agent *revision.AgentError
+	switch {
+	case errors.Is(err, revision.ErrOffline), errors.Is(err, resource.ErrLost), errors.Is(err, resource.ErrNotConnected):
+		return "server_offline", true
+	case errors.Is(err, resource.ErrNoDriver):
+		return "no_driver", true
+	case errors.As(err, &agent) && errors.Is(err, context.DeadlineExceeded):
+		return "agent_timeout", true
+	case errors.As(err, &agent):
+		return "agent_failed", true
+	}
+	return "", false
 }

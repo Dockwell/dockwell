@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -138,59 +139,110 @@ func (e *Engine) published(changeID, state string) {
 	e.publishLocked(changeID, u)
 }
 
-// track starts tracking a change that runs in this process, from its
-// progress so far.
+// track starts tracking the progress of a change that runs in this
+// process, from its progress so far.
 func (e *Engine) track(changeID string, p Progress) {
 	e.pmu.Lock()
 	defer e.pmu.Unlock()
 	e.live[changeID] = &p
 }
 
-// untrack stops tracking a change once its run has ended.
-func (e *Engine) untrack(changeID string) {
-	e.release(changeID)
+// own holds a change in this process, and reports false if it was held
+// already.
+func (e *Engine) own(changeID string) bool {
 	e.pmu.Lock()
 	defer e.pmu.Unlock()
-	delete(e.live, changeID)
+	if e.owned[changeID] {
+		return false
+	}
+	e.owned[changeID] = true
+	return true
 }
 
-// claim checks that no other change running here touches the items'
-// resources, and with take, marks them as the change's. Callers hold mu,
-// so a check and the take that follows it can't be split by another
-// commit.
-func (e *Engine) claim(changeID string, items []item, take bool) error {
+// ownOrResumeLater is own for Resume: a change held already is running
+// here, or being resumed, so Resume runs again once it lets go, in case it
+// ends waiting for a server that is back by then.
+func (e *Engine) ownOrResumeLater(changeID string) bool {
+	e.pmu.Lock()
+	defer e.pmu.Unlock()
+	if e.owned[changeID] {
+		e.wantResume = true
+		return false
+	}
+	e.owned[changeID] = true
+	return true
+}
+
+// claim claims the items' resources for a change held here, unless another
+// change holds one. A rollback takes over the claims of the change it
+// rolls back. With resumeLater, a refusal asks for Resume once the change
+// holding the resource lets go.
+func (e *Engine) claim(changeID, takesOver string, items []item, resumeLater bool) error {
 	e.pmu.Lock()
 	defer e.pmu.Unlock()
 	for i := range items {
-		if other, ok := e.busy[items[i].id]; ok && other != changeID {
+		if other, ok := e.busy[items[i].id]; ok && other != changeID && other != takesOver {
+			e.wantResume = e.wantResume || resumeLater
 			return fmt.Errorf("%w: %s is applying %s now. Apply this change once it ends", ErrBusy, other, items[i].ref)
 		}
 	}
-	if take {
-		for i := range items {
-			e.busy[items[i].id] = changeID
-		}
+	for i := range items {
+		e.busy[items[i].id] = changeID
 	}
 	return nil
 }
 
-// release lets other changes take a change's resources.
-func (e *Engine) release(changeID string) {
+// letGo ends a change's hold here: it isn't owned any more, its progress
+// isn't live, and its resources are free. With wake, a Resume asked for
+// meanwhile runs now, in the background: what it waited for may be free.
+// A change that never claimed anything, because another held its
+// resources, lets go without waking, or it would wake itself in a loop.
+func (e *Engine) letGo(ctx context.Context, changeID string, wake bool) {
 	e.pmu.Lock()
 	defer e.pmu.Unlock()
+	delete(e.owned, changeID)
+	delete(e.live, changeID)
 	for id, c := range e.busy {
 		if c == changeID {
 			delete(e.busy, id)
 		}
 	}
+	if !wake || !e.wantResume {
+		return
+	}
+	e.wantResume = false
+	if e.waking {
+		e.rerun = true
+		return
+	}
+	if !e.enter() {
+		return // stopping: the next start resumes
+	}
+	e.waking = true
+	ctx = context.WithoutCancel(ctx)
+	go func() {
+		defer e.exit()
+		for {
+			if err := e.resume(ctx); err != nil {
+				e.logger.WarnContext(ctx, "can't finish a change left applying yet; Dockwell tries again when a server reconnects",
+					slog.String("error", err.Error()))
+			}
+			e.pmu.Lock()
+			again := e.rerun
+			e.rerun, e.waking = false, again
+			e.pmu.Unlock()
+			if !again {
+				return
+			}
+		}
+	}()
 }
 
-// running reports a change running in this process.
-func (e *Engine) running(changeID string) bool {
+// askResume asks for Resume once the next change held here lets go.
+func (e *Engine) askResume() {
 	e.pmu.Lock()
 	defer e.pmu.Unlock()
-	_, ok := e.live[changeID]
-	return ok
+	e.wantResume = true
 }
 
 // progress returns the live progress of a change running in this process,
@@ -335,11 +387,55 @@ func decodeProgress(b []byte) (Progress, error) {
 // Record is a change with its plan and progress, as the API shows it.
 type Record struct {
 	store.Change
-	Plan     *Plan
+	// Plan is the plan in full. Changes leaves it out: a list has Brief.
+	Plan *Plan
+	// Brief is what a list shows of the plan.
+	Brief    Brief
 	Progress Progress
 	// RolledBackBy is the rollback of this change, if it failed and one was
 	// made; UndoneBy the applied change that undid it.
 	RolledBackBy, UndoneBy string
+}
+
+// Brief is a plan in brief: its fingerprint, its counts, and whether it is
+// destructive.
+type Brief struct {
+	Fingerprint string
+	Counts      Counts
+	Destructive bool
+}
+
+// Brief sums up the plan.
+func (p *Plan) Brief() Brief {
+	return Brief{Fingerprint: p.Fingerprint, Counts: p.Counts(), Destructive: p.Destructive()}
+}
+
+// brief reads a stored plan in brief, leaving out the rest: its field
+// changes, which are most of it.
+func brief(b []byte) (Brief, error) {
+	var stored struct {
+		Fingerprint string
+		Resources   []struct{ Action resource.Action }
+		Servers     []struct {
+			Steps []struct {
+				Destroys bool
+				Warnings []resource.Warning
+			}
+		}
+	}
+	if err := json.Unmarshal(b, &stored); err != nil {
+		return Brief{}, fmt.Errorf("can't read a stored plan: %w", err)
+	}
+	p := Plan{Fingerprint: stored.Fingerprint, Resources: make([]ResourcePlan, len(stored.Resources)), Servers: make([]ServerPlan, len(stored.Servers))}
+	for i := range stored.Resources {
+		p.Resources[i].Action = stored.Resources[i].Action
+	}
+	for i := range stored.Servers {
+		for _, st := range stored.Servers[i].Steps {
+			p.Servers[i].Steps = append(p.Servers[i].Steps, resource.Step{Decision: resource.Decision{Destroys: st.Destroys, Warnings: st.Warnings}})
+		}
+	}
+	return p.Brief(), nil
 }
 
 // UndoDeadline is until when an applied change can be undone; zero for
@@ -351,8 +447,8 @@ func (r *Record) UndoDeadline() time.Time {
 	return r.AppliedAt.Add(UndoWindow)
 }
 
-// Change reads a change with its plan, and its progress: live while it
-// runs in this process, as recorded otherwise.
+// Change reads a change with its plan in full, and its progress: live
+// while it runs in this process, as recorded otherwise.
 func (e *Engine) Change(ctx context.Context, changeID string) (*Record, error) {
 	var r *Record
 	err := e.db.View(ctx, func(tx *store.Tx) error {
@@ -360,8 +456,12 @@ func (e *Engine) Change(ctx context.Context, changeID string) (*Record, error) {
 		if err != nil {
 			return err
 		}
-		r, err = e.record(ctx, tx, c)
-		return err
+		r = &Record{Change: c}
+		if r.Plan, err = DecodePlan(c.Plan); err != nil {
+			return err
+		}
+		r.Brief = r.Plan.Brief()
+		return e.complete(ctx, tx, []*Record{r})
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -372,7 +472,8 @@ func (e *Engine) Change(ctx context.Context, changeID string) (*Record, error) {
 	return r, nil
 }
 
-// Changes reads a page of changes, newest first.
+// Changes reads a page of changes, newest first, each with its plan in
+// brief rather than in full.
 func (e *Engine) Changes(ctx context.Context, page store.ChangePage, limit int) ([]*Record, error) {
 	var out []*Record
 	err := e.db.View(ctx, func(tx *store.Tx) error {
@@ -381,40 +482,45 @@ func (e *Engine) Changes(ctx context.Context, page store.ChangePage, limit int) 
 			return err
 		}
 		for i := range cs {
-			r, err := e.record(ctx, tx, cs[i])
-			if err != nil {
+			r := &Record{Change: cs[i]}
+			if r.Brief, err = brief(cs[i].Plan); err != nil {
 				return err
 			}
 			out = append(out, r)
 		}
-		return nil
+		return e.complete(ctx, tx, out)
 	})
 	return out, err
 }
 
-func (e *Engine) record(ctx context.Context, tx *store.Tx, c store.Change) (*Record, error) {
-	r := &Record{Change: c}
-	var err error
-	if r.Plan, err = DecodePlan(c.Plan); err != nil {
-		return nil, err
+// complete reads each record's progress, and what rolled it back or undid
+// it, with one query for them all.
+func (e *Engine) complete(ctx context.Context, tx *store.Tx, records []*Record) error {
+	ids := make([]string, len(records))
+	byID := make(map[string]*Record, len(records))
+	for i, r := range records {
+		ids[i], byID[r.ID] = r.ID, r
+		var err error
+		if p := e.progress(r.ID); p != nil {
+			r.Progress = *p
+		} else if r.Progress, err = decodeProgress(r.Change.Progress); err != nil {
+			return err
+		}
 	}
-	if p := e.progress(c.ID); p != nil {
-		r.Progress = *p
-	} else if r.Progress, err = decodeProgress(c.Progress); err != nil {
-		return nil, err
-	}
-	reverting, err := tx.Reverting(ctx, c.ID)
+	reverting, err := tx.Reverting(ctx, ids)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for i := range reverting {
 		rc := &reverting[i]
+		r := byID[rc.Reverts]
 		switch {
+		case r == nil:
 		case isRollback(*rc):
 			r.RolledBackBy = rc.ID
 		case rc.State == store.ChangeApplied:
 			r.UndoneBy = rc.ID
 		}
 	}
-	return r, nil
+	return nil
 }

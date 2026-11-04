@@ -155,7 +155,7 @@ func TestResumeCarriesProgressOver(t *testing.T) { storetest.Each(t, testResumeC
 
 func testResumeCarriesProgressOver(t *testing.T, backend store.Backend) {
 	e, f, _ := setup(t, backend, "srv_A", "srv_B")
-	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { f["srv_B"].online = false }}
+	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { f["srv_B"].online.Store(false) }}
 	onB := web("nginx:1.27")
 	onB.Ref.Scope = "srv_B"
 	p := propose(t, e, "Open http and run web", rule("srv_A", "http", 80), onB)
@@ -177,7 +177,7 @@ func testResumeCarriesProgressOver(t *testing.T, backend store.Backend) {
 	if rb.State != store.ChangeApplying || waiting != 1 {
 		t.Errorf("the rollback while srv_B is away = %+v, want one step waiting", rb)
 	}
-	f["srv_B"].online = true
+	f["srv_B"].online.Store(true)
 	if err := e.Resume(t.Context()); err != nil {
 		t.Fatal(err)
 	}

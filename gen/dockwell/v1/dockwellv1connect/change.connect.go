@@ -75,7 +75,9 @@ type ChangeServiceClient interface {
 	// GetChange returns one change, with its plan and the progress of each of
 	// its steps.
 	GetChange(context.Context, *connect.Request[v1.GetChangeRequest]) (*connect.Response[v1.GetChangeResponse], error)
-	// ListChanges returns changes, newest first, a page at a time.
+	// ListChanges returns changes, newest first, a page at a time. Each
+	// change's plan is in brief: its fingerprint, summary, undo window and
+	// whether it is destructive. GetChange has the plan in full.
 	ListChanges(context.Context, *connect.Request[v1.ListChangesRequest]) (*connect.Response[v1.ListChangesResponse], error)
 	// ApplyChange carries out a planned change. It plans again, and refuses
 	// if any resource changed since, or if the servers no longer match the
@@ -268,7 +270,9 @@ type ChangeServiceHandler interface {
 	// GetChange returns one change, with its plan and the progress of each of
 	// its steps.
 	GetChange(context.Context, *connect.Request[v1.GetChangeRequest]) (*connect.Response[v1.GetChangeResponse], error)
-	// ListChanges returns changes, newest first, a page at a time.
+	// ListChanges returns changes, newest first, a page at a time. Each
+	// change's plan is in brief: its fingerprint, summary, undo window and
+	// whether it is destructive. GetChange has the plan in full.
 	ListChanges(context.Context, *connect.Request[v1.ListChangesRequest]) (*connect.Response[v1.ListChangesResponse], error)
 	// ApplyChange carries out a planned change. It plans again, and refuses
 	// if any resource changed since, or if the servers no longer match the

@@ -232,12 +232,13 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 
 	// The revision engine reaches agents over their streams. A change left
 	// applying, by a stop partway or a rollback waiting for a server, is
-	// resumed now and whenever a server reconnects (ADR 0009).
+	// resumed once serving starts, and whenever a server reconnects (ADR
+	// 0009). The engine's runs outlive the request that started them;
+	// stopping lets them finish their steps or leaves them for the next
+	// start, and the store closes only after (srv.Run).
 	kinds := controlKinds()
 	agents := agentapi.NewAgents(kinds, logger)
 	engine := revision.New(db, kinds, agents, logger)
-	// Once a change is on record, it runs to an end even as the control
-	// plane stops: what doesn't finish now resumes on the next start.
 	resumeCtx := context.WithoutCancel(ctx)
 	resume := func() {
 		if err := engine.Resume(resumeCtx); err != nil {
@@ -245,7 +246,6 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		}
 	}
 	agents.OnConnect(func(string) { resume() })
-	go resume()
 
 	srv, err := control.New(control.Config{
 		Logger:        logger,
@@ -267,14 +267,22 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// This server's own agent stops after the control plane, which stops
+	// the revision engine before its agent listener: a step under way on
+	// this server then finishes, or is left for the next start, rather
+	// than failing because its agent left first.
+	agentCtx, stopAgent := context.WithCancel(context.WithoutCancel(ctx))
+	defer stopAgent()
+	go resume()
 	var wg sync.WaitGroup
 	var controlErr, agentErr error
 	wg.Go(func() {
 		controlErr = srv.Run(ctx, ls)
 		cancel()
+		stopAgent()
 	})
 	wg.Go(func() {
-		agentErr = agent.Run(ctx, agent.Config{Logger: logger, Dir: dir.Agent(), Identity: own, Build: build})
+		agentErr = agent.Run(agentCtx, agent.Config{Logger: logger, Dir: dir.Agent(), Identity: own, Build: build})
 		cancel()
 	})
 	wg.Wait()

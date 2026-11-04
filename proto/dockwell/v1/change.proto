@@ -45,7 +45,9 @@ service ChangeService {
     option (google.api.http) = {get: "/v1/changes/{id}"};
   }
 
-  // ListChanges returns changes, newest first, a page at a time.
+  // ListChanges returns changes, newest first, a page at a time. Each
+  // change's plan is in brief: its fingerprint, summary, undo window and
+  // whether it is destructive. GetChange has the plan in full.
   rpc ListChanges(ListChangesRequest) returns (ListChangesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
@@ -163,6 +165,13 @@ message Edit {
   // are several. Other kinds ignore it: a container or firewall rule lives
   // on its server, and projects and environments run on none.
   repeated string servers = 4;
+  // The project of the environment the resource lives in, by name or ID,
+  // for a kind that lives in an environment, such as a service. Leave it
+  // out while there is only one project, or when resource.scope is an
+  // environment's ID; once there are several, an environment named
+  // without its project is an error that names the projects. Other kinds
+  // name their project, if they live in one, in resource.scope.
+  string project = 5;
 }
 
 // ResourceRef names a resource.
@@ -292,9 +301,25 @@ message ListDriftRequest {
 message ListDriftResponse {
   // Each resource that differs, on each server it differs on.
   repeated Drift drift = 1;
-  // Servers that aren't connected, so weren't checked. Their drift is
-  // checked once their agents reconnect.
-  repeated string unchecked_servers = 2;
+  // Servers that couldn't be checked, each with why, such as an agent that
+  // isn't connected. The servers that could be checked are in drift all
+  // the same.
+  repeated UncheckedServer unchecked_servers = 2;
+}
+
+// UncheckedServer is a server whose drift couldn't be checked.
+message UncheckedServer {
+  // The server's ID.
+  string server_id = 1;
+  // The server's name, such as "hz-1".
+  string server_name = 2;
+  // Why, as a word an error's reason would be: "server_offline" for an
+  // agent that isn't connected, or dropped while it was checked, whose
+  // drift is checked once it reconnects; "agent_timeout"; "no_driver"; or
+  // "agent_failed".
+  string reason = 3;
+  // Why, for people.
+  string message = 4;
 }
 
 // Drift is a resource on a server that doesn't match its latest revision.
@@ -356,7 +381,9 @@ message Change {
   Surface proposed_via = 5;
   // When it was proposed.
   google.protobuf.Timestamp create_time = 6;
-  // What applying does, as it was reviewed. It never changes.
+  // What applying does, as it was reviewed. It never changes. A rollback,
+  // which nobody reviews, has the plan it ran with. ListChanges gives it in
+  // brief, without resources and servers.
   Plan plan = 7;
   // The change this one undoes or rolls back, if any.
   string reverts = 8;
@@ -471,8 +498,11 @@ message PlannedResource {
   string id = 1;
   // The resource.
   ResourceRef resource = 2;
-  // What happens to it: its most disruptive step, or for a kind that runs
-  // on no server, what its revision does.
+  // What happens to it, from its steps on every server: replace if any
+  // step replaces it; delete if it is deleted, from every server; create if
+  // it is new and every step creates it; otherwise update, if anything
+  // changes. A kind that runs on no server takes what its revision does.
+  // The summary counts these.
   PlanAction action = 3;
   // The revision it starts from: 0 for a new resource.
   int64 base_revision = 4;

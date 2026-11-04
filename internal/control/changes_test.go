@@ -30,22 +30,28 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
-// gate is a firewall whose rule "slow" takes until its call is cancelled
-// to put in place, so a test can drop the stream while a step runs.
+// gate is a firewall whose rule "slow" takes until its call is cancelled,
+// or until it is released, to put in place, so a test can drop the stream
+// while a step runs.
 type gate struct {
 	*firewall.Fake
 	started chan struct{}
+	release chan struct{}
 }
 
 func (g *gate) Put(ctx context.Context, name string, rule *resourcev1.FirewallRule) error {
 	if name == "slow" {
 		g.started <- struct{}{}
-		<-ctx.Done()
-		return ctx.Err()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-g.release:
+		}
 	}
 	return g.Fake.Put(ctx, name, rule)
 }
@@ -65,17 +71,23 @@ type testServer struct {
 // With no drivers, its agent has none, as in this build.
 func (f *fullServer) addServer(t *testing.T, withDrivers bool) *testServer {
 	t.Helper()
+	return f.addNamedServer(t, "hz-1", withDrivers)
+}
+
+// addNamedServer is addServer for a server with another name.
+func (f *fullServer) addNamedServer(t *testing.T, name string, withDrivers bool) *testServer {
+	t.Helper()
 	key, csr, err := pki.NewServerKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	joined, err := f.ident.EnrollLocal(t.Context(), csr, "hz-1")
+	joined, err := f.ident.EnrollLocal(t.Context(), csr, name)
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := &testServer{
 		id:     enroll.New(joined.Server.ID, joined.Server.Name, "https://"+f.agentAddr, key, joined.Cert, f.ident.CA().Certificate()),
-		docker: container.NewFake(), fw: &gate{Fake: firewall.NewFake(), started: make(chan struct{}, 4)},
+		docker: container.NewFake(), fw: &gate{Fake: firewall.NewFake(), started: make(chan struct{}, 4), release: make(chan struct{})},
 	}
 	if withDrivers {
 		containers := container.Driver{Runtime: s.docker, RecreateDowntime: 2 * time.Second}
@@ -717,7 +729,7 @@ func testDriftThroughTheAPI(t *testing.T, backend store.Backend) {
 	// A server that isn't connected isn't checked, and says so.
 	hz1.stop()
 	waitConnected(t, f, hz1.id.ServerID, false)
-	if d := listDrift(); len(d.GetUncheckedServers()) != 1 {
+	if d := listDrift(); len(d.GetUncheckedServers()) != 1 || d.GetUncheckedServers()[0].GetReason() != "server_offline" {
 		t.Errorf("drift with hz-1 away = %v, want it unchecked", d)
 	}
 }
@@ -915,4 +927,179 @@ func (b *syncBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
+}
+
+// Stopping the control plane mid-apply leaves the change applying, for the
+// next start to finish: the API stops first, then the engine, which cancels
+// the step that outlasts its grace, then the agent listener. The stop
+// doesn't fail the change, and nothing rolls it back.
+func TestAStopMidApplyLeavesTheChangeForTheNextStart(t *testing.T) {
+	storetest.Each(t, testAStopMidApplyLeavesTheChangeForTheNextStart)
+}
+
+func testAStopMidApplyLeavesTheChangeForTheNextStart(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	hz1 := f.addServer(t, true)
+	c := changeClient(b, b.origin)
+	ch := propose(t, c, "Open http and slow", ruleEdit("http", 80), ruleEdit("slow", 8080))
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+	<-hz1.fw.started // the slow rule's step is running
+	if err := f.stop(); err != nil {
+		t.Fatalf("Run = %v", err)
+	}
+
+	var stopped store.Change
+	var rollbacks []store.Change
+	if err := f.store.View(t.Context(), func(tx *store.Tx) (err error) {
+		if stopped, err = tx.GetChange(t.Context(), ch.GetId()); err != nil {
+			return err
+		}
+		rollbacks, err = tx.Reverting(t.Context(), []string{ch.GetId()})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if stopped.State != store.ChangeApplying || len(rollbacks) != 0 {
+		t.Fatalf("after a stop mid-apply the change is %s, with %d rollbacks; want it applying, for the next start", stopped.State, len(rollbacks))
+	}
+
+	// The next start, with hz-1's agent back, finishes it.
+	close(hz1.fw.release)
+	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{})
+	next := revision.New(f.store, kinds, localAgents{hz1.id.ServerID: resource.Local{Drivers: hz1.drivers}}, slog.New(slog.DiscardHandler))
+	if err := next.Resume(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	next.Wait()
+	r, err := next.Change(t.Context(), ch.GetId())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.State != store.ChangeApplied || hz1.fw.Len() != 2 {
+		t.Errorf("after the next start the change is %s with %d rules on hz-1, want applied with 2", r.State, hz1.fw.Len())
+	}
+}
+
+// localAgents reaches each server's drivers in this process, as a control
+// plane whose agents have reconnected does.
+type localAgents map[string]resource.Agent
+
+func (a localAgents) Agent(server string) (resource.Agent, bool) {
+	local, ok := a[server]
+	return local, ok
+}
+
+// A server whose drift can't be checked is listed with why, and the others
+// report theirs all the same.
+func TestDriftReportsEachServerItCantCheck(t *testing.T) {
+	storetest.Each(t, testDriftReportsEachServerItCantCheck)
+}
+
+func testDriftReportsEachServerItCantCheck(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	hz1 := f.addServer(t, true)
+	hz2 := f.addNamedServer(t, "hz-2", true)
+	c := changeClient(b, b.origin)
+	on := func(server string) *dockwellv1.Edit {
+		e := webEdit("nginx:1.27", nil)
+		e.Resource.Scope = server
+		return e
+	}
+	apply(t, c, propose(t, c, "Run web on both", on("hz-1"), on("hz-2")))
+
+	// hz-2's agent comes back without its drivers, so it can't read web.
+	hz2.stop()
+	waitConnected(t, f, hz2.id.ServerID, false)
+	hz2.drivers = nil
+	hz2.connect(t, f)
+	got, _ := hz1.docker.Inspect(t.Context(), "web")
+	got.Image = "nginx:hand-edit"
+	_ = hz1.docker.Run(t.Context(), "web", got)
+
+	res, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil {
+		t.Fatalf("ListDrift with one server that can't be checked = %v, want the others' drift", err)
+	}
+	if d := res.Msg.GetDrift(); len(d) != 1 || d[0].GetServerId() != hz1.id.ServerID {
+		t.Errorf("drift = %v, want web on hz-1", d)
+	}
+	u := res.Msg.GetUncheckedServers()
+	if len(u) != 1 || u[0].GetServerId() != hz2.id.ServerID || u[0].GetServerName() != "hz-2" || u[0].GetReason() != "no_driver" ||
+		!strings.Contains(u[0].GetMessage(), "hz-2") {
+		t.Errorf("unchecked servers = %v, want hz-2, for want of a driver", u)
+	}
+
+	// One that isn't connected says so.
+	hz2.stop()
+	waitConnected(t, f, hz2.id.ServerID, false)
+	res, err = c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u := res.Msg.GetUncheckedServers(); len(u) != 1 || u[0].GetReason() != "server_offline" {
+		t.Errorf("unchecked servers with hz-2 away = %v, want it offline", u)
+	}
+}
+
+// Once there are two projects, an edit names an environment's project
+// beside it, by name; while there is one, it needn't.
+func TestAnEditNamesAnEnvironmentsProject(t *testing.T) {
+	storetest.Each(t, testAnEditNamesAnEnvironmentsProject)
+}
+
+func testAnEditNamesAnEnvironmentsProject(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	f.addServer(t, true)
+	c := changeClient(b, b.origin)
+	svc := func(project string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Scope: "production", Name: "web"},
+			Project:  project,
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+				Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27"}},
+			}}},
+		}
+	}
+	// One project: the environment's name is enough.
+	if ch := propose(t, c, "Run web", svc("")); len(ch.GetPlan().GetResources()) != 1 {
+		t.Fatalf("a service in production plans %v", ch.GetPlan())
+	}
+	apply(t, c, propose(t, c, "Add the shop", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Name: "shop"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}},
+	}))
+
+	_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Run web", Edits: []*dockwellv1.Edit{svc("")}}))
+	if reasonOf(err) != "choice" || !strings.Contains(err.Error(), "default and shop") {
+		t.Errorf("an environment named without its project once there are two = %v, want a choice naming them", err)
+	}
+	ch := propose(t, c, "Run web in the shop", svc("shop"))
+	var shopProduction string
+	_ = f.store.View(t.Context(), func(tx *store.Tx) error {
+		tree, err := scope.Load(t.Context(), tx)
+		if err != nil {
+			return err
+		}
+		_, env, err := tree.Resolve("shop", "production")
+		shopProduction = env.ID
+		return err
+	})
+	if r := ch.GetPlan().GetResources(); len(r) != 1 || r[0].GetResource().GetScope() != shopProduction || shopProduction == "" {
+		t.Errorf("a service in shop's production plans %v, want it in %s", r, shopProduction)
+	}
+	_, err = c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Run web", Edits: []*dockwellv1.Edit{svc("nowhere")}}))
+	if reasonOf(err) != "not_found" || !strings.Contains(err.Error(), "nowhere") {
+		t.Errorf("an environment in a project that isn't there = %v, want not_found", err)
+	}
+	withProject := ruleEdit("http", 80)
+	withProject.Project = "shop"
+	_, err = c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Open http", Edits: []*dockwellv1.Edit{withProject}}))
+	if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "names a project") {
+		t.Errorf("a firewall rule that names a project = %v, want it refused", err)
+	}
 }

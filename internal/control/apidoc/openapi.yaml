@@ -31,7 +31,10 @@ paths:
         get:
             tags:
                 - ChangeService
-            description: ListChanges returns changes, newest first, a page at a time.
+            description: |-
+                ListChanges returns changes, newest first, a page at a time. Each
+                 change's plan is in brief: its fingerprint, summary, undo window and
+                 whether it is destructive. GetChange has the plan in full.
             operationId: ChangeService_ListChanges
             parameters:
                 - name: pageSize
@@ -1190,7 +1193,10 @@ components:
                 plan:
                     allOf:
                         - $ref: '#/components/schemas/Plan'
-                    description: What applying does, as it was reviewed. It never changes.
+                    description: |-
+                        What applying does, as it was reviewed. It never changes. A rollback,
+                         which nobody reviews, has the plan it ran with. ListChanges gives it in
+                         brief, without resources and servers.
                 reverts:
                     type: string
                     description: The change this one undoes or rolls back, if any.
@@ -1465,6 +1471,15 @@ components:
                          a new one runs on the only server, and must name its servers once there
                          are several. Other kinds ignore it: a container or firewall rule lives
                          on its server, and projects and environments run on none.
+                project:
+                    type: string
+                    description: |-
+                        The project of the environment the resource lives in, by name or ID,
+                         for a kind that lives in an environment, such as a service. Leave it
+                         out while there is only one project, or when resource.scope is an
+                         environment's ID; once there are several, an environment named
+                         without its project is an error that names the projects. Other kinds
+                         name their project, if they live in one, in resource.scope.
             description: Edit sets one resource's desired spec, or deletes it.
         Environment:
             type: object
@@ -1707,10 +1722,11 @@ components:
                 uncheckedServers:
                     type: array
                     items:
-                        type: string
+                        $ref: '#/components/schemas/UncheckedServer'
                     description: |-
-                        Servers that aren't connected, so weren't checked. Their drift is
-                         checked once their agents reconnect.
+                        Servers that couldn't be checked, each with why, such as an agent that
+                         isn't connected. The servers that could be checked are in drift all
+                         the same.
             description: ListDriftResponse lists what doesn't match its latest revision.
         ListPasskeysResponse:
             type: object
@@ -1910,8 +1926,11 @@ components:
                         - PLAN_ACTION_DELETE
                     type: string
                     description: |-
-                        What happens to it: its most disruptive step, or for a kind that runs
-                         on no server, what its revision does.
+                        What happens to it, from its steps on every server: replace if any
+                         step replaces it; delete if it is deleted, from every server; create if
+                         it is new and every step creates it; otherwise update, if anything
+                         changes. A kind that runs on no server takes what its revision does.
+                         The summary counts these.
                     format: enum
                 baseRevision:
                     type: string
@@ -2522,6 +2541,26 @@ components:
                          Recovery codes still work while it is locked.
                     format: date-time
             description: Totp is the state of signing in with an authenticator app.
+        UncheckedServer:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID.
+                serverName:
+                    type: string
+                    description: The server's name, such as "hz-1".
+                reason:
+                    type: string
+                    description: |-
+                        Why, as a word an error's reason would be: "server_offline" for an
+                         agent that isn't connected, or dropped while it was checked, whose
+                         drift is checked once it reconnects; "agent_timeout"; "no_driver"; or
+                         "agent_failed".
+                message:
+                    type: string
+                    description: Why, for people.
+            description: UncheckedServer is a server whose drift couldn't be checked.
         UndoChangeRequest:
             type: object
             properties:

@@ -219,7 +219,7 @@ func (t Tree) Resolve(project, environment string) (Project, Environment, error)
 		}
 		return Project{}, Environment{}, fmt.Errorf("there's no environment %s%s: %w", environment, inProject(project), ErrNotFound)
 	}
-	p, err := t.project(project)
+	p, err := t.Project(project)
 	if err != nil {
 		return Project{}, Environment{}, err
 	}
@@ -238,7 +238,9 @@ func (t Tree) Resolve(project, environment string) (Project, Environment, error)
 		p.Name, environment, and(names(p.Environments)), ErrNotFound)
 }
 
-func (t Tree) project(project string) (Project, error) {
+// Project finds a live project by name or ID. Empty means the only one
+// there is; once there are several, leaving it out is a *ChoiceError.
+func (t Tree) Project(project string) (Project, error) {
 	if project == "" {
 		switch len(t.Projects) {
 		case 1:

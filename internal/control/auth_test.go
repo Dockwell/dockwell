@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -62,6 +63,8 @@ type fullServer struct {
 	api       string // the loopback listener's address
 	https     string // the HTTPS listener's address, with a domain
 	http      string // the plain-HTTP listener's address, with a domain
+	// stop stops the server, as a signal does, and returns what Run did.
+	stop func() error
 }
 
 // execSQL runs a statement on the server's database from outside the store,
@@ -111,7 +114,7 @@ func startFullLogging(t *testing.T, backend store.Backend, public https.Source, 
 	t.Cleanup(engine.Wait)
 	srv, err := New(Config{
 		Logger: logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
-		Changes: engine, Agents: agents, Store: db, AgentHosts: []string{"127.0.0.1"},
+		Changes: engine, Agents: agents, Store: db, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -136,9 +139,17 @@ func startFullLogging(t *testing.T, backend store.Backend, public https.Source, 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- srv.Run(ctx, ls) }()
+	var once sync.Once
+	var runErr error
+	f.stop = func() error {
+		once.Do(func() {
+			cancel()
+			runErr = <-done
+		})
+		return runErr
+	}
 	t.Cleanup(func() {
-		cancel()
-		if err := <-done; err != nil {
+		if err := f.stop(); err != nil {
 			t.Errorf("Run returned %v after cancel", err)
 		}
 	})

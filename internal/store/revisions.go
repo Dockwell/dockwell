@@ -238,19 +238,28 @@ func (t *Tx) ListChanges(ctx context.Context, page ChangePage, limit int) ([]Cha
 	return out, rows.Err()
 }
 
-// Reverting returns the changes that undo or roll back a change, oldest
-// first, without their items.
-func (t *Tx) Reverting(ctx context.Context, changeID string) ([]Change, error) {
-	rows, err := t.query(ctx, `SELECT `+changeColumns+` FROM changes WHERE reverts = ? ORDER BY created_at, id`, changeID)
+// Reverting returns the changes that undo or roll back any of changeIDs,
+// oldest first, in one query. Each has only its ID, actor, state and what
+// it reverts.
+func (t *Tx) Reverting(ctx context.Context, changeIDs []string) ([]Change, error) {
+	if len(changeIDs) == 0 {
+		return nil, nil
+	}
+	args := make([]any, len(changeIDs))
+	for i, id := range changeIDs {
+		args[i] = id
+	}
+	marks := strings.Repeat("?, ", len(changeIDs)-1) + "?"
+	rows, err := t.query(ctx, `SELECT id, actor, state, reverts FROM changes WHERE reverts IN (`+marks+`) ORDER BY created_at, id`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("can't read the changes that revert %s: %w", changeID, err)
+		return nil, fmt.Errorf("can't read the changes that revert others: %w", err)
 	}
 	defer rows.Close()
 	var out []Change
 	for rows.Next() {
-		c, err := scanChange(rows)
-		if err != nil {
-			return nil, fmt.Errorf("can't read the changes that revert %s: %w", changeID, err)
+		var c Change
+		if err := rows.Scan(&c.ID, &c.Actor, &c.State, &c.Reverts); err != nil {
+			return nil, fmt.Errorf("can't read the changes that revert others: %w", err)
 		}
 		out = append(out, c)
 	}

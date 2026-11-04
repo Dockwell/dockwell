@@ -424,7 +424,7 @@ func remove(t *testing.T, db *store.DB, f fleet, server string) {
 	if err := db.Update(t.Context(), func(tx *store.Tx) error { return tx.RevokeServer(t.Context(), server, time.Now()) }); err != nil {
 		t.Fatal(err)
 	}
-	f[server].online = false
+	f[server].online.Store(false)
 }
 
 // One change can't delete a scope and keep something in it, and it can
@@ -609,7 +609,7 @@ func TestUndoSkipsARemovedServer(t *testing.T) {
 func TestARollbackStopsWaitingForARemovedServer(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		e, f, db := setup(t, b, "srv_A", "srv_B")
-		f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { f["srv_B"].online = false }}
+		f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { f["srv_B"].online.Store(false) }}
 		onB := web("nginx:1.27")
 		onB.Ref.Scope = "srv_B"
 		err := e.Apply(t.Context(), propose(t, e, "Open http and run web", rule("srv_A", "http", 80), onB).Change)
