@@ -1005,14 +1005,14 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	actions := map[string][]resource.Action{} // each item's steps, on every server
 	access := map[string][]resource.Access{}  // what each item gains on its servers
 	var before, after map[resource.Ref]proto.Message
+	var takes map[resource.Ref][]resource.Access
 	if len(servers) > 0 {
 		if before, after, err = e.named(ctx, items); err != nil {
 			return nil, err
 		}
-	}
-	takes, err := e.takeovers(ctx, items)
-	if err != nil {
-		return nil, err
+		if takes, err = e.takeovers(ctx, items); err != nil {
+			return nil, err
+		}
 	}
 	for _, server := range servers {
 		its := byServer[server]
