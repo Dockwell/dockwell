@@ -52,6 +52,24 @@ async function expectPage(page: Page, name: string, timeout = 10_000) {
   await page.getByRole("heading", { level: 1, name, exact: true }).waitFor({ timeout });
 }
 
+/**
+ * Starts noting which of texts the page shows from now on, however briefly,
+ * and returns a function that says which it has. The page mustn't reload in
+ * between.
+ */
+async function watchFor(page: Page, texts: string[]): Promise<() => Promise<string[]>> {
+  await page.evaluate((texts) => {
+    const seen = new Set<string>();
+    const look = () => {
+      const now = document.body.textContent ?? "";
+      for (const text of texts) if (now.includes(text)) seen.add(text);
+    };
+    new MutationObserver(look).observe(document.body, { childList: true, subtree: true, characterData: true });
+    (window as unknown as { e2eSeen: Set<string> }).e2eSeen = seen;
+  }, texts);
+  return () => page.evaluate(() => [...(window as unknown as { e2eSeen: Set<string> }).e2eSeen]);
+}
+
 /** The shell's navigation: the rail on wide screens, the tab bar on phones. */
 function nav(page: Page) {
   return page.getByRole("navigation", { name: "Main" });
@@ -167,8 +185,11 @@ async function main() {
   await shoot(page, "claim");
   await page.getByLabel("Your name").fill("Mira Chen");
   await page.getByLabel("Email").fill("mira@acme.dev");
+  const claimSaid = await watchFor(page, ["The owner account wasn't created", "This install already has an owner"]);
   await page.getByRole("button", { name: "Create passkey" }).click();
   await expectPage(page, "Overview", 15_000);
+  const claimFlashed = await claimSaid();
+  if (claimFlashed.length > 0) fail(`the claim showed ${JSON.stringify(claimFlashed)} on its way to the overview`);
   // The control plane's own agent reports within a few seconds, and its live stats follow.
   await page.locator(".dw-metric", { hasText: "CPU" }).waitFor({ timeout: 15_000 });
   await nav(page).getByRole("link", { name: "Mira Chen Owner" }).waitFor();
@@ -203,9 +224,13 @@ async function main() {
   if ((await nav(page).getByRole("link", { name: "Mira Chen Owner" }).getAttribute("aria-current")) !== "page") {
     fail("the rail doesn't mark your profile as the current page");
   }
+  await page.getByRole("region", { name: "Passkeys" }).getByRole("listitem").first().waitFor();
+  await page.getByRole("region", { name: "Sessions" }).getByRole("listitem").first().waitFor();
+  const signOutSaid = await watchFor(page, ["Loading"]);
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expectPage(page, "Sign in to Dockwell");
   if ((await nav(page).count()) !== 0) fail("the sign-in screen shows the shell's navigation");
+  if ((await signOutSaid()).length > 0) fail("the profile showed Loading on its way out after signing out");
   await shoot(page, "sign-in");
   await page.goto(`${origin}/status`);
   await expectPage(page, "Sign in to Dockwell");
