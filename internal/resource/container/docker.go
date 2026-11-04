@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"regexp"
 	"slices"
@@ -48,6 +49,12 @@ type Docker struct {
 	// keeps for its data: the agent's volume.Kept. A service can't mount
 	// one, as it isn't in its environment. Nil means none are kept.
 	Deleted Deleted
+	// CleanupWait bounds removing a container that a change made but
+	// couldn't swap in. Zero means 30 s.
+	CleanupWait time.Duration
+	// Logger hears what the runtime can't do on its own time, such as
+	// cleaning up after a change that failed. Nil means slog's default.
+	Logger *slog.Logger
 }
 
 // Deleted reports a volume deleted through a plan, by its name in Docker.
@@ -580,7 +587,7 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) 
 		return fmt.Errorf("docker can't create %s: %w", t.Name, err)
 	}
 	discard := func(err error) error {
-		_ = d.Client.RemoveContainer(context.WithoutCancel(ctx), id, true)
+		d.discard(ctx, id, name)
 		return err
 	}
 	var aliases []string
@@ -620,6 +627,29 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) 
 
 // finishWait bounds finishing a replace once the old container is gone.
 const finishWait = 30 * time.Second
+
+// discard removes a container Run made but couldn't swap in, even if the
+// caller stopped waiting, for up to CleanupWait. One that is left, as
+// when Docker doesn't answer, is logged with how to remove it; the next
+// replace removes it too, as it has the name a replace gives the new one.
+func (d *Docker) discard(ctx context.Context, id, name string) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), or(d.CleanupWait, cleanupWait))
+	defer cancel()
+	if err := d.Client.RemoveContainer(ctx, id, true); err != nil && !docker.IsNotFound(err) {
+		d.logger().Warn("can't remove a container made for a change that failed, so it is left on the server. Remove it with docker rm -f",
+			slog.String("container", name), slog.String("id", id[:min(12, len(id))]), slog.String("error", err.Error()))
+	}
+}
+
+// cleanupWait bounds removing a container a failed change made.
+const cleanupWait = 30 * time.Second
+
+func (d *Docker) logger() *slog.Logger {
+	if d.Logger != nil {
+		return d.Logger
+	}
+	return slog.Default()
+}
 
 // leftovers lists the containers made for t that never got its name: a
 // replace makes the new one as <the old one's ID, 12 digits>_<name>, as

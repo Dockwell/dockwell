@@ -5,6 +5,7 @@ package container_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
@@ -568,5 +569,71 @@ func TestTheAgentValidatesWhatItPlans(t *testing.T) {
 	_, err = l.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: &resourcev1.Container{}}})
 	if err == nil || !strings.Contains(err.Error(), "needs an image") {
 		t.Errorf("planning a container with no image: %v", err)
+	}
+}
+
+// lockedBuffer is a log that tests read while the runtime writes it.
+type lockedBuffer struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (l *lockedBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *lockedBuffer) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
+}
+
+// Removing the container a failed replace made takes CleanupWait at most,
+// even when Docker doesn't answer, and what it leaves is logged with how
+// to remove it.
+func TestCleaningUpAFailedReplaceIsBounded(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	var log lockedBuffer
+	rt := &container.Docker{
+		Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, HealthWait: time.Second,
+		CleanupWait: 50 * time.Millisecond, Logger: slog.New(slog.NewTextHandler(&log, nil)),
+	}
+	l := resource.Local{Drivers: resource.NewRegistry(&container.Driver{Runtime: rt})}
+	ref := resource.Ref{Kind: container.Kind, Scope: "srv_01KAT4ZR6E3V0Y5XBKZB5D9Q6M", Name: "web"}
+	apply(t, l, ref, &resourcev1.Container{Image: "nginx:1.27"})
+	old := e.Container("web").ID
+	// The old container won't stop, and Docker never answers removing the
+	// new one.
+	e.Intercept(func(r *http.Request) error {
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/containers/"+old+"/stop"):
+			return errors.New("the old one won't stop")
+		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/containers/") && !strings.Contains(r.URL.Path, old):
+			<-r.Context().Done()
+			return r.Context().Err()
+		}
+		return nil
+	})
+	spec := &resourcev1.Container{Image: "nginx:1.27", Env: map[string]string{"A": "1"}}
+	if err := l.Drivers.Validate(ref.Kind, spec); err != nil {
+		t.Fatal(err)
+	}
+	steps, err := l.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: spec}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	err = l.Apply(t.Context(), steps[0], spec)
+	if took := time.Since(start); took > 5*time.Second {
+		t.Errorf("the failed replace took %s, cleaning up as long as Docker didn't answer", took)
+	}
+	if err == nil || !strings.Contains(err.Error(), "can't stop the old web") {
+		t.Errorf("the replace = %v, want it failed for the old container", err)
+	}
+	if got := log.String(); !strings.Contains(got, "is left on the server. Remove it with docker rm -f") || !strings.Contains(got, "container="+old[:12]+"_web") {
+		t.Errorf("the log says %q, want what was left and how to remove it", got)
 	}
 }
