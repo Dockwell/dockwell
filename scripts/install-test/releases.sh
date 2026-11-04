@@ -4,7 +4,8 @@
 # Lays out test releases for scripts/install.sh in GitHub's URL layout, signed
 # with a throwaway cosign key, so the install tests need no published release:
 #
-#   <out>/good/download/v<new>/        the snapshot from make release-snapshot
+#   <out>/good/download/v<new>/        the snapshot from make release-snapshot,
+#                                      with install.sh and Sigstore's trust root
 #   <out>/good/download/v0.0.0-test/   an older build, to upgrade from
 #   <out>/good/latest/download/        the same files as v<new>
 #   <out>/bad-archive/...              v<new> with an archive that doesn't match its checksum
@@ -24,6 +25,7 @@ old=${2:?usage: releases.sh <dist> <old> <out> [cosign]}
 out=${3:?usage: releases.sh <dist> <old> <out> [cosign]}
 cosign=${4:-cosign}
 old_version=0.0.0-test
+scripts=$(cd "$(dirname "$0")/.." && pwd)
 
 new_version=$(sed -n 's/^[0-9a-f]\{64\}  dockwell_\(.*\)_linux_amd64\.tar\.gz$/\1/p' "$dist/checksums.txt")
 [[ -n "$new_version" ]] || {
@@ -46,6 +48,9 @@ good="$out/good"
 new_dir="$good/download/v$new_version"
 mkdir -p "$new_dir"
 cp "$dist"/dockwell_"$new_version"_linux_*.tar.gz "$dist/checksums.txt" "$new_dir/"
+# A release carries the install script and the trust root it pins, as
+# .github/workflows/release.yml attaches them.
+cp "$scripts/install.sh" "$scripts/sigstore_trusted_root.json" "$new_dir/"
 sign "$new_dir"
 
 old_dir="$good/download/v$old_version"
@@ -56,7 +61,8 @@ for arch in amd64 arm64; do
   tar -czf "$old_dir/dockwell_${old_version}_linux_$arch.tar.gz" -C "$stage" dockwell
   rm -rf "$stage"
 done
-(cd "$old_dir" && sha256sum dockwell_*.tar.gz >checksums.txt)
+cp "$scripts/install.sh" "$scripts/sigstore_trusted_root.json" "$old_dir/"
+(cd "$old_dir" && sha256sum dockwell_*.tar.gz install.sh sigstore_trusted_root.json >checksums.txt)
 sign "$old_dir"
 
 mkdir -p "$good/latest"

@@ -45,7 +45,7 @@ Operating your own machines, any number of them, is free and open source. Paid e
 | [`docs/product/prd.md`](docs/product/prd.md) | Product requirements: users, principles, architecture, every requirement by phase, the signature flows and the targets |
 | [`docs/adr/`](docs/adr/) | Architecture decision records |
 | [`docs/releasing.md`](docs/releasing.md) | How releases are built, signed and verified |
-| [`docs/install.md`](docs/install.md) | How the install script installs, upgrades and removes Dockwell, and how it checks what it downloads |
+| [`docs/install.md`](docs/install.md) | How the install script installs, upgrades and removes Dockwell, how it checks what it downloads, and how to install through a mirror, as from mainland China |
 | [`design/`](design/README.md) | The design system (tokens, components, logo, fonts) and every screen mock, desktop and phone |
 
 ## Contributing
