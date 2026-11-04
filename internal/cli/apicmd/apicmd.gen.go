@@ -246,7 +246,7 @@ func Methods() []*apicli.Method {
 				{Path: "summary", Help: "What the change is for, such as \"Run the shop's stack\". Empty says it came from a Compose file."},
 				{Path: "project", Help: "The project of the environment, by name or ID. Leave it out while there is only one project, or when environment is an ID."},
 				{Path: "environment", Help: "The environment, by name or ID. Leave it out while its project has only one."},
-				{Path: "compose", Help: "The Compose file, as YAML, such as --compose \"$(cat compose.yaml)\". Paths in it must be absolute, as it runs on servers where a path relative to the file means nothing."},
+				{Path: "compose", Help: "The Compose file, as YAML, such as --compose \"$(cat compose.yaml)\", of up to 1 MiB. Paths in it must be absolute, as it runs on servers where a path relative to the file means nothing."},
 				{Path: "variables", Help: "Values for the variables the file uses, such as ${TAG}. A variable with no value here and no default in the file is refused."},
 				{Path: "servers", Help: "Where the services, volumes and networks run, by server ID, as an edit's servers. Empty keeps what exists where it runs, and puts what is new on the only server; once there are several, name them."},
 				{Path: "remove_orphans", Help: "Also deletes the environment's services and networks that aren't in the file, as docker compose up --remove-orphans does. Volumes stay, with their data; delete one on its own to remove it."},

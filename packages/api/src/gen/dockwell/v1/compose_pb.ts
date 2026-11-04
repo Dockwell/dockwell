@@ -49,9 +49,9 @@ export type ImportComposeRequest = Message<"dockwell.v1.ImportComposeRequest"> &
   environment: string;
 
   /**
-   * The Compose file, as YAML, such as --compose "$(cat compose.yaml)".
-   * Paths in it must be absolute, as it runs on servers where a path
-   * relative to the file means nothing.
+   * The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
+   * up to 1 MiB. Paths in it must be absolute, as it runs on servers where
+   * a path relative to the file means nothing.
    *
    * @generated from field: string compose = 4;
    */
