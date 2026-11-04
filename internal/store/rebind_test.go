@@ -21,7 +21,7 @@ func TestQueriesGoThroughTheDialect(t *testing.T) {
 		if strings.HasSuffix(f, "_test.go") || f == "store.go" {
 			continue
 		}
-		src, err := os.ReadFile(f) //nolint:gosec // the package's own sources
+		src, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
 		}
