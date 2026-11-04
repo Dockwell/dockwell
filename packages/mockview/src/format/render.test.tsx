@@ -356,6 +356,33 @@ describe("dc-import", () => {
     expect([...container.querySelectorAll("p")].map((p) => p.textContent)).toEqual(["a", "b"]);
   });
 
+  it("finishes every load only once the imports are in, however many run at once", async () => {
+    let release = () => {};
+    const navArrived = new Promise<void>((done) => {
+      release = done;
+    });
+    const asked: string[] = [];
+    const library = new MockLibrary({
+      load: async (file) => {
+        asked.push(file);
+        if (file === "Nav.dc.html") await navArrived;
+        return file === "Nav.dc.html" ? child : artboard(`<dc-import name="Nav"></dc-import>`);
+      },
+    });
+    const first = library.load("Page.dc.html");
+    await vi.waitFor(() => expect(asked).toContain("Nav.dc.html"));
+    let secondDone = false;
+    const second = library.load("Page.dc.html").then(() => {
+      secondDone = true;
+    });
+    await new Promise((done) => setTimeout(done, 10));
+    expect(secondDone).toBe(false);
+    release();
+    await Promise.all([first, second]);
+    expect(asked).toEqual(["Page.dc.html", "Nav.dc.html"]);
+    expect(() => library.component("Nav.dc.html")).not.toThrow();
+  });
+
   it("reports an import that doesn't exist", async () => {
     const { problems } = await render({ "A.dc.html": artboard(`<dc-import name="Gone"></dc-import>`) }, "A.dc.html");
     expect(problems).toEqual([

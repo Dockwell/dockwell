@@ -139,7 +139,8 @@ const ImportChain = createContext<readonly string[]>([]);
 export class MockLibrary {
   readonly #options: LibraryOptions;
   readonly #artboards = new Map<string, Artboard>();
-  readonly #loading = new Map<string, Promise<Artboard>>();
+  /** One read and parse per file, shared by every load() that needs it. A failed one is dropped, so it can be retried. */
+  readonly #parsing = new Map<string, Promise<Artboard>>();
   readonly #components = new Map<string, ComponentType<Props>>();
   readonly #reported = new Set<string>();
 
@@ -154,27 +155,49 @@ export class MockLibrary {
     this.#options.onProblem?.(problem);
   };
 
-  /** Loads and parses an artboard and, transitively, everything it imports. */
-  load(file: string): Promise<Artboard> {
-    const loaded = this.#artboards.get(file);
-    if (loaded) return Promise.resolve(loaded);
-    let pending = this.#loading.get(file);
+  /**
+   * Loads and parses an artboard and, transitively, everything it imports. It
+   * resolves once all of them are parsed, however many loads run at once. An
+   * import that fails is reported, and the artboard shows a problem in its place.
+   */
+  async load(file: string): Promise<Artboard> {
+    const artboard = await this.#parse(file);
+    const seen = new Set([file]);
+    let level = [artboard];
+    // Breadth first, each file once, so an artboard that imports itself doesn't wait on itself.
+    while (level.length > 0) {
+      const imported = await Promise.all(
+        level.flatMap((from) =>
+          from.imports.map((child) =>
+            this.#parse(child).catch((error: unknown) => {
+              this.report({ file: from.file, message: `Can't import ${child}: ${message(error)}`, error });
+              return undefined;
+            }),
+          ),
+        ),
+      );
+      level = [];
+      for (const next of imported) {
+        if (next && !seen.has(next.file)) {
+          seen.add(next.file);
+          level.push(next);
+        }
+      }
+    }
+    return artboard;
+  }
+
+  #parse(file: string): Promise<Artboard> {
+    let pending = this.#parsing.get(file);
     if (!pending) {
       pending = (async () => {
         const artboard = parseArtboard(file, await this.#options.load(file));
         this.#artboards.set(file, artboard);
         for (const problem of artboard.problems) this.report({ file, message: problem });
-        await Promise.all(
-          artboard.imports.map((child) =>
-            this.load(child).catch((error: unknown) =>
-              this.report({ file, message: `Can't import ${child}: ${message(error)}`, error }),
-            ),
-          ),
-        );
         return artboard;
       })();
-      this.#loading.set(file, pending);
-      pending.finally(() => this.#loading.delete(file)).catch(() => {});
+      this.#parsing.set(file, pending);
+      pending.catch(() => this.#parsing.delete(file));
     }
     return pending;
   }
