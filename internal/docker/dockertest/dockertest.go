@@ -54,7 +54,8 @@ type Engine struct {
 
 	srv *httptest.Server
 
-	mu sync.Mutex
+	mu        sync.Mutex
+	intercept func(*http.Request) error
 	// Registry has the images a pull can find, by reference.
 	Registry   map[string]Image
 	images     map[string]*image // pulled, by reference and by ID
@@ -145,7 +146,26 @@ func fail(w http.ResponseWriter, status int, format string, args ...any) {
 
 var versioned = regexp.MustCompile(`^/v\d+\.\d+(/.*)$`)
 
+// Intercept calls fn before the engine answers each request, outside its
+// lock, so fn can hold a request up, as an engine that hangs, or make
+// changes in the middle of one. An error fn returns answers the request
+// instead, as the engine failing it, with status 500.
+func (e *Engine) Intercept(fn func(r *http.Request) error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.intercept = fn
+}
+
 func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
+	e.mu.Lock()
+	intercept := e.intercept
+	e.mu.Unlock()
+	if intercept != nil {
+		if err := intercept(r); err != nil {
+			fail(w, http.StatusInternalServerError, "%v", err)
+			return
+		}
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	path := r.URL.Path

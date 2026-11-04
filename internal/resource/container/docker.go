@@ -38,6 +38,15 @@ type Docker struct {
 	HealthWait time.Duration
 	// Poll is how often Healthy looks. Zero means 250 ms.
 	Poll time.Duration
+	// Deleted reports a volume deleted through a plan, which the server
+	// keeps for its data: the agent's volume.Kept. A service can't mount
+	// one, as it isn't in its environment. Nil means none are kept.
+	Deleted Deleted
+}
+
+// Deleted reports a volume deleted through a plan, by its name in Docker.
+type Deleted interface {
+	Has(name string) (bool, error)
 }
 
 var _ Runtime = (*Docker)(nil)
@@ -448,6 +457,15 @@ func (d *Docker) checkRefs(ctx context.Context, t Target, spec *resourcev1.Conta
 			return fmt.Errorf("the volume %s isn't on this server, so %s can't mount it. Add it to the environment, in this change or an earlier one", v, t.Service)
 		} else if err != nil {
 			return err
+		}
+		if d.Deleted == nil {
+			continue
+		}
+		if deleted, err := d.Deleted.Has(t.DockerName(v)); err != nil {
+			return err
+		} else if deleted {
+			return fmt.Errorf("the volume %s was deleted, so %s can't mount it, though the server keeps its data for 7 days. "+
+				"Add it to the environment again, in this change or an earlier one, which brings its data back", v, t.Service)
 		}
 	}
 	for _, n := range spec.GetNetworks() {

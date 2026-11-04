@@ -4,8 +4,11 @@ package volume_test
 
 import (
 	"log/slog"
+	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -133,7 +136,8 @@ func TestDeletedVolumesAreKept(t *testing.T) {
 	}
 }
 
-// A kept volume a container still uses stays until none does.
+// A kept volume a container uses again, made by hand since it was
+// deleted, stays until none does.
 func TestPruneSkipsVolumesInUse(t *testing.T) {
 	e := dockertest.New(t)
 	e.Registry["busybox:1"] = dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}}
@@ -143,21 +147,127 @@ func TestPruneSkipsVolumesInUse(t *testing.T) {
 	data := resource.Ref{Kind: volume.Kind, Scope: env, Name: "data"}
 	spec := &resourcev1.Volume{}
 	apply(t, l, plan(t, l, data, spec), spec)
-	if err := e.Client().PullImage(t.Context(), "busybox:1", nil); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.Client().CreateContainer(t.Context(), "by-hand", &docker.CreateRequest{
-		Config:     docker.Config{Image: "busybox:1"},
-		HostConfig: docker.HostConfig{Mounts: []docker.Mount{{Type: "volume", Source: "env_01kat4zr6e3v0y5xbkzb5d9q6m_data", Target: "/d"}}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 	apply(t, l, plan(t, l, data, nil), nil)
+	byHand(t, e, "env_01kat4zr6e3v0y5xbkzb5d9q6m_data")
 	now = now.Add(8 * 24 * time.Hour)
 	if err := rt.Prune(t.Context(), slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatal(err)
 	}
 	if e.Volume("env_01kat4zr6e3v0y5xbkzb5d9q6m_data") == nil {
 		t.Error("a prune removed a volume a container uses")
+	}
+}
+
+// byHand makes a container that mounts a volume, by its name in Docker, as
+// someone running docker by hand would.
+func byHand(t *testing.T, e *dockertest.Engine, name string) {
+	t.Helper()
+	if _, ok := e.Registry["busybox:1"]; !ok {
+		e.Registry["busybox:1"] = dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}}
+	}
+	if err := e.Client().PullImage(t.Context(), "busybox:1", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.Client().CreateContainer(t.Context(), "by-hand", &docker.CreateRequest{
+		Config:     docker.Config{Image: "busybox:1"},
+		HostConfig: docker.HostConfig{Mounts: []docker.Mount{{Type: "volume", Source: name, Target: "/d"}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A volume a container mounts can't be deleted: Docker would refuse to
+// remove it once it was kept for long enough, and the container would go
+// on using a volume the environment no longer has.
+func TestVolumesInUseCantBeDeleted(t *testing.T) {
+	e := dockertest.New(t)
+	rt := &volume.Docker{Client: e.Client(), Kept: &volume.Kept{}}
+	l := resource.Local{Drivers: resource.NewRegistry(&volume.Driver{Runtime: rt})}
+	data := resource.Ref{Kind: volume.Kind, Scope: env, Name: "data"}
+	spec := &resourcev1.Volume{}
+	apply(t, l, plan(t, l, data, spec), spec)
+	byHand(t, e, "env_01kat4zr6e3v0y5xbkzb5d9q6m_data")
+	err := l.Apply(t.Context(), plan(t, l, data, nil), nil)
+	if err == nil || !strings.Contains(err.Error(), "containers still mount the volume env_01kat4zr6e3v0y5xbkzb5d9q6m_data (by-hand), so it can't go") {
+		t.Errorf("deleting a volume a container mounts = %v", err)
+	}
+	if kept, _ := rt.Kept.Has("env_01kat4zr6e3v0y5xbkzb5d9q6m_data"); kept {
+		t.Error("the volume in use was deleted, and kept")
+	}
+}
+
+// The list of deleted volumes is read from its file once, and each change
+// is written through: the agent keeps it, and the next agent reads it.
+func TestTheKeptListIsReadOnce(t *testing.T) {
+	e := dockertest.New(t)
+	path := filepath.Join(t.TempDir(), "deleted-volumes.json")
+	rt := &volume.Docker{Client: e.Client(), Kept: &volume.Kept{Path: path}}
+	l := resource.Local{Drivers: resource.NewRegistry(&volume.Driver{Runtime: rt})}
+	data := resource.Ref{Kind: volume.Kind, Scope: env, Name: "data"}
+	spec := &resourcev1.Volume{}
+	apply(t, l, plan(t, l, data, spec), spec)
+	apply(t, l, plan(t, l, data, nil), nil)
+	name := "env_01kat4zr6e3v0y5xbkzb5d9q6m_data"
+
+	again := &volume.Kept{Path: path}
+	if kept, err := again.Has(name); err != nil || !kept {
+		t.Fatalf("an agent started again finds %s kept = %t, %v; want it written through", name, kept, err)
+	}
+	if err := os.WriteFile(path, []byte("not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if step := plan(t, l, data, spec); step.Action != resource.ActionCreate {
+		t.Errorf("planning the deleted volume = %s, want a create, from the list in memory", step.Action)
+	}
+	if _, err := (&volume.Kept{Path: path}).Has(name); err == nil || !strings.Contains(err.Error(), "Remove the file to forget them") {
+		t.Errorf("reading a broken list = %v, want how to fix it", err)
+	}
+}
+
+// Prune and an undo never cross: a volume an undo brings back while the
+// prune is removing it either stays, data and all, or is made anew, and
+// is there either way.
+func TestPruneNeverRemovesAVolumeBroughtBack(t *testing.T) {
+	e := dockertest.New(t)
+	now := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
+	rt := &volume.Docker{Client: e.Client(), Kept: &volume.Kept{}, Now: func() time.Time { return now }}
+	l := resource.Local{Drivers: resource.NewRegistry(&volume.Driver{Runtime: rt})}
+	data := resource.Ref{Kind: volume.Kind, Scope: env, Name: "data"}
+	spec := &resourcev1.Volume{}
+	apply(t, l, plan(t, l, data, spec), spec)
+	apply(t, l, plan(t, l, data, nil), nil)
+	name := "env_01kat4zr6e3v0y5xbkzb5d9q6m_data"
+	undo := plan(t, l, data, spec)
+	now = now.Add(volume.KeepFor)
+
+	// The undo, planned before, applies as the prune asks Docker to remove
+	// the volume, and has a moment to finish first, as it can if the prune
+	// lets go of the list.
+	var once sync.Once
+	undone := make(chan error, 1)
+	e.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodDelete && strings.HasSuffix(r.URL.Path, "/volumes/"+name) {
+			once.Do(func() {
+				go func() { undone <- l.Apply(t.Context(), undo, spec) }()
+				select {
+				case err := <-undone:
+					undone <- err
+				case <-time.After(200 * time.Millisecond):
+				}
+			})
+		}
+		return nil
+	})
+	if err := rt.Prune(t.Context(), slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-undone; err != nil {
+		t.Fatalf("the undo = %v", err)
+	}
+	if e.Volume(name) == nil {
+		t.Error("the prune removed the volume an undo brought back")
+	}
+	if kept, _ := rt.Kept.Has(name); kept {
+		t.Error("the volume brought back is still listed as deleted")
 	}
 }

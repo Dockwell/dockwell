@@ -82,8 +82,9 @@ A stopped container isn't drift: the spec says what runs, not whether it is runn
 ### Deleting a volume
 
 - **It destroys data, so the plan says so.** The step is marked as destroying data, the plan is destructive, and only a person who names its fingerprint can apply it (ADR 0017).
-- **It is kept for 7 days.** Docker can't rename a volume or change its labels, so it can't move aside. The agent keeps it where it is, and lists it in `deleted-volumes.json` in its data directory. Reading it back finds it gone. Creating a volume of that name again within 7 days, as undoing the deletion does, takes it off the list, data and all, if it is asked for as it was. Asked for another way, it is refused, with how to remove the old one first.
-- **The agent prunes every hour** the volumes kept for 7 days. One a container still uses stays until none does.
+- **One in use can't be deleted.** A volume a container mounts, the service's own or one made by hand, is refused with which containers mount it, as a network with containers on it is: Docker would refuse to remove it, and they would go on using a volume the environment no longer has. The control plane refuses it first, when the change is proposed (below); the agent's check is for what was made outside Dockwell.
+- **It is kept for 7 days.** Docker can't rename a volume or change its labels, so it can't move aside. The agent keeps it where it is, and lists it in `deleted-volumes.json` in its data directory. It reads the list once and keeps it in memory, and writes each change to the file before it counts. Reading the volume back finds it gone, and a service can't mount it. Creating a volume of that name again within 7 days, as undoing the deletion does, takes it off the list, data and all, if it is asked for as it was. Asked for another way, it is refused, with how to remove the old one first.
+- **The agent prunes every hour** the volumes kept for 7 days. One a container still uses stays until none does. The prune holds the list while it removes each volume, and checks first that it is still listed, so an undo that brings a volume back as the prune reaches it keeps its data.
 
 ### Compose files
 

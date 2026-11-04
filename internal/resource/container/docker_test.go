@@ -43,10 +43,11 @@ func images(e *dockertest.Engine) {
 }
 
 func drivers(e *dockertest.Engine) *resource.Registry {
-	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, HealthWait: time.Second}
+	kept := &volume.Kept{}
+	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, HealthWait: time.Second, Deleted: kept}
 	c := container.Driver{Runtime: rt}
 	return resource.NewRegistry(&c, &service.Driver{Containers: c},
-		&volume.Driver{Runtime: &volume.Docker{Client: rt.Client, Kept: &volume.Kept{}}})
+		&volume.Driver{Runtime: &volume.Docker{Client: rt.Client, Kept: kept}})
 }
 
 // apply plans one resource against the engine and applies the step, as
@@ -185,6 +186,44 @@ func TestServicesRunAsComposeServices(t *testing.T) {
 	if e.Volume("env_01kat4zr6e3v0y5xbkzb5d9q6m_uploads") != nil {
 		t.Error("Docker made the volume a service mounted, unmanaged")
 	}
+}
+
+// A volume deleted through a plan stays on the server for its data, but
+// isn't in the environment: a service can't mount it, or go on mounting
+// it, until it is made again, which brings it back.
+func TestDeletedVolumesCantBeMounted(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	l := resource.Local{Drivers: drivers(e)}
+	data := resource.Ref{Kind: volume.Kind, Scope: env, Name: "data"}
+	apply(t, l, data, &resourcev1.Volume{})
+	web := resource.Ref{Kind: service.Kind, Scope: env, Name: "web"}
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+		Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data"}},
+	}}}
+	apply(t, l, web, spec)
+	steps, err := l.Plan(t.Context(), []resource.Desired{{Ref: data}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Apply(t.Context(), steps[0], nil); err == nil || !strings.Contains(err.Error(), "containers still mount the volume env_01kat4zr6e3v0y5xbkzb5d9q6m_data (env_01kat4zr6e3v0y5xbkzb5d9q6m-web-1)") {
+		t.Errorf("deleting a volume a service mounts = %v", err)
+	}
+	apply(t, l, web, nil)
+	apply(t, l, data, nil)
+
+	steps, err = l.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Apply(t.Context(), steps[0], spec); err == nil || !strings.Contains(err.Error(), "the volume data was deleted, so web can't mount it") {
+		t.Errorf("mounting a deleted volume = %v", err)
+	}
+	if e.Container(service.ContainerName(web)) != nil {
+		t.Error("the service runs, mounting a deleted volume")
+	}
+	apply(t, l, data, &resourcev1.Volume{})
+	apply(t, l, web, spec)
 }
 
 // Changing what Docker can't change in place recreates the container: the

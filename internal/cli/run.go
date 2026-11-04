@@ -86,8 +86,9 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		client = docker.New(socket)
 	}
 	collector.DockerSocket = socket
-	containers := container.Driver{Runtime: &container.Docker{Client: client}}
-	volumes := &volume.Docker{Client: client, Kept: &volume.Kept{Path: filepath.Join(dir.Agent(), "deleted-volumes.json")}}
+	kept := &volume.Kept{Path: filepath.Join(dir.Agent(), "deleted-volumes.json")}
+	containers := container.Driver{Runtime: &container.Docker{Client: client, Deleted: kept}}
+	volumes := &volume.Docker{Client: client, Kept: kept}
 	go volumes.KeepPruned(ctx, logger)
 	return resource.NewRegistry(&containers, &service.Driver{Containers: containers},
 		&volume.Driver{Runtime: volumes}, &network.Driver{Client: client}), collector

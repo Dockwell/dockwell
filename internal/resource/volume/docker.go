@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,65 +25,71 @@ import (
 
 // Kept lists the volumes deleted through plans that are still on the
 // server, each with when it was deleted. Docker can't rename a volume or
-// change its labels, so the list is the agent's own, in a file in its data
-// directory. Without a Path it is kept in memory.
+// change its labels, so the list is the agent's own. It is read from a
+// file in the agent's data directory once, kept in memory, and each change
+// is written through to the file before it counts. Without a Path it is
+// kept in memory alone.
 type Kept struct {
 	Path string
 
-	mu  sync.Mutex
-	mem map[string]time.Time
+	mu   sync.Mutex
+	list map[string]time.Time // nil until read
 }
 
-// load reads the list. Call with mu held.
+// load returns the list, reading it from its file the first time. Call
+// with mu held.
 func (k *Kept) load() (map[string]time.Time, error) {
-	if k.Path == "" {
-		if k.mem == nil {
-			k.mem = map[string]time.Time{}
-		}
-		return k.mem, nil
-	}
-	b, err := os.ReadFile(k.Path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return map[string]time.Time{}, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("can't read the list of deleted volumes: %w", err)
+	if k.list != nil {
+		return k.list, nil
 	}
 	out := map[string]time.Time{}
-	if err := json.Unmarshal(b, &out); err != nil {
-		return nil, fmt.Errorf("can't read the list of deleted volumes in %s: %w. Remove the file to forget them; they stay on the server until a docker volume prune", k.Path, err)
+	if k.Path != "" {
+		b, err := os.ReadFile(k.Path)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+		case err != nil:
+			return nil, fmt.Errorf("can't read the list of deleted volumes: %w", err)
+		default:
+			if err := json.Unmarshal(b, &out); err != nil {
+				return nil, fmt.Errorf("can't read the list of deleted volumes in %s: %w. Remove the file to forget them; they stay on the server until a docker volume prune", k.Path, err)
+			}
+		}
 	}
+	k.list = out
 	return out, nil
 }
 
-// save writes the list. Call with mu held.
+// save writes m to the file, then keeps it as the list. If it can't be
+// written, the list stays as it was. Call with mu held.
 func (k *Kept) save(m map[string]time.Time) error {
-	if k.Path == "" {
-		k.mem = m
-		return nil
+	if k.Path != "" {
+		b, err := json.MarshalIndent(m, "", "  ")
+		if err != nil {
+			return err
+		}
+		tmp := k.Path + ".new"
+		if err := os.MkdirAll(filepath.Dir(k.Path), 0o700); err != nil {
+			return fmt.Errorf("can't keep the list of deleted volumes: %w", err)
+		}
+		if err := os.WriteFile(tmp, b, 0o600); err != nil {
+			return fmt.Errorf("can't keep the list of deleted volumes: %w", err)
+		}
+		if err := os.Rename(tmp, k.Path); err != nil {
+			return fmt.Errorf("can't keep the list of deleted volumes: %w", err)
+		}
 	}
-	b, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return err
-	}
-	tmp := k.Path + ".new"
-	if err := os.MkdirAll(filepath.Dir(k.Path), 0o700); err != nil {
-		return err
-	}
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return fmt.Errorf("can't keep the list of deleted volumes: %w", err)
-	}
-	return os.Rename(tmp, k.Path)
+	k.list = m
+	return nil
 }
 
-// update changes the list under its lock.
-func (k *Kept) update(fn func(map[string]time.Time) bool) error {
-	k.mu.Lock()
-	defer k.mu.Unlock()
+// change changes a copy of the list, and keeps it if fn says it changed.
+// Call with mu held.
+func (k *Kept) change(fn func(map[string]time.Time) bool) error {
 	m, err := k.load()
 	if err != nil {
 		return err
 	}
+	m = maps.Clone(m)
 	if fn(m) {
 		return k.save(m)
 	}
@@ -99,6 +106,13 @@ func (k *Kept) Since(name string) (time.Time, bool, error) {
 	}
 	at, ok := m[name]
 	return at, ok, nil
+}
+
+// Has reports whether a volume is kept: deleted, though still on the
+// server.
+func (k *Kept) Has(name string) (bool, error) {
+	_, ok, err := k.Since(name)
+	return ok, err
 }
 
 // Docker is a Runtime on the Docker Engine.
@@ -167,30 +181,12 @@ func (d *Docker) Inspect(ctx context.Context, t Target) (*resourcev1.Volume, err
 }
 
 // Create makes the volume. One deleted and kept comes back with its data,
-// as undoing its deletion asks, if it was made the same way.
+// as undoing its deletion asks, if it was made the same way. It holds the
+// list while it does, so Prune can't remove the volume as it comes back.
 func (d *Docker) Create(ctx context.Context, t Target, spec *resourcev1.Volume) error {
-	deleted, kept, err := d.Kept.Since(t.Name)
-	if err != nil {
+	back, err := d.bringBack(ctx, t, spec)
+	if err != nil || back {
 		return err
-	}
-	if kept {
-		v, err := d.Client.InspectVolume(ctx, t.Name)
-		switch {
-		case docker.IsNotFound(err):
-			// Removed by hand since: make it anew.
-		case err != nil:
-			return err
-		default:
-			if !resource.Equal(normal(Project(v)), normal(spec)) {
-				return fmt.Errorf("the volume %s was deleted %s, and is kept with its data until %s, but was made another way, so it can't come back as asked for. "+
-					"Ask for it as it was, or remove the old one first with docker volume rm %s, which destroys its data",
-					t.Name, deleted.Format(time.DateOnly), deleted.Add(KeepFor).Format(time.DateOnly), t.Name)
-			}
-			return d.Kept.update(func(m map[string]time.Time) bool { delete(m, t.Name); return true })
-		}
-		if err := d.Kept.update(func(m map[string]time.Time) bool { delete(m, t.Name); return true }); err != nil {
-			return err
-		}
 	}
 	_, err = d.Client.CreateVolume(ctx, &docker.VolumeCreate{
 		Name: t.Name, Driver: spec.GetDriver(), DriverOpts: spec.GetOptions(), Labels: labels(t, spec),
@@ -201,6 +197,37 @@ func (d *Docker) Create(ctx context.Context, t Target, spec *resourcev1.Volume) 
 	return nil
 }
 
+// bringBack takes a kept volume off the list, and reports whether it is
+// still on the server, so it comes back as it was.
+func (d *Docker) bringBack(ctx context.Context, t Target, spec *resourcev1.Volume) (bool, error) {
+	k := d.Kept
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	m, err := k.load()
+	if err != nil {
+		return false, err
+	}
+	deleted, kept := m[t.Name]
+	if !kept {
+		return false, nil
+	}
+	v, err := d.Client.InspectVolume(ctx, t.Name)
+	switch {
+	case docker.IsNotFound(err):
+		// Removed by hand since: make it anew.
+	case err != nil:
+		return false, err
+	case !resource.Equal(normal(Project(v)), normal(spec)):
+		return false, fmt.Errorf("the volume %s was deleted %s, and is kept with its data until %s, but was made another way, so it can't come back as asked for. "+
+			"Ask for it as it was, or remove the old one first with docker volume rm %s, which destroys its data",
+			t.Name, deleted.Format(time.DateOnly), deleted.Add(KeepFor).Format(time.DateOnly), t.Name)
+	}
+	if err := k.change(func(m map[string]time.Time) bool { delete(m, t.Name); return true }); err != nil {
+		return false, err
+	}
+	return v != nil, nil
+}
+
 func normal(v *resourcev1.Volume) *resourcev1.Volume {
 	if v.Driver == "" {
 		v.Driver = "local"
@@ -209,15 +236,33 @@ func normal(v *resourcev1.Volume) *resourcev1.Volume {
 }
 
 // Delete keeps the volume, with its data, for KeepFor; Prune removes it
-// after.
+// after. One a container mounts can't go, as Docker refuses to remove it
+// and the container would go on using it: delete what mounts it first.
 func (d *Docker) Delete(ctx context.Context, t Target) error {
 	if _, err := d.Client.InspectVolume(ctx, t.Name); docker.IsNotFound(err) {
 		return nil
 	} else if err != nil {
 		return err
 	}
+	users, err := d.Client.ListContainers(ctx, map[string][]string{"volume": {t.Name}})
+	if err != nil {
+		return err
+	}
+	if len(users) > 0 {
+		var names []string
+		for _, u := range users {
+			for _, n := range u.Names {
+				names = append(names, strings.TrimPrefix(n, "/"))
+			}
+		}
+		slices.Sort(names)
+		return fmt.Errorf("containers still mount the volume %s (%s), so it can't go. Delete their services, or stop mounting it in them, first, in this change or an earlier one",
+			t.Name, strings.Join(names, ", "))
+	}
 	at := d.now()
-	return d.Kept.update(func(m map[string]time.Time) bool {
+	d.Kept.mu.Lock()
+	defer d.Kept.mu.Unlock()
+	return d.Kept.change(func(m map[string]time.Time) bool {
 		if _, ok := m[t.Name]; ok {
 			return false
 		}
@@ -226,38 +271,61 @@ func (d *Docker) Delete(ctx context.Context, t Target) error {
 	})
 }
 
+// removeWait bounds removing one volume, during which the list is held.
+const removeWait = time.Minute
+
 // Prune removes the volumes kept for KeepFor or longer. One a container
 // still uses stays, and is tried again on the next prune.
+//
+// It holds the list while it removes each, and checks again first that it
+// is still listed: an undo that brought it back since took it off the
+// list, and its data stays.
 func (d *Docker) Prune(ctx context.Context, logger *slog.Logger) error {
-	d.Kept.mu.Lock()
-	m, err := d.Kept.load()
-	d.Kept.mu.Unlock()
+	k := d.Kept
+	k.mu.Lock()
+	m, err := k.load()
+	names := slices.Sorted(maps.Keys(m))
+	k.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	now := d.now()
-	for _, name := range slices.Sorted(maps.Keys(m)) {
-		deleted := m[name]
-		if now.Sub(deleted) < KeepFor {
-			continue
-		}
-		err := d.Client.RemoveVolume(ctx, name)
-		switch {
-		case err == nil, docker.IsNotFound(err):
-			logger.Info("removed a deleted volume and its data, kept for long enough",
-				slog.String("volume", name), slog.Time("deleted", deleted), slog.String("kept_for", human.Duration(KeepFor)))
-		case docker.IsConflict(err):
-			logger.Warn("a deleted volume is still in use, so it stays until no container uses it",
-				slog.String("volume", name), slog.String("error", err.Error()))
-			continue
-		default:
-			return fmt.Errorf("can't remove the deleted volume %s: %w", name, err)
-		}
-		if err := d.Kept.update(func(m map[string]time.Time) bool { delete(m, name); return true }); err != nil {
+	for _, name := range names {
+		if err := d.prune(ctx, logger, name); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// prune removes one volume if it is still listed, and was deleted KeepFor
+// ago or more.
+func (d *Docker) prune(ctx context.Context, logger *slog.Logger, name string) error {
+	k := d.Kept
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	m, err := k.load()
+	if err != nil {
+		return err
+	}
+	deleted, ok := m[name]
+	if !ok || d.now().Sub(deleted) < KeepFor {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, removeWait)
+	defer cancel()
+	err = d.Client.RemoveVolume(ctx, name)
+	switch {
+	case err == nil, docker.IsNotFound(err):
+		logger.Info("removed a deleted volume and its data, kept for long enough",
+			slog.String("volume", name), slog.Time("deleted", deleted), slog.String("kept_for", human.Duration(KeepFor)))
+	case docker.IsConflict(err):
+		logger.Warn("a deleted volume is still in use, so it stays until no container uses it",
+			slog.String("volume", name), slog.String("error", err.Error()))
+		return nil
+	default:
+		return fmt.Errorf("can't remove the deleted volume %s: %w", name, err)
+	}
+	return k.change(func(m map[string]time.Time) bool { delete(m, name); return true })
 }
 
 // PruneEvery is how often KeepPruned prunes.
