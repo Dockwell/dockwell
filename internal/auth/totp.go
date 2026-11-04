@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/id"
 )
 
 // TOTP parameters, per RFC 6238 and what every authenticator app expects.
@@ -33,9 +35,6 @@ const (
 )
 
 var totpEncoding = base32.StdEncoding.WithPadding(base32.NoPadding)
-
-// crockford is Crockford's base32 alphabet, as in internal/id: no I, L, O or U.
-const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 func totpStep(t time.Time) int64 { return t.Unix() / totpPeriod }
 
@@ -116,7 +115,7 @@ func normalizeCode(s string) (string, codeKind) {
 	switch {
 	case len(code) == 6 && strings.Trim(code, "0123456789") == "":
 		return code, codeTOTP
-	case len(code) == recoveryCodeLen && strings.Trim(code, crockford) == "":
+	case len(code) == recoveryCodeLen && strings.Trim(code, id.CrockfordAlphabet) == "":
 		return code, codeRecovery
 	default:
 		return "", codeInvalid
@@ -128,7 +127,7 @@ func newRecoveryCodes() (codes []string, hashes [][]byte) {
 	for range recoveryCodeCount {
 		raw := make([]byte, recoveryCodeBytes)
 		_, _ = rand.Read(raw)
-		code := encodeCrockford(raw)
+		code := id.Crockford(raw)
 		codes = append(codes, code[0:4]+"-"+code[4:8]+"-"+code[8:12]+"-"+code[12:16])
 		hashes = append(hashes, hashRecoveryCode(code))
 	}
@@ -140,23 +139,4 @@ func newRecoveryCodes() (codes []string, hashes [][]byte) {
 func hashRecoveryCode(normalized string) []byte {
 	sum := sha256.Sum256([]byte("dockwell recovery code\x00" + normalized))
 	return sum[:]
-}
-
-// encodeCrockford writes 10 bytes as 16 base32 characters.
-func encodeCrockford(b []byte) string {
-	var out strings.Builder
-	var buf uint64
-	bits := 0
-	for _, c := range b {
-		buf = buf<<8 | uint64(c)
-		bits += 8
-		for bits >= 5 {
-			bits -= 5
-			out.WriteByte(crockford[(buf>>bits)&31])
-		}
-	}
-	if bits > 0 {
-		out.WriteByte(crockford[(buf<<(5-bits))&31])
-	}
-	return out.String()
 }

@@ -30,9 +30,9 @@ const (
 	Link      = "lnk"
 )
 
-// crockford is Crockford's base32 alphabet: no I, L, O or U, so IDs survive
-// being read aloud or copied by hand.
-const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+// CrockfordAlphabet is Crockford's base32 alphabet: no I, L, O or U, so IDs
+// and codes survive being read aloud or copied by hand.
+const CrockfordAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 const ulidLen = 26
 
@@ -85,16 +85,27 @@ func increment(b *[10]byte) {
 }
 
 // encode writes 128 bits as 26 base32 characters, most significant first.
-func encode(b [16]byte) string {
-	hi := binary.BigEndian.Uint64(b[0:8])
-	lo := binary.BigEndian.Uint64(b[8:16])
-	var out [ulidLen]byte
-	for i := ulidLen - 1; i >= 0; i-- {
-		out[i] = crockford[lo&31]
-		lo = lo>>5 | hi<<59
-		hi >>= 5
+func encode(b [16]byte) string { return Crockford(b[:]) }
+
+// Crockford writes b, read as one big-endian number, in Crockford's base32,
+// most significant digit first, with as many digits as its bits need: 26
+// for a ULID's 16 bytes, of which the first carries 3 bits, or 16 for 10
+// bytes.
+func Crockford(b []byte) string {
+	out := make([]byte, (len(b)*8+4)/5)
+	var buf, bits uint
+	next := len(b) - 1
+	for i := len(out) - 1; i >= 0; i-- {
+		for bits < 5 && next >= 0 {
+			buf |= uint(b[next]) << bits
+			bits += 8
+			next--
+		}
+		out[i] = CrockfordAlphabet[buf&31]
+		buf >>= 5
+		bits -= min(bits, 5)
 	}
-	return string(out[:])
+	return string(out)
 }
 
 // ErrMalformed reports an ID that isn't prefix_ULID.
@@ -109,19 +120,19 @@ func Parse(prefix, s string) (time.Time, error) {
 	}
 	// The first character carries only 3 bits of the 130 encoded, so it
 	// can't exceed 7.
-	if strings.IndexByte(crockford[:8], ulid[0]) < 0 {
+	if strings.IndexByte(CrockfordAlphabet[:8], ulid[0]) < 0 {
 		return time.Time{}, fmt.Errorf("%w: %q is out of range", ErrMalformed, s)
 	}
 	var ms uint64
 	for i := range 10 {
-		v := strings.IndexByte(crockford, ulid[i])
+		v := strings.IndexByte(CrockfordAlphabet, ulid[i])
 		if v < 0 {
 			return time.Time{}, fmt.Errorf("%w: %q has a character outside base32", ErrMalformed, s)
 		}
 		ms = ms<<5 | uint64(v)
 	}
 	for i := 10; i < ulidLen; i++ {
-		if strings.IndexByte(crockford, ulid[i]) < 0 {
+		if strings.IndexByte(CrockfordAlphabet, ulid[i]) < 0 {
 			return time.Time{}, fmt.Errorf("%w: %q has a character outside base32", ErrMalformed, s)
 		}
 	}

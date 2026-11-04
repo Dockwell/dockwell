@@ -18,7 +18,6 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/human"
-	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -223,14 +222,7 @@ func orPlaceholder(s, placeholder string) string {
 // openPeople opens an existing control plane's people, for commands that run
 // beside it on the control server.
 func openPeople(ctx context.Context, dir datadir.Dir, logger *slog.Logger) (*auth.Service, *store.DB, panelAddress, error) {
-	if !exists(dir.StateDB()) {
-		return nil, nil, panelAddress{}, fmt.Errorf("there's no control plane in %s. Run this on the control server, or pass its --data-dir", dir.Root)
-	}
-	key, err := seal.Load(dir.SealKey())
-	if err != nil {
-		return nil, nil, panelAddress{}, err
-	}
-	db, err := store.Open(ctx, dir.StateDB())
+	key, db, err := openControl(ctx, dir)
 	if err != nil {
 		return nil, nil, panelAddress{}, err
 	}

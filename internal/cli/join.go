@@ -96,9 +96,6 @@ func newTokenCmd(stdio IO, g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if !exists(dir.StateDB()) {
-				return fmt.Errorf("there's no control plane in %s. Run this on the control server, or pass its --data-dir", dir.Root)
-			}
 			ctx := cmd.Context()
 			auth, closeDB, err := openAuthority(ctx, dir, logger)
 			if err != nil {
@@ -136,14 +133,28 @@ func actor() string {
 	return fmt.Sprintf("cli:%s@%s", user, host)
 }
 
-// openAuthority opens an existing control plane's authority, for commands
-// that run beside it. It never creates a key or an install.
-func openAuthority(ctx context.Context, dir datadir.Dir, logger *slog.Logger) (*identity.Authority, func(), error) {
+// openControl opens an existing control plane's key and database, for
+// commands that run beside it on the control server. It never creates
+// either. The caller closes the database.
+func openControl(ctx context.Context, dir datadir.Dir) (*seal.Key, *store.DB, error) {
+	if !exists(dir.StateDB()) {
+		return nil, nil, fmt.Errorf("there's no control plane in %s. Run this on the control server, or pass its --data-dir", dir.Root)
+	}
 	key, err := seal.Load(dir.SealKey())
 	if err != nil {
 		return nil, nil, err
 	}
 	db, err := store.Open(ctx, dir.StateDB())
+	if err != nil {
+		return nil, nil, err
+	}
+	return key, db, nil
+}
+
+// openAuthority opens an existing control plane's authority, for commands
+// that run beside it. It never creates a key or an install.
+func openAuthority(ctx context.Context, dir datadir.Dir, logger *slog.Logger) (*identity.Authority, func(), error) {
+	key, db, err := openControl(ctx, dir)
 	if err != nil {
 		return nil, nil, err
 	}
