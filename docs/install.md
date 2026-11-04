@@ -59,7 +59,7 @@ It changes only these files:
 
 Dockwell itself keeps its state in `/var/lib/dockwell`.
 
-The service sets `GOMEMLIMIT=200MiB`, a soft limit on the memory the Go runtime manages. It is sized from the PRD's budget of 250 MB for the control plane and its agent, and leaves the rest for memory Go doesn't manage, such as the binary's own pages and SQLite's cache. At idle, an agent on its own uses about 20 MB and a control server about 26 MB, so the limit only comes into play if memory grows far past that.
+The service sets `GOMEMLIMIT=200MiB`, a soft limit on the memory the Go runtime manages. It is sized from the PRD's budget of 250 MB for the control plane and its agent, and leaves the rest for memory Go doesn't manage, such as the binary's own pages and SQLite's cache. A few minutes after starting, an idle agent on its own uses about 26 MB and a control server about 34 MB, most of it pages of the binary, so the limit only comes into play if memory grows far past that.
 
 ## Upgrade
 
