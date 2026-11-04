@@ -57,7 +57,7 @@ func (s *Service) SignInWithCode(ctx context.Context, client Client, email, code
 	// Counted before the check and forgotten after a good code, so parallel
 	// requests can't all slip in under one count.
 	src := sourceKey(client.Addr)
-	if w, _ := s.sources.try(src, now); w > 0 {
+	if w := s.sources.try(src, now); w > 0 {
 		return CodeSignIn{}, &SlowDown{Wait: w}
 	}
 

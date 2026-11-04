@@ -549,19 +549,19 @@ func TestLimiters(t *testing.T) {
 	now := time.Unix(0, 0)
 	f := newFailures(2, 3)
 	for i, want := range []time.Duration{0, 0, time.Second} {
-		if w, _ := f.try("a", now); w != want {
+		if w := f.try("a", now); w != want {
 			t.Errorf("try %d waits %s, want %s", i, w, want)
 		}
 	}
 	now = now.Add(time.Second)
-	if w, n := f.try("a", now); w != 0 || n != 3 {
-		t.Errorf("after waiting: wait %s, n %d", w, n)
+	if w := f.try("a", now); w != 0 || f.keys["a"].n != 3 {
+		t.Errorf("after waiting: wait %s, n %d", w, f.keys["a"].n)
 	}
-	if w, _ := f.try("a", now); w != 2*time.Second {
+	if w := f.try("a", now); w != 2*time.Second {
 		t.Errorf("after 3 failures with 2 free: wait %s, want 2s", w)
 	}
 	f.reset("a")
-	if w, _ := f.try("a", now); w != 0 {
+	if w := f.try("a", now); w != 0 {
 		t.Error("reset didn't forget")
 	}
 	for _, k := range []string{"b", "c", "d", "e"} {

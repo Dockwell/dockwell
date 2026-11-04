@@ -126,6 +126,11 @@ func (s *Service) CreateSignInLink(ctx context.Context, email, actor string) (Li
 
 // usableLink returns the link for token if it is for purpose and still
 // works. Any failure is one error, rejected.
+//
+// The link is looked up by the token's SHA-256, so the row found is the
+// token's, and there is nothing left to compare. The lookup's timing can't
+// help a guesser: they choose tokens, not hashes, so they can't aim at a
+// stored hash's prefix.
 func usableLink(ctx context.Context, tx *store.Tx, purpose, token string, now time.Time, rejected error) (store.LinkToken, error) {
 	if token == "" {
 		return store.LinkToken{}, rejected
@@ -137,8 +142,7 @@ func usableLink(ctx context.Context, tx *store.Tx, purpose, token string, now ti
 	if err != nil {
 		return store.LinkToken{}, err
 	}
-	if subtle.ConstantTimeCompare(l.TokenHash, hashToken(token)) != 1 || l.Purpose != purpose ||
-		l.UsedAt != nil || l.RevokedAt != nil || !now.Before(l.ExpiresAt) {
+	if l.Purpose != purpose || l.UsedAt != nil || l.RevokedAt != nil || !now.Before(l.ExpiresAt) {
 		return store.LinkToken{}, rejected
 	}
 	return l, nil

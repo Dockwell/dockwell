@@ -96,8 +96,8 @@ func (s *Service) startSession(ctx context.Context, tx *store.Tx, user store.Use
 	return SignedIn{User: user, Session: sess, Token: token}, nil
 }
 
-// sessionEnd is when a session ends unless revoked first.
-func sessionEnd(sess store.Session) time.Time {
+// SessionEnd is when a session ends unless it is used or revoked first.
+func SessionEnd(sess store.Session) time.Time {
 	idle := sess.LastSeenAt.Add(SessionIdle)
 	if idle.Before(sess.ExpiresAt) {
 		return idle
@@ -105,12 +105,9 @@ func sessionEnd(sess store.Session) time.Time {
 	return sess.ExpiresAt
 }
 
-// SessionEnd is when a session ends unless it is used or revoked first.
-func SessionEnd(sess store.Session) time.Time { return sessionEnd(sess) }
-
 // live reports whether a session still works at now, on site.
 func live(sess store.Session, site Site, now time.Time) bool {
-	return sess.RevokedAt == nil && now.Before(sessionEnd(sess)) && sess.RPID == site.RPID && site.CanSignIn()
+	return sess.RevokedAt == nil && now.Before(SessionEnd(sess)) && sess.RPID == site.RPID && site.CanSignIn()
 }
 
 // Authenticate returns the principal behind a session token presented on
@@ -203,7 +200,7 @@ func openSessions(ctx context.Context, tx *store.Tx, userID string, now time.Tim
 	}
 	out := all[:0]
 	for i := range all {
-		if now.Before(sessionEnd(all[i])) {
+		if now.Before(SessionEnd(all[i])) {
 			out = append(out, all[i])
 		}
 	}

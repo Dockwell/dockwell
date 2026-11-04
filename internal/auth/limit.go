@@ -36,8 +36,8 @@ func backoff(failures, free int) time.Duration {
 }
 
 // failures counts wrong attempts in a row for each source address and says
-// how long the next attempt must wait. It forgets keys that have been quiet for a while, and holds at
-// most maxKeys.
+// how long the next attempt must wait. It forgets keys that have been quiet
+// for a while, and holds at most maxKeys.
 type failures struct {
 	mu      sync.Mutex
 	free    int
@@ -55,10 +55,10 @@ func newFailures(free, maxKeys int) *failures {
 }
 
 // try counts an attempt for key and returns zero, or, when key must wait
-// first, how long, without counting. It also returns the attempts counted
-// in a row. Checking and counting happen together, so parallel attempts
-// can't all pass under one count. Call reset after a good attempt.
-func (f *failures) try(key string, now time.Time) (time.Duration, int) {
+// first, how long, without counting. Checking and counting happen together,
+// so parallel attempts can't all pass under one count. Call reset after a
+// good attempt.
+func (f *failures) try(key string, now time.Time) time.Duration {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	c, ok := f.keys[key]
@@ -70,11 +70,11 @@ func (f *failures) try(key string, now time.Time) (time.Duration, int) {
 		f.keys[key] = c
 	}
 	if w := c.last.Add(backoff(c.n, f.free)).Sub(now); c.n > 0 && w > 0 {
-		return w, c.n
+		return w
 	}
 	c.n++
 	c.last = now
-	return 0, c.n
+	return 0
 }
 
 // reset forgets key after a good attempt.
