@@ -23,11 +23,11 @@ Earlier records left it these seams:
 
 `internal/docker` speaks the Docker Engine API over the unix socket with `net/http`, and has only what the drivers use:
 - the engine's version, to agree an API version;
-- containers: inspect, create, start, stop, remove, rename, update the restart policy, and join a network;
+- containers: inspect, list, create, start, stop, remove, rename, update the restart policy, and join a network;
 - images: inspect, and pull with progress;
 - volumes and networks: inspect, create and remove.
 
-**Not the official SDK.** `github.com/docker/docker` and its client bring in dozens of packages, OpenTelemetry's and containerd's among them, and every one would be resident in every agent. The client is about 800 lines, its types included.
+**Not the official SDK.** `github.com/docker/docker` and its client bring in dozens of packages, OpenTelemetry's and containerd's among them, and every one would be resident in every agent. The client is about 900 lines, its types included.
 
 **One API version, agreed with each engine.** The client uses the newest version both speak, from 1.41 (Docker 20.10) to 1.47 (Docker 27.3). The fields it uses mean the same in all of them. Docker 29 takes nothing older than 1.44, and still takes 1.47. One difference matters: before 1.44 a container joins one network at create, so the others join before it starts. An engine older than 1.41 is refused with how to upgrade.
 
@@ -83,7 +83,7 @@ A stopped container isn't drift: the spec says what runs, not whether it is runn
 ### Deleting a volume
 
 - **It destroys data, so the plan says so.** The step is marked as destroying data, the plan is destructive, and only a person who names its fingerprint can apply it (ADR 0017).
-- **One in use can't be deleted.** A volume a container mounts, the service's own or one made by hand, is refused with which containers mount it, as a network with containers on it is: Docker would refuse to remove it, and they would go on using a volume the environment no longer has. The control plane refuses it first, when the change is proposed (below); the agent's check is for what was made outside Dockwell.
+- **One in use can't be deleted.** A volume a container mounts, the service's own or one made by hand, is refused with which containers mount it, as a network with containers on it is: Docker would refuse to remove it, and they would go on using a volume the environment no longer has. The control plane refuses it first, when the change is proposed (above); the agent's check is for what was made outside Dockwell.
 - **It is kept for 7 days.** Docker can't rename a volume or change its labels, so it can't move aside. The agent keeps it where it is, and lists it in `deleted-volumes.json` in its data directory. It reads the list once and keeps it in memory, and writes each change to the file before it counts. Reading the volume back finds it gone, and a service can't mount it. Creating a volume of that name again within 7 days, as undoing the deletion does, takes it off the list, data and all, if it is asked for as it was. Asked for another way, it is refused, with how to remove the old one first.
 - **The agent prunes every hour** the volumes kept for 7 days. One a container still uses stays until none does. The prune holds the list while it removes each volume, and checks first that it is still listed, so an undo that brings a volume back as the prune reaches it keeps its data.
 

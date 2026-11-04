@@ -576,7 +576,7 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) 
 		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), finishWait)
 		defer cancel()
 		if err := d.Client.RenameContainer(ctx, id, t.Name); err != nil {
-			return fmt.Errorf("removed the old %s, but can't give the new one its name: %w. Apply the change again, which finishes it", t.Name, err)
+			return fmt.Errorf("removed the old %s, but can't give the new one its name: %w. The next change to it finishes the swap, as the rollback that follows does", t.Name, err)
 		}
 	}
 	resource.Progress(ctx, "starting")
