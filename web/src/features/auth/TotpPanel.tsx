@@ -3,7 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { AuthService } from "@dockwell/api";
-import { Button, Callout, Panel, Sheet, StatusBadge, TextField } from "@dockwell/ui";
+import { Button, ButtonLink, Callout, Panel, Sheet, StatusBadge, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { encode } from "uqr";
@@ -332,15 +332,13 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
         <Button size="sm" icon={copied ? "check" : "copy"} onClick={() => void copy()}>
           {copied ? t`Codes copied` : t`Copy codes`}
         </Button>
-        <a
-          className="dw-btn dw-btn-secondary dw-btn-sm"
+        <ButtonLink
+          size="sm"
           href={`data:text/plain;charset=utf-8,${encodeURIComponent(`${text}\n`)}`}
           download="dockwell-recovery-codes.txt"
         >
-          <span className="dw-btn-label">
-            <Trans>Download</Trans>
-          </span>
-        </a>
+          <Trans>Download</Trans>
+        </ButtonLink>
       </div>
     </div>
   );

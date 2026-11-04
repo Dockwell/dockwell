@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { englishStrings, UIStringsProvider } from "../lib/strings";
 import { expectAccessible } from "../test/a11y";
-import { Button } from "./Button/Button";
+import { Button, ButtonLink } from "./Button/Button";
 import { Glyph } from "./Glyph/Glyph";
 import { Icon } from "./Icon/Icon";
 import { iconNames } from "./Icon/icons";
@@ -54,6 +54,39 @@ describe("Glyph", () => {
     expect(container.querySelector(".dw-spin")).not.toBeNull();
     const { container: still } = render(<Glyph shape="circle" />);
     expect(still.querySelector(".dw-spin")).toBeNull();
+  });
+});
+
+describe("ButtonLink", () => {
+  it("is a link that looks like a button, and passes the ref", async () => {
+    const ref = createRef<HTMLAnchorElement>();
+    const { container } = render(
+      <ButtonLink ref={ref} href="/profile" size="sm" icon="shield">
+        Profile and security
+      </ButtonLink>,
+    );
+    const link = screen.getByRole("link", { name: "Profile and security" });
+    expect(link).toHaveAttribute("href", "/profile");
+    expect(link).toHaveClass("dw-btn", "dw-btn-secondary", "dw-btn-sm");
+    expect(link).not.toHaveAttribute("type");
+    expect(ref.current).toBe(link);
+    expect(container.querySelector(".dw-icon")).not.toBeNull();
+    await expectAccessible(container);
+  });
+
+  it("downloads as any link does, and goes square without a label", () => {
+    render(
+      <>
+        <ButtonLink href="data:text/plain,codes" download="codes.txt" variant="primary">
+          Download
+        </ButtonLink>
+        <ButtonLink href="/help" icon="question" aria-label="Help" variant="ghost" />
+      </>,
+    );
+    const download = screen.getByRole("link", { name: "Download" });
+    expect(download).toHaveAttribute("download", "codes.txt");
+    expect(download).toHaveClass("dw-btn-primary");
+    expect(screen.getByRole("link", { name: "Help" })).toHaveClass("dw-btn-icon", "dw-btn-ghost");
   });
 });
 

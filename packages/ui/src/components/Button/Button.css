@@ -25,6 +25,9 @@
     color var(--motion-fast) var(--ease-out),
     box-shadow var(--motion-fast) var(--ease-out);
 }
+a.dw-btn {
+  text-decoration: none;
+}
 .dw-btn-sm {
   --h: var(--control-sm);
   padding: 0 10px;

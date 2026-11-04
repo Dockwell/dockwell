@@ -5,7 +5,7 @@
 // brings its own stylesheet. Guidelines for every component live in
 // design/system/components/<Name>/README.md.
 
-export { Button, type ButtonProps } from "./components/Button/Button";
+export { Button, ButtonLink, type ButtonLinkProps, type ButtonProps } from "./components/Button/Button";
 export { Callout, type CalloutProps } from "./components/Callout/Callout";
 export { CommandBar, type CommandBarProps, type CommandItem } from "./components/CommandBar/CommandBar";
 export { FleetGrid, type FleetGridProps, type FleetGroup, type FleetServer } from "./components/FleetGrid/FleetGrid";
