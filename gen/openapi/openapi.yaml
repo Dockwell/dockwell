@@ -1183,6 +1183,7 @@ components:
                         - SURFACE_PANEL
                         - SURFACE_API
                         - SURFACE_AUTOMATIC
+                        - SURFACE_CLI
                     type: string
                     description: Where it was proposed from.
                     format: enum
@@ -1213,6 +1214,7 @@ components:
                         - SURFACE_PANEL
                         - SURFACE_API
                         - SURFACE_AUTOMATIC
+                        - SURFACE_CLI
                     type: string
                     description: Where it was applied from. Unset until it is applied.
                     format: enum

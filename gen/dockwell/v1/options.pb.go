@@ -87,6 +87,125 @@ func (Effect) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_options_proto_rawDescGZIP(), []int{0}
 }
 
+// Command names a method's command in the dockwell CLI, dockwell <noun>
+// <verb>, where the generator's rules give a name that is taken or
+// misleading. By the rules, the noun is the collection in the method's REST
+// path, such as "servers" for /v1/servers/{id}, or for a stream the rest of
+// its name after the verb, plural; the verb is the path's custom verb, such
+// as "apply" for :apply, or else the first word of the method's name, such
+// as "list". See docs/adr/0019-a-cli-generated-from-the-schema.md.
+type Command struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The noun, such as "api-tokens", in place of the rules' one.
+	Noun string `protobuf:"bytes,1,opt,name=noun,proto3" json:"noun,omitempty"`
+	// The verb, such as "version", in place of the rules' one.
+	Verb          string `protobuf:"bytes,2,opt,name=verb,proto3" json:"verb,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Command) Reset() {
+	*x = Command{}
+	mi := &file_dockwell_v1_options_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Command) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Command) ProtoMessage() {}
+
+func (x *Command) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_options_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Command.ProtoReflect.Descriptor instead.
+func (*Command) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_options_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *Command) GetNoun() string {
+	if x != nil {
+		return x.Noun
+	}
+	return ""
+}
+
+func (x *Command) GetVerb() string {
+	if x != nil {
+		return x.Verb
+	}
+	return ""
+}
+
+// Noun describes one noun of the dockwell CLI, the command that holds the
+// commands of a service's methods, for a service whose methods' commands
+// have several nouns, so its own comment describes more than any one of them.
+type Noun struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The noun, such as "passkeys".
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Its help, in paragraphs as a comment has them. Method names in it read
+	// as their commands, as in a comment.
+	Help          string `protobuf:"bytes,2,opt,name=help,proto3" json:"help,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Noun) Reset() {
+	*x = Noun{}
+	mi := &file_dockwell_v1_options_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Noun) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Noun) ProtoMessage() {}
+
+func (x *Noun) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_options_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Noun.ProtoReflect.Descriptor instead.
+func (*Noun) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_options_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Noun) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Noun) GetHelp() string {
+	if x != nil {
+		return x.Help
+	}
+	return ""
+}
+
 var file_dockwell_v1_options_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
@@ -94,6 +213,30 @@ var file_dockwell_v1_options_proto_extTypes = []protoimpl.ExtensionInfo{
 		Field:         50100,
 		Name:          "dockwell.v1.effect",
 		Tag:           "varint,50100,opt,name=effect,enum=dockwell.v1.Effect",
+		Filename:      "dockwell/v1/options.proto",
+	},
+	{
+		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
+		ExtensionType: (*Command)(nil),
+		Field:         50101,
+		Name:          "dockwell.v1.command",
+		Tag:           "bytes,50101,opt,name=command",
+		Filename:      "dockwell/v1/options.proto",
+	},
+	{
+		ExtendedType:  (*descriptorpb.ServiceOptions)(nil),
+		ExtensionType: ([]*Noun)(nil),
+		Field:         50100,
+		Name:          "dockwell.v1.nouns",
+		Tag:           "bytes,50100,rep,name=nouns",
+		Filename:      "dockwell/v1/options.proto",
+	},
+	{
+		ExtendedType:  (*descriptorpb.FieldOptions)(nil),
+		ExtensionType: (*string)(nil),
+		Field:         50100,
+		Name:          "dockwell.v1.flag",
+		Tag:           "bytes,50100,opt,name=flag",
 		Filename:      "dockwell/v1/options.proto",
 	},
 }
@@ -105,20 +248,54 @@ var (
 	//
 	// optional dockwell.v1.Effect effect = 50100;
 	E_Effect = &file_dockwell_v1_options_proto_extTypes[0]
+	// How the dockwell CLI names the method's command, where its rules give a
+	// name that is taken or misleading. Most methods leave it unset.
+	//
+	// optional dockwell.v1.Command command = 50101;
+	E_Command = &file_dockwell_v1_options_proto_extTypes[1]
+)
+
+// Extension fields to descriptorpb.ServiceOptions.
+var (
+	// The help of each noun the service's methods' commands have, when they
+	// have more than one. A service whose commands have one noun leaves it
+	// unset, and its comment is that noun's help.
+	//
+	// repeated dockwell.v1.Noun nouns = 50100;
+	E_Nouns = &file_dockwell_v1_options_proto_extTypes[2]
+)
+
+// Extension fields to descriptorpb.FieldOptions.
+var (
+	// The dockwell CLI's flag for a request's field, in place of the field's
+	// name in kebab-case, where that would take one of the CLI's own flags,
+	// such as --token for a claim link's token. Most fields leave it unset.
+	//
+	// optional string flag = 50100;
+	E_Flag = &file_dockwell_v1_options_proto_extTypes[3]
 )
 
 var File_dockwell_v1_options_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_options_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/options.proto\x12\vdockwell.v1\x1a google/protobuf/descriptor.proto*l\n" +
+	"\x19dockwell/v1/options.proto\x12\vdockwell.v1\x1a google/protobuf/descriptor.proto\"1\n" +
+	"\aCommand\x12\x12\n" +
+	"\x04noun\x18\x01 \x01(\tR\x04noun\x12\x12\n" +
+	"\x04verb\x18\x02 \x01(\tR\x04verb\".\n" +
+	"\x04Noun\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04help\x18\x02 \x01(\tR\x04help*l\n" +
 	"\x06Effect\x12\x16\n" +
 	"\x12EFFECT_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vEFFECT_READ\x10\x01\x12\x0f\n" +
 	"\vEFFECT_PLAN\x10\x02\x12\x10\n" +
 	"\fEFFECT_APPLY\x10\x03\x12\x16\n" +
 	"\x12EFFECT_DESTRUCTIVE\x10\x04:M\n" +
-	"\x06effect\x12\x1e.google.protobuf.MethodOptions\x18\xb4\x87\x03 \x01(\x0e2\x13.dockwell.v1.EffectR\x06effectB\xa5\x01\n" +
+	"\x06effect\x12\x1e.google.protobuf.MethodOptions\x18\xb4\x87\x03 \x01(\x0e2\x13.dockwell.v1.EffectR\x06effect:P\n" +
+	"\acommand\x12\x1e.google.protobuf.MethodOptions\x18\xb5\x87\x03 \x01(\v2\x14.dockwell.v1.CommandR\acommand:J\n" +
+	"\x05nouns\x12\x1f.google.protobuf.ServiceOptions\x18\xb4\x87\x03 \x03(\v2\x11.dockwell.v1.NounR\x05nouns:3\n" +
+	"\x04flag\x12\x1d.google.protobuf.FieldOptions\x18\xb4\x87\x03 \x01(\tR\x04flagB\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fOptionsProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -134,17 +311,27 @@ func file_dockwell_v1_options_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_options_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_dockwell_v1_options_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_dockwell_v1_options_proto_goTypes = []any{
-	(Effect)(0),                        // 0: dockwell.v1.Effect
-	(*descriptorpb.MethodOptions)(nil), // 1: google.protobuf.MethodOptions
+	(Effect)(0),                         // 0: dockwell.v1.Effect
+	(*Command)(nil),                     // 1: dockwell.v1.Command
+	(*Noun)(nil),                        // 2: dockwell.v1.Noun
+	(*descriptorpb.MethodOptions)(nil),  // 3: google.protobuf.MethodOptions
+	(*descriptorpb.ServiceOptions)(nil), // 4: google.protobuf.ServiceOptions
+	(*descriptorpb.FieldOptions)(nil),   // 5: google.protobuf.FieldOptions
 }
 var file_dockwell_v1_options_proto_depIdxs = []int32{
-	1, // 0: dockwell.v1.effect:extendee -> google.protobuf.MethodOptions
-	0, // 1: dockwell.v1.effect:type_name -> dockwell.v1.Effect
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	1, // [1:2] is the sub-list for extension type_name
-	0, // [0:1] is the sub-list for extension extendee
+	3, // 0: dockwell.v1.effect:extendee -> google.protobuf.MethodOptions
+	3, // 1: dockwell.v1.command:extendee -> google.protobuf.MethodOptions
+	4, // 2: dockwell.v1.nouns:extendee -> google.protobuf.ServiceOptions
+	5, // 3: dockwell.v1.flag:extendee -> google.protobuf.FieldOptions
+	0, // 4: dockwell.v1.effect:type_name -> dockwell.v1.Effect
+	1, // 5: dockwell.v1.command:type_name -> dockwell.v1.Command
+	2, // 6: dockwell.v1.nouns:type_name -> dockwell.v1.Noun
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	4, // [4:7] is the sub-list for extension type_name
+	0, // [0:4] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
 }
 
@@ -159,13 +346,14 @@ func file_dockwell_v1_options_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_options_proto_rawDesc), len(file_dockwell_v1_options_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   0,
-			NumExtensions: 1,
+			NumMessages:   2,
+			NumExtensions: 4,
 			NumServices:   0,
 		},
 		GoTypes:           file_dockwell_v1_options_proto_goTypes,
 		DependencyIndexes: file_dockwell_v1_options_proto_depIdxs,
 		EnumInfos:         file_dockwell_v1_options_proto_enumTypes,
+		MessageInfos:      file_dockwell_v1_options_proto_msgTypes,
 		ExtensionInfos:    file_dockwell_v1_options_proto_extTypes,
 	}.Build()
 	File_dockwell_v1_options_proto = out.File

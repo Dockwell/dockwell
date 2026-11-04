@@ -22,6 +22,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0016](0016-scoped-api-tokens.md) | Scoped API tokens | Accepted |
 | [0017](0017-the-change-api-and-the-agent-stream.md) | The change API, and the engine's calls over the agent stream | Accepted |
 | [0018](0018-keep-the-budgets-in-rss.md) | Keep the memory budgets in RSS, measured steadily | Accepted |
+| [0019](0019-a-cli-generated-from-the-schema.md) | A CLI generated from the schema, with local access on the control server | Accepted |
 
 Still open from the PRD: the config-as-code format (extended Compose is recommended; needed in phase 3), and the [open questions](../product/prd.md#risks-open-questions-and-decisions).
 

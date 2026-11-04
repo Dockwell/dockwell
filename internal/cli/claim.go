@@ -20,6 +20,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -309,6 +310,12 @@ func openPeople(ctx context.Context, dir datadir.Dir, location string, logger *s
 	if err != nil {
 		return nil, nil, panelAddress{}, err
 	}
+	return peopleOn(ctx, key, db, logger)
+}
+
+// peopleOn is the people of the control plane whose key and database these
+// are. It closes db when it fails.
+func peopleOn(ctx context.Context, key *seal.Key, db *store.DB, logger *slog.Logger) (*auth.Service, *store.DB, panelAddress, error) {
 	addr, known, err := loadPanelAddress(ctx, db)
 	if err == nil && !known {
 		err = errors.New("the control plane hasn't started yet. Start it with dockwell run, which prints a claim link")

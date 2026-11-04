@@ -141,12 +141,8 @@ func actor() string {
 // location, for commands that run beside it on the control server. It
 // never creates either. The caller closes the database.
 func openControl(ctx context.Context, dir datadir.Dir, location string) (*seal.Key, *store.DB, error) {
-	switch {
-	case !hasControlPlane(dir):
-		return nil, nil, fmt.Errorf("there's no control plane in %s. Run this on the control server, or pass its --data-dir", dir.Root)
-	case !store.IsPostgres(location) && !exists(location):
-		return nil, nil, fmt.Errorf("the control plane in %s has no state in %s. If it keeps its state in Postgres, pass --database or set %s to its URL, as dockwell run has it",
-			dir.Root, location, envDatabase)
+	if err := controlState(dir, location); err != nil {
+		return nil, nil, err
 	}
 	key, err := seal.Load(dir.SealKey())
 	if err != nil {
@@ -157,6 +153,19 @@ func openControl(ctx context.Context, dir datadir.Dir, location string) (*seal.K
 		return nil, nil, err
 	}
 	return key, db, nil
+}
+
+// controlState checks that dir has a control plane, with its state at
+// location.
+func controlState(dir datadir.Dir, location string) error {
+	switch {
+	case !hasControlPlane(dir):
+		return fmt.Errorf("there's no control plane in %s. Run this on the control server, or pass its --data-dir", dir.Root)
+	case !store.IsPostgres(location) && !exists(location):
+		return fmt.Errorf("the control plane in %s has no state in %s. If it keeps its state in Postgres, pass --database or set %s to its URL, as dockwell run has it",
+			dir.Root, location, envDatabase)
+	}
+	return nil
 }
 
 // openAuthority opens an existing control plane's authority, for commands

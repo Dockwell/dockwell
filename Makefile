@@ -8,7 +8,7 @@ MAKEFLAGS += --no-builtin-rules --no-print-directory
 
 GOTOOL    := go tool -modfile=tools/go.mod
 BIN       := bin/dockwell
-GENERATED := gen packages/api/src/gen internal/control/apidoc/openapi.yaml packages/ui/src/tokens.ts packages/ui/src/styles/tokens.css web/src/routeTree.gen.ts
+GENERATED := gen packages/api/src/gen internal/cli/apicmd internal/control/apidoc/openapi.yaml packages/ui/src/tokens.ts packages/ui/src/styles/tokens.css web/src/routeTree.gen.ts
 # The OpenAPI document for the REST paths (docs/adr/0015-rest-and-openapi-from-the-schema.md).
 OPENAPI   := gen/openapi/openapi.yaml
 

@@ -2625,26 +2625,26 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"serverName\x12\x13\n" +
 	"\x05rp_id\x18\x05 \x01(\tR\x04rpId\x12\x16\n" +
 	"\x06domain\x18\x06 \x01(\tR\x06domain\x12?\n" +
-	"\x0esign_in_method\x18\a \x01(\x0e2\x19.dockwell.v1.SignInMethodR\fsignInMethod\")\n" +
-	"\x11CheckClaimRequest\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\"\xa5\x01\n" +
+	"\x0esign_in_method\x18\a \x01(\x0e2\x19.dockwell.v1.SignInMethodR\fsignInMethod\":\n" +
+	"\x11CheckClaimRequest\x12%\n" +
+	"\x05token\x18\x01 \x01(\tB\x0f\xa2\xbb\x18\vclaim-tokenR\x05token\"\xa5\x01\n" +
 	"\x12CheckClaimResponse\x12+\n" +
 	"\x06server\x18\x01 \x01(\v2\x13.dockwell.v1.ServerR\x06server\x12%\n" +
 	"\x0epublic_address\x18\x02 \x01(\tR\rpublicAddress\x12;\n" +
 	"\vexpire_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"expireTime\"S\n" +
-	"\x11BeginClaimRequest\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\x12\x12\n" +
+	"expireTime\"d\n" +
+	"\x11BeginClaimRequest\x12%\n" +
+	"\x05token\x18\x01 \x01(\tB\x0f\xa2\xbb\x18\vclaim-tokenR\x05token\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
 	"\x05email\x18\x03 \x01(\tR\x05email\"X\n" +
 	"\x12BeginClaimResponse\x12\x1f\n" +
 	"\vceremony_id\x18\x01 \x01(\tR\n" +
 	"ceremonyId\x12!\n" +
-	"\foptions_json\x18\x02 \x01(\tR\voptionsJson\"\x97\x01\n" +
+	"\foptions_json\x18\x02 \x01(\tR\voptionsJson\"\xa8\x01\n" +
 	"\x12FinishClaimRequest\x12\x1f\n" +
 	"\vceremony_id\x18\x01 \x01(\tR\n" +
-	"ceremonyId\x12\x14\n" +
-	"\x05token\x18\x02 \x01(\tR\x05token\x12'\n" +
+	"ceremonyId\x12%\n" +
+	"\x05token\x18\x02 \x01(\tB\x0f\xa2\xbb\x18\vclaim-tokenR\x05token\x12'\n" +
 	"\x0fcredential_json\x18\x03 \x01(\tR\x0ecredentialJson\x12!\n" +
 	"\fpasskey_name\x18\x04 \x01(\tR\vpasskeyName\"<\n" +
 	"\x13FinishClaimResponse\x12%\n" +
@@ -2666,9 +2666,10 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x16SignInWithCodeResponse\x12%\n" +
 	"\x04user\x18\x01 \x01(\v2\x11.dockwell.v1.UserR\x04user\x12,\n" +
 	"\x12used_recovery_code\x18\x02 \x01(\bR\x10usedRecoveryCode\x12.\n" +
-	"\x13recovery_codes_left\x18\x03 \x01(\x05R\x11recoveryCodesLeft\"-\n" +
-	"\x15SignInWithLinkRequest\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\"?\n" +
+	"\x13recovery_codes_left\x18\x03 \x01(\x05R\x11recoveryCodesLeft\"=\n" +
+	"\x15SignInWithLinkRequest\x12$\n" +
+	"\x05token\x18\x01 \x01(\tB\x0e\xa2\xbb\x18\n" +
+	"link-tokenR\x05token\"?\n" +
 	"\x16SignInWithLinkResponse\x12%\n" +
 	"\x04user\x18\x01 \x01(\v2\x11.dockwell.v1.UserR\x04user\"\x10\n" +
 	"\x0eSignOutRequest\"\x11\n" +
@@ -2755,14 +2756,20 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x16SIGN_IN_METHOD_PASSKEY\x10\x02\x12%\n" +
 	"!SIGN_IN_METHOD_AUTHENTICATOR_CODE\x10\x03\x12 \n" +
 	"\x1cSIGN_IN_METHOD_RECOVERY_CODE\x10\x04\x12\x17\n" +
-	"\x13SIGN_IN_METHOD_LINK\x10\x052\x81\x16\n" +
+	"\x13SIGN_IN_METHOD_LINK\x10\x052\xc0!\n" +
 	"\vAuthService\x12q\n" +
-	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12m\n" +
+	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12}\n" +
 	"\n" +
-	"CheckClaim\x12\x1e.dockwell.v1.CheckClaimRequest\x1a\x1f.dockwell.v1.CheckClaimResponse\"\x1e\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/claim:check\x12m\n" +
+	"CheckClaim\x12\x1e.dockwell.v1.CheckClaimRequest\x1a\x1f.dockwell.v1.CheckClaimResponse\".\xa0\xbb\x18\x01\xaa\xbb\x18\f\n" +
 	"\n" +
-	"BeginClaim\x12\x1e.dockwell.v1.BeginClaimRequest\x1a\x1f.dockwell.v1.BeginClaimResponse\"\x1e\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/claim:begin\x12q\n" +
-	"\vFinishClaim\x12\x1f.dockwell.v1.FinishClaimRequest\x1a .dockwell.v1.FinishClaimResponse\"\x1f\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/claim:finish\x12\x95\x01\n" +
+	"claim-link\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/claim:check\x12}\n" +
+	"\n" +
+	"BeginClaim\x12\x1e.dockwell.v1.BeginClaimRequest\x1a\x1f.dockwell.v1.BeginClaimResponse\".\xa0\xbb\x18\x01\xaa\xbb\x18\f\n" +
+	"\n" +
+	"claim-link\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/claim:begin\x12\x81\x01\n" +
+	"\vFinishClaim\x12\x1f.dockwell.v1.FinishClaimRequest\x1a .dockwell.v1.FinishClaimResponse\"/\xa0\xbb\x18\x03\xaa\xbb\x18\f\n" +
+	"\n" +
+	"claim-link\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/claim:finish\x12\x95\x01\n" +
 	"\x12BeginPasskeySignIn\x12&.dockwell.v1.BeginPasskeySignInRequest\x1a'.dockwell.v1.BeginPasskeySignInResponse\".\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/sessions:beginPasskeySignIn\x12\x99\x01\n" +
 	"\x13FinishPasskeySignIn\x12'.dockwell.v1.FinishPasskeySignInRequest\x1a(.dockwell.v1.FinishPasskeySignInResponse\"/\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02%:\x01*\" /v1/sessions:finishPasskeySignIn\x12\x85\x01\n" +
 	"\x0eSignInWithCode\x12\".dockwell.v1.SignInWithCodeRequest\x1a#.dockwell.v1.SignInWithCodeResponse\"*\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/sessions:signInWithCode\x12\x85\x01\n" +
@@ -2781,7 +2788,14 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x10ConfirmTotpSetup\x12$.dockwell.v1.ConfirmTotpSetupRequest\x1a%.dockwell.v1.ConfirmTotpSetupResponse\"$\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/totp:confirmSetup\x12q\n" +
 	"\vDisableTotp\x12\x1f.dockwell.v1.DisableTotpRequest\x1a .dockwell.v1.DisableTotpResponse\"\x1f\xa0\xbb\x18\x04\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/totp:disable\x12\xa5\x01\n" +
 	"\x17RegenerateRecoveryCodes\x12+.dockwell.v1.RegenerateRecoveryCodesRequest\x1a,.dockwell.v1.RegenerateRecoveryCodesResponse\"/\xa0\xbb\x18\x04\x82\xd3\xe4\x93\x02%:\x01*\" /v1/totp:regenerateRecoveryCodes\x12\x7f\n" +
-	"\x10UnlockCodeSignIn\x12$.dockwell.v1.UnlockCodeSignInRequest\x1a%.dockwell.v1.UnlockCodeSignInResponse\"\x1e\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/totp:unlockB\xa2\x01\n" +
+	"\x10UnlockCodeSignIn\x12$.dockwell.v1.UnlockCodeSignInRequest\x1a%.dockwell.v1.UnlockCodeSignInResponse\"\x1e\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/totp:unlock\x1a\x8b\v\xa2\xbb\x18\xb6\x01\n" +
+	"\n" +
+	"auth-state\x12\xa7\x01The install's auth state says whether it has an owner yet, who is signed in on a request, and which address passkeys are made for there. GetAuthState needs no sign-in.\xa2\xbb\x18\x92\x02\n" +
+	"\n" +
+	"claim-link\x12\x83\x02A claim link, which dockwell run and dockwell claim print, creates the install's owner with a passkey, and works once. CheckClaim describes the server a link claims, and BeginClaim and FinishClaim make the passkey, which takes a browser: open the link in one.\xa2\xbb\x18\x9a\x02\n" +
+	"\bpasskeys\x12\x8d\x02Passkeys are how you sign in to the panel. A browser, a phone or a security key makes each one, for one address, and only it can use it. Adding and removing them needs a signed-in session, which no API token gives, so you do it in the panel, under Profile and security.\xa2\xbb\x18\xb9\x02\n" +
+	"\bsessions\x12\xac\x02A session is a browser you're signed in on. Signing in takes a passkey, a code from an authenticator app, a recovery code, or a one-time link from dockwell recover, and sets a session cookie. No API token can sign in, or list or end sessions: how you sign in changes only by signing in, in the panel.\xa2\xbb\x18\xd7\x02\n" +
+	"\x04totp\x12\xce\x02Code sign-in lets you sign in with a code from an authenticator app, or with a one-time recovery code, beside your passkeys. Wrong codes slow it down, and too many lock it until UnlockCodeSignIn turns it back on. Setting it up needs a signed-in session, which no API token gives, so you do it in the panel, under Profile and security.B\xa2\x01\n" +
 	"\x0fcom.dockwell.v1B\tAuthProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

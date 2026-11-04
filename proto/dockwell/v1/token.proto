@@ -27,6 +27,8 @@ service TokenService {
       post: "/v1/tokens"
       body: "*"
     };
+    // dockwell token create makes join tickets for servers.
+    option (dockwell.v1.command) = {noun: "api-tokens"};
   }
 
   // ListTokens returns your tokens that still work, newest first.
@@ -34,6 +36,7 @@ service TokenService {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
     option (google.api.http) = {get: "/v1/tokens"};
+    option (dockwell.v1.command) = {noun: "api-tokens"};
   }
 
   // RevokeToken stops one of your tokens working at once. Its open streams
@@ -44,6 +47,7 @@ service TokenService {
       post: "/v1/tokens/{id}:revoke"
       body: "*"
     };
+    option (dockwell.v1.command) = {noun: "api-tokens"};
   }
 }
 

@@ -79,13 +79,14 @@ var (
 const (
 	ViaPanel     = "panel"
 	ViaAPI       = "api"
+	ViaCLI       = "cli"       // the dockwell CLI, with an API token
 	ViaAutomatic = "automatic" // Dockwell on its own, such as a rollback
 )
 
 // By is who does something to a change, and from where.
 type By struct {
 	Actor string
-	Via   string // ViaPanel, ViaAPI or ViaAutomatic
+	Via   string // ViaPanel, ViaAPI, ViaCLI or ViaAutomatic
 }
 
 // system is Dockwell acting on its own.

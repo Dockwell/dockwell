@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -24,6 +25,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -280,6 +282,22 @@ func reasonOf(err error) string {
 	return ""
 }
 
+// choiceOf is the Choice detail of an error, for a client to ask which.
+func choiceOf(err error) *dockwellv1.Choice {
+	var cerr *connect.Error
+	if !errors.As(err, &cerr) {
+		return nil
+	}
+	for _, d := range cerr.Details() {
+		if v, err := d.Value(); err == nil {
+			if c, ok := v.(*dockwellv1.Choice); ok {
+				return c
+			}
+		}
+	}
+	return nil
+}
+
 // The engine end to end through the API: propose and get a plan, apply it
 // while a second client watches each step, change it, undo it, and
 // discard a plan.
@@ -528,6 +546,15 @@ func testProjectsApplyAndUndoWithNoServer(t *testing.T, backend store.Backend) {
 	}}}))
 	if reasonOf(err) != "choice" || !strings.Contains(err.Error(), "default and shop") {
 		t.Errorf("an environment with no project once there are two = %v, want a choice naming them", err)
+	}
+	if c := choiceOf(err); c.GetLevel() != "project" || c.GetField() != "edits[0].resource.scope" || !slices.Equal(c.GetOptions(), []string{"default", "shop"}) {
+		t.Errorf("the choice's detail = %v, want the projects, for the environment's scope", c)
+	}
+	// REST carries the detail in its google.rpc.Status.
+	status, reason, body := callREST(t, b, http.MethodPost, "/v1/changes", nil,
+		`{"summary": "Add qa", "edits": [{"resource": {"name": "qa"}, "spec": {"environment": {}}}]}`)
+	if status != http.StatusBadRequest || reason != "choice" || !strings.Contains(body, "dockwell.v1.Choice") || !strings.Contains(body, `"edits[0].resource.scope"`) {
+		t.Errorf("the choice over REST = %d %s %s, want the detail in the status", status, reason, body)
 	}
 	// Naming the project works, by name.
 	propose(t, c, "Add qa", &dockwellv1.Edit{
@@ -802,18 +829,18 @@ func testSecretsNeverLeaveTheAPI(t *testing.T, backend store.Backend) {
 		t.Fatal("the recorded responses don't hold the plans; the test is reading the wrong thing")
 	}
 	var events []store.Event
-	var changes []store.Change
+	var stored []store.Change
 	_ = f.store.View(t.Context(), func(tx *store.Tx) error {
 		events, _ = tx.ListEvents(t.Context(), 1000)
-		changes, _ = tx.ListChanges(t.Context(), store.ChangePage{}, 100)
+		stored, _ = tx.ListChanges(t.Context(), store.ChangePage{}, 100)
 		return nil
 	})
 	var history strings.Builder
 	for _, e := range events {
 		history.WriteString(e.Actor + e.Action + e.Subject + e.Detail + "\n")
 	}
-	for i := range changes {
-		ch := &changes[i]
+	for i := range stored {
+		ch := &stored[i]
 		history.Write(ch.Plan)
 		history.Write(ch.Progress)
 		history.WriteString(ch.Error + ch.Summary + "\n")
@@ -849,6 +876,17 @@ func testDestructivePlansNeedASessionAndAConfirmation(t *testing.T, backend stor
 	}
 	if got := apply(t, script, open); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED || got.GetAppliedVia() != dockwellv1.Surface_SURFACE_API {
 		t.Errorf("a token's apply = %v", got)
+	}
+	// The CLI says it is the CLI, and its changes record it.
+	cli := dockwellv1connect.NewChangeServiceClient(bearer{token: token, rt: b.client.Transport}, b.origin,
+		connect.WithInterceptors(connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+			return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+				req.Header().Set("User-Agent", changes.CLIUserAgent+"v0.4.0")
+				return next(ctx, req)
+			}
+		})))
+	if got := propose(t, cli, "Open https", ruleEdit("https", 443)); got.GetProposedVia() != dockwellv1.Surface_SURFACE_CLI {
+		t.Errorf("a change the CLI proposed came from %v, want the CLI", got.GetProposedVia())
 	}
 
 	block := propose(t, script, "Close SSH", &dockwellv1.Edit{
@@ -1077,6 +1115,9 @@ func testAnEditNamesAnEnvironmentsProject(t *testing.T, backend store.Backend) {
 	_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Run web", Edits: []*dockwellv1.Edit{svc("")}}))
 	if reasonOf(err) != "choice" || !strings.Contains(err.Error(), "default and shop") {
 		t.Errorf("an environment named without its project once there are two = %v, want a choice naming them", err)
+	}
+	if c := choiceOf(err); c.GetLevel() != "project" || c.GetField() != "edits[0].project" || !slices.Equal(c.GetOptions(), []string{"default", "shop"}) {
+		t.Errorf("the choice's detail = %v, want the projects, for the edit's project", c)
 	}
 	ch := propose(t, c, "Run web in the shop", svc("shop"))
 	var shopProduction string

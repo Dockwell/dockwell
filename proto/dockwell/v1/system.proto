@@ -16,6 +16,11 @@ service SystemService {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
     option (google.api.http) = {get: "/v1/version"};
+    // dockwell version shows the CLI's own build.
+    option (dockwell.v1.command) = {
+      noun: "system"
+      verb: "version"
+    };
   }
 }
 

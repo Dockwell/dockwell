@@ -36,6 +36,27 @@ import "google/protobuf/timestamp.proto";
 // or expired, "token_scope" when its scope doesn't cover the call, and
 // "needs_session" when no token may make it.
 service AuthService {
+  option (dockwell.v1.nouns) = {
+    name: "auth-state"
+    help: "The install's auth state says whether it has an owner yet, who is signed in on a request, and which address passkeys are made for there. GetAuthState needs no sign-in."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "claim-link"
+    help: "A claim link, which dockwell run and dockwell claim print, creates the install's owner with a passkey, and works once. CheckClaim describes the server a link claims, and BeginClaim and FinishClaim make the passkey, which takes a browser: open the link in one."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "passkeys"
+    help: "Passkeys are how you sign in to the panel. A browser, a phone or a security key makes each one, for one address, and only it can use it. Adding and removing them needs a signed-in session, which no API token gives, so you do it in the panel, under Profile and security."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "sessions"
+    help: "A session is a browser you're signed in on. Signing in takes a passkey, a code from an authenticator app, a recovery code, or a one-time link from dockwell recover, and sets a session cookie. No API token can sign in, or list or end sessions: how you sign in changes only by signing in, in the panel."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "totp"
+    help: "Code sign-in lets you sign in with a code from an authenticator app, or with a one-time recovery code, beside your passkeys. Wrong codes slow it down, and too many lock it until UnlockCodeSignIn turns it back on. Setting it up needs a signed-in session, which no API token gives, so you do it in the panel, under Profile and security."
+  };
+
   // GetAuthState says whether the install has an owner, who is signed in on
   // this request, and which address passkeys are made for here.
   rpc GetAuthState(GetAuthStateRequest) returns (GetAuthStateResponse) {
@@ -52,6 +73,8 @@ service AuthService {
       post: "/v1/claim:check"
       body: "*"
     };
+    // dockwell claim prints a claim link.
+    option (dockwell.v1.command) = {noun: "claim-link"};
   }
 
   // BeginClaim starts creating the owner's first passkey.
@@ -61,6 +84,7 @@ service AuthService {
       post: "/v1/claim:begin"
       body: "*"
     };
+    option (dockwell.v1.command) = {noun: "claim-link"};
   }
 
   // FinishClaim spends the claim link, creates the owner with the new
@@ -71,6 +95,7 @@ service AuthService {
       post: "/v1/claim:finish"
       body: "*"
     };
+    option (dockwell.v1.command) = {noun: "claim-link"};
   }
 
   // BeginPasskeySignIn starts signing in with a passkey.
@@ -299,7 +324,7 @@ message GetAuthStateResponse {
 // CheckClaimRequest carries a claim link's token.
 message CheckClaimRequest {
   // The token from the claim link, the part after "#".
-  string token = 1;
+  string token = 1 [(dockwell.v1.flag) = "claim-token"];
 }
 
 // CheckClaimResponse describes the server a valid claim link claims.
@@ -317,7 +342,7 @@ message CheckClaimResponse {
 // BeginClaimRequest names the owner.
 message BeginClaimRequest {
   // The token from the claim link.
-  string token = 1;
+  string token = 1 [(dockwell.v1.flag) = "claim-token"];
   // The owner's name, such as "Mira Chen".
   string name = 2;
   // The owner's email.
@@ -337,7 +362,7 @@ message FinishClaimRequest {
   // From BeginClaim.
   string ceremony_id = 1;
   // The token from the claim link, again: it is spent only here.
-  string token = 2;
+  string token = 2 [(dockwell.v1.flag) = "claim-token"];
   // RegistrationResponseJSON from navigator.credentials.create.
   string credential_json = 3;
   // What to call the passkey, such as "Chrome on macOS". Optional.
@@ -401,7 +426,7 @@ message SignInWithCodeResponse {
 // SignInWithLinkRequest carries a sign-in link's token.
 message SignInWithLinkRequest {
   // The token from the link, the part after "#".
-  string token = 1;
+  string token = 1 [(dockwell.v1.flag) = "link-token"];
 }
 
 // SignInWithLinkResponse carries who signed in. The response sets the session

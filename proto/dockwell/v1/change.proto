@@ -25,6 +25,15 @@ import "google/protobuf/timestamp.proto";
 // or opens the stream with Connect, gRPC or gRPC-Web, with the same
 // credentials.
 service ChangeService {
+  option (dockwell.v1.nouns) = {
+    name: "changes"
+    help: "A change is a set of edits to managed state, with the plan that carries them out. You propose edits and get a plan back; applying it writes immutable revisions and runs its steps on the servers; undoing it makes a new plan that puts things back. A change applies only as it was planned, and a plan never shows a secret, only that it changed.\n\nSee docs/adr/0009-resources-revisions-and-plans.md and docs/adr/0017-the-change-api-and-the-agent-stream.md."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "drift"
+    help: "Drift is a difference between what a server has and the latest revision of a resource it should have, as when someone changed it by hand. ListDrift asks each connected server's agent, and changes nothing. RevertDrift plans putting the revision back, and AdoptDrift plans keeping what the server has as a new revision: each is a change, with a plan to apply."
+  };
+
   // ProposeChange plans a set of edits and records them as a planned
   // change, ready to apply or discard. Planning asks each server's agent
   // what the edits would take there, and changes nothing on any server. The
@@ -186,6 +195,24 @@ message ResourceRef {
   string scope = 2;
   // Its name, unique among its kind in its scope, such as "web".
   string name = 3;
+}
+
+// Choice is the detail of an error whose reason is "choice": a request
+// left out something there is more than one of, such as the project of an
+// environment once there are two projects (PRD principle 4). Ask which,
+// set field to it, and send the request again. Errors carry it as a
+// google.rpc.Status detail, over REST too.
+message Choice {
+  // What to choose: "project", "environment" or "server".
+  string level = 1;
+  // The request's field that takes the choice, as a path of field names
+  // from the request, such as "edits[0].project" or
+  // "edits[0].resource.scope".
+  string field = 2;
+  // The names to choose from. The field takes any of them.
+  repeated string options = 3;
+  // For a choice of environment, the project they are in.
+  string project = 4;
 }
 
 // ProposeChangeResponse carries the planned change.
@@ -456,6 +483,9 @@ enum Surface {
   SURFACE_API = 2;
   // Dockwell on its own, such as a rollback after a failure.
   SURFACE_AUTOMATIC = 3;
+  // The dockwell CLI, with an API token. The CLI says so in its User-Agent,
+  // "dockwell-cli/<version>"; any other client with a token is the API.
+  SURFACE_CLI = 4;
 }
 
 // Plan is what applying a change would do: what changes, where, and for
