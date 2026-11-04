@@ -68,7 +68,8 @@ func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 }
 
 // OnConnect calls fn, in its own goroutine, each time a server's agent
-// connects, such as to resume what waits for it.
+// connects, and each time it can run a kind it couldn't, as when Docker
+// starts after it, such as to resume what waits for it.
 func (a *Agents) OnConnect(fn func(server string)) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -99,12 +100,22 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	a.sessions[server] = s
 	close(a.opened)
 	a.opened = make(chan struct{})
+	a.mu.Unlock()
+	a.connected(server)
+	return s
+}
+
+// connected runs the OnConnect hooks for server, each in its own
+// goroutine: when its agent connects, and when it can run more kinds than
+// it could, as when Docker starts after the agent, so what waited for
+// them, such as a rollback, goes on.
+func (a *Agents) connected(server string) {
+	a.mu.Lock()
 	hooks := slices.Clone(a.onConnect)
 	a.mu.Unlock()
 	for _, fn := range hooks {
 		go fn(server)
 	}
-	return s
 }
 
 // Session is one stream to a server's agent, and the calls waiting on it.
@@ -140,18 +151,23 @@ type Session struct {
 
 // setKinds records what the agent says it can run, in its hello or
 // after.
-func (s *Session) setKinds(kinds []string, unavailable []*agentv1.UnavailableKind) {
+// setKinds takes the kinds the agent can run now, and reports whether
+// any is new: one it couldn't run before.
+func (s *Session) setKinds(kinds []string, unavailable []*agentv1.UnavailableKind) (grew bool) {
 	s.kindsMu.Lock()
 	defer s.kindsMu.Unlock()
+	before := slices.Clone(s.kinds)
 	s.kinds = s.kinds[:0]
 	for _, k := range kinds {
 		s.kinds = append(s.kinds, resource.Kind(k))
+		grew = grew || !slices.Contains(before, resource.Kind(k))
 	}
 	slices.Sort(s.kinds)
 	s.unavailable = map[resource.Kind]string{}
 	for _, u := range unavailable {
 		s.unavailable[resource.Kind(u.GetKind())] = u.GetReason()
 	}
+	return grew
 }
 
 // progressed passes on how a call is going to its caller, if it follows.

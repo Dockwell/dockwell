@@ -397,7 +397,8 @@ func TestAStepANewerAgentPlansFailsPlanning(t *testing.T) {
 
 // An agent offers the Docker kinds only while Docker answers. Until then,
 // planning one says why, and how to fix it; once Docker starts, the agent
-// tells the control plane, and its kinds run.
+// tells the control plane, and its kinds run. What waited for them, such
+// as a rollback, goes on then, as when the agent connects.
 func TestDockerKindsWaitForDocker(t *testing.T) {
 	s := startStack(t, 5*time.Second)
 	id := s.enrollLocal(t)
@@ -416,6 +417,8 @@ func TestDockerKindsWaitForDocker(t *testing.T) {
 	}()
 	t.Cleanup(func() { cancel(); <-done })
 	a := waitForAgent(t, s.agents, id.ServerID, true)
+	connected := make(chan string, 16)
+	s.agents.OnConnect(func(server string) { connected <- server })
 
 	web := resource.Ref{Kind: service.Kind, Scope: "env_01KAT4ZR6E3V0Y5XBKZB5D9Q6M", Name: "web"}
 	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27"}}}
@@ -449,6 +452,14 @@ func TestDockerKindsWaitForDocker(t *testing.T) {
 	}
 	if err != nil {
 		t.Fatalf("planning once Docker answers = %v", err)
+	}
+	select {
+	case got := <-connected:
+		if got != id.ServerID {
+			t.Errorf("OnConnect got %s once Docker started, want %s", got, id.ServerID)
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("the agent can run the Docker kinds now, and nothing that waited for them heard so")
 	}
 
 	// Pulling the image says how far it is, over the stream, to whoever

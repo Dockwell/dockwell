@@ -213,8 +213,9 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 
 	// The revision engine reaches agents over their streams. A change left
 	// applying, by a stop partway or a rollback waiting for a server, is
-	// resumed once serving starts, and whenever a server reconnects (ADR
-	// 0009). The engine's runs outlive the request that started them;
+	// resumed once serving starts, whenever a server reconnects, and
+	// whenever one can run a kind it couldn't, as when Docker starts after
+	// its agent (ADR 0009, ADR 0021). The engine's runs outlive the request that started them;
 	// stopping lets them finish their steps or leaves them for the next
 	// start, and the store closes only after (srv.Run).
 	kinds := controlKinds()

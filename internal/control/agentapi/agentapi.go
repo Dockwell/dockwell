@@ -242,8 +242,14 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 				session.progressed(msg.GetProgress())
 			case msg.GetKinds() != nil && session != nil:
 				k := msg.GetKinds()
-				session.setKinds(k.GetKinds(), k.GetUnavailable())
+				grew := session.setKinds(k.GetKinds(), k.GetUnavailable())
 				log.InfoContext(ctx, "server's kinds changed", slog.Any("kinds", k.GetKinds()), slog.Int("unavailable_kinds", len(k.GetUnavailable())))
+				if grew {
+					// What waited for a kind it can run now, such as a
+					// rollback waiting for Docker, goes on, as when it
+					// connects.
+					h.agents.connected(peer.ServerID)
+				}
 			case msg.GetDraining() != nil && session != nil:
 				session.drain()
 			case msg.GetDraining() != nil:
