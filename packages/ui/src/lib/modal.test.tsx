@@ -49,4 +49,20 @@ describe("lockBodyScroll", () => {
     expect(document.body.style.overflow).toBe("scroll");
     document.body.style.overflow = "";
   });
+
+  it("adds the scrollbar's width to the body's own padding, then restores it", () => {
+    const root = document.documentElement;
+    Object.defineProperty(root, "clientWidth", { configurable: true, get: () => window.innerWidth - 15 });
+    document.body.style.paddingRight = "10px";
+    try {
+      const unlock = lockBodyScroll();
+      expect(document.body.style.paddingRight).toBe("25px");
+      unlock();
+      expect(document.body.style.paddingRight).toBe("10px");
+    } finally {
+      // Removing the own property brings back the prototype's getter.
+      delete (root as { clientWidth?: number }).clientWidth;
+      document.body.style.paddingRight = "";
+    }
+  });
 });

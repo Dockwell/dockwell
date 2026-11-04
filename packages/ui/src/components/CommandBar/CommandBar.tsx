@@ -13,14 +13,12 @@ import {
 } from "react";
 
 import { cx } from "../../lib/cx";
-import { useModalLayer } from "../../lib/modal";
-import { Portal } from "../../lib/Portal";
+import { ModalLayer } from "../../lib/modal";
 import { useUIStrings } from "../../lib/strings";
 import { Icon } from "../Icon/Icon";
 import type { IconName } from "../Icon/icons";
 import { Kbd } from "../Kbd/Kbd";
 import { fuzzyMatch, splitMatches } from "./fuzzy";
-import "../../styles/overlay.css";
 import "./CommandBar.css";
 
 export interface CommandItem {
@@ -70,21 +68,15 @@ export function CommandBar(props: CommandBarProps) {
 function CommandLayer(props: CommandBarProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const onKeyDown = useModalLayer({
-    open: true,
-    containerRef: panelRef,
-    initialFocusRef: props.autoFocus === false ? undefined : inputRef,
-    onClose: props.onClose,
-  });
   return (
-    <Portal>
-      {/* Keys from inside the dialog bubble here: Escape closes, Tab stays inside. */}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: the layer only listens to keys from its dialog */}
-      <div className="dw-cmd-layer" onKeyDown={onKeyDown}>
-        <div className="dw-scrim" aria-hidden="true" onClick={props.onClose} />
-        <CommandPanel {...props} modal ref={panelRef} inputRef={inputRef} />
-      </div>
-    </Portal>
+    <ModalLayer
+      className="dw-cmd-layer"
+      containerRef={panelRef}
+      initialFocusRef={props.autoFocus === false ? undefined : inputRef}
+      onClose={props.onClose}
+    >
+      <CommandPanel {...props} modal ref={panelRef} inputRef={inputRef} />
+    </ModalLayer>
   );
 }
 

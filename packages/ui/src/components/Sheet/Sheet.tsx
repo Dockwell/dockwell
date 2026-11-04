@@ -3,11 +3,9 @@
 import { type CSSProperties, type ReactNode, type Ref, useId, useRef } from "react";
 
 import { cx, hasContent } from "../../lib/cx";
-import { useModalLayer } from "../../lib/modal";
-import { Portal } from "../../lib/Portal";
+import { ModalLayer } from "../../lib/modal";
 import { useUIStrings } from "../../lib/strings";
 import { Button } from "../Button/Button";
-import "../../styles/overlay.css";
 import "./Sheet.css";
 
 export interface SheetProps {
@@ -40,16 +38,10 @@ export function Sheet(props: SheetProps) {
 
 function SheetLayer(props: SheetProps) {
   const panelRef = useRef<HTMLElement>(null);
-  const onKeyDown = useModalLayer({ open: true, containerRef: panelRef, onClose: props.onClose });
   return (
-    <Portal>
-      {/* Keys from inside the dialog bubble here: Escape closes, Tab stays inside. */}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: the layer only listens to keys from its dialog */}
-      <div className="dw-sheet-layer" onKeyDown={onKeyDown}>
-        <div className="dw-scrim" aria-hidden="true" onClick={props.onClose} />
-        <SheetPanel {...props} modal ref={panelRef} />
-      </div>
-    </Portal>
+    <ModalLayer className="dw-sheet-layer" containerRef={panelRef} onClose={props.onClose}>
+      <SheetPanel {...props} modal ref={panelRef} />
+    </ModalLayer>
   );
 }
 

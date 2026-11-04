@@ -214,6 +214,18 @@ describe("CommandBar overlay", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
+  it("leaves Escape to an input method while it composes", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    // Escape dismisses the pinyin candidates; the command bar stays.
+    fireEvent.keyDown(combobox(), { key: "Escape", isComposing: true });
+    fireEvent.keyDown(combobox(), { key: "Escape", keyCode: 229 });
+    expect(screen.getByRole("dialog", { name: "Command bar" })).toBeVisible();
+    fireEvent.keyDown(combobox(), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("closes on a click on the scrim", async () => {
     const user = userEvent.setup();
     render(<Harness />);

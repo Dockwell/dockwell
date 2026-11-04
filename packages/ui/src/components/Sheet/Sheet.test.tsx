@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
@@ -43,6 +43,28 @@ function PlanSheet({ withCommandBar = false }: { withCommandBar?: boolean }) {
             />
           </>
         ) : null}
+      </Sheet>
+    </main>
+  );
+}
+
+/** Opens a sheet and a command bar inside it with one click, so both layers mount in the same render. */
+function SheetWithCommandBar() {
+  const [open, setOpen] = useState(false);
+  const [commands, setCommands] = useState(false);
+  return (
+    <main>
+      <Button
+        onClick={() => {
+          setOpen(true);
+          setCommands(true);
+        }}
+      >
+        Find in plan
+      </Button>
+      <Sheet open={open} onClose={() => setOpen(false)} title="Review plan">
+        <TextField label="Reason" />
+        <CommandBar open={commands} onClose={() => setCommands(false)} items={[{ id: "a", label: "Open activity" }]} />
       </Sheet>
     </main>
   );
@@ -138,6 +160,43 @@ describe("Sheet", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.body.style.overflow).toBe("");
+  });
+
+  it.each([
+    ["", false],
+    [" under StrictMode", true],
+  ])("puts a command bar that opens with the sheet on top of it%s", async (_, strict) => {
+    const user = userEvent.setup();
+    render(<SheetWithCommandBar />, { reactStrictMode: strict });
+    const opener = screen.getByRole("button", { name: "Find in plan" });
+    await user.click(opener);
+    expect(screen.getByRole("combobox")).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("combobox")).toHaveFocus();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("combobox")).toBeNull();
+    const sheet = screen.getByRole("dialog", { name: "Review plan" });
+    expect(sheet).toHaveFocus();
+    expect(document.body.style.overflow).toBe("hidden");
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(opener).toHaveFocus();
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("leaves Escape to an input method while it composes", async () => {
+    const user = userEvent.setup();
+    render(<PlanSheet />);
+    await user.click(screen.getByRole("button", { name: "Review plan" }));
+    const reason = screen.getByRole("textbox", { name: "Reason" });
+    // Chrome and Firefox mark the event; Safari only sends keyCode 229.
+    fireEvent.keyDown(reason, { key: "Escape", isComposing: true });
+    fireEvent.keyDown(reason, { key: "Escape", keyCode: 229 });
+    expect(screen.getByRole("dialog", { name: "Review plan" })).toBeVisible();
+    fireEvent.keyDown(reason, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("renders in place when inline, without trapping focus", async () => {
