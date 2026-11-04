@@ -5,6 +5,7 @@ package store_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -88,6 +89,67 @@ func TestRefusesNewerSchema(t *testing.T) {
 			t.Fatalf("Open on a newer schema = %v", err)
 		}
 	})
+}
+
+// OpenExisting opens a store only as it is: it never migrates one an older
+// dockwell left, never creates one, and refuses a schema it doesn't know.
+func TestOpenExistingNeverMigrates(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		location := storetest.New(t, b)
+		current := store.SchemaVersion()
+		old, err := store.OpenAt(t.Context(), location, current-1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = old.Close()
+
+		_, err = store.OpenExisting(t.Context(), location)
+		var schema *store.SchemaError
+		if !errors.As(err, &schema) || schema.Database != current-1 || schema.Binary != current ||
+			!strings.Contains(err.Error(), "older than this dockwell's") || !strings.Contains(err.Error(), "Restart the control plane") {
+			t.Fatalf("OpenExisting on an older schema = %v, want a *SchemaError that says to restart", err)
+		}
+		// It left the schema as it was: opening at the old version again
+		// finds nothing newer than it.
+		again, err := store.OpenAt(t.Context(), location, current-1)
+		if err != nil {
+			t.Fatalf("the schema moved on: %v", err)
+		}
+		var newest int
+		if err := again.View(t.Context(), func(tx *Tx) error {
+			return store.QueryIntForTest(t.Context(), tx, `SELECT MAX(version) FROM schema_migrations`, &newest)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		_ = again.Close()
+		if newest != current-1 {
+			t.Errorf("after OpenExisting the schema version is %d, want %d", newest, current-1)
+		}
+
+		up, err := store.Open(t.Context(), location)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = up.Close()
+		db, err := store.OpenExisting(t.Context(), location)
+		if err != nil {
+			t.Fatalf("OpenExisting on the current schema = %v", err)
+		}
+		_ = db.Close()
+
+		storetest.Exec(t, location, fmt.Sprintf(`INSERT INTO schema_migrations (version, applied_at) VALUES (%d, 0)`, current+1))
+		if _, err := store.OpenExisting(t.Context(), location); !errors.As(err, &schema) || !strings.Contains(err.Error(), "newer than this dockwell knows") {
+			t.Errorf("OpenExisting on a newer schema = %v", err)
+		}
+	})
+
+	missing := filepath.Join(t.TempDir(), "state.db")
+	if _, err := store.OpenExisting(t.Context(), missing); err == nil {
+		t.Error("OpenExisting opened a database that isn't there")
+	}
+	if _, err := os.Stat(missing); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("OpenExisting created %s: %v", missing, err)
+	}
 }
 
 // A migration that can't be recorded as done says which one, and on which

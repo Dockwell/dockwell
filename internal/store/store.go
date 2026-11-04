@@ -103,6 +103,55 @@ func Open(ctx context.Context, location string) (*DB, error) {
 	return db, nil
 }
 
+// OpenExisting opens the store at location as it is, for a command that
+// runs beside the control plane that keeps it, such as the CLI's local
+// access: it never creates the database and never migrates it, since a
+// migration under a running control plane of another version would change
+// its schema beneath it. It refuses a database whose schema version isn't
+// this binary's with a *SchemaError, as on a server whose dockwell was
+// upgraded before the control plane restarted onto it.
+func OpenExisting(ctx context.Context, location string) (*DB, error) {
+	if !IsPostgres(location) {
+		if _, err := os.Stat(location); err != nil {
+			return nil, fmt.Errorf("can't open the database at %s: %w", location, err)
+		}
+	}
+	db, err := open(ctx, location)
+	if err != nil {
+		return nil, err
+	}
+	var have int
+	if err := db.read.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&have); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("can't read the schema version of the database at %s: %w. Start the control plane on it with dockwell run, which sets it up, then try again",
+			db.where, scrub(err, location))
+	}
+	if want := SchemaVersion(); have != want {
+		_ = db.Close()
+		return nil, &SchemaError{Where: db.where, Database: have, Binary: want}
+	}
+	return db, nil
+}
+
+// SchemaError is OpenExisting's refusal of a database whose schema version
+// isn't the one this binary knows.
+type SchemaError struct {
+	// Where is the database, without secrets.
+	Where string
+	// Database is the schema version the database has, and Binary the one
+	// this binary knows.
+	Database, Binary int
+}
+
+func (e *SchemaError) Error() string {
+	if e.Database < e.Binary {
+		return fmt.Sprintf("the database at %s has schema version %d, older than this dockwell's %d, so the control plane on it runs an older dockwell. "+
+			"Restart the control plane with this one, which brings the database up to date, then try again", e.Where, e.Database, e.Binary)
+	}
+	return fmt.Sprintf("the database at %s has schema version %d, newer than this dockwell knows (%d). Run the dockwell the control plane runs",
+		e.Where, e.Database, e.Binary)
+}
+
 // open opens the store at location without migrating it.
 func open(ctx context.Context, location string) (*DB, error) {
 	if IsPostgres(location) {

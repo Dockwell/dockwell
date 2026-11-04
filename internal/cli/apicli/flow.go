@@ -138,20 +138,22 @@ func setPath(msg protoreflect.Message, path, value string) error {
 		if open := strings.IndexByte(part, '['); open >= 0 && strings.HasSuffix(part, "]") {
 			n, err := strconv.Atoi(part[open+1 : len(part)-1])
 			if err != nil {
-				return fmt.Errorf("can't follow %s in the request", path)
+				return fmt.Errorf("the API asked which one at %s, which this CLI can't follow, so it can't set your answer. Pass it as a flag instead", path)
 			}
 			name, index = part[:open], n
 		}
 		fd := m.Descriptor().Fields().ByName(protoreflect.Name(name))
 		if fd == nil {
-			return fmt.Errorf("the request has no field %s; this CLI may be older than the control plane", path)
+			return fmt.Errorf("the API asked which one at %s, which the request doesn't have, so this CLI may be older than the control plane. "+
+				"Update it to the control plane's version", path)
 		}
 		last := i == len(parts)-1
 		switch {
 		case index >= 0:
 			l := m.Mutable(fd).List()
 			if index >= l.Len() || fd.Message() == nil {
-				return fmt.Errorf("the request has no %s", path)
+				return fmt.Errorf("the API asked which one at %s, which the request doesn't have, so this CLI may be older than the control plane. "+
+					"Update it to the control plane's version", path)
 			}
 			m = l.Get(index).Message()
 		case last && fd.Kind() == protoreflect.StringKind && fd.IsList():
@@ -161,7 +163,7 @@ func setPath(msg protoreflect.Message, path, value string) error {
 		case fd.Message() != nil && !last:
 			m = m.Mutable(fd).Message()
 		default:
-			return fmt.Errorf("the CLI can't set %s", path)
+			return fmt.Errorf("the API asked which one at %s, which this CLI can't set, so it can't send your answer. Pass it as a flag instead", path)
 		}
 	}
 	return nil
@@ -186,14 +188,14 @@ func (r *runner) method(ctx context.Context, m *Method, req proto.Message) error
 	if m.Call == nil {
 		return fmt.Errorf("the CLI can't call %s yet, as it streams requests. Use the panel", m.Name)
 	}
-	if err := r.connect(ctx); err != nil {
-		return err
-	}
 	if m.Effect == dockwellv1.Effect_EFFECT_DESTRUCTIVE {
 		// No API token may make a destructive call (ADR 0016), and the CLI
-		// signs in only with one.
-		return ExitError{ExitNeedsPerson, fmt.Errorf("%s removes data or cuts off access, which no API token may do. Sign in to the panel at %s and do it there",
-			r.command, r.client.PanelURL("/"))}
+		// signs in only with one, so it refuses before it has one: local
+		// access would make one only to say so.
+		return r.needsPanel(ctx)
+	}
+	if err := r.connect(ctx); err != nil {
+		return err
 	}
 	if apply, ok := req.(*dockwellv1.ApplyChangeRequest); ok {
 		return r.applyPlanned(ctx, apply)
@@ -213,10 +215,24 @@ func (r *runner) method(ctx context.Context, m *Method, req proto.Message) error
 	if err != nil {
 		return r.explain(err)
 	}
-	if c := changeIn(res); m.Effect == dockwellv1.Effect_EFFECT_PLAN && c.GetState() == dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
-		return r.planned(ctx, res, c)
+	if c := changeIn(res); c.GetState() == dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
+		if plans, _ := proposes(m); plans {
+			return r.planned(ctx, res, c)
+		}
 	}
 	return r.print(res, false)
+}
+
+// needsPanel refuses a destructive method, and says where the panel is when
+// that is known without a token.
+func (r *runner) needsPanel(ctx context.Context) error {
+	where := "Sign in to the panel and do it there"
+	located := r.opts.settings
+	located.Locate = true
+	if c, err := r.env.Connect(ctx, located); err == nil && c.URL != "" {
+		where = "Sign in to the panel at " + c.PanelURL("/") + " and do it there"
+	}
+	return ExitError{ExitNeedsPerson, fmt.Errorf("%s removes data or cuts off access, which no API token may do. %s", r.command, where)}
 }
 
 // ask asks before a call that changes something, or fails when there is
@@ -230,15 +246,16 @@ func (r *runner) ask(question string) error {
 		return err
 	}
 	if !ok {
-		return errors.New("stopped. Nothing changed")
+		return fmt.Errorf("you didn't say yes, so %s didn't run. Nothing changed", r.command)
 	}
 	return nil
 }
 
-// stream prints each message of a stream as it comes.
+// stream prints each message of a stream as it comes. A change is followed
+// until it ends, as after applying it.
 func (r *runner) stream(ctx context.Context, m *Method, req proto.Message) error {
-	if _, ok := req.(*dockwellv1.WatchChangeRequest); ok && !r.opts.json {
-		return r.follow(ctx, req.(*dockwellv1.WatchChangeRequest).GetId(), r.env.now())
+	if watch, ok := req.(*dockwellv1.WatchChangeRequest); ok {
+		return r.follow(ctx, watch.GetId(), time.Time{})
 	}
 	err := r.do(ctx, func() error {
 		return m.Call.Invoke(ctx, r.client, req, func(msg proto.Message) error { return r.print(msg, true) })
@@ -252,7 +269,7 @@ func (r *runner) stream(ctx context.Context, m *Method, req proto.Message) error
 // planned shows a planned change and, once the person says so, applies it
 // and follows it to an end. res is the response that carried it.
 func (r *runner) planned(ctx context.Context, res proto.Message, c *dockwellv1.Change) error {
-	if err := r.print(res, true); err != nil {
+	if err := r.print(res, r.applies(c)); err != nil {
 		return err
 	}
 	if empty(c.GetPlan()) {
@@ -266,6 +283,13 @@ func (r *runner) planned(ctx context.Context, res proto.Message, c *dockwellv1.C
 		return nil
 	}
 	return r.confirmAndApply(ctx, c, "")
+}
+
+// applies reports whether the CLI goes on to apply a planned change and
+// follow it, printing more than the plan: then --json prints each message
+// on a line of its own, and otherwise the plan alone, indented.
+func (r *runner) applies(c *dockwellv1.Change) bool {
+	return !r.opts.planOnly && !empty(c.GetPlan()) && !c.GetPlan().GetDestructive() && (r.opts.yes || r.env.interactive())
 }
 
 // empty reports a plan that changes nothing.
@@ -360,7 +384,7 @@ func (r *runner) applyPlanned(ctx context.Context, req *dockwellv1.ApplyChangeRe
 		return fmt.Errorf("%s is %s, not planned, so there's nothing to apply. Propose it again for a new plan",
 			c.GetId(), strings.ToLower(word(c.GetState())))
 	}
-	if err := r.print(got, true); err != nil {
+	if err := r.print(got, r.applies(c)); err != nil {
 		return err
 	}
 	if fp := req.GetFingerprint(); fp != "" && fp != c.GetPlan().GetFingerprint() {
@@ -370,9 +394,17 @@ func (r *runner) applyPlanned(ctx context.Context, req *dockwellv1.ApplyChangeRe
 	return r.confirmAndApply(ctx, c, req.GetFingerprint())
 }
 
+// reasonWatchBehind ends a watch of a change that fell behind it, and asks
+// the client to watch again.
+const reasonWatchBehind = "watch_behind"
+
+// maxRewatches is how many times follow watches a change again after a
+// watch fell behind it, before it gives up.
+const maxRewatches = 10
+
 // follow watches a change apply, printing each step as it moves on, until
 // it is applied, failed or discarded. began is when this CLI applied it,
-// on its own clock, or when it started watching.
+// on its own clock, or zero when it only watches.
 func (r *runner) follow(ctx context.Context, id string, began time.Time) error {
 	shown := map[int32]dockwellv1.StepState{}
 	var last *dockwellv1.Change
@@ -391,7 +423,7 @@ func (r *runner) follow(ctx context.Context, id string, began time.Time) error {
 		}
 		fmt.Fprintln(r.env.Out, line)
 	}
-	err := r.do(ctx, func() error {
+	watch := func() error {
 		stream, err := r.client.Changes().WatchChange(ctx, connect.NewRequest(&dockwellv1.WatchChangeRequest{Id: id}))
 		if err != nil {
 			return err
@@ -419,7 +451,22 @@ func (r *runner) follow(ctx context.Context, id string, began time.Time) error {
 			}
 		}
 		return stream.Err()
-	})
+	}
+	var err error
+	// A watch that fell behind the change is ended by the control plane,
+	// which asks for another: the change goes on, and so does following it.
+	// Each new watch starts with the change as it is, so nothing is missed,
+	// and steps already shown aren't shown again.
+	for watches := 1; ; watches++ {
+		err = r.do(ctx, watch)
+		if Reason(err) != reasonWatchBehind || (last != nil && final(last.GetState())) {
+			break
+		}
+		if watches > maxRewatches {
+			return fmt.Errorf("watching %s fell behind it %d times, so dockwell stopped following it. It goes on applying: "+
+				"follow it again with dockwell changes watch %s, or see where it is with dockwell changes get %s", id, watches, id, id)
+		}
+	}
 	if err != nil && (last == nil || !final(last.GetState())) {
 		if errors.Is(ctx.Err(), context.Canceled) {
 			return fmt.Errorf("stopped following %s, which goes on applying. Follow it again with dockwell changes watch %s", id, id)
@@ -429,7 +476,28 @@ func (r *runner) follow(ctx context.Context, id string, began time.Time) error {
 	if last == nil {
 		return fmt.Errorf("the watch of %s ended before it said how the change went. See it with dockwell changes get %s", id, id)
 	}
-	return r.outcome(last, r.env.now().Sub(began))
+	return r.outcome(last, began)
+}
+
+// took is how long a change took to apply. By the change's own times, it
+// is from when it started applying to when its last step finished; a
+// change with no steps that finished, as one with none on any server, took
+// as long as this CLI waited for it since began, when the CLI applied it.
+// Otherwise it isn't known.
+func took(c *dockwellv1.Change, began, now time.Time) (time.Duration, bool) {
+	var end time.Time
+	for _, s := range c.GetSteps() {
+		if f := s.GetFinishTime(); f != nil && f.AsTime().After(end) {
+			end = f.AsTime()
+		}
+	}
+	if start := c.GetApplyTime(); start != nil && !end.IsZero() && !end.Before(start.AsTime()) {
+		return end.Sub(start.AsTime()), true
+	}
+	if !began.IsZero() {
+		return now.Sub(began), true
+	}
+	return 0, false
 }
 
 func final(s dockwellv1.ChangeState) bool {
@@ -438,12 +506,16 @@ func final(s dockwellv1.ChangeState) bool {
 }
 
 // outcome says how a change ended, and fails for one that didn't apply.
-func (r *runner) outcome(c *dockwellv1.Change, took time.Duration) error {
+// began is when this CLI applied it, or zero.
+func (r *runner) outcome(c *dockwellv1.Change, began time.Time) error {
 	id := c.GetId()
 	switch c.GetState() {
 	case dockwellv1.ChangeState_CHANGE_STATE_APPLIED:
 		if !r.opts.json {
-			msg := fmt.Sprintf("Applied %s in %s.", id, Elapsed(took))
+			msg := "Applied " + id + "."
+			if d, ok := took(c, began, r.env.now()); ok {
+				msg = fmt.Sprintf("Applied %s in %s.", id, Elapsed(d))
+			}
 			if d := c.GetUndoDeadline(); d != nil {
 				msg += fmt.Sprintf(" Undo it %s with dockwell changes undo %s.", untilWord(d.AsTime(), r.env.now()), id)
 			}

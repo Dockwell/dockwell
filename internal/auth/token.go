@@ -164,27 +164,35 @@ func (s *Service) CreateLocalToken(ctx context.Context, actor, name, scope strin
 }
 
 // RevokeLocalToken revokes a token CreateLocalToken made, for whoever can
-// read the data directory. It is a no-op for a token that no longer works.
-func (s *Service) RevokeLocalToken(ctx context.Context, actor, tokenID string) error {
+// read the data directory, and reports whether it did. It finds the token
+// by its ID, so it works when the install has no owner, or another one,
+// and does nothing for a token that is revoked already or was never made
+// here, as when the control plane's state was made anew.
+func (s *Service) RevokeLocalToken(ctx context.Context, actor, tokenID string) (bool, error) {
+	revoked := false
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
-		owner, err := tx.Owner(ctx)
-		if err != nil {
-			return err
-		}
-		err = tx.RevokeAPIToken(ctx, owner.ID, tokenID, s.now())
+		tok, err := tx.GetAPIToken(ctx, tokenID)
 		if errors.Is(err, store.ErrNotFound) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		return s.audit(ctx, tx, actor, "token.revoke", owner.ID, "token "+tokenID)
+		err = tx.RevokeAPIToken(ctx, tok.UserID, tokenID, s.now())
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		revoked = true
+		return s.audit(ctx, tx, actor, "token.revoke", tok.UserID, "token "+tokenID)
 	})
 	if err != nil {
-		return err
+		return false, fmt.Errorf("can't revoke local access's token %s: %w", tokenID, err)
 	}
 	s.streams.end(tokenID)
-	return nil
+	return revoked, nil
 }
 
 // createToken makes a token for the user who returns, in the transaction

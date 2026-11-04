@@ -75,3 +75,8 @@ func ChangesInPlanForTest(ctx context.Context, tx *Tx, state string) (string, er
 	}
 	return plan.String(), rows.Err()
 }
+
+// QueryIntForTest reads one number with a raw query in tx.
+func QueryIntForTest(ctx context.Context, tx *Tx, query string, into *int) error {
+	return tx.queryRow(ctx, query).Scan(into)
+}

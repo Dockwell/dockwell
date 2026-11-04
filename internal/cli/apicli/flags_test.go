@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/pflag"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -227,5 +228,64 @@ func TestPanelURL(t *testing.T) {
 		if got := (&Client{URL: base}).PanelURL("/changes/chg_1"); got != want {
 			t.Errorf("PanelURL from %s = %s, want %s", base, got, want)
 		}
+	}
+}
+
+// A field's flag never takes one of the CLI's own: a field named token
+// needs (dockwell.v1.flag), and gets the flag it names.
+func TestAFieldsFlagNeverTakesTheCLIsOwn(t *testing.T) {
+	desc := (&dockwellv1.CheckClaimRequest{}).ProtoReflect().Descriptor()
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	_, err := bind(fs, &Env{}, desc, []Field{{Path: "token"}})
+	if err == nil || !strings.Contains(err.Error(), "would take the flag --token") || !strings.Contains(err.Error(), "(dockwell.v1.flag)") {
+		t.Errorf("a field named token = %v, want it refused", err)
+	}
+	fs = pflag.NewFlagSet("test", pflag.ContinueOnError)
+	fs.String("summary", "", "the command's own")
+	if _, err := bind(fs, &Env{}, (&dockwellv1.ProposeChangeRequest{}).ProtoReflect().Descriptor(), []Field{{Path: "summary"}}); err == nil {
+		t.Error("a field's flag took one the command has already")
+	}
+	fs = pflag.NewFlagSet("test", pflag.ContinueOnError)
+	var req dockwellv1.CheckClaimRequest
+	b, err := bind(fs, &Env{}, desc, []Field{{Path: "token", Flag: "claim-token"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := fs.Parse([]string{"--claim-token", "abc"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.apply(req.ProtoReflect(), nil); err != nil || req.GetToken() != "abc" {
+		t.Errorf("--claim-token abc = %q, %v", req.GetToken(), err)
+	}
+	if f := fs.Lookup("claim-token"); f == nil || f.Annotations[FieldAnnotation][0] != "token" {
+		t.Errorf("--claim-token isn't marked as the field token: %+v", f)
+	}
+}
+
+// How long a change took comes from its own times: from when it started
+// applying to when its last step finished, whoever watches and whenever.
+func TestTookIsTheChangesOwnTime(t *testing.T) {
+	start := time.Date(2026, 11, 4, 9, 0, 0, 0, time.UTC)
+	now := start.Add(3 * time.Hour)
+	c := &dockwellv1.Change{
+		ApplyTime: timestamppb.New(start),
+		Steps: []*dockwellv1.StepProgress{
+			{StartTime: timestamppb.New(start), FinishTime: timestamppb.New(start.Add(30 * time.Second))},
+			{StartTime: timestamppb.New(start.Add(30 * time.Second)), FinishTime: timestamppb.New(start.Add(42 * time.Second))},
+			{}, // skipped
+		},
+	}
+	if d, ok := took(c, time.Time{}, now); !ok || d != 42*time.Second {
+		t.Errorf("watched later, took = %s, %v; want 42s", d, ok)
+	}
+	if d, ok := took(c, now.Add(-time.Second), now); !ok || d != 42*time.Second {
+		t.Errorf("applied by this CLI, took = %s, %v; want the change's own 42s", d, ok)
+	}
+	none := &dockwellv1.Change{ApplyTime: timestamppb.New(start)}
+	if _, ok := took(none, time.Time{}, now); ok {
+		t.Error("a change with no step times, only watched, has a duration")
+	}
+	if d, ok := took(none, now.Add(-2*time.Second), now); !ok || d != 2*time.Second {
+		t.Errorf("a change with no step times that this CLI applied took %s, %v; want the 2s it waited", d, ok)
 	}
 }

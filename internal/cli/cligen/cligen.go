@@ -39,6 +39,8 @@ const (
 	editMessage     = "dockwell.v1.Edit"
 	effectOption    = "dockwell.v1.effect"
 	commandOption   = "dockwell.v1.command"
+	nounsOption     = "dockwell.v1.nouns"
+	flagOption      = "dockwell.v1.flag"
 	sensitiveOption = "dockwell.resource.v1alpha1.sensitive"
 	effectNone      = "EFFECT_UNSPECIFIED"
 	editSpecField   = "spec"
@@ -74,7 +76,10 @@ type Method struct {
 type Field struct {
 	// Path is the field's name, or for a field of a kind's spec, the path
 	// to it, such as "app.image".
-	Path      string
+	Path string
+	// Flag is the field's (dockwell.v1.flag), the flag it takes in place
+	// of its name. Empty for most.
+	Flag      string
 	Help      string
 	Arg       bool
 	Sensitive bool
@@ -160,6 +165,14 @@ func (s *schema) option(d protoreflect.Descriptor, name protoreflect.FullName) (
 	return opts.Get(xd), xd, true
 }
 
+// flag is a field's (dockwell.v1.flag), or empty when it has none.
+func (s *schema) flag(fd protoreflect.FieldDescriptor) string {
+	if v, _, ok := s.option(fd, flagOption); ok {
+		return v.String()
+	}
+	return ""
+}
+
 // goIdent is the Go name of a descriptor's enum value, in the package of
 // its file.
 func (s *schema) goIdent(enum protoreflect.EnumDescriptor, value protoreflect.EnumValueDescriptor) protogen.GoIdent {
@@ -177,6 +190,7 @@ func Methods(p *protogen.Plugin) ([]Method, []Noun, error) {
 	}
 	var out []Method
 	services := map[string]*protogen.Service{}
+	nounsOf := map[*protogen.Service][]string{}
 	for _, f := range p.Files {
 		if !f.Generate || f.Desc.Package() != Package {
 			continue
@@ -189,6 +203,9 @@ func Methods(p *protogen.Plugin) ([]Method, []Noun, error) {
 				}
 				if _, ok := services[c.Noun]; !ok {
 					services[c.Noun] = svc
+				}
+				if !slices.Contains(nounsOf[svc], c.Noun) {
+					nounsOf[svc] = append(nounsOf[svc], c.Noun)
 				}
 				out = append(out, c)
 			}
@@ -224,14 +241,50 @@ func Methods(p *protogen.Plugin) ([]Method, []Noun, error) {
 			j++
 		}
 		name := out[i].Noun
+		help, err := s.nounHelp(services[name], name, nounsOf[services[name]])
+		if err != nil {
+			return nil, nil, err
+		}
 		nouns = append(nouns, Noun{
 			Name:  name,
 			Short: nounShort(name, out[i:j], order),
-			Long:  reflow(comment(services[name].Comments.Leading)),
+			Long:  reflow(names.Replace(help)),
 		})
 		i = j
 	}
 	return out, nouns, nil
+}
+
+// nounHelp is a noun's help: its service's comment, when the service's
+// methods' commands have that noun alone, and otherwise what the service's
+// (dockwell.v1.nouns) says of it, as a comment that describes the whole
+// service fits none of its nouns.
+func (s *schema) nounHelp(svc *protogen.Service, noun string, nouns []string) (string, error) {
+	helps := map[string]string{}
+	if v, _, ok := s.option(svc.Desc, nounsOption); ok {
+		entries := v.List()
+		for i := range entries.Len() {
+			m := entries.Get(i).Message()
+			fields := m.Descriptor().Fields()
+			name, help := m.Get(fields.ByName("name")).String(), strings.TrimSpace(m.Get(fields.ByName("help")).String())
+			if !slices.Contains(nouns, name) {
+				return "", fmt.Errorf("%s's (%s) describes %s, but none of its methods' commands has that noun. Describe %s instead",
+					svc.Desc.FullName(), nounsOption, name, list(nouns, "and"))
+			}
+			if help == "" {
+				return "", fmt.Errorf("%s's (%s) gives %s no help. Say what %s are for", svc.Desc.FullName(), nounsOption, name, words(name))
+			}
+			helps[name] = help
+		}
+	}
+	if help, ok := helps[noun]; ok {
+		return help, nil
+	}
+	if len(nouns) > 1 {
+		return "", fmt.Errorf("%s's methods' commands have the nouns %s, so its comment can't describe each. Describe %s with the (%s) option",
+			svc.Desc.FullName(), list(nouns, "and"), noun, nounsOption)
+	}
+	return comment(svc.Comments.Leading), nil
 }
 
 // commandNames replaces each method's name with its command, longer names
@@ -310,6 +363,7 @@ func (s *schema) describe(f *protogen.File, m *protogen.Method) (Method, error) 
 	for _, f := range m.Input.Fields {
 		c.Fields = append(c.Fields, Field{
 			Path: string(f.Desc.Name()),
+			Flag: s.flag(f.Desc),
 			Help: oneLine(comment(f.Comments.Leading)),
 			// A request's id names what it acts on, as REST paths bind it.
 			Arg: f.Desc.Name() == "id" && f.Desc.Kind() == protoreflect.StringKind && !f.Desc.IsList(),
@@ -431,7 +485,7 @@ func (s *schema) specFields(m *protogen.Message, prefix string, depth int) []Fie
 			continue
 		}
 		sensitive, _, _ := s.option(f.Desc, sensitiveOption)
-		out = append(out, Field{Path: path, Help: oneLine(comment(f.Comments.Leading)), Sensitive: sensitive.IsValid() && sensitive.Bool()})
+		out = append(out, Field{Path: path, Flag: s.flag(f.Desc), Help: oneLine(comment(f.Comments.Leading)), Sensitive: sensitive.IsValid() && sensitive.Bool()})
 	}
 	return out
 }
@@ -742,6 +796,9 @@ func writeFields(g *protogen.GeneratedFile, fields []Field) {
 	g.P("Fields: []", apicli.Ident("Field"), "{")
 	for _, f := range fields {
 		line := []any{"{Path: ", strconv.Quote(f.Path)}
+		if f.Flag != "" {
+			line = append(line, ", Flag: ", strconv.Quote(f.Flag))
+		}
 		if f.Help != "" {
 			line = append(line, ", Help: ", strconv.Quote(f.Help))
 		}

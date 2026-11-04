@@ -37,7 +37,7 @@ The binary is one (ADR 0007), so the CLI ships inside `dockwell` beside `run`, `
   - flags from fields;
   - calls, with the plan flow and choices;
   - rendering, and errors.
-- `make check-generated` covers `internal/cli/apicmd`, so CI fails when the commands are stale. `TestEveryMethodHasACommand` fails when a method of `dockwell.v1` has no command, which is what a schema changed without `make generate` gives. The plugin fails when two methods would get one command, or when a method has no effect.
+- `make check-generated` covers `internal/cli/apicmd`, so CI fails when the commands are stale. `TestEveryMethodHasACommand` fails when a method of `dockwell.v1` has no command, which is what a schema changed without `make generate` gives. The plugin fails when two methods would get one command, when a method has no effect, or when a noun has no help of its own where it needs one.
 
 ### Names a person would type
 
@@ -53,12 +53,15 @@ The binary is one (ADR 0007), so the CLI ships inside `dockwell` beside `run`, `
   | `CreateToken`, `ListTokens`, `RevokeToken` | `tokens …` | `api-tokens …` | `dockwell token create` makes join tickets |
 
   `TestCommandNamesDontCollide` fails when an API command takes the name of one of the server's own commands, or that name with an s, as `tokens` beside `token`.
-- **Help** comes from the comments. The comment's first verb becomes a command: "ListServers returns every server" is "Return every server", and the short help stops at the first clause. Method names in comments and in the API's errors become commands: "Follow them with WatchChange" reads "Follow them with dockwell changes watch". The long help ends with what the command does about plans, and its REST rule.
+- **Help** comes from the comments. The comment's first verb becomes a command: "ListServers returns every server" is "Return every server", and the short help stops at the first clause. Method names in comments, in a noun's help and in the API's errors become commands: "Follow them with WatchChange" reads "Follow them with dockwell changes watch". The long help ends with what the command does about plans, and its REST rule.
+- **A noun's help** is its service's comment when the service's commands have that one noun, as ServerService's `servers` does. A service whose commands have several, as ChangeService's `changes` and `drift`, or AuthService's five, describes each with a service option, `(dockwell.v1.nouns) = {name, help}`, as the service's comment fits none of them alone. The plugin fails when one of those nouns has no help.
 - `dockwell --help` lists the server's own commands, then the API commands, in two groups.
+- The API commands are built only for a command line that isn't one of the server's own commands. `dockwell run`, which the control plane and the agent run as, never builds them, so they take none of a server's memory, and nothing in them can stop a server from starting.
 
 ### Flags from fields
 
 - **A field named `id`** is the command's argument, as REST paths bind it: `dockwell changes get chg_…`. Every other field is a flag named after it in kebab-case, such as `--page-size`, with its comment as help.
+- **A field's flag never takes one of the CLI's own**: `--url`, `--token` and `--json`, which every API command has; `--yes` and `--plan-only`, which mean the same wherever they are; `--help`; the global flags; and any flag its command has already, such as a kind's `--summary`, `--project`, `--environment` and `--on`. A field whose name would take one sets a field option, `(dockwell.v1.flag)`, to name its flag instead: a claim link's token is `--claim-token`, and a sign-in link's `--link-token`. Building the commands fails while a field's flag would take one, and `TestFieldFlagsAvoidTheCLIsOwn` walks every command to check. `dockwell changes propose --summary` is no exception: it sets the change's summary, which is what a kind's `--summary` sets too.
 - **Values** follow each field's type:
   - numbers, strings and bools as typed;
   - an enum by its value without the prefix, such as `--scope read-write`, or by its full name;
@@ -80,8 +83,8 @@ The binary is one (ADR 0007), so the CLI ships inside `dockwell` beside `run`, `
 - The flags that say where a resource lives follow its kind's level:
   - none for a project;
   - `--project` for an environment;
-  - `--project`, `--environment` and `--on` for a service;
-  - `--on` for a container or firewall rule.
+  - `--project`, `--environment` and `--on` for a service, which runs on any number of servers, so `--on` repeats for each;
+  - `--on` for a container or firewall rule, which is on one server, so `--on` takes one, and given twice is a usage error.
 
   All are optional, and the help says to leave them out while there is only one.
 - When the API answers `choice`, the error now carries a detail, `dockwell.v1.Choice`, with the level, the options and the request's field that takes the answer, such as `edits[0].project`. It is a `google.rpc.Status` detail over every protocol, REST included, so the panel and the MCP server can ask the same way.
@@ -89,12 +92,14 @@ The binary is one (ADR 0007), so the CLI ships inside `dockwell` beside `run`, `
 
 ### Plans before changes
 
-- **A command whose method plans a change** (`EFFECT_PLAN`, with a change in its response) prints the plan, then asks "Apply this plan? (y/N)" on standard error. On yes, it applies the plan by its fingerprint, so what applies is what was shown, and follows it with WatchChange, printing each step as it runs and ends. On anything else, it discards the change and says nothing changed.
+- **A command whose method proposes a change** prints the plan, then asks "Apply this plan? (y/N)" on standard error. On yes, it applies the plan by its fingerprint, so what applies is what was shown, and follows it with WatchChange, printing each step as it runs and ends. On anything else, standard input ending included, it discards the change and says nothing changed.
+  - The methods that propose one are ProposeChange, UndoChange, RevertDrift and AdoptDrift. The effect alone doesn't say so: DiscardChange is `EFFECT_PLAN` and returns a change too, the one it ended, so its command only prints it. `internal/cli/apicli` lists which plan methods that return a change propose one, and building the commands fails for one it doesn't list.
   - `--yes` applies without asking.
   - `--plan-only` leaves the change planned, to apply later or in the panel.
   - Off a terminal without either, it leaves the change planned and fails, saying to pass `--yes`.
   - A plan that changes nothing is discarded, and the CLI says so.
 - **`dockwell changes apply`** shows the change's plan the same way before applying it.
+- **Following a change**, after applying it or with `dockwell changes watch`, goes on until it is applied, failed or discarded. A watch that falls behind the change is ended by the control plane with the reason `watch_behind`, which asks for another: the CLI watches again, up to 10 times, and as each watch starts with the change as it is, nothing is missed. How long the change took is by its own times, from when it started applying to when its last step finished, so watching one that applied long ago says how long it took, not how long the watch did. A change with no steps that finished says how long it took only when this CLI applied it.
 - **Other apply methods** ask before calling.
 - **The plan** reads like the panel's plan sheet:
   - each resource that runs on no server, with its action and field changes;
@@ -103,7 +108,7 @@ The binary is one (ADR 0007), so the CLI ships inside `dockwell` beside `run`, `
 
   A sensitive field shows that it changed, never a value, which the API never sends anyway.
 - **A plan no token may apply**, because it destroys data or may cut off access, isn't offered. The CLI says it needs a person, leaves it planned, and prints where the panel shows it, `<panel>/changes/<id>`. It exits with status 4, so scripts can tell "waits for a person" from a failure. The panel's plan screen (#24) serves that path.
-- **A destructive method** (`EFFECT_DESTRUCTIVE`) isn't called: no token may, so the CLI says so and points to the panel, also with status 4. When the CLI gains a credential a person confirms, such as a device flow approved with a passkey, these get a typed confirmation. That is its own decision.
+- **A destructive method** (`EFFECT_DESTRUCTIVE`) isn't called: no token may, so the CLI says so and points to the panel, also with status 4. It says so before it has a token, so local access makes none just to refuse. When the CLI gains a credential a person confirms, such as a device flow approved with a passkey, these get a typed confirmation. That is its own decision.
 
 ### Output
 
@@ -130,7 +135,7 @@ The binary is one (ADR 0007), so the CLI ships inside `dockwell` beside `run`, `
 The control plane and the token come from, in order:
 1. `--url` and `--token`. The help says to prefer the environment or the config file, as a flag shows in the process list.
 2. `DOCKWELL_URL` and `DOCKWELL_TOKEN`.
-3. The config file `dockwell login` writes, `dockwell/config.json` in the user's config directory, mode 0600 in a 0700 directory. It holds a token for each control plane, by URL, and the one signed in to last, which commands use by default. A token is sent only to the URL it was stored for. The CLI refuses a config file others can read, and says to `chmod 600` it and revoke its tokens.
+3. The config file `dockwell login` writes, `dockwell/config.json` in the user's config directory, mode 0600 in a 0700 directory. It holds a token for each control plane, by URL, and the one signed in to last, which commands use by default. A token is sent only to the URL it was stored for. The CLI refuses a config file others can read, and says to `chmod 600` it and revoke its tokens. A config file it can't use, because others can read it or it doesn't parse, is an error with its fix, never passed over for local access.
 4. Local access, below.
 
 More about how it calls:
@@ -155,7 +160,8 @@ This is safe because reading that directory already gives full control of the in
   - Its calls are the token's, `token:tok_…`, and its changes come from the CLI.
 - **Within ADR 0016's limits.** A local token is an ordinary token, so it can't apply a destructive plan or manage sign-in, either.
 - **Only for the owner.** An install with no owner refuses it, and says to claim it first.
-- **Not for anyone else.** A user who can't read the data directory gets a message that says to use `sudo` or `dockwell login`. A control plane on Postgres needs `DOCKWELL_DATABASE`, as `dockwell recover` does.
+- **Not for anyone else.** A user who can't read the data directory gets a message that says to use `sudo` or `dockwell login`. A user other than root looks in a data directory of their own by default, so when the system's, `/var/lib/dockwell`, has a control plane, or only root can look in it, the message says the same. A control plane on Postgres needs `DOCKWELL_DATABASE`, as `dockwell recover` does.
+- **Never an upgrade.** Local access opens the control plane's state as it is, through `store.OpenExisting`: it never creates or migrates it, since a migration under a running control plane of another version would change its schema beneath it, as between an upgrade and the service's restart. A state at another schema version than the CLI's is refused, with what to do: restart the control plane so it runs this `dockwell`, or run the `dockwell` it runs. It reads what it needs and no more: the panel's address alone to find the control plane, and the sealing key only to make a token.
 
 The other way considered was a Unix socket with the caller's credentials checked by the kernel (`SO_PEERCRED`). It needs no token in the database, but it needs a new listener, a new kind of principal in the guard and the interceptor, and its own scope and audit rules. Making an ordinary token reuses all of that unchanged. A socket can come later if minting tokens proves too heavy.
 
@@ -166,12 +172,12 @@ The other way considered was a Unix socket with the caller's credentials checked
 
 ## Consequences
 
-- Every method of the API is a command as soon as `make generate` runs, with no code to write. A new method needs a REST rule and an effect, which the schema's tests already ask for. It needs `(dockwell.v1.command)` only when its name would collide.
+- Every method of the API is a command as soon as `make generate` runs, with no code to write. A new method needs a REST rule and an effect, which the schema's tests already ask for. It needs `(dockwell.v1.command)` only when its name would collide, `(dockwell.v1.flag)` on a field only when the field's flag would take one of the CLI's own, and a new service needs `(dockwell.v1.nouns)` only when its commands have several nouns. A new plan method that returns a change needs a line in `internal/cli/apicli` that says whether it proposes one.
 - A new kind of resource gets `create`, `update` and `delete` from its spec. A new field gets a flag, and a field marked sensitive takes its value from the environment.
 - The help is as good as the schema's comments, which now reach people on the command line. Comments should keep starting with the method's name and a verb. The short help is that verb's first clause, cut by a rule that knows grammar only roughly, so a comment whose first clause joins two nouns with "and" reads cut short.
 - Commands that need a session, such as AuthService's and TokenService's, are there, as principle 1 asks, and answer with where to do it in the panel. They work once the CLI has a credential a person confirms.
 - Scripts can rely on `--json` matching REST's shapes, on the exit statuses (0, 1, 2 for usage and choices, and 4 for what needs a person), and on `--yes` and `--plan-only`.
-- Local access opens the control plane's state the way `dockwell recover` does, so it runs with the binary the control plane runs. That is the case on a server that installed one `dockwell`.
+- Local access needs the binary the control plane runs, which a server that installed one `dockwell` has once the service restarts after an upgrade. Until then it refuses, and says to restart the service.
 - Local tokens appear in the owner's token list, at most two working at a time, and count toward the 100 a person may have.
 - The panel's plan screen (#24) is expected at `/changes/<id>`, the address the CLI prints.
 - The MCP server can reuse the plugin's descriptions, `dockwell.v1.Choice` and the plan rendering.

@@ -95,7 +95,8 @@ func explain(err error, c *Client, command string, names *strings.Replacer) erro
 	case cerr.Code() == connect.CodeUnimplemented:
 		return fmt.Errorf("the control plane at %s doesn't have this command's method, so it may be older than this CLI. Update it, or use a CLI of its version", c.URL)
 	case cerr.Code() == connect.CodeCanceled && errors.Is(err, context.Canceled):
-		return errors.New("stopped")
+		return fmt.Errorf("%s stopped before the control plane answered, as it was interrupted. "+
+			"Whatever it asked for may have gone through anyway: see dockwell changes list", command)
 	}
 	return errors.New(msg)
 }

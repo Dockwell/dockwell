@@ -30,9 +30,8 @@ type Client struct {
 	URL string
 	// Token is the API token's secret.
 	Token string
-	// Local says the token came from local access on the control server,
-	// and Write that it may make changes.
-	Local, Write bool
+	// Local says the token came from local access on the control server.
+	Local bool
 	// Version is the CLI's build, for its User-Agent.
 	Version string
 }
@@ -135,7 +134,8 @@ func NormalizeURL(raw string) (string, error) {
 		return "", fmt.Errorf("%s isn't an http:// or https:// URL. Give the panel's address, such as https://panel.acme.dev", u.Redacted())
 	}
 	if u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
-		return "", fmt.Errorf("give the panel's address alone, such as %s://%s, without a path, query or user", u.Scheme, u.Host)
+		return "", fmt.Errorf("%s has more than the panel's address in it. Give the address alone, such as %s://%s, without a path, query or user",
+			u.Redacted(), u.Scheme, u.Host)
 	}
 	return u.Scheme + "://" + u.Host, nil
 }

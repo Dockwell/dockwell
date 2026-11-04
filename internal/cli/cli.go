@@ -73,13 +73,20 @@ func Execute(ctx context.Context, args []string, stdio IO) int {
 			return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stderr.Fd()))
 		}
 	}
-	root, err := newRootCmd(stdio)
-	if err != nil {
-		fmt.Fprintf(stdio.Err, "dockwell: %s\n", err)
-		return exitError
+	root, g := newServerCmd(stdio)
+	// The API commands are built only for a command line that may name
+	// one. The server's own commands, such as dockwell run, which the
+	// control plane and the agent run as, never build them: building them
+	// takes memory a server keeps, and nothing in them can stop a server
+	// from starting.
+	if found, _, _ := root.Find(args); found == root {
+		if err := addAPICommands(root, stdio, g); err != nil {
+			fmt.Fprintf(stdio.Err, "dockwell: %s\n", err)
+			return exitError
+		}
 	}
 	root.SetArgs(args)
-	err = root.ExecuteContext(ctx)
+	err := root.ExecuteContext(ctx)
 	if err == nil {
 		return exitOK
 	}
@@ -177,8 +184,27 @@ func (g *globalFlags) databaseOf(stdio IO, dir datadir.Dir) (string, error) {
 // Help groups of the root's commands.
 const groupServer = "server"
 
+// newRootCmd returns the root command with all of its commands: the
+// server's own and the API commands.
 func newRootCmd(stdio IO) (*cobra.Command, error) {
-	var g globalFlags
+	root, g := newServerCmd(stdio)
+	return root, addAPICommands(root, stdio, g)
+}
+
+// addAPICommands adds the API commands to root.
+func addAPICommands(root *cobra.Command, stdio IO, g *globalFlags) error {
+	api, err := apiCommands(stdio, g)
+	if err != nil {
+		return fmt.Errorf("can't build the API commands, so dockwell can't run them: %w. This is a bug in this build of dockwell; its own commands, such as dockwell run, still work", err)
+	}
+	root.AddCommand(api...)
+	return nil
+}
+
+// newServerCmd returns the root command with the server's own commands,
+// and the flags every command takes.
+func newServerCmd(stdio IO) (*cobra.Command, *globalFlags) {
+	g := &globalFlags{}
 	root := &cobra.Command{
 		Use:   "dockwell",
 		Short: "Run and manage Dockwell, the control plane for your servers",
@@ -214,21 +240,16 @@ func newRootCmd(stdio IO) (*cobra.Command, error) {
 	root.SetHelpCommandGroupID(groupServer)
 	for _, cmd := range []*cobra.Command{
 		newVersionCmd(),
-		newRunCmd(stdio, &g),
-		newJoinCmd(stdio, &g),
-		newTokenCmd(stdio, &g),
-		newRoleCmd(stdio, &g),
-		newClaimCmd(stdio, &g),
-		newRecoverCmd(stdio, &g),
+		newRunCmd(stdio, g),
+		newJoinCmd(stdio, g),
+		newTokenCmd(stdio, g),
+		newRoleCmd(stdio, g),
+		newClaimCmd(stdio, g),
+		newRecoverCmd(stdio, g),
 	} {
 		cmd.GroupID = groupServer
 		root.AddCommand(cmd)
 	}
-	api, err := apiCommands(stdio, &g)
-	if err != nil {
-		return nil, err
-	}
-	root.AddCommand(api...)
 
 	// Unknown subcommands are usage errors, with a pointer to the help.
 	root.Args = func(cmd *cobra.Command, args []string) error {
@@ -238,7 +259,7 @@ func newRootCmd(stdio IO) (*cobra.Command, error) {
 		return nil
 	}
 	root.RunE = func(cmd *cobra.Command, _ []string) error { return cmd.Help() }
-	return root, nil
+	return root, g
 }
 
 // noArgs rejects positional arguments as a usage error that points to the

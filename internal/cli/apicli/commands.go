@@ -3,7 +3,6 @@
 package apicli
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -84,11 +83,26 @@ func nounCommand(name, short, long string, o *options) *cobra.Command {
 		Short:   short,
 		Long:    strings.TrimSpace(short + ".\n\n" + long),
 		GroupID: GroupID,
-		Args:    cobra.NoArgs,
+		Args:    noVerb,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
+		// A verb two letters off, as "lsit" for list, is named.
+		SuggestionsMinimumDistance: 2,
 	}
 	settingsFlags(cmd, o)
 	return cmd
+}
+
+// noVerb refuses a command that holds others, run with what isn't one of
+// them, as a mistyped verb, as a usage error that points to its help.
+func noVerb(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+	msg := fmt.Sprintf("%s has no command %q", cmd.CommandPath(), args[0])
+	if near := cmd.SuggestionsFor(args[0]); len(near) > 0 {
+		msg += ", though it has " + near[0]
+	}
+	return usage(fmt.Errorf("%s. Run %q to see its commands", msg, cmd.CommandPath()+" --help"))
 }
 
 // settingsFlags are the flags every API command takes.
@@ -130,9 +144,9 @@ func methodCommand(env *Env, m *Method, o *options) (*cobra.Command, error) {
 		use += " <" + FlagName(arg.Path) + ">"
 	}
 	long := m.Long
-	plans := false
-	if m.Call != nil {
-		plans = m.Effect == dockwellv1.Effect_EFFECT_PLAN && carriesChange(m.Call.Response())
+	plans, err := proposes(m)
+	if err != nil {
+		return nil, err
 	}
 	switch {
 	case plans:
@@ -155,24 +169,23 @@ func methodCommand(env *Env, m *Method, o *options) (*cobra.Command, error) {
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
 		switch {
 		case arg != nil && len(args) != 1:
-			return usage(fmt.Errorf("%s takes one argument, %s", cmd.CommandPath(), argument(*arg)))
+			return usage(fmt.Errorf("%s takes one argument, %s. Run %q to see how to use it", cmd.CommandPath(), argument(*arg), cmd.CommandPath()+" --help"))
 		case arg == nil && len(args) > 0:
 			return usage(fmt.Errorf("%s takes no arguments, but got %q. Run %q to see how to use it", cmd.CommandPath(), args[0], cmd.CommandPath()+" --help"))
 		}
 		return nil
 	}
-	var b *binding
-	if m.Call != nil {
-		var err error
-		if b, err = bind(cmd.Flags(), env, m.Call.NewRequest().ProtoReflect().Descriptor(), m.Fields); err != nil {
-			return nil, fmt.Errorf("%s: %w", m.Name, err)
-		}
-	}
-	if m.Effect == dockwellv1.Effect_EFFECT_PLAN || m.Effect == dockwellv1.Effect_EFFECT_APPLY {
+	if plans || m.Effect == dockwellv1.Effect_EFFECT_APPLY {
 		cmd.Flags().BoolVarP(&o.yes, "yes", "y", false, "apply without asking")
 	}
 	if plans {
 		cmd.Flags().BoolVar(&o.planOnly, "plan-only", false, "show the plan and leave it planned, without applying it")
+	}
+	var b *binding
+	if m.Call != nil {
+		if b, err = bind(cmd.Flags(), env, m.Call.NewRequest().ProtoReflect().Descriptor(), m.Fields); err != nil {
+			return nil, fmt.Errorf("%s: %w", m.Name, err)
+		}
 	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if m.Call == nil {
@@ -186,6 +199,34 @@ func methodCommand(env *Env, m *Method, o *options) (*cobra.Command, error) {
 		return r.method(cmd.Context(), m, req)
 	}
 	return cmd, nil
+}
+
+// proposers says, of each plan method that returns a change, whether it
+// proposes a new one, with a plan to show and apply, as ProposeChange,
+// UndoChange, RevertDrift and AdoptDrift do. DiscardChange returns the
+// change it ended, which is only printed. A plan method that returns a
+// change and isn't here fails the commands' building, and so their tests.
+var proposers = map[string]bool{
+	"dockwell.v1.ChangeService.ProposeChange": true,
+	"dockwell.v1.ChangeService.UndoChange":    true,
+	"dockwell.v1.ChangeService.RevertDrift":   true,
+	"dockwell.v1.ChangeService.AdoptDrift":    true,
+	"dockwell.v1.ChangeService.DiscardChange": false,
+}
+
+// proposes reports a method that proposes a new change, by what it does,
+// as proposers says: its command shows the plan and asks before applying
+// it, and takes --plan-only.
+func proposes(m *Method) (bool, error) {
+	if m.Call == nil || m.Effect != dockwellv1.Effect_EFFECT_PLAN || !carriesChange(m.Call.Response()) {
+		return false, nil
+	}
+	p, ok := proposers[m.Name]
+	if !ok {
+		return false, fmt.Errorf("%s plans and returns a change, but the CLI doesn't know whether it proposes one to apply. "+
+			"Say so in proposers, in internal/cli/apicli/commands.go", m.Name)
+	}
+	return p, nil
 }
 
 // carriesChange reports a response with a change in it, as each method
@@ -215,7 +256,7 @@ func kindCommand(env *Env, k *Kind) (*cobra.Command, error) {
 	blank := (&resourcev1.Spec{}).ProtoReflect().NewField(specField).Message().Interface()
 	kind, ok := env.Kinds.KindOf(blank)
 	if !ok {
-		return nil, fmt.Errorf("dockwell doesn't know the kind whose spec is %s", specField.Message().FullName())
+		return nil, fmt.Errorf("dockwell doesn't know the kind whose spec is %s, so it can't make its commands. Run make generate", specField.Message().FullName())
 	}
 	t, err := env.Kinds.Type(kind)
 	if err != nil {
@@ -228,8 +269,10 @@ func kindCommand(env *Env, k *Kind) (*cobra.Command, error) {
 		Short:   "Create, update or delete " + what + "s",
 		Long:    strings.TrimSpace(k.Short + ".\n\n" + k.Long + "\n\nEach command proposes a change, shows its plan, and asks before applying it."),
 		GroupID: GroupID,
-		Args:    cobra.NoArgs,
+		Args:    noVerb,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
+		// A verb two letters off, as "lsit" for list, is named.
+		SuggestionsMinimumDistance: 2,
 	}
 	settingsFlags(parent, o)
 	for _, v := range kindVerbs {
@@ -240,21 +283,21 @@ func kindCommand(env *Env, k *Kind) (*cobra.Command, error) {
 		}
 		cmd.Args = func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
-				return usage(fmt.Errorf("%s takes one argument, the %s's name", cmd.CommandPath(), what))
+				return usage(fmt.Errorf("%s takes one argument, the %s's name. Run %q to see how to use it", cmd.CommandPath(), what, cmd.CommandPath()+" --help"))
 			}
 			return nil
 		}
+		where := scopeFlags(cmd, t.Level(), what)
+		var summary string
+		cmd.Flags().StringVar(&summary, "summary", "", "what the change is for, in your words, for the timeline; defaults to what the command does, such as \""+capitalize(v.verb)+" "+what+" web\"")
+		cmd.Flags().BoolVarP(&o.yes, "yes", "y", false, "apply without asking")
+		cmd.Flags().BoolVar(&o.planOnly, "plan-only", false, "show the plan and leave it planned, without applying it")
 		var b *binding
 		if v.verb != "delete" {
 			if b, err = bind(cmd.Flags(), env, specField.Message(), k.Fields); err != nil {
 				return nil, fmt.Errorf("%s: %w", k.Noun, err)
 			}
 		}
-		where := scopeFlags(cmd, t.Level())
-		var summary string
-		cmd.Flags().StringVar(&summary, "summary", "", "what the change is for, in your words, for the timeline; defaults to what the command does, such as \""+capitalize(v.verb)+" "+what+" web\"")
-		cmd.Flags().BoolVarP(&o.yes, "yes", "y", false, "apply without asking")
-		cmd.Flags().BoolVar(&o.planOnly, "plan-only", false, "show the plan and leave it planned, without applying it")
 		verb := v.verb
 		cmd.RunE = func(cmd *cobra.Command, args []string) error {
 			name := args[0]
@@ -286,15 +329,34 @@ func kindCommand(env *Env, k *Kind) (*cobra.Command, error) {
 // runs, by its kind's level. Each is left out while there is one to
 // choose from (PRD principle 4): the API says when there is a choice.
 type placement struct {
-	level                 resource.Level
-	project, environment  string
-	on                    []string
-	flagProject, flagEnv  bool
-	flagOn, onScopesToRef bool
+	level                resource.Level
+	project, environment string
+	// on are the servers a service runs on, and server the one a
+	// container or firewall rule is on.
+	on                   []string
+	server               oneServer
+	flagProject, flagEnv bool
+	flagOn               bool
 }
 
-func scopeFlags(cmd *cobra.Command, level resource.Level) *placement {
-	p := &placement{level: level}
+// oneServer is --on for a kind that lives on one server: given twice, it
+// says so, rather than keeping the last.
+type oneServer struct{ name, kind string }
+
+func (o *oneServer) String() string { return o.name }
+
+func (o *oneServer) Type() string { return "string" }
+
+func (o *oneServer) Set(s string) error {
+	if o.name != "" && o.name != s {
+		return fmt.Errorf("a %s is on one server, so --on takes one, but got %s and %s. Make one on each server, with a command for each", o.kind, o.name, s)
+	}
+	o.name = s
+	return nil
+}
+
+func scopeFlags(cmd *cobra.Command, level resource.Level, what string) *placement {
+	p := &placement{level: level, server: oneServer{kind: what}}
 	f := cmd.Flags()
 	switch level {
 	case resource.LevelProject:
@@ -306,8 +368,8 @@ func scopeFlags(cmd *cobra.Command, level resource.Level) *placement {
 		f.StringArrayVar(&p.on, "on", nil, "a server it runs on, by ID; repeat it for each. Leave it out to keep it where it runs, or while there's only one server")
 		p.flagProject, p.flagEnv, p.flagOn = true, true, true
 	case resource.LevelServer:
-		f.StringArrayVar(&p.on, "on", nil, "the server it's on, by name or ID; leave it out while there's only one")
-		p.flagOn, p.onScopesToRef = true, true
+		f.Var(&p.server, "on", "the server it's on, by name or ID; leave it out while there's only one")
+		p.flagOn = true
 	case resource.LevelOrganization:
 	}
 	return p
@@ -320,9 +382,7 @@ func (p *placement) apply(e *dockwellv1.Edit) {
 	case resource.LevelEnvironment:
 		e.Project, e.Resource.Scope, e.Servers = p.project, p.environment, p.on
 	case resource.LevelServer:
-		if len(p.on) > 0 {
-			e.Resource.Scope = p.on[len(p.on)-1]
-		}
+		e.Resource.Scope = p.server.name
 	case resource.LevelOrganization:
 	}
 }
@@ -375,7 +435,8 @@ func (r *runner) kind(cmd *cobra.Command, req *dockwellv1.ProposeChangeRequest, 
 		}
 	}
 	if c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
-		return errors.New("the control plane returned a change that isn't planned")
+		return fmt.Errorf("the control plane answered with %s %s, not planned, so there's no plan to show or apply. See it with dockwell changes get %s",
+			c.GetId(), strings.ToLower(word(c.GetState())), c.GetId())
 	}
 	return r.planned(ctx, res, c)
 }

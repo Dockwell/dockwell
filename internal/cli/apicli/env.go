@@ -47,6 +47,9 @@ type Settings struct {
 	// Renew asks local access for a new token, and Moved for where the
 	// control plane answers now.
 	Renew, Moved bool
+	// Locate asks only where the control plane is, for a message: the
+	// client it gives has no token, and local access makes none.
+	Locate bool
 }
 
 // UsageError marks a mistake in how a command was invoked.
@@ -80,6 +83,10 @@ func (e *Env) now() time.Time {
 
 func (e *Env) interactive() bool { return e.Interactive != nil && e.Interactive() }
 
+// errNoAnswer says a question went unanswered.
+var errNoAnswer = errors.New("standard input ended before an answer, so dockwell stopped, and nothing changed. " +
+	"Answer at a terminal, or pass the answer as a flag")
+
 // readLine reads one answer from standard input.
 func (e *Env) readLine() (string, error) {
 	if e.lines == nil {
@@ -88,9 +95,9 @@ func (e *Env) readLine() (string, error) {
 	line, err := e.lines.ReadString('\n')
 	if err != nil && (line == "" || !errors.Is(err, io.EOF)) {
 		if errors.Is(err, io.EOF) {
-			return "", errors.New("standard input ended before an answer")
+			return "", errNoAnswer
 		}
-		return "", err
+		return "", fmt.Errorf("can't read your answer from standard input: %w", err)
 	}
 	return strings.TrimSpace(line), nil
 }
@@ -100,6 +107,11 @@ func (e *Env) readLine() (string, error) {
 func (e *Env) confirm(question string) (bool, error) {
 	fmt.Fprintf(e.Err, "%s (y/N) ", question)
 	answer, err := e.readLine()
+	if errors.Is(err, errNoAnswer) {
+		// No answer isn't yes.
+		fmt.Fprintln(e.Err)
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}

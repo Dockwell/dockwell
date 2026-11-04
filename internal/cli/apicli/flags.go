@@ -3,10 +3,10 @@
 package apicli
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -49,8 +49,21 @@ func FlagName(path string) string {
 	return strings.NewReplacer("_", "-", ".", "-").Replace(path)
 }
 
+// ReservedFlags are the CLI's own flags, which no field's flag may take
+// on any API command: --url, --token and --json, which every one has;
+// --yes and --plan-only, which mean the same wherever they are; and
+// --help. A field whose name would take one names its flag with
+// (dockwell.v1.flag), as a claim link's token is --claim-token.
+var ReservedFlags = []string{"url", "token", "json", "yes", "plan-only", "help"}
+
+// FieldAnnotation marks a flag that sets a field, with the field's path,
+// so tests can tell those flags from the CLI's own.
+const FieldAnnotation = "dockwell-field"
+
 // bind adds a flag for each field of root in fields, and finds the one
-// that is the argument. The flags appear in the order of the fields.
+// that is the argument. The flags appear in the order of the fields. It
+// fails when a field's flag would take one of the ReservedFlags, or one
+// the command has already, which it would hide.
 func bind(fs *pflag.FlagSet, env *Env, root protoreflect.MessageDescriptor, fields []Field) (*binding, error) {
 	b := &binding{root: root}
 	for _, f := range fields {
@@ -58,13 +71,22 @@ func bind(fs *pflag.FlagSet, env *Env, root protoreflect.MessageDescriptor, fiel
 		if err != nil {
 			return nil, err
 		}
-		bf := &boundField{path: path, flag: FlagName(f.Path), sensitive: f.Sensitive, env: env}
+		name := f.Flag
+		if name == "" {
+			name = FlagName(f.Path)
+		}
+		bf := &boundField{path: path, flag: name, sensitive: f.Sensitive, env: env}
 		if f.Arg {
 			b.arg = bf
 			continue
 		}
+		if slices.Contains(ReservedFlags, name) || fs.Lookup(name) != nil {
+			return nil, fmt.Errorf("%s's field %s would take the flag --%s, which the CLI has already. "+
+				"Give it another with the (dockwell.v1.flag) option, then run make generate", root.FullName(), f.Path, name)
+		}
 		fd := path[len(path)-1]
 		flag := fs.VarPF(bf, bf.flag, "", flagHelp(fd, f))
+		flag.Annotations = map[string][]string{FieldAnnotation: {f.Path}}
 		if fd.Kind() == protoreflect.BoolKind && !fd.IsList() {
 			flag.NoOptDefVal = "true"
 		}
@@ -79,7 +101,7 @@ func resolvePath(root protoreflect.MessageDescriptor, path string) ([]protorefle
 	md := root
 	for i, name := range strings.Split(path, ".") {
 		if md == nil {
-			return nil, fmt.Errorf("%s has no field %s", root.FullName(), path)
+			return nil, fmt.Errorf("%s has no field %s; run make generate", root.FullName(), path)
 		}
 		fd := md.Fields().ByName(protoreflect.Name(name))
 		if fd == nil {
@@ -210,18 +232,15 @@ func (b *boundField) Type() string {
 func (b *boundField) check(fd protoreflect.FieldDescriptor, s string) (protoreflect.Value, error) {
 	if fd.IsMap() {
 		key, value, ok := strings.Cut(s, "=")
-		if key == "" {
-			return protoreflect.Value{}, errors.New("write it as KEY=VALUE")
+		if key == "" || !ok && !b.sensitive {
+			return protoreflect.Value{}, fmt.Errorf("%q isn't KEY=VALUE", s)
 		}
 		if !ok {
-			if !b.sensitive {
-				return protoreflect.Value{}, errors.New("write it as KEY=VALUE")
-			}
 			return protoreflect.Value{}, nil // read from the environment when applied
 		}
-		return scalar(fd.MapValue(), value, b.env)
+		return scalar(fd.MapValue(), value)
 	}
-	return scalar(fd, s, b.env)
+	return scalar(fd, s)
 }
 
 // apply sets the field in msg from the values given, if any.
@@ -246,7 +265,7 @@ func (b *boundField) apply(msg protoreflect.Message) error {
 						b.flag, key, key, b.flag, key)
 				}
 			}
-			v, err := scalar(fd.MapValue(), value, b.env)
+			v, err := scalar(fd.MapValue(), value)
 			if err != nil {
 				return fmt.Errorf("--%s %s: %w", b.flag, key, err)
 			}
@@ -275,11 +294,11 @@ func (b *boundField) apply(msg protoreflect.Message) error {
 // new message from blank.
 func scalarOrMessage(fd protoreflect.FieldDescriptor, s string, env *Env, blank func() protoreflect.Value) (protoreflect.Value, error) {
 	if fd.Kind() != protoreflect.MessageKind {
-		return scalar(fd, s, env)
+		return scalar(fd, s)
 	}
 	switch fd.Message().FullName() {
 	case timestampName, durationName:
-		return scalar(fd, s, env)
+		return scalar(fd, s)
 	}
 	data, err := readValue(s, env)
 	if err != nil {
@@ -310,7 +329,7 @@ func readValue(s string, env *Env) ([]byte, error) {
 
 // scalar parses a value of a field that isn't a message, or of a
 // timestamp or duration.
-func scalar(fd protoreflect.FieldDescriptor, s string, _ *Env) (protoreflect.Value, error) {
+func scalar(fd protoreflect.FieldDescriptor, s string) (protoreflect.Value, error) {
 	switch fd.Kind() {
 	case protoreflect.StringKind:
 		return protoreflect.ValueOfString(s), nil
@@ -385,7 +404,7 @@ func scalar(fd protoreflect.FieldDescriptor, s string, _ *Env) (protoreflect.Val
 		}
 		return protoreflect.Value{}, nil // JSON, read when applied
 	default:
-		return protoreflect.Value{}, fmt.Errorf("the CLI can't set a field of kind %s", fd.Kind())
+		return protoreflect.Value{}, fmt.Errorf("the CLI can't set a field of kind %s, so it has no flag for it. Set it through the API instead", fd.Kind())
 	}
 }
 

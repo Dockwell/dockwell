@@ -3154,7 +3154,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x0fSTEP_STATE_DONE\x10\x03\x12\x15\n" +
 	"\x11STEP_STATE_FAILED\x10\x04\x12\x16\n" +
 	"\x12STEP_STATE_SKIPPED\x10\x05\x12\x16\n" +
-	"\x12STEP_STATE_WAITING\x10\x062\xef\b\n" +
+	"\x12STEP_STATE_WAITING\x10\x062\xba\x0f\n" +
 	"\rChangeService\x12r\n" +
 	"\rProposeChange\x12!.dockwell.v1.ProposeChangeRequest\x1a\".dockwell.v1.ProposeChangeResponse\"\x1a\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/changes\x12k\n" +
 	"\tGetChange\x12\x1d.dockwell.v1.GetChangeRequest\x1a\x1e.dockwell.v1.GetChangeResponse\"\x1f\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/changes/{id}\x90\x02\x01\x12l\n" +
@@ -3167,7 +3167,11 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\tListDrift\x12\x1d.dockwell.v1.ListDriftRequest\x1a\x1e.dockwell.v1.ListDriftResponse\"\x18\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\v\x12\t/v1/drift\x90\x02\x01\x12q\n" +
 	"\vRevertDrift\x12\x1f.dockwell.v1.RevertDriftRequest\x1a .dockwell.v1.RevertDriftResponse\"\x1f\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/drift:revert\x12m\n" +
 	"\n" +
-	"AdoptDrift\x12\x1e.dockwell.v1.AdoptDriftRequest\x1a\x1f.dockwell.v1.AdoptDriftResponse\"\x1e\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/drift:adoptB\xa4\x01\n" +
+	"AdoptDrift\x12\x1e.dockwell.v1.AdoptDriftRequest\x1a\x1f.dockwell.v1.AdoptDriftResponse\"\x1e\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/drift:adopt\x1a\xc8\x06\xa2\xbb\x18\xcf\x03\n" +
+	"\achanges\x12\xc3\x03A change is a set of edits to managed state, with the plan that carries them out. You propose edits and get a plan back; applying it writes immutable revisions and runs its steps on the servers; undoing it makes a new plan that puts things back. A change applies only as it was planned, and a plan never shows a secret, only that it changed.\n" +
+	"\n" +
+	"See docs/adr/0009-resources-revisions-and-plans.md and docs/adr/0017-the-change-api-and-the-agent-stream.md.\xa2\xbb\x18\xef\x02\n" +
+	"\x05drift\x12\xe5\x02Drift is a difference between what a server has and the latest revision of a resource it should have, as when someone changed it by hand. ListDrift asks each connected server's agent, and changes nothing. RevertDrift plans putting the revision back, and AdoptDrift plans keeping what the server has as a new revision: each is a change, with a plan to apply.B\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vChangeProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

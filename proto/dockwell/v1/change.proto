@@ -25,6 +25,15 @@ import "google/protobuf/timestamp.proto";
 // or opens the stream with Connect, gRPC or gRPC-Web, with the same
 // credentials.
 service ChangeService {
+  option (dockwell.v1.nouns) = {
+    name: "changes"
+    help: "A change is a set of edits to managed state, with the plan that carries them out. You propose edits and get a plan back; applying it writes immutable revisions and runs its steps on the servers; undoing it makes a new plan that puts things back. A change applies only as it was planned, and a plan never shows a secret, only that it changed.\n\nSee docs/adr/0009-resources-revisions-and-plans.md and docs/adr/0017-the-change-api-and-the-agent-stream.md."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "drift"
+    help: "Drift is a difference between what a server has and the latest revision of a resource it should have, as when someone changed it by hand. ListDrift asks each connected server's agent, and changes nothing. RevertDrift plans putting the revision back, and AdoptDrift plans keeping what the server has as a new revision: each is a change, with a plan to apply."
+  };
+
   // ProposeChange plans a set of edits and records them as a planned
   // change, ready to apply or discard. Planning asks each server's agent
   // what the edits would take there, and changes nothing on any server. The

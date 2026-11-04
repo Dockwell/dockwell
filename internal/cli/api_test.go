@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -227,6 +228,20 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 				t.Errorf("not a line of JSON: %s", l)
 			}
 		}
+
+		// A plan left planned is one response, so it is indented.
+		r = run(t, env, "projects", "create", "docs", "--plan-only", "--json")
+		var planned struct {
+			Change struct {
+				ID string `json:"id"`
+			} `json:"change"`
+		}
+		if err := json.Unmarshal([]byte(r.out), &planned); r.code != exitOK || err != nil || !strings.HasPrefix(r.out, "{\n  \"change\": {\n") {
+			t.Errorf("projects create --plan-only --json = %d, %v, want one indented response:\n%s%s", r.code, err, r.out, r.err)
+		}
+		if r = run(t, env, "changes", "discard", planned.Change.ID); r.code != exitOK || !strings.Contains(r.out, "Discarded") {
+			t.Errorf("changes discard %s = %d:\n%s%s", planned.Change.ID, r.code, r.out, r.err)
+		}
 	})
 
 	t.Run("a choice once there are two projects", func(t *testing.T) {
@@ -342,11 +357,20 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 
 	t.Run("local access on the control server", func(t *testing.T) {
 		local := map[string]string{"XDG_CONFIG_HOME": t.TempDir(), envDataDir: dir, envLogFormat: "json", "USER": "root"}
-		r := run(t, local, "servers", "list")
+		cached := filepath.Join(dir, "control", "local-token.json")
+		// A destructive command needs a person, which local access can say
+		// without making a token.
+		r := run(t, local, "api-tokens", "revoke", "tok_01JD6Z3R8M9QF2K7T4XW5BNC0V")
+		if r.code != apicli.ExitNeedsPerson || !strings.Contains(r.err, "no API token may do") || !strings.Contains(r.err, "Sign in to the panel at http://localhost:") {
+			t.Errorf("api-tokens revoke with local access = %d %q", r.code, r.err)
+		}
+		if _, err := os.Stat(cached); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("local access made a token to refuse a destructive command: %v", err)
+		}
+		r = run(t, local, "servers", "list")
 		if r.code != exitOK || !strings.Contains(r.out, "(control)") {
 			t.Fatalf("servers list with local access = %d:\n%s%s", r.code, r.out, r.err)
 		}
-		cached := filepath.Join(dir, "control", "local-token.json")
 		info, err := os.Stat(cached)
 		if err != nil || info.Mode().Perm() != 0o600 {
 			t.Errorf("the local token's file = %v, %v; want mode 0600", info, err)

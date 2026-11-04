@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -28,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/cli/apicmd"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/scope"
+	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -54,12 +56,15 @@ func apiCommands(stdio IO, g *globalFlags) ([]*cobra.Command, error) {
 		Connect:     a.connect,
 		Kinds:       controlKinds().With(scope.Types()...),
 	}
-	methods, err := apicli.Commands(env, apicmd.Methods(), apicmd.Nouns(), apicmd.Kinds())
+	methods, err := apicli.Commands(env, apiMethods(), apicmd.Nouns(), apicmd.Kinds())
 	if err != nil {
 		return nil, err
 	}
 	return append([]*cobra.Command{a.loginCmd(), a.logoutCmd()}, methods...), nil
 }
+
+// apiMethods describes the API's methods' commands. Tests replace it.
+var apiMethods = apicmd.Methods
 
 // apiAccess finds the control plane and the token to call it with.
 type apiAccess struct {
@@ -87,13 +92,20 @@ func configPath(getenv func(string) string) (string, error) {
 	case runtime.GOOS == "windows" && getenv("AppData") != "":
 		return filepath.Join(getenv("AppData"), "dockwell", "config.json"), nil
 	case home == "":
-		return "", errors.New("can't find your config directory, as HOME isn't set. Set DOCKWELL_URL and DOCKWELL_TOKEN instead")
+		return "", errNoConfigDir
 	case runtime.GOOS == "darwin":
 		return filepath.Join(home, "Library", "Application Support", "dockwell", "config.json"), nil
 	}
 	return filepath.Join(home, ".config", "dockwell", "config.json"), nil
 }
 
+// errNoConfigDir says there's nowhere to look for the config file.
+var errNoConfigDir = errors.New("can't find your config directory, as HOME isn't set, so dockwell has no config file to read or write. " +
+	"Set HOME, or set " + apicli.EnvURL + " and " + apicli.EnvToken + " instead")
+
+// loadConfig reads the config file dockwell login writes. A file that isn't
+// there is an empty config; one it can't use, because others can read it
+// or it doesn't parse, is an error that says how to fix it.
 func loadConfig(getenv func(string) string) (cliConfig, string, error) {
 	path, err := configPath(getenv)
 	if err != nil {
@@ -155,9 +167,9 @@ var errNoControlPlane = errors.New("dockwell doesn't know which control plane to
 	"Sign in with dockwell login and the panel's address, with an API token you make in the panel under Profile and security, " +
 	"or set " + apicli.EnvURL + " and " + apicli.EnvToken)
 
-func (a *apiAccess) client(url, token string, local, write bool) *apicli.Client {
+func (a *apiAccess) client(url, token string, local bool) *apicli.Client {
 	return &apicli.Client{
-		HTTP: apicli.NewHTTPClient(), URL: url, Token: token, Local: local, Write: write,
+		HTTP: apicli.NewHTTPClient(), URL: url, Token: token, Local: local,
 		Version: buildinfo.Read().Version,
 	}
 }
@@ -174,12 +186,23 @@ func (a *apiAccess) connect(ctx context.Context, s apicli.Settings) (*apicli.Cli
 	if token == "" {
 		token = getenv(apicli.EnvToken)
 	}
-	cfg, path, err := loadConfig(getenv)
+	var cfg cliConfig
+	var path string
+	if url == "" || token == "" {
+		// The config file gives what the flags and the environment leave
+		// out. One the CLI can't use is said first, with its fix, rather
+		// than passed over for local access.
+		var err error
+		cfg, path, err = loadConfig(getenv)
+		// Without a config directory, there is no config file, and local
+		// access may still answer.
+		noFile := errors.Is(err, errNoConfigDir) && url == "" && token == ""
+		if err != nil && !noFile {
+			return nil, err
+		}
+	}
 	if url == "" && token == "" && cfg.URL == "" {
 		return a.local(ctx, s)
-	}
-	if err != nil {
-		return nil, err
 	}
 	if url == "" {
 		url, urlFrom = cfg.URL, path
@@ -187,8 +210,12 @@ func (a *apiAccess) connect(ctx context.Context, s apicli.Settings) (*apicli.Cli
 	if url == "" {
 		return nil, fmt.Errorf("an API token is set, but not which control plane to call. Set %s, or pass --url", apicli.EnvURL)
 	}
-	if url, err = apicli.NormalizeURL(url); err != nil {
+	url, err := apicli.NormalizeURL(url)
+	if err != nil {
 		return nil, usageError{fmt.Errorf("%s: %w", urlFrom, err)}
+	}
+	if s.Locate {
+		return a.client(url, "", false), nil
 	}
 	if token == "" {
 		token = cfg.Tokens[url]
@@ -199,7 +226,7 @@ func (a *apiAccess) connect(ctx context.Context, s apicli.Settings) (*apicli.Cli
 	if !auth.WellFormedToken(token) {
 		return nil, usageError{fmt.Errorf("the API token for %s isn't a whole one: tokens start with %s and have %d characters. Copy it again from the panel", url, auth.TokenPrefix, auth.TokenLen)}
 	}
-	return a.client(url, token, false, false), nil
+	return a.client(url, token, false), nil
 }
 
 // localToken is what the CLI keeps of the token it made through local
@@ -240,14 +267,17 @@ func readLocalToken(dir datadir.Dir) (localToken, bool, error) {
 // dockwell login --local asked for more, and lasts LocalTokenTTL. Renew
 // makes a new read-only one, as when the control plane rejected the one it
 // had; Moved reads where the control plane answers now, and keeps the
-// token.
+// token; Locate only finds where it answers, and makes no token.
+//
+// Local access opens the control plane's state as it is, and never
+// migrates it: see openLocalState.
 func (a *apiAccess) local(ctx context.Context, s apicli.Settings) (*apicli.Client, error) {
 	dir, err := a.dataDir()
 	if err != nil {
 		return nil, err
 	}
 	if !hasControlPlane(dir) {
-		return nil, errNoControlPlane
+		return nil, a.noControlPlane(dir)
 	}
 	t, ok, err := readLocalToken(dir)
 	if errors.Is(err, fs.ErrPermission) {
@@ -255,6 +285,16 @@ func (a *apiAccess) local(ctx context.Context, s apicli.Settings) (*apicli.Clien
 	}
 	if err != nil {
 		return nil, err
+	}
+	if s.Locate {
+		if ok && t.URL != "" {
+			return a.client(t.URL, "", true), nil
+		}
+		url, err := a.localURL(ctx, dir)
+		if err != nil {
+			return nil, err
+		}
+		return a.client(url, "", true), nil
 	}
 	usable := ok && time.Until(t.Expires) > localGrace && auth.WellFormedToken(t.Secret)
 	if usable && s.Moved {
@@ -266,23 +306,90 @@ func (a *apiAccess) local(ctx context.Context, s apicli.Settings) (*apicli.Clien
 		}
 	}
 	if usable && !s.Renew {
-		return a.client(t.URL, t.Secret, true, t.Scope == store.ScopeReadWrite), nil
+		return a.client(t.URL, t.Secret, true), nil
 	}
 	made, err := a.makeLocalToken(ctx, dir, store.ScopeReadOnly, t)
 	if err != nil {
 		return nil, err
 	}
-	return a.client(made.URL, made.Secret, true, false), nil
+	return a.client(made.URL, made.Secret, true), nil
+}
+
+// systemDataDir is where the system service keeps its data, which a user
+// other than root doesn't look in by default. Tests move it.
+var systemDataDir = datadir.SystemRoot
+
+// noControlPlane says there's no control plane in dir to call. A user
+// other than root looks in a data directory of their own by default, so on
+// the control server the control plane is elsewhere, in the system's: when
+// it is there, or can't be looked at, the error says to use sudo.
+func (a *apiAccess) noControlPlane(dir datadir.Dir) error {
+	if a.g.dataDir != "" || dir.Root == systemDataDir {
+		return errNoControlPlane
+	}
+	system := datadir.Dir{Root: systemDataDir}
+	_, err := os.Stat(system.Control())
+	switch {
+	case err == nil && hasControlPlane(system):
+		return fmt.Errorf("there's no API token set, and this server's control plane keeps its state in %s, where dockwell looks only for root. "+
+			"Run this with sudo, or pass --data-dir %s", system.Root, system.Root)
+	case err == nil:
+		return a.cantReadDataDir(system)
+	case errors.Is(err, fs.ErrPermission):
+		return fmt.Errorf("there's no API token set, and only root can look in %s, where a control plane on this server keeps its state, so dockwell can't use it. "+
+			"On the control server, run this with sudo. Elsewhere, sign in with dockwell login and the panel's address, "+
+			"with an API token you make in the panel under Profile and security", system.Root)
+	}
+	return errNoControlPlane
+}
+
+// openLocalState opens the control plane's state for local access, as it
+// is. It never migrates it: a migration under a control plane that runs an
+// older dockwell, as between an upgrade and its restart, would change the
+// schema beneath it. A state at another schema version than this
+// dockwell's is refused, with what to do.
+func openLocalState(ctx context.Context, dir datadir.Dir, location string) (*store.DB, error) {
+	if err := controlState(dir, location); err != nil {
+		return nil, err
+	}
+	db, err := store.OpenExisting(ctx, location)
+	var schema *store.SchemaError
+	switch {
+	case errors.As(err, &schema) && schema.Database < schema.Binary:
+		return nil, fmt.Errorf("the control plane here runs an older dockwell than this one: its state has schema version %d, and this dockwell's is %d. "+
+			"Local access never upgrades the state, which would change it under the running control plane. "+
+			"Restart the control plane so it runs this dockwell, with sudo systemctl restart dockwell or sudo rc-service dockwell restart, then try again",
+			schema.Database, schema.Binary)
+	case errors.As(err, &schema):
+		return nil, fmt.Errorf("the control plane here runs a newer dockwell than this one: its state has schema version %d, and this dockwell knows %d. "+
+			"Run the dockwell the control plane runs, as its service starts it", schema.Database, schema.Binary)
+	}
+	return db, err
+}
+
+// openLocalPeople opens the control plane's people for local access, with
+// its state as it is.
+func openLocalPeople(ctx context.Context, dir datadir.Dir, location string, logger *slog.Logger) (*auth.Service, *store.DB, panelAddress, error) {
+	db, err := openLocalState(ctx, dir, location)
+	if err != nil {
+		return nil, nil, panelAddress{}, err
+	}
+	key, err := seal.Load(dir.SealKey())
+	if err != nil {
+		_ = db.Close()
+		return nil, nil, panelAddress{}, err
+	}
+	return peopleOn(ctx, key, db, logger)
 }
 
 // localURL is where the control plane in dir answers on loopback, as
-// dockwell run recorded it when it started.
+// dockwell run recorded it when it started. It reads that one setting.
 func (a *apiAccess) localURL(ctx context.Context, dir datadir.Dir) (string, error) {
 	location, err := a.g.databaseOf(a.stdio, dir)
 	if err != nil {
 		return "", err
 	}
-	_, db, err := openControl(ctx, dir, location)
+	db, err := openLocalState(ctx, dir, location)
 	if errors.Is(err, fs.ErrPermission) {
 		return "", a.cantReadDataDir(dir)
 	}
@@ -331,7 +438,7 @@ func (a *apiAccess) makeLocalToken(ctx context.Context, dir datadir.Dir, tokenSc
 	if err != nil {
 		return localToken{}, err
 	}
-	people, db, addr, err := openPeople(ctx, dir, location, logger)
+	people, db, addr, err := openLocalPeople(ctx, dir, location, logger)
 	if errors.Is(err, fs.ErrPermission) {
 		return localToken{}, a.cantReadDataDir(dir)
 	}
@@ -352,7 +459,7 @@ func (a *apiAccess) makeLocalToken(ctx context.Context, dir datadir.Dir, tokenSc
 	}
 	if old.ID != "" {
 		// Best effort: an old token expires on its own.
-		_ = people.RevokeLocalToken(ctx, actor(), old.ID)
+		_, _ = people.RevokeLocalToken(ctx, actor(), old.ID)
 	}
 	t := localToken{
 		URL: addr.loopbackURL(),
@@ -397,7 +504,7 @@ func (a *apiAccess) loginCmd() *cobra.Command {
 			"it makes its own read-only token for the install's owner. --local lets that token make changes too, for " + apicli.Span(auth.LocalTokenTTL) + ".",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 1 {
-				return usageError{fmt.Errorf("%s takes at most one argument, the panel's address", cmd.CommandPath())}
+				return usageError{fmt.Errorf("%s takes at most one argument, the panel's address. Run %q to see how to use it", cmd.CommandPath(), cmd.CommandPath()+" --help")}
 			}
 			return nil
 		},
@@ -412,7 +519,7 @@ func (a *apiAccess) loginCmd() *cobra.Command {
 				url = a.stdio.Getenv(apicli.EnvURL)
 			}
 			if url == "" {
-				return usageError{errors.New("dockwell login needs the panel's address, such as dockwell login https://panel.acme.dev")}
+				return usageError{errors.New("dockwell login needs the panel's address, and got none. Pass it, as in dockwell login https://panel.acme.dev")}
 			}
 			base, err := apicli.NormalizeURL(url)
 			if err != nil {
@@ -430,7 +537,7 @@ func (a *apiAccess) loginCmd() *cobra.Command {
 				return usageError{fmt.Errorf("that isn't a whole API token: tokens start with %s and have %d characters. Copy it again from the panel, under Profile and security",
 					auth.TokenPrefix, auth.TokenLen)}
 			}
-			c := a.client(base, token, false, false)
+			c := a.client(base, token, false)
 			servers := dockwellv1connect.NewServerServiceClient(c.HTTP, c.URL, apicli.ClientOptions(c)...)
 			if _, err := servers.ListServers(cmd.Context(), connect.NewRequest(&dockwellv1.ListServersRequest{})); err != nil {
 				return apicli.Explain(err, c, cmd.CommandPath())
@@ -490,7 +597,7 @@ func (a *apiAccess) logoutCmd() *cobra.Command {
 			"--local revokes the token local access made on the control server instead; the next command makes a read-only one.",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 1 {
-				return usageError{fmt.Errorf("%s takes at most one argument, the panel's address", cmd.CommandPath())}
+				return usageError{fmt.Errorf("%s takes at most one argument, the panel's address. Run %q to see how to use it", cmd.CommandPath(), cmd.CommandPath()+" --help")}
 			}
 			return nil
 		},
@@ -558,16 +665,24 @@ func (a *apiAccess) logoutLocal(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	people, db, _, err := openPeople(cmd.Context(), dir, location, logger)
+	people, db, _, err := openLocalPeople(cmd.Context(), dir, location, logger)
+	if errors.Is(err, fs.ErrPermission) {
+		return a.cantReadDataDir(dir)
+	}
 	if err != nil {
 		return err
 	}
 	defer db.Close()
-	if err := people.RevokeLocalToken(cmd.Context(), actor(), t.ID); err != nil {
+	revoked, err := people.RevokeLocalToken(cmd.Context(), actor(), t.ID)
+	if err != nil {
 		return err
 	}
 	if err := os.Remove(dir.LocalToken()); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
+		return fmt.Errorf("revoked local access's token, but can't remove %s: %w. Remove it yourself", dir.LocalToken(), err)
+	}
+	if !revoked {
+		fmt.Fprintln(cmd.OutOrStdout(), "Local access's token no longer worked, so there was nothing to revoke. The next command on this server makes a read-only one.")
+		return nil
 	}
 	fmt.Fprintln(cmd.OutOrStdout(), "Revoked local access's token. The next command on this server makes a read-only one.")
 	return nil

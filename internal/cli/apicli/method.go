@@ -53,6 +53,10 @@ type Field struct {
 	// Path is the field's name in the request, such as "page_size", or
 	// for a field of a kind's spec the path to it, such as "app.image".
 	Path string
+	// Flag is the field's flag, from (dockwell.v1.flag), where its name
+	// would take one of the CLI's own flags. Empty for most fields, whose
+	// flag is FlagName(Path).
+	Flag string
 	// Help is the field's comment.
 	Help string
 	// Arg makes the field the command's argument instead of a flag, as a
@@ -80,6 +84,9 @@ type Kind struct {
 type Noun struct {
 	Name, Short, Long string
 }
+
+// errWrongRequest is a bug: a command built a request of another method's.
+var errWrongRequest = errors.New("the CLI built a request that isn't the method's own, so it can't call it. Report this as a bug in dockwell")
 
 // Caller calls one method.
 type Caller interface {
@@ -126,7 +133,7 @@ func (unary[Req, Res, PReq, PRes]) Response() protoreflect.MessageDescriptor {
 func (u unary[Req, Res, PReq, PRes]) Invoke(ctx context.Context, c *Client, req proto.Message, each func(proto.Message) error) error {
 	in, ok := req.(PReq)
 	if !ok {
-		return errors.New("the request isn't the method's own")
+		return errWrongRequest
 	}
 	res, err := connect.NewClient[Req, Res](c.HTTP, c.URL+u.procedure, c.options()...).CallUnary(ctx, connect.NewRequest((*Req)(in)))
 	if err != nil {
@@ -168,7 +175,7 @@ func (serverStream[Req, Res, PReq, PRes]) Response() protoreflect.MessageDescrip
 func (s serverStream[Req, Res, PReq, PRes]) Invoke(ctx context.Context, c *Client, req proto.Message, each func(proto.Message) error) error {
 	in, ok := req.(PReq)
 	if !ok {
-		return errors.New("the request isn't the method's own")
+		return errWrongRequest
 	}
 	stream, err := connect.NewClient[Req, Res](c.HTTP, c.URL+s.procedure, c.options()...).CallServerStream(ctx, connect.NewRequest((*Req)(in)))
 	if err != nil {

@@ -44,3 +44,28 @@ extend google.protobuf.MethodOptions {
   // name that is taken or misleading. Most methods leave it unset.
   Command command = 50101;
 }
+
+// Noun describes one noun of the dockwell CLI, the command that holds the
+// commands of a service's methods, for a service whose methods' commands
+// have several nouns, so its own comment describes more than any one of them.
+message Noun {
+  // The noun, such as "passkeys".
+  string name = 1;
+  // Its help, in paragraphs as a comment has them. Method names in it read
+  // as their commands, as in a comment.
+  string help = 2;
+}
+
+extend google.protobuf.ServiceOptions {
+  // The help of each noun the service's methods' commands have, when they
+  // have more than one. A service whose commands have one noun leaves it
+  // unset, and its comment is that noun's help.
+  repeated Noun nouns = 50100;
+}
+
+extend google.protobuf.FieldOptions {
+  // The dockwell CLI's flag for a request's field, in place of the field's
+  // name in kebab-case, where that would take one of the CLI's own flags,
+  // such as --token for a claim link's token. Most fields leave it unset.
+  string flag = 50100;
+}

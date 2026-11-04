@@ -510,6 +510,11 @@ func testLocalTokens(t *testing.T, b store.Backend) {
 		!strings.Contains(err.Error(), "no owner yet") {
 		t.Errorf("a local token before the claim = %v, want it refused", err)
 	}
+	// A token kept from state that was made anew, before anyone claimed
+	// the install again, is nothing to revoke, not an error.
+	if revoked, err := f.svc.RevokeLocalToken(t.Context(), "cli:root@hz-1", "tok_01JD6Z3R8M9QF2K7T4XW5BNC0V"); revoked || err != nil {
+		t.Errorf("revoking a token with no owner = %v, %v, want nothing to do", revoked, err)
+	}
 	owner := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
 	made, err := f.svc.CreateLocalToken(t.Context(), "cli:root@hz-1", "Local access on hz-1, read-only", store.ScopeReadOnly)
 	if err != nil {
@@ -524,14 +529,14 @@ func testLocalTokens(t *testing.T, b store.Backend) {
 	if got := f.auditEvents(t, "token.create"); len(got) != 1 || got[0].Actor != "cli:root@hz-1" {
 		t.Errorf("token.create events = %+v, want one by the local user", got)
 	}
-	if err := f.svc.RevokeLocalToken(t.Context(), "cli:root@hz-1", made.Token.ID); err != nil {
-		t.Fatal(err)
+	if revoked, err := f.svc.RevokeLocalToken(t.Context(), "cli:root@hz-1", made.Token.ID); !revoked || err != nil {
+		t.Fatalf("revoking a local token = %v, %v", revoked, err)
 	}
 	if _, err := f.svc.AuthenticateToken(t.Context(), localhost, made.Secret, AccessRead, "/test/Call"); !errors.Is(err, ErrTokenRejected) {
 		t.Errorf("a revoked local token = %v, want ErrTokenRejected", err)
 	}
-	if err := f.svc.RevokeLocalToken(t.Context(), "cli:root@hz-1", made.Token.ID); err != nil {
-		t.Errorf("revoking it again = %v, want nothing to do", err)
+	if revoked, err := f.svc.RevokeLocalToken(t.Context(), "cli:root@hz-1", made.Token.ID); revoked || err != nil {
+		t.Errorf("revoking it again = %v, %v, want nothing to do", revoked, err)
 	}
 	if got := f.auditEvents(t, "token.revoke"); len(got) != 1 || got[0].Actor != "cli:root@hz-1" {
 		t.Errorf("token.revoke events = %+v, want one by the local user", got)

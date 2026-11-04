@@ -141,14 +141,3 @@ func BytesOf(part, whole uint64) string {
 
 // Percent writes a share of 100 as a whole percentage: "12%".
 func Percent(v float64) string { return strconv.Itoa(int(v+0.5)) + "%" }
-
-// List joins names as messages do: "a", "a and b", "a, b and c".
-func List(items []string, conjunction string) string {
-	switch len(items) {
-	case 0:
-		return ""
-	case 1:
-		return items[0]
-	}
-	return strings.Join(items[:len(items)-1], ", ") + " " + conjunction + " " + items[len(items)-1]
-}

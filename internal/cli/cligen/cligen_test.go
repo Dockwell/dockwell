@@ -253,3 +253,85 @@ func TestFirstClause(t *testing.T) {
 		}
 	}
 }
+
+// A noun's help names commands where it names methods, and a service whose
+// methods' commands have several nouns describes each of its own.
+func TestNounHelp(t *testing.T) {
+	_, nouns, err := Methods(plugin(t, request(t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	long := map[string]string{}
+	for _, n := range nouns {
+		long[n.Name] = strings.Join(strings.Fields(n.Long), " ")
+	}
+	for noun, want := range map[string]string{
+		"drift":      "dockwell drift list asks each connected server's agent",
+		"auth-state": "dockwell auth-state get needs no sign-in",
+		"claim-link": "dockwell claim-link check describes the server a link claims",
+		"totp":       "until dockwell totp unlock turns it back on",
+		"passkeys":   "Passkeys are how you sign in to the panel",
+		"sessions":   "A session is a browser you're signed in on",
+		"changes":    "A change is a set of edits to managed state",
+	} {
+		if !strings.Contains(long[noun], want) {
+			t.Errorf("dockwell %s's help doesn't say %q:\n%s", noun, want, long[noun])
+		}
+	}
+	seen := map[string]string{}
+	for name, help := range long {
+		if other, ok := seen[help]; ok && help != "" {
+			t.Errorf("dockwell %s and dockwell %s have the same help", other, name)
+		}
+		seen[help] = name
+		for _, method := range []string{"ListDrift", "RevertDrift", "GetAuthState", "CheckClaim", "UnlockCodeSignIn", "WatchChange"} {
+			if strings.Contains(help, method) {
+				t.Errorf("dockwell %s's help names the method %s, not its command", name, method)
+			}
+		}
+	}
+}
+
+// A service whose methods' commands have several nouns can't let its
+// comment describe them all.
+func TestGenerateRefusesANounWithoutItsOwnHelp(t *testing.T) {
+	req := request(t)
+	for _, f := range req.GetProtoFile() {
+		if f.GetName() == "dockwell/v1/change.proto" {
+			f.GetService()[0].Options = &descriptorpb.ServiceOptions{}
+		}
+	}
+	err := Generate(plugin(t, req))
+	if err == nil || !strings.Contains(err.Error(), "have the nouns changes and drift") || !strings.Contains(err.Error(), "(dockwell.v1.nouns)") {
+		t.Errorf("a service with two nouns and no help for them = %v", err)
+	}
+}
+
+// A field whose name would take one of the CLI's own flags gets the flag
+// its (dockwell.v1.flag) names.
+func TestGenerateNamesFlagsFromTheOption(t *testing.T) {
+	methods, _, err := Methods(plugin(t, request(t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	flags := map[string]string{}
+	for _, m := range methods {
+		for _, f := range m.Fields {
+			if f.Path == "token" {
+				flags[m.Noun+" "+m.Verb] = f.Flag
+			}
+		}
+	}
+	want := map[string]string{
+		"claim-link check": "claim-token", "claim-link begin": "claim-token", "claim-link finish": "claim-token",
+		"sessions sign-in-with-link": "link-token",
+	}
+	for command, flag := range want {
+		if flags[command] != flag {
+			t.Errorf("dockwell %s takes its token as --%s, want --%s", command, flags[command], flag)
+		}
+	}
+	if len(flags) != len(want) {
+		t.Errorf("fields named token: %v, want %v", flags, want)
+	}
+}
