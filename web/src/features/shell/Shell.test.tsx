@@ -320,7 +320,12 @@ describe("the command bar", () => {
       within(servers)
         .getAllByRole("option")
         .map((o) => o.textContent),
-    ).toEqual(["Open hz-1 Healthy · 49.12.33.7", "Open hz-2 Healthy"]);
+    ).toEqual([
+      "Open hz-1 Healthy · 49.12.33.7",
+      "Show what happened on hz-1",
+      "Open hz-2 Healthy",
+      "Show what happened on hz-2",
+    ]);
     expect(screen.getByRole("option", { name: "Open the server list 2" })).toBeVisible();
     await expectAccessible(document.body);
   });

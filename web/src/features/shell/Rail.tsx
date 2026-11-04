@@ -82,6 +82,9 @@ export function Rail({ view }: { view: FleetView }) {
         </>
       )}
       <div className="rail-section">{t`Operate`}</div>
+      <Link to="/activity" activeOptions={{ exact: true }} {...current(segment === "activity")}>
+        <ItemBody icon="activity" label={t`Activity`} />
+      </Link>
       {OPERATE.map(section)}
       <div className="rail-fill" />
       {section("settings")}

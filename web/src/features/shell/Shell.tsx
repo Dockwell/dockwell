@@ -5,6 +5,7 @@ import { useLingui } from "@lingui/react/macro";
 import { useLocation } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useRef } from "react";
 
+import { ChangeSheetProvider } from "../changes/ChangeSheet";
 import { FleetProvider, useFleetView } from "../servers/useFleet";
 import { CommandMenu } from "./CommandMenu";
 import { Rail } from "./Rail";
@@ -14,15 +15,17 @@ import "./Shell.css";
 
 /**
  * The frame every screen sits in: the rail and the top bar on wide screens,
- * the phone header and the tab bar below 640px, and the command bar on ⌘K.
- * The shell and its screen share one watch of the fleet.
+ * the phone header and the tab bar below 640px, the command bar on ⌘K, and
+ * the plan sheet. The shell and its screen share one watch of the fleet.
  */
 export function Shell({ children }: { children: ReactNode }) {
   return (
     <FleetProvider>
-      <CommandMenu>
-        <Frame>{children}</Frame>
-      </CommandMenu>
+      <ChangeSheetProvider>
+        <CommandMenu>
+          <Frame>{children}</Frame>
+        </CommandMenu>
+      </ChangeSheetProvider>
     </FleetProvider>
   );
 }

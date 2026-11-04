@@ -43,6 +43,23 @@ const resources: PlanResource[] = [
 ];
 
 describe("PlanDiff", () => {
+  it("names projects, environments and containers by their kind", () => {
+    render(
+      <PlanDiff
+        resources={[
+          { id: "p", action: "create", kind: "project", name: "shop" },
+          { id: "e", action: "create", kind: "environment", name: "production" },
+          { id: "c", action: "destroy", kind: "container", name: "web" },
+        ]}
+      />,
+    );
+    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "+shop project Create",
+      "+production environment Create",
+      "−web container Destroy",
+    ]);
+  });
+
   it("sums up the plan, counting replacements apart from changes", async () => {
     const { container, rerender } = render(
       <PlanDiff resources={resources} impact="One replica at a time · no downtime" />,

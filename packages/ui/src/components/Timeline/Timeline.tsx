@@ -16,6 +16,8 @@ export type TimelineKind = "deploy" | "config" | "alert" | "rollback" | "server"
 export interface TimelineEvent {
   id: string | number;
   kind: TimelineKind;
+  /** Replaces the kind's mark, for events the kinds don't name, such as a sign-in. */
+  icon?: IconName;
   /** Past tense for finished work ("Deployed api-gateway"), present progressive for work in flight ("Deploying web"). */
   title: ReactNode;
   /** Only for an alert or an outcome worth noticing. Routine events stay neutral. */
@@ -75,7 +77,7 @@ function TimelineItem({
   return (
     <li className="dw-tl-item">
       <span className={cx("dw-tl-mark", event.tone && `dw-tone-${event.tone}`)}>
-        <Icon name={KIND_ICON[event.kind]} size={14} />
+        <Icon name={event.icon ?? KIND_ICON[event.kind]} size={14} />
       </span>
       <div className="dw-tl-main">
         <div className="dw-tl-title" id={titleId}>

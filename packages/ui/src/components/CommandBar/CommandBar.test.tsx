@@ -25,6 +25,14 @@ const activeOption = () => {
 };
 
 describe("CommandBar inline", () => {
+  it("tells its owner what is typed, for items that take it", async () => {
+    const user = userEvent.setup();
+    const typed: string[] = [];
+    render(<CommandBar inline items={items} onQueryChange={(q) => typed.push(q)} />);
+    await user.type(combobox(), "web");
+    expect(typed).toEqual(["w", "we", "web"]);
+  });
+
   it("lists every item under its group while the query is empty", async () => {
     const { container } = render(<CommandBar inline items={items} scope="Acme / storefront" />);
     expect(screen.getByRole("search", { name: "Command bar" })).toBeVisible();

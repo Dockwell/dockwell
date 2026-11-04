@@ -2,7 +2,16 @@
 
 import { create } from "@bufbuild/protobuf";
 import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@connectrpc/connect";
-import { AuthService, GetVersionResponseSchema, ServerService, SystemService, TokenService } from "@dockwell/api";
+import {
+  AuthService,
+  ChangeService,
+  EventService,
+  GetVersionResponseSchema,
+  ResourceService,
+  ServerService,
+  SystemService,
+  TokenService,
+} from "@dockwell/api";
 import { PHONE_QUERY } from "@dockwell/ui";
 import { QueryClient } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
@@ -21,6 +30,9 @@ export type Api = {
   servers?: Partial<ServiceImpl<typeof ServerService>>;
   auth?: Partial<ServiceImpl<typeof AuthService>>;
   tokens?: Partial<ServiceImpl<typeof TokenService>>;
+  changes?: Partial<ServiceImpl<typeof ChangeService>>;
+  events?: Partial<ServiceImpl<typeof EventService>>;
+  resources?: Partial<ServiceImpl<typeof ResourceService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -46,6 +58,10 @@ function apiWrapper(api: Api) {
       service(ServerService, { watchServers: quietWatch, ...api.servers });
       service(AuthService, api.auth ?? {});
       service(TokenService, api.tokens ?? {});
+      service(ChangeService, api.changes ?? {});
+      // The command bar lists projects and recent changes; with none, it lists none.
+      service(EventService, { listEvents: () => ({}), watchEvents: quietWatch, ...api.events });
+      service(ResourceService, { listResources: () => ({}), ...api.resources });
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );

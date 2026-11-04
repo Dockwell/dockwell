@@ -11,8 +11,11 @@ import "./PlanDiff.css";
 export type PlanAction = "create" | "update" | "replace" | "destroy";
 
 export type PlanKind =
+  | "project"
+  | "environment"
   | "app"
   | "service"
+  | "container"
   | "domain"
   | "secret"
   | "database"
@@ -66,8 +69,11 @@ const ACTIONS: Readonly<Record<PlanAction, { symbol: string; tone: DiffTone }>> 
 };
 
 const KIND_ICON: Readonly<Record<PlanKind, IconName>> = {
+  project: "folder",
+  environment: "layers",
   app: "service",
   service: "service",
+  container: "service",
   domain: "globe",
   secret: "key",
   database: "database",

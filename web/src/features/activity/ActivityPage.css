@@ -1,0 +1,291 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.activity-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.activity-fill {
+  flex: 1 1 auto;
+}
+
+.activity-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-3));
+}
+
+/* The actor filter: a select laid over a button that shows its choice. */
+.activity-select {
+  position: relative;
+  max-width: 100%;
+}
+
+.activity-select > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-select select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.activity-select:has(select:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+/* The list and the selected event side by side, the event below on narrow screens. */
+.activity-layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-6);
+}
+
+.activity-list {
+  flex: 3 1 560px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.activity-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.activity-day-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.activity-day-meta,
+.activity-note,
+.activity-muted {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.activity-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.activity-event {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: 2px 0;
+  white-space: normal;
+}
+
+.activity-mark {
+  flex: none;
+}
+
+.activity-event-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-top: var(--space-1);
+}
+
+.activity-event-title {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.activity-actor {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.activity-actor > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-actor .is-machine {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.activity-avatar,
+.activity-badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+}
+
+.activity-avatar {
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.activity-badge {
+  border-radius: 6px;
+  color: var(--ink-muted);
+}
+
+.activity-when {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.activity-when > span {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+
+/* The selected event. */
+.activity-detail {
+  flex: 2 1 360px;
+  min-width: 0;
+  position: sticky;
+  top: var(--space-4);
+  max-height: calc(100dvh - 2 * var(--space-4));
+  overflow: auto;
+  border-radius: var(--radius-md);
+}
+
+.activity-detail-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.activity-detail-title > span:last-child {
+  overflow-wrap: anywhere;
+}
+
+.activity-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.activity-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 10px var(--space-4);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.activity-facts dt {
+  color: var(--ink-muted);
+}
+
+.activity-facts dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.activity-facts .activity-avatar,
+.activity-facts .activity-badge {
+  width: 20px;
+  height: 20px;
+  font-size: 9.5px;
+}
+
+.activity-code {
+  font-size: 12px;
+}
+
+.activity-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.activity-link:hover {
+  text-decoration: underline;
+}
+
+.activity-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.activity-detail-section h3 {
+  margin: 0;
+}
+
+.activity-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+/* On a phone: the list is a line of time, and a change's title opens its plan. */
+.activity-timeline {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.activity-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.activity-open:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 639px) {
+  .activity-filters .dw-seg {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .activity-fill {
+    display: none;
+  }
+}

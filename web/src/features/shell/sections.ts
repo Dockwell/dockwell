@@ -26,7 +26,6 @@ export const UPCOMING = {
   backups: { label: msg`Backups`, icon: "archive", inMore: true },
   catalog: { label: msg`Catalog`, icon: "grid", inMore: true },
   "fleet-actions": { label: msg`Fleet actions`, icon: "play", inMore: true },
-  activity: { label: msg`Activity`, icon: "activity", inMore: false },
   alerts: { label: msg`Alerts`, icon: "bell", inMore: true },
   "scheduled-tasks": { label: msg`Scheduled tasks`, icon: "calendar", inMore: true },
   settings: { label: msg`Settings`, icon: "settings", inMore: true },
@@ -45,8 +44,8 @@ export const RESOURCES = [
   "catalog",
 ] as const satisfies readonly UpcomingSection[];
 
-/** The rail's operate sections, in its order. */
-export const OPERATE = ["activity", "alerts", "scheduled-tasks"] as const satisfies readonly UpcomingSection[];
+/** The rail's operate sections after Activity, which has its screen, in its order. */
+export const OPERATE = ["alerts", "scheduled-tasks"] as const satisfies readonly UpcomingSection[];
 
 export function isUpcoming(section: string): section is UpcomingSection {
   return Object.hasOwn(UPCOMING, section);
