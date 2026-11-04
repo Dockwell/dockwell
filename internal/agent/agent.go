@@ -209,13 +209,9 @@ func session(ctx context.Context, cfg Config) (err error) {
 		slog.String("stats_every", human.Duration(interval)))
 
 	// The stream carries stats up and calls down, with their results back
-	// up. Sends take turns.
-	var sendMu sync.Mutex
-	send := func(m *agentv1.ConnectRequest) error {
-		sendMu.Lock()
-		defer sendMu.Unlock()
-		return stream.Send(m)
-	}
+	// up. Sends take turns, and the request side closes between two.
+	out := newSender(stream)
+	send := out.send
 	// The calls outlive the stream's context, which stops the receiver, so
 	// the stream ends in order: refuse new calls, stop receiving, then
 	// cancel what still runs and wait for it.
@@ -247,8 +243,9 @@ func session(ctx context.Context, cfg Config) (err error) {
 		// it once it has read everything, the last results included, which
 		// closing the response at once could drop. Closing the response
 		// then ends a Receive under way, and the stream's context, which
-		// drops what hasn't gone out, is cancelled last.
-		_ = stream.CloseRequest()
+		// drops what hasn't gone out, is cancelled last. A call may still
+		// be sending its result, so the half-close waits for that send.
+		out.closeRequest(endWait)
 		if errors.Is(err, errRenewed) {
 			wait := time.NewTimer(endWait)
 			select {
@@ -301,6 +298,48 @@ func session(ctx context.Context, cfg Config) (err error) {
 			}
 		}
 	}
+}
+
+// requestSide is the agent's side of its stream to the control plane.
+type requestSide interface {
+	Send(*agentv1.ConnectRequest) error
+	CloseRequest() error
+}
+
+// sender sends on a stream one message at a time, and half-closes it only
+// between two messages. A send writes a message in parts, and connect-go
+// doesn't allow closing the request side during one: it would cut the
+// message off, and the control plane would read a broken stream rather
+// than the last results.
+type sender struct {
+	stream requestSide
+	turn   chan struct{} // held by the send or the close under way
+}
+
+func newSender(stream requestSide) *sender {
+	return &sender{stream: stream, turn: make(chan struct{}, 1)}
+}
+
+func (s *sender) send(m *agentv1.ConnectRequest) error {
+	s.turn <- struct{}{}
+	defer func() { <-s.turn }()
+	return s.stream.Send(m)
+}
+
+// closeRequest half-closes the stream once the send under way, if any, is
+// done. A send still under way after wait, as on a stream the control
+// plane no longer reads, is left to fail as the stream ends: waiting on
+// for it would keep the stream, and the agent, from ever moving on.
+func (s *sender) closeRequest(wait time.Duration) {
+	t := time.NewTimer(wait)
+	defer t.Stop()
+	select {
+	case s.turn <- struct{}{}:
+	case <-t.C:
+		return
+	}
+	defer func() { <-s.turn }()
+	_ = s.stream.CloseRequest()
 }
 
 // sleep waits for d or ctx, and reports whether to carry on.

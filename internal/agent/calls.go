@@ -4,6 +4,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -206,7 +207,11 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Plan{Plan: out}}
 	case call.GetApply() != nil:
-		step := resourcepb.FromStep(call.GetApply().GetStep())
+		step, err := resourcepb.FromStep(call.GetApply().GetStep())
+		if err != nil {
+			return fail(fmt.Errorf("this agent can't read the step it was sent: %w. "+
+				"The control plane is newer than the agent, so update the agent to the control plane's version", err))
+		}
 		ref, spec, err := c.decode(call.GetApply().GetDesired())
 		if err != nil {
 			return fail(err)

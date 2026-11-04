@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -84,17 +85,6 @@ func (a *Agents) Agent(server string) (resource.Agent, bool) {
 		return nil, false
 	}
 	return s, true
-}
-
-// Kinds returns what a connected server's agent has drivers for.
-func (a *Agents) Kinds(server string) ([]resource.Kind, bool) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	s, ok := a.sessions[server]
-	if !ok {
-		return nil, false
-	}
-	return slices.Clone(s.kinds), true
 }
 
 // open starts a session for a stream that has said hello. send writes to
@@ -171,8 +161,8 @@ func (a *Agents) next(ctx context.Context, old *Session) (*Session, error) {
 			grace = time.NewTimer(reconnectGrace)
 			graceC = grace.C
 		case <-graceC:
-			return nil, fmt.Errorf("%w: %s's agent was moving to a new stream and didn't reconnect within %s, so the call didn't run",
-				resource.ErrNotConnected, old.name, human.Duration(reconnectGrace))
+			return nil, fault.New(resource.ErrNotConnected, "%s's agent was moving to a new stream and didn't reconnect within %s, so the call didn't run",
+				old.name, human.Duration(reconnectGrace))
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -329,7 +319,7 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 		}
 	case <-s.done:
 		forget()
-		return nil, s.lost()
+		return nil, s.lost(c)
 	case <-ctx.Done():
 		forget()
 		// Best effort: the agent stops the call when it can.
@@ -338,14 +328,20 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 	}
 }
 
-func (s *Session) lost() error {
-	return fmt.Errorf("%w: %s's agent disconnected before it answered, so the step may or may not have run. Dockwell checks it again when the agent reconnects", ErrLost, s.name)
+// lost is a call whose stream ended before its result came. A step may
+// have run; a plan or a read changed nothing.
+func (s *Session) lost(c *agentv1.Call) error {
+	if c.GetApply() != nil {
+		return fault.New(ErrLost, "%s's agent disconnected before it answered, so the step may or may not have run. "+
+			"Dockwell checks it again when the agent reconnects", s.name)
+	}
+	return fault.New(ErrLost, "%s's agent disconnected before it answered. Try again once it reconnects", s.name)
 }
 
 // notConnected is a call that never reached the agent, as its stream had
 // ended.
 func (s *Session) notConnected() error {
-	return fmt.Errorf("%w: %s's agent disconnected before the call reached it, so it didn't run", resource.ErrNotConnected, s.name)
+	return fault.New(resource.ErrNotConnected, "%s's agent disconnected before the call reached it, so it didn't run", s.name)
 }
 
 // supports refuses a kind the agent has no driver for.
@@ -361,8 +357,8 @@ func (s *Session) supports(ref resource.Ref) error {
 		}
 		have = strings.Join(names, ", ")
 	}
-	return fmt.Errorf("%w: the agent on %s has no driver for %s resources, so it can't run %s %s (it has drivers for %s). "+
-		"Run it on a server whose agent can, or update the agent on %s", resource.ErrNoDriver, s.name, ref.Kind, ref.Kind, ref.Name, have, s.name)
+	return fault.New(resource.ErrNoDriver, "the agent on %s has no driver for %s resources, so it can't run %s %s (it has drivers for %s). "+
+		"Run it on a server whose agent can, or update the agent on %s", s.name, ref.Kind, ref.Kind, ref.Name, have, s.name)
 }
 
 // Plan asks the agent what moving each resource to its desired spec would
@@ -389,7 +385,12 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 	}
 	steps := make([]resource.Step, len(got))
 	for i, p := range got {
-		steps[i] = resourcepb.FromStep(p)
+		if steps[i], err = resourcepb.FromStep(p); err != nil {
+			// Read as anything else, the step would be skipped or
+			// misstated, so the plan fails.
+			return nil, fmt.Errorf("%s's agent planned a step for %s that this control plane can't read: %w. "+
+				"The agent is newer than the control plane, so upgrade the control plane to the agent's version", s.name, desired[i].Ref, err)
+		}
 		// The step is about the resource asked for, whatever the agent says.
 		steps[i].Ref = desired[i].Ref
 	}

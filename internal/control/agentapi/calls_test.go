@@ -13,7 +13,9 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/buildinfo"
@@ -21,6 +23,8 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
 // gate is a firewall whose rule "slow" takes until it is released, or its
@@ -101,10 +105,13 @@ func TestCallsReachTheAgentsDrivers(t *testing.T) {
 	id := s.enrollLocal(t)
 	docker, fw := container.NewFake(), firewall.NewFake()
 	runAgent(t, s, id, resource.NewRegistry(&container.Driver{Runtime: docker, RecreateDowntime: 2 * time.Second}, &firewall.Driver{Backend: fw}))
-	if kinds, _ := s.agents.Kinds(id.ServerID); len(kinds) != 2 || kinds[0] != container.Kind || kinds[1] != firewall.Kind {
-		t.Fatalf("the agent said it has drivers for %v, want container and firewall.rule", kinds)
-	}
 	a := waitForAgent(t, s.agents, id.ServerID, true)
+	// The agent said in its hello which kinds it has drivers for, and its
+	// session refuses any other.
+	_, err := a.Plan(t.Context(), []resource.Desired{{Ref: resource.Ref{Kind: service.Kind, Scope: id.ServerID, Name: "web"}}})
+	if !errors.Is(err, resource.ErrNoDriver) || !strings.Contains(err.Error(), "(it has drivers for container, firewall.rule)") {
+		t.Fatalf("planning a service = %v, want it refused, naming the container and firewall.rule drivers the agent has", err)
+	}
 
 	web := resource.Ref{Kind: container.Kind, Scope: id.ServerID, Name: "web"}
 	spec := &resourcev1.Container{Image: "nginx:1.27", Env: map[string]string{"API_KEY": "s3cret-value"}}
@@ -347,5 +354,37 @@ func waitUntil(t *testing.T, what string, cond func() bool) {
 			t.Fatalf("timed out waiting until %s", what)
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// A step the control plane can't read, as from a newer agent, fails
+// planning, naming the server and saying to upgrade the control plane. Read
+// as anything else, it would be skipped or misstated.
+func TestAStepANewerAgentPlansFailsPlanning(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	stream := openStream(t, id, string(firewall.Kind))
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	http := resource.Ref{Kind: firewall.Kind, Scope: id.ServerID, Name: "http"}
+	planned := make(chan error, 1)
+	go func() {
+		_, err := a.Plan(t.Context(), []resource.Desired{{Ref: http, Spec: &resourcev1.FirewallRule{Port: 80}}})
+		planned <- err
+	}()
+	msg, err := stream.Receive()
+	if err != nil || msg.GetCall().GetPlan() == nil {
+		t.Fatalf("the control plane sent %v, %v, want a plan", msg, err)
+	}
+	newer := &dockwellv1.PlanStep{Resource: resourcepb.Ref(http), Action: 42, Effect: dockwellv1.StepEffect_STEP_EFFECT_NONE}
+	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: &agentv1.CallResult{
+		Id: msg.GetCall().GetId(), Result: &agentv1.CallResult_Plan{Plan: &agentv1.PlanResult{Steps: []*dockwellv1.PlanStep{newer}}},
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	err = <-planned
+	var unknown *resourcepb.UnknownError
+	if err == nil || !errors.As(err, &unknown) || !strings.HasPrefix(err.Error(), "hz-1's agent planned a step for firewall.rule http") ||
+		!strings.Contains(err.Error(), "upgrade the control plane") {
+		t.Errorf("a plan with action 42 = %v, want it to fail, naming hz-1 and saying to upgrade the control plane", err)
 	}
 }

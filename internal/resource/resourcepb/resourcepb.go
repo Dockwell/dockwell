@@ -6,6 +6,7 @@
 package resourcepb
 
 import (
+	"fmt"
 	"time"
 
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -35,14 +36,16 @@ var actions = map[resource.Action]dockwellv1.PlanAction{
 // Action converts what a step does.
 func Action(a resource.Action) dockwellv1.PlanAction { return actions[a] }
 
-// FromAction reads what a step does; an unknown action is none.
-func FromAction(a dockwellv1.PlanAction) resource.Action {
-	for k, v := range actions {
-		if v == a {
-			return k
+// from reads an enum value of the schema as the model's, and reports
+// whether this build knows it.
+func from[M comparable, P comparable](m map[M]P, v P) (M, bool) {
+	for k, p := range m {
+		if p == v {
+			return k, true
 		}
 	}
-	return resource.ActionNone
+	var zero M
+	return zero, false
 }
 
 var effects = map[resource.Effect]dockwellv1.StepEffect{
@@ -80,11 +83,7 @@ func FromChanges(fcs []*dockwellv1.FieldChange) []resource.Change {
 	out := make([]resource.Change, len(fcs))
 	for i, fc := range fcs {
 		c := resource.Change{Path: fc.GetPath(), From: fc.GetFrom(), To: fc.GetTo(), Sensitive: fc.GetSensitive()}
-		for k, v := range ops {
-			if v == fc.GetOp() {
-				c.Op = k
-			}
-		}
+		c.Op, _ = from(ops, fc.GetOp())
 		if c.Sensitive {
 			c.From, c.To = "", ""
 		}
@@ -108,28 +107,44 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	return p
 }
 
-// FromStep reads a step.
-func FromStep(p *dockwellv1.PlanStep) resource.Step {
+// UnknownError is a step that says something this build doesn't know,
+// such as an action that a newer build added. Read as anything else, the
+// step would be skipped or misstated: an unknown action as none, or a
+// warning dropped from a plan that needs one.
+type UnknownError struct {
+	What  string // "action", "effect" or "warning"
+	Value int32  // as the schema numbers it
+}
+
+func (e *UnknownError) Error() string {
+	return fmt.Sprintf("its %s, number %d, is one this build doesn't know", e.What, e.Value)
+}
+
+// FromStep reads a step. A step with an action, effect or warning this
+// build doesn't know is an *UnknownError.
+func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	s := resource.Step{
 		Ref: FromRef(p.GetResource()), Changes: FromChanges(p.GetChanges()),
-		Decision: resource.Decision{Action: FromAction(p.GetAction()), Destroys: p.GetDestroysData()},
+		Decision: resource.Decision{Destroys: p.GetDestroysData()},
+	}
+	var ok bool
+	if s.Action, ok = from(actions, p.GetAction()); !ok {
+		return resource.Step{}, &UnknownError{What: "action", Value: int32(p.GetAction())}
+	}
+	if s.Effect, ok = from(effects, p.GetEffect()); !ok {
+		return resource.Step{}, &UnknownError{What: "effect", Value: int32(p.GetEffect())}
 	}
 	if d := p.GetDowntime(); d != nil {
 		s.Downtime = max(d.AsDuration(), 0)
 	}
-	for k, v := range effects {
-		if v == p.GetEffect() {
-			s.Effect = k
-		}
-	}
 	for _, w := range p.GetWarnings() {
-		for k, v := range warnings {
-			if v == w {
-				s.Warnings = append(s.Warnings, k)
-			}
+		k, ok := from(warnings, w)
+		if !ok {
+			return resource.Step{}, &UnknownError{What: "warning", Value: int32(w)}
 		}
+		s.Warnings = append(s.Warnings, k)
 	}
-	return s
+	return s, nil
 }
 
 // Duration converts a duration, unset when zero.

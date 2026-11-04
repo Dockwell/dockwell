@@ -237,6 +237,13 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 				session.deliver(msg.GetResult())
 			case msg.GetDraining() != nil && session != nil:
 				session.drain()
+			case msg.GetDraining() != nil:
+				// No calls go on a stream without a session, so it is
+				// drained already. Answer at once, or the agent waits its
+				// whole drain limit before it moves to the new stream.
+				if err := stream.Send(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Drained{Drained: &agentv1.Drained{}}}); err != nil {
+					return err
+				}
 			}
 		case <-silence.C:
 			log.WarnContext(ctx, "closing a silent stream", slog.String("silent_for", human.Duration(h.silence)))
