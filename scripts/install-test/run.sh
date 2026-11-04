@@ -6,7 +6,12 @@
 #
 #   1. A first server: install an older release, refuse a tampered archive and
 #      a bad signature, upgrade in place, re-run, uninstall.
-#   2. A server that joins: install with a ticket from a control plane that
+#   2. With MIRROR set, the same server through a mirror, with GitHub and
+#      Sigstore cut off: install, refuse a changed cosign, trust root, archive
+#      and signature on the mirror, upgrade, uninstall. Then verify a keyless
+#      signature from Sigstore's public instance offline, against the pinned
+#      trust root.
+#   3. A server that joins: install with a ticket from a control plane that
 #      runs beside it, check it runs only the agent and connects, uninstall.
 #
 # When systemd or OpenRC is running, the install script starts the service and
@@ -16,8 +21,10 @@
 #
 #   INSTALL=<install.sh> RELEASES=<url> KEY=<cosign.pub> OLD=<v> NEW=<v> run.sh
 #
-# RELEASES holds the trees releases.sh makes. COSIGN, when set, is a copy of
-# the pinned cosign to use after the first install, which downloads its own.
+# RELEASES holds the trees releases.sh makes, and MIRROR, when set, the trees
+# mirror.sh makes. COSIGN, when set, is a copy of the pinned cosign to use
+# after the first install, which downloads its own. Cutting off GitHub and
+# Sigstore means adding them to /etc/hosts for a while, so this changes it.
 set -eu
 
 : "${INSTALL:?}" "${RELEASES:?}" "${KEY:?}" "${OLD:?}" "${NEW:?}"
@@ -29,8 +36,16 @@ PANEL=http://127.0.0.1:7600
 FIXTURE=http://127.0.0.1:7601
 CONNECTED=$(dirname "$0")/../connected.awk
 [ -r "$CONNECTED" ] || { echo "can't read $CONNECTED, which counts connected servers" >&2; exit 1; }
+MIRROR=${MIRROR:-}
 MEMORY_LIMIT=$(sed -n 's/^MEMORY_LIMIT=//p' "$INSTALL")
 [ -n "$MEMORY_LIMIT" ] || { echo "can't read MEMORY_LIMIT from $INSTALL" >&2; exit 1; }
+COSIGN_VERSION=$(sed -n 's/^COSIGN_VERSION=//p' "$INSTALL")
+SIGSTORE_ROOT_SHA256=$(sed -n 's/^SIGSTORE_ROOT_SHA256=//p' "$INSTALL")
+# What an install through a mirror must not need: GitHub, and Sigstore's
+# public instance.
+CUT_OFF="github.com objects.githubusercontent.com release-assets.githubusercontent.com raw.githubusercontent.com
+tuf-repo-cdn.sigstore.dev sigstore-tuf-root.storage.googleapis.com rekor.sigstore.dev log2025-1.rekor.sigstore.dev
+fulcio.sigstore.dev timestamp.sigstore.dev"
 LIMIT=GOMEMLIMIT=$MEMORY_LIMIT
 log=$(mktemp -d)
 case $(uname -m) in
@@ -42,6 +57,7 @@ esac
 step() { printf '\n== %s\n' "$*"; }
 ok() { printf 'ok: %s\n' "$*"; }
 die() {
+	reconnect
 	printf 'FAIL: %s\n' "$*" >&2
 	for f in "$log/out" "$log/dockwell.log" /var/log/dockwell.log; do
 		[ -s "$f" ] || continue
@@ -97,8 +113,47 @@ run_install() {
 	return "$status"
 }
 
+# run_mirror runs the install script through the mirror, piped to sh, with
+# Dockwell's releases from one of its trees and cosign from another.
+run_mirror() {
+	tree=$1
+	cosign_tree=$2
+	shift 2
+	# shellcheck disable=SC2002 # piped on purpose, as curl pipes it
+	if cat "$INSTALL" | DOCKWELL_COSIGN_MIRROR="$MIRROR/cosign/$cosign_tree" DOCKWELL_VERIFY_KEY="$KEY" \
+		sh -s -- --mirror "$MIRROR/$tree" "$@" >"$log/out" 2>&1; then
+		status=0
+	else
+		status=$?
+	fi
+	cat "$log/out"
+	return "$status"
+}
+
 said() {
 	grep -qF -- "$1" "$log/out" || die "the install script didn't say \"$1\""
+}
+
+# cut_off makes GitHub and Sigstore unreachable from here until reconnect.
+cut_off() {
+	cp /etc/hosts "$log/hosts"
+	for host in $CUT_OFF; do
+		printf '127.0.0.1 %s\n::1 %s\n' "$host" "$host" >>/etc/hosts
+	done
+}
+
+reconnect() {
+	[ -f "$log/hosts" ] || return 0
+	# Written over, not moved: in a container, /etc/hosts is a mount.
+	cat "$log/hosts" >/etc/hosts
+	rm -f "$log/hosts"
+}
+
+# keyless checks the keyless fixture from the mirror with the pinned cosign,
+# as install.sh checks a release, and keeps what cosign said in $log/out.
+keyless() {
+	TUF_ROOT="$log/tuf" HOME="$log" "$pinned_cosign" verify-blob --bundle "$log/keyless.sigstore.json" \
+		--certificate-oidc-issuer https://accounts.google.com "$@" "$log/keyless.txt" >"$log/out" 2>&1 </dev/null
 }
 
 version_is() {
@@ -243,6 +298,77 @@ if get "$PANEL/healthz" >/dev/null 2>&1; then die "the panel still answers after
 run_install good --uninstall || die "uninstalling twice failed"
 said "isn't installed on this server"
 ok "removed, and the data is still in $DATA"
+
+if [ -n "$MIRROR" ]; then
+	step "Install through a mirror, with GitHub and Sigstore cut off"
+	# From here on cosign comes from the mirror.
+	pinned_cosign=${DOCKWELL_COSIGN:-}
+	unset DOCKWELL_COSIGN
+	cut_off
+	if run_install good; then die "an install that downloads cosign from GitHub worked with GitHub cut off"; fi
+	said "Can't download cosign from GitHub"
+	ok "GitHub is cut off"
+	run_mirror good good --version "$OLD" || die "installing v$OLD through the mirror failed"
+	said "Downloading cosign $COSIGN_VERSION from the mirror at $MIRROR/cosign/good"
+	said "The release signature checks out"
+	said "Installed $BIN."
+	version_is "$OLD"
+	start_direct
+	check_service
+	wait_panel
+	[ "$(server_id)" = "$id" ] || die "installing through the mirror changed this server's identity"
+	ok "installed v$OLD through the mirror"
+
+	step "Refuse what the mirror changed"
+	if run_mirror good bad; then die "a cosign that doesn't match its pin was used"; fi
+	said "doesn't match its pinned SHA-256, so nothing was installed"
+	if run_mirror bad-root good; then die "a trust root that doesn't match its pin was used"; fi
+	said "The Sigstore trust root on the mirror doesn't match its pinned SHA-256"
+	if run_mirror bad-archive good; then die "a tampered archive from the mirror was installed"; fi
+	said "doesn't match its signed checksum, so nothing was installed"
+	if run_mirror bad-signature good; then die "checksums with a bad signature from the mirror were installed"; fi
+	said "doesn't verify, so nothing was installed"
+	version_is "$OLD"
+	ok "refused a changed cosign, trust root, archive and signature, and v$OLD is still installed"
+
+	step "Upgrade through the mirror to v$NEW"
+	stop_direct
+	run_mirror good good || die "upgrading to v$NEW through the mirror failed"
+	said "Upgraded $BIN from v$OLD to v$NEW."
+	version_is "$NEW"
+	start_direct
+	check_service
+	wait_panel
+	ok "upgraded through the mirror"
+
+	step "Verify a keyless signature with Sigstore cut off"
+	if [ -z "$pinned_cosign" ]; then
+		ok "skipped, because COSIGN doesn't name a copy of the pinned cosign"
+	else
+		get "$MIRROR/good/latest/download/sigstore_trusted_root.json" >"$log/root.json" ||
+			die "can't download the trust root from the mirror"
+		[ "$(sha256sum "$log/root.json" | cut -d ' ' -f 1)" = "$SIGSTORE_ROOT_SHA256" ] ||
+			die "the mirror's trust root isn't the one install.sh pins"
+		get "$MIRROR/keyless/cosign_checksums.txt" >"$log/keyless.txt" || die "can't download the keyless fixture"
+		get "$MIRROR/keyless/cosign_checksums.txt.sigstore.json" >"$log/keyless.sigstore.json" ||
+			die "can't download the keyless fixture's bundle"
+		if keyless --certificate-identity keyless@projectsigstore.iam.gserviceaccount.com; then
+			die "cosign reached Sigstore's TUF repository, so Sigstore isn't cut off"
+		fi
+		said "tuf-repo-cdn.sigstore.dev"
+		ok "without the pinned trust root, cosign can't reach Sigstore"
+		keyless --certificate-identity keyless@projectsigstore.iam.gserviceaccount.com --trusted-root "$log/root.json" ||
+			die "a keyless signature didn't verify offline against the pinned trust root: $(cat "$log/out")"
+		if keyless --certificate-identity someone@example.com --trusted-root "$log/root.json"; then
+			die "a keyless signature verified offline for the wrong identity"
+		fi
+		ok "verified a keyless signature offline against the pinned trust root, and refused the wrong identity"
+	fi
+	stop_direct
+	run_install good --uninstall || die "uninstalling after the mirror install failed"
+	reconnect
+	[ -z "$pinned_cosign" ] || export DOCKWELL_COSIGN="$pinned_cosign"
+fi
 
 step "Join a control plane and run only the agent"
 rm -rf "$DATA"

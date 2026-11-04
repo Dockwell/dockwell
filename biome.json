@@ -14,7 +14,8 @@
       "!packages/ui/src/styles/tokens.css",
       "!design",
       "!internal/panel/dist",
-      "!**/*.svg"
+      "!**/*.svg",
+      "!scripts/sigstore_trusted_root.json"
     ]
   },
   "formatter": {

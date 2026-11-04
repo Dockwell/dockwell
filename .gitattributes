@@ -14,5 +14,9 @@ go.sum                              linguist-generated=true
 tools/go.sum                        linguist-generated=true
 pnpm-lock.yaml                      linguist-generated=true
 
+# Sigstore's trust root, byte for byte as Sigstore publishes it: the install
+# script pins its SHA-256.
+/scripts/sigstore_trusted_root.json -text
+
 # Imported design reference, not product source.
 /design/**                          linguist-documentation=true

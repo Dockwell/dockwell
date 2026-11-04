@@ -50,10 +50,15 @@ archives:
 checksum:
   name_template: checksums.txt
   algorithm: sha256
-  # Archives only. SBOMs embed a creation time and a random namespace, so
-  # they would make the signed checksums differ from build to build; the
-  # provenance attestation covers them instead.
+  # The archives, and the install script and Sigstore's trust root that every
+  # release carries for mirrors (docs/adr/0013-mirrors-for-releases-and-images.md).
+  # Not the SBOMs: they embed a creation time and a random namespace, so they
+  # would make the signed checksums differ from build to build; the provenance
+  # attestation covers them instead.
   ids: [dockwell]
+  extra_files:
+    - glob: scripts/install.sh
+    - glob: scripts/sigstore_trusted_root.json
 
 sboms:
   - id: archives

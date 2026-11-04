@@ -16,8 +16,10 @@ For each platform (linux amd64 and arm64):
 
 And once per release:
 
-- `checksums.txt`: SHA-256 of every archive.
+- `checksums.txt`: SHA-256 of every archive, `install.sh` and `sigstore_trusted_root.json`.
 - `checksums.txt.sigstore.json`: a keyless cosign signature of `checksums.txt`, made with the release workflow's GitHub identity and recorded in Sigstore's public transparency log.
+- `install.sh`: the install script at that release's tag.
+- `sigstore_trusted_root.json`: the copy of Sigstore's trust root that this `install.sh` pins, for installs through a [mirror](install.md#install-through-a-mirror) that check signatures without reaching Sigstore ([ADR 0013](adr/0013-mirrors-for-releases-and-images.md)).
 - A GitHub build-provenance attestation for every archive, SBOM and the checksums, which says the workflow and commit that built them.
 
 Builds are reproducible. The same commit gives byte-identical binaries, archives and `checksums.txt`, because paths are trimmed, file times and owners are fixed, and the build ID is empty. SBOMs embed their creation time, so they differ between builds; the provenance attestation covers them instead of the checksums.
@@ -59,6 +61,8 @@ cosign verify-blob checksums.txt \
 sha256sum --ignore-missing --check checksums.txt
 ```
 
+Where you can't reach Sigstore, add `--trusted-root sigstore_trusted_root.json` to the cosign command, and cosign checks against that file instead of fetching Sigstore's trust root. First check that the file's SHA-256 is the `SIGSTORE_ROOT_SHA256` in `install.sh`, from a copy of the script you trust.
+
 The [install script](install.md) runs the same checks before it installs anything, with a cosign it downloads and checks against a pinned SHA-256 ([ADR 0010](adr/0010-install-script-verifies-with-pinned-cosign.md)).
 
 ## Update cosign
@@ -74,5 +78,23 @@ The [install script](install.md) runs the same checks before it installs anythin
    ```
 
 2. Set `COSIGN_VERSION` in `release.yml` and in `install.sh`, and copy the SHA-256s of `cosign-linux-amd64` and `cosign-linux-arm64` from the checksums into `install.sh`.
+3. Change the cosign version in the mirror section of [installing](install.md#install-through-a-mirror), which says where mirrors keep cosign.
 
 The Install workflow fails when the two versions differ, or when a pinned hash doesn't match the cosign that `sigstore/cosign-installer` verified.
+
+## Update Sigstore's trust root
+
+Installs through a mirror check signatures against `scripts/sigstore_trusted_root.json`, a copy of Sigstore's trust root that `install.sh` pins as `SIGSTORE_ROOT_SHA256` ([ADR 0013](adr/0013-mirrors-for-releases-and-images.md)). Sigstore changes the trust root when it adds or retires a key. The Install workflow's Sigstore trust root job then fails, on pull requests and nightly. The release workflow also refuses to publish a release whose signature doesn't verify against the copy. To update it:
+
+1. Fetch the current trust root with cosign's TUF client, which checks it against the TUF root built into cosign:
+
+   ```sh
+   export TUF_ROOT=$(mktemp -d)
+   cosign initialize
+   cp "$TUF_ROOT/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json" scripts/sigstore_trusted_root.json
+   sha256sum scripts/sigstore_trusted_root.json
+   ```
+
+2. Set `SIGSTORE_ROOT_SHA256` in `install.sh` to that SHA-256.
+3. Read the diff. A new key or certificate authority comes with a `validFor.start`, and a retired one gains an `end`.
+4. Merge it, then cut a release. Each release's script pins the trust root that release carries, and a script from a mirror's latest release uses that one, so mirrors pick up the change with the next release.

@@ -418,7 +418,7 @@ The largest risk is scope — this is three products in one — so every mitigat
 
 - Can the catalog bootstrap from 1Panel's app store format, and does its license allow that?
 - Are virtual machines in scope? 1Panel's Enterprise edition now manages VMs; a Proxmox/libvirt integration could be a P2 item.
-- How do we serve users in mainland China (mirrors, registries, install scripts) from day one?
+- How do we serve users in mainland China (mirrors, registries, install scripts) from day one? **Decided:** mirrors that anyone can run, named explicitly, with everything from them checked as a download from GitHub is; Dockwell runs no infrastructure in China ([ADR 0013](../adr/0013-mirrors-for-releases-and-images.md)).
 
 ## Sources
 

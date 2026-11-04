@@ -6,7 +6,8 @@
 #   build    read-only, no caches; checks the tag is a green commit on main,
 #            builds with GoReleaser, smoke-tests the binary, uploads dist/.
 #   publish  runs no build code; signs the checksums with cosign (keyless),
-#            attests provenance, and publishes the GitHub release.
+#            checks the signature against the Sigstore trust root the release
+#            carries, attests provenance, and publishes the GitHub release.
 #
 # See docs/releasing.md.
 name: Release
@@ -66,6 +67,17 @@ jobs:
         run: |
           tar -xzf dist/dockwell_*_linux_amd64.tar.gz -C dist dockwell
           scripts/smoke.sh dist/dockwell
+      # Mirrors serve these with the archives (docs/adr/0013-mirrors-for-releases-and-images.md).
+      - name: Add the install script and the Sigstore trust root it pins
+        run: |
+          pinned=$(sed -n 's/^SIGSTORE_ROOT_SHA256=//p' scripts/install.sh)
+          actual=$(sha256sum scripts/sigstore_trusted_root.json | cut -d ' ' -f 1)
+          if [[ -z "$pinned" || "$pinned" != "$actual" ]]; then
+            echo "::error file=scripts/install.sh::install.sh pins the trust root ${pinned:-nothing}, but scripts/sigstore_trusted_root.json is $actual. Update them together, as docs/releasing.md says."
+            exit 1
+          fi
+          cp scripts/install.sh scripts/sigstore_trusted_root.json dist/
+          (cd dist && sha256sum --check --strict checksums.txt)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ github.ref_type == 'tag' && 'dockwell-release' || 'dockwell-snapshot' }}
@@ -73,6 +85,8 @@ jobs:
             dist/*.tar.gz
             dist/*.spdx.json
             dist/checksums.txt
+            dist/install.sh
+            dist/sigstore_trusted_root.json
           if-no-files-found: error
           retention-days: ${{ github.ref_type == 'tag' && 90 || 14 }}
 
@@ -96,6 +110,15 @@ jobs:
           cosign-release: ${{ env.COSIGN_VERSION }}
       - name: Sign the checksums
         run: cosign sign-blob --yes --bundle dist/checksums.txt.sigstore.json dist/checksums.txt
+      # What an install through a mirror checks, without reaching Sigstore. If
+      # Sigstore signed with a key the pinned trust root lacks, this fails
+      # before anything is published; update the pin as docs/releasing.md says.
+      - name: The signature verifies against the trust root the release carries
+        run: |
+          cosign verify-blob dist/checksums.txt --bundle dist/checksums.txt.sigstore.json \
+            --trusted-root dist/sigstore_trusted_root.json \
+            --certificate-identity "$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -103,6 +126,8 @@ jobs:
             dist/*.tar.gz
             dist/*.spdx.json
             dist/checksums.txt
+            dist/install.sh
+            dist/sigstore_trusted_root.json
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
