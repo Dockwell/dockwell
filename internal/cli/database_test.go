@@ -5,6 +5,7 @@ package cli
 import (
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -97,4 +98,64 @@ func TestRunOnPostgres(t *testing.T) {
 	if r.code != exitError || !strings.Contains(r.err, "holds no Dockwell install, but this data directory's key belongs to one") {
 		t.Errorf("run on an empty database with an existing key = %d %q", r.code, r.err)
 	}
+}
+
+var installRE = regexp.MustCompile(`"install":"([^"]+)"`)
+
+// installOf is the install a dockwell run logged.
+func installOf(t *testing.T, logs string) string {
+	t.Helper()
+	m := installRE.FindStringSubmatch(logs)
+	if m == nil {
+		t.Fatalf("dockwell run didn't log its install:\n%s", logs)
+	}
+	return m[1]
+}
+
+// A first start that fails partway, such as with the database out of
+// reach, leaves no key that claims an install, so the next start makes the
+// install. One that stopped once the install was on record, before its key
+// took its place, carries on with that install.
+func TestAFailedFirstStartCanStartAgain(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		dir := t.TempDir()
+		d := datadir.Dir{Root: dir}
+		r := run(t, nil, "run", "--listen", "127.0.0.1:0", "--agent-listen", "127.0.0.1:0", "--data-dir", dir,
+			"--database", "postgres://dockwell@127.0.0.1:1/dockwell")
+		if r.code != exitError {
+			t.Fatalf("a first start with the database out of reach = %d %q, want a failure", r.code, r.err)
+		}
+		if exists(d.SealKey()) {
+			t.Error("the failed first start left a key that claims an install")
+		}
+
+		var database []string
+		if b == store.Postgres {
+			database = []string{"--database", storetest.New(t, b)}
+		}
+		_, logs, stop := startRunWithLogs(t, dir, "/claim#", database...)
+		stop()
+		install := installOf(t, logs.String())
+		if !exists(d.SealKey()) || exists(d.NewSealKey()) {
+			t.Fatal("once the install is on record, its key should be in place")
+		}
+
+		// As a first start that stopped right after its install was on
+		// record: its key not yet in place, and its own agent not yet
+		// enrolled.
+		if err := os.Rename(d.SealKey(), d.NewSealKey()); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.RemoveAll(d.Agent()); err != nil {
+			t.Fatal(err)
+		}
+		_, logs, stop = startRunWithLogs(t, dir, "/claim#", database...)
+		stop()
+		if got := installOf(t, logs.String()); got != install {
+			t.Errorf("the start after an unfinished one made install %s, want %s carried on", got, install)
+		}
+		if !exists(d.SealKey()) || exists(d.NewSealKey()) {
+			t.Error("the start that finished the install should have put its key in place")
+		}
+	})
 }

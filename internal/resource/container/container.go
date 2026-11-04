@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -58,6 +60,27 @@ func (*Driver) Level() resource.Level { return resource.LevelServer }
 
 // New returns an empty Container.
 func (*Driver) New() proto.Message { return &resourcev1.Container{} }
+
+var nameRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+
+// serviceForm is in the name of every service's container, which is
+// <service>.<environment ID> (service.ContainerName), and every environment
+// ID starts with env_.
+const serviceForm = "." + id.Environment + "_"
+
+// CheckName requires a name Docker takes, and keeps names of the form
+// services' containers have for services, so a container run by hand never
+// manages one of theirs.
+func (*Driver) CheckName(name string) error {
+	switch {
+	case !nameRE.MatchString(name):
+		return fmt.Errorf("%q isn't a valid container name: use letters, digits, dots, dashes and underscores, starting with a letter or digit, such as web", name)
+	case strings.Contains(name, serviceForm):
+		return fmt.Errorf("%q has the form of a service's container, <service>%s<ID>, so a container run by hand can't take it. Choose a name without %q, or run it as a service",
+			name, serviceForm, serviceForm)
+	}
+	return nil
+}
 
 // Validate requires an image and valid ports, and fills in defaults.
 func (*Driver) Validate(spec proto.Message) error {

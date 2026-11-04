@@ -45,6 +45,10 @@ func (*Driver) IDPrefix() string { return id.Service }
 // New returns an empty Service.
 func (*Driver) New() proto.Message { return &resourcev1.Service{} }
 
+// CheckName requires a DNS label, such as web or api-v2, since a service's
+// name goes in its URL and in the name of its container.
+func (*Driver) CheckName(name string) error { return resource.CheckLabel("service", name, "api-v2") }
+
 // Validate requires something to run, and checks it as a container.
 func (d *Driver) Validate(spec proto.Message) error {
 	app := spec.(*resourcev1.Service).GetApp()
@@ -55,8 +59,9 @@ func (d *Driver) Validate(spec proto.Message) error {
 }
 
 // ContainerName is the container a service runs as on a server: its name
-// and environment, so services of one name in two environments can share
-// a server.
+// and environment, as <name>.env_<ID>, so services of one name in two
+// environments can share a server. Containers run by hand can't take names
+// of that form (container.Driver.CheckName), so neither manages the other's.
 func ContainerName(ref resource.Ref) string { return ref.Name + "." + ref.Scope }
 
 func (d *Driver) containerRef(ref resource.Ref) resource.Ref {

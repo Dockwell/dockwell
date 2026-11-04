@@ -234,6 +234,13 @@ func TestUpgradeKeepsM1Revisions(t *testing.T) {
 			`INSERT INTO change_items (change_id, position, kind, server_id, name, base_revision, spec) VALUES ('chg_1', 1, 'container', 'srv_A', 'web', 0, NULL)`,
 			`INSERT INTO resources (id, kind, server_id, name, revision) VALUES ('res_1', 'container', 'srv_A', 'web', 1)`,
 			`INSERT INTO revisions (resource_id, number, spec, change_id, created_at) VALUES ('res_1', 1, NULL, 'chg_1', 1)`,
+			// A change that failed, and one still applying.
+			`INSERT INTO changes (id, summary, actor, state, fingerprint, plan, created_at) VALUES ('chg_2', 'api', 'usr_1', 'failed', 'f', '', 2)`,
+			`INSERT INTO resources (id, kind, server_id, name, revision) VALUES ('res_2', 'container', 'srv_A', 'api', 1)`,
+			`INSERT INTO revisions (resource_id, number, spec, change_id, created_at) VALUES ('res_2', 1, NULL, 'chg_2', 2)`,
+			`INSERT INTO changes (id, summary, actor, state, fingerprint, plan, created_at) VALUES ('chg_3', 'db', 'usr_1', 'applying', 'f', '', 3)`,
+			`INSERT INTO resources (id, kind, server_id, name, revision) VALUES ('res_3', 'container', 'srv_A', 'db', 1)`,
+			`INSERT INTO revisions (resource_id, number, spec, change_id, created_at) VALUES ('res_3', 1, NULL, 'chg_3', 3)`,
 		} {
 			storetest.Exec(t, location, q)
 		}
@@ -259,15 +266,19 @@ func TestUpgradeKeepsM1Revisions(t *testing.T) {
 				t.Errorf("RevisionsOf = %+v, %v", revs, err)
 			}
 			placed, err := tx.ListPlaced(ctx, "srv_A")
-			if err != nil || len(placed) != 1 || placed[0].ID != "res_1" {
+			if err != nil || len(placed) != 3 || placed[0].ID != "res_2" {
 				t.Errorf("ListPlaced = %+v, %v", placed, err)
 			}
-			deps, err := tx.Deployments(ctx, "res_1", 1)
-			if err != nil || len(deps) != 1 || deps[0].State != store.DeploymentLive {
-				t.Errorf("Deployments = %+v, %v", deps, err)
+			// Each deployment says how its change went.
+			for res, want := range map[string]string{"res_1": store.DeploymentLive, "res_2": store.DeploymentFailed, "res_3": store.DeploymentPending} {
+				deps, err := tx.Deployments(ctx, res, 1)
+				if err != nil || len(deps) != 1 || deps[0].State != want {
+					t.Errorf("Deployments of %s = %+v, %v; want one %s", res, deps, err, want)
+				}
 			}
 			c, err := tx.GetChange(ctx, "chg_1")
-			if err != nil || len(c.Items) != 2 || c.Items[1].Scope != "srv_A" || strings.Join(c.Items[1].Servers, " ") != "srv_A" {
+			if err != nil || len(c.Items) != 2 || c.Items[1].Scope != "srv_A" || strings.Join(c.Items[1].Servers, " ") != "srv_A" ||
+				c.Items[1].ResourceID != "res_1" || c.Items[0].ResourceID != "" {
 				t.Errorf("GetChange = %+v, %v", c, err)
 			}
 			return nil

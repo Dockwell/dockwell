@@ -51,7 +51,7 @@ func (m migration) sql(d *dialect) string {
 func loadMigrations() ([]migration, error) {
 	entries, err := fs.ReadDir(migrations, "migrations")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("can't list the migrations built into dockwell: %w", err)
 	}
 	byVersion := map[int]*migration{}
 	for _, e := range entries {
@@ -69,7 +69,7 @@ func loadMigrations() ([]migration, error) {
 		}
 		body, err := fs.ReadFile(migrations, path.Join("migrations", file))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("can't read migration %s: %w", file, err)
 		}
 		m := byVersion[v]
 		if m == nil {
@@ -129,11 +129,11 @@ func (db *DB) migrateTo(ctx context.Context, all []migration, target int) error 
 			version    INTEGER PRIMARY KEY,
 			applied_at INTEGER NOT NULL
 		)`)); err != nil {
-			return fmt.Errorf("can't prepare migrations: %w", err)
+			return fmt.Errorf("can't prepare migrations on %s: %w", d.backend, err)
 		}
 		var current int
 		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&current); err != nil {
-			return fmt.Errorf("can't read the schema version: %w", err)
+			return fmt.Errorf("can't read the schema version on %s: %w", d.backend, err)
 		}
 		if current > len(all) {
 			return fmt.Errorf("the database has schema version %d, newer than this dockwell knows (%d). "+
@@ -145,7 +145,7 @@ func (db *DB) migrateTo(ctx context.Context, all []migration, target int) error 
 			}
 			if _, err := tx.ExecContext(ctx, d.rebind(`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`),
 				m.version, millis(time.Now())); err != nil {
-				return err
+				return fmt.Errorf("migration %s ran on %s, but can't be recorded as done: %w", m.name, d.backend, err)
 			}
 		}
 		return nil

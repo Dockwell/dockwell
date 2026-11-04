@@ -261,6 +261,12 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 // install beside an existing one: a data directory whose key belongs to an
 // install must find that install's state, or agents enrolled with it
 // would no longer be recognized.
+//
+// The first start is all or nothing. Its key waits at NewSealKey until the
+// install is on record, and only then moves to SealKey. So a first start
+// that fails, such as with the database out of reach, leaves no key that
+// belongs to an install, and the next start carries on with the key it
+// left.
 func openState(ctx context.Context, logger *slog.Logger, dir datadir.Dir, location string) (*store.DB, *identity.Authority, *seal.Key, error) {
 	installed := exists(dir.SealKey())
 	postgres := store.IsPostgres(location)
@@ -273,7 +279,11 @@ func openState(ctx context.Context, logger *slog.Logger, dir datadir.Dir, locati
 			"If it keeps its state in Postgres, pass --database or set %s to its URL; otherwise restore %s from a backup",
 			location, envDatabase, filepath.Base(location))
 	}
-	key, err := seal.LoadOrCreate(dir.SealKey())
+	keyPath := dir.SealKey()
+	if !installed {
+		keyPath = dir.NewSealKey()
+	}
+	key, err := seal.LoadOrCreate(keyPath)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -287,14 +297,16 @@ func openState(ctx context.Context, logger *slog.Logger, dir datadir.Dir, locati
 		authority, err = identity.Open(ctx, db, key, logger)
 		if errors.Is(err, identity.ErrNoInstall) {
 			err = fmt.Errorf("%s holds no Dockwell install, but this data directory's key belongs to one. "+
-				"Point --database at that install's database. If this install never finished its first start, delete %s and start again",
-				db.Where(), dir.SealKey())
+				"Point --database or %s at that install's database", db.Where(), envDatabase)
 		}
 	} else {
 		authority, err = identity.Bootstrap(ctx, db, key, logger)
 	}
 	if err == nil {
 		_, err = revision.Setup(ctx, db, logger)
+	}
+	if err == nil && !installed {
+		err = seal.Commit(keyPath, dir.SealKey())
 	}
 	if err != nil {
 		_ = db.Close()

@@ -90,6 +90,19 @@ func TestRefusesNewerSchema(t *testing.T) {
 	})
 }
 
+// A migration that can't be recorded as done says which one, and on which
+// database.
+func TestAMigrationThatCantBeRecordedSaysWhich(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		location := storetest.New(t, b)
+		storetest.Exec(t, location, `CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at BIGINT NOT NULL, note TEXT NOT NULL)`)
+		_, err := store.Open(t.Context(), location)
+		if want := "migration 0001_init ran on " + string(b) + ", but can't be recorded as done"; err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("Open = %v, want an error saying %q", err, want)
+		}
+	})
+}
+
 func TestSettings(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		db, _ := storetest.Open(t, b)

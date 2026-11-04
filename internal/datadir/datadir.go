@@ -50,8 +50,13 @@ func (d Dir) Control() string { return filepath.Join(d.Root, "control") }
 // Agent is the agent's directory.
 func (d Dir) Agent() string { return filepath.Join(d.Root, "agent") }
 
-// SealKey is the key-encryption key.
+// SealKey is the key-encryption key. It is there once the install is.
 func (d Dir) SealKey() string { return filepath.Join(d.Control(), "key") }
+
+// NewSealKey is where the first start keeps the key it makes until the
+// install is on record, when the key moves to SealKey. A first start that
+// fails partway leaves it here, and the next start uses it.
+func (d Dir) NewSealKey() string { return filepath.Join(d.Control(), "key.new") }
 
 // StateDB is the control plane's database.
 func (d Dir) StateDB() string { return filepath.Join(d.Control(), "state.db") }

@@ -76,6 +76,9 @@ type Change struct {
 
 // ChangeItem is what a change asks of one resource.
 type ChangeItem struct {
+	// ResourceID names the resource, and is given to a new one when the
+	// change is planned, so another item can live in it.
+	ResourceID   string
 	Kind         string
 	Scope        string // the ID of what it lives in
 	Name         string
@@ -134,8 +137,8 @@ func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
 		return fmt.Errorf("can't record change %s: %w", c.ID, err)
 	}
 	for i, it := range c.Items {
-		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, kind, scope, name, base_revision, spec, servers)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
+		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
 			strings.Join(it.Servers, " ")); err != nil {
 			return fmt.Errorf("can't record change %s: %w", c.ID, err)
 		}
@@ -162,7 +165,7 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 	if applied.Valid {
 		c.AppliedAt = fromMillis(applied.Int64)
 	}
-	rows, err := t.query(ctx, `SELECT kind, scope, name, base_revision, spec, spec IS NULL, servers
+	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers
 		FROM change_items WHERE change_id = ? ORDER BY position`, changeID)
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
@@ -172,7 +175,7 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 		var it ChangeItem
 		var servers string
 		var deleted bool
-		if err := rows.Scan(&it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers); err != nil {
+		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers); err != nil {
 			return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
 		}
 		it.Spec = spec(it.Spec, deleted)

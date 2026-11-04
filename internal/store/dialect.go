@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"strconv"
 	"strings"
@@ -66,8 +67,10 @@ func postgresDialect(schema string) *dialect {
 		backend:     Postgres,
 		readOptions: &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true},
 		lockWrites: func(ctx context.Context, tx *sql.Tx) error {
-			_, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, key)
-			return err
+			if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, key); err != nil {
+				return fmt.Errorf("can't take the write lock on postgres: %w", err)
+			}
+			return nil
 		},
 		uniqueViolation: func(err error) bool {
 			var pg *pgconn.PgError
@@ -81,16 +84,18 @@ func postgresDialect(schema string) *dialect {
 
 func savepoint(ctx context.Context, tx *sql.Tx, fn func() error) error {
 	if _, err := tx.ExecContext(ctx, `SAVEPOINT dockwell_survive`); err != nil {
-		return err
+		return fmt.Errorf("can't set a savepoint on postgres: %w", err)
 	}
 	if err := fn(); err != nil {
 		if _, rerr := tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT dockwell_survive`); rerr != nil {
-			return errors.Join(err, rerr)
+			return errors.Join(err, fmt.Errorf("can't roll back to the savepoint on postgres, so the transaction can't go on: %w", rerr))
 		}
 		return err
 	}
-	_, err := tx.ExecContext(ctx, `RELEASE SAVEPOINT dockwell_survive`)
-	return err
+	if _, err := tx.ExecContext(ctx, `RELEASE SAVEPOINT dockwell_survive`); err != nil {
+		return fmt.Errorf("can't release the savepoint on postgres: %w", err)
+	}
+	return nil
 }
 
 var rebinds sync.Map // query → rebound query; queries are constants, so this stays small

@@ -17,7 +17,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -68,8 +67,8 @@ func (ProjectType) Validate(spec proto.Message) error {
 	return nil
 }
 
-// CheckName requires a name fit for URLs and the CLI.
-func (ProjectType) CheckName(name string) error { return checkName("project", name) }
+// CheckName requires a DNS label, fit for URLs and the CLI.
+func (ProjectType) CheckName(name string) error { return resource.CheckLabel("project", name, "shop") }
 
 // EnvironmentType is the environment kind. Environments live in a project.
 type EnvironmentType struct{}
@@ -93,16 +92,9 @@ func (EnvironmentType) Validate(spec proto.Message) error {
 	return nil
 }
 
-// CheckName requires a name fit for URLs and the CLI.
-func (EnvironmentType) CheckName(name string) error { return checkName("environment", name) }
-
-var nameRE = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
-
-func checkName(what, name string) error {
-	if !nameRE.MatchString(name) || strings.HasSuffix(name, "-") {
-		return fmt.Errorf("%q isn't a valid %s name: use lowercase letters, digits and dashes, starting with a letter, such as staging", name, what)
-	}
-	return nil
+// CheckName requires a DNS label, fit for URLs and the CLI.
+func (EnvironmentType) CheckName(name string) error {
+	return resource.CheckLabel("environment", name, "staging")
 }
 
 // Tree is the organization with its live projects and their environments.
@@ -254,22 +246,14 @@ func (t Tree) project(project string) (Project, error) {
 		case 0:
 			return Project{}, fmt.Errorf("the organization has no projects yet: %w", ErrNotFound)
 		}
-		opts := make([]string, len(t.Projects))
-		for i, p := range t.Projects {
-			opts[i] = p.Name
-		}
-		return Project{}, &ChoiceError{Level: ProjectKind, Options: opts}
+		return Project{}, &ChoiceError{Level: ProjectKind, Options: projectNames(t.Projects)}
 	}
 	for _, p := range t.Projects {
 		if p.ID == project || p.Name == project {
 			return p, nil
 		}
 	}
-	opts := make([]string, len(t.Projects))
-	for i, p := range t.Projects {
-		opts[i] = p.Name
-	}
-	return Project{}, fmt.Errorf("there's no project %s. The projects are %s: %w", project, and(opts), ErrNotFound)
+	return Project{}, fmt.Errorf("there's no project %s. The projects are %s: %w", project, and(projectNames(t.Projects)), ErrNotFound)
 }
 
 func inProject(project string) string {
@@ -283,6 +267,14 @@ func names(envs []Environment) []string {
 	out := make([]string, len(envs))
 	for i, e := range envs {
 		out[i] = e.Name
+	}
+	return out
+}
+
+func projectNames(projects []Project) []string {
+	out := make([]string, len(projects))
+	for i, p := range projects {
+		out[i] = p.Name
 	}
 	return out
 }

@@ -54,8 +54,8 @@ func Setup(ctx context.Context, db *store.DB, logger *slog.Logger) (bool, error)
 		}
 		for i := range revs {
 			r := &revs[i]
-			items[i] = item{ref: resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}, encoded: r.Spec}
-			c.Items = append(c.Items, store.ChangeItem{Kind: r.Kind, Scope: r.Scope, Name: r.Name, Spec: r.Spec})
+			items[i] = item{ref: resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}, id: r.ID, encoded: r.Spec}
+			c.Items = append(c.Items, store.ChangeItem{ResourceID: r.ID, Kind: r.Kind, Scope: r.Scope, Name: r.Name, Spec: r.Spec})
 		}
 		// The plan is what Propose would make: two revisions, no steps.
 		plan, err := (&Engine{}).plan(ctx, items)

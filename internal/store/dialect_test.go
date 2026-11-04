@@ -125,3 +125,17 @@ func TestWritesQueueAcrossConnections(t *testing.T) {
 		})
 	})
 }
+
+// On Postgres an insert that may conflict runs under a savepoint. When the
+// savepoint itself fails, the error says so.
+func TestASavepointThatFailsSaysSo(t *testing.T) {
+	db, _ := storetest.Open(t, store.Postgres)
+	ctx, cancel := context.WithCancel(t.Context())
+	err := db.Update(ctx, func(tx *store.Tx) error {
+		cancel()
+		return tx.CreateServer(ctx, store.Server{ID: "srv_A", Name: "hz-1", CreatedAt: time.Now(), CertSerial: "1", CertNotAfter: time.Now()})
+	})
+	if err == nil || !strings.Contains(err.Error(), "can't set a savepoint on postgres") {
+		t.Fatalf("an insert whose savepoint fails = %v, want an error naming the savepoint", err)
+	}
+}

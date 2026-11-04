@@ -14,6 +14,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -150,6 +151,29 @@ type Type interface {
 // "env" for environments. Others get "res".
 type IDPrefixer interface {
 	IDPrefix() string
+}
+
+// NameChecker is a Type that takes only some names, such as names that fit
+// in a URL. Kinds without one take any name that isn't blank.
+type NameChecker interface {
+	// CheckName says why a name won't do, with an example of one that
+	// would.
+	CheckName(name string) error
+}
+
+var labelRE = regexp.MustCompile(`^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`)
+
+// CheckLabel requires a name that is a DNS label, so it fits in URLs, in
+// hostnames such as a service's URL, and on the command line: 1 to 63
+// lowercase letters, digits and dashes, starting with a letter and ending
+// with a letter or digit. Projects, environments and services take such
+// names. what names the kind, and example is a name that would do.
+func CheckLabel(what, name, example string) error {
+	if !labelRE.MatchString(name) {
+		return fmt.Errorf("%q isn't a valid %s name: use up to 63 lowercase letters, digits and dashes, starting with a letter and ending with a letter or digit, such as %s",
+			name, what, example)
+	}
+	return nil
 }
 
 // Driver manages one kind of resource on a server. Drivers run where the

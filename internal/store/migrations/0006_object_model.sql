@@ -51,6 +51,7 @@ CREATE TABLE revisions (
 CREATE TABLE change_items (
   change_id     TEXT NOT NULL REFERENCES changes (id),
   position      INTEGER NOT NULL,
+  resource_id   TEXT NOT NULL,            -- given when the change is planned, so another item can live in a new one
   kind          TEXT NOT NULL,
   scope         TEXT NOT NULL,
   name          TEXT NOT NULL,
@@ -84,12 +85,21 @@ INSERT INTO revisions (resource_id, number, spec, change_id, position, created_a
       WHERE ci.change_id = v.change_id AND ci.kind = r.kind AND ci.server_id = r.server_id AND ci.name = r.name), 0),
     v.created_at
   FROM m1_revisions v;
-INSERT INTO change_items (change_id, position, kind, scope, name, base_revision, spec, servers)
-  SELECT change_id, position, kind, server_id, name, base_revision, spec, server_id FROM m1_change_items;
+-- M1 gave a resource its ID when it was applied, so an item that made one
+-- has its ID, and one still planned has none.
+INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers)
+  SELECT ci.change_id, ci.position,
+    COALESCE((SELECT r.id FROM m1_resources r WHERE r.kind = ci.kind AND r.server_id = ci.server_id AND r.name = ci.name), ''),
+    ci.kind, ci.server_id, ci.name, ci.base_revision, ci.spec, ci.server_id
+  FROM m1_change_items ci;
 -- In M1 a resource was on its server; the latest revision of each one that
--- isn't deleted is what runs there.
+-- isn't deleted is what runs there. Its change says how that went: applied
+-- is live, failed is failed, and applying is still pending. A change only
+-- has revisions once it is applying, so none is planned.
 INSERT INTO deployments (resource_id, revision, server_id, state, created_at, updated_at)
-  SELECT r.id, r.revision, r.server_id, CASE c.state WHEN 'applied' THEN 'live' ELSE 'pending' END, v.created_at, v.created_at
+  SELECT r.id, r.revision, r.server_id,
+    CASE c.state WHEN 'applied' THEN 'live' WHEN 'failed' THEN 'failed' ELSE 'pending' END,
+    v.created_at, v.created_at
   FROM m1_resources r
   JOIN m1_revisions v ON v.resource_id = r.id AND v.number = r.revision
   JOIN changes c ON c.id = v.change_id

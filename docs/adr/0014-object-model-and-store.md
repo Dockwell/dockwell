@@ -49,10 +49,12 @@ Each kind has a level, which says what its resources live in. `resources.scope` 
 - **Projects and environments are kinds, not tables of their own.** Making, renaming or deleting an environment is a change with a plan, shows in the timeline, and undoes in one action, as principle 2 asks. #22's rule that every mutating command shows a plan then holds without exception. Their plans have revisions and no steps, like adopting drift.
 - **The organization is a table.** It is the identity, billing and policy boundary, and one per install until federation. Its policies will be kinds at the organization level.
 - **Today's server-scoped kinds stay host-level.** The PRD keeps machine-level things, such as files, the firewall and packages, on the server's own page, and a container run by hand belongs there too. An app in an environment is a service.
-- **For now, a service is an app from an image.** The agent runs it as one container on each server it is placed on, named `<name>.<environment ID>`. Two environments' services of one name can then share a server. #26 replaces this runtime with Docker and Compose, behind the same kind.
+- **For now, a service is an app from an image.** The agent runs it as one container on each server it is placed on, named `<name>.<environment ID>`, such as `web.env_01K…`. Two environments' services of one name can then share a server. A container run by hand can't take a name with `.env_` in it, so neither ever manages the other's. #26 replaces this runtime with Docker and Compose, behind the same kind.
 - **The scope has no foreign key**, because it may be in one of three tables. The revision store checks it when a change is proposed, and again in the transaction that applies it: the scope must exist, be live, and be what the kind's level lives in.
-- **A scope goes only once it is empty.** What lives in it is deleted first, or in the same change. A project keeps at least one environment, and the organization at least one project, so "the only one" always exists.
-- **Names of projects and environments are lowercase slugs**, for URLs and the CLI. A spec's `display_name` is what the panel shows.
+- **A change is checked as a whole:** what is stored, plus what the change makes and deletes. A scope the change makes is there for what it makes inside it, and one it deletes is gone. So one change can bring back a project with its environments, as undoing its deletion does, and no change can delete an environment while it makes or edits a service in it.
+- **A scope goes only once it is empty.** What lives in it is deleted first, or in the same change. A project keeps at least one environment, and the organization at least one project, so "the only one" always exists. A successor made in the same change counts, so the last one can be replaced in one change.
+- **A project never exists without an environment.** A resource gets its ID when its change is proposed, not when it applies, so another item in the change can live in it. A change that brings a project to life also makes its first environment: `production`, as the install's first project has, unless the change makes one in it. A project made again continues its history, and so does its `production`. Undo and rollback keep the rule: undoing a project's creation deletes its environment with it, and undoing its deletion brings back the environments deleted with it. The other way was to require the first environment in the same change. That would make every caller name one, while principle 4 asks that a new project look like the default one until there's a choice.
+- **Names of projects, environments and services are DNS labels**: 1 to 63 lowercase letters, digits and dashes, starting with a letter and ending with a letter or digit, such as `api-v2`. They go in URLs, in a service's hostname and container name, and on the command line, so a name that would fail on a server is refused when it is proposed. A spec's `display_name` is what the panel shows.
 
 ### Placement and deployments
 
@@ -68,9 +70,14 @@ A deployment is a revision placed on a server.
 - A new service runs on the only server.
 - Once there are two, a new service must name where it runs, which is the CLI's `--on`.
 
+**A removed server takes no steps.** Once a server is revoked, nothing runs there, so the revision store treats it as gone:
+- Moving a service off it, or deleting a resource from it, plans no step there. The plan lists it as removed, and its deployments there are superseded at once. Waiting for the server instead would wait forever, since a removed server never reconnects.
+- Nothing is placed on it. Naming it is refused, and an edit that names no servers keeps a service on its servers still in the fleet. One that ran only on removed servers is placed like a new one.
+- Undo and rollback follow the same rules. They put a spec back on the servers still in the fleet, and are refused when none of them is. A rollback, or a change left applying, stops waiting for a server once it is removed.
+
 **A deployment's revision and server never change; its rollout state moves on.**
 - *Pending* when the change commits.
-- *Live* or *failed* as its step completes. A deployment with nothing to do is live at once.
+- *Live* or *failed* as its step completes. A deployment with nothing to do is live at once, and one whose server is removed before it gets there is failed.
 - *Superseded* once a later revision is live on that server, or a deletion takes the resource off it.
 
 Health comes with #28. Drift, and later the agent's cache of desired state (#32), read the latest revision deployed on each server.
@@ -116,7 +123,7 @@ The API always returns scope IDs, because principle 1 makes the API the whole mo
 - Each version is one portable file. Its column types `INTEGER`, `BLOB` and `TEXT` become `BIGINT`, `BYTEA` and `TEXT COLLATE "C"` on Postgres, and blob literals become bytea ones.
 - The "C" collation compares bytes, as SQLite does, so `ORDER BY` and `UNIQUE` agree on both.
 - What can't be said once goes in a pair of files, `NNNN_name.sqlite.sql` and `NNNN_name.postgres.sql`, run after the portable part. The loader refuses one without the other. Migration 0006's triggers are the first pair.
-- Migration 0006 also rebuilds M1's revision tables with scopes. Only tests ever wrote them, but it copies their rows.
+- Migration 0006 also rebuilds M1's revision tables with scopes. Only tests ever wrote them, but it copies their rows. The latest revision of each M1 resource becomes a deployment on its server, live if its change applied, failed if it failed, and pending if it was still applying.
 
 **Transactions keep SQLite's semantics on both.**
 - **Writes take turns.** On SQLite, one writing connection begins `IMMEDIATE`. On Postgres, each process also has one writing connection, and every write begins with `pg_advisory_xact_lock` on a key for the schema, so writers in other processes and replicas queue too. Writes run at `READ COMMITTED`, so each statement sees what the writer before committed. With the lock taken first, that is what `IMMEDIATE` gives.
@@ -128,6 +135,7 @@ ADR 0004 says not to rely on advisory locks in the default mode. Nothing does: t
 **Configuration.** `dockwell run --database`, or `DOCKWELL_DATABASE`, takes a `postgres://` URL. Unset, the state stays in SQLite in the data directory. Commands beside the control plane take the same setting.
 - **The password stays secret.** Messages and logs show the URL through `store.Redact`. The flag's default isn't the variable, so help never prints it, and errors name the setting, not its value. The install guide recommends `.pgpass` or a root-only `EnvironmentFile`, since a unit file can be read by anyone on the server.
 - **A second install never starts by accident.** `dockwell run` refuses Postgres when the data directory already has SQLite state, since moving between them isn't supported yet. Once the data directory's key belongs to an install, it also refuses to start a new one on an empty database or without its `state.db`. The control role now follows the key, which every control plane has, not `state.db`.
+- **The first start is all or nothing.** Its key waits as `control/key.new` until the install and its defaults are on record, then takes its place as `control/key`. So a first start that fails, such as with Postgres out of reach, leaves no key that claims an install, and the next start carries on with the key it left. A start that stopped after the install was on record but before the move finds that install and finishes it.
 
 **Tests run on both.**
 - `storetest.Each` runs a test once on each database: the store's, the revision store's, sign-in, identity, the control server's sign-in, and `dockwell run`'s.
@@ -136,10 +144,10 @@ ADR 0004 says not to rely on advisory locks in the default mode. Nothing does: t
 
 ## Consequences
 
-- **#20 builds on the engine as it stands:** `Propose`, `Apply`, `Undo` and the per-server plan. Deployments are what apply's progress reports on, and `Edit.Servers` is where a request places a service. `scope.Tree.Resolve` fills in a request's scope, and a `ChoiceError` becomes the CLI's prompt.
+- **#20 builds on the engine as it stands:** `Propose`, `Apply`, `Undo` and the per-server plan. Deployments are what apply's progress reports on, and `Edit.Servers` is where a request places a service. A plan's servers can include removed ones, with no steps, for the plan sheet to show as removed. `scope.Tree.Resolve` fills in a request's scope, and a `ChoiceError` becomes the CLI's prompt.
 - **Every new kind declares its level.** Machine-level kinds are host-level; anything that belongs to an app is environment-level, placed on servers, and gets deployments.
 - **Projects and environments need no API of their own to follow the model.** Their API is the resource API that #20 and #23 expose, with `Shown` and `Resolve` beside it.
 - **Moving an install from SQLite to Postgres needs a copy tool.** ADR 0004 promises it as "a migration of its store", not of the product. Until it exists, `dockwell run` refuses the switch.
 - **Each piece of SQL now has two databases to satisfy.** CI catches what doesn't. Something only one of them can express costs a pair of dialect files.
 - **The binary grows with pgx,** by about 6 MB. Its package setup runs in every process, the agent's too, so an idle agent uses about 1.6 MB more, still well within its 40 MB budget.
-- **Service containers are named by a prototype rule.** #26 replaces it with Compose's labels, so plain `docker compose` sees them.
+- **Service containers are named by a prototype rule.** #26 replaces it with Compose's labels, so plain `docker compose` sees them, and the `.env_` names kept for services are free again.
