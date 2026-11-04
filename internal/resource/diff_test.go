@@ -73,24 +73,39 @@ func TestDiffSeesThroughAmbiguousLists(t *testing.T) {
 }
 
 // A path names a sensitive field when any field along it is one, and a
-// path the message doesn't have counts as sensitive.
+// path the message doesn't have counts as sensitive. A map's key is a key,
+// whatever it holds, such as the dots of a label like traefik.enable.
 func TestSensitivePath(t *testing.T) {
 	service := (&resourcev1.Service{}).ProtoReflect().Descriptor()
 	container := (&resourcev1.Container{}).ProtoReflect().Descriptor()
 	for path, want := range map[string]bool{
-		"app.env[API_KEY]":         true,
-		"app.image":                false,
-		"app.ports[0].host_port":   false,
-		"secrets[DATABASE_URL]":    false,
-		"revisions[DATABASE_URL]":  false,
-		"app.nonsense":             true,
-		"app.ports[0].host_port.x": true,
+		"app.env[API_KEY]":                          true,
+		"app.env[api.key]":                          true,
+		"app.env[a]b.c]":                            true,
+		"app.image":                                 false,
+		"app.ports[0].host_port":                    false,
+		"app.ports[12].container_port":              false,
+		"app.command[1]":                            false,
+		"app.labels[traefik.enable]":                false,
+		"app.labels[traefik.http.routers.web.rule]": false,
+		"app.labels[odd]key.with[brackets]":         false,
+		"secrets[DATABASE_URL]":                     false,
+		"revisions[DATABASE_URL]":                   false,
+		"app.nonsense":                              true,
+		"app.ports[0].host_port.x":                  true,
+		"app.ports[x].host_port":                    true,
+		"app.ports[0]x":                             true,
+		"app.image[0]":                              true,
+		"app.labels":                                false,
+		"app.":                                      true,
+		"":                                          true,
 	} {
 		if got := resource.SensitivePath(service, path); got != want {
 			t.Errorf("resource.SensitivePath(Service, %q) = %v, want %v", path, got, want)
 		}
 	}
-	if !resource.SensitivePath(container, "env[API_KEY]") || resource.SensitivePath(container, "image") {
+	if !resource.SensitivePath(container, "env[API_KEY]") || resource.SensitivePath(container, "image") ||
+		resource.SensitivePath(container, "labels[com.example.team]") {
 		t.Error("SensitivePath misreads a container's paths")
 	}
 	if !resource.SensitivePath((&resourcev1.Secret{}).ProtoReflect().Descriptor(), "value") {

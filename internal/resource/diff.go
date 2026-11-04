@@ -198,29 +198,87 @@ func (d *differ) mapField(path string, fd protoreflect.FieldDescriptor, a, b pro
 
 // SensitivePath reports whether the field a change's path names, such as
 // "env[API_KEY]" or "app.env[API_KEY]", is sensitive or lies within a
-// sensitive field of md, as Diff marks it. A path md doesn't have is
+// sensitive field of md, as Diff marks it. It reads paths as Diff writes
+// them: field names joined by dots, a list's index in brackets, and a map's
+// key in brackets, which may hold dots and brackets of its own, as the
+// label traefik.http.routers.web.rule does. A path md doesn't have is
 // sensitive, as nothing can show it's safe. The control plane masks what
 // agents report by it, rather than by what they say.
 func SensitivePath(md protoreflect.MessageDescriptor, path string) bool {
-	for part := range strings.SplitSeq(path, ".") {
-		name, _, _ := strings.Cut(part, "[")
-		if md == nil {
+	rest := path
+	for {
+		name := rest
+		if i := strings.IndexAny(rest, ".["); i >= 0 {
+			name = rest[:i]
+		}
+		rest = rest[len(name):]
+		if md == nil || name == "" {
 			return true
 		}
 		fd := md.Fields().ByName(protoreflect.Name(name))
-		if fd == nil {
+		if fd == nil || IsSensitive(fd) {
 			return true
 		}
-		if IsSensitive(fd) {
+		if rest == "" {
+			return false // the field as a whole
+		}
+		var ok bool
+		switch {
+		case fd.IsMap():
+			if fd.MapValue().Message() == nil {
+				// A scalar's key runs to the end of the path, whatever it
+				// holds.
+				return rest[0] != '[' || !strings.HasSuffix(rest, "]")
+			}
+			md = fd.MapValue().Message()
+			rest, ok = mapEntryPath(rest)
+		case fd.IsList():
+			if fd.Message() == nil {
+				after, ok := listElementPath(rest)
+				return !ok || after != "" // a scalar element has no fields
+			}
+			md = fd.Message()
+			rest, ok = listElementPath(rest)
+		default:
+			md = fd.Message()
+			rest, ok = strings.CutPrefix(rest, ".")
+			ok = ok && rest != ""
+		}
+		if !ok {
 			return true
 		}
-		value := fd
-		if fd.IsMap() {
-			value = fd.MapValue()
+		if rest == "" {
+			return false // a list's element, or a map's entry, as a whole
 		}
-		md = value.Message()
 	}
-	return false
+}
+
+// listElementPath reads "[3]" or "[3].field" off a path: what follows the
+// index, past its dot.
+func listElementPath(rest string) (string, bool) {
+	inner, after, ok := strings.Cut(strings.TrimPrefix(rest, "["), "]")
+	if !ok || !strings.HasPrefix(rest, "[") || inner == "" || strings.Trim(inner, "0123456789") != "" {
+		return "", false
+	}
+	if after == "" {
+		return "", true
+	}
+	field, ok := strings.CutPrefix(after, ".")
+	return field, ok && field != ""
+}
+
+// mapEntryPath reads "[key]" or "[key].field" off a path, for a map whose
+// values are messages: what follows the key, past its dot. A key holding
+// "]." is read as ending there; what follows then doesn't name a field,
+// and the path counts as sensitive.
+func mapEntryPath(rest string) (string, bool) {
+	if !strings.HasPrefix(rest, "[") {
+		return "", false
+	}
+	if _, after, ok := strings.Cut(rest, "]."); ok {
+		return after, after != ""
+	}
+	return "", strings.HasSuffix(rest, "]")
 }
 
 // Sensitive reports whether a spec's message type has a field that may hold
