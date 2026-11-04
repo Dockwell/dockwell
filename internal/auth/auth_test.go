@@ -41,8 +41,27 @@ type fixture struct {
 	db     *store.DB
 	key    *seal.Key
 	clock  *clock
-	path   string // the database file
+	logs   *logBuffer // what every Service of the fixture logged
+	path   string     // the database file
 	domain string
+}
+
+// logBuffer collects log lines from any goroutine.
+type logBuffer struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (l *logBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *logBuffer) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
 }
 
 func newFixture(t *testing.T, domain string) *fixture {
@@ -60,7 +79,7 @@ func newFixture(t *testing.T, domain string) *fixture {
 	t.Cleanup(func() { _ = db.Close() })
 	// Mid-step, so ±1 step tests aren't at a boundary.
 	c := &clock{t: time.Date(2026, 11, 4, 9, 30, 15, 0, time.UTC)}
-	f := &fixture{db: db, key: key, clock: c, path: path, domain: domain}
+	f := &fixture{db: db, key: key, clock: c, logs: &logBuffer{}, path: path, domain: domain}
 	f.svc = f.restart(t)
 	return f
 }
@@ -72,7 +91,7 @@ func (f *fixture) restart(t *testing.T) *Service {
 	svc, err := New(Config{
 		DB:         f.db,
 		Key:        f.key,
-		Logger:     slog.New(slog.DiscardHandler),
+		Logger:     slog.New(slog.NewTextHandler(f.logs, nil)),
 		Sites:      Sites{Domain: f.domain},
 		ServerName: func() string { return "hz-1" },
 		Now:        f.clock.now,
@@ -288,6 +307,46 @@ func TestClaimLinkRejections(t *testing.T) {
 	if _, err := f.svc.BeginClaim(t.Context(), localhost, link.Token, "Mira", "mira@acme.dev"); !errors.Is(err, ErrClaimLinkRejected) {
 		t.Errorf("an expired link: BeginClaim = %v, want ErrClaimLinkRejected", err)
 	}
+}
+
+// A claim whose passkey fails verification logs go-webauthn's reason, as
+// adding a passkey does, and tells the browser only that it was refused.
+func TestARefusedClaimPasskeyIsLogged(t *testing.T) {
+	f := newFixture(t, "")
+	link, err := f.svc.CreateClaimLink(t.Context(), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cer, err := f.svc.BeginClaim(t.Context(), localhost, link.Token, "Mira Chen", "mira@acme.dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cred, _, err := (&authtest.Authenticator{}).Create(string(cer.Options), "http://localhost:7700")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.svc.FinishClaim(t.Context(), localhost, cer.ID, link.Token, []byte(cred), "")
+	if !errors.Is(err, ErrPasskeyRejected) {
+		t.Fatalf("a passkey made for another origin = %v, want ErrPasskeyRejected", err)
+	}
+	logs := f.logs.String()
+	if !strings.Contains(logs, "refused the passkey of a claim") || !strings.Contains(logs, "from=127.0.0.1:50000") ||
+		!strings.Contains(logs, protocolDetailOf(t, err)) {
+		t.Errorf("the refusal isn't logged with its reason, %q:\n%s", protocolDetailOf(t, err), logs)
+	}
+	if claimed, _ := f.svc.Claimed(t.Context()); claimed {
+		t.Error("a refused passkey claimed the install")
+	}
+}
+
+// protocolDetailOf is the detail err adds to ErrPasskeyRejected.
+func protocolDetailOf(t *testing.T, err error) string {
+	t.Helper()
+	detail := strings.TrimPrefix(err.Error(), ErrPasskeyRejected.Error()+": ")
+	if detail == "" || detail == err.Error() {
+		t.Fatalf("%v carries no detail", err)
+	}
+	return detail
 }
 
 func TestClaimExpiresBetweenBeginAndFinish(t *testing.T) {

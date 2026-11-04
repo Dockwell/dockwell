@@ -245,6 +245,9 @@ func (s *Service) FinishClaim(ctx context.Context, client Client, ceremonyID, to
 	}
 	cred, err := s.verifyNewPasskey(client.Site, &waUser{user: cer.user}, cer.session, credential)
 	if err != nil {
+		// The detail is for the server's log only: the API answers with
+		// ErrPasskeyRejected's own message.
+		s.logger.InfoContext(ctx, "refused the passkey of a claim", slog.String("from", client.Addr), slog.Any("error", err))
 		return SignedIn{}, err
 	}
 	var signedIn SignedIn
@@ -345,8 +348,9 @@ func (s *Service) verifyNewPasskey(site Site, user *waUser, session webauthn.Ses
 	return cred, nil
 }
 
-// protocolDetail extracts go-webauthn's description of what failed, for logs
-// and for the person whose browser sent it.
+// protocolDetail extracts go-webauthn's description of what failed, for the
+// server's log. The API never sends it: callers answer with
+// ErrPasskeyRejected's own message.
 func protocolDetail(err error) string {
 	var perr *protocol.Error
 	if errors.As(err, &perr) && perr.Details != "" {
