@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"slices"
@@ -217,7 +218,20 @@ type Plan struct {
 	// environment.
 	Revisions   int
 	Fingerprint string
+	// plain is the fingerprint as an earlier version made it, hashing
+	// every spec as it is, for a change it planned (fingerprintPlain).
+	plain string
 }
+
+// How a change's fingerprint is made, as its record says (ADR 0022).
+const (
+	// fingerprintPlain hashed every spec as it is, before ADR 0022. A
+	// change planned then is checked against plain.
+	fingerprintPlain = 1
+	// fingerprintKeyed digests the spec of a kind that may hold secrets
+	// with a key derived from the install's key.
+	fingerprintKeyed = 2
+)
 
 // ResourcePlan is what a plan does to one resource as a whole.
 type ResourcePlan struct {
@@ -467,6 +481,7 @@ func (e *Engine) decode(ctx context.Context, tx *store.Tx, resourceID string, ki
 // recordPlanned puts a planned change on record, with its items, and
 // audits it.
 func (e *Engine) recordPlanned(ctx context.Context, tx *store.RevisionTx, c store.Change, items []item) error {
+	c.FingerprintScheme = fingerprintKeyed
 	var err error
 	if c.Items, err = e.changeItems(ctx, tx.Tx, items); err != nil {
 		return err
@@ -936,13 +951,21 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 	ref := func(r resource.Ref) string { return fmt.Sprintf("%s|%s|%s", r.Kind, stable(r.Scope), r.Name) }
 
 	plan := &Plan{}
-	fp := sha256.New()
+	// fp is the fingerprint, and plain the one an earlier version would
+	// have made, which differ only in how they digest a spec.
+	keyed, plain := sha256.New(), sha256.New()
+	fp := io.MultiWriter(keyed, plain)
 	for i := range items {
 		it := &items[i]
 		if it.changes() {
 			plan.Revisions++
 		}
-		fmt.Fprintf(fp, "item %s|%s|%d|%t|%x|%s\n", stable(it.id), ref(it.ref), it.base, it.spec != nil, e.digest(it), strings.Join(it.servers, " "))
+		item := func(digest []byte) string {
+			return fmt.Sprintf("item %s|%s|%d|%t|%x|%s\n", stable(it.id), ref(it.ref), it.base, it.spec != nil, digest, strings.Join(it.servers, " "))
+		}
+		sum := sha256.Sum256(it.encoded)
+		_, _ = io.WriteString(keyed, item(e.digest(it)))
+		_, _ = io.WriteString(plain, item(sum[:]))
 	}
 	actions := map[string][]resource.Action{} // each item's steps, on every server
 	access := map[string][]resource.Access{}  // what each item gains on its servers
@@ -1028,7 +1051,8 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 		rp.HostAccess = access[items[i].id]
 		plan.Resources = append(plan.Resources, rp)
 	}
-	plan.Fingerprint = hex.EncodeToString(fp.Sum(nil)[:16])
+	plan.Fingerprint = hex.EncodeToString(keyed.Sum(nil)[:16])
+	plan.plain = hex.EncodeToString(plain.Sum(nil)[:16])
 	return plan, nil
 }
 
@@ -1668,7 +1692,13 @@ func holds(ctx context.Context, tx *store.Tx, c store.Change, plan *Plan) error 
 			return fault.New(ErrOffline, "%s isn't connected, so %s can't apply. Apply it again once %s's agent reconnects", s.Name, c.ID, s.Name)
 		}
 	}
-	if plan.Fingerprint != c.Fingerprint {
+	switch {
+	case c.FingerprintScheme < fingerprintKeyed && plan.plain == c.Fingerprint:
+		// Planned before the upgrade, and still the plan reviewed.
+	case c.FingerprintScheme < fingerprintKeyed:
+		return fault.New(ErrPlanChanged, "%s was planned by an earlier version of Dockwell, and its plan no longer matches what applying it would do now, "+
+			"as the servers or how Dockwell plans changed since. Propose the change again and review the new plan", c.ID)
+	case plan.Fingerprint != c.Fingerprint:
 		return fault.New(ErrPlanChanged, "the servers changed since %s was planned, so its plan no longer matches them. "+
 			"Propose the change again and review what changed", c.ID)
 	}

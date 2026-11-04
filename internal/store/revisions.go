@@ -68,10 +68,14 @@ type Change struct {
 	State       string
 	Reverts     string // the change this undoes or rolls back, if any
 	Fingerprint string
-	Plan        []byte
-	Error       string
-	CreatedAt   time.Time
-	AppliedAt   time.Time // zero until applied
+	// FingerprintScheme says how Fingerprint was made, as the revision
+	// store numbers its schemes. A change recorded before schemes were
+	// recorded has 1.
+	FingerprintScheme int
+	Plan              []byte
+	Error             string
+	CreatedAt         time.Time
+	AppliedAt         time.Time // zero until applied
 	// ProposedVia is the surface it was proposed from, such as "panel".
 	ProposedVia string
 	// AppliedBy and AppliedVia are who applied it and from where; empty
@@ -143,9 +147,13 @@ type Deployment struct {
 
 // CreateChange records a planned change and its items.
 func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
-	_, err := t.exec(ctx, `INSERT INTO changes (id, summary, actor, state, reverts, fingerprint, plan, created_at, proposed_via)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		c.ID, c.Summary, c.Actor, c.State, nullString(c.Reverts), c.Fingerprint, c.Plan, millis(c.CreatedAt), c.ProposedVia)
+	scheme := c.FingerprintScheme
+	if scheme == 0 {
+		scheme = 1
+	}
+	_, err := t.exec(ctx, `INSERT INTO changes (id, summary, actor, state, reverts, fingerprint, fingerprint_scheme, plan, created_at, proposed_via)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.ID, c.Summary, c.Actor, c.State, nullString(c.Reverts), c.Fingerprint, scheme, c.Plan, millis(c.CreatedAt), c.ProposedVia)
 	if err != nil {
 		return fmt.Errorf("can't record change %s: %w", c.ID, err)
 	}
@@ -164,7 +172,7 @@ func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
 	return nil
 }
 
-const changeColumns = `id, summary, actor, state, reverts, fingerprint, plan, error, created_at, applied_at,
+const changeColumns = `id, summary, actor, state, reverts, fingerprint, fingerprint_scheme, plan, error, created_at, applied_at,
 	proposed_via, applied_by, applied_via, progress`
 
 func scanChange(row interface{ Scan(...any) error }) (Change, error) {
@@ -172,7 +180,7 @@ func scanChange(row interface{ Scan(...any) error }) (Change, error) {
 	var reverts, errText, appliedBy, appliedVia sql.NullString
 	var created int64
 	var applied sql.NullInt64
-	err := row.Scan(&c.ID, &c.Summary, &c.Actor, &c.State, &reverts, &c.Fingerprint, &c.Plan, &errText, &created, &applied,
+	err := row.Scan(&c.ID, &c.Summary, &c.Actor, &c.State, &reverts, &c.Fingerprint, &c.FingerprintScheme, &c.Plan, &errText, &created, &applied,
 		&c.ProposedVia, &appliedBy, &appliedVia, &c.Progress)
 	c.Reverts, c.Error, c.CreatedAt = reverts.String, errText.String, fromMillis(created)
 	c.AppliedBy, c.AppliedVia = appliedBy.String, appliedVia.String

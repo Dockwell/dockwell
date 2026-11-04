@@ -5,6 +5,7 @@ package revision
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/container/containertest"
@@ -323,6 +325,66 @@ func testApplyRefusesWhenTheServerMovedSinceThePlan(t *testing.T, backend store.
 	f["srv_A"].docker.Edit("web", func(c *resourcev1.Container) { c.Image = "nginx:1.26" })
 	if err := e.Apply(t.Context(), p.Change); !errors.Is(err, ErrPlanChanged) {
 		t.Errorf("applying after the server changed = %v, want ErrPlanChanged", err)
+	}
+}
+
+// A change planned before ADR 0022 has a fingerprint that hashed every
+// spec as it is, a container's environment included, and applying it now
+// digests such specs with a key. It still applies while its plan is the one
+// reviewed, read as it was fingerprinted then; one whose plan moved says it
+// was planned by an earlier version, rather than that the servers changed.
+func TestAChangePlannedBeforeTheUpgradeStillApplies(t *testing.T) {
+	storetest.Each(t, testAChangePlannedBeforeTheUpgradeStillApplies)
+}
+
+func testAChangePlannedBeforeTheUpgradeStillApplies(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A")
+	apply(t, e, propose(t, e, "Run web", web("nginx:1.27")))
+	// plannedBefore records a planned change as an earlier version did: its
+	// fingerprint hashes specs as they are, and its items aren't sealed.
+	plannedBefore := func(summary string, edits ...Edit) string {
+		t.Helper()
+		items, err := e.items(t.Context(), edits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := e.plan(t.Context(), items, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if plan.plain == plan.Fingerprint {
+			t.Fatal("the plain fingerprint is the keyed one; the test plans nothing that is sealed")
+		}
+		c := store.Change{
+			ID: id.New(id.Change), Summary: summary, Actor: "usr_test", State: store.ChangePlanned, Fingerprint: plan.plain,
+			FingerprintScheme: fingerprintPlain, CreatedAt: time.Now(), ProposedVia: ViaPanel, Servers: serversOf(plan),
+		}
+		plan.Change, plan.Summary = c.ID, summary
+		if c.Plan, err = json.Marshal(plan); err != nil {
+			t.Fatal(err)
+		}
+		for _, it := range items {
+			c.Items = append(c.Items, store.ChangeItem{
+				ResourceID: it.id, Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, BaseRevision: it.base, Spec: it.encoded, Servers: it.servers,
+			})
+		}
+		if err := db.Revise(t.Context(), func(tx *store.RevisionTx) error { return tx.CreateChange(t.Context(), c) }); err != nil {
+			t.Fatal(err)
+		}
+		return c.ID
+	}
+
+	held := plannedBefore("Upgrade web", web("nginx:1.28"))
+	if err := e.Apply(t.Context(), held); err != nil {
+		t.Errorf("applying a change planned before the upgrade, whose plan holds = %v, want it applied", err)
+	}
+
+	moved := plannedBefore("Upgrade web again", web("nginx:1.29"))
+	f["srv_A"].docker.Edit("web", func(c *resourcev1.Container) { c.Image = "nginx:1.26" })
+	err := e.Apply(t.Context(), moved)
+	if !errors.Is(err, ErrPlanChanged) || !strings.Contains(err.Error(), "was planned by an earlier version of Dockwell") ||
+		strings.Contains(err.Error(), "the servers changed since") {
+		t.Errorf("applying a change planned before the upgrade, whose plan moved = %v, want ErrPlanChanged saying it was planned before", err)
 	}
 }
 

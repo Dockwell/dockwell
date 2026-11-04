@@ -69,7 +69,7 @@ func Setup(ctx context.Context, db *store.DB, logger *slog.Logger) (bool, error)
 		if c.Plan, err = json.Marshal(plan); err != nil {
 			return err
 		}
-		c.Fingerprint = plan.Fingerprint
+		c.Fingerprint, c.FingerprintScheme = plan.Fingerprint, fingerprintKeyed
 		if err := tx.CreateChange(ctx, c); err != nil {
 			return err
 		}
