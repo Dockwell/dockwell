@@ -52,7 +52,7 @@ func scanAPIToken(row interface{ Scan(...any) error }) (APIToken, error) {
 
 // CreateAPIToken records a new token.
 func (t *Tx) CreateAPIToken(ctx context.Context, tok APIToken) error {
-	_, err := t.tx.ExecContext(ctx, `INSERT INTO api_tokens (id, token_hash, user_id, name, hint, scope, created_at, expires_at)
+	_, err := t.exec(ctx, `INSERT INTO api_tokens (id, token_hash, user_id, name, hint, scope, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		tok.ID, tok.TokenHash, tok.UserID, tok.Name, tok.Hint, tok.Scope, millis(tok.CreatedAt), nullMillis(tok.ExpiresAt))
 	if err != nil {
@@ -62,7 +62,7 @@ func (t *Tx) CreateAPIToken(ctx context.Context, tok APIToken) error {
 }
 
 func (t *Tx) getAPIToken(ctx context.Context, where string, arg any) (APIToken, error) {
-	tok, err := scanAPIToken(t.tx.QueryRowContext(ctx, `SELECT `+apiTokenColumns+` FROM api_tokens WHERE `+where+` = ?`, arg))
+	tok, err := scanAPIToken(t.queryRow(ctx, `SELECT `+apiTokenColumns+` FROM api_tokens WHERE `+where+` = ?`, arg))
 	if errors.Is(err, sql.ErrNoRows) {
 		return APIToken{}, fmt.Errorf("API token: %w", ErrNotFound)
 	}
@@ -86,7 +86,7 @@ func (t *Tx) GetAPIToken(ctx context.Context, id string) (APIToken, error) {
 // ListLiveAPITokens returns a user's tokens that are neither revoked nor
 // expired at now, newest first.
 func (t *Tx) ListLiveAPITokens(ctx context.Context, userID string, now time.Time) ([]APIToken, error) {
-	rows, err := t.tx.QueryContext(ctx, `SELECT `+apiTokenColumns+` FROM api_tokens
+	rows, err := t.query(ctx, `SELECT `+apiTokenColumns+` FROM api_tokens
 		WHERE user_id = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?) ORDER BY id DESC`, userID, millis(now))
 	if err != nil {
 		return nil, fmt.Errorf("can't list API tokens: %w", err)
@@ -107,7 +107,7 @@ func (t *Tx) ListLiveAPITokens(ctx context.Context, userID string, now time.Time
 // expired at now.
 func (t *Tx) CountLiveAPITokens(ctx context.Context, userID string, now time.Time) (int, error) {
 	var n int
-	if err := t.tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM api_tokens
+	if err := t.queryRow(ctx, `SELECT COUNT(*) FROM api_tokens
 		WHERE user_id = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)`, userID, millis(now)).Scan(&n); err != nil {
 		return 0, fmt.Errorf("can't count API tokens: %w", err)
 	}
@@ -117,7 +117,7 @@ func (t *Tx) CountLiveAPITokens(ctx context.Context, userID string, now time.Tim
 // RevokeAPIToken stops one of a user's tokens working, or reports
 // ErrNotFound when the user has no such token still unrevoked.
 func (t *Tx) RevokeAPIToken(ctx context.Context, userID, id string, at time.Time) error {
-	res, err := t.tx.ExecContext(ctx, `UPDATE api_tokens SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
+	res, err := t.exec(ctx, `UPDATE api_tokens SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
 		millis(at), id, userID)
 	if err != nil {
 		return fmt.Errorf("can't revoke API token %s: %w", id, err)
@@ -130,7 +130,7 @@ func (t *Tx) RevokeAPIToken(ctx context.Context, userID, id string, at time.Time
 
 // TouchAPIToken records that a token was used at at from ip.
 func (t *Tx) TouchAPIToken(ctx context.Context, id string, at time.Time, ip string) error {
-	if _, err := t.tx.ExecContext(ctx, `UPDATE api_tokens SET last_used_at = ?, last_ip = ? WHERE id = ? AND revoked_at IS NULL`,
+	if _, err := t.exec(ctx, `UPDATE api_tokens SET last_used_at = ?, last_ip = ? WHERE id = ? AND revoked_at IS NULL`,
 		millis(at), ip, id); err != nil {
 		return fmt.Errorf("can't update API token %s: %w", id, err)
 	}
@@ -141,19 +141,19 @@ func (t *Tx) TouchAPIToken(ctx context.Context, id string, at time.Time, ip stri
 // reports whether that was the first time. It keeps MaxTokenAddresses for
 // each token, forgetting the least recently seen.
 func (t *Tx) SeeAPITokenAddress(ctx context.Context, id, address string, at time.Time) (bool, error) {
-	res, err := t.tx.ExecContext(ctx, `INSERT INTO api_token_addresses (token_id, address, first_seen, last_seen) VALUES (?, ?, ?, ?)
+	res, err := t.exec(ctx, `INSERT INTO api_token_addresses (token_id, address, first_seen, last_seen) VALUES (?, ?, ?, ?)
 		ON CONFLICT (token_id, address) DO NOTHING`, id, address, millis(at), millis(at))
 	if err != nil {
 		return false, fmt.Errorf("can't record an address for API token %s: %w", id, err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		if _, err := t.tx.ExecContext(ctx, `UPDATE api_token_addresses SET last_seen = ? WHERE token_id = ? AND address = ?`,
+		if _, err := t.exec(ctx, `UPDATE api_token_addresses SET last_seen = ? WHERE token_id = ? AND address = ?`,
 			millis(at), id, address); err != nil {
 			return false, fmt.Errorf("can't record an address for API token %s: %w", id, err)
 		}
 		return false, nil
 	}
-	if _, err := t.tx.ExecContext(ctx, `DELETE FROM api_token_addresses WHERE token_id = ?1 AND address NOT IN (
+	if _, err := t.exec(ctx, `DELETE FROM api_token_addresses WHERE token_id = ?1 AND address NOT IN (
 		SELECT address FROM api_token_addresses WHERE token_id = ?1 ORDER BY last_seen DESC, address LIMIT ?2)`,
 		id, MaxTokenAddresses); err != nil {
 		return false, fmt.Errorf("can't forget old addresses for API token %s: %w", id, err)
@@ -164,7 +164,7 @@ func (t *Tx) SeeAPITokenAddress(ctx context.Context, id, address string, at time
 // PruneAPITokens deletes tokens revoked or expired before cutoff, with the
 // addresses they were used from.
 func (t *Tx) PruneAPITokens(ctx context.Context, cutoff time.Time) error {
-	if _, err := t.tx.ExecContext(ctx, `DELETE FROM api_tokens WHERE revoked_at < ?1 OR expires_at < ?1`, millis(cutoff)); err != nil {
+	if _, err := t.exec(ctx, `DELETE FROM api_tokens WHERE revoked_at < ?1 OR expires_at < ?1`, millis(cutoff)); err != nil {
 		return fmt.Errorf("can't prune API tokens: %w", err)
 	}
 	return nil
