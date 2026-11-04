@@ -3,13 +3,27 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { GetVersionResponseSchema } from "@dockwell/api";
-import { screen, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { focusManager } from "@tanstack/react-query";
+import { act, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { authState } from "../../test/auth";
+import { authError, authState } from "../../test/auth";
 import { renderAt } from "../../test/render";
 
 const system = { getVersion: () => create(GetVersionResponseSchema, {}) };
+
+afterEach(() => {
+  focusManager.setFocused(undefined);
+});
+
+/** What a browser does when someone comes back to the tab: queries that may be stale are read again. */
+function refocus() {
+  act(() => {
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+  });
+}
 
 describe("the sign-in gate", () => {
   it("shows the overview to someone signed in", async () => {
@@ -53,6 +67,29 @@ describe("the sign-in gate", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Can't reach the control plane" })).toBeVisible();
   });
 
+  it("keeps the page when a later check fails, and says it may be out of date", async () => {
+    let up = true;
+    const getAuthState = vi.fn(() => {
+      if (!up) throw new ConnectError("connection refused", Code.Unavailable);
+      return authState();
+    });
+    renderAt("/", { system, auth: { getAuthState } });
+    expect(await screen.findByRole("heading", { level: 1, name: "The control plane is running" })).toBeVisible();
+
+    up = false;
+    refocus();
+    const notice = await screen.findByText("What you see may be out of date.", { exact: false });
+    const stale = notice.closest<HTMLElement>("[role=status]");
+    if (!stale) throw new Error("the stale notice isn't a status");
+    expect(stale).toHaveTextContent("Can't reach the control plane");
+    expect(screen.getByRole("heading", { level: 1, name: "The control plane is running" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Can't reach the control plane" })).toBeNull();
+
+    up = true;
+    await userEvent.click(within(stale).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.queryByText("What you see may be out of date.", { exact: false })).toBeNull());
+  });
+
   it("returns to sign-in when the session ends mid-use", async () => {
     let signedIn = true;
     const { router } = renderAt("/profile", {
@@ -61,7 +98,7 @@ describe("the sign-in gate", () => {
         getAuthState: () => authState(signedIn ? {} : { user: undefined }),
         listPasskeys: () => {
           signedIn = false;
-          throw new ConnectError("ended", Code.Unauthenticated);
+          throw authError(Code.Unauthenticated, "session_ended");
         },
         listSessions: () => ({ sessions: [] }),
         getTotp: () => ({}),
@@ -69,5 +106,61 @@ describe("the sign-in gate", () => {
     });
     expect(await screen.findByRole("heading", { level: 1, name: "Sign in to Dockwell" })).toBeVisible();
     await waitFor(() => expect(router.state.location.pathname).toBe("/profile"));
+  });
+
+  it("returns to sign-in when an action finds the session ended", async () => {
+    let signedIn = true;
+    renderAt("/profile", {
+      system,
+      auth: {
+        getAuthState: () => authState(signedIn ? {} : { user: undefined }),
+        listPasskeys: () => ({ passkeys: [{ id: "pky_1", name: "YubiKey 5C", rpId: "localhost" }] }),
+        listSessions: () => ({ sessions: [] }),
+        getTotp: () => ({}),
+        removePasskey: () => {
+          signedIn = false;
+          throw authError(Code.Unauthenticated, "session_ended");
+        },
+      },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Remove YubiKey 5C" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Sign in to Dockwell" })).toBeVisible();
+  });
+
+  it("returns to sign-in when a stream's session ends", async () => {
+    let signedIn = true;
+    renderAt("/", {
+      system,
+      auth: { getAuthState: () => authState(signedIn ? {} : { user: undefined }) },
+      servers: {
+        // biome-ignore lint/correctness/useYield: it fails before its first message
+        async *watchServers() {
+          signedIn = false;
+          throw authError(Code.Unauthenticated, "session_ended", "your session ended");
+        },
+      },
+    });
+    expect(await screen.findByRole("heading", { level: 1, name: "Sign in to Dockwell" })).toBeVisible();
+    expect(screen.queryByText("your session ended")).toBeNull();
+  });
+
+  it("stays put when a code is wrong, which is unauthenticated too", async () => {
+    const getAuthState = vi.fn(() => authState({ user: undefined }));
+    renderAt("/", {
+      system,
+      auth: {
+        getAuthState,
+        signInWithCode: () => Promise.reject(authError(Code.Unauthenticated, "code_rejected")),
+      },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Use a code from your authenticator app" }));
+    await userEvent.type(screen.getByLabelText("Email"), "mira@acme.dev");
+    await userEvent.type(screen.getByLabelText("Code"), "123456");
+    const before = getAuthState.mock.calls.length;
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("That code didn't work.");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(getAuthState).toHaveBeenCalledTimes(before);
   });
 });

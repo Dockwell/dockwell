@@ -285,7 +285,7 @@ msgid "by claiming this install"
 msgstr "通过认领此安装"
 
 #: src/features/auth/AuthGate.tsx
-#: src/features/system/StatusPage.tsx
+#: src/features/system/Unreachable.tsx
 msgid "Can't reach the control plane"
 msgstr "无法连接到控制平面"
 
@@ -314,6 +314,10 @@ msgstr "查看控制平面状态"
 #: src/features/auth/AuthGate.tsx
 msgid "Checking"
 msgstr "正在检查"
+
+#: src/features/auth/AuthGate.tsx
+msgid "Checking again."
+msgstr ""
 
 #: src/features/auth/AuthGate.tsx
 msgid "Checking your session"
@@ -1032,12 +1036,11 @@ msgid "Results"
 msgstr "结果"
 
 #: src/features/auth/AuthGate.tsx
-#: src/features/system/StatusPage.tsx
+#: src/features/system/Unreachable.tsx
 msgid "Retry"
 msgstr "重试"
 
-#: src/features/auth/AuthGate.tsx
-#: src/features/system/StatusPage.tsx
+#: src/features/system/Unreachable.tsx
 msgid "Retrying"
 msgstr "正在重试"
 
@@ -1295,9 +1298,21 @@ msgstr "身份验证器应用尚未设置"
 msgid "The browser couldn't finish with the passkey. Try again, or use another device."
 msgstr "浏览器未能完成通行密钥操作。请重试，或换一台设备。"
 
+#: src/features/auth/messages.ts
+msgid "The control plane couldn't check your session just now. Try again in a moment."
+msgstr ""
+
+#: src/features/auth/messages.ts
+msgid "The control plane doesn't answer at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain."
+msgstr ""
+
 #: src/features/system/StatusPage.tsx
 msgid "The control plane is running"
 msgstr "控制平面正在运行"
+
+#: src/features/auth/messages.ts
+msgid "The control plane refused this because it didn't come from the panel's own address. Open the panel at its usual address and try there."
+msgstr ""
 
 #: src/features/servers/ServerPanels.tsx
 msgid "the control plane runs {controlPlane}"
@@ -1307,8 +1322,7 @@ msgstr "控制平面为 {controlPlane}"
 msgid "The owner account wasn't created"
 msgstr "所有者账户未创建"
 
-#: src/features/auth/AuthGate.tsx
-#: src/features/system/StatusPage.tsx
+#: src/features/system/Unreachable.tsx
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务器上的 <0>dockwell run</0> 仍在运行，然后重试。"
 
@@ -1467,8 +1481,7 @@ msgstr "未知系统"
 msgid "Unlock"
 msgstr "解锁"
 
-#: src/features/auth/AuthGate.tsx
-#: src/features/system/StatusPage.tsx
+#: src/features/system/Unreachable.tsx
 msgid "Unreachable"
 msgstr "无法访问"
 
@@ -1547,6 +1560,10 @@ msgstr "网站"
 msgid "What happens next"
 msgstr "接下来"
 
+#: src/features/auth/AuthGate.tsx
+msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
+msgstr ""
+
 #. Ends “signed in …”
 #: src/features/auth/ProfilePage.tsx
 msgid "with a one-time link"
@@ -1595,6 +1612,10 @@ msgstr "你使用了一个恢复码"
 msgid "You're not signed in"
 msgstr "你尚未登录"
 
+#: src/features/auth/messages.ts
+msgid "You're not signed in. Sign in, then try again."
+msgstr ""
+
 #: src/features/auth/AccountPanel.tsx
 msgid "Your account"
 msgstr "你的账户"
@@ -1608,5 +1629,5 @@ msgid "Your name"
 msgstr "你的姓名"
 
 #: src/features/auth/messages.ts
-msgid "Your session ended. Sign in again."
-msgstr "你的会话已结束。请重新登录。"
+msgid "Your session ended, so this didn't happen. Sign in again, then try again."
+msgstr ""

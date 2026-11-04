@@ -1,24 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Code, ConnectError, type Transport } from "@connectrpc/connect";
+import { Code, ConnectError, type Interceptor, type Transport } from "@connectrpc/connect";
 import { createConnectQueryKey } from "@connectrpc/connect-query";
 import { createConnectTransport } from "@connectrpc/connect-web";
 import { AuthService } from "@dockwell/api";
-import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 
-import { isSignedOut } from "../lib/errors";
+import { isSessionEnded } from "../lib/errors";
 
 /**
  * The panel talks to the control plane that served it, over the Connect
  * protocol: binary in production, JSON in development so requests read well
  * in devtools. Read-only methods go out as GET, so they can be cached.
  */
-export function createTransport(baseUrl: string = window.location.origin): Transport {
+export function createTransport(baseUrl: string = window.location.origin, interceptors: Interceptor[] = []): Transport {
   return createConnectTransport({
     baseUrl,
     useBinaryFormat: import.meta.env.PROD,
     useHttpGet: true,
+    interceptors,
   });
+}
+
+/** The query cache and the transport the panel runs on, wired so an ended session sends it back to the gate. */
+export function createApi(baseUrl: string = window.location.origin): {
+  transport: Transport;
+  queryClient: QueryClient;
+} {
+  const queryClient = createQueryClient();
+  return { queryClient, transport: createTransport(baseUrl, [watchSession(() => recheckAuth(queryClient))]) };
 }
 
 /** Failures worth retrying: the server or the network, not the request. */
@@ -31,21 +41,43 @@ export function isTransient(error: unknown): boolean {
 /** The key of the sign-in state that the auth gate reads. */
 export const authStateKey = createConnectQueryKey({ schema: AuthService.method.getAuthState, cardinality: undefined });
 
+/** Makes the gate read the sign-in state again, sharing a read already under way. */
+export function recheckAuth(client: QueryClient): void {
+  void client.invalidateQueries({ queryKey: authStateKey }, { cancelRefetch: false });
+}
+
 /**
- * Caches that send the panel back to the gate when a session ends mid-use:
- * any call that fails as unauthenticated makes the gate check the sign-in
- * state again.
+ * Sends the panel back to the gate when a session ends mid-use: any call
+ * refused because its session ended, or there is none, calls onEnded. It
+ * sits on the transport, so it sees every call, from queries and from
+ * clients made by hand alike, and the errors that end a stream.
  */
-export function signOutAwareCaches(client: () => QueryClient) {
-  const recheck = (error: unknown) => {
-    if (isSignedOut(error)) void client().invalidateQueries({ queryKey: authStateKey });
+export function watchSession(onEnded: () => void): Interceptor {
+  const check = (error: unknown) => {
+    if (isSessionEnded(error)) onEnded();
   };
-  return { queryCache: new QueryCache({ onError: recheck }), mutationCache: new MutationCache({ onError: recheck }) };
+  return (next) => async (req) => {
+    try {
+      const res = await next(req);
+      return res.stream ? { ...res, message: watchStream(res.message, check) } : res;
+    } catch (err) {
+      check(err);
+      throw err;
+    }
+  };
+}
+
+async function* watchStream<T>(messages: AsyncIterable<T>, check: (error: unknown) => void): AsyncIterable<T> {
+  try {
+    yield* messages;
+  } catch (err) {
+    check(err);
+    throw err;
+  }
 }
 
 export function createQueryClient(): QueryClient {
-  const client: QueryClient = new QueryClient({
-    ...signOutAwareCaches(() => client),
+  return new QueryClient({
     defaultOptions: {
       queries: {
         staleTime: 30_000,
@@ -54,5 +86,4 @@ export function createQueryClient(): QueryClient {
       },
     },
   });
-  return client;
 }

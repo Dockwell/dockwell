@@ -43,7 +43,15 @@ export function useAuthError() {
       }
       switch (reasonOf(error)) {
         case "unauthenticated":
-          return t`Your session ended. Sign in again.`;
+          return t`You're not signed in. Sign in, then try again.`;
+        case "session_ended":
+          return t`Your session ended, so this didn't happen. Sign in again, then try again.`;
+        case "origin":
+          return t`The control plane refused this because it didn't come from the panel's own address. Open the panel at its usual address and try there.`;
+        case "misdirected":
+          return t`The control plane doesn't answer at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain.`;
+        case "unavailable":
+          return t`The control plane couldn't check your session just now. Try again in a moment.`;
         case "passkey_rejected":
           return t`That passkey isn't registered for this address, or it couldn't be verified. Try another passkey, or sign in with a code.`;
         case "passkey_copied":

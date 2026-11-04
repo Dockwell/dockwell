@@ -285,7 +285,7 @@ msgid "by claiming this install"
 msgstr "by claiming this install"
 
 #: src/features/auth/AuthGate.tsx
-#: src/features/system/StatusPage.tsx
+#: src/features/system/Unreachable.tsx
 msgid "Can't reach the control plane"
 msgstr "Can't reach the control plane"
 
@@ -314,6 +314,10 @@ msgstr "Check the control plane's status"
 #: src/features/auth/AuthGate.tsx
 msgid "Checking"
 msgstr "Checking"
+
+#: src/features/auth/AuthGate.tsx
+msgid "Checking again."
+msgstr "Checking again."
 
 #: src/features/auth/AuthGate.tsx
 msgid "Checking your session"
@@ -1032,12 +1036,11 @@ msgid "Results"
 msgstr "Results"
 
 #: src/features/auth/AuthGate.tsx
-#: src/features/system/StatusPage.tsx
+#: src/features/system/Unreachable.tsx
 msgid "Retry"
 msgstr "Retry"
 
-#: src/features/auth/AuthGate.tsx
-#: src/features/system/StatusPage.tsx
+#: src/features/system/Unreachable.tsx
 msgid "Retrying"
 msgstr "Retrying"
 
@@ -1295,9 +1298,21 @@ msgstr "The authenticator app isn't set up yet"
 msgid "The browser couldn't finish with the passkey. Try again, or use another device."
 msgstr "The browser couldn't finish with the passkey. Try again, or use another device."
 
+#: src/features/auth/messages.ts
+msgid "The control plane couldn't check your session just now. Try again in a moment."
+msgstr "The control plane couldn't check your session just now. Try again in a moment."
+
+#: src/features/auth/messages.ts
+msgid "The control plane doesn't answer at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain."
+msgstr "The control plane doesn't answer at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain."
+
 #: src/features/system/StatusPage.tsx
 msgid "The control plane is running"
 msgstr "The control plane is running"
+
+#: src/features/auth/messages.ts
+msgid "The control plane refused this because it didn't come from the panel's own address. Open the panel at its usual address and try there."
+msgstr "The control plane refused this because it didn't come from the panel's own address. Open the panel at its usual address and try there."
 
 #: src/features/servers/ServerPanels.tsx
 msgid "the control plane runs {controlPlane}"
@@ -1307,8 +1322,7 @@ msgstr "the control plane runs {controlPlane}"
 msgid "The owner account wasn't created"
 msgstr "The owner account wasn't created"
 
-#: src/features/auth/AuthGate.tsx
-#: src/features/system/StatusPage.tsx
+#: src/features/system/Unreachable.tsx
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 
@@ -1467,8 +1481,7 @@ msgstr "Unknown system"
 msgid "Unlock"
 msgstr "Unlock"
 
-#: src/features/auth/AuthGate.tsx
-#: src/features/system/StatusPage.tsx
+#: src/features/system/Unreachable.tsx
 msgid "Unreachable"
 msgstr "Unreachable"
 
@@ -1547,6 +1560,10 @@ msgstr "Websites"
 msgid "What happens next"
 msgstr "What happens next"
 
+#: src/features/auth/AuthGate.tsx
+msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
+msgstr "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
+
 #. Ends “signed in …”
 #: src/features/auth/ProfilePage.tsx
 msgid "with a one-time link"
@@ -1595,6 +1612,10 @@ msgstr "You used a recovery code"
 msgid "You're not signed in"
 msgstr "You're not signed in"
 
+#: src/features/auth/messages.ts
+msgid "You're not signed in. Sign in, then try again."
+msgstr "You're not signed in. Sign in, then try again."
+
 #: src/features/auth/AccountPanel.tsx
 msgid "Your account"
 msgstr "Your account"
@@ -1608,5 +1629,5 @@ msgid "Your name"
 msgstr "Your name"
 
 #: src/features/auth/messages.ts
-msgid "Your session ended. Sign in again."
-msgstr "Your session ended. Sign in again."
+msgid "Your session ended, so this didn't happen. Sign in again, then try again."
+msgstr "Your session ended, so this didn't happen. Sign in again, then try again."

@@ -6,6 +6,7 @@ import { act, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
+import { authError } from "../../test/auth";
 import { feed, renderWithApi } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 import { ServersPanel } from "./ServersPanel";
@@ -106,16 +107,17 @@ describe("ServersPanel", () => {
     expect(screen.getByText("the fleet is still loading")).toBeVisible();
   });
 
-  it("hands an ended session to the sign-in gate instead of retrying", async () => {
+  it("leaves an ended session to the sign-in gate, and keeps trying quietly until it acts", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const watchServers = vi.fn(() => {
-      throw new ConnectError("your session ended", Code.Unauthenticated);
+      throw authError(Code.Unauthenticated, "session_ended", "your session ended");
     });
-    const getAuthState = vi.fn(() => ({}));
-    renderWithApi(<ServersPanel />, { servers: { watchServers }, auth: { getAuthState } });
+    renderWithApi(<ServersPanel />, { servers: { watchServers } });
     await vi.waitFor(() => expect(watchServers).toHaveBeenCalledOnce());
+    await act(() => vi.advanceTimersByTimeAsync(2_500));
+    expect(watchServers).toHaveBeenCalledTimes(2);
     expect(screen.queryByText("your session ended")).toBeNull();
-    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
-    expect(watchServers).toHaveBeenCalledOnce();
+    expect(screen.queryByText("The server list didn't load. Dockwell keeps trying.")).toBeNull();
   });
 
   it("speaks Simplified Chinese", async () => {

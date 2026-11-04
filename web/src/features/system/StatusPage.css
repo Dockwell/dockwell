@@ -32,17 +32,3 @@
 .status-muted {
   color: var(--ink-muted);
 }
-
-.status-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3) var(--space-4);
-}
-
-.status-error {
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--ink-muted);
-  overflow-wrap: anywhere;
-}

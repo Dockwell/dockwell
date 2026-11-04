@@ -10,7 +10,7 @@ import { render, renderHook } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { vi } from "vitest";
 
-import { signOutAwareCaches } from "../app/api";
+import { recheckAuth, watchSession } from "../app/api";
 import { Providers } from "../app/Providers";
 import { routeTree } from "../routeTree.gen";
 import { authState } from "./auth";
@@ -36,17 +36,17 @@ export function untilAborted(signal: AbortSignal): Promise<void> {
   });
 }
 
-/** The real providers around an in-memory API and a query cache that doesn't retry. */
+/** The real providers, and the real session watch, around an in-memory API and a query cache that doesn't retry. */
 function apiWrapper(api: Api) {
-  const transport = createRouterTransport(({ service }) => {
-    service(SystemService, api.system ?? {});
-    service(ServerService, { watchServers: quietWatch, ...api.servers });
-    service(AuthService, api.auth ?? {});
-  });
-  const queryClient: QueryClient = new QueryClient({
-    ...signOutAwareCaches(() => queryClient),
-    defaultOptions: { queries: { retry: false } },
-  });
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const transport = createRouterTransport(
+    ({ service }) => {
+      service(SystemService, api.system ?? {});
+      service(ServerService, { watchServers: quietWatch, ...api.servers });
+      service(AuthService, api.auth ?? {});
+    },
+    { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
+  );
   return ({ children }: { children: ReactNode }) => (
     <Providers transport={transport} queryClient={queryClient}>
       {children}

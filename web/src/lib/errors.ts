@@ -16,9 +16,19 @@ export function retryAfter(error: unknown): number | undefined {
   return Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
-/** True when the call failed because there is no session, or it ended. */
-export function isSignedOut(error: unknown): boolean {
-  return ConnectError.from(error).code === Code.Unauthenticated;
+/**
+ * The reasons the control plane gives for refusing a call for want of a
+ * session: none came with it, or the one that did has ended.
+ */
+const SIGNED_OUT = new Set(["unauthenticated", "session_ended"]);
+
+/**
+ * True when the call failed because there is no session, or it ended. A
+ * wrong code or passkey is unauthenticated too, but says so with its own
+ * reason, and doesn't count.
+ */
+export function isSessionEnded(error: unknown): boolean {
+  return ConnectError.from(error).code === Code.Unauthenticated && SIGNED_OUT.has(reasonOf(error));
 }
 
 /**

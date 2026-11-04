@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { ConnectError } from "@connectrpc/connect";
-import { Button, StatusBadge } from "@dockwell/ui";
+import { StatusBadge, Toast } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useLocation, useMatches } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { useElapsed } from "../../lib/useElapsed";
 import { StandalonePage } from "../system/StandalonePage";
+import { Unreachable } from "../system/Unreachable";
 import { SignInPage } from "./SignInPage";
 import { Unclaimed } from "./Unclaimed";
 import { useAuthState } from "./useAuthState";
@@ -36,24 +36,46 @@ function SignedInOnly({ children }: { children: ReactNode }) {
       </StandalonePage>
     );
   }
-  if (state.isError) {
+  if (!state.data) {
     return (
       <StandalonePage title={t`Can't reach the control plane`}>
-        <Unreachable
-          error={ConnectError.from(state.error)}
-          retrying={state.isFetching}
-          onRetry={() => void state.refetch()}
-        />
+        <Unreachable error={state.error} retrying={state.isFetching} onRetry={() => void state.refetch()} />
       </StandalonePage>
     );
   }
+  // A later check that failed leaves what the last one said in place, and
+  // says quietly that it may be out of date.
+  const stale = state.isError ? <Stale retrying={state.isFetching} onRetry={() => void state.refetch()} /> : null;
+  let page = children;
   if (!state.data.claimed) {
-    return <Unclaimed serverName={state.data.serverName} />;
+    page = <Unclaimed serverName={state.data.serverName} />;
+  } else if (!state.data.user) {
+    page = <SignInPage next={location.href} />;
   }
-  if (!state.data.user) {
-    return <SignInPage next={location.href} />;
-  }
-  return children;
+  return (
+    <>
+      {page}
+      {stale}
+    </>
+  );
+}
+
+function Stale({ retrying, onRetry }: { retrying: boolean; onRetry: () => void }) {
+  const { t } = useLingui();
+  return (
+    <div className="dw-toaster">
+      <Toast
+        tone="warning"
+        title={t`Can't reach the control plane`}
+        description={
+          retrying
+            ? t`Checking again.`
+            : t`What you see may be out of date. Check that dockwell run is still running on the server, then retry.`
+        }
+        action={{ label: t`Retry`, icon: "refresh", onClick: onRetry }}
+      />
+    </div>
+  );
 }
 
 function Checking() {
@@ -65,32 +87,5 @@ function Checking() {
         <Trans>Checking your session</Trans>
       </h1>
     </header>
-  );
-}
-
-function Unreachable({ error, retrying, onRetry }: { error: ConnectError; retrying: boolean; onRetry: () => void }) {
-  const { t } = useLingui();
-  const host = window.location.host;
-  return (
-    <>
-      <header className="standalone-head">
-        <StatusBadge status="down" label={t`Unreachable`} />
-        <h1 className="dw-text-title">
-          <Trans>Can't reach the control plane</Trans>
-        </h1>
-        <p className="standalone-lead">
-          <Trans>
-            The panel loaded, but {host} didn't answer the API. Check that <code>dockwell run</code> is still running on
-            the server, then retry.
-          </Trans>
-        </p>
-      </header>
-      <div className="auth-actions">
-        <Button icon="refresh" loading={retrying} onClick={onRetry}>
-          {retrying ? t`Retrying` : t`Retry`}
-        </Button>
-        <code className="auth-error-detail">{error.rawMessage || error.message}</code>
-      </div>
-    </>
   );
 }
