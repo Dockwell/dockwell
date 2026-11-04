@@ -279,7 +279,7 @@ ok "it runs only the agent"
 export DOCKWELL_JOIN="$ticket"
 run_install good || die "running it again with the spent ticket failed"
 unset DOCKWELL_JOIN
-said "already joined a control plane, so the ticket isn't used"
+said "already belongs to the control plane at"
 stop_direct
 run_install good --uninstall || die "uninstalling the agent failed"
 kill "$fixture_pid" 2>/dev/null || true
