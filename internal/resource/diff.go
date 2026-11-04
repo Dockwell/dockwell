@@ -281,10 +281,13 @@ func mapEntryPath(rest string) (string, bool) {
 	return "", strings.HasSuffix(rest, "]")
 }
 
-// Sensitive reports whether a spec's message type has a field that may hold
-// a secret, at any depth. The revision store keeps every spec of such a
-// kind encrypted (ADR 0022).
-func Sensitive(md protoreflect.MessageDescriptor) bool {
+// Sealed reports whether a kind's specs may hold a secret: whether its
+// message has a field marked (sensitive), at any depth. The revision store
+// keeps every spec of such a kind encrypted, and digests it with a key for
+// fingerprints (ADR 0022).
+func Sealed(t Type) bool { return sensitiveMessage(t.New().ProtoReflect().Descriptor()) }
+
+func sensitiveMessage(md protoreflect.MessageDescriptor) bool {
 	sensitiveMu.Lock()
 	defer sensitiveMu.Unlock()
 	v, ok := sensitiveCache[md.FullName()]

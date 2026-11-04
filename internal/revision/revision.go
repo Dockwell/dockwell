@@ -539,7 +539,7 @@ func (e *Engine) load(ctx context.Context, tx *store.Tx, ref resource.Ref) (item
 		return item{}, fault.New(ErrInvalid, "%w", err)
 	}
 	_, valuer := t.(resource.Valuer)
-	it := item{ref: ref, level: t.Level(), runs: t.Level().RunsOnServers() && !valuer, sealed: secretsIn(t)}
+	it := item{ref: ref, level: t.Level(), runs: t.Level().RunsOnServers() && !valuer, sealed: resource.Sealed(t)}
 	r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
@@ -1094,9 +1094,6 @@ func (e *Engine) digest(it *item) []byte {
 	sum := sha256.Sum256(it.encoded)
 	return sum[:]
 }
-
-// secretsIn reports a kind whose specs may hold secrets.
-func secretsIn(t resource.Type) bool { return resource.Sensitive(t.New().ProtoReflect().Descriptor()) }
 
 // planOn asks a server's agent what the items would take there.
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {

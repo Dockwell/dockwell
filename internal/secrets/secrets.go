@@ -76,10 +76,6 @@ func New(db *store.DB, key *seal.Key, kinds *resource.Registry) *Keeper {
 // Sealed reports whether a stored spec is sealed.
 func Sealed(stored []byte) bool { return bytes.HasPrefix(stored, magic) }
 
-// Sensitive reports whether a kind's specs are sealed at rest: those whose
-// message has a field marked (sensitive), at any depth.
-func Sensitive(t resource.Type) bool { return resource.Sensitive(t.New().ProtoReflect().Descriptor()) }
-
 func newAEAD(key []byte) (cipher.AEAD, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
