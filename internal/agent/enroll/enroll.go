@@ -67,8 +67,7 @@ type Identity struct {
 	cert    *x509.Certificate
 	next    *ecdsa.PrivateKey // a renewal's key, kept until the renewal lands
 	dir     string
-	client  *http.Client
-	service agentv1connect.AgentServiceClient
+	renewed chan struct{} // closed when the certificate is next replaced
 }
 
 // New makes an identity from its parts, for the control server's own agent,
@@ -94,17 +93,28 @@ func (i *Identity) Key() *ecdsa.PrivateKey {
 	return i.key
 }
 
-// Replace installs a renewed key and certificate.
+// Replace installs a renewed key and certificate, and tells whoever waits
+// on Renewed.
 func (i *Identity) Replace(key *ecdsa.PrivateKey, cert *x509.Certificate) {
 	i.mu.Lock()
+	defer i.mu.Unlock()
 	i.key, i.cert, i.next = key, cert, nil
-	client := i.client
-	i.mu.Unlock()
-	if client != nil {
-		// Connections authenticated with the old certificate must not carry
-		// later requests.
-		client.CloseIdleConnections()
+	if i.renewed != nil {
+		close(i.renewed)
+		i.renewed = nil
 	}
+}
+
+// Renewed is closed the next time the certificate is replaced. A connection
+// keeps the certificate it was made with, so a long-lived stream watches
+// this to move to the new one.
+func (i *Identity) Renewed() <-chan struct{} {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.renewed == nil {
+		i.renewed = make(chan struct{})
+	}
+	return i.renewed
 }
 
 type config struct {
@@ -323,10 +333,13 @@ func (i *Identity) Renew(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	service, err := i.agentService()
+	// A connection of its own, so the renewal presents the current
+	// certificate even while the stream holds an older connection open.
+	service, release, err := i.Client()
 	if err != nil {
 		return err
 	}
+	defer release()
 	res, err := service.RenewCertificate(ctx, connect.NewRequest(&agentv1.RenewCertificateRequest{Csr: csr}))
 	if err != nil {
 		return rpcError(i.ControlURL, "renewing the certificate", err)
@@ -360,26 +373,18 @@ func (i *Identity) ClientTLS() (*tls.Config, error) {
 	}, nil
 }
 
-// agentService is a client for the control plane, made once and reused.
-func (i *Identity) agentService() (agentv1connect.AgentServiceClient, error) {
-	i.mu.Lock()
-	if i.service != nil {
-		defer i.mu.Unlock()
-		return i.service, nil
-	}
-	i.mu.Unlock()
+// Client is a client for the control plane on connections of its own,
+// which authenticate with the certificate current when each is made. Call
+// release when done with it: TLS fixes a connection's certificate at the
+// handshake, so a renewed certificate only reaches the control plane on
+// connections made after it.
+func (i *Identity) Client() (client agentv1connect.AgentServiceClient, release func(), err error) {
 	cfg, err := i.ClientTLS()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	hc := httpClient(cfg)
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	if i.service == nil {
-		i.client = hc
-		i.service = agentv1connect.NewAgentServiceClient(hc, i.ControlURL, connect.WithGRPC())
-	}
-	return i.service, nil
+	return agentv1connect.NewAgentServiceClient(hc, i.ControlURL, connect.WithGRPC()), hc.CloseIdleConnections, nil
 }
 
 // httpClient speaks HTTP/2 over TLS, through a proxy if the environment

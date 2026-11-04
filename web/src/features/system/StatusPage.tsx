@@ -10,11 +10,10 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
 
 import { formatDateTime } from "../../lib/format";
+import { useElapsed } from "../../lib/useElapsed";
+import { ServersPanel } from "../servers/ServersPanel";
 import { StandalonePage } from "./StandalonePage";
 import "./StatusPage.css";
-
-/** How long a request may run before the page says it is connecting, so fast answers never flash. */
-const CONNECTING_DELAY_MS = 300;
 
 /**
  * What the panel shows until the first-run screens exist: whether this
@@ -24,7 +23,7 @@ const CONNECTING_DELAY_MS = 300;
 export function StatusPage() {
   const version = useQuery(SystemService.method.getVersion, {});
   const host = window.location.host;
-  const slow = useElapsed(version.isPending, CONNECTING_DELAY_MS);
+  const slow = useElapsed(version.isPending);
 
   if (version.isPending) {
     return (
@@ -59,12 +58,10 @@ function Running({ host, build }: { host: string; build: BuildInfo | undefined }
           <Trans>The control plane is running</Trans>
         </h1>
         <p className="standalone-lead">
-          <Trans>
-            Dockwell answers on {host}. This early build has no servers or apps to show yet; the API is ready for tools
-            and scripts.
-          </Trans>
+          <Trans>Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next.</Trans>
         </p>
       </header>
+      <ServersPanel />
       <Panel
         title={t`This control plane`}
         actions={<StatusBadge status="healthy" label={t`Connected`} variant="pill" />}
@@ -212,18 +209,4 @@ function CopyCommand({ command }: { command: string }) {
       </span>
     </div>
   );
-}
-
-/** True once `active` has stayed true for `ms`; false again as soon as it turns false. */
-function useElapsed(active: boolean, ms: number): boolean {
-  const [elapsed, setElapsed] = useState(false);
-  useEffect(() => {
-    if (!active) {
-      setElapsed(false);
-      return;
-    }
-    const timer = setTimeout(() => setElapsed(true), ms);
-    return () => clearTimeout(timer);
-  }, [active, ms]);
-  return elapsed;
 }

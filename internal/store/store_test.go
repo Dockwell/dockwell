@@ -258,3 +258,30 @@ func TestReadsDontWaitForWrites(t *testing.T) {
 		t.Fatalf("read during an open write = %v; it should see the last committed state", err)
 	}
 }
+
+func TestServerReports(t *testing.T) {
+	db, _ := openTest(t)
+	ctx := t.Context()
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	if err := db.Update(ctx, func(tx *Tx) error {
+		for _, id := range []string{"srv_1", "srv_2"} {
+			if err := tx.CreateServer(ctx, Server{ID: id, Name: id, CreatedAt: now, CertSerial: id, CertNotAfter: now}); err != nil {
+				return err
+			}
+		}
+		return tx.SaveServerReport(ctx, "srv_1", ServerReport{Inventory: []byte("inv"), AgentBuild: []byte("build")}, now)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.View(ctx, func(tx *Tx) error {
+		reports, err := tx.ServerReports(ctx)
+		if err != nil || len(reports) != 1 || string(reports["srv_1"].Inventory) != "inv" || string(reports["srv_1"].AgentBuild) != "build" {
+			t.Errorf("ServerReports = %v, %v", reports, err)
+		}
+		s, err := tx.GetServer(ctx, "srv_1")
+		if err != nil || s.LastSeenAt == nil || !s.LastSeenAt.Equal(now) {
+			t.Errorf("SaveServerReport should record when: %+v, %v", s, err)
+		}
+		return nil
+	})
+}

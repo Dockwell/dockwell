@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -32,19 +33,51 @@ const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 const ulidLen = 26
 
 // New returns a new ID with the given prefix, using the current time.
+// IDs made by one process are strictly increasing, even within a
+// millisecond, so they sort in the order they were made.
 func New(prefix string) string {
-	return newAt(prefix, time.Now())
+	return gen.next(prefix, time.Now())
 }
 
-func newAt(prefix string, t time.Time) string {
-	var b [16]byte
+// generator makes monotonic ULIDs: within one millisecond it increments the
+// previous random part instead of drawing a new one.
+type generator struct {
+	mu   sync.Mutex
+	ms   uint64
+	last [10]byte
+}
+
+var gen generator
+
+func (g *generator) next(prefix string, t time.Time) string {
 	ms := uint64(t.UnixMilli())
+	g.mu.Lock()
+	if ms > g.ms {
+		g.ms = ms
+		// crypto/rand.Read never fails on supported platforms (Go 1.24+).
+		_, _ = rand.Read(g.last[:])
+	} else {
+		ms = g.ms // never step backwards, even if the clock does
+		increment(&g.last)
+	}
+	var b [16]byte
 	// The 48-bit timestamp is split across 2 and 4 bytes; truncation is the point.
 	binary.BigEndian.PutUint16(b[0:2], uint16(ms>>32)) //nolint:gosec // see above
 	binary.BigEndian.PutUint32(b[2:6], uint32(ms))     //nolint:gosec // see above
-	// crypto/rand.Read never fails on supported platforms (Go 1.24+).
-	_, _ = rand.Read(b[6:])
+	copy(b[6:], g.last[:])
+	g.mu.Unlock()
 	return prefix + "_" + encode(b)
+}
+
+// increment adds one to an 80-bit big-endian number, wrapping on overflow
+// (2^80 IDs in one millisecond won't happen).
+func increment(b *[10]byte) {
+	for i := len(b) - 1; i >= 0; i-- {
+		b[i]++
+		if b[i] != 0 {
+			return
+		}
+	}
 }
 
 // encode writes 128 bits as 26 base32 characters, most significant first.

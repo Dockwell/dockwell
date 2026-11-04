@@ -12,6 +12,7 @@ import (
 	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -23,6 +24,273 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+// ConnectRequest is one message from the agent.
+type ConnectRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What the message is.
+	//
+	// Types that are valid to be assigned to Message:
+	//
+	//	*ConnectRequest_Hello
+	//	*ConnectRequest_Stats
+	Message       isConnectRequest_Message `protobuf_oneof:"message"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectRequest) Reset() {
+	*x = ConnectRequest{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectRequest) ProtoMessage() {}
+
+func (x *ConnectRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectRequest.ProtoReflect.Descriptor instead.
+func (*ConnectRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ConnectRequest) GetMessage() isConnectRequest_Message {
+	if x != nil {
+		return x.Message
+	}
+	return nil
+}
+
+func (x *ConnectRequest) GetHello() *Hello {
+	if x != nil {
+		if x, ok := x.Message.(*ConnectRequest_Hello); ok {
+			return x.Hello
+		}
+	}
+	return nil
+}
+
+func (x *ConnectRequest) GetStats() *v1.ServerStats {
+	if x != nil {
+		if x, ok := x.Message.(*ConnectRequest_Stats); ok {
+			return x.Stats
+		}
+	}
+	return nil
+}
+
+type isConnectRequest_Message interface {
+	isConnectRequest_Message()
+}
+
+type ConnectRequest_Hello struct {
+	// The first message on every stream.
+	Hello *Hello `protobuf:"bytes,1,opt,name=hello,proto3,oneof"`
+}
+
+type ConnectRequest_Stats struct {
+	// A sample of the server's resource use.
+	Stats *v1.ServerStats `protobuf:"bytes,2,opt,name=stats,proto3,oneof"`
+}
+
+func (*ConnectRequest_Hello) isConnectRequest_Message() {}
+
+func (*ConnectRequest_Stats) isConnectRequest_Message() {}
+
+// Hello introduces the agent at the start of a stream.
+type Hello struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The agent's build.
+	Build *v1.BuildInfo `protobuf:"bytes,1,opt,name=build,proto3" json:"build,omitempty"`
+	// What the server is, as the agent sees it now.
+	Inventory     *v1.ServerInventory `protobuf:"bytes,2,opt,name=inventory,proto3" json:"inventory,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Hello) Reset() {
+	*x = Hello{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Hello) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Hello) ProtoMessage() {}
+
+func (x *Hello) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Hello.ProtoReflect.Descriptor instead.
+func (*Hello) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Hello) GetBuild() *v1.BuildInfo {
+	if x != nil {
+		return x.Build
+	}
+	return nil
+}
+
+func (x *Hello) GetInventory() *v1.ServerInventory {
+	if x != nil {
+		return x.Inventory
+	}
+	return nil
+}
+
+// ConnectResponse is one message from the control plane.
+type ConnectResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What the message is.
+	//
+	// Types that are valid to be assigned to Message:
+	//
+	//	*ConnectResponse_Welcome
+	Message       isConnectResponse_Message `protobuf_oneof:"message"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectResponse) Reset() {
+	*x = ConnectResponse{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectResponse) ProtoMessage() {}
+
+func (x *ConnectResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectResponse.ProtoReflect.Descriptor instead.
+func (*ConnectResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ConnectResponse) GetMessage() isConnectResponse_Message {
+	if x != nil {
+		return x.Message
+	}
+	return nil
+}
+
+func (x *ConnectResponse) GetWelcome() *Welcome {
+	if x != nil {
+		if x, ok := x.Message.(*ConnectResponse_Welcome); ok {
+			return x.Welcome
+		}
+	}
+	return nil
+}
+
+type isConnectResponse_Message interface {
+	isConnectResponse_Message()
+}
+
+type ConnectResponse_Welcome struct {
+	// The answer to a hello.
+	Welcome *Welcome `protobuf:"bytes,1,opt,name=welcome,proto3,oneof"`
+}
+
+func (*ConnectResponse_Welcome) isConnectResponse_Message() {}
+
+// Welcome accepts an agent's stream.
+type Welcome struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The name the control plane knows the server by.
+	ServerName string `protobuf:"bytes,1,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
+	// How often the agent should send stats.
+	StatsInterval *durationpb.Duration `protobuf:"bytes,2,opt,name=stats_interval,json=statsInterval,proto3" json:"stats_interval,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Welcome) Reset() {
+	*x = Welcome{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Welcome) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Welcome) ProtoMessage() {}
+
+func (x *Welcome) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Welcome.ProtoReflect.Descriptor instead.
+func (*Welcome) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Welcome) GetServerName() string {
+	if x != nil {
+		return x.ServerName
+	}
+	return ""
+}
+
+func (x *Welcome) GetStatsInterval() *durationpb.Duration {
+	if x != nil {
+		return x.StatsInterval
+	}
+	return nil
+}
 
 // JoinTicket is what `dockwell join` takes, encoded as "dwj1." followed by
 // the message in unpadded base64url. It carries everything a new server
@@ -44,7 +312,7 @@ type JoinTicket struct {
 
 func (x *JoinTicket) Reset() {
 	*x = JoinTicket{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[0]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56,7 +324,7 @@ func (x *JoinTicket) String() string {
 func (*JoinTicket) ProtoMessage() {}
 
 func (x *JoinTicket) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[0]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -69,7 +337,7 @@ func (x *JoinTicket) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinTicket.ProtoReflect.Descriptor instead.
 func (*JoinTicket) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *JoinTicket) GetControlUrl() string {
@@ -121,7 +389,7 @@ type JoinRequest struct {
 
 func (x *JoinRequest) Reset() {
 	*x = JoinRequest{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[1]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -133,7 +401,7 @@ func (x *JoinRequest) String() string {
 func (*JoinRequest) ProtoMessage() {}
 
 func (x *JoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[1]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -146,7 +414,7 @@ func (x *JoinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinRequest.ProtoReflect.Descriptor instead.
 func (*JoinRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *JoinRequest) GetTokenId() string {
@@ -203,7 +471,7 @@ type JoinResponse struct {
 
 func (x *JoinResponse) Reset() {
 	*x = JoinResponse{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[2]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -215,7 +483,7 @@ func (x *JoinResponse) String() string {
 func (*JoinResponse) ProtoMessage() {}
 
 func (x *JoinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[2]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -228,7 +496,7 @@ func (x *JoinResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinResponse.ProtoReflect.Descriptor instead.
 func (*JoinResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *JoinResponse) GetServerId() string {
@@ -271,7 +539,7 @@ type RenewCertificateRequest struct {
 
 func (x *RenewCertificateRequest) Reset() {
 	*x = RenewCertificateRequest{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[3]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -283,7 +551,7 @@ func (x *RenewCertificateRequest) String() string {
 func (*RenewCertificateRequest) ProtoMessage() {}
 
 func (x *RenewCertificateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[3]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -296,7 +564,7 @@ func (x *RenewCertificateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenewCertificateRequest.ProtoReflect.Descriptor instead.
 func (*RenewCertificateRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RenewCertificateRequest) GetCsr() []byte {
@@ -317,7 +585,7 @@ type RenewCertificateResponse struct {
 
 func (x *RenewCertificateResponse) Reset() {
 	*x = RenewCertificateResponse{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[4]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -329,7 +597,7 @@ func (x *RenewCertificateResponse) String() string {
 func (*RenewCertificateResponse) ProtoMessage() {}
 
 func (x *RenewCertificateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[4]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -342,7 +610,7 @@ func (x *RenewCertificateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenewCertificateResponse.ProtoReflect.Descriptor instead.
 func (*RenewCertificateResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *RenewCertificateResponse) GetCertificate() []byte {
@@ -356,7 +624,21 @@ var File_dockwell_agent_v1_agent_proto protoreflect.FileDescriptor
 
 const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\n" +
-	"\x1ddockwell/agent/v1/agent.proto\x12\x11dockwell.agent.v1\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/system.proto\"w\n" +
+	"\x1ddockwell/agent/v1/agent.proto\x12\x11dockwell.agent.v1\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/server.proto\x1a\x18dockwell/v1/system.proto\x1a\x1egoogle/protobuf/duration.proto\"\x7f\n" +
+	"\x0eConnectRequest\x120\n" +
+	"\x05hello\x18\x01 \x01(\v2\x18.dockwell.agent.v1.HelloH\x00R\x05hello\x120\n" +
+	"\x05stats\x18\x02 \x01(\v2\x18.dockwell.v1.ServerStatsH\x00R\x05statsB\t\n" +
+	"\amessage\"q\n" +
+	"\x05Hello\x12,\n" +
+	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
+	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\"T\n" +
+	"\x0fConnectResponse\x126\n" +
+	"\awelcome\x18\x01 \x01(\v2\x1a.dockwell.agent.v1.WelcomeH\x00R\awelcomeB\t\n" +
+	"\amessage\"l\n" +
+	"\aWelcome\x12\x1f\n" +
+	"\vserver_name\x18\x01 \x01(\tR\n" +
+	"serverName\x12@\n" +
+	"\x0estats_interval\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\rstatsInterval\"w\n" +
 	"\n" +
 	"JoinTicket\x12\x1f\n" +
 	"\vcontrol_url\x18\x01 \x01(\tR\n" +
@@ -379,10 +661,11 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x17RenewCertificateRequest\x12\x10\n" +
 	"\x03csr\x18\x01 \x01(\fR\x03csr\"<\n" +
 	"\x18RenewCertificateResponse\x12 \n" +
-	"\vcertificate\x18\x01 \x01(\fR\vcertificate2\xd0\x01\n" +
+	"\vcertificate\x18\x01 \x01(\fR\vcertificate2\xac\x02\n" +
 	"\fAgentService\x12M\n" +
 	"\x04Join\x12\x1e.dockwell.agent.v1.JoinRequest\x1a\x1f.dockwell.agent.v1.JoinResponse\"\x04\xa0\xbb\x18\x03\x12q\n" +
-	"\x10RenewCertificate\x12*.dockwell.agent.v1.RenewCertificateRequest\x1a+.dockwell.agent.v1.RenewCertificateResponse\"\x04\xa0\xbb\x18\x03B\xc5\x01\n" +
+	"\x10RenewCertificate\x12*.dockwell.agent.v1.RenewCertificateRequest\x1a+.dockwell.agent.v1.RenewCertificateResponse\"\x04\xa0\xbb\x18\x03\x12Z\n" +
+	"\aConnect\x12!.dockwell.agent.v1.ConnectRequest\x1a\".dockwell.agent.v1.ConnectResponse\"\x04\xa0\xbb\x18\x03(\x010\x01B\xc5\x01\n" +
 	"\x15com.dockwell.agent.v1B\n" +
 	"AgentProtoP\x01Z:github.com/dockwell/dockwell/gen/dockwell/agent/v1;agentv1\xa2\x02\x03DAX\xaa\x02\x11Dockwell.Agent.V1\xca\x02\x11Dockwell\\Agent\\V1\xe2\x02\x1dDockwell\\Agent\\V1\\GPBMetadata\xea\x02\x13Dockwell::Agent::V1b\x06proto3"
 
@@ -398,26 +681,41 @@ func file_dockwell_agent_v1_agent_proto_rawDescGZIP() []byte {
 	return file_dockwell_agent_v1_agent_proto_rawDescData
 }
 
-var file_dockwell_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_dockwell_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_dockwell_agent_v1_agent_proto_goTypes = []any{
-	(*JoinTicket)(nil),               // 0: dockwell.agent.v1.JoinTicket
-	(*JoinRequest)(nil),              // 1: dockwell.agent.v1.JoinRequest
-	(*JoinResponse)(nil),             // 2: dockwell.agent.v1.JoinResponse
-	(*RenewCertificateRequest)(nil),  // 3: dockwell.agent.v1.RenewCertificateRequest
-	(*RenewCertificateResponse)(nil), // 4: dockwell.agent.v1.RenewCertificateResponse
-	(*v1.BuildInfo)(nil),             // 5: dockwell.v1.BuildInfo
+	(*ConnectRequest)(nil),           // 0: dockwell.agent.v1.ConnectRequest
+	(*Hello)(nil),                    // 1: dockwell.agent.v1.Hello
+	(*ConnectResponse)(nil),          // 2: dockwell.agent.v1.ConnectResponse
+	(*Welcome)(nil),                  // 3: dockwell.agent.v1.Welcome
+	(*JoinTicket)(nil),               // 4: dockwell.agent.v1.JoinTicket
+	(*JoinRequest)(nil),              // 5: dockwell.agent.v1.JoinRequest
+	(*JoinResponse)(nil),             // 6: dockwell.agent.v1.JoinResponse
+	(*RenewCertificateRequest)(nil),  // 7: dockwell.agent.v1.RenewCertificateRequest
+	(*RenewCertificateResponse)(nil), // 8: dockwell.agent.v1.RenewCertificateResponse
+	(*v1.ServerStats)(nil),           // 9: dockwell.v1.ServerStats
+	(*v1.BuildInfo)(nil),             // 10: dockwell.v1.BuildInfo
+	(*v1.ServerInventory)(nil),       // 11: dockwell.v1.ServerInventory
+	(*durationpb.Duration)(nil),      // 12: google.protobuf.Duration
 }
 var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
-	5, // 0: dockwell.agent.v1.JoinRequest.build:type_name -> dockwell.v1.BuildInfo
-	1, // 1: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
-	3, // 2: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
-	2, // 3: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
-	4, // 4: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
-	3, // [3:5] is the sub-list for method output_type
-	1, // [1:3] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	1,  // 0: dockwell.agent.v1.ConnectRequest.hello:type_name -> dockwell.agent.v1.Hello
+	9,  // 1: dockwell.agent.v1.ConnectRequest.stats:type_name -> dockwell.v1.ServerStats
+	10, // 2: dockwell.agent.v1.Hello.build:type_name -> dockwell.v1.BuildInfo
+	11, // 3: dockwell.agent.v1.Hello.inventory:type_name -> dockwell.v1.ServerInventory
+	3,  // 4: dockwell.agent.v1.ConnectResponse.welcome:type_name -> dockwell.agent.v1.Welcome
+	12, // 5: dockwell.agent.v1.Welcome.stats_interval:type_name -> google.protobuf.Duration
+	10, // 6: dockwell.agent.v1.JoinRequest.build:type_name -> dockwell.v1.BuildInfo
+	5,  // 7: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
+	7,  // 8: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
+	0,  // 9: dockwell.agent.v1.AgentService.Connect:input_type -> dockwell.agent.v1.ConnectRequest
+	6,  // 10: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
+	8,  // 11: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
+	2,  // 12: dockwell.agent.v1.AgentService.Connect:output_type -> dockwell.agent.v1.ConnectResponse
+	10, // [10:13] is the sub-list for method output_type
+	7,  // [7:10] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_agent_v1_agent_proto_init() }
@@ -425,13 +723,20 @@ func file_dockwell_agent_v1_agent_proto_init() {
 	if File_dockwell_agent_v1_agent_proto != nil {
 		return
 	}
+	file_dockwell_agent_v1_agent_proto_msgTypes[0].OneofWrappers = []any{
+		(*ConnectRequest_Hello)(nil),
+		(*ConnectRequest_Stats)(nil),
+	}
+	file_dockwell_agent_v1_agent_proto_msgTypes[2].OneofWrappers = []any{
+		(*ConnectResponse_Welcome)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_agent_v1_agent_proto_rawDesc), len(file_dockwell_agent_v1_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

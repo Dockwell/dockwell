@@ -12,7 +12,7 @@ import { renderWithApi } from "../test/render";
 function renderAt(path: string) {
   const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) });
   return renderWithApi(<RouterProvider router={router} />, {
-    getVersion: () => create(GetVersionResponseSchema, {}),
+    system: { getVersion: () => create(GetVersionResponseSchema, {}) },
   });
 }
 

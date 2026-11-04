@@ -25,7 +25,7 @@ const answers = () => create(GetVersionResponseSchema, { build });
 
 describe("StatusPage", () => {
   it("shows the running build", async () => {
-    renderWithApi(<StatusPage />, { getVersion: answers });
+    renderWithApi(<StatusPage />, { system: { getVersion: answers } });
 
     expect(await screen.findByRole("heading", { level: 1, name: "The control plane is running" })).toBeVisible();
     const panel = screen.getByRole("region", { name: "This control plane" });
@@ -39,7 +39,7 @@ describe("StatusPage", () => {
   it("copies the health check command", async () => {
     const writeText = vi.fn(async () => {});
     vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
-    renderWithApi(<StatusPage />, { getVersion: answers });
+    renderWithApi(<StatusPage />, { system: { getVersion: answers } });
 
     await userEvent.click(await screen.findByRole("button", { name: "Copy command" }));
     expect(writeText).toHaveBeenCalledWith(`curl -fsS ${window.location.origin}/healthz`);
@@ -49,9 +49,11 @@ describe("StatusPage", () => {
   it("explains an unreachable API and retries", async () => {
     let fail = true;
     renderWithApi(<StatusPage />, {
-      getVersion: () => {
-        if (fail) throw new ConnectError("connection refused", Code.Unavailable);
-        return answers();
+      system: {
+        getVersion: () => {
+          if (fail) throw new ConnectError("connection refused", Code.Unavailable);
+          return answers();
+        },
       },
     });
 
@@ -69,7 +71,7 @@ describe("StatusPage", () => {
   it("says it is connecting only when the answer is slow", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      renderWithApi(<StatusPage />, { getVersion: () => new Promise(() => {}) });
+      renderWithApi(<StatusPage />, { system: { getVersion: () => new Promise(() => {}) } });
       expect(screen.queryByText("Connecting to the control plane")).toBeNull();
       await act(() => vi.advanceTimersByTimeAsync(350));
       expect(screen.getByRole("heading", { level: 1, name: "Connecting to the control plane" })).toBeVisible();
@@ -80,7 +82,7 @@ describe("StatusPage", () => {
 
   it("speaks Simplified Chinese", async () => {
     await activateLocale("zh-CN");
-    renderWithApi(<StatusPage />, { getVersion: answers });
+    renderWithApi(<StatusPage />, { system: { getVersion: answers } });
     expect(await screen.findByRole("heading", { level: 1, name: "控制平面正在运行" })).toBeVisible();
     expect(screen.getByRole("region", { name: "当前控制平面" })).toHaveTextContent("健康: 已连接");
     expect(document.documentElement.lang).toBe("zh-CN");

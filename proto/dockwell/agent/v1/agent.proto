@@ -5,7 +5,9 @@ syntax = "proto3";
 package dockwell.agent.v1;
 
 import "dockwell/v1/options.proto";
+import "dockwell/v1/server.proto";
 import "dockwell/v1/system.proto";
+import "google/protobuf/duration.proto";
 
 // AgentService is how a server's agent talks to the control plane, over
 // mTLS on the control plane's agent listener (ADR 0007). It is an internal
@@ -24,6 +26,50 @@ service AgentService {
   rpc RenewCertificate(RenewCertificateRequest) returns (RenewCertificateResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
   }
+
+  // Connect is the agent's long-lived stream. The agent opens it with a
+  // hello and then reports samples; the control plane answers with a
+  // welcome, and closes the stream if the server is removed. Later, desired
+  // state travels down this stream too.
+  rpc Connect(stream ConnectRequest) returns (stream ConnectResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+}
+
+// ConnectRequest is one message from the agent.
+message ConnectRequest {
+  // What the message is.
+  oneof message {
+    // The first message on every stream.
+    Hello hello = 1;
+    // A sample of the server's resource use.
+    dockwell.v1.ServerStats stats = 2;
+  }
+}
+
+// Hello introduces the agent at the start of a stream.
+message Hello {
+  // The agent's build.
+  dockwell.v1.BuildInfo build = 1;
+  // What the server is, as the agent sees it now.
+  dockwell.v1.ServerInventory inventory = 2;
+}
+
+// ConnectResponse is one message from the control plane.
+message ConnectResponse {
+  // What the message is.
+  oneof message {
+    // The answer to a hello.
+    Welcome welcome = 1;
+  }
+}
+
+// Welcome accepts an agent's stream.
+message Welcome {
+  // The name the control plane knows the server by.
+  string server_name = 1;
+  // How often the agent should send stats.
+  google.protobuf.Duration stats_interval = 2;
 }
 
 // JoinTicket is what `dockwell join` takes, encoded as "dwj1." followed by
