@@ -28,8 +28,8 @@ type Config struct {
 	// ControlServer returns the control server as the fleet sees it, for the
 	// claim screen and the sign-in screen. Optional.
 	ControlServer func() *dockwellv1.Server
-	// PublicAddress is where other servers reach this one, such as
-	// "203.0.113.7", for pointing a domain's A record. Optional.
+	// PublicAddress is this server's public IP address, such as
+	// "203.0.113.7", for pointing a domain at. Empty when it isn't known.
 	PublicAddress string
 }
 

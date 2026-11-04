@@ -184,8 +184,9 @@ export type CheckClaimResponse = Message<"dockwell.v1.CheckClaimResponse"> & {
   server?: Server | undefined;
 
   /**
-   * The address other servers reach this one at, such as "203.0.113.7". Point
-   * a domain's A record here.
+   * This server's public IP address, such as "203.0.113.7", for pointing a
+   * domain at: an A record, or AAAA for an IPv6 address. Empty when the
+   * server doesn't know one, as behind NAT, where its own address is private.
    *
    * @generated from field: string public_address = 2;
    */

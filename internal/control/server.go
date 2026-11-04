@@ -73,8 +73,8 @@ type Config struct {
 	// Public serves the panel on its domain over HTTPS. Nil keeps the panel
 	// on loopback.
 	Public https.Source
-	// PublicAddress is where other servers reach this one, shown on the
-	// claim screen.
+	// PublicAddress is this server's public IP address, shown on the claim
+	// screen for pointing a domain at. Empty when it isn't known.
 	PublicAddress string
 }
 

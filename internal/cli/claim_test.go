@@ -16,6 +16,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/datadir"
 )
@@ -131,9 +132,10 @@ func TestClaimAndRecoverThroughTheCLI(t *testing.T) {
 
 	claimOverHTTP(t, second)
 
+	// Its own exit status, so install.sh can tell it from a failure.
 	r = run(t, none, "claim", "--data-dir", dir)
-	if r.code != exitError || !strings.Contains(r.err, "already has an owner, mira@acme.dev") || !strings.Contains(r.err, "dockwell recover") {
-		t.Errorf("dockwell claim after claiming = %d %q", r.code, r.err)
+	if r.code != exitClaimed || !strings.Contains(r.err, "already has an owner, mira@acme.dev") || !strings.Contains(r.err, "dockwell recover") {
+		t.Errorf("dockwell claim after claiming = %d %q, want %d", r.code, r.err, exitClaimed)
 	}
 	r = run(t, none, "recover", "--data-dir", dir)
 	if r.code != exitOK || !strings.Contains(r.out, "signs you in as mira@acme.dev once, within 15 min") || !strings.Contains(r.out, "/recover#") {
@@ -247,6 +249,74 @@ func TestSSHTarget(t *testing.T) {
 	}
 }
 
+// The claim screen shows where to point a domain only when this server
+// knows a public address: never a loopback or private one, or a hostname.
+func TestTheDNSAddressIsPublic(t *testing.T) {
+	for host, want := range map[string]string{
+		"203.0.113.7":        "203.0.113.7",
+		"::ffff:203.0.113.7": "203.0.113.7",
+		"2001:db8::1":        "2001:db8::1",
+		"127.0.0.1":          "",
+		"::1":                "",
+		"10.0.0.5":           "",
+		"172.31.4.9":         "",
+		"192.168.1.20":       "",
+		"100.64.3.2":         "",
+		"fd00::5":            "",
+		"fe80::1":            "",
+		"0.0.0.0":            "",
+		"agents.example.com": "",
+		"":                   "",
+	} {
+		addr := panelAddress{Port: "7600", PublicHost: host}
+		if got := addr.dnsAddress(); got != want {
+			t.Errorf("dnsAddress for %q = %q, want %q", host, got, want)
+		}
+		var b strings.Builder
+		printClaim(&b, addr, auth.Link{Token: "x", ExpiresAt: time.Now().Add(time.Hour)}, func(string) string { return "" })
+		switch {
+		case want == "" && !strings.Contains(b.String(), "DNS record at this server's public address,"):
+			t.Errorf("with %q, the claim says where to point a domain:\n%s", host, b.String())
+		case want != "" && !strings.Contains(b.String(), "record at "+want+","):
+			t.Errorf("with %q, the claim doesn't say to point a domain at %s:\n%s", host, want, b.String())
+		}
+	}
+	if got := (panelAddress{PublicHost: "2001:db8::1"}).dnsRecord(); got != "AAAA" {
+		t.Errorf("the record for an IPv6 address is %s", got)
+	}
+}
+
+// The claim screen gets the same public address, or none.
+func TestCheckClaimShowsOnlyAPublicAddress(t *testing.T) {
+	for advertise, want := range map[string]string{
+		"":                          "", // the agent listener's loopback address
+		"https://10.0.0.5:7443":     "",
+		"https://203.0.113.7:7443":  "203.0.113.7",
+		"https://agents.acme.dev:1": "",
+	} {
+		var args []string
+		if advertise != "" {
+			args = []string{"--advertise-url", advertise}
+		}
+		out, stop := startRunWithOutput(t, t.TempDir(), "/claim#", args...)
+		m := linkRE.FindStringSubmatch(out.String())
+		base, token := m[1], m[3]
+		var d net.Dialer
+		client := &http.Client{Transport: &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			return d.DialContext(ctx, network, "127.0.0.1"+strings.TrimPrefix(base, "http://localhost"))
+		}}}
+		c := dockwellv1connect.NewAuthServiceClient(client, base, connect.WithInterceptors(originHeader(base)))
+		res, err := c.CheckClaim(t.Context(), connect.NewRequest(&dockwellv1.CheckClaimRequest{Token: token}))
+		if err != nil {
+			t.Fatalf("CheckClaim with --advertise-url %q: %v", advertise, err)
+		}
+		if got := res.Msg.GetPublicAddress(); got != want {
+			t.Errorf("with --advertise-url %q, the claim screen's public address is %q, want %q", advertise, got, want)
+		}
+		stop()
+	}
+}
+
 // Restarting dockwell run keeps the claim link it printed before, which may
 // be the one install.sh showed. Only dockwell claim replaces it.
 func TestARestartKeepsTheClaimLink(t *testing.T) {
@@ -261,6 +331,43 @@ func TestARestartKeepsTheClaimLink(t *testing.T) {
 		t.Errorf("after a restart:\n%s", out.String())
 	}
 	claimOverHTTP(t, first)
+}
+
+// A restart where the panel answers somewhere else, on another port or a
+// domain, prints a new link: the earlier one doesn't work as printed.
+func TestARestartOnAnotherAddressPrintsANewLink(t *testing.T) {
+	dir := t.TempDir()
+	out, stop := startRunWithOutput(t, dir, "/claim#")
+	first := linkRE.FindString(out.String())
+	stop()
+
+	out, stop = startRunWithOutput(t, dir, "/claim#") // another free port
+	second := linkRE.FindString(out.String())
+	stop()
+	if second == "" || second == first || !strings.Contains(out.String(), "The panel's address changed since the last claim link was printed") {
+		t.Fatalf("after a restart on another port:\n%s", out.String())
+	}
+
+	// dockwell claim records where its link is printed too: a restart on that
+	// address keeps it.
+	r := run(t, map[string]string{envLogFormat: "json"}, "claim", "--data-dir", dir)
+	third := linkRE.FindString(r.out)
+	port := strings.TrimPrefix(linkRE.FindStringSubmatch(third)[1], "http://localhost:")
+	out, stop = startRunWithOutput(t, dir, "still works", "--listen", "127.0.0.1:"+port)
+	stop()
+	if strings.Contains(out.String(), "/claim#") {
+		t.Errorf("a restart on the address dockwell claim printed for replaced its link:\n%s", out.String())
+	}
+
+	domain := []string{
+		"--listen", "127.0.0.1:" + port,
+		"--domain", "panel.example.com", "--https-listen", "127.0.0.1:0", "--http-listen", "127.0.0.1:0",
+		"--acme-directory-url", "https://acme.invalid/directory",
+	}
+	out, _ = startRunWithOutput(t, dir, "/claim#", domain...)
+	if m := linkRE.FindStringSubmatch(out.String()); m == nil || !strings.HasPrefix(m[1], "https://panel.example.com:") {
+		t.Errorf("after gaining a domain, the new link isn't for it:\n%s", out.String())
+	}
 }
 
 func TestTheTunnelGoesToTheListenersAddress(t *testing.T) {

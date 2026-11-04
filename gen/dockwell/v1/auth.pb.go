@@ -409,8 +409,9 @@ type CheckClaimResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The control server, as its agent last reported it.
 	Server *Server `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
-	// The address other servers reach this one at, such as "203.0.113.7". Point
-	// a domain's A record here.
+	// This server's public IP address, such as "203.0.113.7", for pointing a
+	// domain at: an A record, or AAAA for an IPv6 address. Empty when the
+	// server doesn't know one, as behind NAT, where its own address is private.
 	PublicAddress string `protobuf:"bytes,2,opt,name=public_address,json=publicAddress,proto3" json:"public_address,omitempty"`
 	// When the link stops working.
 	ExpireTime    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`

@@ -22,6 +22,9 @@ const (
 	exitOK    = 0
 	exitError = 1
 	exitUsage = 2
+	// exitClaimed is dockwell claim's when the install already has an
+	// owner, which install.sh tells apart from a failure.
+	exitClaimed = 3
 )
 
 // env names the environment variables that set flag defaults.
@@ -60,10 +63,15 @@ func Execute(ctx context.Context, args []string, stdio IO) int {
 	}
 	fmt.Fprintf(stdio.Err, "dockwell: %s\n", err)
 	var usage usageError
-	if errors.As(err, &usage) {
+	var coded exitCodeError
+	switch {
+	case errors.As(err, &usage):
 		return exitUsage
+	case errors.As(err, &coded):
+		return coded.code
+	default:
+		return exitError
 	}
-	return exitError
 }
 
 // usageTemplate replaces cobra's default help layout with one that follows
@@ -90,6 +98,15 @@ Run "{{.CommandPath}} <command> --help" for more about a command.{{end}}
 type usageError struct{ error }
 
 func (e usageError) Unwrap() error { return e.error }
+
+// exitCodeError is an error with its own exit code, for an outcome scripts
+// tell apart from a failure.
+type exitCodeError struct {
+	code int
+	error
+}
+
+func (e exitCodeError) Unwrap() error { return e.error }
 
 type globalFlags struct {
 	logLevel  string

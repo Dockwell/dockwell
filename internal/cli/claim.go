@@ -10,6 +10,8 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/netip"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,9 +23,17 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-// settingPanelAddress records where the running control plane serves the
-// panel, so dockwell claim and dockwell recover print links that work.
-const settingPanelAddress = "panel.address"
+// Settings that record panel addresses.
+const (
+	// settingPanelAddress records where the running control plane serves
+	// the panel, so dockwell claim and dockwell recover print links that
+	// work.
+	settingPanelAddress = "panel.address"
+	// settingClaimAddress records the panel address the newest claim link
+	// was printed for, so a restart can tell whether it still works as
+	// printed.
+	settingClaimAddress = "claim.address"
+)
 
 // panelAddress is where the panel answers.
 type panelAddress struct {
@@ -75,11 +85,53 @@ func (a panelAddress) reachable() string {
 	return a.PublicHost
 }
 
+// sharedAddresses are carrier-grade NAT's (RFC 6598): not public, though
+// not private by net/netip's reckoning either.
+var sharedAddresses = netip.MustParsePrefix("100.64.0.0/10")
+
+// dnsAddress is the public host as an address a domain's DNS record can
+// point at, for a certificate from Let's Encrypt: a public IP address. It is
+// empty when all that is known is a hostname, or a loopback, private,
+// shared or link-local address, as behind NAT, where this server can't see
+// its public address.
+func (a panelAddress) dnsAddress() string {
+	ip, err := netip.ParseAddr(a.PublicHost)
+	if err != nil {
+		return ""
+	}
+	ip = ip.Unmap()
+	if !ip.IsGlobalUnicast() || ip.IsPrivate() || sharedAddresses.Contains(ip) || ip.Zone() != "" {
+		return ""
+	}
+	return ip.String()
+}
+
+// dnsRecord is the kind of DNS record that points at dnsAddress.
+func (a panelAddress) dnsRecord() string {
+	if strings.Contains(a.dnsAddress(), ":") {
+		return "AAAA"
+	}
+	return "A"
+}
+
+// sameLink reports whether a link printed for address a still works as
+// printed at b: the same URL and, through a tunnel, the same address on
+// this server for the tunnel to forward to.
+func (a panelAddress) sameLink(b panelAddress) bool {
+	return a.url() == b.url() && (a.Domain != "" || a.tunnelHost() == b.tunnelHost())
+}
+
 func loadPanelAddress(ctx context.Context, db *store.DB) (panelAddress, bool, error) {
+	return loadAddress(ctx, db, settingPanelAddress)
+}
+
+// loadAddress reads a panel address recorded under setting, and reports
+// whether there was one.
+func loadAddress(ctx context.Context, db *store.DB, setting string) (panelAddress, bool, error) {
 	var a panelAddress
 	var raw []byte
 	err := db.View(ctx, func(tx *store.Tx) (err error) {
-		raw, err = tx.GetSetting(ctx, settingPanelAddress)
+		raw, err = tx.GetSetting(ctx, setting)
 		return err
 	})
 	if errors.Is(err, store.ErrNotFound) {
@@ -89,9 +141,31 @@ func loadPanelAddress(ctx context.Context, db *store.DB) (panelAddress, bool, er
 		return a, false, err
 	}
 	if err := json.Unmarshal(raw, &a); err != nil {
-		return a, false, fmt.Errorf("can't read the panel's address: %w", err)
+		return a, false, fmt.Errorf("can't read the panel's address from setting %s: %w", setting, err)
 	}
 	return a, true, nil
+}
+
+// saveAddress records a panel address under setting.
+func saveAddress(ctx context.Context, db *store.DB, setting string, a panelAddress) error {
+	raw, err := json.Marshal(a)
+	if err != nil {
+		return err
+	}
+	return db.Update(ctx, func(tx *store.Tx) error { return tx.PutSetting(ctx, setting, raw) })
+}
+
+// newClaimLink makes a claim link that replaces any earlier one, and
+// records the address it is printed for.
+func newClaimLink(ctx context.Context, db *store.DB, people *auth.Service, addr panelAddress, actor string) (auth.Link, error) {
+	link, err := people.CreateClaimLink(ctx, actor)
+	if err != nil {
+		return auth.Link{}, err
+	}
+	if err := saveAddress(ctx, db, settingClaimAddress, addr); err != nil {
+		return auth.Link{}, err
+	}
+	return link, nil
 }
 
 // announce records where the panel answers, and tells the operator what to
@@ -102,11 +176,7 @@ func announce(ctx context.Context, stdio IO, logger *slog.Logger, db *store.DB, 
 	if err != nil {
 		return err
 	}
-	raw, err := json.Marshal(addr)
-	if err != nil {
-		return err
-	}
-	if err := db.Update(ctx, func(tx *store.Tx) error { return tx.PutSetting(ctx, settingPanelAddress, raw) }); err != nil {
+	if err := saveAddress(ctx, db, settingPanelAddress, addr); err != nil {
 		return err
 	}
 	claimed, err := people.Claimed(ctx)
@@ -115,23 +185,32 @@ func announce(ctx context.Context, stdio IO, logger *slog.Logger, db *store.DB, 
 	}
 	if !claimed {
 		// A restart keeps the link it printed before, which may be the one
-		// install.sh showed. Only dockwell claim replaces a link that works.
+		// install.sh showed, while it works as printed. Only dockwell claim
+		// replaces such a link.
 		expires, waiting, err := people.WaitingClaimLink(ctx)
 		if err != nil {
 			return err
 		}
-		if waiting {
+		printedFor, recorded, err := loadAddress(ctx, db, settingClaimAddress)
+		if err != nil {
+			return err
+		}
+		if waiting && recorded && printedFor.sameLink(addr) {
 			logger.Info("this install has no owner yet; the claim link printed earlier still works", slog.Time("expires", expires))
 			fmt.Fprintf(stdio.Out, "\nThis install has no owner yet. The claim link printed earlier still works for %s. "+
 				"If you don't have it, run dockwell claim for a new one; it replaces the earlier link.\n\n", until(expires))
 			return nil
 		}
-		link, err := people.CreateClaimLink(ctx, "system")
+		link, err := newClaimLink(ctx, db, people, addr, "system")
 		if err != nil {
 			return err
 		}
 		logger.Info("this install has no owner yet; open the claim link printed on standard output to claim it",
 			slog.Time("expires", link.ExpiresAt))
+		if waiting {
+			fmt.Fprintf(stdio.Out, "\nThe panel's address changed since the last claim link was printed, so that link doesn't work as printed. "+
+				"The new link below replaces it.\n")
+		}
 		printClaim(stdio.Out, addr, link, stdio.Getenv)
 		return nil
 	}
@@ -155,10 +234,14 @@ func printClaim(w io.Writer, addr panelAddress, link auth.Link, getenv func(stri
 	fmt.Fprintf(w, "\nThis install has no owner yet. Claim it within %s with the link below; it works once.\n\n",
 		until(link.ExpiresAt))
 	printLink(w, addr, "/claim#"+link.Token, getenv)
-	if addr.Domain == "" {
+	switch {
+	case addr.Domain == "" && addr.dnsAddress() != "":
 		fmt.Fprintf(w, "The panel stays on this server's loopback address until you give it a domain. "+
-			"To serve it over HTTPS, point a DNS A record at %s, then restart with --domain.\n", orPlaceholder(addr.reachable(), "this server"))
-	} else {
+			"To serve it over HTTPS, point a domain's DNS %s record at %s, then restart with --domain.\n", addr.dnsRecord(), addr.dnsAddress())
+	case addr.Domain == "":
+		fmt.Fprintf(w, "The panel stays on this server's loopback address until you give it a domain. "+
+			"To serve it over HTTPS, point a domain's DNS record at this server's public address, then restart with --domain.\n")
+	default:
 		fmt.Fprintf(w, "The first visit gets the panel's certificate from Let's Encrypt, which takes a few seconds.\n")
 	}
 	fmt.Fprintf(w, "Run dockwell claim for a new link.\n\n")
@@ -247,7 +330,8 @@ func newClaimCmd(stdio IO, g *globalFlags) *cobra.Command {
 		Use:   "claim",
 		Short: "Print a new link that claims this install",
 		Long: "Prints a one-time link that creates the owner account with a passkey. It replaces any earlier link " +
-			"and expires in 24 h. Once the install has an owner, there is nothing to claim.\n\n" +
+			"and expires in 24 h. Once the install has an owner, there is nothing to claim, and it exits with status " +
+			strconv.Itoa(exitClaimed) + ", so scripts can tell that from a failure.\n\n" +
 			"Run it on the control server, as the user that runs dockwell.",
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -265,13 +349,13 @@ func newClaimCmd(stdio IO, g *globalFlags) *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			link, err := people.CreateClaimLink(ctx, actor())
+			link, err := newClaimLink(ctx, db, people, addr, actor())
 			if errors.Is(err, auth.ErrClaimed) {
 				owner, oerr := people.Owner(ctx)
 				if oerr != nil {
-					return err
+					return exitCodeError{exitClaimed, err}
 				}
-				return fmt.Errorf("this install already has an owner, %s. To sign in without a passkey, run dockwell recover", owner.Email)
+				return exitCodeError{exitClaimed, fmt.Errorf("this install already has an owner, %s. To sign in without a passkey, run dockwell recover", owner.Email)}
 			}
 			if err != nil {
 				return err

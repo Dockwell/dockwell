@@ -233,7 +233,7 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		AgentHosts:    agentHosts(agentURL),
 		Auth:          people,
 		Public:        public,
-		PublicAddress: addr.PublicHost,
+		PublicAddress: addr.dnsAddress(),
 	})
 	if err != nil {
 		closeAll()
