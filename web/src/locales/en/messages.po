@@ -11,12 +11,6 @@ msgstr ""
 msgid "(modified)"
 msgstr "(modified)"
 
-#. placeholder {0}: user.name
-#. placeholder {1}: user.email
-#: src/features/auth/ProfilePage.tsx
-msgid "{0} · {1} · signed in {how}"
-msgstr "{0} · {1} · signed in {how}"
-
 #. placeholder {0}: formatBytes(disk.sizeBytes, i18n.locale)
 #: src/features/auth/ClaimPage.tsx
 msgid "{0} disk"
@@ -277,11 +271,6 @@ msgstr "backup"
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "Backups"
-
-#. Ends “signed in …”
-#: src/features/auth/ProfilePage.tsx
-msgid "by claiming this install"
-msgstr "by claiming this install"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Can't check your session"
@@ -1216,6 +1205,26 @@ msgstr "Sign out {device}"
 msgid "Sign out everywhere else"
 msgstr "Sign out everywhere else"
 
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in by claiming this install"
+msgstr "signed in by claiming this install"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in with a one-time link"
+msgstr "signed in with a one-time link"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in with a passkey"
+msgstr "signed in with a passkey"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in with a recovery code"
+msgstr "signed in with a recovery code"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in with an authenticator code"
+msgstr "signed in with an authenticator code"
+
 #: src/features/auth/RecoverPage.tsx
 #: src/features/auth/SignInPage.tsx
 msgid "Signing in"
@@ -1585,26 +1594,6 @@ msgstr "What you see may be out of date. {0}"
 #: src/features/auth/AuthGate.tsx
 msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
 msgstr "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
-
-#. Ends “signed in …”
-#: src/features/auth/ProfilePage.tsx
-msgid "with a one-time link"
-msgstr "with a one-time link"
-
-#. Ends “signed in …”
-#: src/features/auth/ProfilePage.tsx
-msgid "with a passkey"
-msgstr "with a passkey"
-
-#. Ends “signed in …”
-#: src/features/auth/ProfilePage.tsx
-msgid "with a recovery code"
-msgstr "with a recovery code"
-
-#. Ends “signed in …”
-#: src/features/auth/ProfilePage.tsx
-msgid "with an authenticator code"
-msgstr "with an authenticator code"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Works here"

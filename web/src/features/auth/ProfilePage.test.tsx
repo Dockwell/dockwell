@@ -95,6 +95,11 @@ describe("ProfilePage", () => {
     expect(getAuthState).toHaveBeenCalledOnce();
   });
 
+  it("leaves out how you signed in when the panel doesn't know the way", async () => {
+    renderAt("/profile", api({ getAuthState: () => authState({ signInMethod: SignInMethod.UNSPECIFIED }) }));
+    expect(await screen.findByText("Mira Chen · mira@acme.dev", { exact: true })).toHaveClass("page-lead");
+  });
+
   it("signs out another session", async () => {
     const revokeSession = vi.fn(() => ({}));
     renderAt("/profile", api({ revokeSession }));

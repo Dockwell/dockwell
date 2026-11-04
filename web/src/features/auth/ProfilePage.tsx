@@ -37,13 +37,7 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
   return (
     <Page
       title={t`Profile and security`}
-      lead={
-        user ? (
-          <Trans>
-            {user.name} · {user.email} · signed in {how}
-          </Trans>
-        ) : null
-      }
+      lead={user ? [user.name, user.email, how].filter(Boolean).join(" · ") : null}
       phoneSub={user?.email}
       actions={
         <Button size="sm" icon="logout" loading={signOut.busy} onClick={() => void signOut.run()}>
@@ -67,19 +61,20 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
   );
 }
 
+/** How this session signed in, after your name and email; empty for a way the panel doesn't know. */
 function useSignedInWith(method: SignInMethod): string {
   const { t } = useLingui();
   switch (method) {
     case SignInMethod.CLAIM:
-      return t({ message: "by claiming this install", comment: "Ends “signed in …”" });
+      return t`signed in by claiming this install`;
     case SignInMethod.PASSKEY:
-      return t({ message: "with a passkey", comment: "Ends “signed in …”" });
+      return t`signed in with a passkey`;
     case SignInMethod.AUTHENTICATOR_CODE:
-      return t({ message: "with an authenticator code", comment: "Ends “signed in …”" });
+      return t`signed in with an authenticator code`;
     case SignInMethod.RECOVERY_CODE:
-      return t({ message: "with a recovery code", comment: "Ends “signed in …”" });
+      return t`signed in with a recovery code`;
     case SignInMethod.LINK:
-      return t({ message: "with a one-time link", comment: "Ends “signed in …”" });
+      return t`signed in with a one-time link`;
     default:
       return "";
   }

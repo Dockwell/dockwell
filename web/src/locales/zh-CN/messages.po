@@ -11,12 +11,6 @@ msgstr ""
 msgid "(modified)"
 msgstr "（有未提交的修改）"
 
-#. placeholder {0}: user.name
-#. placeholder {1}: user.email
-#: src/features/auth/ProfilePage.tsx
-msgid "{0} · {1} · signed in {how}"
-msgstr "{0} · {1} · {how}登录"
-
 #. placeholder {0}: formatBytes(disk.sizeBytes, i18n.locale)
 #: src/features/auth/ClaimPage.tsx
 msgid "{0} disk"
@@ -277,11 +271,6 @@ msgstr "备份"
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "备份"
-
-#. Ends “signed in …”
-#: src/features/auth/ProfilePage.tsx
-msgid "by claiming this install"
-msgstr "通过认领此安装"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Can't check your session"
@@ -1216,6 +1205,26 @@ msgstr "让 {device} 退出登录"
 msgid "Sign out everywhere else"
 msgstr "在其他所有地方退出登录"
 
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in by claiming this install"
+msgstr "通过认领此安装登录"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in with a one-time link"
+msgstr "通过一次性链接登录"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in with a passkey"
+msgstr "通过通行密钥登录"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in with a recovery code"
+msgstr "通过恢复码登录"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "signed in with an authenticator code"
+msgstr "通过身份验证器验证码登录"
+
 #: src/features/auth/RecoverPage.tsx
 #: src/features/auth/SignInPage.tsx
 msgid "Signing in"
@@ -1585,26 +1594,6 @@ msgstr "你看到的内容可能已过时。{0}"
 #: src/features/auth/AuthGate.tsx
 msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
 msgstr "你看到的内容可能已过时。请确认服务器上的 dockwell run 仍在运行，然后重试。"
-
-#. Ends “signed in …”
-#: src/features/auth/ProfilePage.tsx
-msgid "with a one-time link"
-msgstr "通过一次性链接"
-
-#. Ends “signed in …”
-#: src/features/auth/ProfilePage.tsx
-msgid "with a passkey"
-msgstr "通过通行密钥"
-
-#. Ends “signed in …”
-#: src/features/auth/ProfilePage.tsx
-msgid "with a recovery code"
-msgstr "通过恢复码"
-
-#. Ends “signed in …”
-#: src/features/auth/ProfilePage.tsx
-msgid "with an authenticator code"
-msgstr "通过身份验证器验证码"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Works here"
