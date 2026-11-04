@@ -104,6 +104,9 @@ message Server {
   BuildInfo agent_build = 9;
   // True for the server that runs the control plane.
   bool control_server = 10;
+  // When the agent connected, if it is connected now. A connection that
+  // moves to a renewed certificate keeps its time. Unset otherwise.
+  google.protobuf.Timestamp connect_time = 11;
 }
 
 // ServerInventory is what a server is: its system and hardware.

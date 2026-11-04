@@ -15,6 +15,7 @@ import { Route as ShellIndexRouteImport } from './routes/_shell/index'
 import { Route as ShellSectionRouteImport } from './routes/_shell/$section'
 import { Route as ShellMoreRouteImport } from './routes/_shell/more'
 import { Route as ShellServersIndexRouteImport } from './routes/_shell/servers.index'
+import { Route as ShellServersServerIdRouteImport } from './routes/_shell/servers.$serverId'
 
 const ShellRoute = ShellRouteImport.update({
   id: '/_shell',
@@ -45,12 +46,18 @@ const ShellServersIndexRoute = ShellServersIndexRouteImport.update({
   path: '/servers/',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellServersServerIdRoute = ShellServersServerIdRouteImport.update({
+  id: '/servers/$serverId',
+  path: '/servers/$serverId',
+  getParentRoute: () => ShellRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ShellIndexRoute
   '/status': typeof StatusRoute
   '/$section': typeof ShellSectionRoute
   '/more': typeof ShellMoreRoute
+  '/servers/$serverId': typeof ShellServersServerIdRoute
   '/servers/': typeof ShellServersIndexRoute
 }
 export interface FileRoutesByTo {
@@ -58,6 +65,7 @@ export interface FileRoutesByTo {
   '/$section': typeof ShellSectionRoute
   '/more': typeof ShellMoreRoute
   '/': typeof ShellIndexRoute
+  '/servers/$serverId': typeof ShellServersServerIdRoute
   '/servers': typeof ShellServersIndexRoute
 }
 export interface FileRoutesById {
@@ -67,13 +75,16 @@ export interface FileRoutesById {
   '/_shell/$section': typeof ShellSectionRoute
   '/_shell/more': typeof ShellMoreRoute
   '/_shell/': typeof ShellIndexRoute
+  '/_shell/servers/$serverId': typeof ShellServersServerIdRoute
   '/_shell/servers/': typeof ShellServersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/status' | '/$section' | '/more' | '/servers/'
+  fullPaths:
+    '/' | '/status' | '/$section' | '/more' | '/servers/$serverId' | '/servers/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/status' | '/$section' | '/more' | '/' | '/servers'
+  to:
+    '/status' | '/$section' | '/more' | '/' | '/servers/$serverId' | '/servers'
   id:
     | '__root__'
     | '/_shell'
@@ -81,6 +92,7 @@ export interface FileRouteTypes {
     | '/_shell/$section'
     | '/_shell/more'
     | '/_shell/'
+    | '/_shell/servers/$serverId'
     | '/_shell/servers/'
   fileRoutesById: FileRoutesById
 }
@@ -133,6 +145,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersIndexRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/servers/$serverId': {
+      id: '/_shell/servers/$serverId'
+      path: '/servers/$serverId'
+      fullPath: '/servers/$serverId'
+      preLoaderRoute: typeof ShellServersServerIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
   }
 }
 
@@ -140,6 +159,7 @@ interface ShellRouteChildren {
   ShellSectionRoute: typeof ShellSectionRoute
   ShellMoreRoute: typeof ShellMoreRoute
   ShellIndexRoute: typeof ShellIndexRoute
+  ShellServersServerIdRoute: typeof ShellServersServerIdRoute
   ShellServersIndexRoute: typeof ShellServersIndexRoute
 }
 
@@ -147,6 +167,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellSectionRoute: ShellSectionRoute,
   ShellMoreRoute: ShellMoreRoute,
   ShellIndexRoute: ShellIndexRoute,
+  ShellServersServerIdRoute: ShellServersServerIdRoute,
   ShellServersIndexRoute: ShellServersIndexRoute,
 }
 

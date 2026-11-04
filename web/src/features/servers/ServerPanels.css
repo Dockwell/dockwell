@@ -1,0 +1,175 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Facts in two columns: muted terms, then values. */
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 10px var(--space-4);
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.facts dt {
+  color: var(--ink-muted);
+}
+
+.facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.facts code {
+  font-size: 12px;
+}
+
+.fact-muted {
+  color: var(--ink-muted);
+}
+
+.fact-copy {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.fact-copy code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fact-copy .copy-button {
+  --h: 20px;
+  flex: none;
+}
+
+.fact-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
+}
+
+.panel-meta {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+code.panel-meta {
+  font: 400 12px / 18px var(--font-mono);
+}
+
+.panel-empty {
+  color: var(--ink-muted);
+}
+
+/* ---------- Disks ---------- */
+
+.disks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.disk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.disk-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+.disk-mount {
+  font: 500 13px / 20px var(--font-mono);
+}
+
+.disk-device {
+  color: var(--ink-muted);
+  font: 400 12px / 18px var(--font-mono);
+}
+
+.disk-share {
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.disk-bar {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+}
+
+.disk-bar > span {
+  flex-basis: 0;
+  min-width: 2px;
+  border-radius: 2px;
+}
+
+.disk-bar > span:first-child {
+  border-radius: 4px 2px 2px 4px;
+}
+
+.disk-bar > span:last-child {
+  border-radius: 2px 4px 4px 2px;
+}
+
+.disk-used {
+  background: var(--ink);
+}
+
+.disk-free {
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.disk-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 40%), 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin: 0;
+}
+
+.disk-legend dt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.disk-legend dd {
+  margin: 2px 0 0 18px;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 550;
+}
+
+.disk-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.disk-swatch.is-used {
+  background: var(--ink);
+}
+
+.disk-swatch.is-free {
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}

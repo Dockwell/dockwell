@@ -102,7 +102,7 @@ describe("the shell as samples arrive", () => {
     const watch = feed<WatchServersResponse>();
     watch.push(changed(hz1), snapshotComplete);
     renderAt("/", { servers: { watchServers: watch.stream } });
-    await screen.findByText("10%");
+    await screen.findByText("Machine");
     seen.rail = 0;
     act(() => watch.push(changed(hz2)));
     expect(await screen.findByText("Fleet")).toBeVisible();

@@ -53,6 +53,10 @@ type live struct {
 	history   []*dockwellv1.ServerStats // oldest first, at most HistoryLength
 	streams   int
 	lastSeen  time.Time
+	// connectedAt is when the first of the open streams opened; zero
+	// while there are none. A stream that opens alongside, as when the
+	// agent moves to a renewed certificate, leaves it alone.
+	connectedAt time.Time
 }
 
 // Hub is the fleet's live state.
@@ -152,6 +156,9 @@ func (h *Hub) Attach(ctx context.Context, srv store.Server, inventory *dockwellv
 		h.servers[id] = l
 	}
 	l.inventory, l.build, l.lastSeen = inventory, build, now
+	if l.streams == 0 {
+		l.connectedAt = now
+	}
 	l.streams++
 	h.notifyLocked(id, true)
 	h.mu.Unlock()
@@ -169,6 +176,7 @@ func (h *Hub) detach(id string) {
 	}
 	l.streams--
 	if l.streams == 0 {
+		l.connectedAt = time.Time{}
 		h.logger.Info("server disconnected", slog.String("server", id), slog.String("name", l.srv.Name))
 	}
 	h.notifyLocked(id, false)
@@ -282,6 +290,7 @@ func (h *Hub) toProtoLocked(id string, l *live, withHistory bool) *dockwellv1.Se
 	switch {
 	case l.streams > 0:
 		s.Connection = dockwellv1.Connection_CONNECTION_CONNECTED
+		s.ConnectTime = timestamppb.New(l.connectedAt)
 	case l.inventory != nil:
 		s.Connection = dockwellv1.Connection_CONNECTION_UNREACHABLE
 	default:

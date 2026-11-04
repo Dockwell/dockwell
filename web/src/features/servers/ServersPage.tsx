@@ -10,7 +10,7 @@ export function ServersPage() {
   const { t } = useLingui();
   return (
     <Page title={t`Servers`}>
-      <ServersPanel />
+      <ServersPanel linked />
     </Page>
   );
 }

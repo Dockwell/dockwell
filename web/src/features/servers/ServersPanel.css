@@ -149,3 +149,19 @@
     grid-column: 3;
   }
 }
+
+.servers-link {
+  border-radius: var(--radius-xs);
+  color: inherit;
+  text-decoration: none;
+}
+
+.servers-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.servers-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

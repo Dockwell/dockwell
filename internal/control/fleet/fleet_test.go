@@ -82,6 +82,40 @@ func TestTwoStreamsMustBothClose(t *testing.T) {
 	}
 }
 
+func TestConnectTimeSpansTheConnection(t *testing.T) {
+	h, _ := newHub(t, "hz-1")
+	at := time.Date(2026, 11, 4, 9, 30, 0, 0, time.UTC)
+	h.now = func() time.Time { return at }
+	if got := h.List()[0].GetConnectTime(); got != nil {
+		t.Errorf("before the agent connects: %v", got)
+	}
+
+	first, _ := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)
+	if got := h.List()[0].GetConnectTime().AsTime(); !got.Equal(at) {
+		t.Errorf("connected at %v, want %v", got, at)
+	}
+
+	// The agent moves to a renewed certificate: a second stream opens, then the first closes.
+	at = at.Add(time.Hour)
+	second, _ := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)
+	first()
+	if got := h.List()[0].GetConnectTime().AsTime(); !got.Equal(at.Add(-time.Hour)) {
+		t.Errorf("after moving streams, connected at %v, want the first stream's time", got)
+	}
+
+	second()
+	if got := h.List()[0].GetConnectTime(); got != nil {
+		t.Errorf("after the agent disconnects: %v", got)
+	}
+
+	at = at.Add(time.Hour)
+	again, _ := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)
+	defer again()
+	if got := h.List()[0].GetConnectTime().AsTime(); !got.Equal(at) {
+		t.Errorf("reconnected at %v, want %v", got, at)
+	}
+}
+
 func TestHistoryIsCapped(t *testing.T) {
 	h, _ := newHub(t, "hz-1")
 	if _, err := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil); err != nil {

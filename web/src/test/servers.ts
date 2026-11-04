@@ -4,6 +4,7 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { durationFromMs, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
   Connection,
+  DiskUsageSchema,
   type Server,
   ServerInventorySchema,
   ServerSchema,
@@ -20,7 +21,8 @@ let clock = new Date(2026, 10, 4, 9, 30).getTime();
 
 /**
  * One stats sample, 5 s after the one before: a share of CPU, memory in GiB
- * of an 8 GiB server, and uptime in hours.
+ * of an 8 GiB server, and uptime in hours. The rest is steady: 61 of 160 GiB
+ * used on /, load 0.84, 0.91 and 0.88, and 1 MB/s in and 0.55 MB/s out.
  */
 export function sample(cpu: number, usedGiB = 2.4, uptimeHours = 76): ServerStats {
   clock += 5_000;
@@ -29,8 +31,19 @@ export function sample(cpu: number, usedGiB = 2.4, uptimeHours = 76): ServerStat
     cpuPercent: cpu,
     memoryUsedBytes: BigInt(Math.round(usedGiB * GiB)),
     memoryTotalBytes: BigInt(8 * GiB),
+    disks: [create(DiskUsageSchema, { mountPoint: "/", usedBytes: BigInt(61 * GiB), sizeBytes: BigInt(160 * GiB) })],
+    load1: 0.84,
+    load5: 0.91,
+    load15: 0.88,
+    networkRxBytesPerSecond: 1_000_000n,
+    networkTxBytesPerSecond: 550_000n,
     uptime: durationFromMs(uptimeHours * HOUR),
   });
+}
+
+/** Samples 5 s apart with these CPU shares, for a server's history. */
+export function history(...cpu: number[]): ServerStats[] {
+  return cpu.map((c) => sample(c));
 }
 
 /** A connected server running Ubuntu, with the given fields on top. */

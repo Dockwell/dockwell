@@ -11,7 +11,16 @@ msgstr ""
 msgid "(modified)"
 msgstr "(modified)"
 
+#: src/lib/time.ts
+msgid "{count, plural, one {# day} other {# days}}"
+msgstr "{count, plural, one {# day} other {# days}}"
+
+#: src/lib/time.ts
+msgid "{count, plural, one {# hour} other {# hours}}"
+msgstr "{count, plural, one {# hour} other {# hours}}"
+
 #: src/app/Providers.tsx
+#: src/features/overview/Overview.tsx
 msgid "{count, plural, one {# server} other {# servers}}"
 msgstr "{count, plural, one {# server} other {# servers}}"
 
@@ -35,17 +44,59 @@ msgstr "{count} down"
 msgid "{count} h"
 msgstr "{count} h"
 
+#: src/lib/time.ts
+msgid "{count} h ago"
+msgstr "{count} h ago"
+
 #: src/app/Providers.tsx
 msgid "{count} healthy"
 msgstr "{count} healthy"
 
 #: src/features/servers/ServersPanel.tsx
+#: src/lib/time.ts
 msgid "{count} min"
 msgstr "{count} min"
+
+#: src/lib/time.ts
+msgid "{count} min ago"
+msgstr "{count} min ago"
+
+#: src/lib/time.ts
+msgid "{count} s"
+msgstr "{count} s"
+
+#: src/lib/time.ts
+msgid "{count} s ago"
+msgstr "{count} s ago"
 
 #: src/app/Providers.tsx
 msgid "{count} stopped"
 msgstr "{count} stopped"
+
+#: src/features/overview/Overview.tsx
+#: src/features/servers/ServerPanels.tsx
+msgid "{cpus} vCPU"
+msgstr "{cpus} vCPU"
+
+#: src/features/servers/ServerMetrics.tsx
+msgid "{free} free"
+msgstr "{free} free"
+
+#: src/features/servers/ServerMetrics.tsx
+msgid "{memShare} in use"
+msgstr "{memShare} in use"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "{mount}: {used} used, {free} free, of {size}"
+msgstr "{mount}: {used} used, {free} free, of {size}"
+
+#: src/features/servers/ServerCallout.tsx
+msgid "{name} is waiting for its agent"
+msgstr "{name} is waiting for its agent"
+
+#: src/features/servers/ServerCallout.tsx
+msgid "{name} isn't reporting"
+msgstr "{name} isn't reporting"
 
 #: src/app/Providers.tsx
 msgid "{name}, {status}"
@@ -55,9 +106,21 @@ msgstr "{name}, {status}"
 msgid "{name}, {status}, CPU {cpu}%"
 msgstr "{name}, {status}, CPU {cpu}%"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "{now} now"
+msgstr "{now} now"
+
+#: src/features/servers/ServerMetrics.tsx
+msgid "{rx} in · {tx} out"
+msgstr "{rx} in · {tx} out"
+
 #: src/app/Providers.tsx
 msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
 msgstr "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "{share} of {size} used"
+msgstr "{share} of {size} used"
 
 #: src/features/shell/Topbar.tsx
 msgid "{unknown} in an unknown state"
@@ -71,10 +134,34 @@ msgstr "{used} of {total}"
 msgid "{waiting} waiting for an agent"
 msgstr "{waiting} waiting for an agent"
 
+#: src/features/servers/ServerOverview.tsx
+msgid "<0>{id}</0> may have been removed, or the link may be wrong."
+msgstr "<0>{id}</0> may have been removed, or the link may be wrong."
+
+#: src/features/servers/ServerMetrics.tsx
+msgid "1, 5 and 15 min"
+msgstr "1, 5 and 15 min"
+
+#: src/features/servers/ServerMetrics.tsx
+msgid "1, 5 and 15 min, on {cpus} vCPU"
+msgstr "1, 5 and 15 min, on {cpus} vCPU"
+
+#: src/features/servers/ServerMetrics.tsx
+msgid "Across {cpus} vCPU"
+msgstr "Across {cpus} vCPU"
+
 #: src/features/shell/sections.ts
 #: src/features/shell/TabBar.tsx
 msgid "Activity"
 msgstr "Activity"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Addresses"
+msgstr "Addresses"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Agent"
+msgstr "Agent"
 
 #: src/features/servers/ServersPanel.tsx
 msgid "Agent not connected"
@@ -149,6 +236,7 @@ msgstr "Commit"
 msgid "Committed"
 msgstr "Committed"
 
+#: src/features/servers/ServerPanels.tsx
 #: src/features/system/StatusPage.tsx
 msgid "Connected"
 msgstr "Connected"
@@ -165,6 +253,7 @@ msgstr "Connecting to the control plane"
 msgid "Connections"
 msgstr "Connections"
 
+#: src/features/servers/ServerPanels.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Control plane"
 msgstr "Control plane"
@@ -177,11 +266,20 @@ msgstr "Control plane status"
 msgid "Control server"
 msgstr "Control server"
 
+#: src/features/servers/CopyButton.tsx
+msgid "Copied {text}"
+msgstr "Copied {text}"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Copy {ip}"
+msgstr "Copy {ip}"
+
 #: src/features/system/StatusPage.tsx
 msgid "Copy command"
 msgstr "Copy command"
 
 #: src/app/Providers.tsx
+#: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "CPU"
 msgstr "CPU"
@@ -218,9 +316,21 @@ msgstr "Deploying"
 msgid "Destroy"
 msgstr "Destroy"
 
+#: src/features/servers/ServerMetrics.tsx
+msgid "Disk"
+msgstr "Disk"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Disks"
+msgstr "Disks"
+
 #: src/app/Providers.tsx
 msgid "Dismiss"
 msgstr "Dismiss"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Docker"
+msgstr "Docker"
 
 #: src/features/shell/Rail.tsx
 msgid "Dockwell {short}: control plane status"
@@ -246,10 +356,6 @@ msgstr "Down"
 msgid "Error"
 msgstr "Error"
 
-#: src/features/shell/CommandMenu.tsx
-msgid "Find {name} in the server list"
-msgstr "Find {name} in the server list"
-
 #: src/app/Providers.tsx
 msgid "firewall"
 msgstr "firewall"
@@ -266,6 +372,14 @@ msgstr "Fleet actions"
 msgid "Follow"
 msgstr "Follow"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "For {connected}"
+msgstr "For {connected}"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Free"
+msgstr "Free"
+
 #: src/app/Providers.tsx
 msgid "from"
 msgstr "from"
@@ -274,6 +388,7 @@ msgstr "from"
 msgid "Go"
 msgstr "Go"
 
+#: src/features/servers/ServerOverview.tsx
 #: src/features/shell/NotYet.tsx
 msgid "Go to the overview"
 msgstr "Go to the overview"
@@ -286,6 +401,10 @@ msgstr "Healthy"
 msgid "hidden"
 msgstr "hidden"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "Hostname"
+msgstr "Hostname"
+
 #: src/app/Providers.tsx
 msgid "Hover or focus a server to inspect it."
 msgstr "Hover or focus a server to inspect it."
@@ -294,9 +413,37 @@ msgstr "Hover or focus a server to inspect it."
 msgid "In <0>{scope}</0>"
 msgstr "In <0>{scope}</0>"
 
+#: src/features/servers/ServerCallout.tsx
+msgid "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
+msgstr "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
+
+#: src/features/servers/ServerCallout.tsx
+msgid "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
+msgstr "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
+
+#: src/features/servers/ServerCallout.tsx
+msgid "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
+msgstr "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
+
 #: src/app/Providers.tsx
 msgid "job"
 msgstr "job"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Joined"
+msgstr "Joined"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Kernel"
+msgstr "Kernel"
+
+#: src/features/servers/ServerMetrics.tsx
+msgid "last {span}"
+msgstr "last {span}"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Last heartbeat"
+msgstr "Last heartbeat"
 
 #: src/features/shell/MorePage.tsx
 msgid "Light"
@@ -306,6 +453,11 @@ msgstr "Light"
 msgid "Live"
 msgstr "Live"
 
+#: src/features/servers/ServerMetrics.tsx
+msgid "Load average"
+msgstr "Load average"
+
+#: src/features/servers/FleetNotes.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "Loading servers"
 msgstr "Loading servers"
@@ -324,6 +476,8 @@ msgid "Match the system theme"
 msgstr "Match the system theme"
 
 #: src/app/Providers.tsx
+#: src/features/servers/ServerMetrics.tsx
+#: src/features/servers/ServerPanels.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "Memory"
 msgstr "Memory"
@@ -333,17 +487,46 @@ msgstr "Memory"
 msgid "More"
 msgstr "More"
 
+#: src/features/servers/ServerMetrics.tsx
+#: src/features/servers/ServerPanels.tsx
+msgid "Network"
+msgstr "Network"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Never"
+msgstr "Never"
+
 #: src/features/system/NotFound.tsx
 msgid "No page here"
 msgstr "No page here"
+
+#: src/features/servers/ServerOverview.tsx
+msgid "No server with this ID"
+msgstr "No server with this ID"
+
+#: src/features/overview/Overview.tsx
+msgid "No servers yet"
+msgstr "No servers yet"
 
 #: src/features/servers/ServersPanel.tsx
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "No servers yet. Add one with <0>dockwell token create</0> on this server."
 
+#: src/features/servers/ServerPanels.tsx
+msgid "None reported"
+msgstr "None reported"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Not connected"
+msgstr "Not connected"
+
 #: src/features/shell/NotYet.tsx
 msgid "Not in this release yet"
 msgstr "Not in this release yet"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Not installed or not running"
+msgstr "Not installed or not running"
 
 #: src/app/Providers.tsx
 msgid "Nothing here yet."
@@ -352,6 +535,18 @@ msgstr "Nothing here yet."
 #: src/app/Providers.tsx
 msgid "Nothing matches “{query}”. Try a server, app or action name."
 msgstr "Nothing matches “{query}”. Try a server, app or action name."
+
+#: src/lib/time.ts
+msgid "now"
+msgstr "now"
+
+#: src/features/servers/ServerMetrics.tsx
+msgid "of {total}"
+msgstr "of {total}"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Open {name}"
+msgstr "Open {name}"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the overview"
@@ -365,6 +560,10 @@ msgstr "Open the server list"
 #: src/features/shell/Rail.tsx
 msgid "Operate"
 msgstr "Operate"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Operating system"
+msgstr "Operating system"
 
 #: src/app/Providers.tsx
 msgid "Optional"
@@ -396,10 +595,31 @@ msgstr "Paused"
 msgid "Platform"
 msgstr "Platform"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "Private addresses"
+msgstr "Private addresses"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Processor"
+msgstr "Processor"
+
 #: src/app/Providers.tsx
 msgid "Protected environment"
 msgstr "Protected environment"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "Public IPv4"
+msgstr "Public IPv4"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Public IPv6"
+msgstr "Public IPv6"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Receiving"
+msgstr "Receiving"
+
+#: src/features/servers/FleetNotes.tsx
 #: src/features/servers/ServersPanel.tsx
 #: src/features/shell/Topbar.tsx
 msgid "Reconnecting"
@@ -429,6 +649,26 @@ msgstr "Retry"
 msgid "Retrying"
 msgstr "Retrying"
 
+#: src/features/overview/Overview.tsx
+msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
+msgstr "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Runs on another server"
+msgstr "Runs on another server"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Runs on this server"
+msgstr "Runs on this server"
+
+#: src/features/servers/ServerOverview.tsx
+msgid "Runs the control plane"
+msgstr "Runs the control plane"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "same as the control plane"
+msgstr "same as the control plane"
+
 #: src/features/shell/sections.ts
 msgid "Scheduled tasks"
 msgstr "Scheduled tasks"
@@ -447,10 +687,15 @@ msgstr "Search or run a command"
 msgid "secret"
 msgstr "secret"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "Sending"
+msgstr "Sending"
+
 #: src/app/Providers.tsx
 msgid "server"
 msgstr "server"
 
+#: src/features/servers/ServerOverview.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Server"
@@ -485,18 +730,36 @@ msgstr "Skip to content"
 msgid "Stopped"
 msgstr "Stopped"
 
-#: src/features/shell/MorePage.tsx
+#: src/features/servers/ServerPanels.tsx
 msgid "System"
 msgstr "System"
+
+#: src/features/shell/MorePage.tsx
+msgctxt "theme"
+msgid "System"
+msgstr "System"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "The agent hasn't said what this server is yet."
+msgstr "The agent hasn't said what this server is yet."
+
+#: src/features/servers/ServerMetrics.tsx
+msgid "The agent reports no disks"
+msgstr "The agent reports no disks"
 
 #: src/features/system/StatusPage.tsx
 msgid "The control plane is running"
 msgstr "The control plane is running"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "the control plane runs {controlPlane}"
+msgstr "the control plane runs {controlPlane}"
+
 #: src/features/system/StatusPage.tsx
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 
+#: src/features/servers/FleetNotes.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "The server list didn't load. Dockwell keeps trying."
@@ -555,6 +818,10 @@ msgstr "trend"
 msgid "Undo"
 msgstr "Undo"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "Unknown"
+msgstr "Unknown"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "Unknown system"
 msgstr "Unknown system"
@@ -566,6 +833,11 @@ msgstr "Unreachable"
 #: src/features/servers/ServersPanel.tsx
 msgid "Up"
 msgstr "Up"
+
+#: src/features/overview/Overview.tsx
+#: src/features/servers/ServerOverview.tsx
+msgid "up {uptime}"
+msgstr "up {uptime}"
 
 #: src/app/Providers.tsx
 msgid "Update in place"
@@ -579,6 +851,11 @@ msgstr "Use the dark theme"
 msgid "Use the light theme"
 msgstr "Use the light theme"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "Used"
+msgstr "Used"
+
+#: src/features/servers/ServerPanels.tsx
 #: src/features/system/StatusPage.tsx
 msgid "Version"
 msgstr "Version"
@@ -586,6 +863,10 @@ msgstr "Version"
 #: src/app/Providers.tsx
 msgid "volume"
 msgstr "volume"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Waiting"
+msgstr "Waiting"
 
 #: src/features/servers/ServersPanel.tsx
 msgid "Waiting for its agent"

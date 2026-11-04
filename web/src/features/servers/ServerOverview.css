@@ -1,0 +1,14 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.server-address {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+/* System, network and agent side by side, wrapping as the page narrows. */
+.server-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}

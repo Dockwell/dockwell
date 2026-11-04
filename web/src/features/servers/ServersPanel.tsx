@@ -4,6 +4,7 @@ import { durationMs } from "@bufbuild/protobuf/wkt";
 import { Connection, type Server } from "@dockwell/api";
 import { cx, Glyph, Panel, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
 
 import { formatBytesOf, formatPercent } from "../../lib/format";
 import { useElapsed } from "../../lib/useElapsed";
@@ -11,8 +12,12 @@ import { serverStatus } from "./server";
 import { useFleet } from "./useFleet";
 import "./ServersPanel.css";
 
-/** Every server with its live stats, as their agents report them. */
-export function ServersPanel() {
+/**
+ * Every server with its live stats, as their agents report them. Linked,
+ * each name opens the server's page; that needs the router, which the
+ * status page doesn't have.
+ */
+export function ServersPanel({ linked = false }: { linked?: boolean }) {
   const { t } = useLingui();
   const fleet = useFleet();
   const reconnecting = fleet.status === "reconnecting";
@@ -50,7 +55,7 @@ export function ServersPanel() {
       ) : (
         <ul className="servers-list">
           {fleet.servers.map((s) => (
-            <ServerRow key={s.id} server={s} />
+            <ServerRow key={s.id} server={s} linked={linked} />
           ))}
         </ul>
       )}
@@ -58,7 +63,7 @@ export function ServersPanel() {
   );
 }
 
-function ServerRow({ server }: { server: Server }) {
+function ServerRow({ server, linked }: { server: Server; linked: boolean }) {
   const { t, i18n } = useLingui();
   const stats = server.stats;
   const [used, total] = stats ? formatBytesOf(stats.memoryUsedBytes, stats.memoryTotalBytes, i18n.locale) : ["", ""];
@@ -75,7 +80,19 @@ function ServerRow({ server }: { server: Server }) {
   return (
     <li className="servers-row">
       <div className="servers-name">
-        <StatusBadge status={serverStatus(server)} label={server.name} meta={meta} />
+        <StatusBadge
+          status={serverStatus(server)}
+          label={
+            linked ? (
+              <Link to="/servers/$serverId" params={{ serverId: server.id }} className="servers-link">
+                {server.name}
+              </Link>
+            ) : (
+              server.name
+            )
+          }
+          meta={meta}
+        />
         {server.controlServer ? <Tag className="servers-role">{t`Control server`}</Tag> : null}
       </div>
       <p className="servers-os">{server.inventory?.osName || t`Unknown system`}</p>

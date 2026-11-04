@@ -1,0 +1,22 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Up to four live numbers in a row, wrapping as the page narrows. */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+.metrics-panel {
+  padding: var(--space-4);
+}
+
+/* Phones: two by two, the numbers alone. */
+.metrics.is-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.metrics.is-compact .metrics-panel {
+  padding: var(--space-3) 14px;
+}
