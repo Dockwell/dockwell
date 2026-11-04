@@ -133,6 +133,7 @@ func newRootCmd(stdio IO) *cobra.Command {
 		newRunCmd(stdio, &g),
 		newJoinCmd(stdio, &g),
 		newTokenCmd(stdio, &g),
+		newRoleCmd(stdio, &g),
 	)
 
 	// Unknown subcommands are usage errors, with a pointer to the help.

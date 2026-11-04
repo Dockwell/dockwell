@@ -29,8 +29,11 @@ base="http://$api"
 agent_budget=40000000
 control_budget=250000000
 
-# Keep in step with the service that scripts/install.sh installs.
-export GOMEMLIMIT=200MiB
+# The limit the installed service sets, read from scripts/install.sh so the
+# two can't drift.
+GOMEMLIMIT=$(sed -n 's/^MEMORY_LIMIT=//p' "$(dirname "$0")/install.sh")
+[[ -n $GOMEMLIMIT ]] || { echo "budgets: can't read MEMORY_LIMIT from scripts/install.sh" >&2; exit 1; }
+export GOMEMLIMIT
 
 work=$(mktemp -d)
 pids=()
@@ -97,7 +100,8 @@ pids+=("$agent")
 connected=0
 for _ in $(seq 100); do
   servers=$(curl -fsS -H 'Content-Type: application/json' -d '{}' "$base/dockwell.v1.ServerService/ListServers" 2>/dev/null || true)
-  connected=$(grep -o '"connection": \{0,1\}"CONNECTION_CONNECTED"' <<<"$servers" | wc -l)
+  # grep finds nothing until both connect; that mustn't end the script.
+  connected=$({ grep -o '"connection": \{0,1\}"CONNECTION_CONNECTED"' <<<"$servers" || true; } | wc -l)
   ((connected >= 2)) && break
   sleep 0.1
 done

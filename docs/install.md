@@ -41,7 +41,7 @@ The `sh -s --` passes the options to the script. You can set `DOCKWELL_JOIN` ins
 1. It checks it runs as root on Linux, on amd64 or arm64, and works out the OS family and whether it uses systemd or OpenRC.
 2. It finds the release: the latest, or the one you pass with `--version`.
 3. It verifies the release before it installs anything. It downloads cosign, at the version and SHA-256 pinned in the script, and checks that Dockwell's release workflow signed the release's checksums at that release's tag. Then it checks the archive against them. If any check fails, nothing is installed. [ADR 0010](adr/0010-install-script-verifies-with-pinned-cosign.md) explains why it works this way.
-4. With `--join`, it runs `dockwell join` before the service ever starts, because a server that starts without an identity becomes a control server.
+4. With `--join`, it runs `dockwell join` before the service ever starts, because a server that starts without an identity becomes a control server. A server that already joined keeps its control plane, and the script says which one; to move it to another, remove `/var/lib/dockwell/agent` and run the script again with a new ticket. `dockwell role` shows which role a server takes.
 5. It installs the service and starts it, then waits until the panel answers, or on a server that joined, until the agent is up.
 
 It changes only these files:
@@ -91,7 +91,7 @@ These settings are for mirrors, air-gapped servers and tests:
 
 The script replaces the service file on every upgrade, so put your changes somewhere it doesn't touch:
 
-- On systemd, run `systemctl edit dockwell` to add a drop-in. To change the agent listener's address, or the URL other servers use to reach it, add `Environment=DOCKWELL_AGENT_LISTEN=…` or `Environment=DOCKWELL_ADVERTISE_URL=…`.
+- On systemd, run `systemctl edit dockwell` to add a drop-in. To change the agent listener's address, or the URL other servers use to reach it, add `Environment=DOCKWELL_AGENT_LISTEN=…` or `Environment=DOCKWELL_ADVERTISE_URL=…`. The script reads `DOCKWELL_LISTEN` from the service, so an upgrade waits for the panel where you moved it.
 - On OpenRC, set them in `/etc/conf.d/dockwell`, with `export`, such as `export DOCKWELL_ADVERTISE_URL=https://203.0.113.7:7443`.
 
 `dockwell run --help` lists every setting.
@@ -101,7 +101,7 @@ The script replaces the service file on every upgrade, so put your changes somew
 - Debian, Ubuntu, a RHEL-family distribution or Alpine, on amd64 or arm64, with systemd, or OpenRC on Alpine. Other distributions with systemd may work, and the script says when it doesn't know yours.
 - Root, and `curl` or `wget`, `tar`, `gzip` and `sha256sum`. When one is missing, the script says how to install it.
 - Access to `github.com`, for the release and for cosign, and to `tuf-repo-cdn.sigstore.dev`, for Sigstore's trust root.
-- About 200 MB free in `/var/tmp` while it runs, most of it for cosign. Set `TMPDIR` to use somewhere else.
+- About 200 MB free in `/var/tmp` while it runs, most of it for cosign, which must be able to run from there. If `/var/tmp` is mounted `noexec`, as hardened servers often have it, set `TMPDIR` to somewhere that allows programs, such as `/root`.
 
 ## Read it first
 

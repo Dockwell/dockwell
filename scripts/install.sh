@@ -48,7 +48,6 @@ DATA=/var/lib/dockwell
 UNIT=/etc/systemd/system/dockwell.service
 INITD=/etc/init.d/dockwell
 OPENRC_LOG=/var/log/dockwell.log
-PANEL=http://127.0.0.1:7600
 
 usage() {
 	cat <<'EOF'
@@ -90,22 +89,37 @@ sha256() {
 	sha256sum "$1" | cut -d ' ' -f 1
 }
 
-# fetch downloads a URL to a file. Redirects must stay on HTTPS.
+# fetch downloads a URL to a file, following redirects only to HTTPS where the
+# downloader can enforce it (curl, and GNU wget). It leaves the HTTP status of
+# the last answer in $status, empty when no server answered, and what the
+# downloader said in $tmp/fetch.log.
 fetch() {
+	status=
+	code=0
 	if [ "$downloader" = curl ]; then
-		curl -fsSL --retry 3 --connect-timeout 20 --proto-redir =https -o "$2" "$1"
+		status=$(curl -fsSL --retry 3 --connect-timeout 20 --proto-redir =https -w '%{http_code}' -o "$2" "$1" 2>"$tmp/fetch.log") || code=$?
+		[ "$status" != 000 ] || status=
 	else
-		wget -q -T 20 -O "$2" "$1"
+		wget -q -S -T 20 ${wget_https:+"$wget_https"} -O "$2" "$1" 2>"$tmp/fetch.log" || code=$?
+		status=$(sed -n 's/^ *HTTP\/[0-9.]* \([0-9][0-9][0-9]\).*/\1/p' "$tmp/fetch.log" | tail -n 1)
 	fi
+	return "$code"
 }
 
-# not_found is true when fetch's exit status means the server answered that the
-# file isn't there, rather than that it couldn't be reached.
+# not_found is true when the last fetch failed because the server answered that
+# the file isn't there, rather than for any other reason.
 not_found() {
-	case $downloader:$1 in
-	curl:22 | wget:8) return 0 ;;
-	esac
-	return 1
+	[ "$status" = 404 ]
+}
+
+# fetch_error prints why the last fetch failed, for a message that goes on to
+# say what to do.
+fetch_error() {
+	if [ -n "$status" ]; then
+		say "the server answered HTTP $status"
+	else
+		sed -n '$p' "$tmp/fetch.log" | sed 's/^curl: ([0-9]*) //; s/^wget: //'
+	fi
 }
 
 # answers is true when a URL answers with success.
@@ -133,7 +147,12 @@ install_hint() {
 
 detect() {
 	[ "$(uname -s)" = Linux ] || fail "This system is $(uname -s). Dockwell runs on Linux servers."
-	[ "$(id -u)" -eq 0 ] || fail "Installing Dockwell needs root. Run it again as root, or with sudo: curl -fsSL https://get.dockwell.dev | sudo sh"
+	if [ "$(id -u)" -ne 0 ]; then
+		doing=Installing
+		[ "$action" != uninstall ] || doing=Removing
+		opts=$(options)
+		fail "$doing Dockwell needs root. Run it again as root: put sudo before sh, as in ... | sudo sh${opts:+ -s --$opts}, or run sudo sh install.sh$opts.${from_env:+ sudo doesn't pass DOCKWELL_JOIN or DOCKWELL_VERSION on, so the options carry them instead.}"
+	fi
 
 	machine=$(uname -m)
 	case $machine in
@@ -184,7 +203,15 @@ check_tools() {
 	done
 	has curl || has wget || missing="$missing curl"
 	[ -z "$missing" ] || fail "This server lacks${missing}, which the install needs. Install it with $(install_hint "${missing# }"), then run this again."
-	if has curl; then downloader=curl; else downloader=wget; fi
+	wget_https=
+	if has curl; then
+		downloader=curl
+	else
+		downloader=wget
+		# busybox wget can't refuse a plain HTTP redirect; the pinned hash and
+		# the signature still catch any tampering.
+		if wget --help 2>&1 | grep -q -- --https-only; then wget_https=--https-only; fi
+	fi
 }
 
 # installed_version prints the version of the installed binary, without its v.
@@ -207,10 +234,10 @@ resolve() {
 	code=0
 	if [ -z "$version" ] || [ "$version" = latest ]; then
 		fetch "$releases/latest/download/checksums.txt" "$tmp/checksums.txt" || code=$?
-		if not_found "$code"; then
+		if [ "$code" -ne 0 ] && not_found; then
 			fail "There's no Dockwell release at $releases yet, so there's nothing to install. Run this again once one is published, or pick a version with --version."
 		elif [ "$code" -ne 0 ]; then
-			fail "Can't download the latest release's checksums from $releases. Check this server can reach it, then run this again."
+			fail "Can't download the latest release's checksums from $releases: $(fetch_error). Check this server can reach it, then run this again."
 		fi
 		version=$(sed -n "s/^[0-9a-f]\{64\}  dockwell_\(.*\)_linux_${arch}\.tar\.gz\$/\1/p" "$tmp/checksums.txt" | head -n 1)
 		valid_version "$version" ||
@@ -218,10 +245,10 @@ resolve() {
 	else
 		valid_version "$version" || fail "\"$version\" isn't a version. Pass one such as 0.1.0."
 		fetch "$releases/download/v$version/checksums.txt" "$tmp/checksums.txt" || code=$?
-		if not_found "$code"; then
+		if [ "$code" -ne 0 ] && not_found; then
 			fail "There's no Dockwell v$version at $releases. Pick a version from $REPO_URL/releases."
 		elif [ "$code" -ne 0 ]; then
-			fail "Can't download the checksums of Dockwell v$version from $releases. Check this server can reach it, then run this again."
+			fail "Can't download the checksums of Dockwell v$version from $releases: $(fetch_error). Check this server can reach it, then run this again."
 		fi
 	fi
 	download="$releases/download/v$version"
@@ -239,6 +266,8 @@ get_cosign() {
 		[ -f "$cosign" ] || fail "DOCKWELL_COSIGN is $cosign, which doesn't exist. Point it at cosign $COSIGN_VERSION for linux/$arch, or unset it to download that."
 		[ "$(sha256 "$cosign")" = "$want" ] ||
 			fail "DOCKWELL_COSIGN is $cosign, which isn't cosign $COSIGN_VERSION for linux/$arch, so it can't be trusted to check the release. Point it at that version, or unset it to download it."
+		runs "$cosign" ||
+			fail "DOCKWELL_COSIGN is $cosign, which this server can't run. Make it executable, or unset DOCKWELL_COSIGN to download cosign."
 		return 0
 	fi
 	say "Downloading cosign $COSIGN_VERSION to check the release signature."
@@ -248,6 +277,13 @@ get_cosign() {
 	[ "$(sha256 "$cosign")" = "$want" ] ||
 		fail "The cosign download doesn't match its pinned SHA-256, so nothing was installed. Run this again; if it keeps failing, report it at $REPO_URL/security."
 	chmod 0755 "$cosign"
+	runs "$cosign" ||
+		fail "This server can't run programs from $(dirname "$tmp"), perhaps because it is mounted noexec, so the release can't be checked. Set TMPDIR to a directory that allows it, such as /root, then run this again."
+}
+
+# runs is true when a program can run here at all.
+runs() {
+	TUF_ROOT="$tmp/tuf" HOME="$tmp" "$1" version >/dev/null 2>&1 </dev/null
 }
 
 # verify checks the checksums' signature, then the archive against them, and
@@ -355,15 +391,16 @@ EOF
 
 # join spends the ticket, before the service ever starts: started without an
 # identity, dockwell run would make this server a control server instead.
+# dockwell join itself refuses on a control server.
 join() {
 	[ -n "$ticket" ] || return 0
-	if [ -e "$DATA/control/state.db" ]; then
-		fail "This server runs a control plane, so it can't join another one. Run this without --join to upgrade it, or join a different server."
-	fi
-	if [ -e "$DATA/agent/agent.json" ]; then
-		say "This server already joined a control plane, so the ticket isn't used."
+	current_role=$(role)
+	case $current_role in
+	agent\ *)
+		say "This server already belongs to the control plane at ${current_role#agent }, so the ticket isn't used. To move it to another control plane, remove $DATA/agent and run this again with a new ticket."
 		return 0
-	fi
+		;;
+	esac
 	if ! "$BIN" join "$ticket" >"$tmp/join.log" 2>&1 </dev/null; then
 		cat "$tmp/join.log" >&2
 		fail "This server didn't join, so Dockwell isn't started. Fix what dockwell join says above, then run this again; the ticket still works unless it expired."
@@ -371,14 +408,59 @@ join() {
 	sed -n 1p "$tmp/join.log"
 }
 
-# role is control when dockwell run will start the control plane here, as it
-# decides: when there's a control plane already, or no identity from a join.
+# role prints what dockwell run does on this server, as the binary decides:
+# "control", or "agent <control plane URL>".
 role() {
-	if [ -e "$DATA/control/state.db" ] || [ ! -e "$DATA/agent/agent.json" ]; then
-		echo control
-	else
-		echo agent
-	fi
+	"$BIN" role --data-dir "$DATA" </dev/null 2>"$tmp/role.log" || {
+		cat "$tmp/role.log" >&2
+		fail "Can't tell whether this server is a control server or an agent. Fix what dockwell role says above, then run this again."
+	}
+}
+
+# panel_url prints where the panel answers here: the listen address the service
+# is given, as in a systemd drop-in or /etc/conf.d/dockwell, or the default.
+panel_url() {
+	listen=
+	case $init in
+	systemd)
+		[ -z "$booted" ] ||
+			listen=$(systemctl show -p Environment --value dockwell 2>/dev/null | tr ' ' '\n' | sed -n 's/^DOCKWELL_LISTEN=//p' | tail -n 1)
+		;;
+	openrc)
+		[ ! -r /etc/conf.d/dockwell ] ||
+			listen=$(sed -n 's/^[[:space:]]*\(export[[:space:]]*\)\{0,1\}DOCKWELL_LISTEN=["'"'"']\{0,1\}\([^"'"'"'[:space:]]*\).*/\2/p' /etc/conf.d/dockwell | tail -n 1)
+		;;
+	esac
+	listen=${listen:-127.0.0.1:7600}
+	host=${listen%:*}
+	case $host in
+	'' | 0.0.0.0 | '[::]') host=127.0.0.1 ;;
+	esac
+	printf 'http://%s:%s\n' "$host" "${listen##*:}"
+}
+
+# steady is true when the service stays up past its restart delay: a crash
+# loop restarts it, which a status check on its own can miss.
+steady() {
+	case $init in
+	systemd)
+		before=$(systemctl show -p NRestarts --value dockwell 2>/dev/null)
+		sleep 7
+		systemctl is-active --quiet dockwell &&
+			[ "$(systemctl show -p NRestarts --value dockwell 2>/dev/null)" = "$before" ]
+		;;
+	openrc)
+		if ! has pgrep; then
+			sleep 7
+			rc-service dockwell status >/dev/null 2>&1
+			return
+		fi
+		sleep 1
+		before=$(pgrep -f "^$BIN run" | head -n 1)
+		sleep 7
+		[ -n "$before" ] && [ "$(pgrep -f "^$BIN run" | head -n 1)" = "$before" ]
+		;;
+	esac
 }
 
 logs_hint() {
@@ -420,18 +502,15 @@ start() {
 	started=1
 
 	if [ "$(role)" = control ]; then
-		i=0
-		until answers "$PANEL/healthz"; do
-			i=$((i + 1))
-			[ "$i" -lt 150 ] || fail "Dockwell started, but its panel didn't answer on $PANEL within 30 s. See what it logged with: $(logs_hint)"
+		panel=$(panel_url)
+		deadline=$(($(date +%s) + 30))
+		until answers "$panel/healthz"; do
+			[ "$(date +%s)" -lt "$deadline" ] ||
+				fail "Dockwell started, but its panel didn't answer on $panel within 30 s. See what it logged with: $(logs_hint)"
 			nap
 		done
 	else
-		sleep 2
-		case $init in
-		systemd) systemctl is-active --quiet dockwell ;;
-		openrc) rc-service dockwell status >/dev/null 2>&1 ;;
-		esac || fail "Dockwell started, but its agent stopped again. See what it logged with: $(logs_hint)"
+		steady || fail "Dockwell started, but its agent keeps stopping. See what it logged with: $(logs_hint)"
 	fi
 }
 
@@ -482,20 +561,22 @@ install_dockwell() {
 	fi
 	say "$service is running, with GOMEMLIMIT=$MEMORY_LIMIT."
 	say ""
-	if [ "$(role)" = control ]; then
+	current_role=$(role)
+	if [ "$current_role" = control ]; then
+		panel=$(panel_url)
+		port=${panel##*:}
 		cat <<EOF
 Dockwell v$version is running, and this is your control server. Its panel
-listens on $PANEL, so only this server can reach it. To open it from
-your computer, forward the port over SSH, then open that address there:
+listens on $panel. To open it from your computer, forward the port over
+SSH, then open http://localhost:$port there:
 
-  ssh -L 7600:127.0.0.1:7600 <user>@<this server>
+  ssh -L $port:127.0.0.1:$port <user>@<this server>
 
 To add a server, run dockwell token create here and follow what it prints.
 Other servers reach this one on TCP port 7443, so open it to them.
 EOF
 	else
-		control_url=$(sed -n 's/.*"control_url": *"\([^"]*\)".*/\1/p' "$DATA/agent/agent.json" | head -n 1)
-		say "Dockwell v$version is running on this server as an agent of ${control_url:-its control server}. It appears on the servers page of your panel."
+		say "Dockwell v$version is running on this server as an agent of ${current_role#agent }. It appears on the servers page of your panel."
 	fi
 }
 
@@ -538,9 +619,18 @@ EOF
 	fi
 }
 
+# options prints the options this run was given, for a command to run again,
+# with the ticket left for the reader to paste.
+options() {
+	[ "$action" != uninstall ] || printf ' --uninstall'
+	[ -z "$ticket" ] || printf ' --join <ticket>'
+	[ -z "$version" ] || printf ' --version %s' "$version"
+}
+
 main() {
 	ticket=${DOCKWELL_JOIN:-}
 	version=${DOCKWELL_VERSION:-}
+	from_env=${DOCKWELL_JOIN:-${DOCKWELL_VERSION:-}}
 	action=install
 	while [ $# -gt 0 ]; do
 		case $1 in

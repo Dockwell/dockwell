@@ -40,6 +40,9 @@ func newJoinCmd(stdio IO, g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if exists(dir.StateDB()) {
+				return fmt.Errorf("this server runs a control plane, in %s, so it can't join another one. Join a different server, or move this one's servers first", dir.Root)
+			}
 			if existing, err := enroll.Load(dir.Agent()); err == nil {
 				return fmt.Errorf("this server already joined %s as %s (%s). To join another control plane, remove %s first",
 					existing.ControlURL, existing.ServerName, existing.ServerID, dir.Agent())

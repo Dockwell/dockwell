@@ -27,7 +27,9 @@ UNIT=/etc/systemd/system/dockwell.service
 INITD=/etc/init.d/dockwell
 PANEL=http://127.0.0.1:7600
 FIXTURE=http://127.0.0.1:7601
-LIMIT=GOMEMLIMIT=200MiB
+MEMORY_LIMIT=$(sed -n 's/^MEMORY_LIMIT=//p' "$INSTALL")
+[ -n "$MEMORY_LIMIT" ] || { echo "can't read MEMORY_LIMIT from $INSTALL" >&2; exit 1; }
+LIMIT=GOMEMLIMIT=$MEMORY_LIMIT
 log=$(mktemp -d)
 case $(uname -m) in
 x86_64) arch=amd64 ;;
@@ -167,7 +169,7 @@ check_service() {
 			ok "systemd-analyze verify accepts $UNIT"
 		fi
 	elif [ -f "$INITD" ]; then
-		grep -q "GOMEMLIMIT:=200MiB" "$INITD" || die "$INITD doesn't set $LIMIT"
+		grep -q "GOMEMLIMIT:=$MEMORY_LIMIT" "$INITD" || die "$INITD doesn't set $LIMIT"
 		[ -L /etc/runlevels/default/dockwell ] || die "dockwell isn't in the default runlevel"
 	else
 		die "no service was installed"
