@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { artboardLink, frameUrl, isOpenMessage, OPEN_MESSAGE, parseViewerHash, viewerHash } from "./links";
+import { artboardLink, decodePart, frameUrl, isOpenMessage, OPEN_MESSAGE, parseViewerHash, viewerHash } from "./links";
 
 describe("artboardLink", () => {
   it("finds the artboard a link inside a mock points at", () => {
@@ -37,6 +37,12 @@ describe("URLs", () => {
     );
     expect(parseViewerHash("")).toEqual({ file: null, theme: null, hash: "" });
     expect(parseViewerHash("#/X.dc.html?theme=purple")).toEqual({ file: "X.dc.html", theme: null, hash: "" });
+  });
+
+  it("reads a fragment that isn't valid percent-encoding as written", () => {
+    expect(parseViewerHash("#/50%off?theme=dark")).toEqual({ file: "50%off", theme: "dark", hash: "" });
+    expect(parseViewerHash("#/A%20B.dc.html")).toEqual({ file: "A B.dc.html", theme: null, hash: "" });
+    expect(decodePart("%E0%A4%A")).toBe("%E0%A4%A");
   });
 
   it("checks messages from the frame", () => {

@@ -12,7 +12,7 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
 import { MockLibrary, type Problem } from "../format/render";
-import { artboardLink, frameUrl, OPEN_MESSAGE, type OpenMessage, parseTheme } from "../links";
+import { artboardLink, decodePart, frameUrl, OPEN_MESSAGE, type OpenMessage, parseTheme } from "../links";
 import { loadMock } from "../mocks";
 import { installDesignSystem } from "../runtime/design-system";
 
@@ -81,7 +81,7 @@ async function main() {
   await document.fonts.ready;
   await nextFrame();
   await nextFrame();
-  if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
+  if (location.hash) document.getElementById(decodePart(location.hash.slice(1)))?.scrollIntoView();
 }
 
 main()

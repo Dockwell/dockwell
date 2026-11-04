@@ -56,10 +56,19 @@ export function viewerHash({ file, theme, hash }: ViewerRoute): string {
   return `#/${file ? encodeURIComponent(file) : ""}${query}`;
 }
 
+/** Percent-decodes a URL part, or returns it as written when it isn't valid percent-encoding, such as "50%off". */
+export function decodePart(text: string): string {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text;
+  }
+}
+
 export function parseViewerHash(hash: string): ViewerRoute {
   const raw = hash.replace(/^#\/?/, "");
   const q = raw.indexOf("?");
-  const path = decodeURIComponent(q === -1 ? raw : raw.slice(0, q));
+  const path = decodePart(q === -1 ? raw : raw.slice(0, q));
   const params = new URLSearchParams(q === -1 ? "" : raw.slice(q + 1));
   const at = params.get("at");
   return { file: path || null, theme: parseTheme(params.get("theme")), hash: at ? `#${at}` : "" };
