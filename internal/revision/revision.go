@@ -1608,8 +1608,9 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 				return err
 			}
 		}
-		// Nothing may have moved since the change was read.
-		if _, err := e.current(ctx, tx.Tx, c); err != nil {
+		// Nothing may have moved since the change was read, or for a
+		// rollback since it was planned.
+		if err := e.unmoved(ctx, tx.Tx, c, items); err != nil {
 			return err
 		}
 		for i := range items {
@@ -2161,6 +2162,28 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 		return nil, err
 	}
 	return items, nil
+}
+
+// unmoved checks, as a change commits, that nothing moved since its items
+// were read: each still starts from the latest revision, what it lives in
+// and its names still hold, and what it uses is still pinned. It checks the
+// items being committed, whatever kind of change they are: a person's,
+// read from its record, or a rollback, planned and committed in one.
+func (e *Engine) unmoved(ctx context.Context, tx *store.Tx, c store.Change, items []item) error {
+	for i := range items {
+		it := &items[i]
+		r, err := tx.GetResource(ctx, string(it.ref.Kind), it.ref.Scope, it.ref.Name)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		if r.Revision != it.base {
+			return fault.New(ErrStale, "%s changed in %s after %s was planned, so its plan is out of date. Propose the change again", it.ref, r.ChangeID, c.ID)
+		}
+	}
+	if err := e.check(ctx, tx, items); err != nil {
+		return fmt.Errorf("%w. %s can't apply as it was planned, so propose the change again", err, c.ID)
+	}
+	return e.stillPinned(ctx, tx, c, items)
 }
 
 // fail records a failed apply and rolls back what it changed. The

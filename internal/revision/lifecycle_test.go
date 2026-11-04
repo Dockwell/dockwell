@@ -17,6 +17,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -947,5 +948,70 @@ func testAWaitingStepSaysWhyItWaits(t *testing.T, backend store.Backend) {
 	e.Wait()
 	if c := stored(t, db, failed.Rollback); c.State != store.ChangeApplied {
 		t.Errorf("the rollback is %s once its agent could plan it, want applied", c.State)
+	}
+}
+
+// A rollback commits only while nothing it puts back moved since it read
+// it, as every change does: a newer revision committed meanwhile, by any
+// path, makes the rollback stale rather than being written over.
+func TestARollbackDoesntWriteOverANewerRevision(t *testing.T) {
+	storetest.Each(t, testARollbackDoesntWriteOverANewerRevision)
+}
+
+func testARollbackDoesntWriteOverANewerRevision(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A")
+	apply(t, e, propose(t, e, "Open http", rule("srv_A", "http", 80)))
+	plain := f["srv_A"].agent
+	var failed, raced atomic.Bool
+	f["srv_A"].agent = hooked{
+		Agent: plain,
+		apply: func(_ context.Context, step resource.Step, desired proto.Message) error {
+			if desired.(*resourcev1.FirewallRule).GetPort() == 8080 {
+				failed.Store(true)
+				return errors.New("the port is taken")
+			}
+			return nil
+		},
+		plan: func(ctx context.Context, desired []resource.Desired) error {
+			// The rollback plans with no lock held; a newer revision of
+			// http commits meanwhile.
+			if !failed.Load() || raced.Swap(true) {
+				return nil
+			}
+			newer, err := resource.Encode(&resourcev1.FirewallRule{Port: 9090, Comment: "the web app"})
+			if err != nil {
+				return err
+			}
+			if err := db.Revise(ctx, func(tx *store.RevisionTx) error {
+				if err := tx.CreateChange(ctx, store.Change{ID: "chg_newer", Summary: "Move http", Actor: "usr_other", State: store.ChangePlanned,
+					Plan: []byte("{}"), CreatedAt: time.Now(), ProposedVia: ViaAPI}); err != nil {
+					return err
+				}
+				_, err := tx.AddRevision(ctx, store.NewRevision{Kind: string(firewall.Kind), Scope: "srv_A", Name: "http", Spec: newer, Change: "chg_newer", At: time.Now()})
+				return err
+			}); err != nil {
+				t.Errorf("can't commit a newer revision of http: %v", err)
+			}
+			return nil
+		},
+	}
+	p := propose(t, e, "Move http to 8080", rule("srv_A", "http", 8080))
+	err := e.Apply(t.Context(), p.Change)
+	var ferr *FailedError
+	if !errors.As(err, &ferr) || !raced.Load() {
+		t.Fatalf("Apply = %v, raced %t; want the change to fail, and a newer revision to commit as it rolls back", err, raced.Load())
+	}
+	if !errors.Is(ferr.RollbackErr, ErrStale) || ferr.Rollback != "" {
+		t.Errorf("the rollback = %q, %v; want it refused as out of date", ferr.Rollback, ferr.RollbackErr)
+	}
+	var latest store.Resource
+	if err := db.View(t.Context(), func(tx *store.Tx) (err error) {
+		latest, err = tx.GetResource(t.Context(), string(firewall.Kind), "srv_A", "http")
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if latest.ChangeID != "chg_newer" || latest.Revision != 3 {
+		t.Errorf("http's latest revision is %d, from %s; want 3, the newer one, kept", latest.Revision, latest.ChangeID)
 	}
 }
