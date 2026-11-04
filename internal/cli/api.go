@@ -176,7 +176,7 @@ func (a *apiAccess) connect(ctx context.Context, s apicli.Settings) (*apicli.Cli
 	}
 	cfg, path, err := loadConfig(getenv)
 	if url == "" && token == "" && cfg.URL == "" {
-		return a.local(ctx, s.Renew)
+		return a.local(ctx, s)
 	}
 	if err != nil {
 		return nil, err
@@ -237,10 +237,11 @@ func readLocalToken(dir datadir.Dir) (localToken, bool, error) {
 // can read the control plane's data directory, it makes its own API token
 // for the install's owner. Whoever can read that directory controls the
 // install already, as for dockwell recover. The token is read-only unless
-// dockwell login --local asked for more, and lasts LocalTokenTTL. renew
-// makes a new read-only one, as when the control plane rejected the one
-// it had, or moved.
-func (a *apiAccess) local(ctx context.Context, renew bool) (*apicli.Client, error) {
+// dockwell login --local asked for more, and lasts LocalTokenTTL. Renew
+// makes a new read-only one, as when the control plane rejected the one it
+// had; Moved reads where the control plane answers now, and keeps the
+// token.
+func (a *apiAccess) local(ctx context.Context, s apicli.Settings) (*apicli.Client, error) {
 	dir, err := a.dataDir()
 	if err != nil {
 		return nil, err
@@ -255,7 +256,16 @@ func (a *apiAccess) local(ctx context.Context, renew bool) (*apicli.Client, erro
 	if err != nil {
 		return nil, err
 	}
-	if ok && !renew && time.Until(t.Expires) > localGrace && auth.WellFormedToken(t.Secret) {
+	usable := ok && time.Until(t.Expires) > localGrace && auth.WellFormedToken(t.Secret)
+	if usable && s.Moved {
+		if t.URL, err = a.localURL(ctx, dir); err != nil {
+			return nil, err
+		}
+		if err := writeLocalToken(dir, t); err != nil {
+			return nil, err
+		}
+	}
+	if usable && !s.Renew {
 		return a.client(t.URL, t.Secret, true, t.Scope == store.ScopeReadWrite), nil
 	}
 	made, err := a.makeLocalToken(ctx, dir, store.ScopeReadOnly, t)
@@ -263,6 +273,46 @@ func (a *apiAccess) local(ctx context.Context, renew bool) (*apicli.Client, erro
 		return nil, err
 	}
 	return a.client(made.URL, made.Secret, true, false), nil
+}
+
+// localURL is where the control plane in dir answers on loopback, as
+// dockwell run recorded it when it started.
+func (a *apiAccess) localURL(ctx context.Context, dir datadir.Dir) (string, error) {
+	location, err := a.g.databaseOf(a.stdio, dir)
+	if err != nil {
+		return "", err
+	}
+	_, db, err := openControl(ctx, dir, location)
+	if errors.Is(err, fs.ErrPermission) {
+		return "", a.cantReadDataDir(dir)
+	}
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+	addr, known, err := loadPanelAddress(ctx, db)
+	if err == nil && !known {
+		err = errors.New("the control plane hasn't started yet. Start it with dockwell run")
+	}
+	if err != nil {
+		return "", err
+	}
+	return addr.loopbackURL(), nil
+}
+
+// loopbackURL is the panel's address on loopback, for the CLI on the
+// control server.
+func (a panelAddress) loopbackURL() string {
+	return "http://" + net.JoinHostPort(strings.Trim(a.tunnelHost(), "[]"), a.Port)
+}
+
+func writeLocalToken(dir datadir.Dir, t localToken) error {
+	// The secret is kept on purpose, in a file only its makers can read.
+	raw, err := json.MarshalIndent(t, "", "  ") //nolint:gosec // see above
+	if err != nil {
+		return err
+	}
+	return writePrivate(dir.LocalToken(), append(raw, '\n'))
 }
 
 func (a *apiAccess) cantReadDataDir(dir datadir.Dir) error {
@@ -305,15 +355,10 @@ func (a *apiAccess) makeLocalToken(ctx context.Context, dir datadir.Dir, tokenSc
 		_ = people.RevokeLocalToken(ctx, actor(), old.ID)
 	}
 	t := localToken{
-		URL: "http://" + net.JoinHostPort(strings.Trim(addr.tunnelHost(), "[]"), addr.Port),
+		URL: addr.loopbackURL(),
 		ID:  made.Token.ID, Secret: made.Secret, Scope: tokenScope, Expires: *made.Token.ExpiresAt,
 	}
-	// The secret is kept on purpose, in a file only its makers can read.
-	raw, err := json.MarshalIndent(t, "", "  ") //nolint:gosec // see above
-	if err != nil {
-		return localToken{}, err
-	}
-	if err := writePrivate(dir.LocalToken(), append(raw, '\n')); err != nil {
+	if err := writeLocalToken(dir, t); err != nil {
 		return localToken{}, err
 	}
 	return t, nil

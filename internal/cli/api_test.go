@@ -346,9 +346,30 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		if r.code != exitOK || !strings.Contains(r.out, "(control)") {
 			t.Fatalf("servers list with local access = %d:\n%s%s", r.code, r.out, r.err)
 		}
-		info, err := os.Stat(filepath.Join(dir, "control", "local-token.json"))
+		cached := filepath.Join(dir, "control", "local-token.json")
+		info, err := os.Stat(cached)
 		if err != nil || info.Mode().Perm() != 0o600 {
 			t.Errorf("the local token's file = %v, %v; want mode 0600", info, err)
+		}
+		// A control plane that moved, as after a restart on another port, is
+		// found again, with the same token.
+		var before localToken
+		raw, _ := os.ReadFile(cached)
+		_ = json.Unmarshal(raw, &before)
+		moved := before
+		moved.URL = "http://127.0.0.1:1"
+		raw, _ = json.Marshal(moved)
+		if err := os.WriteFile(cached, raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if r := run(t, local, "servers", "list"); r.code != exitOK {
+			t.Errorf("servers list once the control plane moved = %d %q", r.code, r.err)
+		}
+		var after localToken
+		raw, _ = os.ReadFile(cached)
+		_ = json.Unmarshal(raw, &after)
+		if after.ID != before.ID || after.URL != before.URL {
+			t.Errorf("after a move the local token is %s at %s, want %s at %s", after.ID, after.URL, before.ID, before.URL)
 		}
 		r = run(t, local, "projects", "create", "wiki", "--yes")
 		if r.code != exitError || !strings.Contains(r.err, "local access on this server is read-only") || !strings.Contains(r.err, "dockwell login --local") {

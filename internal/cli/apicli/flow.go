@@ -46,22 +46,30 @@ func (r *runner) connect(ctx context.Context) error {
 	return nil
 }
 
-// do makes one call, and makes it again once with a new token when local
-// access's token was rejected or the control plane moved, as after a
-// restart on another port.
+// do makes one call, and with local access makes it again once: with a
+// new token when the control plane rejected the one it had, or at the
+// control plane's new address when it moved, as after a restart on another
+// port.
 func (r *runner) do(ctx context.Context, call func() error) error {
 	err := call()
 	if err == nil || !r.client.Local {
 		return err
 	}
-	if Reason(err) != authapi.ReasonTokenRejected && !unreachable(err) {
+	again := r.opts.settings
+	switch {
+	case Reason(err) == authapi.ReasonTokenRejected:
+		again.Renew = true
+	case unreachable(err):
+		again.Moved = true
+	default:
 		return err
 	}
-	renewed := r.opts.settings
-	renewed.Renew = true
-	c, rerr := r.env.Connect(ctx, renewed)
+	c, rerr := r.env.Connect(ctx, again)
 	if rerr != nil {
 		return rerr
+	}
+	if again.Moved && c.URL == r.client.URL {
+		return err // it didn't move: it isn't running
 	}
 	r.client = c
 	return call()

@@ -147,7 +147,7 @@ On the control server, the CLI needs no setup.
 
 This is safe because reading that directory already gives full control of the install: its sealing key and its database. ADR 0011 relies on the same for `dockwell claim` and `dockwell recover`. Nothing new is reachable, and what local access does is limited and on record:
 - **Read-only unless asked.** The token it makes is read-only, so a script running as root on the server can't change anything by accident. `dockwell login --local` makes a read-write one, which the CLI then uses. `dockwell logout --local` revokes the token and forgets it.
-- **Short-lived.** A local token lasts 12 hours (`auth.LocalTokenTTL`). The CLI makes a new read-only one when it expires, when the control plane rejects it, or when the control plane moved, as after a restart on another port. So revoking the read-write token in the panel takes write access away until someone asks for it again.
+- **Short-lived.** A local token lasts 12 hours (`auth.LocalTokenTTL`). The CLI makes a new read-only one when it expires or the control plane rejects it, so revoking the read-write token in the panel takes write access away until someone asks for it again. When the control plane can't be reached, the CLI reads the address it records again, and tries once more only if it moved, as after a restart on another port, with the same token.
 - **Kept where only its makers can read it.** The token is kept in `<data>/control/local-token.json`, mode 0600, so each command doesn't make one. Only those who could make it can read it.
 - **On record.**
   - The token is named "Local access on hz-1, read-only" or "read-write", and listed on Profile and security like any other, where it can be revoked.

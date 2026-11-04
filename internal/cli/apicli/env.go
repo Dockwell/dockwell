@@ -24,8 +24,9 @@ type Env struct {
 	// questions: standard input and standard error are both terminals.
 	Interactive func() bool
 	// Connect finds the control plane and the API token to call it with,
-	// from what the flags say. Renew asks for a new token for local access,
-	// after the control plane rejected the one it had.
+	// from what the flags say. For local access, Renew asks for a new token,
+	// after the control plane rejected the one it had, and Moved asks where
+	// the control plane is now, after it couldn't be reached.
 	Connect func(ctx context.Context, s Settings) (*Client, error)
 	// Kinds knows each kind of resource, for where its resources live.
 	Kinds *resource.Registry
@@ -43,8 +44,9 @@ type Env struct {
 type Settings struct {
 	URL   string
 	Token string
-	// Renew asks local access for a new token.
-	Renew bool
+	// Renew asks local access for a new token, and Moved for where the
+	// control plane answers now.
+	Renew, Moved bool
 }
 
 // UsageError marks a mistake in how a command was invoked.
