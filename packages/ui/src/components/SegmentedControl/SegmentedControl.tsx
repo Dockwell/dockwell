@@ -20,7 +20,7 @@ export interface SegmentedControlProps<V extends string = string> {
   /** Two to five views of the same content. More, or options of different kinds, belong in Tabs or a select. */
   options: readonly SegmentedOption<V>[];
   value?: V;
-  /** Defaults to the first option. */
+  /** Defaults to the first option, which also stands in while this one isn't among the options. */
   defaultValue?: V;
   onChange?: (value: V) => void;
   /** Accessible name of the group. */
@@ -43,8 +43,10 @@ export function SegmentedControl<V extends string = string>({
   size = "md",
   className,
 }: SegmentedControlProps<V>) {
-  const [current, setCurrent] = useControlled<V | undefined, V>(value, defaultValue ?? options[0]?.value, onChange);
+  const [stored, setCurrent] = useControlled<V | undefined, V>(value, defaultValue, onChange);
   const values = options.map((option) => option.value);
+  // Uncontrolled, the first option stands in while the stored one isn't among the options, as when they load after mount.
+  const current = value !== undefined ? value : tabStop(values, stored);
   const stop = tabStop(values, current);
   return (
     <div

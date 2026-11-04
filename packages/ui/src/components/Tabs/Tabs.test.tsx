@@ -68,6 +68,25 @@ describe("Tabs", () => {
     expect(tab("Overview")).toHaveFocus();
   });
 
+  it("selects the first tab when the tabs arrive after mount, or the chosen one goes away", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<Tabs label="App sections" tabs={[]} />);
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
+    rerender(<Tabs label="App sections" tabs={tabs} />);
+    expect(tab("Overview")).toHaveAttribute("aria-selected", "true");
+    await user.click(tab("Logs"));
+    rerender(<Tabs label="App sections" tabs={tabs.filter((t) => t.id !== "logs")} />);
+    expect(tab("Overview")).toHaveAttribute("aria-selected", "true");
+    expect(tab("Overview")).toHaveAttribute("tabindex", "0");
+  });
+
+  it("selects the default tab once it arrives", () => {
+    const { rerender } = render(<Tabs label="App sections" tabs={tabs.slice(0, 2)} defaultValue="logs" />);
+    expect(tab("Overview")).toHaveAttribute("aria-selected", "true");
+    rerender(<Tabs label="App sections" tabs={tabs} defaultValue="logs" />);
+    expect(tab("Logs")).toHaveAttribute("aria-selected", "true");
+  });
+
   it("follows the parent when controlled", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

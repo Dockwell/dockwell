@@ -25,7 +25,7 @@ export interface TabItem<Id extends string = string> {
 export interface TabsProps<Id extends string = string> {
   tabs: readonly TabItem<Id>[];
   value?: Id;
-  /** Defaults to the first tab. */
+  /** Defaults to the first tab, which also stands in while this one isn't among the tabs. */
   defaultValue?: Id;
   onChange?: (id: Id) => void;
   /** Accessible name of the tab list. */
@@ -46,8 +46,10 @@ export function Tabs<Id extends string = string>({
   label,
   className,
 }: TabsProps<Id>) {
-  const [current, setCurrent] = useControlled<Id | undefined, Id>(value, defaultValue ?? tabs[0]?.id, onChange);
+  const [stored, setCurrent] = useControlled<Id | undefined, Id>(value, defaultValue, onChange);
   const ids = tabs.map((tab) => tab.id);
+  // Uncontrolled, the first tab stands in while the stored one isn't among the tabs, as when they load after mount.
+  const current = value !== undefined ? value : tabStop(ids, stored);
   const stop = tabStop(ids, current);
   return (
     <div

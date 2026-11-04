@@ -92,6 +92,18 @@ describe("SegmentedControl", () => {
     expect(screen.getByRole("radiogroup")).toHaveClass("dw-seg-sm");
   });
 
+  it("selects the first option when the options arrive after mount, or the chosen one goes away", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<SegmentedControl label="Environment" options={[]} />);
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
+    rerender(<SegmentedControl label="Environment" options={options} />);
+    expect(radio("Production")).toHaveAttribute("aria-checked", "true");
+    await user.click(radio("Previews"));
+    rerender(<SegmentedControl label="Environment" options={options.slice(0, 2)} />);
+    expect(radio("Production")).toHaveAttribute("aria-checked", "true");
+    expect(radio("Production")).toHaveAttribute("tabindex", "0");
+  });
+
   it("keeps a tab stop when the value matches no option", () => {
     render(<SegmentedControl<string> label="Environment" options={options} value="gone" />);
     expect(radio("Production")).toHaveAttribute("tabindex", "0");
