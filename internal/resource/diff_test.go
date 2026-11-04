@@ -161,15 +161,21 @@ func TestSensitivePath(t *testing.T) {
 		"app.ports[0]x":                             true,
 		"app.image[0]":                              true,
 		"app.labels":                                false,
+		"app.ports":                                 false,
+		"app.ports[0]":                              false,
 		"app.":                                      true,
 		"":                                          true,
+		// A whole message holds what is in it, the environment included.
+		"app":     true,
+		"app.env": true,
+		"secrets": false,
 	} {
 		if got := resource.SensitivePath(service, path); got != want {
 			t.Errorf("resource.SensitivePath(Service, %q) = %v, want %v", path, got, want)
 		}
 	}
-	if !resource.SensitivePath(container, "env[API_KEY]") || resource.SensitivePath(container, "image") ||
-		resource.SensitivePath(container, "labels[com.example.team]") {
+	if !resource.SensitivePath(container, "env[API_KEY]") || !resource.SensitivePath(container, "env") || resource.SensitivePath(container, "image") ||
+		resource.SensitivePath(container, "labels[com.example.team]") || resource.SensitivePath(container, "ports") {
 		t.Error("SensitivePath misreads a container's paths")
 	}
 	if !resource.SensitivePath((&resourcev1.Secret{}).ProtoReflect().Descriptor(), "value") {

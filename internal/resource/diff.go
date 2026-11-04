@@ -250,12 +250,15 @@ func (d *differ) mapField(path string, fd protoreflect.FieldDescriptor, a, b pro
 
 // SensitivePath reports whether the field a change's path names, such as
 // "env[API_KEY]" or "app.env[API_KEY]", is sensitive or lies within a
-// sensitive field of md, as Diff marks it. It reads paths as Diff writes
-// them: field names joined by dots, a list's index in brackets, and a map's
-// key in brackets, which may hold dots and brackets of its own, as the
-// label traefik.http.routers.web.rule does. A path md doesn't have is
-// sensitive, as nothing can show it's safe. The control plane masks what
-// agents report by it, rather than by what they say.
+// sensitive field of md, as Diff marks it. A path that names a whole
+// message, such as "app", or a whole map or list of messages, is sensitive
+// when anything within it is: a change there would show the container's
+// environment with it. It reads paths as Diff writes them: field names
+// joined by dots, a list's index in brackets, and a map's key in brackets,
+// which may hold dots and brackets of its own, as the label
+// traefik.http.routers.web.rule does. A path md doesn't have is sensitive,
+// as nothing can show it's safe. The control plane masks what agents
+// report by it, rather than by what they say.
 func SensitivePath(md protoreflect.MessageDescriptor, path string) bool {
 	rest := path
 	for {
@@ -272,7 +275,7 @@ func SensitivePath(md protoreflect.MessageDescriptor, path string) bool {
 			return true
 		}
 		if rest == "" {
-			return false // the field as a whole
+			return holdsSensitive(fd) // the field as a whole
 		}
 		var ok bool
 		switch {
@@ -300,9 +303,19 @@ func SensitivePath(md protoreflect.MessageDescriptor, path string) bool {
 			return true
 		}
 		if rest == "" {
-			return false // a list's element, or a map's entry, as a whole
+			return sensitiveMessage(md) // a list's element, or a map's entry, as a whole
 		}
 	}
+}
+
+// holdsSensitive reports a field whose values are messages, or a map's
+// values are, with a sensitive field within them.
+func holdsSensitive(fd protoreflect.FieldDescriptor) bool {
+	value := fd
+	if fd.IsMap() {
+		value = fd.MapValue()
+	}
+	return value.Message() != nil && sensitiveMessage(value.Message())
 }
 
 // listElementPath reads "[3]" or "[3].field" off a path: what follows the

@@ -651,3 +651,57 @@ func TestAnAgentCantPutASecretInAPlan(t *testing.T) {
 		t.Errorf("the label's change = %+v, want it shown", label)
 	}
 }
+
+// A change an agent reports at a path that names a whole message, or a
+// whole map, is masked when anything within it is sensitive: a service's
+// app holds its container's environment. The Docker driver reports such
+// steps.
+func TestAnAgentCantPutASecretInAPlanAtAWholeMessage(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	stream := openStream(t, id, string(container.Kind), string(service.Kind))
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	for _, c := range []struct {
+		ref           resource.Ref
+		spec          proto.Message
+		masked, shown string
+	}{
+		{resource.Ref{Kind: service.Kind, Scope: id.ServerID, Name: "api"}, &resourcev1.Service{}, "app", "secrets[DB]"},
+		{resource.Ref{Kind: container.Kind, Scope: id.ServerID, Name: "web"}, &resourcev1.Container{Image: "nginx:1.28"}, "env", "ports"},
+	} {
+		done := make(chan []resource.Step, 1)
+		go func() {
+			steps, err := a.Plan(t.Context(), []resource.Desired{{Ref: c.ref, Spec: c.spec}})
+			if err != nil {
+				t.Error(err)
+			}
+			done <- steps
+		}()
+		msg, err := stream.Receive()
+		if err != nil || msg.GetCall().GetPlan() == nil {
+			t.Fatalf("the control plane sent %v, %v, want a plan", msg, err)
+		}
+		leaky := &dockwellv1.PlanStep{
+			Resource: resourcepb.Ref(c.ref), Action: dockwellv1.PlanAction_PLAN_ACTION_REPLACE, Effect: dockwellv1.StepEffect_STEP_EFFECT_RECREATE,
+			Changes: []*dockwellv1.FieldChange{
+				{Path: c.masked, Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, From: "Container{env: API_KEY=old-s3cret}", To: "Container{env: API_KEY=new-s3cret}"},
+				{Path: c.shown, Op: dockwellv1.FieldOp_FIELD_OP_ADDED, To: "DB"},
+			},
+		}
+		if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: &agentv1.CallResult{
+			Id: msg.GetCall().GetId(), Result: &agentv1.CallResult_Plan{Plan: &agentv1.PlanResult{Steps: []*dockwellv1.PlanStep{leaky}}},
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+		steps := <-done
+		if len(steps) != 1 || len(steps[0].Changes) != 2 {
+			t.Fatalf("%s: Plan = %+v", c.ref.Kind, steps)
+		}
+		if m := steps[0].Changes[0]; !m.Sensitive || m.From != "" || m.To != "" {
+			t.Errorf("%s: the change at %s = %+v, want it masked", c.ref.Kind, c.masked, m)
+		}
+		if s := steps[0].Changes[1]; s.Sensitive || s.To != "DB" {
+			t.Errorf("%s: the change at %s = %+v, want it shown", c.ref.Kind, c.shown, s)
+		}
+	}
+}
