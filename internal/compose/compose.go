@@ -17,15 +17,12 @@ import (
 	"maps"
 	"path"
 	"reflect"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/compose-spec/compose-go/v2/interpolation"
-	"github.com/compose-spec/compose-go/v2/template"
 	"github.com/compose-spec/compose-go/v2/transform"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/go-viper/mapstructure/v2"
@@ -201,8 +198,6 @@ func list(v any) []any {
 
 var quiet sync.Once
 
-var variableName = regexp.MustCompile(`^\$\{?([A-Za-z_][A-Za-z0-9_]*)`)
-
 // model is the part of a Compose file Dockwell runs, in compose-go's
 // types.
 type model struct {
@@ -212,13 +207,12 @@ type model struct {
 }
 
 // Parse reads a Compose file into what it makes in an environment.
-// Variables such as ${TAG} take their values
-// from variables, or the defaults the file gives; one with neither is
-// refused, rather than left blank.
+// Variables such as ${TAG} take their values from variables, or the
+// defaults the file gives; one with neither is refused, rather than left
+// blank, at every level (interpolate).
 //
-// It reads the file as docker compose does, with compose-go's
-// interpolation, its canonical forms of the short syntaxes, and its
-// types, but not its loader. The loader validates against the Compose
+// It reads the file as docker compose does, with compose-go's canonical
+// forms of the short syntaxes and its types, but not its loader. The loader validates against the Compose
 // schema with a JSON Schema library that allocates 1.7 MB as every
 // process starts, agents included (ADR 0021); checkRaw allows far less
 // than the schema does, and the steps here do the rest of what the loader
@@ -233,32 +227,9 @@ func Parse(_ context.Context, file []byte, variables map[string]string) (*Stack,
 	// matters comes back as an error.
 	quiet.Do(func() { logrus.SetOutput(io.Discard) })
 
-	var missing []string
-	substitute := func(tmpl string, mapping template.Mapping) (string, error) {
-		return template.SubstituteWithOptions(tmpl, mapping, template.WithoutLogging,
-			template.WithReplacementFunction(func(s string, m template.Mapping, cfg *template.Config) (string, error) {
-				v, ok, err := template.DefaultReplacementAppliedFunc(s, m, cfg)
-				if err == nil && !ok {
-					if name := variableName.FindStringSubmatch(s); name != nil {
-						missing = append(missing, name[1])
-					}
-				}
-				return v, err
-			}))
-	}
-	lookup := func(k string) (string, bool) {
-		v, ok := variables[k]
-		return v, ok
-	}
-	dict, err := interpolation.Interpolate(raw, interpolation.Options{LookupValue: lookup, Substitute: substitute})
-	if len(missing) > 0 {
-		slices.Sort(missing)
-		missing = slices.Compact(missing)
-		return nil, invalid("the Compose file uses %s, with no value. Give it one in variables, or a default in the file, such as ${%s:-value}",
-			strings.Join(missing, ", "), missing[0])
-	}
+	dict, err := interpolate(raw, variables)
 	if err != nil {
-		return nil, invalid("the Compose file's variables aren't valid: %v", err)
+		return nil, err
 	}
 	if dict, err = transform.Canonical(dict, false); err != nil {
 		return nil, invalid("the Compose file isn't valid: %v", err)

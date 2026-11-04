@@ -271,3 +271,37 @@ networks:
 		t.Errorf("the deleted volume is gone at once: %v", err)
 	}
 }
+
+// docker compose resolves a file's variables as Dockwell does, wherever
+// it leaves none blank.
+func TestVariablesOnRealDocker(t *testing.T) {
+	dockertest.Real(t)
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Fatal("docker isn't on the PATH, so docker compose can't resolve the variables")
+	}
+	for tmpl, want := range resolved {
+		t.Run(tmpl, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "compose.yaml")
+			if err := os.WriteFile(path, environment(tmpl), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			out := composeCLI(t, vars, "-f", path, "-p", "dw-variables", "config", "--format", "json")
+			var cfg struct {
+				Services map[string]struct {
+					Environment map[string]*string `json:"environment"`
+				} `json:"services"`
+			}
+			if err := json.Unmarshal([]byte(out), &cfg); err != nil {
+				t.Fatalf("docker compose config printed %s: %v", out, err)
+			}
+			got := ""
+			if v := cfg.Services["web"].Environment["V"]; v != nil {
+				// It writes a $ of its own as $$, to read back the same.
+				got = strings.ReplaceAll(*v, "$$", "$")
+			}
+			if got != want {
+				t.Errorf("docker compose resolves %s as %q, Dockwell as %q", tmpl, got, want)
+			}
+		})
+	}
+}
