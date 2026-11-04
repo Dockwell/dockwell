@@ -217,7 +217,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		step.Ref = ref
-		ctx = resource.WithProgress(ctx, c.progress(call.GetId()))
+		progress := c.progress(call.GetId())
+		defer progress.stop()
+		ctx = resource.WithProgress(ctx, progress.say)
 		if err := c.local.Apply(ctx, step, spec); err != nil {
 			return fail(err)
 		}
@@ -259,20 +261,69 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 const progressEvery = time.Second
 
 // progress returns what a call's drivers tell how it is going, which goes
-// to the control plane at most once every progressEvery. The step's own
-// end says the last word, so a message dropped in between is no loss.
-func (c *calls) progress(id uint64) func(string) {
-	var mu sync.Mutex
-	var last time.Time
-	return func(message string) {
-		mu.Lock()
-		if time.Since(last) < progressEvery {
-			mu.Unlock()
-			return
-		}
-		last = time.Now()
-		mu.Unlock()
+// to the control plane at most once every progressEvery. Stop it once
+// the call ends.
+func (c *calls) progress(id uint64) *throttle {
+	return newThrottle(progressEvery, func(message string) {
 		_ = c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Progress{Progress: &agentv1.CallProgress{Id: id, Message: message}}})
+	})
+}
+
+// throttle passes messages on at most once every interval. One that comes
+// sooner isn't lost: the latest waits, and goes when the interval ends, so
+// a change of phase, such as from pulling to starting, always shows.
+type throttle struct {
+	every time.Duration
+	send  func(string)
+
+	mu      sync.Mutex
+	last    time.Time   // when the last message went
+	waiting string      // the latest message to go next
+	timer   *time.Timer // set while one waits
+	stopped bool
+}
+
+func newThrottle(every time.Duration, send func(string)) *throttle {
+	return &throttle{every: every, send: send}
+}
+
+// say passes a message on now, or once the interval ends.
+func (t *throttle) say(message string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	switch wait := t.every - time.Since(t.last); {
+	case t.stopped:
+	case t.timer != nil:
+		t.waiting = message
+	case wait > 0:
+		t.waiting = message
+		t.timer = time.AfterFunc(wait, t.flush)
+	default:
+		t.last = time.Now()
+		t.send(message)
+	}
+}
+
+func (t *throttle) flush() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.timer = nil
+	if t.stopped {
+		return
+	}
+	t.last = time.Now()
+	t.send(t.waiting)
+}
+
+// stop drops what waits: the call's result says the last word, and must
+// not be followed by its progress.
+func (t *throttle) stop() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.stopped = true
+	if t.timer != nil {
+		t.timer.Stop()
+		t.timer = nil
 	}
 }
 
