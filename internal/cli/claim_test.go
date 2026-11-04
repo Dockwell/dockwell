@@ -365,7 +365,7 @@ func TestARestartOnAnotherAddressPrintsANewLink(t *testing.T) {
 		"--acme-directory-url", "https://acme.invalid/directory",
 	}
 	out, _ = startRunWithOutput(t, dir, "/claim#", domain...)
-	if m := linkRE.FindStringSubmatch(out.String()); m == nil || !strings.HasPrefix(m[1], "https://panel.example.com:") {
+	if m := linkRE.FindStringSubmatch(out.String()); len(m) < 2 || !strings.HasPrefix(m[1], "https://panel.example.com:") {
 		t.Errorf("after gaining a domain, the new link isn't for it:\n%s", out.String())
 	}
 }
