@@ -237,7 +237,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		defer progress.stop()
 		ctx = resource.WithProgress(ctx, progress.say)
 		// The values of what the spec uses, opened in memory for this
-		// step alone; they never reach a log, the disk or Desired.
+		// step alone; they never reach a log, the disk or Desired, which
+		// hears of the step with the call's own context.
+		applyCtx := ctx
 		if sealed := call.GetApply().GetValues(); len(sealed) > 0 {
 			if c.delivery == nil {
 				return fail(errors.New("this agent has no delivery key to open the values sent for this step"))
@@ -247,9 +249,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 				return fail(err)
 			}
 			defer clear(values)
-			ctx = resource.WithValues(ctx, values)
+			applyCtx = resource.WithValues(ctx, values)
 		}
-		if err := c.local.Apply(ctx, step, spec); err != nil {
+		if err := c.local.Apply(applyCtx, step, spec); err != nil {
 			return fail(err)
 		}
 		if c.cfg.Desired != nil {
