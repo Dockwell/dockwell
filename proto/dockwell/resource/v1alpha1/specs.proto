@@ -1,0 +1,91 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+syntax = "proto3";
+
+// Resource specs: the desired state of each kind of resource Dockwell
+// manages. See docs/adr/0009-resources-revisions-and-plans.md. The package
+// is alpha while the model settles, so it may change without notice.
+package dockwell.resource.v1alpha1;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  // True for fields that may hold secrets. Plans, history and logs say that
+  // such a field changed, but never show its value.
+  bool sensitive = 51001;
+}
+
+// Container is one Docker container on a server.
+message Container {
+  // The image to run, such as "ghcr.io/acme/web:1.4.2".
+  string image = 1;
+  // Overrides the image's command when set.
+  repeated string command = 2;
+  // Environment variables, which may hold secrets.
+  map<string, string> env = 3 [(sensitive) = true];
+  // Ports published on the server.
+  repeated PortMapping ports = 4;
+  // What Docker does when the container stops.
+  RestartPolicy restart = 5;
+  // Labels on the container, for tools that read them.
+  map<string, string> labels = 6;
+}
+
+// PortMapping publishes a container port on the server.
+message PortMapping {
+  // The port on the server.
+  uint32 host_port = 1;
+  // The port inside the container.
+  uint32 container_port = 2;
+  // TCP unless set.
+  Protocol protocol = 3;
+}
+
+// RestartPolicy says when Docker restarts a stopped container.
+enum RestartPolicy {
+  // The driver's default, unless-stopped.
+  RESTART_POLICY_UNSPECIFIED = 0;
+  // Never restart.
+  RESTART_POLICY_NO = 1;
+  // Restart when the container exits with an error.
+  RESTART_POLICY_ON_FAILURE = 2;
+  // Restart unless someone stopped it.
+  RESTART_POLICY_UNLESS_STOPPED = 3;
+  // Always restart.
+  RESTART_POLICY_ALWAYS = 4;
+}
+
+// Protocol is a transport protocol.
+enum Protocol {
+  // TCP, the default.
+  PROTOCOL_UNSPECIFIED = 0;
+  // TCP.
+  PROTOCOL_TCP = 1;
+  // UDP.
+  PROTOCOL_UDP = 2;
+}
+
+// FirewallRule allows or blocks inbound traffic to a port on a server.
+message FirewallRule {
+  // Allow or block.
+  FirewallAction action = 1;
+  // TCP unless set.
+  Protocol protocol = 2;
+  // The port the rule covers.
+  uint32 port = 3;
+  // Source addresses in CIDR form, such as "203.0.113.0/24". Empty means
+  // anywhere.
+  repeated string sources = 4;
+  // Why the rule exists, shown next to it.
+  string comment = 5;
+}
+
+// FirewallAction is what a rule does with matching traffic.
+enum FirewallAction {
+  // Allow, the default.
+  FIREWALL_ACTION_UNSPECIFIED = 0;
+  // Let it through.
+  FIREWALL_ACTION_ALLOW = 1;
+  // Drop it.
+  FIREWALL_ACTION_DENY = 2;
+}
