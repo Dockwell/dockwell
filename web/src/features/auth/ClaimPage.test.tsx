@@ -176,6 +176,23 @@ describe("ClaimPage", () => {
     }
   });
 
+  it("names the DNS record that fits the server's public address", async () => {
+    const cases: Array<[string, string]> = [
+      ["49.12.33.7", "point its A record to 49.12.33.7"],
+      ["2a01:4f8:c17:1::1", "point its AAAA record to 2a01:4f8:c17:1::1"],
+      // The control plane names an address only when it knows a public one.
+      ["", "point its A or AAAA record to this server's public address"],
+    ];
+    for (const [address, hint] of cases) {
+      const response = checked();
+      response.publicAddress = address;
+      const view = renderAt(`/claim#${TOKEN}`, api({ checkClaim: vi.fn(() => response) }));
+      await screen.findByRole("heading", { level: 1, name: "Claim hz-1" });
+      expect(screen.getByLabelText("Panel address")).toHaveAccessibleDescription(expect.stringContaining(hint));
+      view.unmount();
+    }
+  });
+
   it("checks the form before asking for a passkey", async () => {
     const passkeys = stubPasskeys();
     renderAt("/claim", api());

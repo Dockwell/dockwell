@@ -263,7 +263,9 @@ function PanelAddress({ domain, publicAddress }: { domain: string; publicAddress
       />
     );
   }
-  const ip = publicAddress || t`this server's address`;
+  // The control plane names a public address only when it knows one, and an
+  // IPv6 one takes an AAAA record rather than an A record.
+  const record = publicAddress.includes(":") ? "AAAA" : "A";
   return (
     <TextField
       label={t`Panel address`}
@@ -273,10 +275,17 @@ function PanelAddress({ domain, publicAddress }: { domain: string; publicAddress
       mono
       size="lg"
       hint={
-        <Trans>
-          Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A
-          record to <code>{ip}</code>, then restart dockwell with <code>--domain</code>.
-        </Trans>
+        publicAddress ? (
+          <Trans>
+            Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its{" "}
+            {record} record to <code>{publicAddress}</code>, then restart dockwell with <code>--domain</code>.
+          </Trans>
+        ) : (
+          <Trans>
+            Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A or
+            AAAA record to this server's public address, then restart dockwell with <code>--domain</code>.
+          </Trans>
+        )
       }
     />
   );
