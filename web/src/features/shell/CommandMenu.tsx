@@ -42,9 +42,11 @@ export function CommandMenu({ children }: { children: ReactNode }) {
   useEffect(() => {
     const apple = onApple();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.isComposing || event.key.toLowerCase() !== "k" || event.altKey || event.shiftKey) return;
+      if (event.isComposing || !isK(event) || event.altKey || event.shiftKey) return;
       if (apple ? !event.metaKey || event.ctrlKey : !event.ctrlKey || event.metaKey) return;
       event.preventDefault();
+      // Held keys repeat; the bar toggles once per press.
+      if (event.repeat) return;
       setOpen((was) => !was);
     };
     window.addEventListener("keydown", onKeyDown);
@@ -57,6 +59,16 @@ export function CommandMenu({ children }: { children: ReactNode }) {
       {open ? <Commands onClose={() => setOpen(false)} /> : null}
     </OpenContext>
   );
+}
+
+/**
+ * Whether the key pressed is K: the letter on Latin layouts, wherever they
+ * put it, and the key in K's place on layouts without Latin letters, such as
+ * Russian, Greek or Hebrew, where the same key types л, κ or ל.
+ */
+function isK(event: KeyboardEvent): boolean {
+  const key = event.key.toLowerCase();
+  return key === "k" || (!/^[a-z]$/.test(key) && event.code === "KeyK");
 }
 
 type Run = () => void;

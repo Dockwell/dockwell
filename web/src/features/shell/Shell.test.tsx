@@ -214,6 +214,32 @@ describe("the command bar", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it.each([
+    ["Russian", "л"],
+    ["Greek", "κ"],
+    ["Hebrew", "ל"],
+  ])("opens on Ctrl+K on a %s layout, where that key types %s", async (_layout, key) => {
+    await renderWith("/", hz1);
+    fireEvent.keyDown(window, { key, code: "KeyK", ctrlKey: true });
+    expect(screen.getByRole("dialog", { name: "Command bar" })).toBeVisible();
+  });
+
+  it("goes by the letter on Latin layouts that move K", async () => {
+    await renderWith("/", hz1);
+    // Dvorak types T where QWERTY has K, and K elsewhere.
+    fireEvent.keyDown(window, { key: "t", code: "KeyK", ctrlKey: true });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.keyDown(window, { key: "k", code: "KeyV", ctrlKey: true });
+    expect(screen.getByRole("dialog", { name: "Command bar" })).toBeVisible();
+  });
+
+  it("toggles once per press while the keys are held", async () => {
+    await renderWith("/", hz1);
+    fireEvent.keyDown(window, { key: "k", code: "KeyK", ctrlKey: true });
+    for (let i = 0; i < 3; i++) fireEvent.keyDown(window, { key: "k", code: "KeyK", ctrlKey: true, repeat: true });
+    expect(screen.getByRole("dialog", { name: "Command bar" })).toBeVisible();
+  });
+
   it("leaves the shortcut alone while an input method composes", async () => {
     await renderWith("/", hz1);
     fireEvent.keyDown(window, { key: "k", ctrlKey: true, isComposing: true });
