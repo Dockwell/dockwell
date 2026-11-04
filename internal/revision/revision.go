@@ -2289,6 +2289,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 				e.pulledNewer(ctx, c.ID, items, it, q.server, o)
 			}
 		})
+		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c)})
 		err := agent.Apply(callCtx, *q.step, it.desiredOn(q.server))
 		called()
 		switch {

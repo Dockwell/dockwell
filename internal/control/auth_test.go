@@ -74,6 +74,8 @@ type fullServer struct {
 	stop func() error
 	// server is the control plane itself.
 	server *Server
+	// lastDocker is the server addDockerServer last added.
+	lastDocker *testServer
 }
 
 // execSQL runs a statement on the server's database from outside the store,

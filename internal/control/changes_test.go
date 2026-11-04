@@ -68,6 +68,7 @@ type testServer struct {
 	docker  *containertest.Fake
 	fw      *gate
 	drivers *resource.Registry
+	logs    agent.LogReader
 	stop    func()
 }
 
@@ -109,7 +110,7 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	done := make(chan struct{})
 	go func() {
 		_ = agent.Run(ctx, agent.Config{
-			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers,
+			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
 		})
 		close(done)
 	}()

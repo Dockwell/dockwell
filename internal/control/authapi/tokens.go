@@ -50,7 +50,14 @@ func (h *Handler) CreateToken(ctx context.Context, req *connect.Request[dockwell
 		at := h.auth.Now().Add(e.Ttl.AsDuration())
 		expires = &at
 	}
-	made, err := h.auth.CreateToken(ctx, p, m.GetName(), scope, expires, m.GetProof())
+	grants := make([]string, 0, len(m.GetGrants()))
+	for _, g := range m.GetGrants() {
+		if g != dockwellv1.TokenGrant_TOKEN_GRANT_LOGS {
+			return nil, h.rpcError(ctx, fmt.Errorf("%w: a token can't be granted %s", auth.ErrInvalid, g))
+		}
+		grants = append(grants, store.GrantLogs)
+	}
+	made, err := h.auth.CreateToken(ctx, p, m.GetName(), scope, grants, expires, m.GetProof())
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
@@ -99,6 +106,9 @@ func tokenProto(t *store.APIToken) *dockwellv1.Token {
 		out.Scope = dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY
 	case store.ScopeReadWrite:
 		out.Scope = dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE
+	}
+	if t.HasGrant(store.GrantLogs) {
+		out.Grants = append(out.Grants, dockwellv1.TokenGrant_TOKEN_GRANT_LOGS)
 	}
 	if t.ExpiresAt != nil {
 		out.ExpireTime = timestamppb.New(*t.ExpiresAt)

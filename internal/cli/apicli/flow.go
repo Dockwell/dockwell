@@ -37,6 +37,8 @@ type runner struct {
 	// choiceFlag names the flag that takes a choice, for a command whose
 	// request isn't built from its flags field by field.
 	choiceFlag func(*dockwellv1.Choice) string
+	// logs prints log lines, from one message to the next.
+	logs *logPrinter
 }
 
 func (r *runner) connect(ctx context.Context) error {
@@ -59,7 +61,9 @@ func (r *runner) do(ctx context.Context, call func() error) error {
 	}
 	again := r.opts.settings
 	switch {
-	case Reason(err) == authapi.ReasonTokenRejected:
+	case Reason(err) == authapi.ReasonTokenRejected, Reason(err) == authapi.ReasonTokenLogs:
+		// One made before local access's tokens could read logs needs replacing
+		// too, though it hasn't been rejected as such.
 		again.Renew = true
 	case unreachable(err):
 		again.Moved = true
@@ -177,8 +181,25 @@ func (r *runner) print(msg proto.Message, lines bool) error {
 	if r.opts.json {
 		return JSON(r.env.Out, msg, !lines)
 	}
+	switch m := msg.(type) {
+	case *dockwellv1.WatchLogsResponse:
+		r.logPrinter().watch(m)
+		return nil
+	case *dockwellv1.ReadLogsResponse:
+		r.logPrinter().read(m)
+		return nil
+	}
 	Render(r.env.Out, msg, r.env.now())
 	return nil
+}
+
+// logPrinter prints log lines, remembering their sources from one message to
+// the next.
+func (r *runner) logPrinter() *logPrinter {
+	if r.logs == nil {
+		r.logs = newLogPrinter(r.env.Out, r.env.Err)
+	}
+	return r.logs
 }
 
 // method runs a generated command: it calls the method with req, and acts

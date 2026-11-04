@@ -190,7 +190,7 @@ func testChangingHowYouSignInTakesAStepUp(t *testing.T, backend store.Backend) {
 		"adding a passkey": func(proof string) error { _, err := f.svc.BeginAddPasskey(ctx, localhost, p, proof); return err },
 		"setting up codes": func(proof string) error { _, err := f.svc.BeginTOTP(ctx, p, proof); return err },
 		"making a token": func(proof string) error {
-			_, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, proof)
+			_, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, nil, proof)
 			return err
 		},
 	} {
@@ -314,7 +314,7 @@ func testARefusalForAnotherReasonLeavesTheProof(t *testing.T, backend store.Back
 	// A token with no name, or one too many.
 	create := f.proof(t, p, StepUpCreateToken, "")
 	for _, proof := range []string{"", create} {
-		if _, err := f.svc.CreateToken(ctx, p, " ", store.ScopeReadOnly, nil, proof); !errors.Is(err, ErrInvalid) {
+		if _, err := f.svc.CreateToken(ctx, p, " ", store.ScopeReadOnly, nil, nil, proof); !errors.Is(err, ErrInvalid) {
 			t.Errorf("a token with no name, proof %t = %v, want ErrInvalid", proof != "", err)
 		}
 	}
@@ -333,7 +333,7 @@ func testARefusalForAnotherReasonLeavesTheProof(t *testing.T, backend store.Back
 		return nil
 	})
 	for _, proof := range []string{"", create} {
-		if _, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, proof); !errors.Is(err, ErrInvalid) ||
+		if _, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, nil, proof); !errors.Is(err, ErrInvalid) ||
 			!strings.Contains(err.Error(), "the most you can have") {
 			t.Errorf("one token too many, proof %t = %v, want it refused for the most tokens", proof != "", err)
 		}
@@ -343,7 +343,7 @@ func testARefusalForAnotherReasonLeavesTheProof(t *testing.T, backend store.Back
 	if err := f.svc.RevokeToken(ctx, p, last); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, create); err != nil {
+	if _, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, nil, create); err != nil {
 		t.Errorf("making a token with the proof a refusal left: %v", err)
 	}
 	f.enableTOTP(t, p)
@@ -404,7 +404,7 @@ func testASignInJustNowConfirmsAddingAPasskey(t *testing.T, backend store.Backen
 	if _, err := add(localhost, p); !errors.Is(err, ErrNeedsStepUp) {
 		t.Errorf("adding a passkey after a code sign-in, with a passkey here = %v, want ErrNeedsStepUp", err)
 	}
-	if _, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, ""); !errors.Is(err, ErrNeedsStepUp) {
+	if _, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, nil, ""); !errors.Is(err, ErrNeedsStepUp) {
 		t.Errorf("making a token just after signing in with a code = %v, want ErrNeedsStepUp", err)
 	}
 

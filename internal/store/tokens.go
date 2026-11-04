@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 )
 
@@ -19,8 +21,10 @@ type APIToken struct {
 	Name      string
 	// Hint is the prefix and the first and last 4 of the secret's random
 	// digits, such as "dwt_4f9K…x9Ta".
-	Hint       string
-	Scope      string
+	Hint  string
+	Scope string
+	// Grants is what it may do beyond its scope, such as GrantLogs.
+	Grants     []string
 	CreatedAt  time.Time
 	ExpiresAt  *time.Time // nil: it doesn't expire
 	LastUsedAt *time.Time
@@ -34,17 +38,27 @@ const (
 	ScopeReadWrite = "read_write"
 )
 
+// GrantLogs lets a token read logs, which often hold secrets that apps print.
+const GrantLogs = "logs"
+
+// HasGrant reports a token that may do what grant says.
+func (t *APIToken) HasGrant(grant string) bool { return slices.Contains(t.Grants, grant) }
+
 // MaxTokenAddresses bounds the addresses kept for each token.
 const MaxTokenAddresses = 256
 
-const apiTokenColumns = `id, token_hash, user_id, name, hint, scope, created_at, expires_at, last_used_at, last_ip, revoked_at` //nolint:gosec // column names
+const apiTokenColumns = `id, token_hash, user_id, name, hint, scope, created_at, expires_at, last_used_at, last_ip, revoked_at, grants` //nolint:gosec // column names
 
 func scanAPIToken(row interface{ Scan(...any) error }) (APIToken, error) {
 	var t APIToken
 	var created int64
 	var expires, used, revoked sql.NullInt64
-	if err := row.Scan(&t.ID, &t.TokenHash, &t.UserID, &t.Name, &t.Hint, &t.Scope, &created, &expires, &used, &t.LastIP, &revoked); err != nil {
+	var grants string
+	if err := row.Scan(&t.ID, &t.TokenHash, &t.UserID, &t.Name, &t.Hint, &t.Scope, &created, &expires, &used, &t.LastIP, &revoked, &grants); err != nil {
 		return APIToken{}, err
+	}
+	if grants != "" {
+		t.Grants = strings.Split(grants, ",")
 	}
 	t.CreatedAt, t.ExpiresAt, t.LastUsedAt, t.RevokedAt = fromMillis(created), timePtr(expires), timePtr(used), timePtr(revoked)
 	return t, nil
@@ -52,9 +66,9 @@ func scanAPIToken(row interface{ Scan(...any) error }) (APIToken, error) {
 
 // CreateAPIToken records a new token.
 func (t *Tx) CreateAPIToken(ctx context.Context, tok APIToken) error {
-	_, err := t.exec(ctx, `INSERT INTO api_tokens (id, token_hash, user_id, name, hint, scope, created_at, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		tok.ID, tok.TokenHash, tok.UserID, tok.Name, tok.Hint, tok.Scope, millis(tok.CreatedAt), nullMillis(tok.ExpiresAt))
+	_, err := t.exec(ctx, `INSERT INTO api_tokens (id, token_hash, user_id, name, hint, scope, created_at, expires_at, grants)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		tok.ID, tok.TokenHash, tok.UserID, tok.Name, tok.Hint, tok.Scope, millis(tok.CreatedAt), nullMillis(tok.ExpiresAt), strings.Join(tok.Grants, ","))
 	if err != nil {
 		return fmt.Errorf("can't record API token %s: %w", tok.ID, err)
 	}

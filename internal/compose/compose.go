@@ -117,7 +117,7 @@ var (
 	serviceKeys = keys("image", "command", "entrypoint", "environment", "ports", "restart", "labels", "volumes",
 		"networks", "network_mode", "user", "working_dir", "healthcheck", "depends_on", "expose",
 		"container_name", "build", "deploy", "cpus", "mem_limit", "mem_reservation",
-		"cap_add", "cap_drop", "group_add", "privileged")
+		"cap_add", "cap_drop", "group_add", "privileged", "logging")
 	volumeKeys  = keys("driver", "driver_opts", "labels")
 	networkKeys = keys("driver", "driver_opts", "internal", "labels", "external", "name")
 	healthKeys  = keys("test", "interval", "timeout", "start_period", "retries", "disable")
@@ -129,6 +129,10 @@ var (
 	limitsKeys  = keys("limits", "reservations")
 	amountKeys  = keys("cpus", "memory")
 	joinKeys    = keys("aliases")
+	loggingKeys = keys("driver", "options")
+	// Dockwell sets a container's log rotation itself, so it takes these and
+	// drops them, as what an export writes for docker compose to keep.
+	loggingOptions = keys("max-size", "max-file", "compress")
 
 	// why says why a key Dockwell can't run is refused, and what to do,
 	// where that is more than removing it.
@@ -172,6 +176,35 @@ func check(what string, m map[string]any, allowed map[string]bool) error {
 	return nil
 }
 
+// checkLogging takes a service's logging only as json-file with rotation, which
+// Dockwell sets by itself, and an export writes. A file that sends logs anywhere
+// else is asking for what Dockwell can't do yet, and is told so, as logs read
+// from Docker wouldn't be there to read.
+func checkLogging(what string, svc map[string]any) error {
+	raw, ok := svc["logging"]
+	if !ok {
+		return nil
+	}
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return nil // the shape's check says what it should be
+	}
+	if err := check(what+"'s logging", m, loggingKeys); err != nil {
+		return err
+	}
+	if d, ok := m["driver"]; ok && d != docker.LogDriverJSONFile {
+		return invalid("%s logs to %v, and Dockwell keeps a container's log with json-file, with rotation, so that it can be read. Remove logging, and set the driver for Docker as a whole if you need it", what, d)
+	}
+	if opts, ok := m["options"].(map[string]any); ok {
+		for k := range opts {
+			if !loggingOptions[k] {
+				return invalid("%s sets the logging option %s, and Dockwell sets a container's log rotation itself. Remove logging", what, k)
+			}
+		}
+	}
+	return nil
+}
+
 // checkRaw reads the file's YAML, and refuses anything Dockwell doesn't
 // run, and anything that would read files on the control plane, such as
 // env_file and include.
@@ -199,6 +232,9 @@ func checkRaw(file []byte) (map[string]any, error) {
 		svc, ok := services[name].(map[string]any)
 		if !ok {
 			return nil, invalid("%s has no image. Name one, such as image: nginx:1.27", what)
+		}
+		if err := checkLogging(what, svc); err != nil {
+			return nil, err
 		}
 		if err := check(what, svc, serviceKeys); err != nil {
 			return nil, err

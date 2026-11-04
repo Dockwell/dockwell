@@ -1,0 +1,404 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// LogService reads what a service's containers print: live, or from what
+// each server still has. See docs/adr/0025-logs-per-deploy.md.
+//
+// Each server's agent reads Docker's logs as they are asked for, and log
+// lines never sit in the control plane's store. A server keeps what Docker
+// keeps for a running or stopped container, and the logs of the last failed
+// and the last replaced container of each service, within a disk budget.
+//
+// Logs often hold secrets and personal data that apps print, and Dockwell
+// doesn't redact them. So an API token reads them only with the grant
+// TOKEN_GRANT_LOGS, and reading them is on record in the audit log.
+//
+// WatchLogs streams, so it has no REST path. A REST client pages through
+// ReadLogs, or opens the stream with Connect, gRPC or gRPC-Web, with the
+// same credentials.
+service LogService {
+  // ListLogSources returns the containers a service has logs from, on every
+  // server it runs on or ran on: those Docker has, running or stopped, and
+  // those the server kept after they were removed.
+  rpc ListLogSources(ListLogSourcesRequest) returns (ListLogSourcesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_grant) = TOKEN_GRANT_LOGS;
+    option (google.api.http) = {get: "/v1/services/{id}/logSources"};
+    option (dockwell.v1.command) = {
+      noun: "logs"
+      verb: "sources"
+    };
+  }
+
+  // ReadLogs returns a page of a service's log lines, the newest first
+  // among pages, and in time order within one. It can search what the
+  // servers still have, by a query or by level.
+  rpc ReadLogs(ReadLogsRequest) returns (ReadLogsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_grant) = TOKEN_GRANT_LOGS;
+    option (google.api.http) = {get: "/v1/services/{id}/logs"};
+    option (dockwell.v1.command) = {
+      noun: "logs"
+      verb: "read"
+    };
+  }
+
+  // WatchLogs follows a service's logs: its newest lines, then each line as it
+  // is written, through deploys and across servers. A reader that can't keep
+  // up gets a marker saying how many lines it missed, in place of those lines.
+  // A server that goes away is reported, and the stream picks up from where it
+  // left off when the server returns.
+  rpc WatchLogs(WatchLogsRequest) returns (stream WatchLogsResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_grant) = TOKEN_GRANT_LOGS;
+    option (dockwell.v1.command) = {
+      noun: "logs"
+      verb: "follow"
+    };
+  }
+}
+
+// ListLogSourcesRequest names a service.
+message ListLogSourcesRequest {
+  // The service, by ID or by name. A name needs its project and environment
+  // only once there is a choice of them.
+  string id = 1;
+  // The project a service's name is in, by name or ID.
+  string project = 2;
+  // The environment a service's name is in, by name or ID.
+  string environment = 3;
+}
+
+// ListLogSourcesResponse lists where a service's logs come from.
+message ListLogSourcesResponse {
+  // The service.
+  LoggedService service = 1;
+  // Each container with logs, newest first.
+  repeated LogSource sources = 2;
+  // Each server the service is on that couldn't answer, with why.
+  repeated ServerLogStatus servers = 3;
+}
+
+// LoggedService says which service logs are from.
+message LoggedService {
+  // Its ID.
+  string id = 1;
+  // Its name, such as "web".
+  string name = 2;
+  // The name of its environment, such as "production".
+  string environment = 3;
+  // True when the service is gone, as when its first deploy failed and was
+  // rolled back. What its servers kept can still be read.
+  bool deleted = 4;
+}
+
+// ReadLogsRequest asks for a page of a service's log lines. The filters
+// combine: a line must pass each one that is set.
+message ReadLogsRequest {
+  // The service, by ID or by name. A name needs its project and environment
+  // only once there is a choice of them.
+  string id = 1;
+  // The project a service's name is in, by name or ID.
+  string project = 2;
+  // The environment a service's name is in, by name or ID.
+  string environment = 3;
+  // Only lines written at or after this time.
+  google.protobuf.Timestamp since = 4;
+  // Only lines written at or before this time.
+  google.protobuf.Timestamp until = 5;
+  // Only lines from this long ago until now, by the control plane's clock,
+  // such as "900s". Set it in place of since.
+  google.protobuf.Duration last = 6;
+  // How many lines to return: 1000 when unset, and at most 5000.
+  int32 page_size = 7;
+  // Where to start: the next_page_token of the page before. Pass the same
+  // filters with it.
+  string page_token = 8;
+  // Only lines from these sources, by LogSource's id.
+  repeated string source_ids = 9;
+  // Only lines from containers this revision made.
+  int64 revision = 10;
+  // Only lines from containers this change made.
+  string change_id = 11;
+  // Only lines of these levels. A line with no level counts as info, and
+  // the indented lines after one, such as a stack trace, take its level.
+  repeated LogLevel levels = 12;
+  // Only lines that hold this text, in any case. It is plain text, not a
+  // pattern. Each server scans what it still has for it: at most 256 MiB of
+  // each container's log, and for at most 30 seconds.
+  string query = 13;
+}
+
+// ReadLogsResponse is a page of log lines.
+message ReadLogsResponse {
+  // The lines, by source. Within a source they are in time order, and each
+  // source's come before any older page's.
+  repeated LogChunk chunks = 1;
+  // The sources the lines come from, and any others that pass the filters.
+  repeated LogSource sources = 2;
+  // Each server the service is on that couldn't answer, with why.
+  repeated ServerLogStatus servers = 3;
+  // Pass it as page_token for the next page, of older lines. Empty on the
+  // last page.
+  string next_page_token = 4;
+  // How far back a search reached: the oldest line it looked at. Older
+  // lines are gone from the servers, or past what a search reads. Unset
+  // without a query or levels.
+  google.protobuf.Timestamp searched_back_to = 5;
+  // How many lines a search looked at. Zero without a query or levels.
+  uint64 searched_lines = 6;
+  // True when a search stopped at its limit, of size or of time, before it
+  // reached the oldest line a server has.
+  bool search_cut_short = 7;
+}
+
+// WatchLogsRequest says which of a service's log lines to send. The filters
+// combine: a line must pass each one that is set.
+message WatchLogsRequest {
+  // The service, by ID or by name. A name needs its project and environment
+  // only once there is a choice of them.
+  string id = 1;
+  // The project a service's name is in, by name or ID.
+  string project = 2;
+  // The environment a service's name is in, by name or ID.
+  string environment = 3;
+  // Only lines written at or after this time.
+  google.protobuf.Timestamp since = 4;
+  // Only lines written at or before this time.
+  google.protobuf.Timestamp until = 5;
+  // Only lines from this long ago until now, by the control plane's clock,
+  // such as "900s". Set it in place of since.
+  google.protobuf.Duration last = 6;
+  // How many of each container's newest lines to start with: 200 when
+  // unset, -1 for none, and at most 100000.
+  int32 tail = 7;
+  // Stop at the end of what the servers have, rather than follow what is
+  // written next.
+  bool once = 8;
+  // Only lines from these sources, by LogSource's id.
+  repeated string source_ids = 9;
+  // Only lines from containers this revision made.
+  int64 revision = 10;
+  // Only lines from containers this change made.
+  string change_id = 11;
+  // Only lines of these levels. A line with no level counts as info, and
+  // the indented lines after one, such as a stack trace, take its level.
+  repeated LogLevel levels = 12;
+  // Only lines that hold this text, in any case. It is plain text, not a
+  // pattern.
+  string query = 13;
+  // Carry on after the lines a stream sent before: the resume_token of the
+  // last message it sent. Pass the same filters with it. Lines a server
+  // still has aren't sent twice or missed, and a marker says so where it
+  // no longer has them.
+  string resume_token = 14;
+}
+
+// WatchLogsResponse is one message of a stream of log lines.
+message WatchLogsResponse {
+  // The lines since the last message, by source. Within a source they are
+  // in the order they were written, and a chunk's gap comes before its
+  // lines.
+  repeated LogChunk chunks = 1;
+  // Sources that are new or changed since the last message. The first
+  // messages hold every source there is, and a later one has a source again
+  // when, say, it stops, or when a new deploy starts a new one.
+  repeated LogSource sources = 2;
+  // Servers whose state changed since the last message, such as one that
+  // went offline. The first messages hold every server.
+  repeated ServerLogStatus servers = 3;
+  // True once every server reachable has sent the lines it had when the
+  // stream started, so an empty log is known to be empty, and what comes
+  // next is live. It is set once, or again when a server comes back.
+  bool caught_up = 4;
+  // Pass it to WatchLogs to carry on after this message, as when the
+  // connection drops. Unset on messages with no lines.
+  string resume_token = 5;
+}
+
+// LogSource is one container a service has logs from.
+message LogSource {
+  // Names the source in a chunk and in filters. It is the first 12 digits
+  // of the container's ID, which is unique within a service.
+  string id = 1;
+  // The server's ID.
+  string server_id = 2;
+  // The server's name, such as "hz-1".
+  string server_name = 3;
+  // The replica it is, from 1, within the service on that server.
+  int32 replica = 4;
+  // The container's name in Docker, such as "env_01kat…-web-1".
+  string container_name = 5;
+  // The revision that made this container: 0 when nothing says, as for one
+  // made with docker compose. A later revision that didn't recreate it,
+  // such as one that only changed its restart policy, doesn't change this.
+  int64 revision = 6;
+  // The change that made this container, when known.
+  string change_id = 7;
+  // Where the container is now.
+  LogSourceState state = 8;
+  // The image it runs, as a spec names it, such as "nginx:1.27".
+  string image = 9;
+  // When it was made.
+  google.protobuf.Timestamp create_time = 10;
+  // When it last started. Unset if never.
+  google.protobuf.Timestamp start_time = 11;
+  // When it last stopped. Unset while it runs.
+  google.protobuf.Timestamp finish_time = 12;
+  // The exit code it last stopped with, once stopped.
+  int32 exit_code = 13;
+  // Why the server kept its logs, once it was removed.
+  LogKept kept = 14;
+  // True when the server kept only its newest lines, as it wrote more than
+  // the server keeps of one container.
+  bool cut_short = 15;
+  // True when Docker keeps this container's log without a limit, so it can
+  // fill the disk, as for one made before Dockwell set rotation, or by hand.
+  // Replacing it, as any deploy does, sets one.
+  bool unbounded = 16;
+  // Why its log can't be read, as when its logging driver doesn't keep one
+  // to read. Empty while it can.
+  string log_error = 17;
+}
+
+// LogSourceState is where a container is.
+enum LogSourceState {
+  LOG_SOURCE_STATE_UNSPECIFIED = 0;
+  // Made, and not started yet.
+  LOG_SOURCE_STATE_CREATED = 1;
+  // Running.
+  LOG_SOURCE_STATE_RUNNING = 2;
+  // Exited, and Docker is restarting it.
+  LOG_SOURCE_STATE_RESTARTING = 3;
+  // Stopped. Docker still has it, and its log.
+  LOG_SOURCE_STATE_STOPPED = 4;
+  // Removed from Docker. The server kept its log.
+  LOG_SOURCE_STATE_KEPT = 5;
+}
+
+// LogKept says why a server kept a removed container's log.
+enum LogKept {
+  LOG_KEPT_UNSPECIFIED = 0;
+  // It was replaced or deleted in the ordinary way.
+  LOG_KEPT_REPLACED = 1;
+  // It failed: it wasn't running when it was replaced, or a rollback
+  // replaced it.
+  LOG_KEPT_FAILED = 2;
+}
+
+// ServerLogStatus is how reading logs from one server stands.
+message ServerLogStatus {
+  // The server's ID.
+  string server_id = 1;
+  // The server's name, such as "hz-1".
+  string server_name = 2;
+  // How it stands.
+  ServerLogState state = 3;
+  // Why, for people, with how to fix it, when it isn't reading.
+  string message = 4;
+}
+
+// ServerLogState says how reading logs from one server stands.
+enum ServerLogState {
+  SERVER_LOG_STATE_UNSPECIFIED = 0;
+  // Its agent is sending lines, or waiting for more.
+  SERVER_LOG_STATE_READING = 1;
+  // It sent everything asked for, and a stream with once ends here.
+  SERVER_LOG_STATE_DONE = 2;
+  // Its agent isn't connected. A stream carries on when it returns.
+  SERVER_LOG_STATE_OFFLINE = 3;
+  // Its agent is connected, but can't read logs now, as when Docker isn't
+  // running or too many readers are at it. A stream tries again.
+  SERVER_LOG_STATE_UNAVAILABLE = 4;
+}
+
+// LogChunk is some lines in a row from one source.
+message LogChunk {
+  // The source's id.
+  string source_id = 1;
+  // Lines that should come before these, and don't, if any.
+  LogGap gap = 2;
+  // The lines, in the order they were written.
+  repeated LogLine lines = 3;
+}
+
+// LogLine is one line a container printed.
+message LogLine {
+  // When Docker received it, by its server's clock. Clocks of different
+  // servers may differ, so lines from two servers are ordered only as well
+  // as their clocks agree.
+  google.protobuf.Timestamp time = 1;
+  // Which of the container's streams it came from.
+  LogStream stream = 2;
+  // The level read from its text. Unset means it names none.
+  LogLevel level = 3;
+  // The line as printed, without its newline, with invalid UTF-8 replaced.
+  // It may hold terminal escape codes, which a client must never pass on
+  // unchecked.
+  string text = 4;
+  // How many more bytes the line had past text. A line is cut at 16 KiB.
+  uint32 cut_bytes = 5;
+}
+
+// LogStream is a container's output stream.
+enum LogStream {
+  LOG_STREAM_UNSPECIFIED = 0;
+  // Standard output.
+  LOG_STREAM_STDOUT = 1;
+  // Standard error.
+  LOG_STREAM_STDERR = 2;
+}
+
+// LogLevel is how serious a line says it is. It is read from the line's
+// text, so it is only as good as what the app prints: JSON and logfmt
+// fields, and words such as ERROR near the start. Which stream a line came
+// from says nothing, as many apps log everything to standard error.
+enum LogLevel {
+  LOG_LEVEL_UNSPECIFIED = 0;
+  // Debug or trace.
+  LOG_LEVEL_DEBUG = 1;
+  // Info or notice.
+  LOG_LEVEL_INFO = 2;
+  // Warning.
+  LOG_LEVEL_WARN = 3;
+  // Error, fatal or panic.
+  LOG_LEVEL_ERROR = 4;
+}
+
+// LogGap says lines are missing from a stream, and why. It is where they
+// were, so a reader knows what it isn't seeing.
+message LogGap {
+  // Why.
+  LogGapReason reason = 1;
+  // How many lines are missing. Zero when that isn't known.
+  uint64 lines = 2;
+  // How many bytes they held. Zero when that isn't known.
+  uint64 bytes = 3;
+  // When the first of them was written.
+  google.protobuf.Timestamp start_time = 4;
+  // When the last of them was written.
+  google.protobuf.Timestamp end_time = 5;
+}
+
+// LogGapReason says why lines are missing.
+enum LogGapReason {
+  LOG_GAP_REASON_UNSPECIFIED = 0;
+  // The container wrote faster than a live stream carries, which is limited
+  // so that it can't hurt the server.
+  LOG_GAP_REASON_TOO_FAST = 1;
+  // The reader, or the network to it, couldn't keep up.
+  LOG_GAP_REASON_READER_BEHIND = 2;
+  // The server no longer has them, as Docker rotated them away while the
+  // stream was away.
+  LOG_GAP_REASON_GONE = 3;
+}

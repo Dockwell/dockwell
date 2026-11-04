@@ -4,6 +4,8 @@ package agentapi
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -60,6 +62,7 @@ type Agents struct {
 
 	mu        sync.Mutex
 	sessions  map[string]*Session // the newest stream of each server
+	uploads   map[uint64]*upload  // logs calls under way, by their streams
 	onConnect []func(server string)
 	// opened is closed, and made again, whenever a session opens, for the
 	// calls waiting for a server's next stream.
@@ -77,7 +80,7 @@ type Agents struct {
 // send back.
 func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
-		kinds: kinds, logger: logger, sessions: map[string]*Session{}, opened: make(chan struct{}),
+		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, opened: make(chan struct{}),
 		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{},
 	}
 }
@@ -139,6 +142,32 @@ func (a *Agents) Agent(server string) (resource.Agent, bool) {
 		return nil, false
 	}
 	return s, true
+}
+
+// Session returns a server's stream, the one calls go to now, and whether it
+// is connected.
+func (a *Agents) Session(server string) (*Session, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	s, ok := a.sessions[server]
+	return s, ok
+}
+
+// WaitSession waits for a server's agent to be connected, until ctx is done.
+func (a *Agents) WaitSession(ctx context.Context, server string) (*Session, error) {
+	for {
+		a.mu.Lock()
+		s, opened := a.sessions[server], a.opened
+		a.mu.Unlock()
+		if s != nil && !s.moving() {
+			return s, nil
+		}
+		select {
+		case <-opened:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 }
 
 // open starts a session for a stream that has said hello. send writes to
@@ -605,6 +634,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	}
 	defer clear(values)
 	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled}
+	if d := resource.DeployOf(ctx); d != (resource.Deploy{}) {
+		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback}
+	}
 	var seal func(*Session) error
 	if uses {
 		seal = func(on *Session) error {
@@ -696,4 +728,118 @@ func desiredProto(ref resource.Ref, spec proto.Message) (*agentv1.DesiredResourc
 		d.Spec = b
 	}
 	return d, nil
+}
+
+// upload is one logs call's stream of lines, on its way from SendLogs to
+// whoever waits for them.
+type upload struct {
+	server   string
+	token    uint64
+	messages chan *agentv1.SendLogsRequest
+	done     chan struct{}
+}
+
+// openUpload notes a logs call about to be made. The token that names it is
+// random, so one server's agent can't guess at another's calls, and each call
+// checks the server's identity too.
+func (a *Agents) openUpload(server string) *upload {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for {
+		var b [8]byte
+		_, _ = rand.Read(b[:])
+		token := binary.BigEndian.Uint64(b[:])
+		if _, taken := a.uploads[token]; token == 0 || taken {
+			continue
+		}
+		up := &upload{server: server, token: token, messages: make(chan *agentv1.SendLogsRequest), done: make(chan struct{})}
+		a.uploads[token] = up
+		return up
+	}
+}
+
+func (a *Agents) closeUpload(up *upload) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	delete(a.uploads, up.token)
+	close(up.done)
+}
+
+// uploadFor finds a logs call of a server, or nil.
+func (a *Agents) uploadFor(server string, token uint64) *upload {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if up := a.uploads[token]; up != nil && up.server == server {
+		return up
+	}
+	return nil
+}
+
+// Logs asks the agent to read logs, and passes each message of what it reads
+// to each until it has read it all, or each fails, or ctx ends, which stops the
+// reading on the agent at once. each may block: the agent drops what it can't
+// send meanwhile, and says how much.
+//
+// It returns ErrLost when the stream ends first, and ErrNotConnected when the
+// call never reached the agent. A reader carries on with the next stream.
+func (s *Session) Logs(ctx context.Context, call *agentv1.LogsCall, each func(*agentv1.SendLogsRequest) error) error {
+	up := s.agents.openUpload(s.server)
+	defer s.agents.closeUpload(up)
+	call.Stream = up.token
+	c := &agentv1.Call{Call: &agentv1.Call_Logs{Logs: call}}
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return s.notConnected()
+	}
+	s.next++
+	c.Id = s.next
+	result := make(chan *agentv1.CallResult, 1)
+	s.pending[c.Id] = result
+	s.mu.Unlock()
+	cancel := func() {
+		s.mu.Lock()
+		delete(s.pending, c.GetId())
+		s.mu.Unlock()
+		// Best effort: closing the upload stops it too.
+		_ = s.write(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Cancel{Cancel: &agentv1.CancelCall{Id: c.GetId()}}})
+	}
+	if err := s.writeCall(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Call{Call: c}}); err != nil {
+		s.mu.Lock()
+		delete(s.pending, c.GetId())
+		s.mu.Unlock()
+		return s.notConnected()
+	}
+	for {
+		select {
+		case m := <-up.messages:
+			if err := each(m); err != nil {
+				cancel()
+				return err
+			}
+		case r := <-result:
+			switch e := r.GetError(); {
+			case e == nil:
+				return nil
+			case e.GetDraining():
+				return s.notConnected()
+			default:
+				return &resource.ServerError{Server: s.name, Err: errors.New(e.GetMessage())}
+			}
+		case <-s.done:
+			return fault.New(ErrLost, "%s's agent disconnected while it read logs", s.name)
+		case <-ctx.Done():
+			cancel()
+			return ctx.Err()
+		}
+	}
+}
+
+// LogSources asks the agent which containers a service has logs from.
+func (s *Session) LogSources(ctx context.Context, ref *dockwellv1.ResourceRef) ([]*dockwellv1.LogSource, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_LogSources{LogSources: &agentv1.LogSourcesCall{Resource: ref}}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetLogSources().GetSources(), nil
 }

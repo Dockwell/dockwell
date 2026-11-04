@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/options.proto.
  */
 export const file_dockwell_v1_options: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9vcHRpb25zLnByb3RvEgtkb2Nrd2VsbC52MSIlCgdDb21tYW5kEgwKBG5vdW4YASABKAkSDAoEdmVyYhgCIAEoCSIiCgROb3VuEgwKBG5hbWUYASABKAkSDAoEaGVscBgCIAEoCSpsCgZFZmZlY3QSFgoSRUZGRUNUX1VOU1BFQ0lGSUVEEAASDwoLRUZGRUNUX1JFQUQQARIPCgtFRkZFQ1RfUExBThACEhAKDEVGRkVDVF9BUFBMWRADEhYKEkVGRkVDVF9ERVNUUlVDVElWRRAEOk0KBmVmZmVjdBIeLmdvb2dsZS5wcm90b2J1Zi5NZXRob2RPcHRpb25zGLSHAyABKA4yEy5kb2Nrd2VsbC52MS5FZmZlY3RSBmVmZmVjdDpQCgdjb21tYW5kEh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYtYcDIAEoCzIULmRvY2t3ZWxsLnYxLkNvbW1hbmRSB2NvbW1hbmQ6RQoNbmVlZHNfc2Vzc2lvbhIeLmdvb2dsZS5wcm90b2J1Zi5NZXRob2RPcHRpb25zGLaHAyABKAhSDG5lZWRzU2Vzc2lvbjpKCgVub3VucxIfLmdvb2dsZS5wcm90b2J1Zi5TZXJ2aWNlT3B0aW9ucxi0hwMgAygLMhEuZG9ja3dlbGwudjEuTm91blIFbm91bnM6MwoEZmxhZxIdLmdvb2dsZS5wcm90b2J1Zi5GaWVsZE9wdGlvbnMYtIcDIAEoCVIEZmxhZ0KlAQoPY29tLmRvY2t3ZWxsLnYxQgxPcHRpb25zUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_google_protobuf_descriptor]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9vcHRpb25zLnByb3RvEgtkb2Nrd2VsbC52MSIlCgdDb21tYW5kEgwKBG5vdW4YASABKAkSDAoEdmVyYhgCIAEoCSIiCgROb3VuEgwKBG5hbWUYASABKAkSDAoEaGVscBgCIAEoCSpsCgZFZmZlY3QSFgoSRUZGRUNUX1VOU1BFQ0lGSUVEEAASDwoLRUZGRUNUX1JFQUQQARIPCgtFRkZFQ1RfUExBThACEhAKDEVGRkVDVF9BUFBMWRADEhYKEkVGRkVDVF9ERVNUUlVDVElWRRAEKj8KClRva2VuR3JhbnQSGwoXVE9LRU5fR1JBTlRfVU5TUEVDSUZJRUQQABIUChBUT0tFTl9HUkFOVF9MT0dTEAE6TQoGZWZmZWN0Eh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYtIcDIAEoDjITLmRvY2t3ZWxsLnYxLkVmZmVjdFIGZWZmZWN0OlAKB2NvbW1hbmQSHi5nb29nbGUucHJvdG9idWYuTWV0aG9kT3B0aW9ucxi1hwMgASgLMhQuZG9ja3dlbGwudjEuQ29tbWFuZFIHY29tbWFuZDpFCg1uZWVkc19zZXNzaW9uEh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYtocDIAEoCFIMbmVlZHNTZXNzaW9uOloKC25lZWRzX2dyYW50Eh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYt4cDIAEoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnRSCm5lZWRzR3JhbnQ6SgoFbm91bnMSHy5nb29nbGUucHJvdG9idWYuU2VydmljZU9wdGlvbnMYtIcDIAMoCzIRLmRvY2t3ZWxsLnYxLk5vdW5SBW5vdW5zOjMKBGZsYWcSHS5nb29nbGUucHJvdG9idWYuRmllbGRPcHRpb25zGLSHAyABKAlSBGZsYWdCpQEKD2NvbS5kb2Nrd2VsbC52MUIMT3B0aW9uc1Byb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_google_protobuf_descriptor]);
 
 /**
  * Command names a method's command in the dockwell CLI, dockwell <noun>
@@ -131,6 +131,34 @@ export const EffectSchema: GenEnum<Effect> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_options, 0);
 
 /**
+ * TokenGrant is something an API token may do beyond its scope, which its
+ * maker has to ask for. A token has none unless it was made with it, so a
+ * token made for something else never gains it.
+ *
+ * @generated from enum dockwell.v1.TokenGrant
+ */
+export enum TokenGrant {
+  /**
+   * @generated from enum value: TOKEN_GRANT_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Reading logs, which often hold secrets and personal data that apps
+   * print.
+   *
+   * @generated from enum value: TOKEN_GRANT_LOGS = 1;
+   */
+  LOGS = 1,
+}
+
+/**
+ * Describes the enum dockwell.v1.TokenGrant.
+ */
+export const TokenGrantSchema: GenEnum<TokenGrant> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_options, 1);
+
+/**
  * How the method affects managed state. Every Dockwell method sets it; a
  * test in internal/control fails the build when one doesn't.
  *
@@ -160,6 +188,15 @@ export const needs_session: GenExtension<MethodOptions, boolean> = /*@__PURE__*/
   extDesc(file_dockwell_v1_options, 2);
 
 /**
+ * What an API token needs for this method, beyond its scope, because of
+ * what the method can read. Most methods leave it unset.
+ *
+ * @generated from extension: dockwell.v1.TokenGrant needs_grant = 50103;
+ */
+export const needs_grant: GenExtension<MethodOptions, TokenGrant> = /*@__PURE__*/
+  extDesc(file_dockwell_v1_options, 3);
+
+/**
  * The help of each noun the service's methods' commands have, when they
  * have more than one. A service whose commands have one noun leaves it
  * unset, and its comment is that noun's help.
@@ -167,7 +204,7 @@ export const needs_session: GenExtension<MethodOptions, boolean> = /*@__PURE__*/
  * @generated from extension: repeated dockwell.v1.Noun nouns = 50100;
  */
 export const nouns: GenExtension<ServiceOptions, Noun[]> = /*@__PURE__*/
-  extDesc(file_dockwell_v1_options, 3);
+  extDesc(file_dockwell_v1_options, 4);
 
 /**
  * The dockwell CLI's flag for a request's field, in place of the field's
@@ -177,5 +214,5 @@ export const nouns: GenExtension<ServiceOptions, Noun[]> = /*@__PURE__*/
  * @generated from extension: string flag = 50100;
  */
 export const flag: GenExtension<FieldOptions, string> = /*@__PURE__*/
-  extDesc(file_dockwell_v1_options, 4);
+  extDesc(file_dockwell_v1_options, 5);
 

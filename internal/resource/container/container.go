@@ -83,10 +83,11 @@ type Runtime interface {
 const StopTimeout = 10 * time.Second
 
 // DefaultRecreateDowntime is how long a recreated container is down at
-// most: the old one has up to StopTimeout to stop, and the new one starts
-// in about two seconds. The new one is made, and its image pulled, before
-// the old one stops, so neither counts.
-const DefaultRecreateDowntime = StopTimeout + 2*time.Second
+// most: the old one has up to StopTimeout to stop, up to LogCatchUp goes on
+// keeping its last lines, and the new one starts in about two seconds. The
+// new one is made, and its image pulled, before the old one stops, so neither
+// counts.
+const DefaultRecreateDowntime = StopTimeout + LogCatchUp + 2*time.Second
 
 // Driver manages containers.
 type Driver struct {

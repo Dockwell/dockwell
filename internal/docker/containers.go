@@ -27,6 +27,8 @@ type Config struct {
 	WorkingDir   string              `json:"WorkingDir,omitempty"`
 	ExposedPorts map[string]struct{} `json:"ExposedPorts,omitempty"`
 	Healthcheck  *Healthcheck        `json:"Healthcheck,omitempty"`
+	// Tty is whether it has a terminal, which makes its log plain lines.
+	Tty bool `json:"Tty,omitempty"`
 }
 
 // Healthcheck is a container's health check. Durations are in
@@ -75,12 +77,6 @@ type HostConfig struct {
 	UsernsMode string `json:"UsernsMode,omitempty"`
 	// SecurityOpt sets options such as no-new-privileges.
 	SecurityOpt []string `json:"SecurityOpt,omitempty"`
-}
-
-// LogConfig is a container's logging driver, with its options.
-type LogConfig struct {
-	Type   string            `json:"Type"`
-	Config map[string]string `json:"Config,omitempty"`
 }
 
 // Mount is a volume or bind mount, as HostConfig.Mounts has it.
@@ -137,6 +133,7 @@ type CreateRequest struct {
 // Container is a container as the engine reports it.
 type Container struct {
 	ID              string     `json:"Id"`
+	Created         time.Time  `json:"Created"`
 	Name            string     `json:"Name"`  // with a leading slash
 	Image           string     `json:"Image"` // the image's ID
 	Config          Config     `json:"Config"`
@@ -168,6 +165,9 @@ type State struct {
 	ExitCode   int     `json:"ExitCode"`
 	Error      string  `json:"Error"`
 	Health     *Health `json:"Health,omitempty"`
+	// StartedAt and FinishedAt are zero until it first starts and stops.
+	StartedAt  time.Time `json:"StartedAt"`
+	FinishedAt time.Time `json:"FinishedAt"`
 }
 
 // Health is a container's health check status: "starting", "healthy" or

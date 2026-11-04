@@ -5,6 +5,8 @@ package agentapi_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"os"
@@ -14,6 +16,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"google.golang.org/protobuf/proto"
 
@@ -186,6 +191,137 @@ func TestCallsReachTheAgentsDrivers(t *testing.T) {
 	if !errors.As(err, &failed) || failed.Server != "hz-1" || !strings.HasPrefix(err.Error(), "hz-1: ") || !strings.Contains(err.Error(), "isn't healthy") {
 		t.Errorf("applying a broken image = %v, want the health check's failure on hz-1", err)
 	}
+}
+
+// blockingLogs follows until its reader leaves, as logs do: it never ends by itself.
+type blockingLogs struct {
+	calls atomic.Int32
+	sent  chan struct{}
+	after chan *agentv1.LogCursor
+}
+
+func (*blockingLogs) Sources(context.Context, *dockwellv1.ResourceRef) ([]*dockwellv1.LogSource, error) {
+	return nil, nil
+}
+
+func (l *blockingLogs) Stream(ctx context.Context, call *agentv1.LogsCall, send func(*agentv1.SendLogsRequest) error) error {
+	n := l.calls.Add(1)
+	if n > 1 {
+		for _, c := range call.GetAfter() {
+			l.after <- c
+		}
+	}
+	err := send(&agentv1.SendLogsRequest{Stream: call.GetStream(), Chunks: []*dockwellv1.LogChunk{{
+		SourceId: "a", Lines: []*dockwellv1.LogLine{{Time: timestamppb.Now(), Text: fmt.Sprintf("line from call %d", n)}},
+	}}})
+	if err != nil {
+		return err
+	}
+	l.sent <- struct{}{}
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+// A follow has no end, so it can't hold up moving to a renewed certificate, as a
+// step under way does: it stops, and carries on over the agent's next stream.
+func TestAFollowDoesntHoldUpMovingToANewStream(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	reader := &blockingLogs{sent: make(chan struct{}, 4), after: make(chan *agentv1.LogCursor, 4)}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = agent.Run(ctx, agent.Config{
+			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(),
+			Collector: fakeCollector(), Logs: reader,
+		})
+		close(done)
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+	waitForAgent(t, s.agents, id.ServerID, true)
+	session, ok := s.agents.Session(id.ServerID)
+	if !ok {
+		t.Fatal("no session")
+	}
+	result := make(chan error, 1)
+	got := make(chan string, 4)
+	go func() {
+		result <- session.Logs(t.Context(), &agentv1.LogsCall{Follow: true}, func(m *agentv1.SendLogsRequest) error {
+			for _, c := range m.GetChunks() {
+				for _, l := range c.GetLines() {
+					got <- l.GetText()
+				}
+			}
+			return nil
+		})
+	}()
+	<-reader.sent
+	if line := <-got; line != "line from call 1" {
+		t.Fatalf("got %q", line)
+	}
+
+	// The certificate is renewed: the follow ends at once, as one that can go on.
+	moved := time.Now()
+	id.Replace(id.Key(), id.Cert())
+	select {
+	case err := <-result:
+		if !errors.Is(err, resource.ErrNotConnected) {
+			t.Fatalf("a follow as its agent moved = %v, want it to say it can carry on", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("a follow held up moving to a new stream")
+	}
+	t.Logf("the follow ended %s after the certificate was renewed", time.Since(moved))
+	waitUntil(t, "the agent's next stream", func() bool {
+		next, ok := s.agents.Session(id.ServerID)
+		return ok && next != session
+	})
+	next, err := s.agents.WaitSession(t.Context(), id.ServerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx2, stop := context.WithCancel(t.Context())
+	defer stop()
+	second := make(chan error, 1)
+	go func() {
+		second <- next.Logs(ctx2, &agentv1.LogsCall{Follow: true}, func(m *agentv1.SendLogsRequest) error {
+			for _, c := range m.GetChunks() {
+				for _, l := range c.GetLines() {
+					got <- l.GetText()
+				}
+			}
+			return nil
+		})
+	}()
+	if line := <-got; line != "line from call 2" {
+		t.Fatalf("got %q on the next stream", line)
+	}
+	stop()
+	if err := <-second; !errors.Is(err, context.Canceled) {
+		t.Errorf("a follow whose reader left = %v", err)
+	}
+}
+
+// A logs call's lines come only to the server it was asked of: another server's
+// agent can't send lines into it, by guessing its stream or otherwise.
+func TestLogLinesComeOnlyFromTheServerAsked(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	other := s.enrollLocal(t)
+	client, release, err := other.Client()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	stream := client.SendLogs(t.Context())
+	if err := stream.Send(&agentv1.SendLogsRequest{Stream: 12345}); err != nil && !errors.Is(err, io.EOF) {
+		t.Fatal(err)
+	}
+	_, err = stream.CloseAndReceive()
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Errorf("lines nobody asked for = %v, want them refused", err)
+	}
+	_ = id
 }
 
 // An agent moving to a renewed certificate lets the calls under way finish,

@@ -207,6 +207,9 @@ type Info struct {
 	DockerRootDir string
 	// NCPU is how many CPUs the server has.
 	NCPU int
+	// LoggingDriver is what keeps a container's log unless it asks for
+	// another, such as json-file.
+	LoggingDriver string
 	// SecurityOptions lists how it runs, such as name=rootless.
 	SecurityOptions []string
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"sync"
 	"time"
@@ -45,6 +46,10 @@ type calls struct {
 
 	mu      sync.Mutex
 	running map[uint64]context.CancelFunc
+	// reading are the logs calls under way. They don't hold up a move to a
+	// renewed certificate, as a follow has no end: they stop, and the control
+	// plane carries them on over the next stream.
+	reading map[uint64]context.CancelFunc
 	closing bool // refuse calls from now on
 	wg      sync.WaitGroup
 	idle    chan struct{} // signalled when the last running call ends
@@ -62,7 +67,8 @@ func newCalls(ctx context.Context, cfg Config, send func(*agentv1.ConnectRequest
 	}
 	return &calls{
 		ctx: ctx, end: end, cfg: cfg, local: resource.Local{Drivers: cfg.Drivers}, delivery: key, server: server, send: send, logger: cfg.Logger,
-		running: map[uint64]context.CancelFunc{}, idle: make(chan struct{}, 1), drained: make(chan struct{}),
+		running: map[uint64]context.CancelFunc{}, reading: map[uint64]context.CancelFunc{},
+		idle: make(chan struct{}, 1), drained: make(chan struct{}),
 	}
 }
 
@@ -85,6 +91,18 @@ func (c *calls) start(call *agentv1.Call) {
 		}}})
 		return
 	}
+	if logs := call.GetLogs(); logs != nil {
+		ctx, cancel := context.WithCancel(c.ctx)
+		c.reading[call.GetId()] = cancel
+		c.wg.Add(1)
+		c.mu.Unlock()
+		go func() {
+			defer c.wg.Done()
+			defer c.doneReading(call.GetId(), cancel)
+			c.reply(call.GetId(), c.readLogs(ctx, logs))
+		}()
+		return
+	}
 	ctx, cancel := context.WithTimeout(c.ctx, timeout)
 	c.running[call.GetId()] = cancel
 	c.wg.Add(1)
@@ -100,6 +118,43 @@ func (c *calls) start(call *agentv1.Call) {
 			c.reply(call.GetId(), result)
 		}
 	}()
+}
+
+func (c *calls) doneReading(id uint64, cancel context.CancelFunc) {
+	cancel()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.reading, id)
+}
+
+// readLogs runs a logs call, sending its lines over a connection of its own:
+// when the control plane stops reading them, because whoever reads them is
+// slow, flow control stops this connection alone, and the agent's stream, with
+// its stats, plans and applies, goes on. The connection goes with the call.
+func (c *calls) readLogs(ctx context.Context, call *agentv1.LogsCall) *agentv1.CallResult {
+	fail := func(err error) *agentv1.CallResult {
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error(), Draining: c.isClosing() && c.ctx.Err() == nil}}}
+	}
+	if c.cfg.Logs == nil {
+		return fail(errors.New("this agent can't read logs, as it has no Docker driver"))
+	}
+	client, release, err := c.cfg.Identity.Client()
+	if err != nil {
+		return fail(err)
+	}
+	defer release()
+	upload := client.SendLogs(ctx)
+	err = c.cfg.Logs.Stream(ctx, call, upload.Send)
+	if _, cerr := upload.CloseAndReceive(); err == nil && cerr != nil && ctx.Err() == nil && !errors.Is(cerr, io.EOF) {
+		err = cerr
+	}
+	switch {
+	case err != nil && !errors.Is(err, io.EOF) && ctx.Err() == nil:
+		return fail(err)
+	case ctx.Err() != nil && c.isClosing():
+		return fail(errors.New("this agent is moving to a new stream, so it stopped reading logs; read them again once the agent reconnects"))
+	}
+	return &agentv1.CallResult{Result: &agentv1.CallResult_Logs{Logs: &agentv1.LogsResult{}}}
 }
 
 // reply sends a call's result.
@@ -147,6 +202,19 @@ func (c *calls) cancel(id uint64) {
 	if cancel, ok := c.running[id]; ok {
 		cancel()
 	}
+	if cancel, ok := c.reading[id]; ok {
+		cancel()
+	}
+}
+
+// stopReading ends the logs calls under way, for the control plane to carry on
+// over the next stream.
+func (c *calls) stopReading() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, cancel := range c.reading {
+		cancel()
+	}
 }
 
 func (c *calls) busy() bool {
@@ -172,6 +240,7 @@ func (c *calls) stop() {
 // moving doesn't cut a step off halfway. It gives up after drainLimit.
 func (c *calls) drain(ctx context.Context, recvErr <-chan error, tick <-chan time.Time, sendStats func() error) error {
 	c.close()
+	c.stopReading()
 	if err := c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Draining{Draining: &agentv1.Draining{}}}); err != nil {
 		return err
 	}
@@ -247,6 +316,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 				Id: call.GetId(), Outcome: &agentv1.StepOutcome{Digest: o.Digest, Previous: o.Previous, Replacing: o.Replacing, Note: o.Note, Untouched: o.Untouched, Did: resourcepb.Did(o.Did)},
 			}}})
 		})
+		if d := call.GetApply().GetDeploy(); d != nil {
+			ctx = resource.WithDeploy(ctx, resource.Deploy{Revision: int(d.GetRevision()), Change: d.GetChangeId(), Rollback: d.GetRollback()})
+		}
 		// The values of what the spec uses, opened in memory for this
 		// step alone; they never reach a log, the disk or Desired, which
 		// hears of the step with the call's own context.
@@ -293,6 +365,15 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			out.Resources = append(out.Resources, res)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Observe{Observe: out}}
+	case call.GetLogSources() != nil:
+		if c.cfg.Logs == nil {
+			return fail(errors.New("this agent can't read logs, as it has no Docker driver"))
+		}
+		sources, err := c.cfg.Logs.Sources(ctx, call.GetLogSources().GetResource())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_LogSources{LogSources: &agentv1.LogSourcesResult{Sources: sources}}}
 	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
 		Message: "this agent doesn't know that call; update it to the control plane's version",

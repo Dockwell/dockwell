@@ -10,20 +10,22 @@ import type { PlanAction, PlanStep, ResourceRef } from "../../v1/change_pb";
 import { file_dockwell_v1_change } from "../../v1/change_pb";
 import type { DomainStatus, IngressStatus } from "../../v1/domain_pb";
 import { file_dockwell_v1_domain } from "../../v1/domain_pb";
+import type { LogChunk, LogLevel, LogSource } from "../../v1/log_pb";
+import { file_dockwell_v1_log } from "../../v1/log_pb";
 import { file_dockwell_v1_options } from "../../v1/options_pb";
 import type { ServerInventory, ServerStats } from "../../v1/server_pb";
 import { file_dockwell_v1_server } from "../../v1/server_pb";
 import type { BuildInfo } from "../../v1/system_pb";
 import { file_dockwell_v1_system } from "../../v1/system_pb";
-import type { Duration } from "@bufbuild/protobuf/wkt";
-import { file_google_protobuf_duration } from "@bufbuild/protobuf/wkt";
+import type { Duration, Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_duration, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file dockwell/agent/v1/agent.proto.
  */
 export const file_dockwell_agent_v1_agent: GenFile = /*@__PURE__*/
-  fileDesc("Ch1kb2Nrd2VsbC9hZ2VudC92MS9hZ2VudC5wcm90bxIRZG9ja3dlbGwuYWdlbnQudjEi4gIKDkNvbm5lY3RSZXF1ZXN0EikKBWhlbGxvGAEgASgLMhguZG9ja3dlbGwuYWdlbnQudjEuSGVsbG9IABIpCgVzdGF0cxgCIAEoCzIYLmRvY2t3ZWxsLnYxLlNlcnZlclN0YXRzSAASLwoGcmVzdWx0GAMgASgLMh0uZG9ja3dlbGwuYWdlbnQudjEuQ2FsbFJlc3VsdEgAEi8KCGRyYWluaW5nGAQgASgLMhsuZG9ja3dlbGwuYWdlbnQudjEuRHJhaW5pbmdIABIzCghwcm9ncmVzcxgFIAEoCzIfLmRvY2t3ZWxsLmFnZW50LnYxLkNhbGxQcm9ncmVzc0gAEikKBWtpbmRzGAYgASgLMhguZG9ja3dlbGwuYWdlbnQudjEuS2luZHNIABItCgdkb21haW5zGAcgASgLMhouZG9ja3dlbGwuYWdlbnQudjEuRG9tYWluc0gAQgkKB21lc3NhZ2UiYgoHRG9tYWlucxIqCgdkb21haW5zGAEgAygLMhkuZG9ja3dlbGwudjEuRG9tYWluU3RhdHVzEisKB2luZ3Jlc3MYAiABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzIlwKDENhbGxQcm9ncmVzcxIKCgJpZBgBIAEoBBIPCgdtZXNzYWdlGAIgASgJEi8KB291dGNvbWUYAyABKAsyHi5kb2Nrd2VsbC5hZ2VudC52MS5TdGVwT3V0Y29tZSKJAQoLU3RlcE91dGNvbWUSDgoGZGlnZXN0GAEgASgJEhAKCHByZXZpb3VzGAIgASgJEhEKCXJlcGxhY2luZxgDIAEoCBIMCgRub3RlGAQgASgJEhEKCXVudG91Y2hlZBgFIAEoCBIkCgNkaWQYBiABKA4yFy5kb2Nrd2VsbC52MS5QbGFuQWN0aW9uIk8KBUtpbmRzEg0KBWtpbmRzGAEgAygJEjcKC3VuYXZhaWxhYmxlGAIgAygLMiIuZG9ja3dlbGwuYWdlbnQudjEuVW5hdmFpbGFibGVLaW5kIi8KD1VuYXZhaWxhYmxlS2luZBIMCgRraW5kGAEgASgJEg4KBnJlYXNvbhgCIAEoCSIKCghEcmFpbmluZyK9AQoFSGVsbG8SJQoFYnVpbGQYASABKAsyFi5kb2Nrd2VsbC52MS5CdWlsZEluZm8SLwoJaW52ZW50b3J5GAIgASgLMhwuZG9ja3dlbGwudjEuU2VydmVySW52ZW50b3J5Eg0KBWtpbmRzGAMgAygJEjcKC3VuYXZhaWxhYmxlGAQgAygLMiIuZG9ja3dlbGwuYWdlbnQudjEuVW5hdmFpbGFibGVLaW5kEhQKDGRlbGl2ZXJ5X2tleRgFIAEoDCLUAQoPQ29ubmVjdFJlc3BvbnNlEi0KB3dlbGNvbWUYASABKAsyGi5kb2Nrd2VsbC5hZ2VudC52MS5XZWxjb21lSAASJwoEY2FsbBgCIAEoCzIXLmRvY2t3ZWxsLmFnZW50LnYxLkNhbGxIABIvCgZjYW5jZWwYAyABKAsyHS5kb2Nrd2VsbC5hZ2VudC52MS5DYW5jZWxDYWxsSAASLQoHZHJhaW5lZBgEIAEoCzIaLmRvY2t3ZWxsLmFnZW50LnYxLkRyYWluZWRIAEIJCgdtZXNzYWdlIgkKB0RyYWluZWQiUQoHV2VsY29tZRITCgtzZXJ2ZXJfbmFtZRgBIAEoCRIxCg5zdGF0c19pbnRlcnZhbBgCIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbiJTCgpKb2luVGlja2V0EhMKC2NvbnRyb2xfdXJsGAEgASgJEg4KBmNhX3BpbhgCIAEoCRIQCgh0b2tlbl9pZBgDIAEoCRIOCgZzZWNyZXQYBCABKAwidQoLSm9pblJlcXVlc3QSEAoIdG9rZW5faWQYASABKAkSDgoGc2VjcmV0GAIgASgMEgsKA2NzchgDIAEoDBIQCghob3N0bmFtZRgEIAEoCRIlCgVidWlsZBgFIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbyJjCgxKb2luUmVzcG9uc2USEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEhMKC2NlcnRpZmljYXRlGAMgASgMEhYKDmNhX2NlcnRpZmljYXRlGAQgASgMIiYKF1JlbmV3Q2VydGlmaWNhdGVSZXF1ZXN0EgsKA2NzchgBIAEoDCIvChhSZW5ld0NlcnRpZmljYXRlUmVzcG9uc2USEwoLY2VydGlmaWNhdGUYASABKAwi1QEKBENhbGwSCgoCaWQYASABKAQSKgoHdGltZW91dBgCIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIrCgRwbGFuGAMgASgLMhsuZG9ja3dlbGwuYWdlbnQudjEuUGxhbkNhbGxIABItCgVhcHBseRgEIAEoCzIcLmRvY2t3ZWxsLmFnZW50LnYxLkFwcGx5Q2FsbEgAEjEKB29ic2VydmUYBSABKAsyHi5kb2Nrd2VsbC5hZ2VudC52MS5PYnNlcnZlQ2FsbEgAQgYKBGNhbGwiPwoIUGxhbkNhbGwSMwoHZGVzaXJlZBgBIAMoCzIiLmRvY2t3ZWxsLmFnZW50LnYxLkRlc2lyZWRSZXNvdXJjZSKFAQoJQXBwbHlDYWxsEiMKBHN0ZXAYASABKAsyFS5kb2Nrd2VsbC52MS5QbGFuU3RlcBIzCgdkZXNpcmVkGAIgASgLMiIuZG9ja3dlbGwuYWdlbnQudjEuRGVzaXJlZFJlc291cmNlEg4KBnZhbHVlcxgDIAEoDBIOCgZwdWxsZWQYBCABKAgibgoGVmFsdWVzEjUKBnZhbHVlcxgBIAMoCzIlLmRvY2t3ZWxsLmFnZW50LnYxLlZhbHVlcy5WYWx1ZXNFbnRyeRotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIjoKC09ic2VydmVDYWxsEisKCXJlc291cmNlcxgBIAMoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmInQKD0Rlc2lyZWRSZXNvdXJjZRIqCghyZXNvdXJjZRgBIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEhEKBHNwZWMYAiABKAxIAIgBARIMCgRwdWxsGAMgASgIEgsKA3J1bhgEIAEoCEIHCgVfc3BlYyIYCgpDYW5jZWxDYWxsEgoKAmlkGAEgASgEIuYBCgpDYWxsUmVzdWx0EgoKAmlkGAEgASgEEi0KBWVycm9yGAIgASgLMhwuZG9ja3dlbGwuYWdlbnQudjEuQ2FsbEVycm9ySAASLQoEcGxhbhgDIAEoCzIdLmRvY2t3ZWxsLmFnZW50LnYxLlBsYW5SZXN1bHRIABIvCgVhcHBseRgEIAEoCzIeLmRvY2t3ZWxsLmFnZW50LnYxLkFwcGx5UmVzdWx0SAASMwoHb2JzZXJ2ZRgFIAEoCzIgLmRvY2t3ZWxsLmFnZW50LnYxLk9ic2VydmVSZXN1bHRIAEIICgZyZXN1bHQiYgoJQ2FsbEVycm9yEg8KB21lc3NhZ2UYASABKAkSEAoIZHJhaW5pbmcYAiABKAgSDQoFcGxhaW4YAyABKAkSEwoLb3V0X29mX3RpbWUYBCABKAgSDgoGcmVhc29uGAUgASgJIjIKClBsYW5SZXN1bHQSJAoFc3RlcHMYASADKAsyFS5kb2Nrd2VsbC52MS5QbGFuU3RlcCINCgtBcHBseVJlc3VsdCJHCg1PYnNlcnZlUmVzdWx0EjYKCXJlc291cmNlcxgBIAMoCzIjLmRvY2t3ZWxsLmFnZW50LnYxLk9ic2VydmVkUmVzb3VyY2UiLgoQT2JzZXJ2ZWRSZXNvdXJjZRIRCgRzcGVjGAEgASgMSACIAQFCBwoFX3NwZWMyrAIKDEFnZW50U2VydmljZRJNCgRKb2luEh4uZG9ja3dlbGwuYWdlbnQudjEuSm9pblJlcXVlc3QaHy5kb2Nrd2VsbC5hZ2VudC52MS5Kb2luUmVzcG9uc2UiBKC7GAMScQoQUmVuZXdDZXJ0aWZpY2F0ZRIqLmRvY2t3ZWxsLmFnZW50LnYxLlJlbmV3Q2VydGlmaWNhdGVSZXF1ZXN0GisuZG9ja3dlbGwuYWdlbnQudjEuUmVuZXdDZXJ0aWZpY2F0ZVJlc3BvbnNlIgSguxgDEloKB0Nvbm5lY3QSIS5kb2Nrd2VsbC5hZ2VudC52MS5Db25uZWN0UmVxdWVzdBoiLmRvY2t3ZWxsLmFnZW50LnYxLkNvbm5lY3RSZXNwb25zZSIEoLsYAygBMAFCxQEKFWNvbS5kb2Nrd2VsbC5hZ2VudC52MUIKQWdlbnRQcm90b1ABWjpnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9hZ2VudC92MTthZ2VudHYxogIDREFYqgIRRG9ja3dlbGwuQWdlbnQuVjHKAhFEb2Nrd2VsbFxBZ2VudFxWMeICHURvY2t3ZWxsXEFnZW50XFYxXEdQQk1ldGFkYXRh6gITRG9ja3dlbGw6OkFnZW50OjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_domain, file_dockwell_v1_options, file_dockwell_v1_server, file_dockwell_v1_system, file_google_protobuf_duration]);
+  fileDesc("Ch1kb2Nrd2VsbC9hZ2VudC92MS9hZ2VudC5wcm90bxIRZG9ja3dlbGwuYWdlbnQudjEi4gIKDkNvbm5lY3RSZXF1ZXN0EikKBWhlbGxvGAEgASgLMhguZG9ja3dlbGwuYWdlbnQudjEuSGVsbG9IABIpCgVzdGF0cxgCIAEoCzIYLmRvY2t3ZWxsLnYxLlNlcnZlclN0YXRzSAASLwoGcmVzdWx0GAMgASgLMh0uZG9ja3dlbGwuYWdlbnQudjEuQ2FsbFJlc3VsdEgAEi8KCGRyYWluaW5nGAQgASgLMhsuZG9ja3dlbGwuYWdlbnQudjEuRHJhaW5pbmdIABIzCghwcm9ncmVzcxgFIAEoCzIfLmRvY2t3ZWxsLmFnZW50LnYxLkNhbGxQcm9ncmVzc0gAEikKBWtpbmRzGAYgASgLMhguZG9ja3dlbGwuYWdlbnQudjEuS2luZHNIABItCgdkb21haW5zGAcgASgLMhouZG9ja3dlbGwuYWdlbnQudjEuRG9tYWluc0gAQgkKB21lc3NhZ2UiYgoHRG9tYWlucxIqCgdkb21haW5zGAEgAygLMhkuZG9ja3dlbGwudjEuRG9tYWluU3RhdHVzEisKB2luZ3Jlc3MYAiABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzIlwKDENhbGxQcm9ncmVzcxIKCgJpZBgBIAEoBBIPCgdtZXNzYWdlGAIgASgJEi8KB291dGNvbWUYAyABKAsyHi5kb2Nrd2VsbC5hZ2VudC52MS5TdGVwT3V0Y29tZSKJAQoLU3RlcE91dGNvbWUSDgoGZGlnZXN0GAEgASgJEhAKCHByZXZpb3VzGAIgASgJEhEKCXJlcGxhY2luZxgDIAEoCBIMCgRub3RlGAQgASgJEhEKCXVudG91Y2hlZBgFIAEoCBIkCgNkaWQYBiABKA4yFy5kb2Nrd2VsbC52MS5QbGFuQWN0aW9uIk8KBUtpbmRzEg0KBWtpbmRzGAEgAygJEjcKC3VuYXZhaWxhYmxlGAIgAygLMiIuZG9ja3dlbGwuYWdlbnQudjEuVW5hdmFpbGFibGVLaW5kIi8KD1VuYXZhaWxhYmxlS2luZBIMCgRraW5kGAEgASgJEg4KBnJlYXNvbhgCIAEoCSIKCghEcmFpbmluZyK9AQoFSGVsbG8SJQoFYnVpbGQYASABKAsyFi5kb2Nrd2VsbC52MS5CdWlsZEluZm8SLwoJaW52ZW50b3J5GAIgASgLMhwuZG9ja3dlbGwudjEuU2VydmVySW52ZW50b3J5Eg0KBWtpbmRzGAMgAygJEjcKC3VuYXZhaWxhYmxlGAQgAygLMiIuZG9ja3dlbGwuYWdlbnQudjEuVW5hdmFpbGFibGVLaW5kEhQKDGRlbGl2ZXJ5X2tleRgFIAEoDCLUAQoPQ29ubmVjdFJlc3BvbnNlEi0KB3dlbGNvbWUYASABKAsyGi5kb2Nrd2VsbC5hZ2VudC52MS5XZWxjb21lSAASJwoEY2FsbBgCIAEoCzIXLmRvY2t3ZWxsLmFnZW50LnYxLkNhbGxIABIvCgZjYW5jZWwYAyABKAsyHS5kb2Nrd2VsbC5hZ2VudC52MS5DYW5jZWxDYWxsSAASLQoHZHJhaW5lZBgEIAEoCzIaLmRvY2t3ZWxsLmFnZW50LnYxLkRyYWluZWRIAEIJCgdtZXNzYWdlIgkKB0RyYWluZWQiUQoHV2VsY29tZRITCgtzZXJ2ZXJfbmFtZRgBIAEoCRIxCg5zdGF0c19pbnRlcnZhbBgCIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbiJTCgpKb2luVGlja2V0EhMKC2NvbnRyb2xfdXJsGAEgASgJEg4KBmNhX3BpbhgCIAEoCRIQCgh0b2tlbl9pZBgDIAEoCRIOCgZzZWNyZXQYBCABKAwidQoLSm9pblJlcXVlc3QSEAoIdG9rZW5faWQYASABKAkSDgoGc2VjcmV0GAIgASgMEgsKA2NzchgDIAEoDBIQCghob3N0bmFtZRgEIAEoCRIlCgVidWlsZBgFIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbyJjCgxKb2luUmVzcG9uc2USEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEhMKC2NlcnRpZmljYXRlGAMgASgMEhYKDmNhX2NlcnRpZmljYXRlGAQgASgMIiYKF1JlbmV3Q2VydGlmaWNhdGVSZXF1ZXN0EgsKA2NzchgBIAEoDCIvChhSZW5ld0NlcnRpZmljYXRlUmVzcG9uc2USEwoLY2VydGlmaWNhdGUYASABKAwivAIKBENhbGwSCgoCaWQYASABKAQSKgoHdGltZW91dBgCIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIrCgRwbGFuGAMgASgLMhsuZG9ja3dlbGwuYWdlbnQudjEuUGxhbkNhbGxIABItCgVhcHBseRgEIAEoCzIcLmRvY2t3ZWxsLmFnZW50LnYxLkFwcGx5Q2FsbEgAEjEKB29ic2VydmUYBSABKAsyHi5kb2Nrd2VsbC5hZ2VudC52MS5PYnNlcnZlQ2FsbEgAEjgKC2xvZ19zb3VyY2VzGAYgASgLMiEuZG9ja3dlbGwuYWdlbnQudjEuTG9nU291cmNlc0NhbGxIABIrCgRsb2dzGAcgASgLMhsuZG9ja3dlbGwuYWdlbnQudjEuTG9nc0NhbGxIAEIGCgRjYWxsIjwKDkxvZ1NvdXJjZXNDYWxsEioKCHJlc291cmNlGAEgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYiywMKCExvZ3NDYWxsEg4KBnN0cmVhbRgBIAEoBBIqCghyZXNvdXJjZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEikKBXNpbmNlGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIpCgV1bnRpbBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDAoEdGFpbBgFIAEoBRIOCgZmb2xsb3cYBiABKAgSEgoKc291cmNlX2lkcxgHIAMoCRIQCghyZXZpc2lvbhgIIAEoAxIRCgljaGFuZ2VfaWQYCSABKAkSJQoGbGV2ZWxzGAogAygOMhUuZG9ja3dlbGwudjEuTG9nTGV2ZWwSDQoFcXVlcnkYCyABKAkSKwoFYWZ0ZXIYDCADKAsyHC5kb2Nrd2VsbC5hZ2VudC52MS5Mb2dDdXJzb3ISLAoGYmVmb3JlGA0gAygLMhwuZG9ja3dlbGwuYWdlbnQudjEuTG9nQ3Vyc29yEi8KC3Jlc3VtZV9mcm9tGA4gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIUCgxpbmNsdWRlX2tlcHQYDyABKAgiVwoJTG9nQ3Vyc29yEhEKCXNvdXJjZV9pZBgBIAEoCRIoCgR0aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVjb3VudBgDIAEoDSJ+CgdMb2dTY2FuEhEKCXNvdXJjZV9pZBgBIAEoCRIvCgtvbGRlc3RfdGltZRgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDQoFbGluZXMYAyABKAQSEQoJY3V0X3Nob3J0GAQgASgIEg0KBW9sZGVyGAUgASgIIq8BCg9TZW5kTG9nc1JlcXVlc3QSDgoGc3RyZWFtGAEgASgEEicKB3NvdXJjZXMYAiADKAsyFi5kb2Nrd2VsbC52MS5Mb2dTb3VyY2USJQoGY2h1bmtzGAMgAygLMhUuZG9ja3dlbGwudjEuTG9nQ2h1bmsSEQoJY2F1Z2h0X3VwGAQgASgIEikKBXNjYW5zGAUgAygLMhouZG9ja3dlbGwuYWdlbnQudjEuTG9nU2NhbiISChBTZW5kTG9nc1Jlc3BvbnNlIj8KCFBsYW5DYWxsEjMKB2Rlc2lyZWQYASADKAsyIi5kb2Nrd2VsbC5hZ2VudC52MS5EZXNpcmVkUmVzb3VyY2UisAEKCUFwcGx5Q2FsbBIjCgRzdGVwGAEgASgLMhUuZG9ja3dlbGwudjEuUGxhblN0ZXASMwoHZGVzaXJlZBgCIAEoCzIiLmRvY2t3ZWxsLmFnZW50LnYxLkRlc2lyZWRSZXNvdXJjZRIOCgZ2YWx1ZXMYAyABKAwSDgoGcHVsbGVkGAQgASgIEikKBmRlcGxveRgFIAEoCzIZLmRvY2t3ZWxsLmFnZW50LnYxLkRlcGxveSI/CgZEZXBsb3kSEAoIcmV2aXNpb24YASABKAMSEQoJY2hhbmdlX2lkGAIgASgJEhAKCHJvbGxiYWNrGAMgASgIIm4KBlZhbHVlcxI1CgZ2YWx1ZXMYASADKAsyJS5kb2Nrd2VsbC5hZ2VudC52MS5WYWx1ZXMuVmFsdWVzRW50cnkaLQoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASI6CgtPYnNlcnZlQ2FsbBIrCglyZXNvdXJjZXMYASADKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZiJ0Cg9EZXNpcmVkUmVzb3VyY2USKgoIcmVzb3VyY2UYASABKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhIRCgRzcGVjGAIgASgMSACIAQESDAoEcHVsbBgDIAEoCBILCgNydW4YBCABKAhCBwoFX3NwZWMiGAoKQ2FuY2VsQ2FsbBIKCgJpZBgBIAEoBCLRAgoKQ2FsbFJlc3VsdBIKCgJpZBgBIAEoBBItCgVlcnJvchgCIAEoCzIcLmRvY2t3ZWxsLmFnZW50LnYxLkNhbGxFcnJvckgAEi0KBHBsYW4YAyABKAsyHS5kb2Nrd2VsbC5hZ2VudC52MS5QbGFuUmVzdWx0SAASLwoFYXBwbHkYBCABKAsyHi5kb2Nrd2VsbC5hZ2VudC52MS5BcHBseVJlc3VsdEgAEjMKB29ic2VydmUYBSABKAsyIC5kb2Nrd2VsbC5hZ2VudC52MS5PYnNlcnZlUmVzdWx0SAASOgoLbG9nX3NvdXJjZXMYBiABKAsyIy5kb2Nrd2VsbC5hZ2VudC52MS5Mb2dTb3VyY2VzUmVzdWx0SAASLQoEbG9ncxgHIAEoCzIdLmRvY2t3ZWxsLmFnZW50LnYxLkxvZ3NSZXN1bHRIAEIICgZyZXN1bHQiOwoQTG9nU291cmNlc1Jlc3VsdBInCgdzb3VyY2VzGAEgAygLMhYuZG9ja3dlbGwudjEuTG9nU291cmNlIgwKCkxvZ3NSZXN1bHQiYgoJQ2FsbEVycm9yEg8KB21lc3NhZ2UYASABKAkSEAoIZHJhaW5pbmcYAiABKAgSDQoFcGxhaW4YAyABKAkSEwoLb3V0X29mX3RpbWUYBCABKAgSDgoGcmVhc29uGAUgASgJIjIKClBsYW5SZXN1bHQSJAoFc3RlcHMYASADKAsyFS5kb2Nrd2VsbC52MS5QbGFuU3RlcCINCgtBcHBseVJlc3VsdCJHCg1PYnNlcnZlUmVzdWx0EjYKCXJlc291cmNlcxgBIAMoCzIjLmRvY2t3ZWxsLmFnZW50LnYxLk9ic2VydmVkUmVzb3VyY2UiLgoQT2JzZXJ2ZWRSZXNvdXJjZRIRCgRzcGVjGAEgASgMSACIAQFCBwoFX3NwZWMyiQMKDEFnZW50U2VydmljZRJNCgRKb2luEh4uZG9ja3dlbGwuYWdlbnQudjEuSm9pblJlcXVlc3QaHy5kb2Nrd2VsbC5hZ2VudC52MS5Kb2luUmVzcG9uc2UiBKC7GAMScQoQUmVuZXdDZXJ0aWZpY2F0ZRIqLmRvY2t3ZWxsLmFnZW50LnYxLlJlbmV3Q2VydGlmaWNhdGVSZXF1ZXN0GisuZG9ja3dlbGwuYWdlbnQudjEuUmVuZXdDZXJ0aWZpY2F0ZVJlc3BvbnNlIgSguxgDEloKB0Nvbm5lY3QSIS5kb2Nrd2VsbC5hZ2VudC52MS5Db25uZWN0UmVxdWVzdBoiLmRvY2t3ZWxsLmFnZW50LnYxLkNvbm5lY3RSZXNwb25zZSIEoLsYAygBMAESWwoIU2VuZExvZ3MSIi5kb2Nrd2VsbC5hZ2VudC52MS5TZW5kTG9nc1JlcXVlc3QaIy5kb2Nrd2VsbC5hZ2VudC52MS5TZW5kTG9nc1Jlc3BvbnNlIgSguxgBKAFCxQEKFWNvbS5kb2Nrd2VsbC5hZ2VudC52MUIKQWdlbnRQcm90b1ABWjpnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9hZ2VudC92MTthZ2VudHYxogIDREFYqgIRRG9ja3dlbGwuQWdlbnQuVjHKAhFEb2Nrd2VsbFxBZ2VudFxWMeICHURvY2t3ZWxsXEFnZW50XFYxXEdQQk1ldGFkYXRh6gITRG9ja3dlbGw6OkFnZW50OjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_domain, file_dockwell_v1_log, file_dockwell_v1_options, file_dockwell_v1_server, file_dockwell_v1_system, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * ConnectRequest is one message from the agent.
@@ -697,6 +699,23 @@ export type Call = Message<"dockwell.agent.v1.Call"> & {
      */
     value: ObserveCall;
     case: "observe";
+  } | {
+    /**
+     * List the containers a service has logs from.
+     *
+     * @generated from field: dockwell.agent.v1.LogSourcesCall log_sources = 6;
+     */
+    value: LogSourcesCall;
+    case: "logSources";
+  } | {
+    /**
+     * Read a service's logs, over SendLogs. It has no timeout, as following
+     * lasts until the reader leaves, and it ends when the stream does.
+     *
+     * @generated from field: dockwell.agent.v1.LogsCall logs = 7;
+     */
+    value: LogsCall;
+    case: "logs";
   } | { case: undefined; value?: undefined };
 };
 
@@ -706,6 +725,300 @@ export type Call = Message<"dockwell.agent.v1.Call"> & {
  */
 export const CallSchema: GenMessage<Call> = /*@__PURE__*/
   messageDesc(file_dockwell_agent_v1_agent, 16);
+
+/**
+ * LogSourcesCall asks which containers a service has logs from.
+ *
+ * @generated from message dockwell.agent.v1.LogSourcesCall
+ */
+export type LogSourcesCall = Message<"dockwell.agent.v1.LogSourcesCall"> & {
+  /**
+   * The service.
+   *
+   * @generated from field: dockwell.v1.ResourceRef resource = 1;
+   */
+  resource?: ResourceRef | undefined;
+};
+
+/**
+ * Describes the message dockwell.agent.v1.LogSourcesCall.
+ * Use `create(LogSourcesCallSchema)` to create a new message.
+ */
+export const LogSourcesCallSchema: GenMessage<LogSourcesCall> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 17);
+
+/**
+ * LogsCall asks the agent to read a service's logs.
+ *
+ * @generated from message dockwell.agent.v1.LogsCall
+ */
+export type LogsCall = Message<"dockwell.agent.v1.LogsCall"> & {
+  /**
+   * Names the call's SendLogs stream.
+   *
+   * @generated from field: uint64 stream = 1;
+   */
+  stream: bigint;
+
+  /**
+   * The service.
+   *
+   * @generated from field: dockwell.v1.ResourceRef resource = 2;
+   */
+  resource?: ResourceRef | undefined;
+
+  /**
+   * Only lines written at or after this time.
+   *
+   * @generated from field: google.protobuf.Timestamp since = 3;
+   */
+  since?: Timestamp | undefined;
+
+  /**
+   * Only lines written at or before this time.
+   *
+   * @generated from field: google.protobuf.Timestamp until = 4;
+   */
+  until?: Timestamp | undefined;
+
+  /**
+   * How many of each container's newest lines to read, -1 for none and 0
+   * for all.
+   *
+   * @generated from field: int32 tail = 5;
+   */
+  tail: number;
+
+  /**
+   * Go on with what is written next, and with containers that start later.
+   *
+   * @generated from field: bool follow = 6;
+   */
+  follow: boolean;
+
+  /**
+   * Only these sources.
+   *
+   * @generated from field: repeated string source_ids = 7;
+   */
+  sourceIds: string[];
+
+  /**
+   * Only containers this revision made.
+   *
+   * @generated from field: int64 revision = 8;
+   */
+  revision: bigint;
+
+  /**
+   * Only containers this change made.
+   *
+   * @generated from field: string change_id = 9;
+   */
+  changeId: string;
+
+  /**
+   * Only lines of these levels.
+   *
+   * @generated from field: repeated dockwell.v1.LogLevel levels = 10;
+   */
+  levels: LogLevel[];
+
+  /**
+   * Only lines that hold this text, in any case.
+   *
+   * @generated from field: string query = 11;
+   */
+  query: string;
+
+  /**
+   * Carry on after these lines: what a stream already sent of each source.
+   *
+   * @generated from field: repeated dockwell.agent.v1.LogCursor after = 12;
+   */
+  after: LogCursor[];
+
+  /**
+   * Read only what comes before these lines: what a page already holds.
+   *
+   * @generated from field: repeated dockwell.agent.v1.LogCursor before = 13;
+   */
+  before: LogCursor[];
+
+  /**
+   * When the stream these cursors came from was last heard from. A
+   * container made since, which has no cursor, is read from its start.
+   *
+   * @generated from field: google.protobuf.Timestamp resume_from = 14;
+   */
+  resumeFrom?: Timestamp | undefined;
+
+  /**
+   * Read the containers the server kept the logs of, too, within since and
+   * until. Without it only what Docker has now is read, unless the filters
+   * name a kept one.
+   *
+   * @generated from field: bool include_kept = 15;
+   */
+  includeKept: boolean;
+};
+
+/**
+ * Describes the message dockwell.agent.v1.LogsCall.
+ * Use `create(LogsCallSchema)` to create a new message.
+ */
+export const LogsCallSchema: GenMessage<LogsCall> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 18);
+
+/**
+ * LogCursor is a place in one source's lines.
+ *
+ * @generated from message dockwell.agent.v1.LogCursor
+ */
+export type LogCursor = Message<"dockwell.agent.v1.LogCursor"> & {
+  /**
+   * The source's id.
+   *
+   * @generated from field: string source_id = 1;
+   */
+  sourceId: string;
+
+  /**
+   * The time of the line.
+   *
+   * @generated from field: google.protobuf.Timestamp time = 2;
+   */
+  time?: Timestamp | undefined;
+
+  /**
+   * How many lines of the source have exactly that time, up to and including
+   * the line, as two lines can share one.
+   *
+   * @generated from field: uint32 count = 3;
+   */
+  count: number;
+};
+
+/**
+ * Describes the message dockwell.agent.v1.LogCursor.
+ * Use `create(LogCursorSchema)` to create a new message.
+ */
+export const LogCursorSchema: GenMessage<LogCursor> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 19);
+
+/**
+ * LogScan says what a read that had to look at every line read of one source.
+ *
+ * @generated from message dockwell.agent.v1.LogScan
+ */
+export type LogScan = Message<"dockwell.agent.v1.LogScan"> & {
+  /**
+   * The source's id.
+   *
+   * @generated from field: string source_id = 1;
+   */
+  sourceId: string;
+
+  /**
+   * The oldest line it read.
+   *
+   * @generated from field: google.protobuf.Timestamp oldest_time = 2;
+   */
+  oldestTime?: Timestamp | undefined;
+
+  /**
+   * How many lines it read.
+   *
+   * @generated from field: uint64 lines = 3;
+   */
+  lines: bigint;
+
+  /**
+   * True when it stopped at a limit, before the oldest line.
+   *
+   * @generated from field: bool cut_short = 4;
+   */
+  cutShort: boolean;
+
+  /**
+   * True when older lines passed the filters and weren't sent, for lack of
+   * room, so another page has more.
+   *
+   * @generated from field: bool older = 5;
+   */
+  older: boolean;
+};
+
+/**
+ * Describes the message dockwell.agent.v1.LogScan.
+ * Use `create(LogScanSchema)` to create a new message.
+ */
+export const LogScanSchema: GenMessage<LogScan> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 20);
+
+/**
+ * SendLogsRequest is one message of a LogsCall's lines.
+ *
+ * @generated from message dockwell.agent.v1.SendLogsRequest
+ */
+export type SendLogsRequest = Message<"dockwell.agent.v1.SendLogsRequest"> & {
+  /**
+   * The call's stream, on the first message and every other.
+   *
+   * @generated from field: uint64 stream = 1;
+   */
+  stream: bigint;
+
+  /**
+   * Sources that are new or changed.
+   *
+   * @generated from field: repeated dockwell.v1.LogSource sources = 2;
+   */
+  sources: LogSource[];
+
+  /**
+   * Lines, by source.
+   *
+   * @generated from field: repeated dockwell.v1.LogChunk chunks = 3;
+   */
+  chunks: LogChunk[];
+
+  /**
+   * True once the agent has read what each source had when the call came.
+   *
+   * @generated from field: bool caught_up = 4;
+   */
+  caughtUp: boolean;
+
+  /**
+   * What a search read, once it is done.
+   *
+   * @generated from field: repeated dockwell.agent.v1.LogScan scans = 5;
+   */
+  scans: LogScan[];
+};
+
+/**
+ * Describes the message dockwell.agent.v1.SendLogsRequest.
+ * Use `create(SendLogsRequestSchema)` to create a new message.
+ */
+export const SendLogsRequestSchema: GenMessage<SendLogsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 21);
+
+/**
+ * SendLogsResponse is empty.
+ *
+ * @generated from message dockwell.agent.v1.SendLogsResponse
+ */
+export type SendLogsResponse = Message<"dockwell.agent.v1.SendLogsResponse"> & {
+};
+
+/**
+ * Describes the message dockwell.agent.v1.SendLogsResponse.
+ * Use `create(SendLogsResponseSchema)` to create a new message.
+ */
+export const SendLogsResponseSchema: GenMessage<SendLogsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 22);
 
 /**
  * PlanCall asks what moving each resource to its desired spec would take.
@@ -727,7 +1040,7 @@ export type PlanCall = Message<"dockwell.agent.v1.PlanCall"> & {
  * Use `create(PlanCallSchema)` to create a new message.
  */
 export const PlanCallSchema: GenMessage<PlanCall> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 17);
+  messageDesc(file_dockwell_agent_v1_agent, 23);
 
 /**
  * ApplyCall asks the agent to carry out one step.
@@ -768,6 +1081,14 @@ export type ApplyCall = Message<"dockwell.agent.v1.ApplyCall"> & {
    * @generated from field: bool pulled = 4;
    */
   pulled: boolean;
+
+  /**
+   * Which deploy the step is part of, if any, which what it makes is labelled
+   * with.
+   *
+   * @generated from field: dockwell.agent.v1.Deploy deploy = 5;
+   */
+  deploy?: Deploy | undefined;
 };
 
 /**
@@ -775,7 +1096,43 @@ export type ApplyCall = Message<"dockwell.agent.v1.ApplyCall"> & {
  * Use `create(ApplyCallSchema)` to create a new message.
  */
 export const ApplyCallSchema: GenMessage<ApplyCall> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 18);
+  messageDesc(file_dockwell_agent_v1_agent, 24);
+
+/**
+ * Deploy says which revision and change a step carries out.
+ *
+ * @generated from message dockwell.agent.v1.Deploy
+ */
+export type Deploy = Message<"dockwell.agent.v1.Deploy"> & {
+  /**
+   * The revision applying runs toward.
+   *
+   * @generated from field: int64 revision = 1;
+   */
+  revision: bigint;
+
+  /**
+   * The change.
+   *
+   * @generated from field: string change_id = 2;
+   */
+  changeId: string;
+
+  /**
+   * True when the change rolls a failed one back, so what the step replaces
+   * or removes failed.
+   *
+   * @generated from field: bool rollback = 3;
+   */
+  rollback: boolean;
+};
+
+/**
+ * Describes the message dockwell.agent.v1.Deploy.
+ * Use `create(DeploySchema)` to create a new message.
+ */
+export const DeploySchema: GenMessage<Deploy> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 25);
 
 /**
  * Values are what a service's variables and secrets resolve to on the
@@ -797,7 +1154,7 @@ export type Values = Message<"dockwell.agent.v1.Values"> & {
  * Use `create(ValuesSchema)` to create a new message.
  */
 export const ValuesSchema: GenMessage<Values> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 19);
+  messageDesc(file_dockwell_agent_v1_agent, 26);
 
 /**
  * ObserveCall asks for resources as the server has them.
@@ -818,7 +1175,7 @@ export type ObserveCall = Message<"dockwell.agent.v1.ObserveCall"> & {
  * Use `create(ObserveCallSchema)` to create a new message.
  */
 export const ObserveCallSchema: GenMessage<ObserveCall> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 20);
+  messageDesc(file_dockwell_agent_v1_agent, 27);
 
 /**
  * DesiredResource is one resource as a change wants it.
@@ -862,7 +1219,7 @@ export type DesiredResource = Message<"dockwell.agent.v1.DesiredResource"> & {
  * Use `create(DesiredResourceSchema)` to create a new message.
  */
 export const DesiredResourceSchema: GenMessage<DesiredResource> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 21);
+  messageDesc(file_dockwell_agent_v1_agent, 28);
 
 /**
  * CancelCall stops a call: its caller went away, or its time ran out.
@@ -883,7 +1240,7 @@ export type CancelCall = Message<"dockwell.agent.v1.CancelCall"> & {
  * Use `create(CancelCallSchema)` to create a new message.
  */
 export const CancelCallSchema: GenMessage<CancelCall> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 22);
+  messageDesc(file_dockwell_agent_v1_agent, 29);
 
 /**
  * CallResult is the agent's answer to one call.
@@ -935,6 +1292,22 @@ export type CallResult = Message<"dockwell.agent.v1.CallResult"> & {
      */
     value: ObserveResult;
     case: "observe";
+  } | {
+    /**
+     * The containers a log sources call found.
+     *
+     * @generated from field: dockwell.agent.v1.LogSourcesResult log_sources = 6;
+     */
+    value: LogSourcesResult;
+    case: "logSources";
+  } | {
+    /**
+     * A logs call read all it was asked for, or its reader left.
+     *
+     * @generated from field: dockwell.agent.v1.LogsResult logs = 7;
+     */
+    value: LogsResult;
+    case: "logs";
   } | { case: undefined; value?: undefined };
 };
 
@@ -943,7 +1316,43 @@ export type CallResult = Message<"dockwell.agent.v1.CallResult"> & {
  * Use `create(CallResultSchema)` to create a new message.
  */
 export const CallResultSchema: GenMessage<CallResult> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 23);
+  messageDesc(file_dockwell_agent_v1_agent, 30);
+
+/**
+ * LogSourcesResult lists the containers a service has logs from.
+ *
+ * @generated from message dockwell.agent.v1.LogSourcesResult
+ */
+export type LogSourcesResult = Message<"dockwell.agent.v1.LogSourcesResult"> & {
+  /**
+   * The containers, newest first.
+   *
+   * @generated from field: repeated dockwell.v1.LogSource sources = 1;
+   */
+  sources: LogSource[];
+};
+
+/**
+ * Describes the message dockwell.agent.v1.LogSourcesResult.
+ * Use `create(LogSourcesResultSchema)` to create a new message.
+ */
+export const LogSourcesResultSchema: GenMessage<LogSourcesResult> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 31);
+
+/**
+ * LogsResult ends a logs call.
+ *
+ * @generated from message dockwell.agent.v1.LogsResult
+ */
+export type LogsResult = Message<"dockwell.agent.v1.LogsResult"> & {
+};
+
+/**
+ * Describes the message dockwell.agent.v1.LogsResult.
+ * Use `create(LogsResultSchema)` to create a new message.
+ */
+export const LogsResultSchema: GenMessage<LogsResult> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 32);
 
 /**
  * CallError says why a call failed.
@@ -1000,7 +1409,7 @@ export type CallError = Message<"dockwell.agent.v1.CallError"> & {
  * Use `create(CallErrorSchema)` to create a new message.
  */
 export const CallErrorSchema: GenMessage<CallError> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 24);
+  messageDesc(file_dockwell_agent_v1_agent, 33);
 
 /**
  * PlanResult carries a plan call's steps.
@@ -1022,7 +1431,7 @@ export type PlanResult = Message<"dockwell.agent.v1.PlanResult"> & {
  * Use `create(PlanResultSchema)` to create a new message.
  */
 export const PlanResultSchema: GenMessage<PlanResult> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 25);
+  messageDesc(file_dockwell_agent_v1_agent, 34);
 
 /**
  * ApplyResult says a step was carried out and verified.
@@ -1037,7 +1446,7 @@ export type ApplyResult = Message<"dockwell.agent.v1.ApplyResult"> & {
  * Use `create(ApplyResultSchema)` to create a new message.
  */
 export const ApplyResultSchema: GenMessage<ApplyResult> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 26);
+  messageDesc(file_dockwell_agent_v1_agent, 35);
 
 /**
  * ObserveResult carries an observe call's resources.
@@ -1058,7 +1467,7 @@ export type ObserveResult = Message<"dockwell.agent.v1.ObserveResult"> & {
  * Use `create(ObserveResultSchema)` to create a new message.
  */
 export const ObserveResultSchema: GenMessage<ObserveResult> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 27);
+  messageDesc(file_dockwell_agent_v1_agent, 36);
 
 /**
  * ObservedResource is a resource as the server has it.
@@ -1080,7 +1489,7 @@ export type ObservedResource = Message<"dockwell.agent.v1.ObservedResource"> & {
  * Use `create(ObservedResourceSchema)` to create a new message.
  */
 export const ObservedResourceSchema: GenMessage<ObservedResource> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 28);
+  messageDesc(file_dockwell_agent_v1_agent, 37);
 
 /**
  * AgentService is how a server's agent talks to the control plane, over
@@ -1127,6 +1536,21 @@ export const AgentService: GenService<{
     methodKind: "bidi_streaming";
     input: typeof ConnectRequestSchema;
     output: typeof ConnectResponseSchema;
+  },
+  /**
+   * SendLogs carries the log lines of one LogsCall, which the agent opens on
+   * a connection of its own for each one, so log lines share nothing with
+   * Connect, which must never stall behind them. When the control plane
+   * stops reading, as when its reader is slow, flow control stops the agent
+   * sending, and the agent drops what it can't send, and says how many. See
+   * docs/adr/0025-logs-per-deploy.md.
+   *
+   * @generated from rpc dockwell.agent.v1.AgentService.SendLogs
+   */
+  sendLogs: {
+    methodKind: "client_streaming";
+    input: typeof SendLogsRequestSchema;
+    output: typeof SendLogsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_agent_v1_agent, 0);

@@ -42,6 +42,8 @@ const (
 	AgentServiceRenewCertificateProcedure = "/dockwell.agent.v1.AgentService/RenewCertificate"
 	// AgentServiceConnectProcedure is the fully-qualified name of the AgentService's Connect RPC.
 	AgentServiceConnectProcedure = "/dockwell.agent.v1.AgentService/Connect"
+	// AgentServiceSendLogsProcedure is the fully-qualified name of the AgentService's SendLogs RPC.
+	AgentServiceSendLogsProcedure = "/dockwell.agent.v1.AgentService/SendLogs"
 )
 
 // AgentServiceClient is a client for the dockwell.agent.v1.AgentService service.
@@ -59,6 +61,13 @@ type AgentServiceClient interface {
 	// plane also calls the agent's drivers over it, to plan, apply and
 	// observe resources, and the agent answers each call with its result.
 	Connect(context.Context) *connect.BidiStreamForClient[v1.ConnectRequest, v1.ConnectResponse]
+	// SendLogs carries the log lines of one LogsCall, which the agent opens on
+	// a connection of its own for each one, so log lines share nothing with
+	// Connect, which must never stall behind them. When the control plane
+	// stops reading, as when its reader is slow, flow control stops the agent
+	// sending, and the agent drops what it can't send, and says how many. See
+	// docs/adr/0025-logs-per-deploy.md.
+	SendLogs(context.Context) *connect.ClientStreamForClient[v1.SendLogsRequest, v1.SendLogsResponse]
 }
 
 // NewAgentServiceClient constructs a client for the dockwell.agent.v1.AgentService service. By
@@ -90,6 +99,12 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("Connect")),
 			connect.WithClientOptions(opts...),
 		),
+		sendLogs: connect.NewClient[v1.SendLogsRequest, v1.SendLogsResponse](
+			httpClient,
+			baseURL+AgentServiceSendLogsProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("SendLogs")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -98,6 +113,7 @@ type agentServiceClient struct {
 	join             *connect.Client[v1.JoinRequest, v1.JoinResponse]
 	renewCertificate *connect.Client[v1.RenewCertificateRequest, v1.RenewCertificateResponse]
 	connect          *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
+	sendLogs         *connect.Client[v1.SendLogsRequest, v1.SendLogsResponse]
 }
 
 // Join calls dockwell.agent.v1.AgentService.Join.
@@ -115,6 +131,11 @@ func (c *agentServiceClient) Connect(ctx context.Context) *connect.BidiStreamFor
 	return c.connect.CallBidiStream(ctx)
 }
 
+// SendLogs calls dockwell.agent.v1.AgentService.SendLogs.
+func (c *agentServiceClient) SendLogs(ctx context.Context) *connect.ClientStreamForClient[v1.SendLogsRequest, v1.SendLogsResponse] {
+	return c.sendLogs.CallClientStream(ctx)
+}
+
 // AgentServiceHandler is an implementation of the dockwell.agent.v1.AgentService service.
 type AgentServiceHandler interface {
 	// Join spends a join ticket to give a new server its identity: the
@@ -130,6 +151,13 @@ type AgentServiceHandler interface {
 	// plane also calls the agent's drivers over it, to plan, apply and
 	// observe resources, and the agent answers each call with its result.
 	Connect(context.Context, *connect.BidiStream[v1.ConnectRequest, v1.ConnectResponse]) error
+	// SendLogs carries the log lines of one LogsCall, which the agent opens on
+	// a connection of its own for each one, so log lines share nothing with
+	// Connect, which must never stall behind them. When the control plane
+	// stops reading, as when its reader is slow, flow control stops the agent
+	// sending, and the agent drops what it can't send, and says how many. See
+	// docs/adr/0025-logs-per-deploy.md.
+	SendLogs(context.Context, *connect.ClientStream[v1.SendLogsRequest]) (*connect.Response[v1.SendLogsResponse], error)
 }
 
 // NewAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -157,6 +185,12 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("Connect")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceSendLogsHandler := connect.NewClientStreamHandler(
+		AgentServiceSendLogsProcedure,
+		svc.SendLogs,
+		connect.WithSchema(agentServiceMethods.ByName("SendLogs")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.agent.v1.AgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AgentServiceJoinProcedure:
@@ -165,6 +199,8 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceRenewCertificateHandler.ServeHTTP(w, r)
 		case AgentServiceConnectProcedure:
 			agentServiceConnectHandler.ServeHTTP(w, r)
+		case AgentServiceSendLogsProcedure:
+			agentServiceSendLogsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -184,4 +220,8 @@ func (UnimplementedAgentServiceHandler) RenewCertificate(context.Context, *conne
 
 func (UnimplementedAgentServiceHandler) Connect(context.Context, *connect.BidiStream[v1.ConnectRequest, v1.ConnectResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.agent.v1.AgentService.Connect is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) SendLogs(context.Context, *connect.ClientStream[v1.SendLogsRequest]) (*connect.Response[v1.SendLogsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.agent.v1.AgentService.SendLogs is not implemented"))
 }

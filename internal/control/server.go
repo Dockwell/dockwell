@@ -47,6 +47,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/events"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/control/resources"
 	"github.com/dockwell/dockwell/internal/control/servers"
 	serviceapi "github.com/dockwell/dockwell/internal/control/services"
@@ -208,6 +209,7 @@ func apiRoutes(cfg Config, ui http.Handler) (http.Handler, error) {
 		}
 		handle(dockwellv1connect.NewDomainServiceHandler(domains.New(cfg.Changes.Kinds(), cfg.Store, cfg.Agents, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewServiceServiceHandler(serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
+		handle(dockwellv1connect.NewLogServiceHandler(logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger), opts...))
 	}
 	restPaths, err := restHandler(rest)
 	if err != nil {

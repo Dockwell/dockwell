@@ -3,11 +3,14 @@
 package container_test
 
 import (
+	"context"
 	"log/slog"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -159,5 +162,138 @@ func TestDeletingAServiceKeepsItsImagesData(t *testing.T) {
 	}
 	if step := apply(t, l, ref, again); step.Action != resource.ActionCreate || step.Restores {
 		t.Errorf("planning the undo after the prune = %s, restores %v; want a create of its own", step.Action, step.Restores)
+	}
+}
+
+// Docker's default keeps a log without a limit, so a new container gets rotation,
+// and the deploy that made it. Neither is part of its spec, so it doesn't read as
+// drift, and a container without them isn't recreated.
+func TestANewContainerHasRotationAndItsDeploy(t *testing.T) {
+	e := dockertest.New(t)
+	e.Registry["app:1"] = dockertest.Image{Config: docker.Config{Cmd: []string{"app"}}}
+	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond}
+	target := container.Target{Name: "web", Project: "p", Service: "web"}
+	spec := &resourcev1.Container{Image: "app:1", Restart: resourcev1.RestartPolicy_RESTART_POLICY_NO}
+	ctx := resource.WithDeploy(t.Context(), resource.Deploy{Revision: 12, Change: "chg_12"})
+	if err := rt.Run(ctx, target, spec, false); err != nil {
+		t.Fatal(err)
+	}
+	c := e.Container("web")
+	if lc := c.HostConfig.LogConfig; lc == nil || lc.Type != docker.LogDriverJSONFile || lc.Config["max-size"] != "10m" || lc.Config["max-file"] != "5" || lc.Config["compress"] != "true" {
+		t.Errorf("log config = %+v, want json-file with rotation", lc)
+	}
+	if c.Config.Labels[container.LabelRevision] != "12" || c.Config.Labels[container.LabelChange] != "chg_12" {
+		t.Errorf("labels = %v, want the deploy's", c.Config.Labels)
+	}
+	read, err := rt.Inspect(t.Context(), target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !proto.Equal(read, spec) {
+		t.Errorf("reading it back = %v, want %v: the log config and the deploy's labels aren't part of its spec", read, spec)
+	}
+	// The same spec reads the same with neither, as on a container from before.
+	e.Edit("web", func(c *docker.Container) {
+		c.HostConfig.LogConfig = &docker.LogConfig{Type: docker.LogDriverJSONFile}
+		delete(c.Config.Labels, container.LabelRevision)
+		delete(c.Config.Labels, container.LabelChange)
+	})
+	read, err = rt.Inspect(t.Context(), target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !proto.Equal(read, spec) {
+		t.Errorf("without them, reading it back = %v", read)
+	}
+}
+
+// An operator who chose another log driver for Docker keeps it.
+func TestAnotherLogDriverStands(t *testing.T) {
+	e := dockertest.New(t)
+	e.LoggingDriver = "journald"
+	e.Registry["app:1"] = dockertest.Image{}
+	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond}
+	if err := rt.Run(t.Context(), container.Target{Name: "web", Project: "p", Service: "web"}, &resourcev1.Container{Image: "app:1"}, false); err != nil {
+		t.Fatal(err)
+	}
+	if lc := e.Container("web").HostConfig.LogConfig; lc != nil {
+		t.Errorf("log config = %+v, want Docker's own choice left alone", lc)
+	}
+}
+
+// logKeeper records what a replace keeps, and in what order.
+type logKeeper struct {
+	began, finished []string
+	failed          []bool
+	running         []bool
+}
+
+func (k *logKeeper) Begin(_ context.Context, c *docker.Container, failed bool) container.LogKeep {
+	k.began = append(k.began, c.ID)
+	k.failed = append(k.failed, failed)
+	k.running = append(k.running, c.State.Running)
+	return keeping{k}
+}
+
+type keeping struct{ k *logKeeper }
+
+func (k keeping) Finish(_ context.Context, c *docker.Container) {
+	k.k.finished = append(k.k.finished, c.ID)
+	k.k.running = append(k.k.running, c.State.Running)
+}
+
+// A replace keeps the old container's log: most of it while it still runs, so
+// downtime doesn't wait for that, and the rest once it has stopped, before it is
+// removed. What a rollback replaces, or what wasn't well, counts as failed.
+func TestAReplaceKeepsTheOldContainersLog(t *testing.T) {
+	e := dockertest.New(t)
+	e.Registry["app:1"] = dockertest.Image{}
+	e.Registry["app:2"] = dockertest.Image{}
+	e.Registry["app:bad"] = dockertest.Image{Exits: true}
+	keeper := &logKeeper{}
+	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Logs: keeper}
+	target := container.Target{Name: "web", Project: "p", Service: "web"}
+	run := func(ctx context.Context, image string) string {
+		t.Helper()
+		if err := rt.Run(ctx, target, &resourcev1.Container{Image: image}, false); err != nil {
+			t.Fatal(err)
+		}
+		return e.Container("web").ID
+	}
+	first := run(t.Context(), "app:1")
+	if len(keeper.began) != 0 {
+		t.Fatalf("kept a log with nothing replaced: %v", keeper.began)
+	}
+	run(t.Context(), "app:2")
+	if len(keeper.began) != 1 || keeper.began[0] != first || keeper.finished[0] != first {
+		t.Fatalf("began %v and finished %v, want the old container's", keeper.began, keeper.finished)
+	}
+	if keeper.failed[0] {
+		t.Error("an ordinary replace counted as failed")
+	}
+	if !keeper.running[0] || keeper.running[1] {
+		t.Errorf("running at begin and finish = %v, want running, then stopped", keeper.running)
+	}
+
+	// A rollback's replace: what it replaces failed, whatever its state.
+	run(resource.WithDeploy(t.Context(), resource.Deploy{Revision: 3, Change: "chg", Rollback: true}), "app:1")
+	if !keeper.failed[1] {
+		t.Error("what a rollback replaced didn't count as failed")
+	}
+
+	// One that exited with an error counts as failed by itself.
+	run(t.Context(), "app:bad")
+	run(t.Context(), "app:1")
+	if !keeper.failed[3] {
+		t.Error("a container that had exited with an error didn't count as failed")
+	}
+
+	// Deleting one keeps its log too.
+	last := e.Container("web").ID
+	if err := rt.Remove(t.Context(), target); err != nil {
+		t.Fatal(err)
+	}
+	if keeper.began[len(keeper.began)-1] != last {
+		t.Errorf("deleting didn't keep the log: began %v", keeper.began)
 	}
 }

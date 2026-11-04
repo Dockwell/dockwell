@@ -59,6 +59,8 @@ type Config struct {
 	// agent tells the control plane as its stream opens and whenever they
 	// change. Nil says nothing.
 	Domains DomainReporter
+	// Logs reads what this server's containers print. Nil reads none.
+	Logs LogReader
 }
 
 // DomainReporter says where a server's routes' domains stand (ADR 0024).
@@ -69,6 +71,18 @@ type DomainReporter interface {
 	Ingress() *dockwellv1.IngressStatus
 	// DomainsChanged signals when Domains or Ingress has changed.
 	DomainsChanged() <-chan struct{}
+}
+
+// LogReader reads a service's logs on this server. Its calls run apart from the
+// engine's, each on a connection of its own, so log lines never stand between
+// the control plane and the agent's stats, plans and applies.
+type LogReader interface {
+	// Sources lists the containers a service has logs from.
+	Sources(ctx context.Context, ref *dockwellv1.ResourceRef) ([]*dockwellv1.LogSource, error)
+	// Stream reads what a call asks for, passing it to send, until it has read
+	// it all or ctx ends. send may block: a follow drops what it can't send,
+	// and says how much.
+	Stream(ctx context.Context, call *agentv1.LogsCall, send func(*agentv1.SendLogsRequest) error) error
 }
 
 // Desired keeps what the control plane told this agent to apply, so the

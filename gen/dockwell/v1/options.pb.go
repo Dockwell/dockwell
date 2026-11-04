@@ -87,6 +87,57 @@ func (Effect) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_options_proto_rawDescGZIP(), []int{0}
 }
 
+// TokenGrant is something an API token may do beyond its scope, which its
+// maker has to ask for. A token has none unless it was made with it, so a
+// token made for something else never gains it.
+type TokenGrant int32
+
+const (
+	TokenGrant_TOKEN_GRANT_UNSPECIFIED TokenGrant = 0
+	// Reading logs, which often hold secrets and personal data that apps
+	// print.
+	TokenGrant_TOKEN_GRANT_LOGS TokenGrant = 1
+)
+
+// Enum value maps for TokenGrant.
+var (
+	TokenGrant_name = map[int32]string{
+		0: "TOKEN_GRANT_UNSPECIFIED",
+		1: "TOKEN_GRANT_LOGS",
+	}
+	TokenGrant_value = map[string]int32{
+		"TOKEN_GRANT_UNSPECIFIED": 0,
+		"TOKEN_GRANT_LOGS":        1,
+	}
+)
+
+func (x TokenGrant) Enum() *TokenGrant {
+	p := new(TokenGrant)
+	*p = x
+	return p
+}
+
+func (x TokenGrant) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TokenGrant) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_options_proto_enumTypes[1].Descriptor()
+}
+
+func (TokenGrant) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_options_proto_enumTypes[1]
+}
+
+func (x TokenGrant) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TokenGrant.Descriptor instead.
+func (TokenGrant) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_options_proto_rawDescGZIP(), []int{1}
+}
+
 // Command names a method's command in the dockwell CLI, dockwell <noun>
 // <verb>, where the generator's rules give a name that is taken or
 // misleading. By the rules, the noun is the collection in the method's REST
@@ -232,6 +283,14 @@ var file_dockwell_v1_options_proto_extTypes = []protoimpl.ExtensionInfo{
 		Filename:      "dockwell/v1/options.proto",
 	},
 	{
+		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
+		ExtensionType: (*TokenGrant)(nil),
+		Field:         50103,
+		Name:          "dockwell.v1.needs_grant",
+		Tag:           "varint,50103,opt,name=needs_grant,enum=dockwell.v1.TokenGrant",
+		Filename:      "dockwell/v1/options.proto",
+	},
+	{
 		ExtendedType:  (*descriptorpb.ServiceOptions)(nil),
 		ExtensionType: ([]*Noun)(nil),
 		Field:         50100,
@@ -268,6 +327,11 @@ var (
 	//
 	// optional bool needs_session = 50102;
 	E_NeedsSession = &file_dockwell_v1_options_proto_extTypes[2]
+	// What an API token needs for this method, beyond its scope, because of
+	// what the method can read. Most methods leave it unset.
+	//
+	// optional dockwell.v1.TokenGrant needs_grant = 50103;
+	E_NeedsGrant = &file_dockwell_v1_options_proto_extTypes[3]
 )
 
 // Extension fields to descriptorpb.ServiceOptions.
@@ -277,7 +341,7 @@ var (
 	// unset, and its comment is that noun's help.
 	//
 	// repeated dockwell.v1.Noun nouns = 50100;
-	E_Nouns = &file_dockwell_v1_options_proto_extTypes[3]
+	E_Nouns = &file_dockwell_v1_options_proto_extTypes[4]
 )
 
 // Extension fields to descriptorpb.FieldOptions.
@@ -287,7 +351,7 @@ var (
 	// such as --token for a claim link's token. Most fields leave it unset.
 	//
 	// optional string flag = 50100;
-	E_Flag = &file_dockwell_v1_options_proto_extTypes[4]
+	E_Flag = &file_dockwell_v1_options_proto_extTypes[5]
 )
 
 var File_dockwell_v1_options_proto protoreflect.FileDescriptor
@@ -306,10 +370,16 @@ const file_dockwell_v1_options_proto_rawDesc = "" +
 	"\vEFFECT_READ\x10\x01\x12\x0f\n" +
 	"\vEFFECT_PLAN\x10\x02\x12\x10\n" +
 	"\fEFFECT_APPLY\x10\x03\x12\x16\n" +
-	"\x12EFFECT_DESTRUCTIVE\x10\x04:M\n" +
+	"\x12EFFECT_DESTRUCTIVE\x10\x04*?\n" +
+	"\n" +
+	"TokenGrant\x12\x1b\n" +
+	"\x17TOKEN_GRANT_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10TOKEN_GRANT_LOGS\x10\x01:M\n" +
 	"\x06effect\x12\x1e.google.protobuf.MethodOptions\x18\xb4\x87\x03 \x01(\x0e2\x13.dockwell.v1.EffectR\x06effect:P\n" +
 	"\acommand\x12\x1e.google.protobuf.MethodOptions\x18\xb5\x87\x03 \x01(\v2\x14.dockwell.v1.CommandR\acommand:E\n" +
-	"\rneeds_session\x12\x1e.google.protobuf.MethodOptions\x18\xb6\x87\x03 \x01(\bR\fneedsSession:J\n" +
+	"\rneeds_session\x12\x1e.google.protobuf.MethodOptions\x18\xb6\x87\x03 \x01(\bR\fneedsSession:Z\n" +
+	"\vneeds_grant\x12\x1e.google.protobuf.MethodOptions\x18\xb7\x87\x03 \x01(\x0e2\x17.dockwell.v1.TokenGrantR\n" +
+	"needsGrant:J\n" +
 	"\x05nouns\x12\x1f.google.protobuf.ServiceOptions\x18\xb4\x87\x03 \x03(\v2\x11.dockwell.v1.NounR\x05nouns:3\n" +
 	"\x04flag\x12\x1d.google.protobuf.FieldOptions\x18\xb4\x87\x03 \x01(\tR\x04flagB\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fOptionsProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
@@ -326,30 +396,33 @@ func file_dockwell_v1_options_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_options_proto_rawDescData
 }
 
-var file_dockwell_v1_options_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_dockwell_v1_options_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_dockwell_v1_options_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_dockwell_v1_options_proto_goTypes = []any{
 	(Effect)(0),                         // 0: dockwell.v1.Effect
-	(*Command)(nil),                     // 1: dockwell.v1.Command
-	(*Noun)(nil),                        // 2: dockwell.v1.Noun
-	(*descriptorpb.MethodOptions)(nil),  // 3: google.protobuf.MethodOptions
-	(*descriptorpb.ServiceOptions)(nil), // 4: google.protobuf.ServiceOptions
-	(*descriptorpb.FieldOptions)(nil),   // 5: google.protobuf.FieldOptions
+	(TokenGrant)(0),                     // 1: dockwell.v1.TokenGrant
+	(*Command)(nil),                     // 2: dockwell.v1.Command
+	(*Noun)(nil),                        // 3: dockwell.v1.Noun
+	(*descriptorpb.MethodOptions)(nil),  // 4: google.protobuf.MethodOptions
+	(*descriptorpb.ServiceOptions)(nil), // 5: google.protobuf.ServiceOptions
+	(*descriptorpb.FieldOptions)(nil),   // 6: google.protobuf.FieldOptions
 }
 var file_dockwell_v1_options_proto_depIdxs = []int32{
-	3, // 0: dockwell.v1.effect:extendee -> google.protobuf.MethodOptions
-	3, // 1: dockwell.v1.command:extendee -> google.protobuf.MethodOptions
-	3, // 2: dockwell.v1.needs_session:extendee -> google.protobuf.MethodOptions
-	4, // 3: dockwell.v1.nouns:extendee -> google.protobuf.ServiceOptions
-	5, // 4: dockwell.v1.flag:extendee -> google.protobuf.FieldOptions
-	0, // 5: dockwell.v1.effect:type_name -> dockwell.v1.Effect
-	1, // 6: dockwell.v1.command:type_name -> dockwell.v1.Command
-	2, // 7: dockwell.v1.nouns:type_name -> dockwell.v1.Noun
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	5, // [5:8] is the sub-list for extension type_name
-	0, // [0:5] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	4,  // 0: dockwell.v1.effect:extendee -> google.protobuf.MethodOptions
+	4,  // 1: dockwell.v1.command:extendee -> google.protobuf.MethodOptions
+	4,  // 2: dockwell.v1.needs_session:extendee -> google.protobuf.MethodOptions
+	4,  // 3: dockwell.v1.needs_grant:extendee -> google.protobuf.MethodOptions
+	5,  // 4: dockwell.v1.nouns:extendee -> google.protobuf.ServiceOptions
+	6,  // 5: dockwell.v1.flag:extendee -> google.protobuf.FieldOptions
+	0,  // 6: dockwell.v1.effect:type_name -> dockwell.v1.Effect
+	2,  // 7: dockwell.v1.command:type_name -> dockwell.v1.Command
+	1,  // 8: dockwell.v1.needs_grant:type_name -> dockwell.v1.TokenGrant
+	3,  // 9: dockwell.v1.nouns:type_name -> dockwell.v1.Noun
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	6,  // [6:10] is the sub-list for extension type_name
+	0,  // [0:6] is the sub-list for extension extendee
+	0,  // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_options_proto_init() }
@@ -362,9 +435,9 @@ func file_dockwell_v1_options_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_options_proto_rawDesc), len(file_dockwell_v1_options_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   2,
-			NumExtensions: 5,
+			NumExtensions: 6,
 			NumServices:   0,
 		},
 		GoTypes:           file_dockwell_v1_options_proto_goTypes,

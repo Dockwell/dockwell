@@ -231,3 +231,24 @@ func TestFilesAreReadAFewAtATime(t *testing.T) {
 		t.Errorf("Parse with every turn taken = %v, want it to stop waiting", err)
 	}
 }
+
+// A file may say what Dockwell does anyway, as an export does, and nothing else
+// about where logs go.
+func TestComposeLoggingTakesRotationAlone(t *testing.T) {
+	for file, want := range map[string]string{
+		"services: {web: {image: a, logging: {driver: json-file, options: {max-size: 10m, max-file: \"5\", compress: \"true\"}}}}": "",
+		"services: {web: {image: a, logging: {options: {max-size: 10m}}}}":                                                         "",
+		"services: {web: {image: a, logging: {driver: syslog}}}":                                                                   "the service web logs to syslog",
+		"services: {web: {image: a, logging: {driver: json-file, options: {labels: a}}}}":                                          "the service web sets the logging option labels",
+		"services: {web: {image: a, logging: {drive: json-file}}}":                                                                 "the service web's logging uses drive",
+		"services: {web: {image: a, logging: nonsense}}":                                                                           "logging",
+	} {
+		_, err := Parse(t.Context(), []byte(file), nil)
+		switch {
+		case want == "" && err != nil:
+			t.Errorf("%s: %v", file, err)
+		case want != "" && (err == nil || !strings.Contains(err.Error(), want)):
+			t.Errorf("%s = %v, want it refused, saying %s", file, err, want)
+		}
+	}
+}

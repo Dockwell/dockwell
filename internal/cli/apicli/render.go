@@ -61,6 +61,8 @@ func Render(w io.Writer, msg proto.Message, now time.Time) {
 		changesTable(w, m, now)
 	case *dockwellv1.ListDriftResponse:
 		driftTable(w, m)
+	case *dockwellv1.ListLogSourcesResponse:
+		sourcesTable(w, m, now)
 	case *dockwellv1.ExportComposeResponse:
 		// The file alone, so it pipes into docker compose -f -. Its comments
 		// say which variables it leaves out.

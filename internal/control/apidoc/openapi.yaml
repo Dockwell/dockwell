@@ -928,6 +928,163 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/services/{id}/logSources:
+        get:
+            tags:
+                - LogService
+            description: |-
+                ListLogSources returns the containers a service has logs from, on every
+                 server it runs on or ran on: those Docker has, running or stopped, and
+                 those the server kept after they were removed.
+            operationId: LogService_ListLogSources
+            parameters:
+                - name: id
+                  in: path
+                  description: |-
+                    The service, by ID or by name. A name needs its project and environment
+                     only once there is a choice of them.
+                  required: true
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: The project a service's name is in, by name or ID.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: The environment a service's name is in, by name or ID.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListLogSourcesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/services/{id}/logs:
+        get:
+            tags:
+                - LogService
+            description: |-
+                ReadLogs returns a page of a service's log lines, the newest first
+                 among pages, and in time order within one. It can search what the
+                 servers still have, by a query or by level.
+            operationId: LogService_ReadLogs
+            parameters:
+                - name: id
+                  in: path
+                  description: |-
+                    The service, by ID or by name. A name needs its project and environment
+                     only once there is a choice of them.
+                  required: true
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: The project a service's name is in, by name or ID.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: The environment a service's name is in, by name or ID.
+                  schema:
+                    type: string
+                - name: since
+                  in: query
+                  description: Only lines written at or after this time.
+                  schema:
+                    type: string
+                    format: date-time
+                - name: until
+                  in: query
+                  description: Only lines written at or before this time.
+                  schema:
+                    type: string
+                    format: date-time
+                - name: last
+                  in: query
+                  description: |-
+                    Only lines from this long ago until now, by the control plane's clock,
+                     such as "900s". Set it in place of since.
+                  schema:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: Represents a a duration between -315,576,000,000s and 315,576,000,000s (around 10000 years). Precision is in nanoseconds. 1 nanosecond is represented as 0.000000001s
+                - name: pageSize
+                  in: query
+                  description: 'How many lines to return: 1000 when unset, and at most 5000.'
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: |-
+                    Where to start: the next_page_token of the page before. Pass the same
+                     filters with it.
+                  schema:
+                    type: string
+                - name: sourceIds
+                  in: query
+                  description: Only lines from these sources, by LogSource's id.
+                  schema:
+                    type: array
+                    items:
+                        type: string
+                - name: revision
+                  in: query
+                  description: Only lines from containers this revision made.
+                  schema:
+                    type: string
+                - name: changeId
+                  in: query
+                  description: Only lines from containers this change made.
+                  schema:
+                    type: string
+                - name: levels
+                  in: query
+                  description: |-
+                    Only lines of these levels. A line with no level counts as info, and
+                     the indented lines after one, such as a stack trace, take its level.
+                  schema:
+                    type: array
+                    items:
+                        enum:
+                            - LOG_LEVEL_UNSPECIFIED
+                            - LOG_LEVEL_DEBUG
+                            - LOG_LEVEL_INFO
+                            - LOG_LEVEL_WARN
+                            - LOG_LEVEL_ERROR
+                        type: string
+                        format: enum
+                - name: query
+                  in: query
+                  description: |-
+                    Only lines that hold this text, in any case. It is plain text, not a
+                     pattern. Each server scans what it still has for it: at most 256 MiB of
+                     each container's log, and for at most 30 seconds.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ReadLogsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services/{id}/ports:
         post:
             tags:
@@ -2433,6 +2590,17 @@ components:
                 proof:
                     type: string
                     description: The proof from AuthService.FinishStepUp, for creating a token.
+                grants:
+                    type: array
+                    items:
+                        enum:
+                            - TOKEN_GRANT_UNSPECIFIED
+                            - TOKEN_GRANT_LOGS
+                        type: string
+                        format: enum
+                    description: |-
+                        What it may do beyond its scope, such as TOKEN_GRANT_LOGS to read logs.
+                         Either scope can have it.
             description: CreateTokenRequest describes the new token.
         CreateTokenResponse:
             type: object
@@ -3477,6 +3645,24 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListEventsResponse is a page of events.
+        ListLogSourcesResponse:
+            type: object
+            properties:
+                service:
+                    allOf:
+                        - $ref: '#/components/schemas/LoggedService'
+                    description: The service.
+                sources:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/LogSource'
+                    description: Each container with logs, newest first.
+                servers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ServerLogStatus'
+                    description: Each server the service is on that couldn't answer, with why.
+            description: ListLogSourcesResponse lists where a service's logs come from.
         ListPasskeysResponse:
             type: object
             properties:
@@ -3564,6 +3750,193 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListVariablesResponse is an environment's variables and secrets.
+        LogChunk:
+            type: object
+            properties:
+                sourceId:
+                    type: string
+                    description: The source's id.
+                gap:
+                    allOf:
+                        - $ref: '#/components/schemas/LogGap'
+                    description: Lines that should come before these, and don't, if any.
+                lines:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/LogLine'
+                    description: The lines, in the order they were written.
+            description: LogChunk is some lines in a row from one source.
+        LogGap:
+            type: object
+            properties:
+                reason:
+                    enum:
+                        - LOG_GAP_REASON_UNSPECIFIED
+                        - LOG_GAP_REASON_TOO_FAST
+                        - LOG_GAP_REASON_READER_BEHIND
+                        - LOG_GAP_REASON_GONE
+                    type: string
+                    description: Why.
+                    format: enum
+                lines:
+                    type: string
+                    description: How many lines are missing. Zero when that isn't known.
+                bytes:
+                    type: string
+                    description: How many bytes they held. Zero when that isn't known.
+                startTime:
+                    type: string
+                    description: When the first of them was written.
+                    format: date-time
+                endTime:
+                    type: string
+                    description: When the last of them was written.
+                    format: date-time
+            description: |-
+                LogGap says lines are missing from a stream, and why. It is where they
+                 were, so a reader knows what it isn't seeing.
+        LogLine:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: |-
+                        When Docker received it, by its server's clock. Clocks of different
+                         servers may differ, so lines from two servers are ordered only as well
+                         as their clocks agree.
+                    format: date-time
+                stream:
+                    enum:
+                        - LOG_STREAM_UNSPECIFIED
+                        - LOG_STREAM_STDOUT
+                        - LOG_STREAM_STDERR
+                    type: string
+                    description: Which of the container's streams it came from.
+                    format: enum
+                level:
+                    enum:
+                        - LOG_LEVEL_UNSPECIFIED
+                        - LOG_LEVEL_DEBUG
+                        - LOG_LEVEL_INFO
+                        - LOG_LEVEL_WARN
+                        - LOG_LEVEL_ERROR
+                    type: string
+                    description: The level read from its text. Unset means it names none.
+                    format: enum
+                text:
+                    type: string
+                    description: |-
+                        The line as printed, without its newline, with invalid UTF-8 replaced.
+                         It may hold terminal escape codes, which a client must never pass on
+                         unchecked.
+                cutBytes:
+                    type: integer
+                    description: How many more bytes the line had past text. A line is cut at 16 KiB.
+                    format: uint32
+            description: LogLine is one line a container printed.
+        LogSource:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: |-
+                        Names the source in a chunk and in filters. It is the first 12 digits
+                         of the container's ID, which is unique within a service.
+                serverId:
+                    type: string
+                    description: The server's ID.
+                serverName:
+                    type: string
+                    description: The server's name, such as "hz-1".
+                replica:
+                    type: integer
+                    description: The replica it is, from 1, within the service on that server.
+                    format: int32
+                containerName:
+                    type: string
+                    description: The container's name in Docker, such as "env_01kat…-web-1".
+                revision:
+                    type: string
+                    description: |-
+                        The revision that made this container: 0 when nothing says, as for one
+                         made with docker compose. A later revision that didn't recreate it,
+                         such as one that only changed its restart policy, doesn't change this.
+                changeId:
+                    type: string
+                    description: The change that made this container, when known.
+                state:
+                    enum:
+                        - LOG_SOURCE_STATE_UNSPECIFIED
+                        - LOG_SOURCE_STATE_CREATED
+                        - LOG_SOURCE_STATE_RUNNING
+                        - LOG_SOURCE_STATE_RESTARTING
+                        - LOG_SOURCE_STATE_STOPPED
+                        - LOG_SOURCE_STATE_KEPT
+                    type: string
+                    description: Where the container is now.
+                    format: enum
+                image:
+                    type: string
+                    description: The image it runs, as a spec names it, such as "nginx:1.27".
+                createTime:
+                    type: string
+                    description: When it was made.
+                    format: date-time
+                startTime:
+                    type: string
+                    description: When it last started. Unset if never.
+                    format: date-time
+                finishTime:
+                    type: string
+                    description: When it last stopped. Unset while it runs.
+                    format: date-time
+                exitCode:
+                    type: integer
+                    description: The exit code it last stopped with, once stopped.
+                    format: int32
+                kept:
+                    enum:
+                        - LOG_KEPT_UNSPECIFIED
+                        - LOG_KEPT_REPLACED
+                        - LOG_KEPT_FAILED
+                    type: string
+                    description: Why the server kept its logs, once it was removed.
+                    format: enum
+                cutShort:
+                    type: boolean
+                    description: |-
+                        True when the server kept only its newest lines, as it wrote more than
+                         the server keeps of one container.
+                unbounded:
+                    type: boolean
+                    description: |-
+                        True when Docker keeps this container's log without a limit, so it can
+                         fill the disk, as for one made before Dockwell set rotation, or by hand.
+                         Replacing it, as any deploy does, sets one.
+                logError:
+                    type: string
+                    description: |-
+                        Why its log can't be read, as when its logging driver doesn't keep one
+                         to read. Empty while it can.
+            description: LogSource is one container a service has logs from.
+        LoggedService:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID.
+                name:
+                    type: string
+                    description: Its name, such as "web".
+                environment:
+                    type: string
+                    description: The name of its environment, such as "production".
+                deleted:
+                    type: boolean
+                    description: |-
+                        True when the service is gone, as when its first deploy failed and was
+                         rolled back. What its servers kept can still be read.
+            description: LoggedService says which service logs are from.
         Mount:
             type: object
             properties:
@@ -4045,6 +4418,47 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: ProposeChangeResponse carries the planned change.
+        ReadLogsResponse:
+            type: object
+            properties:
+                chunks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/LogChunk'
+                    description: |-
+                        The lines, by source. Within a source they are in time order, and each
+                         source's come before any older page's.
+                sources:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/LogSource'
+                    description: The sources the lines come from, and any others that pass the filters.
+                servers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ServerLogStatus'
+                    description: Each server the service is on that couldn't answer, with why.
+                nextPageToken:
+                    type: string
+                    description: |-
+                        Pass it as page_token for the next page, of older lines. Empty on the
+                         last page.
+                searchedBackTo:
+                    type: string
+                    description: |-
+                        How far back a search reached: the oldest line it looked at. Older
+                         lines are gone from the servers, or past what a search reads. Unset
+                         without a query or levels.
+                    format: date-time
+                searchedLines:
+                    type: string
+                    description: How many lines a search looked at. Zero without a query or levels.
+                searchCutShort:
+                    type: boolean
+                    description: |-
+                        True when a search stopped at its limit, of size or of time, before it
+                         reached the oldest line a server has.
+            description: ReadLogsResponse is a page of log lines.
         RegenerateRecoveryCodesRequest:
             type: object
             properties:
@@ -4507,6 +4921,29 @@ components:
                         type: string
                     description: The server's non-loopback IP addresses.
             description: 'ServerInventory is what a server is: its system and hardware.'
+        ServerLogStatus:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID.
+                serverName:
+                    type: string
+                    description: The server's name, such as "hz-1".
+                state:
+                    enum:
+                        - SERVER_LOG_STATE_UNSPECIFIED
+                        - SERVER_LOG_STATE_READING
+                        - SERVER_LOG_STATE_DONE
+                        - SERVER_LOG_STATE_OFFLINE
+                        - SERVER_LOG_STATE_UNAVAILABLE
+                    type: string
+                    description: How it stands.
+                    format: enum
+                message:
+                    type: string
+                    description: Why, for people, with how to fix it, when it isn't reading.
+            description: ServerLogStatus is how reading logs from one server stands.
         ServerPlan:
             type: object
             properties:
@@ -5083,6 +5520,15 @@ components:
                     description: |-
                         The address it was last used from, such as "203.0.113.9". Empty if
                          never.
+                grants:
+                    type: array
+                    items:
+                        enum:
+                            - TOKEN_GRANT_UNSPECIFIED
+                            - TOKEN_GRANT_LOGS
+                        type: string
+                        format: enum
+                    description: What it may do beyond its scope.
             description: Token is an API token, without its secret.
         Totp:
             type: object
@@ -5298,6 +5744,23 @@ tags:
 
          WatchEvents streams, so it has no REST path. A REST client polls GET
          /v1/events, or opens the stream with Connect, gRPC or gRPC-Web, with the
+         same credentials.
+    - name: LogService
+      description: |-
+        LogService reads what a service's containers print: live, or from what
+         each server still has. See docs/adr/0025-logs-per-deploy.md.
+
+         Each server's agent reads Docker's logs as they are asked for, and log
+         lines never sit in the control plane's store. A server keeps what Docker
+         keeps for a running or stopped container, and the logs of the last failed
+         and the last replaced container of each service, within a disk budget.
+
+         Logs often hold secrets and personal data that apps print, and Dockwell
+         doesn't redact them. So an API token reads them only with the grant
+         TOKEN_GRANT_LOGS, and reading them is on record in the audit log.
+
+         WatchLogs streams, so it has no REST path. A REST client pages through
+         ReadLogs, or opens the stream with Connect, gRPC or gRPC-Web, with the
          same credentials.
     - name: ResourceService
       description: |-

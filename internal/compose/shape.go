@@ -137,6 +137,9 @@ var fileShape = sync.OnceValue(func() *shape {
 			}),
 		},
 		"expose": {kinds: aList, item: shaped(aString|aNumber, `expose: ["8080"]`), example: `expose: ["8080"]`},
+		"logging": object("logging: {driver: json-file, options: {max-size: 10m}}", map[string]*shape{
+			"driver": str("driver: json-file"), "options": options,
+		}),
 	})
 	volume := &shape{kinds: aMapping | nothing, example: "data: {driver: local}", fields: map[string]*shape{
 		"driver": str("driver: local"), "driver_opts": options, "labels": listOrMapping("labels: {backup: daily}"),

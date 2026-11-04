@@ -81,6 +81,8 @@ func explain(err error, c *Client, command string, names *strings.Replacer) erro
 		}
 		return fmt.Errorf("your API token is read-only, so %s can't make changes. Make a read-write token in the panel, under Profile and security, then run dockwell login %s",
 			command, c.URL)
+	case authapi.ReasonTokenLogs:
+		return fmt.Errorf("your API token can't read logs, which often hold secrets that apps print. Make a token that can in the panel, under Profile and security, then run dockwell login %s", c.URL)
 	case authapi.ReasonNeedsSession:
 		return ExitError{ExitNeedsPerson, fmt.Errorf("%s Open the panel at %s", sentence(msg), c.PanelURL("/"))}
 	case authapi.ReasonMisdirected:
@@ -94,6 +96,9 @@ func explain(err error, c *Client, command string, names *strings.Replacer) erro
 			c.URL, strings.TrimPrefix(msg, "unavailable: "))
 	case cerr.Code() == connect.CodeUnimplemented:
 		return fmt.Errorf("the control plane at %s doesn't have this command's method, so it may be older than this CLI. Update it, or use a CLI of its version", c.URL)
+	case cerr.Code() == connect.CodeCanceled && strings.HasPrefix(command, "dockwell logs"):
+		// Ctrl-C ends a reader of logs, which nobody needs to be told of.
+		return nil
 	case cerr.Code() == connect.CodeCanceled && errors.Is(err, context.Canceled):
 		return fmt.Errorf("%s stopped before the control plane answered, as it was interrupted. "+
 			"Whatever it asked for may have gone through anyway: see dockwell changes list", command)

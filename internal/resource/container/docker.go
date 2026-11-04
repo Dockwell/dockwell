@@ -63,6 +63,9 @@ type Docker struct {
 	// and which holds the server's public ports while it has routes. Nil
 	// means none.
 	Ingress Ingress
+	// Logs keeps the logs of the containers a change removes, which Docker
+	// removes with them. Nil keeps none.
+	Logs LogKeeper
 }
 
 // Ingress is what the container driver needs of a server's ingress
@@ -77,6 +80,35 @@ type Ingress interface {
 	// the plan under way applies.
 	RoutedAfter(ctx context.Context, instance ingress.Instance, desired []resource.Desired) (bool, error)
 }
+
+// Labels of a container that say which deploy made it, which logs are read
+// by. They are Dockwell's own, so they aren't drift, and a container without
+// them, as one docker compose made, isn't recreated for them.
+const (
+	LabelRevision = docker.OwnPrefix + "revision"
+	LabelChange   = docker.OwnPrefix + "change"
+)
+
+// LogKeeper keeps the log of a container about to be removed. A failure to
+// keep one never stops the change: it says so in its own log.
+type LogKeeper interface {
+	// Begin copies what the container's log holds so far, while it still
+	// runs, so the step's downtime doesn't wait for that. failed says the
+	// container failed, so its log outlives those of containers replaced in
+	// the ordinary way.
+	Begin(ctx context.Context, c *docker.Container, failed bool) LogKeep
+}
+
+// LogKeep is one container's log being kept.
+type LogKeep interface {
+	// Finish copies what the container wrote since Begin, once it has
+	// stopped and before it is removed, for up to LogCatchUp.
+	Finish(ctx context.Context, c *docker.Container)
+}
+
+// LogCatchUp bounds what a replace waits for a stopped container's last
+// lines, which counts as downtime.
+const LogCatchUp = time.Second
 
 // Deleted is the list of volumes the server keeps for 7 days once a plan
 // takes them out of use: the agent's volume.Kept. It has an environment's
@@ -240,12 +272,17 @@ func anonymous(name string) bool {
 // it replaces, if any, so their data stays, as Compose keeps them. Where
 // old has none, one kept for the container's image, as a deletion left it,
 // is mounted again: those are returned, by path.
-func (d *Docker) createRequest(t Target, spec *resourcev1.Container, old *docker.Container, kept map[string]string) (*docker.CreateRequest, []string, map[string]string) {
+func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.Container, old *docker.Container, kept map[string]string) (*docker.CreateRequest, []string, map[string]string) {
+	labels := Labels(t, spec)
+	if deploy := resource.DeployOf(ctx); deploy.Revision > 0 {
+		labels[LabelRevision] = strconv.Itoa(deploy.Revision)
+		labels[LabelChange] = deploy.Change
+	}
 	req := &docker.CreateRequest{Config: docker.Config{
 		Image:       spec.GetImage(),
 		Cmd:         spec.GetCommand(),
 		Entrypoint:  spec.GetEntrypoint(),
-		Labels:      Labels(t, spec),
+		Labels:      labels,
 		User:        spec.GetUser(),
 		WorkingDir:  spec.GetWorkingDir(),
 		Healthcheck: healthcheck(spec.GetHealthcheck()),
@@ -261,6 +298,7 @@ func (d *Docker) createRequest(t Target, spec *resourcev1.Container, old *docker
 	req.HostConfig.NanoCPUs = cpuNanos(spec.GetResources().GetCpus())
 	req.HostConfig.Memory = memoryBytes(spec.GetResources().GetMemory())
 	req.HostConfig.MemoryReservation = memoryBytes(spec.GetResources().GetMemoryReservation())
+	req.HostConfig.LogConfig = d.logConfig(ctx)
 	for _, p := range spec.GetPorts() {
 		key := fmt.Sprintf("%d/%s", p.GetContainerPort(), protocolName(p.GetProtocol()))
 		if req.HostConfig.PortBindings == nil {
@@ -315,6 +353,55 @@ func (d *Docker) createRequest(t Target, spec *resourcev1.Container, old *docker
 		req.NetworkingConfig.EndpointsConfig[name] = &docker.EndpointSettings{Aliases: aliases}
 	}
 	return req, later, restored
+}
+
+// logConfig is how Docker keeps a new container's log. Docker's default,
+// json-file, keeps it without a limit, which can fill a server's disk, so it
+// gets rotation. Any other default is the operator's choice, which stands:
+// local rotates by itself, and journald and the like keep logs elsewhere. A
+// container's log config isn't part of its spec, so it can't read as drift,
+// and it comes in with the next replace, never by itself.
+func (d *Docker) logConfig(ctx context.Context) *docker.LogConfig {
+	info, err := d.Client.Info(ctx)
+	if err != nil || info.LoggingDriver == "" || info.LoggingDriver == docker.LogDriverJSONFile {
+		return docker.Rotation()
+	}
+	return nil
+}
+
+// failedBefore reports a container that wasn't well when a step came to
+// replace it, so its log is worth keeping longer than an ordinary one's.
+func failedBefore(c *docker.Container) bool {
+	s := c.State
+	switch {
+	case s.Restarting, s.Health != nil && s.Health.Status == "unhealthy":
+		return true
+	default:
+		return !s.Running && s.ExitCode != 0
+	}
+}
+
+// beginKeepingLogs starts keeping the log of a container a step is about to
+// remove. Dockwell's rollback removes what failed, whatever its state says.
+func (d *Docker) beginKeepingLogs(ctx context.Context, c *docker.Container) LogKeep {
+	if d.Logs == nil {
+		return nil
+	}
+	return d.Logs.Begin(ctx, c, resource.DeployOf(ctx).Rollback || failedBefore(c))
+}
+
+// finishKeepingLogs takes in a stopped container's last lines, and how it
+// ended, before it is removed.
+func (d *Docker) finishKeepingLogs(ctx context.Context, keep LogKeep, c *docker.Container) {
+	if keep == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), LogCatchUp)
+	defer cancel()
+	if stopped, err := d.Client.InspectContainer(ctx, c.ID); err == nil {
+		c = stopped
+	}
+	keep.Finish(ctx, c)
 }
 
 // imageVolumes are the volumes Docker made for c's image, by the path
@@ -840,7 +927,7 @@ func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, 
 	if err != nil {
 		return err
 	}
-	req, later, restored := d.createRequest(t, spec, old, kept)
+	req, later, restored := d.createRequest(ctx, t, spec, old, kept)
 	if restore && len(restored) == 0 {
 		return fmt.Errorf("the data %s's image kept, which this change was to mount again, is gone: the server keeps it for 7 days after a change takes it out of use, then removes it. "+
 			"Plan the change again: it makes %s with its image's volumes empty", t.Name, t.Name)
@@ -886,10 +973,12 @@ func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, 
 		return discard(err)
 	}
 	if old != nil {
+		keep := d.beginKeepingLogs(ctx, old)
 		resource.Progress(ctx, "Stopping the old container")
 		if err := d.Client.StopContainer(ctx, old.ID, StopTimeout); err != nil && !docker.IsNotFound(err) {
 			return discard(fmt.Errorf("can't stop the old %s: %w", t.Name, err))
 		}
+		d.finishKeepingLogs(ctx, keep, old)
 		if err := d.Client.RemoveContainer(ctx, old.ID, true); err != nil && !docker.IsNotFound(err) {
 			return discard(fmt.Errorf("can't remove the old %s: %w", t.Name, err))
 		}
@@ -1159,9 +1248,11 @@ func (d *Docker) Remove(ctx context.Context, t Target) error {
 	} else if c, err = d.unfinished(ctx, t); err != nil || c == nil {
 		return err
 	}
+	keep := d.beginKeepingLogs(ctx, c)
 	if err := d.Client.StopContainer(ctx, c.ID, StopTimeout); err != nil && !docker.IsNotFound(err) {
 		return err
 	}
+	d.finishKeepingLogs(ctx, keep, c)
 	if err := d.Client.RemoveContainer(ctx, c.ID, true); err != nil && !docker.IsNotFound(err) {
 		return err
 	}

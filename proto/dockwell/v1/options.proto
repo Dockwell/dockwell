@@ -22,6 +22,16 @@ enum Effect {
   EFFECT_DESTRUCTIVE = 4;
 }
 
+// TokenGrant is something an API token may do beyond its scope, which its
+// maker has to ask for. A token has none unless it was made with it, so a
+// token made for something else never gains it.
+enum TokenGrant {
+  TOKEN_GRANT_UNSPECIFIED = 0;
+  // Reading logs, which often hold secrets and personal data that apps
+  // print.
+  TOKEN_GRANT_LOGS = 1;
+}
+
 // Command names a method's command in the dockwell CLI, dockwell <noun>
 // <verb>, where the generator's rules give a name that is taken or
 // misleading. By the rules, the noun is the collection in the method's REST
@@ -48,6 +58,9 @@ extend google.protobuf.MethodOptions {
   // secret, which also takes a fresh passkey assertion. AuthService and
   // TokenService, which no token may call at all, leave it unset.
   bool needs_session = 50102;
+  // What an API token needs for this method, beyond its scope, because of
+  // what the method can read. Most methods leave it unset.
+  TokenGrant needs_grant = 50103;
 }
 
 // Noun describes one noun of the dockwell CLI, the command that holds the

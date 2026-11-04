@@ -532,6 +532,9 @@ const (
 	// ReasonTokenScope: the call came with a read-only API token, and makes
 	// changes.
 	ReasonTokenScope = "token_scope"
+	// ReasonTokenLogs: the call reads logs, and came with an API token made
+	// without the grant to.
+	ReasonTokenLogs = "token_logs"
 	// ReasonNeedsSession: the call came with an API token, and no token may
 	// make it: it is destructive, or manages sign-in or tokens.
 	ReasonNeedsSession = "needs_session"
