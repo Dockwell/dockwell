@@ -821,6 +821,20 @@ func TestThePanelSitsBehindCaddyOnRealCaddy(t *testing.T) {
 	if code, _ := plain(http.MethodPost, "panel.example.net", nil); code == http.StatusBadRequest {
 		t.Error("plain HTTP keeps the panel's rules after the panel went")
 	}
+
+	// A domain given to Dockwell later puts them back, on a Caddy already up.
+	if err := c.SetPanel(t.Context(), site); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := plain(http.MethodPost, "panel.example.net", nil); code != http.StatusBadRequest {
+		t.Errorf("after the panel came back, a POST over plain HTTP gets %d, want 400", code)
+	}
+	if res := r.waitServing(t, "panel.example.net", "/"); res.StatusCode != http.StatusOK {
+		_ = res.Body.Close()
+		t.Errorf("after the panel came back, it answers %d", res.StatusCode)
+	} else {
+		_ = res.Body.Close()
+	}
 }
 
 // Stopping keeps certificates, and the next start needs no new one.
@@ -845,6 +859,10 @@ func TestStoppingKeepsCertificatesOnRealCaddy(t *testing.T) {
 	}
 	if err := c.DeleteRoute(t.Context(), "dockwell.env.www"); err != nil {
 		t.Fatal(err)
+	}
+	// Deleting what isn't there changes nothing.
+	if err := c.DeleteRoute(t.Context(), "dockwell.env.www"); err != nil {
+		t.Errorf("deleting a route that is gone: %v", err)
 	}
 	if err := c.Stop(t.Context()); err != nil {
 		t.Fatal(err)

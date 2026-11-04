@@ -658,6 +658,9 @@ func (c *Caddy) mutate(ctx context.Context, edit func([]json.RawMessage) ([]json
 		if err != nil {
 			return err
 		}
+		if next == nil {
+			next = []json.RawMessage{} // "null" isn't a list of routes
+		}
 		sortRoutes(next)
 		body, err := json.Marshal(next)
 		if err != nil {
@@ -825,7 +828,7 @@ func (c *Caddy) InFlight(ctx context.Context, up string) (int, error) {
 // manages anew.
 func (c *Caddy) Retry(ctx context.Context) error {
 	raw, etag, up, err := c.rawRoutes(ctx)
-	if err != nil || !up {
+	if err != nil || !up || raw == nil {
 		return err
 	}
 	body, err := json.Marshal(raw)

@@ -148,7 +148,12 @@ func (c *Container) Run(ctx context.Context, config string) error {
 // but its own directories.
 func (c *Container) request(ref, config string) *docker.CreateRequest {
 	uid, gid, _ := proxyUser()
-	bind := func(name, target string) string { return filepath.Join(c.Dir, name) + ":" + target + ":Z" }
+	// Docker takes an absolute path alone, and --data-dir may not be one.
+	dir, err := filepath.Abs(c.Dir)
+	if err != nil {
+		dir = c.Dir
+	}
+	bind := func(name, target string) string { return filepath.Join(dir, name) + ":" + target + ":Z" }
 	req := &docker.CreateRequest{Config: docker.Config{
 		Image:  ref,
 		Cmd:    []string{"caddy", "run", "--config", config, "--resume"},

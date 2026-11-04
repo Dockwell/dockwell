@@ -137,7 +137,7 @@ A rollout makes the new container as instance 2 with `Endpoint`, starts it, wait
 Three things are #28's to settle, and each has a place to do it:
 - **Which number a service's instance has after a rollout.** `addresses.json` keys on the instance, and a route change goes on using the instances the table has. Only a service with none, on its first route, is taken to be instance 1, and the container driver asks for instance 1 when it replaces a container (`joinIngress`), which #28 replaces with the instance it is making.
 - **How long `Drain` waits.** It takes a context. Long-lived streams would hold it for as long as they last, so #28 gives it a deadline, and what is left ends with the container.
-- **Health.** Caddy's own health checks aren't configured. `reverse_proxy` holds a request for 3 s (`try_duration`) while its upstream refuses connections, which covers a container's stop and start, and #28 adds an upstream only once Docker calls it healthy.
+- **Health.** Caddy's own health checks aren't configured. `reverse_proxy` holds a request for 3 s (`try_duration`) while its upstream refuses connections, so a brief gap doesn't show as an error, and #28 adds an upstream only once Docker calls it healthy.
 
 ### Reloads drop nothing
 
