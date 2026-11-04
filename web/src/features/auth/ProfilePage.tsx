@@ -14,7 +14,7 @@ import { PasskeysPanel, useAddPasskey } from "./PasskeysPanel";
 import { SessionsPanel } from "./SessionsPanel";
 import { TotpPanel } from "./TotpPanel";
 import { useAgo } from "./time";
-import { useAuthState } from "./useAuthState";
+import { useSignedIn } from "./useAuthState";
 import { useSignOut } from "./useSignOut";
 import "./auth.css";
 import "./ProfilePage.css";
@@ -29,10 +29,10 @@ export type ProfileVia = "link" | "recovery-code";
  */
 export function ProfilePage({ via }: { via?: ProfileVia }) {
   const { t } = useLingui();
-  const auth = useAuthState();
+  const auth = useSignedIn();
   const signOut = useSignOut();
-  const how = useSignedInWith(auth.data?.signInMethod ?? SignInMethod.UNSPECIFIED);
-  const user = auth.data?.user;
+  const how = useSignedInWith(auth?.signInMethod ?? SignInMethod.UNSPECIFIED);
+  const user = auth?.user;
 
   return (
     <Page
@@ -57,9 +57,9 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
           {signOut.problem}
         </p>
       ) : null}
-      <ProfileCallout via={via} rpId={auth.data?.rpId ?? ""} />
+      <ProfileCallout via={via} rpId={auth?.rpId ?? ""} />
       <div className="profile-grid">
-        <PasskeysPanel rpId={auth.data?.rpId ?? ""} />
+        <PasskeysPanel rpId={auth?.rpId ?? ""} />
         <TotpPanel />
         <SessionsPanel />
       </div>

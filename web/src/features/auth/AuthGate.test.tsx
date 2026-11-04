@@ -150,6 +150,44 @@ describe("the sign-in gate", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Sign in to Dockwell" })).toBeVisible();
   });
 
+  it("reads again when a session ends, rather than wait for a read that left before", async () => {
+    let signedIn = true;
+    // Each read answers as the session was when it arrived, but only once the test lets it, after the first.
+    const held: Array<() => void> = [];
+    const release = () => {
+      for (const answer of held.splice(0)) answer();
+    };
+    const getAuthState = vi.fn(async () => {
+      const state = authState(signedIn ? {} : { user: undefined });
+      if (getAuthState.mock.calls.length > 1) await new Promise<void>((resolve) => held.push(resolve));
+      return state;
+    });
+    renderAt("/profile", {
+      system,
+      auth: {
+        getAuthState,
+        listPasskeys: () => ({ passkeys: [{ id: "pky_1", name: "YubiKey 5C", rpId: "localhost" }] }),
+        listSessions: () => ({ sessions: [] }),
+        getTotp: () => ({}),
+        removePasskey: () => {
+          signedIn = false;
+          throw authError(Code.Unauthenticated, "session_ended");
+        },
+      },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Remove YubiKey 5C" }));
+    // Coming back to the tab sends a read while the session is still there.
+    refocus();
+    await waitFor(() => expect(getAuthState.mock.calls.length).toBeGreaterThan(1));
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+    await screen.findByText("Your session ended", { exact: false });
+
+    await waitFor(() => {
+      release();
+      expect(screen.getByRole("heading", { level: 1, name: "Sign in to Dockwell" })).toBeVisible();
+    });
+  });
+
   it("returns to sign-in when a stream's session ends", async () => {
     let signedIn = true;
     renderAt("/", {

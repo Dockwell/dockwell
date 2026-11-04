@@ -41,9 +41,20 @@ export function isTransient(error: unknown): boolean {
 /** The key of the sign-in state that the auth gate reads. */
 export const authStateKey = createConnectQueryKey({ schema: AuthService.method.getAuthState, cardinality: undefined });
 
-/** Makes the gate read the sign-in state again, sharing a read already under way. */
+/** The query clients with a recheck under way. */
+const rechecking = new WeakSet<QueryClient>();
+
+/**
+ * Makes the gate read the sign-in state again, after a call found the
+ * session ended. A read already under way may have left before the session
+ * ended, and would say it hadn't, so this starts its own. Calls that find
+ * the session ended while that read is under way share it: it left after
+ * the session ended.
+ */
 export function recheckAuth(client: QueryClient): void {
-  void client.invalidateQueries({ queryKey: authStateKey }, { cancelRefetch: false });
+  if (rechecking.has(client)) return;
+  rechecking.add(client);
+  void client.invalidateQueries({ queryKey: authStateKey }).finally(() => rechecking.delete(client));
 }
 
 /**

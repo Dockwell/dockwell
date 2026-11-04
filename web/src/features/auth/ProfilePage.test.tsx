@@ -86,6 +86,15 @@ describe("ProfilePage", () => {
     );
   });
 
+  it("takes who is signed in from the gate, without reading it again", async () => {
+    const getAuthState = vi.fn(() => authState());
+    renderAt("/profile", api({ getAuthState }));
+    await within(await screen.findByRole("region", { name: "Sessions" })).findAllByRole("listitem");
+    expect(screen.getByText("Mira Chen · mira@acme.dev · signed in with a passkey")).toBeVisible();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(getAuthState).toHaveBeenCalledOnce();
+  });
+
   it("signs out another session", async () => {
     const revokeSession = vi.fn(() => ({}));
     renderAt("/profile", api({ revokeSession }));

@@ -13,13 +13,18 @@ export function useAuthState() {
 }
 
 /**
- * Who is signed in, for the parts of the shell that show it. The gate has
- * read the sign-in state already, so they don't read it again as they
- * appear: such a read could answer from just before a session ended, and the
- * gate's recheck would wait for it rather than ask again.
+ * The sign-in state as the gate last read it, for pages behind the gate and
+ * the parts of the shell that show who is signed in. They don't read it
+ * again as they appear: the gate has an answer already, and keeps it
+ * current.
  */
+export function useSignedIn() {
+  return useQuery(AuthService.method.getAuthState, {}, { refetchOnMount: false }).data;
+}
+
+/** Who is signed in, from the gate's answer. */
 export function useSignedInUser() {
-  return useQuery(AuthService.method.getAuthState, {}, { refetchOnMount: false }).data?.user;
+  return useSignedIn()?.user;
 }
 
 /** Makes the gate read the sign-in state again, after signing in or out. */
