@@ -34,6 +34,13 @@ async function renderWith(path: string, ...servers: ReturnType<typeof aServer>[]
 
 const rail = () => screen.getByRole("navigation", { name: "Main" });
 
+/** What a link shows, leaving out what screen readers skip, such as the narrow rail's tooltip. */
+function shown(link: HTMLElement): string {
+  const copy = link.cloneNode(true) as HTMLElement;
+  for (const hidden of copy.querySelectorAll('[aria-hidden="true"]')) hidden.remove();
+  return copy.textContent ?? "";
+}
+
 describe("the shell on wide screens", () => {
   it("shows one server the way the single-server mocks do", async () => {
     await renderWith("/", hz1);
@@ -79,9 +86,7 @@ describe("the shell on wide screens", () => {
 
   it("lays out every section of the design's rail, in its order", async () => {
     await renderWith("/", hz1);
-    const names = within(rail())
-      .getAllByRole("link")
-      .map((link) => link.textContent);
+    const names = within(rail()).getAllByRole("link").map(shown);
     expect(names).toEqual([
       "0.4.0",
       "Overview",
@@ -98,6 +103,21 @@ describe("the shell on wide screens", () => {
       "Scheduled tasks",
       "Settings",
     ]);
+  });
+
+  it("names each item once, keeping the narrow rail's tooltip from screen readers", async () => {
+    await renderWith("/", hz1);
+    const items = rail().querySelectorAll<HTMLElement>(".rail-item");
+    expect(items.length).toBeGreaterThan(10);
+    for (const item of items) {
+      const label = item.querySelector(".rail-label")?.textContent ?? "";
+      const tip = item.querySelector(".rail-tip");
+      expect(tip).toHaveTextContent(label);
+      expect(tip).toHaveAttribute("aria-hidden", "true");
+      expect(item).toHaveAccessibleName(shown(item).trim());
+      // Generated content would join the name, as "Overview Overview".
+      expect(item).not.toHaveAttribute("data-label");
+    }
   });
 
   it("marks where you are, including the pages below a section", async () => {

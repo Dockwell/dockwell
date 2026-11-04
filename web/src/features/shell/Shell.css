@@ -166,6 +166,11 @@
   font-family: var(--font-mono);
 }
 
+/* The narrow rail's tooltip; the wide rail shows the label itself. */
+.rail-tip {
+  display: none;
+}
+
 .rail-fill {
   flex: 1 1 var(--space-6);
 }
@@ -330,9 +335,13 @@
     white-space: nowrap;
   }
 
-  /* The name, shown beside the icon on hover and keyboard focus. */
-  .rail-item::after {
-    content: attr(data-label);
+  /*
+   * The name, shown beside the icon on hover and keyboard focus. It is an
+   * element hidden from screen readers rather than generated content, which
+   * browsers add to the link's name, so it would read "Overview Overview".
+   */
+  .rail-tip {
+    display: block;
     position: fixed;
     left: 60px;
     z-index: var(--z-toast);
@@ -349,8 +358,8 @@
     transition: opacity var(--motion-fast) var(--ease-out);
   }
 
-  .rail-item:hover::after,
-  .rail-item:focus-visible::after {
+  .rail-item:hover .rail-tip,
+  .rail-item:focus-visible .rail-tip {
     opacity: 1;
   }
 }

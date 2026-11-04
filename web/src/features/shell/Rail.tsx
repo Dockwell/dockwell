@@ -5,7 +5,6 @@ import { SystemService } from "@dockwell/api";
 import { cx, Icon, type IconName, Logo } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link, useLocation } from "@tanstack/react-router";
-import type { ReactNode } from "react";
 
 import type { FleetShape } from "../servers/server";
 import { firstSegment, OPERATE, RESOURCES, UPCOMING, type UpcomingSection } from "./sections";
@@ -30,7 +29,6 @@ export function Rail({ shape }: { shape: FleetShape }) {
         params={{ section: id }}
         activeOptions={{ exact: true }}
         {...current(segment === id)}
-        data-label={i18n._(label)}
       >
         <ItemBody icon={icon} label={i18n._(label)} />
       </Link>
@@ -50,19 +48,14 @@ export function Rail({ shape }: { shape: FleetShape }) {
           </Link>
         ) : null}
       </div>
-      <Link to="/" activeOptions={{ exact: true }} {...current(segment === "")} data-label={t`Overview`}>
+      <Link to="/" activeOptions={{ exact: true }} {...current(segment === "")}>
         <ItemBody icon="home" label={t`Overview`} />
       </Link>
       {RESOURCES.map(section)}
       {shape.fleet ? (
         <>
           <div className="rail-section">{t`Fleet`}</div>
-          <Link
-            to="/servers"
-            activeOptions={{ exact: true }}
-            {...current(segment === "servers")}
-            data-label={t`Servers`}
-          >
+          <Link to="/servers" activeOptions={{ exact: true }} {...current(segment === "servers")}>
             <ItemBody icon="server" label={t`Servers`} count={String(servers)} />
           </Link>
           {section("fleet-actions")}
@@ -70,12 +63,7 @@ export function Rail({ shape }: { shape: FleetShape }) {
       ) : (
         <>
           <div className="rail-section">{t`Machine`}</div>
-          <Link
-            to="/servers"
-            activeOptions={{ exact: true }}
-            {...current(segment === "servers")}
-            data-label={t`Server`}
-          >
+          <Link to="/servers" activeOptions={{ exact: true }} {...current(segment === "servers")}>
             <ItemBody icon="server" label={t`Server`} count={shape.only?.name} machineCount />
           </Link>
         </>
@@ -98,7 +86,7 @@ function current(active: boolean) {
 
 interface ItemBodyProps {
   icon: IconName;
-  label: ReactNode;
+  label: string;
   count?: string | undefined;
   /** The count is a machine value, such as a server's name. */
   machineCount?: boolean;
@@ -116,6 +104,10 @@ function ItemBody({ icon, label, count, machineCount = false }: ItemBodyProps) {
           <span className={cx("rail-count", machineCount && "is-machine")}>{count}</span>
         </>
       ) : null}
+      {/* The narrow rail's tooltip. The label already names the link, so screen readers skip this copy. */}
+      <span className="rail-tip" aria-hidden="true">
+        {label}
+      </span>
     </>
   );
 }
