@@ -105,7 +105,7 @@ func testComposeThroughTheAPI(t *testing.T, backend store.Backend) {
 	// What a container may never mount is refused as the file imports, as
 	// a bind or a volume's bind device; another server path is host access.
 	for file, want := range map[string]string{
-		"services:\n  sh:\n    image: alpine\n    volumes: [\"/:/host\"]\n": "the server path / mounted at /host is the server's whole file system",
+		"services:\n  sh:\n    image: alpine\n    volumes: [\"/:/host\"]\n":                                                                                       "the server path / mounted at /host is the server's whole file system",
 		"services:\n  sh:\n    image: alpine\n    volumes: [\"keys:/k\"]\nvolumes:\n  keys:\n    driver_opts: {type: none, o: bind, device: /var/lib/dockwell}\n": "the server path /var/lib/dockwell that the volume binds is in Dockwell's data directory",
 	} {
 		_, err := cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: file}))
