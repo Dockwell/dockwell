@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { StatusBadge, Toast } from "@dockwell/ui";
+import { ConnectError } from "@connectrpc/connect";
+import { Button, StatusBadge, Toast } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useLocation, useMatches } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
+import { reasonOf } from "../../lib/errors";
 import { useElapsed } from "../../lib/useElapsed";
 import { StandalonePage } from "../system/StandalonePage";
 import { Unreachable } from "../system/Unreachable";
+import { useAuthError } from "./messages";
 import { SignInPage } from "./SignInPage";
 import { Unclaimed } from "./Unclaimed";
 import { useAuthState } from "./useAuthState";
+import "../system/Unreachable.css";
 
 /**
  * Shows a page only to someone signed in. Routes marked public (the claim
@@ -37,7 +41,13 @@ function SignedInOnly({ children }: { children: ReactNode }) {
     );
   }
   if (!state.data) {
-    return (
+    // The control plane names its reason when it answers with a refusal,
+    // such as for another address; with none, it didn't answer at all.
+    return reasonOf(state.error) ? (
+      <StandalonePage title={t`Can't check your session`}>
+        <Refused error={state.error} retrying={state.isFetching} onRetry={() => void state.refetch()} />
+      </StandalonePage>
+    ) : (
       <StandalonePage title={t`Can't reach the control plane`}>
         <Unreachable error={state.error} retrying={state.isFetching} onRetry={() => void state.refetch()} />
       </StandalonePage>
@@ -45,7 +55,9 @@ function SignedInOnly({ children }: { children: ReactNode }) {
   }
   // A later check that failed leaves what the last one said in place, and
   // says quietly that it may be out of date.
-  const stale = state.isError ? <Stale retrying={state.isFetching} onRetry={() => void state.refetch()} /> : null;
+  const stale = state.isError ? (
+    <Stale error={state.error} retrying={state.isFetching} onRetry={() => void state.refetch()} />
+  ) : null;
   let page = children;
   if (!state.data.claimed) {
     page = <Unclaimed serverName={state.data.serverName} />;
@@ -60,18 +72,52 @@ function SignedInOnly({ children }: { children: ReactNode }) {
   );
 }
 
-function Stale({ retrying, onRetry }: { retrying: boolean; onRetry: () => void }) {
+interface FailedProps {
+  error: unknown;
+  retrying: boolean;
+  onRetry: () => void;
+}
+
+/**
+ * The control plane answered the first check with a refusal, so there is
+ * nothing to show yet: say why in the panel's words, and how to fix it.
+ */
+function Refused({ error, retrying, onRetry }: FailedProps) {
   const { t } = useLingui();
+  const explain = useAuthError();
+  const err = ConnectError.from(error);
+  return (
+    <>
+      <header className="standalone-head">
+        <StatusBadge status="down" label={t`Refused`} />
+        <h1 className="dw-text-title">
+          <Trans>Can't check your session</Trans>
+        </h1>
+        <p className="standalone-lead">{explain(error)}</p>
+      </header>
+      <div className="unreachable-actions">
+        <Button icon="refresh" loading={retrying} onClick={onRetry}>
+          {retrying ? t`Retrying` : t`Retry`}
+        </Button>
+        <code className="unreachable-detail">{err.rawMessage || err.message}</code>
+      </div>
+    </>
+  );
+}
+
+function Stale({ error, retrying, onRetry }: FailedProps) {
+  const { t } = useLingui();
+  const explain = useAuthError();
+  const answered = reasonOf(error) !== "";
+  let description = t`What you see may be out of date. Check that dockwell run is still running on the server, then retry.`;
+  if (retrying) description = t`Checking again.`;
+  else if (answered) description = t`What you see may be out of date. ${explain(error)}`;
   return (
     <div className="dw-toaster">
       <Toast
         tone="warning"
-        title={t`Can't reach the control plane`}
-        description={
-          retrying
-            ? t`Checking again.`
-            : t`What you see may be out of date. Check that dockwell run is still running on the server, then retry.`
-        }
+        title={answered ? t`Can't check your session` : t`Can't reach the control plane`}
+        description={description}
         action={{ label: t`Retry`, icon: "refresh", onClick: onRetry }}
       />
     </div>

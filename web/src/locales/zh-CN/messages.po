@@ -284,6 +284,10 @@ msgid "by claiming this install"
 msgstr "通过认领此安装"
 
 #: src/features/auth/AuthGate.tsx
+msgid "Can't check your session"
+msgstr "无法检查你的会话"
+
+#: src/features/auth/AuthGate.tsx
 #: src/features/system/Unreachable.tsx
 msgid "Can't reach the control plane"
 msgstr "无法连接到控制平面"
@@ -1021,6 +1025,10 @@ msgstr "正在重新连接"
 msgid "Recovery codes"
 msgstr "恢复码"
 
+#: src/features/auth/AuthGate.tsx
+msgid "Refused"
+msgstr "已拒绝"
+
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Remove"
 msgstr "移除"
@@ -1054,6 +1062,7 @@ msgstr "结果"
 msgid "Retry"
 msgstr "重试"
 
+#: src/features/auth/AuthGate.tsx
 #: src/features/system/Unreachable.tsx
 msgid "Retrying"
 msgstr "正在重试"
@@ -1567,6 +1576,11 @@ msgstr "网站"
 #: src/features/auth/ClaimPage.tsx
 msgid "What happens next"
 msgstr "接下来"
+
+#. placeholder {0}: explain(error)
+#: src/features/auth/AuthGate.tsx
+msgid "What you see may be out of date. {0}"
+msgstr "你看到的内容可能已过时。{0}"
 
 #: src/features/auth/AuthGate.tsx
 msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."

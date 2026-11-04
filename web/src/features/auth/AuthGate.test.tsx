@@ -89,6 +89,46 @@ describe("the sign-in gate", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Can't reach the control plane" })).toBeVisible();
   });
 
+  it.each([
+    ["misdirected", Code.Unknown, "The control plane doesn't answer at this address."],
+    ["origin", Code.PermissionDenied, "it didn't come from the panel's own address."],
+    ["unavailable", Code.Unavailable, "The control plane couldn't check your session just now."],
+  ])("says why when the control plane answers %s", async (reason, code, text) => {
+    renderAt("/", {
+      system,
+      auth: {
+        getAuthState: () => {
+          throw authError(code, reason);
+        },
+      },
+    });
+    expect(await screen.findByRole("heading", { level: 1, name: "Can't check your session" })).toBeVisible();
+    expect(screen.getByText(text, { exact: false })).toBeVisible();
+    expect(screen.queryByText("didn't answer the API", { exact: false })).toBeNull();
+    expect(document.title).toBe("Can't check your session · Dockwell");
+  });
+
+  it("says why when a later check is answered with a refusal", async () => {
+    let up = true;
+    renderAt("/", {
+      system,
+      auth: {
+        getAuthState: () => {
+          if (!up) throw authError(Code.Unavailable, "unavailable");
+          return authState();
+        },
+      },
+    });
+    expect(await screen.findByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    up = false;
+    refocus();
+    const notice = await screen.findByText("The control plane couldn't check your session just now.", {
+      exact: false,
+    });
+    expect(notice.closest("[role=status]")).toHaveTextContent("Can't check your session");
+    expect(screen.queryByText("Can't reach the control plane")).toBeNull();
+  });
+
   it("keeps the page when a later check fails, and says it may be out of date", async () => {
     let up = true;
     const getAuthState = vi.fn(() => {
