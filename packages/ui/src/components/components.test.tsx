@@ -90,16 +90,32 @@ describe("Button", () => {
     await expectAccessible(container);
   });
 
-  it("shows its shortcut and passes the ref", () => {
+  it("shows its shortcut, keeping it out of the name, and passes the ref", async () => {
     const ref = createRef<HTMLButtonElement>();
-    render(
+    const { container } = render(
       <Button ref={ref} kbd="⌘↵" type="submit">
         Apply plan
       </Button>,
     );
-    expect(ref.current).toBe(screen.getByRole("button", { name: /Apply plan/ }));
+    expect(ref.current).toBe(screen.getByRole("button", { name: "Apply plan" }));
     expect(ref.current).toHaveAttribute("type", "submit");
+    expect(ref.current).toHaveAttribute("aria-keyshortcuts", "Meta+Enter");
     expect(screen.getByText("⌘↵").tagName).toBe("KBD");
+    expect(screen.getByText("⌘↵")).toHaveAttribute("aria-hidden", "true");
+    await expectAccessible(container);
+  });
+
+  it("leaves out a shortcut aria-keyshortcuts can't say, and takes the caller's", () => {
+    render(
+      <>
+        <Button kbd="G F">Fleet</Button>
+        <Button kbd="⌘↵" aria-keyshortcuts="Control+Enter">
+          Apply plan
+        </Button>
+      </>,
+    );
+    expect(screen.getByRole("button", { name: "Fleet" })).not.toHaveAttribute("aria-keyshortcuts");
+    expect(screen.getByRole("button", { name: "Apply plan" })).toHaveAttribute("aria-keyshortcuts", "Control+Enter");
   });
 });
 

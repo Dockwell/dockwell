@@ -24,7 +24,9 @@ describe("Toast", () => {
     const toast = screen.getByRole("status");
     expect(toast).toHaveClass("dw-toast", "dw-tone-healthy");
     expect(toast).toHaveTextContent("Rolled back to r127api serves r127 on 3 replicas.");
-    await user.click(screen.getByRole("button", { name: /^Undo/ }));
+    const undo = screen.getByRole("button", { name: "Undo" });
+    expect(undo).toHaveAttribute("aria-keyshortcuts", "Meta+Z");
+    await user.click(undo);
     expect(onUndo).toHaveBeenCalledOnce();
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(onClose).toHaveBeenCalledOnce();
