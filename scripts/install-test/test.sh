@@ -8,10 +8,12 @@
 #
 # The releases are served over HTTP on the host's loopback, as GitHub serves
 # them, and each container shares the host's network to reach them. A mirror
-# of them (mirror.sh) is served on a second port. <cosign> is a copy of the
-# cosign that install.sh pins, for this machine's architecture; the first
-# install in each container downloads its own, the mirror serves this one, and
-# the other installs reuse it. Needs Docker and python3.
+# of them (mirror.sh) is served on a second port; on a third, as a storage
+# bucket serves it, answering 403 for a file it doesn't have; and mounted, for
+# file:// URLs. <cosign> is a copy of the cosign that install.sh pins, for this
+# machine's architecture; the first install in each container downloads its
+# own, the mirror serves this one, and the other installs reuse it. Needs
+# Docker and python3.
 set -euo pipefail
 
 releases=$(realpath "${1:?usage: test.sh <releases> <cosign> <image>...}")
@@ -26,13 +28,15 @@ repo=$(git rev-parse --show-toplevel)
 source "$releases/versions"
 port=${RELEASES_PORT:-8099}
 mirror_port=${MIRROR_PORT:-8098}
+bucket_port=${BUCKET_PORT:-8097}
 
 case $(uname -m) in
 x86_64) pin=$(sed -n 's/^COSIGN_SHA256_AMD64=//p' "$repo/scripts/install.sh") ;;
 aarch64) pin=$(sed -n 's/^COSIGN_SHA256_ARM64=//p' "$repo/scripts/install.sh") ;;
 *) pin= ;;
 esac
-cosign_env=(-e COSIGN=/cosign -e MIRROR="http://127.0.0.1:$mirror_port")
+cosign_env=(-e COSIGN=/cosign -e MIRROR="http://127.0.0.1:$mirror_port"
+  -e BUCKET="http://127.0.0.1:$bucket_port" -e MIRROR_FILE=file:///mirror)
 if [[ "$(sha256sum "$cosign" | cut -d ' ' -f 1)" != "$pin" ]]; then
   echo "test.sh: $cosign isn't the cosign install.sh pins, so every install downloads its own, and the mirror isn't tested." >&2
   cosign_env=()
@@ -46,8 +50,21 @@ if ((${#cosign_env[@]})); then
 fi
 
 # serve serves a directory on a loopback port, and waits until it answers.
+# With a third argument, bucket, it answers 403 instead of 404, as storage
+# buckets such as S3 and OSS do for a file they don't have.
 serve() {
-  python3 -m http.server --bind 127.0.0.1 --directory "$1" "$2" >/dev/null 2>&1 &
+  python3 -c '
+import functools, http.server, sys
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def send_error(self, code, message=None, explain=None):
+        if code == 404 and sys.argv[3] == "bucket":
+            code = 403
+        super().send_error(code, message, explain)
+
+handler = functools.partial(Handler, directory=sys.argv[1])
+http.server.ThreadingHTTPServer(("127.0.0.1", int(sys.argv[2])), handler).serve_forever()
+' "$1" "$2" "${3:-}" >/dev/null 2>&1 &
   servers+=($!)
   for _ in $(seq 50); do
     curl -fsS -o /dev/null "http://127.0.0.1:$2/" 2>/dev/null && return
@@ -58,6 +75,7 @@ serve() {
 }
 serve "$releases" "$port"
 serve "$mirror" "$mirror_port"
+serve "$mirror" "$bucket_port" bucket
 
 for image in "$@"; do
   [[ -z "${GITHUB_ACTIONS:-}" ]] || echo "::group::$image"
@@ -65,6 +83,7 @@ for image in "$@"; do
     -v "$repo/scripts:/scripts:ro" \
     -v "$releases:/releases:ro" \
     -v "$cosign:/cosign:ro" \
+    -v "$mirror:/mirror:ro" \
     -e INSTALL=/scripts/install.sh \
     -e RELEASES="http://127.0.0.1:$port" \
     -e KEY=/releases/cosign.pub \

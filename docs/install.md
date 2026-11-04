@@ -92,7 +92,7 @@ These settings are for air-gapped servers, mirrors that re-sign releases, and te
 | --- | --- |
 | `DOCKWELL_RELEASES_URL` | Where releases come from, laid out as GitHub lays them out: `<url>/latest/download/` and `<url>/download/v<version>/`. It defaults to `https://github.com/Dockwell/dockwell/releases`. Unlike `--mirror`, it changes nothing else: cosign still comes from GitHub, and Sigstore's trust root from Sigstore |
 | `DOCKWELL_COSIGN` | A cosign binary to use instead of downloading one. It must be the version the script pins, and the script checks its SHA-256 |
-| `DOCKWELL_VERIFY_KEY` | A cosign public key to verify releases with, instead of Dockwell's release signature, for a mirror that re-signs them. It skips the transparency log, so the key's holder is all you trust |
+| `DOCKWELL_VERIFY_KEY` | A cosign public key to verify releases with, instead of Dockwell's release signature, for a mirror that re-signs them. It skips the transparency log, so the key's holder is all you trust. A key needs no Sigstore trust root, so such a mirror needn't serve `sigstore_trusted_root.json` |
 
 ## Change settings
 
@@ -135,7 +135,7 @@ Each release has these files. The mirror needs all of them, except an archive fo
 
 - `dockwell_<version>_linux_amd64.tar.gz` and `dockwell_<version>_linux_arm64.tar.gz`;
 - `checksums.txt` and its signature, `checksums.txt.sigstore.json`;
-- `sigstore_trusted_root.json`, the copy of Sigstore's trust root that the release's script pins;
+- `sigstore_trusted_root.json`, the copy of Sigstore's trust root that the release's script pins. When a release lacks it, or its copy doesn't match the pin, the script takes the latest release's copy instead, so the mirror needs it at least in `latest/download/`;
 - `install.sh`, the install script.
 
 cosign comes from its own GitHub releases, at `https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-linux-amd64` and `…/cosign-linux-arm64`. A mirror of those, with the same paths after its URL, goes in `--cosign-mirror`. You can instead copy cosign to the server and point `DOCKWELL_COSIGN` at it.
@@ -205,10 +205,11 @@ Everything runs from one function call on its last line, so a download that is c
 
 The Install workflow ([`.github/workflows/install.yml`](../.github/workflows/install.yml)) runs on every pull request against a release snapshot built from that commit. The snapshot is laid out as releases and signed with a throwaway key, so no published release is needed.
 
-- **Containers**: stock Debian 13, Ubuntu 26.04, AlmaLinux 9 and Alpine 3.24 images, on amd64 and arm64. Each one installs an older build, refuses a tampered archive and a bad signature, upgrades in place, runs again with nothing to do, uninstalls, and joins a control plane to run only the agent.
-- **Mirror**: in the same containers, the install and upgrade run again through a mirror on a second URL, with GitHub and Sigstore cut off. A cosign, trust root, archive or signature changed on the mirror is refused. A keyless signature from Sigstore's public instance verifies offline against the pinned trust root. systemd isn't running in these containers, so the unit is checked with `systemd-analyze verify` and the binary started the way the unit says. Alpine runs the OpenRC service for real, and uses busybox `wget` instead of curl.
+- **Containers**: stock Debian 13, Ubuntu 26.04, AlmaLinux 9 and Alpine 3.24 images, on amd64 and arm64. Each one installs an older build, refuses a tampered archive and a bad signature, upgrades in place, runs again with nothing to do, uninstalls, and joins a control plane to run only the agent. systemd isn't running in these containers, so the unit is checked with `systemd-analyze verify` and the binary started the way the unit says. Alpine runs the OpenRC service for real, and uses busybox `wget` instead of curl.
+- **Mirror**: in the same containers, the install and upgrade run again through a mirror on a second URL, with GitHub and Sigstore cut off. A cosign, archive or signature changed on the mirror is refused, and so is a version the mirror lacks. The test releases are signed with a key, which needs no trust root, so the upgrade comes from a mirror that carries none. The script's own steps that find the trust root on a mirror are tested on their own, through a mirror that answers 404 for a missing file, one that answers 403 as storage buckets do, and a `file://` path: a release without its own copy takes the latest release's, a changed copy is refused, and the latest release's copy is fetched once. A keyless signature from Sigstore's public instance verifies offline against the pinned trust root.
 - **systemd**: the same steps on the runner's own Ubuntu 24.04, where systemd is running, so the service really starts, restarts and stops.
-- **Sigstore trust root**: the copy the script pins is the one Sigstore publishes through TUF now, and it verifies keyless signatures with cosign cut off from the network. Once there is a published release, that includes Dockwell's latest release.
 - **Install time**: every night, an install to a running panel with the install and the service held to one CPU, which fails at 60 s. It runs once with main's snapshot, and once with the latest published release, checked as a server would check it.
 
 Run the container tests locally with `make install-test`, which needs Docker and cosign v3. The scenario itself is [`scripts/install-test/run.sh`](../scripts/install-test/run.sh).
+
+The Sigstore trust root workflow ([`.github/workflows/trust-root.yml`](../.github/workflows/trust-root.yml)) checks that the copy the script pins is the one Sigstore publishes through TUF now, and that it verifies keyless signatures with cosign cut off from the network. Once there is a published release, that includes Dockwell's latest release. Sigstore changes its trust root on its own schedule, so the check doesn't run on every pull request, where one change would fail them all. It runs nightly, on pull requests that change the install script, its tests, the pin, or the workflows that use them, and in the release workflow before a release is published. A failed nightly run opens an issue, or comments on the one already open.

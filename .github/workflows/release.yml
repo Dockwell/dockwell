@@ -3,11 +3,14 @@
 # Every push to main builds a snapshot. A version tag builds a release in two
 # jobs, so no build code ever holds the signing or publishing credentials:
 #
-#   build    read-only, no caches; checks the tag is a green commit on main,
-#            builds with GoReleaser, smoke-tests the binary, uploads dist/.
-#   publish  runs no build code; signs the checksums with cosign (keyless),
-#            checks the signature against the Sigstore trust root the release
-#            carries, attests provenance, and publishes the GitHub release.
+#   build       read-only, no caches; checks the tag is a green commit on main,
+#               builds with GoReleaser, smoke-tests the binary, uploads dist/.
+#   trust-root  for a tag: the Sigstore trust root install.sh pins for mirrors
+#               is the one Sigstore publishes now (scripts/check-trust-root.sh).
+#   publish     runs no build code; signs the checksums with cosign (keyless),
+#               checks the signature against the Sigstore trust root the
+#               release carries, attests provenance, and publishes the GitHub
+#               release.
 #
 # See docs/releasing.md.
 name: Release
@@ -70,12 +73,7 @@ jobs:
       # Mirrors serve these with the archives (docs/adr/0013-mirrors-for-releases-and-images.md).
       - name: Add the install script and the Sigstore trust root it pins
         run: |
-          pinned=$(sed -n 's/^SIGSTORE_ROOT_SHA256=//p' scripts/install.sh)
-          actual=$(sha256sum scripts/sigstore_trusted_root.json | cut -d ' ' -f 1)
-          if [[ -z "$pinned" || "$pinned" != "$actual" ]]; then
-            echo "::error file=scripts/install.sh::install.sh pins the trust root ${pinned:-nothing}, but scripts/sigstore_trusted_root.json is $actual. Update them together, as docs/releasing.md says."
-            exit 1
-          fi
+          scripts/check-trust-root.sh pin
           cp scripts/install.sh scripts/sigstore_trusted_root.json dist/
           (cd dist && sha256sum --check --strict checksums.txt)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -90,9 +88,29 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ github.ref_type == 'tag' && 90 || 14 }}
 
+  # Installs through a mirror check releases against the trust root they carry.
+  # If Sigstore changed its own since the pin last moved, stop before
+  # publishing, and move the pin first, as docs/releasing.md says.
+  trust-root:
+    name: Sigstore trust root
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
+      - name: The pin is the trust root Sigstore publishes now, and verifies keyless signatures offline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/check-trust-root.sh sigstore
+
   publish:
     name: Publish
-    needs: build
+    needs: [build, trust-root]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     timeout-minutes: 15

@@ -8,6 +8,13 @@
 #   <out>/good/, <out>/bad-archive/, <out>/bad-signature/
 #                       the test releases from releases.sh
 #   <out>/bad-root/     v<new> with a Sigstore trust root that isn't the pinned one
+#   <out>/no-root/      v<new> without a trust root, as a mirror that re-signs
+#                       releases with its own key may serve it
+#   <out>/old-root/     checksums and trust roots only, where v<old> has no trust
+#                       root, as a release made before mirrors were supported
+#   <out>/latest-root/  checksums and trust roots only, where v<new> has a trust
+#                       root that isn't the pinned one, and latest/download the
+#                       pinned one
 #   <out>/cosign/good/download/<version>/cosign-linux-<arch>
 #                       the cosign install.sh pins
 #   <out>/cosign/bad/download/<version>/cosign-linux-<arch>
@@ -50,6 +57,27 @@ mkdir -p "$bad"
 cp "$releases/good/download/v$NEW"/* "$bad/"
 printf ' ' >>"$bad/sigstore_trusted_root.json"
 mkdir -p "$out/bad-root/latest" && cp -R "$bad" "$out/bad-root/latest/download"
+
+# A release that a mirror re-signed, with no trust root, since a key needs none.
+bare="$out/no-root/download/v$NEW"
+mkdir -p "$bare"
+cp "$releases/good/download/v$NEW"/* "$bare/"
+rm "$bare/sigstore_trusted_root.json"
+mkdir -p "$out/no-root/latest" && cp -R "$bare" "$out/no-root/latest/download"
+
+# roots copies what install.sh reads to find the trust root, and no archives:
+# each release's checksums and trust root, and the latest release's.
+roots() {
+  local dir
+  for dir in "download/v$OLD" "download/v$NEW" latest/download; do
+    mkdir -p "$out/$1/$dir"
+    cp "$releases/good/$dir/checksums.txt" "$releases/good/$dir/sigstore_trusted_root.json" "$out/$1/$dir/"
+  done
+}
+roots old-root
+rm "$out/old-root/download/v$OLD/sigstore_trusted_root.json"
+roots latest-root
+printf ' ' >>"$out/latest-root/download/v$NEW/sigstore_trusted_root.json"
 
 for tree in good bad; do
   mkdir -p "$out/cosign/$tree/download/$cosign_version"

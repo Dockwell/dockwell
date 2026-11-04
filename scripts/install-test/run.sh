@@ -7,10 +7,14 @@
 #   1. A first server: install an older release, refuse a tampered archive and
 #      a bad signature, upgrade in place, re-run, uninstall.
 #   2. With MIRROR set, the same server through a mirror, with GitHub and
-#      Sigstore cut off: install, refuse a changed cosign, trust root, archive
-#      and signature on the mirror, upgrade, uninstall. Then verify a keyless
-#      signature from Sigstore's public instance offline, against the pinned
-#      trust root.
+#      Sigstore cut off: install, refuse a changed cosign, archive and
+#      signature on the mirror, upgrade from a mirror without a trust root,
+#      uninstall. Then the script's own steps that find the pinned trust root
+#      on a mirror, which the key the test releases are signed with never
+#      needs: take the release's copy, fall back to the latest release's
+#      however the mirror says a file is missing, refuse a changed one. Then
+#      verify a keyless signature from Sigstore's public instance offline,
+#      against the pinned trust root.
 #   3. A server that joins: install with a ticket from a control plane that
 #      runs beside it, check it runs only the agent and connects, uninstall.
 #
@@ -22,7 +26,9 @@
 #   INSTALL=<install.sh> RELEASES=<url> KEY=<cosign.pub> OLD=<v> NEW=<v> run.sh
 #
 # RELEASES holds the trees releases.sh makes, and MIRROR, when set, the trees
-# mirror.sh makes. COSIGN, when set, is a copy of the pinned cosign to use
+# mirror.sh makes. BUCKET and MIRROR_FILE, when set, serve the same mirror the
+# way a storage bucket does, answering 403 for a missing file, and as a
+# file:// URL. COSIGN, when set, is a copy of the pinned cosign to use
 # after the first install, which downloads its own. Cutting off GitHub and
 # Sigstore means adding them to /etc/hosts for a while, so this changes it.
 set -eu
@@ -37,6 +43,8 @@ FIXTURE=http://127.0.0.1:7601
 CONNECTED=$(dirname "$0")/../connected.awk
 [ -r "$CONNECTED" ] || { echo "can't read $CONNECTED, which counts connected servers" >&2; exit 1; }
 MIRROR=${MIRROR:-}
+BUCKET=${BUCKET:-}
+MIRROR_FILE=${MIRROR_FILE:-}
 MEMORY_LIMIT=$(sed -n 's/^MEMORY_LIMIT=//p' "$INSTALL")
 [ -n "$MEMORY_LIMIT" ] || { echo "can't read MEMORY_LIMIT from $INSTALL" >&2; exit 1; }
 COSIGN_VERSION=$(sed -n 's/^COSIGN_VERSION=//p' "$INSTALL")
@@ -132,6 +140,32 @@ run_mirror() {
 
 said() {
 	grep -qF -- "$1" "$log/out" || die "the install script didn't say \"$1\""
+}
+
+# trust_root runs only the install script's steps that resolve a release on
+# the mirror at $1 and find the pinned trust root there, as a keyless check
+# does, and keeps what they said in $log/out. $2, when set, is the version.
+trust_root() {
+	sed '/^main "\$@"$/d' "$INSTALL" >"$log/install-steps.sh"
+	if (
+		# shellcheck source=/dev/null
+		. "$log/install-steps.sh"
+		# The settings the install script's main and detect would make.
+		# shellcheck disable=SC2034
+		family=other mirror=$1 version=${2:-}
+		tmp="$log/trust-root"
+		rm -rf "$tmp" && mkdir -p "$tmp"
+		check_tools
+		resolve
+		get_trust_root
+		[ "$(sha256 "$tmp/trusted_root.json")" = "$SIGSTORE_ROOT_SHA256" ] || fail "get_trust_root kept a root that isn't the pinned one"
+	) >"$log/out" 2>&1; then
+		status=0
+	else
+		status=$?
+	fi
+	cat "$log/out"
+	return "$status"
 }
 
 # cut_off makes GitHub and Sigstore unreachable from here until reconnect.
@@ -305,8 +339,11 @@ if [ -n "$MIRROR" ]; then
 	pinned_cosign=${DOCKWELL_COSIGN:-}
 	unset DOCKWELL_COSIGN
 	cut_off
+	# Put /etc/hosts back however this ends, not only through die.
+	trap reconnect EXIT
+	trap 'exit 1' HUP INT TERM
 	if run_install good; then die "an install that downloads cosign from GitHub worked with GitHub cut off"; fi
-	said "Can't download cosign from GitHub"
+	said "Can't download cosign $COSIGN_VERSION from GitHub"
 	ok "GitHub is cut off"
 	run_mirror good good --version "$OLD" || die "installing v$OLD through the mirror failed"
 	said "Downloading cosign $COSIGN_VERSION from the mirror at $MIRROR/cosign/good"
@@ -322,24 +359,55 @@ if [ -n "$MIRROR" ]; then
 	step "Refuse what the mirror changed"
 	if run_mirror good bad; then die "a cosign that doesn't match its pin was used"; fi
 	said "doesn't match its pinned SHA-256, so nothing was installed"
-	if run_mirror bad-root good; then die "a trust root that doesn't match its pin was used"; fi
-	said "The Sigstore trust root on the mirror doesn't match its pinned SHA-256"
 	if run_mirror bad-archive good; then die "a tampered archive from the mirror was installed"; fi
 	said "doesn't match its signed checksum, so nothing was installed"
 	if run_mirror bad-signature good; then die "checksums with a bad signature from the mirror were installed"; fi
 	said "doesn't verify, so nothing was installed"
 	version_is "$OLD"
-	ok "refused a changed cosign, trust root, archive and signature, and v$OLD is still installed"
+	if run_mirror good good --version 9.9.9; then die "a version the mirror doesn't have was installed"; fi
+	said "Pick a version the mirror has with --version"
+	ok "refused a changed cosign, archive and signature, and a version the mirror lacks, and v$OLD is still installed"
 
-	step "Upgrade through the mirror to v$NEW"
+	step "Upgrade to v$NEW through a mirror that carries no trust root"
+	# The releases here are signed with a key, which needs no trust root.
 	stop_direct
-	run_mirror good good || die "upgrading to v$NEW through the mirror failed"
+	run_mirror no-root good || die "upgrading to v$NEW through a mirror without a trust root failed"
 	said "Upgraded $BIN from v$OLD to v$NEW."
 	version_is "$NEW"
 	start_direct
 	check_service
 	wait_panel
 	ok "upgraded through the mirror"
+
+	step "Find the pinned trust root on the mirror"
+	for base in "$MIRROR" "$BUCKET" "$MIRROR_FILE"; do
+		[ -n "$base" ] || continue
+		case $base in
+		file:*)
+			if ! command -v curl >/dev/null 2>&1 || ! curl -V | grep -q '^Protocols:.* file'; then
+				ok "skipped $base, because this downloader can't read file:// URLs"
+				continue
+			fi
+			;;
+		esac
+		trust_root "$base/good" || die "the trust root of the latest release wasn't found at $base/good"
+		trust_root "$base/old-root" "$OLD" ||
+			die "v$OLD has no trust root at $base/old-root, and the latest release's wasn't used"
+		if trust_root "$base/no-root" "$NEW"; then die "a release without a trust root passed at $base/no-root"; fi
+		said "Can't download sigstore_trusted_root.json from the mirror at $base/no-root"
+		said "download/v$NEW/sigstore_trusted_root.json:"
+		said "latest/download/sigstore_trusted_root.json:"
+		ok "at $base, a release without its own trust root takes the latest release's, and a mirror with neither is refused"
+	done
+	if trust_root "$MIRROR/bad-root"; then die "a trust root that doesn't match its pin was used"; fi
+	said "The Sigstore trust root on the mirror doesn't match its pinned SHA-256"
+	trust_root "$MIRROR/latest-root" "$NEW" ||
+		die "v$NEW's trust root doesn't match its pin, and the latest release's wasn't used"
+	if trust_root "$MIRROR/latest-root"; then
+		die "installing the latest release, a second copy of its trust root was fetched from latest/download"
+	fi
+	said "The Sigstore trust root on the mirror doesn't match its pinned SHA-256"
+	ok "a changed trust root is refused, and one that predates the pin falls back to the latest release's, once"
 
 	step "Verify a keyless signature with Sigstore cut off"
 	if [ -z "$pinned_cosign" ]; then
@@ -367,6 +435,7 @@ if [ -n "$MIRROR" ]; then
 	stop_direct
 	run_install good --uninstall || die "uninstalling after the mirror install failed"
 	reconnect
+	trap - EXIT HUP INT TERM
 	[ -z "$pinned_cosign" ] || export DOCKWELL_COSIGN="$pinned_cosign"
 fi
 

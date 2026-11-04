@@ -78,7 +78,7 @@ The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and
 | `packages/mockview/` | A local viewer and snapshot tool for the screen mocks in `design/mocks/` (`make mocks`) |
 | `web/` | The panel ([ADR 0008](docs/adr/0008-panel-libraries.md)) |
 | `scripts/install.sh`, `scripts/install-test/` | The install script ([docs/install.md](docs/install.md)) and its tests |
-| `scripts/sigstore_trusted_root.json` | The copy of Sigstore's trust root the install script pins, for installs through a mirror ([ADR 0013](docs/adr/0013-mirrors-for-releases-and-images.md)) |
+| `scripts/sigstore_trusted_root.json`, `scripts/check-trust-root.sh` | The copy of Sigstore's trust root the install script pins, for installs through a mirror, and its check ([ADR 0013](docs/adr/0013-mirrors-for-releases-and-images.md)) |
 | `scripts/budgets.sh` | The idle memory budgets |
 | `tools/` | Pinned developer tools |
 | `docs/`, `design/` | Requirements, decisions and the design system |

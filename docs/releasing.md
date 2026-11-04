@@ -84,7 +84,7 @@ The Install workflow fails when the two versions differ, or when a pinned hash d
 
 ## Update Sigstore's trust root
 
-Installs through a mirror check signatures against `scripts/sigstore_trusted_root.json`, a copy of Sigstore's trust root that `install.sh` pins as `SIGSTORE_ROOT_SHA256` ([ADR 0013](adr/0013-mirrors-for-releases-and-images.md)). Sigstore changes the trust root when it adds or retires a key. The Install workflow's Sigstore trust root job then fails, on pull requests and nightly. The release workflow also refuses to publish a release whose signature doesn't verify against the copy. To update it:
+Installs through a mirror check signatures against `scripts/sigstore_trusted_root.json`, a copy of Sigstore's trust root that `install.sh` pins as `SIGSTORE_ROOT_SHA256` ([ADR 0013](adr/0013-mirrors-for-releases-and-images.md)). Sigstore changes the trust root when it adds or retires a key. The Sigstore trust root workflow then fails: nightly, when it opens an issue or comments on the open one, and on pull requests that change the install script or the pin. The release workflow runs the same check before it publishes, and refuses to publish a release whose signature doesn't verify against the copy. To update it:
 
 1. Fetch the current trust root with cosign's TUF client, which checks it against the TUF root built into cosign:
 

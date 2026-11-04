@@ -141,6 +141,17 @@ fetch_error() {
 	fi
 }
 
+# mirror_failed fails when the mirror didn't serve a file the install needs. $1
+# is the file's path on the mirror, $2 what it holds, and $3 the fix. A mirror
+# such as a storage bucket may answer 403 for a file it doesn't have, so any
+# failure may mean the file is missing.
+mirror_failed() {
+	if not_found; then
+		fail "The mirror at $mirror doesn't have $1, $2, so nothing was installed. $3"
+	fi
+	fail "Can't download $1, $2, from the mirror at $mirror: $(fetch_error). The mirror may not have it, or this server can't reach the mirror, so nothing was installed. $3"
+}
+
 # answers is true when a URL answers with success.
 answers() {
 	if [ "$downloader" = curl ]; then
@@ -252,10 +263,15 @@ resolve() {
 	releases=${mirror:-${DOCKWELL_RELEASES_URL:-$REPO_URL/releases}}
 	releases=${releases%/}
 	version=${version#v}
+	latest=
 	code=0
 	if [ -z "$version" ] || [ "$version" = latest ]; then
+		latest=1
 		fetch "$releases/latest/download/checksums.txt" "$tmp/checksums.txt" || code=$?
-		if [ "$code" -ne 0 ] && not_found; then
+		if [ "$code" -ne 0 ] && [ -n "$mirror" ]; then
+			mirror_failed latest/download/checksums.txt "the latest release's checksums" \
+				"Check the mirror has the latest release, or pick a version it has with --version, then run this again."
+		elif [ "$code" -ne 0 ] && not_found; then
 			fail "There's no Dockwell release at $releases yet, so there's nothing to install. Run this again once one is published, or pick a version with --version."
 		elif [ "$code" -ne 0 ]; then
 			fail "Can't download the latest release's checksums from $releases: $(fetch_error). Check this server can reach it, then run this again."
@@ -266,7 +282,10 @@ resolve() {
 	else
 		valid_version "$version" || fail "\"$version\" isn't a version. Pass one such as 0.1.0."
 		fetch "$releases/download/v$version/checksums.txt" "$tmp/checksums.txt" || code=$?
-		if [ "$code" -ne 0 ] && not_found; then
+		if [ "$code" -ne 0 ] && [ -n "$mirror" ]; then
+			mirror_failed "download/v$version/checksums.txt" "the checksums of Dockwell v$version" \
+				"Pick a version the mirror has with --version, or check the mirror has v$version, then run this again."
+		elif [ "$code" -ne 0 ] && not_found; then
 			fail "There's no Dockwell v$version at $releases. Pick a version from $REPO_URL/releases."
 		elif [ "$code" -ne 0 ]; then
 			fail "Can't download the checksums of Dockwell v$version from $releases: $(fetch_error). Check this server can reach it, then run this again."
@@ -293,43 +312,52 @@ get_cosign() {
 	fi
 	cosign="$tmp/cosign"
 	if [ -n "$cosign_mirror" ]; then
-		say "Downloading cosign $COSIGN_VERSION from the mirror at $cosign_mirror to check the release signature."
-		fetch "$cosign_mirror/download/$COSIGN_VERSION/cosign-linux-$arch" "$cosign" ||
-			fail "Can't download cosign $COSIGN_VERSION from the mirror at $cosign_mirror: $(fetch_error). The release can't be checked without it. Check the mirror has download/$COSIGN_VERSION/cosign-linux-$arch, then run this again."
-		[ "$(sha256 "$cosign")" = "$want" ] ||
-			fail "The cosign from the mirror at $cosign_mirror doesn't match its pinned SHA-256, so nothing was installed. The mirror must serve cosign $COSIGN_VERSION unchanged; tell whoever runs it, or install without --cosign-mirror."
+		base=$cosign_mirror
+		from="from the mirror at $cosign_mirror"
+		unreachable="Check the mirror has download/$COSIGN_VERSION/cosign-linux-$arch, then run this again."
+		changed="The mirror must serve cosign $COSIGN_VERSION unchanged; tell whoever runs it, or install without --cosign-mirror."
 	else
-		say "Downloading cosign $COSIGN_VERSION to check the release signature."
-		if ! fetch "$COSIGN_RELEASES/download/$COSIGN_VERSION/cosign-linux-$arch" "$cosign"; then
-			[ -z "$mirror" ] ||
-				fail "Can't download cosign from GitHub, so the release can't be checked. Check this server can reach github.com, or download cosign from a mirror too with --cosign-mirror, then run this again."
-			fail "Can't download cosign from GitHub, so the release can't be checked. Check this server can reach github.com, then run this again."
-		fi
-		[ "$(sha256 "$cosign")" = "$want" ] ||
-			fail "The cosign download doesn't match its pinned SHA-256, so nothing was installed. Run this again; if it keeps failing, report it at $REPO_URL/security."
+		base=$COSIGN_RELEASES
+		from="from GitHub"
+		unreachable="Check this server can reach github.com${mirror:+, or download cosign from a mirror too with --cosign-mirror}, then run this again."
+		changed="Run this again; if it keeps failing, report it at $REPO_URL/security."
 	fi
+	say "Downloading cosign $COSIGN_VERSION $from to check the release signature."
+	fetch "$base/download/$COSIGN_VERSION/cosign-linux-$arch" "$cosign" ||
+		fail "Can't download cosign $COSIGN_VERSION $from: $(fetch_error). The release can't be checked without it. $unreachable"
+	[ "$(sha256 "$cosign")" = "$want" ] ||
+		fail "The cosign $from doesn't match its pinned SHA-256, so nothing was installed. $changed"
 	chmod 0755 "$cosign"
 	runs "$cosign" ||
 		fail "This server can't run programs from $(dirname "$tmp"), perhaps because it is mounted noexec, so the release can't be checked. Set TMPDIR to a directory that allows it, such as /root, then run this again."
 }
 
 # get_trust_root puts the Sigstore trust root this script pins at
-# $tmp/trusted_root.json, from the mirror. It looks in the release it installs,
-# then in the latest release, whose script pins the root that release carries.
+# $tmp/trusted_root.json, from the mirror. It takes the copy in the release it
+# installs. When that copy doesn't match the pin, as in a release made before
+# Sigstore last changed its root, or can't be downloaded, as from a release
+# made before mirrors were supported, it takes the latest release's copy,
+# whose script pins the root that release carries. Any failed download counts
+# as a miss, since a mirror such as a file:// path or a storage bucket may not
+# answer 404 for a file it lacks. Whatever it takes must match the pin.
 get_trust_root() {
 	root_mismatch=
+	root_errors=
 	for dir in "$download" "$releases/latest/download"; do
 		if fetch "$dir/$SIGSTORE_ROOT" "$tmp/trusted_root.json"; then
 			[ "$(sha256 "$tmp/trusted_root.json")" != "$SIGSTORE_ROOT_SHA256" ] || return 0
 			root_mismatch=1
-		elif ! not_found; then
-			fail "Can't download Sigstore's trust root from $dir: $(fetch_error). The release can't be checked without it. Check this server can reach the mirror, then run this again."
+			# Installing the latest release, the latest release's copy is
+			# this same file.
+			[ -z "$latest" ] || break
+		else
+			root_errors="${root_errors:+$root_errors; }${dir#"$releases"/}/$SIGSTORE_ROOT: $(fetch_error)"
 		fi
 	done
 	rm -f "$tmp/trusted_root.json"
 	[ -z "$root_mismatch" ] ||
 		fail "The Sigstore trust root on the mirror doesn't match its pinned SHA-256, so the release can't be checked and nothing was installed. Run the install script from the mirror's latest release, which pins the root that release carries: $releases/latest/download/install.sh. If that fails too, the mirror changed the file; tell whoever runs it."
-	fail "The mirror at $releases has no $SIGSTORE_ROOT, so the release can't be checked without reaching Sigstore. Copy it to the mirror from the same release on GitHub, then run this again."
+	fail "Can't download $SIGSTORE_ROOT from the mirror at $releases ($root_errors), so the release can't be checked without reaching Sigstore, and nothing was installed. Check the mirror has it in download/v$version/ or latest/download/, as the same release on GitHub has it, then run this again."
 }
 
 # runs is true when a program can run here at all.
@@ -343,8 +371,12 @@ verify() {
 	[ -z "$mirror" ] ||
 		say "Downloading from the mirror at $mirror. Sigstore's trust root is pinned in this script, so the check doesn't need to reach Sigstore."
 	get_cosign
-	fetch "$download/checksums.txt.sigstore.json" "$tmp/checksums.txt.sigstore.json" ||
+	if ! fetch "$download/checksums.txt.sigstore.json" "$tmp/checksums.txt.sigstore.json"; then
+		[ -z "$mirror" ] ||
+			mirror_failed "download/v$version/checksums.txt.sigstore.json" "the signature of Dockwell v$version" \
+				"Check the mirror holds every file of the release, or pick a version it has with --version, then run this again."
 		fail "Can't download the signature of Dockwell v$version from $download, so nothing was installed. Check this server can reach it, then run this again."
+	fi
 	if [ -n "${DOCKWELL_VERIFY_KEY:-}" ]; then
 		say "Checking the release against the key in DOCKWELL_VERIFY_KEY, instead of Dockwell's release signature."
 		set -- --key "$DOCKWELL_VERIFY_KEY" --insecure-ignore-tlog=true
@@ -352,10 +384,13 @@ verify() {
 	else
 		set -- --certificate-identity "$SIGNER_IDENTITY$version" --certificate-oidc-issuer "$SIGNER_ISSUER"
 		signer="Dockwell's release workflow at tag v$version"
-	fi
-	if [ -n "$mirror" ]; then
-		get_trust_root
-		set -- "$@" --trusted-root "$tmp/trusted_root.json"
+		# Through a mirror, the signing certificate is checked against the
+		# pinned trust root instead of one fetched from Sigstore. A key needs
+		# no trust root, so a mirror that re-signs needn't carry one.
+		if [ -n "$mirror" ]; then
+			get_trust_root
+			set -- "$@" --trusted-root "$tmp/trusted_root.json"
+		fi
 	fi
 	# cosign keeps Sigstore's trust root in TUF_ROOT; keep it in $tmp too.
 	if ! TUF_ROOT="$tmp/tuf" HOME="$tmp" "$cosign" verify-blob "$@" \
@@ -369,8 +404,12 @@ verify() {
 
 	want=$(awk -v f="$archive" '$2 == f { print $1 }' "$tmp/checksums.txt")
 	[ -n "$want" ] || fail "The signed checksums of Dockwell v$version don't list $archive. That release has no linux/$arch build; pick another with --version."
-	fetch "$download/$archive" "$tmp/$archive" ||
+	if ! fetch "$download/$archive" "$tmp/$archive"; then
+		[ -z "$mirror" ] ||
+			mirror_failed "download/v$version/$archive" "Dockwell v$version for linux/$arch" \
+				"Check the mirror holds every file of the release, or pick a version it has with --version, then run this again."
 		fail "Can't download $archive from $download. Check this server can reach it, then run this again."
+	fi
 	if [ "$(sha256 "$tmp/$archive")" != "$want" ]; then
 		[ -z "$mirror" ] ||
 			fail "$archive from the mirror doesn't match its signed checksum, so nothing was installed. The mirror changed it or holds a broken copy; tell whoever runs it."
@@ -753,9 +792,18 @@ EOF
 options() {
 	[ "$action" != uninstall ] || printf ' --uninstall'
 	[ -z "$ticket" ] || printf ' --join <ticket>'
-	[ -z "$version" ] || printf ' --version %s' "$version"
-	[ -z "$mirror" ] || printf ' --mirror %s' "$mirror"
-	[ -z "$cosign_mirror" ] || printf ' --cosign-mirror %s' "$cosign_mirror"
+	[ -z "$version" ] || printf ' --version %s' "$(quote "$version")"
+	[ -z "$mirror" ] || printf ' --mirror %s' "$(quote "$mirror")"
+	[ -z "$cosign_mirror" ] || printf ' --cosign-mirror %s' "$(quote "$cosign_mirror")"
+}
+
+# quote prints a value as sh reads it back: as it is when it holds only
+# characters sh leaves alone, otherwise in single quotes, with each ' as '\''.
+quote() {
+	case $1 in
+	'' | *[!A-Za-z0-9_./:@%+=,-]*) printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")" ;;
+	*) printf '%s' "$1" ;;
+	esac
 }
 
 main() {

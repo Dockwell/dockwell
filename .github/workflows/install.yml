@@ -10,14 +10,12 @@
 #   Install on <image>     the install script in stock Debian, Ubuntu,
 #                          AlmaLinux and Alpine containers, amd64 and arm64
 #   Install with systemd   the same on the runner's own Ubuntu, under systemd
-#   Sigstore trust root    the trust root install.sh pins for mirrors is the
-#                          one Sigstore publishes, and verifies keyless
-#                          signatures with the network cut off
 #   Install time           nightly: install to running panel on 1 CPU; fails
 #                          at 60 s
 #
 # footprint-comment.yml posts the memory figures on pull requests that move
-# them. See docs/install.md.
+# them. trust-root.yml checks the Sigstore trust root that install.sh pins for
+# mirrors, on its own schedule. See docs/install.md.
 name: Install
 
 on:
@@ -181,79 +179,6 @@ jobs:
           sudo env INSTALL="$PWD/scripts/install.sh" RELEASES="file://$PWD/releases" KEY="$PWD/releases/cosign.pub" \
             MIRROR="file://$PWD/mirror" OLD="$OLD" NEW="$NEW" COSIGN="$(command -v cosign)" sh scripts/install-test/run.sh
 
-  # Installs through a mirror check releases against a copy of Sigstore's trust
-  # root pinned in install.sh, instead of fetching it through TUF. This fails
-  # when Sigstore publishes a new one, so the pin moves before Sigstore signs
-  # with what changed (docs/adr/0013-mirrors-for-releases-and-images.md).
-  trust-root:
-    name: Sigstore trust root
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: The install script pins scripts/sigstore_trusted_root.json
-        id: pin
-        run: |
-          pinned=$(sed -n 's/^SIGSTORE_ROOT_SHA256=//p' scripts/install.sh)
-          actual=$(sha256sum scripts/sigstore_trusted_root.json | cut -d ' ' -f 1)
-          if [[ -z "$pinned" || "$pinned" != "$actual" ]]; then
-            echo "::error file=scripts/install.sh::install.sh pins the trust root ${pinned:-nothing}, but scripts/sigstore_trusted_root.json is $actual. Update them together, as docs/releasing.md says."
-            exit 1
-          fi
-          echo "cosign=$(sed -n 's/^COSIGN_VERSION=//p' scripts/install.sh)" >>"$GITHUB_OUTPUT"
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-        with:
-          cosign-release: ${{ steps.pin.outputs.cosign }}
-      - name: It is the trust root Sigstore publishes now
-        run: |
-          tuf=$(mktemp -d)
-          TUF_ROOT="$tuf" cosign initialize >/dev/null
-          current="$tuf/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json"
-          if [[ ! -f "$current" ]]; then
-            echo "::error::cosign initialize left no trusted_root.json in $current, so the pin can't be compared. Find where this cosign keeps it, and fix this check."
-            exit 1
-          fi
-          if ! cmp -s "$current" scripts/sigstore_trusted_root.json; then
-            echo "::error file=scripts/sigstore_trusted_root.json::Sigstore's trust root is now $(sha256sum <"$current" | cut -d ' ' -f 1), and installs through a mirror will fail once Sigstore signs with what changed. Update scripts/sigstore_trusted_root.json and the pin in install.sh, as docs/releasing.md says."
-            exit 1
-          fi
-      - name: Keyless signatures verify against it with the network cut off
-        env:
-          COSIGN_VERSION: ${{ steps.pin.outputs.cosign }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          work=$(mktemp -d)
-          root="$PWD/scripts/sigstore_trusted_root.json"
-          # cosign verify-blob in a network namespace of its own, with an empty
-          # TUF cache, so it can reach neither Sigstore nor anything else.
-          offline() {
-            sudo unshare --net -- env HOME="$work" TUF_ROOT="$(mktemp -d)" "$(command -v cosign)" verify-blob "$@"
-          }
-          for file in cosign_checksums.txt cosign_checksums.txt.sigstore.json; do
-            curl -fsSL --retry 3 -o "$work/$file" "https://github.com/sigstore/cosign/releases/download/$COSIGN_VERSION/$file"
-          done
-          cosign_release=(--bundle "$work/cosign_checksums.txt.sigstore.json"
-            --certificate-identity keyless@projectsigstore.iam.gserviceaccount.com
-            --certificate-oidc-issuer https://accounts.google.com "$work/cosign_checksums.txt")
-          if offline "${cosign_release[@]}" 2>/dev/null; then
-            echo "::error::cosign verified through TUF from inside the network namespace, so the network wasn't cut off."
-            exit 1
-          fi
-          # cosign's own release, signed keyless on Sigstore's public instance.
-          offline --trusted-root "$root" "${cosign_release[@]}"
-          # Dockwell's latest release, as an install through a mirror checks it.
-          if ! tag=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null); then
-            echo "There's no published release yet, so only cosign's own release was verified offline." >>"$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          gh release download "$tag" -R "$GITHUB_REPOSITORY" -D "$work/release" \
-            -p checksums.txt -p checksums.txt.sigstore.json
-          offline --trusted-root "$root" --bundle "$work/release/checksums.txt.sigstore.json" \
-            --certificate-identity "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/.github/workflows/release.yml@refs/tags/$tag" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com "$work/release/checksums.txt"
-
   install-time:
     name: Install time on 1 CPU (${{ matrix.release }})
     needs: snapshot
@@ -286,7 +211,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! tag=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null); then
+          tag=$(scripts/latest-release.sh)
+          if [[ -z "$tag" ]]; then
             echo "There's no published release yet, so only main's snapshot was timed." >>"$GITHUB_STEP_SUMMARY"
             exit 0
           fi
