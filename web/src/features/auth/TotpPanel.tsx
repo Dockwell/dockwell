@@ -126,24 +126,28 @@ function TotpSetupSheet({ open, onClose }: { open: boolean; onClose: () => void 
   const [codes, setCodes] = useState<string[]>();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
+  // Kept as it came, and put in words as the sheet draws, so the setup below needn't depend on the words.
+  const [setupFailure, setSetupFailure] = useState<unknown>();
 
+  // Once each time the sheet opens: each setup replaces the key the last one gave, which may have been scanned already.
   useEffect(() => {
     if (!open) {
       setSetup(undefined);
       setCode("");
       setCodes(undefined);
       setProblem(undefined);
+      setSetupFailure(undefined);
       return;
     }
     let live = true;
     createClient(AuthService, transport)
       .beginTotpSetup({})
       .then((res) => live && setSetup({ secret: res.secret, uri: res.uri }))
-      .catch((err: unknown) => live && setProblem(explain(err)));
+      .catch((err: unknown) => live && setSetupFailure(err));
     return () => {
       live = false;
     };
-  }, [open, transport, explain]);
+  }, [open, transport]);
 
   const confirm = async (event: FormEvent) => {
     event.preventDefault();
@@ -223,9 +227,9 @@ function TotpSetupSheet({ open, onClose }: { open: boolean; onClose: () => void 
             />
           </li>
         </ol>
-        {problem ? (
+        {problem || setupFailure ? (
           <Callout tone="critical" title={t`The authenticator app isn't set up yet`}>
-            {problem}
+            {problem ?? explain(setupFailure)}
           </Callout>
         ) : null}
       </form>

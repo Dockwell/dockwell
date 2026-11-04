@@ -4,7 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { PasskeySchema, SessionSchema, SignInMethod, TotpSchema } from "@dockwell/api";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -356,6 +356,38 @@ describe("ProfilePage", () => {
     expect(download).toHaveAttribute("download", "dockwell-recovery-codes.txt");
     expect(download).toHaveClass("dw-btn", "dw-btn-secondary", "dw-btn-sm");
     expect(confirmTotpSetup).toHaveBeenCalledWith(expect.objectContaining({ code: "123456" }), expect.anything());
+  });
+
+  it("keeps the key you scanned while the sheet is open, whatever the language does", async () => {
+    let made = 0;
+    const beginTotpSetup = vi.fn(() => {
+      made += 1;
+      return { secret: `JBSWY3DPEHPK3PX${made}`, uri: `otpauth://totp/Dockwell:mira%40acme.dev?secret=${made}` };
+    });
+    renderAt("/profile", api({ getTotp: () => ({ totp: create(TotpSchema, { enabled: false }) }), beginTotpSetup }));
+    await userEvent.click(await screen.findByRole("button", { name: "Set up" }));
+    const sheet = await screen.findByRole("dialog", { name: "Set up an authenticator app" });
+    expect(await within(sheet).findByText("JBSW Y3DP EHPK 3PX1")).toBeVisible();
+
+    await act(() => activateLocale("zh-CN"));
+    expect(await screen.findByRole("dialog", { name: "设置身份验证器应用" })).toBeVisible();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(beginTotpSetup).toHaveBeenCalledOnce();
+    expect(screen.getByText("JBSW Y3DP EHPK 3PX1")).toBeVisible();
+  });
+
+  it("says why the authenticator app's setup couldn't start", async () => {
+    renderAt(
+      "/profile",
+      api({
+        getTotp: () => ({ totp: create(TotpSchema, { enabled: false }) }),
+        beginTotpSetup: () => Promise.reject(new ConnectError("connection refused", Code.Unavailable)),
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Set up" }));
+    const sheet = await screen.findByRole("dialog", { name: "Set up an authenticator app" });
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent("Connection refused.");
+    expect(within(sheet).getByRole("button", { name: "Turn on" })).toBeDisabled();
   });
 
   it("groups a secret in fours", () => {
