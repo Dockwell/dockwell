@@ -58,7 +58,29 @@ var (
 	ErrOffline = errors.New("a server in the plan isn't connected")
 	// ErrInvalid means an edit doesn't make sense.
 	ErrInvalid = errors.New("the change isn't valid")
+	// ErrNotFound means there's no such change.
+	ErrNotFound = errors.New("there's no such change")
+	// ErrBusy means another change is running steps on a resource the
+	// change touches; apply it once that one ends.
+	ErrBusy = errors.New("a resource in the change is being applied")
 )
+
+// Surfaces a change can come from, as the store and the audit log record
+// them.
+const (
+	ViaPanel     = "panel"
+	ViaAPI       = "api"
+	ViaAutomatic = "automatic" // Dockwell on its own, such as a rollback
+)
+
+// By is who does something to a change, and from where.
+type By struct {
+	Actor string
+	Via   string // ViaPanel, ViaAPI or ViaAutomatic
+}
+
+// system is Dockwell acting on its own.
+var system = By{Actor: SystemActor, Via: ViaAutomatic}
 
 // Agents finds each server's agent.
 type Agents interface {
@@ -73,17 +95,37 @@ type Engine struct {
 	agents Agents
 	logger *slog.Logger
 	now    func() time.Time
-	// One apply at a time keeps base revisions honest. Locks per resource
-	// come when applies take long enough to matter.
+	// One commit at a time keeps base revisions honest: checking that
+	// nothing moved and committing the revisions happen together. The steps
+	// then run outside it, so changes to different resources don't wait for
+	// each other (ADR 0009).
 	mu sync.Mutex
+	// runs counts the changes running in the background, for Wait.
+	runs sync.WaitGroup
+
+	// pmu guards the progress of the changes running in this process, and
+	// who watches which change.
+	pmu      sync.Mutex
+	live     map[string]*Progress
+	watchers map[string]map[chan Update]struct{}
+	// busy names, for each resource a running change touches, that change.
+	// Only commits add to it, under mu, so two changes never run steps on
+	// one resource at once.
+	busy map[string]string
 }
 
 // New returns an engine over db, using kinds to read and check specs, and
 // agents to reach servers. Projects and environments are always among the
 // kinds.
 func New(db *store.DB, kinds *resource.Registry, agents Agents, logger *slog.Logger) *Engine {
-	return &Engine{db: db, kinds: kinds.With(scope.Types()...), agents: agents, logger: logger, now: time.Now}
+	return &Engine{
+		db: db, kinds: kinds.With(scope.Types()...), agents: agents, logger: logger, now: time.Now,
+		live: map[string]*Progress{}, watchers: map[string]map[chan Update]struct{}{}, busy: map[string]string{},
+	}
 }
+
+// Kinds is the registry the engine reads and checks specs with.
+func (e *Engine) Kinds() *resource.Registry { return e.kinds }
 
 // Edit sets one resource's desired spec; a nil Spec deletes it.
 type Edit struct {
@@ -102,6 +144,7 @@ type Edit struct {
 type Proposal struct {
 	Summary string // what it is for, in the actor's words
 	Actor   string
+	Via     string // where it comes from, such as ViaPanel
 	Edits   []Edit
 }
 
@@ -110,6 +153,9 @@ type Plan struct {
 	Change  string // the planned change's ID, to apply or discard
 	Summary string
 	Reverts string // the change this undoes or rolls back, if any
+	// Resources says what the change does to each resource as a whole, in
+	// proposal order.
+	Resources []ResourcePlan
 	// Servers lists each server with something to do, in proposal order,
 	// then each removed server the change takes resources off.
 	Servers []ServerPlan
@@ -120,9 +166,26 @@ type Plan struct {
 	Fingerprint string
 }
 
+// ResourcePlan is what a plan does to one resource as a whole.
+type ResourcePlan struct {
+	ID  string
+	Ref resource.Ref
+	// Action is the most disruptive of its steps, or for a kind that runs
+	// on no server, what its revision does: create, update or delete. None
+	// means nothing changes.
+	Action resource.Action
+	Base   int // the revision it starts from; 0 if new
+	// Changes are the fields that differ from the latest revision.
+	Changes []resource.Change
+	// Servers is where it runs once applied, and Previous where it runs
+	// now, by server ID.
+	Servers, Previous []string
+}
+
 // ServerPlan is the part of a plan on one server.
 type ServerPlan struct {
 	Server string
+	Name   string // the server's name, for people
 	// Offline means the server isn't connected, so the plan is based on
 	// its last known desired state.
 	Offline bool
@@ -145,6 +208,43 @@ func (p *Plan) Steps() []resource.Step {
 		out = append(out, s.Steps...)
 	}
 	return out
+}
+
+// Counts is how many resources a plan creates, changes, replaces and
+// destroys. A replace is counted on its own, never among the changes.
+type Counts struct {
+	Create, Change, Replace, Destroy int
+}
+
+// Counts sums up the plan by resource.
+func (p *Plan) Counts() Counts {
+	var c Counts
+	for i := range p.Resources {
+		switch p.Resources[i].Action {
+		case resource.ActionNone:
+		case resource.ActionCreate:
+			c.Create++
+		case resource.ActionUpdate:
+			c.Change++
+		case resource.ActionReplace:
+			c.Replace++
+		case resource.ActionDelete:
+			c.Destroy++
+		}
+	}
+	return c
+}
+
+// Destructive reports a plan with a step that destroys data or may cut
+// off access, which applying can't fully undo.
+func (p *Plan) Destructive() bool {
+	steps := p.Steps()
+	for i := range steps {
+		if steps[i].Destroys || len(steps[i].Warnings) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // item is one edit with what it starts from.
@@ -270,7 +370,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string) (*Plan
 	}
 	c := store.Change{
 		ID: plan.Change, Summary: p.Summary, Actor: p.Actor, State: store.ChangePlanned, Reverts: reverts,
-		Fingerprint: plan.Fingerprint, Plan: record, CreatedAt: e.now(),
+		Fingerprint: plan.Fingerprint, Plan: record, CreatedAt: e.now(), ProposedVia: p.Via,
 	}
 	for i := range items {
 		it := &items[i]
@@ -279,7 +379,15 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string) (*Plan
 			Servers: it.servers,
 		})
 	}
-	if err := e.db.Revise(ctx, func(tx *store.RevisionTx) error { return tx.CreateChange(ctx, c) }); err != nil {
+	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error {
+		if err := tx.CreateChange(ctx, c); err != nil {
+			return err
+		}
+		return tx.RecordEvent(ctx, store.Event{
+			ID: id.New(id.Event), At: c.CreatedAt, Actor: c.Actor, Action: "change.planned", Subject: c.ID, Detail: c.Summary, Surface: c.ProposedVia,
+		})
+	})
+	if err != nil {
 		return nil, err
 	}
 	return plan, nil
@@ -637,6 +745,10 @@ func (e *Engine) withFirstEnvironments(ctx context.Context, tx *store.Tx, items 
 // that isn't connected is planned from its last known desired state, and
 // one that was removed has no steps. Items that run on no server make
 // revisions without steps.
+//
+// Planning changes nothing on any server, and the same items against the
+// same state give the same plan and fingerprint: the fingerprint leaves
+// out the IDs given to new resources, which differ every time.
 func (e *Engine) plan(ctx context.Context, items []item) (*Plan, error) {
 	var servers, removed []string
 	byServer := map[string][]*item{}
@@ -654,6 +766,26 @@ func (e *Engine) plan(ctx context.Context, items []item) (*Plan, error) {
 			}
 		}
 	}
+	names, err := e.serverNames(ctx, slices.Concat(servers, removed))
+	if err != nil {
+		return nil, err
+	}
+
+	// A new resource's ID is given when it is planned, so planning again
+	// gives another. The fingerprint names it by its place in the change.
+	fresh := map[string]string{}
+	for i := range items {
+		if items[i].base == 0 {
+			fresh[items[i].id] = fmt.Sprintf("new#%d", i)
+		}
+	}
+	stable := func(s string) string {
+		if v, ok := fresh[s]; ok {
+			return v
+		}
+		return s
+	}
+	ref := func(r resource.Ref) string { return fmt.Sprintf("%s|%s|%s", r.Kind, stable(r.Scope), r.Name) }
 
 	plan := &Plan{}
 	fp := sha256.New()
@@ -663,11 +795,12 @@ func (e *Engine) plan(ctx context.Context, items []item) (*Plan, error) {
 			plan.Revisions++
 		}
 		sum := sha256.Sum256(it.encoded)
-		fmt.Fprintf(fp, "item %s|%s|%s|%s|%d|%x|%s\n", it.id, it.ref.Kind, it.ref.Scope, it.ref.Name, it.base, sum, strings.Join(it.servers, " "))
+		fmt.Fprintf(fp, "item %s|%s|%d|%t|%x|%s\n", stable(it.id), ref(it.ref), it.base, it.spec != nil, sum, strings.Join(it.servers, " "))
 	}
+	actions := map[string]resource.Action{} // the most disruptive step of each item
 	for _, server := range servers {
 		its := byServer[server]
-		sp := ServerPlan{Server: server}
+		sp := ServerPlan{Server: server, Name: names[server]}
 		var steps []resource.Step
 		agent, online := e.agents.Agent(server)
 		if online {
@@ -677,7 +810,10 @@ func (e *Engine) plan(ctx context.Context, items []item) (*Plan, error) {
 			}
 			var err error
 			if steps, err = agent.Plan(ctx, desired); err != nil {
-				return nil, fmt.Errorf("can't plan on %s: %w", server, err)
+				return nil, &AgentError{Server: sp.Name, Doing: "plan", Err: err}
+			}
+			if len(steps) != len(desired) {
+				return nil, fmt.Errorf("can't plan on %s: its agent judged %d steps for %d resources", sp.Name, len(steps), len(desired))
 			}
 		} else {
 			sp.Offline = true
@@ -693,6 +829,10 @@ func (e *Engine) plan(ctx context.Context, items []item) (*Plan, error) {
 				steps = append(steps, step)
 			}
 		}
+		ids := map[resource.Ref]string{}
+		for _, it := range its {
+			ids[it.ref] = it.id
+		}
 		steps = order(steps)
 		for i := range steps {
 			s := &steps[i]
@@ -701,9 +841,12 @@ func (e *Engine) plan(ctx context.Context, items []item) (*Plan, error) {
 			}
 			sp.Steps = append(sp.Steps, *s)
 			sp.Downtime += s.Downtime
-			fmt.Fprintf(fp, "step %s|%s|%s|%d|%d|%d|%t\n", server, s.Ref, s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys)
+			if s.Action > actions[ids[s.Ref]] {
+				actions[ids[s.Ref]] = s.Action
+			}
+			fmt.Fprintf(fp, "step %s|%s|%s|%d|%d|%d|%t|%v\n", server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings)
 			for _, c := range s.Changes {
-				fmt.Fprintf(fp, "  %s|%d|%s|%s\n", c.Path, c.Op, c.From, c.To)
+				fmt.Fprintf(fp, "  %s|%d|%s|%s|%t\n", c.Path, c.Op, c.From, c.To, c.Sensitive)
 			}
 		}
 		if len(sp.Steps) > 0 {
@@ -711,11 +854,59 @@ func (e *Engine) plan(ctx context.Context, items []item) (*Plan, error) {
 		}
 	}
 	for _, s := range removed {
-		plan.Servers = append(plan.Servers, ServerPlan{Server: s, Removed: true})
+		plan.Servers = append(plan.Servers, ServerPlan{Server: s, Name: names[s], Removed: true})
 		fmt.Fprintf(fp, "removed %s\n", s)
+	}
+	for i := range items {
+		plan.Resources = append(plan.Resources, items[i].resourcePlan(actions[items[i].id]))
 	}
 	plan.Fingerprint = hex.EncodeToString(fp.Sum(nil)[:16])
 	return plan, nil
+}
+
+// resourcePlan says what the change does to the item as a whole, given
+// its most disruptive step.
+func (it item) resourcePlan(step resource.Action) ResourcePlan {
+	rp := ResourcePlan{
+		ID: it.id, Ref: it.ref, Base: it.base, Changes: resource.Diff(it.current, it.spec),
+		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed),
+	}
+	switch {
+	case it.spec == nil:
+		rp.Action = resource.ActionDelete
+	case it.current == nil:
+		rp.Action = resource.ActionCreate
+	case step == resource.ActionReplace:
+		rp.Action = resource.ActionReplace
+	case step != resource.ActionNone || it.changes():
+		// Making it on a new server, or taking it off one, changes where
+		// it runs: an update of the resource as a whole.
+		rp.Action = resource.ActionUpdate
+	}
+	return rp
+}
+
+// serverNames reads the names of servers, removed ones included.
+func (e *Engine) serverNames(ctx context.Context, servers []string) (map[string]string, error) {
+	names := make(map[string]string, len(servers))
+	if len(servers) == 0 {
+		return names, nil
+	}
+	err := e.db.View(ctx, func(tx *store.Tx) error {
+		for _, id := range servers {
+			s, err := tx.GetServer(ctx, id)
+			switch {
+			case errors.Is(err, store.ErrNotFound):
+				names[id] = id
+			case err != nil:
+				return err
+			default:
+				names[id] = s.Name
+			}
+		}
+		return nil
+	})
+	return names, err
 }
 
 // order runs creates, updates and replaces in proposal order, then deletes
@@ -732,6 +923,20 @@ func order(steps []resource.Step) []resource.Step {
 	slices.Reverse(deletes)
 	return append(out, deletes...)
 }
+
+// AgentError is a server's agent failing a call, or refusing one, as for
+// a kind it has no driver for. Its message is for people.
+type AgentError struct {
+	Server string // the server's name
+	Doing  string // such as "plan"
+	Err    error
+}
+
+func (e *AgentError) Error() string {
+	return fmt.Sprintf("can't %s on %s: %v", e.Doing, e.Server, e.Err)
+}
+
+func (e *AgentError) Unwrap() error { return e.Err }
 
 // FailedError reports a change whose apply failed, and what was done about
 // it.
@@ -769,24 +974,70 @@ var ErrPending = errors.New("a server it touches reconnects")
 // turn when it fails: that would re-apply what failed in the first place.
 func isRollback(c store.Change) bool { return c.Actor == SystemActor && c.Reverts != "" }
 
-// Apply carries out a planned change: it checks that nothing moved since
-// the plan, commits the revisions and places them on their servers, then
-// runs the steps. If a step fails, the steps already done are rolled back
-// in a change of their own, and the error is a *FailedError.
+// Apply carries out a planned change on behalf of whoever proposed it: it
+// checks that nothing moved since the plan, commits the revisions and
+// places them on their servers, then runs the steps, and returns once they
+// have run to an end. If a step fails, the steps already done are rolled
+// back in a change of their own, and the error is a *FailedError.
 func (e *Engine) Apply(ctx context.Context, changeID string) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.apply(ctx, changeID)
+	return e.ApplyBy(ctx, changeID, By{})
 }
 
-func (e *Engine) apply(ctx context.Context, changeID string) error {
+// ApplyBy is Apply on behalf of by. A zero By applies as the proposer.
+func (e *Engine) ApplyBy(ctx context.Context, changeID string, by By) error {
+	r, err := e.commit(ctx, changeID, by)
+	if err != nil {
+		return err
+	}
+	// From here the change is on record, so it runs to an end even if the
+	// caller goes away: a change left half applied is worse than one that
+	// finishes late.
+	return e.run(context.WithoutCancel(ctx), r)
+}
+
+// Start is ApplyBy that returns once the revisions are committed and the
+// change is applying, and runs its steps in the background. Follow them
+// with Watch; Wait waits for every run to end.
+func (e *Engine) Start(ctx context.Context, changeID string, by By) error {
+	r, err := e.commit(ctx, changeID, by)
+	if err != nil {
+		return err
+	}
+	ctx = context.WithoutCancel(ctx)
+	e.runs.Go(func() {
+		err := e.run(ctx, r)
+		// A failure and a wait for a server are logged where they happen.
+		if ferr := (*FailedError)(nil); err != nil && !errors.As(err, &ferr) && !errors.Is(err, ErrPending) {
+			e.logger.ErrorContext(ctx, "a change stopped partway; Dockwell resumes it on its next start", slog.String("change", r.c.ID),
+				slog.String("error", err.Error()))
+		}
+	})
+	return nil
+}
+
+// Wait waits for the changes running in the background to end.
+func (e *Engine) Wait() { e.runs.Wait() }
+
+// committed is a change whose revisions are on record, ready to run.
+type committed struct {
+	c     store.Change
+	items []item
+	plan  *Plan
+}
+
+// commit checks that a planned change still holds and commits its
+// revisions, so desired state is on record before anything runs: agents
+// then reconcile toward it even if the control plane stops halfway.
+func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	var c store.Change
 	var items []item
 	err := e.db.View(ctx, func(tx *store.Tx) error {
 		var err error
 		if c, err = tx.GetChange(ctx, changeID); err != nil {
 			if errors.Is(err, store.ErrNotFound) {
-				return fmt.Errorf("there's no change %s", changeID)
+				return fmt.Errorf("%w: there's no change %s", ErrNotFound, changeID)
 			}
 			return err
 		}
@@ -797,26 +1048,35 @@ func (e *Engine) apply(ctx context.Context, changeID string) error {
 		return err
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	plan, err := e.plan(ctx, items)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !isRollback(c) {
 		for _, s := range plan.Servers {
 			if s.Offline {
-				return fmt.Errorf("%w: %s. Apply again once its agent reconnects", ErrOffline, s.Server)
+				return nil, fmt.Errorf("%w: %s. Apply again once its agent reconnects", ErrOffline, s.Name)
 			}
 		}
 	}
 	if plan.Fingerprint != c.Fingerprint {
-		return fmt.Errorf("%w: plan %s again and review what changed", ErrPlanChanged, changeID)
+		return nil, fmt.Errorf("%w: propose the change again and review what changed", ErrPlanChanged)
+	}
+	if err := e.claim(changeID, items, false); err != nil {
+		return nil, err
+	}
+	if by.Actor == "" {
+		by = By{Actor: c.Actor, Via: c.ProposedVia}
+	}
+	progress := newProgress(plan, items)
+	record, err := json.Marshal(progress)
+	if err != nil {
+		return nil, err
 	}
 
-	// Desired state goes on record before anything runs, so agents
-	// reconcile toward it even if the control plane stops halfway.
 	now := e.now()
 	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error {
 		if _, err := e.current(ctx, tx.Tx, c); err != nil {
@@ -839,15 +1099,20 @@ func (e *Engine) apply(ctx context.Context, changeID string) error {
 				return err
 			}
 		}
-		return tx.SetChangeState(ctx, changeID, store.ChangeApplying, "", now)
+		return tx.StartApplying(ctx, changeID, by.Actor, by.Via, record, now)
 	})
 	if err != nil {
-		return err
+		if errors.Is(err, store.ErrNotFound) {
+			// Discarded, or applied by someone else, since it was read.
+			return nil, fmt.Errorf("%w: %s was applied or discarded meanwhile", ErrNotPlanned, changeID)
+		}
+		return nil, err
 	}
-	// From here the change is on record, so it runs to an end even if the
-	// caller goes away: a change left half applied is worse than one that
-	// finishes late.
-	return e.run(context.WithoutCancel(ctx), c, items, plan)
+	c.State, c.AppliedAt, c.AppliedBy, c.AppliedVia, c.Progress = store.ChangeApplying, now, by.Actor, by.Via, record
+	_ = e.claim(changeID, items, true)
+	e.track(changeID, progress)
+	e.published(changeID, store.ChangeApplying)
+	return &committed{c: c, items: items, plan: plan}, nil
 }
 
 // newID names a new resource with its kind's prefix.
@@ -862,10 +1127,12 @@ func (e *Engine) newID(kind resource.Kind) string {
 
 // run carries out a committed change. Creates, updates and replaces run on
 // every server before any delete, so what is built comes first and what
-// goes is taken down last. Each step's deployment records how it went. A
-// rollback skips servers that aren't connected and stays applying until
-// Resume reaches them.
-func (e *Engine) run(ctx context.Context, c store.Change, items []item, plan *Plan) error {
+// goes is taken down last. Each step's deployment records how it went, and
+// its progress what it is doing. A rollback skips servers that aren't
+// connected and stays applying until Resume reaches them.
+func (e *Engine) run(ctx context.Context, r *committed) error {
+	defer e.untrack(r.c.ID)
+	c, items, plan := r.c, r.items, r.plan
 	type at struct {
 		server string
 		ref    resource.Ref
@@ -874,15 +1141,23 @@ func (e *Engine) run(ctx context.Context, c store.Change, items []item, plan *Pl
 	for i := range items {
 		byRef[items[i].ref] = &items[i]
 	}
+	progress := e.progress(c.ID)
+	if progress == nil {
+		progress = &Progress{}
+	}
 	type queued struct {
-		server string
-		step   *resource.Step
+		server, name string
+		step         *resource.Step
+		index        int // in the change's progress
 	}
 	var builds, deletes []queued
 	for si := range plan.Servers {
 		s := &plan.Servers[si]
 		for i := range s.Steps {
-			q := queued{server: s.Server, step: &s.Steps[i]}
+			q := queued{server: s.Server, name: s.Name, step: &s.Steps[i]}
+			if it, ok := byRef[q.step.Ref]; ok {
+				q.index = progress.index(s.Server, it.id)
+			}
 			if q.step.Action == resource.ActionDelete {
 				deletes = append(deletes, q)
 			} else {
@@ -895,6 +1170,7 @@ func (e *Engine) run(ctx context.Context, c store.Change, items []item, plan *Pl
 	slices.SortStableFunc(deletes, func(a, b queued) int {
 		return slices.Index(serversOf(plan), b.server) - slices.Index(serversOf(plan), a.server)
 	})
+	queue := slices.Concat(builds, deletes)
 
 	// A removed server takes no steps. What the change took off it is
 	// superseded there at once; what it was to run there never got there.
@@ -905,29 +1181,38 @@ func (e *Engine) run(ctx context.Context, c store.Change, items []item, plan *Pl
 			if slices.Contains(it.servers, s) {
 				failed = fmt.Errorf("%s was removed from the fleet before %s reached it", s, it.ref.Name)
 			}
-			e.deployed(ctx, it, s, failed)
+			e.deployed(ctx, c.ID, it, s, failed, nil)
 		}
 	}
 
+	// stop records a failed step, skips the steps after it, and rolls the
+	// change back.
+	stop := func(qi int, err error) error {
+		q := queue[qi]
+		e.deployed(ctx, c.ID, byRef[q.step.Ref], q.server, err, e.step(c.ID, q.index, StepFailed, err.Error()))
+		for _, rest := range queue[qi+1:] {
+			e.step(c.ID, rest.index, StepSkipped, message(StepSkipped, rest.step.Action, rest.step.Ref, rest.name))
+		}
+		return e.fail(ctx, c, q.step.Ref, err)
+	}
 	pending := map[string]bool{}
 	done := map[at]bool{}
-	for _, q := range append(builds, deletes...) {
+	for qi, q := range queue {
 		it := byRef[q.step.Ref]
 		agent, online := e.agents.Agent(q.server)
 		if !online || agent == nil {
 			if isRollback(c) {
 				pending[q.server] = true
+				e.step(c.ID, q.index, StepWaiting, message(StepWaiting, q.step.Action, q.step.Ref, q.name))
 				continue
 			}
-			err := fmt.Errorf("%w: %s lost its connection partway through", ErrOffline, q.server)
-			e.deployed(ctx, it, q.server, err)
-			return e.fail(ctx, c, q.step.Ref, err)
+			return stop(qi, fmt.Errorf("%w: %s lost its connection partway through", ErrOffline, q.name))
 		}
+		e.step(c.ID, q.index, StepRunning, message(StepRunning, q.step.Action, q.step.Ref, q.name))
 		if err := agent.Apply(ctx, *q.step, it.desiredOn(q.server)); err != nil {
-			e.deployed(ctx, it, q.server, err)
-			return e.fail(ctx, c, q.step.Ref, err)
+			return stop(qi, err)
 		}
-		e.deployed(ctx, it, q.server, nil)
+		e.deployed(ctx, c.ID, it, q.server, nil, e.step(c.ID, q.index, StepDone, message(StepDone, q.step.Action, q.step.Ref, q.name)))
 		done[at{q.server, it.ref}] = true
 	}
 	// Where a revision needed no step, the server already has it.
@@ -935,25 +1220,42 @@ func (e *Engine) run(ctx context.Context, c store.Change, items []item, plan *Pl
 		it := &items[i]
 		for _, s := range it.servers {
 			if !done[at{s, it.ref}] && !pending[s] && !slices.Contains(it.gone, s) {
-				e.deployed(ctx, it, s, nil)
+				e.deployed(ctx, c.ID, it, s, nil, nil)
 			}
 		}
 	}
 	if len(pending) > 0 {
 		waiting := slices.Sorted(maps.Keys(pending))
 		e.logger.WarnContext(ctx, "a rollback waits for servers to reconnect", slog.String("change", c.ID), slog.Any("servers", waiting))
+		if p := e.progress(c.ID); p != nil {
+			e.recordProgress(ctx, c.ID, *p)
+		}
 		return fmt.Errorf("%w: %s", ErrPending, strings.Join(waiting, ", "))
 	}
-	return e.finish(ctx, c, store.ChangeApplied, "", "change.applied")
+	if err := e.finish(ctx, c, store.ChangeApplied, "", "change.applied", e.progress(c.ID)); err != nil {
+		return err
+	}
+	e.published(c.ID, store.ChangeApplied)
+	return nil
 }
 
 // deployed records how a step went on a server: the revision is live
 // there, or failed; or, where the step took it off the server, what it
-// had there is superseded. A record that can't be written is logged, not
-// fatal: the step itself happened, and Drift reads the servers, not this.
-func (e *Engine) deployed(ctx context.Context, it *item, server string, failed error) {
+// had there is superseded. It records the change's progress with it. A
+// record that can't be written is logged, not fatal: the step itself
+// happened, and Drift reads the servers, not this.
+func (e *Engine) deployed(ctx context.Context, changeID string, it *item, server string, failed error, progress *Progress) {
 	now := e.now()
 	err := e.db.Revise(ctx, func(tx *store.RevisionTx) error {
+		if progress != nil {
+			b, err := json.Marshal(progress)
+			if err != nil {
+				return err
+			}
+			if err := tx.SetChangeProgress(ctx, changeID, b); err != nil {
+				return err
+			}
+		}
 		switch {
 		case failed != nil && slices.Contains(it.servers, server):
 			return tx.SetDeploymentState(ctx, store.Deployment{
@@ -973,6 +1275,18 @@ func (e *Engine) deployed(ctx context.Context, it *item, server string, failed e
 	}
 }
 
+// recordProgress writes a change's progress, logging a failure: the steps
+// happened either way.
+func (e *Engine) recordProgress(ctx context.Context, changeID string, p Progress) {
+	b, err := json.Marshal(p)
+	if err == nil {
+		err = e.db.Revise(ctx, func(tx *store.RevisionTx) error { return tx.SetChangeProgress(ctx, changeID, b) })
+	}
+	if err != nil {
+		e.logger.WarnContext(ctx, "can't record a change's progress", slog.String("change", changeID), slog.String("error", err.Error()))
+	}
+}
+
 func serversOf(p *Plan) []string {
 	out := make([]string, len(p.Servers))
 	for i := range p.Servers {
@@ -986,10 +1300,9 @@ func serversOf(p *Plan) []string {
 // planned again against its servers, toward the revision the change
 // committed, and the steps that remain run as in Apply. A change waits
 // while any server it touches is offline, and skips resources a later
-// change has moved on. Call it on start and whenever a server reconnects.
+// change has moved on. A change already running here is left to finish.
+// Call it on start and whenever a server reconnects.
 func (e *Engine) Resume(ctx context.Context) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	var ids []string
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
 		var err error
@@ -1000,20 +1313,35 @@ func (e *Engine) Resume(ctx context.Context) error {
 	}
 	var errs []error
 	for _, changeID := range ids {
-		if err := e.resume(ctx, changeID); err != nil && !errors.Is(err, ErrPending) {
+		r, err := e.prepareResume(ctx, changeID)
+		if err == nil && r != nil {
+			err = e.run(context.WithoutCancel(ctx), r)
+		}
+		if err != nil && !errors.Is(err, ErrPending) {
 			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
 }
 
-func (e *Engine) resume(ctx context.Context, changeID string) error {
+// prepareResume plans what remains of a change left applying, and tracks
+// it as running here. It returns nil when the change is already running
+// here, and ErrPending while a server it touches is offline.
+func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.running(changeID) {
+		return nil, nil
+	}
 	var c store.Change
 	var items []item
 	err := e.db.View(ctx, func(tx *store.Tx) error {
 		var err error
 		if c, err = tx.GetChange(ctx, changeID); err != nil {
 			return err
+		}
+		if c.State != store.ChangeApplying {
+			return nil // it finished meanwhile
 		}
 		for _, ci := range c.Items {
 			ref := resource.Ref{Kind: resource.Kind(ci.Kind), Scope: ci.Scope, Name: ci.Name}
@@ -1043,22 +1371,32 @@ func (e *Engine) resume(ctx context.Context, changeID string) error {
 		}
 		return nil
 	})
-	if err != nil {
-		return err
+	if err != nil || c.State != store.ChangeApplying {
+		return nil, err
 	}
 	for i := range items {
 		for _, s := range items[i].targets() {
 			if _, online := e.agents.Agent(s); !online {
-				return fmt.Errorf("%w: %s", ErrPending, s)
+				return nil, fmt.Errorf("%w: %s", ErrPending, s)
 			}
 		}
+	}
+	if err := e.claim(changeID, items, false); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrPending, err)
 	}
 	e.logger.InfoContext(ctx, "resuming a change left applying", slog.String("change", c.ID))
 	plan, err := e.plan(ctx, items)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return e.run(context.WithoutCancel(ctx), c, items, plan)
+	before, err := decodeProgress(c.Progress)
+	if err != nil {
+		return nil, err
+	}
+	_ = e.claim(changeID, items, true)
+	e.track(changeID, resumed(before, plan, items))
+	e.published(changeID, store.ChangeApplying)
+	return &committed{c: c, items: items, plan: plan}, nil
 }
 
 // current checks that every item still starts from the latest revision,
@@ -1101,45 +1439,96 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 
 // fail records a failed apply and rolls back what it changed. The
 // rollback commits at once, so desired state goes back even when a server
-// can't be reached yet.
+// can't be reached yet. Watchers learn of the failure once the rollback is
+// on record, so they can follow it.
 func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, cause error) error {
 	ferr := &FailedError{Change: c.ID, Step: at, Err: cause}
-	if err := e.finish(ctx, c, store.ChangeFailed, cause.Error(), "change.failed"); err != nil {
+	if err := e.finish(ctx, c, store.ChangeFailed, cause.Error(), "change.failed", e.progress(c.ID)); err != nil {
+		e.published(c.ID, store.ChangeFailed)
 		return errors.Join(ferr, err)
 	}
 	if isRollback(c) {
+		e.published(c.ID, store.ChangeFailed)
 		return ferr
 	}
 	e.logger.WarnContext(ctx, "a change failed; rolling it back", slog.String("change", c.ID), slog.String("at", at.String()),
 		slog.String("error", cause.Error()))
+	// Its steps are over: the rollback takes its resources on.
+	e.release(c.ID)
 	edits, err := e.reverse(ctx, c.ID)
 	if err != nil {
 		ferr.RollbackErr = err
+		e.published(c.ID, store.ChangeFailed)
 		return ferr
 	}
 	if len(edits) == 0 {
+		e.published(c.ID, store.ChangeFailed)
 		return ferr
 	}
-	plan, err := e.propose(ctx, Proposal{Summary: "Roll back " + c.Summary, Actor: SystemActor, Edits: edits}, c.ID)
+	plan, err := e.propose(ctx, Proposal{Summary: "Roll back " + c.Summary, Actor: SystemActor, Via: ViaAutomatic, Edits: edits}, c.ID)
 	if err != nil {
 		ferr.RollbackErr = err
+		e.published(c.ID, store.ChangeFailed)
 		return ferr
 	}
 	ferr.Rollback = plan.Change
-	if err := e.apply(ctx, plan.Change); err != nil {
+	e.published(c.ID, store.ChangeFailed)
+	if err := e.ApplyBy(ctx, plan.Change, system); err != nil {
 		ferr.RollbackErr = err
 	}
 	return ferr
 }
 
-func (e *Engine) finish(ctx context.Context, c store.Change, state, errText, event string) error {
+// finish records how a change ended, with its progress, and audits it as
+// whoever applied it.
+func (e *Engine) finish(ctx context.Context, c store.Change, state, errText, event string, progress *Progress) error {
 	now := e.now()
+	actor, via := c.Actor, c.ProposedVia
+	if c.AppliedBy != "" {
+		actor, via = c.AppliedBy, c.AppliedVia
+	}
 	return e.db.Revise(ctx, func(tx *store.RevisionTx) error {
 		if err := tx.SetChangeState(ctx, c.ID, state, errText, time.Time{}); err != nil {
 			return err
 		}
-		return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: now, Actor: c.Actor, Action: event, Subject: c.ID, Detail: c.Summary})
+		if progress != nil {
+			b, err := json.Marshal(progress)
+			if err != nil {
+				return err
+			}
+			if err := tx.SetChangeProgress(ctx, c.ID, b); err != nil {
+				return err
+			}
+		}
+		return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: now, Actor: actor, Action: event, Subject: c.ID, Detail: c.Summary, Surface: via})
 	})
+}
+
+// Discard drops a planned change without applying it. It stays on record
+// as discarded.
+func (e *Engine) Discard(ctx context.Context, changeID string, by By) error {
+	err := e.db.Revise(ctx, func(tx *store.RevisionTx) error {
+		c, err := tx.GetChange(ctx, changeID)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			return fmt.Errorf("%w: there's no change %s", ErrNotFound, changeID)
+		case err != nil:
+			return err
+		case c.State != store.ChangePlanned:
+			return fmt.Errorf("%w: %s is %s, and only a planned change can be discarded", ErrNotPlanned, changeID, c.State)
+		}
+		if err := tx.SetChangeState(ctx, changeID, store.ChangeDiscarded, "", time.Time{}); err != nil {
+			return err
+		}
+		return tx.RecordEvent(ctx, store.Event{
+			ID: id.New(id.Event), At: e.now(), Actor: by.Actor, Action: "change.discarded", Subject: changeID, Detail: c.Summary, Surface: by.Via,
+		})
+	})
+	if err != nil {
+		return err
+	}
+	e.published(changeID, store.ChangeDiscarded)
+	return nil
 }
 
 // reverse returns the edits that put back what a change's revisions
@@ -1213,7 +1602,7 @@ func inFleet(ctx context.Context, tx *store.Tx, ref resource.Ref, resourceID str
 
 // Undo plans putting back everything an applied change did. Apply the
 // plan to carry it out.
-func (e *Engine) Undo(ctx context.Context, changeID, actor string) (*Plan, error) {
+func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error) {
 	var c store.Change
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
 		var err error
@@ -1221,7 +1610,7 @@ func (e *Engine) Undo(ctx context.Context, changeID, actor string) (*Plan, error
 		return err
 	}); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return nil, fmt.Errorf("there's no change %s", changeID)
+			return nil, fmt.Errorf("%w: there's no change %s", ErrNotFound, changeID)
 		}
 		return nil, err
 	}
@@ -1239,11 +1628,12 @@ func (e *Engine) Undo(ctx context.Context, changeID, actor string) (*Plan, error
 	if len(edits) == 0 {
 		return nil, fmt.Errorf("%w: %s made no revisions", ErrCantUndo, changeID)
 	}
-	return e.propose(ctx, Proposal{Summary: "Undo " + c.Summary, Actor: actor, Edits: edits}, changeID)
+	return e.propose(ctx, Proposal{Summary: "Undo " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits}, changeID)
 }
 
 // Drift is a resource that doesn't match its latest revision.
 type Drift struct {
+	ID  string // the resource's
 	Ref resource.Ref
 	// Revision is the latest revision, which the server should match.
 	Revision int
@@ -1273,9 +1663,12 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 	for i, r := range resources {
 		refs[i] = resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}
 	}
+	if len(refs) == 0 {
+		return nil, nil
+	}
 	observed, err := agent.Observe(ctx, refs)
 	if err != nil {
-		return nil, err
+		return nil, &AgentError{Server: server, Doing: "check drift", Err: err}
 	}
 	var out []Drift
 	for i, r := range resources {
@@ -1288,7 +1681,7 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 		if resource.Equal(desired, observed[i]) {
 			continue
 		}
-		d := Drift{Ref: refs[i], Revision: r.Revision, Observed: observed[i], Missing: observed[i] == nil}
+		d := Drift{ID: r.ID, Ref: refs[i], Revision: r.Revision, Observed: observed[i], Missing: observed[i] == nil}
 		if !d.Missing {
 			d.Changes = resource.Diff(desired, observed[i])
 		}
@@ -1298,7 +1691,7 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 }
 
 // Revert plans putting a drifted resource back to its latest revision.
-func (e *Engine) Revert(ctx context.Context, d Drift, actor string) (*Plan, error) {
+func (e *Engine) Revert(ctx context.Context, d Drift, by By) (*Plan, error) {
 	var it item
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
 		var err error
@@ -1308,14 +1701,14 @@ func (e *Engine) Revert(ctx context.Context, d Drift, actor string) (*Plan, erro
 		return nil, err
 	}
 	summary := fmt.Sprintf("Revert %s to revision %d", d.Ref.Name, it.base)
-	return e.propose(ctx, Proposal{Summary: summary, Actor: actor, Edits: []Edit{{Ref: d.Ref, Spec: it.current}}}, "")
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: it.current}}}, "")
 }
 
 // Adopt plans keeping what a server has for a drifted resource: a new
 // revision that matches it, with nothing to do on the server.
-func (e *Engine) Adopt(ctx context.Context, d Drift, actor string) (*Plan, error) {
+func (e *Engine) Adopt(ctx context.Context, d Drift, by By) (*Plan, error) {
 	summary := fmt.Sprintf("Keep the changes made to %s outside Dockwell", d.Ref.Name)
-	return e.propose(ctx, Proposal{Summary: summary, Actor: actor, Edits: []Edit{{Ref: d.Ref, Spec: d.Observed}}}, "")
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: d.Observed}}}, "")
 }
 
 func encodeOrNil(m proto.Message) ([]byte, error) {

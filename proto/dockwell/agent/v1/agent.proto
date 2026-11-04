@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.agent.v1;
 
+import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/server.proto";
 import "dockwell/v1/system.proto";
@@ -29,8 +30,9 @@ service AgentService {
 
   // Connect is the agent's long-lived stream. The agent opens it with a
   // hello and then reports samples; the control plane answers with a
-  // welcome, and closes the stream if the server is removed. Later, desired
-  // state travels down this stream too.
+  // welcome, and closes the stream if the server is removed. The control
+  // plane also calls the agent's drivers over it, to plan, apply and
+  // observe resources, and the agent answers each call with its result.
   rpc Connect(stream ConnectRequest) returns (stream ConnectResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
   }
@@ -44,6 +46,8 @@ message ConnectRequest {
     Hello hello = 1;
     // A sample of the server's resource use.
     dockwell.v1.ServerStats stats = 2;
+    // The answer to a call from the control plane.
+    CallResult result = 3;
   }
 }
 
@@ -53,6 +57,9 @@ message Hello {
   dockwell.v1.BuildInfo build = 1;
   // What the server is, as the agent sees it now.
   dockwell.v1.ServerInventory inventory = 2;
+  // The kinds of resource the agent has drivers for, such as "container".
+  // The control plane plans no other kind on this server.
+  repeated string kinds = 3;
 }
 
 // ConnectResponse is one message from the control plane.
@@ -61,6 +68,10 @@ message ConnectResponse {
   oneof message {
     // The answer to a hello.
     Welcome welcome = 1;
+    // A call for the agent to make with its drivers.
+    Call call = 2;
+    // Stops a call the control plane no longer waits for.
+    CancelCall cancel = 3;
   }
 }
 
@@ -128,4 +139,108 @@ message RenewCertificateRequest {
 message RenewCertificateResponse {
   // The server's new certificate (DER).
   bytes certificate = 1;
+}
+
+// Call asks the agent to plan, apply or observe with its drivers. The agent
+// answers each call with a CallResult of the same ID, and may answer calls
+// in any order.
+message Call {
+  // Names the call on this stream, so its result can be matched to it.
+  uint64 id = 1;
+  // How long the call may take, from when the agent receives it. It is a
+  // duration rather than a deadline, so a server whose clock is off still
+  // gets the time it was given.
+  google.protobuf.Duration timeout = 2;
+  // What to do.
+  oneof call {
+    // Compare resources with what the server has, and judge each step.
+    PlanCall plan = 3;
+    // Carry out a step and verify the result.
+    ApplyCall apply = 4;
+    // Read resources as the server has them.
+    ObserveCall observe = 5;
+  }
+}
+
+// PlanCall asks what moving each resource to its desired spec would take.
+// It reads the server and changes nothing.
+message PlanCall {
+  // Each resource as the change wants it on this server.
+  repeated DesiredResource desired = 1;
+}
+
+// ApplyCall asks the agent to carry out one step.
+message ApplyCall {
+  // The step, as the plan has it.
+  dockwell.v1.PlanStep step = 1;
+  // The resource as the step leaves it.
+  DesiredResource desired = 2;
+}
+
+// ObserveCall asks for resources as the server has them.
+message ObserveCall {
+  // The resources.
+  repeated dockwell.v1.ResourceRef resources = 1;
+}
+
+// DesiredResource is one resource as a change wants it.
+message DesiredResource {
+  // The resource.
+  dockwell.v1.ResourceRef resource = 1;
+  // Its spec, encoded as its kind's message. Unset deletes it; an empty
+  // spec is set, with no bytes.
+  optional bytes spec = 2;
+}
+
+// CancelCall stops a call: its caller went away, or its time ran out.
+message CancelCall {
+  // The call's ID.
+  uint64 id = 1;
+}
+
+// CallResult is the agent's answer to one call.
+message CallResult {
+  // The call's ID.
+  uint64 id = 1;
+  // How it went.
+  oneof result {
+    // The call failed.
+    CallError error = 2;
+    // The steps a plan call judged, in the order it was given resources.
+    PlanResult plan = 3;
+    // The step was carried out and verified.
+    ApplyResult apply = 4;
+    // The resources an observe call read.
+    ObserveResult observe = 5;
+  }
+}
+
+// CallError says why a call failed.
+message CallError {
+  // The reason, for people, such as "can't replace container web: the
+  // image doesn't exist".
+  string message = 1;
+}
+
+// PlanResult carries a plan call's steps.
+message PlanResult {
+  // One step for each desired resource, in order; a resource already as
+  // desired has PLAN_ACTION_NONE.
+  repeated dockwell.v1.PlanStep steps = 1;
+}
+
+// ApplyResult says a step was carried out and verified.
+message ApplyResult {}
+
+// ObserveResult carries an observe call's resources.
+message ObserveResult {
+  // One for each resource asked for, in order.
+  repeated ObservedResource resources = 1;
+}
+
+// ObservedResource is a resource as the server has it.
+message ObservedResource {
+  // Its spec, encoded as its kind's message. Unset when the server doesn't
+  // have it.
+  optional bytes spec = 1;
 }

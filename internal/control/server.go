@@ -40,13 +40,16 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/apidoc"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/control/servers"
 	"github.com/dockwell/dockwell/internal/control/system"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/panel"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/serve"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 // Default listen addresses. The API stays on loopback until the operator
@@ -81,6 +84,12 @@ type Config struct {
 	// PublicAddress is this server's public IP address, shown on the claim
 	// screen for pointing a domain at. Empty when it isn't known.
 	PublicAddress string
+	// Changes is the revision engine, which ChangeService serves, and
+	// Agents how it reaches each server's agent over its stream. Store is
+	// the state they read. Without Changes there is no ChangeService.
+	Changes *revision.Engine
+	Agents  *agentapi.Agents
+	Store   *store.DB
 }
 
 // Server is a configured control plane, ready to serve.
@@ -118,8 +127,11 @@ func New(cfg Config) (*Server, error) {
 	if (cfg.Identity == nil) != (cfg.Fleet == nil) {
 		return nil, errors.New("control: Config.Identity and Config.Fleet go together")
 	}
+	if cfg.Changes != nil && (cfg.Agents == nil || cfg.Store == nil) {
+		return nil, errors.New("control: Config.Changes needs Config.Agents and Config.Store")
+	}
 	if cfg.Identity != nil {
-		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Fleet, cfg.Logger)
+		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Fleet, cfg.Logger, agentapi.WithAgents(cfg.Agents))
 		s.agentTLS = agentapi.TLSConfig(cfg.Identity, cfg.AgentHosts)
 	}
 	return s, nil
@@ -152,6 +164,9 @@ func apiRoutes(cfg Config, ui http.Handler) (http.Handler, error) {
 	}
 	if cfg.Fleet != nil {
 		handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet), opts...))
+	}
+	if cfg.Changes != nil {
+		handle(dockwellv1connect.NewChangeServiceHandler(changes.New(cfg.Changes, cfg.Store, cfg.Logger), opts...))
 	}
 	restPaths, err := restHandler(rest)
 	if err != nil {

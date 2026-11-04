@@ -1,0 +1,691 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// Package changes serves dockwell.v1.ChangeService: the API over the
+// revision engine. Every surface changes managed state through it, so it
+// adds no rules of its own beyond who may apply what: it fills in the
+// hidden defaults a request leaves out, converts plans for the schema, and
+// lets clients follow a change as it applies. See
+// docs/adr/0017-the-change-api-and-the-agent-stream.md.
+package changes
+
+import (
+	"context"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"log/slog"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/id"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	"github.com/dockwell/dockwell/internal/revision"
+	"github.com/dockwell/dockwell/internal/scope"
+	"github.com/dockwell/dockwell/internal/store"
+)
+
+// Page sizes for ListChanges.
+const (
+	DefaultPageSize = 50
+	MaxPageSize     = 200
+)
+
+// Handler implements ChangeService.
+type Handler struct {
+	engine *revision.Engine
+	db     *store.DB
+	logger *slog.Logger
+}
+
+var _ dockwellv1connect.ChangeServiceHandler = (*Handler)(nil)
+
+// New returns a handler over engine, which reads db.
+func New(engine *revision.Engine, db *store.DB, logger *slog.Logger) *Handler {
+	return &Handler{engine: engine, db: db, logger: logger}
+}
+
+// by is who is calling, and from where: a session is the panel, and an API
+// token the API.
+func by(ctx context.Context) (revision.By, auth.Principal, error) {
+	p, ok := authapi.PrincipalFrom(ctx)
+	if !ok {
+		// The interceptor lets no call here through without one.
+		return revision.By{}, p, connect.NewError(connect.CodeUnauthenticated, auth.ErrUnauthenticated)
+	}
+	via := revision.ViaPanel
+	if p.Token != nil {
+		via = revision.ViaAPI
+	}
+	return revision.By{Actor: p.Actor(), Via: via}, p, nil
+}
+
+// ProposeChange plans edits as a new change.
+func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwellv1.ProposeChangeRequest]) (*connect.Response[dockwellv1.ProposeChangeResponse], error) {
+	who, _, err := by(ctx)
+	if err != nil {
+		return nil, err
+	}
+	summary := strings.TrimSpace(req.Msg.GetSummary())
+	if summary == "" {
+		return nil, reasonError(connect.CodeInvalidArgument, errors.New("a change needs a summary that says what it is for, such as \"Add a staging environment\""), "invalid")
+	}
+	edits, err := h.edits(ctx, req.Msg.GetEdits())
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	plan, err := h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits})
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	c, err := h.change(ctx, plan.Change)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.ProposeChangeResponse{Change: c}), nil
+}
+
+// GetChange returns one change.
+func (h *Handler) GetChange(ctx context.Context, req *connect.Request[dockwellv1.GetChangeRequest]) (*connect.Response[dockwellv1.GetChangeResponse], error) {
+	c, err := h.change(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.GetChangeResponse{Change: c}), nil
+}
+
+// ListChanges returns a page of changes, newest first.
+func (h *Handler) ListChanges(ctx context.Context, req *connect.Request[dockwellv1.ListChangesRequest]) (*connect.Response[dockwellv1.ListChangesResponse], error) {
+	size := int(req.Msg.GetPageSize())
+	switch {
+	case size < 0:
+		return nil, reasonError(connect.CodeInvalidArgument, fmt.Errorf("page_size can't be negative; leave it out for %d", DefaultPageSize), "invalid")
+	case size == 0:
+		size = DefaultPageSize
+	case size > MaxPageSize:
+		size = MaxPageSize
+	}
+	page, err := decodePage(req.Msg.GetPageToken())
+	if err != nil {
+		return nil, reasonError(connect.CodeInvalidArgument, err, "invalid")
+	}
+	// One more than asked for says whether there is a next page.
+	records, err := h.engine.Changes(ctx, page, size+1)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	res := &dockwellv1.ListChangesResponse{}
+	if len(records) > size {
+		records = records[:size]
+		last := records[size-1]
+		res.NextPageToken = encodePage(store.ChangePage{CreatedAt: last.CreatedAt, ID: last.ID})
+	}
+	actors := h.actors(ctx)
+	for _, r := range records {
+		res.Changes = append(res.Changes, changeProto(r, actors))
+	}
+	return connect.NewResponse(res), nil
+}
+
+// ApplyChange starts applying a planned change, and returns it applying.
+func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwellv1.ApplyChangeRequest]) (*connect.Response[dockwellv1.ApplyChangeResponse], error) {
+	who, p, err := by(ctx)
+	if err != nil {
+		return nil, err
+	}
+	r, err := h.engine.Change(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	fp := req.Msg.GetFingerprint()
+	switch {
+	case fp != "" && fp != r.Fingerprint:
+		return nil, reasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s's plan has fingerprint %s, not %s, so it isn't the plan you reviewed. Review it again, then apply it", r.ID, r.Fingerprint, fp),
+			"plan_changed")
+	case r.State == store.ChangePlanned && r.Plan.Destructive() && p.Token != nil:
+		return nil, reasonError(connect.CodePermissionDenied,
+			fmt.Errorf("%s destroys data or may cut off access to a server, so no API token may apply it. Sign in and apply it in the panel", r.ID),
+			authapi.ReasonNeedsSession)
+	case r.State == store.ChangePlanned && r.Plan.Destructive() && fp == "":
+		return nil, reasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s destroys data or may cut off access to a server, and applying it can't bring everything back. Review the plan, then apply it with its fingerprint, %s, to confirm", r.ID, r.Fingerprint),
+			"needs_confirmation")
+	}
+	if err := h.engine.Start(ctx, r.ID, who); err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	c, err := h.change(ctx, r.ID)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.ApplyChangeResponse{Change: c}), nil
+}
+
+// WatchChange streams a change until it is applied, failed or discarded.
+func (h *Handler) WatchChange(ctx context.Context, req *connect.Request[dockwellv1.WatchChangeRequest], stream *connect.ServerStream[dockwellv1.WatchChangeResponse]) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	// Watch before reading, so nothing that happens in between is missed.
+	updates := h.engine.Watch(ctx, req.Msg.GetId())
+	c, err := h.change(ctx, req.Msg.GetId())
+	if err != nil {
+		return err
+	}
+	if err := stream.Send(&dockwellv1.WatchChangeResponse{Event: &dockwellv1.WatchChangeResponse_Change{Change: c}}); err != nil {
+		return err
+	}
+	if final(c.GetState()) {
+		return nil
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case u, ok := <-updates:
+			if !ok {
+				if ctx.Err() != nil {
+					return nil
+				}
+				return reasonError(connect.CodeUnavailable, errors.New("this watch fell behind the change, so Dockwell ended it. Watch it again"), "watch_behind")
+			}
+			msg := &dockwellv1.WatchChangeResponse{}
+			if u.Step != nil {
+				msg.Event = &dockwellv1.WatchChangeResponse_Step{Step: &dockwellv1.StepUpdate{Index: int32(u.Index), Step: stepProto(u.Step)}} //nolint:gosec // a change's steps number far fewer than 2³¹
+			} else {
+				// The change as the event left it: reading it now may find it
+				// further on, and the events after this one say how.
+				if c, err = h.change(ctx, req.Msg.GetId()); err != nil {
+					return err
+				}
+				c.State = states[u.State]
+				if u.Progress != nil {
+					c.Steps = c.Steps[:0]
+					for i := range u.Progress.Steps {
+						c.Steps = append(c.Steps, stepProto(&u.Progress.Steps[i]))
+					}
+				}
+				msg.Event = &dockwellv1.WatchChangeResponse_Change{Change: c}
+			}
+			if err := stream.Send(msg); err != nil {
+				return err
+			}
+			if u.Step == nil && final(states[u.State]) {
+				return nil
+			}
+		}
+	}
+}
+
+func final(s dockwellv1.ChangeState) bool {
+	return s == dockwellv1.ChangeState_CHANGE_STATE_APPLIED || s == dockwellv1.ChangeState_CHANGE_STATE_FAILED ||
+		s == dockwellv1.ChangeState_CHANGE_STATE_DISCARDED
+}
+
+// UndoChange plans undoing an applied change.
+func (h *Handler) UndoChange(ctx context.Context, req *connect.Request[dockwellv1.UndoChangeRequest]) (*connect.Response[dockwellv1.UndoChangeResponse], error) {
+	who, _, err := by(ctx)
+	if err != nil {
+		return nil, err
+	}
+	plan, err := h.engine.Undo(ctx, req.Msg.GetId(), who)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	c, err := h.change(ctx, plan.Change)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.UndoChangeResponse{Change: c}), nil
+}
+
+// DiscardChange drops a planned change.
+func (h *Handler) DiscardChange(ctx context.Context, req *connect.Request[dockwellv1.DiscardChangeRequest]) (*connect.Response[dockwellv1.DiscardChangeResponse], error) {
+	who, _, err := by(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.engine.Discard(ctx, req.Msg.GetId(), who); err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	c, err := h.change(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.DiscardChangeResponse{Change: c}), nil
+}
+
+// ListDrift checks servers for drift.
+func (h *Handler) ListDrift(ctx context.Context, req *connect.Request[dockwellv1.ListDriftRequest]) (*connect.Response[dockwellv1.ListDriftResponse], error) {
+	var servers []string
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		if want := req.Msg.GetServerId(); want != "" {
+			s, err := tx.GetServer(ctx, want)
+			if errors.Is(err, store.ErrNotFound) || err == nil && s.RevokedAt != nil {
+				return fmt.Errorf("%w: there's no server %s in the fleet", scope.ErrNotFound, want)
+			}
+			servers = []string{want}
+			return err
+		}
+		all, err := tx.ListServers(ctx)
+		for i := range all {
+			servers = append(servers, all[i].ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	res := &dockwellv1.ListDriftResponse{}
+	for _, s := range servers {
+		drift, err := h.engine.Drift(ctx, s)
+		if errors.Is(err, revision.ErrOffline) {
+			res.UncheckedServers = append(res.UncheckedServers, s)
+			continue
+		}
+		if err != nil {
+			return nil, h.rpcError(ctx, err)
+		}
+		for _, d := range drift {
+			res.Drift = append(res.Drift, &dockwellv1.Drift{
+				ServerId: s, ResourceId: d.ID, Resource: resourcepb.Ref(d.Ref), Revision: int64(d.Revision), Missing: d.Missing,
+				Changes: resourcepb.Changes(d.Changes),
+			})
+		}
+	}
+	return connect.NewResponse(res), nil
+}
+
+// RevertDrift plans putting a drifted resource back.
+func (h *Handler) RevertDrift(ctx context.Context, req *connect.Request[dockwellv1.RevertDriftRequest]) (*connect.Response[dockwellv1.RevertDriftResponse], error) {
+	c, err := h.onDrift(ctx, req.Msg.GetServerId(), req.Msg.GetResourceId(), h.engine.Revert)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.RevertDriftResponse{Change: c}), nil
+}
+
+// AdoptDrift plans keeping what a server has.
+func (h *Handler) AdoptDrift(ctx context.Context, req *connect.Request[dockwellv1.AdoptDriftRequest]) (*connect.Response[dockwellv1.AdoptDriftResponse], error) {
+	c, err := h.onDrift(ctx, req.Msg.GetServerId(), req.Msg.GetResourceId(), h.engine.Adopt)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.AdoptDriftResponse{Change: c}), nil
+}
+
+// onDrift checks a server for a resource's drift now, rather than trusting
+// what the caller saw, and plans what to do about it.
+func (h *Handler) onDrift(ctx context.Context, server, resourceID string,
+	plan func(context.Context, revision.Drift, revision.By) (*revision.Plan, error),
+) (*dockwellv1.Change, error) {
+	who, _, err := by(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if server == "" || resourceID == "" {
+		return nil, reasonError(connect.CodeInvalidArgument, errors.New("name the server and the resource, by their IDs, as ListDrift gives them"), "invalid")
+	}
+	drift, err := h.engine.Drift(ctx, server)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	i := slices.IndexFunc(drift, func(d revision.Drift) bool { return d.ID == resourceID })
+	if i < 0 {
+		return nil, reasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s on %s matches its latest revision now, so there's no drift to act on", resourceID, server), "no_drift")
+	}
+	p, err := plan(ctx, drift[i], who)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return h.change(ctx, p.Change)
+}
+
+// change reads a change for the schema.
+func (h *Handler) change(ctx context.Context, changeID string) (*dockwellv1.Change, error) {
+	r, err := h.engine.Change(ctx, changeID)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return changeProto(r, h.actors(ctx)), nil
+}
+
+// edits reads a request's edits, filling in the kinds and scopes it leaves
+// out (PRD principle 4).
+func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.Edit, error) {
+	if len(in) == 0 {
+		return nil, fmt.Errorf("%w: it has no edits. Add one for each resource to change", revision.ErrInvalid)
+	}
+	kinds := h.engine.Kinds()
+	out := make([]revision.Edit, 0, len(in))
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		var tree *scope.Tree
+		for i, e := range in {
+			ref := resourcepb.FromRef(e.GetResource())
+			var spec proto.Message
+			if s := e.GetSpec(); s != nil {
+				m := s.ProtoReflect()
+				if fd := m.WhichOneof(m.Descriptor().Oneofs().ByName("kind")); fd != nil {
+					spec = m.Get(fd).Message().Interface()
+				}
+			}
+			switch {
+			case e.GetDelete() && spec != nil:
+				return fmt.Errorf("%w: edit %d both sets a spec and deletes; do one or the other", revision.ErrInvalid, i+1)
+			case !e.GetDelete() && spec == nil:
+				return fmt.Errorf("%w: edit %d has no spec. Set one, or set delete to delete the resource", revision.ErrInvalid, i+1)
+			}
+			if spec != nil {
+				kind, ok := kinds.KindOf(spec)
+				switch {
+				case !ok:
+					return fmt.Errorf("%w: edit %d's spec is of no kind Dockwell manages", revision.ErrInvalid, i+1)
+				case ref.Kind == "":
+					ref.Kind = kind
+				case ref.Kind != kind:
+					return fmt.Errorf("%w: edit %d is for a %s, but its spec is a %s", revision.ErrInvalid, i+1, ref.Kind, kind)
+				}
+			}
+			t, err := kinds.Type(ref.Kind)
+			if err != nil {
+				if ref.Kind == "" {
+					return fmt.Errorf("%w: edit %d needs a kind, such as service", revision.ErrInvalid, i+1)
+				}
+				return fmt.Errorf("%w: %w", revision.ErrInvalid, err)
+			}
+			if tree == nil && t.Level() != resource.LevelServer {
+				loaded, err := scope.Load(ctx, tx)
+				if err != nil {
+					return err
+				}
+				tree = &loaded
+			}
+			if ref.Scope, err = resolve(ctx, tx, tree, t.Level(), ref.Scope); err != nil {
+				return err
+			}
+			var servers []string // none keeps a service where it runs
+			if len(e.GetServers()) > 0 {
+				servers = e.GetServers()
+			}
+			out = append(out, revision.Edit{Ref: ref, Spec: spec, Servers: servers})
+		}
+		return nil
+	})
+	return out, err
+}
+
+// resolve finds the ID of what a resource lives in, from an ID, a name,
+// or nothing, which means the only one there is.
+func resolve(ctx context.Context, tx *store.Tx, tree *scope.Tree, level resource.Level, given string) (string, error) {
+	switch level {
+	case resource.LevelOrganization:
+		if given == "" || given == tree.Organization.ID || given == tree.Organization.Name {
+			return tree.Organization.ID, nil
+		}
+		return "", fmt.Errorf("%w: there's no organization %s", scope.ErrNotFound, given)
+	case resource.LevelProject:
+		if strings.HasPrefix(given, id.Project+"_") {
+			return given, nil // checked when the change is planned
+		}
+		return projectOf(tree, given)
+	case resource.LevelEnvironment:
+		if strings.HasPrefix(given, id.Environment+"_") {
+			return given, nil
+		}
+		_, e, err := tree.Resolve("", given)
+		return e.ID, err
+	case resource.LevelServer:
+	}
+	servers, err := tx.ListServers(ctx)
+	if err != nil {
+		return "", err
+	}
+	if given == "" {
+		switch len(servers) {
+		case 1:
+			return servers[0].ID, nil
+		case 0:
+			return "", fmt.Errorf("%w: there's no server yet. Add one first", scope.ErrNotFound)
+		}
+		names := make([]string, len(servers))
+		for i := range servers {
+			names[i] = servers[i].Name
+		}
+		return "", fmt.Errorf("%w: there are %d servers, so say which one you mean: %s", revision.ErrInvalid, len(servers), strings.Join(names, ", "))
+	}
+	for i := range servers {
+		if servers[i].ID == given || servers[i].Name == given {
+			return servers[i].ID, nil
+		}
+	}
+	return "", fmt.Errorf("%w: there's no server %s in the fleet", scope.ErrNotFound, given)
+}
+
+// projectOf finds a project by name, or the only one when given is empty,
+// as scope.Tree.Resolve does for environments.
+func projectOf(tree *scope.Tree, given string) (string, error) {
+	if given == "" {
+		if len(tree.Projects) == 1 {
+			return tree.Projects[0].ID, nil
+		}
+		options := make([]string, len(tree.Projects))
+		for i, p := range tree.Projects {
+			options[i] = p.Name
+		}
+		return "", &scope.ChoiceError{Level: scope.ProjectKind, Options: options}
+	}
+	for _, p := range tree.Projects {
+		if p.Name == given {
+			return p.ID, nil
+		}
+	}
+	return "", fmt.Errorf("%w: there's no project %s", scope.ErrNotFound, given)
+}
+
+// actors finds the name to show for each actor, once per request.
+func (h *Handler) actors(ctx context.Context) func(actor string) *dockwellv1.Actor {
+	n := map[string]*dockwellv1.Actor{}
+	db := h.db
+	return func(actor string) *dockwellv1.Actor {
+		if actor == "" {
+			return nil
+		}
+		if a, ok := n[actor]; ok {
+			return a
+		}
+		a := &dockwellv1.Actor{Kind: dockwellv1.ActorKind_ACTOR_KIND_USER, Id: actor, Name: actor}
+		kind, actorID, _ := strings.Cut(actor, ":")
+		_ = db.View(ctx, func(tx *store.Tx) error {
+			switch kind {
+			case "user":
+				a.Id = actorID
+				if u, err := tx.GetUser(ctx, actorID); err == nil {
+					a.Name = u.Name
+				}
+			case "token":
+				a.Kind, a.Id = dockwellv1.ActorKind_ACTOR_KIND_TOKEN, actorID
+				if t, err := tx.GetAPIToken(ctx, actorID); err == nil {
+					a.Name = t.Name
+				}
+			case revision.SystemActor:
+				a.Kind, a.Id, a.Name = dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL, "", "Dockwell"
+			}
+			return nil
+		})
+		n[actor] = a
+		return a
+	}
+}
+
+var surfaces = map[string]dockwellv1.Surface{
+	revision.ViaPanel:     dockwellv1.Surface_SURFACE_PANEL,
+	revision.ViaAPI:       dockwellv1.Surface_SURFACE_API,
+	revision.ViaAutomatic: dockwellv1.Surface_SURFACE_AUTOMATIC,
+}
+
+var states = map[string]dockwellv1.ChangeState{
+	store.ChangePlanned:   dockwellv1.ChangeState_CHANGE_STATE_PLANNED,
+	store.ChangeApplying:  dockwellv1.ChangeState_CHANGE_STATE_APPLYING,
+	store.ChangeApplied:   dockwellv1.ChangeState_CHANGE_STATE_APPLIED,
+	store.ChangeFailed:    dockwellv1.ChangeState_CHANGE_STATE_FAILED,
+	store.ChangeDiscarded: dockwellv1.ChangeState_CHANGE_STATE_DISCARDED,
+}
+
+var stepStates = map[revision.StepState]dockwellv1.StepState{
+	revision.StepQueued:  dockwellv1.StepState_STEP_STATE_QUEUED,
+	revision.StepRunning: dockwellv1.StepState_STEP_STATE_RUNNING,
+	revision.StepDone:    dockwellv1.StepState_STEP_STATE_DONE,
+	revision.StepFailed:  dockwellv1.StepState_STEP_STATE_FAILED,
+	revision.StepSkipped: dockwellv1.StepState_STEP_STATE_SKIPPED,
+	revision.StepWaiting: dockwellv1.StepState_STEP_STATE_WAITING,
+}
+
+func changeProto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dockwellv1.Change {
+	c := &dockwellv1.Change{
+		Id: r.ID, Summary: r.Summary, State: states[r.State], ProposedBy: actor(r.Actor), ProposedVia: surfaces[r.ProposedVia],
+		CreateTime: timestamppb.New(r.CreatedAt), Plan: planProto(r.Plan), Reverts: r.Reverts,
+		Rollback: r.Actor == revision.SystemActor && r.Reverts != "", AppliedBy: actor(r.AppliedBy), AppliedVia: surfaces[r.AppliedVia],
+		Error: r.Error, RolledBackBy: r.RolledBackBy, UndoneBy: r.UndoneBy,
+	}
+	if !r.AppliedAt.IsZero() {
+		c.ApplyTime = timestamppb.New(r.AppliedAt)
+	}
+	if d := r.UndoDeadline(); !d.IsZero() {
+		c.UndoDeadline = timestamppb.New(d)
+	}
+	for i := range r.Progress.Steps {
+		c.Steps = append(c.Steps, stepProto(&r.Progress.Steps[i]))
+	}
+	return c
+}
+
+func planProto(p *revision.Plan) *dockwellv1.Plan {
+	counts := p.Counts()
+	out := &dockwellv1.Plan{
+		Fingerprint: p.Fingerprint,
+		Summary: &dockwellv1.PlanSummary{
+			Create: int32(counts.Create), Change: int32(counts.Change), Replace: int32(counts.Replace), Destroy: int32(counts.Destroy), //nolint:gosec // small counts
+		},
+		UndoWindow:  durationpb.New(revision.UndoWindow),
+		Destructive: p.Destructive(),
+	}
+	ids := map[resource.Ref]string{}
+	for i := range p.Resources {
+		r := &p.Resources[i]
+		ids[r.Ref] = r.ID
+		out.Resources = append(out.Resources, &dockwellv1.PlannedResource{
+			Id: r.ID, Resource: resourcepb.Ref(r.Ref), Action: resourcepb.Action(r.Action), BaseRevision: int64(r.Base),
+			Changes: resourcepb.Changes(r.Changes), Servers: r.Servers, PreviousServers: r.Previous,
+		})
+	}
+	for i := range p.Servers {
+		s := &p.Servers[i]
+		sp := &dockwellv1.ServerPlan{
+			ServerId: s.Server, ServerName: s.Name, Offline: s.Offline, Removed: s.Removed, Downtime: resourcepb.Duration(s.Downtime),
+		}
+		for j := range s.Steps {
+			sp.Steps = append(sp.Steps, resourcepb.Step(s.Steps[j], ids[s.Steps[j].Ref]))
+		}
+		out.Servers = append(out.Servers, sp)
+	}
+	return out
+}
+
+func stepProto(s *revision.StepProgress) *dockwellv1.StepProgress {
+	p := &dockwellv1.StepProgress{
+		ServerId: s.Server, ResourceId: s.ResourceID, Resource: resourcepb.Ref(s.Ref), Action: resourcepb.Action(s.Action),
+		State: stepStates[s.State], Message: s.Message,
+	}
+	if !s.Started.IsZero() {
+		p.StartTime = timestamppb.New(s.Started)
+	}
+	if !s.Finished.IsZero() {
+		p.FinishTime = timestamppb.New(s.Finished)
+	}
+	return p
+}
+
+// A page token is where the page before ended: its last change's creation
+// time and ID, opaque to clients.
+func encodePage(p store.ChangePage) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(strconv.FormatInt(p.CreatedAt.UnixMilli(), 10) + " " + p.ID))
+}
+
+func decodePage(token string) (store.ChangePage, error) {
+	if token == "" {
+		return store.ChangePage{}, nil
+	}
+	bad := errors.New("page_token isn't one ListChanges gave. Pass next_page_token from the page before, or leave it out to start with the newest")
+	b, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return store.ChangePage{}, bad
+	}
+	at, changeID, ok := strings.Cut(string(b), " ")
+	ms, err := strconv.ParseInt(at, 10, 64)
+	if !ok || err != nil || changeID == "" {
+		return store.ChangePage{}, bad
+	}
+	return store.ChangePage{CreatedAt: time.UnixMilli(ms), ID: changeID}, nil
+}
+
+func reasonError(code connect.Code, err error, reason string) *connect.Error {
+	cerr := connect.NewError(code, err)
+	cerr.Meta().Set(authapi.ReasonKey, reason)
+	return cerr
+}
+
+// codes maps the engine's errors to codes and reasons. Their messages are
+// written for people; anything else is logged and reported as internal.
+var codes = []struct {
+	err    error
+	code   connect.Code
+	reason string
+}{
+	{revision.ErrNotFound, connect.CodeNotFound, "not_found"},
+	{scope.ErrNotFound, connect.CodeNotFound, "not_found"},
+	{revision.ErrInvalid, connect.CodeInvalidArgument, "invalid"},
+	{revision.ErrStale, connect.CodeFailedPrecondition, "plan_stale"},
+	{revision.ErrPlanChanged, connect.CodeFailedPrecondition, "plan_changed"},
+	{revision.ErrNotPlanned, connect.CodeFailedPrecondition, "not_planned"},
+	{revision.ErrBusy, connect.CodeFailedPrecondition, "busy"},
+	{revision.ErrCantUndo, connect.CodeFailedPrecondition, "cant_undo"},
+	{revision.ErrOffline, connect.CodeUnavailable, "server_offline"},
+	{agentapi.ErrLost, connect.CodeUnavailable, "server_offline"},
+	{resource.ErrNoDriver, connect.CodeFailedPrecondition, "no_driver"},
+}
+
+func (h *Handler) rpcError(ctx context.Context, err error) error {
+	var choice *scope.ChoiceError
+	if errors.As(err, &choice) {
+		return reasonError(connect.CodeInvalidArgument, err, "choice")
+	}
+	for _, c := range codes {
+		if errors.Is(err, c.err) {
+			return reasonError(c.code, errors.New(strings.TrimPrefix(err.Error(), c.err.Error()+": ")), c.reason)
+		}
+	}
+	var agent *revision.AgentError
+	switch {
+	case errors.As(err, &agent) && errors.Is(err, context.DeadlineExceeded):
+		return reasonError(connect.CodeDeadlineExceeded, err, "agent_timeout")
+	case errors.As(err, &agent):
+		return reasonError(connect.CodeFailedPrecondition, err, "agent_failed")
+	case errors.Is(err, context.Canceled):
+		return connect.NewError(connect.CodeCanceled, err)
+	}
+	h.logger.ErrorContext(ctx, "change call failed", slog.String("error", err.Error()))
+	return connect.NewError(connect.CodeInternal, errors.New("the control plane couldn't complete the request; try again, and check its logs if it keeps failing"))
+}

@@ -166,7 +166,7 @@ func testPlanApplyUndoAcrossKinds(t *testing.T, backend store.Backend) {
 	}
 	apply(t, e, second)
 
-	undo, err := e.Undo(t.Context(), second.Change, "usr_test")
+	undo, err := e.Undo(t.Context(), second.Change, By{Actor: "usr_test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func testPlanApplyUndoAcrossKinds(t *testing.T, backend store.Backend) {
 	})
 
 	// The first change can't be undone now: web moved on since.
-	if _, err := e.Undo(t.Context(), first.Change, "usr_test"); !errors.Is(err, ErrCantUndo) {
+	if _, err := e.Undo(t.Context(), first.Change, By{Actor: "usr_test"}); !errors.Is(err, ErrCantUndo) {
 		t.Errorf("undoing a change something later changed again = %v, want ErrCantUndo", err)
 	}
 }
@@ -215,7 +215,7 @@ func testDeletesRunLastAndUndoBringsThemBack(t *testing.T, backend store.Backend
 		t.Fatal("web is still running")
 	}
 
-	undo, err := e.Undo(t.Context(), remove.Change, "usr_test")
+	undo, err := e.Undo(t.Context(), remove.Change, By{Actor: "usr_test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +350,7 @@ func testDriftIsFoundThenRevertedOrAdopted(t *testing.T, backend store.Backend) 
 	if c := drift[0].Changes[0]; c.Path != "env[DEBUG]" || c.Op != resource.OpAdded || !c.Sensitive {
 		t.Errorf("drift change: %+v", c)
 	}
-	revert, err := e.Revert(t.Context(), drift[0], "usr_test")
+	revert, err := e.Revert(t.Context(), drift[0], By{Actor: "usr_test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,7 +365,7 @@ func testDriftIsFoundThenRevertedOrAdopted(t *testing.T, backend store.Backend) 
 	// Someone changes the restart policy and the team wants to keep it.
 	hz1.docker.Edit("web", func(c *resourcev1.Container) { c.Restart = resourcev1.RestartPolicy_RESTART_POLICY_ALWAYS })
 	drift, _ = e.Drift(t.Context(), "srv_A")
-	adopt, err := e.Adopt(t.Context(), drift[0], "usr_test")
+	adopt, err := e.Adopt(t.Context(), drift[0], By{Actor: "usr_test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +393,7 @@ func testUndoHasAWindow(t *testing.T, backend store.Backend) {
 	p := propose(t, e, "Run web", web("nginx:1.27"))
 	apply(t, e, p)
 	e.now = func() time.Time { return time.Now().Add(UndoWindow + time.Hour) }
-	if _, err := e.Undo(t.Context(), p.Change, "usr_test"); !errors.Is(err, ErrCantUndo) {
+	if _, err := e.Undo(t.Context(), p.Change, By{Actor: "usr_test"}); !errors.Is(err, ErrCantUndo) {
 		t.Errorf("undo after the window = %v, want ErrCantUndo", err)
 	}
 }
@@ -592,7 +592,7 @@ func testTheUndoWindowIsWordedExactly(t *testing.T, backend store.Backend) {
 	p := propose(t, e, "Run web", web("nginx:1.27"))
 	apply(t, e, p)
 	e.now = func() time.Time { return time.Now().Add(UndoWindow + time.Hour + time.Minute) }
-	_, err := e.Undo(t.Context(), p.Change, "usr_test")
+	_, err := e.Undo(t.Context(), p.Change, By{Actor: "usr_test"})
 	if err == nil || !strings.Contains(err.Error(), "applied 7 days and 1 hour ago, and changes can be undone for 7 days") {
 		t.Errorf("message: %v", err)
 	}

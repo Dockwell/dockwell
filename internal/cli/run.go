@@ -24,11 +24,16 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/pki"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/serve"
@@ -225,6 +230,23 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		return err
 	}
 
+	// The revision engine reaches agents over their streams. A change left
+	// applying, by a stop partway or a rollback waiting for a server, is
+	// resumed now and whenever a server reconnects (ADR 0009).
+	kinds := controlKinds()
+	agents := agentapi.NewAgents(kinds, logger)
+	engine := revision.New(db, kinds, agents, logger)
+	// Once a change is on record, it runs to an end even as the control
+	// plane stops: what doesn't finish now resumes on the next start.
+	resumeCtx := context.WithoutCancel(ctx)
+	resume := func() {
+		if err := engine.Resume(resumeCtx); err != nil {
+			logger.Warn("can't finish a change left applying yet; Dockwell tries again when a server reconnects", slog.String("error", err.Error()))
+		}
+	}
+	agents.OnConnect(func(string) { resume() })
+	go resume()
+
 	srv, err := control.New(control.Config{
 		Logger:        logger,
 		Build:         build,
@@ -234,6 +256,9 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		Auth:          people,
 		Public:        public,
 		PublicAddress: addr.dnsAddress(),
+		Changes:       engine,
+		Agents:        agents,
+		Store:         db,
 	})
 	if err != nil {
 		closeAll()
@@ -254,6 +279,16 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 	})
 	wg.Wait()
 	return errors.Join(controlErr, agentErr)
+}
+
+// controlKinds are the kinds the control plane knows: it checks their specs
+// and plans them for a server that is offline. Servers run them only where
+// their agents have drivers, which they report in their hello; the agent in
+// this build has none, so for now only projects and environments, which run
+// on no server, apply end to end. The Docker and firewall drivers come in
+// M3 (#26, #27).
+func controlKinds() *resource.Registry {
+	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{})
 }
 
 // openState opens the control plane's key, its state and its identity,

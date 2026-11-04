@@ -605,6 +605,146 @@ type Service_App struct {
 
 func (*Service_App) isService_Runs() {}
 
+// Spec is the desired state of one resource, of any kind: the field that is
+// set says which. Edits in the API carry specs in it, so one message takes
+// every kind.
+type Spec struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The kind's spec.
+	//
+	// Types that are valid to be assigned to Kind:
+	//
+	//	*Spec_Project
+	//	*Spec_Environment
+	//	*Spec_Service
+	//	*Spec_Container
+	//	*Spec_FirewallRule
+	Kind          isSpec_Kind `protobuf_oneof:"kind"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Spec) Reset() {
+	*x = Spec{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Spec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Spec) ProtoMessage() {}
+
+func (x *Spec) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Spec.ProtoReflect.Descriptor instead.
+func (*Spec) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *Spec) GetKind() isSpec_Kind {
+	if x != nil {
+		return x.Kind
+	}
+	return nil
+}
+
+func (x *Spec) GetProject() *Project {
+	if x != nil {
+		if x, ok := x.Kind.(*Spec_Project); ok {
+			return x.Project
+		}
+	}
+	return nil
+}
+
+func (x *Spec) GetEnvironment() *Environment {
+	if x != nil {
+		if x, ok := x.Kind.(*Spec_Environment); ok {
+			return x.Environment
+		}
+	}
+	return nil
+}
+
+func (x *Spec) GetService() *Service {
+	if x != nil {
+		if x, ok := x.Kind.(*Spec_Service); ok {
+			return x.Service
+		}
+	}
+	return nil
+}
+
+func (x *Spec) GetContainer() *Container {
+	if x != nil {
+		if x, ok := x.Kind.(*Spec_Container); ok {
+			return x.Container
+		}
+	}
+	return nil
+}
+
+func (x *Spec) GetFirewallRule() *FirewallRule {
+	if x != nil {
+		if x, ok := x.Kind.(*Spec_FirewallRule); ok {
+			return x.FirewallRule
+		}
+	}
+	return nil
+}
+
+type isSpec_Kind interface {
+	isSpec_Kind()
+}
+
+type Spec_Project struct {
+	// A project, kind "project".
+	Project *Project `protobuf:"bytes,1,opt,name=project,proto3,oneof"`
+}
+
+type Spec_Environment struct {
+	// An environment, kind "environment".
+	Environment *Environment `protobuf:"bytes,2,opt,name=environment,proto3,oneof"`
+}
+
+type Spec_Service struct {
+	// A service, kind "service".
+	Service *Service `protobuf:"bytes,3,opt,name=service,proto3,oneof"`
+}
+
+type Spec_Container struct {
+	// A container run by hand on a server, kind "container".
+	Container *Container `protobuf:"bytes,4,opt,name=container,proto3,oneof"`
+}
+
+type Spec_FirewallRule struct {
+	// A firewall rule on a server, kind "firewall.rule".
+	FirewallRule *FirewallRule `protobuf:"bytes,5,opt,name=firewall_rule,json=firewallRule,proto3,oneof"`
+}
+
+func (*Spec_Project) isSpec_Kind() {}
+
+func (*Spec_Environment) isSpec_Kind() {}
+
+func (*Spec_Service) isSpec_Kind() {}
+
+func (*Spec_Container) isSpec_Kind() {}
+
+func (*Spec_FirewallRule) isSpec_Kind() {}
+
 var file_dockwell_resource_v1alpha1_specs_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.FieldOptions)(nil),
@@ -659,7 +799,14 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\"L\n" +
 	"\aService\x129\n" +
 	"\x03app\x18\x01 \x01(\v2%.dockwell.resource.v1alpha1.ContainerH\x00R\x03appB\x06\n" +
-	"\x04runs*\xa3\x01\n" +
+	"\x04runs\"\xf5\x02\n" +
+	"\x04Spec\x12?\n" +
+	"\aproject\x18\x01 \x01(\v2#.dockwell.resource.v1alpha1.ProjectH\x00R\aproject\x12K\n" +
+	"\venvironment\x18\x02 \x01(\v2'.dockwell.resource.v1alpha1.EnvironmentH\x00R\venvironment\x12?\n" +
+	"\aservice\x18\x03 \x01(\v2#.dockwell.resource.v1alpha1.ServiceH\x00R\aservice\x12E\n" +
+	"\tcontainer\x18\x04 \x01(\v2%.dockwell.resource.v1alpha1.ContainerH\x00R\tcontainer\x12O\n" +
+	"\rfirewall_rule\x18\x05 \x01(\v2(.dockwell.resource.v1alpha1.FirewallRuleH\x00R\ffirewallRuleB\x06\n" +
+	"\x04kind*\xa3\x01\n" +
 	"\rRestartPolicy\x12\x1e\n" +
 	"\x1aRESTART_POLICY_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11RESTART_POLICY_NO\x10\x01\x12\x1d\n" +
@@ -691,7 +838,7 @@ func file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_resource_v1alpha1_specs_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(RestartPolicy)(0),                // 0: dockwell.resource.v1alpha1.RestartPolicy
 	(Protocol)(0),                     // 1: dockwell.resource.v1alpha1.Protocol
@@ -702,25 +849,31 @@ var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(*Project)(nil),                   // 6: dockwell.resource.v1alpha1.Project
 	(*Environment)(nil),               // 7: dockwell.resource.v1alpha1.Environment
 	(*Service)(nil),                   // 8: dockwell.resource.v1alpha1.Service
-	nil,                               // 9: dockwell.resource.v1alpha1.Container.EnvEntry
-	nil,                               // 10: dockwell.resource.v1alpha1.Container.LabelsEntry
-	(*descriptorpb.FieldOptions)(nil), // 11: google.protobuf.FieldOptions
+	(*Spec)(nil),                      // 9: dockwell.resource.v1alpha1.Spec
+	nil,                               // 10: dockwell.resource.v1alpha1.Container.EnvEntry
+	nil,                               // 11: dockwell.resource.v1alpha1.Container.LabelsEntry
+	(*descriptorpb.FieldOptions)(nil), // 12: google.protobuf.FieldOptions
 }
 var file_dockwell_resource_v1alpha1_specs_proto_depIdxs = []int32{
-	9,  // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
+	10, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
 	4,  // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
 	0,  // 2: dockwell.resource.v1alpha1.Container.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
-	10, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
+	11, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
 	1,  // 4: dockwell.resource.v1alpha1.PortMapping.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
 	2,  // 5: dockwell.resource.v1alpha1.FirewallRule.action:type_name -> dockwell.resource.v1alpha1.FirewallAction
 	1,  // 6: dockwell.resource.v1alpha1.FirewallRule.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
 	3,  // 7: dockwell.resource.v1alpha1.Service.app:type_name -> dockwell.resource.v1alpha1.Container
-	11, // 8: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
-	9,  // [9:9] is the sub-list for method output_type
-	9,  // [9:9] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	8,  // [8:9] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	6,  // 8: dockwell.resource.v1alpha1.Spec.project:type_name -> dockwell.resource.v1alpha1.Project
+	7,  // 9: dockwell.resource.v1alpha1.Spec.environment:type_name -> dockwell.resource.v1alpha1.Environment
+	8,  // 10: dockwell.resource.v1alpha1.Spec.service:type_name -> dockwell.resource.v1alpha1.Service
+	3,  // 11: dockwell.resource.v1alpha1.Spec.container:type_name -> dockwell.resource.v1alpha1.Container
+	5,  // 12: dockwell.resource.v1alpha1.Spec.firewall_rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
+	12, // 13: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	13, // [13:14] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_resource_v1alpha1_specs_proto_init() }
@@ -731,13 +884,20 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[5].OneofWrappers = []any{
 		(*Service_App)(nil),
 	}
+	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[6].OneofWrappers = []any{
+		(*Spec_Project)(nil),
+		(*Spec_Environment)(nil),
+		(*Spec_Service)(nil),
+		(*Spec_Container)(nil),
+		(*Spec_FirewallRule)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_resource_v1alpha1_specs_proto_rawDesc), len(file_dockwell_resource_v1alpha1_specs_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 1,
 			NumServices:   0,
 		},

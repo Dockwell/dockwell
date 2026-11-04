@@ -6,6 +6,8 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { PlanStep, ResourceRef } from "../../v1/change_pb";
+import { file_dockwell_v1_change } from "../../v1/change_pb";
 import { file_dockwell_v1_options } from "../../v1/options_pb";
 import type { ServerInventory, ServerStats } from "../../v1/server_pb";
 import { file_dockwell_v1_server } from "../../v1/server_pb";
@@ -19,7 +21,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/agent/v1/agent.proto.
  */
 export const file_dockwell_agent_v1_agent: GenFile = /*@__PURE__*/
-  fileDesc("Ch1kb2Nrd2VsbC9hZ2VudC92MS9hZ2VudC5wcm90bxIRZG9ja3dlbGwuYWdlbnQudjEicQoOQ29ubmVjdFJlcXVlc3QSKQoFaGVsbG8YASABKAsyGC5kb2Nrd2VsbC5hZ2VudC52MS5IZWxsb0gAEikKBXN0YXRzGAIgASgLMhguZG9ja3dlbGwudjEuU2VydmVyU3RhdHNIAEIJCgdtZXNzYWdlIl8KBUhlbGxvEiUKBWJ1aWxkGAEgASgLMhYuZG9ja3dlbGwudjEuQnVpbGRJbmZvEi8KCWludmVudG9yeRgCIAEoCzIcLmRvY2t3ZWxsLnYxLlNlcnZlckludmVudG9yeSJLCg9Db25uZWN0UmVzcG9uc2USLQoHd2VsY29tZRgBIAEoCzIaLmRvY2t3ZWxsLmFnZW50LnYxLldlbGNvbWVIAEIJCgdtZXNzYWdlIlEKB1dlbGNvbWUSEwoLc2VydmVyX25hbWUYASABKAkSMQoOc3RhdHNfaW50ZXJ2YWwYAiABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24iUwoKSm9pblRpY2tldBITCgtjb250cm9sX3VybBgBIAEoCRIOCgZjYV9waW4YAiABKAkSEAoIdG9rZW5faWQYAyABKAkSDgoGc2VjcmV0GAQgASgMInUKC0pvaW5SZXF1ZXN0EhAKCHRva2VuX2lkGAEgASgJEg4KBnNlY3JldBgCIAEoDBILCgNjc3IYAyABKAwSEAoIaG9zdG5hbWUYBCABKAkSJQoFYnVpbGQYBSABKAsyFi5kb2Nrd2VsbC52MS5CdWlsZEluZm8iYwoMSm9pblJlc3BvbnNlEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRITCgtjZXJ0aWZpY2F0ZRgDIAEoDBIWCg5jYV9jZXJ0aWZpY2F0ZRgEIAEoDCImChdSZW5ld0NlcnRpZmljYXRlUmVxdWVzdBILCgNjc3IYASABKAwiLwoYUmVuZXdDZXJ0aWZpY2F0ZVJlc3BvbnNlEhMKC2NlcnRpZmljYXRlGAEgASgMMqwCCgxBZ2VudFNlcnZpY2USTQoESm9pbhIeLmRvY2t3ZWxsLmFnZW50LnYxLkpvaW5SZXF1ZXN0Gh8uZG9ja3dlbGwuYWdlbnQudjEuSm9pblJlc3BvbnNlIgSguxgDEnEKEFJlbmV3Q2VydGlmaWNhdGUSKi5kb2Nrd2VsbC5hZ2VudC52MS5SZW5ld0NlcnRpZmljYXRlUmVxdWVzdBorLmRvY2t3ZWxsLmFnZW50LnYxLlJlbmV3Q2VydGlmaWNhdGVSZXNwb25zZSIEoLsYAxJaCgdDb25uZWN0EiEuZG9ja3dlbGwuYWdlbnQudjEuQ29ubmVjdFJlcXVlc3QaIi5kb2Nrd2VsbC5hZ2VudC52MS5Db25uZWN0UmVzcG9uc2UiBKC7GAMoATABQsUBChVjb20uZG9ja3dlbGwuYWdlbnQudjFCCkFnZW50UHJvdG9QAVo6Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvYWdlbnQvdjE7YWdlbnR2MaICA0RBWKoCEURvY2t3ZWxsLkFnZW50LlYxygIRRG9ja3dlbGxcQWdlbnRcVjHiAh1Eb2Nrd2VsbFxBZ2VudFxWMVxHUEJNZXRhZGF0YeoCE0RvY2t3ZWxsOjpBZ2VudDo6VjFiBnByb3RvMw", [file_dockwell_v1_options, file_dockwell_v1_server, file_dockwell_v1_system, file_google_protobuf_duration]);
+  fileDesc("Ch1kb2Nrd2VsbC9hZ2VudC92MS9hZ2VudC5wcm90bxIRZG9ja3dlbGwuYWdlbnQudjEiogEKDkNvbm5lY3RSZXF1ZXN0EikKBWhlbGxvGAEgASgLMhguZG9ja3dlbGwuYWdlbnQudjEuSGVsbG9IABIpCgVzdGF0cxgCIAEoCzIYLmRvY2t3ZWxsLnYxLlNlcnZlclN0YXRzSAASLwoGcmVzdWx0GAMgASgLMh0uZG9ja3dlbGwuYWdlbnQudjEuQ2FsbFJlc3VsdEgAQgkKB21lc3NhZ2UibgoFSGVsbG8SJQoFYnVpbGQYASABKAsyFi5kb2Nrd2VsbC52MS5CdWlsZEluZm8SLwoJaW52ZW50b3J5GAIgASgLMhwuZG9ja3dlbGwudjEuU2VydmVySW52ZW50b3J5Eg0KBWtpbmRzGAMgAygJIqUBCg9Db25uZWN0UmVzcG9uc2USLQoHd2VsY29tZRgBIAEoCzIaLmRvY2t3ZWxsLmFnZW50LnYxLldlbGNvbWVIABInCgRjYWxsGAIgASgLMhcuZG9ja3dlbGwuYWdlbnQudjEuQ2FsbEgAEi8KBmNhbmNlbBgDIAEoCzIdLmRvY2t3ZWxsLmFnZW50LnYxLkNhbmNlbENhbGxIAEIJCgdtZXNzYWdlIlEKB1dlbGNvbWUSEwoLc2VydmVyX25hbWUYASABKAkSMQoOc3RhdHNfaW50ZXJ2YWwYAiABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24iUwoKSm9pblRpY2tldBITCgtjb250cm9sX3VybBgBIAEoCRIOCgZjYV9waW4YAiABKAkSEAoIdG9rZW5faWQYAyABKAkSDgoGc2VjcmV0GAQgASgMInUKC0pvaW5SZXF1ZXN0EhAKCHRva2VuX2lkGAEgASgJEg4KBnNlY3JldBgCIAEoDBILCgNjc3IYAyABKAwSEAoIaG9zdG5hbWUYBCABKAkSJQoFYnVpbGQYBSABKAsyFi5kb2Nrd2VsbC52MS5CdWlsZEluZm8iYwoMSm9pblJlc3BvbnNlEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRITCgtjZXJ0aWZpY2F0ZRgDIAEoDBIWCg5jYV9jZXJ0aWZpY2F0ZRgEIAEoDCImChdSZW5ld0NlcnRpZmljYXRlUmVxdWVzdBILCgNjc3IYASABKAwiLwoYUmVuZXdDZXJ0aWZpY2F0ZVJlc3BvbnNlEhMKC2NlcnRpZmljYXRlGAEgASgMItUBCgRDYWxsEgoKAmlkGAEgASgEEioKB3RpbWVvdXQYAiABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24SKwoEcGxhbhgDIAEoCzIbLmRvY2t3ZWxsLmFnZW50LnYxLlBsYW5DYWxsSAASLQoFYXBwbHkYBCABKAsyHC5kb2Nrd2VsbC5hZ2VudC52MS5BcHBseUNhbGxIABIxCgdvYnNlcnZlGAUgASgLMh4uZG9ja3dlbGwuYWdlbnQudjEuT2JzZXJ2ZUNhbGxIAEIGCgRjYWxsIj8KCFBsYW5DYWxsEjMKB2Rlc2lyZWQYASADKAsyIi5kb2Nrd2VsbC5hZ2VudC52MS5EZXNpcmVkUmVzb3VyY2UiZQoJQXBwbHlDYWxsEiMKBHN0ZXAYASABKAsyFS5kb2Nrd2VsbC52MS5QbGFuU3RlcBIzCgdkZXNpcmVkGAIgASgLMiIuZG9ja3dlbGwuYWdlbnQudjEuRGVzaXJlZFJlc291cmNlIjoKC09ic2VydmVDYWxsEisKCXJlc291cmNlcxgBIAMoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmIlkKD0Rlc2lyZWRSZXNvdXJjZRIqCghyZXNvdXJjZRgBIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEhEKBHNwZWMYAiABKAxIAIgBAUIHCgVfc3BlYyIYCgpDYW5jZWxDYWxsEgoKAmlkGAEgASgEIuYBCgpDYWxsUmVzdWx0EgoKAmlkGAEgASgEEi0KBWVycm9yGAIgASgLMhwuZG9ja3dlbGwuYWdlbnQudjEuQ2FsbEVycm9ySAASLQoEcGxhbhgDIAEoCzIdLmRvY2t3ZWxsLmFnZW50LnYxLlBsYW5SZXN1bHRIABIvCgVhcHBseRgEIAEoCzIeLmRvY2t3ZWxsLmFnZW50LnYxLkFwcGx5UmVzdWx0SAASMwoHb2JzZXJ2ZRgFIAEoCzIgLmRvY2t3ZWxsLmFnZW50LnYxLk9ic2VydmVSZXN1bHRIAEIICgZyZXN1bHQiHAoJQ2FsbEVycm9yEg8KB21lc3NhZ2UYASABKAkiMgoKUGxhblJlc3VsdBIkCgVzdGVwcxgBIAMoCzIVLmRvY2t3ZWxsLnYxLlBsYW5TdGVwIg0KC0FwcGx5UmVzdWx0IkcKDU9ic2VydmVSZXN1bHQSNgoJcmVzb3VyY2VzGAEgAygLMiMuZG9ja3dlbGwuYWdlbnQudjEuT2JzZXJ2ZWRSZXNvdXJjZSIuChBPYnNlcnZlZFJlc291cmNlEhEKBHNwZWMYASABKAxIAIgBAUIHCgVfc3BlYzKsAgoMQWdlbnRTZXJ2aWNlEk0KBEpvaW4SHi5kb2Nrd2VsbC5hZ2VudC52MS5Kb2luUmVxdWVzdBofLmRvY2t3ZWxsLmFnZW50LnYxLkpvaW5SZXNwb25zZSIEoLsYAxJxChBSZW5ld0NlcnRpZmljYXRlEiouZG9ja3dlbGwuYWdlbnQudjEuUmVuZXdDZXJ0aWZpY2F0ZVJlcXVlc3QaKy5kb2Nrd2VsbC5hZ2VudC52MS5SZW5ld0NlcnRpZmljYXRlUmVzcG9uc2UiBKC7GAMSWgoHQ29ubmVjdBIhLmRvY2t3ZWxsLmFnZW50LnYxLkNvbm5lY3RSZXF1ZXN0GiIuZG9ja3dlbGwuYWdlbnQudjEuQ29ubmVjdFJlc3BvbnNlIgSguxgDKAEwAULFAQoVY29tLmRvY2t3ZWxsLmFnZW50LnYxQgpBZ2VudFByb3RvUAFaOmdpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL2FnZW50L3YxO2FnZW50djGiAgNEQViqAhFEb2Nrd2VsbC5BZ2VudC5WMcoCEURvY2t3ZWxsXEFnZW50XFYx4gIdRG9ja3dlbGxcQWdlbnRcVjFcR1BCTWV0YWRhdGHqAhNEb2Nrd2VsbDo6QWdlbnQ6OlYxYgZwcm90bzM", [file_dockwell_v1_change, file_dockwell_v1_options, file_dockwell_v1_server, file_dockwell_v1_system, file_google_protobuf_duration]);
 
 /**
  * ConnectRequest is one message from the agent.
@@ -48,6 +50,14 @@ export type ConnectRequest = Message<"dockwell.agent.v1.ConnectRequest"> & {
      */
     value: ServerStats;
     case: "stats";
+  } | {
+    /**
+     * The answer to a call from the control plane.
+     *
+     * @generated from field: dockwell.agent.v1.CallResult result = 3;
+     */
+    value: CallResult;
+    case: "result";
   } | { case: undefined; value?: undefined };
 };
 
@@ -77,6 +87,14 @@ export type Hello = Message<"dockwell.agent.v1.Hello"> & {
    * @generated from field: dockwell.v1.ServerInventory inventory = 2;
    */
   inventory?: ServerInventory | undefined;
+
+  /**
+   * The kinds of resource the agent has drivers for, such as "container".
+   * The control plane plans no other kind on this server.
+   *
+   * @generated from field: repeated string kinds = 3;
+   */
+  kinds: string[];
 };
 
 /**
@@ -105,6 +123,22 @@ export type ConnectResponse = Message<"dockwell.agent.v1.ConnectResponse"> & {
      */
     value: Welcome;
     case: "welcome";
+  } | {
+    /**
+     * A call for the agent to make with its drivers.
+     *
+     * @generated from field: dockwell.agent.v1.Call call = 2;
+     */
+    value: Call;
+    case: "call";
+  } | {
+    /**
+     * Stops a call the control plane no longer waits for.
+     *
+     * @generated from field: dockwell.agent.v1.CancelCall cancel = 3;
+     */
+    value: CancelCall;
+    case: "cancel";
   } | { case: undefined; value?: undefined };
 };
 
@@ -327,6 +361,352 @@ export const RenewCertificateResponseSchema: GenMessage<RenewCertificateResponse
   messageDesc(file_dockwell_agent_v1_agent, 8);
 
 /**
+ * Call asks the agent to plan, apply or observe with its drivers. The agent
+ * answers each call with a CallResult of the same ID, and may answer calls
+ * in any order.
+ *
+ * @generated from message dockwell.agent.v1.Call
+ */
+export type Call = Message<"dockwell.agent.v1.Call"> & {
+  /**
+   * Names the call on this stream, so its result can be matched to it.
+   *
+   * @generated from field: uint64 id = 1;
+   */
+  id: bigint;
+
+  /**
+   * How long the call may take, from when the agent receives it. It is a
+   * duration rather than a deadline, so a server whose clock is off still
+   * gets the time it was given.
+   *
+   * @generated from field: google.protobuf.Duration timeout = 2;
+   */
+  timeout?: Duration | undefined;
+
+  /**
+   * What to do.
+   *
+   * @generated from oneof dockwell.agent.v1.Call.call
+   */
+  call: {
+    /**
+     * Compare resources with what the server has, and judge each step.
+     *
+     * @generated from field: dockwell.agent.v1.PlanCall plan = 3;
+     */
+    value: PlanCall;
+    case: "plan";
+  } | {
+    /**
+     * Carry out a step and verify the result.
+     *
+     * @generated from field: dockwell.agent.v1.ApplyCall apply = 4;
+     */
+    value: ApplyCall;
+    case: "apply";
+  } | {
+    /**
+     * Read resources as the server has them.
+     *
+     * @generated from field: dockwell.agent.v1.ObserveCall observe = 5;
+     */
+    value: ObserveCall;
+    case: "observe";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message dockwell.agent.v1.Call.
+ * Use `create(CallSchema)` to create a new message.
+ */
+export const CallSchema: GenMessage<Call> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 9);
+
+/**
+ * PlanCall asks what moving each resource to its desired spec would take.
+ * It reads the server and changes nothing.
+ *
+ * @generated from message dockwell.agent.v1.PlanCall
+ */
+export type PlanCall = Message<"dockwell.agent.v1.PlanCall"> & {
+  /**
+   * Each resource as the change wants it on this server.
+   *
+   * @generated from field: repeated dockwell.agent.v1.DesiredResource desired = 1;
+   */
+  desired: DesiredResource[];
+};
+
+/**
+ * Describes the message dockwell.agent.v1.PlanCall.
+ * Use `create(PlanCallSchema)` to create a new message.
+ */
+export const PlanCallSchema: GenMessage<PlanCall> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 10);
+
+/**
+ * ApplyCall asks the agent to carry out one step.
+ *
+ * @generated from message dockwell.agent.v1.ApplyCall
+ */
+export type ApplyCall = Message<"dockwell.agent.v1.ApplyCall"> & {
+  /**
+   * The step, as the plan has it.
+   *
+   * @generated from field: dockwell.v1.PlanStep step = 1;
+   */
+  step?: PlanStep | undefined;
+
+  /**
+   * The resource as the step leaves it.
+   *
+   * @generated from field: dockwell.agent.v1.DesiredResource desired = 2;
+   */
+  desired?: DesiredResource | undefined;
+};
+
+/**
+ * Describes the message dockwell.agent.v1.ApplyCall.
+ * Use `create(ApplyCallSchema)` to create a new message.
+ */
+export const ApplyCallSchema: GenMessage<ApplyCall> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 11);
+
+/**
+ * ObserveCall asks for resources as the server has them.
+ *
+ * @generated from message dockwell.agent.v1.ObserveCall
+ */
+export type ObserveCall = Message<"dockwell.agent.v1.ObserveCall"> & {
+  /**
+   * The resources.
+   *
+   * @generated from field: repeated dockwell.v1.ResourceRef resources = 1;
+   */
+  resources: ResourceRef[];
+};
+
+/**
+ * Describes the message dockwell.agent.v1.ObserveCall.
+ * Use `create(ObserveCallSchema)` to create a new message.
+ */
+export const ObserveCallSchema: GenMessage<ObserveCall> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 12);
+
+/**
+ * DesiredResource is one resource as a change wants it.
+ *
+ * @generated from message dockwell.agent.v1.DesiredResource
+ */
+export type DesiredResource = Message<"dockwell.agent.v1.DesiredResource"> & {
+  /**
+   * The resource.
+   *
+   * @generated from field: dockwell.v1.ResourceRef resource = 1;
+   */
+  resource?: ResourceRef | undefined;
+
+  /**
+   * Its spec, encoded as its kind's message. Unset deletes it; an empty
+   * spec is set, with no bytes.
+   *
+   * @generated from field: optional bytes spec = 2;
+   */
+  spec?: Uint8Array | undefined;
+};
+
+/**
+ * Describes the message dockwell.agent.v1.DesiredResource.
+ * Use `create(DesiredResourceSchema)` to create a new message.
+ */
+export const DesiredResourceSchema: GenMessage<DesiredResource> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 13);
+
+/**
+ * CancelCall stops a call: its caller went away, or its time ran out.
+ *
+ * @generated from message dockwell.agent.v1.CancelCall
+ */
+export type CancelCall = Message<"dockwell.agent.v1.CancelCall"> & {
+  /**
+   * The call's ID.
+   *
+   * @generated from field: uint64 id = 1;
+   */
+  id: bigint;
+};
+
+/**
+ * Describes the message dockwell.agent.v1.CancelCall.
+ * Use `create(CancelCallSchema)` to create a new message.
+ */
+export const CancelCallSchema: GenMessage<CancelCall> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 14);
+
+/**
+ * CallResult is the agent's answer to one call.
+ *
+ * @generated from message dockwell.agent.v1.CallResult
+ */
+export type CallResult = Message<"dockwell.agent.v1.CallResult"> & {
+  /**
+   * The call's ID.
+   *
+   * @generated from field: uint64 id = 1;
+   */
+  id: bigint;
+
+  /**
+   * How it went.
+   *
+   * @generated from oneof dockwell.agent.v1.CallResult.result
+   */
+  result: {
+    /**
+     * The call failed.
+     *
+     * @generated from field: dockwell.agent.v1.CallError error = 2;
+     */
+    value: CallError;
+    case: "error";
+  } | {
+    /**
+     * The steps a plan call judged, in the order it was given resources.
+     *
+     * @generated from field: dockwell.agent.v1.PlanResult plan = 3;
+     */
+    value: PlanResult;
+    case: "plan";
+  } | {
+    /**
+     * The step was carried out and verified.
+     *
+     * @generated from field: dockwell.agent.v1.ApplyResult apply = 4;
+     */
+    value: ApplyResult;
+    case: "apply";
+  } | {
+    /**
+     * The resources an observe call read.
+     *
+     * @generated from field: dockwell.agent.v1.ObserveResult observe = 5;
+     */
+    value: ObserveResult;
+    case: "observe";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message dockwell.agent.v1.CallResult.
+ * Use `create(CallResultSchema)` to create a new message.
+ */
+export const CallResultSchema: GenMessage<CallResult> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 15);
+
+/**
+ * CallError says why a call failed.
+ *
+ * @generated from message dockwell.agent.v1.CallError
+ */
+export type CallError = Message<"dockwell.agent.v1.CallError"> & {
+  /**
+   * The reason, for people, such as "can't replace container web: the
+   * image doesn't exist".
+   *
+   * @generated from field: string message = 1;
+   */
+  message: string;
+};
+
+/**
+ * Describes the message dockwell.agent.v1.CallError.
+ * Use `create(CallErrorSchema)` to create a new message.
+ */
+export const CallErrorSchema: GenMessage<CallError> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 16);
+
+/**
+ * PlanResult carries a plan call's steps.
+ *
+ * @generated from message dockwell.agent.v1.PlanResult
+ */
+export type PlanResult = Message<"dockwell.agent.v1.PlanResult"> & {
+  /**
+   * One step for each desired resource, in order; a resource already as
+   * desired has PLAN_ACTION_NONE.
+   *
+   * @generated from field: repeated dockwell.v1.PlanStep steps = 1;
+   */
+  steps: PlanStep[];
+};
+
+/**
+ * Describes the message dockwell.agent.v1.PlanResult.
+ * Use `create(PlanResultSchema)` to create a new message.
+ */
+export const PlanResultSchema: GenMessage<PlanResult> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 17);
+
+/**
+ * ApplyResult says a step was carried out and verified.
+ *
+ * @generated from message dockwell.agent.v1.ApplyResult
+ */
+export type ApplyResult = Message<"dockwell.agent.v1.ApplyResult"> & {
+};
+
+/**
+ * Describes the message dockwell.agent.v1.ApplyResult.
+ * Use `create(ApplyResultSchema)` to create a new message.
+ */
+export const ApplyResultSchema: GenMessage<ApplyResult> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 18);
+
+/**
+ * ObserveResult carries an observe call's resources.
+ *
+ * @generated from message dockwell.agent.v1.ObserveResult
+ */
+export type ObserveResult = Message<"dockwell.agent.v1.ObserveResult"> & {
+  /**
+   * One for each resource asked for, in order.
+   *
+   * @generated from field: repeated dockwell.agent.v1.ObservedResource resources = 1;
+   */
+  resources: ObservedResource[];
+};
+
+/**
+ * Describes the message dockwell.agent.v1.ObserveResult.
+ * Use `create(ObserveResultSchema)` to create a new message.
+ */
+export const ObserveResultSchema: GenMessage<ObserveResult> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 19);
+
+/**
+ * ObservedResource is a resource as the server has it.
+ *
+ * @generated from message dockwell.agent.v1.ObservedResource
+ */
+export type ObservedResource = Message<"dockwell.agent.v1.ObservedResource"> & {
+  /**
+   * Its spec, encoded as its kind's message. Unset when the server doesn't
+   * have it.
+   *
+   * @generated from field: optional bytes spec = 1;
+   */
+  spec?: Uint8Array | undefined;
+};
+
+/**
+ * Describes the message dockwell.agent.v1.ObservedResource.
+ * Use `create(ObservedResourceSchema)` to create a new message.
+ */
+export const ObservedResourceSchema: GenMessage<ObservedResource> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 20);
+
+/**
  * AgentService is how a server's agent talks to the control plane, over
  * mTLS on the control plane's agent listener (ADR 0007). It is an internal
  * protocol between dockwell binaries, not part of the public API, so the CLI
@@ -361,8 +741,9 @@ export const AgentService: GenService<{
   /**
    * Connect is the agent's long-lived stream. The agent opens it with a
    * hello and then reports samples; the control plane answers with a
-   * welcome, and closes the stream if the server is removed. Later, desired
-   * state travels down this stream too.
+   * welcome, and closes the stream if the server is removed. The control
+   * plane also calls the agent's drivers over it, to plan, apply and
+   * observe resources, and the agent answers each call with its result.
    *
    * @generated from rpc dockwell.agent.v1.AgentService.Connect
    */

@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -50,11 +52,12 @@ func Setup(ctx context.Context, db *store.DB, logger *slog.Logger) (bool, error)
 		items := make([]item, len(revs))
 		c := store.Change{
 			ID: id.New(id.Change), Summary: "Set up the default project and environment", Actor: SystemActor,
-			State: store.ChangeApplying, CreatedAt: now,
+			State: store.ChangePlanned, CreatedAt: now, ProposedVia: ViaAutomatic,
 		}
+		specs := []proto.Message{&resourcev1.Project{}, &resourcev1.Environment{}}
 		for i := range revs {
 			r := &revs[i]
-			items[i] = item{ref: resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}, id: r.ID, encoded: r.Spec}
+			items[i] = item{ref: resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}, id: r.ID, spec: specs[i], encoded: r.Spec}
 			c.Items = append(c.Items, store.ChangeItem{ResourceID: r.ID, Kind: r.Kind, Scope: r.Scope, Name: r.Name, Spec: r.Spec})
 		}
 		// The plan is what Propose would make: two revisions, no steps.
@@ -70,6 +73,9 @@ func Setup(ctx context.Context, db *store.DB, logger *slog.Logger) (bool, error)
 		if err := tx.CreateChange(ctx, c); err != nil {
 			return err
 		}
+		if err := tx.StartApplying(ctx, c.ID, SystemActor, ViaAutomatic, []byte(`{"steps":[]}`), now); err != nil {
+			return err
+		}
 		for i := range revs {
 			r := &revs[i]
 			r.Change, r.Position, r.At = c.ID, i, now
@@ -80,7 +86,9 @@ func Setup(ctx context.Context, db *store.DB, logger *slog.Logger) (bool, error)
 		if err := tx.SetChangeState(ctx, c.ID, store.ChangeApplied, "", now); err != nil {
 			return err
 		}
-		if err := tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: now, Actor: SystemActor, Action: "change.applied", Subject: c.ID, Detail: c.Summary}); err != nil {
+		if err := tx.RecordEvent(ctx, store.Event{
+			ID: id.New(id.Event), At: now, Actor: SystemActor, Action: "change.applied", Subject: c.ID, Detail: c.Summary, Surface: ViaAutomatic,
+		}); err != nil {
 			return err
 		}
 		made = org.ID

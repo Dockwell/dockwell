@@ -214,7 +214,7 @@ func TestMovingAServiceIsARevision(t *testing.T) {
 			t.Errorf("deployments after the move: %v", d)
 		}
 
-		undo, err := e.Undo(t.Context(), move.Change, "usr_test")
+		undo, err := e.Undo(t.Context(), move.Change, By{Actor: "usr_test"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -291,7 +291,7 @@ func TestAnEnvironmentIsAChangeAndShowsOnlyOnceThereIsAChoice(t *testing.T) {
 			t.Errorf("Resolve(default, staging) = %+v, %v", env, err)
 		}
 
-		undo, err := e.Undo(t.Context(), p.Change, "usr_test")
+		undo, err := e.Undo(t.Context(), p.Change, By{Actor: "usr_test"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -411,7 +411,7 @@ func removedOnly(sp ServerPlan, server string) bool {
 
 func undo(t *testing.T, e *Engine, p *Plan) *Plan {
 	t.Helper()
-	u, err := e.Undo(t.Context(), p.Change, "usr_test")
+	u, err := e.Undo(t.Context(), p.Change, By{Actor: "usr_test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -559,7 +559,7 @@ func TestAServiceCanLeaveARemovedServer(t *testing.T) {
 		if d := deployments(t, db, web.Ref); !slices.Equal(d, []string{"srv_A@2=live", "srv_B@1=superseded"}) {
 			t.Errorf("web's deployments after the move: %v", d)
 		}
-		if _, err := e.Undo(t.Context(), move.Change, "usr_test"); !errors.Is(err, ErrCantUndo) ||
+		if _, err := e.Undo(t.Context(), move.Change, By{Actor: "usr_test"}); !errors.Is(err, ErrCantUndo) ||
 			!strings.Contains(err.Error(), "web ran on srv_B, which was removed from the fleet, so there's nowhere to put it back. Edit web directly instead") {
 			t.Errorf("undoing the move = %v, want ErrCantUndo saying there's nowhere to put web back", err)
 		}
@@ -572,7 +572,7 @@ func TestAServiceCanLeaveARemovedServer(t *testing.T) {
 		if d := deployments(t, db, api.Ref); !slices.Equal(d, []string{"srv_B@1=superseded"}) {
 			t.Errorf("api's deployments after the delete: %v", d)
 		}
-		if _, err := e.Undo(t.Context(), gone.Change, "usr_test"); !errors.Is(err, ErrCantUndo) {
+		if _, err := e.Undo(t.Context(), gone.Change, By{Actor: "usr_test"}); !errors.Is(err, ErrCantUndo) {
 			t.Errorf("undoing api's deletion = %v, want ErrCantUndo", err)
 		}
 	})

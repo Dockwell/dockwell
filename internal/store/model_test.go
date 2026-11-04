@@ -191,6 +191,8 @@ func TestHistoryIsAppendOnly(t *testing.T) {
 			`DELETE FROM change_items`,
 			`UPDATE changes SET plan = 'x'`,
 			`UPDATE changes SET fingerprint = 'x'`,
+			`UPDATE changes SET proposed_via = 'x'`,
+			`UPDATE changes SET state = 'abandoned'`,
 			`DELETE FROM changes`,
 			`UPDATE resources SET revision = 5`,
 			`UPDATE resources SET name = 'telnet'`,
@@ -207,6 +209,8 @@ func TestHistoryIsAppendOnly(t *testing.T) {
 		// What is meant to move on still does.
 		for _, q := range []string{
 			`UPDATE changes SET state = 'applied', applied_at = 1`,
+			`UPDATE changes SET applied_by = 'user:usr_1', applied_via = 'panel', progress = 'x'`,
+			`UPDATE changes SET state = 'discarded'`,
 			`UPDATE deployments SET state = 'live', updated_at = 1`,
 		} {
 			if err := db.Update(ctx, func(tx *store.Tx) error { return store.ExecForTest(ctx, tx, q) }); err != nil {

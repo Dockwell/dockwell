@@ -55,8 +55,9 @@ type AgentServiceClient interface {
 	RenewCertificate(context.Context, *connect.Request[v1.RenewCertificateRequest]) (*connect.Response[v1.RenewCertificateResponse], error)
 	// Connect is the agent's long-lived stream. The agent opens it with a
 	// hello and then reports samples; the control plane answers with a
-	// welcome, and closes the stream if the server is removed. Later, desired
-	// state travels down this stream too.
+	// welcome, and closes the stream if the server is removed. The control
+	// plane also calls the agent's drivers over it, to plan, apply and
+	// observe resources, and the agent answers each call with its result.
 	Connect(context.Context) *connect.BidiStreamForClient[v1.ConnectRequest, v1.ConnectResponse]
 }
 
@@ -125,8 +126,9 @@ type AgentServiceHandler interface {
 	RenewCertificate(context.Context, *connect.Request[v1.RenewCertificateRequest]) (*connect.Response[v1.RenewCertificateResponse], error)
 	// Connect is the agent's long-lived stream. The agent opens it with a
 	// hello and then reports samples; the control plane answers with a
-	// welcome, and closes the stream if the server is removed. Later, desired
-	// state travels down this stream too.
+	// welcome, and closes the stream if the server is removed. The control
+	// plane also calls the agent's drivers over it, to plan, apply and
+	// observe resources, and the agent answers each call with its result.
 	Connect(context.Context, *connect.BidiStream[v1.ConnectRequest, v1.ConnectResponse]) error
 }
 

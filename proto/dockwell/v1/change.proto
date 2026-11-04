@@ -1,0 +1,622 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/resource/v1alpha1/specs.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// ChangeService is the one way to change managed state, for every kind of
+// resource: projects, environments, services, containers and firewall rules
+// alike. You propose edits and get a plan back; applying the plan writes
+// immutable revisions and runs its steps on the servers; undoing makes a new
+// plan that puts things back. See docs/adr/0009-resources-revisions-and-plans.md
+// and docs/adr/0017-the-change-api-and-the-agent-stream.md.
+//
+// Plans never show a secret: a field that may hold one says that it changed,
+// never what it holds, and no response carries a spec.
+//
+// WatchChange streams, so it has no REST path. A REST client follows a
+// change by polling GET /v1/changes/{id}, which carries the same progress,
+// or opens the stream with Connect, gRPC or gRPC-Web, with the same
+// credentials.
+service ChangeService {
+  // ProposeChange plans a set of edits and records them as a planned
+  // change, ready to apply or discard. Planning asks each server's agent
+  // what the edits would take there, and changes nothing on any server. The
+  // same edits against the same state give the same plan and fingerprint.
+  rpc ProposeChange(ProposeChangeRequest) returns (ProposeChangeResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/changes"
+      body: "*"
+    };
+  }
+
+  // GetChange returns one change, with its plan and the progress of each of
+  // its steps.
+  rpc GetChange(GetChangeRequest) returns (GetChangeResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/changes/{id}"};
+  }
+
+  // ListChanges returns changes, newest first, a page at a time.
+  rpc ListChanges(ListChangesRequest) returns (ListChangesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/changes"};
+  }
+
+  // ApplyChange carries out a planned change. It plans again, and refuses
+  // if any resource changed since, or if the servers no longer match the
+  // plan; either way, propose the edits again and review the new plan.
+  // Otherwise it commits the change's revisions and starts running its
+  // steps, and returns the change as it starts applying. The steps run to
+  // an end whether or not the caller waits. Follow them with WatchChange,
+  // or by polling GetChange. If a step fails, the steps already done are
+  // rolled back in a change of Dockwell's own, named in rolled_back_by.
+  //
+  // A plan that destroys data or may cut off access needs the fingerprint
+  // of the plan you reviewed, and a signed-in session: no API token may
+  // apply one.
+  rpc ApplyChange(ApplyChangeRequest) returns (ApplyChangeResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/changes/{id}:apply"
+      body: "*"
+    };
+  }
+
+  // WatchChange streams a change: first the change as it stands, then each
+  // step's progress as it moves on, and the change again whenever its state
+  // does. It ends once the change is applied, failed or discarded, so a
+  // planned change is watched until someone applies or discards it. Any
+  // number of clients can watch one change, whoever applies it.
+  rpc WatchChange(WatchChangeRequest) returns (stream WatchChangeResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
+
+  // UndoChange plans putting back everything an applied change did, as a
+  // new change; apply it to carry it out. It is refused once the change is
+  // older than its undo window, or when a resource it touched has changed
+  // again since: undo that later change first, or edit the resource.
+  rpc UndoChange(UndoChangeRequest) returns (UndoChangeResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/changes/{id}:undo"
+      body: "*"
+    };
+  }
+
+  // DiscardChange drops a planned change without applying it. The change
+  // stays on record as discarded.
+  rpc DiscardChange(DiscardChangeRequest) returns (DiscardChangeResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/changes/{id}:discard"
+      body: "*"
+    };
+  }
+
+  // ListDrift compares what servers have with the latest revision of each
+  // resource they should have, and returns every difference. It asks each
+  // connected server's agent, and changes nothing.
+  rpc ListDrift(ListDriftRequest) returns (ListDriftResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/drift"};
+  }
+
+  // RevertDrift plans putting a drifted resource back to its latest
+  // revision on the servers it runs on.
+  rpc RevertDrift(RevertDriftRequest) returns (RevertDriftResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/drift:revert"
+      body: "*"
+    };
+  }
+
+  // AdoptDrift plans keeping what a server has for a drifted resource: a
+  // new revision that matches it. Nothing changes on that server; any other
+  // server the resource runs on is brought to match, and the plan shows it.
+  rpc AdoptDrift(AdoptDriftRequest) returns (AdoptDriftResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/drift:adopt"
+      body: "*"
+    };
+  }
+}
+
+// ProposeChangeRequest is a set of edits to plan together.
+message ProposeChangeRequest {
+  // What the change is for, in your words, such as "Add a staging
+  // environment". Required: the timeline shows it.
+  string summary = 1;
+  // The edits, at most one for each resource. They apply in this order,
+  // and deletions last, in reverse.
+  repeated Edit edits = 2;
+}
+
+// Edit sets one resource's desired spec, or deletes it.
+message Edit {
+  // The resource. Its kind may be left out when the spec says it. Its
+  // scope may be left out where there is only one to choose, as with the
+  // organization of a project, or the environment of a service in an
+  // install with one; once there is a choice, leaving it out is an error
+  // that names the options.
+  ResourceRef resource = 1;
+  // What the resource should be. Every field is set as given: an edit
+  // replaces the whole spec. Unset only with delete.
+  dockwell.resource.v1alpha1.Spec spec = 2;
+  // Deletes the resource. A project or environment goes only once what
+  // lives in it has gone, in this change or an earlier one.
+  bool delete = 3;
+  // Where a service runs, by server ID. Empty keeps it where it runs now;
+  // a new one runs on the only server, and must name its servers once there
+  // are several. Other kinds ignore it: a container or firewall rule lives
+  // on its server, and projects and environments run on none.
+  repeated string servers = 4;
+}
+
+// ResourceRef names a resource.
+message ResourceRef {
+  // The kind, such as "project", "environment", "service", "container" or
+  // "firewall.rule".
+  string kind = 1;
+  // The ID of what it lives in, which its kind says: the organization
+  // ("org_…") for a project, a project ("prj_…") for an environment, an
+  // environment ("env_…") for a service, and a server ("srv_…") for a
+  // container or firewall rule.
+  string scope = 2;
+  // Its name, unique among its kind in its scope, such as "web".
+  string name = 3;
+}
+
+// ProposeChangeResponse carries the planned change.
+message ProposeChangeResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// GetChangeRequest names a change.
+message GetChangeRequest {
+  // The change's ID, such as "chg_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+}
+
+// GetChangeResponse carries one change.
+message GetChangeResponse {
+  // The change.
+  Change change = 1;
+}
+
+// ListChangesRequest asks for a page of changes.
+message ListChangesRequest {
+  // How many changes to return: 50 when unset, and at most 200.
+  int32 page_size = 1;
+  // Where to start: the next_page_token of the page before. Empty starts
+  // with the newest.
+  string page_token = 2;
+}
+
+// ListChangesResponse is a page of changes.
+message ListChangesResponse {
+  // The changes, newest first.
+  repeated Change changes = 1;
+  // Pass it as page_token for the next page. Empty on the last page.
+  string next_page_token = 2;
+}
+
+// ApplyChangeRequest names a planned change to apply.
+message ApplyChangeRequest {
+  // The change's ID.
+  string id = 1;
+  // The fingerprint of the plan you reviewed. When set, the change applies
+  // only if its plan has it. A plan that destroys data or may cut off
+  // access needs it.
+  string fingerprint = 2;
+}
+
+// ApplyChangeResponse carries the change as it starts applying.
+message ApplyChangeResponse {
+  // The change: applying, with its steps queued; or applied, when it had
+  // no steps to run.
+  Change change = 1;
+}
+
+// WatchChangeRequest names a change to watch.
+message WatchChangeRequest {
+  // The change's ID.
+  string id = 1;
+}
+
+// WatchChangeResponse is one event of a watch.
+message WatchChangeResponse {
+  // What happened.
+  oneof event {
+    // The change as it is now: the first message, and again whenever its
+    // state moves on.
+    Change change = 1;
+    // One step's progress, which replaces the step at its index in the
+    // change's steps.
+    StepUpdate step = 2;
+  }
+}
+
+// StepUpdate is one step's latest progress.
+message StepUpdate {
+  // Where the step is in the change's steps, from 0.
+  int32 index = 1;
+  // The step as it is now.
+  StepProgress step = 2;
+}
+
+// UndoChangeRequest names an applied change to undo.
+message UndoChangeRequest {
+  // The change's ID.
+  string id = 1;
+}
+
+// UndoChangeResponse carries the planned undo.
+message UndoChangeResponse {
+  // A new change, planned, that puts back what the undone one did.
+  Change change = 1;
+}
+
+// DiscardChangeRequest names a planned change to discard.
+message DiscardChangeRequest {
+  // The change's ID.
+  string id = 1;
+}
+
+// DiscardChangeResponse carries the discarded change.
+message DiscardChangeResponse {
+  // The change, discarded.
+  Change change = 1;
+}
+
+// ListDriftRequest says where to look for drift.
+message ListDriftRequest {
+  // A server's ID. Empty looks on every server.
+  string server_id = 1;
+}
+
+// ListDriftResponse lists what doesn't match its latest revision.
+message ListDriftResponse {
+  // Each resource that differs, on each server it differs on.
+  repeated Drift drift = 1;
+  // Servers that aren't connected, so weren't checked. Their drift is
+  // checked once their agents reconnect.
+  repeated string unchecked_servers = 2;
+}
+
+// Drift is a resource on a server that doesn't match its latest revision.
+message Drift {
+  // The server.
+  string server_id = 1;
+  // The resource's ID.
+  string resource_id = 2;
+  // The resource.
+  ResourceRef resource = 3;
+  // The latest revision, which the server should match.
+  int64 revision = 4;
+  // True when the resource is gone from the server.
+  bool missing = 5;
+  // What differs, from the latest revision to what the server has.
+  repeated FieldChange changes = 6;
+}
+
+// RevertDriftRequest names a drifted resource to put back.
+message RevertDriftRequest {
+  // The server it drifted on.
+  string server_id = 1;
+  // The resource's ID.
+  string resource_id = 2;
+}
+
+// RevertDriftResponse carries the planned revert.
+message RevertDriftResponse {
+  // A new change, planned, that puts the resource back.
+  Change change = 1;
+}
+
+// AdoptDriftRequest names a drifted resource to keep as it is.
+message AdoptDriftRequest {
+  // The server whose version to keep.
+  string server_id = 1;
+  // The resource's ID.
+  string resource_id = 2;
+}
+
+// AdoptDriftResponse carries the planned adoption.
+message AdoptDriftResponse {
+  // A new change, planned, whose revision matches what the server has.
+  Change change = 1;
+}
+
+// Change is one action's worth of edits to managed resources: planned,
+// then applied, failed or discarded.
+message Change {
+  // The change's ID, such as "chg_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // What it is for, such as "Add a staging environment".
+  string summary = 2;
+  // Where it is.
+  ChangeState state = 3;
+  // Who proposed it.
+  Actor proposed_by = 4;
+  // Where it was proposed from.
+  Surface proposed_via = 5;
+  // When it was proposed.
+  google.protobuf.Timestamp create_time = 6;
+  // What applying does, as it was reviewed. It never changes.
+  Plan plan = 7;
+  // The change this one undoes or rolls back, if any.
+  string reverts = 8;
+  // True for a change Dockwell made to roll back a failed one.
+  bool rollback = 9;
+  // Who applied it. Unset until it is applied.
+  Actor applied_by = 10;
+  // Where it was applied from. Unset until it is applied.
+  Surface applied_via = 11;
+  // When it started applying. Unset until then.
+  google.protobuf.Timestamp apply_time = 12;
+  // Until when UndoChange works, once it is applied. Unset otherwise.
+  google.protobuf.Timestamp undo_deadline = 13;
+  // Why it failed, when it did.
+  string error = 14;
+  // Each step of the plan with its progress, once it is applying: servers
+  // in plan order, and on each the steps in the order they run.
+  repeated StepProgress steps = 15;
+  // The change that rolled this one back after it failed, if any. It may
+  // still be applying, as when it waits for a server to reconnect.
+  string rolled_back_by = 16;
+  // The applied change that undid this one, if any.
+  string undone_by = 17;
+}
+
+// ChangeState is where a change is.
+enum ChangeState {
+  CHANGE_STATE_UNSPECIFIED = 0;
+  // Planned and waiting to be applied or discarded.
+  CHANGE_STATE_PLANNED = 1;
+  // Its revisions are committed and its steps are running, or waiting for
+  // a server to reconnect.
+  CHANGE_STATE_APPLYING = 2;
+  // Every step ran.
+  CHANGE_STATE_APPLIED = 3;
+  // A step failed, and the change stopped there.
+  CHANGE_STATE_FAILED = 4;
+  // Dropped without being applied.
+  CHANGE_STATE_DISCARDED = 5;
+}
+
+// Actor is who made a change, or applied it.
+message Actor {
+  // What kind of actor it is.
+  ActorKind kind = 1;
+  // The user's or token's ID. Empty for Dockwell.
+  string id = 2;
+  // The name to show, such as "Mira Chen", or a token's name, such as
+  // "GitHub Actions deploy".
+  string name = 3;
+}
+
+// ActorKind says what kind of actor made a change.
+enum ActorKind {
+  ACTOR_KIND_UNSPECIFIED = 0;
+  // A person, signed in.
+  ACTOR_KIND_USER = 1;
+  // An API token, acting for the person who made it.
+  ACTOR_KIND_TOKEN = 2;
+  // Dockwell itself, such as for a rollback.
+  ACTOR_KIND_DOCKWELL = 3;
+}
+
+// Surface is where a change came from.
+enum Surface {
+  SURFACE_UNSPECIFIED = 0;
+  // The panel, with a signed-in session.
+  SURFACE_PANEL = 1;
+  // The API, with an API token.
+  SURFACE_API = 2;
+  // Dockwell on its own, such as a rollback after a failure.
+  SURFACE_AUTOMATIC = 3;
+}
+
+// Plan is what applying a change would do: what changes, where, and for
+// how long.
+message Plan {
+  // A hash of what the plan does. The same edits against the same state
+  // have the same fingerprint, and applying checks that a fresh plan still
+  // has it.
+  string fingerprint = 1;
+  // How many resources it creates, changes, replaces and destroys.
+  PlanSummary summary = 2;
+  // Each resource the change touches, in the order of its edits.
+  repeated PlannedResource resources = 3;
+  // Each server with something to do, in the order of the edits, then each
+  // removed server the change takes resources off.
+  repeated ServerPlan servers = 4;
+  // How long the change can be undone once it is applied.
+  google.protobuf.Duration undo_window = 5;
+  // True when a step destroys data or may cut off access. Applying it needs
+  // the fingerprint and a signed-in session.
+  bool destructive = 6;
+}
+
+// PlanSummary counts the resources a plan touches by what it does to them.
+message PlanSummary {
+  // Resources made for the first time.
+  int32 create = 1;
+  // Resources changed in place.
+  int32 change = 2;
+  // Resources removed and made again, such as a recreated container. A
+  // replace is counted here alone, never among the changes.
+  int32 replace = 3;
+  // Resources deleted.
+  int32 destroy = 4;
+}
+
+// PlannedResource is what a plan does to one resource as a whole.
+message PlannedResource {
+  // The resource's ID. A new resource has its ID from when it is planned.
+  string id = 1;
+  // The resource.
+  ResourceRef resource = 2;
+  // What happens to it: its most disruptive step, or for a kind that runs
+  // on no server, what its revision does.
+  PlanAction action = 3;
+  // The revision it starts from: 0 for a new resource.
+  int64 base_revision = 4;
+  // The fields that differ from its latest revision.
+  repeated FieldChange changes = 5;
+  // Where it runs once applied, by server ID.
+  repeated string servers = 6;
+  // Where it runs now, by server ID.
+  repeated string previous_servers = 7;
+}
+
+// ServerPlan is the part of a plan on one server.
+message ServerPlan {
+  // The server's ID.
+  string server_id = 1;
+  // The server's name, such as "hz-1".
+  string server_name = 2;
+  // True when the server isn't connected: its steps are planned from the
+  // state it last had, and the change can't be applied until it reconnects.
+  bool offline = 3;
+  // True when the server was removed from the fleet. It has no steps: what
+  // the change takes off it is only recorded.
+  bool removed = 4;
+  // The steps' downtime added up, as they run one at a time.
+  google.protobuf.Duration downtime = 5;
+  // The steps, in the order they run.
+  repeated PlanStep steps = 6;
+}
+
+// PlanStep is what applying does to one resource on one server.
+message PlanStep {
+  // The resource's ID.
+  string resource_id = 1;
+  // The resource.
+  ResourceRef resource = 2;
+  // What the step does.
+  PlanAction action = 3;
+  // What it does to what the resource serves.
+  StepEffect effect = 4;
+  // How long what the resource serves is unavailable. Unset means none.
+  google.protobuf.Duration downtime = 5;
+  // True when the step removes data its spec can't bring back.
+  bool destroys_data = 6;
+  // Ways the step may hurt that its action doesn't say.
+  repeated PlanWarning warnings = 7;
+  // The fields that differ from what the server has now.
+  repeated FieldChange changes = 8;
+}
+
+// PlanAction is what a plan does to a resource.
+enum PlanAction {
+  PLAN_ACTION_UNSPECIFIED = 0;
+  // Nothing: it is already as desired.
+  PLAN_ACTION_NONE = 1;
+  // Made for the first time.
+  PLAN_ACTION_CREATE = 2;
+  // Changed in place.
+  PLAN_ACTION_UPDATE = 3;
+  // Removed and made again, such as a recreated container.
+  PLAN_ACTION_REPLACE = 4;
+  // Removed.
+  PLAN_ACTION_DELETE = 5;
+}
+
+// StepEffect is what a step does to what the resource serves, beyond the
+// change itself.
+enum StepEffect {
+  STEP_EFFECT_UNSPECIFIED = 0;
+  // Nothing stops.
+  STEP_EFFECT_NONE = 1;
+  // The process restarts in place.
+  STEP_EFFECT_RESTART = 2;
+  // It is removed and made again.
+  STEP_EFFECT_RECREATE = 3;
+}
+
+// PlanWarning flags a step that may hurt in a way its action doesn't say.
+enum PlanWarning {
+  PLAN_WARNING_UNSPECIFIED = 0;
+  // The step may cut off remote access to the server, such as a rule that
+  // blocks SSH from everywhere.
+  PLAN_WARNING_MAY_LOCK_OUT = 1;
+}
+
+// FieldChange is one field that differs between two specs.
+message FieldChange {
+  // The field, such as "image", "env[API_KEY]" or "ports[0].host_port".
+  string path = 1;
+  // How it changed.
+  FieldOp op = 2;
+  // The value before. Empty when it was unset, and for a sensitive field.
+  string from = 3;
+  // The value after. Empty when it is unset, and for a sensitive field.
+  string to = 4;
+  // True for a field that may hold a secret: the plan says it changed,
+  // never what it holds.
+  bool sensitive = 5;
+}
+
+// FieldOp is how a field changed.
+enum FieldOp {
+  FIELD_OP_UNSPECIFIED = 0;
+  // Set where it was unset.
+  FIELD_OP_ADDED = 1;
+  // Unset where it was set.
+  FIELD_OP_REMOVED = 2;
+  // Set to another value.
+  FIELD_OP_MODIFIED = 3;
+}
+
+// StepProgress is one step of an applying change, and how it is going.
+message StepProgress {
+  // The server it runs on.
+  string server_id = 1;
+  // The resource's ID.
+  string resource_id = 2;
+  // The resource.
+  ResourceRef resource = 3;
+  // What the step does.
+  PlanAction action = 4;
+  // How it is going.
+  StepState state = 5;
+  // What is happening, for people, such as "Replacing web on hz-1", or why
+  // the step failed.
+  string message = 6;
+  // When it started running. Unset until then.
+  google.protobuf.Timestamp start_time = 7;
+  // When it finished. Unset until then.
+  google.protobuf.Timestamp finish_time = 8;
+}
+
+// StepState is how a step is going.
+enum StepState {
+  STEP_STATE_UNSPECIFIED = 0;
+  // Waiting for the steps before it.
+  STEP_STATE_QUEUED = 1;
+  // Running now.
+  STEP_STATE_RUNNING = 2;
+  // Done, and the server has what was asked for.
+  STEP_STATE_DONE = 3;
+  // It failed; message says why.
+  STEP_STATE_FAILED = 4;
+  // It didn't run, because a step before it failed.
+  STEP_STATE_SKIPPED = 5;
+  // Waiting for its server to reconnect, as a rollback does.
+  STEP_STATE_WAITING = 6;
+}
