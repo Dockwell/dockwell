@@ -33,7 +33,12 @@ const (
 	// OutputFile is the generated file, in the directory buf writes to.
 	OutputFile = "apicmd.gen.go"
 	// ImportPath is the generated package's.
-	ImportPath      = protogen.GoImportPath("github.com/dockwell/dockwell/internal/cli/apicmd")
+	ImportPath = protogen.GoImportPath("github.com/dockwell/dockwell/internal/cli/apicmd")
+	// NamesFile is the file GenerateNames writes, in the directory buf
+	// writes its output to.
+	NamesFile = "apinames.gen.go"
+	// NamesImportPath is its package's.
+	NamesImportPath = protogen.GoImportPath("github.com/dockwell/dockwell/internal/cli/apinames")
 	apicli          = protogen.GoImportPath("github.com/dockwell/dockwell/internal/cli/apicli")
 	connectPackage  = "connect"
 	editMessage     = "dockwell.v1.Edit"
@@ -120,6 +125,36 @@ func Generate(p *protogen.Plugin) error {
 	}
 	g := p.NewGeneratedFile(OutputFile, ImportPath)
 	write(g, methods, nouns, kinds)
+	return nil
+}
+
+// GenerateNames writes only the names of the commands Generate writes, as
+// dockwell runs them: one for each noun and one for each kind. Their
+// package imports nothing, so the agent build, which has none of the
+// commands, can tell one of them from a mistyped command, and say it is in
+// the full build (docs/adr/0023-a-full-build-and-an-agent-build.md).
+func GenerateNames(p *protogen.Plugin) error {
+	p.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
+	methods, nouns, err := Methods(p)
+	if err != nil {
+		return err
+	}
+	if len(methods) == 0 {
+		return nil
+	}
+	kinds, err := Kinds(p)
+	if err != nil {
+		return err
+	}
+	names := make([]string, 0, len(nouns)+len(kinds))
+	for _, n := range nouns {
+		names = append(names, n.Name)
+	}
+	for _, k := range kinds {
+		names = append(names, k.Noun)
+	}
+	slices.Sort(names)
+	writeNames(p.NewGeneratedFile(NamesFile, NamesImportPath), slices.Compact(names))
 	return nil
 }
 
@@ -784,6 +819,31 @@ func write(g *protogen.GeneratedFile, methods []Method, nouns []Noun, kinds []Ki
 		g.P("Long: ", strconv.Quote(k.Long), ",")
 		writeFields(g, k.Fields)
 		g.P("},")
+	}
+	g.P("}")
+	g.P("}")
+}
+
+// writeNames writes the file GenerateNames writes.
+func writeNames(g *protogen.GeneratedFile, names []string) {
+	g.P(headerLicense)
+	g.P()
+	g.P(generatedNotice)
+	g.P()
+	g.P("// Package apinames names the dockwell CLI's API commands, which")
+	g.P("// internal/cli/apicmd describes, generated with them from the schema in")
+	g.P("// proto/ by protoc-gen-dockwell-cli. It imports nothing, so the agent build,")
+	g.P("// which has none of the commands, can say they are in the full build. Run")
+	g.P("// make generate after changing the schema. See")
+	g.P("// docs/adr/0023-a-full-build-and-an-agent-build.md.")
+	g.P("package apinames")
+	g.P()
+	g.P("// Commands are the API commands' names, as in dockwell <name>: one for each")
+	g.P("// noun of the methods of ", Package, ", and one for each kind of resource.")
+	g.P("func Commands() []string {")
+	g.P("return []string{")
+	for _, name := range names {
+		g.P(strconv.Quote(name), ",")
 	}
 	g.P("}")
 	g.P("}")

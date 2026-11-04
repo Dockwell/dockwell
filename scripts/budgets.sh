@@ -1,25 +1,35 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
 #
-# Measures a built dockwell binary at idle and fails when it is over the
-# PRD's footprint budgets (docs/product/prd.md#non-functional-requirements):
+# Measures the two builds of dockwell at idle, each as the servers that run
+# it do, and fails when either is over the PRD's footprint budgets
+# (docs/product/prd.md#non-functional-requirements,
+# docs/adr/0023-a-full-build-and-an-agent-build.md):
 #
-#   an agent on its own                    under 40 MB RSS
-#   a control plane with its own agent     under 250 MB RSS
+#   an agent on its own: the agent build          under 40 MB RSS
+#   a control plane with its own agent, in one    under 250 MB RSS
+#   process: the full build
 #
 # It warns when an agent passes 30 MB, well before it fails.
 #
-#   scripts/budgets.sh bin/dockwell [results.json]
-#   BASELINE=main/dockwell scripts/budgets.sh bin/dockwell [results.json]
+#   scripts/budgets.sh bin/dockwell bin/dockwell-agent [results.json]
+#   BASELINE=main/dockwell BASELINE_AGENT=main/dockwell-agent \
+#     scripts/budgets.sh bin/dockwell bin/dockwell-agent [results.json]
 #
-# A run starts a control plane, lets it settle and measures it. Then it
-# joins a second data directory to it as an agent-only server, lets that
-# settle and measures the agent. Each figure is the median of RUNS runs (5
-# by default). With BASELINE, as many runs of that binary go alongside, on
-# the same machine, so the two compare without the difference between
-# machines or moments in it. footprint-comment.yml posts that comparison on
-# pull requests. Only this build's runs can fail the check: when a run of
-# the baseline fails, its logs are shown and there's no comparison.
+# A run starts a control plane with the full build, lets it settle and
+# measures it. Then it joins a second data directory to it with the agent
+# build, as a server that joins runs it, lets that settle and measures the
+# agent. Each figure is the median of RUNS runs (5 by default). With
+# BASELINE, the full build of another commit, and BASELINE_AGENT, its agent
+# build, as many runs of those go alongside, on the same machine, so the two
+# compare without the difference between machines or moments in it. A
+# commit from before there were two builds has no agent build: without
+# BASELINE_AGENT, the baseline's agent runs BASELINE, the full build, as a
+# server that joined ran then, and the comparison says so. footprint-comment.yml
+# posts the comparison on pull requests, with the sentence that says which
+# build each figure came from, from the JSON. Only this build's runs can fail the
+# check: when a run of the baseline fails, its logs are shown and there's no
+# comparison.
 #
 # Runs start STAGGER seconds apart (3 by default), alternating between the
 # two binaries, so that no two start at once and contend for the CPU.
@@ -46,11 +56,27 @@
 # set, and as JSON to the second argument.
 set -euo pipefail
 
-usage="usage: [RUNS=5] [SETTLE=180] [STAGGER=3] [BASELINE=other/dockwell] scripts/budgets.sh path/to/dockwell [results.json]"
+usage="usage: [RUNS=5] [SETTLE=180] [STAGGER=3] [BASELINE=other/dockwell [BASELINE_AGENT=other/dockwell-agent]] scripts/budgets.sh path/to/dockwell path/to/dockwell-agent [results.json]"
 bin=$(realpath "${1:?$usage}")
-out=${2:-}
+agent_bin=$(realpath "${2:?$usage}")
+out=${3:-}
 baseline=
-if [[ -n ${BASELINE:-} ]]; then baseline=$(realpath "$BASELINE"); fi
+baseline_agent=
+# The build the baseline's agent figure comes from: its agent build, or its
+# full build when it has no agent build.
+baseline_agent_build=agent
+if [[ -n ${BASELINE:-} ]]; then
+  baseline=$(realpath "$BASELINE")
+  if [[ -n ${BASELINE_AGENT:-} ]]; then
+    baseline_agent=$(realpath "$BASELINE_AGENT")
+  else
+    baseline_agent=$baseline
+    baseline_agent_build=full
+  fi
+elif [[ -n ${BASELINE_AGENT:-} ]]; then
+  echo "budgets: BASELINE_AGENT needs BASELINE, the full build of the same commit" >&2
+  exit 2
+fi
 baseline_name=${BASELINE_NAME:-the baseline}
 settle=${SETTLE:-180}
 runs=${RUNS:-5}
@@ -138,14 +164,15 @@ sample() {
   echo "$rss $pss $anon"
 }
 
-# run measures a control plane and an agent of the binary $2, called $3, as
-# run $1, and writes their figures to $work/$1/figures.
+# run measures a control plane of the full build $2 and an agent of the
+# agent build $3, called $4, as run $1, and writes their figures to
+# $work/$1/figures.
 run() {
-  local k=$1 src=$2 dir="$work/$1" api="127.0.0.1:$((port + $1))" control agent ticket connected figures
+  local k=$1 dir="$work/$1" api="127.0.0.1:$((port + $1))" control agent ticket connected figures
   mkdir -p "$dir"
-  echo "$3" >"$dir/name"
-  cp "$src" "$dir/control"
-  cp "$src" "$dir/agent"
+  echo "$4" >"$dir/name"
+  cp "$2" "$dir/control"
+  cp "$3" "$dir/agent"
 
   # The control plane, with its own agent, in one process.
   "$dir/control" run --listen "$api" --agent-listen 127.0.0.1:0 --data-dir "$dir/control.d" --log-format json \
@@ -161,7 +188,7 @@ run() {
   kill -0 "$control" 2>/dev/null || fail "$k" "the control plane exited before it was measured"
   figures=$(sample "$k" "$control")
 
-  # An agent-only server, joined to it with a ticket.
+  # A server that joins it with a ticket, running the agent build.
   ticket=$("$dir/control" token create --data-dir "$dir/control.d" 2>>"$dir/control.log" |
     awk '$1 == "dockwell" && $2 == "join" { print $3 }')
   [[ -n "$ticket" ]] || fail "$k" "dockwell token create printed no ticket"
@@ -208,20 +235,20 @@ column() {
 }
 
 if [[ -n $baseline ]]; then
-  echo "budgets: measuring $runs runs each of $bin and $baseline, $stagger s apart, after $settle s each"
+  echo "budgets: measuring $runs runs each of $bin with $agent_bin, and of $baseline with $baseline_agent, $stagger s apart, after $settle s each"
 else
-  echo "budgets: measuring $runs runs of $bin, $stagger s apart, after $settle s each"
+  echo "budgets: measuring $runs runs of $bin with $agent_bin, $stagger s apart, after $settle s each"
 fi
 # Runs 0 to runs - 1 are this build's, and the next as many the baseline's.
 this_jobs=()
 base_jobs=()
 for ((k = 0; k < runs; k++)); do
   ((k == 0)) || sleep "$stagger"
-  run "$k" "$bin" "this build" &
+  run "$k" "$bin" "$agent_bin" "this build" &
   this_jobs+=($!)
   if [[ -n $baseline ]]; then
     sleep "$stagger"
-    run "$((runs + k))" "$baseline" "$baseline_name" &
+    run "$((runs + k))" "$baseline" "$baseline_agent" "$baseline_name" &
     base_jobs+=($!)
   fi
 done
@@ -260,7 +287,7 @@ medians() {
     fi
   done
 }
-declare -A this=() base=()
+declare -A this=([agent_build]=agent) base=([agent_build]="$baseline_agent_build")
 medians 0 this
 this[version]=$("$bin" version | awk '$1 == "dockwell" { print $2 }')
 this[commit]=$("$bin" version | awk '$1 == "commit" { print $2 }')
@@ -276,8 +303,8 @@ table=$(
   cat <<EOF
 | Idle, after $settle s | RSS | PSS | Anonymous | Budget | Result |
 | --- | ---: | ---: | ---: | ---: | --- |
-| An agent on its own | $(mb "$agent_rss") | $(mb "${this[agent_pss]}") | $(mb "${this[agent_anon]}") | $(budget "$agent_budget") | $(status "$agent_rss" "$agent_budget") |
-| A control plane with its own agent | $(mb "$control_rss") | $(mb "${this[control_pss]}") | $(mb "${this[control_anon]}") | $(budget "$control_budget") | $(status "$control_rss" "$control_budget") |
+| An agent on its own, the agent build | $(mb "$agent_rss") | $(mb "${this[agent_pss]}") | $(mb "${this[agent_anon]}") | $(budget "$agent_budget") | $(status "$agent_rss" "$agent_budget") |
+| A control plane with its own agent, the full build | $(mb "$control_rss") | $(mb "${this[control_pss]}") | $(mb "${this[control_anon]}") | $(budget "$control_budget") | $(status "$control_rss" "$control_budget") |
 EOF
 )
 echo "$table"
@@ -291,6 +318,15 @@ if ((agent_rss >= agent_warn && agent_rss < agent_budget)); then
   fi
 fi
 comparison=
+# builds says which build each figure came from, for the job summary, and in
+# budgets.json for footprint-comment.yml, which posts it as it is. A baseline
+# without an agent build compares its full build, as an agent.
+builds="The agent ran the agent build, and the control plane the full build."
+if [[ -n $baseline && $baseline_agent_build == full ]]; then
+  builds="Each control plane ran its commit's full build. $baseline_name has no agent build, so its agent figure is its full build running as an agent, as a server that joined ran it then, against this commit's agent build."
+elif [[ -n $baseline ]]; then
+  builds="Each agent ran its commit's agent build, and each control plane its full build."
+fi
 if [[ -n $baseline ]]; then
   # Plain variables: shellcheck 0.9, as CI runs it, can't parse an
   # associative array's index inside $(( )).
@@ -308,6 +344,7 @@ EOF
   )
   echo
   echo "$comparison"
+  echo "$builds"
 fi
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {
@@ -329,7 +366,8 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
       echo "$comparison"
       echo
       echo "Both were measured on this runner, $runs runs each, alternating and started $stagger s apart." \
-        "$baseline_name is dockwell ${base[version]:-of an unknown version}${base[commit]:+ at ${base[commit]}}."
+        "$baseline_name is dockwell ${base[version]:-of an unknown version}${base[commit]:+ at ${base[commit]}}." \
+        "$builds"
     elif [[ -n $baseline_failed ]]; then
       echo
       echo "**$note**"
@@ -338,16 +376,27 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 fi
 
 # figures prints the figures in the associative array named $1 as JSON
-# members, indented by $2.
+# members, indented by $2. agent_build is the build the agent figure comes
+# from: agent, or full for a baseline from before there were two builds.
 figures() {
   local -n of=$1
   local in=$2 v
   printf '%s"version": "%s",\n%s"commit": "%s",\n' "$in" "${of[version]}" "$in" "${of[commit]}"
+  printf '%s"agent_build": "%s",\n' "$in" "${of[agent_build]}"
   for v in agent_rss agent_pss agent_anon control_rss control_pss control_anon; do
     printf '%s"%s_bytes": %s,\n' "$in" "$v" "${of[$v]}"
   done
   printf '%s"agent_rss_runs_bytes": [%s],\n%s"control_rss_runs_bytes": [%s]' \
     "$in" "${of[agent_rss_runs]}" "$in" "${of[control_rss_runs]}"
+}
+# json_string prints $1 as a JSON string.
+json_string() {
+  local text=$1
+  text=${text//\\/\\\\}
+  text=${text//\"/\\\"}
+  text=${text//$'\t'/\\t}
+  text=${text//$'\n'/\\n}
+  printf '"%s"' "$text"
 }
 if [[ -n "$out" ]]; then
   {
@@ -360,6 +409,7 @@ if [[ -n "$out" ]]; then
       echo
       echo "  },"
     fi
+    printf '  "builds": %s,\n' "$(json_string "$builds")"
     printf '  "settle_seconds": %s,\n  "stagger_seconds": %s,\n  "runs": %s,\n' "$settle" "$stagger" "$runs"
     printf '  "agent_budget_bytes": %s,\n  "agent_warn_bytes": %s,\n  "control_budget_bytes": %s\n' \
       "$agent_budget" "$agent_warn" "$control_budget"

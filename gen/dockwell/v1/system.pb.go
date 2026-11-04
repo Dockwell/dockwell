@@ -25,6 +25,62 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// BuildEdition says which of the two builds of dockwell a binary is. Both come
+// from the same source and are called dockwell. See
+// docs/adr/0023-a-full-build-and-an-agent-build.md.
+type BuildEdition int32
+
+const (
+	BuildEdition_BUILD_EDITION_UNSPECIFIED BuildEdition = 0
+	// The full build: the control plane with its own agent, the panel, the API
+	// and every command. The control server runs it.
+	BuildEdition_BUILD_EDITION_FULL BuildEdition = 1
+	// The agent build: only the agent, for a server that joins a control plane.
+	// It has no control plane, panel or API commands.
+	BuildEdition_BUILD_EDITION_AGENT BuildEdition = 2
+)
+
+// Enum value maps for BuildEdition.
+var (
+	BuildEdition_name = map[int32]string{
+		0: "BUILD_EDITION_UNSPECIFIED",
+		1: "BUILD_EDITION_FULL",
+		2: "BUILD_EDITION_AGENT",
+	}
+	BuildEdition_value = map[string]int32{
+		"BUILD_EDITION_UNSPECIFIED": 0,
+		"BUILD_EDITION_FULL":        1,
+		"BUILD_EDITION_AGENT":       2,
+	}
+)
+
+func (x BuildEdition) Enum() *BuildEdition {
+	p := new(BuildEdition)
+	*p = x
+	return p
+}
+
+func (x BuildEdition) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BuildEdition) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_system_proto_enumTypes[0].Descriptor()
+}
+
+func (BuildEdition) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_system_proto_enumTypes[0]
+}
+
+func (x BuildEdition) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use BuildEdition.Descriptor instead.
+func (BuildEdition) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_system_proto_rawDescGZIP(), []int{0}
+}
+
 // GetVersionRequest takes no parameters.
 type GetVersionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -125,7 +181,10 @@ type BuildInfo struct {
 	// Go toolchain that built the binary, such as "go1.27.3".
 	GoVersion string `protobuf:"bytes,5,opt,name=go_version,json=goVersion,proto3" json:"go_version,omitempty"`
 	// Target operating system and architecture, such as "linux/amd64".
-	Platform      string `protobuf:"bytes,6,opt,name=platform,proto3" json:"platform,omitempty"`
+	Platform string `protobuf:"bytes,6,opt,name=platform,proto3" json:"platform,omitempty"`
+	// Which of the two builds of dockwell this is. Unset in builds made before
+	// there were two, which are all the full build.
+	Edition       BuildEdition `protobuf:"varint,7,opt,name=edition,proto3,enum=dockwell.v1.BuildEdition" json:"edition,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -202,6 +261,13 @@ func (x *BuildInfo) GetPlatform() string {
 	return ""
 }
 
+func (x *BuildInfo) GetEdition() BuildEdition {
+	if x != nil {
+		return x.Edition
+	}
+	return BuildEdition_BUILD_EDITION_UNSPECIFIED
+}
+
 var File_dockwell_v1_system_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_system_proto_rawDesc = "" +
@@ -209,7 +275,7 @@ const file_dockwell_v1_system_proto_rawDesc = "" +
 	"\x18dockwell/v1/system.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x13\n" +
 	"\x11GetVersionRequest\"B\n" +
 	"\x12GetVersionResponse\x12,\n" +
-	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\"\xd1\x01\n" +
+	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\"\x86\x02\n" +
 	"\tBuildInfo\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +
 	"\x06commit\x18\x02 \x01(\tR\x06commit\x12;\n" +
@@ -218,7 +284,12 @@ const file_dockwell_v1_system_proto_rawDesc = "" +
 	"\bmodified\x18\x04 \x01(\bR\bmodified\x12\x1d\n" +
 	"\n" +
 	"go_version\x18\x05 \x01(\tR\tgoVersion\x12\x1a\n" +
-	"\bplatform\x18\x06 \x01(\tR\bplatform2\x8f\x01\n" +
+	"\bplatform\x18\x06 \x01(\tR\bplatform\x123\n" +
+	"\aedition\x18\a \x01(\x0e2\x19.dockwell.v1.BuildEditionR\aedition*^\n" +
+	"\fBuildEdition\x12\x1d\n" +
+	"\x19BUILD_EDITION_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12BUILD_EDITION_FULL\x10\x01\x12\x17\n" +
+	"\x13BUILD_EDITION_AGENT\x10\x022\x8f\x01\n" +
 	"\rSystemService\x12~\n" +
 	"\n" +
 	"GetVersion\x12\x1e.dockwell.v1.GetVersionRequest\x1a\x1f.dockwell.v1.GetVersionResponse\"/\xa0\xbb\x18\x01\xaa\xbb\x18\x11\n" +
@@ -237,23 +308,26 @@ func file_dockwell_v1_system_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_system_proto_rawDescData
 }
 
+var file_dockwell_v1_system_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_dockwell_v1_system_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_dockwell_v1_system_proto_goTypes = []any{
-	(*GetVersionRequest)(nil),     // 0: dockwell.v1.GetVersionRequest
-	(*GetVersionResponse)(nil),    // 1: dockwell.v1.GetVersionResponse
-	(*BuildInfo)(nil),             // 2: dockwell.v1.BuildInfo
-	(*timestamppb.Timestamp)(nil), // 3: google.protobuf.Timestamp
+	(BuildEdition)(0),             // 0: dockwell.v1.BuildEdition
+	(*GetVersionRequest)(nil),     // 1: dockwell.v1.GetVersionRequest
+	(*GetVersionResponse)(nil),    // 2: dockwell.v1.GetVersionResponse
+	(*BuildInfo)(nil),             // 3: dockwell.v1.BuildInfo
+	(*timestamppb.Timestamp)(nil), // 4: google.protobuf.Timestamp
 }
 var file_dockwell_v1_system_proto_depIdxs = []int32{
-	2, // 0: dockwell.v1.GetVersionResponse.build:type_name -> dockwell.v1.BuildInfo
-	3, // 1: dockwell.v1.BuildInfo.commit_time:type_name -> google.protobuf.Timestamp
-	0, // 2: dockwell.v1.SystemService.GetVersion:input_type -> dockwell.v1.GetVersionRequest
-	1, // 3: dockwell.v1.SystemService.GetVersion:output_type -> dockwell.v1.GetVersionResponse
-	3, // [3:4] is the sub-list for method output_type
-	2, // [2:3] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	3, // 0: dockwell.v1.GetVersionResponse.build:type_name -> dockwell.v1.BuildInfo
+	4, // 1: dockwell.v1.BuildInfo.commit_time:type_name -> google.protobuf.Timestamp
+	0, // 2: dockwell.v1.BuildInfo.edition:type_name -> dockwell.v1.BuildEdition
+	1, // 3: dockwell.v1.SystemService.GetVersion:input_type -> dockwell.v1.GetVersionRequest
+	2, // 4: dockwell.v1.SystemService.GetVersion:output_type -> dockwell.v1.GetVersionResponse
+	4, // [4:5] is the sub-list for method output_type
+	3, // [3:4] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_system_proto_init() }
@@ -267,13 +341,14 @@ func file_dockwell_v1_system_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_system_proto_rawDesc), len(file_dockwell_v1_system_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_dockwell_v1_system_proto_goTypes,
 		DependencyIndexes: file_dockwell_v1_system_proto_depIdxs,
+		EnumInfos:         file_dockwell_v1_system_proto_enumTypes,
 		MessageInfos:      file_dockwell_v1_system_proto_msgTypes,
 	}.Build()
 	File_dockwell_v1_system_proto = out.File

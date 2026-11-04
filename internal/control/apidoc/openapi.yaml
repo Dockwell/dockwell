@@ -1292,6 +1292,16 @@ components:
                 platform:
                     type: string
                     description: Target operating system and architecture, such as "linux/amd64".
+                edition:
+                    enum:
+                        - BUILD_EDITION_UNSPECIFIED
+                        - BUILD_EDITION_FULL
+                        - BUILD_EDITION_AGENT
+                    type: string
+                    description: |-
+                        Which of the two builds of dockwell this is. Unset in builds made before
+                         there were two, which are all the full build.
+                    format: enum
             description: BuildInfo identifies one build of the dockwell binary.
         Change:
             type: object

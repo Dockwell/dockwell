@@ -12,8 +12,9 @@
 # It runs after the Install workflow finishes, from main's copy of this file,
 # with a token that can comment, so it works for pull requests from forks too.
 # It checks out and runs none of the pull request's code. It reads only the
-# numbers that the Memory budgets job uploaded, and posts them only on the pull
-# request whose head is the commit they were measured on.
+# numbers that the Memory budgets job uploaded, and the sentence that says
+# which build each came from, which it posts only as plain words. It posts them
+# only on the pull request whose head is the commit they were measured on.
 name: Footprint comment
 
 on:
@@ -90,6 +91,18 @@ jobs:
           control_budget=$(num pr/budgets.json .control_budget_bytes)
           runs=$(num pr/budgets.json .runs)
           settle=$(num pr/budgets.json .settle_seconds)
+          # Which build each figure came from, as budgets.sh says it: each
+          # agent its commit's agent build, or for a main from before there
+          # was one, its full build running as an agent
+          # (docs/adr/0023-a-full-build-and-an-agent-build.md). The pull
+          # request's own code wrote it, so it is posted only when it is a
+          # short sentence of plain words, which can't link, mention or format
+          # anything. Figures from before budgets.sh wrote it have none.
+          builds=$(jq -r '.builds // "" | strings' pr/budgets.json)
+          plain="^[A-Za-z0-9 .,'()-]{1,400}\$"
+          if [[ ! $builds =~ $plain ]]; then
+            builds=
+          fi
 
           existing=$(gh api --paginate "repos/$REPO/issues/$pr/comments" \
             --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | head -n 1)
@@ -120,7 +133,7 @@ jobs:
           | An agent on its own | $(mb "$agent") | $(mb "$base_agent") | $(delta $((agent - base_agent))) | $(budget "$agent_budget") |
           | A control plane with its own agent | $(mb "$control") | $(mb "$base_control") | $(delta $((control - base_control))) | $(budget "$control_budget") |
 
-          The Memory budgets job measured both builds side by side, on one runner, for ${HEAD_SHA:0:7}. Each figure is the median of $runs runs.
+          The Memory budgets job measured both commits side by side, on one runner, for ${HEAD_SHA:0:7}. Each figure is the median of $runs runs.${builds:+ $builds}
           This comment appears when a figure moves by $(mb "$THRESHOLD") or more: on changes that can't move memory, they differ by up to $(mb "$NOISE").
           The job fails at the budget, and its summary has PSS and anonymous memory too. This comment is updated on every push.
           EOF

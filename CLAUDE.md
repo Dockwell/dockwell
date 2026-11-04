@@ -1,6 +1,6 @@
 # Dockwell
 
-An open-source control plane for servers, from one VPS to a fleet. One Go binary, `dockwell`, with `control` and `agent` roles, and a React and TypeScript panel embedded in it.
+An open-source control plane for servers, from one VPS to a fleet. One Go codebase builds `dockwell` twice (ADR 0023): the full build, with the `control` and `agent` roles and a React and TypeScript panel embedded in it, for the control server; and the agent build, `-tags agent`, with only the agent, for every server that joins.
 
 ## Context lives in this repo
 
@@ -15,7 +15,7 @@ An open-source control plane for servers, from one VPS to a fleet. One Go binary
 - The Install workflow also runs `make budgets` (idle memory: agent under 40 MB, with a warning from 30 MB, control plane plus agent under 250 MB; on pull requests, beside main's build) and `make install-test` (the install script in containers; needs Docker and cosign v3). Run them when you change `scripts/install.sh` or anything that could move memory.
 - The store's tests run on SQLite, and on Postgres too when `DOCKWELL_TEST_POSTGRES` names a server, as CI sets it. Set it when you change `internal/store` or any query.
 - `make generate` after any change in `proto/` or `design/system/tokens.json`. Commit what it writes.
-- `make run` builds everything and serves on 127.0.0.1:7600; `make dev` adds the panel with hot reload on :5173.
+- `make run` builds everything and serves on 127.0.0.1:7600; `make dev` adds the panel with hot reload on :5173. `make build-agent` builds the agent build as `bin/dockwell-agent`.
 - Panel text: English in `<Trans>`/`` t`…` ``, then `make i18n` and translate `web/src/locales/zh-CN/messages.po`. Components come from `@dockwell/ui`; port a design-system component there (from `design/system/components/`) before using it in a screen.
 - Tools: `go tool -modfile=tools/go.mod <buf|golangci-lint|…>`. Generate with `make generate`, not `buf generate` on its own, which empties `gen/` and deletes `gen/LICENSE`. pnpm comes from corepack (`packageManager` in package.json). New npm versions are held back 14 days (`minimumReleaseAge`); pin Go modules and actions to releases at least that old too, with actions pinned by commit hash.
 
@@ -26,6 +26,7 @@ An open-source control plane for servers, from one VPS to a fleet. One Go binary
 - Every change to managed state is a revision with a plan (PRD principle 2). Don't add a mutating path that bypasses the revision store: only `internal/revision` calls `store.DB.Revise`, and a test fails on anything else that does.
 - The panel uses only the public API through the generated client. Nothing is UI-only.
 - Memory budgets: the agent stays under 40 MB RSS at idle, and the control plane plus agent under 250 MB.
+- The agent build links only what an agent runs (ADR 0023). Control-plane code lives in packages the agent doesn't import; in `internal/cli`, files that reach it carry `//go:build !agent`, and `edition_agent.go` stands in for them. `cmd/dockwell/build_test.go` lists what the agent build may link: add a package or module there only for the agent, with what `make budgets` says it costs.
 - Work on a branch and open a pull request to `main` that references its issue and milestone.
 - Every source file starts with `SPDX-License-Identifier: AGPL-3.0-only`, except in `proto/`, `gen/` and `packages/api/`, which are `Apache-2.0` (ADR 0012). `scripts/check-spdx.sh` checks both.
 - Go: errors and log messages follow the content rules too. Wrap errors with context, and when the operator can fix something, end the message with how.

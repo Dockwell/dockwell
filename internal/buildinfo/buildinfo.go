@@ -8,6 +8,10 @@
 // link time:
 //
 //	go build -ldflags "-X github.com/dockwell/dockwell/internal/buildinfo.version=v1.2.3"
+//
+// Which build it is, the full build or the agent build, comes from the build
+// tags: the agent build is built with -tags agent
+// (docs/adr/0023-a-full-build-and-an-agent-build.md).
 package buildinfo
 
 import (
@@ -28,11 +32,28 @@ var version string
 // `go run` outside a VCS checkout.
 const Devel = "devel"
 
+// Edition is which of the two builds of dockwell a binary is.
+type Edition string
+
+// The two builds of dockwell, from the same source.
+const (
+	// Full is the full build: the control plane with its own agent, the
+	// panel, the API and every command. The control server runs it.
+	Full Edition = "full"
+	// Agent is the agent build, built with -tags agent: only the agent, for
+	// a server that joins a control plane.
+	Agent Edition = "agent"
+)
+
 // Info identifies one build of the dockwell binary.
 type Info struct {
 	// Version is a semantic version such as "v0.4.0", a Go pseudo-version for
 	// builds between releases, or Devel.
 	Version string
+	// Edition is which build this is. It is empty only for a binary that
+	// stands in for one made before there were two builds, as the install
+	// tests link.
+	Edition Edition
 	// Commit is the full commit hash, or empty when unknown.
 	Commit string
 	// CommitTime is the time of Commit, or the zero time when unknown.
@@ -64,15 +85,33 @@ func (i Info) Proto() *dockwellv1.BuildInfo {
 		GoVersion: i.GoVersion,
 		Platform:  i.Platform,
 	}
+	switch i.Edition {
+	case Full:
+		pb.Edition = dockwellv1.BuildEdition_BUILD_EDITION_FULL
+	case Agent:
+		pb.Edition = dockwellv1.BuildEdition_BUILD_EDITION_AGENT
+	}
 	if !i.CommitTime.IsZero() {
 		pb.CommitTime = timestamppb.New(i.CommitTime)
 	}
 	return pb
 }
 
+// EditionOf is which build a BuildInfo from the API names. A build that
+// names none was made before there were two builds, so it is the full
+// build.
+func EditionOf(b *dockwellv1.BuildInfo) Edition {
+	if b.GetEdition() == dockwellv1.BuildEdition_BUILD_EDITION_AGENT {
+		return Agent
+	}
+	return Full
+}
+
 var read = sync.OnceValue(func() Info {
 	bi, _ := debug.ReadBuildInfo()
-	return fromBuildInfo(bi, version)
+	info := fromBuildInfo(bi, version)
+	info.Edition = Edition(edition)
+	return info
 })
 
 // Read returns the running binary's build information. It is computed once.

@@ -5,8 +5,11 @@
 # with a throwaway cosign key, so the install tests need no published release:
 #
 #   <out>/good/download/v<new>/        the snapshot from make release-snapshot,
-#                                      with install.sh and Sigstore's trust root
-#   <out>/good/download/v0.0.0-test/   an older build, to upgrade from
+#                                      both builds, with install.sh and
+#                                      Sigstore's trust root
+#   <out>/good/download/v0.0.0-test/   an older build, to upgrade from, as a
+#                                      release from before there were two
+#                                      builds: only the full build
 #   <out>/good/latest/download/        the same files as v<new>
 #   <out>/bad-archive/...              v<new> with an archive that doesn't match its checksum
 #   <out>/bad-signature/...            v<new> with checksums that don't match their signature
@@ -16,7 +19,8 @@
 #   scripts/install-test/releases.sh <dist> <old> <out> [cosign]
 #
 # <dist> is GoReleaser's output. <old> holds linux_amd64/dockwell and
-# linux_arm64/dockwell built with an older version (make install-test-releases
+# linux_arm64/dockwell built with an older version, and linked to name no
+# build, as releases before the agent build did (make install-test-releases
 # builds both). cosign defaults to the one on PATH.
 set -euo pipefail
 
@@ -47,7 +51,8 @@ sign() {
 good="$out/good"
 new_dir="$good/download/v$new_version"
 mkdir -p "$new_dir"
-cp "$dist"/dockwell_"$new_version"_linux_*.tar.gz "$dist/checksums.txt" "$new_dir/"
+cp "$dist"/dockwell_"$new_version"_linux_*.tar.gz "$dist"/dockwell-agent_"$new_version"_linux_*.tar.gz \
+  "$dist/checksums.txt" "$new_dir/"
 # A release carries the install script and the trust root it pins, as
 # .github/workflows/release.yml attaches them.
 cp "$scripts/install.sh" "$scripts/sigstore_trusted_root.json" "$new_dir/"
@@ -80,7 +85,7 @@ bad="$out/bad-signature/download/v$new_version"
 mkdir -p "$bad"
 cp "$new_dir"/* "$bad/"
 for archive in "$bad"/*.tar.gz; do printf 'tampered' >>"$archive"; done
-(cd "$bad" && sha256sum dockwell_*.tar.gz >checksums.txt)
+(cd "$bad" && sha256sum dockwell_*.tar.gz dockwell-agent_*.tar.gz >checksums.txt)
 mkdir -p "$out/bad-signature/latest" && cp -R "$bad" "$out/bad-signature/latest/download"
 
 printf 'OLD=%s\nNEW=%s\n' "$old_version" "$new_version" >"$out/versions"

@@ -49,22 +49,38 @@ jobs:
         run: |
           go mod tidy -diff
           (cd tools && go mod tidy -diff)
+      # Vet, lint and test run the agent build's packages again with its tag,
+      # as it compiles them (docs/adr/0023-a-full-build-and-an-agent-build.md).
+      # go list finds them once, for the steps after this one.
+      - name: The agent build's packages
+        run: |
+          pkgs=$(scripts/agent-packages.sh)
+          echo "AGENT_PKGS=$(echo $pkgs)" >>"$GITHUB_ENV"
       - name: Vet
-        run: go vet ./...
+        run: |
+          go vet ./...
+          go vet -tags agent $AGENT_PKGS
       - name: Lint
-        run: $GOTOOL golangci-lint run
+        run: |
+          $GOTOOL golangci-lint run
+          $GOTOOL golangci-lint run --build-tags agent $AGENT_PKGS
       - name: Formatting
         run: $GOTOOL golangci-lint fmt --diff
       - name: Test
         run: go test -race -coverprofile=coverage.out ./...
+      - name: Test the agent build
+        run: go test -race -tags agent $AGENT_PKGS
       - name: Coverage summary
         run: go tool cover -func=coverage.out | tail -1 >> "$GITHUB_STEP_SUMMARY"
-      - name: Static builds
+      - name: Static builds of both builds
         run: |
           for arch in amd64 arm64; do
             CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -o "bin/dockwell-linux-$arch" ./cmd/dockwell
+            CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -tags agent -o "bin/dockwell-agent-linux-$arch" ./cmd/dockwell
           done
           ls -lh bin/
+      - name: The agent build joins the full build
+        run: scripts/smoke-agent.sh bin/dockwell-linux-amd64 bin/dockwell-agent-linux-amd64
 
   schema:
     name: API schema

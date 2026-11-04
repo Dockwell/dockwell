@@ -66,7 +66,7 @@ The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and
 | --- | --- |
 | `cmd/dockwell/` | The binary's entry point |
 | `internal/cli/` | The `dockwell` commands |
-| `internal/cli/apicli/`, `internal/cli/apicmd/` | The API commands: the machinery that runs them, and their descriptions, generated from the schema by `cmd/protoc-gen-dockwell-cli` and `internal/cli/cligen` ([ADR 0019](docs/adr/0019-a-cli-generated-from-the-schema.md)) |
+| `internal/cli/apicli/`, `internal/cli/apicmd/`, `internal/cli/apinames/` | The API commands: the machinery that runs them, their descriptions, and their names alone, which the agent build links to say they're in the full build. The last two are generated from the schema by `cmd/protoc-gen-dockwell-cli` and `internal/cli/cligen` ([ADR 0019](docs/adr/0019-a-cli-generated-from-the-schema.md), [ADR 0023](docs/adr/0023-a-full-build-and-an-agent-build.md)) |
 | `internal/control/` | The control plane: API and agent listeners, services, and the identity authority |
 | `internal/auth/` | Who may use the panel and API: the claim, passkeys, authenticator codes and sessions ([ADR 0011](docs/adr/0011-claim-and-sign-in.md)) |
 | `internal/https/` | The panel's domain and its certificates from Let's Encrypt |

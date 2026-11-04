@@ -14,7 +14,7 @@ curl -fsSL https://get.dockwell.dev | sh
 
 On Alpine, which comes without curl, use `wget -qO- https://get.dockwell.dev | sh`.
 
-The first server becomes your control server. It runs the control plane, which serves the panel and API, and an agent of its own. The panel listens on `127.0.0.1:7600`, so only the server itself can reach it. To open it from your computer, forward the port over SSH:
+The first server becomes your control server. It runs the full build of `dockwell`: the control plane, which serves the panel and API, and an agent of its own. The panel listens on `127.0.0.1:7600`, so only the server itself can reach it. To open it from your computer, forward the port over SSH:
 
 ```sh
 ssh -L 7600:127.0.0.1:7600 <user>@<your server>
@@ -32,7 +32,7 @@ On the control server, make a join ticket:
 dockwell token create
 ```
 
-Then run the install on the new server with that ticket. The new server joins and runs only the agent. It opens no ports, because it dials out to the control server on TCP port 7443, so make sure that port on the control server is open to it.
+Then run the install on the new server with that ticket. The new server joins and runs only the agent, with the agent build of `dockwell`, which has none of the control plane. It opens no ports, because it dials out to the control server on TCP port 7443, so make sure that port on the control server is open to it.
 
 ```sh
 curl -fsSL https://get.dockwell.dev | sh -s -- --join <ticket>
@@ -40,10 +40,26 @@ curl -fsSL https://get.dockwell.dev | sh -s -- --join <ticket>
 
 The `sh -s --` passes the options to the script. You can set `DOCKWELL_JOIN` instead, as long as it is set for `sh` rather than for `curl`: `curl -fsSL https://get.dockwell.dev | DOCKWELL_JOIN=<ticket> sh`. A ticket works once and expires after an hour by default, so it does little harm in your shell history.
 
+## Two builds
+
+Each release has two builds of `dockwell`, from the same source ([ADR 0023](adr/0023-a-full-build-and-an-agent-build.md)). Both are installed as `/usr/local/bin/dockwell`:
+
+- **The full build**, on the control server: the control plane, its own agent, the panel and every command.
+- **The agent build**, on every server that joins: only the agent, with `dockwell run`, `join`, `role` and `version`. It links none of the control plane, so it idles in about a third less memory. The commands that manage the control plane, such as `dockwell token create`, `dockwell claim` and `dockwell servers list`, say they're on the control server.
+
+The script picks the build from what the server is:
+
+- Without `--join`, the server becomes a control server, and gets the full build.
+- With `--join`, it joins, and gets the agent build. A release from before there were two builds, such as `--version 0.2.0`, has only the full build, which runs the agent too.
+- A server that has joined gets the agent build when it upgrades. Servers that joined with v0.1.0 or v0.2.0 run the full build, which runs the agent too, so their next upgrade switches them to the agent build, and the script says so.
+- A control server always gets the full build, and a server with the agent build that never joined, run again without `--join`, becomes a control server like any first install.
+
+`dockwell version` says which build is installed.
+
 ## What the script does
 
 1. It checks it runs as root on Linux, on amd64 or arm64, and works out the OS family and whether it uses systemd or OpenRC.
-2. It finds the release: the latest, or the one you pass with `--version`.
+2. It finds the release: the latest, or the one you pass with `--version`. It picks the [build](#two-builds) for this server.
 3. It verifies the release before it installs anything. It downloads cosign, at the version and SHA-256 pinned in the script, and checks that Dockwell's release workflow signed the release's checksums at that release's tag. Then it checks the archive against them. If any check fails, nothing is installed. [ADR 0010](adr/0010-install-script-verifies-with-pinned-cosign.md) explains why it works this way. Through a mirror, the checks are the same, against a copy of Sigstore's trust root pinned in the script ([below](#install-through-a-mirror)).
 4. With `--join`, it runs `dockwell join` before the service ever starts, because a server that starts without an identity becomes a control server. A server that already joined keeps its control plane, and the script says which one; to move it to another, remove `/var/lib/dockwell/agent` and run the script again with a new ticket. `dockwell role` shows which role a server takes.
 5. It installs the service and starts it, then waits until the panel answers, or on a server that joined, until the agent is up. If the panel doesn't answer within 30 s, it shows the service's last log lines, which say why.
@@ -59,11 +75,11 @@ It changes only these files:
 
 Dockwell itself keeps its state in `/var/lib/dockwell`.
 
-The service sets `GOMEMLIMIT=200MiB`, a soft limit on the memory the Go runtime manages. It is sized from the PRD's budget of 250 MB for the control plane and its agent, and leaves the rest for memory Go doesn't manage, such as the binary's own pages and SQLite's cache. A few minutes after starting, an idle agent on its own uses about 26 MB and a control server about 34 MB, most of it pages of the binary, so the limit only comes into play if memory grows far past that.
+The service sets `GOMEMLIMIT=200MiB`, a soft limit on the memory the Go runtime manages. It is sized from the PRD's budget of 250 MB for the control plane and its agent, and leaves the rest for memory Go doesn't manage, such as the binary's own pages and SQLite's cache. A few minutes after starting, an idle agent on its own uses about 19 MB with the agent build, and a control server about 37 MB, most of it pages of the binary, so the limit only comes into play if memory grows far past that.
 
 ## Upgrade
 
-Run the same command again. If a newer release is out, the script verifies and installs it, then restarts the service. Your data stays where it is. If you already have the latest, it changes nothing and doesn't restart the service.
+Run the same command again. If a newer release is out, the script verifies and installs it, then restarts the service. A control server keeps the full [build](#two-builds), a server that has joined gets the agent build, switching to it if it joined with the full build, and your data stays where it is. If you already have the latest, in the build the server needs, it changes nothing and doesn't restart the service.
 
 Pass `--version 0.2.0` to install a particular release instead of the latest.
 
@@ -137,9 +153,10 @@ A mirror of Dockwell serves Dockwell's GitHub releases at its own URL, with the 
 | `<mirror>/download/v<version>/<file>` | `https://github.com/Dockwell/dockwell/releases/download/v<version>/<file>` |
 | `<mirror>/latest/download/<file>` | The same files for the newest release |
 
-Each release has these files. The mirror needs all of them, except an archive for an architecture none of your servers use:
+Each release has these files. The mirror needs all of them, except an archive for an architecture or a build none of your servers use:
 
-- `dockwell_<version>_linux_amd64.tar.gz` and `dockwell_<version>_linux_arm64.tar.gz`;
+- `dockwell_<version>_linux_amd64.tar.gz` and `dockwell_<version>_linux_arm64.tar.gz`, the full build, for control servers;
+- `dockwell-agent_<version>_linux_amd64.tar.gz` and `dockwell-agent_<version>_linux_arm64.tar.gz`, the agent build, for servers that join. Releases before it, v0.1.0 and v0.2.0, have none;
 - `checksums.txt` and its signature, `checksums.txt.sigstore.json`;
 - `sigstore_trusted_root.json`, the copy of Sigstore's trust root that the release's script pins. When a release lacks it, or its copy doesn't match the pin, the script takes the latest release's copy instead, so the mirror needs it at least in `latest/download/`;
 - `install.sh`, the install script.
@@ -165,15 +182,18 @@ If you can reach GitHub but not Sigstore, name GitHub itself as the mirror: `--m
 
 ### Run your own mirror
 
-Copy a release, and cosign, to a directory your web server or bucket serves:
+Copy a release, and cosign, to a directory your web server or bucket serves. The checksums list every file of the release but their own signature, so this copies both builds:
 
 ```sh
-v=0.1.0
+v=0.2.0
+release=https://github.com/Dockwell/dockwell/releases/download/v$v
 mkdir -p mirror/download/v$v mirror/latest/download cosign/download/v3.1.3
-for f in checksums.txt checksums.txt.sigstore.json sigstore_trusted_root.json install.sh \
-  dockwell_${v}_linux_amd64.tar.gz dockwell_${v}_linux_arm64.tar.gz; do
-  curl -fsSL -o mirror/download/v$v/$f https://github.com/Dockwell/dockwell/releases/download/v$v/$f
-done
+(
+  cd mirror/download/v$v
+  curl -fsSLO "$release/checksums.txt"
+  curl -fsSLO "$release/checksums.txt.sigstore.json"
+  for f in $(awk '{ print $2 }' checksums.txt); do curl -fsSLO "$release/$f"; done
+)
 cp mirror/download/v$v/* mirror/latest/download/
 for arch in amd64 arm64; do
   curl -fsSL -o cosign/download/v3.1.3/cosign-linux-$arch \
@@ -211,10 +231,12 @@ Everything runs from one function call on its last line, so a download that is c
 
 The Install workflow ([`.github/workflows/install.yml`](../.github/workflows/install.yml)) runs on every pull request against a release snapshot built from that commit. The snapshot is laid out as releases and signed with a throwaway key, so no published release is needed.
 
-- **Containers**: stock Debian 13, Ubuntu 26.04, AlmaLinux 9 and Alpine 3.24 images, on amd64 and arm64. Each one installs an older build, refuses a tampered archive and a bad signature, upgrades in place, runs again with nothing to do, uninstalls, and joins a control plane to run only the agent. systemd isn't running in these containers, so the unit is checked with `systemd-analyze verify` and the binary started the way the unit says. Alpine runs the OpenRC service for real, and uses busybox `wget` instead of curl.
+- **Containers**: stock Debian 13, Ubuntu 26.04, AlmaLinux 9 and Alpine 3.24 images, on amd64 and arm64. Each one installs an older build, refuses a tampered archive and a bad signature, upgrades in place to the full build, runs again with nothing to do, and uninstalls. Then it joins a control plane, beside the key a failed first start as a control server leaves, gets the agent build and runs only the agent. Last, it joins with the older build, which stands in for a release from before the agent build and has only the full build, and upgrades: the server switches to the agent build, its agent connects again, and running the script again keeps it. systemd isn't running in these containers, so the unit is checked with `systemd-analyze verify` and the binary started the way the unit says. Alpine runs the OpenRC service for real, and uses busybox `wget` instead of curl.
 - **Mirror**: in the same containers, the install and upgrade run again through a mirror on a second URL, with GitHub and Sigstore cut off. A cosign, archive or signature changed on the mirror is refused, and so is a version the mirror lacks. The test releases are signed with a key, which needs no trust root, so the upgrade comes from a mirror that carries none. The script's own steps that find the trust root on a mirror are tested on their own, through a mirror that answers 404 for a missing file, one that answers 403 as storage buckets do, and a `file://` path: a release without its own copy takes the latest release's, a changed copy is refused, and the latest release's copy is fetched once. A keyless signature from Sigstore's public instance verifies offline against the pinned trust root.
 - **systemd**: the same steps on the runner's own Ubuntu 24.04, where systemd is running, so the service really starts, restarts and stops.
 - **Install time**: every night, an install to a running panel with the install and the service held to one CPU, which fails at 60 s. It runs once with main's snapshot, and once with the latest published release, checked as a server would check it.
+
+The Go tests, which `make check` and CI run, test the script's own steps that pick the build ([`internal/cli/install_script_test.go`](../internal/cli/install_script_test.go)): against data directories of each kind of server, with a stand-in for the installed binary that is run once, and against `dockwell run`'s own test for a control plane.
 
 Run the container tests locally with `make install-test`, which needs Docker and cosign v3. The scenario itself is [`scripts/install-test/run.sh`](../scripts/install-test/run.sh).
 

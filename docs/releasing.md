@@ -2,27 +2,32 @@
 
 Releases are cut from `main` by pushing a tag, and [`.github/workflows/release.yml`](../.github/workflows/release.yml) does the rest in two jobs:
 
-- **Build** has read-only permissions and uses no caches. It refuses the tag unless it points at a commit on `main` whose required CI checks all passed. It then builds with GoReleaser ([`.goreleaser.yaml`](../.goreleaser.yaml)), smoke-tests the binary, and hands the artifacts on.
+- **Build** has read-only permissions and uses no caches. It refuses the tag unless it points at a commit on `main` whose required CI checks all passed. It then builds both builds of `dockwell` with GoReleaser ([`.goreleaser.yaml`](../.goreleaser.yaml)), smoke-tests them, and hands the artifacts on.
 - **Publish** runs none of the build code. It signs, attests and publishes what Build produced.
 
 Nobody builds release artifacts on a laptop, and no npm package or build script ever holds the signing or publishing credentials.
 
 ## What a release contains
 
+Every release has two builds of `dockwell`, from the same commit ([ADR 0023](adr/0023-a-full-build-and-an-agent-build.md)). The full build is what the control server runs: the control plane, its own agent, the panel and every command. The agent build, built with `-tags agent`, is what every server that joins runs: only the agent, so it idles in about a third less memory. In both archives the binary is called `dockwell`, and [the install script](install.md) picks the build each server needs.
+
 For each platform (linux amd64 and arm64):
 
-- `dockwell_<version>_linux_<arch>.tar.gz`: the static `dockwell` binary with the panel built in, plus `LICENSE` and `README.md`.
-- `dockwell_<version>_linux_<arch>.tar.gz.spdx.json`: an SPDX software bill of materials for that archive.
+- `dockwell_<version>_linux_<arch>.tar.gz`: the full build, a static `dockwell` binary with the panel built in, plus `LICENSE` and `README.md`.
+- `dockwell-agent_<version>_linux_<arch>.tar.gz`: the agent build, a static `dockwell` binary with only the agent, plus `LICENSE` and `README.md`.
+- `<archive>.spdx.json`: an SPDX software bill of materials for each of those archives.
 
 And once per release:
 
-- `checksums.txt`: SHA-256 of every archive, `install.sh` and `sigstore_trusted_root.json`.
+- `checksums.txt`: SHA-256 of every archive of both builds, `install.sh` and `sigstore_trusted_root.json`.
 - `checksums.txt.sigstore.json`: a keyless cosign signature of `checksums.txt`, made with the release workflow's GitHub identity and recorded in Sigstore's public transparency log.
 - `install.sh`: the install script at that release's tag.
 - `sigstore_trusted_root.json`: the copy of Sigstore's trust root that this `install.sh` pins, for installs through a [mirror](install.md#install-through-a-mirror) that check signatures without reaching Sigstore ([ADR 0013](adr/0013-mirrors-for-releases-and-images.md)).
 - A GitHub build-provenance attestation for every archive, SBOM and the checksums, which says the workflow and commit that built them.
 
-Builds are reproducible. The same commit gives byte-identical binaries, archives and `checksums.txt`, because paths are trimmed, file times and owners are fixed, and the build ID is empty. SBOMs embed their creation time, so they differ between builds; the provenance attestation covers them instead of the checksums.
+Builds are reproducible. The same commit gives byte-identical binaries, archives and `checksums.txt`, for both builds, because paths are trimmed, file times and owners are fixed, and the build ID is empty. SBOMs embed their creation time, so they differ between builds; the provenance attestation covers them instead of the checksums.
+
+`dockwell version` says which build a binary is, and `dockwell version --json` says it as `"edition": "BUILD_EDITION_FULL"` or `"BUILD_EDITION_AGENT"`. Releases from before there were two builds, v0.1.0 and v0.2.0, have only the full build and name none.
 
 Every push to `main` also runs the same build as a snapshot, without signing or publishing. The workflow run keeps the snapshot for 14 days as an artifact named `dockwell-snapshot`.
 
@@ -39,16 +44,17 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor b
    ```
 
    A tag with a suffix, such as `v0.2.0-rc.1`, is published as a pre-release.
-3. Watch the Release workflow. When it finishes, the GitHub release has the archives, the SBOMs, the checksums with their signature, and notes that GitHub generates from the pull requests merged since the last release. Edit the notes afterwards to call out anything that breaks compatibility.
+3. Watch the Release workflow. When it finishes, the GitHub release has the archives of both builds, the SBOMs, the checksums with their signature, and notes that GitHub generates from the pull requests merged since the last release. Edit the notes afterwards to call out anything that breaks compatibility.
 
-To check the build locally first, run `make release-snapshot`. It writes the same archives to `dist/` that CI builds for `main`, with SBOMs too if [syft](https://github.com/anchore/syft) is installed. GoReleaser is pinned in `tools/go.mod`, so the local and CI builds use the same version.
+To check the build locally first, run `make release-snapshot`. It writes the same archives of both builds to `dist/` that CI builds for `main`, with SBOMs too if [syft](https://github.com/anchore/syft) is installed. GoReleaser is pinned in `tools/go.mod`, so the local and CI builds use the same version.
 
 ## Verify a release
 
-With the GitHub CLI, one command checks that an archive was built by this repository's release workflow:
+With the GitHub CLI, one command checks that an archive, of either build, was built by this repository's release workflow:
 
 ```sh
-gh attestation verify dockwell_0.1.0_linux_amd64.tar.gz -R Dockwell/dockwell
+gh attestation verify dockwell_<version>_linux_amd64.tar.gz -R Dockwell/dockwell
+gh attestation verify dockwell-agent_<version>_linux_amd64.tar.gz -R Dockwell/dockwell
 ```
 
 Without it, verify the signed checksums with [cosign](https://docs.sigstore.dev/cosign/system_config/installation/), then the archive against them:

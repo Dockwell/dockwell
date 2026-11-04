@@ -26,7 +26,7 @@ The bar for the first release: a live HTTPS URL within 90 seconds of install.
 
 ![Agents keep serving even when the control plane is away](docs/product/architecture.svg)
 
-Every server runs one small `dockwell` binary. The first install also runs the control plane: the panel, API, revision store and scheduler. Servers you add later run only the agent, which dials out over mTLS, so they need no open ports and work behind NAT. Agents keep their own desired state, so if the control plane goes away, your apps keep serving.
+Every server runs one small `dockwell` binary. The first install runs its full build, with the control plane: the panel, API, revision store and scheduler. Servers you add later run the agent build, which has only the agent and dials out over mTLS, so they need no open ports and work behind NAT. Agents keep their own desired state, so if the control plane goes away, your apps keep serving.
 
 Underneath it is plain Docker, Compose, Caddy and systemd. Uninstalling Dockwell leaves your workloads running.
 

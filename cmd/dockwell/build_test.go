@@ -1,0 +1,234 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"slices"
+	"strings"
+	"testing"
+)
+
+// The agent build, built with -tags agent, is what every server that joins
+// a control plane runs. Each package it links costs every one of them idle
+// memory, whether or not the agent calls it: package initialization maps
+// most of a binary's code (docs/adr/0018-keep-the-budgets-in-rss.md). So it
+// links only what an agent runs, and these lists say what that is
+// (docs/adr/0023-a-full-build-and-an-agent-build.md).
+//
+// A new package on either list is a decision about every server's memory:
+// measure it with make budgets, and say what it cost in the pull request.
+
+// agentPackages are the packages of this module the agent build may link.
+var agentPackages = []string{
+	"cmd/dockwell",
+	"gen/dockwell/agent/v1",
+	"gen/dockwell/agent/v1/agentv1connect",
+	"gen/dockwell/resource/v1alpha1",
+	"gen/dockwell/v1",
+	"internal/agent",
+	"internal/agent/collect",
+	"internal/agent/enroll",
+	"internal/buildinfo",
+	"internal/cli",
+	"internal/cli/apinames", // the API commands' names, to say they're in the full build
+	"internal/datadir",
+	"internal/human",
+	"internal/logging",
+	"internal/pki",
+	"internal/resource",
+	"internal/resource/resourcepb",
+	"internal/ticket",
+}
+
+// agentModules are the other modules the agent build may link packages of.
+var agentModules = []string{
+	"connectrpc.com/connect",                    // the agent's stream to the control plane
+	"github.com/spf13/cobra",                    // the command line
+	"github.com/spf13/pflag",                    // its flags
+	"golang.org/x/sys",                          // system calls, for x/term
+	"golang.org/x/term",                         // whether a person is at a terminal
+	"google.golang.org/genproto/googleapis/api", // google.api annotations, which the schema's files import
+	"google.golang.org/protobuf",                // the agent's messages
+}
+
+// controlOnly are packages the agent build must never link, and why, for a
+// clearer message than "not on the list". The standard library has no list
+// of its own, so its heaviest packages that only the control plane uses are
+// named here.
+var controlOnly = map[string]string{
+	"github.com/dockwell/dockwell/internal/control":    "the control plane",
+	"github.com/dockwell/dockwell/internal/store":      "the control plane's state, on SQLite or Postgres",
+	"github.com/dockwell/dockwell/internal/auth":       "sign-in and passkeys",
+	"github.com/dockwell/dockwell/internal/revision":   "the revision engine",
+	"github.com/dockwell/dockwell/internal/panel":      "the panel's assets",
+	"github.com/dockwell/dockwell/internal/cli/apicli": "the API commands",
+	"github.com/dockwell/dockwell/internal/cli/apicmd": "the API commands",
+	"github.com/dockwell/dockwell/internal/https":      "the panel's HTTPS and ACME",
+	"modernc.org/sqlite":                               "SQLite",
+	"github.com/jackc/pgx":                             "Postgres",
+	"github.com/go-webauthn/webauthn":                  "passkeys",
+	"connectrpc.com/vanguard":                          "the REST paths",
+	"connectrpc.com/grpcreflect":                       "the API's reflection",
+	"github.com/compose-spec/compose-go":               "Compose import and export",
+	"database/sql":                                     "the control plane's state",
+	"encoding/xml":                                     "passkeys' attestation",
+}
+
+type listed struct {
+	ImportPath string
+	Standard   bool
+	Imports    []string
+	Module     *struct{ Path string }
+}
+
+// goList lists the packages ./cmd/dockwell links for linux/arch, with tags.
+func goList(t *testing.T, arch, tags string) []listed {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), "go", "list", "-deps", "-json", "-tags", tags, ".")
+	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+arch, "CGO_ENABLED=0")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("go list -tags %q for linux/%s: %v\n%s", tags, arch, err, stderr.String())
+	}
+	var pkgs []listed
+	dec := json.NewDecoder(bytes.NewReader(out))
+	for {
+		var p listed
+		if err := dec.Decode(&p); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		pkgs = append(pkgs, p)
+	}
+	return pkgs
+}
+
+// importers maps each package to the one that brought it into the build
+// first, breadth first from the main package.
+func importers(pkgs []listed) map[string]string {
+	byPath := map[string]listed{}
+	for _, p := range pkgs {
+		byPath[p.ImportPath] = p
+	}
+	from := map[string]string{mainPackage: ""}
+	queue := []string{mainPackage}
+	for len(queue) > 0 {
+		at := queue[0]
+		queue = queue[1:]
+		for _, next := range byPath[at].Imports {
+			if _, seen := from[next]; !seen {
+				from[next] = at
+				queue = append(queue, next)
+			}
+		}
+	}
+	return from
+}
+
+// chain is how the main package comes to import path, such as
+// "cmd/dockwell → internal/cli → internal/store".
+func chain(from map[string]string, path string) []string {
+	var steps []string
+	for p := path; p != ""; p = from[p] {
+		steps = append(steps, p)
+	}
+	slices.Reverse(steps)
+	return steps
+}
+
+const (
+	module      = "github.com/dockwell/dockwell"
+	mainPackage = module + "/cmd/dockwell"
+)
+
+func within(path, prefix string) bool {
+	return path == prefix || strings.HasPrefix(path, prefix+"/")
+}
+
+// refuse says why the agent build may not link p, or nothing when it may.
+func refuse(p listed) string {
+	for prefix, what := range controlOnly {
+		if within(p.ImportPath, prefix) {
+			return fmt.Sprintf("which is %s, and the agent build never needs it. Import it only from files with //go:build !agent", what)
+		}
+	}
+	const add = ", and measure it with make budgets; if only the control plane needs it, import it only from files with //go:build !agent"
+	switch {
+	case p.Standard, p.Module == nil:
+	case p.Module.Path == module:
+		if !slices.Contains(agentPackages, strings.TrimPrefix(p.ImportPath, module+"/")) {
+			return "which isn't on agentPackages. If the agent runs it, add it there, in cmd/dockwell/build_test.go" + add
+		}
+	default:
+		if !slices.ContainsFunc(agentModules, func(m string) bool { return within(p.ImportPath, m) }) {
+			return "of module " + p.Module.Path + ", which isn't on agentModules. If the agent needs it, add it there, in cmd/dockwell/build_test.go" + add
+		}
+	}
+	return ""
+}
+
+func TestTheAgentBuildLinksOnlyTheAgent(t *testing.T) {
+	for _, arch := range []string{"amd64", "arm64"} {
+		t.Run(arch, func(t *testing.T) {
+			pkgs := goList(t, arch, "agent")
+			refused := map[string]string{}
+			for _, p := range pkgs {
+				if why := refuse(p); why != "" {
+					refused[p.ImportPath] = why
+				}
+			}
+			// Each refused package is reported where it enters the build,
+			// not again for each package it brings with it.
+			from := importers(pkgs)
+			for _, p := range pkgs {
+				why, ok := refused[p.ImportPath]
+				if !ok {
+					continue
+				}
+				steps := chain(from, p.ImportPath)
+				if slices.ContainsFunc(steps[:len(steps)-1], func(s string) bool { _, ok := refused[s]; return ok }) {
+					continue
+				}
+				brings := 0
+				for _, q := range pkgs {
+					if q.ImportPath != p.ImportPath && slices.Contains(chain(from, q.ImportPath), p.ImportPath) {
+						brings++
+					}
+				}
+				for i := range steps {
+					steps[i] = strings.TrimPrefix(steps[i], module+"/")
+				}
+				t.Errorf("the agent build links %s, %s. It comes in through %s, and %d more packages come in through it. "+
+					"Every server that joins a control plane runs the agent build, so each package it links costs all of them memory at idle "+
+					"(docs/adr/0023-a-full-build-and-an-agent-build.md)",
+					p.ImportPath, why, strings.Join(steps, " → "), brings)
+			}
+		})
+	}
+}
+
+// The lists above would pass a build that linked nothing. The full build,
+// built as it is, has what the agent build leaves out, so the build
+// constraints can't have been turned around.
+func TestTheFullBuildLinksTheControlPlane(t *testing.T) {
+	var paths []string
+	for _, p := range goList(t, "amd64", "") {
+		paths = append(paths, p.ImportPath)
+	}
+	for _, want := range []string{module + "/internal/control", module + "/internal/store", module + "/internal/panel", module + "/internal/cli/apicmd"} {
+		if !slices.Contains(paths, want) {
+			t.Errorf("the full build doesn't link %s, so it has no control plane, panel or API commands. "+
+				"Files that reach them carry //go:build !agent, and the agent build's stand-ins //go:build agent", want)
+		}
+	}
+}

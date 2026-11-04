@@ -50,4 +50,20 @@ message BuildInfo {
   string go_version = 5;
   // Target operating system and architecture, such as "linux/amd64".
   string platform = 6;
+  // Which of the two builds of dockwell this is. Unset in builds made before
+  // there were two, which are all the full build.
+  BuildEdition edition = 7;
+}
+
+// BuildEdition says which of the two builds of dockwell a binary is. Both come
+// from the same source and are called dockwell. See
+// docs/adr/0023-a-full-build-and-an-agent-build.md.
+enum BuildEdition {
+  BUILD_EDITION_UNSPECIFIED = 0;
+  // The full build: the control plane with its own agent, the panel, the API
+  // and every command. The control server runs it.
+  BUILD_EDITION_FULL = 1;
+  // The agent build: only the agent, for a server that joins a control plane.
+  // It has no control plane, panel or API commands.
+  BUILD_EDITION_AGENT = 2;
 }
