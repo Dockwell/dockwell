@@ -8,6 +8,7 @@
 //   const system = createClient(SystemService, transport);
 //   const { build } = await system.getVersion({});
 
+export * from "./gen/dockwell/v1/auth_pb";
 export * from "./gen/dockwell/v1/options_pb";
 export * from "./gen/dockwell/v1/server_pb";
 export * from "./gen/dockwell/v1/system_pb";

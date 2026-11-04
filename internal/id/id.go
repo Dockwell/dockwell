@@ -26,6 +26,8 @@ const (
 	Session   = "ses"
 	Resource  = "res"
 	Change    = "chg"
+	Passkey   = "pky"
+	Link      = "lnk"
 )
 
 // crockford is Crockford's base32 alphabet: no I, L, O or U, so IDs survive

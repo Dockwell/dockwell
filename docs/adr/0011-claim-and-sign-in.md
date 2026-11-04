@@ -1,0 +1,113 @@
+# 0011. Claim over a tunnel or a domain, then sign in with passkeys
+
+- Status: Accepted
+- Date: 2026-11-04
+
+## Context
+
+The PRD's first signature experience is "Ninety seconds to a live URL": one install command, a passkey to claim the instance, then the first deploy. Its Access rows ask for passkeys and 2FA at launch, and its security requirements ask for "passkeys and TOTP for people". The panel controls root on every server, so whoever claims it first owns them all.
+
+Passkeys (WebAuthn) bring constraints that shape everything else:
+- Browsers only run WebAuthn in a secure context: HTTPS, or `http://localhost`.
+- A passkey belongs to a relying party ID (RP ID), which must be a hostname. IP addresses are refused.
+- A passkey works only on its RP ID and that name's subdomains.
+
+A fresh VPS has an IP address and nothing else. Until #14, the API listened on loopback with no sign-in at all (PR #47).
+
+### Options considered
+
+1. **Serve the panel over plain HTTP on the server's IP.** Passkeys can't work there, cookies would cross the network in the clear, and the first visitor would own the server. Rejected.
+2. **A self-signed certificate on the IP.** Browsers show a warning that teaches people to click through it, and the RP ID still can't be an IP. Rejected.
+3. **Require a domain before anything works.** This is safe, but it puts DNS in front of the first minute. Many people try a tool on a bare VPS before they point a name at it. It's kept as the path for people who already have a name.
+4. **A Dockwell-run hostname such as `<id>.dockwell.host`, with its certificate.** This is the smoothest path, but the domains aren't registered yet and the service doesn't exist. It comes later and fits the same design (see below).
+5. **Loopback plus an SSH tunnel, and a domain when you have one.** Everyone installing on a VPS already has SSH. `http://localhost` is a secure context, and `localhost` is a valid RP ID. Chosen.
+
+## Decision
+
+**Two ways to reach the panel.**
+- **Without a domain:**
+  - The panel and API stay on `127.0.0.1:7600`. `dockwell run` refuses a non-loopback `--listen`, so the panel is never served over plain HTTP to the network.
+  - You reach it through an SSH tunnel, `ssh -L 7600:127.0.0.1:7600 you@server`, at `http://localhost:7600`.
+  - The RP ID is `localhost`.
+  - Any local port works for the tunnel, because the origin is taken from the browser's `Host`. Page loads on `127.0.0.1` redirect to `localhost`, where passkeys work.
+- **With `--domain` (or `DOCKWELL_DOMAIN`):**
+  - The same handler also serves HTTPS on `:443`, with a certificate from Let's Encrypt over ACME. It uses `golang.org/x/crypto/acme/autocert`, which answers TLS-ALPN-01 on `:443` and HTTP-01 on `:80`.
+  - Plain `:80` redirects to HTTPS. It refuses anything but GET and HEAD, and it never serves the panel or the API.
+  - The ACME account key and certificates live in `<data>/control/acme`, owner-only.
+  - The RP ID is the domain. The loopback listener keeps working, for the CLI and for tunnels.
+  - `--acme-directory-url` points at another CA, such as Let's Encrypt's staging CA or Pebble.
+- **Every request** is checked against these hosts. Any other `Host` gets 421, which also defeats DNS rebinding against the loopback listener.
+
+**The first owner comes only from a claim link.**
+- On start with no owner, `dockwell run` makes a claim link and prints the exact steps: the tunnel and `http://localhost:7600/claim#<token>`, or `https://<domain>/claim#<token>`.
+- The token is 256 random bits. Only its SHA-256 is stored. It works once, expires in 24 h, and sits in the URL fragment, so it never reaches a server log or a `Referer` header.
+- A new link replaces any earlier unused one, so at most one works at a time. `dockwell claim` prints a fresh link; like `dockwell token create`, it needs local access to the data directory.
+- Claiming takes two calls. `BeginClaim` checks the link without spending it and starts a passkey registration. `FinishClaim` verifies the passkey, then spends the link, creates the owner, stores the passkey and starts a session, all in one transaction.
+- The spend is a conditional update, and a partial unique index allows one owner, so racing claims can't make two. No other code path creates a user.
+
+**Passkeys.**
+- They use `github.com/go-webauthn/webauthn` v0.18.2.
+- Registration requires a discoverable credential (resident key) and user verification. Sign-in requires user verification and names no account: the browser offers the passkeys it holds for this address.
+- Attestation is `none`. Dockwell doesn't restrict authenticator models.
+- Each passkey is stored with its RP ID, credential record and sign count. A ceremony is bound to the origin it began on, and it's held in memory for at most 5 minutes, once.
+- **Clone detection.** A passkey whose sign count goes backwards (both counts nonzero) is treated as copied. The sign-in is refused, the passkey is flagged and never signs in again, and the event is audited. Synced passkeys always report zero and never trip it.
+- A signed-in user can add passkeys and remove them, but never the last way in. Afterwards there must be another working passkey, or code sign-in.
+
+**Codes from an authenticator app (TOTP), with recovery codes.**
+- **Codes:**
+  - RFC 6238 with HMAC-SHA1, 6 digits and 30 s steps, accepting one step either side of now.
+  - The newest accepted step is stored, and only a later step is accepted, so a code works once even when requests race.
+  - The secret is sealed at rest with `internal/seal`, bound to the user's ID.
+- **Turning codes on** needs a code from the new secret. It then returns ten recovery codes, shown once. Each is 80 random bits, written as `XXXX-XXXX-XXXX-XXXX` in Crockford's base32, and stored only as a hash.
+- **Code sign-in** takes an email and a code. It is the fallback, so its limits are strict:
+  - Each source address (IPv6 by /64) gets 5 wrong codes before backoff. Each account, counted in the database so a restart doesn't reset it, gets 3.
+  - After that, each try waits twice as long as the last, up to 15 minutes.
+  - After 10 wrong codes in a row, code sign-in locks for the account until the owner unlocks it from a session made some other way. This caps what a patient guesser can try: about 10 guesses per owner decision, not a few a minute forever.
+  - Recovery codes, which can't be guessed, still work while code sign-in is locked.
+  - An email with no account gets the same answers, lock included.
+
+**Sessions.**
+- A session is an opaque 256-bit token in a cookie, stored as a hash.
+- The cookie is HttpOnly and SameSite=Strict. On HTTPS it is also Secure, with the `__Host-` prefix (`__Host-dockwell_session`). On localhost it is `dockwell_session` without Secure. Plain HTTP anywhere else never gets a cookie.
+- A session is bound to the RP ID it was made on. It ends after 12 hours idle, or 7 days after sign-in, whichever comes first.
+- Revoking a session, or signing out, closes its open streams at once. Every stream also re-checks its session every 30 s.
+- You can list your sessions (browser, address, created, last seen, which one is this), revoke any of them, or revoke all the others.
+
+**Protecting the API.**
+- An interceptor on every service of the API listener requires a live session. The exceptions are:
+  - `GetAuthState`;
+  - the claim and sign-in calls;
+  - `SystemService.GetVersion`, because the sign-in screen shows the version;
+  - gRPC health, and `/healthz`.
+- A test calls every registered procedure without a session and fails on any answer not in that list.
+- **CSRF**, on top of SameSite=Strict and Connect's non-simple content types:
+  - A request with an `Origin` other than the panel's own is refused, and so is one whose `Sec-Fetch-Site` says another site. That includes `same-site`, which is how another port on `localhost` shows up.
+  - A write authenticated by cookie must carry a matching `Origin` or `Sec-Fetch-Site: same-origin`.
+- The agent listener is separate and unchanged: mTLS (ADR 0007).
+- **Audit.** The claim, every sign-in and failure, sign-out, session revocation, passkeys added, removed or flagged, codes on, off, locked and unlocked, and each recovery code used are audit events. Failures for emails or passkeys that match no account are logged but not audited, so strangers can't fill the audit log.
+
+**Adding a domain later.**
+- Passkeys made on `localhost` don't work on the new domain, and the browser won't offer them.
+- When `dockwell run` starts with a domain it didn't have before, it says so and explains what to do. You sign in on the domain with an authenticator code or a recovery code, or with a one-time link from `dockwell recover`, then add a passkey for the new address.
+- The panel's passkey list shows which address each passkey works on.
+- `dockwell recover` prints a one-time sign-in link that expires in 15 minutes. It needs local access to the data directory, like `dockwell claim`. Anyone who has that already controls the install, and the sign-in screen points to it.
+
+**Auth state is access, not managed state.** Users, passkeys, codes and sessions aren't resources with revisions and plans (ADR 0009). Undoing the removal of a passkey or a revocation would re-grant access, which is the opposite of what undo is for. These changes are audited instead.
+
+**What the hostname service will add.**
+- `internal/https.Source` is the seam. It gives the control plane a domain, a TLS configuration and a plain-HTTP handler, and ACME is one implementation.
+- A future `dockwell.host` source will:
+  - register `<install>.dockwell.host` for the install;
+  - point it at the server;
+  - get its certificate, through DNS-01 run by the service, or by delegating the name to the server for TLS-ALPN-01.
+- Nothing else changes. The RP ID becomes that hostname, and the same domain-change flow covers moving from it to the owner's own domain.
+
+## Consequences
+
+- A fresh VPS is claimed in about a minute over SSH, with no DNS, and nobody without SSH access can reach the claim. The one extra step is the tunnel command, which `dockwell run` prints ready to paste.
+- People with a domain get HTTPS and passkeys on it with one flag, but the server needs ports 80 and 443 (root or `CAP_NET_BIND_SERVICE`), and DNS must point at it first.
+- Behind your own reverse proxy, the panel isn't supported yet. A loopback proxy that sends a public `Host` header is refused. That needs trusted-proxy settings later.
+- Passkeys are per address, so changing the address means adding a passkey. The output and the panel explain this when it happens, and a code or `dockwell recover` bridges the gap.
+- Ceremonies, rate-limit counters for addresses, and open-stream tracking live in memory. They would move to shared state for the highly available control plane.
+- Code sign-in can be locked by anyone who knows the owner's email. Passkeys, recovery codes and `dockwell recover` still work, and the lock is audited, so this costs convenience, not access.
+- The threat model is in [docs/security/sign-in.md](../security/sign-in.md).

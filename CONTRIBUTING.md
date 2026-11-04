@@ -46,6 +46,8 @@ make install-test  # the install script in Debian, Ubuntu, AlmaLinux and Alpine 
 
 The Install workflow runs the last two, as well as the install script under systemd on the runner and, nightly, the time from install to a running panel on one CPU. [docs/install.md](docs/install.md#how-it-is-tested) describes how.
 
+The first start prints a one-time link that claims the install: open it to create your owner account with a passkey. With `make dev`, open it on port 5173 instead of 7600. Run `dockwell claim --data-dir <dir>` for a new link, and `dockwell recover` to sign in without your passkey.
+
 Run `make` on its own to list every target. Developer tools such as buf and golangci-lint are pinned in `tools/go.mod` and run with `go tool -modfile=tools/go.mod <tool>`, so there is nothing else to install.
 
 The panel's text goes through Lingui: write it in English inside `<Trans>` or `` t`…` ``, run `make i18n` to extract it, and add the Simplified Chinese translation to `web/src/locales/zh-CN/messages.po`. CI fails on a missing translation.
@@ -59,6 +61,8 @@ The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and
 | `cmd/dockwell/` | The binary's entry point |
 | `internal/cli/` | The `dockwell` commands |
 | `internal/control/` | The control plane: API and agent listeners, services, and the identity authority |
+| `internal/auth/` | Who may use the panel and API: the claim, passkeys, authenticator codes and sessions ([ADR 0011](docs/adr/0011-claim-and-sign-in.md)) |
+| `internal/https/` | The panel's domain and its certificates from Let's Encrypt |
 | `internal/agent/` | The agent: its identity (`enroll`) and runtime |
 | `internal/store/` | The control plane's state, in SQLite, with embedded migrations |
 | `internal/pki/`, `internal/seal/`, `internal/ticket/` | The CA, secrets sealed at rest, and join tickets ([threat model](docs/security/server-identity.md)) |

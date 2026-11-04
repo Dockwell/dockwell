@@ -114,6 +114,18 @@ func (h *Hub) SetControlServer(id string) {
 	h.control = id
 }
 
+// ControlServer returns the server that runs the control plane, without
+// history, or nil before it is known.
+func (h *Hub) ControlServer() *dockwellv1.Server {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	l, ok := h.servers[h.control]
+	if !ok {
+		return nil
+	}
+	return h.toProtoLocked(h.control, l, false)
+}
+
 // Joined adds a server that has just joined.
 func (h *Hub) Joined(s store.Server) {
 	h.mu.Lock()

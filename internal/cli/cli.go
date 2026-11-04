@@ -26,12 +26,16 @@ const (
 
 // env names the environment variables that set flag defaults.
 const (
-	envLogLevel    = "DOCKWELL_LOG_LEVEL"
-	envLogFormat   = "DOCKWELL_LOG_FORMAT"
-	envDataDir     = "DOCKWELL_DATA_DIR"
-	envListen      = "DOCKWELL_LISTEN"
-	envAgentListen = "DOCKWELL_AGENT_LISTEN"
-	envAdvertise   = "DOCKWELL_ADVERTISE_URL"
+	envLogLevel      = "DOCKWELL_LOG_LEVEL"
+	envLogFormat     = "DOCKWELL_LOG_FORMAT"
+	envDataDir       = "DOCKWELL_DATA_DIR"
+	envListen        = "DOCKWELL_LISTEN"
+	envAgentListen   = "DOCKWELL_AGENT_LISTEN"
+	envAdvertise     = "DOCKWELL_ADVERTISE_URL"
+	envDomain        = "DOCKWELL_DOMAIN"
+	envHTTPSListen   = "DOCKWELL_HTTPS_LISTEN"
+	envHTTPListen    = "DOCKWELL_HTTP_LISTEN"
+	envACMEDirectory = "DOCKWELL_ACME_DIRECTORY_URL"
 )
 
 // IO carries the streams and environment a command runs with, so tests can
@@ -134,6 +138,8 @@ func newRootCmd(stdio IO) *cobra.Command {
 		newJoinCmd(stdio, &g),
 		newTokenCmd(stdio, &g),
 		newRoleCmd(stdio, &g),
+		newClaimCmd(stdio, &g),
+		newRecoverCmd(stdio, &g),
 	)
 
 	// Unknown subcommands are usage errors, with a pointer to the help.

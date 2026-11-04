@@ -97,11 +97,12 @@ ticket=$("$bin" token create --data-dir "$work/control" 2>>"$work/control.log" |
 agent=$!
 pids+=("$agent")
 
+# The API needs a session, so count the servers the control plane says
+# connected, in its log.
 connected=0
 for _ in $(seq 100); do
-  servers=$(curl -fsS -H 'Content-Type: application/json' -d '{}' "$base/dockwell.v1.ServerService/ListServers" 2>/dev/null || true)
   # grep finds nothing until both connect; that mustn't end the script.
-  connected=$({ grep -o '"connection": \{0,1\}"CONNECTION_CONNECTED"' <<<"$servers" || true; } | wc -l)
+  connected=$({ grep '"msg":"server connected"' "$work/control.log" | grep -o '"server":"srv_[^"]*"' || true; } | sort -u | wc -l)
   ((connected >= 2)) && break
   sleep 0.1
 done

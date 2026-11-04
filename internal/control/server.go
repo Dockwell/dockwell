@@ -4,10 +4,15 @@
 // panel, the agent listener servers connect to, and later the revision
 // store and the scheduler.
 //
-// It listens twice. The API listener serves the Connect, gRPC and gRPC-Web
-// protocols over HTTP/1.1 and HTTP/2, the panel at every other path, and
-// /healthz for process supervisors. The agent listener speaks only to
-// agents, over TLS 1.3 with client certificates (ADR 0007).
+// The API listener serves the Connect, gRPC and gRPC-Web protocols over
+// HTTP/1.1 and HTTP/2, the panel at every other path, and /healthz for
+// process supervisors. It stays on loopback. With a domain, the same
+// handler also serves HTTPS on the panel's domain, and a plain-HTTP
+// listener answers certificate challenges and redirects to HTTPS (ADR
+// 0011). Every procedure but sign-in needs a session (internal/auth).
+//
+// The agent listener speaks only to agents, over TLS 1.3 with client
+// certificates (ADR 0007).
 package control
 
 import (
@@ -20,16 +25,21 @@ import (
 	"net/http"
 	"sync"
 
+	"connectrpc.com/connect"
 	"connectrpc.com/grpchealth"
 	"connectrpc.com/grpcreflect"
 
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/control/servers"
 	"github.com/dockwell/dockwell/internal/control/system"
+	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/panel"
 	"github.com/dockwell/dockwell/internal/serve"
 )
@@ -57,6 +67,15 @@ type Config struct {
 	// AgentHosts are the names and addresses agents dial; the agent
 	// listener's certificate is valid for them.
 	AgentHosts []string
+	// Auth decides who may use the API. Without it, only the procedures
+	// that need no session answer.
+	Auth *auth.Service
+	// Public serves the panel on its domain over HTTPS. Nil keeps the panel
+	// on loopback.
+	Public https.Source
+	// PublicAddress is where other servers reach this one, shown on the
+	// claim screen.
+	PublicAddress string
 }
 
 // Server is a configured control plane, ready to serve.
@@ -65,6 +84,7 @@ type Server struct {
 	api      http.Handler
 	agents   http.Handler
 	agentTLS *tls.Config
+	public   https.Source
 }
 
 // New builds a Server from cfg.
@@ -82,7 +102,10 @@ func New(cfg Config) (*Server, error) {
 	if !ui.Built() {
 		cfg.Logger.Warn("this binary has no panel built in; the API works, and make build adds the panel")
 	}
-	s := &Server{logger: cfg.Logger, api: apiRoutes(cfg, ui)}
+	if cfg.Public != nil && (cfg.Auth == nil || cfg.Auth.Sites().Domain != cfg.Public.Domain()) {
+		return nil, errors.New("control: Config.Public needs Config.Auth for the same domain")
+	}
+	s := &Server{logger: cfg.Logger, api: apiRoutes(cfg, ui), public: cfg.Public}
 	if (cfg.Identity == nil) != (cfg.Fleet == nil) {
 		return nil, errors.New("control: Config.Identity and Config.Fleet go together")
 	}
@@ -97,10 +120,19 @@ func New(cfg Config) (*Server, error) {
 func (s *Server) Handler() http.Handler { return s.api }
 
 func apiRoutes(cfg Config, ui http.Handler) http.Handler {
-	opts := serve.HandlerOptions(cfg.Logger)
+	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	mux.Handle(dockwellv1connect.NewSystemServiceHandler(system.New(cfg.Build), opts...))
 	services := []string{dockwellv1connect.SystemServiceName}
+	if cfg.Auth != nil {
+		controlServer := func() *dockwellv1.Server { return nil }
+		if cfg.Fleet != nil {
+			controlServer = cfg.Fleet.ControlServer
+		}
+		h := authapi.New(authapi.Config{Auth: cfg.Auth, Logger: cfg.Logger, ControlServer: controlServer, PublicAddress: cfg.PublicAddress})
+		mux.Handle(dockwellv1connect.NewAuthServiceHandler(h, opts...))
+		services = append(services, dockwellv1connect.AuthServiceName)
+	}
 	if cfg.Fleet != nil {
 		mux.Handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet), opts...))
 		services = append(services, dockwellv1connect.ServerServiceName)
@@ -120,7 +152,11 @@ func apiRoutes(cfg Config, ui http.Handler) http.Handler {
 	// Everything else is the panel; it answers 404 for paths it doesn't own.
 	mux.Handle("/", ui)
 
-	return serve.Recover(cfg.Logger, mux)
+	var sites auth.Sites
+	if cfg.Auth != nil {
+		sites = cfg.Auth.Sites()
+	}
+	return serve.Recover(cfg.Logger, authapi.Guard(sites, cfg.Logger, mux))
 }
 
 // Serve serves the API and panel on ln until ctx is done.
@@ -136,24 +172,55 @@ func (s *Server) ServeAgents(ctx context.Context, ln net.Listener) error {
 	return serve.Serve(ctx, ln, s.agents, serve.Options{Name: "agent listener", Logger: s.logger, TLS: s.agentTLS})
 }
 
-// Run serves the API on api and, when the server has an identity, agents on
-// agents, until ctx is done or either listener fails. A failure stops the
-// other listener too.
-func (s *Server) Run(ctx context.Context, api, agents net.Listener) error {
+// Listeners are where a Server listens. API is required; the others are
+// optional.
+type Listeners struct {
+	// API serves the API and panel over plain HTTP. It must be on loopback.
+	API net.Listener
+	// HTTPS serves the same on the panel's domain. It needs Config.Public.
+	HTTPS net.Listener
+	// HTTP answers certificate challenges and redirects to HTTPS. It needs
+	// Config.Public.
+	HTTP net.Listener
+	// Agents is the agent listener. It needs Config.Identity.
+	Agents net.Listener
+}
+
+// Run serves on every listener in ls until ctx is done or one of them
+// fails. A failure stops the others too.
+func (s *Server) Run(ctx context.Context, ls Listeners) error {
+	if (ls.HTTPS != nil || ls.HTTP != nil) && s.public == nil {
+		return errors.New("control: the HTTPS and HTTP listeners need Config.Public")
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	var wg sync.WaitGroup
-	errs := make([]error, 2)
-	wg.Go(func() {
-		errs[0] = s.Serve(ctx, api)
-		cancel()
-	})
-	if agents != nil {
+	var mu sync.Mutex
+	var errs []error
+	run := func(serveFn func() error) {
 		wg.Go(func() {
-			errs[1] = s.ServeAgents(ctx, agents)
+			if err := serveFn(); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
+			}
 			cancel()
 		})
+	}
+	run(func() error { return s.Serve(ctx, ls.API) })
+	if ls.HTTPS != nil {
+		run(func() error {
+			return serve.Serve(ctx, ls.HTTPS, s.api, serve.Options{Name: "panel over HTTPS", Logger: s.logger, TLS: s.public.TLSConfig()})
+		})
+	}
+	if ls.HTTP != nil {
+		run(func() error {
+			return serve.Serve(ctx, ls.HTTP, s.public.HTTPHandler(), serve.Options{Name: "HTTP redirect", Logger: s.logger})
+		})
+	}
+	if ls.Agents != nil {
+		run(func() error { return s.ServeAgents(ctx, ls.Agents) })
 	}
 	wg.Wait()
 	return errors.Join(errs...)

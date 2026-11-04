@@ -75,14 +75,6 @@ get_html() {
 	fi
 }
 
-post() {
-	if command -v curl >/dev/null 2>&1; then
-		curl -fsS --max-time 5 -H 'Content-Type: application/json' -d '{}' "$1"
-	else
-		wget -q -T 5 -O - --header 'Content-Type: application/json' --post-data '{}' "$1"
-	fi
-}
-
 # run_install runs the install script from a release tree, piped to sh, and
 # keeps what it printed in $log/out.
 run_install() {
@@ -267,7 +259,9 @@ start_direct
 [ -e "$DATA/agent/agent.json" ] || die "joining left no identity in $DATA/agent"
 [ ! -e "$DATA/control" ] || die "a server that joined has a control plane"
 i=0
-until [ "$(post "$FIXTURE/dockwell.v1.ServerService/ListServers" | grep -o '"connection": \{0,1\}"CONNECTION_CONNECTED"' | wc -l)" -ge 2 ]; do
+# The API needs a session, so count the servers the control plane says
+# connected, in its log.
+until [ "$({ grep '"msg":"server connected"' "$log/fixture.log" | grep -o '"server":"srv_[^"]*"' || true; } | sort -u | wc -l)" -ge 2 ]; do
 	i=$((i + 1))
 	[ "$i" -lt 150 ] || die "the agent didn't connect to the control plane within 15 s"
 	sleep 0.1

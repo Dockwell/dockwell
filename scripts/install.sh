@@ -567,12 +567,22 @@ install_dockwell() {
 	if [ "$current_role" = control ]; then
 		panel=$(panel_url)
 		port=${panel##*:}
-		cat <<EOF
+		# A new install has no owner yet: print a fresh one-time claim link
+		# and how to open it. Once someone has claimed it, this fails and
+		# says so, and the summary says where the panel is instead.
+		if claim=$("$BIN" claim --data-dir "$DATA" 2>/dev/null); then
+			say "Dockwell v$version is running, and this is your control server."
+			printf '%s\n' "$claim"
+		else
+			cat <<EOF
 Dockwell v$version is running, and this is your control server. Its panel
 listens on $panel. To open it from your computer, forward the port over
 SSH, then open http://localhost:$port there:
 
   ssh -L $port:127.0.0.1:$port <user>@<this server>
+EOF
+		fi
+		cat <<EOF
 
 To add a server, run dockwell token create here and follow what it prints.
 Other servers reach this one on TCP port 7443, so open it to them.

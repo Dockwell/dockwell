@@ -1,0 +1,613 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package control
+
+import (
+	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"errors"
+	"io"
+	"log/slog"
+	"math/big"
+	"net"
+	"net/http"
+	"net/http/cookiejar"
+	"net/url"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"connectrpc.com/connect"
+	"connectrpc.com/grpchealth"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
+	"google.golang.org/protobuf/types/dynamicpb"
+
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
+	"github.com/dockwell/dockwell/internal/auth/authtest"
+	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/fleet"
+	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/https"
+	"github.com/dockwell/dockwell/internal/seal"
+	"github.com/dockwell/dockwell/internal/store"
+)
+
+// fullServer is a control plane with sign-in, as dockwell run starts it.
+type fullServer struct {
+	auth  *auth.Service
+	api   string // the loopback listener's address
+	https string // the HTTPS listener's address, with a domain
+	http  string // the plain-HTTP listener's address, with a domain
+}
+
+func startFull(t *testing.T, public https.Source) *fullServer {
+	t.Helper()
+	dir := t.TempDir()
+	logger := slog.New(slog.DiscardHandler)
+	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(t.Context(), filepath.Join(dir, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ident, err := identity.Bootstrap(t.Context(), db, key, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hub, err := fleet.New(t.Context(), db, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sites auth.Sites
+	if public != nil {
+		sites.Domain = public.Domain()
+	}
+	people, err := auth.New(auth.Config{DB: db, Key: key, Logger: logger, Sites: sites})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv, err := New(Config{Logger: logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listen := func() net.Listener {
+		var lc net.ListenConfig
+		ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ln
+	}
+	ls := Listeners{API: listen()}
+	f := &fullServer{auth: people, api: ls.API.Addr().String()}
+	if public != nil {
+		ls.HTTPS, ls.HTTP = listen(), listen()
+		f.https, f.http = ls.HTTPS.Addr().String(), ls.HTTP.Addr().String()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- srv.Run(ctx, ls) }()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-done; err != nil {
+			t.Errorf("Run returned %v after cancel", err)
+		}
+	})
+	return f
+}
+
+// browser is an HTTP client that behaves like one: it keeps cookies, dials
+// the listener whatever the URL's host, and says which origin it is on.
+type browser struct {
+	origin string
+	client *http.Client
+	auth   *authtest.Authenticator
+}
+
+func newBrowser(t *testing.T, origin, dialAddr string, roots *x509.CertPool) *browser {
+	t.Helper()
+	jar, _ := cookiejar.New(nil)
+	var d net.Dialer
+	tr := &http.Transport{
+		DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			return d.DialContext(ctx, network, dialAddr)
+		},
+		TLSClientConfig: &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12},
+	}
+	return &browser{origin: origin, client: &http.Client{Jar: jar, Transport: tr}, auth: &authtest.Authenticator{}}
+}
+
+// Do sets Origin and Sec-Fetch-Site the way a browser does for the panel's
+// own requests.
+func (b *browser) Do(r *http.Request) (*http.Response, error) {
+	r.Header.Set("Origin", b.origin)
+	r.Header.Set("Sec-Fetch-Site", "same-origin")
+	return b.client.Do(r)
+}
+
+func (b *browser) authClient() dockwellv1connect.AuthServiceClient {
+	return dockwellv1connect.NewAuthServiceClient(b, b.origin, connect.WithProtoJSON())
+}
+
+func (b *browser) cookies() []*http.Cookie {
+	u, _ := url.Parse(b.origin)
+	return b.client.Jar.Cookies(u)
+}
+
+// claim claims the install through the API, as the panel does.
+func (b *browser) claim(t *testing.T, token string) *connect.Response[dockwellv1.FinishClaimResponse] {
+	t.Helper()
+	c := b.authClient()
+	if _, err := c.CheckClaim(t.Context(), connect.NewRequest(&dockwellv1.CheckClaimRequest{Token: token})); err != nil {
+		t.Fatalf("CheckClaim: %v", err)
+	}
+	begin, err := c.BeginClaim(t.Context(), connect.NewRequest(&dockwellv1.BeginClaimRequest{Token: token, Name: "Mira Chen", Email: "mira@acme.dev"}))
+	if err != nil {
+		t.Fatalf("BeginClaim: %v", err)
+	}
+	cred, _, err := b.auth.Create(begin.Msg.GetOptionsJson(), b.origin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := c.FinishClaim(t.Context(), connect.NewRequest(&dockwellv1.FinishClaimRequest{
+		CeremonyId: begin.Msg.GetCeremonyId(), Token: token, CredentialJson: cred, PasskeyName: "Chrome on Linux",
+	}))
+	if err != nil {
+		t.Fatalf("FinishClaim: %v", err)
+	}
+	return res
+}
+
+func (b *browser) signIn(t *testing.T) {
+	t.Helper()
+	c := b.authClient()
+	begin, err := c.BeginPasskeySignIn(t.Context(), connect.NewRequest(&dockwellv1.BeginPasskeySignInRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := b.auth.Get(begin.Msg.GetOptionsJson(), b.origin, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.FinishPasskeySignIn(t.Context(), connect.NewRequest(&dockwellv1.FinishPasskeySignInRequest{
+		CeremonyId: begin.Msg.GetCeremonyId(), CredentialJson: resp,
+	})); err != nil {
+		t.Fatalf("FinishPasskeySignIn: %v", err)
+	}
+}
+
+func TestClaimSignOutAndSignInOverLocalhost(t *testing.T) {
+	srv := startFull(t, nil)
+	_, port, _ := net.SplitHostPort(srv.api)
+	b := newBrowser(t, "http://localhost:"+port, srv.api, nil)
+	c := b.authClient()
+
+	state, err := c.GetAuthState(t.Context(), connect.NewRequest(&dockwellv1.GetAuthStateRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Msg.GetClaimed() || state.Msg.GetUser() != nil || state.Msg.GetRpId() != "localhost" {
+		t.Errorf("before the claim: %v", state.Msg)
+	}
+	link, err := srv.auth.CreateClaimLink(t.Context(), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := b.claim(t, link.Token)
+	cookie := res.Header().Get("Set-Cookie")
+	for _, want := range []string{"dockwell_session=", "HttpOnly", "SameSite=Strict", "Path=/"} {
+		if !strings.Contains(cookie, want) {
+			t.Errorf("session cookie %q lacks %q", cookie, want)
+		}
+	}
+	if strings.Contains(cookie, "Secure") || strings.Contains(cookie, "__Host-") {
+		t.Errorf("a localhost cookie %q is marked for HTTPS", cookie)
+	}
+
+	state, _ = c.GetAuthState(t.Context(), connect.NewRequest(&dockwellv1.GetAuthStateRequest{}))
+	if !state.Msg.GetClaimed() || state.Msg.GetUser().GetEmail() != "mira@acme.dev" ||
+		state.Msg.GetSignInMethod() != dockwellv1.SignInMethod_SIGN_IN_METHOD_CLAIM {
+		t.Errorf("after the claim: %v", state.Msg)
+	}
+	// A second claim with the same link fails.
+	_, err = c.CheckClaim(t.Context(), connect.NewRequest(&dockwellv1.CheckClaimRequest{Token: link.Token}))
+	var cerr *connect.Error
+	if !errors.As(err, &cerr) || cerr.Code() != connect.CodeFailedPrecondition || cerr.Meta().Get(authapi.ReasonKey) != "claimed" {
+		t.Errorf("CheckClaim after claiming = %v, want failed_precondition with reason claimed", err)
+	}
+
+	sessions, err := c.ListSessions(t.Context(), connect.NewRequest(&dockwellv1.ListSessionsRequest{}))
+	if err != nil || len(sessions.Msg.GetSessions()) != 1 || !sessions.Msg.GetSessions()[0].GetCurrent() {
+		t.Fatalf("ListSessions = %v, %v", sessions, err)
+	}
+
+	out, err := c.SignOut(t.Context(), connect.NewRequest(&dockwellv1.SignOutRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.Header().Get("Set-Cookie"), "Max-Age=0") {
+		t.Errorf("SignOut cookie = %q, want it cleared", out.Header().Get("Set-Cookie"))
+	}
+	if _, err := c.ListSessions(t.Context(), connect.NewRequest(&dockwellv1.ListSessionsRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Errorf("ListSessions after signing out = %v, want unauthenticated", err)
+	}
+
+	b.signIn(t)
+	state, _ = c.GetAuthState(t.Context(), connect.NewRequest(&dockwellv1.GetAuthStateRequest{}))
+	if state.Msg.GetSignInMethod() != dockwellv1.SignInMethod_SIGN_IN_METHOD_PASSKEY {
+		t.Errorf("after signing in again: %v", state.Msg)
+	}
+	servers := dockwellv1connect.NewServerServiceClient(b, b.origin)
+	if _, err := servers.ListServers(t.Context(), connect.NewRequest(&dockwellv1.ListServersRequest{})); err != nil {
+		t.Errorf("ListServers when signed in: %v", err)
+	}
+}
+
+// TestEveryProcedureNeedsASession calls every procedure the API listener
+// serves without a session. Only the public ones may answer; a new RPC is
+// refused until someone adds it to the allowlist on purpose.
+func TestEveryProcedureNeedsASession(t *testing.T) {
+	srv := startFull(t, nil)
+	_, port, _ := net.SplitHostPort(srv.api)
+	b := newBrowser(t, "http://localhost:"+port, srv.api, nil)
+	// Bidi streams need HTTP/2, unencrypted on loopback.
+	h2c := newBrowser(t, b.origin, srv.api, nil)
+	var p http.Protocols
+	p.SetUnencryptedHTTP2(true)
+	h2c.client.Transport.(*http.Transport).Protocols = &p
+	public := map[string]bool{}
+	for _, p := range authapi.PublicProcedures() {
+		public[p] = true
+	}
+
+	var checked int
+	check := func(served string, sd protoreflect.ServiceDescriptor) {
+		for i := range sd.Methods().Len() {
+			md := sd.Methods().Get(i)
+			procedure := "/" + served + "/" + string(md.Name())
+			via := b
+			if md.IsStreamingClient() {
+				via = h2c
+			}
+			code := callEmpty(t, via, procedure, md)
+			checked++
+			switch {
+			case public[procedure] && code == connect.CodeUnauthenticated:
+				t.Errorf("%s is public but answered unauthenticated", procedure)
+			case !public[procedure] && code != connect.CodeUnauthenticated:
+				t.Errorf("%s answered %v without a session, want unauthenticated", procedure, code)
+			}
+		}
+	}
+	protoregistry.GlobalFiles.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+		if fd.Package() == "dockwell.v1" {
+			for i := range fd.Services().Len() {
+				sd := fd.Services().Get(i)
+				check(string(sd.FullName()), sd)
+			}
+		}
+		return true
+	})
+	// connect's health and reflection handlers register their schemas under
+	// a private package name, and serve them under the standard one.
+	for served, registered := range map[string]string{
+		grpchealth.HealthV1ServiceName:             "connectext.grpc.health.v1.Health",
+		"grpc.reflection.v1.ServerReflection":      "connectext.grpc.reflection.v1.ServerReflection",
+		"grpc.reflection.v1alpha.ServerReflection": "connectext.grpc.reflection.v1.ServerReflection",
+	} {
+		d, err := protoregistry.GlobalFiles.FindDescriptorByName(protoreflect.FullName(registered))
+		if err != nil {
+			t.Fatalf("%s isn't registered: %v", registered, err)
+		}
+		check(served, d.(protoreflect.ServiceDescriptor))
+	}
+	if checked < 25 {
+		t.Errorf("checked only %d procedures", checked)
+	}
+}
+
+// callEmpty calls a procedure with an empty request, whatever its shape, and
+// returns the code it ends with.
+func callEmpty(t *testing.T, b *browser, procedure string, md protoreflect.MethodDescriptor) connect.Code {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	target := b.origin + procedure
+	newOut := connect.WithResponseInitializer(func(_ connect.Spec, msg any) error {
+		*msg.(*dynamicpb.Message) = *dynamicpb.NewMessage(md.Output())
+		return nil
+	})
+	client := connect.NewClient[dynamicpb.Message, dynamicpb.Message](b, target, connect.WithSchema(md), newOut, connect.WithProtoJSON())
+	in := dynamicpb.NewMessage(md.Input())
+	var err error
+	switch {
+	case md.IsStreamingClient():
+		stream := client.CallBidiStream(ctx)
+		if err = stream.Send(in); err == nil {
+			_ = stream.CloseRequest()
+			_, err = stream.Receive()
+		}
+		_ = stream.CloseResponse()
+	case md.IsStreamingServer():
+		stream, serr := client.CallServerStream(ctx, connect.NewRequest(in))
+		if err = serr; err == nil {
+			// A public watch that answers at all has passed the guard.
+			if stream.Receive() {
+				_ = stream.Close()
+				return connect.Code(0)
+			}
+			err = stream.Err()
+			_ = stream.Close()
+		}
+	default:
+		_, err = client.CallUnary(ctx, connect.NewRequest(in))
+	}
+	if err == nil || errors.Is(err, io.EOF) {
+		return connect.Code(0)
+	}
+	return connect.CodeOf(err)
+}
+
+func TestOriginAndHostChecks(t *testing.T) {
+	srv := startFull(t, nil)
+	_, port, _ := net.SplitHostPort(srv.api)
+	origin := "http://localhost:" + port
+	b := newBrowser(t, origin, srv.api, nil)
+	link, _ := srv.auth.CreateClaimLink(t.Context(), "test")
+	b.claim(t, link.Token)
+	cookie := b.cookies()[0]
+
+	post := func(headers map[string]string) (int, string) {
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, origin+dockwellv1connect.AuthServiceListSessionsProcedure, strings.NewReader("{}"))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(cookie)
+		for k, v := range headers {
+			if k == "Host" {
+				req.Host = v
+				continue
+			}
+			req.Header.Set(k, v)
+		}
+		res, err := b.client.Transport.RoundTrip(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		body, _ := io.ReadAll(res.Body)
+		return res.StatusCode, string(body)
+	}
+	for _, tt := range []struct {
+		name    string
+		headers map[string]string
+		status  int
+	}{
+		{"the panel's own origin", map[string]string{"Origin": origin}, http.StatusOK},
+		{"same-origin fetch metadata only", map[string]string{"Sec-Fetch-Site": "same-origin"}, http.StatusOK},
+		{"another site", map[string]string{"Origin": "https://evil.test"}, http.StatusForbidden},
+		{"another local port", map[string]string{"Origin": "http://localhost:3000", "Sec-Fetch-Site": "same-site"}, http.StatusForbidden},
+		{"cross-site fetch metadata", map[string]string{"Sec-Fetch-Site": "cross-site"}, http.StatusForbidden},
+		{"a null origin", map[string]string{"Origin": "null"}, http.StatusForbidden},
+		{"a cookie with no origin at all", nil, http.StatusForbidden},
+		{"DNS rebinding", map[string]string{"Host": "evil.test:" + port, "Origin": "http://evil.test:" + port}, http.StatusMisdirectedRequest},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			status, body := post(tt.headers)
+			if status != tt.status {
+				t.Errorf("status %d, want %d: %s", status, tt.status, body)
+			}
+		})
+	}
+
+	// Following a link to the panel from another site loads the page.
+	nav, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, origin+"/servers", http.NoBody)
+	nav.Header.Set("Accept", "text/html")
+	nav.Header.Set("Sec-Fetch-Site", "cross-site")
+	navRes, err := b.client.Transport.RoundTrip(nav)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = navRes.Body.Close()
+	if navRes.StatusCode != http.StatusOK {
+		t.Errorf("a cross-site navigation to the panel = %d, want 200", navRes.StatusCode)
+	}
+
+	// Reads may go as GET, which browsers send without Origin.
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet,
+		origin+dockwellv1connect.AuthServiceListSessionsProcedure+"?encoding=json&message=%7B%7D", http.NoBody)
+	req.AddCookie(cookie)
+	res, err := b.client.Transport.RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusOK || res.Header.Get("Cache-Control") != "no-store" {
+		t.Errorf("a GET read = %d, Cache-Control %q", res.StatusCode, res.Header.Get("Cache-Control"))
+	}
+}
+
+func TestPageLoadsOnALoopbackIPGoToLocalhost(t *testing.T) {
+	srv := startFull(t, nil)
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+srv.api+"/claim", http.NoBody)
+	req.Header.Set("Accept", "text/html")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	res, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	_, port, _ := net.SplitHostPort(srv.api)
+	if res.StatusCode != http.StatusTemporaryRedirect || res.Header.Get("Location") != "http://localhost:"+port+"/claim" {
+		t.Errorf("page load on 127.0.0.1 = %d to %q", res.StatusCode, res.Header.Get("Location"))
+	}
+	// Tools that aren't browsers get the page where they asked.
+	req, _ = http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+srv.api+"/claim", http.NoBody)
+	req.Header.Set("Accept", "text/html")
+	res, err = http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("curl's page load on 127.0.0.1 = %d, want 200", res.StatusCode)
+	}
+	// The API still answers on the IP, for the CLI and curl.
+	req, _ = http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+srv.api+"/healthz", http.NoBody)
+	res, err = http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("/healthz on 127.0.0.1 = %d", res.StatusCode)
+	}
+}
+
+func TestStreamsEndWhenTheirSessionIsRevoked(t *testing.T) {
+	srv := startFull(t, nil)
+	_, port, _ := net.SplitHostPort(srv.api)
+	origin := "http://localhost:" + port
+	laptop := newBrowser(t, origin, srv.api, nil)
+	link, _ := srv.auth.CreateClaimLink(t.Context(), "test")
+	laptop.claim(t, link.Token)
+	phone := newBrowser(t, origin, srv.api, nil)
+	phone.auth = laptop.auth // the same synced passkey
+	phone.signIn(t)
+
+	stream, err := dockwellv1connect.NewServerServiceClient(phone, origin).WatchServers(t.Context(), connect.NewRequest(&dockwellv1.WatchServersRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stream.Receive() || !stream.Msg().GetSnapshotComplete() {
+		t.Fatalf("watch didn't start: %v", stream.Err())
+	}
+	sessions, _ := laptop.authClient().ListSessions(t.Context(), connect.NewRequest(&dockwellv1.ListSessionsRequest{}))
+	var phoneID string
+	for _, s := range sessions.Msg.GetSessions() {
+		if !s.GetCurrent() {
+			phoneID = s.GetId()
+		}
+	}
+	if _, err := laptop.authClient().RevokeSession(t.Context(), connect.NewRequest(&dockwellv1.RevokeSessionRequest{Id: phoneID})); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		for stream.Receive() {
+		}
+		done <- stream.Err()
+	}()
+	select {
+	case err := <-done:
+		if connect.CodeOf(err) != connect.CodeUnauthenticated {
+			t.Errorf("the revoked session's stream ended with %v, want unauthenticated", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("the revoked session's stream stayed open")
+	}
+}
+
+// selfSigned makes a certificate for name, and a pool that trusts it.
+func selfSigned(t *testing.T, name string) (tls.Certificate, *x509.CertPool) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: name},
+		DNSNames:     []string{name},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf, _ := x509.ParseCertificate(der)
+	pool := x509.NewCertPool()
+	pool.AddCert(leaf)
+	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key, Leaf: leaf}, pool
+}
+
+func TestClaimOverHTTPSWithADomain(t *testing.T) {
+	cert, roots := selfSigned(t, "panel.acme.dev")
+	public := &https.Static{Name: "panel.acme.dev", Cert: cert}
+	srv := startFull(t, public)
+	_, port, _ := net.SplitHostPort(srv.https)
+	origin := "https://panel.acme.dev:" + port
+	b := newBrowser(t, origin, srv.https, roots)
+
+	link, _ := srv.auth.CreateClaimLink(t.Context(), "test")
+	res := b.claim(t, link.Token)
+	cookie := res.Header().Get("Set-Cookie")
+	for _, want := range []string{"__Host-dockwell_session=", "Secure", "HttpOnly", "SameSite=Strict", "Path=/"} {
+		if !strings.Contains(cookie, want) {
+			t.Errorf("session cookie %q lacks %q", cookie, want)
+		}
+	}
+	if !strings.Contains(res.Header().Get("Strict-Transport-Security"), "max-age=") {
+		t.Error("HTTPS responses don't set HSTS")
+	}
+	state, err := b.authClient().GetAuthState(t.Context(), connect.NewRequest(&dockwellv1.GetAuthStateRequest{}))
+	if err != nil || state.Msg.GetRpId() != "panel.acme.dev" || state.Msg.GetDomain() != "panel.acme.dev" || state.Msg.GetUser() == nil {
+		t.Errorf("GetAuthState on the domain = %v, %v", state, err)
+	}
+
+	// The session made on the domain doesn't work on localhost: cookies don't
+	// cross, and the session is bound to its address anyway.
+	_, apiPort, _ := net.SplitHostPort(srv.api)
+	local := newBrowser(t, "http://localhost:"+apiPort, srv.api, nil)
+	u, _ := url.Parse(local.origin)
+	local.client.Jar.SetCookies(u, []*http.Cookie{{Name: auth.LoopbackCookieName, Value: strings.TrimPrefix(strings.Split(cookie, ";")[0], auth.SecureCookieName+"=")}})
+	if _, err := local.authClient().ListSessions(t.Context(), connect.NewRequest(&dockwellv1.ListSessionsRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Errorf("the domain's session on localhost = %v, want unauthenticated", err)
+	}
+
+	// Plain HTTP on the domain only redirects, and never to another host.
+	noRedirect := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+srv.http+"/claim?x=1", http.NoBody)
+	req.Host = "evil.test"
+	resp, err := noRedirect.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusMovedPermanently || resp.Header.Get("Location") != "https://panel.acme.dev/claim?x=1" {
+		t.Errorf("plain HTTP = %d to %q, want a redirect to https://panel.acme.dev/claim?x=1", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	req, _ = http.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+srv.http+dockwellv1connect.AuthServiceSignInWithCodeProcedure, strings.NewReader("{}"))
+	resp, err = noRedirect.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("a POST over plain HTTP = %d, want 400", resp.StatusCode)
+	}
+
+	// Another name on the HTTPS listener is refused.
+	other := newBrowser(t, "https://panel.acme.dev:"+port, srv.https, roots)
+	req, _ = http.NewRequestWithContext(t.Context(), http.MethodGet, origin+"/healthz", http.NoBody)
+	req.Host = "other.acme.dev"
+	resp, err = other.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusMisdirectedRequest {
+		t.Errorf("another Host on HTTPS = %d, want 421", resp.StatusCode)
+	}
+}

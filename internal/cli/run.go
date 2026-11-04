@@ -20,11 +20,13 @@ import (
 
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
+	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/datadir"
+	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/serve"
@@ -32,9 +34,13 @@ import (
 )
 
 type runFlags struct {
-	listen      string
-	agentListen string
-	advertise   string
+	listen       string
+	agentListen  string
+	advertise    string
+	domain       string
+	httpsListen  string
+	httpListen   string
+	acmeDirector string
 }
 
 func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
@@ -45,7 +51,11 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 		Long: "Runs the roles this server has until it is stopped with SIGINT or SIGTERM.\n\n" +
 			"The first server runs the control plane, serving the API and panel on " + control.DefaultListen +
 			" and listening for other servers' agents on " + control.DefaultAgentListen + ", and an agent of its own. " +
-			"A server added with dockwell join runs only the agent.",
+			"A server added with dockwell join runs only the agent.\n\n" +
+			"The panel stays on loopback, reached through an SSH tunnel, until you give it a domain with --domain. " +
+			"It is then also served over HTTPS on " + defaultHTTPSListen + ", with a certificate from Let's Encrypt, " +
+			"and " + defaultHTTPListen + " redirects to it.\n\n" +
+			"Until the install has an owner, dockwell run prints a one-time link that claims it.",
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			logger, err := g.logger(stdio.Err)
@@ -64,7 +74,7 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 				return err
 			}
 			if role == roleControl {
-				err = runControl(cmd.Context(), logger, dir, build, f)
+				err = runControl(cmd.Context(), stdio, logger, dir, build, f)
 			} else {
 				err = agent.Run(cmd.Context(), agent.Config{Logger: logger, Dir: dir.Agent(), Identity: id, Build: build})
 			}
@@ -84,11 +94,30 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 		"address for other servers' agents, as host:port (env "+envAgentListen+")")
 	fl.StringVar(&f.advertise, "advertise-url", envOr(stdio, envAdvertise, ""),
 		"the agent listener's URL as other servers reach it, put in join tickets; defaults to this server's address (env "+envAdvertise+")")
+	fl.StringVar(&f.domain, "domain", envOr(stdio, envDomain, ""),
+		"serve the panel over HTTPS on this hostname, such as panel.example.com, with a certificate from Let's Encrypt; point its DNS A record here first (env "+envDomain+")")
+	fl.StringVar(&f.httpsListen, "https-listen", envOr(stdio, envHTTPSListen, defaultHTTPSListen),
+		"address for the panel over HTTPS when it has a --domain (env "+envHTTPSListen+")")
+	fl.StringVar(&f.httpListen, "http-listen", envOr(stdio, envHTTPListen, defaultHTTPListen),
+		"address that answers certificate challenges and redirects to HTTPS when the panel has a --domain (env "+envHTTPListen+")")
+	fl.StringVar(&f.acmeDirector, "acme-directory-url", envOr(stdio, envACMEDirectory, ""),
+		"the ACME CA's directory, such as Let's Encrypt's staging one; defaults to Let's Encrypt (env "+envACMEDirectory+")")
 	return cmd
 }
 
+// Where the panel listens when it has a domain.
+const (
+	defaultHTTPSListen = ":443"
+	defaultHTTPListen  = ":80"
+)
+
 // runControl runs the control plane and this server's own agent.
-func runControl(ctx context.Context, logger *slog.Logger, dir datadir.Dir, build buildinfo.Info, f runFlags) error {
+func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, build buildinfo.Info, f runFlags) error {
+	if f.domain != "" {
+		if err := auth.ValidDomain(f.domain); err != nil {
+			return usageError{fmt.Errorf("--domain %w", err)}
+		}
+	}
 	if err := datadir.Ensure(dir.Control()); err != nil {
 		return err
 	}
@@ -101,54 +130,118 @@ func runControl(ctx context.Context, logger *slog.Logger, dir datadir.Dir, build
 		return err
 	}
 	defer db.Close()
-	auth, err := identity.Bootstrap(ctx, db, key, logger)
+	authority, err := identity.Bootstrap(ctx, db, key, logger)
 	if err != nil {
 		return err
 	}
 
-	apiLn, err := serve.Listen(ctx, f.listen)
-	if err != nil {
+	var ls control.Listeners
+	closeAll := func() {
+		for _, ln := range []net.Listener{ls.API, ls.HTTPS, ls.HTTP, ls.Agents} {
+			if ln != nil {
+				_ = ln.Close()
+			}
+		}
+	}
+	if ls.API, err = serve.Listen(ctx, f.listen); err != nil {
 		return withListenHint(err, "--listen")
 	}
-	agentLn, err := serve.Listen(ctx, f.agentListen)
-	if err != nil {
-		_ = apiLn.Close()
+	if !onLoopback(ls.API.Addr()) {
+		closeAll()
+		return usageError{fmt.Errorf("--listen %s would serve the panel over plain HTTP beyond this server, which Dockwell refuses. "+
+			"Keep it on loopback, such as %s, and reach it through an SSH tunnel, or pass --domain to serve it over HTTPS", f.listen, control.DefaultListen)}
+	}
+	if ls.Agents, err = serve.Listen(ctx, f.agentListen); err != nil {
+		closeAll()
 		return withListenHint(err, "--agent-listen")
 	}
+	if f.domain != "" {
+		if ls.HTTPS, err = serve.Listen(ctx, f.httpsListen); err != nil {
+			closeAll()
+			return withListenHint(err, "--https-listen")
+		}
+		if ls.HTTP, err = serve.Listen(ctx, f.httpListen); err != nil {
+			closeAll()
+			return withListenHint(err, "--http-listen")
+		}
+	}
 
-	agentURL, err := advertiseURL(ctx, f.advertise, agentLn.Addr())
+	agentURL, err := advertiseURL(ctx, f.advertise, ls.Agents.Addr())
 	if err != nil {
-		_, _ = apiLn.Close(), agentLn.Close()
+		closeAll()
 		return err
 	}
-	if err := auth.SetAgentURL(ctx, agentURL); err != nil {
-		_, _ = apiLn.Close(), agentLn.Close()
+	if err := authority.SetAgentURL(ctx, agentURL); err != nil {
+		closeAll()
 		return err
 	}
 	logger.Info("other servers join through the agent listener",
-		slog.String("url", agentURL), slog.String("install", auth.InstallID()), slog.String("ca_pin", auth.CA().Pin()))
+		slog.String("url", agentURL), slog.String("install", authority.InstallID()), slog.String("ca_pin", authority.CA().Pin()))
 
-	own, err := localIdentity(ctx, auth, dir, agentLn.Addr())
+	own, err := localIdentity(ctx, authority, dir, ls.Agents.Addr())
 	if err != nil {
-		_, _ = apiLn.Close(), agentLn.Close()
+		closeAll()
 		return err
 	}
 	hub, err := fleet.New(ctx, db, logger)
 	if err != nil {
-		_, _ = apiLn.Close(), agentLn.Close()
+		closeAll()
 		return err
 	}
 	hub.SetControlServer(own.ServerID)
 
-	srv, err := control.New(control.Config{
-		Logger:     logger,
-		Build:      build,
-		Identity:   auth,
-		Fleet:      hub,
-		AgentHosts: agentHosts(agentURL),
+	people, err := auth.New(auth.Config{
+		DB:     db,
+		Key:    key,
+		Logger: logger,
+		Sites:  auth.Sites{Domain: f.domain},
+		ServerName: func() string {
+			if s := hub.ControlServer(); s != nil {
+				return s.GetName()
+			}
+			return ""
+		},
 	})
 	if err != nil {
-		_, _ = apiLn.Close(), agentLn.Close()
+		closeAll()
+		return err
+	}
+	var public https.Source
+	if f.domain != "" {
+		_, httpsPort, _ := net.SplitHostPort(f.httpsListen)
+		public, err = https.NewACME(https.ACMEConfig{
+			Domain:       f.domain,
+			CacheDir:     dir.ACME(),
+			DirectoryURL: f.acmeDirector,
+			HTTPSPort:    httpsPort,
+		})
+		if err != nil {
+			closeAll()
+			return err
+		}
+	}
+
+	addr := panelAddress{Domain: f.domain, Port: portOf(ls.API.Addr()), PublicHost: hostOf(agentURL)}
+	if ls.HTTPS != nil {
+		addr.HTTPSPort = portOf(ls.HTTPS.Addr())
+	}
+	if err := announce(ctx, stdio, logger, db, people, addr); err != nil {
+		closeAll()
+		return err
+	}
+
+	srv, err := control.New(control.Config{
+		Logger:        logger,
+		Build:         build,
+		Identity:      authority,
+		Fleet:         hub,
+		AgentHosts:    agentHosts(agentURL),
+		Auth:          people,
+		Public:        public,
+		PublicAddress: addr.PublicHost,
+	})
+	if err != nil {
+		closeAll()
 		return err
 	}
 
@@ -157,7 +250,7 @@ func runControl(ctx context.Context, logger *slog.Logger, dir datadir.Dir, build
 	var wg sync.WaitGroup
 	var controlErr, agentErr error
 	wg.Go(func() {
-		controlErr = srv.Run(ctx, apiLn, agentLn)
+		controlErr = srv.Run(ctx, ls)
 		cancel()
 	})
 	wg.Go(func() {
@@ -168,13 +261,32 @@ func runControl(ctx context.Context, logger *slog.Logger, dir datadir.Dir, build
 	return errors.Join(controlErr, agentErr)
 }
 
+func onLoopback(addr net.Addr) bool {
+	tcp, ok := addr.(*net.TCPAddr)
+	return ok && tcp.IP.IsLoopback()
+}
+
+func portOf(addr net.Addr) string {
+	if tcp, ok := addr.(*net.TCPAddr); ok {
+		return strconv.Itoa(tcp.Port)
+	}
+	return "7600"
+}
+
+func hostOf(rawURL string) string {
+	if u, err := url.Parse(rawURL); err == nil {
+		return u.Hostname()
+	}
+	return ""
+}
+
 // localIdentity loads the control server's own agent identity, enrolling it
 // directly with the authority the first time: it shares the machine, and
 // the data directory, with the CA, so it needs no ticket. On every start it
 // points the agent at the listener's current address, and renews directly
 // if the certificate is due, which also rescues one that expired while the
 // control server was off.
-func localIdentity(ctx context.Context, auth *identity.Authority, dir datadir.Dir, agentAddr net.Addr) (*enroll.Identity, error) {
+func localIdentity(ctx context.Context, authority *identity.Authority, dir datadir.Dir, agentAddr net.Addr) (*enroll.Identity, error) {
 	controlURL := loopbackURL(agentAddr)
 	id, err := enroll.Load(dir.Agent())
 	switch {
@@ -184,11 +296,11 @@ func localIdentity(ctx context.Context, auth *identity.Authority, dir datadir.Di
 			return nil, err
 		}
 		hostname, _ := os.Hostname()
-		joined, err := auth.EnrollLocal(ctx, csr, hostname)
+		joined, err := authority.EnrollLocal(ctx, csr, hostname)
 		if err != nil {
 			return nil, err
 		}
-		id = enroll.New(joined.Server.ID, joined.Server.Name, controlURL, key, joined.Cert, auth.CA().Certificate())
+		id = enroll.New(joined.Server.ID, joined.Server.Name, controlURL, key, joined.Cert, authority.CA().Certificate())
 		if err := id.Save(dir.Agent()); err != nil {
 			return nil, err
 		}
@@ -212,7 +324,7 @@ func localIdentity(ctx context.Context, auth *identity.Authority, dir datadir.Di
 		if err != nil {
 			return nil, err
 		}
-		cert, err := auth.Renew(ctx, id.ServerID, pki.SerialString(id.Cert()), csr)
+		cert, err := authority.Renew(ctx, id.ServerID, pki.SerialString(id.Cert()), csr)
 		if err != nil {
 			return nil, fmt.Errorf("can't renew this server's own certificate: %w", err)
 		}
@@ -300,8 +412,13 @@ func exists(path string) bool {
 // withListenHint adds the fix to listen errors an operator can resolve.
 func withListenHint(err error, flag string) error {
 	example := control.DefaultListen
-	if flag == "--agent-listen" {
+	switch flag {
+	case "--agent-listen":
 		example = control.DefaultAgentListen
+	case "--https-listen":
+		example = defaultHTTPSListen
+	case "--http-listen":
+		example = defaultHTTPListen
 	}
 	var addrErr *net.AddrError
 	var dnsErr *net.DNSError

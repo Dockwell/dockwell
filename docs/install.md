@@ -14,11 +14,15 @@ curl -fsSL https://get.dockwell.dev | sh
 
 On Alpine, which comes without curl, use `wget -qO- https://get.dockwell.dev | sh`.
 
-The first server becomes your control server. It runs the control plane, which serves the panel and API, and an agent of its own. The panel listens on `127.0.0.1:7600`, so only the server itself can reach it. To open it from your computer, forward the port over SSH, then open <http://127.0.0.1:7600> there:
+The first server becomes your control server. It runs the control plane, which serves the panel and API, and an agent of its own. The panel listens on `127.0.0.1:7600`, so only the server itself can reach it. To open it from your computer, forward the port over SSH:
 
 ```sh
 ssh -L 7600:127.0.0.1:7600 <user>@<your server>
 ```
+
+The install ends with a one-time link, `http://localhost:7600/claim#…`. Open it through the tunnel to create the owner account with a passkey. It works once, for 24 h; `dockwell claim` on the server prints a new one. Open the panel at `localhost`, not `127.0.0.1`: passkeys need a hostname.
+
+To serve the panel over HTTPS on your own domain instead, point the domain's DNS A record at the server, then set `DOCKWELL_DOMAIN` for the service, as in [Change settings](#change-settings). The panel then also answers on `https://<domain>`, with a certificate from Let's Encrypt, on ports 443 and 80. Passkeys belong to the address they were made on, so add one for the domain after you sign in there. [ADR 0011](adr/0011-claim-and-sign-in.md) explains both ways in.
 
 ## Add a server
 
@@ -91,7 +95,7 @@ These settings are for mirrors, air-gapped servers and tests:
 
 The script replaces the service file on every upgrade, so put your changes somewhere it doesn't touch:
 
-- On systemd, run `systemctl edit dockwell` to add a drop-in. To change the agent listener's address, or the URL other servers use to reach it, add `Environment=DOCKWELL_AGENT_LISTEN=…` or `Environment=DOCKWELL_ADVERTISE_URL=…`. The script reads `DOCKWELL_LISTEN` from the service, so an upgrade waits for the panel where you moved it.
+- On systemd, run `systemctl edit dockwell` to add a drop-in. To change the agent listener's address, or the URL other servers use to reach it, add `Environment=DOCKWELL_AGENT_LISTEN=…` or `Environment=DOCKWELL_ADVERTISE_URL=…`. To serve the panel on a domain, add `Environment=DOCKWELL_DOMAIN=panel.example.com`. The script reads `DOCKWELL_LISTEN` from the service, so an upgrade waits for the panel where you moved it.
 - On OpenRC, set them in `/etc/conf.d/dockwell`, with `export`, such as `export DOCKWELL_ADVERTISE_URL=https://203.0.113.7:7443`.
 
 `dockwell run --help` lists every setting.
