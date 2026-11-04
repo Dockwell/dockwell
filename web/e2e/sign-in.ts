@@ -4,7 +4,9 @@
 // against a real `dockwell run` on a temporary data directory, with the
 // DevTools virtual authenticator standing in for Touch ID. Then it turns on
 // codes, signs in with a recovery code, opens a link from `dockwell recover`
-// on a phone, and signs that phone out from the first browser. Everything
+// on a phone, and signs that phone out from the first browser. It makes an
+// API token in the panel, calls REST and Connect with it as a script would,
+// and revokes it. Everything
 // after the claim goes through the panel shell: the rail's link to your
 // profile on wide screens, More on phones. With --shots <dir> it also saves
 // screenshots of every screen at 1440, 390 and 360 px, light and dark.
@@ -317,6 +319,64 @@ async function main() {
   await phone.goto(`${origin}/more`);
   await expectPage(phone, "Sign in to Dockwell");
   step("  the other browser is signed out");
+
+  step("API tokens: make one in the panel, call REST and Connect with it, then revoke it");
+  const tokens = page.getByRole("region", { name: "API tokens" });
+  await tokens.getByRole("button", { name: "Create token" }).click();
+  const create = page.getByRole("dialog", { name: "Create an API token" });
+  await create.getByLabel("Name").fill("e2e script");
+  await shoot(page, "token-create");
+  await create.getByRole("button", { name: "Create token" }).click();
+  const made = tokens.locator(".tokens-made");
+  await made.waitFor();
+  const token = (await made.locator(".tokens-secret code").innerText()).trim();
+  if (!/^dwt_[0-9A-Za-z]{49}$/.test(token)) fail(`the new token looks like ${JSON.stringify(token)}`);
+  await shoot(page, "token-made");
+  await made.getByRole("button", { name: "Done" }).click();
+  if ((await page.getByText(token).count()) !== 0) fail("the token's secret stayed on the page after Done");
+  // As a script calls: from outside the browser, with the token and no cookie
+  // or origin, on the loopback IP, where no one can sign in.
+  const withToken = async (path: string, init: RequestInit = {}) => {
+    const r = await fetch(`http://127.0.0.1:${port}${path}`, {
+      ...init,
+      headers: { Authorization: `Bearer ${token}`, ...(init.headers as Record<string, string>) },
+    });
+    return { status: r.status, reason: r.headers.get("Dockwell-Error"), body: await r.text() };
+  };
+  const listOverConnect = () =>
+    withToken("/dockwell.v1.ServerService/ListServers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+  const rest = await withToken("/v1/servers");
+  const restServers = rest.status === 200 ? (JSON.parse(rest.body) as { servers?: unknown[] }).servers : undefined;
+  if (!restServers?.length) fail(`GET /v1/servers with the token: ${JSON.stringify(rest)}`);
+  const overConnect = await listOverConnect();
+  if (overConnect.status !== 200 || !overConnect.body.includes('"servers"')) {
+    fail(`ListServers over Connect with the token: ${JSON.stringify(overConnect)}`);
+  }
+  const sessionsWithToken = await withToken("/v1/sessions");
+  if (sessionsWithToken.status !== 403 || sessionsWithToken.reason !== "needs_session") {
+    fail(`GET /v1/sessions with a token should need a session: ${JSON.stringify(sessionsWithToken)}`);
+  }
+  step(`  REST and Connect answered with the token (${restServers.length} server), and sign-in needed a session`);
+  await page.reload();
+  const row = tokens.getByRole("listitem").filter({ hasText: "e2e script" });
+  await row.filter({ hasText: /from\s*127\.0\.0\.1/ }).waitFor();
+  await shoot(page, "tokens");
+  await row.getByRole("button", { name: "Revoke e2e script" }).click();
+  await row.getByRole("button", { name: "Revoke", exact: true }).click();
+  await row.waitFor({ state: "detached" });
+  for (const [protocol, after] of [
+    ["REST", await withToken("/v1/servers")],
+    ["Connect", await listOverConnect()],
+  ] as const) {
+    if (after.status !== 401 || after.reason !== "token_rejected") {
+      fail(`${protocol} with the revoked token: ${JSON.stringify(after)}`);
+    }
+  }
+  step("  the profile showed where it was last used; once revoked, REST and Connect refused it");
 
   step("sign out on a phone, from More");
   await page.setViewportSize({ width: 390, height: 844 });

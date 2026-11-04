@@ -6,6 +6,7 @@ package dockwell.v1;
 
 import "dockwell/v1/options.proto";
 import "dockwell/v1/server.proto";
+import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
 // AuthService claims a new install, signs people in and out, and manages how
@@ -14,7 +15,8 @@ import "google/protobuf/timestamp.proto";
 //
 // GetAuthState, the claim calls and the sign-in calls work without a session.
 // Every other call needs one, carried in the session cookie the sign-in calls
-// set.
+// set. No API token can call this service: how you sign in is changed only by
+// signing in (docs/adr/0016-scoped-api-tokens.md).
 //
 // Passkey ceremonies take two calls. Begin returns WebAuthn options as JSON
 // (PublicKeyCredentialCreationOptionsJSON or
@@ -29,40 +31,64 @@ import "google/protobuf/timestamp.proto";
 // A call to any service refused for want of a session names one too:
 // "unauthenticated" when it came with no session, and "session_ended" when
 // its session cookie no longer works or a stream's session ended while it
-// was open. A browser's request from another origin gets "origin".
+// was open. A browser's request from another origin gets "origin". A call
+// with an API token gets "token_rejected" when the token is unknown, revoked
+// or expired, "token_scope" when its scope doesn't cover the call, and
+// "needs_session" when no token may make it.
 service AuthService {
   // GetAuthState says whether the install has an owner, who is signed in on
   // this request, and which address passkeys are made for here.
   rpc GetAuthState(GetAuthStateRequest) returns (GetAuthStateResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/authState"};
   }
 
   // CheckClaim checks a claim link without spending it, and describes the
   // server it claims.
   rpc CheckClaim(CheckClaimRequest) returns (CheckClaimResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {
+      post: "/v1/claim:check"
+      body: "*"
+    };
   }
 
   // BeginClaim starts creating the owner's first passkey.
   rpc BeginClaim(BeginClaimRequest) returns (BeginClaimResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {
+      post: "/v1/claim:begin"
+      body: "*"
+    };
   }
 
   // FinishClaim spends the claim link, creates the owner with the new
   // passkey, and signs them in. It works once per install.
   rpc FinishClaim(FinishClaimRequest) returns (FinishClaimResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/claim:finish"
+      body: "*"
+    };
   }
 
   // BeginPasskeySignIn starts signing in with a passkey.
   rpc BeginPasskeySignIn(BeginPasskeySignInRequest) returns (BeginPasskeySignInResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {
+      post: "/v1/sessions:beginPasskeySignIn"
+      body: "*"
+    };
   }
 
   // FinishPasskeySignIn checks the passkey's signature and signs in.
   rpc FinishPasskeySignIn(FinishPasskeySignInRequest) returns (FinishPasskeySignInResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/sessions:finishPasskeySignIn"
+      body: "*"
+    };
   }
 
   // SignInWithCode signs in with a code from an authenticator app, or with a
@@ -70,54 +96,85 @@ service AuthService {
   // for the account.
   rpc SignInWithCode(SignInWithCodeRequest) returns (SignInWithCodeResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/sessions:signInWithCode"
+      body: "*"
+    };
   }
 
   // SignInWithLink spends a one-time sign-in link from dockwell recover.
   rpc SignInWithLink(SignInWithLinkRequest) returns (SignInWithLinkResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/sessions:signInWithLink"
+      body: "*"
+    };
   }
 
   // SignOut ends this session.
   rpc SignOut(SignOutRequest) returns (SignOutResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/sessions:signOut"
+      body: "*"
+    };
   }
 
   // ListSessions returns your sessions that haven't ended, newest first.
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/sessions"};
   }
 
   // RevokeSession ends one of your sessions. Its open streams close.
   rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (google.api.http) = {
+      post: "/v1/sessions/{id}:revoke"
+      body: "*"
+    };
   }
 
   // RevokeOtherSessions ends every session of yours except this one.
   rpc RevokeOtherSessions(RevokeOtherSessionsRequest) returns (RevokeOtherSessionsResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (google.api.http) = {
+      post: "/v1/sessions:revokeOthers"
+      body: "*"
+    };
   }
 
   // ListPasskeys returns your passkeys, oldest first.
   rpc ListPasskeys(ListPasskeysRequest) returns (ListPasskeysResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/passkeys"};
   }
 
   // BeginAddPasskey starts adding a passkey for the address of this request.
   rpc BeginAddPasskey(BeginAddPasskeyRequest) returns (BeginAddPasskeyResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {
+      post: "/v1/passkeys:beginAdd"
+      body: "*"
+    };
   }
 
   // FinishAddPasskey saves the new passkey.
   rpc FinishAddPasskey(FinishAddPasskeyRequest) returns (FinishAddPasskeyResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/passkeys:finishAdd"
+      body: "*"
+    };
   }
 
   // RemovePasskey removes one of your passkeys. It refuses to remove your last
   // way to sign in.
   rpc RemovePasskey(RemovePasskeyRequest) returns (RemovePasskeyResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (google.api.http) = {delete: "/v1/passkeys/{id}"};
   }
 
   // GetTotp says whether you sign in with an authenticator app, and how many
@@ -125,36 +182,57 @@ service AuthService {
   rpc GetTotp(GetTotpRequest) returns (GetTotpResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/totp"};
   }
 
   // BeginTotpSetup makes a new authenticator secret. It takes effect only
   // once ConfirmTotpSetup checks a code from it.
   rpc BeginTotpSetup(BeginTotpSetupRequest) returns (BeginTotpSetupResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/totp:beginSetup"
+      body: "*"
+    };
   }
 
   // ConfirmTotpSetup checks a code from the new secret, turns code sign-in
   // on, and returns new recovery codes. They are shown once.
   rpc ConfirmTotpSetup(ConfirmTotpSetupRequest) returns (ConfirmTotpSetupResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/totp:confirmSetup"
+      body: "*"
+    };
   }
 
   // DisableTotp turns code sign-in off and deletes the secret and recovery
   // codes. It refuses when that would leave no way to sign in.
   rpc DisableTotp(DisableTotpRequest) returns (DisableTotpResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (google.api.http) = {
+      post: "/v1/totp:disable"
+      body: "*"
+    };
   }
 
   // RegenerateRecoveryCodes replaces your recovery codes. The old ones stop
   // working.
   rpc RegenerateRecoveryCodes(RegenerateRecoveryCodesRequest) returns (RegenerateRecoveryCodesResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (google.api.http) = {
+      post: "/v1/totp:regenerateRecoveryCodes"
+      body: "*"
+    };
   }
 
   // UnlockCodeSignIn turns code sign-in back on after too many wrong codes
   // locked it.
   rpc UnlockCodeSignIn(UnlockCodeSignInRequest) returns (UnlockCodeSignInResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/totp:unlock"
+      body: "*"
+    };
   }
 }
 

@@ -3,7 +3,15 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { PasskeySchema, SessionSchema, SignInMethod, TotpSchema } from "@dockwell/api";
+import {
+  type CreateTokenRequest,
+  PasskeySchema,
+  SessionSchema,
+  SignInMethod,
+  TokenSchema,
+  TokenScope,
+  TotpSchema,
+} from "@dockwell/api";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -50,7 +58,28 @@ const sessions = [
   }),
 ];
 
-function api(overrides: Record<string, unknown> = {}) {
+const DAY = 86_400_000;
+
+const deploy = create(TokenSchema, {
+  id: "tok_1",
+  name: "GitHub Actions deploy",
+  hint: "dwt_4f9K…x9Ta",
+  scope: TokenScope.READ_WRITE,
+  createTime: timestampFromDate(new Date(2026, 7, 12)),
+  lastUsedTime: minutesAgo(8),
+  lastAddress: "203.0.113.9",
+  expireTime: timestampFromDate(new Date(Date.now() + 9 * DAY + 3_600_000)),
+});
+const grafana = create(TokenSchema, {
+  id: "tok_2",
+  name: "Grafana",
+  hint: "dwt_Ld7w…c08b",
+  scope: TokenScope.READ_ONLY,
+  createTime: timestampFromDate(new Date(2026, 7, 14)),
+});
+const secret = "dwt_4f9K2xQ7Lr8eVb3NcR5tYw1ZaD6gHj0kMp9sUq2XnE4x9Ta";
+
+function api(overrides: Record<string, unknown> = {}, tokens: Record<string, unknown> = {}) {
   return {
     auth: {
       getAuthState: () => authState(),
@@ -58,6 +87,10 @@ function api(overrides: Record<string, unknown> = {}) {
       listSessions: vi.fn(() => ({ sessions })),
       getTotp: vi.fn(() => ({ totp: create(TotpSchema, { enabled: true, recoveryCodesLeft: 7 }) })),
       ...overrides,
+    },
+    tokens: {
+      listTokens: vi.fn(() => ({ tokens: [deploy, grafana] })),
+      ...tokens,
     },
   };
 }
@@ -444,6 +477,127 @@ describe("ProfilePage", () => {
     const sheet = await screen.findByRole("dialog", { name: "Set up an authenticator app" });
     expect(await within(sheet).findByRole("alert")).toHaveTextContent("Connection refused.");
     expect(within(sheet).getByRole("button", { name: "Turn on" })).toBeDisabled();
+  });
+
+  it("lists API tokens, where each was last used, and when it expires", async () => {
+    renderAt("/profile", api());
+    const panel = within(await screen.findByRole("region", { name: "API tokens" }));
+    const [first, second] = await panel.findAllByRole("listitem");
+    expect(first).toHaveTextContent("GitHub Actions deploy");
+    expect(first).toHaveTextContent(
+      /^GitHub Actions deploydwt_4f9K…x9Ta · Read and write · used 8 min ago from 203\.0\.113\.9 · expires \d+ \w+/,
+    );
+    expect(within(first as HTMLElement).getByText("Expires in 9 days")).toBeVisible();
+    expect(second).toHaveTextContent("dwt_Ld7w…c08b · Read only · never used · doesn't expire");
+    expect(within(second as HTMLElement).queryByText(/Expires in/)).toBeNull();
+  });
+
+  it("says when there are no tokens yet", async () => {
+    renderAt("/profile", api({}, { listTokens: () => ({ tokens: [] }) }));
+    const panel = within(await screen.findByRole("region", { name: "API tokens" }));
+    expect(await panel.findByText(/No tokens yet/)).toBeVisible();
+  });
+
+  it("creates a token, and shows its secret once with a way to copy it", async () => {
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    const listTokens = vi.fn(() => ({ tokens: [grafana] }));
+    const createToken = vi.fn((req: CreateTokenRequest) => ({
+      token: create(TokenSchema, {
+        ...deploy,
+        name: req.name,
+        expireTime:
+          req.expiration.case === "ttl"
+            ? timestampFromDate(new Date(Date.now() + Number(req.expiration.value.seconds) * 1_000))
+            : undefined,
+      }),
+      secret,
+    }));
+    renderAt("/profile", api({}, { listTokens, createToken }));
+    const panel = within(await screen.findByRole("region", { name: "API tokens" }));
+    await userEvent.click(panel.getByRole("button", { name: "Create token" }));
+    const sheet = within(await screen.findByRole("dialog", { name: "Create an API token" }));
+    expect(sheet.getByRole("radio", { name: /Read only/ })).toBeChecked();
+    expect(sheet.getByRole("combobox", { name: "Expires" })).toHaveValue("90");
+
+    await userEvent.type(sheet.getByRole("textbox", { name: "Name" }), "  Nightly backup check ");
+    await userEvent.click(sheet.getByRole("radio", { name: /Read and write/ }));
+    await userEvent.selectOptions(sheet.getByRole("combobox", { name: "Expires" }), "In 30 days");
+    await userEvent.click(sheet.getByRole("button", { name: "Create token" }));
+
+    await waitFor(() => expect(createToken).toHaveBeenCalledOnce());
+    const sent = createToken.mock.calls[0]?.[0];
+    expect(sent?.name).toBe("Nightly backup check");
+    expect(sent?.scope).toBe(TokenScope.READ_WRITE);
+    // A ttl, so the control plane's clock sets the expiry, not the browser's.
+    expect(sent?.expiration.case).toBe("ttl");
+    expect(sent?.expiration.case === "ttl" ? Number(sent.expiration.value.seconds) * 1_000 : 0).toBe(30 * DAY);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const made = await screen.findByRole("status", { name: "" });
+    expect(made).toHaveTextContent("Copy this token now. It won't be shown again.");
+    expect(made).toHaveTextContent(/Created Nightly backup check\. .* It expires \d+ \w+/);
+    expect(within(made).getByText(secret).tagName).toBe("CODE");
+    await userEvent.click(within(made).getByRole("button", { name: "Copy token" }));
+    expect(writeText).toHaveBeenCalledWith(secret);
+    expect(within(made).getByRole("button", { name: "Token copied" })).toBeVisible();
+    expect(listTokens.mock.calls.length).toBeGreaterThan(1);
+
+    await userEvent.click(within(made).getByRole("button", { name: "Done" }));
+    expect(screen.queryByText(secret)).toBeNull();
+  });
+
+  it("makes a token that doesn't expire, when asked", async () => {
+    const createToken = vi.fn((_req: CreateTokenRequest) => ({
+      token: create(TokenSchema, { ...grafana, name: "Grafana" }),
+      secret,
+    }));
+    renderAt("/profile", api({}, { createToken }));
+    await userEvent.click(await screen.findByRole("button", { name: "Create token" }));
+    const sheet = within(await screen.findByRole("dialog", { name: "Create an API token" }));
+    await userEvent.type(sheet.getByRole("textbox", { name: "Name" }), "Grafana");
+    await userEvent.selectOptions(sheet.getByRole("combobox", { name: "Expires" }), "Never");
+    await userEvent.click(sheet.getByRole("button", { name: "Create token" }));
+    await waitFor(() => expect(createToken).toHaveBeenCalledOnce());
+    const sent = createToken.mock.calls[0]?.[0];
+    expect(sent).toMatchObject({ name: "Grafana", scope: TokenScope.READ_ONLY });
+    expect(sent?.expiration.case).toBeUndefined();
+    expect(await screen.findByText(/It doesn't expire\./)).toBeVisible();
+  });
+
+  it("asks for a name before making a token, and says why one wasn't made", async () => {
+    const createToken = vi.fn(() =>
+      Promise.reject(
+        authError(
+          Code.InvalidArgument,
+          "invalid",
+          "you have 100 API tokens, the most you can have. Revoke one you no longer use, then try again",
+        ),
+      ),
+    );
+    renderAt("/profile", api({}, { createToken }));
+    await userEvent.click(await screen.findByRole("button", { name: "Create token" }));
+    const sheet = within(await screen.findByRole("dialog", { name: "Create an API token" }));
+    await userEvent.click(sheet.getByRole("button", { name: "Create token" }));
+    expect(sheet.getByText("Name the token after what will use it, such as GitHub Actions deploy.")).toBeVisible();
+    expect(createToken).not.toHaveBeenCalled();
+
+    await userEvent.type(sheet.getByRole("textbox", { name: "Name" }), "CI");
+    await userEvent.click(sheet.getByRole("button", { name: "Create token" }));
+    expect(await sheet.findByRole("alert")).toHaveTextContent(
+      "You have 100 API tokens, the most you can have. Revoke one you no longer use, then try again.",
+    );
+  });
+
+  it("asks before revoking a token", async () => {
+    const revokeToken = vi.fn(() => ({}));
+    renderAt("/profile", api({}, { revokeToken }));
+    await userEvent.click(await screen.findByRole("button", { name: "Revoke GitHub Actions deploy" }));
+    expect(revokeToken).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    await waitFor(() =>
+      expect(revokeToken).toHaveBeenCalledWith(expect.objectContaining({ id: "tok_1" }), expect.anything()),
+    );
   });
 
   it("groups a secret in fours", () => {

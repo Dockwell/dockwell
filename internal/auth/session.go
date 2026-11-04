@@ -27,14 +27,33 @@ const (
 	MethodLink          = "link"
 )
 
-// Principal is a signed-in user and the session they are using.
+// Principal is who a call acts for: a signed-in user and the session they
+// are using, or the user an API token acts for and that token.
 type Principal struct {
-	User    store.User
+	User store.User
+	// Session is the call's session. Zero for a call with an API token.
 	Session store.Session
+	// Token is the call's API token. Nil for a call with a session.
+	Token *store.APIToken
 }
 
-// Actor names the principal in the audit log.
-func (p Principal) Actor() string { return "user:" + p.User.ID }
+// Actor names the principal in the audit log: the user, or the token
+// acting for them.
+func (p Principal) Actor() string {
+	if p.Token != nil {
+		return "token:" + p.Token.ID
+	}
+	return "user:" + p.User.ID
+}
+
+// credential is the ID of the session or token the call came with, which
+// its streams are tracked by.
+func (p Principal) credential() string {
+	if p.Token != nil {
+		return p.Token.ID
+	}
+	return p.Session.ID
+}
 
 // SignedIn is the result of signing in: the user, the new session, and the
 // token for its cookie.
@@ -83,7 +102,11 @@ func (s *Service) startSession(ctx context.Context, tx *store.Tx, user store.Use
 		LastSeenAt: now,
 		ExpiresAt:  now.Add(SessionMax),
 	}
+	// Ended sessions and tokens are kept pruneAfter for the record.
 	if err := tx.PruneSessions(ctx, now.Add(-pruneAfter)); err != nil {
+		return SignedIn{}, err
+	}
+	if err := tx.PruneAPITokens(ctx, now.Add(-pruneAfter)); err != nil {
 		return SignedIn{}, err
 	}
 	if err := tx.CreateSession(ctx, sess); err != nil {
@@ -259,9 +282,9 @@ func (s *Service) RevokeOtherSessions(ctx context.Context, p Principal) (int, er
 	return len(ended), nil
 }
 
-// Track ties a stream's context to its session: the returned context ends
-// when the session is revoked, signed out or expires. Call stop when the
-// stream ends.
+// Track ties a stream's context to its session or API token: the returned
+// context ends when the session is revoked, signed out or expires, or the
+// token is revoked or expires. Call stop when the stream ends.
 //
 // An open stream is a page in use, so each recheck that finds the session
 // live also counts as using it, at most once a minute like any request. A
@@ -275,8 +298,9 @@ func (s *Service) RevokeOtherSessions(ctx context.Context, p Principal) (int, er
 // committed revocation.
 func (s *Service) Track(ctx context.Context, client Client, p Principal) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(ctx)
-	entry := s.streams.add(p.Session.ID, cancel)
-	if !s.stillLive(ctx, client, p.Session.ID) {
+	credential := p.credential()
+	entry := s.streams.add(credential, cancel)
+	if !s.stillLive(ctx, client, p) {
 		cancel()
 	}
 	done := make(chan struct{})
@@ -290,8 +314,8 @@ func (s *Service) Track(ctx context.Context, client Client, p Principal) (contex
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				if !s.stillLive(ctx, client, p.Session.ID) {
-					s.logger.DebugContext(ctx, "closing a stream whose session ended", slog.String("session", p.Session.ID))
+				if !s.stillLive(ctx, client, p) {
+					s.logger.DebugContext(ctx, "closing a stream whose session or token ended", slog.String("credential", credential))
 					cancel()
 					return
 				}
@@ -300,14 +324,18 @@ func (s *Service) Track(ctx context.Context, client Client, p Principal) (contex
 	}()
 	return ctx, func() {
 		close(done)
-		s.streams.remove(p.Session.ID, entry)
+		s.streams.remove(credential, entry)
 		cancel()
 	}
 }
 
-// stillLive reports whether a stream's session still works, and records
-// the stream as a use of it.
-func (s *Service) stillLive(ctx context.Context, client Client, sessionID string) bool {
+// stillLive reports whether a stream's session or token still works, and
+// records the stream as a use of it.
+func (s *Service) stillLive(ctx context.Context, client Client, p Principal) bool {
+	if p.Token != nil {
+		return s.tokenStillLive(ctx, client, p.Token.ID)
+	}
+	sessionID := p.Session.ID
 	var sess store.Session
 	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
 		sess, err = tx.GetSession(ctx, sessionID)
@@ -358,7 +386,8 @@ func cleanText(text string) string {
 	}, strings.ToValidUTF8(text, "\uFFFD"))
 }
 
-// streams are the open streams of each session, so revoking one closes them.
+// streams are the open streams of each session and API token, by ID, so
+// revoking one closes them.
 type streams struct {
 	mu   sync.Mutex
 	next int

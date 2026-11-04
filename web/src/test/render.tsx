@@ -2,7 +2,7 @@
 
 import { create } from "@bufbuild/protobuf";
 import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@connectrpc/connect";
-import { AuthService, GetVersionResponseSchema, ServerService, SystemService } from "@dockwell/api";
+import { AuthService, GetVersionResponseSchema, ServerService, SystemService, TokenService } from "@dockwell/api";
 import { PHONE_QUERY } from "@dockwell/ui";
 import { QueryClient } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
@@ -20,6 +20,7 @@ export type Api = {
   system?: Partial<ServiceImpl<typeof SystemService>>;
   servers?: Partial<ServiceImpl<typeof ServerService>>;
   auth?: Partial<ServiceImpl<typeof AuthService>>;
+  tokens?: Partial<ServiceImpl<typeof TokenService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -44,6 +45,7 @@ function apiWrapper(api: Api) {
       service(SystemService, api.system ?? {});
       service(ServerService, { watchServers: quietWatch, ...api.servers });
       service(AuthService, api.auth ?? {});
+      service(TokenService, api.tokens ?? {});
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );

@@ -7,7 +7,9 @@ go 1.27.1
 tool (
 	connectrpc.com/connect/cmd/protoc-gen-connect-go
 	github.com/bufbuild/buf/cmd/buf
+	github.com/getkin/kin-openapi/cmd/validate
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	github.com/google/gnostic/cmd/protoc-gen-openapi
 	github.com/goreleaser/goreleaser/v2
 	google.golang.org/protobuf/cmd/protoc-gen-go
 )
@@ -212,6 +214,7 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fzipp/gocyclo v0.6.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
+	github.com/getkin/kin-openapi v0.151.0 // indirect
 	github.com/ghostiam/protogetter v1.0.1 // indirect
 	github.com/github/smimesign v0.2.0 // indirect
 	github.com/go-critic/go-critic v0.15.0 // indirect
@@ -276,6 +279,8 @@ require (
 	github.com/golangci/swaggoswag v0.0.0-20250504205917-77f2aca3143e // indirect
 	github.com/golangci/unconvert v0.0.0-20250410112200-a129a6e6413e // indirect
 	github.com/google/certificate-transparency-go v1.3.3 // indirect
+	github.com/google/gnostic v0.7.1 // indirect
+	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-containerregistry v0.22.1 // indirect
 	github.com/google/go-github/v92 v92.0.0 // indirect
@@ -388,6 +393,8 @@ require (
 	github.com/nishanths/exhaustive v0.15.0 // indirect
 	github.com/nishanths/predeclared v0.3.0 // indirect
 	github.com/nunnatsa/ginkgolinter v0.24.0 // indirect
+	github.com/oasdiff/yaml v0.1.1 // indirect
+	github.com/oasdiff/yaml3 v0.0.14 // indirect
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect

@@ -6,6 +6,9 @@ version: v2
 clean: true
 managed:
   enabled: true
+  disable:
+    # googleapis names its own Go packages, under google.golang.org/genproto.
+    - module: buf.build/googleapis/googleapis
   override:
     - file_option: go_package_prefix
       value: github.com/dockwell/dockwell/gen
@@ -19,3 +22,17 @@ plugins:
   - local: packages/api/node_modules/.bin/protoc-gen-es
     out: packages/api/src/gen
     opt: target=ts
+    # The TypeScript client carries the google.api files it imports; Go uses
+    # them from google.golang.org/genproto.
+    include_imports: true
+  # The OpenAPI document for the REST paths (ADR 0015), in gen/openapi.
+  - local: [go, tool, -modfile=tools/go.mod, protoc-gen-openapi]
+    out: gen/openapi
+    strategy: all
+    types: [dockwell.v1]
+    opt:
+      - title=Dockwell API
+      - version=v1
+      - enum_type=string
+      - naming=json
+      - default_response=true

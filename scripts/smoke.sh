@@ -41,9 +41,26 @@ done
 version=$(curl -fsS -H 'Content-Type: application/json' -d '{}' "$base/dockwell.v1.SystemService/GetVersion")
 [[ "$version" == *'"goVersion"'* ]] || fail "GetVersion returned $version"
 
+# The same procedures answer on REST paths, described by the OpenAPI document.
+version=$(curl -fsS "$base/v1/version")
+[[ "$version" == *'"goVersion"'* ]] || fail "GET /v1/version returned $version"
+openapi=$(curl -fsS "$base/v1/openapi.yaml")
+[[ "$openapi" == *$'\nopenapi: 3.'* && "$openapi" == *'/v1/servers:'* ]] || fail "GET /v1/openapi.yaml isn't the OpenAPI document"
+
 # Everything else needs a session, and a new install prints its claim link.
 status=$(curl -sS -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{}' "$base/dockwell.v1.ServerService/ListServers")
 [[ "$status" == 401 ]] || fail "ListServers without a session answered $status, want 401"
+status=$(curl -sS -o /dev/null -w '%{http_code}' "$base/v1/servers")
+[[ "$status" == 401 ]] || fail "GET /v1/servers without a session answered $status, want 401"
+# A token with a valid checksum reaches the database, which doesn't know it;
+# a mistyped one is refused before that.
+unknown_token=dwt_ZyIhGOWFtPtZeqwurIPPi3NFp8DmcBefeSZsfyIC8Es1rzinA
+status=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $unknown_token" "$base/v1/servers")
+[[ "$status" == 401 ]] || fail "GET /v1/servers with an unknown API token answered $status, want 401"
+grep -q 'refused an unknown API token' "$log" || fail "an unknown API token wasn't looked up, so its checksum is wrong"
+status=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${unknown_token%?}x" "$base/v1/servers")
+[[ "$status" == 401 ]] || fail "GET /v1/servers with a mistyped API token answered $status, want 401"
+grep -q 'refused a malformed API token' "$log" || fail "a mistyped API token wasn't refused as malformed"
 grep -q "http://localhost:${addr##*:}/claim#" "$log" || fail "dockwell run didn't print a claim link"
 status=$(curl -sS -o /dev/null -w '%{http_code}' -H 'Host: evil.test' "$base/healthz")
 [[ "$status" == 421 ]] || fail "a request for another host answered $status, want 421"
@@ -67,4 +84,4 @@ grep -qi '^cache-control: public, max-age=31536000, immutable' <<<"$headers" || 
 csp=$(curl -fsS "${resolve[@]}" -o /dev/null -D - -H 'Accept: text/html' "$panel/" | grep -i '^content-security-policy:' || true)
 [[ "$csp" == *"script-src 'self'"* ]] || fail "the panel is served without its Content-Security-Policy"
 
-echo "smoke: health, API, sign-in guard and panel all answer on $addr"
+echo "smoke: health, API over Connect and REST, the OpenAPI document, sign-in guard and panel all answer on $addr"

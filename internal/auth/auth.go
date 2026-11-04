@@ -18,6 +18,10 @@
 //   - A session is an opaque random token in an HttpOnly, SameSite=Strict
 //     cookie, stored as a hash, bound to its address, with idle and
 //     absolute limits.
+//   - An API token is a 256-bit secret with a recognisable prefix, stored as
+//     a hash, for scripts and the CLI. Its scope allows reads, or reads and
+//     changes that can be undone; never destructive calls, nor managing
+//     sign-in or tokens (docs/adr/0016-scoped-api-tokens.md).
 //   - Every sign-in, failure, sign-out and change to how someone signs in is
 //     in the audit log.
 package auth
@@ -151,6 +155,7 @@ type Service struct {
 	begins         *buckets  // unauthenticated ceremonies and links, by source
 	streams        *streams
 	unflagged      unflagged // passkeys seen to be copied, until the flag is stored
+	refusals       *refusals // refused calls with each API token, since the last audit event
 	// recheck is how often an open stream checks its session again.
 	recheck time.Duration
 }
@@ -182,12 +187,16 @@ func New(cfg Config) (*Service, error) {
 		sources:    newFailures(freeSourceFailures, 10_000),
 		begins:     newBuckets(30, 2*time.Second, 10_000),
 		streams:    newStreams(),
+		refusals:   newRefusals(maxRefusalIDs),
 		recheck:    streamRecheck,
 	}, nil
 }
 
 // Sites says where the panel answers.
 func (s *Service) Sites() Sites { return s.sites }
+
+// Now is the time on the service's clock, which its expiries are on.
+func (s *Service) Now() time.Time { return s.now() }
 
 // Client is who is asking: the address they reached and where they are.
 type Client struct {

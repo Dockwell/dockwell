@@ -231,6 +231,18 @@ msgstr "All healthy"
 msgid "Already claimed"
 msgstr "Already claimed"
 
+#: src/features/auth/TokensPanel.tsx
+msgid "Also plans and applies changes that can be undone. Never removes data or cuts off access."
+msgstr "Also plans and applies changes that can be undone. Never removes data or cuts off access."
+
+#: src/features/auth/TokensPanel.tsx
+msgid "API tokens"
+msgstr "API tokens"
+
+#: src/features/auth/messages.ts
+msgid "API tokens can't remove data, cut off access, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API tokens can't remove data, cut off access, or change how you sign in and your tokens. Sign in and do it in the panel."
+
 #: src/app/Providers.tsx
 msgid "app"
 msgstr "app"
@@ -271,6 +283,7 @@ msgid "Can't scan it? Enter this key instead: <0>{0}</0>"
 msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 
 #: src/app/Providers.tsx
+#: src/features/auth/TokensPanel.tsx
 #: src/features/auth/TotpPanel.tsx
 msgid "Cancel"
 msgstr "Cancel"
@@ -401,6 +414,14 @@ msgstr "Copy codes"
 msgid "Copy command"
 msgstr "Copy command"
 
+#: src/features/auth/TokensPanel.tsx
+msgid "Copy this token now. It won't be shown again."
+msgstr "Copy this token now. It won't be shown again."
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Copy token"
+msgstr "Copy token"
+
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServersPanel.tsx
@@ -411,9 +432,25 @@ msgstr "CPU"
 msgid "Create"
 msgstr "Create"
 
+#: src/features/auth/TokensPanel.tsx
+msgid "Create an API token"
+msgstr "Create an API token"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Create passkey"
 msgstr "Create passkey"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Create token"
+msgstr "Create token"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It doesn't expire."
+msgstr "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It doesn't expire."
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
+msgstr "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Creating passkey"
@@ -476,6 +513,10 @@ msgstr "Dockwell {short}: control plane status"
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 
+#: src/features/auth/TokensPanel.tsx
+msgid "doesn't expire"
+msgstr "doesn't expire"
+
 #: src/app/Providers.tsx
 msgid "domain"
 msgstr "domain"
@@ -483,6 +524,10 @@ msgstr "domain"
 #: src/features/shell/sections.ts
 msgid "Domains"
 msgstr "Domains"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Done"
+msgstr "Done"
 
 #: src/app/Providers.tsx
 msgid "Down"
@@ -533,6 +578,18 @@ msgstr "Error"
 msgid "Expired"
 msgstr "Expired"
 
+#: src/features/auth/TokensPanel.tsx
+msgid "Expires"
+msgstr "Expires"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "expires {day}"
+msgstr "expires {day}"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Expires in {remaining}"
+msgstr "Expires in {remaining}"
+
 #: src/app/Providers.tsx
 msgid "firewall"
 msgstr "firewall"
@@ -552,6 +609,10 @@ msgstr "Follow"
 #: src/features/servers/ServerPanels.tsx
 msgid "For {connected}"
 msgstr "For {connected}"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "For a script, the CLI or an integration"
+msgstr "For a script, the CLI or an integration"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Free"
@@ -627,6 +688,18 @@ msgstr "in {minutes} min"
 msgid "In <0>{scope}</0>"
 msgstr "In <0>{scope}</0>"
 
+#: src/features/auth/TokensPanel.tsx
+msgid "In 1 year"
+msgstr "In 1 year"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "In 30 days"
+msgstr "In 30 days"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "In 90 days"
+msgstr "In 90 days"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "in under a minute"
 msgstr "in under a minute"
@@ -660,6 +733,7 @@ msgid "Joined"
 msgstr "Joined"
 
 #: src/features/auth/PasskeysPanel.tsx
+#: src/features/auth/TokensPanel.tsx
 msgid "Keep"
 msgstr "Keep"
 
@@ -711,6 +785,10 @@ msgstr "Loading servers"
 msgid "Loading sessions"
 msgstr "Loading sessions"
 
+#: src/features/auth/TokensPanel.tsx
+msgid "Loading tokens"
+msgstr "Loading tokens"
+
 #: src/features/auth/SignInPage.tsx
 msgid "Lost your passkey?"
 msgstr "Lost your passkey?"
@@ -757,8 +835,13 @@ msgid "Move to another app"
 msgstr "Move to another app"
 
 #: src/features/auth/ClaimPage.tsx
+#: src/features/auth/TokensPanel.tsx
 msgid "Name"
 msgstr "Name"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Name the token after what will use it, such as GitHub Actions deploy."
+msgstr "Name the token after what will use it, such as GitHub Actions deploy."
 
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
@@ -769,7 +852,13 @@ msgstr "Network"
 msgid "Never"
 msgstr "Never"
 
+#: src/features/auth/TokensPanel.tsx
+msgctxt "token expiry"
+msgid "Never"
+msgstr "Never"
+
 #: src/features/auth/PasskeysPanel.tsx
+#: src/features/auth/TokensPanel.tsx
 msgid "never used"
 msgstr "never used"
 
@@ -804,6 +893,10 @@ msgstr "No servers yet"
 #: src/features/servers/ServersPanel.tsx
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "No servers yet. Add one with <0>dockwell token create</0> on this server."
+
+#: src/features/auth/TokensPanel.tsx
+msgid "No tokens yet. Make one for each script or integration, so you can revoke one alone."
+msgstr "No tokens yet. Make one for each script or integration, so you can revoke one alone."
 
 #: src/features/servers/ServerPanels.tsx
 msgid "None reported"
@@ -986,6 +1079,18 @@ msgstr "Public IPv6"
 msgid "QR code for your authenticator app"
 msgstr "QR code for your authenticator app"
 
+#: src/features/auth/TokensPanel.tsx
+msgid "Read and write"
+msgstr "Read and write"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Read only"
+msgstr "Read only"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Reads servers and their state. Changes nothing."
+msgstr "Reads servers and their state. Changes nothing."
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Receiving"
 msgstr "Receiving"
@@ -1040,6 +1145,14 @@ msgstr "Retry"
 msgid "Retrying"
 msgstr "Retrying"
 
+#: src/features/auth/TokensPanel.tsx
+msgid "Revoke"
+msgstr "Revoke"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Revoke {name}"
+msgstr "Revoke {name}"
+
 #: src/features/overview/Overview.tsx
 msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
 msgstr "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
@@ -1085,6 +1198,7 @@ msgid "Scheduled tasks"
 msgstr "Scheduled tasks"
 
 #: src/app/Providers.tsx
+#: src/features/auth/TokensPanel.tsx
 msgid "Scope"
 msgstr "Scope"
 
@@ -1238,6 +1352,10 @@ msgstr "Someone entered {count} wrong codes in a row for your account, the last 
 msgid "Something went wrong. Try again."
 msgstr "Something went wrong. Try again."
 
+#: src/features/auth/TokensPanel.tsx
+msgid "Start with read only, and allow writes only when the job needs them."
+msgstr "Start with read only, and allow writes only when the job needs them."
+
 #: src/app/Providers.tsx
 msgid "Stopped"
 msgstr "Stopped"
@@ -1263,6 +1381,14 @@ msgstr "System"
 #: src/features/auth/TotpPanel.tsx
 msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
 msgstr "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
+
+#: src/features/auth/messages.ts
+msgid "That API token is read-only, so it can't make changes. Create a read-write token under Profile and security."
+msgstr "That API token is read-only, so it can't make changes. Create a read-write token under Profile and security."
+
+#: src/features/auth/messages.ts
+msgid "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one under Profile and security."
+msgstr "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one under Profile and security."
 
 #: src/features/auth/messages.ts
 msgid "That code didn't work. Check the email and the code, then try again."
@@ -1347,6 +1473,10 @@ msgstr "The passkey request expired. Try again."
 #: src/features/servers/FleetNotes.tsx
 msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "The server list didn't load. Dockwell keeps trying."
+
+#: src/features/auth/TokensPanel.tsx
+msgid "The token wasn't created"
+msgstr "The token wasn't created"
 
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/MorePage.tsx
@@ -1436,6 +1566,14 @@ msgstr "to replace"
 #: src/app/Providers.tsx
 msgid "to run"
 msgstr "to run"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Token copied"
+msgstr "Token copied"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Tokens act for you from scripts, the CLI and integrations. None can remove data, cut off access or change how you sign in."
+msgstr "Tokens act for you from scripts, the CLI and integrations. None can remove data, cut off access or change how you sign in."
 
 #: src/features/auth/messages.ts
 msgid "Too many requests from your address. Wait a minute, then try again."
@@ -1532,6 +1670,10 @@ msgstr "Used"
 msgid "used {0}"
 msgstr "used {0}"
 
+#: src/features/auth/TokensPanel.tsx
+msgid "used {ago} from <0>{lastAddress}</0>"
+msgstr "used {ago} from <0>{lastAddress}</0>"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/system/StatusPage.tsx
 msgid "Version"
@@ -1566,6 +1708,10 @@ msgstr "Websites"
 msgid "What happens next"
 msgstr "What happens next"
 
+#: src/features/auth/TokensPanel.tsx
+msgid "What will use this token?"
+msgstr "What will use this token?"
+
 #. placeholder {0}: explain(error)
 #: src/features/auth/AuthGate.tsx
 msgid "What you see may be out of date. {0}"
@@ -1586,6 +1732,10 @@ msgstr "Works on {where}"
 #: src/features/auth/ClaimPage.tsx
 msgid "You become the owner. Nobody else can sign in."
 msgstr "You become the owner. Nobody else can sign in."
+
+#: src/features/auth/TokensPanel.tsx
+msgid "You see the token once, right after you create it."
+msgstr "You see the token once, right after you create it."
 
 #: src/features/auth/ClaimPage.tsx
 msgid "You sign in with it when you use a code."

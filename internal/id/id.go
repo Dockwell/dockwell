@@ -28,6 +28,7 @@ const (
 	Change    = "chg"
 	Passkey   = "pky"
 	Link      = "lnk"
+	Token     = "tok"
 
 	Organization = "org"
 	Project      = "prj"

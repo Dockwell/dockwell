@@ -1,0 +1,126 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// TokenService manages API tokens: secrets for scripts, the CLI and
+// integrations, each acting for the person who made it, within a scope. See
+// docs/adr/0016-scoped-api-tokens.md.
+//
+// Send a token in the Authorization header, as "Bearer dwt_…", with REST,
+// Connect, gRPC or gRPC-Web alike. A read-only token may call the methods
+// whose effect is EFFECT_READ; a read-write token may also call EFFECT_PLAN
+// and EFFECT_APPLY methods. No token may call an EFFECT_DESTRUCTIVE method,
+// AuthService, or this service: they need a signed-in session.
+service TokenService {
+  // CreateToken makes a new token for you. The secret is in the response,
+  // and only there: Dockwell keeps only its hash.
+  rpc CreateToken(CreateTokenRequest) returns (CreateTokenResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/tokens"
+      body: "*"
+    };
+  }
+
+  // ListTokens returns your tokens that still work, newest first.
+  rpc ListTokens(ListTokensRequest) returns (ListTokensResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/tokens"};
+  }
+
+  // RevokeToken stops one of your tokens working at once. Its open streams
+  // close.
+  rpc RevokeToken(RevokeTokenRequest) returns (RevokeTokenResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (google.api.http) = {
+      post: "/v1/tokens/{id}:revoke"
+      body: "*"
+    };
+  }
+}
+
+// TokenScope is what a token may do, by the effect of each method.
+enum TokenScope {
+  TOKEN_SCOPE_UNSPECIFIED = 0;
+  // Methods whose effect is EFFECT_READ: reading state, never changing it.
+  TOKEN_SCOPE_READ_ONLY = 1;
+  // EFFECT_READ, EFFECT_PLAN and EFFECT_APPLY methods: reading, planning and
+  // applying changes that can be undone. Never EFFECT_DESTRUCTIVE.
+  TOKEN_SCOPE_READ_WRITE = 2;
+}
+
+// Token is an API token, without its secret.
+message Token {
+  // The token's ID, such as "tok_01JD6Z3R8M9QF2K7T4XW5BNC0V". It isn't
+  // secret, and it names the token in the audit log.
+  string id = 1;
+  // What it is for, such as "GitHub Actions deploy".
+  string name = 2;
+  // The prefix and the first and last 4 of the secret's 43 random digits,
+  // such as "dwt_4f9K…x9Ta", to tell tokens apart and to recognise one in a
+  // log. It can't be used to sign in.
+  string hint = 3;
+  // What it may do.
+  TokenScope scope = 4;
+  // When it was made.
+  google.protobuf.Timestamp create_time = 5;
+  // When it stops working. Unset when it doesn't expire.
+  google.protobuf.Timestamp expire_time = 6;
+  // When it was last used. Unset if never.
+  google.protobuf.Timestamp last_used_time = 7;
+  // The address it was last used from, such as "203.0.113.9". Empty if
+  // never.
+  string last_address = 8;
+}
+
+// CreateTokenRequest describes the new token.
+message CreateTokenRequest {
+  // What it is for, such as "GitHub Actions deploy", up to 100 characters.
+  string name = 1;
+  // What it may do. Required.
+  TokenScope scope = 2;
+  // When it stops working. Leave it unset for a token that doesn't expire.
+  oneof expiration {
+    // When it stops working, in the future.
+    google.protobuf.Timestamp expire_time = 3;
+    // How long it works for, from when the control plane makes it, such as
+    // "7776000s" for 90 days. The control plane's clock sets the expiry, so
+    // a client whose clock is off doesn't move it.
+    google.protobuf.Duration ttl = 4;
+  }
+}
+
+// CreateTokenResponse carries the new token and its secret.
+message CreateTokenResponse {
+  // The new token.
+  Token token = 1;
+  // The secret, such as "dwt_…", 53 characters. Send it as
+  // "Authorization: Bearer <secret>". It is shown only now; store it safely.
+  string secret = 2;
+}
+
+// ListTokensRequest takes no parameters.
+message ListTokensRequest {}
+
+// ListTokensResponse lists tokens.
+message ListTokensResponse {
+  // Tokens that still work, newest first.
+  repeated Token tokens = 1;
+}
+
+// RevokeTokenRequest names a token.
+message RevokeTokenRequest {
+  // The token's ID.
+  string id = 1;
+}
+
+// RevokeTokenResponse is empty.
+message RevokeTokenResponse {}

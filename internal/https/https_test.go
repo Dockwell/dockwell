@@ -87,3 +87,28 @@ func TestRedirect(t *testing.T) {
 		}
 	}
 }
+
+// A request with credentials over plain HTTP is refused, not redirected:
+// many clients follow the redirect with the header still on, so a script set up
+// with http:// would work, sending its token in the clear on every call.
+func TestRedirectRefusesCredentials(t *testing.T) {
+	for _, tt := range []struct{ method, auth string }{
+		{http.MethodGet, "Bearer dwt_4f9K2xQ7Lr8eVb3NcR5tYw1ZaD6gHj0kMp9sUq2XnE4x9TaBc12"},
+		{http.MethodHead, "Bearer dwt_4f9K2xQ7Lr8eVb3NcR5tYw1ZaD6gHj0kMp9sUq2XnE4x9TaBc12"},
+		{http.MethodGet, "Basic bWlyYTpodW50ZXIy"},
+		{http.MethodPost, "Bearer anything"},
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(t.Context(), tt.method, "http://panel.acme.dev/v1/servers", http.NoBody)
+		req.Header.Set("Authorization", tt.auth)
+		Redirect("panel.acme.dev", "").ServeHTTP(rec, req)
+		body := rec.Body.String()
+		if rec.Code != http.StatusBadRequest || rec.Header().Get("Location") != "" {
+			t.Errorf("%s with Authorization %q = %d to %q, want 400 and no redirect", tt.method, tt.auth, rec.Code, rec.Header().Get("Location"))
+		}
+		if tt.method != http.MethodHead && (!strings.Contains(body, "https://panel.acme.dev") || !strings.Contains(body, "may have seen it") ||
+			!strings.Contains(body, "revoke the token")) {
+			t.Errorf("%s with Authorization %q said %q, want it to say the token may be exposed and to use https", tt.method, tt.auth, body)
+		}
+	}
+}

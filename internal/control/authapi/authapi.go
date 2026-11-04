@@ -59,10 +59,16 @@ func (h *Handler) client(ctx context.Context) (auth.Client, error) {
 	return c, nil
 }
 
+// principal returns the signed-in user behind a call. AuthService and
+// TokenService need a session, so it refuses an API token, as Interceptor
+// already has.
 func principal(ctx context.Context) (auth.Principal, error) {
 	p, ok := PrincipalFrom(ctx)
 	if !ok {
 		return auth.Principal{}, reasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
+	}
+	if p.Token != nil {
+		return auth.Principal{}, reasonError(connect.CodePermissionDenied, auth.ErrNeedsSession, ReasonNeedsSession)
 	}
 	return p, nil
 }
@@ -456,8 +462,19 @@ const (
 	ReasonOrigin = "origin"
 	// ReasonMisdirected: the call was for a host the panel doesn't answer on.
 	ReasonMisdirected = "misdirected"
-	// ReasonUnavailable: the session couldn't be checked just now.
+	// ReasonUnavailable: the session or API token couldn't be checked just
+	// now.
 	ReasonUnavailable = "unavailable"
+	// ReasonTokenRejected: the call came with an API token that is unknown,
+	// revoked or expired, or a stream's token stopped working while it was
+	// open.
+	ReasonTokenRejected = "token_rejected"
+	// ReasonTokenScope: the call came with a read-only API token, and makes
+	// changes.
+	ReasonTokenScope = "token_scope"
+	// ReasonNeedsSession: the call came with an API token, and no token may
+	// make it: it is destructive, or manages sign-in or tokens.
+	ReasonNeedsSession = "needs_session"
 )
 
 // reasonError is a Connect error that names its reason under ReasonKey.
@@ -492,6 +509,7 @@ var codes = []struct {
 	{auth.ErrTOTPMismatch, connect.CodeInvalidArgument, "totp_mismatch"},
 	{auth.ErrPasskeyExists, connect.CodeAlreadyExists, "passkey_exists"},
 	{auth.ErrTooManyRequests, connect.CodeResourceExhausted, "too_many_requests"},
+	{auth.ErrNeedsSession, connect.CodePermissionDenied, ReasonNeedsSession},
 }
 
 func (h *Handler) rpcError(ctx context.Context, err error) error {

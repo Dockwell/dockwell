@@ -593,8 +593,8 @@ func TestLimiters(t *testing.T) {
 		}
 	}
 	now = now.Add(time.Second)
-	if w := f.try("a", now); w != 0 || f.keys["a"].n != 3 {
-		t.Errorf("after waiting: wait %s, n %d", w, f.keys["a"].n)
+	if w := f.try("a", now); w != 0 || f.keys.m["a"].n != 3 {
+		t.Errorf("after waiting: wait %s, n %d", w, f.keys.m["a"].n)
 	}
 	if w := f.try("a", now); w != 2*time.Second {
 		t.Errorf("after 3 failures with 2 free: wait %s, want 2s", w)
@@ -606,8 +606,8 @@ func TestLimiters(t *testing.T) {
 	for _, k := range []string{"b", "c", "d", "e"} {
 		f.try(k, now)
 	}
-	if len(f.keys) > 3 {
-		t.Errorf("%d keys kept, want at most 3", len(f.keys))
+	if len(f.keys.m) > 3 {
+		t.Errorf("%d keys kept, want at most 3", len(f.keys.m))
 	}
 
 	b := newBuckets(2, time.Second, 10)
@@ -628,6 +628,18 @@ func TestLimiters(t *testing.T) {
 	} {
 		if got := sourceKey(in); got != want {
 			t.Errorf("sourceKey(%q) = %q, want %q", in, got, want)
+		}
+	}
+	// Tokens' addresses are told apart the same way, with a port or not.
+	for in, want := range map[string]string{
+		"203.0.113.9":            "203.0.113.9",
+		"::ffff:203.0.113.9":     "203.0.113.9",
+		"[::ffff:203.0.113.9]:1": "203.0.113.9",
+		"2001:db8:1:2:3:4:5:6":   "2001:db8:1:2::/64",
+		"2001:db8:1:2::99":       "2001:db8:1:2::/64",
+	} {
+		if got := networkKey(in); got != want {
+			t.Errorf("networkKey(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

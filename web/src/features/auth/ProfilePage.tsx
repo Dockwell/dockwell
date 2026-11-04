@@ -15,6 +15,7 @@ import { Page } from "../shell/Page";
 import { useAuthError } from "./messages";
 import { PasskeysPanel, useAddPasskey } from "./PasskeysPanel";
 import { SessionsPanel } from "./SessionsPanel";
+import { TokensPanel } from "./TokensPanel";
 import { TotpPanel } from "./TotpPanel";
 import { useSignedIn } from "./useAuthState";
 import { useSignOut } from "./useSignOut";
@@ -25,7 +26,7 @@ import "./ProfilePage.css";
 export type ProfileVia = "link" | "recovery-code";
 
 /**
- * Your passkeys, authenticator app and sessions, in the shell. Sign out sits
+ * Your passkeys, authenticator app, sessions and API tokens, in the shell. Sign out sits
  * with the title on wide screens; on phones it is on the More tab, which
  * this page's header leads back to.
  */
@@ -58,6 +59,7 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
         <PasskeysPanel rpId={auth?.rpId ?? ""} />
         <TotpPanel />
         <SessionsPanel />
+        <TokensPanel />
       </div>
     </Page>
   );

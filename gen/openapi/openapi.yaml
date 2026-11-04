@@ -1,0 +1,1589 @@
+# Generated with protoc-gen-openapi
+# https://github.com/google/gnostic/tree/master/cmd/protoc-gen-openapi
+
+openapi: 3.0.3
+info:
+    title: Dockwell API
+    version: v1
+paths:
+    /v1/authState:
+        get:
+            tags:
+                - AuthService
+            description: |-
+                GetAuthState says whether the install has an owner, who is signed in on
+                 this request, and which address passkeys are made for here.
+            operationId: AuthService_GetAuthState
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetAuthStateResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/claim:begin:
+        post:
+            tags:
+                - AuthService
+            description: BeginClaim starts creating the owner's first passkey.
+            operationId: AuthService_BeginClaim
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginClaimRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginClaimResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/claim:check:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                CheckClaim checks a claim link without spending it, and describes the
+                 server it claims.
+            operationId: AuthService_CheckClaim
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckClaimRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckClaimResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/claim:finish:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                FinishClaim spends the claim link, creates the owner with the new
+                 passkey, and signs them in. It works once per install.
+            operationId: AuthService_FinishClaim
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FinishClaimRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FinishClaimResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/passkeys:
+        get:
+            tags:
+                - AuthService
+            description: ListPasskeys returns your passkeys, oldest first.
+            operationId: AuthService_ListPasskeys
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListPasskeysResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/passkeys/{id}:
+        delete:
+            tags:
+                - AuthService
+            description: |-
+                RemovePasskey removes one of your passkeys. It refuses to remove your last
+                 way to sign in.
+            operationId: AuthService_RemovePasskey
+            parameters:
+                - name: id
+                  in: path
+                  description: The passkey's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RemovePasskeyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/passkeys:beginAdd:
+        post:
+            tags:
+                - AuthService
+            description: BeginAddPasskey starts adding a passkey for the address of this request.
+            operationId: AuthService_BeginAddPasskey
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginAddPasskeyRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginAddPasskeyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/passkeys:finishAdd:
+        post:
+            tags:
+                - AuthService
+            description: FinishAddPasskey saves the new passkey.
+            operationId: AuthService_FinishAddPasskey
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FinishAddPasskeyRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FinishAddPasskeyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers:
+        get:
+            tags:
+                - ServerService
+            description: ListServers returns every server, connected or not, without history.
+            operationId: ServerService_ListServers
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListServersResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{id}:
+        get:
+            tags:
+                - ServerService
+            description: GetServer returns one server, with its recent history.
+            operationId: ServerService_GetServer
+            parameters:
+                - name: id
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetServerResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/sessions:
+        get:
+            tags:
+                - AuthService
+            description: ListSessions returns your sessions that haven't ended, newest first.
+            operationId: AuthService_ListSessions
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListSessionsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/sessions/{id}:revoke:
+        post:
+            tags:
+                - AuthService
+            description: RevokeSession ends one of your sessions. Its open streams close.
+            operationId: AuthService_RevokeSession
+            parameters:
+                - name: id
+                  in: path
+                  description: The session's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RevokeSessionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevokeSessionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/sessions:beginPasskeySignIn:
+        post:
+            tags:
+                - AuthService
+            description: BeginPasskeySignIn starts signing in with a passkey.
+            operationId: AuthService_BeginPasskeySignIn
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginPasskeySignInRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginPasskeySignInResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/sessions:finishPasskeySignIn:
+        post:
+            tags:
+                - AuthService
+            description: FinishPasskeySignIn checks the passkey's signature and signs in.
+            operationId: AuthService_FinishPasskeySignIn
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FinishPasskeySignInRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FinishPasskeySignInResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/sessions:revokeOthers:
+        post:
+            tags:
+                - AuthService
+            description: RevokeOtherSessions ends every session of yours except this one.
+            operationId: AuthService_RevokeOtherSessions
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RevokeOtherSessionsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevokeOtherSessionsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/sessions:signInWithCode:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                SignInWithCode signs in with a code from an authenticator app, or with a
+                 recovery code. Failed attempts slow down, and too many lock code sign-in
+                 for the account.
+            operationId: AuthService_SignInWithCode
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SignInWithCodeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SignInWithCodeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/sessions:signInWithLink:
+        post:
+            tags:
+                - AuthService
+            description: SignInWithLink spends a one-time sign-in link from dockwell recover.
+            operationId: AuthService_SignInWithLink
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SignInWithLinkRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SignInWithLinkResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/sessions:signOut:
+        post:
+            tags:
+                - AuthService
+            description: SignOut ends this session.
+            operationId: AuthService_SignOut
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SignOutRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SignOutResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/tokens:
+        get:
+            tags:
+                - TokenService
+            description: ListTokens returns your tokens that still work, newest first.
+            operationId: TokenService_ListTokens
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListTokensResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - TokenService
+            description: |-
+                CreateToken makes a new token for you. The secret is in the response,
+                 and only there: Dockwell keeps only its hash.
+            operationId: TokenService_CreateToken
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateTokenRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateTokenResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/tokens/{id}:revoke:
+        post:
+            tags:
+                - TokenService
+            description: |-
+                RevokeToken stops one of your tokens working at once. Its open streams
+                 close.
+            operationId: TokenService_RevokeToken
+            parameters:
+                - name: id
+                  in: path
+                  description: The token's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RevokeTokenRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevokeTokenResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/totp:
+        get:
+            tags:
+                - AuthService
+            description: |-
+                GetTotp says whether you sign in with an authenticator app, and how many
+                 recovery codes are left.
+            operationId: AuthService_GetTotp
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetTotpResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/totp:beginSetup:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                BeginTotpSetup makes a new authenticator secret. It takes effect only
+                 once ConfirmTotpSetup checks a code from it.
+            operationId: AuthService_BeginTotpSetup
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginTotpSetupRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginTotpSetupResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/totp:confirmSetup:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                ConfirmTotpSetup checks a code from the new secret, turns code sign-in
+                 on, and returns new recovery codes. They are shown once.
+            operationId: AuthService_ConfirmTotpSetup
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ConfirmTotpSetupRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConfirmTotpSetupResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/totp:disable:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                DisableTotp turns code sign-in off and deletes the secret and recovery
+                 codes. It refuses when that would leave no way to sign in.
+            operationId: AuthService_DisableTotp
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DisableTotpRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DisableTotpResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/totp:regenerateRecoveryCodes:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                RegenerateRecoveryCodes replaces your recovery codes. The old ones stop
+                 working.
+            operationId: AuthService_RegenerateRecoveryCodes
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RegenerateRecoveryCodesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RegenerateRecoveryCodesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/totp:unlock:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                UnlockCodeSignIn turns code sign-in back on after too many wrong codes
+                 locked it.
+            operationId: AuthService_UnlockCodeSignIn
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UnlockCodeSignInRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UnlockCodeSignInResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/version:
+        get:
+            tags:
+                - SystemService
+            description: GetVersion returns the build of the control plane that answers.
+            operationId: SystemService_GetVersion
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetVersionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+components:
+    schemas:
+        BeginAddPasskeyRequest:
+            type: object
+            properties: {}
+            description: BeginAddPasskeyRequest takes no parameters.
+        BeginAddPasskeyResponse:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                    description: Pass back to FinishAddPasskey.
+                optionsJson:
+                    type: string
+                    description: PublicKeyCredentialCreationOptionsJSON.
+            description: BeginAddPasskeyResponse carries the options for creating the passkey.
+        BeginClaimRequest:
+            type: object
+            properties:
+                token:
+                    type: string
+                    description: The token from the claim link.
+                name:
+                    type: string
+                    description: The owner's name, such as "Mira Chen".
+                email:
+                    type: string
+                    description: The owner's email.
+            description: BeginClaimRequest names the owner.
+        BeginClaimResponse:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                    description: Pass back to FinishClaim.
+                optionsJson:
+                    type: string
+                    description: PublicKeyCredentialCreationOptionsJSON.
+            description: BeginClaimResponse carries the options for creating the passkey.
+        BeginPasskeySignInRequest:
+            type: object
+            properties: {}
+            description: |-
+                BeginPasskeySignInRequest takes no parameters: the browser offers the
+                 passkeys it holds for this address.
+        BeginPasskeySignInResponse:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                    description: Pass back to FinishPasskeySignIn.
+                optionsJson:
+                    type: string
+                    description: PublicKeyCredentialRequestOptionsJSON.
+            description: BeginPasskeySignInResponse carries the options for the passkey assertion.
+        BeginTotpSetupRequest:
+            type: object
+            properties: {}
+            description: BeginTotpSetupRequest takes no parameters.
+        BeginTotpSetupResponse:
+            type: object
+            properties:
+                secret:
+                    type: string
+                    description: The secret in base32, for typing into an authenticator app.
+                uri:
+                    type: string
+                    description: The otpauth:// URI, for a QR code.
+            description: BeginTotpSetupResponse carries the new secret.
+        BuildInfo:
+            type: object
+            properties:
+                version:
+                    type: string
+                    description: |-
+                        Semantic version such as "v0.4.0", a Go pseudo-version for builds
+                         between releases such as "v0.4.1-0.20261103214000-3f2a9c1d4e5b", or
+                         "devel" when the build carries no version at all. Only the first two
+                         parse as semver.
+                commit:
+                    type: string
+                    description: Full commit hash the binary was built from. Empty when unknown.
+                commitTime:
+                    type: string
+                    description: Time of that commit. Unset when unknown.
+                    format: date-time
+                modified:
+                    type: boolean
+                    description: True when the working tree had uncommitted changes at build time.
+                goVersion:
+                    type: string
+                    description: Go toolchain that built the binary, such as "go1.27.3".
+                platform:
+                    type: string
+                    description: Target operating system and architecture, such as "linux/amd64".
+            description: BuildInfo identifies one build of the dockwell binary.
+        CheckClaimRequest:
+            type: object
+            properties:
+                token:
+                    type: string
+                    description: The token from the claim link, the part after "#".
+            description: CheckClaimRequest carries a claim link's token.
+        CheckClaimResponse:
+            type: object
+            properties:
+                server:
+                    allOf:
+                        - $ref: '#/components/schemas/Server'
+                    description: The control server, as its agent last reported it.
+                publicAddress:
+                    type: string
+                    description: |-
+                        This server's public IP address, such as "203.0.113.7", for pointing a
+                         domain at: an A record, or AAAA for an IPv6 address. Empty when the
+                         server doesn't know one, as behind NAT, where its own address is private.
+                expireTime:
+                    type: string
+                    description: When the link stops working.
+                    format: date-time
+            description: CheckClaimResponse describes the server a valid claim link claims.
+        ConfirmTotpSetupRequest:
+            type: object
+            properties:
+                code:
+                    type: string
+                    description: A 6-digit code from the authenticator app.
+            description: ConfirmTotpSetupRequest carries a code from the new secret.
+        ConfirmTotpSetupResponse:
+            type: object
+            properties:
+                recoveryCodes:
+                    type: array
+                    items:
+                        type: string
+                    description: Ten one-time recovery codes. They are shown only now; store them safely.
+            description: ConfirmTotpSetupResponse carries the recovery codes.
+        CreateTokenRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: What it is for, such as "GitHub Actions deploy", up to 100 characters.
+                scope:
+                    enum:
+                        - TOKEN_SCOPE_UNSPECIFIED
+                        - TOKEN_SCOPE_READ_ONLY
+                        - TOKEN_SCOPE_READ_WRITE
+                    type: string
+                    description: What it may do. Required.
+                    format: enum
+                expireTime:
+                    type: string
+                    description: When it stops working, in the future.
+                    format: date-time
+                ttl:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: |-
+                        How long it works for, from when the control plane makes it, such as
+                         "7776000s" for 90 days. The control plane's clock sets the expiry, so
+                         a client whose clock is off doesn't move it.
+            description: CreateTokenRequest describes the new token.
+        CreateTokenResponse:
+            type: object
+            properties:
+                token:
+                    allOf:
+                        - $ref: '#/components/schemas/Token'
+                    description: The new token.
+                secret:
+                    type: string
+                    description: |-
+                        The secret, such as "dwt_…", 53 characters. Send it as
+                         "Authorization: Bearer <secret>". It is shown only now; store it safely.
+            description: CreateTokenResponse carries the new token and its secret.
+        DisableTotpRequest:
+            type: object
+            properties: {}
+            description: DisableTotpRequest takes no parameters.
+        DisableTotpResponse:
+            type: object
+            properties: {}
+            description: DisableTotpResponse is empty.
+        Disk:
+            type: object
+            properties:
+                mountPoint:
+                    type: string
+                    description: Where it is mounted, such as "/" or "/var/lib/docker".
+                device:
+                    type: string
+                    description: The device, such as "/dev/sda1".
+                filesystem:
+                    type: string
+                    description: The filesystem type, such as "ext4".
+                sizeBytes:
+                    type: string
+                    description: Total size, in bytes.
+            description: Disk is one mounted filesystem.
+        DiskUsage:
+            type: object
+            properties:
+                mountPoint:
+                    type: string
+                    description: Where it is mounted.
+                usedBytes:
+                    type: string
+                    description: Bytes in use.
+                sizeBytes:
+                    type: string
+                    description: Total size, in bytes.
+            description: DiskUsage is one filesystem's use.
+        FinishAddPasskeyRequest:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                    description: From BeginAddPasskey.
+                credentialJson:
+                    type: string
+                    description: RegistrationResponseJSON from navigator.credentials.create.
+                name:
+                    type: string
+                    description: What to call it, such as "YubiKey 5C". Optional.
+            description: FinishAddPasskeyRequest carries the new passkey.
+        FinishAddPasskeyResponse:
+            type: object
+            properties:
+                passkey:
+                    allOf:
+                        - $ref: '#/components/schemas/Passkey'
+                    description: The passkey.
+            description: FinishAddPasskeyResponse carries the saved passkey.
+        FinishClaimRequest:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                    description: From BeginClaim.
+                token:
+                    type: string
+                    description: 'The token from the claim link, again: it is spent only here.'
+                credentialJson:
+                    type: string
+                    description: RegistrationResponseJSON from navigator.credentials.create.
+                passkeyName:
+                    type: string
+                    description: What to call the passkey, such as "Chrome on macOS". Optional.
+            description: FinishClaimRequest carries the new passkey.
+        FinishClaimResponse:
+            type: object
+            properties:
+                user:
+                    allOf:
+                        - $ref: '#/components/schemas/User'
+                    description: The owner.
+            description: |-
+                FinishClaimResponse carries the new owner. The response sets the session
+                 cookie.
+        FinishPasskeySignInRequest:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                    description: From BeginPasskeySignIn.
+                credentialJson:
+                    type: string
+                    description: AuthenticationResponseJSON from navigator.credentials.get.
+            description: FinishPasskeySignInRequest carries the passkey's assertion.
+        FinishPasskeySignInResponse:
+            type: object
+            properties:
+                user:
+                    allOf:
+                        - $ref: '#/components/schemas/User'
+                    description: The user.
+            description: |-
+                FinishPasskeySignInResponse carries who signed in. The response sets the
+                 session cookie.
+        GetAuthStateResponse:
+            type: object
+            properties:
+                claimed:
+                    type: boolean
+                    description: |-
+                        True once the install has an owner. Until then, only a claim link from
+                         dockwell run or dockwell claim can create one.
+                user:
+                    allOf:
+                        - $ref: '#/components/schemas/User'
+                    description: The signed-in user. Unset when the request has no valid session.
+                sessionId:
+                    type: string
+                    description: This session's ID. Empty when not signed in.
+                serverName:
+                    type: string
+                    description: The control server's name, such as "hz-1".
+                rpId:
+                    type: string
+                    description: |-
+                        The WebAuthn relying party ID for this address: "localhost", or the
+                         panel's domain. Passkeys made here work only here.
+                domain:
+                    type: string
+                    description: |-
+                        The panel's own domain, such as "panel.acme.dev". Empty when the panel is
+                         reachable only on loopback.
+                signInMethod:
+                    enum:
+                        - SIGN_IN_METHOD_UNSPECIFIED
+                        - SIGN_IN_METHOD_CLAIM
+                        - SIGN_IN_METHOD_PASSKEY
+                        - SIGN_IN_METHOD_AUTHENTICATOR_CODE
+                        - SIGN_IN_METHOD_RECOVERY_CODE
+                        - SIGN_IN_METHOD_LINK
+                    type: string
+                    description: How this session began. Unset when not signed in.
+                    format: enum
+            description: GetAuthStateResponse describes the install and this request's session.
+        GetServerResponse:
+            type: object
+            properties:
+                server:
+                    allOf:
+                        - $ref: '#/components/schemas/Server'
+                    description: The server, with history.
+            description: GetServerResponse carries one server.
+        GetTotpResponse:
+            type: object
+            properties:
+                totp:
+                    allOf:
+                        - $ref: '#/components/schemas/Totp'
+                    description: Code sign-in.
+            description: GetTotpResponse describes code sign-in.
+        GetVersionResponse:
+            type: object
+            properties:
+                build:
+                    allOf:
+                        - $ref: '#/components/schemas/BuildInfo'
+                    description: The build of the dockwell binary running the control plane.
+            description: GetVersionResponse carries the control plane's build.
+        GoogleProtobufAny:
+            type: object
+            properties:
+                '@type':
+                    type: string
+                    description: The type of the serialized message.
+            additionalProperties: true
+            description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        ListPasskeysResponse:
+            type: object
+            properties:
+                passkeys:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Passkey'
+                    description: Passkeys, oldest first.
+            description: ListPasskeysResponse lists passkeys.
+        ListServersResponse:
+            type: object
+            properties:
+                servers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Server'
+                    description: The servers.
+            description: ListServersResponse lists servers, oldest first.
+        ListSessionsResponse:
+            type: object
+            properties:
+                sessions:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Session'
+                    description: Sessions, newest first.
+            description: ListSessionsResponse lists sessions.
+        ListTokensResponse:
+            type: object
+            properties:
+                tokens:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Token'
+                    description: Tokens that still work, newest first.
+            description: ListTokensResponse lists tokens.
+        Passkey:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The passkey's ID, such as "pky_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                name:
+                    type: string
+                    description: What it is called. Empty when it was given no name.
+                rpId:
+                    type: string
+                    description: 'The address it works on: "localhost" or the panel''s domain.'
+                createTime:
+                    type: string
+                    description: When it was added.
+                    format: date-time
+                lastUsedTime:
+                    type: string
+                    description: When it last signed in. Unset if never.
+                    format: date-time
+                synced:
+                    type: boolean
+                    description: |-
+                        True when the passkey can sync between devices, as with iCloud Keychain
+                         or Google Password Manager.
+                suspectedCopy:
+                    type: boolean
+                    description: |-
+                        True when it once reported a lower use count than before, which happens
+                         when a passkey is copied. It no longer signs in; remove it.
+            description: Passkey is one of a user's passkeys.
+        RegenerateRecoveryCodesRequest:
+            type: object
+            properties: {}
+            description: RegenerateRecoveryCodesRequest takes no parameters.
+        RegenerateRecoveryCodesResponse:
+            type: object
+            properties:
+                recoveryCodes:
+                    type: array
+                    items:
+                        type: string
+                    description: Ten one-time recovery codes. They are shown only now.
+            description: RegenerateRecoveryCodesResponse carries the new codes.
+        RemovePasskeyResponse:
+            type: object
+            properties: {}
+            description: RemovePasskeyResponse is empty.
+        RevokeOtherSessionsRequest:
+            type: object
+            properties: {}
+            description: RevokeOtherSessionsRequest takes no parameters.
+        RevokeOtherSessionsResponse:
+            type: object
+            properties:
+                revoked:
+                    type: integer
+                    description: How many sessions were revoked.
+                    format: int32
+            description: RevokeOtherSessionsResponse says how many sessions ended.
+        RevokeSessionRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The session's ID.
+            description: RevokeSessionRequest names a session.
+        RevokeSessionResponse:
+            type: object
+            properties: {}
+            description: RevokeSessionResponse is empty.
+        RevokeTokenRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The token's ID.
+            description: RevokeTokenRequest names a token.
+        RevokeTokenResponse:
+            type: object
+            properties: {}
+            description: RevokeTokenResponse is empty.
+        Server:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The server's ID.
+                name:
+                    type: string
+                    description: What the server is called, such as "hz-1".
+                createTime:
+                    type: string
+                    description: When the server joined.
+                    format: date-time
+                connection:
+                    enum:
+                        - CONNECTION_UNSPECIFIED
+                        - CONNECTION_CONNECTED
+                        - CONNECTION_UNREACHABLE
+                        - CONNECTION_PENDING
+                    type: string
+                    description: Whether its agent is connected.
+                    format: enum
+                lastSeenTime:
+                    type: string
+                    description: When the control plane last heard from the agent. Unset if never.
+                    format: date-time
+                inventory:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerInventory'
+                    description: 'What the server is: OS, hardware, Docker. Unset until the agent reports.'
+                stats:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerStats'
+                    description: The newest stats. Unset until the agent reports.
+                history:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ServerStats'
+                    description: |-
+                        Recent stats, oldest first, for sparklines: at most 60 samples, from
+                         the 5 minutes before the newest by the samples' own times, so a server
+                         that reports again after a longer outage starts over. Empty in lists.
+                agentBuild:
+                    allOf:
+                        - $ref: '#/components/schemas/BuildInfo'
+                    description: The agent's build.
+                controlServer:
+                    type: boolean
+                    description: True for the server that runs the control plane.
+                connectTime:
+                    type: string
+                    description: |-
+                        When the agent connected, if it is connected now. A connection that
+                         moves to a renewed certificate keeps its time. Unset otherwise.
+                    format: date-time
+            description: Server is one machine running the agent.
+        ServerInventory:
+            type: object
+            properties:
+                hostname:
+                    type: string
+                    description: The server's hostname.
+                osName:
+                    type: string
+                    description: The operating system's name for people, such as "Ubuntu 24.04.1 LTS".
+                osId:
+                    type: string
+                    description: The OS's ID from os-release, such as "ubuntu" or "debian".
+                osVersion:
+                    type: string
+                    description: The OS version, such as "24.04".
+                kernel:
+                    type: string
+                    description: The kernel release, such as "6.8.0-48-generic".
+                architecture:
+                    type: string
+                    description: The CPU architecture, such as "amd64" or "arm64".
+                cpuModel:
+                    type: string
+                    description: The CPU model, such as "AMD EPYC 7763 64-Core Processor".
+                cpuCount:
+                    type: integer
+                    description: Logical CPUs.
+                    format: uint32
+                memoryBytes:
+                    type: string
+                    description: Total memory, in bytes.
+                disks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Disk'
+                    description: Mounted filesystems that hold data, largest first.
+                dockerVersion:
+                    type: string
+                    description: |-
+                        The Docker Engine version, such as "28.5.1". Empty when Docker isn't
+                         installed or isn't running.
+                addresses:
+                    type: array
+                    items:
+                        type: string
+                    description: The server's non-loopback IP addresses.
+            description: 'ServerInventory is what a server is: its system and hardware.'
+        ServerStats:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When the agent took the sample.
+                    format: date-time
+                cpuPercent:
+                    type: number
+                    description: CPU busy time across all cores since the previous sample, 0 to 100.
+                    format: double
+                memoryUsedBytes:
+                    type: string
+                    description: Memory in use (total minus available), in bytes.
+                memoryTotalBytes:
+                    type: string
+                    description: Total memory, in bytes.
+                disks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DiskUsage'
+                    description: Use of each disk in the inventory.
+                load1:
+                    type: number
+                    description: Load averages over 1, 5 and 15 minutes.
+                    format: double
+                load5:
+                    type: number
+                    description: Load average over 5 minutes.
+                    format: double
+                load15:
+                    type: number
+                    description: Load average over 15 minutes.
+                    format: double
+                networkRxBytesPerSecond:
+                    type: string
+                    description: Bytes received per second across physical interfaces.
+                networkTxBytesPerSecond:
+                    type: string
+                    description: Bytes sent per second across physical interfaces.
+                uptime:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: Time since the server booted.
+            description: ServerStats is one sample of a server's resource use.
+        Session:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The session's ID, such as "ses_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                userAgent:
+                    type: string
+                    description: The browser's User-Agent when it signed in.
+                address:
+                    type: string
+                    description: The address it was last seen from.
+                createTime:
+                    type: string
+                    description: When it signed in.
+                    format: date-time
+                lastSeenTime:
+                    type: string
+                    description: When it last made a request.
+                    format: date-time
+                expireTime:
+                    type: string
+                    description: |-
+                        When it ends unless it is revoked first: the earlier of its idle and
+                         absolute limits.
+                    format: date-time
+                current:
+                    type: boolean
+                    description: True for the session making this request.
+                signInMethod:
+                    enum:
+                        - SIGN_IN_METHOD_UNSPECIFIED
+                        - SIGN_IN_METHOD_CLAIM
+                        - SIGN_IN_METHOD_PASSKEY
+                        - SIGN_IN_METHOD_AUTHENTICATOR_CODE
+                        - SIGN_IN_METHOD_RECOVERY_CODE
+                        - SIGN_IN_METHOD_LINK
+                    type: string
+                    description: How it signed in.
+                    format: enum
+                rpId:
+                    type: string
+                    description: 'The address it works on: "localhost" or the panel''s domain.'
+            description: Session is one signed-in browser.
+        SignInWithCodeRequest:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: The account's email.
+                code:
+                    type: string
+                    description: |-
+                        A 6-digit code from the authenticator app, or a recovery code such as
+                         "7KQ2-M9XD-4TPA-ZR3C".
+            description: SignInWithCodeRequest carries an email and a code.
+        SignInWithCodeResponse:
+            type: object
+            properties:
+                user:
+                    allOf:
+                        - $ref: '#/components/schemas/User'
+                    description: The user.
+                usedRecoveryCode:
+                    type: boolean
+                    description: True when a recovery code was used. It now no longer works.
+                recoveryCodesLeft:
+                    type: integer
+                    description: Recovery codes still unused.
+                    format: int32
+            description: |-
+                SignInWithCodeResponse carries who signed in. The response sets the session
+                 cookie.
+        SignInWithLinkRequest:
+            type: object
+            properties:
+                token:
+                    type: string
+                    description: The token from the link, the part after "#".
+            description: SignInWithLinkRequest carries a sign-in link's token.
+        SignInWithLinkResponse:
+            type: object
+            properties:
+                user:
+                    allOf:
+                        - $ref: '#/components/schemas/User'
+                    description: The user.
+            description: |-
+                SignInWithLinkResponse carries who signed in. The response sets the session
+                 cookie.
+        SignOutRequest:
+            type: object
+            properties: {}
+            description: SignOutRequest takes no parameters.
+        SignOutResponse:
+            type: object
+            properties: {}
+            description: SignOutResponse is empty. The response clears the session cookie.
+        Status:
+            type: object
+            properties:
+                code:
+                    type: integer
+                    description: The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+                    format: int32
+                message:
+                    type: string
+                    description: A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
+                details:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GoogleProtobufAny'
+                    description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
+            description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+        Token:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: |-
+                        The token's ID, such as "tok_01JD6Z3R8M9QF2K7T4XW5BNC0V". It isn't
+                         secret, and it names the token in the audit log.
+                name:
+                    type: string
+                    description: What it is for, such as "GitHub Actions deploy".
+                hint:
+                    type: string
+                    description: |-
+                        The prefix and the first and last 4 of the secret's 43 random digits,
+                         such as "dwt_4f9K…x9Ta", to tell tokens apart and to recognise one in a
+                         log. It can't be used to sign in.
+                scope:
+                    enum:
+                        - TOKEN_SCOPE_UNSPECIFIED
+                        - TOKEN_SCOPE_READ_ONLY
+                        - TOKEN_SCOPE_READ_WRITE
+                    type: string
+                    description: What it may do.
+                    format: enum
+                createTime:
+                    type: string
+                    description: When it was made.
+                    format: date-time
+                expireTime:
+                    type: string
+                    description: When it stops working. Unset when it doesn't expire.
+                    format: date-time
+                lastUsedTime:
+                    type: string
+                    description: When it was last used. Unset if never.
+                    format: date-time
+                lastAddress:
+                    type: string
+                    description: |-
+                        The address it was last used from, such as "203.0.113.9". Empty if
+                         never.
+            description: Token is an API token, without its secret.
+        Totp:
+            type: object
+            properties:
+                enabled:
+                    type: boolean
+                    description: True when code sign-in is on.
+                recoveryCodesLeft:
+                    type: integer
+                    description: Recovery codes still unused.
+                    format: int32
+                failedAttempts:
+                    type: integer
+                    description: Wrong codes in a row since the last good one.
+                    format: int32
+                lockTime:
+                    type: string
+                    description: |-
+                        When too many wrong codes locked code sign-in. Unset when it isn't locked.
+                         Recovery codes still work while it is locked.
+                    format: date-time
+            description: Totp is the state of signing in with an authenticator app.
+        UnlockCodeSignInRequest:
+            type: object
+            properties: {}
+            description: UnlockCodeSignInRequest takes no parameters.
+        UnlockCodeSignInResponse:
+            type: object
+            properties: {}
+            description: UnlockCodeSignInResponse is empty.
+        User:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The user's ID, such as "usr_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                name:
+                    type: string
+                    description: What they are called, such as "Mira Chen".
+                email:
+                    type: string
+                    description: Their email, which signs in with a code.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                    type: string
+                    description: What they may do.
+                    format: enum
+                createTime:
+                    type: string
+                    description: When the account was made.
+                    format: date-time
+            description: User is a person who signs in to the panel.
+tags:
+    - name: AuthService
+      description: |-
+        AuthService claims a new install, signs people in and out, and manages how
+         they sign in: passkeys, an authenticator app with recovery codes, and
+         sessions. See docs/adr/0011-claim-and-sign-in.md.
+
+         GetAuthState, the claim calls and the sign-in calls work without a session.
+         Every other call needs one, carried in the session cookie the sign-in calls
+         set. No API token can call this service: how you sign in is changed only by
+         signing in (docs/adr/0016-scoped-api-tokens.md).
+
+         Passkey ceremonies take two calls. Begin returns WebAuthn options as JSON
+         (PublicKeyCredentialCreationOptionsJSON or
+         PublicKeyCredentialRequestOptionsJSON, WebAuthn Level 3) and a ceremony ID;
+         Finish takes that ID and the browser's credential as JSON
+         (RegistrationResponseJSON or AuthenticationResponseJSON). A ceremony works
+         once and expires after 5 minutes.
+
+         A failed call's error metadata names the reason under "Dockwell-Error", such
+         as "code_rejected" or "claim_link_rejected", so clients can explain it in
+         their own words; a slowed-down one also carries "Retry-After" in seconds.
+         A call to any service refused for want of a session names one too:
+         "unauthenticated" when it came with no session, and "session_ended" when
+         its session cookie no longer works or a stream's session ended while it
+         was open. A browser's request from another origin gets "origin". A call
+         with an API token gets "token_rejected" when the token is unknown, revoked
+         or expired, "token_scope" when its scope doesn't cover the call, and
+         "needs_session" when no token may make it.
+    - name: ServerService
+      description: |-
+        ServerService lists the servers Dockwell manages and streams their live
+         state, as each server's agent reports it.
+
+         WatchServers has no REST path: REST has no way to stream messages, so a
+         REST client polls ListServers or GetServer instead, and anything that wants
+         the stream opens it with Connect, gRPC or gRPC-Web. See
+         docs/adr/0015-rest-and-openapi-from-the-schema.md.
+    - name: SystemService
+      description: |-
+        SystemService describes the Dockwell install itself. It needs no sign-in, so
+         the CLI, agents and other tools can check what they are talking to first.
+    - name: TokenService
+      description: |-
+        TokenService manages API tokens: secrets for scripts, the CLI and
+         integrations, each acting for the person who made it, within a scope. See
+         docs/adr/0016-scoped-api-tokens.md.
+
+         Send a token in the Authorization header, as "Bearer dwt_…", with REST,
+         Connect, gRPC or gRPC-Web alike. A read-only token may call the methods
+         whose effect is EFFECT_READ; a read-write token may also call EFFECT_PLAN
+         and EFFECT_APPLY methods. No token may call an EFFECT_DESTRUCTIVE method,
+         AuthService, or this service: they need a signed-in session.

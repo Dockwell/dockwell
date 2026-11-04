@@ -27,9 +27,12 @@ const (
 	readHeaderTimeout = 10 * time.Second
 	idleTimeout       = 2 * time.Minute
 	maxHeaderBytes    = 64 << 10
-	maxMessageBytes   = 8 << 20
 	compressMinBytes  = 1 << 10
 )
+
+// MaxMessageBytes is the largest message a handler reads, whatever the
+// protocol.
+const MaxMessageBytes = 8 << 20
 
 // Shutdown timing. In-flight requests get StreamGrace to finish on their
 // own; after that, request contexts are cancelled so long-lived streams end,
@@ -145,7 +148,7 @@ func Listen(ctx context.Context, addr string) (net.Listener, error) {
 func HandlerOptions(logger *slog.Logger) []connect.HandlerOption {
 	return []connect.HandlerOption{
 		connect.WithInterceptors(logInterceptor{logger: logger}),
-		connect.WithReadMaxBytes(maxMessageBytes),
+		connect.WithReadMaxBytes(MaxMessageBytes),
 		connect.WithCompressMinBytes(compressMinBytes),
 		connect.WithRecover(recoverRPC(logger)),
 	}

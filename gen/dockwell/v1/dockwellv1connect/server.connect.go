@@ -53,7 +53,7 @@ type ServerServiceClient interface {
 	GetServer(context.Context, *connect.Request[v1.GetServerRequest]) (*connect.Response[v1.GetServerResponse], error)
 	// WatchServers streams every server once, with recent history, marks the
 	// end of that snapshot, and then streams each change within a second of
-	// the agent reporting it.
+	// the agent reporting it. It has no REST path, as streams have none.
 	WatchServers(context.Context, *connect.Request[v1.WatchServersRequest]) (*connect.ServerStreamForClient[v1.WatchServersResponse], error)
 }
 
@@ -121,7 +121,7 @@ type ServerServiceHandler interface {
 	GetServer(context.Context, *connect.Request[v1.GetServerRequest]) (*connect.Response[v1.GetServerResponse], error)
 	// WatchServers streams every server once, with recent history, marks the
 	// end of that snapshot, and then streams each change within a second of
-	// the agent reporting it.
+	// the agent reporting it. It has no REST path, as streams have none.
 	WatchServers(context.Context, *connect.Request[v1.WatchServersRequest], *connect.ServerStream[v1.WatchServersResponse]) error
 }
 

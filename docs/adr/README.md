@@ -18,6 +18,8 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0012](0012-apache-for-api-schema-and-clients.md) | Apache-2.0 for the API schema and its generated clients | Accepted |
 | [0013](0013-mirrors-for-releases-and-images.md) | Configurable mirrors for releases, images and the install script | Accepted |
 | [0014](0014-object-model-and-store.md) | The object model, and one store on SQLite and Postgres | Accepted |
+| [0015](0015-rest-and-openapi-from-the-schema.md) | REST paths and an OpenAPI document from the schema | Accepted |
+| [0016](0016-scoped-api-tokens.md) | Scoped API tokens | Accepted |
 
 Still open from the PRD: the config-as-code format (extended Compose is recommended; needed in phase 3), and the [open questions](../product/prd.md#risks-open-questions-and-decisions).
 
