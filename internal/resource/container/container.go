@@ -181,6 +181,9 @@ func checkOwnNames(c *resourcev1.Container) error {
 		}
 	}
 	for _, n := range c.GetNetworks() {
+		if n == docker.IngressNetwork {
+			return fmt.Errorf("the network %s is the ingress's own, and a container on it could take the address of a service that is stopped, and get its traffic. Join a network of its own, or send a domain to a service with a route", n)
+		}
 		if strings.HasPrefix(strings.ToLower(n), serviceForm) {
 			return fmt.Errorf("the network %s has the form of an environment's, %s<ID>_<name>, so a container on its own can't join it. Join a network of its own, or run it as a service", n, serviceForm)
 		}

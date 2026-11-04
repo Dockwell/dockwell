@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -18,9 +19,12 @@ import (
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/ingress"
+	"github.com/dockwell/dockwell/internal/ingress/caddy"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/network"
+	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 )
@@ -66,19 +70,27 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 // runAgent runs this server's agent with its identity and its drivers: on
 // its own, on a server that joined a control plane, or beside the control
 // plane, on the control server. Both builds run it the same way.
-func runAgent(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info) error {
-	drivers, collector := agentDrivers(ctx, stdio, logger, dir)
+//
+// panel is the panel on this server, when the control plane beside this agent
+// has a domain; nil on a server that joined.
+func runAgent(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel) error {
+	drivers, collector, routes := agentDrivers(ctx, stdio, logger, dir, panel)
 	return agent.Run(ctx, agent.Config{
-		Logger: logger, Dir: dir.Agent(), Identity: id, Build: build, Drivers: drivers, Collector: collector,
+		Logger: logger, Dir: dir.Agent(), Identity: id, Build: build, Drivers: drivers, Collector: collector, Domains: routes,
 	})
 }
 
+// ingressEvery is how often the agent puts the server's ingress as its routes
+// need it, which starts a stopped proxy within this long.
+const ingressEvery = time.Minute
+
 // agentDrivers are the drivers this server's agent runs: containers,
-// services, volumes and networks on the Docker Engine, at the socket
+// services, volumes, networks and routes on the Docker Engine, at the socket
 // DOCKER_HOST names, as the docker CLI finds it. The agent offers them
-// while Docker answers, and keeps pruning the volumes deleted 7 days ago
-// until ctx is done. The collector reads the same Docker's version.
-func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir) (*resource.Registry, *collect.Collector) {
+// while Docker answers, and keeps pruning the volumes deleted 7 days ago,
+// and its ingress as its routes need it, until ctx is done. The collector
+// reads the same Docker's version.
+func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel) (*resource.Registry, *collect.Collector, *ingress.Manager) {
 	collector := collect.New()
 	socket, err := docker.SocketFrom(stdio.Getenv)
 	client := docker.Unusable(err)
@@ -90,11 +102,25 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	// What no container may mount, as this server has it: its data
 	// directory, Docker's, and where symlinks lead.
 	paths := &container.Paths{Client: client, DataDir: dir.Root}
-	containers := container.Driver{Runtime: &container.Docker{Client: client, Deleted: kept, Logger: logger, Paths: paths}}
+	routes := &ingress.Manager{
+		Client: client, Dir: dir.Ingress(), Panel: panel, Logger: logger,
+		Proxy: &caddy.Caddy{
+			Dir:           dir.Ingress(),
+			Runtime:       &caddy.Container{Client: client, Dir: dir.Ingress(), Mirror: stdio.Getenv(envIngressImage)},
+			ACMEDirectory: stdio.Getenv(envACMEDirectory), ACMERoots: stdio.Getenv(envACMERoots),
+		},
+	}
+	containers := container.Driver{Runtime: &container.Docker{Client: client, Deleted: kept, Logger: logger, Paths: paths, Ingress: routes}}
 	volumes := &volume.Docker{Client: client, Kept: kept, Paths: paths}
 	go volumes.KeepPruned(ctx, logger)
+	go routes.KeepReconciled(ctx, ingressEvery)
+	go routes.Watch(ctx)
+	var reserved string
+	if panel != nil {
+		reserved = panel.Domain
+	}
 	return resource.NewRegistry(&containers, &service.Driver{Containers: containers},
-		&volume.Driver{Runtime: volumes}, &network.Driver{Client: client}), collector
+		&volume.Driver{Runtime: volumes}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved}), collector, routes
 }
 
 func exists(path string) bool {

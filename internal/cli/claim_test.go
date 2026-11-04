@@ -171,10 +171,19 @@ func TestRunSaysWhenThePanelGainsADomain(t *testing.T) {
 		"--domain", "panel.example.com", "--https-listen", "127.0.0.1:0", "--http-listen", "127.0.0.1:0",
 		"--acme-directory-url", "https://acme.invalid/directory",
 	}
-	out, _ = startRunWithOutput(t, dir, "The panel now answers at https://panel.example.com", domain...)
+	out, stop = startRunWithOutput(t, dir, "The panel now answers at https://panel.example.com", domain...)
 	if !strings.Contains(out.String(), "passkeys made on localhost don't work at panel.example.com") ||
 		!strings.Contains(out.String(), "dockwell recover") {
 		t.Errorf("the domain notice doesn't explain passkeys:\n%s", out.String())
+	}
+	stop()
+
+	// A proxy down takes the domain with it, so the link works through a
+	// tunnel too (ADR 0024).
+	r := run(t, map[string]string{}, "recover", "--data-dir", dir)
+	if r.code != exitOK || !strings.Contains(r.out, "https://panel.example.com:") ||
+		!strings.Contains(r.out, "doesn't answer") || !strings.Contains(r.out, "ssh -L") || !strings.Contains(r.out, "http://localhost:") {
+		t.Errorf("dockwell recover with a domain = %d:\n%s%s", r.code, r.out, r.err)
 	}
 }
 

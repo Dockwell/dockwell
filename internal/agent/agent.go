@@ -23,6 +23,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/buildinfo"
@@ -54,6 +55,18 @@ type Config struct {
 	// KindsEvery is how often the agent checks which kinds it can run.
 	// Zero means DefaultKindsEvery.
 	KindsEvery time.Duration
+	// Domains says where this server's routes' certificates stand, which the
+	// agent tells the control plane as its stream opens and whenever they
+	// change. Nil says nothing.
+	Domains DomainReporter
+}
+
+// DomainReporter says where a server's routes' domains stand (ADR 0024).
+type DomainReporter interface {
+	// Domains is each domain, sorted.
+	Domains() []*dockwellv1.DomainStatus
+	// DomainsChanged signals when Domains has changed.
+	DomainsChanged() <-chan struct{}
 }
 
 // Desired keeps what the control plane told this agent to apply, so the
@@ -388,10 +401,25 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if err := sendStats(); err != nil {
 		return err
 	}
+	var domainsChanged <-chan struct{}
+	sendDomains := func() error { return nil }
+	if cfg.Domains != nil {
+		domainsChanged = cfg.Domains.DomainsChanged()
+		sendDomains = func() error {
+			return send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Domains{Domains: &agentv1.Domains{Domains: cfg.Domains.Domains()}}})
+		}
+		if err := sendDomains(); err != nil {
+			return err
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-domainsChanged:
+			if err := sendDomains(); err != nil {
+				return err
+			}
 		case <-recheck.C:
 			checks.start(ctx)
 		case now := <-checks.done:

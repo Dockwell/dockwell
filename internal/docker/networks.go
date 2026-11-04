@@ -15,10 +15,23 @@ type Network struct {
 	Internal bool              `json:"Internal"`
 	Options  map[string]string `json:"Options"`
 	Labels   map[string]string `json:"Labels"`
+	// IPAM is how it gives out addresses.
+	IPAM IPAM `json:"IPAM"`
 	// Containers on the network, by ID.
 	Containers map[string]struct {
 		Name string `json:"Name"`
 	} `json:"Containers"`
+}
+
+// IPAM is how a network gives out addresses.
+type IPAM struct {
+	Config []IPAMConfig `json:"Config,omitempty"`
+}
+
+// IPAMConfig is a subnet of a network, as the engine takes and reports it.
+type IPAMConfig struct {
+	Subnet  string `json:"Subnet,omitempty"`
+	Gateway string `json:"Gateway,omitempty"`
 }
 
 // NetworkCreate is the body of a network create.
@@ -28,6 +41,9 @@ type NetworkCreate struct {
 	Internal bool              `json:"Internal,omitempty"`
 	Options  map[string]string `json:"Options,omitempty"`
 	Labels   map[string]string `json:"Labels,omitempty"`
+	// IPAM configures its subnet. Unset, the engine picks one that is free
+	// on the server.
+	IPAM *IPAM `json:"IPAM,omitempty"`
 	// CheckDuplicate refuses a name in use, which engines before API 1.44
 	// would otherwise allow.
 	CheckDuplicate bool `json:"CheckDuplicate,omitempty"`

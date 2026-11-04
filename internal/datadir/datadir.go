@@ -10,6 +10,9 @@
 //	<root>/agent/server.key   the agent's private key (0600)
 //	<root>/agent/server.crt   the agent's certificate
 //	<root>/agent/ca.crt       the control plane's CA
+//	<root>/ingress/           the proxy's data, certificates and ACME account
+//	                          keys among them, beside agent/ so that moving a
+//	                          server to another control plane keeps them
 //
 // The root is /var/lib/dockwell for the system service, and a per-user
 // state directory otherwise, so development needs no root.
@@ -50,6 +53,9 @@ func (d Dir) Control() string { return filepath.Join(d.Root, "control") }
 
 // Agent is the agent's directory.
 func (d Dir) Agent() string { return filepath.Join(d.Root, "agent") }
+
+// Ingress is what a server's ingress keeps, while it has routes and after.
+func (d Dir) Ingress() string { return filepath.Join(d.Root, "ingress") }
 
 // SealKey is the key-encryption key. It is there once the install is.
 func (d Dir) SealKey() string { return filepath.Join(d.Control(), "key") }

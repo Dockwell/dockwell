@@ -13,13 +13,16 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
+	"google.golang.org/protobuf/proto"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/buildinfo"
@@ -30,6 +33,8 @@ import (
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/https"
+	"github.com/dockwell/dockwell/internal/ingress"
+	"github.com/dockwell/dockwell/internal/ingress/caddy"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -97,7 +102,7 @@ func runCommand(cmd *cobra.Command, stdio IO, g *globalFlags) runRole {
 			return err
 		}
 		if role == roleAgent {
-			return runAgent(ctx, stdio, logger, dir, id, build)
+			return runAgent(ctx, stdio, logger, dir, id, build, nil)
 		}
 		f.listenFromEnv = !cmd.Flags().Changed("listen") && stdio.Getenv(envListen) != ""
 		if f.database, err = g.databaseOf(stdio, dir); err != nil {
@@ -130,9 +135,15 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 	}
 	defer db.Close()
 
+	if f.domain != "" {
+		if err := refuseClaimedDomain(ctx, db, f.domain); err != nil {
+			return err
+		}
+	}
+
 	var ls control.Listeners
 	closeAll := func() {
-		for _, ln := range []net.Listener{ls.API, ls.HTTPS, ls.HTTP, ls.Agents} {
+		for _, ln := range []net.Listener{ls.API, ls.HTTPS, ls.HTTP, ls.Agents, ls.Ingress} {
 			if ln != nil {
 				_ = ln.Close()
 			}
@@ -149,7 +160,12 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		closeAll()
 		return withListenHint(err, "--agent-listen")
 	}
-	if f.domain != "" {
+	// With routes on this server, its proxy holds the public ports and sends
+	// the panel's domain here over a socket only it reaches, so the panel
+	// leaves them alone, whether the proxy is up or not (ADR 0024).
+	handsOver := f.domain != "" && onPublicPorts(f)
+	proxied := handsOver && ingress.Active(dir.Ingress())
+	if f.domain != "" && !proxied {
 		if ls.HTTPS, err = serve.Listen(ctx, f.httpsListen); err != nil {
 			closeAll()
 			return withListenHint(err, "--https-listen")
@@ -157,6 +173,12 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		if ls.HTTP, err = serve.Listen(ctx, f.httpListen); err != nil {
 			closeAll()
 			return withListenHint(err, "--http-listen")
+		}
+	}
+	if handsOver {
+		if ls.Ingress, err = listenForIngress(ctx, dir); err != nil {
+			closeAll()
+			return err
 		}
 	}
 
@@ -201,8 +223,8 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		return err
 	}
 	var public https.Source
-	if ls.HTTPS != nil {
-		if public, err = acmeSource(f, dir, ls.HTTPS.Addr()); err != nil {
+	if f.domain != "" {
+		if public, err = acmeSource(f, dir, httpsAddrOf(ls.HTTPS, f.httpsListen)); err != nil {
 			closeAll()
 			return err
 		}
@@ -211,10 +233,16 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 	addr := panelAddress{Domain: f.domain, Host: ipOf(ls.API.Addr()), Port: portOf(ls.API.Addr()), PublicHost: hostOf(agentURL)}
 	if ls.HTTPS != nil {
 		addr.HTTPSPort = portOf(ls.HTTPS.Addr())
+	} else if proxied {
+		addr.HTTPSPort = "443"
 	}
 	if err := announce(ctx, stdio, logger, db, people, addr); err != nil {
 		closeAll()
 		return err
+	}
+	if proxied {
+		logger.Info("this server's routes hold ports 80 and 443, and Caddy serves the panel's domain. If it's down, the panel still answers through an SSH tunnel",
+			slog.String("domain", f.domain), slog.String("tunnel", "ssh -L "+addr.Port+":"+addr.tunnelHost()+":"+addr.Port+" "+sshTarget(addr, stdio.Getenv)))
 	}
 
 	// The revision engine reaches agents over their streams. A change left
@@ -272,12 +300,89 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		cancel()
 		stopAgent()
 	})
+	var panel *ingress.Panel
+	if f.domain != "" {
+		panel = &ingress.Panel{Domain: f.domain}
+		if handsOver {
+			ports := srv.PublicPorts(f.httpsListen, f.httpListen)
+			panel.Release, panel.Retake = ports.Release, ports.Retake
+		}
+	}
 	wg.Go(func() {
-		agentErr = runAgent(agentCtx, stdio, logger, dir, own, build)
+		agentErr = runAgent(agentCtx, stdio, logger, dir, own, build, panel)
 		cancel()
 	})
 	wg.Wait()
 	return errors.Join(controlErr, agentErr)
+}
+
+// onPublicPorts reports a panel on ports 80 or 443, which only one process can
+// hold, so that a proxy on this server takes them over. A panel on others, as
+// with --https-listen :8443, stays as it is beside one.
+func onPublicPorts(f runFlags) bool {
+	public := func(addr string, names ...string) bool {
+		_, port, err := net.SplitHostPort(addr)
+		return err == nil && slices.Contains(names, port)
+	}
+	return public(f.httpsListen, "443", "https") || public(f.httpListen, "80", "http")
+}
+
+// httpsAddrOf is where the panel's HTTPS is for redirects: its listener, or
+// the address it would listen on, while its proxy holds the port.
+func httpsAddrOf(ln net.Listener, listen string) net.Addr {
+	if ln != nil {
+		return ln.Addr()
+	}
+	addr, err := net.ResolveTCPAddr("tcp", listen)
+	if err != nil {
+		return &net.TCPAddr{Port: 443}
+	}
+	return addr
+}
+
+// listenForIngress listens on the socket the proxy sends the panel's domain
+// to. Only root and the proxy's user reach it, which is why what arrives on it
+// counts as HTTPS: no header decides that (ADR 0024).
+func listenForIngress(ctx context.Context, dir datadir.Dir) (net.Listener, error) {
+	if err := caddy.EnsureDirs(dir.Ingress()); err != nil {
+		return nil, err
+	}
+	path := caddy.PanelSocket(dir.Ingress())
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("can't replace the panel's socket at %s: %w", path, err)
+	}
+	var lc net.ListenConfig
+	ln, err := lc.Listen(ctx, "unix", path)
+	if err != nil {
+		return nil, fmt.Errorf("can't listen on %s for what the ingress sends the panel: %w", path, err)
+	}
+	if err := caddy.OwnSocket(path); err != nil {
+		_ = ln.Close()
+		return nil, err
+	}
+	return ln, nil
+}
+
+// refuseClaimedDomain refuses to give the panel a domain a route serves, or
+// one a route is under: no route can claim the panel's, and none that does
+// already should find itself under the panel's passkeys (ADR 0024).
+func refuseClaimedDomain(ctx context.Context, db *store.DB, domain string) error {
+	return db.View(ctx, func(tx *store.Tx) error {
+		routes, err := tx.ListKind(ctx, string(route.Kind))
+		if err != nil {
+			return err
+		}
+		for _, r := range routes {
+			spec := &resourcev1.Route{}
+			if err := proto.Unmarshal(r.Spec, spec); err != nil {
+				return fmt.Errorf("can't read the route %s: %w", r.Name, err)
+			}
+			if route.UnderOrIs(spec.GetDomain(), domain) {
+				return usageError{fmt.Errorf("the route %s serves %s, so the panel can't take %s: a passkey for that name works under it too. Delete the route first, or give the panel another domain", r.Name, spec.GetDomain(), domain)}
+			}
+		}
+		return nil
+	})
 }
 
 // controlKinds are the kinds the control plane knows: it checks their specs

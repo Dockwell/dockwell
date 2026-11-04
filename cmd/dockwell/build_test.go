@@ -43,6 +43,8 @@ var agentPackages = []string{
 	"internal/docker",   // the Docker Engine's API, for the Docker driver (ADR 0021)
 	"internal/human",
 	"internal/id",
+	"internal/ingress", // what runs a server's routes on a proxy (ADR 0024)
+	"internal/ingress/caddy",
 	"internal/logging",
 	"internal/pki",
 	"internal/resource",

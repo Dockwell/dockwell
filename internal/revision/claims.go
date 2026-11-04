@@ -158,15 +158,26 @@ func (e *Engine) takeovers(ctx context.Context, items []item) (map[resource.Ref]
 				return err
 			}
 			held := map[string][]string{} // group → the scopes that held it
+			add := func(scope string, spec proto.Message) {
+				for _, c := range e.kinds.Claims(kind, spec) {
+					if !slices.Contains(held[c.Group], scope) {
+						held[c.Group] = append(held[c.Group], scope)
+					}
+				}
+			}
 			for _, p := range past {
 				spec, err := e.kinds.Decode(kind, p.Spec)
 				if err != nil {
 					return err
 				}
-				for _, c := range e.kinds.Claims(kind, spec) {
-					if !slices.Contains(held[c.Group], p.Scope) {
-						held[c.Group] = append(held[c.Group], p.Scope)
-					}
+				add(p.Scope, spec)
+			}
+			// What the change itself takes from a resource counts as much as
+			// what a change did a day ago: a move in one change is a takeover
+			// too.
+			for i := range items {
+				if items[i].ref.Kind == kind {
+					add(items[i].ref.Scope, items[i].current)
 				}
 			}
 			for i := range items {

@@ -418,6 +418,14 @@ func newRecoverCmd(stdio IO, g *globalFlags) *cobra.Command {
 			w := cmd.OutOrStdout()
 			fmt.Fprintf(w, "\nThis link signs you in as %s once, within %s.\n\n", user.Email, human.Duration(auth.SignInLinkTTL))
 			printLink(w, addr, "/recover#"+link.Token, stdio.Getenv)
+			if addr.Domain != "" {
+				// The tunnel needs nothing the domain does: a proxy, Docker or
+				// the public ports (ADR 0024).
+				tunnel := addr
+				tunnel.Domain, tunnel.HTTPSPort = "", ""
+				fmt.Fprintf(w, "If %s doesn't answer, as when this server's ingress is down, the same link works through an SSH tunnel:\n\n", addr.Domain)
+				printLink(w, tunnel, "/recover#"+link.Token, stdio.Getenv)
+			}
 			fmt.Fprintf(w, "Then add a passkey for %s under Profile and security.\n\n", orPlaceholder(addr.Domain, "localhost"))
 			return nil
 		},

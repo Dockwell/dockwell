@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -55,6 +56,13 @@ type Engine struct {
 	// DockerRoot is where /info says the engine keeps its data:
 	// /var/lib/docker unless set.
 	DockerRoot string
+	// Rootless makes /info say the engine runs as an ordinary user.
+	Rootless bool
+	// PickSubnet, when set, is the subnet a network with none configured gets,
+	// as the engine would pick one that is free on the server.
+	PickSubnet string
+	// nextSubnet is the next subnet a network with none configured gets.
+	nextSubnet int
 
 	srv *httptest.Server
 
@@ -105,6 +113,7 @@ func New(t testing.TB) *Engine {
 		volumes:    map[string]*docker.Volume{},
 		networks: map[string]*docker.Network{
 			"bridge": {ID: newID(), Name: "bridge", Driver: "bridge", Options: map[string]string{}, Labels: map[string]string{}},
+			"host":   {ID: newID(), Name: "host", Driver: "host", Options: map[string]string{}, Labels: map[string]string{}},
 		},
 	}
 	l, err := (&net.ListenConfig{}).Listen(context.Background(), "unix", e.Socket)
@@ -188,7 +197,11 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		if root == "" {
 			root = "/var/lib/docker"
 		}
-		writeJSON(w, http.StatusOK, map[string]string{"DockerRootDir": root})
+		var options []string
+		if e.Rootless {
+			options = []string{"name=rootless"}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options})
 	case parts[0] == "containers":
 		e.serveContainers(w, r, parts[1:])
 	case parts[0] == "images":
@@ -357,6 +370,10 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			fail(w, http.StatusInternalServerError, "%v", err)
 			return
 		}
+		if err := e.addressesFree(c); err != nil {
+			fail(w, http.StatusInternalServerError, "%v", err)
+			return
+		}
 		c.State = docker.State{Status: "running", Running: true}
 		if c.img.Exits {
 			c.State = docker.State{Status: "exited", ExitCode: 1}
@@ -471,11 +488,48 @@ func (e *Engine) list(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if c.matches(f) {
-			out = append(out, docker.ContainerSummary{ID: c.ID, Names: []string{c.Name}, Labels: c.Config.Labels, Created: c.created})
+			out = append(out, docker.ContainerSummary{ID: c.ID, Names: []string{c.Name}, Labels: c.Config.Labels, Created: c.created, Ports: summaryPorts(c)})
 		}
 	}
 	slices.SortFunc(out, func(a, b docker.ContainerSummary) int { return int(b.Created - a.Created) })
 	writeJSON(w, http.StatusOK, out)
+}
+
+// summaryPorts are the ports a running container publishes, as a list has
+// them: a stopped one has none.
+func summaryPorts(c *container) []docker.SummaryPort {
+	if !c.State.Running {
+		return nil
+	}
+	var out []docker.SummaryPort
+	for port, bs := range c.HostConfig.PortBindings {
+		for _, b := range bs {
+			n, err := strconv.Atoi(b.HostPort)
+			if err == nil && n > 0 && n < 65536 {
+				out = append(out, docker.SummaryPort{PublicPort: uint16(n), Type: proto(port)})
+			}
+		}
+	}
+	return out
+}
+
+// addressesFree fails a container whose static address a running container
+// has on the network, as the engine fails starting it.
+func (e *Engine) addressesFree(c *container) error {
+	for name, ep := range c.NetworkSettings.Networks {
+		if ep == nil || ep.IPAMConfig == nil || ep.IPAMConfig.IPv4Address == "" {
+			continue
+		}
+		for _, o := range e.containers {
+			if o == c || !o.State.Running {
+				continue
+			}
+			if oe := o.NetworkSettings.Networks[name]; oe != nil && oe.IPAMConfig != nil && oe.IPAMConfig.IPv4Address == ep.IPAMConfig.IPv4Address {
+				return fmt.Errorf("address already in use: %s on %s, by %s", ep.IPAMConfig.IPv4Address, name, o.Name)
+			}
+		}
+	}
+	return nil
 }
 
 // portsFree fails a container whose ports another running container, or
@@ -833,6 +887,23 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 			return
 		}
 		n := &docker.Network{ID: newID(), Name: req.Name, Driver: req.Driver, Internal: req.Internal, Options: maps.Clone(req.Options), Labels: maps.Clone(req.Labels)}
+		if req.IPAM != nil {
+			n.IPAM = *req.IPAM
+			for i := range n.IPAM.Config {
+				if prefix, err := netip.ParsePrefix(n.IPAM.Config[i].Subnet); err == nil && n.IPAM.Config[i].Gateway == "" {
+					n.IPAM.Config[i].Gateway = prefix.Addr().Next().String()
+				}
+			}
+		} else {
+			// What the engine picks: free on this server, and different each time.
+			e.nextSubnet++
+			subnet := cmp.Or(e.PickSubnet, fmt.Sprintf("172.%d.0.0/16", 17+e.nextSubnet))
+			gateway := ""
+			if prefix, err := netip.ParsePrefix(subnet); err == nil {
+				gateway = prefix.Addr().Next().String()
+			}
+			n.IPAM.Config = []docker.IPAMConfig{{Subnet: subnet, Gateway: gateway}}
+		}
 		if n.Driver == "" {
 			n.Driver = "bridge"
 		}
@@ -886,13 +957,71 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 			return
 		}
 		s := req.EndpointConfig
+		if a := s.IPAMConfig; a != nil && a.IPv4Address != "" {
+			if len(n.IPAM.Config) == 0 || n.IPAM.Config[0].Subnet == "" {
+				fail(w, http.StatusForbidden, "user specified IP address is supported only when connecting to networks with user configured subnets")
+				return
+			}
+			if prefix, err := netip.ParsePrefix(n.IPAM.Config[0].Subnet); err == nil {
+				if addr, err := netip.ParseAddr(a.IPv4Address); err != nil || !prefix.Contains(addr) {
+					fail(w, http.StatusForbidden, "no configured subnet contains IP address %s", a.IPv4Address)
+					return
+				}
+			}
+		}
+		if c.NetworkSettings.Networks == nil {
+			c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{}
+		}
 		c.NetworkSettings.Networks[n.Name] = &s
 		if c.State.Running {
+			if err := e.addressesFree(c); err != nil {
+				delete(c.NetworkSettings.Networks, n.Name)
+				fail(w, http.StatusForbidden, "%v", err)
+				return
+			}
 			e.attach(c)
 		}
 		w.WriteHeader(http.StatusOK)
+	case len(parts) == 2 && parts[1] == "disconnect" && r.Method == http.MethodPost:
+		n := e.network(w, parts[0])
+		if n == nil {
+			return
+		}
+		var req struct {
+			Container string
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			fail(w, http.StatusBadRequest, "%v", err)
+			return
+		}
+		c, err := e.findContainer(req.Container)
+		switch {
+		case err != nil:
+			fail(w, http.StatusBadRequest, "%v", err)
+			return
+		case c == nil:
+			fail(w, http.StatusNotFound, "No such container: %s", req.Container)
+			return
+		}
+		delete(c.NetworkSettings.Networks, n.Name)
+		delete(n.Containers, c.ID)
+		w.WriteHeader(http.StatusOK)
 	default:
 		fail(w, http.StatusNotFound, "page not found")
+	}
+}
+
+// SetExits makes a container of an image stop right after it starts, or not,
+// for the pulls and starts that come after.
+func (e *Engine) SetExits(ref string, exits bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if i, ok := e.Registry[ref]; ok {
+		i.Exits = exits
+		e.Registry[ref] = i
+	}
+	if i := e.image(ref); i != nil {
+		i.Exits = exits
 	}
 }
 

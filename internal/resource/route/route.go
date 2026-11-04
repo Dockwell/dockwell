@@ -326,6 +326,9 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 
 // Verify confirms the ingress is up and has the route.
 func (d *Driver) Verify(ctx context.Context, ref resource.Ref, _ proto.Message) error {
+	if d.Ingress == nil {
+		return errors.New("this control plane has no ingress of its own to check")
+	}
 	return d.Ingress.Verify(ctx, ref)
 }
 

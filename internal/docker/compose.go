@@ -43,3 +43,8 @@ func ContainerName(project, service string) string { return project + "-" + serv
 // ScopedName is what Compose names a project's volume or network, such as
 // "env_01kat…_data".
 func ScopedName(project, name string) string { return project + "_" + name }
+
+// IngressNetwork is the network a server's ingress reaches services on: a
+// bridge of its own, with no way out and no way between its containers, on
+// which each has a static address (ADR 0024). No spec may name it.
+const IngressNetwork = "dockwell_ingress"

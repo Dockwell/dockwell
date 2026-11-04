@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -204,6 +205,14 @@ func (c *Client) Ping(ctx context.Context) error {
 type Info struct {
 	// DockerRootDir is where it keeps its data, such as /var/lib/docker.
 	DockerRootDir string
+	// SecurityOptions lists how it runs, such as name=rootless.
+	SecurityOptions []string
+}
+
+// Rootless reports an engine that runs as an ordinary user, whose host
+// network isn't the server's.
+func (i *Info) Rootless() bool {
+	return slices.Contains(i.SecurityOptions, "name=rootless")
 }
 
 // Info asks the engine about itself.

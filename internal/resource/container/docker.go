@@ -23,6 +23,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -58,6 +59,20 @@ type Docker struct {
 	// Paths finds what no container may mount on this server, and follows
 	// symlinks there. Nil checks only what Validate does.
 	Paths *Paths
+	// Ingress is this server's ingress, which a service with routes joins,
+	// and which holds the server's public ports while it has routes. Nil
+	// means none.
+	Ingress Ingress
+}
+
+// Ingress is what the container driver needs of a server's ingress
+// (internal/ingress).
+type Ingress interface {
+	// Endpoint says how a new container of a service's first instance joins
+	// the ingress network, and whether it does.
+	Endpoint(ctx context.Context, instance ingress.Instance) (network string, ep docker.EndpointSettings, ok bool, err error)
+	// PublicPort reports a port the ingress holds while it has routes.
+	PublicPort(ctx context.Context, port uint32, udp bool) (bool, error)
 }
 
 // Deleted is the list of volumes the server keeps for 7 days once a plan
@@ -507,7 +522,9 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		}
 		out.Mounts = append(out.Mounts, m)
 	}
-	networks := slices.Sorted(maps.Keys(c.NetworkSettings.Networks))
+	// The ingress network is the ingress's to give and take, and no spec names
+	// it, so being on it isn't drift (ADR 0024).
+	networks := slices.DeleteFunc(slices.Sorted(maps.Keys(c.NetworkSettings.Networks)), func(n string) bool { return n == docker.IngressNetwork })
 	if !slices.Equal(networks, []string{"bridge"}) {
 		for _, n := range networks {
 			out.Networks = append(out.Networks, unscope(n))
@@ -729,6 +746,9 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 			return discard(fmt.Errorf("can't put %s on the network %s: %w", t.Name, n, err))
 		}
 	}
+	if err := d.joinIngress(ctx, t, id); err != nil {
+		return discard(err)
+	}
 	if old != nil {
 		resource.Progress(ctx, "stopping the old container")
 		if err := d.Client.StopContainer(ctx, old.ID, StopTimeout); err != nil && !docker.IsNotFound(err) {
@@ -752,6 +772,23 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 	resource.Progress(ctx, "starting")
 	if err := d.Client.StartContainer(ctx, id); err != nil {
 		return fmt.Errorf("docker can't start %s: %w", t.Name, err)
+	}
+	return nil
+}
+
+// joinIngress puts a service's new container on the ingress network, at its
+// instance's address, before it starts, so a replaced container serves its
+// routes as the old one did. A service with no routes doesn't join.
+func (d *Docker) joinIngress(ctx context.Context, t Target, id string) error {
+	if d.Ingress == nil || !t.Scoped {
+		return nil
+	}
+	network, ep, ok, err := d.Ingress.Endpoint(ctx, ingress.Instance{Project: t.Project, Service: t.Service, Number: 1})
+	if err != nil || !ok {
+		return err
+	}
+	if err := d.Client.ConnectEndpoint(ctx, network, id, ep); err != nil {
+		return fmt.Errorf("can't put %s on the network %s: %w", t.Name, network, err)
 	}
 	return nil
 }

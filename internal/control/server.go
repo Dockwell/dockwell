@@ -124,6 +124,7 @@ type Server struct {
 	public    https.Source
 	changes   *revision.Engine
 	stepGrace time.Duration
+	ports     *PublicPorts
 }
 
 // New builds a Server from cfg.
@@ -149,6 +150,7 @@ func New(cfg Config) (*Server, error) {
 		return nil, err
 	}
 	s := &Server{logger: cfg.Logger, api: api, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
+	s.ports = &PublicPorts{server: s, ready: make(chan struct{})}
 	if s.stepGrace <= 0 {
 		s.stepGrace = DefaultStepGrace
 	}
@@ -246,6 +248,144 @@ func (s *Server) ServeAgents(ctx context.Context, ln net.Listener) error {
 	return serve.Serve(ctx, ln, s.agents, serve.Options{Name: "agent listener", Logger: s.logger, TLS: s.agentTLS})
 }
 
+// PublicPorts returns what serves the panel on the public ports, for this
+// server's ingress to take them from and give them back to: the addresses are
+// where it listens again.
+func (s *Server) PublicPorts(httpsAddr, httpAddr string) *PublicPorts {
+	s.ports.httpsAddr, s.ports.httpAddr = httpsAddr, httpAddr
+	return s.ports
+}
+
+// PublicPorts serves the panel over HTTPS and redirects plain HTTP, until this
+// server's proxy takes ports 80 and 443, and again once it gives them back.
+// Only one process can hold them (ADR 0024).
+type PublicPorts struct {
+	server              *Server
+	httpsAddr, httpAddr string
+	ready               chan struct{}
+	readyOnce           sync.Once
+
+	mu     sync.Mutex
+	base   context.Context
+	failed func(error)
+	stop   context.CancelFunc
+	done   *sync.WaitGroup
+	// ended says the server has stopped, so nothing starts from now on, and
+	// every is all that was started, for that stop to wait for.
+	ended bool
+	every sync.WaitGroup
+}
+
+// begin says the listeners may start, under base, and fail through failed.
+func (p *PublicPorts) begin(base context.Context, failed func(error)) {
+	p.mu.Lock()
+	p.base, p.failed = base, failed
+	p.mu.Unlock()
+	p.readyOnce.Do(func() { close(p.ready) })
+}
+
+// end stops what serves, and returns once it has, for the server to stop.
+func (p *PublicPorts) end() {
+	p.mu.Lock()
+	p.ended = true
+	if p.stop != nil {
+		p.stop()
+	}
+	p.mu.Unlock()
+	p.every.Wait()
+}
+
+// serve serves the panel on the two listeners.
+func (p *PublicPorts) serve(httpsLn, httpLn net.Listener) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.ended {
+		_ = httpsLn.Close()
+		_ = httpLn.Close()
+		return
+	}
+	ctx, stop := context.WithCancel(p.base)
+	done := &sync.WaitGroup{}
+	p.stop, p.done = stop, done
+	s := p.server
+	listeners := []struct {
+		ln   net.Listener
+		h    http.Handler
+		opts serve.Options
+	}{
+		{httpsLn, s.api, serve.Options{Name: "panel over HTTPS", Logger: s.logger, TLS: s.public.TLSConfig()}},
+		{httpLn, s.public.HTTPHandler(), serve.Options{Name: "HTTP redirect", Logger: s.logger}},
+	}
+	for _, l := range listeners {
+		if l.ln == nil {
+			continue
+		}
+		done.Add(1)
+		p.every.Add(1)
+		go func() {
+			defer p.every.Done()
+			defer done.Done()
+			if err := serve.Serve(ctx, l.ln, l.h, l.opts); err != nil {
+				p.failed(err)
+			}
+		}()
+	}
+}
+
+// Release stops serving on the public ports, and returns once they are free.
+func (p *PublicPorts) Release(ctx context.Context) error {
+	select {
+	case <-p.ready:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	p.mu.Lock()
+	stop, done := p.stop, p.done
+	p.stop, p.done = nil, nil
+	p.mu.Unlock()
+	if stop == nil {
+		return nil
+	}
+	stop()
+	stopped := make(chan struct{})
+	go func() {
+		done.Wait()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Retake takes the public ports again, and serves on them.
+func (p *PublicPorts) Retake(ctx context.Context) error {
+	select {
+	case <-p.ready:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	p.mu.Lock()
+	serving := p.stop != nil
+	p.mu.Unlock()
+	if serving {
+		return nil
+	}
+	httpsLn, err := serve.Listen(ctx, p.httpsAddr)
+	if err != nil {
+		return err
+	}
+	httpLn, err := serve.Listen(ctx, p.httpAddr)
+	if err != nil {
+		_ = httpsLn.Close()
+		return err
+	}
+	p.serve(httpsLn, httpLn)
+	return nil
+}
+
 // Listeners are where a Server listens. API is required; the others are
 // optional.
 type Listeners struct {
@@ -258,6 +398,11 @@ type Listeners struct {
 	HTTP net.Listener
 	// Agents is the agent listener. It needs Config.Identity.
 	Agents net.Listener
+	// Ingress serves the panel's domain to this server's proxy, while the
+	// proxy holds the public ports. It is a unix socket that only the proxy
+	// and root reach, which is all that makes what arrives on it HTTPS (ADR
+	// 0024). It needs Config.Public.
+	Ingress net.Listener
 }
 
 // Run serves on every listener in ls until ctx is done or one of them
@@ -269,8 +414,8 @@ type Listeners struct {
 // what remains of their changes for the next start; then the agent
 // listener, whose streams those steps need.
 func (s *Server) Run(ctx context.Context, ls Listeners) error {
-	if (ls.HTTPS != nil || ls.HTTP != nil) && s.public == nil {
-		return errors.New("control: the HTTPS and HTTP listeners need Config.Public")
+	if (ls.HTTPS != nil || ls.HTTP != nil || ls.Ingress != nil) && s.public == nil {
+		return errors.New("control: the HTTPS, HTTP and ingress listeners need Config.Public")
 	}
 	apiCtx, stopAPI := context.WithCancel(ctx)
 	defer stopAPI()
@@ -294,15 +439,17 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 		})
 	}
 	run(func() error { return s.Serve(apiCtx, ls.API) })
-	if ls.HTTPS != nil {
+	if ls.Ingress != nil {
 		run(func() error {
-			return serve.Serve(apiCtx, ls.HTTPS, s.api, serve.Options{Name: "panel over HTTPS", Logger: s.logger, TLS: s.public.TLSConfig()})
+			return serve.Serve(apiCtx, ls.Ingress, authapi.ViaIngress(s.api), serve.Options{Name: "panel behind the ingress", Logger: s.logger})
 		})
 	}
-	if ls.HTTP != nil {
-		run(func() error {
-			return serve.Serve(apiCtx, ls.HTTP, s.public.HTTPHandler(), serve.Options{Name: "HTTP redirect", Logger: s.logger})
-		})
+	s.ports.begin(apiCtx, func(err error) {
+		failed(err)
+		stopAPI()
+	})
+	if ls.HTTPS != nil {
+		s.ports.serve(ls.HTTPS, ls.HTTP)
 	}
 	if ls.Agents != nil {
 		agents.Go(func() {
@@ -311,6 +458,7 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 		})
 	}
 	api.Wait()
+	s.ports.end()
 	if s.changes != nil {
 		grace, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.stepGrace)
 		if err := s.changes.Stop(grace); err != nil {
