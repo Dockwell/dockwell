@@ -4,10 +4,15 @@ package agentapi_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -23,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/logging"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/serve"
@@ -38,6 +44,12 @@ type stack struct {
 // startStack runs the agent listener with short timers on a loopback port.
 func startStack(t *testing.T, silence time.Duration) *stack {
 	t.Helper()
+	return startStackLogging(t, silence, slog.New(slog.DiscardHandler))
+}
+
+// startStackLogging is startStack with the control plane logging to logger.
+func startStackLogging(t *testing.T, silence time.Duration, logger *slog.Logger) *stack {
+	t.Helper()
 	dir := t.TempDir()
 	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
 	if err != nil {
@@ -48,7 +60,6 @@ func startStack(t *testing.T, silence time.Duration) *stack {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	logger := slog.New(slog.DiscardHandler)
 	auth, err := identity.Bootstrap(t.Context(), db, key, logger)
 	if err != nil {
 		t.Fatal(err)
@@ -146,6 +157,107 @@ func TestAgentStreamsToTheFleet(t *testing.T) {
 	waitFor(t, s.hub, id.ServerID, "the stream closes", func(srv *dockwellv1.Server) bool {
 		return srv.GetConnection() == dockwellv1.Connection_CONNECTION_UNREACHABLE
 	})
+}
+
+// Scripts count connected servers from the control plane's JSON log, with
+// scripts/connected.awk, because the API needs a session they don't have.
+// This pins what they read: the messages, and the server attribute that
+// carries the ID. Renaming any of them fails here, not silently there.
+func TestConnectionsCanBeCountedFromTheLog(t *testing.T) {
+	logs := &syncBuffer{}
+	logger, err := logging.New(logs, logging.Options{Level: "info", Format: logging.FormatJSON})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := startStackLogging(t, 5*time.Second, logger)
+	own := s.enrollLocal(t)
+	tk, err := s.auth.CreateTicket(t.Context(), s.url, "cli:test", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined, err := enroll.Join(t.Context(), tk.Value, "hz-2", buildinfo.Read())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Two servers, so a count that lost track of which is which shows.
+	start := func(id *enroll.Identity) (stop func()) {
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan struct{})
+		go func() {
+			_ = agent.Run(ctx, agent.Config{Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(), Collector: fakeCollector()})
+			close(done)
+		}()
+		waitFor(t, s.hub, id.ServerID, "the agent connects", func(srv *dockwellv1.Server) bool {
+			return srv.GetConnection() == dockwellv1.Connection_CONNECTION_CONNECTED
+		})
+		waitForLog(t, logs, "server connected", id.ServerID)
+		return func() { cancel(); <-done }
+	}
+	stopOwn := start(own)
+	defer stopOwn()
+	stopJoined := start(joined)
+	countConnected(t, logs, "2")
+
+	stopJoined()
+	waitForLog(t, logs, "server disconnected", joined.ServerID)
+	countConnected(t, logs, "1")
+}
+
+// waitForLog waits until the log has a record with msg whose "server"
+// attribute is serverID.
+func waitForLog(t *testing.T, logs *syncBuffer, msg, serverID string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		for line := range strings.Lines(logs.String()) {
+			var rec map[string]any
+			if json.Unmarshal([]byte(line), &rec) == nil && rec["msg"] == msg && rec["server"] == serverID {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the control plane never logged %q with server %s, which scripts/connected.awk counts:\n%s", msg, serverID, logs.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// countConnected runs scripts/connected.awk on the log, as the scripts do.
+func countConnected(t *testing.T, logs *syncBuffer, want string) {
+	t.Helper()
+	awk, err := exec.LookPath("awk")
+	if err != nil {
+		t.Skip("no awk to run scripts/connected.awk with")
+	}
+	path := filepath.Join(t.TempDir(), "control.log")
+	if err := os.WriteFile(path, []byte(logs.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.CommandContext(t.Context(), awk, "-f", filepath.Join("..", "..", "..", "scripts", "connected.awk"), path).CombinedOutput()
+	if err != nil {
+		t.Fatalf("scripts/connected.awk: %v\n%s", err, out)
+	}
+	if got := strings.TrimSpace(string(out)); got != want {
+		t.Errorf("scripts/connected.awk counts %s connected, want %s, from:\n%s", got, want, logs.String())
+	}
+}
+
+// syncBuffer collects log lines from any goroutine.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.String()
 }
 
 func TestAJoinedServerIsListedBeforeItsAgentConnects(t *testing.T) {

@@ -27,6 +27,8 @@ UNIT=/etc/systemd/system/dockwell.service
 INITD=/etc/init.d/dockwell
 PANEL=http://127.0.0.1:7600
 FIXTURE=http://127.0.0.1:7601
+CONNECTED=$(dirname "$0")/../connected.awk
+[ -r "$CONNECTED" ] || { echo "can't read $CONNECTED, which counts connected servers" >&2; exit 1; }
 MEMORY_LIMIT=$(sed -n 's/^MEMORY_LIMIT=//p' "$INSTALL")
 [ -n "$MEMORY_LIMIT" ] || { echo "can't read MEMORY_LIMIT from $INSTALL" >&2; exit 1; }
 LIMIT=GOMEMLIMIT=$MEMORY_LIMIT
@@ -75,17 +77,9 @@ get_html() {
 	fi
 }
 
-# connected_now counts the servers connected now, by a control plane's log:
-# each server's last "server connected" or "server disconnected" line says
-# whether it is. The API would say so too, but it needs a session, and a
-# session needs a passkey, which a script doesn't have.
+# connected_now counts the servers connected now, by a control plane's log.
 connected_now() {
-	awk '
-		function server(s) { s = $0; sub(/.*"server":"/, "", s); sub(/".*/, "", s); return s }
-		/"msg":"server connected"/ { up[server()] = 1 }
-		/"msg":"server disconnected"/ { up[server()] = 0 }
-		END { n = 0; for (s in up) n += up[s]; print n }
-	' "$1"
+	awk -f "$CONNECTED" "$1"
 }
 
 # run_install runs the install script from a release tree, piped to sh, and

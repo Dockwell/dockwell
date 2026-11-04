@@ -97,18 +97,8 @@ ticket=$("$bin" token create --data-dir "$work/control" 2>>"$work/control.log" |
 agent=$!
 pids+=("$agent")
 
-# connected_now counts the servers connected now, by the control plane's
-# log: each server's last "server connected" or "server disconnected" line
-# says whether it is. The API would say so too, but it needs a session, and
-# a session needs a passkey, which a script doesn't have.
-connected_now() {
-  awk '
-    function server(s) { s = $0; sub(/.*"server":"/, "", s); sub(/".*/, "", s); return s }
-    /"msg":"server connected"/ { up[server()] = 1 }
-    /"msg":"server disconnected"/ { up[server()] = 0 }
-    END { n = 0; for (s in up) n += up[s]; print n }
-  ' "$1"
-}
+# connected_now counts the servers connected now, by the control plane's log.
+connected_now() { awk -f "$(dirname "$0")/connected.awk" "$1"; }
 
 connected=0
 for _ in $(seq 100); do
