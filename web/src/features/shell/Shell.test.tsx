@@ -127,9 +127,7 @@ describe("the shell on wide screens", () => {
 
     act(() => watch.fail(new Error("the stream dropped")));
 
-    expect(await within(top).findByText("Reconnecting")).toBeVisible();
-    // The page announces it; the bar only shows it.
-    expect(within(top).queryByRole("status")).toBeNull();
+    expect(await within(top).findByRole("status")).toHaveTextContent("Reconnecting");
     expect(top).not.toHaveTextContent("All healthy");
     expect(top).not.toHaveTextContent("Deploying");
     expect(top).toHaveTextContent("2 servers");

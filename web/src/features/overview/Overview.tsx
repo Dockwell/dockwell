@@ -6,7 +6,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
 import { formatBytes } from "../../lib/format";
-import { Connecting, Reconnecting } from "../servers/FleetNotes";
+import { Connecting, usePageReconnecting } from "../servers/FleetNotes";
 import { ServerCallout } from "../servers/ServerCallout";
 import { ServerMetrics } from "../servers/ServerMetrics";
 import { ServersPanel } from "../servers/ServersPanel";
@@ -24,6 +24,7 @@ export function Overview() {
   const { t } = useLingui();
   const strings = useUIStrings();
   const state = useFleet();
+  const status = usePageReconnecting(state.status);
   if (state.status === "connecting") {
     return (
       <Page title={t`Overview`}>
@@ -31,7 +32,6 @@ export function Overview() {
       </Page>
     );
   }
-  const status = state.status === "reconnecting" ? <Reconnecting /> : undefined;
   const { servers } = state;
   const [only] = servers;
   const count = servers.length;

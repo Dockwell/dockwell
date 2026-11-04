@@ -3,16 +3,16 @@
 import { useLingui } from "@lingui/react/macro";
 
 import { Page } from "../shell/Page";
-import { Reconnecting } from "./FleetNotes";
+import { usePageReconnecting } from "./FleetNotes";
 import { ServersPanel } from "./ServersPanel";
 import { useFleet } from "./useFleet";
 
 /** Every server, with its live stats. */
 export function ServersPage() {
   const { t } = useLingui();
-  const reconnecting = useFleet().status === "reconnecting";
+  const status = usePageReconnecting(useFleet().status);
   return (
-    <Page title={t`Servers`} status={reconnecting ? <Reconnecting /> : undefined}>
+    <Page title={t`Servers`} status={status}>
       <ServersPanel linked reconnectingNote={false} />
     </Page>
   );

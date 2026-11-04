@@ -138,11 +138,24 @@ describe("Overview with one server", () => {
 
     act(() => watch.fail(new ConnectError("the watch fell behind", Code.Unavailable)));
 
-    // The page says so; the top bar's note only replaces the states it can no longer vouch for.
-    const page = screen.getByRole("main");
-    expect(await within(page).findByText("Reconnecting")).toBeVisible();
-    expect(within(page).getByText("Reconnecting").closest("[role=status]")).not.toBeNull();
+    // On wide screens the top bar says so, for the page too.
+    const note = await within(screen.getByRole("banner")).findByRole("status");
+    expect(note).toHaveTextContent("Reconnecting");
+    expect(screen.getAllByRole("status")).toEqual([note]);
     expect(screen.getByText("23.4")).toBeVisible();
+  });
+
+  it("says so in the page's head on phones, which have no top bar", async () => {
+    onPhone();
+    const { watch } = renderOverview();
+    watch.push(changed(hz1), snapshotComplete);
+    await screen.findByText("23.4");
+
+    act(() => watch.fail(new ConnectError("the watch fell behind", Code.Unavailable)));
+
+    const note = await within(screen.getByRole("main")).findByRole("status");
+    expect(note).toHaveTextContent("Reconnecting");
+    expect(screen.getAllByRole("status")).toEqual([note]);
   });
 
   it("puts the server in the phone header and the numbers two by two", async () => {
@@ -225,23 +238,30 @@ describe("Overview with a fleet", () => {
     expect(screen.queryByText("Network")).toBeNull();
   });
 
-  it("says once that it is reconnecting", async () => {
+  it.each([
+    ["wide", "banner"],
+    ["phone", "main"],
+  ] as const)("says once that it is reconnecting, %s", async (layout, where) => {
+    if (layout === "phone") onPhone();
     const { watch } = renderOverview();
     watch.push(changed(hz1), changed(aServer({ id: "srv_2", name: "hz-2", stats: sample(8) })), snapshotComplete);
-    await screen.findByText("2 servers", { selector: ".page-lead" });
+    await screen.findByRole("link", { name: "hz-2" });
 
     act(() => watch.fail(new ConnectError("the watch fell behind", Code.Unavailable)));
 
-    const note = await within(screen.getByRole("main")).findByRole("status");
+    const note = await within(screen.getByRole(where)).findByRole("status");
     expect(note).toHaveTextContent("Reconnecting");
+    expect(screen.getAllByText("Reconnecting")).toEqual([note]);
     expect(screen.getAllByRole("status")).toEqual([note]);
-    // The list keeps its servers, with no note of its own.
-    expect(within(screen.getByRole("region", { name: "Servers" })).queryByText("Reconnecting")).toBeNull();
   });
 });
 
 describe("the server list page", () => {
-  it("says once that it is reconnecting", async () => {
+  it.each([
+    ["wide", "banner"],
+    ["phone", "main"],
+  ] as const)("says once that it is reconnecting, %s", async (layout, where) => {
+    if (layout === "phone") onPhone();
     const watch = feed<WatchServersResponse>();
     watch.push(changed(hz1), changed(aServer({ id: "srv_2", name: "hz-2", stats: sample(8) })), snapshotComplete);
     renderAt("/servers", { servers: { watchServers: watch.stream } });
@@ -249,8 +269,9 @@ describe("the server list page", () => {
 
     act(() => watch.fail(new ConnectError("the watch fell behind", Code.Unavailable)));
 
-    const note = await within(screen.getByRole("main")).findByRole("status");
+    const note = await within(screen.getByRole(where)).findByRole("status");
     expect(note).toHaveTextContent("Reconnecting");
+    expect(screen.getAllByText("Reconnecting")).toEqual([note]);
     expect(screen.getAllByRole("status")).toEqual([note]);
   });
 });

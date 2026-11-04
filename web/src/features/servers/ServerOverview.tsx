@@ -8,7 +8,7 @@ import { Fragment, type ReactNode } from "react";
 
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
-import { Connecting, Reconnecting } from "./FleetNotes";
+import { Connecting, usePageReconnecting } from "./FleetNotes";
 import { ServerCallout } from "./ServerCallout";
 import { ServerMetrics } from "./ServerMetrics";
 import { AgentPanel, DisksPanel, NetworkPanel, SystemPanel } from "./ServerPanels";
@@ -23,6 +23,7 @@ import "./ServerOverview.css";
 export function ServerOverview({ id }: { id: string }) {
   const { t } = useLingui();
   const state = useFleet();
+  const status = usePageReconnecting(state.status);
   if (state.status === "connecting") {
     return (
       <Page title={t`Server`}>
@@ -30,7 +31,6 @@ export function ServerOverview({ id }: { id: string }) {
       </Page>
     );
   }
-  const status = state.status === "reconnecting" ? <Reconnecting /> : undefined;
   const server = state.servers.find((s) => s.id === id);
   if (!server) {
     return (

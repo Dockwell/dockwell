@@ -1,24 +1,35 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ConnectError } from "@connectrpc/connect";
-import { cx, Glyph } from "@dockwell/ui";
+import { cx, Glyph, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { Trans } from "@lingui/react/macro";
+import type { ReactNode } from "react";
 
 import { useElapsed } from "../../lib/useElapsed";
+import type { FleetState } from "./useFleet";
 import "./FleetNotes.css";
 
 /**
  * While the live view catches up: what's shown may be a few seconds old.
- * One per screen announces it; a second, such as the top bar's, passes
- * announce={false} so screen readers hear it once.
+ * Show one per screen, so it is seen and announced once.
  */
-export function Reconnecting({ announce = true }: { announce?: boolean }) {
+export function Reconnecting() {
   return (
-    <span className="fleet-reconnecting" role={announce ? "status" : undefined}>
+    <span className="fleet-reconnecting" role="status">
       <Glyph shape="spinner" />
       <Trans>Reconnecting</Trans>
     </span>
   );
+}
+
+/**
+ * The note for a page's head while the fleet's watch reconnects. On wide
+ * screens the top bar, just above, says it for every page, so a page says
+ * it only on phones, which have no top bar.
+ */
+export function usePageReconnecting(status: FleetState["status"]): ReactNode {
+  const phone = useMediaQuery(PHONE_QUERY);
+  return status === "reconnecting" && phone ? <Reconnecting /> : undefined;
 }
 
 /**

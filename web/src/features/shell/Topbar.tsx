@@ -31,8 +31,8 @@ function Scope({ view }: { view: FleetView }) {
   const strings = useUIStrings();
   const { servers, only, fleet, counts } = view;
   // While the watch reconnects, the states are the last ones known, so the bar says that instead of vouching for
-  // them. The page announces it; this note only shows it.
-  const reconnecting = view.status === "reconnecting" ? <Reconnecting announce={false} /> : null;
+  // them. It says it for the page below too, which keeps its own note for phones.
+  const reconnecting = view.status === "reconnecting" ? <Reconnecting /> : null;
   if (only) {
     return (
       <div className="topbar-scope">
