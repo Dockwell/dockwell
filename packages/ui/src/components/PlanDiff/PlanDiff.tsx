@@ -2,7 +2,7 @@
 
 import { Fragment, type ReactNode, useId, useState } from "react";
 
-import { cx } from "../../lib/cx";
+import { cx, hasContent } from "../../lib/cx";
 import { useUIStrings } from "../../lib/strings";
 import { Icon } from "../Icon/Icon";
 import type { IconName } from "../Icon/icons";
@@ -112,7 +112,7 @@ export function PlanDiff({ resources, impact, className }: PlanDiffProps) {
             <b>{part.count}</b> {strings.planDiff.summary[part.key]}
           </span>
         ))}
-        {impact != null && impact !== false ? (
+        {hasContent(impact) ? (
           <span className="dw-plan-impact">
             <Icon name="activity" size={14} />
             {impact}

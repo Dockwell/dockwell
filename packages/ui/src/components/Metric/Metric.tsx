@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { cx } from "../../lib/cx";
+import { cx, hasContent } from "../../lib/cx";
 import { useUIStrings } from "../../lib/strings";
 import { Icon } from "../Icon/Icon";
 import type { IconName } from "../Icon/icons";
@@ -47,7 +47,6 @@ export function Metric({
   className,
 }: MetricProps) {
   const strings = useUIStrings();
-  const has = (node: ReactNode) => node != null && node !== false && node !== "";
   return (
     <div className={cx("dw-metric", className)}>
       <div className="dw-metric-label">
@@ -56,8 +55,8 @@ export function Metric({
       </div>
       <div className="dw-metric-row">
         <span className="dw-metric-value">{value}</span>
-        {has(unit) ? <span className="dw-metric-unit">{unit}</span> : null}
-        {has(delta) ? (
+        {hasContent(unit) ? <span className="dw-metric-unit">{unit}</span> : null}
+        {hasContent(delta) ? (
           <span className={cx("dw-metric-delta", deltaTone && `dw-tone-${deltaTone}`)}>{delta}</span>
         ) : null}
       </div>
@@ -73,7 +72,7 @@ export function Metric({
           label={typeof label === "string" ? strings.trend(label) : undefined}
         />
       ) : null}
-      {has(caption) ? <div className="dw-metric-caption">{caption}</div> : null}
+      {hasContent(caption) ? <div className="dw-metric-caption">{caption}</div> : null}
     </div>
   );
 }

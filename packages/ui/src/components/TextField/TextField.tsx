@@ -2,7 +2,7 @@
 
 import { type InputHTMLAttributes, type ReactNode, type Ref, useId } from "react";
 
-import { cx } from "../../lib/cx";
+import { cx, hasContent } from "../../lib/cx";
 import { TONE } from "../../lib/status";
 import { useUIStrings } from "../../lib/strings";
 import { Glyph } from "../Glyph/Glyph";
@@ -55,12 +55,12 @@ export function TextField({
   const autoId = useId();
   const inputId = id ?? autoId;
   const messageId = `${inputId}-message`;
-  const invalid = error != null && error !== false;
+  const invalid = hasContent(error);
   const message = invalid ? error : hint;
-  const hasMessage = message != null && message !== false;
+  const hasMessage = hasContent(message);
   return (
     <div className={cx("dw-field", invalid && "is-invalid", className)}>
-      {label != null ? (
+      {hasContent(label) ? (
         <label className="dw-field-label" htmlFor={inputId}>
           <span>{label}</span>
           {optional ? <span className="dw-field-opt">{strings.optional}</span> : null}
@@ -68,7 +68,7 @@ export function TextField({
       ) : null}
       <div className={cx("dw-input", `dw-input-${size}`, icon && "has-icon")}>
         {icon ? <Icon name={icon} size={16} className="dw-input-icon" /> : null}
-        {prefix != null ? <span className="dw-input-affix dw-input-prefix">{prefix}</span> : null}
+        {hasContent(prefix) ? <span className="dw-input-affix dw-input-prefix">{prefix}</span> : null}
         <input
           spellCheck={mono ? false : undefined}
           autoCapitalize={mono ? "off" : undefined}
@@ -79,7 +79,7 @@ export function TextField({
           aria-invalid={invalid ? true : ariaInvalid}
           aria-describedby={cx(hasMessage && messageId, describedBy) || undefined}
         />
-        {suffix != null ? <span className="dw-input-affix dw-input-suffix">{suffix}</span> : null}
+        {hasContent(suffix) ? <span className="dw-input-affix dw-input-suffix">{suffix}</span> : null}
         {action}
       </div>
       {hasMessage ? (

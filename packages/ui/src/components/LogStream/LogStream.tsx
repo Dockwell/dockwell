@@ -2,7 +2,7 @@
 
 import { type ReactNode, useEffect, useId, useRef } from "react";
 
-import { cx } from "../../lib/cx";
+import { cx, hasContent } from "../../lib/cx";
 import { TONE } from "../../lib/status";
 import { useUIStrings } from "../../lib/strings";
 import { useControlled } from "../../lib/useControlled";
@@ -62,7 +62,7 @@ export function LogStream({
   const body = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const bodyId = useId();
-  const hasTitle = title != null && title !== false;
+  const hasTitle = hasContent(title);
 
   useEffect(() => {
     const el = body.current;

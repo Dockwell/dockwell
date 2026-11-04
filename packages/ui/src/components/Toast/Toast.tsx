@@ -2,7 +2,7 @@
 
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 
-import { cx } from "../../lib/cx";
+import { cx, hasContent } from "../../lib/cx";
 import { TONE, type Tone } from "../../lib/status";
 import { useUIStrings } from "../../lib/strings";
 import { Button } from "../Button/Button";
@@ -89,7 +89,7 @@ export function Toast({ tone = "healthy", title, description, action, onClose, d
       </span>
       <div className="dw-toast-body">
         <div className="dw-toast-title">{title}</div>
-        {description != null && description !== false ? <div className="dw-toast-desc">{description}</div> : null}
+        {hasContent(description) ? <div className="dw-toast-desc">{description}</div> : null}
       </div>
       <div className="dw-toast-actions">
         {action ? (

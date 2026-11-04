@@ -2,7 +2,7 @@
 
 import { type ReactNode, useId } from "react";
 
-import { cx } from "../../lib/cx";
+import { cx, hasContent } from "../../lib/cx";
 import type { Status } from "../../lib/status";
 import { useUIStrings } from "../../lib/strings";
 import { Button } from "../Button/Button";
@@ -85,7 +85,7 @@ function TimelineItem({
           {event.status ? <StatusBadge status={event.status} /> : null}
           {event.revision ? <code className="dw-tl-rev">{event.revision}</code> : null}
           {event.actor ? <span>{event.actor}</span> : null}
-          {event.meta != null && event.meta !== false ? <span>{event.meta}</span> : null}
+          {hasContent(event.meta) ? <span>{event.meta}</span> : null}
         </div>
       </div>
       <div className="dw-tl-side">

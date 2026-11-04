@@ -2,7 +2,7 @@
 
 import type { ButtonHTMLAttributes, Ref } from "react";
 
-import { cx } from "../../lib/cx";
+import { cx, hasContent } from "../../lib/cx";
 import { Glyph } from "../Glyph/Glyph";
 import { Icon } from "../Icon/Icon";
 import type { IconName } from "../Icon/icons";
@@ -37,7 +37,7 @@ export function Button({
   disabled,
   ...rest
 }: ButtonProps) {
-  const iconOnly = children == null || children === false;
+  const iconOnly = !hasContent(children);
   return (
     <button
       {...rest}

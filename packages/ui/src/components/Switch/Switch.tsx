@@ -2,7 +2,7 @@
 
 import { type ReactNode, type Ref, useId } from "react";
 
-import { cx } from "../../lib/cx";
+import { cx, hasContent } from "../../lib/cx";
 import { useControlled } from "../../lib/useControlled";
 import "./Switch.css";
 
@@ -39,8 +39,8 @@ export function Switch({
   const switchId = id ?? autoId;
   const labelId = `${switchId}-label`;
   const descriptionId = `${switchId}-description`;
-  const hasLabel = label != null && label !== false;
-  const hasDescription = description != null && description !== false;
+  const hasLabel = hasContent(label);
+  const hasDescription = hasContent(description);
   return (
     <div className={cx("dw-switch", disabled && "is-disabled", className)}>
       <button

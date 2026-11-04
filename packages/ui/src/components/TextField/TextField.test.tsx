@@ -40,6 +40,14 @@ describe("TextField", () => {
     await expectAccessible(container);
   });
 
+  it("treats an empty error as none, as forms often pass one", () => {
+    const { container } = render(<TextField label="Domain" hint="The domain to route." error="" />);
+    const input = screen.getByRole("textbox", { name: "Domain" });
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(input).toHaveAccessibleDescription("The domain to route.");
+    expect(container.querySelector(".dw-field")).not.toHaveClass("is-invalid");
+  });
+
   it("marks optional fields with the translated word", () => {
     render(
       <UIStringsProvider strings={{ ...englishStrings, optional: "可选" }}>

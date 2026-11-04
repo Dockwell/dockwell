@@ -2,7 +2,7 @@
 
 import { type ReactNode, useId } from "react";
 
-import { cx } from "../../lib/cx";
+import { cx, hasContent } from "../../lib/cx";
 import "./Panel.css";
 
 export interface PanelProps {
@@ -22,19 +22,20 @@ export interface PanelProps {
  */
 export function Panel({ title, actions, flush = false, children, className }: PanelProps) {
   const titleId = useId();
-  const hasHead = title != null || actions != null;
+  const hasTitle = hasContent(title);
+  const hasActions = hasContent(actions);
   return (
-    <section className={cx("dw-panel", className)} aria-labelledby={title != null ? titleId : undefined}>
-      {hasHead ? (
+    <section className={cx("dw-panel", className)} aria-labelledby={hasTitle ? titleId : undefined}>
+      {hasTitle || hasActions ? (
         <div className="dw-panel-head">
-          {title != null ? (
+          {hasTitle ? (
             <h2 className="dw-panel-title" id={titleId}>
               {title}
             </h2>
           ) : (
             <span />
           )}
-          {actions != null ? <div className="dw-panel-actions">{actions}</div> : null}
+          {hasActions ? <div className="dw-panel-actions">{actions}</div> : null}
         </div>
       ) : null}
       <div className={cx("dw-panel-body", flush && "is-flush")}>{children}</div>

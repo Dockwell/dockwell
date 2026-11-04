@@ -2,7 +2,7 @@
 
 import { type CSSProperties, type ReactNode, type Ref, useId, useRef } from "react";
 
-import { cx } from "../../lib/cx";
+import { cx, hasContent } from "../../lib/cx";
 import { useModalLayer } from "../../lib/modal";
 import { Portal } from "../../lib/Portal";
 import { useUIStrings } from "../../lib/strings";
@@ -68,7 +68,7 @@ function SheetPanel({
   const strings = useUIStrings();
   const titleId = useId();
   const subtitleId = useId();
-  const hasSubtitle = subtitle != null && subtitle !== false;
+  const hasSubtitle = hasContent(subtitle);
   const style: CSSProperties | undefined = width !== undefined ? { width } : undefined;
   return (
     <section
@@ -95,7 +95,7 @@ function SheetPanel({
         {onClose ? <Button variant="ghost" size="sm" icon="x" aria-label={strings.close} onClick={onClose} /> : null}
       </header>
       <div className="dw-sheet-body">{children}</div>
-      {footer != null && footer !== false ? <footer className="dw-sheet-foot">{footer}</footer> : null}
+      {hasContent(footer) ? <footer className="dw-sheet-foot">{footer}</footer> : null}
     </section>
   );
 }
