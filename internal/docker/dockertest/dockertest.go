@@ -61,6 +61,7 @@ type Engine struct {
 	networks   map[string]*docker.Network
 	// Pulls counts pulls, and Creates containers created.
 	Pulls, Creates int
+	clock          int64 // orders what is made
 	// Requests logs each request, as "METHOD /path".
 	Requests []string
 }
@@ -72,7 +73,8 @@ type image struct {
 
 type container struct {
 	docker.Container
-	img *image
+	img     *image
+	created int64 // when it was made, in a count that only goes up
 }
 
 // New starts a fake engine on a socket in a test's temporary directory,
@@ -168,12 +170,33 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// image finds a pulled image by reference or ID.
+// image finds a pulled image as the engine takes a reference: by its name
+// and tag, then its ID, then, for a reference without a tag, a prefix of
+// one ID alone. So an image named by hex digits alone, such as cafe, can
+// find an image whose ID starts with them when cafe:latest isn't pulled.
 func (e *Engine) image(ref string) *image {
 	if img, ok := e.images[docker.WithTag(ref)]; ok {
 		return img
 	}
-	return e.images[ref]
+	if img, ok := e.images[ref]; ok {
+		return img
+	}
+	if img, ok := e.images["sha256:"+ref]; ok {
+		return img
+	}
+	if strings.ContainsAny(ref, ":/@") {
+		return nil
+	}
+	var found *image
+	for key, img := range e.images {
+		if strings.HasPrefix(key, "sha256:"+ref) {
+			if found != nil && found != img {
+				return nil
+			}
+			found = img
+		}
+	}
+	return found
 }
 
 func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string) {
@@ -218,17 +241,44 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 	}
 }
 
-// findContainer finds a container by name or ID.
-func (e *Engine) findContainer(key string) *container {
-	if c, ok := e.containers[key]; ok {
-		return c
-	}
+// named finds a container by its exact name, as the engine checks a name
+// is free.
+func (e *Engine) named(name string) *container {
 	for _, c := range e.containers {
-		if c.Name == "/"+key {
+		if c.Name == "/"+name {
 			return c
 		}
 	}
 	return nil
+}
+
+// errAmbiguous is a reference that more than one ID starts with, which
+// the engine refuses as an invalid parameter since Docker 23.
+type errAmbiguous struct{ ref string }
+
+func (e errAmbiguous) Error() string { return "multiple IDs found with provided prefix: " + e.ref }
+
+// findContainer finds a container as the engine takes a reference: by its
+// full ID, then its exact name, then a prefix of one ID alone. So a name
+// made of hex digits, such as db, can find a container whose ID starts
+// with it when none is named db.
+func (e *Engine) findContainer(ref string) (*container, error) {
+	if c, ok := e.containers[ref]; ok {
+		return c, nil
+	}
+	if c := e.named(ref); c != nil {
+		return c, nil
+	}
+	var found *container
+	for id, c := range e.containers {
+		if ref != "" && strings.HasPrefix(id, ref) {
+			if found != nil {
+				return nil, errAmbiguous{ref}
+			}
+			found = c
+		}
+	}
+	return found, nil
 }
 
 func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts []string) {
@@ -240,8 +290,16 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		fail(w, http.StatusNotFound, "page not found")
 		return
 	}
-	c := e.findContainer(parts[0])
-	if c == nil {
+	if parts[0] == "json" && r.Method == http.MethodGet {
+		e.list(w, r)
+		return
+	}
+	c, err := e.findContainer(parts[0])
+	switch {
+	case err != nil:
+		fail(w, http.StatusBadRequest, "%v", err)
+		return
+	case c == nil:
 		fail(w, http.StatusNotFound, "No such container: %s", parts[0])
 		return
 	}
@@ -289,7 +347,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && action == "rename":
 		name := r.URL.Query().Get("name")
-		if e.findContainer(name) != nil {
+		if e.named(name) != nil {
 			fail(w, http.StatusConflict, "Conflict. The container name \"/%s\" is already in use", name)
 			return
 		}
@@ -314,6 +372,73 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 	default:
 		fail(w, http.StatusNotFound, "page not found")
 	}
+}
+
+// filters reads a list's filters as the engine takes them: the current
+// form, {"name": {"^/db$": true}}, or the older {"name": ["^/db$"]}.
+func filters(r *http.Request) (map[string][]string, error) {
+	raw := r.URL.Query().Get("filters")
+	if raw == "" {
+		return nil, nil
+	}
+	var current map[string]map[string]bool
+	if err := json.Unmarshal([]byte(raw), &current); err == nil {
+		out := map[string][]string{}
+		for k, vs := range current {
+			for v := range vs {
+				out[k] = append(out[k], v)
+			}
+		}
+		return out, nil
+	}
+	var legacy map[string][]string
+	if err := json.Unmarshal([]byte(raw), &legacy); err != nil {
+		return nil, fmt.Errorf("invalid filter: %w", err)
+	}
+	return legacy, nil
+}
+
+// matches reports whether a container passes a list's filters, as the
+// engine has them: name is a regular expression on its name, with or
+// without the leading slash; label is a key, or key=value; volume is a
+// volume's name, or where something is mounted.
+func (c *container) matches(f map[string][]string) bool {
+	passes := func(key string, ok func(string) bool) bool {
+		vs, set := f[key]
+		return !set || slices.ContainsFunc(vs, ok)
+	}
+	return passes("name", func(v string) bool {
+		re, err := regexp.Compile(v)
+		return err == nil && (re.MatchString(c.Name) || re.MatchString(strings.TrimPrefix(c.Name, "/")))
+	}) && passes("label", func(v string) bool {
+		k, val, hasValue := strings.Cut(v, "=")
+		got, ok := c.Config.Labels[k]
+		return ok && (!hasValue || got == val)
+	}) && passes("volume", func(v string) bool {
+		return slices.ContainsFunc(c.Mounts, func(m docker.MountPoint) bool { return m.Name == v || m.Source == v || m.Destination == v })
+	})
+}
+
+// list lists containers, as GET /containers/json does. Without all, only
+// running ones.
+func (e *Engine) list(w http.ResponseWriter, r *http.Request) {
+	f, err := filters(r)
+	if err != nil {
+		fail(w, http.StatusBadRequest, "%v", err)
+		return
+	}
+	all := r.URL.Query().Get("all")
+	out := []docker.ContainerSummary{}
+	for _, c := range e.containers {
+		if (all == "" || all == "0" || all == "false") && !c.State.Running {
+			continue
+		}
+		if c.matches(f) {
+			out = append(out, docker.ContainerSummary{ID: c.ID, Names: []string{c.Name}, Labels: c.Config.Labels, Created: c.created})
+		}
+	}
+	slices.SortFunc(out, func(a, b docker.ContainerSummary) int { return int(b.Created - a.Created) })
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (e *Engine) portsFree(c *container) error {
@@ -371,7 +496,7 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := r.URL.Query().Get("name")
-	if e.findContainer(name) != nil {
+	if e.named(name) != nil {
 		fail(w, http.StatusConflict, "Conflict. The container name \"/%s\" is already in use by another container", name)
 		return
 	}
@@ -392,17 +517,18 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 		mode = "bridge"
 		c.HostConfig.NetworkMode = "bridge"
 	}
-	if e.networks[mode] == nil {
-		fail(w, http.StatusNotFound, "network %s not found", mode)
+	// The engine takes networks as references, and reports them by name.
+	n := e.network(w, mode)
+	if n == nil {
 		return
 	}
-	c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{mode: {}}
-	for n, s := range req.NetworkingConfig.EndpointsConfig {
-		if e.networks[n] == nil {
-			fail(w, http.StatusNotFound, "network %s not found", n)
+	c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{n.Name: {}}
+	for ref, s := range req.NetworkingConfig.EndpointsConfig {
+		n := e.network(w, ref)
+		if n == nil {
 			return
 		}
-		c.NetworkSettings.Networks[n] = s
+		c.NetworkSettings.Networks[n.Name] = s
 	}
 	covered := map[string]bool{}
 	for _, m := range req.HostConfig.Mounts {
@@ -434,6 +560,8 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 			c.Mounts = append(c.Mounts, docker.MountPoint{Type: "volume", Name: v.Name, Destination: path, RW: true})
 		}
 	}
+	e.clock++
+	c.created = e.clock
 	e.containers[c.ID] = c
 	e.Creates++
 	writeJSON(w, http.StatusCreated, map[string]any{"Id": c.ID, "Warnings": []string{}})
@@ -577,16 +705,39 @@ func (e *Engine) serveVolumes(w http.ResponseWriter, r *http.Request, parts []st
 	}
 }
 
-func (e *Engine) findNetwork(key string) *docker.Network {
-	if n, ok := e.networks[key]; ok {
-		return n
-	}
+// findNetwork finds a network as the engine takes a reference: by its
+// full ID, then its exact name, then a prefix of one ID alone.
+func (e *Engine) findNetwork(ref string) (*docker.Network, error) {
+	var found *docker.Network
 	for _, n := range e.networks {
-		if n.ID == key {
-			return n
+		if n.ID == ref {
+			return n, nil
 		}
 	}
-	return nil
+	if n, ok := e.networks[ref]; ok {
+		return n, nil
+	}
+	for _, n := range e.networks {
+		if ref != "" && strings.HasPrefix(n.ID, ref) {
+			if found != nil {
+				return nil, fmt.Errorf("network %s is ambiguous (2 matches found based on ID prefix)", ref)
+			}
+			found = n
+		}
+	}
+	return found, nil
+}
+
+// network answers a request for the network ref, or fails it.
+func (e *Engine) network(w http.ResponseWriter, ref string) *docker.Network {
+	n, err := e.findNetwork(ref)
+	switch {
+	case err != nil:
+		fail(w, http.StatusBadRequest, "%v", err)
+	case n == nil:
+		fail(w, http.StatusNotFound, "network %s not found", ref)
+	}
+	return n
 }
 
 func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []string) {
@@ -614,16 +765,14 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 		e.networks[req.Name] = n
 		writeJSON(w, http.StatusCreated, map[string]string{"Id": n.ID})
 	case len(parts) == 1 && r.Method == http.MethodGet:
-		n := e.findNetwork(parts[0])
+		n := e.network(w, parts[0])
 		if n == nil {
-			fail(w, http.StatusNotFound, "network %s not found", parts[0])
 			return
 		}
 		writeJSON(w, http.StatusOK, n)
 	case len(parts) == 1 && r.Method == http.MethodDelete:
-		n := e.findNetwork(parts[0])
+		n := e.network(w, parts[0])
 		if n == nil {
-			fail(w, http.StatusNotFound, "network %s not found", parts[0])
 			return
 		}
 		for _, c := range e.containers {
@@ -635,9 +784,8 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 		delete(e.networks, n.Name)
 		w.WriteHeader(http.StatusNoContent)
 	case len(parts) == 2 && parts[1] == "connect" && r.Method == http.MethodPost:
-		n := e.findNetwork(parts[0])
+		n := e.network(w, parts[0])
 		if n == nil {
-			fail(w, http.StatusNotFound, "network %s not found", parts[0])
 			return
 		}
 		var req struct {
@@ -648,8 +796,12 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 			fail(w, http.StatusBadRequest, "%v", err)
 			return
 		}
-		c := e.findContainer(req.Container)
-		if c == nil {
+		c, err := e.findContainer(req.Container)
+		switch {
+		case err != nil:
+			fail(w, http.StatusBadRequest, "%v", err)
+			return
+		case c == nil:
 			fail(w, http.StatusNotFound, "No such container: %s", req.Container)
 			return
 		}
@@ -669,12 +821,20 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 func (e *Engine) Container(name string) *docker.Container {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	c := e.findContainer(name)
+	c := e.byNameOrID(name)
 	if c == nil {
 		return nil
 	}
 	out := c.Container
 	return &out
+}
+
+// byNameOrID finds a container by its exact name or full ID, for tests.
+func (e *Engine) byNameOrID(key string) *container {
+	if c, ok := e.containers[key]; ok {
+		return c
+	}
+	return e.named(key)
 }
 
 // Containers lists the containers' names, sorted.
@@ -694,7 +854,7 @@ func (e *Engine) Containers() []string {
 func (e *Engine) Edit(name string, edit func(*docker.Container)) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if c := e.findContainer(name); c != nil {
+	if c := e.byNameOrID(name); c != nil {
 		edit(&c.Container)
 	}
 }
@@ -703,7 +863,7 @@ func (e *Engine) Edit(name string, edit func(*docker.Container)) {
 func (e *Engine) Stop(name string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if c := e.findContainer(name); c != nil {
+	if c := e.byNameOrID(name); c != nil {
 		c.State = docker.State{Status: "exited"}
 		e.detach(c)
 	}
@@ -733,6 +893,32 @@ func (e *Engine) Network(name string) *docker.Network {
 	return &out
 }
 
+// AddContainer makes a container behind Dockwell's back, as someone
+// running docker by hand would. An ID left out is made up, and one given
+// as a prefix, such as "db", is filled out to 64 hex digits. It starts out
+// running on Docker's bridge network unless it says otherwise.
+func (e *Engine) AddContainer(c docker.Container) *docker.Container {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	c.ID += newID()[len(c.ID):]
+	if c.State.Status == "" {
+		c.State = docker.State{Status: "running", Running: true}
+	}
+	if c.NetworkSettings.Networks == nil {
+		c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{"bridge": {}}
+	}
+	img := e.image(c.Config.Image)
+	if img == nil {
+		img = &image{}
+	}
+	e.clock++
+	ctr := &container{Container: c, img: img, created: e.clock}
+	e.containers[c.ID] = ctr
+	e.attach(ctr)
+	out := c
+	return &out
+}
+
 // AddVolume makes a volume behind Dockwell's back.
 func (e *Engine) AddVolume(v docker.Volume) {
 	e.mu.Lock()
@@ -744,8 +930,6 @@ func (e *Engine) AddVolume(v docker.Volume) {
 func (e *Engine) AddNetwork(n docker.Network) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if n.ID == "" {
-		n.ID = newID()
-	}
+	n.ID += newID()[len(n.ID):] // made up, or filled out from a prefix
 	e.networks[n.Name] = &n
 }

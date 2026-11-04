@@ -153,7 +153,7 @@ func Project(n *docker.Network) *resourcev1.Network {
 
 // Observe asks Docker.
 func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {
-	n, err := d.Client.InspectNetwork(ctx, TargetOf(ref).Name)
+	n, err := d.Client.NetworkNamed(ctx, TargetOf(ref).Name)
 	switch {
 	case docker.IsNotFound(err):
 		return nil, nil
@@ -194,7 +194,7 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 			return fmt.Errorf("docker can't create the network %s: %w", t.Name, err)
 		}
 	case resource.ActionDelete:
-		n, err := d.Client.InspectNetwork(ctx, t.Name)
+		n, err := d.Client.NetworkNamed(ctx, t.Name)
 		switch {
 		case docker.IsNotFound(err):
 			return nil

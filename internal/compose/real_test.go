@@ -189,12 +189,12 @@ networks:
 	if err := os.WriteFile(path, []byte(edited), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	before, err := client.InspectContainer(t.Context(), project+"-web-1")
+	before, err := client.ContainerNamed(t.Context(), project+"-web-1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	composeCLI(t, env, "-f", path, "up", "--detach", "--no-deps", "web")
-	after, err := client.InspectContainer(t.Context(), project+"-web-1")
+	after, err := client.ContainerNamed(t.Context(), project+"-web-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ networks:
 	if err := l.Apply(t.Context(), steps[0], spec); err != nil {
 		t.Fatal(err)
 	}
-	first, _ := client.InspectContainer(t.Context(), project+"-cache-1")
+	first, _ := client.ContainerNamed(t.Context(), project+"-cache-1")
 	spec.GetApp().Env = map[string]string{"REDIS_ARGS": "--save 60 1"}
 	steps, _ = l.Plan(t.Context(), []resource.Desired{{Ref: cache, Spec: spec}})
 	if steps[0].Action != resource.ActionReplace {
@@ -241,7 +241,7 @@ networks:
 	if err := l.Apply(t.Context(), steps[0], spec); err != nil {
 		t.Fatal(err)
 	}
-	second, _ := client.InspectContainer(t.Context(), project+"-cache-1")
+	second, _ := client.ContainerNamed(t.Context(), project+"-cache-1")
 	anon := func(c *docker.Container) []string {
 		var out []string
 		for _, m := range c.Mounts {

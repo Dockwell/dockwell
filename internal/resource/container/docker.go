@@ -379,13 +379,21 @@ func projectHealthcheck(c, img *docker.Healthcheck, set map[string]bool) *resour
 	return out
 }
 
+// find returns the container named t.Name exactly, or nil. Docker takes a
+// name as a reference that can match another container's ID, so every
+// lookup goes through here, and what follows acts on the ID it returns.
+func (d *Docker) find(ctx context.Context, name string) (*docker.Container, error) {
+	c, err := d.Client.ContainerNamed(ctx, name)
+	if docker.IsNotFound(err) {
+		return nil, nil
+	}
+	return c, err
+}
+
 // Inspect reads the container at t, and its image's defaults.
 func (d *Docker) Inspect(ctx context.Context, t Target) (*resourcev1.Container, error) {
-	c, err := d.Client.InspectContainer(ctx, t.Name)
-	switch {
-	case docker.IsNotFound(err):
-		return nil, nil
-	case err != nil:
+	c, err := d.find(ctx, t.Name)
+	if err != nil || c == nil {
 		return nil, err
 	}
 	var defaults *docker.Config
@@ -400,9 +408,11 @@ func (d *Docker) Inspect(ctx context.Context, t Target) (*resourcev1.Container, 
 }
 
 // ensureImage pulls an image that isn't on the server yet. One that is
-// stays as it is, as docker compose up leaves it.
+// stays as it is, as docker compose up leaves it. It asks for the image
+// with its tag: Docker takes a name without one, made of hex digits such
+// as cafe, as a prefix of any image's ID too.
 func (d *Docker) ensureImage(ctx context.Context, ref string) error {
-	_, err := d.Client.InspectImage(ctx, ref)
+	_, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
 	if !docker.IsNotFound(err) {
 		return err
 	}
@@ -414,10 +424,19 @@ func (d *Docker) ensureImage(ctx context.Context, ref string) error {
 	return err
 }
 
-// checkRefs refuses a service whose volumes or networks aren't on the
-// server, before Docker would make an unmanaged volume of the name.
+// checkRefs refuses a container whose networks aren't on the server, as
+// Docker would take a missing network's name as a prefix of another's ID;
+// and a service whose volumes aren't, before Docker would make an
+// unmanaged volume of the name.
 func (d *Docker) checkRefs(ctx context.Context, t Target, spec *resourcev1.Container) error {
 	if !t.Scoped {
+		for _, n := range spec.GetNetworks() {
+			if _, err := d.Client.NetworkNamed(ctx, n); docker.IsNotFound(err) {
+				return fmt.Errorf("the network %s isn't on this server, so %s can't join it. Make it with docker network create %s, or leave it out", n, t.Name, n)
+			} else if err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 	for _, m := range spec.GetMounts() {
@@ -432,7 +451,7 @@ func (d *Docker) checkRefs(ctx context.Context, t Target, spec *resourcev1.Conta
 		}
 	}
 	for _, n := range spec.GetNetworks() {
-		if _, err := d.Client.InspectNetwork(ctx, t.DockerName(n)); docker.IsNotFound(err) {
+		if _, err := d.Client.NetworkNamed(ctx, t.DockerName(n)); docker.IsNotFound(err) {
 			return fmt.Errorf("the network %s isn't on this server, so %s can't join it. Add it to the environment, in this change or an earlier one", n, t.Service)
 		} else if err != nil {
 			return err
@@ -451,11 +470,8 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) 
 	if err := d.checkRefs(ctx, t, spec); err != nil {
 		return err
 	}
-	old, err := d.Client.InspectContainer(ctx, t.Name)
-	switch {
-	case docker.IsNotFound(err):
-		old = nil
-	case err != nil:
+	old, err := d.find(ctx, t.Name)
+	if err != nil {
 		return err
 	}
 	req, later := d.createRequest(t, spec, old)
@@ -463,7 +479,9 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) 
 	if old != nil {
 		// As Compose names a container it is about to swap in.
 		name = old.ID[:12] + "_" + t.Name
-		if left, err := d.Client.InspectContainer(ctx, name); err == nil {
+		if left, err := d.find(ctx, name); err != nil {
+			return err
+		} else if left != nil {
 			_ = d.Client.RemoveContainer(ctx, left.ID, true) // a try that failed before
 		}
 	}
@@ -505,21 +523,32 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container) 
 
 // SetRestart changes the restart policy in place.
 func (d *Docker) SetRestart(ctx context.Context, t Target, policy resourcev1.RestartPolicy) error {
-	return d.Client.UpdateRestartPolicy(ctx, t.Name, docker.RestartPolicy{Name: restartNames[policy]})
+	c, err := d.find(ctx, t.Name)
+	switch {
+	case err != nil:
+		return err
+	case c == nil:
+		return fmt.Errorf("there's no container %s on this server to change. Plan the change again, which makes it", t.Name)
+	}
+	return d.Client.UpdateRestartPolicy(ctx, c.ID, docker.RestartPolicy{Name: restartNames[policy]})
 }
 
 // Remove stops the container, giving it StopTimeout, and removes it. Its
 // volumes stay: an environment's are resources of their own, and those
 // Docker made for its image stay until a prune.
 func (d *Docker) Remove(ctx context.Context, t Target) error {
-	err := d.Client.StopContainer(ctx, t.Name, StopTimeout)
+	c, err := d.find(ctx, t.Name)
+	if err != nil || c == nil {
+		return err
+	}
+	err = d.Client.StopContainer(ctx, c.ID, StopTimeout)
 	switch {
 	case docker.IsNotFound(err):
 		return nil
 	case err != nil:
 		return err
 	}
-	if err := d.Client.RemoveContainer(ctx, t.Name, true); err != nil && !docker.IsNotFound(err) {
+	if err := d.Client.RemoveContainer(ctx, c.ID, true); err != nil && !docker.IsNotFound(err) {
 		return err
 	}
 	return nil
@@ -544,11 +573,22 @@ func (d *Docker) Healthy(ctx context.Context, t Target) error {
 	defer poll.Stop()
 	start := time.Now()
 	restarts := -1
-	for {
-		c, err := d.Client.InspectContainer(ctx, t.Name)
+	// Watch the container of the name, by its ID.
+	found, err := d.find(ctx, t.Name)
+	switch {
+	case err != nil && ctx.Err() == nil:
+		return err
+	case err == nil && found == nil:
+		return fmt.Errorf("%s isn't on this server, though it was just started. See if someone removed it with docker ps -a", t.Name)
+	}
+	for found != nil {
+		c, err := d.Client.InspectContainer(ctx, found.ID)
 		if err != nil {
 			if ctx.Err() != nil {
 				break
+			}
+			if docker.IsNotFound(err) {
+				return fmt.Errorf("%s was removed while Dockwell waited for it to start. See who removed it with docker events", t.Name)
 			}
 			return err
 		}

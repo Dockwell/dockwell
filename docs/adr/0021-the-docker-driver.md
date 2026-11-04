@@ -33,6 +33,8 @@ Earlier records left it these seams:
 
 **The socket is the docker CLI's.** It is `DOCKER_HOST` when that names a unix socket, as with rootless Docker, and `/var/run/docker.sock` otherwise. A `DOCKER_HOST` the agent can't use, such as `tcp://`, makes the Docker kinds unavailable with that reason.
 
+**Names are looked up exactly.** Docker takes a reference as a full ID, then an exact name, then a prefix of one ID alone. So a name made of hex digits, such as `db` or `cafe`, would otherwise find a container whose ID starts with it, and Dockwell would stop it, remove it, or read it back as drift. The client finds a container or a network by its exact name, and the drivers act on the ID it returns from then on. An image named without a tag is asked for as `name:latest`, which never matches an ID.
+
 **Errors say how to fix them.** Docker not installed, not running, its socket not allowed, or too old each have their own message with the fix, such as "Docker is installed, but isn't running. Start it with systemctl start docker; the agent finds it within a minute". Docker's own refusals pass through as Docker wrote them.
 
 ### The agent offers what it can run
@@ -99,7 +101,7 @@ A stopped container isn't drift: the spec says what runs, not whether it is runn
 
 ### Tests
 
-- `internal/docker/dockertest` is a fake engine on a unix socket. It merges image config into a container as Docker does, makes volumes a container mounts when missing, and refuses to remove a volume or network in use. The drivers' tests, the agent stream's and the API's run on it.
+- `internal/docker/dockertest` is a fake engine on a unix socket. It merges image config into a container as Docker does, makes volumes a container mounts when missing, refuses to remove a volume or network in use, and takes references as Docker does, ID prefixes included. The drivers' tests, the agent stream's and the API's run on it.
 - `DOCKWELL_TEST_DOCKER=1` runs tests against a real engine, which skip without it and say so. CI's Docker job sets it: the drivers read back what real images fill in, `docker compose` lists and recreates what Dockwell made, and an edit through it reads back as that edit alone.
 - `make docker-e2e` runs a built binary through the CLI on the machine's Docker: a service from an image runs, changes, undoes, exports to a file `docker compose` lists, a Compose file imports, and both go.
 

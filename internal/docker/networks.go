@@ -33,14 +33,27 @@ type NetworkCreate struct {
 	CheckDuplicate bool `json:"CheckDuplicate,omitempty"`
 }
 
-// InspectNetwork returns a network by name or ID; a missing one is an
-// error that IsNotFound reports.
-func (c *Client) InspectNetwork(ctx context.Context, name string) (*Network, error) {
+// InspectNetwork returns a network by its ID; a missing one is an error
+// that IsNotFound reports. The engine takes any reference here, so to find
+// a network by name, use NetworkNamed.
+func (c *Client) InspectNetwork(ctx context.Context, id string) (*Network, error) {
 	var out Network
-	if err := c.do(ctx, http.MethodGet, "/networks/"+esc(name), nil, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/networks/"+esc(id), nil, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
+}
+
+// NetworkNamed returns the network of exactly this name; none is an error
+// that IsNotFound reports. Act on its ID from then on. The engine takes a
+// reference as a full ID, then an exact name, then a prefix of one ID, so
+// a network answering to another name means none has this one.
+func (c *Client) NetworkNamed(ctx context.Context, name string) (*Network, error) {
+	n, err := c.InspectNetwork(ctx, name)
+	if err == nil && n.Name != name {
+		return nil, &Error{Status: http.StatusNotFound, Message: "network " + name + " not found"}
+	}
+	return n, err
 }
 
 // CreateNetwork creates a network, and returns its ID.

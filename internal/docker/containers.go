@@ -4,8 +4,11 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
+	"regexp"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -125,14 +128,97 @@ type Health struct {
 	FailingStreak int    `json:"FailingStreak"`
 }
 
-// InspectContainer returns a container by name or ID; a missing one is an
-// error that IsNotFound reports.
-func (c *Client) InspectContainer(ctx context.Context, name string) (*Container, error) {
+// InspectContainer returns a container by its full ID; a missing one is
+// an error that IsNotFound reports. The engine takes any reference here,
+// so to find a container by name, use ContainerNamed.
+func (c *Client) InspectContainer(ctx context.Context, id string) (*Container, error) {
 	var out Container
-	if err := c.do(ctx, http.MethodGet, "/containers/"+esc(name)+"/json", nil, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/containers/"+esc(id)+"/json", nil, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
+}
+
+// ContainerNamed returns the container of exactly this name; none is an
+// error that IsNotFound reports. Act on its ID from then on.
+//
+// The engine takes a reference as a full ID, then an exact name, then a
+// prefix of one ID alone. So asking for a name made of hex digits, such as
+// db, can answer with a container whose ID starts db when none is named
+// that. An answer by the name itself is the container, and none at all
+// means there is none; any other answer, another container or a prefix
+// several IDs share, is settled by looking for the name in the list.
+func (c *Client) ContainerNamed(ctx context.Context, name string) (*Container, error) {
+	ctr, err := c.InspectContainer(ctx, name)
+	switch {
+	case err == nil && ctr.Name == "/"+name:
+		return ctr, nil
+	case err == nil:
+		// Another container's, by its ID's prefix: none has the name, or
+		// the engine would have answered with it.
+		return nil, noContainer(name)
+	case IsNotFound(err) || status(err) == 0:
+		return nil, err
+	}
+	list, err := c.ListContainers(ctx, map[string][]string{"name": {"^/" + regexp.QuoteMeta(name) + "$"}})
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range list {
+		if !slices.Contains(s.Names, "/"+name) {
+			continue
+		}
+		ctr, err := c.InspectContainer(ctx, s.ID)
+		switch {
+		case IsNotFound(err) || err == nil && ctr.Name != "/"+name:
+			return nil, noContainer(name) // removed or renamed since
+		case err != nil:
+			return nil, err
+		}
+		return ctr, nil
+	}
+	return nil, noContainer(name)
+}
+
+func noContainer(name string) error {
+	return &Error{Status: http.StatusNotFound, Message: "No such container: " + name}
+}
+
+// ContainerSummary is a container as the engine lists it.
+type ContainerSummary struct {
+	ID     string            `json:"Id"`
+	Names  []string          `json:"Names"` // with a leading slash
+	Labels map[string]string `json:"Labels"`
+	// Created is when it was made, in seconds since 1970.
+	Created int64 `json:"Created"`
+}
+
+// ListContainers lists the containers, running or not, that pass
+// filters, as the engine takes them: such as name, a regular expression
+// on the name with its leading slash; label, a key or key=value; and
+// volume, a volume's name.
+func (c *Client) ListContainers(ctx context.Context, filters map[string][]string) ([]ContainerSummary, error) {
+	q := url.Values{"all": {"1"}}
+	if len(filters) > 0 {
+		// The form every engine takes: {"name": {"^/db$": true}}.
+		f := make(map[string]map[string]bool, len(filters))
+		for k, vs := range filters {
+			f[k] = map[string]bool{}
+			for _, v := range vs {
+				f[k][v] = true
+			}
+		}
+		b, err := json.Marshal(f)
+		if err != nil {
+			return nil, err
+		}
+		q.Set("filters", string(b))
+	}
+	var out []ContainerSummary
+	if err := c.do(ctx, http.MethodGet, "/containers/json", q, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // CreateContainer creates a container, and returns its ID.
