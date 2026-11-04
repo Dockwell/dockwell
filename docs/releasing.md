@@ -59,4 +59,20 @@ cosign verify-blob checksums.txt \
 sha256sum --ignore-missing --check checksums.txt
 ```
 
-The install script verifies downloads on your behalf (issue #13).
+The [install script](install.md) runs the same checks before it installs anything, with a cosign it downloads and checks against a pinned SHA-256 ([ADR 0010](adr/0010-install-script-verifies-with-pinned-cosign.md)).
+
+## Update cosign
+
+`COSIGN_VERSION` in the release workflow and the pin in [`scripts/install.sh`](../scripts/install.sh) move together, so the install script always verifies with the cosign that signs. To change them:
+
+1. Download `cosign_checksums.txt` and its `.sigstore.json` bundle from the new cosign release, and verify them with the cosign you have:
+
+   ```sh
+   cosign verify-blob cosign_checksums.txt --bundle cosign_checksums.txt.sigstore.json \
+     --certificate-identity keyless@projectsigstore.iam.gserviceaccount.com \
+     --certificate-oidc-issuer https://accounts.google.com
+   ```
+
+2. Set `COSIGN_VERSION` in `release.yml` and in `install.sh`, and copy the SHA-256s of `cosign-linux-amd64` and `cosign-linux-arm64` from the checksums into `install.sh`.
+
+The Install workflow fails when the two versions differ, or when a pinned hash doesn't match the cosign that `sigstore/cosign-installer` verified.
