@@ -3,11 +3,13 @@
 import { create } from "@bufbuild/protobuf";
 import { Code } from "@connectrpc/connect";
 import { GetVersionResponseSchema } from "@dockwell/api";
+import { createRouter } from "@tanstack/react-router";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
+import { routeTree } from "../../routeTree.gen";
 import { expectAccessible } from "../../test/a11y";
 import { authError, authState, requestOptions, stubPasskeys } from "../../test/auth";
 import { renderAt } from "../../test/render";
@@ -238,6 +240,36 @@ describe("SignInPage", () => {
     for (const bad of ["https://evil.test", "//evil.test", "/\\evil.test", undefined, 3]) {
       expect(safeNext(bad)).toBe("/");
     }
+  });
+
+  it("never sends the visit back to a sign-in screen", () => {
+    for (const screen of [
+      "/sign-in?next=%2Fservers",
+      "/claim#token",
+      "/recover",
+      "/Sign-In/",
+      "/%73ign-in",
+      "/x/../claim",
+    ]) {
+      expect(safeNext(screen)).toBe("/");
+    }
+    expect(safeNext("/sign-ins")).toBe("/sign-ins");
+    expect(safeNext("/%E0%A4%A")).toBe("/%E0%A4%A");
+  });
+
+  it("knows every screen that stands outside the gate", () => {
+    const router = createRouter({ routeTree });
+    const open = Object.values(router.routesById).filter((route) => route.options.staticData?.public);
+    expect(open.map((route) => route.fullPath).sort()).toEqual(["/claim", "/recover", "/sign-in"]);
+    for (const route of open) expect(safeNext(route.fullPath)).toBe("/");
+  });
+
+  it("goes to the overview after signing in on a link to a sign-in screen", async () => {
+    stubPasskeys();
+    const { router } = renderAt("/sign-in?next=%2Fclaim", api());
+    await userEvent.click(await screen.findByRole("button", { name: "Sign in with a passkey" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/");
   });
 
   it("is accessible", async () => {

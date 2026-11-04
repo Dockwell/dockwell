@@ -70,9 +70,29 @@ function matchesAuth(key: readonly unknown[]): boolean {
   return opts?.serviceName === auth.serviceName && opts?.methodName === auth.methodName;
 }
 
-/** Where to go after signing in: a path on this panel, never another site. */
+/** The screens for signing in, which a visit is never headed for once it has. */
+const SIGN_IN_PATHS = new Set(["/sign-in", "/claim", "/recover"]);
+
+/**
+ * Where to go after signing in: a path on this panel, never another site,
+ * and never back to a sign-in screen, which would say you're signed in
+ * already, or try a spent link again. Anything else goes to the overview.
+ */
 export function safeNext(next: unknown): string {
-  return typeof next === "string" && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\")
-    ? next
-    : "/";
+  if (typeof next !== "string" || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) {
+    return "/";
+  }
+  return SIGN_IN_PATHS.has(pathOf(next)) ? "/" : next;
+}
+
+/** The path of an address on this panel as the router matches it: decoded, in small letters, with no slash at the end. */
+function pathOf(href: string): string {
+  const { pathname } = new URL(href, "http://panel.invalid");
+  let path = pathname;
+  try {
+    path = decodeURIComponent(pathname);
+  } catch {
+    // A malformed escape: the router can't match it to a sign-in screen either.
+  }
+  return path.toLowerCase().replace(/\/+$/, "");
 }
