@@ -370,6 +370,45 @@ func TestPasskeysForAnOldDomainArentAWayIn(t *testing.T) {
 	}
 }
 
+// A failed sign-in could come from anyone, so the audit log names the
+// address it came from as the actor, and the account it tried as the
+// subject. Only a sign-in that worked names the person.
+func TestFailedSignInsAreAuditedAsTheirSource(t *testing.T) {
+	f := newFixture(t, "panel.acme.dev")
+	a := &authtest.Authenticator{}
+	owner := f.claim(t, localhost, a)
+	secret, _ := f.enableTOTP(t, ownerPrincipal(owner))
+	from := func(addr string) Client {
+		c := onDomain
+		c.Addr = addr
+		return c
+	}
+	if _, err := f.svc.SignInWithCode(t.Context(), from("192.0.2.1:4000"), "mira@acme.dev", wrongCode(t, secret, f.clock.now())); !errors.Is(err, ErrCodeRejected) {
+		t.Fatalf("a wrong code = %v", err)
+	}
+	if _, err := f.svc.SignInWithCode(t.Context(), from("192.0.2.2:4000"), "mira@acme.dev", "AAAA-BBBB-CCCC-DDDD"); !errors.Is(err, ErrCodeRejected) {
+		t.Fatalf("a wrong recovery code = %v", err)
+	}
+	if _, err := f.passkeySignIn(t, from("192.0.2.3:4000"), a, a.Credentials()[0]); !errors.Is(err, ErrPasskeyRejected) {
+		t.Fatalf("a passkey for another address = %v", err)
+	}
+	failed := f.auditEvents(t, "auth.sign_in_failed")
+	if len(failed) != 3 {
+		t.Fatalf("%d failures audited, want 3: %+v", len(failed), failed)
+	}
+	for i, e := range failed {
+		if want := fmt.Sprintf("anonymous:192.0.2.%d", i+1); e.Actor != want || e.Subject != owner.User.ID {
+			t.Errorf("failure %d (%s) audited as %s on %s, want %s on the owner", i+1, e.Detail, e.Actor, e.Subject, want)
+		}
+	}
+	if _, err := f.svc.SignInWithCode(t.Context(), from("192.0.2.4:4000"), "mira@acme.dev", totpCode(secret, totpStep(f.clock.now()))); err != nil {
+		t.Fatal(err)
+	}
+	if in := f.auditEvents(t, "auth.sign_in"); in[len(in)-1].Actor != "user:"+owner.User.ID {
+		t.Errorf("a sign-in that worked is audited as %s", in[len(in)-1].Actor)
+	}
+}
+
 func TestSignInLinks(t *testing.T) {
 	f := newFixture(t, "")
 	if _, _, err := f.svc.CreateSignInLink(t.Context(), "", "test"); err == nil {

@@ -60,6 +60,11 @@ func (c Client) remoteIP() string {
 	return c.Addr
 }
 
+// anonymous names a caller who hasn't signed in, in the audit log, by the
+// address they came from. A failed sign-in names the account it tried as
+// its subject, never as its actor: anyone can try.
+func (c Client) anonymous() string { return "anonymous:" + c.remoteIP() }
+
 // startSession records a new session for user in tx and audits the sign-in.
 func (s *Service) startSession(ctx context.Context, tx *store.Tx, user store.User, client Client, method string) (SignedIn, error) {
 	now := s.now()

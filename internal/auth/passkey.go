@@ -145,7 +145,7 @@ func (s *Service) FinishSignIn(ctx context.Context, client Client, ceremonyID st
 		}
 		refuse := func(reason string, why error) error {
 			refused = why
-			return s.audit(ctx, tx, "user:"+user.ID, "auth.sign_in_failed", user.ID,
+			return s.audit(ctx, tx, client.anonymous(), "auth.sign_in_failed", user.ID,
 				fmt.Sprintf("passkey %s on %s from %s: %s", pk.ID, client.Site.RPID, client.remoteIP(), reason))
 		}
 		flag := func(detail string) error {
@@ -153,7 +153,7 @@ func (s *Service) FinishSignIn(ctx context.Context, client Client, ceremonyID st
 			if err := tx.FlagPasskeyClone(ctx, pk.ID, now); err != nil {
 				return err
 			}
-			return s.audit(ctx, tx, "user:"+user.ID, "passkey.clone_suspected", user.ID, detail)
+			return s.audit(ctx, tx, client.anonymous(), "passkey.clone_suspected", user.ID, detail)
 		}
 		if pk.RPID != client.Site.RPID || !bytes.Equal(parsed.Response.UserHandle, user.WebAuthnHandle) {
 			return refuse("made for another address or user", ErrPasskeyRejected)

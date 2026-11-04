@@ -101,11 +101,21 @@ func (f *fixture) execSQL(t *testing.T, query string) {
 func (f *fixture) auditDetails(t *testing.T, action string) []string {
 	t.Helper()
 	var out []string
+	for _, e := range f.auditEvents(t, action) {
+		out = append(out, e.Detail)
+	}
+	return out
+}
+
+// auditEvents returns every event with action, oldest first.
+func (f *fixture) auditEvents(t *testing.T, action string) []store.Event {
+	t.Helper()
+	var out []store.Event
 	err := f.db.View(t.Context(), func(tx *store.Tx) error {
 		evs, err := tx.ListEvents(t.Context(), 100_000)
 		for i := len(evs) - 1; i >= 0; i-- {
 			if evs[i].Action == action {
-				out = append(out, evs[i].Detail)
+				out = append(out, evs[i])
 			}
 		}
 		return err
@@ -501,8 +511,13 @@ func TestAPasskeyThatCountsBackwardsIsTreatedAsCopied(t *testing.T) {
 	if _, err := f.passkeySignIn(t, localhost, a, nil); !errors.Is(err, ErrPasskeyCopied) {
 		t.Errorf("a flagged passkey = %v, want ErrPasskeyCopied", err)
 	}
-	if !contains(f.events(t), "passkey.clone_suspected") {
-		t.Error("the suspected copy isn't in the audit log")
+	flagged := f.auditEvents(t, "passkey.clone_suspected")
+	if len(flagged) != 1 {
+		t.Fatalf("the suspected copy is in the audit log %d times, want once", len(flagged))
+	}
+	// Whoever holds the copy hasn't signed in: the event names their address.
+	if flagged[0].Actor != "anonymous:127.0.0.1" {
+		t.Errorf("the suspected copy is audited as %s, want anonymous:127.0.0.1", flagged[0].Actor)
 	}
 }
 

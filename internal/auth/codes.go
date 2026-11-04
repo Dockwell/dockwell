@@ -219,7 +219,7 @@ func (s *Service) wrongCode(ctx context.Context, tx *store.Tx, a codeAttempt, g 
 		s.logger.InfoContext(ctx, "refused a code for an email with no account", slog.String("from", a.client.Addr))
 		return nil
 	}
-	if err := s.audit(ctx, tx, "user:"+a.user.ID, "auth.sign_in_failed", a.user.ID,
+	if err := s.audit(ctx, tx, a.client.anonymous(), "auth.sign_in_failed", a.user.ID,
 		fmt.Sprintf("wrong authenticator code from %s on %s, %d in a row", a.client.remoteIP(), a.client.Site.RPID, g.Failures)); err != nil {
 		return err
 	}
@@ -249,7 +249,7 @@ func (s *Service) refusedCode(ctx context.Context, tx *store.Tx, a codeAttempt, 
 		detail += fmt.Sprintf(", and %d more codes refused since %s", u.CodesRefused, u.CodesRefusedReportedAt.UTC().Format(time.RFC3339))
 		s.logger.WarnContext(ctx, "codes keep being refused for an account", slog.String("user", u.ID), slog.Int("since_last_report", u.CodesRefused+1))
 	}
-	if err := s.audit(ctx, tx, "user:"+u.ID, "auth.sign_in_failed", u.ID, detail); err != nil {
+	if err := s.audit(ctx, tx, a.client.anonymous(), "auth.sign_in_failed", u.ID, detail); err != nil {
 		return err
 	}
 	return tx.ReportedRefusedCodes(ctx, u.ID, a.now)
