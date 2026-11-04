@@ -3,8 +3,8 @@
 import { durationFromMs, timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { StepUpAction, type Token, TokenScope, TokenService } from "@dockwell/api";
-import { Button, Callout, cx, Icon, Panel, Sheet, StatusBadge, TextField } from "@dockwell/ui";
+import { StepUpAction, type Token, TokenGrant, TokenScope, TokenService } from "@dockwell/api";
+import { Button, Callout, cx, Icon, Panel, Sheet, StatusBadge, Switch, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useEffect, useId, useState } from "react";
 
@@ -178,6 +178,11 @@ function TokenRow({ token, now, onRevoked }: { token: Token; now: number; onRevo
         <span className="profile-row-name">{name}</span>
         <span className="profile-row-meta">
           <code>{hint}</code> · {scope} ·{" "}
+          {token.grants.includes(TokenGrant.LOGS) ? (
+            <>
+              <Trans>Reads logs</Trans> ·{" "}
+            </>
+          ) : null}
           {ago ? (
             <Trans>
               used {ago} from <code>{lastAddress}</code>
@@ -230,6 +235,7 @@ function CreateTokenSheet({
   const scopeName = useId();
   const [name, setName] = useState("");
   const [scope, setScope] = useState(TokenScope.READ_ONLY);
+  const [readsLogs, setReadsLogs] = useState(false);
   const [expiry, setExpiry] = useState<Expiry>("90");
   const [nameError, setNameError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -240,6 +246,7 @@ function CreateTokenSheet({
     if (open) return;
     setName("");
     setScope(TokenScope.READ_ONLY);
+    setReadsLogs(false);
     setExpiry("90");
     setNameError(undefined);
     setProblem(undefined);
@@ -262,6 +269,7 @@ function CreateTokenSheet({
         createClient(TokenService, transport).createToken({
           name: trimmed,
           scope,
+          grants: readsLogs ? [TokenGrant.LOGS] : [],
           proof,
           // A ttl, so the control plane's clock sets the expiry, whatever the browser's says.
           expiration:
@@ -344,6 +352,12 @@ function CreateTokenSheet({
             <Trans>Start with read only, and allow writes only when the job needs them.</Trans>
           </span>
         </fieldset>
+        <Switch
+          label={t`Can read logs`}
+          description={t`Logs often hold secrets that apps print, so a token reads them only if you say so here.`}
+          checked={readsLogs}
+          onChange={setReadsLogs}
+        />
         <div className="dw-field">
           <label className="dw-field-label" htmlFor={expiryId}>
             <Trans>Expires</Trans>

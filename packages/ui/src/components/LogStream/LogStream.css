@@ -6,13 +6,19 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
+  container-type: inline-size;
+}
+.dw-log.is-fill {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .dw-log-head {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  height: 44px;
+  min-height: 44px;
   padding: 0 var(--space-2) 0 var(--space-4);
   border-bottom: 1px solid var(--line);
 }
@@ -24,12 +30,20 @@
   font-size: 13.5px;
   font-weight: 550;
 }
+.dw-log-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .dw-log-tools {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--space-1);
 }
 .dw-live {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -60,8 +74,19 @@
   animation: none;
   opacity: 0;
 }
+.dw-log-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .dw-log-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: var(--space-2) 0;
   background: var(--surface-sunken);
   font: 400 12px / 19px var(--font-mono);
@@ -70,12 +95,50 @@
 .dw-log-body:focus-visible {
   box-shadow: inset 0 0 0 2px var(--cobalt);
 }
+/* Only the rows that show exist, each placed by how tall those before it are. */
+.dw-log-rows {
+  position: relative;
+  contain: layout style;
+}
+.dw-log-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+.dw-log-top {
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--space-4) var(--space-2);
+}
+.dw-log-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+.dw-log-jump {
+  position: absolute;
+  bottom: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: var(--shadow-float);
+}
 .dw-log-line {
   display: grid;
   grid-template-columns: 96px 120px 10px minmax(0, 1fr);
   gap: var(--space-3);
   padding: 0 var(--space-4);
   color: var(--ink);
+}
+.dw-log.no-source .dw-log-line {
+  grid-template-columns: 96px 10px minmax(0, 1fr);
 }
 .dw-log-line:hover {
   background: color-mix(in srgb, var(--ink) 5%, transparent);
@@ -93,9 +156,22 @@
   align-items: center;
   height: 19px;
 }
+/* Beside the glyph on a phone; elsewhere, for screen readers. */
+.dw-log-lvl-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .dw-log-text {
+  min-width: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  tab-size: 4;
 }
 .dw-log-line.is-warn .dw-log-lvl {
   color: var(--warning);
@@ -105,4 +181,127 @@
 }
 .dw-log-line.is-error .dw-log-lvl {
   color: var(--critical);
+}
+/* What a search found. Selection's ground reads under every token of ink. */
+.dw-log-hit {
+  border-radius: var(--radius-xs);
+  background: var(--selection);
+  color: inherit;
+  box-shadow: inset 0 -1px 0 var(--cobalt);
+}
+.dw-log-cut {
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+}
+.dw-log-more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: var(--space-2);
+  min-height: 19px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  cursor: pointer;
+}
+.dw-log-more:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
+}
+/* A note in the stream, such as lines left out. It stands apart from what the app wrote. */
+.dw-log-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) 0;
+  padding: var(--space-1) var(--space-4);
+  border-block: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 18px;
+}
+.dw-log-notice > svg {
+  flex: none;
+  color: var(--warning);
+}
+.dw-log-probe {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+}
+/* A terminal's colours, each as the token of that hue that reads on this ground. */
+.dw-ansi-red {
+  color: var(--critical);
+}
+.dw-ansi-green {
+  color: var(--healthy);
+}
+.dw-ansi-yellow {
+  color: var(--warning);
+}
+.dw-ansi-blue {
+  color: var(--cobalt);
+}
+.dw-ansi-muted,
+.dw-ansi-dim {
+  color: var(--ink-muted);
+}
+.dw-ansi-ink {
+  color: var(--ink);
+}
+.dw-ansi-bold {
+  font-weight: 600;
+}
+.dw-ansi-underline {
+  text-decoration: underline;
+}
+
+/* Too narrow for columns, as on a phone: the time and source above the text. */
+@container (max-width: 559.98px) {
+  .dw-log-head {
+    padding-inline-start: var(--space-3);
+  }
+  .dw-log-line,
+  .dw-log.no-source .dw-log-line {
+    grid-template-columns: auto minmax(0, auto) minmax(0, 1fr);
+    grid-template-areas:
+      "time src lvl"
+      "text text text";
+    gap: 2px var(--space-3);
+    padding: 6px var(--space-3) 8px;
+  }
+  .dw-log-time {
+    grid-area: time;
+  }
+  .dw-log-src {
+    grid-area: src;
+  }
+  .dw-log-lvl {
+    grid-area: lvl;
+    justify-self: end;
+    gap: 6px;
+  }
+  .dw-log-text {
+    grid-area: text;
+  }
+  .dw-log-lvl-word {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+  }
+  .dw-log-notice {
+    padding-inline: var(--space-3);
+  }
+  .dw-log-more {
+    min-height: 44px;
+  }
 }

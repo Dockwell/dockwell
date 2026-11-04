@@ -1,0 +1,27 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.deploy-logs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.deploy-logs-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--link);
+  text-decoration: none;
+}
+
+.deploy-logs-link:hover {
+  text-decoration: underline;
+}
+
+.deploy-logs-link:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
+}

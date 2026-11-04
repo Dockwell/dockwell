@@ -15,7 +15,14 @@ export { Icon, type IconProps } from "./components/Icon/Icon";
 export { type IconName, iconNames } from "./components/Icon/icons";
 export { Kbd, type KbdProps } from "./components/Kbd/Kbd";
 export { Logo, type LogoProps } from "./components/Logo/Logo";
-export { type LogLevel, type LogLine, LogStream, type LogStreamProps } from "./components/LogStream/LogStream";
+export { parseAnsi, plainText } from "./components/LogStream/ansi";
+export {
+  type LogLevel,
+  type LogLine,
+  type LogLines,
+  LogStream,
+  type LogStreamProps,
+} from "./components/LogStream/LogStream";
 export { Metric, type MetricProps } from "./components/Metric/Metric";
 export { Panel, type PanelProps } from "./components/Panel/Panel";
 export {

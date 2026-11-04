@@ -47,6 +47,7 @@ import { useFieldRows } from "../changes/fields";
 import { canUndo, diffResources, failedStep, foldPlumbing, shortFingerprint, wentOffline } from "../changes/plan";
 import { RollbackLine, rollbackSubject, useRollbackWord } from "../changes/RollbackLine";
 import { type StepLook, useAlsoWords, useChangeWords } from "../changes/words";
+import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
@@ -724,6 +725,9 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
           ) : null}
           {change?.state === ChangeState.FAILED && change.error && !wentOffline(change) ? (
             <FailureNotice message={change.error} detail={failedStep(change)?.detail} />
+          ) : null}
+          {change?.state === ChangeState.FAILED && !wentOffline(change) ? (
+            <FailedDeployLogs change={full.data?.change ?? change} />
           ) : null}
           {change ? (
             <div className="activity-detail-section">

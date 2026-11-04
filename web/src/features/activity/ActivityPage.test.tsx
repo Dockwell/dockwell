@@ -45,6 +45,18 @@ const HOUR = 3_600_000;
 // an hour ago is yesterday at 00:30, and 26 hours ago is two days back at 01:00.
 vi.setSystemTime(new Date(2026, 10, 4, 12, 0));
 
+async function* quietLogs(_req: unknown, ctx: { signal: AbortSignal }) {
+  await untilAborted(ctx.signal);
+  yield* [];
+}
+
+function feedOf(first: WatchEventsResponse) {
+  return async function* watch(_req: unknown, ctx: { signal: AbortSignal }) {
+    yield first;
+    await untilAborted(ctx.signal);
+  };
+}
+
 const shop = applied(shopPlanned(), new Date(Date.now() - 2 * 60_000));
 const shopEvent = changeEvent(shop);
 const signIn = auditEvent({
@@ -351,6 +363,25 @@ describe("Activity", () => {
     expect(screen.getByRole("row", { name: /Created the API token/ })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Show earlier events" }));
     await waitFor(() => expect(pages).toEqual(["page-2", "page-3"]));
+  });
+
+  it("links a failed deploy to the logs of what it deployed", async () => {
+    const planned = webPlanned();
+    const service = planned.plan?.resources[0];
+    if (service?.resource) service.resource.kind = "service";
+    const failedChange = moved(applied(planned, new Date(Date.now() - 60_000)), {
+      state: ChangeState.FAILED,
+      error: "web didn't start",
+    });
+    const { router } = renderAt(`/activity?event=${failedChange.id}`, {
+      events: { watchEvents: feedOf(snapshot([changeEvent(failedChange)])) },
+      changes: { getChange: () => ({ change: failedChange }) },
+      logs: { listLogSources: () => ({}), watchLogs: quietLogs },
+    });
+    const link = await screen.findByRole("link", { name: "Read this deploy's logs" });
+    expect(link).toHaveAttribute("href", `/apps/${service?.id}/logs?change=${failedChange.id}`);
+    await userEvent.setup().click(link);
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/apps/${service?.id}/logs`));
   });
 
   it("counts only the steps that ran to the end", async () => {

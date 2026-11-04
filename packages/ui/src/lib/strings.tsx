@@ -78,6 +78,12 @@ export interface UIStrings {
     pause: string;
     /** Read before a line's text, for levels that carry a glyph. */
     level: Readonly<Record<Exclude<LogLevel, "info">, string>>;
+    /** Button that jumps to the newest line, given how many came since following stopped. */
+    newLines: (count: number) => string;
+    /** Button at the end of a very long line that shows the rest of it. */
+    showAll: string;
+    /** After a line cut short, given how much more it had, such as "12 KB". */
+    cut: (size: string) => string;
   };
   planDiff: {
     /** The default action word on each resource's row. */
@@ -152,6 +158,9 @@ export const englishStrings: UIStrings = {
     follow: "Follow",
     pause: "Pause",
     level: { warn: "Warning", error: "Error" },
+    newLines: (count) => (count === 1 ? "1 new line" : `${count.toLocaleString("en")} new lines`),
+    showAll: "Show all of this line",
+    cut: (size) => `${size} more not kept`,
   },
   planDiff: {
     action: {

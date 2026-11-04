@@ -46,6 +46,7 @@ import { onApple } from "../../lib/platform";
 import { useTimeWords } from "../../lib/time";
 import { appOf, unreached } from "../apps/app";
 import { useServices } from "../apps/useServices";
+import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { FailureNotice, MachineWords } from "./FailureNotice";
@@ -923,11 +924,14 @@ function PlanBody({
             record={!witnessed}
           />
           {wentOffline(change) ? null : (
-            <FailureNotice
-              message={change.error || t`A step failed, so the change stopped there.`}
-              detail={failed?.detail}
-              fix={opening.fix?.(failed?.reason ?? "")}
-            />
+            <>
+              <FailureNotice
+                message={change.error || t`A step failed, so the change stopped there.`}
+                detail={failed?.detail}
+                fix={opening.fix?.(failed?.reason ?? "")}
+              />
+              <FailedDeployLogs change={change} />
+            </>
           )}
         </>
       ) : null}

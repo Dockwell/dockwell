@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Button, Callout, PHONE_QUERY, StatusBadge, TabNav, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link } from "@tanstack/react-router";
+import { Link, useMatch } from "@tanstack/react-router";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
@@ -40,6 +40,16 @@ export function AppLayout({ serviceId, children }: { serviceId: string; children
     [service, state, query.data],
   );
 
+  // A service that is gone can still have logs its servers kept, as when its
+  // first deploy failed and was rolled back, and Activity links to them.
+  const logs = useMatch({ from: "/_shell/apps/$serviceId/logs", shouldThrow: false });
+  if (!value && logs && !query.isPending && !query.error) {
+    return (
+      <Page title={t`Logs`} back="/apps" breadcrumb={<Crumbs />}>
+        {children}
+      </Page>
+    );
+  }
   if (!value) {
     return (
       <Page title={t`App`} back="/apps" breadcrumb={<Crumbs />}>
@@ -113,6 +123,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const who = useWhoWords();
   const places = usePlaces();
   const phone = useMediaQuery(PHONE_QUERY);
+  const onLogs = useMatch({ from: "/_shell/apps/$serviceId/logs", shouldThrow: false }) !== undefined;
   const now = useAgoNow(deployedAt(service));
   const [deploying, setDeploying] = useState(false);
   const serviceId = service.id;
@@ -190,7 +201,8 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
         </RouterTabLink>
       </TabNav>
       {children}
-      {phone ? (
+      {/* The logs tab has a bar of its own on a phone: Download and Copy. */}
+      {phone && !onLogs ? (
         <div className="app-actionbar">
           <Button variant="primary" icon="deploy" size="lg" onClick={() => setDeploying(true)}>
             <Trans>Deploy</Trans>

@@ -5190,3 +5190,422 @@ msgstr "Your name"
 #: src/features/auth/messages.ts
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
 msgstr "Your session ended, so this didn't happen. Sign in again, then try again."
+
+#. placeholder {0}: orphans.length
+#. placeholder {1}: orphans.join(", ")
+#. placeholder {2}: orphans.join(", ")
+#: src/features/apps/NewAppSheet.tsx
+msgid "{0, plural, one {{1} is here already, and not in the file. Otherwise it stays as it is.} other {{2} are here already, and not in the file. Otherwise they stay as they are.}}"
+msgstr "{0, plural, one {{1} is here already, and not in the file. Otherwise it stays as it is.} other {{2} are here already, and not in the file. Otherwise they stay as they are.}}"
+
+#. placeholder {0}: store.skipped
+#: src/features/logs/LogsPage.tsx
+msgid "{0, plural, one {{count} line not shown so far, as markers in the log say. dockwell logs read gets what the server still has.} other {{count} lines not shown so far, as markers in the log say. dockwell logs read gets what the server still has.}}"
+msgstr "{0, plural, one {{count} line not shown so far, as markers in the log say. dockwell logs read gets what the server still has.} other {{count} lines not shown so far, as markers in the log say. dockwell logs read gets what the server still has.}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/LogsPage.tsx
+msgid "{0, plural, one {{lines} line from {source} not shown: it wrote faster than a live view carries.} other {{lines} lines from {source} not shown: it wrote faster than a live view carries.}}"
+msgstr "{0, plural, one {{lines} line from {source} not shown: it wrote faster than a live view carries.} other {{lines} lines from {source} not shown: it wrote faster than a live view carries.}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/LogsPage.tsx
+msgid "{0, plural, one {{lines} line from {source} not shown: this page or the network to it fell behind.} other {{lines} lines from {source} not shown: this page or the network to it fell behind.}}"
+msgstr "{0, plural, one {{lines} line from {source} not shown: this page or the network to it fell behind.} other {{lines} lines from {source} not shown: this page or the network to it fell behind.}}"
+
+#. placeholder {0}: store.length
+#: src/features/logs/LogsPage.tsx
+msgid "{0, plural, one {{shown} of the {total} lines loaded matches.} other {{shown} of the {total} lines loaded match.}}"
+msgstr "{0, plural, one {{shown} of the {total} lines loaded matches.} other {{shown} of the {total} lines loaded match.}}"
+
+#. placeholder {0}: services.length
+#: src/features/apps/NewAppSheet.tsx
+msgid "{0, plural, one {This makes # service} other {This makes # services}}"
+msgstr "{0, plural, one {This makes # service} other {This makes # services}}"
+
+#. placeholder {0}: failing.serverName
+#: src/features/logs/LogsPage.tsx
+msgid "{0} can't read a container's log"
+msgstr "{0} can't read a container's log"
+
+#. placeholder {0}: first.serverName
+#: src/features/logs/LogsPage.tsx
+msgid "{0} can't read logs"
+msgstr "{0} can't read logs"
+
+#. placeholder {0}: first.serverName
+#: src/features/logs/LogsPage.tsx
+msgid "{0} is offline"
+msgstr "{0} is offline"
+
+#: src/app/Providers.tsx
+msgid "{count, plural, one {# new line} other {# new lines}}"
+msgstr "{count, plural, one {# new line} other {# new lines}}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{count, plural, one {# replica} other {# replicas}}"
+msgstr "{count, plural, one {# replica} other {# replicas}}"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "{count, plural, one {Run a Compose file of # service} other {Run a Compose file of # services}}"
+msgstr "{count, plural, one {Run a Compose file of # service} other {Run a Compose file of # services}}"
+
+#: src/features/apps/AppsPage.tsx
+msgid "{count, plural, one {Stack of # service} other {Stack of # services}}"
+msgstr "{count, plural, one {Stack of # service} other {Stack of # services}}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{name} has no container now"
+msgstr "{name} has no container now"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{name} has no containers yet. Deploy it, and its logs show here as it starts."
+msgstr "{name} has no containers yet. Deploy it, and its logs show here as it starts."
+
+#. placeholder {0}: off.serverName
+#: src/features/logs/LogsPage.tsx
+msgid "{name} isn't running on {0}"
+msgstr "{name} isn't running on {0}"
+
+#: src/features/apps/AppsPage.tsx
+msgid "{names} and {more} more"
+msgstr "{names} and {more} more"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{revision} · failed"
+msgstr "{revision} · failed"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{revision} · replaced"
+msgstr "{revision} · replaced"
+
+#: src/features/apps/AppOverview.tsx
+msgid "{revision} deployed {when} by {actor}"
+msgstr "{revision} deployed {when} by {actor}"
+
+#: src/app/Providers.tsx
+msgid "{size} more not kept"
+msgstr "{size} more not kept"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{source} started {revision}, in container {container}"
+msgstr "{source} started {revision}, in container {container}"
+
+#: src/features/apps/AppsPage.tsx
+msgid "{trouble} need a look"
+msgstr "{trouble} need a look"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. A signed-in person has to approve that in the plan."
+msgstr "<0>{source}</0> gives this app control of Docker on the server, the same as root. A signed-in person has to approve that in the plan."
+
+#: src/features/logs/LogsPage.tsx
+msgid "1 h"
+msgstr "1 h"
+
+#: src/features/logs/LogsPage.tsx
+msgid "15 min"
+msgstr "15 min"
+
+#: src/features/logs/LogsPage.tsx
+msgid "24 h"
+msgstr "24 h"
+
+#: src/features/logs/LogsPage.tsx
+msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all."
+msgstr "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all."
+
+#: src/features/apps/ExportSheet.tsx
+msgid "A file docker compose runs without Dockwell, with no secrets in it"
+msgstr "A file docker compose runs without Dockwell, with no secrets in it"
+
+#: src/features/logs/LogsPage.tsx
+msgid "All levels"
+msgstr "All levels"
+
+#: src/features/logs/LogsPage.tsx
+msgid "All replicas"
+msgstr "All replicas"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Any image your server can pull, from Docker Hub or another registry."
+msgstr "Any image your server can pull, from Docker Hub or another registry."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Back to the lines loaded"
+msgstr "Back to the lines loaded"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Can read logs"
+msgstr "Can read logs"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Clear filters"
+msgstr "Clear filters"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Copied the lines shown"
+msgstr "Copied the lines shown"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Copy these lines"
+msgstr "Copy these lines"
+
+#: src/features/apps/AppLayout.tsx
+msgid "deployed {ago} by {actor}"
+msgstr "deployed {ago} by {actor}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Deployment"
+msgstr "Deployment"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Download these lines"
+msgstr "Download these lines"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Errors"
+msgstr "Errors"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Filter log lines"
+msgstr "Filter log lines"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Info"
+msgstr "Info"
+
+#: src/features/logs/LogsPage.tsx
+msgid "It may have been deleted. Dockwell has no logs under this address."
+msgstr "It may have been deleted. Dockwell has no logs under this address."
+
+#: src/features/logs/LogsPage.tsx
+msgid "It was made without rotation, so its log can fill the disk. Dockwell sets rotation on the containers it makes, so the next deploy of this app fixes it."
+msgstr "It was made without rotation, so its log can fill the disk. Dockwell sets rotation on the containers it makes, so the next deploy of this app fixes it."
+
+#: src/features/logs/LogsPage.tsx
+msgid "It wrote more than the server keeps of one container, so only its newest lines are here."
+msgstr "It wrote more than the server keeps of one container, so only its newest lines are here."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
+msgstr "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
+
+#: src/features/apps/ExportSheet.tsx
+msgid "Its whole environment"
+msgstr "Its whole environment"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Levels"
+msgstr "Levels"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Levels are read from each line's text. A line that names none counts as info."
+msgstr "Levels are read from each line's text. A line that names none counts as info."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Lines from {source} after {from} are gone: the server no longer has this container's log."
+msgstr "Lines from {source} after {from} are gone: the server no longer has this container's log."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Lines from {source} between {from} and {to} are gone: the server no longer has them."
+msgstr "Lines from {source} between {from} and {to} are gone: the server no longer has them."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Log filters"
+msgstr "Log filters"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Logs often hold secrets that apps print, so a token reads them only if you say so here."
+msgstr "Logs often hold secrets that apps print, so a token reads them only if you say so here."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Logs often hold secrets that apps print, so reading them takes permission. Ask the owner of this install for it."
+msgstr "Logs often hold secrets that apps print, so reading them takes permission. Ask the owner of this install for it."
+
+#: src/features/logs/LogsPage.tsx
+msgid "No logs yet. {name} hasn't written anything; its first lines show here as it writes them."
+msgstr "No logs yet. {name} hasn't written anything; its first lines show here as it writes them."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing here matches these filters."
+msgstr "Nothing here matches these filters."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing matches, in all that the servers keep."
+msgstr "Nothing matches, in all that the servers keep."
+
+#: src/features/apps/AppOverview.tsx
+msgid "Nothing outside the server reaches it, as it publishes no port."
+msgstr "Nothing outside the server reaches it, as it publishes no port."
+
+#: src/features/apps/AppOverview.tsx
+msgid "Nothing outside the server reaches it, as it publishes no port. Other apps on its network do."
+msgstr "Nothing outside the server reaches it, as it publishes no port. Other apps on its network do."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing was written in this time."
+msgstr "Nothing was written in this time."
+
+#. placeholder {0}: s.resource?.name
+#: src/features/logs/DeployLogLinks.tsx
+msgid "Read {0}'s logs from this deploy"
+msgstr "Read {0}'s logs from this deploy"
+
+#: src/features/logs/DeployLogLinks.tsx
+msgid "Read this deploy's logs"
+msgstr "Read this deploy's logs"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Reading logs"
+msgstr "Reading logs"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Reads logs"
+msgstr "Reads logs"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Reconnecting to the control plane"
+msgstr "Reconnecting to the control plane"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Replica"
+msgstr "Replica"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Running now"
+msgstr "Running now"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Search all the servers keep"
+msgstr "Search all the servers keep"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Search lines"
+msgstr "Search lines"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Search logs"
+msgstr "Search logs"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Searched {lines} lines, back to {when}, where the search stopped at its limit. Search for something more specific to reach further."
+msgstr "Searched {lines} lines, back to {when}, where the search stopped at its limit. Search for something more specific to reach further."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Searched {lines} lines, back to {when}: as far as the servers keep logs, about 50 MB of each container, and the last failed and last replaced deploys."
+msgstr "Searched {lines} lines, back to {when}: as far as the servers keep logs, about 50 MB of each container, and the last failed and last replaced deploys."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Searching all the servers keep"
+msgstr "Searching all the servers keep"
+
+#: src/features/apps/ExportSheet.tsx
+msgid "Set each variable in the shell, or in an .env file beside the Compose file, before you run docker compose up."
+msgstr "Set each variable in the shell, or in an .env file beside the Compose file, before you run docker compose up."
+
+#: src/app/Providers.tsx
+msgid "Show all of this line"
+msgstr "Show all of this line"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Show earlier lines"
+msgstr "Show earlier lines"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Show older matches"
+msgstr "Show older matches"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Show the current logs"
+msgstr "Show the current logs"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Some lines from {source} are missing here."
+msgstr "Some lines from {source} are missing here."
+
+#: src/features/apps/AppLayout.tsx
+msgid "started {ago}"
+msgstr "started {ago}"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "That didn't plan"
+msgstr "That didn't plan"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "The file names these, with no default. They aren't saved with it."
+msgstr "The file names these, with no default. They aren't saved with it."
+
+#: src/features/logs/LogsPage.tsx
+msgid "The lines from while it was away arrive when it returns, as far as Docker kept them."
+msgstr "The lines from while it was away arrive when it returns, as far as Docker kept them."
+
+#: src/features/logs/LogsPage.tsx
+msgid "The lines written meanwhile arrive once it answers, with none twice."
+msgstr "The lines written meanwhile arrive once it answers, with none twice."
+
+#: src/features/logs/LogsPage.tsx
+msgid "The server keeps the last failed and the last replaced deploy of each app, for 30 days."
+msgstr "The server keeps the last failed and the last replaced deploy of each app, for 30 days."
+
+#: src/features/logs/LogsPage.tsx
+msgid "The servers have no lines to search."
+msgstr "The servers have no lines to search."
+
+#: src/features/apps/AppsPage.tsx
+msgid "There are no apps here yet. Choose another environment, or make one here with New app."
+msgstr "There are no apps here yet. Choose another environment, or make one here with New app."
+
+#: src/features/logs/LogsPage.tsx
+msgid "These are the logs of its last deploy."
+msgstr "These are the logs of its last deploy."
+
+#: src/features/logs/LogsPage.tsx
+msgid "This app isn't here"
+msgstr "This app isn't here"
+
+#. placeholder {0}: wild.serverName
+#: src/features/logs/LogsPage.tsx
+msgid "This container's log has no limit on {0}"
+msgstr "This container's log has no limit on {0}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "This deploy failed and was rolled back."
+msgstr "This deploy failed and was rolled back."
+
+#: src/features/logs/LogsPage.tsx
+msgid "This deploy was replaced."
+msgstr "This deploy was replaced."
+
+#: src/features/logs/LogsPage.tsx
+msgid "This deploy's logs are gone"
+msgstr "This deploy's logs are gone"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "This reaches <0>{source}</0> on the server. A signed-in person has to approve that in the plan."
+msgstr "This reaches <0>{source}</0> on the server. A signed-in person has to approve that in the plan."
+
+#. placeholder {0}: MAX_LINES.toLocaleString(i18n.locale)
+#: src/features/logs/LogsPage.tsx
+msgid "This view holds the newest {0} lines, and older ones have left it to keep it quick."
+msgstr "This view holds the newest {0} lines, and older ones have left it to keep it quick."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Time range"
+msgstr "Time range"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Warn"
+msgstr "Warn"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Warnings"
+msgstr "Warnings"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "What it writes elsewhere goes when its container is replaced."
+msgstr "What it writes elsewhere goes when its container is replaced."
+
+#: src/features/logs/LogsPage.tsx
+msgid "You can't read these logs"
+msgstr "You can't read these logs"

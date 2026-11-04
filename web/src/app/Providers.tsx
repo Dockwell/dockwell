@@ -82,6 +82,9 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
         follow: t`Follow`,
         pause: t`Pause`,
         level: { warn: t`Warning`, error: t`Error` },
+        newLines: (count) => plural(count, { one: "# new line", other: "# new lines" }),
+        showAll: t`Show all of this line`,
+        cut: (size) => t`${size} more not kept`,
       },
       planDiff: {
         action: {
