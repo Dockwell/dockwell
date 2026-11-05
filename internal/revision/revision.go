@@ -738,7 +738,10 @@ func (e *Engine) checkName(ref resource.Ref) error {
 //   - deleting a scope that would still hold something, or the last
 //     environment of a project, or the organization's last project;
 //   - a resource naming one that isn't there, or isn't on its servers,
-//     such as a service mounting a volume (checkReferences).
+//     such as a service mounting a volume (checkReferences);
+//   - a resource claiming what another holds, such as a domain and a path
+//     (checkClaims);
+//   - a resource of a kind that runs on one server placed on several.
 //
 // It runs when proposing, and again in the transaction that applies, so a
 // change planned before the world moved can't slip through.
@@ -767,6 +770,9 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 				if gone {
 					return notInFleet(ctx, tx, s, it.ref.Name)
 				}
+			}
+			if err := e.checkOneServer(ctx, tx, it); err != nil {
+				return err
 			}
 		}
 		if it.ref.Kind == scope.ProjectKind && it.current == nil {
@@ -816,6 +822,9 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 			return fault.New(ErrInvalid, "%s is the last %s in %s, which needs one. Make another first, or in the same change",
 				it.ref.Name, it.ref.Kind, where)
 		}
+	}
+	if err := e.checkClaims(ctx, tx, items); err != nil {
+		return err
 	}
 	return e.checkReferences(ctx, tx, items)
 }
@@ -996,8 +1005,12 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	actions := map[string][]resource.Action{} // each item's steps, on every server
 	access := map[string][]resource.Access{}  // what each item gains on its servers
 	var before, after map[resource.Ref]proto.Message
+	var takes map[resource.Ref][]resource.Access
 	if len(servers) > 0 {
 		if before, after, err = e.named(ctx, items); err != nil {
+			return nil, err
+		}
+		if takes, err = e.takeovers(ctx, items); err != nil {
 			return nil, err
 		}
 	}
@@ -1038,6 +1051,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		for _, it := range its {
 			ids[it.ref] = it.id
 			gained := resource.NewAccess(e.reach(it.ref, it.currentOn(server), before), e.reach(it.ref, it.desiredOn(server), after))
+			if it.desiredOn(server) != nil {
+				gained = append(gained, takes[it.ref]...)
+			}
 			if len(gained) > 0 {
 				gains[it.ref] = gained
 				access[it.id] = append(access[it.id], resource.NewAccess(access[it.id], gained)...)
@@ -1050,7 +1066,16 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			if s.Action == resource.ActionNone {
 				continue
 			}
-			s.HostAccess = gains[s.Ref]
+			gained := gains[s.Ref]
+			// The panel's domain moving behind a proxy is the agent's to know,
+			// as only it sees what holds the ports. A person approves it: a
+			// token can't cut off what it can't approve (ADR 0016).
+			if i := s.Ingress; i != nil && i.Change == resource.IngressStarts && i.PanelDomain != "" {
+				a := resource.Access{Kind: resource.AccessPanelDomain, Path: i.PanelDomain, Detail: i.Proxy}
+				gained = append(gained, a)
+				access[ids[s.Ref]] = append(access[ids[s.Ref]], resource.NewAccess(access[ids[s.Ref]], []resource.Access{a})...)
+			}
+			s.HostAccess = gained
 			sp.Steps = append(sp.Steps, *s)
 			sp.Downtime += s.Downtime
 			sp.UntilHealthy += max(s.Downtime, s.UntilHealthy)
@@ -1059,6 +1084,10 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				s.UntilHealthy, s.Kept, s.Restores, s.HealthUnknown)
 			for _, c := range s.Changes {
 				fmt.Fprintf(fp, "  %s|%d|%s|%s|%t\n", c.Path, c.Op, c.From, c.To, c.Sensitive)
+			}
+			// What DNS says, s.Domain, stays out, as people often set it after.
+			if i := s.Ingress; i != nil {
+				fmt.Fprintf(fp, "  ingress %d|%s|%v|%s\n", i.Change, i.Proxy, i.Ports, i.PanelDomain)
 			}
 		}
 		if sp.UntilHealthy == sp.Downtime {
@@ -1099,6 +1128,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 func (e *Engine) reach(ref resource.Ref, spec proto.Message, named map[resource.Ref]proto.Message) []resource.Access {
 	out := e.kinds.HostAccess(ref.Kind, spec)
 	for _, use := range e.kinds.References(ref.Kind, spec) {
+		if use.Apart {
+			continue
+		}
 		for _, a := range e.kinds.HostAccess(use.Kind, named[resource.Ref{Kind: use.Kind, Scope: ref.Scope, Name: use.Name}]) {
 			a.ReadOnly = a.ReadOnly || use.ReadOnly
 			out = append(out, a)

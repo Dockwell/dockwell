@@ -6,14 +6,20 @@
 // scripts/docker-e2e.sh, need an owner for local access to act for. It is
 // never part of a release.
 //
-//	go run ./scripts/claim http://localhost:7697/claim#<token>
+//	go run ./scripts/claim http://localhost:7697/claim#<token> [cookie file]
+//
+// With a cookie file, it writes the session the claim signs in with there, as a
+// Cookie header's value, for what only a person may do, such as applying a plan
+// that needs one.
 package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"strings"
@@ -27,12 +33,16 @@ import (
 )
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: go run ./scripts/claim <claim link>")
+	if len(os.Args) < 2 || len(os.Args) > 3 {
+		fmt.Fprintln(os.Stderr, "usage: go run ./scripts/claim <claim link> [cookie file]")
 		os.Exit(2)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	err := claim(ctx, os.Args[1])
+	cookieFile := ""
+	if len(os.Args) == 3 {
+		cookieFile = os.Args[2]
+	}
+	err := claim(ctx, os.Args[1], cookieFile)
 	cancel()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "claim:", err)
@@ -43,14 +53,18 @@ func main() {
 // claim claims the install at link. The panel answers on loopback under
 // localhost, as the link says, so the client dials 127.0.0.1 and sends the
 // link's host and origin, which the panel checks.
-func claim(ctx context.Context, link string) error {
+func claim(ctx context.Context, link, cookieFile string) error {
 	u, err := url.Parse(link)
 	if err != nil || u.Fragment == "" || !strings.HasSuffix(u.Path, "/claim") {
 		return fmt.Errorf("%q isn't a claim link, such as http://localhost:7697/claim#<token>. Copy it from what dockwell run printed", link)
 	}
 	base := u.Scheme + "://" + u.Host
 	var d net.Dialer
-	client := &http.Client{Transport: &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return err
+	}
+	client := &http.Client{Jar: jar, Transport: &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return d.DialContext(ctx, network, net.JoinHostPort("127.0.0.1", u.Port()))
 	}}}
 	origin := connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
@@ -74,6 +88,20 @@ func claim(ctx context.Context, link string) error {
 		CeremonyId: begin.Msg.GetCeremonyId(), Token: u.Fragment, CredentialJson: cred,
 	})); err != nil {
 		return fmt.Errorf("can't finish the claim: %w", err)
+	}
+	if cookieFile == "" {
+		return nil
+	}
+	session := jar.Cookies(u)
+	if len(session) == 0 {
+		return errors.New("the claim signed in with no session cookie, so there's nothing to write")
+	}
+	var header []string
+	for _, c := range session {
+		header = append(header, c.Name+"="+c.Value)
+	}
+	if err := os.WriteFile(cookieFile, []byte(strings.Join(header, "; ")), 0o600); err != nil { //nolint:gosec // a path the test's own caller names
+		return fmt.Errorf("can't write the session to %s: %w", cookieFile, err)
 	}
 	return nil
 }

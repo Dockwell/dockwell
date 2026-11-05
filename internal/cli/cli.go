@@ -37,7 +37,13 @@ const (
 	envHTTPSListen   = "DOCKWELL_HTTPS_LISTEN"
 	envHTTPListen    = "DOCKWELL_HTTP_LISTEN"
 	envACMEDirectory = "DOCKWELL_ACME_DIRECTORY_URL"
-	envDatabase      = "DOCKWELL_DATABASE"
+	// envACMERoots names a PEM file of roots to trust for that CA, for the
+	// ingress's certificates, as for Pebble.
+	envACMERoots = "DOCKWELL_ACME_ROOTS"
+	// envIngressImage names the repository to pull the ingress's image from,
+	// for a registry mirror. Its digest stays pinned (ADR 0024).
+	envIngressImage = "DOCKWELL_INGRESS_IMAGE"
+	envDatabase     = "DOCKWELL_DATABASE"
 )
 
 // IO carries the streams and environment a command runs with, so tests can

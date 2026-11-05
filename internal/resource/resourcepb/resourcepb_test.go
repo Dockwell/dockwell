@@ -4,6 +4,7 @@ package resourcepb
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -43,5 +44,30 @@ func TestAStepThisBuildDoesntKnowIsAnError(t *testing.T) {
 		if !errors.As(err, &unknown) || unknown.What != what || unknown.Value != 42 {
 			t.Errorf("a step with %s 42 = %v, want an UnknownError for it", what, err)
 		}
+	}
+}
+
+// A step's word on the ingress survives the trip to the agent and back, and
+// one this build doesn't know fails rather than read as nothing.
+func TestAStepCarriesItsIngressEffect(t *testing.T) {
+	step := resource.Step{Decision: resource.Decision{
+		Action:  resource.ActionCreate,
+		Ingress: &resource.IngressEffect{Change: resource.IngressStops, Proxy: "Caddy", Ports: []string{"80/tcp"}, PanelDomain: "panel.example.com"},
+		Domain:  &resource.DomainCheck{Domain: "a.example.com", State: resource.DomainCantTell, Found: []string{"1.2.3.4"}, Here: []string{"10.0.0.1"}},
+	}}
+	p := Step(step, "")
+	got, err := FromStep(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.Ingress, step.Ingress) {
+		t.Errorf("Ingress = %+v, want %+v", got.Ingress, step.Ingress)
+	}
+	if !reflect.DeepEqual(got.Domain, step.Domain) {
+		t.Errorf("Domain = %+v, want %+v", got.Domain, step.Domain)
+	}
+	p.Ingress.Change = 99
+	if _, err := FromStep(p); err == nil {
+		t.Error("a step with an ingress change this build doesn't know was read")
 	}
 }

@@ -5,6 +5,7 @@ import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@c
 import {
   AuthService,
   ChangeService,
+  DomainService,
   EventService,
   GetVersionResponseSchema,
   ResourceService,
@@ -35,6 +36,7 @@ export type Api = {
   events?: Partial<ServiceImpl<typeof EventService>>;
   resources?: Partial<ServiceImpl<typeof ResourceService>>;
   variables?: Partial<ServiceImpl<typeof VariableService>>;
+  domains?: Partial<ServiceImpl<typeof DomainService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -73,6 +75,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(EventService, { listEvents: () => ({}), watchEvents: quietWatch, ...api.events });
       service(ResourceService, { listResources: () => ({}), ...api.resources });
       service(VariableService, api.variables ?? {});
+      service(DomainService, { listDomains: () => ({}), ...api.domains });
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );

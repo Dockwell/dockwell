@@ -46,6 +46,34 @@ type HostConfig struct {
 	PortBindings  map[string][]PortBinding `json:"PortBindings,omitempty"`
 	RestartPolicy RestartPolicy            `json:"RestartPolicy"`
 	NetworkMode   string                   `json:"NetworkMode,omitempty"`
+	// CapDrop and CapAdd change the capabilities a container has; "ALL"
+	// drops every one.
+	CapDrop []string `json:"CapDrop,omitempty"`
+	CapAdd  []string `json:"CapAdd,omitempty"`
+	// ReadonlyRootfs makes its root filesystem read-only, and Tmpfs mounts
+	// a tmpfs at each path, with its options.
+	ReadonlyRootfs bool              `json:"ReadonlyRootfs,omitempty"`
+	Tmpfs          map[string]string `json:"Tmpfs,omitempty"`
+	// LogConfig says how the engine keeps what it prints.
+	LogConfig *LogConfig `json:"LogConfig,omitempty"`
+	// Memory limits its memory, in bytes, and MemorySwap its memory and swap
+	// together: the same number gives it no swap. PidsLimit limits its
+	// processes. Zero leaves each as the engine has it.
+	Memory     int64 `json:"Memory,omitempty"`
+	MemorySwap int64 `json:"MemorySwap,omitempty"`
+	PidsLimit  int64 `json:"PidsLimit,omitempty"`
+	// UsernsMode "host" keeps it in the server's user namespace on an engine
+	// with userns-remap, which refuses the host network otherwise. Elsewhere it
+	// changes nothing.
+	UsernsMode string `json:"UsernsMode,omitempty"`
+	// SecurityOpt sets options such as no-new-privileges.
+	SecurityOpt []string `json:"SecurityOpt,omitempty"`
+}
+
+// LogConfig is a container's logging driver, with its options.
+type LogConfig struct {
+	Type   string            `json:"Type"`
+	Config map[string]string `json:"Config,omitempty"`
 }
 
 // Mount is a volume or bind mount, as HostConfig.Mounts has it.
@@ -72,6 +100,19 @@ type RestartPolicy struct {
 // EndpointSettings is a container's place on one network.
 type EndpointSettings struct {
 	Aliases []string `json:"Aliases,omitempty"`
+	// NetworkID is the network it is on, as the engine reports it. A stopped
+	// container keeps the ID of a network that has gone, and fails to start
+	// until something takes it off that.
+	NetworkID string `json:"NetworkID,omitempty"`
+	// IPAMConfig asks for a static address, on a network with a configured
+	// subnet. The engine gives the container that address each time it
+	// starts, or fails to start it.
+	IPAMConfig *EndpointIPAM `json:"IPAMConfig,omitempty"`
+}
+
+// EndpointIPAM is the address a container asks for on a network.
+type EndpointIPAM struct {
+	IPv4Address string `json:"IPv4Address,omitempty"`
 }
 
 // NetworkingConfig names the networks a new container joins.
@@ -192,6 +233,17 @@ type ContainerSummary struct {
 	Labels map[string]string `json:"Labels"`
 	// Created is when it was made, in seconds since 1970.
 	Created int64 `json:"Created"`
+	// Ports are the ports it publishes, and those it only exposes.
+	Ports []SummaryPort `json:"Ports"`
+	// State is where it stands: created, running, restarting, exited…
+	State string `json:"State"`
+}
+
+// SummaryPort is a container's port as the engine lists it. PublicPort is
+// zero for one that isn't published.
+type SummaryPort struct {
+	PublicPort uint16 `json:"PublicPort"`
+	Type       string `json:"Type"` // tcp or udp
 }
 
 // ListContainers lists the containers, running or not, that pass
@@ -267,8 +319,22 @@ func (c *Client) UpdateRestartPolicy(ctx context.Context, id string, p RestartPo
 // ConnectNetwork puts a container on a network, with aliases other
 // containers there can reach it by.
 func (c *Client) ConnectNetwork(ctx context.Context, network, container string, aliases []string) error {
+	return c.ConnectEndpoint(ctx, network, container, EndpointSettings{Aliases: aliases})
+}
+
+// ConnectEndpoint puts a container on a network as ep says. It works on a
+// running container, which keeps running.
+func (c *Client) ConnectEndpoint(ctx context.Context, network, container string, ep EndpointSettings) error {
 	return c.do(ctx, http.MethodPost, "/networks/"+esc(network)+"/connect", nil, struct {
 		Container      string           `json:"Container"`
 		EndpointConfig EndpointSettings `json:"EndpointConfig"`
-	}{container, EndpointSettings{Aliases: aliases}}, nil)
+	}{container, ep}, nil)
+}
+
+// DisconnectNetwork takes a container off a network; it keeps running.
+func (c *Client) DisconnectNetwork(ctx context.Context, network, container string) error {
+	return c.do(ctx, http.MethodPost, "/networks/"+esc(network)+"/disconnect", nil, struct {
+		Container string `json:"Container"`
+		Force     bool   `json:"Force"`
+	}{container, true}, nil)
 }

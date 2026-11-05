@@ -71,6 +71,8 @@ type fullServer struct {
 	http      string // the plain-HTTP listener's address, with a domain
 	// stop stops the server, as a signal does, and returns what Run did.
 	stop func() error
+	// server is the control plane itself.
+	server *Server
 }
 
 // execSQL runs a statement on the server's database from outside the store,
@@ -87,6 +89,13 @@ func startFull(t *testing.T, backend store.Backend, public https.Source) *fullSe
 
 // startFullLogging is startFull with the control plane logging to logger.
 func startFullLogging(t *testing.T, backend store.Backend, public https.Source, logger *slog.Logger) *fullServer {
+	t.Helper()
+	return startFullWith(t, backend, public, logger, nil)
+}
+
+// startFullWith is startFull with the control plane logging to logger, and
+// serving the panel's proxied listener on ingress if it isn't nil.
+func startFullWith(t *testing.T, backend store.Backend, public https.Source, logger *slog.Logger, ingress net.Listener) *fullServer {
 	t.Helper()
 	dir := t.TempDir()
 	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
@@ -136,10 +145,10 @@ func startFullLogging(t *testing.T, backend store.Backend, public https.Source, 
 		}
 		return ln
 	}
-	ls := Listeners{API: listen(), Agents: listen()}
+	ls := Listeners{API: listen(), Agents: listen(), Ingress: ingress}
 	f := &fullServer{
 		auth: people, engine: engine, agents: agents, keeper: keeper, ident: ident, store: db, db: path,
-		api: ls.API.Addr().String(), agentAddr: ls.Agents.Addr().String(),
+		api: ls.API.Addr().String(), agentAddr: ls.Agents.Addr().String(), server: srv,
 	}
 	if public != nil {
 		ls.HTTPS, ls.HTTP = listen(), listen()

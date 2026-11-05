@@ -14,7 +14,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0008](0008-panel-libraries.md) | Libraries and tooling for the panel | Accepted |
 | [0009](0009-resources-revisions-and-plans.md) | One resource model, with revisions and plans for every kind | Accepted |
 | [0010](0010-install-script-verifies-with-pinned-cosign.md) | The install script verifies releases with a pinned cosign | Accepted |
-| [0011](0011-claim-and-sign-in.md) | Claim over a tunnel or a domain, then sign in with passkeys | Accepted |
+| [0011](0011-claim-and-sign-in.md) | Claim over a tunnel or a domain, then sign in with passkeys | Accepted; 0024 changes who holds ports 80 and 443 once the server has a route |
 | [0012](0012-apache-for-api-schema-and-clients.md) | Apache-2.0 for the API schema and its generated clients | Accepted |
 | [0013](0013-mirrors-for-releases-and-images.md) | Configurable mirrors for releases, images and the install script | Accepted |
 | [0014](0014-object-model-and-store.md) | The object model, and one store on SQLite and Postgres | Accepted |
@@ -27,6 +27,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0021](0021-the-docker-driver.md) | The Docker driver, with Compose's names and labels | Accepted |
 | [0022](0022-secrets-encrypted-at-rest.md) | Variables and secrets, encrypted at rest and referenced by services | Accepted |
 | [0023](0023-a-full-build-and-an-agent-build.md) | A full build and an agent build, from one codebase | Accepted |
+| [0024](0024-the-caddy-ingress-driver.md) | The Caddy ingress driver, on the server's own network | Accepted |
 | [0029](0029-a-catalog-format-fed-from-other-catalogs.md) | A catalog format of our own, fed from other catalogs | Accepted |
 
 Still open from the PRD: the config-as-code format (extended Compose is recommended; needed in phase 3), and the [open questions](../product/prd.md#risks-open-questions-and-decisions).

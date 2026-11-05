@@ -112,12 +112,25 @@ type Judge interface {
 	Judge(ctx context.Context, ref Ref, actual, desired proto.Message, changes []Change) (Decision, error)
 }
 
+// desiredKey is where a plan's context holds all it touches on the server.
+type desiredKey struct{}
+
+// DesiredIn is every resource the plan under way touches on this server, for
+// a driver whose judgement of one step depends on the others, as a server's
+// last route stops its ingress however many a plan removes. It is nil outside
+// a plan.
+func DesiredIn(ctx context.Context) []Desired {
+	d, _ := ctx.Value(desiredKey{}).([]Desired)
+	return d
+}
+
 // Plan observes each resource and judges the step from there to desired.
 // Each desired spec is checked and normalized again first, as the control
 // plane did: a spec that skipped that, or a default this agent fills in
 // that the control plane didn't, can't make a plan that applying then
 // fails to match.
 func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
+	ctx = context.WithValue(ctx, desiredKey{}, desired)
 	steps := make([]Step, 0, len(desired))
 	for _, want := range desired {
 		d, err := l.Drivers.Driver(want.Ref.Kind)

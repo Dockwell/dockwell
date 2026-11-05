@@ -62,6 +62,9 @@ type live struct {
 	// while there are none. A stream that opens alongside, as when the
 	// agent moves to a renewed certificate, leaves it alone.
 	connectedAt time.Time
+	// ingress is what the server last said of its ingress. It is lost with the
+	// control plane, as the agent says it again when its stream opens.
+	ingress *dockwellv1.IngressStatus
 }
 
 // Hub is the fleet's live state.
@@ -205,6 +208,19 @@ func (h *Hub) detach(id string) {
 	}(l.lastSeen)
 }
 
+// RecordIngress keeps what a server says of its ingress, and tells whoever is
+// watching when it changes.
+func (h *Hub) RecordIngress(id string, ingress *dockwellv1.IngressStatus) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	l, ok := h.servers[id]
+	if !ok || proto.Equal(l.ingress, ingress) {
+		return
+	}
+	l.ingress = ingress
+	h.notifyLocked(id, false)
+}
+
 // Record adds a stats sample from a connected server.
 func (h *Hub) Record(id string, stats *dockwellv1.ServerStats) {
 	h.mu.Lock()
@@ -312,6 +328,7 @@ func (h *Hub) toProtoLocked(id string, l *live, withHistory bool) *dockwellv1.Se
 		Inventory:     l.inventory,
 		AgentBuild:    l.build,
 		ControlServer: id == h.control,
+		Ingress:       l.ingress,
 	}
 	switch {
 	case l.streams > 0:

@@ -85,11 +85,16 @@ jobs:
   docker:
     name: Docker
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     # The drivers' tests against the runner's Docker Engine, and a service
-    # through the CLI end to end, beside docker compose (ADR 0021).
+    # through the CLI end to end, beside docker compose (ADR 0021). The ingress
+    # against real Caddy and Pebble, on high ports, and then in its container on
+    # 80 and 443, with a real certificate (ADR 0024).
     env:
       DOCKWELL_TEST_DOCKER: "1"
+      E2E_INGRESS_TOOLS: ${{ github.workspace }}/.ingress-tools
+      E2E_PANEL: "1"
+      E2E_ROOT: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -111,8 +116,15 @@ jobs:
         run: |
           docker version
           docker compose version
+      - name: Caddy and Pebble, pinned by SHA-256
+        run: |
+          scripts/ingress-tools.sh "$E2E_INGRESS_TOOLS"
+          echo "DOCKWELL_TEST_CADDY=$E2E_INGRESS_TOOLS/caddy" >> "$GITHUB_ENV"
+          echo "DOCKWELL_TEST_PEBBLE=$E2E_INGRESS_TOOLS" >> "$GITHUB_ENV"
       - name: Tests against Docker
         run: go test -race -run 'OnRealDocker' -v ./internal/...
+      - name: Tests against Caddy
+        run: go test -race -run 'OnRealCaddy' -v ./internal/ingress/...
       - name: A service end to end
         run: make docker-e2e
 

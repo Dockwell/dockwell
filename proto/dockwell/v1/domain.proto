@@ -1,0 +1,187 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// DomainService says where the domains of your routes stand: what each sends
+// where, and whether its certificate is pending, issued or failed, with what
+// to do when it failed. Change routes with ChangeService, as kind "route". See
+// docs/adr/0024-the-caddy-ingress-driver.md.
+service DomainService {
+  // ListDomains returns the domains of the routes that exist now, sorted by
+  // name, with each one's routes and where its certificate and DNS stand on
+  // each server. A domain whose certificate is on its way answers over HTTPS
+  // once it's issued; poll this to follow it.
+  rpc ListDomains(ListDomainsRequest) returns (ListDomainsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/domains"};
+  }
+}
+
+// ListDomainsRequest says which domains to return.
+message ListDomainsRequest {
+  // Only domains with a route in this environment, by ID. Empty means every
+  // environment.
+  string environment = 1;
+  // Only domains with a route to this service, by name. It needs environment,
+  // as a service's name is unique only in its environment.
+  string service = 2;
+}
+
+// ListDomainsResponse lists domains.
+message ListDomainsResponse {
+  // The domains, sorted by name.
+  repeated Domain domains = 1;
+}
+
+// Domain is one domain the routes of an environment serve.
+message Domain {
+  // The domain, such as "app.example.com".
+  string name = 1;
+  // The environment that holds it, by ID. A domain lives in one environment.
+  string environment_id = 2;
+  // Where it answers, such as "https://app.example.com".
+  string url = 3;
+  // Its routes, by path.
+  repeated DomainRoute routes = 4;
+  // Where it stands on each server its routes run on.
+  repeated DomainServer servers = 5;
+}
+
+// DomainRoute is one route of a domain.
+message DomainRoute {
+  // The route's ID.
+  string id = 1;
+  // The route's name, unique in its environment.
+  string name = 2;
+  // The path it covers. Empty covers the whole domain.
+  string path = 3;
+  // The service it sends to, by name.
+  string service = 4;
+  // The service's port it sends to.
+  uint32 port = 5;
+  // Where it answers, such as "https://app.example.com/api".
+  string url = 6;
+}
+
+// DomainServer is where a domain stands on one server.
+message DomainServer {
+  // The server's ID.
+  string server_id = 1;
+  // The server's name, such as "hz-1".
+  string server_name = 2;
+  // Where the certificate and DNS stand, as the server last said. Unset until
+  // it has said.
+  DomainStatus status = 3;
+  // True when the server isn't connected, so status is what it last said.
+  bool stale = 4;
+  // Where the server's ingress stands, as it last said. A domain with an issued
+  // certificate still doesn't answer while problem is set here.
+  IngressStatus ingress = 5;
+}
+
+// IngressStatus is where a server's ingress stands, on a server with routes.
+message IngressStatus {
+  // The proxy, such as "Caddy".
+  string proxy = 1;
+  // True when the proxy runs.
+  bool running = 2;
+  // Why its routes aren't being served. Unset while they are.
+  IngressProblem problem = 3;
+  // For people: what is wrong, what follows, and how to fix it. Empty while
+  // nothing is.
+  string message = 4;
+  // What holds the proxy's ports, by name, for PORTS_TAKEN: containers, where
+  // they are in one, so a client can offer what to do about each.
+  repeated string holders = 5;
+  // The version the proxy runs, such as "2.11.7-alpine". Empty when the server
+  // can't say.
+  string version = 6;
+  // The version this server's Dockwell pins.
+  string pinned_version = 7;
+  // True when the proxy isn't the version this server's Dockwell pins. It may
+  // be missing security fixes, and moves on the server's next route change.
+  bool outdated = 8;
+}
+
+// IngressProblem is why a server's routes aren't being served.
+enum IngressProblem {
+  INGRESS_PROBLEM_UNSPECIFIED = 0;
+  // Something else holds port 80 or 443, so the proxy can't start, as after a
+  // reboot brings back another proxy that was stopped for it.
+  INGRESS_PROBLEM_PORTS_TAKEN = 1;
+  // The ingress network has gone, and another network has its subnet, so the
+  // routes could reach that network's containers. Each answers 503 until the
+  // network is back.
+  INGRESS_PROBLEM_SUBNET_TAKEN = 2;
+  // The proxy isn't running, for any other reason.
+  INGRESS_PROBLEM_NOT_RUNNING = 3;
+}
+
+// DomainStatus is where one domain's certificate and DNS stand on a server.
+message DomainStatus {
+  // The domain.
+  string domain = 1;
+  // Its certificate.
+  Certificate certificate = 2;
+  // What DNS says of it.
+  DomainCheck dns = 3;
+}
+
+// Certificate is where a domain's certificate stands on a server.
+message Certificate {
+  // Where it stands.
+  CertificateState state = 1;
+  // Why it failed, or why renewing it is failing while an issued one still
+  // serves. Unset otherwise.
+  CertificateProblem problem = 2;
+  // For people: what is happening or what went wrong, what follows, and how
+  // to fix it. Dockwell keeps trying a failed certificate by itself.
+  string message = 3;
+  // When an issued certificate expires. Renewing it is automatic.
+  google.protobuf.Timestamp expire_time = 4;
+}
+
+// CertificateState is where a domain's certificate stands.
+enum CertificateState {
+  // Not known yet.
+  CERTIFICATE_STATE_UNSPECIFIED = 0;
+  // On its way: the domain doesn't answer over HTTPS yet.
+  CERTIFICATE_STATE_PENDING = 1;
+  // On the server, and serving.
+  CERTIFICATE_STATE_ISSUED = 2;
+  // The last try failed. Dockwell tries again by itself, and at once when the
+  // domain's DNS starts pointing here.
+  CERTIFICATE_STATE_FAILED = 3;
+}
+
+// CertificateProblem is why a certificate failed.
+enum CertificateProblem {
+  CERTIFICATE_PROBLEM_UNSPECIFIED = 0;
+  // DNS has no record for the domain, or didn't answer.
+  CERTIFICATE_PROBLEM_DNS = 1;
+  // The certificate authority couldn't reach port 80 or 443 on the server,
+  // as when a firewall blocks them.
+  CERTIFICATE_PROBLEM_CONNECTION = 2;
+  // Something other than this server answered for the domain, as when DNS
+  // points elsewhere or a CDN is in front.
+  CERTIFICATE_PROBLEM_WRONG_SERVER = 3;
+  // The certificate authority's rate limit was hit.
+  CERTIFICATE_PROBLEM_RATE_LIMITED = 4;
+  // A CAA record forbids this certificate authority.
+  CERTIFICATE_PROBLEM_CAA = 5;
+  // The certificate authority won't issue for this name.
+  CERTIFICATE_PROBLEM_REFUSED = 6;
+  // Anything else; the message has the certificate authority's words.
+  CERTIFICATE_PROBLEM_OTHER = 7;
+  // The server couldn't reach the certificate authority at all, as when its
+  // own resolver or outbound network fails. Nothing is known of the domain.
+  CERTIFICATE_PROBLEM_CANT_REACH_CA = 8;
+}

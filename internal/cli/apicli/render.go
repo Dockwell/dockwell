@@ -497,10 +497,19 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 				fmt.Fprintln(tw, "      Brings back the data the server kept. If the server no longer has it, applying fails, and nothing is made empty.")
 			}
 			if access := st.GetHostAccess(); len(access) > 0 {
-				fmt.Fprintf(tw, "      Gives it access to %s: %s. A person approves this.\n", s.GetServerName(), human.List(accessWords(access)))
+				fmt.Fprintln(tw, "      "+reachWords(access, s.GetServerName()))
 			}
 			if st.GetHealthUnknown() {
 				fmt.Fprintln(tw, "      Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy.")
+			}
+			for _, line := range ingressWords(st.GetIngress(), s.GetServerName()) {
+				fmt.Fprintln(tw, "      "+line)
+			}
+			if line := returningWords(st.GetReturningContainers(), s.GetServerName()); line != "" {
+				fmt.Fprintln(tw, "      "+line)
+			}
+			if line := domainWords(st.GetDomainCheck()); line != "" {
+				fmt.Fprintln(tw, "      "+line)
 			}
 			for _, warning := range st.GetWarnings() {
 				if warning == dockwellv1.PlanWarning_PLAN_WARNING_MAY_LOCK_OUT {
@@ -518,7 +527,7 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		fmt.Fprintln(w, "It destroys data or may cut off access, which undo may not bring back.")
 	}
 	if p.GetHostAccess() {
-		fmt.Fprintln(w, "It gives more access to a server, which a person approves:")
+		fmt.Fprintln(w, "It reaches more of a server, or what isn't its own yet, which a person approves:")
 		// Here as well as on the steps, as a plan that only writes down
 		// what a server has, such as adopting drift, has none.
 		for _, r := range p.GetResources() {
@@ -526,6 +535,85 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 				fmt.Fprintf(w, "  %s: %s\n", ref(r.GetResource()), human.List(accessWords(access)))
 			}
 		}
+	}
+}
+
+// ingressWords says what a step does to its server's ingress.
+func ingressWords(e *dockwellv1.IngressEffect, server string) []string {
+	if e == nil {
+		return nil
+	}
+	var out []string
+	proxy, ports := e.GetProxy(), human.List(e.GetPorts())
+	switch e.GetChange() {
+	case dockwellv1.IngressChange_INGRESS_CHANGE_STARTS:
+		out = append(out, fmt.Sprintf("%s isn't running on %s, so this route starts it, and it takes ports %s.", proxy, server, ports))
+		if d := e.GetPanelDomain(); d != "" {
+			out = append(out, fmt.Sprintf("The panel's domain, %s, moves behind %s. Its address, passkeys and sessions stay as they are, and it keeps its present certificate until %s has its own. HTTPS on it is down for a moment as the ports change hands; the SSH tunnel keeps working.", d, proxy, proxy))
+		}
+	case dockwellv1.IngressChange_INGRESS_CHANGE_STOPS:
+		out = append(out, fmt.Sprintf("This is the last route on %s, so %s stops, and ports %s are free. Its certificates stay on the server for when a route comes back.", server, proxy, ports))
+		if d := e.GetPanelDomain(); d != "" {
+			out = append(out, fmt.Sprintf("The panel takes those ports back for its domain, %s. Its address, passkeys and sessions stay as they are.", d))
+		}
+	case dockwellv1.IngressChange_INGRESS_CHANGE_RESTARTS:
+		out = append(out, fmt.Sprintf("%s restarts on %s, for a newer version, so everything it serves is down for that long.", proxy, server))
+	default:
+	}
+	return out
+}
+
+// reachWords says what a step reaches that a person approves. A domain isn't
+// access to a server, and the panel's domain moving isn't given to anything.
+func reachWords(access []*dockwellv1.HostAccess, server string) string {
+	var reach, other []*dockwellv1.HostAccess
+	for _, a := range access {
+		switch a.GetKind() {
+		case dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN, dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN:
+			other = append(other, a)
+		default:
+			reach = append(reach, a)
+		}
+	}
+	var out []string
+	if len(reach) > 0 {
+		out = append(out, fmt.Sprintf("Gives it access to %s: %s.", server, human.List(accessWords(reach))))
+	}
+	if len(other) > 0 {
+		out = append(out, fmt.Sprintf("Takes in %s.", human.List(accessWords(other))))
+	}
+	return strings.Join(out, " ") + " A person approves this."
+}
+
+// returningWords warns of what would take the proxy's ports back at the next
+// reboot, with how to keep it from happening. It never stops a plan.
+func returningWords(names []string, server string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("Docker starts %s again when %s next restarts, which may take port 80 or 443 from the proxy, and stop this route answering. Keep it stopped with docker update --restart=no %s.",
+		human.List(names), server, strings.Join(names, " "))
+}
+
+// domainWords says what DNS said of a route's domain as this was planned, if
+// that is worth saying. It never stops a plan, as people often set DNS after.
+func domainWords(c *dockwellv1.DomainCheck) string {
+	if c == nil {
+		return ""
+	}
+	found, here := human.List(c.GetFound()), human.List(c.GetHere())
+	switch c.GetState() {
+	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_NO_RECORD:
+		if here == "" {
+			return c.GetDomain() + " has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do."
+		}
+		return fmt.Sprintf("%s has no DNS record yet, so its certificate can't come. Point an A or AAAA record at %s; it comes once you do.", c.GetDomain(), here)
+	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE:
+		return fmt.Sprintf("DNS for %s points at %s, not this server (%s), so its certificate can't come yet. Point it here; it comes once you do.", c.GetDomain(), found, here)
+	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL:
+		return fmt.Sprintf("DNS for %s points at %s. This server's own addresses are private (%s), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is.", c.GetDomain(), found, here)
+	default:
+		return ""
 	}
 }
 
@@ -547,6 +635,8 @@ var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HOST_NETWORK:   resource.AccessNetwork,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_VOLUME_MOUNT:   resource.AccessMount,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_NETWORK_DRIVER: resource.AccessNetworkDriver,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN:         resource.AccessDomain,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN:   resource.AccessPanelDomain,
 }
 
 // upTo writes a bound to the second, rounding up, as "1 min 50 s", so it

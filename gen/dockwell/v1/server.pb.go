@@ -390,7 +390,10 @@ type Server struct {
 	ControlServer bool `protobuf:"varint,10,opt,name=control_server,json=controlServer,proto3" json:"control_server,omitempty"`
 	// When the agent connected, if it is connected now. A connection that
 	// moves to a renewed certificate keeps its time. Unset otherwise.
-	ConnectTime   *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=connect_time,json=connectTime,proto3" json:"connect_time,omitempty"`
+	ConnectTime *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=connect_time,json=connectTime,proto3" json:"connect_time,omitempty"`
+	// Where its ingress stands, as it last said. Unset for a server with no
+	// routes, as nothing on it wants the public ports.
+	Ingress       *IngressStatus `protobuf:"bytes,12,opt,name=ingress,proto3" json:"ingress,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -498,6 +501,13 @@ func (x *Server) GetControlServer() bool {
 func (x *Server) GetConnectTime() *timestamppb.Timestamp {
 	if x != nil {
 		return x.ConnectTime
+	}
+	return nil
+}
+
+func (x *Server) GetIngress() *IngressStatus {
+	if x != nil {
+		return x.Ingress
 	}
 	return nil
 }
@@ -925,7 +935,7 @@ var File_dockwell_v1_server_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/server.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/system.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x14\n" +
+	"\x18dockwell/v1/server.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/domain.proto\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/system.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x14\n" +
 	"\x12ListServersRequest\"D\n" +
 	"\x13ListServersResponse\x12-\n" +
 	"\aservers\x18\x01 \x03(\v2\x13.dockwell.v1.ServerR\aservers\"\"\n" +
@@ -937,7 +947,7 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x14WatchServersResponse\x12+\n" +
 	"\x06server\x18\x01 \x01(\v2\x13.dockwell.v1.ServerR\x06server\x12\x18\n" +
 	"\aremoved\x18\x02 \x01(\bR\aremoved\x12+\n" +
-	"\x11snapshot_complete\x18\x03 \x01(\bR\x10snapshotComplete\"\xa3\x04\n" +
+	"\x11snapshot_complete\x18\x03 \x01(\bR\x10snapshotComplete\"\xd9\x04\n" +
 	"\x06Server\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12;\n" +
@@ -954,7 +964,8 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"agentBuild\x12%\n" +
 	"\x0econtrol_server\x18\n" +
 	" \x01(\bR\rcontrolServer\x12=\n" +
-	"\fconnect_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\vconnectTime\"\x81\x03\n" +
+	"\fconnect_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\vconnectTime\x124\n" +
+	"\aingress\x18\f \x01(\v2\x1a.dockwell.v1.IngressStatusR\aingress\"\x81\x03\n" +
 	"\x0fServerInventory\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x17\n" +
 	"\aos_name\x18\x02 \x01(\tR\x06osName\x12\x13\n" +
@@ -1041,7 +1052,8 @@ var file_dockwell_v1_server_proto_goTypes = []any{
 	(*DiskUsage)(nil),             // 11: dockwell.v1.DiskUsage
 	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
 	(*BuildInfo)(nil),             // 13: dockwell.v1.BuildInfo
-	(*durationpb.Duration)(nil),   // 14: google.protobuf.Duration
+	(*IngressStatus)(nil),         // 14: dockwell.v1.IngressStatus
+	(*durationpb.Duration)(nil),   // 15: google.protobuf.Duration
 }
 var file_dockwell_v1_server_proto_depIdxs = []int32{
 	7,  // 0: dockwell.v1.ListServersResponse.servers:type_name -> dockwell.v1.Server
@@ -1055,21 +1067,22 @@ var file_dockwell_v1_server_proto_depIdxs = []int32{
 	10, // 8: dockwell.v1.Server.history:type_name -> dockwell.v1.ServerStats
 	13, // 9: dockwell.v1.Server.agent_build:type_name -> dockwell.v1.BuildInfo
 	12, // 10: dockwell.v1.Server.connect_time:type_name -> google.protobuf.Timestamp
-	9,  // 11: dockwell.v1.ServerInventory.disks:type_name -> dockwell.v1.Disk
-	12, // 12: dockwell.v1.ServerStats.time:type_name -> google.protobuf.Timestamp
-	11, // 13: dockwell.v1.ServerStats.disks:type_name -> dockwell.v1.DiskUsage
-	14, // 14: dockwell.v1.ServerStats.uptime:type_name -> google.protobuf.Duration
-	1,  // 15: dockwell.v1.ServerService.ListServers:input_type -> dockwell.v1.ListServersRequest
-	3,  // 16: dockwell.v1.ServerService.GetServer:input_type -> dockwell.v1.GetServerRequest
-	5,  // 17: dockwell.v1.ServerService.WatchServers:input_type -> dockwell.v1.WatchServersRequest
-	2,  // 18: dockwell.v1.ServerService.ListServers:output_type -> dockwell.v1.ListServersResponse
-	4,  // 19: dockwell.v1.ServerService.GetServer:output_type -> dockwell.v1.GetServerResponse
-	6,  // 20: dockwell.v1.ServerService.WatchServers:output_type -> dockwell.v1.WatchServersResponse
-	18, // [18:21] is the sub-list for method output_type
-	15, // [15:18] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	14, // 11: dockwell.v1.Server.ingress:type_name -> dockwell.v1.IngressStatus
+	9,  // 12: dockwell.v1.ServerInventory.disks:type_name -> dockwell.v1.Disk
+	12, // 13: dockwell.v1.ServerStats.time:type_name -> google.protobuf.Timestamp
+	11, // 14: dockwell.v1.ServerStats.disks:type_name -> dockwell.v1.DiskUsage
+	15, // 15: dockwell.v1.ServerStats.uptime:type_name -> google.protobuf.Duration
+	1,  // 16: dockwell.v1.ServerService.ListServers:input_type -> dockwell.v1.ListServersRequest
+	3,  // 17: dockwell.v1.ServerService.GetServer:input_type -> dockwell.v1.GetServerRequest
+	5,  // 18: dockwell.v1.ServerService.WatchServers:input_type -> dockwell.v1.WatchServersRequest
+	2,  // 19: dockwell.v1.ServerService.ListServers:output_type -> dockwell.v1.ListServersResponse
+	4,  // 20: dockwell.v1.ServerService.GetServer:output_type -> dockwell.v1.GetServerResponse
+	6,  // 21: dockwell.v1.ServerService.WatchServers:output_type -> dockwell.v1.WatchServersResponse
+	19, // [19:22] is the sub-list for method output_type
+	16, // [16:19] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_server_proto_init() }
@@ -1077,6 +1090,7 @@ func file_dockwell_v1_server_proto_init() {
 	if File_dockwell_v1_server_proto != nil {
 		return
 	}
+	file_dockwell_v1_domain_proto_init()
 	file_dockwell_v1_options_proto_init()
 	file_dockwell_v1_system_proto_init()
 	type x struct{}

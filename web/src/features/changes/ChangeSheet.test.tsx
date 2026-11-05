@@ -5,8 +5,12 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   type ApplyChangeRequest,
   ChangeState,
+  DomainCheckSchema,
+  DomainCheckState,
   HostAccessKind,
   HostAccessSchema,
+  IngressChange,
+  IngressEffectSchema,
   PlanAction,
   StepProgressSchema,
   StepState,
@@ -224,6 +228,79 @@ describe("the plan sheet", () => {
     await expectAccessible(document.body);
     await user.click(apply);
     await waitFor(() => expect(applies[0]?.fingerprint).toBe("a1b2c3d4e5f60718293a4b5c6d7e8f90"));
+  });
+
+  it("says what a route does to its server's ingress, and warns of DNS without refusing", async () => {
+    const routed = webPlanned();
+    const step = routed.plan?.servers[0]?.steps[0];
+    if (!step) throw new Error("webPlanned has no step");
+    step.ingress = create(IngressEffectSchema, {
+      change: IngressChange.STARTS,
+      proxy: "Caddy",
+      ports: ["80/tcp", "443/tcp", "443/udp"],
+      panelDomain: "panel.example.com",
+    });
+    step.domainCheck = create(DomainCheckSchema, {
+      domain: "app.example.com",
+      state: DomainCheckState.ELSEWHERE,
+      found: ["198.51.100.1"],
+      here: ["203.0.113.9"],
+    });
+    step.returningContainers = ["1Panel-openresty-abc12"];
+    renderSheet(proposeWeb, {
+      changes: {
+        proposeChange: () => ({ change: routed }),
+        watchChange: feed<WatchChangeResponse>().stream,
+      },
+    });
+
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(sheet).toHaveTextContent(
+      "Caddy isn't running on hz-1, so this route starts it, and it takes ports 80/tcp, 443/tcp, 443/udp",
+    );
+    expect(sheet).toHaveTextContent("The panel's domain, panel.example.com, moves behind Caddy");
+    expect(sheet).toHaveTextContent("it keeps its present certificate until Caddy has its own");
+    expect(sheet).toHaveTextContent("the SSH tunnel keeps working");
+    expect(sheet).toHaveTextContent("DNS for app.example.com points at 198.51.100.1, not this server (203.0.113.9)");
+    expect(sheet).toHaveTextContent("Docker starts 1Panel-openresty-abc12 again when hz-1 next restarts");
+    expect(sheet).toHaveTextContent("docker update --restart=no 1Panel-openresty-abc12");
+    // It warns, and nothing asks for more than any other plan does.
+    const apply = await within(sheet).findByRole("button", { name: /Apply plan/ });
+    expect(apply).toBeEnabled();
+    await expectAccessible(document.body);
+  });
+
+  it("says what stopping the ingress leaves behind, and names the domain a plan takes", async () => {
+    const routed = webPlanned();
+    const plan = routed.plan;
+    const step = plan?.servers[0]?.steps[0];
+    if (!plan || !step) throw new Error("webPlanned has no step");
+    step.ingress = create(IngressEffectSchema, {
+      change: IngressChange.STOPS,
+      proxy: "Caddy",
+      ports: ["80/tcp", "443/tcp", "443/udp"],
+    });
+    plan.hostAccess = true;
+    step.hostAccess = [
+      create(HostAccessSchema, { kind: HostAccessKind.DOMAIN, path: "app.example.com", detail: "production" }),
+      create(HostAccessSchema, { kind: HostAccessKind.PANEL_DOMAIN, path: "panel.example.com", detail: "Caddy" }),
+    ];
+    renderSheet(proposeWeb, {
+      changes: {
+        proposeChange: () => ({ change: routed }),
+        watchChange: feed<WatchChangeResponse>().stream,
+      },
+    });
+
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(sheet).toHaveTextContent(
+      "This is the last route on hz-1, so Caddy stops, and ports 80/tcp, 443/tcp, 443/udp are free",
+    );
+    expect(sheet).toHaveTextContent("Its certificates stay on the server");
+    expect(sheet).toHaveTextContent(
+      "the domain app.example.com, which the environment production held within the last 7 days",
+    );
+    expect(sheet).toHaveTextContent("the panel's domain, panel.example.com, which moves behind Caddy");
   });
 
   it("discards the plan it made when you cancel", async () => {

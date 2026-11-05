@@ -396,6 +396,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/domains:
+        get:
+            tags:
+                - DomainService
+            description: |-
+                ListDomains returns the domains of the routes that exist now, sorted by
+                 name, with each one's routes and where its certificate and DNS stand on
+                 each server. A domain whose certificate is on its way answers over HTTPS
+                 once it's issued; poll this to follow it.
+            operationId: DomainService_ListDomains
+            parameters:
+                - name: environment
+                  in: query
+                  description: |-
+                    Only domains with a route in this environment, by ID. Empty means every
+                     environment.
+                  schema:
+                    type: string
+                - name: service
+                  in: query
+                  description: |-
+                    Only domains with a route to this service, by name. It needs environment,
+                     as a service's name is unique only in its environment.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListDomainsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/drift:
         get:
             tags:
@@ -1639,6 +1677,44 @@ components:
             type: object
             properties: {}
             description: CancelTotpSetupResponse is empty.
+        Certificate:
+            type: object
+            properties:
+                state:
+                    enum:
+                        - CERTIFICATE_STATE_UNSPECIFIED
+                        - CERTIFICATE_STATE_PENDING
+                        - CERTIFICATE_STATE_ISSUED
+                        - CERTIFICATE_STATE_FAILED
+                    type: string
+                    description: Where it stands.
+                    format: enum
+                problem:
+                    enum:
+                        - CERTIFICATE_PROBLEM_UNSPECIFIED
+                        - CERTIFICATE_PROBLEM_DNS
+                        - CERTIFICATE_PROBLEM_CONNECTION
+                        - CERTIFICATE_PROBLEM_WRONG_SERVER
+                        - CERTIFICATE_PROBLEM_RATE_LIMITED
+                        - CERTIFICATE_PROBLEM_CAA
+                        - CERTIFICATE_PROBLEM_REFUSED
+                        - CERTIFICATE_PROBLEM_OTHER
+                        - CERTIFICATE_PROBLEM_CANT_REACH_CA
+                    type: string
+                    description: |-
+                        Why it failed, or why renewing it is failing while an issued one still
+                         serves. Unset otherwise.
+                    format: enum
+                message:
+                    type: string
+                    description: |-
+                        For people: what is happening or what went wrong, what follows, and how
+                         to fix it. Dockwell keeps trying a failed certificate by itself.
+                expireTime:
+                    type: string
+                    description: When an issued certificate expires. Renewing it is automatic.
+                    format: date-time
+            description: Certificate is where a domain's certificate stands on a server.
         Change:
             type: object
             properties:
@@ -1952,6 +2028,119 @@ components:
                     type: string
                     description: Total size, in bytes.
             description: DiskUsage is one filesystem's use.
+        Domain:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The domain, such as "app.example.com".
+                environmentId:
+                    type: string
+                    description: The environment that holds it, by ID. A domain lives in one environment.
+                url:
+                    type: string
+                    description: Where it answers, such as "https://app.example.com".
+                routes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DomainRoute'
+                    description: Its routes, by path.
+                servers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DomainServer'
+                    description: Where it stands on each server its routes run on.
+            description: Domain is one domain the routes of an environment serve.
+        DomainCheck:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The domain.
+                state:
+                    enum:
+                        - DOMAIN_CHECK_STATE_UNSPECIFIED
+                        - DOMAIN_CHECK_STATE_POINTS_HERE
+                        - DOMAIN_CHECK_STATE_NO_RECORD
+                        - DOMAIN_CHECK_STATE_ELSEWHERE
+                        - DOMAIN_CHECK_STATE_CANT_TELL
+                    type: string
+                    description: What it means.
+                    format: enum
+                found:
+                    type: array
+                    items:
+                        type: string
+                    description: The addresses DNS gives for it.
+                here:
+                    type: array
+                    items:
+                        type: string
+                    description: The addresses the server has, which it compared them with.
+            description: DomainCheck is what DNS says of a domain, as a server sees it.
+        DomainRoute:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The route's ID.
+                name:
+                    type: string
+                    description: The route's name, unique in its environment.
+                path:
+                    type: string
+                    description: The path it covers. Empty covers the whole domain.
+                service:
+                    type: string
+                    description: The service it sends to, by name.
+                port:
+                    type: integer
+                    description: The service's port it sends to.
+                    format: uint32
+                url:
+                    type: string
+                    description: Where it answers, such as "https://app.example.com/api".
+            description: DomainRoute is one route of a domain.
+        DomainServer:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID.
+                serverName:
+                    type: string
+                    description: The server's name, such as "hz-1".
+                status:
+                    allOf:
+                        - $ref: '#/components/schemas/DomainStatus'
+                    description: |-
+                        Where the certificate and DNS stand, as the server last said. Unset until
+                         it has said.
+                stale:
+                    type: boolean
+                    description: True when the server isn't connected, so status is what it last said.
+                ingress:
+                    allOf:
+                        - $ref: '#/components/schemas/IngressStatus'
+                    description: |-
+                        Where the server's ingress stands, as it last said. A domain with an issued
+                         certificate still doesn't answer while problem is set here.
+            description: DomainServer is where a domain stands on one server.
+        DomainStatus:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The domain.
+                certificate:
+                    allOf:
+                        - $ref: '#/components/schemas/Certificate'
+                    description: Its certificate.
+                dns:
+                    allOf:
+                        - $ref: '#/components/schemas/DomainCheck'
+                    description: What DNS says of it.
+            description: DomainStatus is where one domain's certificate and DNS stand on a server.
         Drift:
             type: object
             properties:
@@ -2005,7 +2194,7 @@ components:
                     items:
                         type: string
                     description: |-
-                        Where a service, volume or network runs, by server ID. Empty keeps it
+                        Where a service, volume, network or route runs, by server ID. Empty keeps it
                          where it runs now; a new one runs on the only server, and must name its
                          servers once there are several. Other kinds ignore it: a container or
                          firewall rule lives on its server, and projects and environments run on
@@ -2437,6 +2626,8 @@ components:
                         - HOST_ACCESS_KIND_HOST_NETWORK
                         - HOST_ACCESS_KIND_VOLUME_MOUNT
                         - HOST_ACCESS_KIND_NETWORK_DRIVER
+                        - HOST_ACCESS_KIND_DOMAIN
+                        - HOST_ACCESS_KIND_PANEL_DOMAIN
                     type: string
                     description: What it is.
                     format: enum
@@ -2529,6 +2720,80 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: ImportComposeResponse carries the planned change.
+        IngressEffect:
+            type: object
+            properties:
+                change:
+                    enum:
+                        - INGRESS_CHANGE_UNSPECIFIED
+                        - INGRESS_CHANGE_STARTS
+                        - INGRESS_CHANGE_STOPS
+                        - INGRESS_CHANGE_RESTARTS
+                    type: string
+                    description: What happens to the proxy.
+                    format: enum
+                proxy:
+                    type: string
+                    description: The proxy, such as "Caddy".
+                ports:
+                    type: array
+                    items:
+                        type: string
+                    description: The ports it takes or frees, such as "80/tcp", "443/tcp" and "443/udp".
+                panelDomain:
+                    type: string
+                    description: |-
+                        The panel's domain, when the panel moves behind the proxy as it starts,
+                         or takes the ports back as it stops. The address, passkeys and sessions
+                         stay; HTTPS on it is down while the certificate comes, and the SSH tunnel
+                         keeps working.
+            description: |-
+                IngressEffect is what a step does to the proxy that holds a server's public
+                 ports.
+        IngressStatus:
+            type: object
+            properties:
+                proxy:
+                    type: string
+                    description: The proxy, such as "Caddy".
+                running:
+                    type: boolean
+                    description: True when the proxy runs.
+                problem:
+                    enum:
+                        - INGRESS_PROBLEM_UNSPECIFIED
+                        - INGRESS_PROBLEM_PORTS_TAKEN
+                        - INGRESS_PROBLEM_SUBNET_TAKEN
+                        - INGRESS_PROBLEM_NOT_RUNNING
+                    type: string
+                    description: Why its routes aren't being served. Unset while they are.
+                    format: enum
+                message:
+                    type: string
+                    description: |-
+                        For people: what is wrong, what follows, and how to fix it. Empty while
+                         nothing is.
+                holders:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What holds the proxy's ports, by name, for PORTS_TAKEN: containers, where
+                         they are in one, so a client can offer what to do about each.
+                version:
+                    type: string
+                    description: |-
+                        The version the proxy runs, such as "2.11.7-alpine". Empty when the server
+                         can't say.
+                pinnedVersion:
+                    type: string
+                    description: The version this server's Dockwell pins.
+                outdated:
+                    type: boolean
+                    description: |-
+                        True when the proxy isn't the version this server's Dockwell pins. It may
+                         be missing security fixes, and moves on the server's next route change.
+            description: IngressStatus is where a server's ingress stands, on a server with routes.
         ListChangesResponse:
             type: object
             properties:
@@ -2541,6 +2806,15 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListChangesResponse is a page of changes.
+        ListDomainsResponse:
+            type: object
+            properties:
+                domains:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Domain'
+                    description: The domains, sorted by name.
+            description: ListDomainsResponse lists domains.
         ListDriftResponse:
             type: object
             properties:
@@ -2851,6 +3125,27 @@ components:
                     description: |-
                         True when the server hasn't the image yet, so its own health check
                          isn't known, and until_healthy may be missing or too short.
+                ingress:
+                    allOf:
+                        - $ref: '#/components/schemas/IngressEffect'
+                    description: |-
+                        What the step does to the server's ingress, beside the route itself.
+                         Unset for a step that leaves it as it is.
+                domainCheck:
+                    allOf:
+                        - $ref: '#/components/schemas/DomainCheck'
+                    description: |-
+                        What DNS said of a route's domain when this was planned. It never stops
+                         a plan, and the fingerprint leaves it out, as people often set DNS after.
+                returningContainers:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Stopped containers that Docker starts again when it next restarts, as after
+                         a reboot, and that may then take the ports the server's proxy needs, so
+                         its routes stop answering. It never stops a plan, and the fingerprint leaves
+                         it out. Keep one stopped with docker update --restart=no.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -3049,13 +3344,13 @@ components:
                     type: string
                     description: |-
                         The kind, such as "project", "environment", "service", "volume",
-                         "network", "container" or "firewall.rule".
+                         "network", "route", "container" or "firewall.rule".
                 scope:
                     type: string
                     description: |-
                         The ID of what it lives in, which its kind says: the organization
                          ("org_…") for a project, a project ("prj_…") for an environment, an
-                         environment ("env_…") for a service, volume or network, and a server
+                         environment ("env_…") for a service, volume, network or route, and a server
                          ("srv_…") for a container or firewall rule.
                 name:
                     type: string
@@ -3135,6 +3430,32 @@ components:
             type: object
             properties: {}
             description: RevokeTokenResponse is empty.
+        Route:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: |-
+                        The domain, such as "app.example.com": a lowercase DNS name that a
+                         public certificate authority issues for. Wildcards aren't taken.
+                path:
+                    type: string
+                    description: |-
+                        The path it covers, such as "/api": that path and what is under it,
+                         which reach the service as they are. Empty covers the whole domain.
+                service:
+                    type: string
+                    description: The service to send it to, by name, in the route's environment.
+                port:
+                    type: integer
+                    description: The port the service listens on inside its container, such as 8080.
+                    format: uint32
+            description: |-
+                Route sends a domain's traffic, or a path under it, to a port of a service
+                 in the route's environment, over HTTPS with a certificate Dockwell gets for
+                 the domain. A server's first route starts its ingress, which takes ports 80
+                 and 443; its last stops it and frees them. See
+                 docs/adr/0024-the-caddy-ingress-driver.md.
         Secret:
             type: object
             properties:
@@ -3202,6 +3523,12 @@ components:
                         When the agent connected, if it is connected now. A connection that
                          moves to a renewed certificate keeps its time. Unset otherwise.
                     format: date-time
+                ingress:
+                    allOf:
+                        - $ref: '#/components/schemas/IngressStatus'
+                    description: |-
+                        Where its ingress stands, as it last said. Unset for a server with no
+                         routes, as nothing on it wants the public ports.
             description: Server is one machine running the agent.
         ServerInventory:
             type: object
@@ -3515,6 +3842,10 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/Secret'
                     description: A secret of an environment, kind "secret".
+                route:
+                    allOf:
+                        - $ref: '#/components/schemas/Route'
+                    description: A domain or path sent to a service, kind "route".
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
@@ -3795,8 +4126,8 @@ tags:
     - name: ChangeService
       description: |-
         ChangeService is the one way to change managed state, for every kind of
-         resource: projects, environments, services, volumes, networks, containers
-         and firewall rules alike. You propose edits and get a plan back; applying the plan writes
+         resource: projects, environments, services, volumes, networks, routes,
+         containers and firewall rules alike. You propose edits and get a plan back; applying the plan writes
          immutable revisions and runs its steps on the servers; undoing makes a new
          plan that puts things back. See docs/adr/0009-resources-revisions-and-plans.md
          and docs/adr/0017-the-change-api-and-the-agent-stream.md.
@@ -3816,6 +4147,12 @@ tags:
          Docker Compose gives its own, so docker compose sees them, and an
          exported file runs the same with docker compose alone (PRD principle 6).
          See docs/adr/0021-the-docker-driver.md.
+    - name: DomainService
+      description: |-
+        DomainService says where the domains of your routes stand: what each sends
+         where, and whether its certificate is pending, issued or failed, with what
+         to do when it failed. Change routes with ChangeService, as kind "route". See
+         docs/adr/0024-the-caddy-ingress-driver.md.
     - name: EventService
       description: |-
         EventService is the timeline: every change to managed state, with who
@@ -3838,7 +4175,8 @@ tags:
     - name: ResourceService
       description: |-
         ResourceService reads the resources Dockwell manages: projects,
-         environments, services, volumes, networks, containers and firewall rules.
+         environments, services, volumes, networks, routes, containers and firewall
+         rules.
          Change them with ChangeService.
 
          It names resources and says where they live, and never carries a spec,

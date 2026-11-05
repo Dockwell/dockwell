@@ -464,6 +464,108 @@ func TestAStepANewerAgentPlansFailsPlanning(t *testing.T) {
 	}
 }
 
+// reporter is a server's routes' domains, which a test changes.
+type reporter struct {
+	mu      sync.Mutex
+	list    []*dockwellv1.DomainStatus
+	ingress *dockwellv1.IngressStatus
+	changed chan struct{}
+}
+
+func (r *reporter) Ingress() *dockwellv1.IngressStatus {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ingress
+}
+
+func (r *reporter) setIngress(st *dockwellv1.IngressStatus) {
+	r.mu.Lock()
+	r.ingress = st
+	r.mu.Unlock()
+	r.changed <- struct{}{}
+}
+
+func (r *reporter) Domains() []*dockwellv1.DomainStatus {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.list
+}
+
+func (r *reporter) DomainsChanged() <-chan struct{} { return r.changed }
+
+func (r *reporter) set(list ...*dockwellv1.DomainStatus) {
+	r.mu.Lock()
+	r.list = list
+	r.mu.Unlock()
+	r.changed <- struct{}{}
+}
+
+// Where a route's certificate stands reaches the control plane as the stream
+// opens and as it changes, and stays once the agent has gone.
+func TestAnAgentReportsItsDomains(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	issued := dockwellv1.CertificateState_CERTIFICATE_STATE_ISSUED
+	r := &reporter{changed: make(chan struct{}, 1), list: []*dockwellv1.DomainStatus{{
+		Domain: "app.example.com", Certificate: &dockwellv1.Certificate{State: dockwellv1.CertificateState_CERTIFICATE_STATE_PENDING},
+	}}}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = agent.Run(ctx, agent.Config{
+			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(),
+			Collector: fakeCollector(), Domains: r,
+		})
+		close(done)
+	}()
+	waitForAgent(t, s.agents, id.ServerID, true)
+	state := func() (dockwellv1.CertificateState, bool) {
+		st, connected := s.agents.Domain(id.ServerID, "app.example.com")
+		return st.GetCertificate().GetState(), connected
+	}
+	eventually := func(what string, ok func() bool) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for !ok() {
+			if time.Now().After(deadline) {
+				t.Fatal(what)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	eventually("the first report never came", func() bool {
+		got, _ := state()
+		return got == dockwellv1.CertificateState_CERTIFICATE_STATE_PENDING
+	})
+	r.set(&dockwellv1.DomainStatus{Domain: "app.example.com", Certificate: &dockwellv1.Certificate{State: issued}})
+	eventually("the change never came", func() bool {
+		got, _ := state()
+		return got == issued
+	})
+	// So does where its ingress stands, as a certificate alone doesn't say whether
+	// a domain answers.
+	r.setIngress(&dockwellv1.IngressStatus{Proxy: "Caddy", Problem: dockwellv1.IngressProblem_INGRESS_PROBLEM_PORTS_TAKEN, Holders: []string{"openresty"}})
+	eventually("the ingress's state never came", func() bool {
+		return s.agents.Ingress(id.ServerID).GetProblem() == dockwellv1.IngressProblem_INGRESS_PROBLEM_PORTS_TAKEN
+	})
+	eventually("the server never said it", func() bool {
+		got, err := s.hub.Get(id.ServerID)
+		return err == nil && got.GetIngress().GetHolders() != nil && got.GetIngress().GetHolders()[0] == "openresty"
+	})
+	cancel()
+	<-done
+	eventually("the agent never read as gone", func() bool {
+		_, connected := state()
+		return !connected
+	})
+	if got, _ := state(); got != issued {
+		t.Errorf("with the agent gone, it reads %s, want what it last said", got)
+	}
+	if st, _ := s.agents.Domain(id.ServerID, "other.example.com"); st != nil {
+		t.Errorf("a domain it never said reads %v", st)
+	}
+}
+
 // An agent offers the Docker kinds only while Docker answers. Until then,
 // planning one says why, and how to fix it; once Docker starts, the agent
 // tells the control plane, and its kinds run. What waited for them, such

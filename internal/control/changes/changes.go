@@ -212,7 +212,7 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			authapi.ReasonNeedsSession)
 	case r.State == store.ChangePlanned && r.Plan.HostAccess() && p.Token != nil:
 		return nil, authapi.ReasonError(connect.CodePermissionDenied,
-			fmt.Errorf("%s gives %s, which a person approves, so no API token may apply it. %s", r.ID, accessWords(r.Plan), signIn),
+			fmt.Errorf("%s %s, which a person approves, so no API token may apply it. %s", r.ID, accessWords(r.Plan), signIn),
 			authapi.ReasonNeedsSession)
 	case r.State == store.ChangePlanned && r.Plan.Destructive() && fp == "":
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
@@ -220,7 +220,7 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			"needs_confirmation")
 	case r.State == store.ChangePlanned && r.Plan.HostAccess() && fp == "":
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
-			fmt.Errorf("%s gives %s. Review the plan, then apply it with its fingerprint, %s, to confirm", r.ID, accessWords(r.Plan), r.Fingerprint),
+			fmt.Errorf("%s %s. Review the plan, then apply it with its fingerprint, %s, to confirm", r.ID, accessWords(r.Plan), r.Fingerprint),
 			"needs_confirmation")
 	}
 	if err := h.engine.Start(ctx, r.ID, who); err != nil {
@@ -237,22 +237,28 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 // with an API token, even after dockwell login, so the panel is the place.
 const signIn = "Sign in to the panel and apply it there: the CLI uses an API token, even after dockwell login, so it can't apply it either"
 
-// accessWords says what a plan gives containers on their servers, such as
-// "web access to its server: the server path /srv/app (read-only), and
-// Docker's socket at /var/run/docker.sock, which controls Docker as root
-// does".
+// accessWords says what about a plan a person approves, each as what it is, such
+// as "gives web access to its server: the server path /srv/app (read-only), and
+// Docker's socket at /var/run/docker.sock, which controls Docker as root does". A
+// domain isn't access to a server, and the panel's moving isn't given to anything.
 func accessWords(p *revision.Plan) string {
 	var parts []string
 	for i := range p.Resources {
 		r := &p.Resources[i]
-		if len(r.HostAccess) == 0 {
-			continue
-		}
-		var what []string
+		var reach []string
 		for _, a := range r.HostAccess {
-			what = append(what, resource.AccessWords(a))
+			switch a.Kind {
+			case resource.AccessDomain:
+				parts = append(parts, "claims "+resource.AccessWords(a))
+			case resource.AccessPanelDomain:
+				parts = append(parts, "moves the panel's domain, "+a.Path+", behind "+a.Detail)
+			default:
+				reach = append(reach, resource.AccessWords(a))
+			}
 		}
-		parts = append(parts, r.Ref.Name+" access to its server: "+human.List(what))
+		if len(reach) > 0 {
+			parts = append(parts, "gives "+r.Ref.Name+" access to its server: "+human.List(reach))
+		}
 	}
 	return strings.Join(parts, "; ")
 }

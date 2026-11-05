@@ -43,6 +43,8 @@ var agentPackages = []string{
 	"internal/docker",   // the Docker Engine's API, for the Docker driver (ADR 0021)
 	"internal/human",
 	"internal/id",
+	"internal/ingress", // what runs a server's routes on a proxy (ADR 0024)
+	"internal/ingress/caddy",
 	"internal/logging",
 	"internal/pki",
 	"internal/resource",
@@ -50,6 +52,7 @@ var agentPackages = []string{
 	"internal/resource/container", // the Docker driver's kinds
 	"internal/resource/network",
 	"internal/resource/resourcepb",
+	"internal/resource/route", // the ingress's kind (ADR 0024)
 	"internal/resource/service",
 	"internal/resource/variable", // the names and kinds a service's Validate checks what it uses by
 	"internal/resource/volume",

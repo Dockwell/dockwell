@@ -36,6 +36,7 @@ const (
 	Service      = "svc"
 	Variable     = "var"
 	Secret       = "sec"
+	Route        = "rte"
 
 	// Keys that seal what may be secret at rest (ADR 0022).
 	KeyEncryptionKey = "kek"

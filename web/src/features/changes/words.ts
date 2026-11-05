@@ -3,8 +3,12 @@
 import {
   ActorKind,
   ChangeState,
+  type DomainCheck,
+  DomainCheckState,
   type HostAccess,
   HostAccessKind,
+  IngressChange,
+  type IngressEffect,
   PlanAction,
   StepEffect,
   StepState,
@@ -39,6 +43,12 @@ export interface ChangeWords {
   actorKind(kind: ActorKind): string;
   /** What a container reaches on its server: "the server path /srv/app (read-only)". */
   access(access: HostAccess): string;
+  /** What a route's step does to its server's ingress, a sentence each. Empty for nothing. */
+  ingress(effect: IngressEffect | undefined, server: string): string[];
+  /** What would take the proxy's ports back at the next reboot, and how to keep it from happening. It never stops a plan. */
+  returning(names: string[], server: string): string;
+  /** What DNS said of a route's domain as this was planned, if that is worth saying. It never stops a plan. */
+  domain(check: DomainCheck | undefined): string;
 }
 
 export function useChangeWords(): ChangeWords {
@@ -59,6 +69,8 @@ export function useChangeWords(): ChangeWords {
             return t`Volume`;
           case "network":
             return t`Network`;
+          case "route":
+            return t`Route`;
           case "firewall.rule":
             return t`Firewall rule`;
           case "variable":
@@ -169,8 +181,67 @@ export function useChangeWords(): ChangeWords {
             if (detail !== "") out = t`${out}, with ${detail}`;
             return out;
           }
+          case HostAccessKind.DOMAIN:
+            return t`the domain ${path}, which the environment ${detail} held within the last 7 days`;
+          case HostAccessKind.PANEL_DOMAIN:
+            return t`the panel's domain, ${path}, which moves behind ${detail}`;
         }
         return t`something else on the server`;
+      },
+      ingress(effect, server) {
+        if (!effect) return [];
+        const { proxy, panelDomain } = effect;
+        const ports = effect.ports.join(", ");
+        const out: string[] = [];
+        switch (effect.change) {
+          case IngressChange.STARTS:
+            out.push(t`${proxy} isn't running on ${server}, so this route starts it, and it takes ports ${ports}`);
+            if (panelDomain !== "") {
+              out.push(
+                t`The panel's domain, ${panelDomain}, moves behind ${proxy}. Its address, passkeys and sessions stay as they are, and it keeps its present certificate until ${proxy} has its own. HTTPS on it is down for a moment as the ports change hands; the SSH tunnel keeps working`,
+              );
+            }
+            break;
+          case IngressChange.STOPS:
+            out.push(
+              t`This is the last route on ${server}, so ${proxy} stops, and ports ${ports} are free. Its certificates stay on the server for when a route comes back`,
+            );
+            if (panelDomain !== "") {
+              out.push(
+                t`The panel takes those ports back for its domain, ${panelDomain}. Its address, passkeys and sessions stay as they are`,
+              );
+            }
+            break;
+          case IngressChange.RESTARTS:
+            out.push(
+              t`${proxy} restarts on ${server}, for a newer version, so everything it serves is down for that long`,
+            );
+            break;
+        }
+        return out;
+      },
+      returning(names, server) {
+        if (names.length === 0) return "";
+        const list = names.join(", ");
+        const command = names.join(" ");
+        return t`Docker starts ${list} again when ${server} next restarts, which may take port 80 or 443 from the proxy, and stop this route answering. Keep it stopped with docker update --restart=no ${command}`;
+      },
+      domain(check) {
+        if (!check) return "";
+        const { domain } = check;
+        const found = check.found.join(", ");
+        const here = check.here.join(", ");
+        switch (check.state) {
+          case DomainCheckState.NO_RECORD:
+            return here === ""
+              ? t`${domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do`
+              : t`${domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at ${here}; it comes once you do`;
+          case DomainCheckState.ELSEWHERE:
+            return t`DNS for ${domain} points at ${found}, not this server (${here}), so its certificate can't come yet. Point it here; it comes once you do`;
+          case DomainCheckState.CANT_TELL:
+            return t`DNS for ${domain} points at ${found}. This server's own addresses are private (${here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is`;
+        }
+        return "";
       },
       actorKind(kind) {
         switch (kind) {

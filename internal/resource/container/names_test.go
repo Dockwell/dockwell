@@ -110,6 +110,37 @@ func TestUntaggedImagesNeverReachAnotherImage(t *testing.T) {
 	unchanged(t, l, ref, spec)
 }
 
+// Validate looks at a name alone, and Docker takes the start of a network's ID
+// as readily as its name, so it is the agent's exact lookup that keeps a
+// container on its own off the ingress's network, and an environment's. Each
+// of these resolves to the network on Docker, as they do on the fake.
+func TestNoContainerJoinsANetworkOfItsOwnByItsID(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	id := "8db0c28a6f5f" + strings.Repeat("0", 52)
+	e.AddNetwork(docker.Network{ID: id, Name: docker.IngressNetwork, Driver: "bridge", Internal: true})
+	envID := "cafe" + strings.Repeat("1", 60)
+	e.AddNetwork(docker.Network{ID: envID, Name: "env_01kat4zr6e3v0y5xbkzb5d9q6m_back", Driver: "bridge"})
+	l := resource.Local{Drivers: drivers(e)}
+	ref := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}
+	for _, n := range []string{id, "8db0c28a6f5f", "8d", "8", envID, "cafe"} {
+		spec := &resourcev1.Container{Image: "nginx:1.27", Networks: []string{n}}
+		if err := container.Validate(spec); err != nil {
+			t.Fatal(err)
+		}
+		// The start of an ID can match others, which Docker calls ambiguous: a
+		// refusal too. Either way, nothing is made.
+		err := l.Apply(t.Context(), resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionCreate}}, spec)
+		refused := err != nil && (strings.Contains(err.Error(), "isn't on this server, so web can't join it") || strings.Contains(err.Error(), "is ambiguous"))
+		if !refused {
+			t.Errorf("joining %s = %v, want it refused", n, err)
+		}
+		if c := e.Container("web"); c != nil {
+			t.Fatalf("web was made on %s, on %v", n, c.NetworkSettings.Networks)
+		}
+	}
+}
+
 // A container on its own joins Docker's networks by their exact names:
 // one that isn't there is refused, never taken for a network whose ID
 // starts with its name.

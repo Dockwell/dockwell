@@ -247,6 +247,9 @@ func BindDevice(driver string, options map[string]string) (string, bool) {
 // volume was made. A bind resolves each time a container starts, so this
 // narrows the window, and can't close it (docs/security/sign-in.md).
 func (d *Docker) CheckHost(ctx context.Context, t Target, spec *resourcev1.Container) error {
+	if err := d.checkPublicPorts(ctx, spec); err != nil {
+		return err
+	}
 	if d.Paths == nil || len(spec.GetMounts()) == 0 {
 		return nil
 	}
@@ -273,6 +276,25 @@ func (d *Docker) CheckHost(ctx context.Context, t Target, spec *resourcev1.Conta
 			if err := h.CheckPath(dev, what); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+// checkPublicPorts refuses a port the server's ingress holds: the new
+// container would fail to start only once the old one was gone.
+func (d *Docker) checkPublicPorts(ctx context.Context, spec *resourcev1.Container) error {
+	if d.Ingress == nil {
+		return nil
+	}
+	for _, p := range spec.GetPorts() {
+		udp := p.GetProtocol() == resourcev1.Protocol_PROTOCOL_UDP
+		held, err := d.Ingress.PublicPort(ctx, p.GetHostPort(), udp)
+		if err != nil {
+			return err
+		}
+		if held {
+			return fmt.Errorf("this server's ingress holds port %d for its routes, so a container can't publish it. Publish another port, or send the domain here with a route", p.GetHostPort())
 		}
 	}
 	return nil

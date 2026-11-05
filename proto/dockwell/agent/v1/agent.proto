@@ -5,6 +5,7 @@ syntax = "proto3";
 package dockwell.agent.v1;
 
 import "dockwell/v1/change.proto";
+import "dockwell/v1/domain.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/server.proto";
 import "dockwell/v1/system.proto";
@@ -58,7 +59,19 @@ message ConnectRequest {
     // The kinds the agent can run changed since its hello, as when Docker
     // stopped or started.
     Kinds kinds = 6;
+    // Where the certificates of the server's routes stand: all of them, when
+    // the stream opens and whenever one changes.
+    Domains domains = 7;
   }
+}
+
+// Domains is where the certificate and DNS of each of a server's routes'
+// domains stand.
+message Domains {
+  // Each domain, sorted.
+  repeated dockwell.v1.DomainStatus domains = 1;
+  // Where the server's ingress stands. Unset for a server with no routes.
+  dockwell.v1.IngressStatus ingress = 2;
 }
 
 // CallProgress says how a call under way is going.

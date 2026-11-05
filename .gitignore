@@ -1,6 +1,9 @@
 # Build output
 /bin/
 /dist/
+# What go build leaves here with no -o
+/dockwell
+/dockwell-agent
 
 # Dependencies
 node_modules/
@@ -21,3 +24,6 @@ coverage/
 # PNGs of the mocks, written by `make mock-snapshots`. Never committed.
 /packages/mockview/snapshots/
 /coverage.out
+
+# What tests the ingress against the real thing, in CI (scripts/ingress-tools.sh)
+/.ingress-tools/

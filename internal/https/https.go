@@ -10,13 +10,17 @@
 package https
 
 import (
+	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
@@ -87,6 +91,49 @@ func (a *ACME) TLSConfig() *tls.Config {
 	c := a.manager.TLSConfig()
 	c.MinVersion = tls.VersionTLS12
 	return c
+}
+
+// Current returns the certificate the cache holds for the domain, and its key,
+// in PEM, or nothing if it holds none that serves. It only reads: it never asks
+// the CA for one, which is for when this server's proxy takes the ports and the
+// panel is no longer there to answer a challenge.
+func (a *ACME) Current(ctx context.Context) (chain, key []byte, err error) {
+	data, err := a.manager.Cache.Get(ctx, a.domain)
+	if errors.Is(err, autocert.ErrCacheMiss) {
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, fmt.Errorf("can't read the certificate for %s: %w", a.domain, err)
+	}
+	return splitCached(data, time.Now())
+}
+
+// splitCached splits what autocert caches, a private key and then a chain in PEM,
+// and returns nothing for a chain that doesn't serve now.
+func splitCached(data []byte, now time.Time) (chain, key []byte, err error) {
+	var leaf *x509.Certificate
+	for {
+		var block *pem.Block
+		block, data = pem.Decode(data)
+		if block == nil {
+			break
+		}
+		switch {
+		case strings.HasSuffix(block.Type, "PRIVATE KEY"):
+			key = pem.EncodeToMemory(block)
+		case block.Type == "CERTIFICATE":
+			if leaf == nil {
+				if leaf, err = x509.ParseCertificate(block.Bytes); err != nil {
+					return nil, nil, fmt.Errorf("can't read the cached certificate: %w", err)
+				}
+			}
+			chain = append(chain, pem.EncodeToMemory(block)...)
+		}
+	}
+	if leaf == nil || key == nil || now.Before(leaf.NotBefore) || !now.Before(leaf.NotAfter) {
+		return nil, nil, nil
+	}
+	return chain, key, nil
 }
 
 // HTTPHandler answers HTTP-01 challenges and redirects the rest to HTTPS.

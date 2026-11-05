@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -63,12 +64,51 @@ type Agents struct {
 	// opened is closed, and made again, whenever a session opens, for the
 	// calls waiting for a server's next stream.
 	opened chan struct{}
+	// domains is what each server last said of its routes' domains. It
+	// outlives the server's stream, so an offline server shows what it last
+	// said, and it is lost with the control plane, as the agent says it again
+	// when its stream opens.
+	domains map[string][]*dockwellv1.DomainStatus
+	// ingress is what each server last said of its ingress.
+	ingress map[string]*dockwellv1.IngressStatus
 }
 
 // NewAgents returns an empty set of agents. kinds reads the specs agents
 // send back.
 func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
-	return &Agents{kinds: kinds, logger: logger, sessions: map[string]*Session{}, opened: make(chan struct{})}
+	return &Agents{
+		kinds: kinds, logger: logger, sessions: map[string]*Session{}, opened: make(chan struct{}),
+		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{},
+	}
+}
+
+// Report keeps what a server says of its routes' domains.
+func (a *Agents) Report(server string, domains []*dockwellv1.DomainStatus, ingress *dockwellv1.IngressStatus) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.domains[server] = domains
+	a.ingress[server] = ingress
+}
+
+// Ingress is what a server last said of its ingress, or nil.
+func (a *Agents) Ingress(server string) *dockwellv1.IngressStatus {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.ingress[server]
+}
+
+// Domain is what a server last said of a domain, and whether its agent is
+// connected to say more. The status is nil until it has said.
+func (a *Agents) Domain(server, domain string) (status *dockwellv1.DomainStatus, connected bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	_, connected = a.sessions[server]
+	for _, d := range a.domains[server] {
+		if d.GetDomain() == domain {
+			return d, connected
+		}
+	}
+	return nil, connected
 }
 
 // SendValues has the agents send each step the values of the variables and
