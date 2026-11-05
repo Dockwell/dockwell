@@ -10,17 +10,19 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 )
 
-// What a child may spend reading one file. The worst real shape of a file
-// under MaxFile takes about 2 s and 44 MiB of heap. Memory is limited as
-// RLIMIT_DATA, what it can write to, as Go reserves far more address space
-// than it uses: under an RLIMIT_AS of 1 GiB it died with 28 MiB in use.
+// What a child may spend reading one file. The largest real shapes under
+// MaxFile take 1 to 3 s of CPU and 198 MiB it can write to, and two run at once,
+// so even a server of 1 GB has room. Memory is limited as RLIMIT_DATA, what it
+// can write to, as Go reserves far more address space than it uses: under an
+// RLIMIT_AS of 1 GiB it died with 28 MiB in use.
 var (
 	guardCPU     uint64 = 10 // seconds
-	guardMemory  uint64 = 1 << 30
+	guardMemory  uint64 = 256 << 20
 	guardTimeout        = 15 * time.Second
 )
 
@@ -39,14 +41,7 @@ var guardPath string
 // recover from running out of memory, so the only safe place to find out is
 // another process. /proc/self/exe stays right across an upgrade that replaces
 // the binary.
-func UseGuard() {
-	guardPath = "/proc/self/exe"
-	if _, err := os.Stat(guardPath); err != nil {
-		if exe, err := os.Executable(); err == nil {
-			guardPath = exe
-		}
-	}
-}
+func UseGuard() { guardPath = "/proc/self/exe" }
 
 type guardRequest struct {
 	File      []byte            `json:"file"`
@@ -71,51 +66,83 @@ func guard(ctx context.Context, file []byte, variables map[string]string) error 
 	defer cancel()
 	cmd := exec.CommandContext(ctx, guardPath, GuardCommand)
 	// Nothing of this process's own passes to it, such as a database's
-	// address, and a crash's traces go nowhere, as they can hold what it read.
-	cmd.Env = []string{"GOMAXPROCS=2"}
+	// address. GOMEMLIMIT has it collect garbage before it reaches its limit.
+	cmd.Env = []string{"GOMAXPROCS=2", fmt.Sprintf("GOMEMLIMIT=%d", guardMemory-guardMemory/4)}
+	// Its first words say how it ended. Nothing else of what it writes is kept,
+	// as a crash's traces can hold what it read.
+	var said head
+	cmd.Stderr = &said
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return fmt.Errorf("can't start reading the Compose file: %w", err)
+		return fmt.Errorf("can't start reading the Compose file: %w. This is about the server, not the file", err)
 	}
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("can't start reading the Compose file: %w", err)
+		return fmt.Errorf("can't start reading the Compose file: %w. This is about the server, not the file: dockwell needs /proc, and to run its own binary", err)
 	}
 	go func() {
 		_, _ = stdin.Write(body)
 		_ = stdin.Close()
 	}()
 	err = cmd.Wait()
-	// A signal is the CPU limit, as is the deadline for time, and exit status 2
-	// is how Go ends when it runs out of memory. Any other is the child itself
-	// failing, which says nothing about the file.
 	var exit *exec.ExitError
-	spent := errors.As(err, &exit) && (exit.ExitCode() < 0 || exit.ExitCode() == 2)
+	failed := errors.As(err, &exit)
 	switch {
 	case err == nil:
 		return nil
 	case ctx.Err() != nil && !errors.Is(ctx.Err(), context.DeadlineExceeded):
 		return fmt.Errorf("stopped reading the Compose file: %w", ctx.Err())
-	case spent || errors.Is(ctx.Err(), context.DeadlineExceeded):
+	case failed && exit.ExitCode() == 1:
+		// RunGuard's own error, which holds nothing it read.
+		return fmt.Errorf("can't read the Compose file: %s. This is about the server, not the file", strings.TrimSpace(said.String()))
+	case failed && strings.Contains(said.String(), "new OS thread"):
+		return errors.New("can't read the Compose file, as the server can't start another thread. This is about the server, not the file: check its limit on processes")
+	case failed || errors.Is(ctx.Err(), context.DeadlineExceeded):
+		// A signal is the CPU limit, and any other exit a crash, as Go ends when
+		// it runs out of memory, on what the file made it do.
 		return invalid("reading the Compose file took more time or memory than Dockwell allows, so it stopped. " +
 			"A real file doesn't: look for one very long word in a command, thousands of names in one place, or aliases repeated many times")
 	}
 	return fmt.Errorf("can't read the Compose file: %w", err)
 }
 
+// head keeps the first 256 bytes written to it.
+type head struct{ b []byte }
+
+func (h *head) Write(p []byte) (int, error) {
+	if room := 256 - len(h.b); room > 0 {
+		h.b = append(h.b, p[:min(room, len(p))]...)
+	}
+	return len(p), nil
+}
+
+func (h *head) String() string { return string(h.b) }
+
 // RunGuard is the child: it takes a request from in, sets its limits, then
 // reads the file. A refusal is a finished read. Only running out of what it's
-// allowed ends it any other way.
+// allowed ends it any other way. It asks the kernel to take it first when
+// memory runs short, rather than anything else on the server.
 func RunGuard(in io.Reader) error {
 	var req guardRequest
 	if err := json.NewDecoder(in).Decode(&req); err != nil {
 		return fmt.Errorf("can't read the request: %w", err)
 	}
-	if err := syscall.Setrlimit(syscall.RLIMIT_CPU, &syscall.Rlimit{Cur: req.CPU, Max: req.CPU}); err != nil {
-		return fmt.Errorf("can't limit reading a Compose file to %d s of CPU: %w", req.CPU, err)
+	_ = os.WriteFile("/proc/self/oom_score_adj", []byte("1000"), 0)
+	if err := limit(syscall.RLIMIT_CPU, req.CPU); err != nil {
+		return fmt.Errorf("can't limit its CPU to %d s: %w", req.CPU, err)
 	}
-	if err := syscall.Setrlimit(syscall.RLIMIT_DATA, &syscall.Rlimit{Cur: req.Memory, Max: req.Memory}); err != nil {
-		return fmt.Errorf("can't limit reading a Compose file to %d MiB: %w", req.Memory>>20, err)
+	if err := limit(syscall.RLIMIT_DATA, req.Memory); err != nil {
+		return fmt.Errorf("can't limit its memory to %d MiB: %w", req.Memory>>20, err)
 	}
 	_, _ = parse(req.File, req.Variables)
 	return nil
+}
+
+// limit sets a resource limit, or keeps a lower one the server has already set.
+func limit(resource int, to uint64) error {
+	var now syscall.Rlimit
+	if err := syscall.Getrlimit(resource, &now); err != nil {
+		return err
+	}
+	to = min(to, now.Max)
+	return syscall.Setrlimit(resource, &syscall.Rlimit{Cur: to, Max: to})
 }

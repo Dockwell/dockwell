@@ -167,6 +167,19 @@ func TestAFileNestsToALimit(t *testing.T) {
 		t.Errorf("%d levels: Parse = %.200v, want them through to the rules", compose.MaxDepth, err)
 	}
 
+	// One on a service, a volume or a network isn't either, so its variables
+	// need no value, and one under an anchor still works.
+	for name, file := range map[string]string{
+		"a service's":            "services:\n  web:\n    image: nginx:1\n    x-deep: " + nested(9000) + "\n    x-host: ${HOST}\n",
+		"a volume's":             "services:\n  web:\n    image: nginx:1\nvolumes:\n  data:\n    x-deep: " + nested(9000) + "\n",
+		"a network's":            "services:\n  web:\n    image: nginx:1\nnetworks:\n  back:\n    x-host: ${HOST}\n",
+		"used through an anchor": "services:\n  web:\n    x-common: &c {image: 'nginx:1'}\n    <<: *c\n",
+	} {
+		if _, err := compose.Parse(t.Context(), []byte(file), nil); err != nil {
+			t.Errorf("%s: %.200v", name, err)
+		}
+	}
+
 	// An extension at the top is there for its anchors, so it isn't read.
 	if _, err := compose.Parse(t.Context(), []byte("x-deep: "+nested(9000)+"\nservices:\n  web:\n    image: nginx:1\n"), nil); err != nil {
 		t.Errorf("an extension at the top: %.200v", err)
@@ -211,17 +224,18 @@ networks:
 	}
 }
 
-// compose-go makes one entry for each port of a range, so 400 ranges in a
-// file of 4 KiB took all the memory there was.
-func TestAPortRangeIsRefusedBeforeItIsRead(t *testing.T) {
+// compose-go makes one entry for each port of a range, so 400 ranges of every
+// port in a file of 4 KiB took all the memory there was. Ordinary ranges stay.
+func TestPortRangesComeToALimit(t *testing.T) {
 	for name, c := range map[string]struct {
 		ports string
 		vars  map[string]string
 	}{
-		"a range":          {ports: `["1-65535"]`},
-		"mapped":           {ports: `["8000-8010:80"]`},
-		"on an address":    {ports: `["127.0.0.1:8000-8010:80/tcp"]`},
+		"every port":       {ports: `["1-65535"]`},
+		"mapped":           {ports: `["1-5000:1-5000"]`},
+		"on an address":    {ports: `["127.0.0.1:1-5000:1-5000/tcp"]`},
 		"from a variable":  {ports: `["${R}"]`, vars: map[string]string{"R": "1-65535"}},
+		"adding up":        {ports: `["1-2000:1-2000", "3001-5000:3001-5000", "6001-7000:6001-7000"]`},
 		"in the long form": {ports: `[{target: 80, published: "8000-8010"}]`},
 	} {
 		file := "services:\n  web:\n    image: nginx:1\n    ports: " + c.ports + "\n"
@@ -229,6 +243,14 @@ func TestAPortRangeIsRefusedBeforeItIsRead(t *testing.T) {
 		if !errors.Is(err, compose.ErrInvalid) || !strings.Contains(err.Error(), "port range") {
 			t.Errorf("%s: Parse = %.200v, want it refused by name", name, err)
 		}
+	}
+	// A mail server's or FTP's range reads as it always has.
+	s, err := compose.Parse(t.Context(), []byte("services:\n  ftp:\n    image: nginx:1\n    ports: [\"21000-21002:21000-21002\", \"127.0.0.1:2100-2101:2100-2101/udp\"]\n"), nil)
+	if err != nil {
+		t.Fatalf("ordinary ranges: %v", err)
+	}
+	if got := len(s.Services[0].Spec.GetApp().GetPorts()); got != 5 {
+		t.Errorf("ordinary ranges make %d ports, want 5", got)
 	}
 	if _, err := compose.Parse(t.Context(), []byte("services:\n  web:\n    image: nginx:1\n    ports: [\"8080:80\", \"127.0.0.1:443:443/tcp\"]\n"), nil); err != nil {
 		t.Errorf("ordinary ports: %v", err)

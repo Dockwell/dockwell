@@ -64,8 +64,11 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 	}
 	stack, err := compose.Parse(ctx, []byte(m.GetCompose()), m.GetVariables())
 	if err != nil {
-		if errors.Is(err, compose.ErrInvalid) {
+		switch {
+		case errors.Is(err, compose.ErrInvalid):
 			return nil, invalid(err)
+		case errors.Is(err, compose.ErrBusy):
+			return nil, connect.NewError(connect.CodeResourceExhausted, err)
 		}
 		return nil, err
 	}

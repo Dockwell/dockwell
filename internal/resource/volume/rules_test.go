@@ -124,6 +124,7 @@ func TestAccessWordsNameItAllAndNoCredentials(t *testing.T) {
 		`the cifs mount "//6.6.6.6/x at 10.0.0.2" (read-write)`:    {"type": "cifs", "o": "guest", "device": "//6.6.6.6/x at 10.0.0.2"},
 		`the cifs mount "//nas/My Share" at 10.0.0.2 (read-write)`: {"type": "cifs", "o": "addr=10.0.0.2", "device": "//nas/My Share"},
 		`the nfs mount ":/x at 10.0.0.2" at 6.6.6.6 (read-write)`:  {"type": "nfs", "o": "addr=6.6.6.6", "device": ":/x at 10.0.0.2"},
+		`the cifs mount "//nas1/文档" at 10.0.0.2 (read-write)`:      {"type": "cifs", "o": "addr=10.0.0.2", "device": "//nas1/文档"},
 		"a tmpfs mount (read-write)":                               {"type": "tmpfs", "device": "tmpfs"},
 		"the server path /srv/media (read-only)":                   {"type": "none", "o": "rw,bind,ro", "device": "/srv/media"},
 	} {
@@ -241,6 +242,11 @@ func TestARemoteMountCanOnlyNameWhatThePlanShows(t *testing.T) {
 		"an @ past the server":      {"type": "cifs", "o": "guest", "device": "//evil.example/x@nas/share"},
 		"backslashes":               {"type": "cifs", "o": "guest", "device": `\\\\nas\\share`},
 		"an escape":                 {"type": "cifs", "o": "guest", "device": "//nas/a%2Fb"},
+		"blank braille":             {"type": "cifs", "o": "guest", "device": "//6.6.6.6/x\u2800at\u280010.0.0.2"},
+		"a Hangul filler":           {"type": "cifs", "o": "guest", "device": "//nas/share\u3164"},
+		"another filler":            {"type": "nfs", "o": "addr=10.0.0.2", "device": ":/x\u115fy"},
+		"a halfwidth filler":        {"type": "cifs", "o": "guest", "device": "//nas/share\uffa0"},
+		"a variation selector":      {"type": "cifs", "o": "guest", "device": "//nas/share\ufe0f"},
 		"a plus":                    {"type": "cifs", "o": "guest", "device": "//nas/a+b"},
 		"a hash":                    {"type": "cifs", "o": "guest", "device": "//nas/a#"},
 		"an invisible space":        {"type": "cifs", "o": "guest", "device": "//nas/share\u200b"},
@@ -291,6 +297,7 @@ func TestARemoteMountCanOnlyNameWhatThePlanShows(t *testing.T) {
 		{"type": "nfs", "o": "addr=10.0.0.2,rw,bg,hard,tcp,vers=3,timeo=600,retry=2,mountvers=3,mountport=2049,mountproto=tcp", "device": "10.0.0.2:/export"},
 		{"type": "cifs", "o": "addr=10.0.0.2,username=a,password=b,_netdev,nostrictsync,nosetuids,nouser_xattr,dynperm,intr,dirmode=0755", "device": "//10.0.0.2/share"},
 		{"type": "cifs", "o": "guest", "device": "//nas1/文档"},
+		{"type": "nfs", "o": "addr=10.0.0.2", "device": ":/srv/c++/a#b%c"},
 	} {
 		if err := d.Validate(&resourcev1.Volume{Options: o}); err != nil {
 			t.Errorf("%v: %v", o, err)

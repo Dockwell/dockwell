@@ -20,13 +20,6 @@ import (
 // that isn't used needs nothing. compose-go's own substitution leaves a
 // variable blank inside a default, and after one in the same string.
 func interpolate(raw map[string]any, variables map[string]string) (map[string]any, error) {
-	total := 0
-	for k, v := range variables {
-		total += len(k) + len(v)
-	}
-	if total > MaxVariables {
-		return nil, invalid("the variables come to %.1f MiB, and Dockwell takes up to %d KiB of them. Pass less, or set long values on the server", float64(total)/(1<<20), MaxVariables>>10)
-	}
 	in := &interpolator{variables: variables, missing: map[string]bool{}}
 	out, err := in.walk(place{owner: fileOwner}, raw)
 	if len(in.missing) > 0 {
@@ -38,6 +31,19 @@ func interpolate(raw map[string]any, variables map[string]string) (map[string]an
 		return nil, err
 	}
 	return out.(map[string]any), nil
+}
+
+// checkVariables refuses more variables than Dockwell takes, before they cost
+// anything.
+func checkVariables(variables map[string]string) error {
+	total := 0
+	for k, v := range variables {
+		total += len(k) + len(v)
+	}
+	if total > MaxVariables {
+		return invalid("the variables come to %.1f MiB, and Dockwell takes up to %d KiB of them. Pass less, or set long values on the server", float64(total)/(1<<20), MaxVariables>>10)
+	}
+	return nil
 }
 
 const fileOwner = "the Compose file"

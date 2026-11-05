@@ -279,6 +279,13 @@ func validateRemote(kind string, options map[string]string) error {
 	return nil
 }
 
+// unseen is a character a person can't see, or that reads as a space: Unicode
+// counts blank braille and the Hangul fillers as printable, so a device could
+// spell out the rest of a plan's line with them.
+func unseen(r rune) bool {
+	return !unicode.IsPrint(r) || r == 0x2800 || unicode.In(r, unicode.Other_Default_Ignorable_Code_Point, unicode.Variation_Selector)
+}
+
 // validateDevice checks a remote mount's device has the one form a plan can
 // show: no user or password, which belong in o, nothing Docker reads its own
 // way, as it unescapes a CIFS device from version 25, and nothing a person
@@ -292,7 +299,11 @@ func validateDevice(kind, dev string) error {
 	if len(dev) > maxMountText {
 		return fmt.Errorf("the volume's device holds %d bytes, and the kernel reads up to %d. %s", len(dev), maxMountText, form)
 	}
-	if strings.ContainsAny(dev, "@,()%+#\\") || strings.TrimSpace(dev) != dev || strings.ContainsFunc(dev, func(r rune) bool { return !unicode.IsPrint(r) }) {
+	refused := "@,()\\"
+	if kind == "cifs" {
+		refused += "%+#" // Docker from version 25 reads a CIFS device as a URL
+	}
+	if strings.ContainsAny(dev, refused) || strings.TrimSpace(dev) != dev || strings.ContainsFunc(dev, unseen) {
 		return fmt.Errorf("the volume's device has characters a %s device can't, such as @. A user and password go in o, as username=name,password=secret. %s", kind, form)
 	}
 	if kind == "cifs" {

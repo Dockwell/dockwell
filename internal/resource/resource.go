@@ -249,9 +249,9 @@ func AccessWords(a Access) string {
 		}
 		at := a.Path
 		switch {
-		case strings.Contains(at, " "):
+		case strings.ContainsFunc(at, func(r rune) bool { return r <= ' ' || r > '~' }):
 			// So a device can't spell out the rest of this line, such as
-			// "//6.6.6.6/x at 10.0.0.2".
+			// "//6.6.6.6/x at 10.0.0.2", with a space or anything else.
 			at = strconv.Quote(at)
 			if a.Address != "" {
 				at += " at " + a.Address

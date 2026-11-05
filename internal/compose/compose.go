@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/compose-spec/compose-go/v2/transform"
@@ -52,8 +53,20 @@ type Stack struct {
 // ErrInvalid is a Compose file Dockwell can't take, with why.
 var ErrInvalid = errors.New("invalid Compose file")
 
+// ErrBusy is too many files waiting to be read to wait with them.
+var ErrBusy = errors.New("too many Compose files are waiting to be read, so this one wasn't. Try again in a moment")
+
+// maxMessage is the most of a refusal that goes to a caller or a log. A library's
+// error can repeat what a file holds once for each mistake in it: 87 KiB came to
+// 128 MiB of text.
+const maxMessage = 4 << 10
+
 func invalid(format string, args ...any) error {
-	return fmt.Errorf("%w: %s", ErrInvalid, fmt.Sprintf(format, args...))
+	message := fmt.Sprintf(format, args...)
+	if len(message) > maxMessage {
+		message = strings.ToValidUTF8(message[:maxMessage], "") + "…"
+	}
+	return fmt.Errorf("%w: %s", ErrInvalid, message)
 }
 
 // Message is an error's text for people, without ErrInvalid's prefix.
@@ -130,11 +143,7 @@ func checkRaw(file []byte) (map[string]any, error) {
 	if err := check("the Compose file", raw, topKeys); err != nil {
 		return nil, err
 	}
-	// Extensions at the top are there for their anchors, which are read by
-	// now, and nothing looks at them after this, so one costs nothing however
-	// large or deep. Elsewhere x- can be a name, of a service, a volume or a
-	// network, which must stay.
-	maps.DeleteFunc(raw, func(k string, _ any) bool { return strings.HasPrefix(k, "x-") })
+	dropExtensions(raw)
 	if err := measure(raw); err != nil {
 		return nil, err
 	}
@@ -248,32 +257,54 @@ func checkMountOptions(dict map[string]any) error {
 	return nil
 }
 
-// checkPortRanges refuses a port range, which Dockwell can't run yet, by name
-// and before compose-go reads it: it makes one entry for each port, so 400
-// ranges in a file of 4 KiB took all the memory there was. A variable can hold
-// a range too, so this comes after they are read.
+// maxExpandedPorts is the most that a file's short-form port ranges may come to,
+// as many as a container takes.
+const maxExpandedPorts = 4096
+
+// checkPortRanges counts what a file's port ranges come to, before compose-go
+// reads them: it makes one entry for each port, so 400 ranges of every port in a
+// file of 4 KiB took all the memory there was. Ranges such as a mail server's or
+// FTP's are fine. A variable can hold a range too, so this comes after they are
+// read. The long form doesn't take a range.
 func checkPortRanges(dict map[string]any) error {
 	services, _ := dict["services"].(map[string]any)
+	total := 0
 	for _, name := range slices.Sorted(maps.Keys(services)) {
 		svc, _ := services[name].(map[string]any)
 		for _, p := range list(svc["ports"]) {
-			ranged := ""
 			switch p := p.(type) {
 			case string:
-				if strings.Contains(p, "-") {
-					ranged = p
+				total += portsIn(p)
+				if total > maxExpandedPorts {
+					return invalid("the service %s publishes the port range %s, which takes the file past %d ports. List fewer", name, p, maxExpandedPorts)
 				}
 			case map[string]any:
 				if published, ok := p["published"].(string); ok && strings.Contains(published, "-") {
-					ranged = published
+					return invalid("the service %s publishes the port range %s in the long form, which Dockwell can't run yet. Write it in the short form, as %s:%v", name, published, published, p["target"])
 				}
-			}
-			if ranged != "" {
-				return invalid("the service %s publishes the port range %s, which Dockwell can't run yet. List each port on its own", name, ranged)
 			}
 		}
 	}
 	return nil
+}
+
+// portsIn is how many ports a short-form mapping's largest range holds.
+func portsIn(mapping string) int {
+	mapping, _, _ = strings.Cut(mapping, "/")
+	most := 1
+	for _, part := range strings.Split(mapping, ":") {
+		from, to, ranged := strings.Cut(part, "-")
+		if !ranged {
+			continue
+		}
+		a, errA := strconv.Atoi(from)
+		b, errB := strconv.Atoi(to)
+		if errA != nil || errB != nil || b < a {
+			continue // not a range of ports: what follows says what's wrong
+		}
+		most = max(most, b-a+1)
+	}
+	return most
 }
 
 func list(v any) []any {
@@ -298,8 +329,14 @@ type model struct {
 const MaxFile = 256 << 10
 
 // parsing limits how many files are read at once, as a write token can send
-// as many as it likes.
-var parsing = make(chan struct{}, 2)
+// as many as it likes, and waiting how many may wait for a turn, as each holds
+// its file and its variables.
+var (
+	parsing = make(chan struct{}, 2)
+	waiting atomic.Int32
+)
+
+const maxWaiting = 16
 
 // Parse reads a Compose file into what it makes in an environment.
 // Variables such as ${TAG} take their values from variables, or the
@@ -318,10 +355,19 @@ func Parse(ctx context.Context, file []byte, variables map[string]string) (*Stac
 		return nil, invalid("the Compose file is %d KiB, and Dockwell reads files of up to %d KiB. "+
 			"Leave out what Dockwell doesn't run, or import the services in more than one file", len(file)>>10, MaxFile>>10)
 	}
+	if err := checkVariables(variables); err != nil {
+		return nil, err
+	}
+	if waiting.Add(1) > maxWaiting {
+		waiting.Add(-1)
+		return nil, ErrBusy
+	}
 	select {
 	case parsing <- struct{}{}:
+		waiting.Add(-1)
 		defer func() { <-parsing }()
 	case <-ctx.Done():
+		waiting.Add(-1)
 		return nil, fmt.Errorf("stopped waiting to read the Compose file: %w", ctx.Err())
 	}
 	if err := guard(ctx, file, variables); err != nil {

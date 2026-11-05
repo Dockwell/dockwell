@@ -514,6 +514,9 @@ ExecStart=$BIN run
 Environment=GOMEMLIMIT=$MEMORY_LIMIT
 Restart=always
 RestartSec=5s
+# The control plane reads a Compose file in a child it limits, and the kernel may
+# kill that child first when memory runs short. That shouldn't stop the service.
+OOMPolicy=continue
 
 [Install]
 WantedBy=multi-user.target
