@@ -485,6 +485,10 @@ msgid "{name} isn't running on {where}"
 msgstr "{name} isn't running on {where}"
 
 #: src/features/changes/notices.tsx
+msgid "{name} joins the {leadsTo} network {path} on {server}"
+msgstr "{name} joins the {leadsTo} network {path} on {server}"
+
+#: src/features/changes/notices.tsx
 msgid "{name} joins the group {path} on {server}"
 msgstr "{name} joins the group {path} on {server}"
 
@@ -2349,6 +2353,10 @@ msgstr "Dockwell can't tell whether <0>{next}</0> started"
 #: src/features/changes/RollbackLine.tsx
 msgid "Dockwell can't tell whether this ran"
 msgstr "Dockwell can't tell whether this ran"
+
+#: src/features/changes/notices.tsx
+msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
+msgstr "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 
 #: src/features/changes/notices.tsx
 msgid "Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach {name}, and it them."

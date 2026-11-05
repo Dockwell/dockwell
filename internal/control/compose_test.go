@@ -977,6 +977,38 @@ func testAVolumeRemadeByHandCanBeAdopted(t *testing.T, backend store.Backend) {
 	}
 }
 
+// A network Dockwell didn't make can be a macvlan on the server's LAN, past its
+// firewall, and only the server knows. So its agent says which driver one uses, and
+// the plan says that where it says what joins it. The last check of #92 found it read
+// the driver, for a health check, and dropped it. A bridge says nothing more.
+func TestAPlanSaysWhichDriverANetworkItDidntMakeUses(t *testing.T) {
+	storetest.Each(t, testAPlanSaysWhichDriverANetworkItDidntMakeUses)
+}
+
+func testAPlanSaysWhichDriverANetworkItDidntMakeUses(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.AddNetwork(docker.Network{Name: "lan", Driver: "macvlan", Options: map[string]string{"parent": "eth0"}})
+	e.AddNetwork(docker.Network{Name: "edge", Driver: "bridge"})
+	cc := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	plan := importCompose(t, cc, "services:\n  app:\n    image: ghcr.io/acme/shop:1.4\n    networks: [lan, edge]\n"+
+		"networks:\n  lan:\n    external: true\n  edge:\n    external: true\n", nil, false).GetPlan()
+	got := map[string]string{}
+	for _, s := range plan.GetServers() {
+		for _, step := range s.GetSteps() {
+			for _, a := range step.GetHostAccess() {
+				if a.GetKind() == dockwellv1.HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_NETWORK {
+					got[a.GetPath()] = a.GetLeadsTo()
+				}
+			}
+		}
+	}
+	if want := map[string]string{"lan": "macvlan", "edge": ""}; !maps.Equal(got, want) {
+		t.Errorf("the plan says the networks use %v, want %v", got, want)
+	}
+}
+
 // plansNothing reports a plan that changes no resource and runs no step.
 func plansNothing(p *dockwellv1.Plan) bool {
 	s := p.GetSummary()

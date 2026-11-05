@@ -313,6 +313,54 @@ func (d *Docker) checkPublicPorts(ctx context.Context, spec *resourcev1.Containe
 // server, those it binds through a volume too, for the ones that lead elsewhere.
 // A plan says so, as a symlink to /etc reaches /etc whatever it is called.
 func (d *Docker) Leads(ctx context.Context, t Target, spec *resourcev1.Container) (map[string]string, error) {
+	paths, err := d.pathLeads(ctx, t, spec)
+	if err != nil {
+		return nil, err
+	}
+	drivers, err := d.networkDrivers(ctx, t, spec)
+	if err != nil {
+		return nil, err
+	}
+	if len(drivers) == 0 {
+		return paths, nil
+	}
+	if paths == nil {
+		return drivers, nil
+	}
+	maps.Copy(paths, drivers)
+	return paths, nil
+}
+
+// networkDrivers says which driver each network the container joins uses, of those
+// Dockwell didn't make, by name, where that isn't Docker's own bridge. Only the
+// server knows, and a driver such as macvlan puts what joins on the server's LAN. A
+// network that isn't there yet says nothing, as checkExternalNetworks refuses it.
+func (d *Docker) networkDrivers(ctx context.Context, t Target, spec *resourcev1.Container) (map[string]string, error) {
+	names := spec.GetExternalNetworks()
+	if !t.Scoped {
+		names = slices.Concat(names, spec.GetNetworks()) // a container on its own has only Docker's
+	}
+	var out map[string]string
+	for _, name := range names {
+		n, err := d.Client.NetworkNamed(ctx, name)
+		switch {
+		case docker.IsNotFound(err):
+			continue
+		case err != nil:
+			return nil, err
+		}
+		if !slices.Contains([]string{"", bridge, "host", "null"}, n.Driver) {
+			if out == nil {
+				out = map[string]string{}
+			}
+			out[name] = n.Driver
+		}
+	}
+	return out, nil
+}
+
+// pathLeads says where the server paths a container mounts lead on this server.
+func (d *Docker) pathLeads(ctx context.Context, t Target, spec *resourcev1.Container) (map[string]string, error) {
 	if d.Paths == nil || len(spec.GetMounts()) == 0 {
 		return nil, nil
 	}

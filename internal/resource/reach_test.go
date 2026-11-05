@@ -109,7 +109,11 @@ func TestLeadingOnlyMakesAPlanLouder(t *testing.T) {
 		{"from /etc to a folder", path("/etc", false), "/srv/site", true, resource.AccessPath, "/srv/site"},
 		{"from the socket to a folder", resource.Access{Kind: resource.AccessDocker, Path: "/var/run/docker.sock"}, "/srv/site", true, resource.AccessDocker, "/srv/site"},
 		{"to where it is", path("/srv/site", false), "/srv/site", false, resource.AccessPath, ""},
-		// Only a path leads anywhere.
+		// What an agent says of a network Dockwell didn't make goes on it, as it can
+		// only make the plan louder.
+		{"a network's driver", resource.Access{Kind: resource.AccessExternalNetwork, Path: "lan"}, "macvlan", false, resource.AccessExternalNetwork, "macvlan"},
+		{"a network it says nothing of", resource.Access{Kind: resource.AccessExternalNetwork, Path: "lan"}, "", false, resource.AccessExternalNetwork, ""},
+		// Only a path or a network leads anywhere.
 		{"a share", resource.Access{Kind: resource.AccessMount, Path: "/etc", Type: "nfs"}, "/etc", false, resource.AccessMount, ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

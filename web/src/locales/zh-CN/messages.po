@@ -485,6 +485,10 @@ msgid "{name} isn't running on {where}"
 msgstr "{name} 没有在 {where} 上运行"
 
 #: src/features/changes/notices.tsx
+msgid "{name} joins the {leadsTo} network {path} on {server}"
+msgstr "{name} 在 {server} 上加入 {leadsTo} 网络 {path}"
+
+#: src/features/changes/notices.tsx
 msgid "{name} joins the group {path} on {server}"
 msgstr "{name} 在 {server} 上加入用户组 {path}"
 
@@ -2349,6 +2353,10 @@ msgstr "Dockwell 无法确定 <0>{next}</0> 是否已启动"
 #: src/features/changes/RollbackLine.tsx
 msgid "Dockwell can't tell whether this ran"
 msgstr "Dockwell 无法确定此步骤是否已运行"
+
+#: src/features/changes/notices.tsx
+msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
+msgstr "该网络不是 Dockwell 创建的，并且可以绕过服务器的防火墙。网络上的其他内容（包括其他项目的服务）都能访问 {name}，它也能访问它们。"
 
 #: src/features/changes/notices.tsx
 msgid "Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach {name}, and it them."
