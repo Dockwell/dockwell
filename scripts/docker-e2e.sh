@@ -4,9 +4,11 @@
 # Runs built dockwell binaries against this machine's Docker Engine, end to
 # end through the CLI: a service from an image runs, changes and is undone;
 # the environment exports as a Compose file that docker compose reads and
-# lists; a Compose file imports; and everything goes again. Then the agent
-# build joins the full build's control plane, and runs a container on the
-# same Docker. It uses throwaway data directories and removes what it made,
+# lists; a Compose file imports; a service using a variable and a secret
+# runs with their values, exports without the secret, and imports again
+# with no change; and everything goes again. Then the agent build joins the
+# full build's control plane, and runs a container on the same Docker. It
+# uses throwaway data directories and removes what it made,
 # so it never touches a real install. It needs Docker with the compose
 # plugin, Go, curl, jq and a free port (E2E_WEB_PORT, 18080 by default).
 #
@@ -150,6 +152,82 @@ dw compose import --compose "$(cat "$data/stack.yaml")" --yes || fail "compose i
 services=$(docker compose -p "$project" ps --format '{{.Service}}' | sort | tr '\n' ' ') || fail "docker compose -p $project ps failed"
 [[ "$services" == "cache web " ]] || fail "after the import, docker compose lists '$services', want cache and web"
 docker volume inspect "${project}_cache-data" >/dev/null || fail "the import made no volume ${project}_cache-data"
+
+step "A service using a variable and a secret runs with their values"
+secret_value=e2e-s3cret-value
+# The secret's value comes from a file: the command line would put it in the
+# process list, and the CLI takes it no other way.
+printf '%s' "$secret_value" >"$data/secret-value"
+dw variables create LOG_LEVEL --value debug --yes || fail "variables create failed"
+dw secrets create DB_PASSWORD --value-file "$data/secret-value" --yes || fail "secrets create failed"
+dw services create api --app-image nginx:1.27-alpine --variables LOG_LEVEL= --secrets DATABASE_PASSWORD=DB_PASSWORD --yes ||
+  fail "services create api failed"
+api=$(docker ps --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=api --format '{{.Names}}') ||
+  fail "docker ps failed"
+[[ "$api" == "$project-api-1" ]] || fail "Docker runs '$api' for api, want $project-api-1"
+api_env=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$api") || fail "docker inspect $api failed"
+grep -qx "DATABASE_PASSWORD=$secret_value" <<<"$api_env" || fail "api doesn't run with the secret's value"
+grep -qx LOG_LEVEL=debug <<<"$api_env" || fail "api doesn't run with the variable's value"
+api_id=$(docker inspect --format '{{.Id}}' "$api") || fail "docker inspect $api failed"
+api_labels=$(docker inspect --format '{{json .Config.Labels}}' "$api") || fail "docker inspect $api failed"
+if [[ "$api_labels" == *"$secret_value"* ]]; then fail "api's labels hold the secret's value"; fi
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift with api running: $drift"
+
+step "The environment exports without the secret, and docker compose lists it"
+dw compose export >"$data/values.yaml" || fail "compose export failed"
+if grep -q -e "$secret_value" "$data/values.yaml"; then fail "the export holds the secret's value"; fi
+grep -Eq '^ +DATABASE_PASSWORD: null$' "$data/values.yaml" || fail "the export doesn't name DATABASE_PASSWORD without a value:
+$(cat "$data/values.yaml")"
+grep -Eq '^ +LOG_LEVEL: debug$' "$data/values.yaml" || fail "the export doesn't write LOG_LEVEL's value:
+$(cat "$data/values.yaml")"
+docker compose -f "$data/values.yaml" config --quiet || fail "docker compose doesn't take the export"
+services=$(docker compose -f "$data/values.yaml" ps --format '{{.Service}}' | sort | tr '\n' ' ') || fail "docker compose -f <export> ps failed"
+[[ "$services" == "api cache web " ]] || fail "docker compose -f <export> ps lists '$services', want api, cache and web"
+
+step "Importing it again plans no change, and restarts nothing"
+# web's own environment is by name in the file, so it comes as a variable, as
+# any value of a container's own does. api's comes from what it uses. With
+# --remove-orphans, anything the import lost would show as going. The CLI
+# discards a plan with nothing in it, and says so on standard error.
+imported=$(dw compose import --compose "$(cat "$data/values.yaml")" --variables GREETING=hello --remove-orphans --json 2>"$data/import.err") ||
+  fail "compose import of the export failed: $(cat "$data/import.err")"
+grep -q 'Nothing to change' "$data/import.err" || fail "compose import of the export didn't say there was nothing to change: $(cat "$data/import.err")"
+# Each check says something an empty answer can't pass: a file that imported
+# nothing has no api to find, and no plan has no summary to add up.
+jq -e '.change.id | startswith("chg_")' <<<"$imported" >/dev/null || fail "compose import printed no change: $imported"
+jq -e '[.change.plan.resources[] | select(.resource.kind == "service") | .resource.name] | sort == ["api", "cache", "web"]' <<<"$imported" >/dev/null ||
+  fail "the import didn't plan api, cache and web: $imported"
+jq -e '.change.plan | has("fingerprint")' <<<"$imported" >/dev/null || fail "the import has no plan: $imported"
+jq -e '.change.plan.summary // {} | [.create, .change, .replace, .destroy] | map(. // 0) | add == 0' <<<"$imported" >/dev/null ||
+  fail "importing the export plans a change: $imported"
+jq -e '[.change.plan.resources[] | select((.changes // []) | length > 0)] | length == 0' <<<"$imported" >/dev/null ||
+  fail "importing the export changes a field: $imported"
+jq -e '[.change.plan.servers[]?.steps[]? | select((.action // "") | IN("", "PLAN_ACTION_NONE") | not)] | length == 0' <<<"$imported" >/dev/null ||
+  fail "importing the export runs a step: $imported"
+if [[ "$imported" == *"$secret_value"* ]]; then fail "the plan holds the secret's value"; fi
+[[ "$(docker inspect --format '{{.Id}}' "$api")" == "$api_id" ]] || fail "importing the export recreated api"
+api_env=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$api") || fail "docker inspect $api failed"
+grep -qx "DATABASE_PASSWORD=$secret_value" <<<"$api_env" || fail "importing the export took the secret's value from api"
+
+step "A container docker compose makes from the export reads back as the service"
+DATABASE_PASSWORD=$secret_value docker compose -f "$data/values.yaml" up --detach --no-deps api || fail "docker compose up api failed"
+[[ "$(docker inspect --format '{{.Id}}' "$api")" != "$api_id" ]] || fail "docker compose up didn't recreate api, so this reads back nothing new"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after docker compose up from the export: $drift"
+
+step "A rotation still reaches it, so the import kept the reference"
+secret_next=e2e-s3cret-next
+printf '%s' "$secret_next" >"$data/secret-value"
+dw secrets update DB_PASSWORD --value-file "$data/secret-value" --yes || fail "secrets update failed"
+api_env=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$api") || fail "docker inspect $api failed"
+grep -qx "DATABASE_PASSWORD=$secret_next" <<<"$api_env" || fail "the rotation didn't reach api"
+
+dw services delete api --yes || fail "services delete api failed"
+dw secrets delete DB_PASSWORD --yes || fail "secrets delete failed"
+dw variables delete LOG_LEVEL --yes || fail "variables delete failed"
+# Nothing above left a value where anyone reads it.
+if grep -q -e "$secret_value" -e "$secret_next" "$log"; then fail "the control plane's log holds the secret's value"; fi
 
 step "Services go"
 dw services delete cache --yes || fail "services delete cache failed"
