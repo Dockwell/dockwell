@@ -152,6 +152,12 @@ func (*Driver) Validate(spec proto.Message) error {
 	if slices.Equal(c.Networks, []string{bridge}) {
 		c.Networks = nil
 	}
+	// Docker puts a container on host or none on that alone.
+	for alone, what := range map[string]string{"host": "the server's own network, host,", "none": "none, which is no network,"} {
+		if slices.Contains(c.Networks, alone) && len(c.Networks) > 1 {
+			return fmt.Errorf("a container on %s joins no other network, as Docker has it. List %s alone, or leave it out", what, alone)
+		}
+	}
 	if err := checkOnItsOwn(c); err != nil {
 		return err
 	}

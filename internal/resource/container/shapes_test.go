@@ -353,6 +353,27 @@ func TestLimitsTakeOneForm(t *testing.T) {
 	}
 }
 
+// A letter past ASCII can be longer in lowercase, as Ⱥ is, or shorter, as the
+// Kelvin sign is, so reading the unit from the lowercase cut the amount in the
+// wrong place: Ⱥ panicked, and a write token got an internal error where it
+// should get a refusal. The last check of #92 found it.
+func TestAMemoryLimitPastASCIIIsRefused(t *testing.T) {
+	for _, in := range []string{"Ⱥ", "1Ⱥ", "1\u023a", "İ", "1İB", "1\u212a", "1\u212aB", "５12M", "512\u00a0M"} {
+		got, err := container.CanonicalMemory(in)
+		if err == nil || !strings.Contains(err.Error(), "isn't an amount of memory") {
+			t.Errorf("memory %q = %q, %v, want it refused", in, got, err)
+		}
+		spec := &resourcev1.Container{Image: "nginx:1.27", Resources: &resourcev1.Resources{Memory: in}}
+		if err := container.Validate(spec); err == nil {
+			t.Errorf("Validate of a limit of %q = nil, want it refused", in)
+		}
+		spec = &resourcev1.Container{Image: "nginx:1.27", Resources: &resourcev1.Resources{MemoryReservation: in}}
+		if err := container.Validate(spec); err == nil {
+			t.Errorf("Validate of a reservation of %q = nil, want it refused", in)
+		}
+	}
+}
+
 func TestWhatASpecTakes(t *testing.T) {
 	for name, c := range map[string]struct {
 		spec *resourcev1.Container

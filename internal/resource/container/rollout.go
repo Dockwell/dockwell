@@ -1040,6 +1040,15 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 // their data stays, and those kept for it come back. discard removes what it
 // made, and gives back what it took.
 func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision, name string, old *docker.Container) (string, func(error) error, error) {
+	// The names it takes are checked again with the lock held, until it is on its
+	// networks: a check a moment ago doesn't see another change making a container.
+	if networks, _ := joinedByName(t, spec); len(networks) > 0 {
+		d.joining.Lock()
+		defer d.joining.Unlock()
+		if err := d.checkNetworks(ctx, t, spec); err != nil {
+			return "", nil, err
+		}
+	}
 	kept, err := d.keptVolumes(ctx, t)
 	if err != nil {
 		return "", nil, err

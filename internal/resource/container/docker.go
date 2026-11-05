@@ -84,6 +84,10 @@ type Docker struct {
 	// soaked holds the containers a rollout has held to Soak, for Healthy, which
 	// then has no need to again.
 	soaked sync.Map
+	// joining is held from checking the names a container takes on networks others
+	// share until it is on them, so two changes applying at once can't both find a
+	// name free and both take it.
+	joining sync.Mutex
 	// Points hears each step of a rollout, for a test to stop it there. Nil
 	// hears nothing.
 	Points fault.Points
@@ -1152,19 +1156,12 @@ func (d *Docker) checkImage(ctx context.Context, t Target, ref string) error {
 	return nil
 }
 
-// checkRefs refuses a container whose networks aren't on the server, as
-// Docker would take a missing network's name as a prefix of another's ID;
-// and a service whose volumes aren't, before Docker would make an
-// unmanaged volume of the name.
+// checkRefs refuses a service whose volumes aren't on the server, before
+// Docker would make an unmanaged volume of the name, and a container on its own
+// that mounts a volume a plan deleted. CheckHost refuses a network that isn't
+// there, as Docker would take its name as the start of another's ID.
 func (d *Docker) checkRefs(ctx context.Context, t Target, spec *resourcev1.Container) error {
 	if !t.Scoped {
-		for _, n := range spec.GetNetworks() {
-			if _, err := d.Client.NetworkNamed(ctx, n); docker.IsNotFound(err) {
-				return fmt.Errorf("the network %s isn't on this server, so %s can't join it. Make it with docker network create %s, or leave it out", n, t.Name, n)
-			} else if err != nil {
-				return err
-			}
-		}
 		for _, m := range spec.GetMounts() {
 			v := m.GetVolume()
 			if v == "" || d.Deleted == nil {

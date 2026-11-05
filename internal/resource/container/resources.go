@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -119,8 +120,14 @@ func parseMemory(s string) (int64, error) {
 	if s == "" {
 		return 0, nil
 	}
-	number := strings.TrimRight(strings.ToLower(s), "kmgtib ")
-	unit := strings.TrimSpace(strings.ToLower(s[len(number):]))
+	// An amount is written in ASCII. Past it, a letter's lowercase can be longer or
+	// shorter than it, so the unit would be cut from the wrong place.
+	if strings.IndexFunc(s, func(r rune) bool { return r > unicode.MaxASCII }) >= 0 {
+		return bad()
+	}
+	lower := strings.ToLower(s)
+	number := strings.TrimRight(lower, "kmgtib ")
+	unit := strings.TrimSpace(lower[len(number):])
 	unit = strings.TrimSuffix(strings.TrimSuffix(unit, "b"), "i")
 	scale := int64(1)
 	switch unit {
