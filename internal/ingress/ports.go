@@ -149,12 +149,13 @@ func (h *Holders) sockets() (map[Port][]string, error) {
 		udp   bool
 		state string
 	}{{"tcp", false, "0A"}, {"tcp6", false, "0A"}, {"udp", true, "07"}, {"udp6", true, "07"}} {
-		file, err := os.Open(filepath.Join(h.proc(), "net", f.name))
+		path := filepath.Join(h.proc(), "net", f.name)
+		file, err := os.Open(path)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue // no IPv6 here
 			}
-			return nil, fmt.Errorf("can't read which ports are taken from %s: %w", file.Name(), err)
+			return nil, fmt.Errorf("can't read which ports are taken from %s: %w", path, err)
 		}
 		sc := bufio.NewScanner(file)
 		sc.Scan() // the header
