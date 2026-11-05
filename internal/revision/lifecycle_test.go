@@ -850,10 +850,29 @@ func testARollbackSaysHowItWent(t *testing.T, backend store.Backend) {
 		return r, r.Rollback
 	}
 
-	t.Run("a deploy that broke the running app, put back", func(t *testing.T) {
+	t.Run("a deploy that rolled, and what ran never stopped", func(t *testing.T) {
 		e, engines, db := setupDocker(t, backend, "srv_A")
 		env := production(t, db)
 		engines["srv_A"].Registry["nginx:broken"] = dockertest.Image{Exits: true, Config: docker.Config{Cmd: []string{"nginx"}}}
+		apply(t, e, propose(t, e, "Run web", app(env, "nginx:1.27")))
+		next := propose(t, e, "Deploy nginx:broken", app(env, "nginx:broken"))
+		var failed *FailedError
+		if err := e.Apply(t.Context(), next.Change); !errors.As(err, &failed) {
+			t.Fatalf("apply = %v", err)
+		}
+		e.Wait()
+		_, back := statusOf(t, e, next.Change)
+		if back.State != RollbackApplied || back.Steps != 1 || len(back.Restored) != 0 {
+			t.Errorf("rollback = %+v, want applied, with a step that took away what failed, and nothing put back", back)
+		}
+	})
+
+	t.Run("a deploy that broke the running app, put back", func(t *testing.T) {
+		e, engines, db := setupDocker(t, backend, "srv_A")
+		env := production(t, db)
+		// What its image keeps has it stop first, so what ran goes, and has to come back.
+		engines["srv_A"].Registry["nginx:1.27"] = dockertest.Image{Volumes: []string{"/data"}, Config: docker.Config{Cmd: []string{"nginx"}}}
+		engines["srv_A"].Registry["nginx:broken"] = dockertest.Image{Exits: true, Volumes: []string{"/data"}, Config: docker.Config{Cmd: []string{"nginx"}}}
 		apply(t, e, propose(t, e, "Run web", app(env, "nginx:1.27")))
 		next := propose(t, e, "Deploy nginx:broken", app(env, "nginx:broken"))
 		var failed *FailedError

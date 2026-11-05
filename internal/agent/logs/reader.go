@@ -166,14 +166,18 @@ func (r *Reader) sources(ctx context.Context, project, service string, kept bool
 	return out, nil
 }
 
+// theReplica is the replica of every container of a service, as a service has one on
+// a server. A rollout gives each new container the next number (ADR 0027), and they
+// take turns as that one replica, so a number isn't what tells replicas apart.
+const theReplica = 1
+
 func dockerSource(c *docker.Container) *dockwellv1.LogSource {
 	l := c.Config.Labels
-	number, _ := strconv.Atoi(l[docker.LabelNumber])
 	revision, _ := strconv.ParseInt(l[container.LabelRevision], 10, 64)
 	s := &dockwellv1.LogSource{
 		Id:            shortID(c.ID),
-		Replica:       int32(max(number, 1)), //nolint:gosec // a replica's number is small
-		ContainerName: strings.TrimPrefix(c.Name, "/"),
+		Replica:       theReplica,
+		ContainerName: container.PlainName(c.Name),
 		Revision:      revision,
 		ChangeId:      l[container.LabelChange],
 		Image:         c.Config.Image,
@@ -206,7 +210,7 @@ func dockerState(s docker.State) dockwellv1.LogSourceState {
 func keptSource(k *Kept) *dockwellv1.LogSource {
 	s := &dockwellv1.LogSource{
 		Id:            k.ContainerID,
-		Replica:       int32(k.Number), //nolint:gosec // a replica's number is small
+		Replica:       theReplica,
 		ContainerName: k.Name,
 		Revision:      k.Revision,
 		ChangeId:      k.Change,

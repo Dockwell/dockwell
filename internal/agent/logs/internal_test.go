@@ -162,3 +162,20 @@ func TestGatheringIsLinearAndStopsWithItsReader(t *testing.T) {
 		t.Errorf("with its reader gone it took %s", took)
 	}
 }
+
+// A source says what a person knows a container by, and that it's the service's one
+// replica, whatever a rollout has it under for now, or numbered.
+func TestASourceSaysWhatAContainerIsKnownBy(t *testing.T) {
+	for _, name := range []string{"/env_a-web-3", "/stopping_0123456789ab_env_a-web-3", "/0123456789ab_env_a-web-3"} {
+		c := &docker.Container{ID: "0123456789abcdef", Name: name, Config: docker.Config{Labels: map[string]string{
+			docker.LabelProject: "env_a", docker.LabelService: "web", docker.LabelNumber: "3",
+		}}}
+		if s := dockerSource(c); s.GetContainerName() != "env_a-web-3" || s.GetReplica() != 1 {
+			t.Errorf("a running %s reads as %q, replica %d", name, s.GetContainerName(), s.GetReplica())
+		}
+		k := keptOf(c, false)
+		if s := keptSource(&k); s.GetContainerName() != "env_a-web-3" || s.GetReplica() != 1 {
+			t.Errorf("a kept %s reads as %q, replica %d", name, s.GetContainerName(), s.GetReplica())
+		}
+	}
+}

@@ -32,7 +32,7 @@ func runReal(t *testing.T, client *docker.Client, rt *container.Docker, project,
 	target := container.Target{Name: docker.ContainerName(project, service), Project: project, Service: service, Scoped: true}
 	ctx := resource.WithDeploy(t.Context(), resource.Deploy{Revision: revision, Change: "chg_" + strconv.Itoa(revision)})
 	spec := &resourcev1.Container{Image: realImage, Command: []string{"sh", "-c", command}, Restart: resourcev1.RestartPolicy_RESTART_POLICY_NO}
-	if err := rt.Run(ctx, target, spec, false); err != nil {
+	if err := rt.Run(ctx, target, spec, resource.Decision{}); err != nil {
 		t.Fatal(err)
 	}
 	c, err := client.ContainerNamed(t.Context(), target.Name)

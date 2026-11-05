@@ -576,7 +576,8 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			}
 		}
 		e.clock++
-		c.State = docker.State{Status: "running", Running: true, StartedAt: time.Now().Add(time.Duration(e.clock) * time.Nanosecond).UTC()}
+		now := time.Now().Add(time.Duration(e.clock) * time.Nanosecond).UTC()
+		c.State = docker.State{Status: "running", Running: true, StartedAt: now}
 		c.log.start()
 		c.log.write(docker.Stdout, c.img.Prints...)
 		if c.img.Exits {

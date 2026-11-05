@@ -209,7 +209,7 @@ A check that fails, or anything else that fails a step, fails the change and com
 ### What a person reads
 
 The plan sheet shows no steps for one server (ADR 0028), so how a step rolls is said where a person reads the plan, from `PlanStep.rollout`:
-- **The first line says what it costs:** "rolling, with nothing stopped", or "about 12 s down". A container that is stopped has nothing to take down, so it says neither.
+- **The first line says what it costs:** "rolling, with nothing stopped", or "about 13 s down". A container that is stopped has nothing to take down, so it says neither.
 - **Beside the diff, quietly:** what takes over and when, what a drain ends, why it stops first, and data that stays.
 - **What is worth weighing leads, in amber:** a mount that goes, and a restart that stops first and has nothing to go back to.
 - **Two writers lead in red, with the fingerprint to type,** as a plan that destroys data does.
@@ -243,7 +243,8 @@ They don't fall out cleanly, so they wait:
 - A failed check is usually a few seconds of work thrown away, as a start period is the only wait that matters. An app that takes a long time to come up needs a `start_period`, as it would under Compose.
 - A rollout's new address means the ingress table keeps the last it gave, and that a subnet goes round, after thousands of deploys on Docker's default pools. `give` skips what Caddy still dials, so going round isn't a risk.
 - Changing a route still reloads, and costs every site on the server what's above, once.
-- A failed deploy's new container goes with its rollback's step, and a failed restart removes its own, so what logs want to keep from them (#30) has to take it before that: `retire`, `stopFirst` and `discard` are where containers go.
+- **What a container said outlives it (ADR 0025).** A step keeps its log before it stops, and the rest after, on each way a container goes: `retire`, `stopFirst`, `Remove`, and a failed restart's. That last second of copying is downtime, so a stop-first step's plan says about 13 s, not 12. In a rollback, only what the failed deploy made counts as failed, as a rollback pinned to a digest replaces what ran too, and its log shouldn't take the failed one's place.
+- **A log says what a container is known by, and which replica,** not what a rollout has it under for now: not `stopping_…`, nor the next number. A follower reads both containers across a move, and across a reconnect.
 
 ## Memory
 

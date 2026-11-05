@@ -242,7 +242,8 @@ message LogSource {
   string server_id = 2;
   // The server's name, such as "hz-1".
   string server_name = 3;
-  // The replica it is, from 1, within the service on that server.
+  // The replica it is, from 1, within the service on that server. A service has
+  // one for now: the containers a rollout moves between take turns as it.
   int32 replica = 4;
   // The container's name in Docker, such as "env_01kat…-web-1".
   string container_name = 5;

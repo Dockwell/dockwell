@@ -4180,7 +4180,9 @@ components:
                     description: The server's name, such as "hz-1".
                 replica:
                     type: integer
-                    description: The replica it is, from 1, within the service on that server.
+                    description: |-
+                        The replica it is, from 1, within the service on that server. A service has
+                         one for now: the containers a rollout moves between take turns as it.
                     format: int32
                 containerName:
                     type: string

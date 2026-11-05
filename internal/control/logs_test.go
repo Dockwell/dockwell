@@ -142,7 +142,9 @@ func testLogsThroughADeploy(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
-	e.Registry["ghcr.io/acme/shop:bad"] = dockertest.Image{Exits: true, Prints: []string{"ERROR can't reach the database", "    at main.go:12"}, Config: docker.Config{Cmd: []string{"shop"}}}
+	// What its image keeps has it stop first, so what ran goes, and is kept, too.
+	e.Registry["ghcr.io/acme/shop:1.4"] = dockertest.Image{Volumes: []string{"/data"}}
+	e.Registry["ghcr.io/acme/shop:bad"] = dockertest.Image{Exits: true, Volumes: []string{"/data"}, Prints: []string{"ERROR can't reach the database", "    at main.go:12"}, Config: docker.Config{Cmd: []string{"shop"}}}
 	c := changeClient(b, b.origin)
 	lc := logClient(b, b.origin)
 
@@ -329,7 +331,7 @@ func testRotationDoesntForceAReplace(t *testing.T, backend store.Backend) {
 	if next.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("the deploy ended %v", next.GetState())
 	}
-	if lc := e.Container(name).HostConfig.LogConfig; lc == nil || lc.Config["max-size"] != "10m" {
+	if lc := e.Serving(name).HostConfig.LogConfig; lc == nil || lc.Config["max-size"] != "10m" {
 		t.Errorf("after a deploy, its log config = %+v, want rotation", lc)
 	}
 }
@@ -397,6 +399,216 @@ func testLogsCarryOnWhenAServerReturns(t *testing.T, backend store.Backend) {
 	again.waitLines("five")
 	e.Print(name, docker.Stdout, "six")
 	again.waitLines("five", "six")
+}
+
+// A rolling deploy has two containers at once, so a follower reads both across the
+// move, and each line once, and one who reconnects after the old one has gone reads
+// what it missed of both, from Docker and from what was kept.
+func TestAFollowerReadsBothContainersOfARollout(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		e := f.addDockerServer(t)
+		e.Registry["ghcr.io/acme/shop:next"] = dockertest.Image{Prints: []string{"next booted"}}
+		c := changeClient(b, b.origin)
+		lc := logClient(b, b.origin)
+
+		first := apply(t, c, propose(t, c, "Run web", runImage("ghcr.io/acme/shop:1.4")))
+		if first.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("the first deploy ended %v: %s", first.GetState(), first.GetError())
+		}
+		project := docker.Project(first.GetPlan().GetResources()[0].GetResource().GetScope())
+		old := e.Newest(project, "web")
+		e.Print(old.ID, docker.Stdout, "old before")
+		r := follow(t, lc, &dockwellv1.WatchLogsRequest{Id: "web", Tail: 100})
+		r.waitLines("old before")
+		r.waitCaughtUp()
+
+		// As the old one is told to stop, both are there, and both print. Then a reader
+		// who has what came so far goes away, and comes back once the old one has gone.
+		var (
+			once      sync.Once
+			next      string
+			mid       string
+			nameThere string
+		)
+		both := []string{"old before", "next booted", "old as it moves", "next as it moves"}
+		e.Intercept(func(req *http.Request) error {
+			if req.Method != http.MethodPost || !strings.HasSuffix(req.URL.Path, "/"+old.ID+"/stop") {
+				return nil
+			}
+			once.Do(func() {
+				next = e.Newest(project, "web").ID
+				nameThere = e.Container(old.ID).Name
+				e.Print(old.ID, docker.Stdout, "old as it moves")
+				e.Print(next, docker.Stdout, "next as it moves")
+				eventually(t, "the follower to read both", func() bool {
+					got := r.got()
+					return !slices.ContainsFunc(both, func(l string) bool { return !slices.Contains(got, l) })
+				})
+				eventually(t, "a place to resume from", func() bool {
+					r.mu.Lock()
+					defer r.mu.Unlock()
+					mid = r.token
+					return mid != ""
+				})
+				e.Print(old.ID, docker.Stdout, "old last words")
+				e.Print(next, docker.Stdout, "next after they left")
+			})
+			return nil
+		})
+		deployed := apply(t, c, propose(t, c, "Deploy next", runImage("ghcr.io/acme/shop:next")))
+		e.Intercept(nil)
+		if deployed.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("the deploy ended %v: %s", deployed.GetState(), deployed.GetError())
+		}
+		if next == "" || next == old.ID || e.Container(old.ID) != nil {
+			t.Fatalf("it didn't roll: the old one is %s, and the new one %q", old.ID, next)
+		}
+		if !strings.HasPrefix(strings.TrimPrefix(nameThere, "/"), "stopping_") {
+			t.Fatalf("the old one should be marked as it stops, and is named %s", nameThere)
+		}
+
+		// The one who stayed read every line, once, from both.
+		eventually(t, "the stream to have all of it", func() bool {
+			got := r.got()
+			return slices.Contains(got, "old last words") && slices.Contains(got, "next after they left")
+		})
+		for _, line := range append(slices.Clone(both), "old last words", "next after they left") {
+			if n := countOf(r.got(), line); n != 1 {
+				t.Errorf("the stream has %q %d times, in %q", line, n, r.got())
+			}
+		}
+		// Each by what a person knows it by, as the one replica there is.
+		r.mu.Lock()
+		for _, id := range []string{old.ID[:12], next[:12]} {
+			s := r.sources[id]
+			if s == nil || s.GetReplica() != 1 || strings.HasPrefix(s.GetContainerName(), "stopping_") {
+				t.Errorf("source %s reads %v", id, s)
+			}
+		}
+		r.mu.Unlock()
+
+		// The one who went away reads what it missed of both, and nothing twice, though
+		// one has gone from Docker since.
+		again := follow(t, lc, &dockwellv1.WatchLogsRequest{Id: "web", ResumeToken: mid})
+		eventually(t, "the reconnected stream to read what it missed", func() bool {
+			got := again.got()
+			return slices.Contains(got, "old last words") && slices.Contains(got, "next after they left")
+		})
+		for _, line := range again.got() {
+			if slices.Contains(both, line) {
+				t.Errorf("the reconnected stream read %q again, in %q", line, again.got())
+			}
+			if n := countOf(again.got(), line); n != 1 {
+				t.Errorf("the reconnected stream has %q %d times", line, n)
+			}
+		}
+
+		// And what's kept of the old one says what a person knows it by.
+		res, err := lc.ListLogSources(t.Context(), connect.NewRequest(&dockwellv1.ListLogSourcesRequest{Id: "web"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var kept *dockwellv1.LogSource
+		for _, s := range res.Msg.GetSources() {
+			if s.GetId() == old.ID[:12] {
+				kept = s
+			}
+		}
+		if kept == nil || kept.GetKept() != dockwellv1.LogKept_LOG_KEPT_REPLACED || kept.GetContainerName() != strings.TrimPrefix(old.Name, "/") || kept.GetReplica() != 1 {
+			t.Errorf("what was kept of the old one reads %v, want it named %s", kept, old.Name)
+		}
+	})
+}
+
+// A rolling deploy that fails leaves what ran running: what failed is kept, as failed,
+// and what ran is read from Docker, as it never went.
+func TestARollingDeployThatFailsKeepsOnlyWhatFailed(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.Registry["ghcr.io/acme/shop:bad"] = dockertest.Image{Exits: true, Prints: []string{"ERROR can't reach the database"}}
+	c := changeClient(b, b.origin)
+	lc := logClient(b, b.origin)
+	first := apply(t, c, propose(t, c, "Run web", runImage("ghcr.io/acme/shop:1.4")))
+	project := docker.Project(first.GetPlan().GetResources()[0].GetResource().GetScope())
+	ran := e.Newest(project, "web").ID
+	failed := apply(t, c, propose(t, c, "Deploy bad", runImage("ghcr.io/acme/shop:bad")))
+	if failed.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED {
+		t.Fatalf("the deploy ended %v", failed.GetState())
+	}
+	eventually(t, "the rollback to take away what failed", func() bool { return len(e.Instances(project, "web")) == 1 })
+	var sources []*dockwellv1.LogSource
+	eventually(t, "what failed to be kept", func() bool {
+		res, err := lc.ListLogSources(t.Context(), connect.NewRequest(&dockwellv1.ListLogSourcesRequest{Id: "web"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sources = res.Msg.GetSources()
+		return len(sources) == 2
+	})
+	for _, s := range sources {
+		switch s.GetId() {
+		case ran[:12]:
+			if s.GetKept() != dockwellv1.LogKept_LOG_KEPT_UNSPECIFIED || s.GetState() != dockwellv1.LogSourceState_LOG_SOURCE_STATE_RUNNING {
+				t.Errorf("what ran reads %v, and never went", s)
+			}
+		default:
+			if s.GetKept() != dockwellv1.LogKept_LOG_KEPT_FAILED || s.GetChangeId() != failed.GetId() {
+				t.Errorf("what failed reads %v", s)
+			}
+		}
+	}
+}
+
+// countOf is how many times a line came.
+func countOf(lines []string, line string) int {
+	n := 0
+	for _, l := range lines {
+		if l == line {
+			n++
+		}
+	}
+	return n
+}
+
+// A rollback pinned to a digest replaces what ran as well as what failed. What failed
+// is what stays kept as failed, for whoever comes to read why.
+func TestARollbackThatReplacesWhatRanKeepsTheFailureAsFailed(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	lc := logClient(b.b, b.b.origin)
+	name, web := runLatest(t, b)
+	b.e.Print(b.e.Serving(name).ID, docker.Stdout, "what ran says")
+	b.e.Registry[latest] = dockertest.Image{Exits: true, Digest: "sha256:" + strings.Repeat("f", 64), Prints: []string{"ERROR what failed says"}, Config: docker.Config{Cmd: []string{"shop"}}}
+	got := applied(t, b.c, b.deploy(t, web.GetId(), latest))
+	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || got.GetRolledBackBy() == "" {
+		t.Fatalf("the deploy ended %v: %s", got.GetState(), got.GetError())
+	}
+	eventually(t, "the rollback", func() bool {
+		res, err := b.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: got.GetRolledBackBy()}))
+		return err == nil && res.Msg.GetChange().GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED
+	})
+	res, err := lc.ListLogSources(t.Context(), connect.NewRequest(&dockwellv1.ListLogSourcesRequest{Id: web.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var failed, replaced *dockwellv1.LogSource
+	for _, s := range res.Msg.GetSources() {
+		switch s.GetKept() {
+		case dockwellv1.LogKept_LOG_KEPT_FAILED:
+			failed = s
+		case dockwellv1.LogKept_LOG_KEPT_REPLACED:
+			replaced = s
+		case dockwellv1.LogKept_LOG_KEPT_UNSPECIFIED:
+		}
+	}
+	if failed == nil || failed.GetChangeId() != got.GetId() {
+		t.Errorf("what's kept as failed is %v, and should be what the failed deploy made: %v", failed, res.Msg.GetSources())
+	}
+	if replaced == nil || replaced.GetChangeId() == got.GetId() {
+		t.Errorf("what's kept as replaced is %v, and should be what ran: %v", replaced, res.Msg.GetSources())
+	}
 }
 
 // A reader's token needs the grant, whatever its scope: a read-only token can

@@ -224,7 +224,7 @@ describe("what a failed change says of its rollback", () => {
   it("reads for what doesn't run in its own words, and for many things at once", async () => {
     const rule = rollbackSubject(webPlanned().plan);
     const asRule: RollbackSubject = { ...rule, name: "http", previous: undefined, serves: false };
-    const many: RollbackSubject = { name: undefined, serves: true, first: false };
+    const many: RollbackSubject = { name: undefined, serves: true, first: false, rolled: false };
     const applied = (restored: string[]) =>
       moved(aFailedDeploy({ state: RollbackState.APPLIED, steps: restored.length, restored }), {});
     const seen = (subject: RollbackSubject, change: Change) => {

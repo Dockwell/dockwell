@@ -486,6 +486,8 @@ msgstr "{name}'s {where} holds the value of {variable}"
 #: src/features/changes/notices.tsx
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
+
+#: src/features/changes/notices.tsx
 msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
 msgstr "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
 
@@ -631,9 +633,6 @@ msgstr "{size} more not kept"
 msgid "{source} started {revision}, in container {container}"
 msgstr "{source} started {revision}, in container {container}"
 
-#: src/features/logs/LogFoot.tsx
-msgid "{speed} lines/s"
-msgstr "{speed} lines/s"
 #: src/features/changes/words.ts
 msgid "{source} stays on the server, as it was"
 msgstr "{source} stays on the server, as it was"
@@ -641,6 +640,10 @@ msgstr "{source} stays on the server, as it was"
 #: src/features/changes/words.ts
 msgid "{source} stops being what the service sees at {target}"
 msgstr "{source} stops being what the service sees at {target}"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{speed} lines/s"
+msgstr "{speed} lines/s"
 
 #. placeholder {0}: steps.length
 #: src/features/changes/ChangeSheet.tsx
@@ -864,12 +867,13 @@ msgstr "a {type} mount ({reads})"
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "A claim link works only until someone claims the install. Sign in instead."
 
-#: src/features/logs/LogsPage.tsx
-msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
-msgstr "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
 #: src/features/changes/words.ts
 msgid "A container on the server's own network listens on the server's ports itself, so two can't run at once, and the old one stops first"
 msgstr "A container on the server's own network listens on the server's ports itself, so two can't run at once, and the old one stops first"
+
+#: src/features/logs/LogsPage.tsx
+msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
+msgstr "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
 
 #: src/features/apps/ExportSheet.tsx
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
@@ -2012,6 +2016,16 @@ msgstr "Deploy your first app"
 msgid "Deployed"
 msgstr "Deployed"
 
+#: src/features/apps/words.ts
+msgctxt "An app whose servers the fleet hasn't said anything about yet"
+msgid "Deployed"
+msgstr "Deployed"
+
+#: src/features/apps/revision.ts
+msgctxt "What a revision did, before the image it deployed"
+msgid "Deployed"
+msgstr "Deployed"
+
 #: src/features/apps/revision.ts
 msgid "deployed {ago}"
 msgstr "deployed {ago}"
@@ -2841,6 +2855,7 @@ msgstr "It may be reached at more than this says. Nothing has changed."
 #: src/features/logs/LogsPage.tsx
 msgid "It may have been deleted. Dockwell has no logs under this address."
 msgstr "It may have been deleted. Dockwell has no logs under this address."
+
 #: src/features/changes/RollbackLine.tsx
 msgid "It never stopped. Dockwell removed what this made after it failed."
 msgstr "It never stopped. Dockwell removed what this made after it failed."
@@ -2917,13 +2932,6 @@ msgstr "Its apps show as one row with this name, on a network of their own. Impo
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 
-#: src/features/changes/PlanSteps.tsx
-msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
-msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Its logs show here once they can be read."
-msgstr "Its logs show here once they can be read."
 #: src/features/changes/words.ts
 msgid "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first. If the app can, set its rollout order to start first"
 msgstr "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first. If the app can, set its rollout order to start first"
@@ -2931,6 +2939,14 @@ msgstr "Its image keeps data at {imageData}, which two containers mustn't write 
 #: src/features/changes/words.ts
 msgid "Its image puts an empty volume there. {source} stays on the server, as it was"
 msgstr "Its image puts an empty volume there. {source} stays on the server, as it was"
+
+#: src/features/changes/PlanSteps.tsx
+msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
+msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Its logs show here once they can be read."
+msgstr "Its logs show here once they can be read."
 
 #: src/features/changes/words.ts
 msgid "Its rollout order says to stop first, so there are never two"
@@ -3062,6 +3078,12 @@ msgid "Listening there now: {listening}"
 msgstr "Listening there now: {listening}"
 
 #: src/features/logs/LogsPage.tsx
+msgid "Live"
+msgstr "Live"
+
+#: src/features/apps/revision.ts
+#: src/features/apps/words.ts
+msgctxt "An app whose latest revision is deployed"
 msgid "Live"
 msgstr "Live"
 
@@ -3290,6 +3312,11 @@ msgstr "Networks"
 
 #: src/features/apps/words.ts
 #: src/features/servers/ServerPanels.tsx
+msgid "Never"
+msgstr "Never"
+
+#: src/features/auth/TokensPanel.tsx
+msgctxt "token expiry"
 msgid "Never"
 msgstr "Never"
 
@@ -4994,6 +5021,11 @@ msgstr "Synced"
 msgid "System"
 msgstr "System"
 
+#: src/features/shell/MorePage.tsx
+msgctxt "theme"
+msgid "System"
+msgstr "System"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "Takes away {stopping}"
 msgstr "Takes away {stopping}"
@@ -5262,6 +5294,10 @@ msgstr "the port {path} on the server itself, past its containers, at {detail} o
 msgid "the resource filter"
 msgstr "the resource filter"
 
+#: src/features/changes/words.ts
+msgid "The route {edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll"
+msgstr "The route {edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll"
+
 #: src/features/logs/LogsPage.tsx
 msgid "The search failed"
 msgstr "The search failed"
@@ -5273,9 +5309,6 @@ msgstr "The search stopped after 30 s, at {at}. Read older lines with <0>dockwel
 #: src/features/logs/LogFoot.tsx
 msgid "The search stopped at the newest 1,000,000 lines of a container, at {at}. Read older lines with <0>dockwell logs read</0>."
 msgstr "The search stopped at the newest 1,000,000 lines of a container, at {at}. Read older lines with <0>dockwell logs read</0>."
-#: src/features/changes/words.ts
-msgid "The route {edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll"
-msgstr "The route {edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "the server filter"

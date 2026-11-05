@@ -111,6 +111,13 @@ func (i *instance) serving() bool { return notRunning(i.Container) == "" && !i.s
 // container it replaces, 12 digits of its ID, then its name.
 var swapName = regexp.MustCompile(`^/?[0-9a-f]{12}_`)
 
+// PlainName is the name a container goes by, without what a rollout has in front
+// of it for now: the mark on one it is stopping, or what one that is to take the
+// name waits under. That name is what a person knows it by, and what a log says.
+func PlainName(name string) string { return rolloutPrefix.ReplaceAllString(name, "") }
+
+var rolloutPrefix = regexp.MustCompile(`^/?(?:` + stoppingPrefix + `[0-9a-f]{12}_)?(?:[0-9a-f]{12}_)?`)
+
 // stoppingPrefix starts the name of a container a rollout is stopping. Docker
 // keeps a name through anything, and a label can't change, so the mark is there
 // however the step ends, a SIGKILL included.
@@ -510,7 +517,7 @@ func (d *Docker) judgeRollout(ctx context.Context, t Target, desired *resourcev1
 	}
 	if !p.Rolling {
 		dec.Effect = resource.EffectRecreate
-		dec.Downtime = p.StopGrace + recreateStart
+		dec.Downtime = p.StopGrace + LogCatchUp + recreateStart
 		return nil
 	}
 	dec.Effect, dec.Downtime, dec.UntilHealthy = resource.EffectRoll, 0, 0
@@ -754,7 +761,7 @@ func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Cont
 		// A restart has no revision to roll back to, and so no rollback to
 		// remove what it made: it goes now, and what ran goes on.
 		if dec.Restart != "" {
-			d.discard(ctx, keep.ID, keep.name())
+			d.discardFailed(ctx, keep)
 		}
 		return err
 	}
@@ -795,6 +802,7 @@ func (d *Docker) retire(ctx context.Context, t Target, spec *resourcev1.Containe
 		}
 	}
 	d.Points.Reach(PointDrained)
+	keep := d.beginKeepingLogs(ctx, o.Container)
 	resource.Progress(ctx, "Stopping the old "+t.Service)
 	if o.State.Running || o.stopping {
 		if err := d.markStopping(ctx, t, o); err != nil {
@@ -806,6 +814,7 @@ func (d *Docker) retire(ctx context.Context, t Target, spec *resourcev1.Containe
 		}
 	}
 	d.Points.Reach(PointStopped)
+	d.finishKeepingLogs(ctx, keep, o.Container)
 	if err := d.Client.RemoveContainer(ctx, o.ID, true); err != nil && !docker.IsNotFound(err) {
 		return fmt.Errorf("can't remove the old %s: %w", t.Service, err)
 	}
@@ -950,6 +959,8 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 			continue
 		}
 		ran := o.State.Running || o.stopping
+		// While it still serves, so the downtime doesn't wait for most of its log.
+		keep := d.beginKeepingLogs(ctx, o.Container)
 		if ran {
 			resource.Progress(ctx, "Stopping the old "+t.Service)
 			if err := d.markStopping(ctx, t, o); err != nil {
@@ -965,6 +976,7 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 			}
 			d.Points.Reach(PointSwapStopped)
 		}
+		d.finishKeepingLogs(ctx, keep, o.Container)
 		if err := d.Client.RemoveContainer(ctx, o.ID, true); err != nil && !docker.IsNotFound(err) {
 			err = fmt.Errorf("can't remove the old %s: %w", t.Service, err)
 			if ran && canGoBack {
@@ -1026,7 +1038,7 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 	if err != nil {
 		return "", nil, err
 	}
-	req, later, restored := d.createRequest(t, spec, old, kept)
+	req, later, restored := d.createRequest(ctx, t, spec, old, kept)
 	if dec.Restores && len(restored) == 0 {
 		return "", nil, fmt.Errorf("the data %s's image kept, which this change was to mount again, is gone: the server keeps it for 7 days after a change takes it out of use, then removes it. "+
 			"Plan the change again: it makes %s with its image's volumes empty", t.Name, t.Name)

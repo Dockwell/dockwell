@@ -500,12 +500,21 @@ func failedBefore(c *docker.Container) bool {
 }
 
 // beginKeepingLogs starts keeping the log of a container a step is about to
-// remove. Dockwell's rollback removes what failed, whatever its state says.
+// remove. Dockwell's rollback removes what failed, whatever its state says. It can
+// remove what ran too, as one pinned to a digest does, and that didn't fail.
 func (d *Docker) beginKeepingLogs(ctx context.Context, c *docker.Container) LogKeep {
 	if d.Logs == nil {
 		return nil
 	}
-	return d.Logs.Begin(ctx, c, resource.DeployOf(ctx).Rollback || failedBefore(c))
+	return d.Logs.Begin(ctx, c, madeByWhatFailed(ctx, c) || failedBefore(c))
+}
+
+// madeByWhatFailed reports a container the deploy a rollback rolls back made: a
+// rollback's revision is the one after that deploy's.
+func madeByWhatFailed(ctx context.Context, c *docker.Container) bool {
+	deploy := resource.DeployOf(ctx)
+	revision, _ := strconv.Atoi(c.Config.Labels[LabelRevision])
+	return deploy.Rollback && revision == deploy.Revision-1
 }
 
 // finishKeepingLogs takes in a stopped container's last lines, and how it
@@ -1254,6 +1263,22 @@ func (d *Docker) discard(ctx context.Context, id, name string) {
 	}
 }
 
+// discardFailed removes a container that ran and failed with nothing to follow it,
+// as a restart's does, keeping what it said, which is all that says why.
+func (d *Docker) discardFailed(ctx context.Context, i *instance) {
+	if d.Logs != nil {
+		wait, cancel := context.WithTimeout(context.WithoutCancel(ctx), or(d.CleanupWait, cleanupWait))
+		defer cancel()
+		keep := d.Logs.Begin(wait, i.Container, true)
+		if err := d.Client.StopContainer(wait, i.ID, stopGrace(i.Container)); err != nil && !docker.IsNotFound(err) {
+			d.logger().Warn("can't stop a container a change that failed made, so its last lines may not be kept",
+				slog.String("container", i.name()), slog.String("error", err.Error()))
+		}
+		d.finishKeepingLogs(wait, keep, i.Container)
+	}
+	d.discard(ctx, i.ID, i.name())
+}
+
 // cleanupWait bounds removing a container a failed change made.
 const cleanupWait = 30 * time.Second
 
@@ -1318,9 +1343,11 @@ func (d *Docker) Remove(ctx context.Context, t Target) error {
 		return err
 	}
 	for _, i := range all {
+		keep := d.beginKeepingLogs(ctx, i.Container)
 		if err := d.Client.StopContainer(ctx, i.ID, stopGrace(i.Container)); err != nil && !docker.IsNotFound(err) {
 			return err
 		}
+		d.finishKeepingLogs(ctx, keep, i.Container)
 		if err := d.Client.RemoveContainer(ctx, i.ID, true); err != nil && !docker.IsNotFound(err) {
 			return err
 		}

@@ -542,7 +542,7 @@ func restoresWhatRuns(p *dockwellv1.Plan, restored []string) bool {
 // rolled says what a plan set out to do rolls, so what ran goes on serving until the
 // new one is healthy.
 func rolled(p *dockwellv1.Plan) bool {
-	any := false
+	some := false
 	for _, server := range p.GetServers() {
 		for _, st := range server.GetSteps() {
 			if kind := st.GetResource().GetKind(); kind != "service" && kind != "container" {
@@ -551,10 +551,10 @@ func rolled(p *dockwellv1.Plan) bool {
 			if !st.GetRollout().GetRolling() || startsStopped(st) {
 				return false
 			}
-			any = true
+			some = true
 		}
 	}
-	return any
+	return some
 }
 
 // untilWord says how long is left: "within 7 days", "within 3 hours",

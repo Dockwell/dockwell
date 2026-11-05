@@ -532,7 +532,8 @@ export type LogSource = Message<"dockwell.v1.LogSource"> & {
   serverName: string;
 
   /**
-   * The replica it is, from 1, within the service on that server.
+   * The replica it is, from 1, within the service on that server. A service has
+   * one for now: the containers a rollout moves between take turns as it.
    *
    * @generated from field: int32 replica = 4;
    */

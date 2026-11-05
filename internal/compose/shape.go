@@ -140,7 +140,6 @@ var fileShape = sync.OnceValue(func() *shape {
 				"condition": str("condition: service_healthy"), "required": boolean("required: true"), "restart": boolean("restart: true"),
 			}),
 		},
-		"expose": {kinds: aList, item: shaped(aString|aNumber, `expose: ["8080"]`), example: `expose: ["8080"]`},
 		"logging": object("logging: {driver: json-file, options: {max-size: 10m}}", map[string]*shape{
 			"driver": str("driver: json-file"), "options": options,
 		}),

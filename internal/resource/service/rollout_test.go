@@ -795,8 +795,8 @@ func TestAStopGraceComesThrough(t *testing.T) {
 	}
 	next := proto.Clone(spec).(*resourcev1.Service)
 	next.GetApp().Env = map[string]string{"A": "1"}
-	if step := s.plan(t, webRef, next, ""); step.Downtime != time.Minute+2*time.Second {
-		t.Errorf("a step on it is down for %s, want the minute it gets to stop, and 2 s to start", step.Downtime)
+	if step := s.plan(t, webRef, next, ""); step.Downtime != time.Minute+container.LogCatchUp+2*time.Second {
+		t.Errorf("a step on it is down for %s, want the minute it gets to stop, a second for its last lines, and 2 s to start", step.Downtime)
 	}
 	if step := s.plan(t, webRef, next, ""); step.Budget() < time.Minute {
 		t.Errorf("the step's budget is %s, less than it can take", step.Budget())
@@ -1394,5 +1394,155 @@ func TestAPullOverSharedDataPlansToStopFirst(t *testing.T) {
 	}
 	if got := s.instances(); !slices.Equal(got, names(1)) || !s.engine.Container(names(1)[0]).State.Running {
 		t.Errorf("Docker has %v", got)
+	}
+}
+
+// keptLogs records what a step keeps, among what it asks of Docker.
+type keptLogs struct {
+	mu     sync.Mutex
+	said   []string
+	failed map[string]bool
+}
+
+func (k *keptLogs) note(what string) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.said = append(k.said, what)
+}
+
+func (k *keptLogs) Begin(_ context.Context, c *docker.Container, failed bool) container.LogKeep {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.said = append(k.said, "begin "+c.ID+" running="+strconv.FormatBool(c.State.Running))
+	if k.failed == nil {
+		k.failed = map[string]bool{}
+	}
+	k.failed[c.ID] = failed
+	return keptLog{k}
+}
+
+type keptLog struct{ k *keptLogs }
+
+func (l keptLog) Finish(_ context.Context, c *docker.Container) {
+	l.k.note("finish " + c.ID + " running=" + strconv.FormatBool(c.State.Running))
+}
+
+// watch adds what Docker is asked to stop and remove to what k records.
+func (k *keptLogs) watch(e *dockertest.Engine) {
+	e.Intercept(func(r *http.Request) error {
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		switch {
+		case r.Method == http.MethodPost && parts[len(parts)-1] == "stop":
+			k.note("stop " + parts[len(parts)-2])
+		case r.Method == http.MethodDelete && parts[len(parts)-2] == "containers":
+			k.note("remove " + parts[len(parts)-1])
+		}
+		return nil
+	})
+}
+
+// A step keeps what a container said before it goes, however it goes: most of it
+// while it still runs, and the rest once it has stopped, before it's removed.
+func TestEachWayAContainerGoesKeepsItsLog(t *testing.T) {
+	want := func(id string) []string {
+		return []string{"begin " + id + " running=true", "stop " + id, "finish " + id + " running=false", "remove " + id}
+	}
+	for name, spec := range map[string]func(image string) *resourcev1.Service{
+		"rolling": app,
+		"stopping first": func(image string) *resourcev1.Service {
+			a := app(image)
+			a.GetApp().Ports = []*resourcev1.PortMapping{{HostPort: 8080, ContainerPort: 80}}
+			return a
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := newStack(t)
+			keeper := &keptLogs{}
+			s.rt.Logs = keeper
+			s.deploy(t, webRef, spec("nginx:1.27"))
+			old := s.engine.Newest(docker.Project(webRef.Scope), "web").ID
+			if len(keeper.said) != 0 {
+				t.Fatalf("it kept a log with nothing replaced: %v", keeper.said)
+			}
+			keeper.watch(s.engine)
+			s.deploy(t, webRef, spec("nginx:1.28"))
+			s.engine.Intercept(nil)
+			if got := keeper.said; !slices.Equal(got, want(old)) {
+				t.Errorf("it did %v, want %v", got, want(old))
+			}
+			if keeper.failed[old] {
+				t.Error("an ordinary replace counted as failed")
+			}
+		})
+	}
+	t.Run("a failed restart", func(t *testing.T) {
+		s := newStack(t)
+		spec := app("nginx:1.27")
+		s.deploy(t, webRef, spec)
+		keeper := &keptLogs{}
+		s.rt.Logs = keeper
+		s.engine.SetExits("nginx:1.27", true)
+		step := s.plan(t, webRef, spec, "chg_1")
+		if err := s.local.Apply(t.Context(), step, spec); err == nil {
+			t.Fatal("a restart that can't stay up went through")
+		}
+		// All there is to say why, as what it made goes, and nothing rolls back.
+		var made string
+		for id, failed := range keeper.failed {
+			if !failed {
+				t.Errorf("what a failed restart made, %s, didn't count as failed", id)
+			}
+			made = id
+		}
+		if made == "" || s.engine.Container(made) != nil {
+			t.Errorf("it kept %v, and should have kept what it made, and removed it", keeper.said)
+		}
+	})
+	t.Run("deleting it", func(t *testing.T) {
+		s := newStack(t)
+		s.deploy(t, webRef, app("nginx:1.27"))
+		old := s.engine.Newest(docker.Project(webRef.Scope), "web").ID
+		keeper := &keptLogs{}
+		s.rt.Logs = keeper
+		keeper.watch(s.engine)
+		if err := s.rt.Remove(t.Context(), service.Target(webRef)); err != nil {
+			t.Fatal(err)
+		}
+		s.engine.Intercept(nil)
+		if got := keeper.said; !slices.Equal(got, want(old)) {
+			t.Errorf("it did %v, want %v", got, want(old))
+		}
+	})
+}
+
+// A stop-first step's stated downtime has what it waits for a container's last lines.
+func TestAStopFirstPlanCountsWaitingForLastLines(t *testing.T) {
+	s := newStack(t)
+	spec := app("postgres:17")
+	s.deploy(t, webRef, spec)
+	next := app("postgres:17")
+	next.GetApp().Env = map[string]string{"A": "1"}
+	step := s.plan(t, webRef, next, "")
+	if step.Rollout == nil || step.Rollout.Rolling {
+		t.Fatalf("it should stop first: %+v", step.Rollout)
+	}
+	if want := container.DefaultRecreateDowntime; step.Downtime != want {
+		t.Errorf("its downtime is %s, want %s", step.Downtime, want)
+	}
+}
+
+// What a rollout has a container under for now isn't what a person knows it by.
+func TestPlainNameIsWhatAContainerGoesBy(t *testing.T) {
+	for name, want := range map[string]string{
+		"/env_a-web-3":                                "env_a-web-3",
+		"env_a-web-3":                                 "env_a-web-3",
+		"/stopping_0123456789ab_env_a-web-3":          "env_a-web-3",
+		"/0123456789ab_env_a-web-1":                   "env_a-web-1",
+		"/stopping_0123456789ab_ba9876543210_env-w-1": "env-w-1",
+		"/stopping_soon-web-1":                        "stopping_soon-web-1",
+	} {
+		if got := container.PlainName(name); got != want {
+			t.Errorf("PlainName(%q) = %q, want %q", name, got, want)
+		}
 	}
 }

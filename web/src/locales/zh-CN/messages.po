@@ -486,6 +486,8 @@ msgstr "{name} 的 {where} 中含有 {variable} 的值"
 #: src/features/changes/notices.tsx
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "此后无法读取 {name} 保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们。"
+
+#: src/features/changes/notices.tsx
 msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
 msgstr "{name} 的发布顺序设置为先启动，因此在此过程中新旧容器都会写入那里，这可能损坏数据库。只有在应用能够承受时才应用此计划。"
 
@@ -631,9 +633,6 @@ msgstr "另有 {size} 未保留"
 msgid "{source} started {revision}, in container {container}"
 msgstr "{source} 启动了 {revision}，容器为 {container}"
 
-#: src/features/logs/LogFoot.tsx
-msgid "{speed} lines/s"
-msgstr "{speed} 行/秒"
 #: src/features/changes/words.ts
 msgid "{source} stays on the server, as it was"
 msgstr "{source} 原样保留在服务器上"
@@ -641,6 +640,10 @@ msgstr "{source} 原样保留在服务器上"
 #: src/features/changes/words.ts
 msgid "{source} stops being what the service sees at {target}"
 msgstr "{source} 不再是服务在 {target} 看到的内容"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{speed} lines/s"
+msgstr "{speed} 行/秒"
 
 #. placeholder {0}: steps.length
 #: src/features/changes/ChangeSheet.tsx
@@ -864,12 +867,13 @@ msgstr "一个 {type} 挂载（{reads}）"
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "认领链接只在有人认领之前有效。请直接登录。"
 
-#: src/features/logs/LogsPage.tsx
-msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
-msgstr "容器被移除时，它的日志也会一并移除。每台服务器为每个应用保留最近一个失败和最近一个被替换的容器的日志，保留 30 天，总量不超过 256 MB；已删除应用的日志保留 7 天。"
 #: src/features/changes/words.ts
 msgid "A container on the server's own network listens on the server's ports itself, so two can't run at once, and the old one stops first"
 msgstr "服务器自身网络上的容器直接监听服务器的端口，因此两个容器不能同时运行，旧容器会先停止"
+
+#: src/features/logs/LogsPage.tsx
+msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
+msgstr "容器被移除时，它的日志也会一并移除。每台服务器为每个应用保留最近一个失败和最近一个被替换的容器的日志，保留 30 天，总量不超过 256 MB；已删除应用的日志保留 7 天。"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
@@ -2012,6 +2016,16 @@ msgstr "部署你的第一个应用"
 msgid "Deployed"
 msgstr "部署时间"
 
+#: src/features/apps/words.ts
+msgctxt "An app whose servers the fleet hasn't said anything about yet"
+msgid "Deployed"
+msgstr "已部署"
+
+#: src/features/apps/revision.ts
+msgctxt "What a revision did, before the image it deployed"
+msgid "Deployed"
+msgstr "已部署"
+
 #: src/features/apps/revision.ts
 msgid "deployed {ago}"
 msgstr "部署于 {ago}"
@@ -2841,6 +2855,7 @@ msgstr "它的访问地址可能不止这里所示。没有任何内容发生变
 #: src/features/logs/LogsPage.tsx
 msgid "It may have been deleted. Dockwell has no logs under this address."
 msgstr "它可能已被删除。Dockwell 在此地址下没有日志。"
+
 #: src/features/changes/RollbackLine.tsx
 msgid "It never stopped. Dockwell removed what this made after it failed."
 msgstr "它从未停止。这次变更失败后,Dockwell 移除了它创建的内容。"
@@ -2917,13 +2932,6 @@ msgstr "其中的应用会以这个名称显示为一行，并使用独立的网
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "其容器在 {at} 停止，退出码为 {code}。这是最后的日志，再次启动后会显示新日志。"
 
-#: src/features/changes/PlanSteps.tsx
-msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
-msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Its logs show here once they can be read."
-msgstr "能读取时，它的日志就会显示在这里。"
 #: src/features/changes/words.ts
 msgid "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first. If the app can, set its rollout order to start first"
 msgstr "其镜像将数据保存在 {imageData}，两个容器不能同时写入，因此旧容器会先停止。如果应用支持同时写入，请将其发布顺序设置为先启动"
@@ -2931,6 +2939,14 @@ msgstr "其镜像将数据保存在 {imageData}，两个容器不能同时写入
 #: src/features/changes/words.ts
 msgid "Its image puts an empty volume there. {source} stays on the server, as it was"
 msgstr "其镜像会在那里放置一个空卷。{source} 原样保留在服务器上"
+
+#: src/features/changes/PlanSteps.tsx
+msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
+msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Its logs show here once they can be read."
+msgstr "能读取时，它的日志就会显示在这里。"
 
 #: src/features/changes/words.ts
 msgid "Its rollout order says to stop first, so there are never two"
@@ -3064,6 +3080,12 @@ msgstr "目前在此监听的是：{listening}"
 #: src/features/logs/LogsPage.tsx
 msgid "Live"
 msgstr "实时"
+
+#: src/features/apps/revision.ts
+#: src/features/apps/words.ts
+msgctxt "An app whose latest revision is deployed"
+msgid "Live"
+msgstr "运行中"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "Load average"
@@ -3290,6 +3312,11 @@ msgstr "网络"
 
 #: src/features/apps/words.ts
 #: src/features/servers/ServerPanels.tsx
+msgid "Never"
+msgstr "从不"
+
+#: src/features/auth/TokensPanel.tsx
+msgctxt "token expiry"
 msgid "Never"
 msgstr "从不"
 
@@ -4994,6 +5021,11 @@ msgstr "已同步"
 msgid "System"
 msgstr "系统"
 
+#: src/features/shell/MorePage.tsx
+msgctxt "theme"
+msgid "System"
+msgstr "跟随系统"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "Takes away {stopping}"
 msgstr "将取消{stopping}"
@@ -5262,6 +5294,10 @@ msgstr "服务器本身的端口 {path}，这越过了容器的边界，位于 {
 msgid "the resource filter"
 msgstr "资源筛选"
 
+#: src/features/changes/words.ts
+msgid "The route {edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll"
+msgstr "路由 {edited} 已被手动修改，Dockwell 不会改动它，因此新容器必须沿用旧容器的地址，旧容器先停止。还原或采纳该修改后即可滚动发布"
+
 #: src/features/logs/LogsPage.tsx
 msgid "The search failed"
 msgstr "搜索失败"
@@ -5273,9 +5309,6 @@ msgstr "搜索在 30 秒后停止，读到 {at}。较早的日志请用 <0>dockw
 #: src/features/logs/LogFoot.tsx
 msgid "The search stopped at the newest 1,000,000 lines of a container, at {at}. Read older lines with <0>dockwell logs read</0>."
 msgstr "搜索在读完一个容器最新的 1,000,000 行后停止，读到 {at}。较早的日志请用 <0>dockwell logs read</0> 读取。"
-#: src/features/changes/words.ts
-msgid "The route {edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll"
-msgstr "路由 {edited} 已被手动修改，Dockwell 不会改动它，因此新容器必须沿用旧容器的地址，旧容器先停止。还原或采纳该修改后即可滚动发布"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "the server filter"

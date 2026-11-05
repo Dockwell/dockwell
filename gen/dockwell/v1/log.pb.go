@@ -1144,7 +1144,8 @@ type LogSource struct {
 	ServerId string `protobuf:"bytes,2,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	// The server's name, such as "hz-1".
 	ServerName string `protobuf:"bytes,3,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
-	// The replica it is, from 1, within the service on that server.
+	// The replica it is, from 1, within the service on that server. A service has
+	// one for now: the containers a rollout moves between take turns as it.
 	Replica int32 `protobuf:"varint,4,opt,name=replica,proto3" json:"replica,omitempty"`
 	// The container's name in Docker, such as "env_01kat…-web-1".
 	ContainerName string `protobuf:"bytes,5,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
