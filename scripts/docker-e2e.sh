@@ -586,10 +586,13 @@ answers "$named" "$redis_secret" || fail "$named doesn't take the secret's value
 if answers "$named" not-the-password; then fail "$named takes any password"; fi
 dw compose export >"$data/named.yaml" || fail "compose export failed"
 if grep -q -F -- "$redis_secret" "$data/named.yaml"; then fail "the export holds the secret's value"; fi
-imported=$(dw compose import --project default --compose "$(cat "$data/named.yaml")" --json 2>"$data/import.err") || fail "importing the export failed: $(cat "$data/import.err")"
+# web's own environment is by name in the file, so it comes as a variable. named's
+# comes from what it uses, so nothing is asked for it.
+imported=$(dw compose import --project default --compose "$(cat "$data/named.yaml")" --variables GREETING=hello --json 2>"$data/import.err") || fail "importing the export failed: $(cat "$data/import.err")"
 grep -q 'Nothing to change' "$data/import.err" || fail "importing the export didn't say there was nothing to change: $(cat "$data/import.err")"
+if [[ "$imported" == *"$redis_secret"* ]]; then fail "the plan holds the secret's value"; fi
 for guess in "$redis_secret" not-the-password; do
-  if said=$(dw compose import --project default --compose "$(cat "$data/named.yaml")" --variables "PW=$guess" --plan-only 2>&1); then fail "a file gave the secret a value: $said"; fi
+  if said=$(dw compose import --project default --compose "$(cat "$data/named.yaml")" --variables GREETING=hello --variables "PW=$guess" --plan-only 2>&1); then fail "a file gave the secret a value: $said"; fi
   [[ "$said" == *"from a secret too"* ]] || fail "a value for the secret failed some other way: $said"
   if [[ "$said" == *"$redis_secret"* ]]; then fail "the refusal repeats the value: $said"; fi
 done
