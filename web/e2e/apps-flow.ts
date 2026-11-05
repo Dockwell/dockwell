@@ -335,7 +335,8 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   // Only a real engine can run the ingress. It holds port 80 for as long as it runs.
   if (reachable) {
     step("apps: a domain behind a tunnel, applied, serves the app through Caddy, and the arrival says what it is");
-    const tunnelled = "tunnel.e2e-dockwell.example.net";
+    // Long enough to wrap on a phone, where it has to keep its icon and its copy button.
+    const tunnelled = "a-tunnel-with-a-name-long-enough-to-wrap.e2e-dockwell.example.net";
     await page.getByRole("button", { name: "Add a domain" }).first().click();
     const form = page.getByRole("dialog", { name: /^Add a domain to / });
     await form.getByLabel("Domain").fill(tunnelled);
@@ -349,6 +350,22 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
     await row.getByText("TLS ends before this server").waitFor({ timeout: 120_000 });
     if ((await row.innerText()).includes("http"))
       fail(`the arrival gives a tunnel's address a scheme: ${await row.innerText()}`);
+    await page.setViewportSize({ width: 360, height: 844 });
+    const nameBox = await row.locator(".plan-reach-at").boundingBox();
+    for (const [what, part] of [
+      ["icon", row.locator(":scope > .dw-icon")],
+      ["copy button", row.getByRole("button")],
+    ] as const) {
+      const box = await part.boundingBox();
+      if (!nameBox || !box || box.y >= nameBox.y + nameBox.height || nameBox.y >= box.y + box.height)
+        fail(`on a phone, a long domain's ${what} isn't on a line of its name: ${JSON.stringify({ nameBox, box })}`);
+    }
+    if (await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth))
+      fail("on a phone, an arrival with a long domain widens the page");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    // The app's page behind it has read it too, and doesn't wait for its cache to run out.
+    const onPage = page.locator(".app-reach-domain", { hasText: tunnelled });
+    await onPage.waitFor({ timeout: 10_000 });
     // The real thing: what a tunnel on this server's own network would ask.
     let answered = "";
     for (let i = 0; i < 40 && !answered.includes("nginx"); i++) {
@@ -360,6 +377,7 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
     await page.getByRole("button", { name: /Undo until/ }).click();
     await applyPlan(page, "Done");
     await form.waitFor({ state: "hidden" });
+    await onPage.waitFor({ state: "detached", timeout: 10_000 });
     await expectServes("nginx/1.27");
   }
 

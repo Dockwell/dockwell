@@ -10,11 +10,13 @@ import {
   ChangeState,
   Connection,
   type Domain,
+  DomainService,
   type EditSchema,
   EventService,
   IntentKind,
   type Plan,
   PlanAction,
+  type PlannedResource,
   ResourceService,
   ServiceService,
   StepState,
@@ -291,9 +293,9 @@ function letGo(client: Client<typeof ChangeService>, proposal: Proposal): void {
   }, 0);
 }
 
-/** Reads what a change applied or undone may have changed again: the resources, the services, the timeline's pages and the changes. */
+/** Reads what a change applied or undone may have changed again: the resources, the services and their domains, the timeline's pages and the changes. */
 function refreshAfter(queryClient: QueryClient): void {
-  for (const schema of [ResourceService, ServiceService, EventService, ChangeService, VariableService]) {
+  for (const schema of [ResourceService, ServiceService, DomainService, EventService, ChangeService, VariableService]) {
     void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
   }
 }
@@ -1312,11 +1314,10 @@ function Arrival({ plan, change }: { plan: Plan | undefined; change: Change }) {
 function useDomainsOfPlan(plan: Plan | undefined) {
   const live = goesLive(plan).filter((r) => r.resource?.kind === "service");
   const routes = (plan?.resources ?? []).filter((r) => r.resource?.kind === "route" && r.action !== PlanAction.DELETE);
-  return useDomainsReaching(
-    [...live, ...routes][0]?.resource?.scope ?? "",
-    live.map((r) => r.resource?.name ?? ""),
-    routes.map((r) => r.resource?.name ?? ""),
-  );
+  const environment = [...live, ...routes][0]?.resource?.scope ?? "";
+  const named = (resources: readonly PlannedResource[]) =>
+    resources.filter((r) => r.resource?.scope === environment).map((r) => r.resource?.name ?? "");
+  return useDomainsReaching(environment, named(live), named(routes));
 }
 
 /**

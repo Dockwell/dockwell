@@ -90,7 +90,9 @@ export function useAppDomains(service: ServiceInfo): { domains: readonly Domain[
  * The domains a change's arrival leads with: those that send to the services it
  * brought to life, and its own routes, as a change can be nothing but a route. A
  * change reads as one environment, so this reads that one's, however many services
- * it has, and again until each settles. isLoading is true until it has read them.
+ * it has, and again until each settles. isLoading is true until it has read them,
+ * and until what it read has the change's own routes: a read from before the change
+ * can't, and it stands until the one after comes back.
  */
 export function useDomainsReaching(
   environment: string,
@@ -110,5 +112,7 @@ export function useDomainsReaching(
           : false,
     },
   );
-  return { domains: (query.data?.domains ?? []).filter(reaching), isLoading: query.isLoading };
+  const read = query.data?.domains ?? [];
+  const behind = routes.some((name) => !read.some((domain) => domain.routes.some((route) => route.name === name)));
+  return { domains: read.filter(reaching), isLoading: query.isLoading || behind };
 }

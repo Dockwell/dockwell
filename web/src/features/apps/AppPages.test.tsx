@@ -974,6 +974,42 @@ describe("an app's overview", () => {
     await waitFor(() => expect(field).toHaveFocus());
   });
 
+  it("puts a domain on the app's page as soon as it applies, though it was read moments before", async () => {
+    const user = userEvent.setup();
+    const alone = anApp("alone", "nginx:1.5", {}, {});
+    const watch = feed<WatchChangeResponse>();
+    const domain = {
+      name: "app.example.com",
+      url: "https://app.example.com",
+      routes: [{ id: "res_route", name: "app-example-com", service: "alone", port: 80 }],
+      servers: [{ serverName: "hz-1", status: { certificate: { state: CertificateState.ISSUED } } }],
+    };
+    let domains: (typeof domain)[] = [];
+    renderAt(
+      "/apps/svc_alone",
+      api([alone], {
+        services: { listServices: () => ({ services: [alone] }), listServiceRevisions: () => ({ revisions }) },
+        domains: { listDomains: () => ({ domains }) },
+        changes: {
+          watchChange: watch.stream,
+          proposeChange: () => ({ change: webPlanned() }),
+          applyChange: () => ({ change: moved(webPlanned(), { state: ChangeState.APPLYING }) }),
+        },
+      }),
+      { staleTime: 30_000 },
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain to alone" });
+    await user.type(within(sheet).getByLabelText("Domain"), "app.example.com");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    const review = await screen.findByRole("dialog", { name: "Review plan" });
+    await user.click(within(review).getByRole("button", { name: /Apply plan/ }));
+    await screen.findByRole("dialog", { name: "Applying" });
+    domains = [domain];
+    watch.push(watched(moved(webPlanned(), { state: ChangeState.APPLIED })));
+    await waitFor(() => expect(document.querySelector(".app-reach-domain")).toHaveTextContent("app.example.com"));
+  });
+
   it("gets a certificate unless it's asked not to, and sends an app on the server's network to its port", async () => {
     const user = userEvent.setup();
     const edits: { spec?: { kind: { value: unknown } } }[] = [];

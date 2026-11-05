@@ -188,10 +188,21 @@ a.plan-reach-at:focus-visible {
   color: var(--ink-muted);
 }
 
-/* What a server says of a certificate can be a sentence, under the name on a phone. */
+/* The name keeps its icon and its copy button however long it is, with what's said of it beneath. */
 .plan-reach-row.is-domain {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: var(--space-2);
   padding-block: var(--space-1);
+}
+
+.plan-reach-row.is-domain .plan-reach-at {
+  justify-self: start;
+}
+
+.plan-reach-row.is-domain .plan-reach-how {
+  grid-row: 2;
+  grid-column: 2 / -1;
 }
 
 .plan-reach-row.is-failed .plan-reach-how {

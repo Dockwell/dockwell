@@ -18,6 +18,7 @@ import {
   IngressEffectSchema,
   PlanAction,
   PlanNoteSchema,
+  PlannedResourceSchema,
   PlanSummarySchema,
   type PortMappingSchema,
   RouteAnswersSchema,
@@ -38,7 +39,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { applied, moved, shopPlanned, watched, webPlanned } from "../../test/changes";
-import { type Api, feed, onPhone, quietWatch, renderWithApi } from "../../test/render";
+import { type Api, type CacheOptions, feed, onPhone, quietWatch, renderWithApi } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { ChangeSheetProvider, type Opening, useChangeSheet } from "./ChangeSheet";
 
@@ -48,12 +49,13 @@ function Opener({ opening }: { opening: Opening }) {
   return null;
 }
 
-function renderSheet(opening: Opening, api: Api) {
+function renderSheet(opening: Opening, api: Api, cache?: CacheOptions) {
   return renderWithApi(
     <ChangeSheetProvider>
       <Opener opening={opening} />
     </ChangeSheetProvider>,
     api,
+    cache,
   );
 }
 
@@ -1099,6 +1101,102 @@ describe("the plan sheet, once it runs", () => {
       arrivedWith([aDomain("app.example.com", CertificateState.ISSUED, "", "web")], [], aRoutePlan(PlanAction.CREATE));
       const link = await screen.findByRole("link", { name: "app.example.com" });
       expect(link).toHaveAttribute("href", "https://app.example.com");
+    });
+
+    // On the panel's 30 s: where nothing keeps a read, whatever looks next reads again, which hides a missing refresh.
+    describe("that the change itself adds", () => {
+      const planned = (change: Change) => {
+        const resource = change.plan?.resources[0]?.resource;
+        if (resource) resource.scope = "env_1";
+        return moved(change, { state: ChangeState.PLANNED });
+      };
+      const aRouteBeside = (change: Change, scope = "env_1") => {
+        change.plan?.resources.push(
+          create(PlannedResourceSchema, {
+            id: "res_route",
+            resource: { kind: "route", scope, name: "app-example-com" },
+            action: PlanAction.CREATE,
+          }),
+        );
+        return change;
+      };
+
+      it("shows it, though what was read at the review came before it", async () => {
+        const user = userEvent.setup();
+        const change = planned(aRoutePlan(PlanAction.CREATE));
+        let domains: ReturnType<typeof aDomain>[] = [];
+        let reads = 0;
+        renderSheet(
+          { kind: "plan", make: () => Promise.resolve({ change }) },
+          {
+            services: { listServices: () => ({ services: [aService([])] }) },
+            domains: {
+              listDomains: () => {
+                reads += 1;
+                return { domains };
+              },
+            },
+            changes: {
+              watchChange: feed<WatchChangeResponse>().stream,
+              applyChange: () => {
+                domains = [aDomain("app.example.com", CertificateState.ISSUED)];
+                return { change: moved(change, { state: ChangeState.APPLIED }) };
+              },
+            },
+          },
+          { staleTime: 30_000 },
+        );
+        const review = await screen.findByRole("dialog", { name: "Review plan" });
+        await waitFor(() => expect(reads).toBe(1));
+        await user.click(within(review).getByRole("button", { name: /Apply plan/ }));
+        expect(await screen.findByRole("link", { name: "app.example.com" })).toHaveAttribute(
+          "href",
+          "https://app.example.com",
+        );
+      });
+
+      it("doesn't say nothing reaches the app while what it read is from before", async () => {
+        const user = userEvent.setup();
+        const change = planned(aRouteBeside(aServicePlan()));
+        let answer: (domains: { domains: ReturnType<typeof aDomain>[] }) => void = () => {};
+        let reads = 0;
+        renderSheet(
+          { kind: "plan", make: () => Promise.resolve({ change }) },
+          {
+            services: { listServices: () => ({ services: [aService([])] }) },
+            domains: {
+              listDomains: () => {
+                reads += 1;
+                if (reads === 1) return { domains: [] };
+                return new Promise((resolve) => {
+                  answer = resolve;
+                });
+              },
+            },
+            changes: {
+              watchChange: feed<WatchChangeResponse>().stream,
+              applyChange: () => ({ change: moved(change, { state: ChangeState.APPLIED }) }),
+            },
+          },
+          { staleTime: 30_000 },
+        );
+        const review = await screen.findByRole("dialog", { name: "Review plan" });
+        await waitFor(() => expect(reads).toBe(1));
+        await user.click(within(review).getByRole("button", { name: /Apply plan/ }));
+        const done = await screen.findByRole("dialog", { name: "web is live" });
+        await waitFor(() => expect(reads).toBe(2));
+        expect(done).not.toHaveTextContent("Nothing outside");
+        act(() => answer({ domains: [aDomain("app.example.com", CertificateState.ISSUED)] }));
+        expect(await within(done).findByRole("link", { name: "app.example.com" })).toBeVisible();
+        expect(done).not.toHaveTextContent("Nothing outside");
+      });
+
+      it("doesn't wait for a route in another environment, which it doesn't read", async () => {
+        const change = applied(aRouteBeside(aServicePlan(), "env_2"));
+        arrivedWith([], [{ hostPort: 8080, containerPort: 80 }], change);
+        const done = await screen.findByRole("dialog", { name: "web is live" });
+        await within(done).findByRole("link", { name: /:8080/ });
+      });
     });
 
     it("says nothing of a route the change took away", async () => {
