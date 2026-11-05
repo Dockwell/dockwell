@@ -240,7 +240,7 @@ They don't fall out cleanly, so they wait:
 
 ## Memory
 
-Measured with `make budgets`, 5 runs of each beside a build of the commit this one sits on, on one machine, idle for 180 s: an agent on its own went from 21.0 MB to 21.2 MB (budget 40 MB), and a control plane with its own agent from 41.1 MB to 41.8 MB (budget 250 MB). That machine has no Docker, so the monitor had nothing to watch. A test holds what it costs with something to watch: 3,000 services, each with a check that hangs, make 16 checks at a time and hold 2,680 bytes of heap each, 7.7 MiB in all (`TestManyServicesStayWithinWhatAMonitorHolds`).
+Measured with `make budgets`, 5 runs of each beside a build of the commit this one sits on, on one machine, idle for 180 s: an agent on its own went from 21.0 MB to 21.6 MB (budget 40 MB), and a control plane with its own agent from 42.7 MB to 43.3 MB (budget 250 MB). That machine has no Docker, so the monitor had nothing to watch. A test holds what it costs with something to watch: 3,000 services, each with a check that hangs, make 16 checks at a time and hold 2,680 bytes of heap each, 7.7 MiB in all (`TestManyServicesStayWithinWhatAMonitorHolds`).
 
 ## How it's tested
 
