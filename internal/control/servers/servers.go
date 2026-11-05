@@ -75,7 +75,7 @@ func (s *Service) WatchServers(ctx context.Context, _ *connect.Request[dockwellv
 		case u, ok := <-updates:
 			if !ok {
 				if ctx.Err() != nil {
-					return nil //nolint:nilerr // the client went away; nothing failed
+					return nil // the client went away; nothing failed
 				}
 				return errBehind
 			}
