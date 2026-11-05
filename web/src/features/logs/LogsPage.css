@@ -33,7 +33,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  padding-inline-start: var(--space-1);
+  padding-inline: var(--space-1);
 }
 
 .logs-search-count {
@@ -98,9 +98,9 @@
   background: var(--surface-sunken);
 }
 
-/* On reads at a glance, whatever the chip's own hue: the ground and the word both change. */
+/* On reads at a glance, whatever the chip's own hue: its ground, its edge and its word all change. */
 .logs-chip.is-on .logs-chip-face {
-  border-color: transparent;
+  border-color: color-mix(in srgb, var(--cobalt) 55%, transparent);
   background: var(--selection);
   color: var(--cobalt);
 }
@@ -311,6 +311,11 @@
 
 .logs-context-stream {
   height: 100%;
+}
+
+/* All it has to say, the sheet's own title says. */
+.logs-context-stream .dw-log-head {
+  display: none;
 }
 
 .logs-bar {

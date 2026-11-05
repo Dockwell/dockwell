@@ -15,6 +15,36 @@ msgstr "，密钥"
 msgid "(modified)"
 msgstr "（有未提交的修改）"
 
+#. placeholder {0}: e.left
+#: src/features/logs/draw.ts
+msgid "{0, plural, one {{count} line came while this view was paused, and left it unseen.} other {{count} lines came while this view was paused, and left it unseen.}}"
+msgstr "{0, plural, other {此视图暂停期间有 {count} 行日志未能显示，已被丢弃。}}"
+
+#. placeholder {0}: now.store.matches
+#: src/features/logs/LogsPage.tsx
+msgid "{0, plural, one {{count} line matches.} other {{count} lines match.}}"
+msgstr "{0, plural, other {{count} 行匹配。}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} line from {source} not shown: it wrote faster than a live view can carry. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: it wrote faster than a live view can carry. Read them with dockwell logs read.}}"
+msgstr "{0, plural, other {{source} 有 {lines} 行未显示：它的写入速度超过了实时视图的承载能力。请用 dockwell logs read 读取。}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} line from {source} not shown: this page or the network to it fell behind.} other {{lines} lines from {source} not shown: this page or the network to it fell behind.}}"
+msgstr "{0, plural, other {{source} 有 {lines} 行未显示：此页面或其网络跟不上。}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} line from {source} not shown: this server shares what it carries live between everyone reading it, and this was past this view's share. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: this server shares what it carries live between everyone reading it, and these were past this view's share. Read them with dockwell logs read.}}"
+msgstr "{0, plural, other {{source} 有 {lines} 行未显示：这台服务器的实时带宽由所有读者分享，这些行超出了此视图的份额。请用 dockwell logs read 读取。}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
+msgstr "{0, plural, other {{source} 有 {lines} 条较早的匹配未显示：读到末尾时，每个容器只保留最新的 2 MB。}}"
+
 #. placeholder {0}: state.servers.length
 #: src/features/apps/AppOverview.tsx
 msgid "{0, plural, one {{servers} isn't connected} other {{servers} aren't connected}}"
@@ -45,6 +75,11 @@ msgstr "{0, plural, other {已删除 # 项资源}}"
 msgid "{0, plural, one {# resource} other {# resources}}"
 msgstr "{0, plural, other {# 项资源}}"
 
+#. placeholder {0}: store.matches
+#: src/features/logs/LogFoot.tsx
+msgid "{0, plural, one {{shown} of the {total} lines loaded matches.} other {{shown} of the {total} lines loaded match.}}"
+msgstr "{0, plural, other {已加载的 {total} 行中有 {shown} 行匹配。}}"
+
 #. placeholder {0}: Number(latest)
 #: src/features/apps/AppDeployments.tsx
 msgid "{0, plural, one {# revision · newest first} other {# revisions · newest first}}"
@@ -70,6 +105,11 @@ msgstr "{0, plural, other {删除 # 项资源}}"
 msgid "{0, plural, one {Network} other {Networks}}"
 msgstr "{0, plural, other {网络}}"
 
+#. placeholder {0}: store.arrived
+#: src/features/logs/LogFoot.tsx
+msgid "{0, plural, one {Paused at {at}. {count} line since.} other {Paused at {at}. {count} lines since.}}"
+msgstr "{0, plural, other {已于 {at} 暂停。此后又有 {count} 行。}}"
+
 #. placeholder {0}: services.length
 #: src/features/apps/NewAppSheet.tsx
 msgid "{0, plural, one {This makes # app} other {This makes # apps}}"
@@ -79,6 +119,16 @@ msgstr "{0, plural, other {这会创建 # 个应用}}"
 #: src/features/apps/NewAppSheet.tsx
 msgid "{0, plural, one {Volume} other {Volumes}}"
 msgstr "{0, plural, other {卷}}"
+
+#. placeholder {0}: failing.serverName
+#: src/features/logs/LogNote.tsx
+msgid "{0} can't read a container's log"
+msgstr "{0} 无法读取容器日志"
+
+#. placeholder {0}: first.serverName
+#: src/features/logs/LogNote.tsx
+msgid "{0} can't read logs"
+msgstr "{0} 无法读取日志"
 
 #. placeholder {0}: offline.join(", ")
 #: src/features/changes/ChangeSheet.tsx
@@ -94,6 +144,22 @@ msgstr "{0} 磁盘"
 #: src/features/changes/ChangeSheet.tsx
 msgid "{0} has to reconnect first"
 msgstr "{0} 需要先重新连接"
+
+#. placeholder {0}: first.serverName
+#: src/features/logs/LogNote.tsx
+msgid "{0} is offline"
+msgstr "{0} 已离线"
+
+#. placeholder {0}: step.toLocaleString(i18n.locale)
+#. placeholder {1}: active.matches.toLocaleString(i18n.locale)
+#: src/features/logs/LogsPage.tsx
+msgid "{0} of {1}"
+msgstr "第 {0} 个，共 {1} 个"
+
+#. placeholder {0}: s.change
+#: src/features/activity/describe.ts
+msgid "{0} to change"
+msgstr "{0} 项更改"
 
 #. placeholder {0}: s.create
 #: src/features/activity/describe.ts
@@ -144,9 +210,17 @@ msgstr "{count, plural, other {# 天}}"
 msgid "{count, plural, one {# hour} other {# hours}}"
 msgstr "{count, plural, other {# 小时}}"
 
+#: src/app/Providers.tsx
+msgid "{count, plural, one {# new line} other {# new lines}}"
+msgstr "{count, plural, other {# 行新日志}}"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 msgstr "{count, plural, other {这里还有 # 个其他应用。否则它们保持不变。}}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{count, plural, one {# replica} other {# replicas}}"
+msgstr "{count, plural, other {# 个副本}}"
 
 #: src/app/Providers.tsx
 #: src/features/apps/AppsPage.tsx
@@ -210,9 +284,21 @@ msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指�
 msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
 msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指向此服务器的 A 或 AAAA 记录，添加后即可获取证书"
 
+#: src/features/logs/LogFoot.tsx
+msgid "{down} couldn't be searched, so its lines aren't in this."
+msgstr "无法搜索 {down}，结果中不含它的日志。"
+
 #: src/features/apps/AppsPage.tsx
 msgid "{elsewhere, plural, one {# more app lives outside this view} other {# more apps live outside this view}}"
 msgstr "{elsewhere, plural, other {此视图之外还有 # 个应用}}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{errors, plural, one {{count} error} other {{count} errors}}"
+msgstr "{errors, plural, other {{count} 个错误}}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{first} couldn't be searched"
+msgstr "无法搜索 {first}"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "{free} free"
@@ -225,6 +311,10 @@ msgstr "还剩 {left} 个（共 10 个），每个只能用一次。如果你丢
 #: src/features/changes/ChangeSheet.tsx
 msgid "{made} is live"
 msgstr "{made} 已上线"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
+msgstr "{matches, plural, other {在 {lines} 行中找到 {count} 处匹配，最早到 {at}。}}"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "{memShare} in use"
@@ -266,6 +356,14 @@ msgstr "{name} 将取回服务器保留的数据。"
 msgid "{name} gets root on {server}"
 msgstr "{name} 将获得 {server} 的 root 权限"
 
+#: src/features/logs/LogNote.tsx
+msgid "{name} has no container now, so these are the logs of its last deploy."
+msgstr "{name} 现在没有容器，这里是它上一次部署的日志。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{name} has no containers yet"
+msgstr "{name} 还没有容器"
+
 #: src/features/auth/Unclaimed.tsx
 msgid "{name} has no owner yet"
 msgstr "{name} 还没有所有者"
@@ -290,6 +388,10 @@ msgstr "{name} 使用的是 <0>{image}</0>，与那次部署之前相同。请�
 msgid "{name} is still deploying. You can review this plan once that ends."
 msgstr "{name} 仍在部署中。部署结束后即可审阅这个计划。"
 
+#: src/features/logs/LogsPage.tsx
+msgid "{name} hasn't written anything. Its first lines show here as it writes them."
+msgstr "{name} 还没有写入任何内容。它一写入，第一批日志就会显示在这里。"
+
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} is waiting for its agent"
 msgstr "{name} 正在等待代理连接"
@@ -305,6 +407,11 @@ msgstr "{name} 在 {server} 上加入用户组 {path}"
 #: src/features/changes/notices.tsx
 msgid "{name} joins the network {path} on {server}"
 msgstr "{name} 在 {server} 上加入网络 {path}"
+
+#. placeholder {0}: off.serverName
+#: src/features/logs/LogNote.tsx
+msgid "{name} isn't running on {0}"
+msgstr "{name} 未在 {0} 上运行"
 
 #: src/features/apps/AppOverview.tsx
 msgid "{name} keeps running there, but Dockwell can't see it or change it until its agent reconnects. Check that <0>dockwell run</0> is still running on the server."
@@ -322,6 +429,14 @@ msgstr "{name} 将丢失它在 {0} 上的数据"
 #: src/features/changes/notices.tsx
 msgid "{name} loses what its image keeps at {paths}"
 msgstr "{name} 将失去其镜像保存在 {paths} 的内容"
+
+#: src/features/apps/AppLayout.tsx
+msgid "{name} logs"
+msgstr "{name} 日志"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{name} reaches {reaches}."
+msgstr "{name} 可访问 {reaches}。"
 
 #: src/features/apps/AppOverview.tsx
 msgid "{name} may not be running, or may be running the new version. Check it, then deploy what should run, or fix it on the server."
@@ -375,6 +490,10 @@ msgstr "{networks, plural, other {# 个网络}}"
 msgid "{now} now"
 msgstr "当前 {now}"
 
+#: src/features/logs/LogsPage.tsx
+msgid "{number} of {count}"
+msgstr "第 {number} 个，共 {count} 个"
+
 #: src/features/changes/words.ts
 msgid "{out}, which reaches past the server's firewall"
 msgstr "{out}，可绕过服务器的防火墙"
@@ -391,6 +510,10 @@ msgstr "{path}，作为它信任的代理，相信它所说的请求来源"
 #: src/features/variables/VariablesPage.tsx
 msgid "{plain, plural, one {# variable} other {# variables}}"
 msgstr "{plain, plural, other {# 个变量}}"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{rangeLabel}, to {to}. Refresh for newer lines."
+msgstr "{rangeLabel}，截至 {to}。刷新可查看更新的日志。"
 
 #: src/features/changes/words.ts
 msgid "{proxy} isn't running on {server}, so this route starts it, and it takes ports {ports}"
@@ -510,6 +633,18 @@ msgstr "{subject} 已删除"
 msgid "{subject} is replaced"
 msgstr "{subject} 已替换"
 
+#: src/app/Providers.tsx
+msgid "{size} more not kept"
+msgstr "另有 {size} 未保留"
+
+#: src/features/logs/draw.ts
+msgid "{source} started {revision}, in container {container}"
+msgstr "{source} 启动了 {revision}，容器为 {container}"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{speed} lines/s"
+msgstr "{speed} 行/秒"
+
 #: src/features/activity/describe.ts
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
@@ -533,6 +668,14 @@ msgstr "{verb} {name}"
 #: src/features/changes/words.ts
 msgid "{volumes, plural, one {a volume} other {# volumes}}"
 msgstr "{volumes, plural, other {# 个卷}}"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{value, plural, one {{count} line not shown} other {{count} lines not shown}}"
+msgstr "{value, plural, other {{count} 行未显示}}"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{value, plural, one {About {count} line not shown} other {About {count} lines not shown}}"
+msgstr "{value, plural, other {约 {count} 行未显示}}"
 
 #: src/features/shell/Topbar.tsx
 msgid "{waiting} waiting for an agent"
@@ -611,9 +754,29 @@ msgstr "<0>{path}</0> 让它能控制服务器上的 Docker，相当于 root。"
 msgid "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives it control of Docker on the server, the same as root."
 msgstr "<0>{path}</0> 通过符号链接指向 <1>{leadsTo}</1>，这让它能控制服务器上的 Docker，相当于 root。"
 
+#: src/features/logs/LogNote.tsx
+msgid "<0>{image}</0> exited with code {code}."
+msgstr "<0>{image}</0> 以退出码 {code} 退出。"
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{image}</0> exited with no error."
+msgstr "<0>{image}</0> 正常退出。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "<0>{project}</0> is here already, so the plan updates what's in it."
 msgstr "<0>{project}</0> 已存在，因此计划会更新其中的内容。"
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{revision}</0> failed at {finished} and was rolled back to <1>{rolledBackTo}</1>."
+msgstr "<0>{revision}</0> 于 {finished} 失败，已回滚到 <1>{rolledBackTo}</1>。"
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{revision}</0> failed at {finished} and was rolled back."
+msgstr "<0>{revision}</0> 于 {finished} 失败，已回滚。"
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{revision}</0> was replaced at {finished}."
+msgstr "<0>{revision}</0> 于 {finished} 被替换。"
 
 #: src/features/apps/AppLayout.tsx
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
@@ -635,6 +798,10 @@ msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权�
 msgid "<0>{source}</0>, read-only"
 msgstr "<0>{source}</0>，只读"
 
+#: src/features/logs/LogsPage.tsx
+msgid "1 h"
+msgstr "1 小时"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "1, 5 and 15 min"
 msgstr "1、5 和 15 分钟"
@@ -642,6 +809,18 @@ msgstr "1、5 和 15 分钟"
 #: src/features/servers/ServerMetrics.tsx
 msgid "1, 5 and 15 min, on {cpus} vCPU"
 msgstr "1、5 和 15 分钟，共 {cpus} 个 vCPU"
+
+#: src/app/Providers.tsx
+msgid "10k+ new lines"
+msgstr "超过 1 万行新日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "15 min"
+msgstr "15 分钟"
+
+#: src/features/logs/LogsPage.tsx
+msgid "24 h"
+msgstr "24 小时"
 
 #: src/features/auth/SignInPage.tsx
 msgid "6 digits from your authenticator app, or one of your recovery codes."
@@ -662,6 +841,10 @@ msgstr "一个 {type} 挂载（{reads}）"
 #: src/features/auth/ClaimPage.tsx
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "认领链接只在有人认领之前有效。请直接登录。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
+msgstr "容器被移除时，它的日志也会一并移除。每台服务器为每个应用保留最近一个失败和最近一个被替换的容器的日志，保留 30 天，总量不超过 256 MB；已删除应用的日志保留 7 天。"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
@@ -882,6 +1065,14 @@ msgstr "所有环境"
 msgid "All healthy"
 msgstr "全部健康"
 
+#: src/features/logs/LogsPage.tsx
+msgid "All levels"
+msgstr "全部级别"
+
+#: src/features/logs/LogsPage.tsx
+msgid "All replicas"
+msgstr "全部副本"
+
 #: src/features/apps/AppsPage.tsx
 msgid "All servers"
 msgstr "所有服务器"
@@ -893,6 +1084,10 @@ msgstr "允许 <0>{port}</0>，{proto}，来源 <1>{from}</1>"
 #: src/features/changes/fields.tsx
 msgid "allow <0>{port}</0>, {proto}, from anywhere"
 msgstr "允许 <0>{port}</0>，{proto}，来源不限"
+
+#: src/features/logs/LogsPage.tsx
+msgid "All the servers keep"
+msgstr "服务器保留的全部日志"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Already claimed"
@@ -1024,6 +1219,7 @@ msgstr "身份验证器应用"
 msgid "Automatic"
 msgstr "自动"
 
+#: src/features/apps/AppLayout.tsx
 #: src/features/shell/Page.tsx
 msgid "Back"
 msgstr "返回"
@@ -1056,6 +1252,10 @@ msgstr "恢复服务器保留的数据"
 #: src/features/apps/AppDeployments.tsx
 msgid "By"
 msgstr "执行者"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Can read logs"
+msgstr "可以读取日志"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Can't check your session"
@@ -1094,6 +1294,14 @@ msgstr "无法连接到控制平面"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Can't read the file yet"
 msgstr "暂时无法读取此文件"
+
+#: src/features/logs/LogContext.tsx
+msgid "Can't read the lines around it"
+msgstr "无法读取它前后的日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Can't read these logs now"
+msgstr "现在无法读取这些日志"
 
 #. placeholder {0}: groupSecret(setup.secret)
 #: src/features/auth/TotpPanel.tsx
@@ -1220,6 +1428,10 @@ msgstr "正在检查你的会话"
 msgid "Choose a file"
 msgstr "选择文件"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Choose a longer range, or follow what it writes next."
+msgstr "请选择更长的时间范围，或跟随它接下来写入的内容。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Choose where it runs."
 msgstr "请选择运行位置。"
@@ -1248,6 +1460,14 @@ msgstr "认领了这个安装"
 msgid "Clearing this away failed too"
 msgstr "清理此次变更也失败了"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Clear filters"
+msgstr "清除筛选"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Clear the search"
+msgstr "清除搜索"
+
 #: src/app/Providers.tsx
 #: src/features/changes/ChangeSheet.tsx
 msgid "Close"
@@ -1256,6 +1476,10 @@ msgstr "关闭"
 #: src/features/activity/ActivityPage.tsx
 msgid "Close details"
 msgstr "关闭详情"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Close the search"
+msgstr "关闭搜索"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Close, and lose what you typed here?"
@@ -1364,6 +1588,7 @@ msgid "Control server"
 msgstr "控制服务器"
 
 #: src/features/apps/ExportSheet.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Copied"
 msgstr "已复制"
 
@@ -1379,7 +1604,16 @@ msgstr "已复制 {text}"
 msgid "Copied the Compose file"
 msgstr "已复制 Compose 文件"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Copied the lines shown"
+msgstr "已复制显示的日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Copied this line"
+msgstr "已复制这一行"
+
 #: src/features/apps/ExportSheet.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Copy"
 msgstr "复制"
 
@@ -1403,13 +1637,17 @@ msgstr "复制恢复码"
 msgid "Copy command"
 msgstr "复制命令"
 
-#: src/routes/_shell/apps.$serviceId.logs.tsx
-msgid "Copy the command"
-msgstr "复制命令"
-
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
 msgstr "复制镜像名称"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Copy these lines"
+msgstr "复制这些日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Copy this line"
+msgstr "复制这一行"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Copy this token now. It won't be shown again."
@@ -1568,6 +1806,7 @@ msgid "Creating passkey"
 msgstr "正在创建通行密钥"
 
 #: src/features/auth/SessionsPanel.tsx
+#: src/features/logs/LogsPage.tsx
 #: src/features/shell/CommandMenu.tsx
 msgid "Current"
 msgstr "当前"
@@ -1649,6 +1888,10 @@ msgstr "部署 {name}"
 msgid "Deploy {wanted} to {name}"
 msgstr "将 {wanted} 部署到 {name}"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Deploy it, and its logs show here as it starts."
+msgstr "部署后，它启动时日志就会显示在这里。"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Deploy your first app"
 msgstr "部署你的第一个应用"
@@ -1702,6 +1945,10 @@ msgstr "正在部署 {name} 的 {revision}"
 #: src/features/apps/AppLayout.tsx
 msgid "Deploying <0>{image}</0>, started {ago}"
 msgstr "正在部署 <0>{image}</0>，开始于 {ago}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Deployment"
+msgstr "部署"
 
 #: src/features/apps/AppLayout.tsx
 msgid "Deployments"
@@ -1815,6 +2062,7 @@ msgid "Dockwell is putting things back as they were"
 msgstr "Dockwell 正在恢复原样"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Dockwell keeps trying."
 msgstr "Dockwell 会继续尝试。"
 
@@ -1891,12 +2139,17 @@ msgid "Down"
 msgstr "宕机"
 
 #: src/features/auth/TotpPanel.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Download"
 msgstr "下载"
 
 #: src/features/changes/fields.tsx
 msgid "driver"
 msgstr "驱动"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Download these lines"
+msgstr "下载这些日志"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "driver options"
@@ -1932,6 +2185,10 @@ msgstr "输错 5 次验证码后结束了身份验证器应用的设置"
 #: src/features/auth/ClaimPage.tsx
 msgid "Enter an email address, such as mira@acme.dev."
 msgstr "请输入邮箱地址，例如 mira@acme.dev。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Enter goes to the next match up the log, and Shift+Enter down it. Escape clears the search."
+msgstr "按 Enter 向上跳到下一处匹配，按 Shift+Enter 向下跳。按 Escape 清除搜索。"
 
 #: src/features/auth/SignInPage.tsx
 msgid "Enter the 6-digit code from your authenticator app, or a recovery code."
@@ -1998,6 +2255,14 @@ msgstr "环境"
 msgid "Error"
 msgstr "错误"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Errors"
+msgstr "错误"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Errors in this log"
+msgstr "此日志中的错误"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Event"
 msgstr "事件"
@@ -2055,6 +2320,10 @@ msgstr "导出"
 msgid "Export as Compose"
 msgstr "导出为 Compose"
 
+#: src/features/logs/LogsPage.tsx
+msgid "failed"
+msgstr "失败"
+
 #: src/features/apps/revision.ts
 #: src/features/apps/words.ts
 #: src/features/changes/words.ts
@@ -2068,6 +2337,10 @@ msgstr "筛选应用"
 #: src/features/apps/AppsPage.tsx
 msgid "Filter by name or image"
 msgstr "按名称或镜像筛选"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Filter log lines"
+msgstr "筛选日志"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Finding your projects"
@@ -2112,6 +2385,10 @@ msgstr "跟随"
 #: src/features/apps/AppOverview.tsx
 msgid "Follow it"
 msgstr "查看进度"
+
+#: src/app/Providers.tsx
+msgid "Following"
+msgstr "跟随中"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "For {connected}"
@@ -2174,6 +2451,10 @@ msgstr "Go"
 #: src/features/apps/AppLayout.tsx
 msgid "Go to the apps"
 msgstr "前往应用"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Go to the last"
+msgstr "转到最后一处"
 
 #: src/features/auth/ClaimPage.tsx
 #: src/features/servers/ServerOverview.tsx
@@ -2327,6 +2608,10 @@ msgstr "应用内"
 msgid "in under a minute"
 msgstr "不到一分钟后"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Info"
+msgstr "信息"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Installed"
 msgstr "安装时间"
@@ -2399,6 +2684,14 @@ msgstr "它通过符号链接指向 <0>{leadsTo}</0>，而服务器的安全取�
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
 msgstr "它能访问服务器能访问的一切，绕过 Docker 网络和防火墙。"
 
+#: src/features/logs/LogsPage.tsx
+msgid "It may have been deleted. Dockwell has no logs under this address."
+msgstr "它可能已被删除。Dockwell 在此地址下没有日志。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "It reads each container's log, at most for 30 s."
+msgstr "它会读取每个容器的日志，最长 30 秒。"
+
 #: src/features/apps/DeploySheet.tsx
 msgid "It runs <0>{current}</0> now."
 msgstr "当前运行 <0>{current}</0>。"
@@ -2419,6 +2712,14 @@ msgstr "它会相信该代理所说的请求来源。"
 msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
 msgstr "它原是普通变量，能查看此环境的人仍能看到它。请为密钥输入新值，并在签发旧值的地方轮换它。"
 
+#: src/features/logs/LogNote.tsx
+msgid "It was made without rotation, so its log can fill the disk. Dockwell sets rotation on the containers it makes, so the next deploy of this app fixes it."
+msgstr "它创建时没有设置日志轮转，日志可能占满磁盘。Dockwell 会为自己创建的容器设置轮转，下次部署此应用即可解决。"
+
+#: src/features/logs/LogNote.tsx
+msgid "It wrote more than the server keeps of one container, so not all of its lines are here."
+msgstr "它写入的内容超过了服务器为单个容器保留的量，所以这里不是全部日志。"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "It's live with HTTPS"
 msgstr "通过 HTTPS 上线"
@@ -2426,6 +2727,14 @@ msgstr "通过 HTTPS 上线"
 #: src/features/servers/ServerCallout.tsx
 msgid "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
 msgstr "它的代理已断开连接。请检查该服务器上的 <0>dockwell run</0> 是否仍在运行。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Its agent isn't connected, so its lines weren't read. Check the server, then search again."
+msgstr "它的 Agent 未连接，所以没有读取它的日志。请检查服务器，然后再次搜索。"
+
+#: src/features/logs/LogNote.tsx
+msgid "Its agent isn't connected, so its logs can't be read now. Its containers keep running and logging. Check the server. Lines written meanwhile arrive when it reconnects, as far as Docker kept them."
+msgstr "它的 Agent 未连接，所以现在无法读取它的日志。它的容器仍在运行并写入日志。请检查服务器。重新连接后，这期间写入的日志会到达，以 Docker 保留的为限。"
 
 #: src/features/servers/ServerCallout.tsx
 msgid "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
@@ -2438,6 +2747,22 @@ msgstr "其中的应用会以这个名称显示为一行，并使用独立的网
 #: src/features/changes/notices.tsx
 msgid "its server"
 msgstr "它的服务器"
+
+#: src/features/logs/LogNote.tsx
+msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
+msgstr "其容器在 {at} 停止，退出码为 {code}。这是最后的日志，再次启动后会显示新日志。"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy"
+msgstr "服务器上还没有它的镜像，因此其自带的健康检查未知，恢复健康可能需要更久"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
+msgstr ""
+
+#: src/features/logs/LogsPage.tsx
+msgid "Its logs show here once they can be read."
+msgstr "能读取时，它的日志就会显示在这里。"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Its whole project"
@@ -2493,6 +2818,18 @@ msgstr "标签"
 msgid "last {span}"
 msgstr "最近 {span}"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Last 1 h"
+msgstr "最近 1 小时"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Last 15 min"
+msgstr "最近 15 分钟"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Last 24 h"
+msgstr "最近 24 小时"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Last heartbeat"
 msgstr "最后心跳"
@@ -2500,6 +2837,19 @@ msgstr "最后心跳"
 #: src/features/apps/ExportSheet.tsx
 msgid "Left out as they may hold secrets"
 msgstr "因可能包含机密而未导出"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Levels"
+msgstr "级别"
+
+#: src/features/logs/LogFoot.tsx
+#: src/features/logs/LogsPage.tsx
+msgid "Levels are read from each line's text. A line that names none counts as info."
+msgstr "级别是从每行的文本中读取的。没有标明级别的行算作信息。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
+msgstr "级别根据每行文本判断。未标明级别的行算作信息。双击或按住 Shift 点击可只显示该级别。"
 
 #: src/features/shell/MorePage.tsx
 msgid "Light"
@@ -2511,6 +2861,22 @@ msgstr "浅色"
 msgid "Line {0}: {1}"
 msgstr "第 {0} 行：{1}"
 
+#: src/features/logs/LogContext.tsx
+msgid "Lines around this one"
+msgstr "这一行前后的日志"
+
+#: src/features/logs/words.ts
+msgid "Lines from {source} after {from} are gone: the server no longer has this container's log."
+msgstr "{source} 在 {from} 之后的日志已不存在：服务器不再保留此容器的日志。"
+
+#: src/features/logs/words.ts
+msgid "Lines from {source} between {from} and {to} are gone: the server no longer has them."
+msgstr "{source} 在 {from} 到 {to} 之间的日志已不存在：服务器不再保留。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Lines loaded"
+msgstr "已加载的行"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Link expires"
 msgstr "链接过期"
@@ -2520,6 +2886,7 @@ msgid "Listening there now: {listening}"
 msgstr "目前在此监听的是：{listening}"
 
 #: src/app/Providers.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Live"
 msgstr "实时"
 
@@ -2528,10 +2895,6 @@ msgstr "实时"
 msgctxt "An app whose latest revision is deployed"
 msgid "Live"
 msgstr "运行中"
-
-#: src/routes/_shell/apps.$serviceId.logs.tsx
-msgid "Live logs arrive in this tab with a later change. Until then, read them on the server:"
-msgstr "实时日志将在后续版本中出现在此标签页。在此之前，请在服务器上查看："
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "Load average"
@@ -2581,13 +2944,22 @@ msgstr "正在加载令牌"
 msgid "Loading variables and secrets"
 msgstr "正在加载变量和密钥"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Log filters"
+msgstr "日志筛选"
+
 #: src/features/apps/AppLayout.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Logs"
 msgstr "日志"
 
-#: src/routes/_shell/apps.$serviceId.logs.tsx
-msgid "Logs aren't in this build yet"
-msgstr "此版本尚无日志"
+#: src/features/auth/TokensPanel.tsx
+msgid "Logs often hold secrets that apps print, so a token reads them only if you say so here."
+msgstr "日志中常含有应用打印的密钥，因此令牌只有在此处勾选后才能读取。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Logs often hold secrets that apps print, so reading them takes permission. Ask the owner of this install for it."
+msgstr "日志中常含有应用打印的密钥，因此读取需要权限。请向此实例的所有者申请。"
 
 #: src/features/auth/SignInPage.tsx
 msgid "Lost your passkey?"
@@ -2772,6 +3144,10 @@ msgstr "新值"
 msgid "no"
 msgstr "否"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Next error"
+msgstr "下一个错误"
+
 #: src/features/apps/AppsPage.tsx
 msgid "No app here has <0>{query}</0> in its name or image. Try part of a name, or clear the filter."
 msgstr "此处没有名称或镜像包含 <0>{query}</0> 的应用。请试试名称的一部分，或清除筛选条件。"
@@ -2795,6 +3171,10 @@ msgstr "预计不会停机"
 #: src/features/apps/AppEnvironment.tsx
 msgid "No environment variables"
 msgstr "没有环境变量"
+
+#: src/features/logs/LogsPage.tsx
+msgid "No logs yet"
+msgstr "还没有日志"
 
 #: src/features/auth/Unclaimed.tsx
 msgid "No owner yet"
@@ -2888,6 +3268,14 @@ msgstr "服务器上没有任何变化。请重新加载页面再试。"
 msgid "Nothing changes until you apply the plan"
 msgstr "应用计划之前不会有任何更改"
 
+#: src/features/logs/LogContext.tsx
+msgid "Nothing else was written around this line."
+msgstr "这一行前后没有其他日志。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing here matches these filters."
+msgstr "没有符合这些筛选条件的内容。"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Nothing here yet"
 msgstr "这里还没有内容"
@@ -2896,6 +3284,10 @@ msgstr "这里还没有内容"
 msgid "Nothing here yet."
 msgstr "这里还没有内容。"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing in all the servers keep has \"{highlight}\"."
+msgstr "服务器保留的全部日志中没有“{highlight}”。"
+
 #: src/features/apps/AppDeployments.tsx
 msgid "Nothing in its spec changed. It moved, or came back as it was."
 msgstr "规格没有变化。它只是被移动，或恢复原样。"
@@ -2903,6 +3295,10 @@ msgstr "规格没有变化。它只是被移动，或恢复原样。"
 #: src/features/changes/words.ts
 msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
 msgstr "端口 {number} 上还没有任何程序在监听，所以在有程序监听之前它会返回 502"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing in the {total} lines loaded has \"{query}\"."
+msgstr "已加载的 {total} 行中没有“{query}”。"
 
 #: src/features/apps/AppsPage.tsx
 msgid "Nothing matches"
@@ -2944,6 +3340,14 @@ msgstr "应用计划之前不会运行任何内容"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Nothing to change"
 msgstr "没有需要更改的内容"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing to show until {servers} is back"
+msgstr "{servers} 恢复前没有可显示的内容"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing was written in this time"
+msgstr "这段时间内没有写入内容"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Nothing yet. It runs once the deploy finishes."
@@ -3187,6 +3591,10 @@ msgstr "应用内路径"
 msgid "Pause"
 msgstr "暂停"
 
+#: src/features/logs/LogFoot.tsx
+msgid "Pause to read"
+msgstr "暂停以便阅读"
+
 #: src/app/Providers.tsx
 msgid "Paused"
 msgstr "已暂停"
@@ -3257,6 +3665,14 @@ msgstr "端口"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Ports"
 msgstr "端口"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Press Enter to search all the servers keep."
+msgstr "按 Enter 搜索服务器保留的全部日志。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Previous error"
+msgstr "上一个错误"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Private addresses"
@@ -3418,6 +3834,10 @@ msgstr "恢复 <0>{name}</0> 也失败了"
 msgid "Putting things back failed too"
 msgstr "恢复原样也失败了"
 
+#: src/app/Providers.tsx
+msgid "Put back"
+msgstr "收起"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "QR code for your authenticator app"
 msgstr "身份验证器应用的二维码"
@@ -3434,6 +3854,10 @@ msgstr "可访问 {path}"
 msgid "Reaches {reach} on {server}"
 msgstr "可访问 {server} 上的 {reach}"
 
+#: src/features/logs/DeployLogLinks.tsx
+msgid "Read {name}'s logs from this deploy"
+msgstr "阅读此次部署中 {name} 的日志"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Read and write"
 msgstr "读写"
@@ -3447,6 +3871,23 @@ msgid "Read only"
 msgstr "只读"
 
 #: src/features/changes/fields.tsx
+
+#: src/features/logs/LogsPage.tsx
+msgid "Read the failed deploy's logs"
+msgstr "阅读失败部署的日志"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Read them with <0>dockwell logs read</0>."
+msgstr "请用 <0>dockwell logs read</0> 读取。"
+
+#: src/features/logs/DeployLogLinks.tsx
+msgid "Read this deploy's logs"
+msgstr "查看此次部署的日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Read this range again"
+msgstr "重新读取此时间范围"
+
 #: src/features/changes/words.ts
 msgid "read-only"
 msgstr "只读"
@@ -3460,9 +3901,21 @@ msgstr "只读"
 msgid "read-write"
 msgstr "读写"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Reading logs"
+msgstr "正在读取日志"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Reading the file"
 msgstr "正在读取文件"
+
+#: src/features/logs/LogContext.tsx
+msgid "Reading the lines around it"
+msgstr "正在读取它前后的日志"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Reads logs"
+msgstr "可读取日志"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads servers and their state. Changes nothing."
@@ -3483,6 +3936,10 @@ msgstr "最近部署"
 #: src/features/servers/FleetNotes.tsx
 msgid "Reconnecting"
 msgstr "正在重新连接"
+
+#: src/features/logs/LogNote.tsx
+msgid "Reconnecting to the control server"
+msgstr "正在重新连接控制服务器"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Recorded and applied. Nothing had to run on a server."
@@ -3567,6 +4024,11 @@ msgid "replaced"
 msgstr "已替换"
 
 #: src/app/Providers.tsx
+
+#: src/features/logs/LogsPage.tsx
+msgid "replaced"
+msgstr "已替换"
+
 #: src/features/apps/revision.ts
 #: src/features/apps/words.ts
 #: src/features/changes/words.ts
@@ -3576,6 +4038,10 @@ msgstr "已替换"
 #: src/features/changes/words.ts
 msgid "Replacing"
 msgstr "正在替换"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Replica"
+msgstr "副本"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Required"
@@ -3823,6 +4289,7 @@ msgstr "请通过 SSH 在服务器上运行这条命令获取新链接。它只�
 msgid "Run this on the server over SSH. It prints a sign-in link that works once."
 msgstr "请通过 SSH 在服务器上运行这条命令。它会打印一个只能用一次的登录链接。"
 
+#: src/features/apps/AppLayout.tsx
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/words.ts
 msgid "Running"
@@ -3831,6 +4298,10 @@ msgstr "正在运行"
 #: src/features/changes/fields.tsx
 msgid "runs no entrypoint"
 msgstr "不运行入口点"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Running now"
+msgstr "正在运行"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -3882,11 +4353,28 @@ msgstr "计划任务"
 msgid "Scope"
 msgstr "范围"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Search all the servers keep"
+msgstr "搜索服务器保留的全部内容"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Search lines"
+msgstr "搜索日志行"
+
+#: src/features/apps/AppLayout.tsx
+#: src/features/logs/LogsPage.tsx
+msgid "Search logs"
+msgstr "搜索日志"
+
 #: src/app/Providers.tsx
 #: src/features/shell/Page.tsx
 #: src/features/shell/Topbar.tsx
 msgid "Search or run a command"
 msgstr "搜索或运行命令"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Searching all the servers keep"
+msgstr "正在搜索服务器保留的全部内容"
 
 #: src/app/Providers.tsx
 #: src/features/changes/words.ts
@@ -3966,6 +4454,10 @@ msgstr "运行 <1>docker compose up</1> 之前，请在 shell 中或 Compose 文
 msgid "Set on this app"
 msgstr "在此应用上设置"
 
+#: src/app/Providers.tsx
+msgid "Set out"
+msgstr "展开"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Set up"
 msgstr "设置"
@@ -3982,9 +4474,33 @@ msgstr "设置"
 msgid "Settings, status and account"
 msgstr "设置、状态和账户"
 
+#: src/app/Providers.tsx
+msgid "Show all of this line"
+msgstr "显示整行"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Show earlier events"
 msgstr "显示更早的事件"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Show earlier lines"
+msgstr "显示更早的日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Show in context"
+msgstr "查看上下文"
+
+#: src/features/logs/LogNote.tsx
+msgid "Show less"
+msgstr "收起"
+
+#: src/features/logs/LogNote.tsx
+msgid "Show more"
+msgstr "展开"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Show older matches"
+msgstr "显示更早的匹配项"
 
 #: src/features/apps/AppDeployments.tsx
 msgid "Show older revisions"
@@ -4001,6 +4517,10 @@ msgstr "查看应用"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show the value"
 msgstr "显示值"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Show the current logs"
+msgstr "显示当前日志"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Show what happened on {name}"
@@ -4111,6 +4631,10 @@ msgstr "已跳过"
 msgid "Some of this may be down until that finishes."
 msgstr "在此完成之前，部分内容可能处于中断状态。"
 
+#: src/features/logs/words.ts
+msgid "Some lines from {source} are missing here."
+msgstr "此处缺少 {source} 的部分日志。"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
 msgid "Someone"
@@ -4135,6 +4659,10 @@ msgstr "来源"
 #: src/features/changes/fields.tsx
 msgid "sources"
 msgstr "来源"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Start of the log"
+msgstr "日志开头"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Start with read only, and allow writes only when the job needs them."
@@ -4251,6 +4779,10 @@ msgstr "这是服务器本身，绕过其容器，位于 {at}。"
 #: src/features/changes/words.ts
 msgid "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
 msgstr "这让{who}能访问端口 {number}，而那里的程序会把每个调用者都看作此服务器本身（127.0.0.1），信任 localhost 的应用会相信这一点"
+
+#: src/features/logs/LogFoot.tsx
+msgid "That is all the servers keep."
+msgstr "这是服务器保留的全部日志。"
 
 #: src/features/auth/messages.ts
 msgid "That needs your passkey just now, and the confirmation was missing, used or expired. Try again, and confirm when your browser asks."
@@ -4380,6 +4912,10 @@ msgstr "Linux 能力 {path}"
 msgid "the Linux capability {path}, which is the same as root"
 msgstr "Linux 能力 {path}，等同于 root"
 
+#: src/features/logs/LogNote.tsx
+msgid "The lines written meanwhile arrive once it answers, with none twice."
+msgstr "恢复响应后，期间写入的日志会到达，不会重复。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "the network {owner}"
 msgstr "网络 {owner}"
@@ -4444,6 +4980,18 @@ msgstr "服务器本身的端口 {path}，这越过了容器的边界，位于 {
 msgid "the resource filter"
 msgstr "资源筛选"
 
+#: src/features/logs/LogsPage.tsx
+msgid "The search failed"
+msgstr "搜索失败"
+
+#: src/features/logs/LogFoot.tsx
+msgid "The search stopped after 30 s, at {at}. Read older lines with <0>dockwell logs read</0>."
+msgstr "搜索在 30 秒后停止，读到 {at}。较早的日志请用 <0>dockwell logs read</0> 读取。"
+
+#: src/features/logs/LogFoot.tsx
+msgid "The search stopped at the newest 1,000,000 lines of a container, at {at}. Read older lines with <0>dockwell logs read</0>."
+msgstr "搜索在读完一个容器最新的 1,000,000 行后停止，读到 {at}。较早的日志请用 <0>dockwell logs read</0> 读取。"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "the server filter"
 msgstr "服务器筛选"
@@ -4484,6 +5032,14 @@ msgstr "服务器的安全取决于那里的内容，所以能访问它就相当
 msgid "The server's security rests on what that reaches, so it is as good as root."
 msgstr "服务器的安全取决于它能访问的内容，所以这相当于拥有 root。"
 
+#: src/features/logs/LogsPage.tsx
+msgid "The servers have no lines of this app."
+msgstr "服务器上没有这个应用的日志。"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "The start of this plan's fingerprint, so you apply exactly what you reviewed."
+msgstr "这个计划指纹的开头，确保你应用的正是你审查过的内容。"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "The token wasn't created"
 msgstr "令牌未创建"
@@ -4509,6 +5065,14 @@ msgstr "主题"
 msgid "There are no apps here yet. Choose another environment, or make one with New app."
 msgstr "这里还没有应用。请选择其他环境，或通过“新建应用”创建一个。"
 
+#: src/features/logs/LogsPage.tsx
+msgid "There are no lines to copy"
+msgstr "没有可复制的日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "There are no lines to download"
+msgstr "没有可下载的日志"
+
 #: src/features/system/NotFound.tsx
 msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 msgstr "<0>{pathname}</0> 下没有内容。<1>前往概览</1>"
@@ -4517,9 +5081,17 @@ msgstr "<0>{pathname}</0> 下没有内容。<1>前往概览</1>"
 msgid "This app"
 msgstr "此应用"
 
+#: src/features/logs/LogsPage.tsx
+msgid "This app isn't here"
+msgstr "此应用不存在"
+
 #: src/features/apps/AppEnvironment.tsx
 msgid "This app runs with only what its image sets."
 msgstr "此应用只使用其镜像设置的内容。"
+
+#: src/features/logs/LogFoot.tsx
+msgid "this app wrote faster than a live view can carry."
+msgstr "这个应用的写入速度超过了实时视图的承载能力。"
 
 #: src/features/auth/SessionsPanel.tsx
 msgid "This browser"
@@ -4533,9 +5105,18 @@ msgstr "这个浏览器无法在此地址使用通行密钥。请通过 SSH 隧�
 msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
 msgstr "这个认领链接无效、已使用、已被新链接取代或已过期。请在服务器上运行 dockwell claim 获取新链接。"
 
+#. placeholder {0}: wild.serverName
+#: src/features/logs/LogNote.tsx
+msgid "This container's log has no limit on {0}"
+msgstr "此容器在 {0} 上的日志没有大小限制"
+
 #: src/features/system/StatusPage.tsx
 msgid "This control plane"
 msgstr "当前控制平面"
+
+#: src/features/logs/LogsPage.tsx
+msgid "This deploy's logs are gone"
+msgstr "此次部署的日志已不存在"
 
 #: src/features/auth/messages.ts
 msgid "This device already has a passkey for your account here. Use it, or pick another device or security key."
@@ -4578,6 +5159,10 @@ msgstr "这可能切断对 {0} 的访问"
 msgid "This page needs the whole link that dockwell recover printed, including the part after “#”."
 msgstr "这个页面需要 dockwell recover 打印的完整链接，包括“#”之后的部分。"
 
+#: src/features/logs/LogFoot.tsx
+msgid "this page or the network to it fell behind."
+msgstr "此页面或它的网络跟不上了。"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "This panel controls {name}. Create the owner account with a passkey."
 msgstr "这个面板控制 {name}。请用通行密钥创建所有者账户。"
@@ -4598,6 +5183,10 @@ msgstr "这会访问服务器上的 <0>{source}</0>。需要你在计划中批�
 msgid "This server"
 msgstr "这台服务器"
 
+#: src/features/logs/LogFoot.tsx
+msgid "this server shares what it carries live between everyone reading it."
+msgstr "这台服务器的实时带宽由所有读者分享。"
+
 #: src/features/auth/messages.ts
 msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
 msgstr "此次身份验证器应用的设置已结束：它只在开始设置的会话中有效，时限为 10 分钟。请关闭此处并重新设置。"
@@ -4617,6 +5206,18 @@ msgstr "此次变更在改动服务器上的任何内容之前就已停止。"
 #: src/features/changes/RollbackLine.tsx
 msgid "This stopped before it reached that, and Dockwell put back the rest."
 msgstr "此次变更在涉及它之前就已停止，Dockwell 已恢复其余部分。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
+msgstr "此视图保留最新的 {most} 行。较早的日志请用 <0>dockwell logs read</0> 读取。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Time"
+msgstr "时间"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Time range"
+msgstr "时间范围"
 
 #: src/app/Providers.tsx
 msgid "to"
@@ -4707,6 +5308,7 @@ msgstr "趋势"
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Try again"
 msgstr "重试"
 
@@ -4733,6 +5335,10 @@ msgstr "开启了身份验证器应用验证码"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Type <0>{confirmWith}</0> to apply it"
 msgstr "输入 <0>{confirmWith}</0> 以应用"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Type what to find, and press Enter. It reads each container's log, at most for 30 s."
+msgstr "输入要查找的内容，然后按 Enter。它会读取每个容器的日志，最长 30 秒。"
 
 #: src/app/Providers.tsx
 #: src/features/activity/ActivityPage.tsx
@@ -5022,6 +5628,10 @@ msgstr "正在等待服务器"
 msgid "Warning"
 msgstr "警告"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Warnings"
+msgstr "警告"
+
 #: src/features/shell/sections.ts
 msgid "Websites"
 msgstr "网站"
@@ -5071,6 +5681,10 @@ msgstr "服务器上运行的内容不受影响。"
 msgid "What the app listens on, such as 80."
 msgstr "应用监听的端口，例如 80。"
 
+#: src/features/logs/LogsPage.tsx
+msgid "What the servers keep goes back further than what is loaded here."
+msgstr "服务器保留的日志比这里加载的更久远。"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
 msgstr "{envName} 中的服务按名称使用这些值。更改一个值后，应用其计划时，所有使用它的服务都会重启。"
@@ -5082,6 +5696,14 @@ msgstr "此文件会创建的内容"
 #: src/features/apps/ExportSheet.tsx
 msgid "What to export"
 msgstr "要导出的内容"
+
+#: src/features/logs/LogsPage.tsx
+msgid "What to search"
+msgstr "搜索范围"
+
+#: src/features/logs/LogsPage.tsx
+msgid "What to show"
+msgstr "显示内容"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "What will use this token?"
@@ -5143,6 +5765,10 @@ msgstr "在 {where} 上可用"
 msgid "yes"
 msgstr "是"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Wrap long lines"
+msgstr "自动换行"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Yesterday"
 msgstr "昨天"
@@ -5154,6 +5780,16 @@ msgstr "你将在计划中批准它可访问的内容"
 #: src/features/auth/ClaimPage.tsx
 msgid "You become the owner. Nobody else can sign in."
 msgstr "你将成为所有者。其他人无法登录。"
+
+
+#. placeholder {0}: formatDateTime(timestampDate(change.undoDeadline), i18n.locale)
+#: src/features/changes/ChangeSheet.tsx
+msgid "You can undo it until {0}."
+msgstr "你可以在 {0} 之前撤销它。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "You can't read these logs"
+msgstr "你无法读取这些日志"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "You see the token once, right after you create it."
@@ -5190,834 +5826,3 @@ msgstr "你的姓名"
 #: src/features/auth/messages.ts
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
 msgstr "你的会话已结束，所以这个操作没有执行。请重新登录后重试。"
-
-#. placeholder {0}: orphans.length
-#. placeholder {1}: orphans.join(", ")
-#. placeholder {2}: orphans.join(", ")
-#: src/features/apps/NewAppSheet.tsx
-msgid "{0, plural, one {{1} is here already, and not in the file. Otherwise it stays as it is.} other {{2} are here already, and not in the file. Otherwise they stay as they are.}}"
-msgstr "{0, plural, other {{2} 已在此处，但不在文件中。否则它们会保持原样。}}"
-
-#. placeholder {0}: store.skipped
-#: src/features/logs/LogsPage.tsx
-msgid "{0, plural, one {{count} line not shown so far, as markers in the log say. dockwell logs read gets what the server still has.} other {{count} lines not shown so far, as markers in the log say. dockwell logs read gets what the server still has.}}"
-msgstr "{0, plural, other {到目前为止有 {count} 行未显示，日志中的标记已注明。dockwell logs read 可读取服务器仍保留的内容。}}"
-
-#. placeholder {0}: Number(gap.lines)
-#: src/features/logs/LogsPage.tsx
-msgid "{0, plural, one {{lines} line from {source} not shown: it wrote faster than a live view carries.} other {{lines} lines from {source} not shown: it wrote faster than a live view carries.}}"
-msgstr "{0, plural, other {{source} 有 {lines} 行未显示：写入速度超过了实时视图的承载能力。}}"
-
-#. placeholder {0}: Number(gap.lines)
-#: src/features/logs/LogsPage.tsx
-msgid "{0, plural, one {{lines} line from {source} not shown: this page or the network to it fell behind.} other {{lines} lines from {source} not shown: this page or the network to it fell behind.}}"
-msgstr "{0, plural, other {{source} 有 {lines} 行未显示：此页面或其网络跟不上。}}"
-
-#. placeholder {0}: store.length
-#: src/features/logs/LogsPage.tsx
-msgid "{0, plural, one {{shown} of the {total} lines loaded matches.} other {{shown} of the {total} lines loaded match.}}"
-msgstr "{0, plural, other {已加载的 {total} 行中有 {shown} 行匹配。}}"
-
-#. placeholder {0}: services.length
-#: src/features/apps/NewAppSheet.tsx
-msgid "{0, plural, one {This makes # service} other {This makes # services}}"
-msgstr "{0, plural, other {这会创建 # 个服务}}"
-
-#. placeholder {0}: failing.serverName
-#: src/features/logs/LogsPage.tsx
-msgid "{0} can't read a container's log"
-msgstr "{0} 无法读取容器日志"
-
-#. placeholder {0}: first.serverName
-#: src/features/logs/LogsPage.tsx
-msgid "{0} can't read logs"
-msgstr "{0} 无法读取日志"
-
-#. placeholder {0}: first.serverName
-#: src/features/logs/LogsPage.tsx
-msgid "{0} is offline"
-msgstr "{0} 已离线"
-
-#: src/app/Providers.tsx
-msgid "{count, plural, one {# new line} other {# new lines}}"
-msgstr "{count, plural, other {# 行新日志}}"
-
-#: src/features/logs/LogsPage.tsx
-msgid "{count, plural, one {# replica} other {# replicas}}"
-msgstr "{count, plural, other {# 个副本}}"
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "{count, plural, one {Run a Compose file of # service} other {Run a Compose file of # services}}"
-msgstr "{count, plural, other {运行包含 # 个服务的 Compose 文件}}"
-
-#: src/features/apps/AppsPage.tsx
-msgid "{count, plural, one {Stack of # service} other {Stack of # services}}"
-msgstr "{count, plural, other {# 个服务组成的堆栈}}"
-
-#: src/features/logs/LogsPage.tsx
-msgid "{name} has no container now"
-msgstr "{name} 现在没有容器"
-
-#: src/features/logs/LogsPage.tsx
-msgid "{name} has no containers yet. Deploy it, and its logs show here as it starts."
-msgstr "{name} 还没有容器。部署后，启动时日志会显示在这里。"
-
-#. placeholder {0}: off.serverName
-#: src/features/logs/LogsPage.tsx
-msgid "{name} isn't running on {0}"
-msgstr "{name} 未在 {0} 上运行"
-
-#: src/features/apps/AppsPage.tsx
-msgid "{names} and {more} more"
-msgstr "{names} 等另外 {more} 个"
-
-#: src/features/logs/LogsPage.tsx
-msgid "{revision} · failed"
-msgstr "{revision} · 失败"
-
-#: src/features/logs/LogsPage.tsx
-msgid "{revision} · replaced"
-msgstr "{revision} · 已替换"
-
-#: src/features/apps/AppOverview.tsx
-msgid "{revision} deployed {when} by {actor}"
-msgstr "{revision} 由 {actor} 部署于 {when}"
-
-#: src/app/Providers.tsx
-msgid "{size} more not kept"
-msgstr "另有 {size} 未保留"
-
-#: src/features/logs/LogsPage.tsx
-msgid "{source} started {revision}, in container {container}"
-msgstr "{source} 启动了 {revision}，容器为 {container}"
-
-#: src/features/apps/AppsPage.tsx
-msgid "{trouble} need a look"
-msgstr "{trouble} 个需要查看"
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. A signed-in person has to approve that in the plan."
-msgstr "<0>{source}</0> 会让此应用控制服务器上的 Docker，等同于 root 权限。必须由已登录的人在计划中批准。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "1 h"
-msgstr "1 小时"
-
-#: src/features/logs/LogsPage.tsx
-msgid "15 min"
-msgstr "15 分钟"
-
-#: src/features/logs/LogsPage.tsx
-msgid "24 h"
-msgstr "24 小时"
-
-#: src/features/logs/LogsPage.tsx
-msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all."
-msgstr "容器被移除后日志也会随之消失。每台服务器会保留每个应用最近一次失败和最近一次被替换的容器的日志，保留 30 天，总量不超过 256 MB。"
-
-#: src/features/apps/ExportSheet.tsx
-msgid "A file docker compose runs without Dockwell, with no secrets in it"
-msgstr "docker compose 无需 Dockwell 即可运行的文件，其中不含任何机密"
-
-#: src/features/logs/LogsPage.tsx
-msgid "All levels"
-msgstr "全部级别"
-
-#: src/features/logs/LogsPage.tsx
-msgid "All replicas"
-msgstr "全部副本"
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "Any image your server can pull, from Docker Hub or another registry."
-msgstr "服务器能拉取的任何镜像，来自 Docker Hub 或其他镜像仓库。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Back to the lines loaded"
-msgstr "返回已加载的日志"
-
-#: src/features/auth/TokensPanel.tsx
-msgid "Can read logs"
-msgstr "可以读取日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Clear filters"
-msgstr "清除筛选"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Copied the lines shown"
-msgstr "已复制显示的日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Copy these lines"
-msgstr "复制这些日志"
-
-#: src/features/apps/AppLayout.tsx
-msgid "deployed {ago} by {actor}"
-msgstr "由 {actor} 部署于 {ago}"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Deployment"
-msgstr "部署"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Download these lines"
-msgstr "下载这些日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Errors"
-msgstr "错误"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Filter log lines"
-msgstr "筛选日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Info"
-msgstr "信息"
-
-#: src/features/logs/LogsPage.tsx
-msgid "It may have been deleted. Dockwell has no logs under this address."
-msgstr "它可能已被删除。Dockwell 在此地址下没有日志。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "It was made without rotation, so its log can fill the disk. Dockwell sets rotation on the containers it makes, so the next deploy of this app fixes it."
-msgstr "它创建时没有设置日志轮转，日志可能占满磁盘。Dockwell 会为自己创建的容器设置轮转，下次部署此应用即可解决。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "It wrote more than the server keeps of one container, so only its newest lines are here."
-msgstr "它写入的内容超过了服务器为单个容器保留的量，这里只有最新的部分。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
-msgstr "其容器在 {at} 停止，退出码为 {code}。这是最后的日志，再次启动后会显示新日志。"
-
-#: src/features/apps/ExportSheet.tsx
-msgid "Its whole environment"
-msgstr "整个环境"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Levels"
-msgstr "级别"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Levels are read from each line's text. A line that names none counts as info."
-msgstr "级别是从每行的文本中读取的。没有标明级别的行算作信息。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Lines from {source} after {from} are gone: the server no longer has this container's log."
-msgstr "{source} 在 {from} 之后的日志已不存在：服务器不再保留此容器的日志。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Lines from {source} between {from} and {to} are gone: the server no longer has them."
-msgstr "{source} 在 {from} 到 {to} 之间的日志已不存在：服务器不再保留。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Log filters"
-msgstr "日志筛选"
-
-#: src/features/auth/TokensPanel.tsx
-msgid "Logs often hold secrets that apps print, so a token reads them only if you say so here."
-msgstr "日志中常含有应用打印的密钥，因此令牌只有在此处勾选后才能读取。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Logs often hold secrets that apps print, so reading them takes permission. Ask the owner of this install for it."
-msgstr "日志中常含有应用打印的密钥，因此读取需要权限。请向此实例的所有者申请。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "No logs yet. {name} hasn't written anything; its first lines show here as it writes them."
-msgstr "还没有日志。{name} 尚未写入任何内容，写入后会显示在这里。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Nothing here matches these filters."
-msgstr "没有符合这些筛选条件的内容。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Nothing matches, in all that the servers keep."
-msgstr "服务器保留的内容中没有匹配项。"
-
-#: src/features/apps/AppOverview.tsx
-msgid "Nothing outside the server reaches it, as it publishes no port."
-msgstr "它没有发布端口，服务器外部无法访问。"
-
-#: src/features/apps/AppOverview.tsx
-msgid "Nothing outside the server reaches it, as it publishes no port. Other apps on its network do."
-msgstr "它没有发布端口，服务器外部无法访问。同一网络上的其他应用可以访问。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Nothing was written in this time."
-msgstr "这段时间内没有写入内容。"
-
-#. placeholder {0}: s.resource?.name
-#: src/features/logs/DeployLogLinks.tsx
-msgid "Read {0}'s logs from this deploy"
-msgstr "查看 {0} 在此次部署中的日志"
-
-#: src/features/logs/DeployLogLinks.tsx
-msgid "Read this deploy's logs"
-msgstr "查看此次部署的日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Reading logs"
-msgstr "正在读取日志"
-
-#: src/features/auth/TokensPanel.tsx
-msgid "Reads logs"
-msgstr "可读取日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Reconnecting to the control plane"
-msgstr "正在重新连接控制平面"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Replica"
-msgstr "副本"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Running now"
-msgstr "正在运行"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Search all the servers keep"
-msgstr "搜索服务器保留的全部内容"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Search lines"
-msgstr "搜索日志行"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Search logs"
-msgstr "搜索日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Searched {lines} lines, back to {when}, where the search stopped at its limit. Search for something more specific to reach further."
-msgstr "已搜索 {lines} 行，回溯到 {when}，搜索在此达到上限。请搜索更具体的内容以回溯更远。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Searched {lines} lines, back to {when}: as far as the servers keep logs, about 50 MB of each container, and the last failed and last replaced deploys."
-msgstr "已搜索 {lines} 行，回溯到 {when}：这是服务器保留日志的范围，每个容器约 50 MB，以及最近一次失败和最近一次被替换的部署。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Searching all the servers keep"
-msgstr "正在搜索服务器保留的全部内容"
-
-#: src/features/apps/ExportSheet.tsx
-msgid "Set each variable in the shell, or in an .env file beside the Compose file, before you run docker compose up."
-msgstr "运行 docker compose up 之前，请在 shell 中或 Compose 文件旁的 .env 文件中设置每个变量。"
-
-#: src/app/Providers.tsx
-msgid "Show all of this line"
-msgstr "显示整行"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Show earlier lines"
-msgstr "显示更早的日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Show older matches"
-msgstr "显示更早的匹配项"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Show the current logs"
-msgstr "显示当前日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Some lines from {source} are missing here."
-msgstr "此处缺少 {source} 的部分日志。"
-
-#: src/features/apps/AppLayout.tsx
-msgid "started {ago}"
-msgstr "开始于 {ago}"
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "That didn't plan"
-msgstr "无法生成计划"
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "The file names these, with no default. They aren't saved with it."
-msgstr "文件用到了这些变量，且没有默认值。它们不会随文件保存。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "The lines from while it was away arrive when it returns, as far as Docker kept them."
-msgstr "恢复连接后，离线期间的日志会陆续到达，范围以 Docker 保留的为准。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "The lines written meanwhile arrive once it answers, with none twice."
-msgstr "恢复响应后，期间写入的日志会到达，不会重复。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "The server keeps the last failed and the last replaced deploy of each app, for 30 days."
-msgstr "服务器会保留每个应用最近一次失败和最近一次被替换的部署，保留 30 天。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "The servers have no lines to search."
-msgstr "服务器没有可搜索的日志。"
-
-#: src/features/apps/AppsPage.tsx
-msgid "There are no apps here yet. Choose another environment, or make one here with New app."
-msgstr "这里还没有应用。请选择其他环境，或点击“新建应用”在此创建。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "These are the logs of its last deploy."
-msgstr "这些是最近一次部署的日志。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "This app isn't here"
-msgstr "此应用不存在"
-
-#. placeholder {0}: wild.serverName
-#: src/features/logs/LogsPage.tsx
-msgid "This container's log has no limit on {0}"
-msgstr "此容器在 {0} 上的日志没有大小限制"
-
-#: src/features/logs/LogsPage.tsx
-msgid "This deploy failed and was rolled back."
-msgstr "此次部署失败并已回滚。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "This deploy was replaced."
-msgstr "此次部署已被替换。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "This deploy's logs are gone"
-msgstr "此次部署的日志已不存在"
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "This reaches <0>{source}</0> on the server. A signed-in person has to approve that in the plan."
-msgstr "这会访问服务器上的 <0>{source}</0>。必须由已登录的人在计划中批准。"
-
-#. placeholder {0}: MAX_LINES.toLocaleString(i18n.locale)
-#: src/features/logs/LogsPage.tsx
-msgid "This view holds the newest {0} lines, and older ones have left it to keep it quick."
-msgstr "此视图保留最新的 {0} 行，为保持流畅，更早的日志已移出。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Time range"
-msgstr "时间范围"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Warn"
-msgstr "警告"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Warnings"
-msgstr "警告"
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "What it writes elsewhere goes when its container is replaced."
-msgstr "写入其他位置的内容会在容器被替换时丢失。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "You can't read these logs"
-msgstr "你无法读取这些日志"
-
-#: src/features/apps/AppOverview.tsx
-msgid "{count, plural, one {# variable} other {# variables}}"
-msgstr "{count, plural, other {# 个变量}}"
-
-#: src/features/apps/AppDeployments.tsx
-msgid "{shown} already matches what runs"
-msgstr "{shown} 与当前运行的内容相同"
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "<0>{variable}</0> is written in {service}'s {where}, so anyone who can read this app can see its value. To keep it hidden, pass it in <1>environment</1>, and use <2>{dollar}</2> there."
-msgstr "<0>{variable}</0> 的值会写入 {service} 的{where}，能查看这个应用的人都能看到。要隐藏它，请通过 <1>environment</1> 传入，并在那里使用 <2>{dollar}</2>。"
-
-#: src/features/auth/messages.ts
-msgid "API tokens can't remove data, cut off access, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API 令牌不能删除数据、切断访问，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
-
-#: src/features/apps/AppEnvironment.tsx
-msgid "Dockwell hands these to the app, and never shows their values again, as they may hold secrets."
-msgstr "Dockwell 会把它们交给应用，且不再显示其值，因为其中可能包含机密。"
-
-#: src/features/apps/AppOverview.tsx
-msgid "Each server it ran on has left the fleet. Deploy it to run it again."
-msgstr "它运行过的每台服务器都已离开集群。请部署以重新运行。"
-
-#: src/features/changes/ChangeSheet.tsx
-msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
-msgstr ""
-
-#: src/features/apps/AppOverview.tsx
-msgid "No server runs {name}"
-msgstr "没有服务器运行 {name}"
-
-#: src/features/auth/ProfilePage.tsx
-msgid "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code."
-msgstr "通行密钥属于创建它的地址。请为 {rpId} 添加一个，这样在这里登录就不需要验证码。"
-
-#. placeholder {0}: e.left
-#: src/features/logs/draw.ts
-msgid "{0, plural, one {{count} line came while this view was paused, and left it unseen.} other {{count} lines came while this view was paused, and left it unseen.}}"
-msgstr "{0, plural, other {此视图暂停期间有 {count} 行日志未能显示，已被丢弃。}}"
-
-#. placeholder {0}: now.store.matches
-#: src/features/logs/LogsPage.tsx
-msgid "{0, plural, one {{count} line matches.} other {{count} lines match.}}"
-msgstr "{0, plural, other {{count} 行匹配。}}"
-
-#. placeholder {0}: Number(gap.lines)
-#: src/features/logs/words.ts
-msgid "{0, plural, one {{lines} line from {source} not shown: it wrote faster than a live view can carry. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: it wrote faster than a live view can carry. Read them with dockwell logs read.}}"
-msgstr "{0, plural, other {{source} 有 {lines} 行未显示：它的写入速度超过了实时视图的承载能力。请用 dockwell logs read 读取。}}"
-
-#. placeholder {0}: Number(gap.lines)
-#: src/features/logs/words.ts
-msgid "{0, plural, one {{lines} line from {source} not shown: this server shares what it carries live between everyone reading it, and this was past this view's share. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: this server shares what it carries live between everyone reading it, and these were past this view's share. Read them with dockwell logs read.}}"
-msgstr "{0, plural, other {{source} 有 {lines} 行未显示：这台服务器的实时带宽由所有读者分享，这些行超出了此视图的份额。请用 dockwell logs read 读取。}}"
-
-#. placeholder {0}: Number(gap.lines)
-#: src/features/logs/words.ts
-msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
-msgstr "{0, plural, other {{source} 有 {lines} 条较早的匹配未显示：读到末尾时，每个容器只保留最新的 2 MB。}}"
-
-#. placeholder {0}: store.arrived
-#: src/features/logs/LogFoot.tsx
-msgid "{0, plural, one {Paused at {at}. {count} line since.} other {Paused at {at}. {count} lines since.}}"
-msgstr "{0, plural, other {已于 {at} 暂停。此后又有 {count} 行。}}"
-
-#. placeholder {0}: step.toLocaleString(i18n.locale)
-#. placeholder {1}: active.matches.toLocaleString(i18n.locale)
-#: src/features/logs/LogsPage.tsx
-msgid "{0} of {1}"
-msgstr "第 {0} 个，共 {1} 个"
-
-#: src/features/logs/LogFoot.tsx
-msgid "{down} couldn't be searched, so its lines aren't in this."
-msgstr "无法搜索 {down}，结果中不含它的日志。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "{errors, plural, one {{count} error} other {{count} errors}}"
-msgstr "{errors, plural, other {{count} 个错误}}"
-
-#: src/features/logs/LogsPage.tsx
-msgid "{first} couldn't be searched"
-msgstr "无法搜索 {first}"
-
-#: src/features/logs/LogFoot.tsx
-msgid "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
-msgstr "{matches, plural, other {在 {lines} 行中找到 {count} 处匹配，最早到 {at}。}}"
-
-#: src/features/logs/LogNote.tsx
-msgid "{name} has no container now, so these are the logs of its last deploy."
-msgstr "{name} 现在没有容器，这里是它上一次部署的日志。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "{name} has no containers yet"
-msgstr "{name} 还没有容器"
-
-#: src/features/logs/LogsPage.tsx
-msgid "{name} hasn't written anything. Its first lines show here as it writes them."
-msgstr "{name} 还没有写入任何内容。它一写入，第一批日志就会显示在这里。"
-
-#: src/features/apps/AppLayout.tsx
-msgid "{name} logs"
-msgstr "{name} 日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "{number} of {count}"
-msgstr "第 {number} 个，共 {count} 个"
-
-#: src/features/logs/LogFoot.tsx
-msgid "{rangeLabel}, to {to}. Refresh for newer lines."
-msgstr "{rangeLabel}，截至 {to}。刷新可查看更新的日志。"
-
-#: src/features/logs/LogFoot.tsx
-msgid "{speed} lines/s"
-msgstr "{speed} 行/秒"
-
-#: src/features/logs/LogFoot.tsx
-msgid "{value, plural, one {{count} line not shown} other {{count} lines not shown}}"
-msgstr "{value, plural, other {{count} 行未显示}}"
-
-#: src/features/logs/LogFoot.tsx
-msgid "{value, plural, one {About {count} line not shown} other {About {count} lines not shown}}"
-msgstr "{value, plural, other {约 {count} 行未显示}}"
-
-#: src/features/logs/LogNote.tsx
-msgid "<0>{image}</0> exited with code {code}."
-msgstr "<0>{image}</0> 以退出码 {code} 退出。"
-
-#: src/features/logs/LogNote.tsx
-msgid "<0>{image}</0> exited with no error."
-msgstr "<0>{image}</0> 正常退出。"
-
-#: src/features/logs/LogNote.tsx
-msgid "<0>{revision}</0> failed at {finished} and was rolled back to <1>{rolledBackTo}</1>."
-msgstr "<0>{revision}</0> 于 {finished} 失败，已回滚到 <1>{rolledBackTo}</1>。"
-
-#: src/features/logs/LogNote.tsx
-msgid "<0>{revision}</0> failed at {finished} and was rolled back."
-msgstr "<0>{revision}</0> 于 {finished} 失败，已回滚。"
-
-#: src/features/logs/LogNote.tsx
-msgid "<0>{revision}</0> was replaced at {finished}."
-msgstr "<0>{revision}</0> 于 {finished} 被替换。"
-
-#: src/app/Providers.tsx
-msgid "10k+ new lines"
-msgstr "超过 1 万行新日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
-msgstr "容器被移除时，它的日志也会一并移除。每台服务器为每个应用保留最近一个失败和最近一个被替换的容器的日志，保留 30 天，总量不超过 256 MB；已删除应用的日志保留 7 天。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "All the servers keep"
-msgstr "服务器保留的全部日志"
-
-#: src/features/logs/LogContext.tsx
-msgid "Can't read the lines around it"
-msgstr "无法读取它前后的日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Can't read these logs now"
-msgstr "现在无法读取这些日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Choose a longer range, or follow what it writes next."
-msgstr "请选择更长的时间范围，或跟随它接下来写入的内容。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Clear the search"
-msgstr "清除搜索"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Close the search"
-msgstr "关闭搜索"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Copied this line"
-msgstr "已复制这一行"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Copy this line"
-msgstr "复制这一行"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Deploy it, and its logs show here as it starts."
-msgstr "部署后，它启动时日志就会显示在这里。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Enter goes to the next match up the log, and Shift+Enter down it. Escape clears the search."
-msgstr "按 Enter 向上跳到下一处匹配，按 Shift+Enter 向下跳。按 Escape 清除搜索。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Errors in this log"
-msgstr "此日志中的错误"
-
-#: src/features/logs/LogsPage.tsx
-msgid "failed"
-msgstr "失败"
-
-#: src/app/Providers.tsx
-msgid "Following"
-msgstr "跟随中"
-
-#: src/features/logs/LogFoot.tsx
-msgid "Go to the last"
-msgstr "转到最后一处"
-
-#: src/features/logs/LogsPage.tsx
-msgid "It reads each container's log, at most for 30 s."
-msgstr "它会读取每个容器的日志，最长 30 秒。"
-
-#: src/features/logs/LogNote.tsx
-msgid "It wrote more than the server keeps of one container, so not all of its lines are here."
-msgstr "它写入的内容超过了服务器为单个容器保留的量，所以这里不是全部日志。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Its agent isn't connected, so its lines weren't read. Check the server, then search again."
-msgstr "它的 Agent 未连接，所以没有读取它的日志。请检查服务器，然后再次搜索。"
-
-#: src/features/logs/LogNote.tsx
-msgid "Its agent isn't connected, so its logs can't be read now. Its containers keep running and logging. Check the server. Lines written meanwhile arrive when it reconnects, as far as Docker kept them."
-msgstr "它的 Agent 未连接，所以现在无法读取它的日志。它的容器仍在运行并写入日志。请检查服务器。重新连接后，这期间写入的日志会到达，以 Docker 保留的为限。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Its logs show here once they can be read."
-msgstr "能读取时，它的日志就会显示在这里。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Last 1 h"
-msgstr "最近 1 小时"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Last 15 min"
-msgstr "最近 15 分钟"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Last 24 h"
-msgstr "最近 24 小时"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
-msgstr "级别根据每行文本判断。未标明级别的行算作信息。双击或按住 Shift 点击可只显示该级别。"
-
-#: src/features/logs/LogContext.tsx
-msgid "Lines around this one"
-msgstr "这一行前后的日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Lines loaded"
-msgstr "已加载的行"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Next error"
-msgstr "下一个错误"
-
-#: src/features/logs/LogsPage.tsx
-msgid "No logs yet"
-msgstr "还没有日志"
-
-#: src/features/logs/LogContext.tsx
-msgid "Nothing else was written around this line."
-msgstr "这一行前后没有其他日志。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Nothing in all the servers keep has \"{highlight}\"."
-msgstr "服务器保留的全部日志中没有“{highlight}”。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Nothing in the {total} lines loaded has \"{query}\"."
-msgstr "已加载的 {total} 行中没有“{query}”。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Nothing to show until {servers} is back"
-msgstr "{servers} 恢复前没有可显示的内容"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Nothing was written in this time"
-msgstr "这段时间内没有写入内容"
-
-#: src/features/logs/LogFoot.tsx
-msgid "Pause to read"
-msgstr "暂停以便阅读"
-
-#: src/features/logs/LogFoot.tsx
-msgid "Press Enter to search all the servers keep."
-msgstr "按 Enter 搜索服务器保留的全部日志。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Previous error"
-msgstr "上一个错误"
-
-#: src/app/Providers.tsx
-msgid "Put back"
-msgstr "收起"
-
-#: src/features/logs/DeployLogLinks.tsx
-msgid "Read {name}'s logs from this deploy"
-msgstr "阅读此次部署中 {name} 的日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Read the failed deploy's logs"
-msgstr "阅读失败部署的日志"
-
-#: src/features/logs/LogFoot.tsx
-msgid "Read them with <0>dockwell logs read</0>."
-msgstr "请用 <0>dockwell logs read</0> 读取。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Read this range again"
-msgstr "重新读取此时间范围"
-
-#: src/features/logs/LogContext.tsx
-msgid "Reading the lines around it"
-msgstr "正在读取它前后的日志"
-
-#: src/features/logs/LogNote.tsx
-msgid "Reconnecting to the control server"
-msgstr "正在重新连接控制服务器"
-
-#: src/features/logs/LogsPage.tsx
-msgid "replaced"
-msgstr "已替换"
-
-#: src/app/Providers.tsx
-msgid "Set out"
-msgstr "展开"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Show in context"
-msgstr "查看上下文"
-
-#: src/features/logs/LogNote.tsx
-msgid "Show less"
-msgstr "收起"
-
-#: src/features/logs/LogNote.tsx
-msgid "Show more"
-msgstr "展开"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Start of the log"
-msgstr "日志开头"
-
-#: src/features/logs/LogFoot.tsx
-msgid "That is all the servers keep."
-msgstr "这是服务器保留的全部日志。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "The search failed"
-msgstr "搜索失败"
-
-#: src/features/logs/LogFoot.tsx
-msgid "The search stopped after 30 s, at {at}. Read older lines with <0>dockwell logs read</0>."
-msgstr "搜索在 30 秒后停止，读到 {at}。较早的日志请用 <0>dockwell logs read</0> 读取。"
-
-#: src/features/logs/LogFoot.tsx
-msgid "The search stopped at the newest 1,000,000 lines of a container, at {at}. Read older lines with <0>dockwell logs read</0>."
-msgstr "搜索在读完一个容器最新的 1,000,000 行后停止，读到 {at}。较早的日志请用 <0>dockwell logs read</0> 读取。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "The servers have no lines of this app."
-msgstr "服务器上没有这个应用的日志。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "There are no lines to copy"
-msgstr "没有可复制的日志"
-
-#: src/features/logs/LogsPage.tsx
-msgid "There are no lines to download"
-msgstr "没有可下载的日志"
-
-#: src/features/logs/LogFoot.tsx
-msgid "this app wrote faster than a live view can carry."
-msgstr "这个应用的写入速度超过了实时视图的承载能力。"
-
-#: src/features/logs/LogFoot.tsx
-msgid "this page or the network to it fell behind."
-msgstr "此页面或它的网络跟不上了。"
-
-#: src/features/logs/LogFoot.tsx
-msgid "this server shares what it carries live between everyone reading it."
-msgstr "这台服务器的实时带宽由所有读者分享。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
-msgstr "此视图保留最新的 {most} 行。较早的日志请用 <0>dockwell logs read</0> 读取。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Time"
-msgstr "时间"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Type what to find, and press Enter. It reads each container's log, at most for 30 s."
-msgstr "输入要查找的内容，然后按 Enter。它会读取每个容器的日志，最长 30 秒。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "What the servers keep goes back further than what is loaded here."
-msgstr "服务器保留的日志比这里加载的更久远。"
-
-#: src/features/logs/LogsPage.tsx
-msgid "What to search"
-msgstr "搜索范围"
-
-#: src/features/logs/LogsPage.tsx
-msgid "What to show"
-msgstr "显示内容"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Wrap long lines"
-msgstr "自动换行"

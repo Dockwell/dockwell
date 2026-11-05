@@ -184,6 +184,46 @@ async function shoot(page: Page, name: string) {
   await sleep(100);
 }
 
+/** Runs in the page: how far a chip that is on stands from one that is off, and a match from its line. */
+function contrastOfMarks(): { chip: number; hit: number; hitText: number } {
+  const channels = (color: string): number[] => {
+    const probe = document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D;
+    probe.fillStyle = color;
+    probe.fillRect(0, 0, 1, 1);
+    return [...probe.getImageData(0, 0, 1, 1).data];
+  };
+  const over = (top: number[], under: number[]): number[] => {
+    const a = (top[3] ?? 255) / 255;
+    return [0, 1, 2].map((i) => (top[i] ?? 0) * a + (under[i] ?? 0) * (1 - a));
+  };
+  const ground = (el: Element | null): number[] => {
+    if (!el) return [255, 255, 255];
+    return over(channels(getComputedStyle(el).backgroundColor), ground(el.parentElement));
+  };
+  const light = (c: number[]) =>
+    [0, 1, 2]
+      .map((i) => {
+        const v = (c[i] ?? 0) / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      })
+      .reduce((sum, v, i) => sum + v * ([0.2126, 0.7152, 0.0722][i] ?? 0), 0);
+  const ratio = (a: number[], b: number[]) => {
+    const [hi, lo] = [light(a), light(b)].sort((x, y) => y - x) as [number, number];
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  const edge = (el: Element | null): number[] =>
+    el ? over(channels(getComputedStyle(el).borderTopColor), ground(el.parentElement)) : [0, 0, 0];
+  const on = document.querySelector(".logs-chip.is-on .logs-chip-face");
+  const off = document.querySelector(".logs-chip:not(.is-on) .logs-chip-face");
+  const mark = document.querySelector("mark.dw-log-hit");
+  return {
+    // Its ground changes hue more than light, and its edge says the rest.
+    chip: ratio(edge(on), edge(off)),
+    hit: ratio(ground(mark), ground(mark?.parentElement ?? null)),
+    hitText: mark ? ratio(over(channels(getComputedStyle(mark).color), ground(mark)), ground(mark)) : 0,
+  };
+}
+
 /** Runs in the page: what falls short of WCAG AA's contrast, by what is on screen now. */
 function contrastProblems(): string[] {
   const channels = (color: string): number[] => {
@@ -525,6 +565,13 @@ async function main() {
   await page.getByText("hz-2 is offline").waitFor({ timeout: 40_000 });
   await post("/print", "while the server was away");
   await shoot(page, "offline");
+  await page.setViewportSize({ width: 360, height: 740 });
+  await sleep(300);
+  const offlineRoom = await logBody(page).evaluate((el) => el.getBoundingClientRect().height / window.innerHeight);
+  await page.setViewportSize({ width: 1440, height: 970 });
+  step(`  with a note up, the log takes ${Math.round(offlineRoom * 100)}% of a phone's screen`);
+  if (offlineRoom < 0.5)
+    fail(`with a server offline, the log takes ${Math.round(offlineRoom * 100)}% of a phone's screen`);
   second = startSecond();
   await page.getByText("while the server was away").waitFor({ timeout: 30_000 });
   await until("the note to go", async () => (await page.getByText("hz-2 is offline").count()) === 0);
@@ -641,6 +688,38 @@ async function main() {
   await post("/rate?lines=0");
   await page.getByRole("button", { name: "Follow", exact: true }).click();
 
+  step("text can be chosen while lines come, survives scrolling away, and copies as lines");
+  await post("/rate?lines=200&size=60");
+  await page.getByRole("status").getByText("Following").waitFor();
+  await sleep(800);
+  const logBox = (await logBody(page).boundingBox()) ?? fail("no log to choose text in");
+  const textAt = logBox.x + 180;
+  await page.mouse.move(textAt, logBox.y + 100);
+  await page.mouse.down();
+  await page.getByRole("status").getByText("Paused").waitFor({ timeout: 2000 });
+  await page.mouse.move(textAt + 160, logBox.y + 180, { steps: 8 });
+  await page.mouse.up();
+  await sleep(300);
+  const chosen = await page.evaluate(() => document.getSelection()?.toString() ?? "");
+  if (!chosen.includes("GET")) fail(`choosing text while lines came chose ${JSON.stringify(chosen)}`);
+  await page.getByRole("status").getByText("Paused").waitFor({ timeout: 2000 });
+  await logBody(page).hover();
+  for (let i = 0; i < 12; i++) await page.mouse.wheel(0, -4000);
+  await sleep(300);
+  const stillChosen = await page.evaluate(() => document.getSelection()?.isCollapsed === false);
+  if (!stillChosen) fail("scrolling away lost what was chosen");
+  await page.keyboard.press("Control+c");
+  const copiedLines = await until("the copy", async () => {
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    return copied.includes("\n") && /^\d\d:\d\d:\d\d\.\d{3} \S+ .*GET/m.test(copied) ? copied : undefined;
+  });
+  step(
+    `  copied ${copiedLines.split("\n").length} lines, as ${JSON.stringify(copiedLines.split("\n")[0]?.slice(0, 60))}`,
+  );
+  await page.evaluate(() => document.getSelection()?.removeAllRanges());
+  await post("/rate?lines=0");
+  await page.getByRole("button", { name: "Follow", exact: true }).click();
+
   step("nothing moves as what is said changes");
   const places = () =>
     page.evaluate(() => {
@@ -679,7 +758,23 @@ async function main() {
     const low = await page.evaluate(contrastProblems);
     if (low.length > 0) fail(`in the ${scheme} theme: ${low.join("; ")}`);
   }
+  await page.getByRole("button", { name: "Warnings", exact: true }).click();
+  await page.getByRole("textbox", { name: "Search logs" }).fill("error");
+  await page.locator("mark.dw-log-hit").first().waitFor();
+  for (const scheme of ["dark", "light"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await sleep(100);
+    const marks = await page.evaluate(contrastOfMarks);
+    step(
+      `  ${scheme}: a chip's edge on against off ${marks.chip.toFixed(2)}:1; a match against its line ${marks.hit.toFixed(2)}:1, its text ${marks.hitText.toFixed(2)}:1`,
+    );
+    if (marks.chip < 1.5) fail(`in the ${scheme} theme, a chip on and off differ by ${marks.chip.toFixed(2)}:1`);
+    if (marks.hit < 1.2) fail(`in the ${scheme} theme, a match differs from its line by ${marks.hit.toFixed(2)}:1`);
+    if (marks.hitText < 4.5) fail(`in the ${scheme} theme, a match's text is ${marks.hitText.toFixed(2)}:1`);
+  }
   await page.emulateMedia({ colorScheme: "dark" });
+  await page.getByRole("textbox", { name: "Search logs" }).press("Escape");
+  await page.getByRole("button", { name: "Warnings", exact: true }).click();
 
   step("a phone gives the log the room, and targets of 44 px");
   await page.setViewportSize({ width: 360, height: 740 });

@@ -60,6 +60,7 @@ func TestOnlyPlainColourReachesATerminal(t *testing.T) {
 		{"modifyOtherKeys, which changes what keys send and outlasts the CLI", "\x1b[>4;2mtext", "text"},
 		{"the key-modifier query, which answers on standard input", "\x1b[?1mtext", "text"},
 		{"an intermediate byte", "\x1b[ 1mtext", "text"},
+		{"a sign, which isn't a plain number", "\x1b[+1mtext", "text"},
 		{"conceal, which hides what follows", "\x1b[8mhidden", "hidden"},
 		{"conceal among colours, which go on", "\x1b[8;31mhidden", "\x1b[31mhidden" + r},
 		{"reverse, whose text can match the ground", "\x1b[7mtext", "text"},

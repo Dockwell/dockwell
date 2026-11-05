@@ -6021,3 +6021,15 @@ msgstr "What to show"
 #: src/features/logs/LogsPage.tsx
 msgid "Wrap long lines"
 msgstr "Wrap long lines"
+
+#: src/features/apps/revision.ts
+msgid "Moved"
+msgstr "Moved"
+
+#: src/features/apps/revision.ts
+msgid "Moving"
+msgstr "Moving"
+
+#: src/features/apps/words.ts
+msgid "Waiting for {servers}"
+msgstr "Waiting for {servers}"
