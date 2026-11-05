@@ -101,7 +101,9 @@ export async function healthFlow(page: Page, options: HealthFlowOptions) {
   await form.getByRole("button", { name: /Review plan/ }).click();
   await apply(page);
   await page.getByRole("heading", { name: "checked is healthy" }).waitFor({ timeout: 90_000 });
+  // The sheet's own: the list behind it may offer to show what needs a look first.
   await page
+    .locator(".dw-sheet-layer")
     .getByRole("button", { name: /^Open checked|^Done|^Show/ })
     .first()
     .click();
@@ -213,6 +215,7 @@ services:
   await plainPlan.getByRole("button", { name: /Apply plan/ }).click();
   await page.getByRole("heading", { name: "plain is running" }).waitFor({ timeout: 90_000 });
   await page
+    .locator(".dw-sheet-layer")
     .getByRole("button", { name: /^Open plain|^Done|^Show/ })
     .first()
     .click();
