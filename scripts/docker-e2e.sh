@@ -1356,8 +1356,9 @@ if deploy_app never 4 --app-env "E2E_DATABASE=$database" "${docker_check[@]}" >/
 back=$(rolled_back)
 one_app "after a command check's rollback" slow
 [[ "$(docker inspect --format '{{.Id}}' "$app")" == "$kept_id" ]] || fail "the rollback from a command check replaced what ran, $kept, with $app"
-jq -e --arg said "\"$never_says: •••\". Fix what it reports, or the check, then try again." '(.summary | startswith("Roll back")) and (.because | startswith("app runs, but fails its health check: the command exited with")) and (.because | endswith($said))' <<<"$back" >/dev/null ||
-  fail "the rollback should quote what the command printed, '$never_says: •••', and says: $back"
+check_printed="app runs, but fails its health check: the command exited with 1: \"e2e-load: 503: $never_says: •••\". Fix what it reports, or the check, then try again."
+jq -e --arg said "$check_printed" '(.summary | startswith("Roll back")) and .because == $said' <<<"$back" >/dev/null ||
+  fail "the rollback should quote what the command printed, as '$check_printed', and says: $back"
 jq -e --arg value "$database" '.because | contains($value) | not' <<<"$back" >/dev/null ||
   fail "the rollback's reason shows a value from what the spec set: $back"
 
