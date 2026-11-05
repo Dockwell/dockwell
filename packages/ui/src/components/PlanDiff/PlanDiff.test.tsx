@@ -267,6 +267,9 @@ describe("PlanDiff", () => {
     const counts = container.querySelector(".dw-plan-counts");
     expect(counts).toHaveTextContent("1 to restart");
     expect(counts).toHaveTextContent("1 to replace");
+    // Its row says so too, not that it replaces it.
+    const acts = [...container.querySelectorAll(".dw-plan-act")].map((a) => a.textContent);
+    expect(acts).toEqual(["Restart", "Replace"]);
   });
 
   it("respects expanded and speaks the app's language", () => {

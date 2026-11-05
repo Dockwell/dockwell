@@ -824,6 +824,7 @@ describe("restarting an app", () => {
       // It counts what it restarts as that, not as a replace.
       expect(sheet.querySelector(".dw-plan-counts")).toHaveTextContent("1 to restart");
       expect(sheet).not.toHaveTextContent("to replace");
+      expect(sheet.querySelector(".dw-plan-act")).toHaveTextContent("Restart");
       await expectAccessible(document.body);
     },
   );

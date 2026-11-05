@@ -178,7 +178,14 @@ export function PlanDiff({ resources, impact, done = false, noSummary = false, a
           <code>{resource.name}</code>{" "}
           <span className="dw-plan-kind">{resource.kindLabel ?? strings.planDiff.kind[resource.kind]}</span>
         </span>{" "}
-        <span className="dw-plan-act">{resource.note ?? actionWords[resource.action]}</span>
+        <span className="dw-plan-act">
+          {resource.note ??
+            (resource.restart
+              ? done
+                ? strings.planDiff.restart.done
+                : strings.planDiff.restart.action
+              : actionWords[resource.action])}
+        </span>
       </>
     );
     return (

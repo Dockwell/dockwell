@@ -96,6 +96,8 @@ export interface UIStrings {
     action: Readonly<Record<PlanAction, string>>;
     /** The same, once it is done. */
     actionDone: Readonly<Record<PlanAction, string>>;
+    /** The action word of a resource replaced as it was, a restart, before and once done. */
+    restart: Readonly<{ action: string; done: string }>;
     /** The kind shown after a resource's name. */
     kind: Readonly<Record<PlanKind, string>>;
     /** The summary, each after a count: "3 to create". Replacements count apart from changes. */
@@ -193,6 +195,7 @@ export const englishStrings: UIStrings = {
       replace: "Replaced",
       destroy: "Deleted",
     },
+    restart: { action: "Restart", done: "Restarted" },
     kind: {
       project: "project",
       environment: "environment",

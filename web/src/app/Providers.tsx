@@ -108,6 +108,7 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
           replace: t`Replaced`,
           destroy: t`Deleted`,
         },
+        restart: { action: t`Restart`, done: t`Restarted` },
         kind: {
           project: t`project`,
           environment: t`environment`,
