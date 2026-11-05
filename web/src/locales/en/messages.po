@@ -271,6 +271,10 @@ msgstr "{count} stopped"
 msgid "{cpus} vCPU"
 msgstr "{cpus} vCPU"
 
+#: src/features/apps/DomainNote.tsx
+msgid "{days, plural, one {Valid for # day} other {Valid for # days}}"
+msgstr "{days, plural, one {Valid for # day} other {Valid for # days}}"
+
 #: src/features/changes/words.ts
 msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {here}; it comes once you do"
 msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {here}; it comes once you do"
@@ -777,6 +781,10 @@ msgstr "<0>{revision}</0> failed at {finished} and was rolled back."
 msgid "<0>{revision}</0> was replaced at {finished}."
 msgstr "<0>{revision}</0> was replaced at {finished}."
 
+#: src/features/apps/DomainNote.tsx
+msgid "<0>{server}</0> hasn't reported yet. <1>Check its page</1>"
+msgstr "<0>{server}</0> hasn't reported yet. <1>Check its page</1>"
+
 #: src/features/apps/AppLayout.tsx
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 msgstr "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
@@ -861,6 +869,10 @@ msgstr "A rollback puts back its spec, not its data, so if a newer version chang
 msgid "A rollback puts back which variables and secrets it uses, not what they held then. To go back on a value, change it in Variables and secrets."
 msgstr "A rollback puts back which variables and secrets it uses, not what they held then. To go back on a value, change it in Variables and secrets."
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "A route runs on one server, as its certificate comes to the one its DNS points at."
+msgstr "A route runs on one server, as its certificate comes to the one its DNS points at."
+
 #: src/features/variables/VariablesPage.tsx
 msgid "A secret needs a value."
 msgstr "A secret needs a value."
@@ -874,6 +886,10 @@ msgid "A step failed, so the change stopped there."
 msgstr "A step failed, so the change stopped there."
 
 #: src/features/apps/AddDomainSheet.tsx
+msgid "A tunnel on this server"
+msgstr "A tunnel on this server"
+
+#: src/features/apps/DomainNote.tsx
 msgid "A tunnel or a proxy in front handles HTTPS"
 msgstr "A tunnel or a proxy in front handles HTTPS"
 
@@ -945,10 +961,12 @@ msgid "Add"
 msgstr "Add"
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "Add a domain"
 msgstr "Add a domain"
 
 #: src/features/apps/AddDomainSheet.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "Add a domain to {name}"
 msgstr "Add a domain to {name}"
 
@@ -957,10 +975,12 @@ msgid "Add a passkey for {rpId} now, so you can sign in here next time without a
 msgstr "Add a passkey for {rpId} now, so you can sign in here next time without another link."
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "Add a port"
 msgstr "Add a port"
 
 #: src/features/apps/AddPortSheet.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "Add a port to {name}"
 msgstr "Add a port to {name}"
 
@@ -1120,6 +1140,10 @@ msgstr "Also plans and applies changes that can be undone. Never removes data or
 msgid "Always"
 msgstr "Always"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "An address or a range, such as 172.20.0.0/16 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
+msgstr "An address or a range, such as 172.20.0.0/16 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "An app named {name} already runs here. Choose another name, or deploy to it from its page."
 msgstr "An app named {name} already runs here. Choose another name, or deploy to it from its page."
@@ -1132,6 +1156,10 @@ msgstr "An image has no spaces. Write it as nginx:1.27."
 msgid "and {more} more"
 msgstr "and {more} more"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Another proxy"
+msgstr "Another proxy"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Any image your server can pull, such as nginx:1.27."
 msgstr "Any image your server can pull, such as nginx:1.27."
@@ -1141,8 +1169,28 @@ msgid "anyone on the internet"
 msgstr "anyone on the internet"
 
 #: src/features/changes/words.ts
+msgid "Anyone visiting {where} gets a browser's connection error, as nothing here answers for that name over HTTPS any more."
+msgstr "Anyone visiting {where} gets a browser's connection error, as nothing here answers for that name over HTTPS any more."
+
+#: src/features/changes/words.ts
+msgid "Anyone visiting {where} gets a refused connection, as nothing answers on this server's port any more."
+msgstr "Anyone visiting {where} gets a refused connection, as nothing answers on this server's port any more."
+
+#: src/features/changes/words.ts
+msgid "Anyone visiting {where} gets what the rest of {domain} serves, or a 404 if nothing covers that path."
+msgstr "Anyone visiting {where} gets what the rest of {domain} serves, or a 404 if nothing covers that path."
+
+#: src/features/changes/words.ts
+msgid "Anyone visiting {where} stops reaching it."
+msgstr "Anyone visiting {where} stops reaching it."
+
+#: src/features/changes/words.ts
 msgid "anyone who can reach {server}"
 msgstr "anyone who can reach {server}"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Anyone who can reach this server"
+msgstr "Anyone who can reach this server"
 
 #: src/features/changes/notices.tsx
 msgid "Anyone who can reach this server gets it, around whatever is in front of it."
@@ -1497,6 +1545,14 @@ msgstr "Close the search"
 msgid "Close, and lose what you typed here?"
 msgstr "Close, and lose what you typed here?"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Cloudflare connects to this server's port 80."
+msgstr "Cloudflare connects to this server's port 80."
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Cloudflare's proxy"
+msgstr "Cloudflare's proxy"
+
 #: src/features/auth/SignInPage.tsx
 msgid "Code"
 msgstr "Code"
@@ -1637,10 +1693,13 @@ msgstr "Copy {at}"
 msgid "Copy {ip}"
 msgstr "Copy {ip}"
 
-#: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Copy {name}"
 msgstr "Copy {name}"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Copy {where}"
+msgstr "Copy {where}"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Copy codes"
@@ -1721,6 +1780,14 @@ msgstr "Couldn't pull {image}"
 #: src/features/apps/revision.ts
 msgid "Couldn't pull {pulled}"
 msgstr "Couldn't pull {pulled}"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Couldn't read the addresses this is reached at"
+msgstr "Couldn't read the addresses this is reached at"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Couldn't read this app's domains"
+msgstr "Couldn't read this app's domains"
 
 #: src/features/changes/words.ts
 msgid "Couldn't replace"
@@ -1883,6 +1950,10 @@ msgstr "Deleting"
 #: src/features/apps/AppOverview.tsx
 msgid "Deleting {name} stops it and removes its container. Its volumes stay, and you review a plan first."
 msgstr "Deleting {name} stops it and removes its container. Its volumes stay, and you review a plan first."
+
+#: src/features/apps/AppOverview.tsx
+msgid "Deleting {name} stops it, removes its container, and takes its domains with it. Its volumes stay, and you review a plan first."
+msgstr "Deleting {name} stops it, removes its container, and takes its domains with it. Its volumes stay, and you review a plan first."
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/changes/words.ts
@@ -2342,6 +2413,7 @@ msgstr "Export as Compose"
 msgid "failed"
 msgstr "failed"
 
+#: src/features/apps/DomainNote.tsx
 #: src/features/apps/revision.ts
 #: src/features/apps/words.ts
 #: src/features/changes/words.ts
@@ -2412,6 +2484,10 @@ msgstr "Following"
 msgid "For {connected}"
 msgstr "For {connected}"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
+msgstr "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
+
 #: src/features/auth/TokensPanel.tsx
 msgid "For a script, the CLI or an integration"
 msgstr "For a script, the CLI or an integration"
@@ -2453,11 +2529,6 @@ msgstr "From the panel"
 #: src/features/auth/ClaimPage.tsx
 msgid "Full access to {name}"
 msgstr "Full access to {name}"
-
-#: src/features/apps/AppOverview.tsx
-#: src/features/changes/ChangeSheet.tsx
-msgid "Getting its certificate"
-msgstr "Getting its certificate"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Give {first} a value to review the plan"
@@ -2541,10 +2612,6 @@ msgstr "Hostname"
 msgid "Hover or focus a server to inspect it."
 msgstr "Hover or focus a server to inspect it."
 
-#: src/features/apps/AppOverview.tsx
-msgid "HTTPS"
-msgstr "HTTPS"
-
 #: src/features/auth/ClaimPage.tsx
 msgid "HTTPS is automatic. Your passkey works at this address."
 msgstr "HTTPS is automatic. Your passkey works at this address."
@@ -2626,7 +2693,6 @@ msgstr "In project <0>{project}</0>"
 msgid "In project <0>{project}</0>, environment <1>{environment}</1>"
 msgstr "In project <0>{project}</0>, environment <1>{environment}</1>"
 
-#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "In the app"
@@ -2648,9 +2714,21 @@ msgstr "Installed"
 msgid "internal"
 msgstr "internal"
 
+#: src/features/apps/DomainNote.tsx
+msgid "Issuing"
+msgstr "Issuing"
+
 #: src/features/changes/words.ts
 msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
 msgstr "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
+msgstr "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
+
+#: src/features/apps/DomainNote.tsx
+msgid "It answers anyone who can reach this server over plain HTTP, around whatever is in front."
+msgstr "It answers anyone who can reach this server over plain HTTP, around whatever is in front."
 
 #: src/features/changes/words.ts
 msgid "It answers only {list}. Anyone else gets what a name with no route gets"
@@ -2712,6 +2790,10 @@ msgstr "It leads to <0>{leadsTo}</0> through a symlink, and it can read what is 
 msgid "It leads to <0>{leadsTo}</0> through a symlink, and the server's security rests on what is there, so reaching it is as good as root."
 msgstr "It leads to <0>{leadsTo}</0> through a symlink, and the server's security rests on what is there, so reaching it is as good as root."
 
+#: src/features/apps/AppOverview.tsx
+msgid "It may be reached at more than this says. Nothing has changed."
+msgstr "It may be reached at more than this says. Nothing has changed."
+
 #: src/features/logs/LogsPage.tsx
 msgid "It may have been deleted. Dockwell has no logs under this address."
 msgstr "It may have been deleted. Dockwell has no logs under this address."
@@ -2752,13 +2834,17 @@ msgstr "It was made without rotation, so its log can fill the disk. Dockwell set
 msgid "It wrote more than the server keeps of one container, so not all of its lines are here."
 msgstr "It wrote more than the server keeps of one container, so not all of its lines are here."
 
+#: src/features/apps/AppOverview.tsx
+msgid "It's behind a tunnel or a proxy"
+msgstr "It's behind a tunnel or a proxy"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "It's live with HTTPS"
 msgstr "It's live with HTTPS"
 
 #: src/features/apps/AddDomainSheet.tsx
-msgid "It's on the server's own network, so what it listens on there, such as 8080."
-msgstr "It's on the server's own network, so what it listens on there, such as 8080."
+msgid "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
+msgstr "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
 
 #: src/features/servers/ServerCallout.tsx
 msgid "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
@@ -2865,10 +2951,6 @@ msgstr "Last 24 h"
 #: src/features/servers/ServerPanels.tsx
 msgid "Last heartbeat"
 msgstr "Last heartbeat"
-
-#: src/features/apps/AddDomainSheet.tsx
-msgid "Leave this empty for a tunnel on the server's own network. Otherwise what connects to this server: an address or a range, such as a bridge network's 172.17.0.0/16, or cloudflare for Cloudflare's proxy. Separate several with commas."
-msgstr "Leave this empty for a tunnel on the server's own network. Otherwise what connects to this server: an address or a range, such as a bridge network's 172.17.0.0/16, or cloudflare for Cloudflare's proxy. Separate several with commas."
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Left out as they may hold secrets"
@@ -3124,6 +3206,10 @@ msgstr "Name the new project, such as shop"
 msgid "Name the token after what will use it, such as GitHub Actions deploy."
 msgstr "Name the token after what will use it, such as GitHub Actions deploy."
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Name what connects to this server, as an address or a range."
+msgstr "Name what connects to this server, as an address or a range."
+
 #. placeholder {0}: refused.line
 #. placeholder {1}: refused.to
 #. placeholder {2}: refused.text
@@ -3183,6 +3269,18 @@ msgstr "New value"
 msgid "Next error"
 msgstr "Next error"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Next, point what's in front at port 80 on this server, over http://. https:// there fails, as this server takes no certificate."
+msgstr "Next, point what's in front at port 80 on this server, over http://. https:// there fails, as this server takes no certificate."
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Next, point your tunnel's service at http://127.0.0.1:80. https:// there fails, as this server takes no certificate."
+msgstr "Next, point your tunnel's service at http://127.0.0.1:80. https:// there fails, as this server takes no certificate."
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Next, set this zone's SSL/TLS mode to Flexible in Cloudflare. This path crosses the open internet unencrypted, so a tunnel is the better way."
+msgstr "Next, set this zone's SSL/TLS mode to Flexible in Cloudflare. This path crosses the open internet unencrypted, so a tunnel is the better way."
+
 #: src/features/changes/fields.tsx
 msgid "no"
 msgstr "no"
@@ -3231,13 +3329,25 @@ msgstr "No passkey for this address? Passkeys belong to the address they were ma
 msgid "No passkey works at {rpId} yet"
 msgstr "No passkey works at {rpId} yet"
 
+#: src/features/apps/DomainNote.tsx
+msgid "No report"
+msgstr "No report"
+
 #: src/features/changes/words.ts
 msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
 msgstr "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
 
+#: src/features/apps/DomainNote.tsx
+msgid "No server"
+msgstr "No server"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "No server · nothing goes down"
 msgstr "No server · nothing goes down"
+
+#: src/features/apps/DomainNote.tsx
+msgid "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
+msgstr "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
 
 #: src/features/servers/ServerOverview.tsx
 msgid "No server with this ID"
@@ -3353,8 +3463,8 @@ msgid "Nothing matches these filters. Clear them to see everything."
 msgstr "Nothing matches these filters. Clear them to see everything."
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "Nothing outside <0>{server}</0> reaches <1>{name}</1> yet. Add a port or a domain."
-msgstr "Nothing outside <0>{server}</0> reaches <1>{name}</1> yet. Add a port or a domain."
+msgid "Nothing outside {server} reaches {name} yet."
+msgstr "Nothing outside {server} reaches {name} yet."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Nothing outside the server reaches it until you publish a port."
@@ -3369,8 +3479,8 @@ msgid "Nothing outside the server reaches it yet. Other apps on its network do."
 msgstr "Nothing outside the server reaches it yet. Other apps on its network do."
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "Nothing outside the server reaches these yet. Add a port or a domain to each."
-msgstr "Nothing outside the server reaches these yet. Add a port or a domain to each."
+msgid "Nothing outside the server reaches these yet."
+msgstr "Nothing outside the server reaches these yet."
 
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -3415,7 +3525,6 @@ msgstr "Offline"
 msgid "On"
 msgstr "On"
 
-#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "On the server"
@@ -3470,10 +3579,13 @@ msgstr "Open {at}"
 msgid "Open {label}"
 msgstr "Open {label}"
 
-#: src/features/apps/AppOverview.tsx
 #: src/features/shell/CommandMenu.tsx
 msgid "Open {name}"
 msgstr "Open {name}"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Open {where}"
+msgstr "Open {where}"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Open plan"
@@ -3650,8 +3762,16 @@ msgid "People reach the app at this name, over HTTPS"
 msgstr "People reach the app at this name, over HTTPS"
 
 #: src/features/apps/AddDomainSheet.tsx
+msgid "People reach the app at this name, over plain HTTP"
+msgstr "People reach the app at this name, over plain HTTP"
+
+#: src/features/apps/AddDomainSheet.tsx
 msgid "People reach the app at this name, through what's in front of this server"
 msgstr "People reach the app at this name, through what's in front of this server"
+
+#: src/features/apps/DomainNote.tsx
+msgid "Plain HTTP"
+msgstr "Plain HTTP"
 
 #: src/features/changes/words.ts
 msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
@@ -3688,6 +3808,10 @@ msgid "Point its DNS at this server, before or after. Its certificate comes by i
 msgstr "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
 
 #: src/features/apps/AddDomainSheet.tsx
+msgid "Point its DNS at this server."
+msgstr "Point its DNS at this server."
+
+#: src/features/apps/AddDomainSheet.tsx
 msgid "Point its DNS at your tunnel or proxy."
 msgstr "Point its DNS at your tunnel or proxy."
 
@@ -3704,13 +3828,26 @@ msgstr "port {target}"
 msgid "port {target}, UDP"
 msgstr "port {target}, UDP"
 
+#: src/features/apps/DomainNote.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "Port <0>{port}</0>"
+msgstr "Port <0>{port}</0>"
+
 #: src/features/changes/fields.tsx
 msgid "port in the app"
 msgstr "port in the app"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Port in the app"
+msgstr "Port in the app"
+
 #: src/features/changes/fields.tsx
 msgid "port on the server"
 msgstr "port on the server"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Port on the server"
+msgstr "Port on the server"
 
 #: src/features/changes/fields.tsx
 msgid "port's address"
@@ -4027,6 +4164,14 @@ msgstr "Remove {name}"
 msgid "Remove {what}"
 msgstr "Remove {what}"
 
+#: src/features/apps/AppOverview.tsx
+msgid "Remove {where}"
+msgstr "Remove {where}"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Remove {where} from {name}"
+msgstr "Remove {where} from {name}"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "Remove the secret {name}"
 msgstr "Remove the secret {name}"
@@ -4066,6 +4211,10 @@ msgstr "Removed a passkey"
 #: src/features/activity/describe.ts
 msgid "Removed the passkey {name}"
 msgstr "Removed the passkey {name}"
+
+#: src/features/apps/DomainNote.tsx
+msgid "Renewal failing"
+msgstr "Renewal failing"
 
 #: src/app/Providers.tsx
 #: src/features/changes/words.ts
@@ -4448,6 +4597,10 @@ msgstr "Secret {from}"
 msgid "secrets"
 msgstr "secrets"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "See the guide"
+msgstr "See the guide"
+
 #: src/features/apps/AppOverview.tsx
 msgid "See why"
 msgstr "See why"
@@ -4469,6 +4622,7 @@ msgstr "Sending"
 msgid "server"
 msgstr "server"
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/words.ts
@@ -4764,6 +4918,10 @@ msgstr "Such as 1Password, Google Authenticator or Aegis"
 msgid "Such as 8080 on the server, to 80 in the app."
 msgstr "Such as 8080 on the server, to 80 in the app."
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+msgstr "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Synced"
 msgstr "Synced"
@@ -4893,6 +5051,10 @@ msgstr "The browser couldn't finish with the passkey. Try again, or use another 
 #: src/features/changes/ChangeSheet.tsx
 msgid "The change failed"
 msgstr "The change failed"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "The change itself applied. Trying again only reads them, and changes nothing."
+msgstr "The change itself applied. Trying again only reads them, and changes nothing."
 
 #: src/features/changes/words.ts
 msgid "The CLI"
@@ -5225,6 +5387,10 @@ msgstr "This panel controls {name}. Create the owner account with a passkey."
 msgid "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
 msgstr "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
+msgstr "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
+
 #: src/features/changes/notices.tsx
 msgid "This plan destroys data or may cut off access"
 msgstr "This plan destroys data or may cut off access"
@@ -5240,9 +5406,10 @@ msgstr "This server"
 #: src/features/logs/LogFoot.tsx
 msgid "this server shares what it carries live between everyone reading it."
 msgstr "this server shares what it carries live between everyone reading it."
+
 #: src/features/apps/AddDomainSheet.tsx
-msgid "This server takes no certificate, and traffic reaches it unencrypted. That's fine on a tunnel or a private network, and not on the open internet."
-msgstr "This server takes no certificate, and traffic reaches it unencrypted. That's fine on a tunnel or a private network, and not on the open internet."
+msgid "This server takes no certificate, and traffic reaches it unencrypted."
+msgstr "This server takes no certificate, and traffic reaches it unencrypted."
 
 #: src/features/auth/messages.ts
 msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
@@ -5275,10 +5442,10 @@ msgstr "Time"
 #: src/features/logs/LogsPage.tsx
 msgid "Time range"
 msgstr "Time range"
-#: src/features/apps/AppOverview.tsx
-#: src/features/changes/ChangeSheet.tsx
-msgid "TLS ends before this server"
-msgstr "TLS ends before this server"
+
+#: src/features/apps/DomainNote.tsx
+msgid "TLS ends in front"
+msgstr "TLS ends in front"
 
 #: src/app/Providers.tsx
 msgid "to"
@@ -5369,6 +5536,7 @@ msgstr "trend"
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/changes/ChangeSheet.tsx
 #: src/features/logs/LogsPage.tsx
 msgid "Try again"
 msgstr "Try again"
@@ -5606,6 +5774,10 @@ msgstr "user"
 msgid "User"
 msgstr "User"
 
+#: src/features/apps/DomainNote.tsx
+msgid "Valid"
+msgstr "Valid"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "value"
 msgstr "value"
@@ -5658,6 +5830,15 @@ msgstr "Version"
 msgid "Version <0>{0}</0>"
 msgstr "Version <0>{0}</0>"
 
+#. placeholder {0}: going.length
+#: src/features/changes/ChangeSheet.tsx
+msgid "visitors lose {0} addresses"
+msgstr "visitors lose {0} addresses"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "visitors lose {lost}"
+msgstr "visitors lose {lost}"
+
 #: src/app/Providers.tsx
 #: src/features/changes/fields.tsx
 #: src/features/changes/words.ts
@@ -5686,10 +5867,10 @@ msgstr "Waiting for its agent"
 msgid "Waiting for server"
 msgstr "Waiting for server"
 
-#: src/features/apps/AppOverview.tsx
+#: src/features/apps/DomainNote.tsx
 #: src/features/changes/ChangeSheet.tsx
-msgid "Waiting to hear from the server"
-msgstr "Waiting to hear from the server"
+msgid "Waiting for the server"
+msgstr "Waiting for the server"
 
 #: src/app/Providers.tsx
 msgid "Warning"
@@ -5711,6 +5892,10 @@ msgstr "What applying means"
 #: src/features/apps/AppDeployments.tsx
 msgid "What changed"
 msgstr "What changed"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "What connects to this server"
+msgstr "What connects to this server"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "What happens next"
@@ -5790,6 +5975,10 @@ msgstr "What you see may be out of date. Check that dockwell run is still runnin
 msgid "What's in front"
 msgstr "What's in front"
 
+#: src/features/changes/words.ts
+msgid "What's in front gets a 404 for {where}, so visitors see whatever it shows for one."
+msgstr "What's in front gets a 404 for {where}, so visitors see whatever it shows for one."
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
 msgid "When"
@@ -5856,6 +6045,10 @@ msgstr "You become the owner. Nobody else can sign in."
 #: src/features/logs/LogsPage.tsx
 msgid "You can't read these logs"
 msgstr "You can't read these logs"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "You name what connects to this server."
+msgstr "You name what connects to this server."
 
 #: src/features/auth/TokensPanel.tsx
 msgid "You see the token once, right after you create it."

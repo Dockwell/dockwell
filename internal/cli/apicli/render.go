@@ -695,6 +695,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			for _, line := range answersWords(st.GetAnswers(), st.GetServerPort(), s.GetServerName()) {
 				fmt.Fprintln(tw, "      "+line)
 			}
+			if line := goesWords(st.GetGoes()); line != "" {
+				fmt.Fprintln(tw, "      "+line)
+			}
 			for _, warning := range st.GetWarnings() {
 				if warning == dockwellv1.PlanWarning_PLAN_WARNING_MAY_LOCK_OUT {
 					fmt.Fprintln(tw, "      May cut off remote access to "+s.GetServerName()+", such as SSH.")
@@ -763,6 +766,26 @@ func ingressWords(e *dockwellv1.IngressEffect, server string) []string {
 // alarm: it's what a tunnel or a private network wants, and it never stops a plan.
 func unencryptedWords(server string) string {
 	return fmt.Sprintf("Traffic for this route reaches %s unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it.", server)
+}
+
+// goesWords says what someone visiting a route finds once a step takes it away, as a
+// plan's "no downtime" says nothing of it.
+func goesWords(g *dockwellv1.RouteGoes) string {
+	if g == nil {
+		return ""
+	}
+	switch g.GetFind() {
+	case dockwellv1.VisitorsFind_VISITORS_FIND_REFUSED:
+		return fmt.Sprintf("Anyone visiting %s gets a refused connection, as nothing answers on this server's port any more.", g.GetWhere())
+	case dockwellv1.VisitorsFind_VISITORS_FIND_TLS_ERROR:
+		return fmt.Sprintf("Anyone visiting %s gets a browser's connection error, as nothing here answers for that name over HTTPS any more.", g.GetWhere())
+	case dockwellv1.VisitorsFind_VISITORS_FIND_NOT_FOUND:
+		return fmt.Sprintf("What's in front gets a 404 for %s, so visitors see whatever it shows for one.", g.GetWhere())
+	case dockwellv1.VisitorsFind_VISITORS_FIND_REST:
+		return fmt.Sprintf("Anyone visiting %s gets what the rest of %s serves, or a 404 if nothing covers that path.", g.GetWhere(), g.GetDomain())
+	default:
+		return fmt.Sprintf("Anyone visiting %s stops reaching it.", g.GetWhere())
+	}
 }
 
 // answersWords says who a route answers, when it isn't anyone over HTTPS sent to a

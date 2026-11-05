@@ -65,6 +65,10 @@ func (m *memIngress) Apply(_ context.Context, ref resource.Ref, spec *resourcev1
 	return nil
 }
 
+func (*memIngress) Goes(context.Context, resource.Ref, []resource.Desired) *resource.RouteGoes {
+	return nil
+}
+
 func (*memIngress) Returning(context.Context, resource.Ref, *resourcev1.Route, []resource.Desired) []string {
 	return nil
 }
@@ -322,6 +326,14 @@ func TestARouteReachesAServiceInItsOwnEnvironmentAlone(t *testing.T) {
 		refuseProposal(t, e, "deleting a service a route serves", ErrInvalid,
 			"service web can't go while route www serves it",
 			del(service.Kind, prod, "web"))
+		// A route that dials a port on the server serves its service all the same.
+		onPort := routeIn(prod, "onport", "port.example.com", "")
+		onPort.Spec.(*resourcev1.Route).Port, onPort.Spec.(*resourcev1.Route).HostPort = 0, 8080
+		apply(t, e, propose(t, e, "Add onport", onPort))
+		refuseProposal(t, e, "deleting a service a route to a port on the server serves", ErrInvalid,
+			"service web can't go while route",
+			del(service.Kind, prod, "web"), del(route.Kind, prod, "www"))
+		apply(t, e, propose(t, e, "Remove onport", del(route.Kind, prod, "onport")))
 		// Together, the route goes first.
 		gone := propose(t, e, "Retire web", del(service.Kind, prod, "web"), del(route.Kind, prod, "www"))
 		if got := stepKinds(gone); got[0] != "delete route" || got[1] != "delete service" {

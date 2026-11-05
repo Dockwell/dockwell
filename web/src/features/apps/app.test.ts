@@ -2,6 +2,7 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
+import { ConnectError } from "@connectrpc/connect";
 import {
   CertificateState,
   ChangeSchema,
@@ -13,6 +14,8 @@ import {
   ServiceInfoSchema,
 } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
+
+import { sentence } from "../../lib/errors";
 import { anApp, aProject, aRevision, SERVER } from "../../test/apps";
 import type { ServerSummary } from "../servers/server";
 import {
@@ -172,6 +175,16 @@ describe("what the list shows as one thing", () => {
     const stackGroup = groups.find((g) => g.stack);
     expect(stackGroup && groupState(stackGroup, [online]).kind).toBe("failed");
     expect(sortGroups(groups, [online])[0]?.stack).toBe(true);
+  });
+});
+
+describe("a server's refusal, as a sentence", () => {
+  it("leaves a domain or an address written as it is, where it leads", () => {
+    expect(tidyMessage("app.example.com. ends in a dot")).toBe("app.example.com. ends in a dot");
+    expect(tidyMessage("https://app.example.com isn't a domain")).toBe("https://app.example.com isn't a domain");
+    expect(tidyMessage("a route needs a domain")).toBe("A route needs a domain");
+    expect(sentence(new ConnectError("app.example.com. ends in a dot"))).toBe("app.example.com. ends in a dot.");
+    expect(sentence(new ConnectError("a route needs a domain"))).toBe("A route needs a domain.");
   });
 });
 

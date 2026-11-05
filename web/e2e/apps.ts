@@ -10,8 +10,8 @@
 //
 // Chromium is the system's: CHROMIUM_PATH, or /usr/bin/chromium.
 
-import { type ChildProcess, spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { type ChildProcess, execFileSync, spawn } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -48,6 +48,54 @@ async function cleanUp() {
   }
 }
 
+// Certificates come from Pebble on this machine, as in scripts/docker-e2e.sh, when it's here.
+const pebbleTools = process.env["DOCKWELL_TEST_PEBBLE"];
+const pebble: ChildProcess[] = [];
+const acme: Record<string, string> = {};
+if (pebbleTools) {
+  const dir = mkdtempSync(join(tmpdir(), "dockwell-pebble-"));
+  const cert = join(dir, "cert.pem");
+  const key = join(dir, "key.pem");
+  execFileSync("openssl", [
+    ..."req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 2 -subj /CN=localhost".split(" "),
+    ...["-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1", "-keyout", key, "-out", cert],
+  ]);
+  const config = join(dir, "pebble.json");
+  writeFileSync(
+    config,
+    JSON.stringify({
+      pebble: {
+        listenAddress: "127.0.0.1:14000",
+        managementListenAddress: "127.0.0.1:15000",
+        certificate: cert,
+        privateKey: key,
+        httpPort: 80,
+        tlsPort: 443,
+        ocspResponderURL: "",
+        externalAccountBindingRequired: false,
+      },
+    }),
+  );
+  pebble.push(
+    spawn(
+      join(pebbleTools, "pebble-challtestsrv"),
+      "-defaultIPv4 127.0.0.1 -defaultIPv6= -dnsserver 127.0.0.1:8053 -doh= -http01= -https01= -tlsalpn01= -management 127.0.0.1:8055".split(
+        " ",
+      ),
+      { stdio: "ignore" },
+    ),
+    spawn(join(pebbleTools, "pebble"), ["-config", config, "-dnsserver", "127.0.0.1:8053"], {
+      stdio: "ignore",
+      env: { ...process.env, PEBBLE_VA_NOSLEEP: "1", PEBBLE_WFE_NONCEREJECT: "0" },
+    }),
+  );
+  Object.assign(acme, {
+    DOCKWELL_ACME_DIRECTORY_URL: "https://localhost:14000/dir",
+    DOCKWELL_ACME_ROOTS: cert,
+    SSL_CERT_FILE: cert,
+  });
+}
+
 try {
   server = spawn(
     bin,
@@ -64,7 +112,7 @@ try {
     ],
     {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, USER: "mira" },
+      env: { ...process.env, USER: "mira", ...acme },
     },
   );
   let out = "";
@@ -112,6 +160,7 @@ try {
       docker,
       port: published,
       reachable: true,
+      certificates: pebbleTools !== undefined,
       // It starts and exits at once, with nothing to run.
       failing: "busybox:1.37",
       step: (what) => console.log(`e2e: ${what}`),
@@ -127,6 +176,7 @@ try {
 } finally {
   await browser?.close();
   server?.kill("SIGTERM");
+  for (const running of pebble) running.kill("SIGTERM");
   await cleanUp();
   rmSync(data, { recursive: true, force: true });
 }

@@ -737,8 +737,9 @@ export type Route = Message<"dockwell.resource.v1alpha1.Route"> & {
   path: string;
 
   /**
-   * The service to send it to, by name, in the route's environment. Empty when
-   * host_port names a port on the server instead.
+   * The service to send it to, by name, in the route's environment. With
+   * host_port it says whose route this is, as the route dials that port rather than
+   * the service's container. Empty only for a host_port that is no service's.
    *
    * @generated from field: string service = 3;
    */
@@ -784,9 +785,9 @@ export type Route = Message<"dockwell.resource.v1alpha1.Route"> & {
   trustedProxies: string[];
 
   /**
-   * A port on the server itself, such as 8080, in place of service and port, for
-   * something that isn't a Dockwell service, or a service on the server's own
-   * network, which a route can't send to by name. The proxy dials 127.0.0.1 on it,
+   * A port on the server itself, such as 8080, in place of port, for a service on
+   * the server's own network, which a route can't send to by name, or with no service
+   * at all, for something that isn't a Dockwell service. The proxy dials 127.0.0.1 on it,
    * so what's there sees every caller as local. It reaches past containers, so a
    * person approves it, and any change to where it answers. Dockwell's own ports,
    * and Docker's API on 2375 and 2376, aren't taken.

@@ -1210,7 +1210,7 @@ describe("the sheet holds still", () => {
     const body = sheet.querySelector(".plan-body");
     const lead = sheet.querySelector(".plan-lead");
     const row = sheet.querySelector(".dw-plan-res");
-    expect(body?.firstElementChild).toBe(lead);
+    expect(body?.firstElementChild?.firstElementChild).toBe(lead);
     act(() => watch.push(watched(planned)));
     await user.click(within(sheet).getByRole("button", { name: /Apply plan/ }));
     const running = moved(planned, {
@@ -1236,6 +1236,11 @@ describe("the sheet holds still", () => {
     expect(css.match(rule)).toHaveLength(2);
     expect(css).toMatch(/@media \(pointer: coarse\)/);
     expect(css).toMatch(/\.plan-view\.is-phone \.plan-details summary/);
+  });
+
+  it("keeps its title to one line, as a title that wraps moves the plan under it", () => {
+    const css = readFileSync(resolve(__dirname, "ChangeSheet.css"), "utf8");
+    expect(css).toMatch(/\.plan-view \.dw-sheet-title,\s*\.plan-title-words \{[^}]*white-space: nowrap;/);
   });
 
   it("sizes its type on the scale", () => {

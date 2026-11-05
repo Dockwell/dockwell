@@ -187,6 +187,9 @@ type Manager struct {
 	// handed says the panel's ports are with the proxy now.
 	handed bool
 	status statusBoard
+	// wakes has Watch read again now, once wakesOnce has made it.
+	wakes     chan struct{}
+	wakesOnce sync.Once
 }
 
 var _ Upstreams = (*Manager)(nil)
@@ -354,7 +357,7 @@ func (m *Manager) Observe(ctx context.Context, ref resource.Ref) (*resourcev1.Ro
 		inst, known := m.table.instanceAt(host)
 		switch {
 		case err == nil && !known && host == ServerHost && len(r.Upstreams) == 1:
-			out.HostPort = port
+			out.HostPort, out.Service = port, m.table.Owners[id]
 			continue
 		case err != nil || !known || inst.Project != docker.Project(ref.Scope):
 			out.Service, out.Port = up, 0
@@ -503,6 +506,57 @@ func (m *Manager) Judge(ctx context.Context, ref resource.Ref, spec *resourcev1.
 // behindProxy reports a panel whose ports are with the proxy, whether or not the
 // proxy is up: dockwell run left them alone if the marker was there as it started.
 func (m *Manager) behindProxy() bool { return m.handed || Active(m.Dir) }
+
+// Goes says what someone visiting a route finds once the plan takes it away, from
+// what stays on this server. Nil when the proxy doesn't have it.
+func (m *Manager) Goes(ctx context.Context, ref resource.Ref, desired []resource.Desired) *resource.RouteGoes {
+	if err := m.mu.lock(ctx); err != nil {
+		return nil
+	}
+	defer m.mu.unlock()
+	have, err := m.Proxy.Routes(ctx)
+	if err != nil {
+		return nil
+	}
+	id := RouteID(ref)
+	i := slices.IndexFunc(have, func(r Route) bool { return r.ID == id })
+	if i < 0 {
+		return nil
+	}
+	gone := have[i]
+	goes := &resource.RouteGoes{Where: gone.Domain + gone.Path, Domain: gone.Domain}
+	left, _, _ := routesAfter(have, desired)
+	sameDomain := false
+	in := map[string]bool{}
+	for _, d := range desired {
+		if d.Ref.Kind != routeKind {
+			continue
+		}
+		in[RouteID(d.Ref)] = true
+		if spec := routeSpec(d); spec != nil && spec.GetDomain() == gone.Domain {
+			sameDomain = true
+		}
+	}
+	for k := range have {
+		if !in[have[k].ID] && have[k].Domain == gone.Domain {
+			sameDomain = true
+		}
+	}
+	switch {
+	case left == 0:
+		goes.Find = resource.VisitorsRefused
+	case sameDomain:
+		goes.Find = resource.VisitorsRest
+	case gone.Plain:
+		goes.Find = resource.VisitorsNotFound
+	case needsHTTPS(have, desired):
+		goes.Find = resource.VisitorsTLSError
+	default:
+		// What stays takes no certificate, so nothing holds 443 any more.
+		goes.Find = resource.VisitorsRefused
+	}
+	return goes
+}
 
 // Returning names what the plan should warn of on this server: stopped containers
 // that Docker starts again when it next restarts, and that may take the ports
@@ -895,12 +949,23 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 		}
 		return fmt.Errorf("%s refused the route %s: %w", m.Proxy.Name(), ref.Name, err)
 	}
+	owner := ""
+	if spec.GetHostPort() != 0 {
+		owner = spec.GetService()
+	}
+	if err := m.table.load(m.Dir); err != nil {
+		return err
+	}
+	if err := m.table.own(m.Dir, r.ID, owner); err != nil {
+		return err
+	}
 	// An edit may have left the service it sent to with no route.
 	if err := m.releaseUnused(ctx); err != nil {
 		m.logger().WarnContext(ctx, "can't take a service with no route left off the ingress network, which does no harm; the agent tries again",
 			slog.String("error", err.Error()))
 	}
 	m.ensureKeeper(ctx, true)
+	m.watchNow()
 	return nil
 }
 
@@ -1025,6 +1090,12 @@ func (m *Manager) remove(ctx context.Context, ref resource.Ref) error {
 	id := RouteID(ref)
 	if err := m.Proxy.DeleteRoute(ctx, id); err != nil {
 		return fmt.Errorf("%s can't remove the route %s: %w", m.Proxy.Name(), ref.Name, err)
+	}
+	if err := m.table.load(m.Dir); err != nil {
+		return err
+	}
+	if err := m.table.own(m.Dir, id, ""); err != nil {
+		return err
 	}
 	routes, err := m.Proxy.Routes(ctx)
 	if err != nil {

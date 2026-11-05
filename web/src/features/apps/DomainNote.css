@@ -1,0 +1,30 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.domain-facts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+
+.domain-port {
+  white-space: nowrap;
+}
+
+.domain-port code {
+  font: 400 13px / 20px var(--font-mono);
+  color: var(--ink);
+}
+
+.domain-note-link {
+  border-radius: var(--radius-xs);
+  color: var(--link);
+}
+
+.domain-note-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

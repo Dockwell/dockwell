@@ -111,3 +111,17 @@ func TestAStepTakesOnlyWhereAPathLeadsFromAnAgent(t *testing.T) {
 		t.Errorf("the first lead on the wire is %s", first)
 	}
 }
+
+// What a visitor finds crosses from the agent to the control plane and the API whole.
+func TestARouteGoingSurvivesTheWayToTheAPI(t *testing.T) {
+	for _, find := range []resource.VisitorsFind{resource.VisitorsLoseIt, resource.VisitorsRefused, resource.VisitorsTLSError, resource.VisitorsNotFound, resource.VisitorsRest} {
+		s := resource.Step{Decision: resource.Decision{Goes: &resource.RouteGoes{Where: "a.example.com/api", Domain: "a.example.com", Find: find}}}
+		back, err := FromStep(Step(s, "rte_1"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if back.Goes == nil || *back.Goes != *s.Goes {
+			t.Errorf("%d came back as %+v", find, back.Goes)
+		}
+	}
+}

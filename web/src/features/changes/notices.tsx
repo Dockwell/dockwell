@@ -5,7 +5,7 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
-import { asGoodAsRoot, changing, factAndRest, onlyIfNewer } from "./plan";
+import { asGoodAsRoot, changing, factAndRest, onlyIfNewer, shownName } from "./plan";
 import { plain, useChangeWords } from "./words";
 
 /** One thing to know about a plan before applying it. */
@@ -77,12 +77,14 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
   };
   for (const server of plan.servers) {
     for (const step of server.steps) {
-      for (const access of step.hostAccess) add(step.resource?.name ?? step.resourceId, server.serverName, access);
+      const planned = plan?.resources.find((r) => r.id === step.resourceId);
+      const name = (planned && shownName(planned)) || step.resource?.name || step.resourceId;
+      for (const access of step.hostAccess) add(name, server.serverName, access);
     }
   }
   // At the plan's level too, as a plan with no steps has nowhere else.
   for (const resource of plan.resources) {
-    const name = resource.resource?.name ?? resource.id;
+    const name = shownName(resource) || resource.id;
     const server = plan.servers.find((s) => resource.servers.includes(s.serverId))?.serverName ?? t`its server`;
     for (const access of resource.hostAccess) add(name, server, access);
   }
@@ -306,7 +308,7 @@ export function useRisks(plan: Plan | undefined): Notice[] {
  * note in its own message; the panel has its own words for the reasons it knows,
  * so they translate, and leads with the fact of any it doesn't.
  */
-export function useWarnings(plan: Plan | undefined, applied = false): Notice[] {
+export function useWarnings(plan: Plan | undefined, applied = false, serving: readonly string[] = []): Notice[] {
   const { t } = useLingui();
   const words = useChangeWords();
   const { rest } = useReaches(plan);
@@ -365,7 +367,8 @@ export function useWarnings(plan: Plan | undefined, applied = false): Notice[] {
       const out: Notice[] = [];
       const returning = words.returning(step.returningContainers, server.serverName);
       if (returning) out.push({ key: `returning-${key}`, title: returning });
-      const dns = words.domain(step.domainCheck);
+      // What DNS said as this was planned stops mattering once the domain serves.
+      const dns = serving.includes(step.domainCheck?.domain ?? "") ? "" : words.domain(step.domainCheck);
       if (dns) out.push({ key: `dns-${key}`, title: dns });
       return out;
     }),
@@ -419,6 +422,7 @@ export function useAsides(plan: Plan | undefined): Notice[] {
       for (const line of words.answers(step.answers, step.serverPort, server.serverName)) {
         out.push({ key: `answers-${key}-${line}`, title: line, notice: true });
       }
+      if (step.goes) out.push({ key: `goes-${key}`, title: words.goes(step.goes), notice: true });
       if (step.restores) out.push({ key: `restores-${key}`, title: t`${name} gets back the data the server kept.` });
       if (step.hidesLogs) {
         out.push({

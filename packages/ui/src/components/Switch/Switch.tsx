@@ -42,7 +42,7 @@ export function Switch({
   const hasLabel = hasContent(label);
   const hasDescription = hasContent(description);
   return (
-    <div className={cx("dw-switch", disabled && "is-disabled", className)}>
+    <label htmlFor={switchId} className={cx("dw-switch", disabled && "is-disabled", className)}>
       <button
         ref={ref}
         id={switchId}
@@ -59,19 +59,19 @@ export function Switch({
         <span className="dw-switch-thumb" />
       </button>
       {hasLabel || hasDescription ? (
-        <div className="dw-switch-text">
+        <span className="dw-switch-text">
           {hasLabel ? (
-            <label id={labelId} className="dw-switch-label" htmlFor={switchId}>
+            <span id={labelId} className="dw-switch-label">
               {label}
-            </label>
+            </span>
           ) : null}
           {hasDescription ? (
             <span id={descriptionId} className="dw-switch-desc">
               {description}
             </span>
           ) : null}
-        </div>
+        </span>
       ) : null}
-    </div>
+    </label>
   );
 }

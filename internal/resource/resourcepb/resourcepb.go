@@ -147,7 +147,18 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 		p.ServerPort = &dockwellv1.ServerPortCheck{Port: c.Port, Listening: c.Listening, NothingListening: c.Nothing}
 	}
 	p.HidesLogs = s.HidesLogs
+	if g := s.Goes; g != nil {
+		p.Goes = &dockwellv1.RouteGoes{Where: g.Where, Domain: g.Domain, Find: visitorsFind[g.Find]}
+	}
 	return p
+}
+
+var visitorsFind = map[resource.VisitorsFind]dockwellv1.VisitorsFind{
+	resource.VisitorsLoseIt:   dockwellv1.VisitorsFind_VISITORS_FIND_UNSPECIFIED,
+	resource.VisitorsRefused:  dockwellv1.VisitorsFind_VISITORS_FIND_REFUSED,
+	resource.VisitorsTLSError: dockwellv1.VisitorsFind_VISITORS_FIND_TLS_ERROR,
+	resource.VisitorsNotFound: dockwellv1.VisitorsFind_VISITORS_FIND_NOT_FOUND,
+	resource.VisitorsRest:     dockwellv1.VisitorsFind_VISITORS_FIND_REST,
 }
 
 var ingressChanges = map[resource.IngressChange]dockwellv1.IngressChange{
@@ -289,6 +300,11 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	}
 	if c := p.GetServerPort(); c != nil {
 		s.ServerPort = &resource.ServerPortCheck{Port: c.GetPort(), Listening: c.GetListening(), Nothing: c.GetNothingListening()}
+	}
+	// What visitors find only informs: one this build doesn't know reads as not known.
+	if g := p.GetGoes(); g != nil {
+		find, _ := from(visitorsFind, g.GetFind())
+		s.Goes = &resource.RouteGoes{Where: g.GetWhere(), Domain: g.GetDomain(), Find: find}
 	}
 	return s, nil
 }

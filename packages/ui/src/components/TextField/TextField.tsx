@@ -86,7 +86,11 @@ export function TextField({
         {action}
       </div>
       {hasMessage ? (
-        <div id={messageId} className={invalid ? "dw-field-error" : "dw-field-hint"}>
+        <div
+          id={messageId}
+          className={invalid ? "dw-field-error" : "dw-field-hint"}
+          role={invalid ? "alert" : undefined}
+        >
           {invalid ? <Glyph shape={TONE.critical.shape} size={9} /> : null}
           <span>{message}</span>
         </div>

@@ -390,7 +390,23 @@ func (m *Manager) Watch(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-time.After(wait):
+		case <-m.watchWakes():
 		}
+	}
+}
+
+// watchWakes signals Watch to read again now, as someone waits on what a route that
+// has just changed says of itself, and a settled server otherwise waits a minute.
+func (m *Manager) watchWakes() chan struct{} {
+	m.wakesOnce.Do(func() { m.wakes = make(chan struct{}, 1) })
+	return m.wakes
+}
+
+// watchNow has Watch read again now, without waiting for it.
+func (m *Manager) watchNow() {
+	select {
+	case m.watchWakes() <- struct{}{}:
+	default:
 	}
 }
 

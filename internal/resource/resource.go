@@ -193,6 +193,40 @@ type Decision struct {
 	// if its server could say. It never stops a plan, and a fingerprint leaves it
 	// out: the spec says the port.
 	ServerPort *ServerPortCheck `json:",omitempty"`
+	// Goes says what someone visiting a route finds once the step takes it away, as
+	// a route stops nothing the plan counts as downtime and yet stops people reaching
+	// what it served. It never stops a plan, and a fingerprint leaves it out, as it
+	// depends on the server's other routes.
+	Goes *RouteGoes `json:",omitempty"`
+}
+
+// VisitorsFind is what someone visiting a route finds once it's gone.
+type VisitorsFind int
+
+// What visitors find.
+const (
+	// VisitorsLoseIt is all a plan can say with no word from the server.
+	VisitorsLoseIt VisitorsFind = iota
+	// VisitorsRefused is a refused connection, as nothing holds the server's port.
+	VisitorsRefused
+	// VisitorsTLSError is a browser's connection error, as the proxy still runs and
+	// has nothing for that name over HTTPS.
+	VisitorsTLSError
+	// VisitorsNotFound is a 404 from the proxy, which is what's in front gets for a
+	// route that took no certificate.
+	VisitorsNotFound
+	// VisitorsRest is what the rest of the domain serves, or a 404 if nothing covers
+	// that path.
+	VisitorsRest
+)
+
+// RouteGoes is a route a step takes away.
+type RouteGoes struct {
+	// Where is its domain and path, as people read them.
+	Where string
+	// Domain is the domain alone.
+	Domain string
+	Find   VisitorsFind
 }
 
 // RouteReach is who a route answers.

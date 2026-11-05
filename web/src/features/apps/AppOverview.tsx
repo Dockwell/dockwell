@@ -8,6 +8,7 @@ import {
   Connection,
   type Container,
   type Domain,
+  type DomainRoute,
   type Mount,
   Protocol,
   type ServiceInfo,
@@ -30,8 +31,8 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { type CSSProperties, useState } from "react";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { type CSSProperties, useEffect, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
@@ -58,7 +59,8 @@ import {
   revisionName,
   valuesOf,
 } from "./app";
-import { asksNoCertificate, lookOf, useAppDomains } from "./domains";
+import { DomainFacts, DomainNote, useSilent } from "./DomainNote";
+import { lookOf, routeWhere, useAppDomains, visitorUrl } from "./domains";
 import { ExportSheet } from "./ExportSheet";
 import { ImageName, WholeImage } from "./ImageName";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
@@ -261,9 +263,20 @@ function RunningPanel() {
   const moving = isMoving(state);
   const [addingPort, setAddingPort] = useState(false);
   const [addingDomain, setAddingDomain] = useState(false);
+  // An arrival sends you here to add one. Going back or reading the page again shouldn't open it again.
+  const navigate = useNavigate();
+  const { add }: { add?: "domain" | "port" } = useSearch({ strict: false });
+  useEffect(() => {
+    if (!add) return;
+    if (add === "domain") setAddingDomain(true);
+    if (add === "port") setAddingPort(true);
+    void navigate({ to: "/apps/$serviceId", params: { serviceId: service.id }, search: {}, replace: true });
+  }, [add, navigate, service.id]);
   // Once something reaches it, the ways to add another sit up here.
-  const { domains } = useAppDomains(service);
-  const reached = (app?.ports.length ?? 0) > 0 || domains.length > 0;
+  const { domains, failed: domainsUnread } = useAppDomains(service);
+  const [movingBehind, setMovingBehind] = useState<{ domain: string; port: string }>();
+  // What it couldn't read may well be there, so the ways to add another stay in reach.
+  const reached = (app?.ports.length ?? 0) > 0 || domains.length > 0 || domainsUnread;
   // While it deploys, what runs is the revision before it, if there is one.
   const before = moving
     ? revisions?.find((r) => r.number < service.revision && !r.deleted && r.image !== "")
@@ -339,6 +352,7 @@ function RunningPanel() {
         service={service}
         onAddPort={() => setAddingPort(true)}
         onAddDomain={() => setAddingDomain(true)}
+        onMoveBehind={setMovingBehind}
       />
       <div className="app-running-image">
         {running ? (
@@ -381,6 +395,9 @@ function RunningPanel() {
       ) : null}
       {addingPort ? <AddPortSheet service={service} onClose={() => setAddingPort(false)} /> : null}
       {addingDomain ? <AddDomainSheet service={service} onClose={() => setAddingDomain(false)} /> : null}
+      {movingBehind ? (
+        <AddDomainSheet service={service} start={movingBehind} onClose={() => setMovingBehind(undefined)} />
+      ) : null}
     </Panel>
   );
 }
@@ -394,33 +411,62 @@ function RunningPanel() {
  * A domain the app is reached at: open once it serves; until then, what the server
  * says of its certificate, which it keeps trying by itself.
  */
-function DomainRow({ domain }: { domain: Domain }) {
+function DomainRow({
+  domain,
+  route,
+  onRemove,
+  onMoveBehind,
+}: {
+  domain: Domain;
+  route: DomainRoute;
+  onRemove: () => void;
+  onMoveBehind: () => void;
+}) {
   const { t } = useLingui();
   const look = lookOf(domain);
-  const name = domain.name;
+  const silent = useSilent(look);
+  const where = routeWhere(domain, route);
+  // Its certificate can't come, and a tunnel or a proxy in front may be why.
+  const mayBeBehind = look.state !== "serving" && /set tls to off/.test(look.message);
   return (
-    <li className={cx("app-reach-row", "app-reach-domain", look.state === "failed" && "is-failed")}>
+    <li
+      className={cx(
+        "app-reach-row",
+        "app-reach-domain",
+        look.state === "failed" && "is-failed",
+        look.warning && "is-warning",
+      )}
+    >
       <Icon name="globe" size={16} />
-      <code className="app-reach-at">{name}</code>
-      <span className="app-reach-to">
-        {look.noCertificate ? (
-          <Trans>TLS ends before this server</Trans>
-        ) : look.state === "serving" ? (
-          <Trans>HTTPS</Trans>
-        ) : (
-          look.message ||
-          (asksNoCertificate(domain) ? (
-            <Trans>Waiting to hear from the server</Trans>
-          ) : (
-            <Trans>Getting its certificate</Trans>
-          ))
-        )}
-      </span>
-      {look.state === "serving" ? (
-        <a className="app-reach-open" href={domain.url} target="_blank" rel="noreferrer" aria-label={t`Open ${name}`}>
-          <Icon name="external" size={16} />
-        </a>
-      ) : null}
+      <div className="app-reach-main">
+        <code className="app-reach-at">{where}</code>
+        <DomainFacts domain={domain} route={route} look={look} silent={silent} />
+      </div>
+      <div className="app-reach-acts">
+        {look.state === "serving" ? (
+          <a
+            className="app-reach-open"
+            href={visitorUrl(domain, route)}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={t`Open ${where}`}
+          >
+            <Icon name="external" size={16} />
+          </a>
+        ) : null}
+        <Button variant="ghost" size="sm" icon="trash" aria-label={t`Remove ${where}`} onClick={onRemove} />
+      </div>
+      <p className="app-domain-note">
+        <DomainNote domain={domain} look={look} silent={silent} />
+        {mayBeBehind ? (
+          <>
+            {" "}
+            <button type="button" className="app-panel-link" onClick={onMoveBehind}>
+              <Trans>It's behind a tunnel or a proxy</Trans>
+            </button>
+          </>
+        ) : null}
+      </p>
     </li>
   );
 }
@@ -430,16 +476,37 @@ function ReachedAt({
   service,
   onAddPort,
   onAddDomain,
+  onMoveBehind,
 }: {
   app: Container | undefined;
   service: ServiceInfo;
   onAddPort: () => void;
   onAddDomain: () => void;
+  onMoveBehind: (start: { domain: string; port: string }) => void;
 }) {
   const { t } = useLingui();
   const { servers } = useFleetView();
-  const { domains, isPending } = useAppDomains(service);
+  const { domains, isPending, failed, retrying, retry } = useAppDomains(service);
+  const sheet = useChangeSheet();
+  const name = nameOf(service);
   const ports = app?.ports ?? [];
+  // Couldn't read isn't none: it may well be reached at something this can't say.
+  const unread = failed ? (
+    <div className="app-reach-unread">
+      <Callout
+        tone="warning"
+        title={t`Couldn't read this app's domains`}
+        actions={
+          <Button onClick={retry} loading={retrying}>
+            <Trans>Try again</Trans>
+          </Button>
+        }
+      >
+        <Trans>It may be reached at more than this says. Nothing has changed.</Trans>
+      </Callout>
+    </div>
+  ) : null;
+  if (ports.length === 0 && domains.length === 0 && failed) return unread;
   if (ports.length === 0 && domains.length === 0) {
     return (
       <div className="app-reach-none">
@@ -475,36 +542,54 @@ function ReachedAt({
       return { key: `${at}/${udp ? "udp" : "tcp"}`, at, local, target: port.containerPort, udp };
     }),
   );
+  const routes = domains.flatMap((domain) =>
+    domain.routes.filter((route) => route.service === name).map((route) => ({ domain, route })),
+  );
+  const remove = (where: string, route: string) =>
+    sheet.open({
+      kind: "propose",
+      summary: t`Remove ${where} from ${name}`,
+      edits: [{ resource: { kind: "route", scope: environmentOf(service), name: route }, delete: true }],
+    });
   return (
-    <ul className="app-reach">
-      {domains.map((domain) => (
-        <DomainRow key={domain.name} domain={domain} />
-      ))}
-      {rows.map((row) => {
-        const { target, at } = row;
-        return (
-          <li key={row.key} className="app-reach-row">
-            <Icon name="globe" size={16} />
-            <code className="app-reach-at">{row.at}</code>
-            <span className="app-reach-to">
-              {row.udp ? <Trans>port {target}, UDP</Trans> : <Trans>port {target}</Trans>}
-              {row.local ? <span> · {t`only on the server`}</span> : null}
-            </span>
-            {row.local || row.udp ? null : (
-              <a
-                className="app-reach-open"
-                href={`http://${row.at}`}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={t`Open ${at}`}
-              >
-                <Icon name="external" size={16} />
-              </a>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+    <>
+      {unread}
+      <ul className="app-reach">
+        {routes.map(({ domain, route }) => (
+          <DomainRow
+            key={route.id}
+            domain={domain}
+            route={route}
+            onRemove={() => remove(routeWhere(domain, route), route.name)}
+            onMoveBehind={() => onMoveBehind({ domain: domain.name, port: String(route.hostPort || route.port) })}
+          />
+        ))}
+        {rows.map((row) => {
+          const { target, at } = row;
+          return (
+            <li key={row.key} className="app-reach-row">
+              <Icon name="globe" size={16} />
+              <code className="app-reach-at">{row.at}</code>
+              <span className="app-reach-to">
+                {row.udp ? <Trans>port {target}, UDP</Trans> : <Trans>port {target}</Trans>}
+                {row.local ? <span> · {t`only on the server`}</span> : null}
+              </span>
+              {row.local || row.udp ? null : (
+                <a
+                  className="app-reach-open"
+                  href={`http://${row.at}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={t`Open ${at}`}
+                >
+                  <Icon name="external" size={16} />
+                </a>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }
 
@@ -782,12 +867,23 @@ function DeletePanel() {
   const navigate = useNavigate();
   const name = nameOf(service);
   const resource = service.resource;
+  // A route can't outlive what it serves, so its plan takes them with it, and lists them.
+  const routes = useAppDomains(service).domains.flatMap((domain) =>
+    domain.routes.filter((route) => route.service === name),
+  );
   return (
     <Panel className="app-delete">
       <p className="app-delete-text">
-        <Trans>
-          Deleting {name} stops it and removes its container. Its volumes stay, and you review a plan first.
-        </Trans>
+        {routes.length > 0 ? (
+          <Trans>
+            Deleting {name} stops it, removes its container, and takes its domains with it. Its volumes stay, and you
+            review a plan first.
+          </Trans>
+        ) : (
+          <Trans>
+            Deleting {name} stops it and removes its container. Its volumes stay, and you review a plan first.
+          </Trans>
+        )}
       </p>
       <Button
         icon="trash"
@@ -795,7 +891,13 @@ function DeletePanel() {
           sheet.open({
             kind: "propose",
             summary: t`Delete ${name}`,
-            edits: [{ resource: { kind: "service", scope: resource?.scope ?? "", name }, delete: true }],
+            edits: [
+              ...routes.map((route) => ({
+                resource: { kind: "route", scope: resource?.scope ?? "", name: route.name },
+                delete: true,
+              })),
+              { resource: { kind: "service", scope: resource?.scope ?? "", name }, delete: true },
+            ],
             onClose: (change) => {
               if (change && change.state !== ChangeState.PLANNED && change.state !== ChangeState.FAILED) {
                 void navigate({ to: "/apps" });

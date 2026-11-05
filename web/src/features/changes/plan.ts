@@ -67,6 +67,32 @@ export function kindWord(kind: string): string {
 }
 
 /** The resources a plan changes: one it leaves as it is isn't one, as the plan's summary doesn't count it. */
+/** What a plan says it sets a field of what it plans to. */
+export function changeTo(planned: PlannedResource, path: string): string | undefined {
+  return planned.changes.find((c) => c.path === path)?.to;
+}
+
+/** The domain a planned route sends, from what the plan sets, or takes away. */
+export function routeDomain(planned: PlannedResource): string | undefined {
+  const domain = planned.changes.find((c) => c.path === "domain");
+  return domain?.to || domain?.from || undefined;
+}
+
+/** A planned route's domain and path, as people read them. */
+export function routeWhereOf(planned: PlannedResource): string | undefined {
+  const domain = routeDomain(planned);
+  if (!domain) return undefined;
+  const path = planned.changes.find((c) => c.path === "path");
+  return `${domain}${path?.to || path?.from || ""}`;
+}
+
+/** What a person calls what a plan changes: a route's domain, which they typed, not the name made from it. */
+export function shownName(planned: PlannedResource | undefined): string {
+  if (!planned) return "";
+  if (planned.resource?.kind === "route") return routeWhereOf(planned) ?? planned.resource.name;
+  return planned.resource?.name ?? "";
+}
+
 export function changing(plan: Plan | undefined): PlannedResource[] {
   return (plan?.resources ?? []).filter((r) => r.action !== PlanAction.NONE);
 }
@@ -120,7 +146,7 @@ export function diffResources(
       id: resource.id,
       action: ACTIONS[resource.action as Exclude<PlanAction, PlanAction.NONE>],
       kind: diffKind(kind),
-      name: resource.resource?.name ?? resource.id,
+      name: shownName(resource) || resource.id,
       changes,
     };
     if (diffKind(kind) === "resource") out.kindLabel = kindWord(kind);

@@ -144,6 +144,41 @@ func TestAServiceReachIsntARoutes(t *testing.T) {
 	}
 }
 
+// A route that dials a port on the server can say whose it is. That's all its service
+// is to it: the host access is the port's, and what the service reaches stays apart.
+func TestARouteToAPortOnTheServerCanSayWhoseItIs(t *testing.T) {
+	d := &Driver{}
+	s := &resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Service: "onhost"}
+	if err := d.Validate(proto.Clone(s)); err != nil {
+		t.Fatalf("Validate = %v", err)
+	}
+	refs := d.References(s)
+	if len(refs) != 1 || refs[0].Name != "onhost" || refs[0].Verb != "serve" || !refs[0].Apart {
+		t.Errorf("References = %+v, want the service, apart from what it reaches", refs)
+	}
+	got := d.HostAccess(s)
+	if len(got) != 1 || got[0].Kind != resource.AccessServerPort {
+		t.Errorf("HostAccess = %+v, want the port on the server, as with no service", got)
+	}
+	if err := d.Validate(&resourcev1.Route{Domain: "a.example.com", HostPort: 8080}); err != nil {
+		t.Errorf("a port that is no service's: %v", err)
+	}
+}
+
+// A plan made with no word from the server still says the route goes, and where.
+func TestARouteGoingSaysWhereWithNoWordFromTheServer(t *testing.T) {
+	dec, err := (&Driver{}).Plan(spec("a.example.com", "/api"), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dec.Goes == nil || dec.Goes.Where != "a.example.com/api" || dec.Goes.Domain != "a.example.com" || dec.Goes.Find != resource.VisitorsLoseIt {
+		t.Errorf("Goes = %+v", dec.Goes)
+	}
+	if dec, _ := (&Driver{}).Plan(nil, spec("a.example.com", ""), nil); dec.Goes != nil {
+		t.Errorf("a route being made goes: %+v", dec.Goes)
+	}
+}
+
 func TestARoutesStepsStopNothing(t *testing.T) {
 	d := &Driver{}
 	for _, tc := range []struct {
@@ -164,6 +199,25 @@ func TestARoutesStepsStopNothing(t *testing.T) {
 	}
 }
 
+// A reserved name is refused with a certificate or without, and without one, for
+// a reason that isn't about a certificate, and with what to do instead.
+func TestAReservedNameSaysWhyWithNoCertificateToo(t *testing.T) {
+	d := &Driver{}
+	withCert := d.Validate(&resourcev1.Route{Domain: "app.internal", Service: "web", Port: 80})
+	if withCert == nil || !strings.Contains(withCert.Error(), "no public certificate authority issues for it") {
+		t.Errorf("with a certificate: %v", withCert)
+	}
+	without := d.Validate(&resourcev1.Route{Domain: "app.local", Service: "web", Port: 80, Tls: "off"})
+	if without == nil || strings.Contains(without.Error(), "certificate authority") || !strings.Contains(without.Error(), "public name whose DNS points at this server's private address") {
+		t.Errorf("with none: %v", without)
+	}
+	// What's wrong for any other reason says that, whatever tls says.
+	other := d.Validate(&resourcev1.Route{Domain: "nodot", Service: "web", Port: 80, Tls: "off"})
+	if other == nil || !strings.Contains(other.Error(), "needs a dot") {
+		t.Errorf("not a reserved name: %v", other)
+	}
+}
+
 // Each rule of the fields a route behind a tunnel uses, on its own.
 func TestValidateRefusesWhatARouteCantSayOfWhereItSends(t *testing.T) {
 	d := &Driver{Reserved: "panel.example.com"}
@@ -178,8 +232,9 @@ func TestValidateRefusesWhatARouteCantSayOfWhereItSends(t *testing.T) {
 		{"under the panel's domain, plain", &resourcev1.Route{Domain: "a.panel.example.com", Service: "web", Port: 80, Tls: "off"}, "passkeys and cookies need HTTPS"},
 		{"neither service nor port on the server", &resourcev1.Route{Domain: "a.example.com"}, "host_port"},
 		{"a port on the server past 65535", &resourcev1.Route{Domain: "a.example.com", HostPort: 70000}, "from 1 to 65535"},
-		{"a port on the server and a service", &resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Service: "web"}, "one or the other"},
-		{"a port on the server and a service's port", &resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Port: 80}, "one or the other"},
+		{"a port on the server and a service's port", &resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Port: 80}, "dial only one"},
+		{"a port on the server, and a service and its port", &resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Service: "web", Port: 80}, "dial only one"},
+		{"a port on the server, for what can't be a service", &resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Service: "No Such"}, "service"},
 		{"everyone as a proxy", &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, TrustedProxies: []string{"0.0.0.0/0"}}, "covers too much"},
 		{"what isn't a proxy", &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, TrustedProxies: []string{"{env.HOME}"}}, "isn't an address"},
 		{"Docker's API", &resourcev1.Route{Domain: "a.example.com", HostPort: 2375}, "Docker's API"},

@@ -79,6 +79,10 @@ type table struct {
 	// where giving out starts.
 	Subnet    string            `json:"subnet,omitempty"`
 	Addresses map[string]string `json:"addresses,omitempty"` // instance → address
+	// Owners says which service a route to a port on the server belongs to, by the
+	// route's ID. That port is all the proxy knows, and the service is part of what
+	// the route says, so without this it would read as drift for as long as it ran.
+	Owners map[string]string `json:"owners,omitempty"`
 }
 
 func (t *table) load(dir string) error {
@@ -242,6 +246,31 @@ func (m *Manager) give(ctx context.Context, i Instance) (string, error) {
 }
 
 // free takes an instance's address off the table.
+// own notes whose route this is, or that it's nobody's, and keeps that.
+func (t *table) own(dir, route, service string) error {
+	if t.Owners[route] == service {
+		return nil
+	}
+	was, had := t.Owners[route]
+	if service == "" {
+		delete(t.Owners, route)
+	} else {
+		if t.Owners == nil {
+			t.Owners = map[string]string{}
+		}
+		t.Owners[route] = service
+	}
+	if err := t.save(dir); err != nil {
+		if had {
+			t.Owners[route] = was
+		} else {
+			delete(t.Owners, route)
+		}
+		return err
+	}
+	return nil
+}
+
 func (t *table) free(dir string, i Instance) error {
 	if _, ok := t.Addresses[i.String()]; !ok {
 		return nil

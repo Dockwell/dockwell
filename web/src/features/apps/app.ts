@@ -334,6 +334,8 @@ export function tidyMessage(message: string): string {
   const bare = withoutIds(message);
   // A message that starts with a server's name keeps it as it is written.
   if (/^[a-z0-9-]+:\s/.test(bare)) return bare;
+  // A domain or an address leads as it's written.
+  if (/^\S*[.:/]\S*\s/.test(bare)) return bare;
   return bare.charAt(0).toUpperCase() + bare.slice(1);
 }
 

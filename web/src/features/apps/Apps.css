@@ -596,13 +596,126 @@
   white-space: nowrap;
 }
 
-.app-reach-domain .app-reach-to {
+/* A domain's name is what the row is for, so it's never squeezed out: what a server says of it goes beneath. */
+.app-reach-domain {
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  row-gap: 2px;
+  padding-block: var(--space-2);
+}
+
+/* Level with the name's first line: the row's actions set how tall that is. */
+.app-reach-domain > .dw-icon {
+  grid-row: 1;
+  align-self: center;
+}
+
+.app-reach-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+}
+
+.app-reach-main .app-reach-at {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow: visible;
   overflow-wrap: anywhere;
   white-space: normal;
 }
 
-.app-reach-domain.is-failed .app-reach-to {
+.app-reach-acts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.app-domain-note {
+  grid-column: 2 / -1;
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.app-domain-note:empty {
+  display: none;
+}
+
+.app-reach-domain.is-failed .app-domain-note {
   color: var(--critical);
+}
+
+.app-reach-domain.is-warning .app-domain-note {
+  color: var(--warning);
+}
+
+.app-reach-unread {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+/* What's in front of a server with no certificate here: who its route answers. */
+.app-front {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.app-front > legend {
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.app-front-says:empty {
+  display: none;
+}
+
+.app-front-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.app-front-choice.is-on {
+  border-color: var(--action);
+}
+
+.app-front-choice input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--action);
+}
+
+.app-front-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.app-front-name {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ink);
+}
+
+.app-front-hint {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
 }
 
 .app-reach-open {
@@ -1659,6 +1772,16 @@
     grid-column: 2;
     grid-row: 2;
     white-space: normal;
+  }
+
+  .app-reach-domain {
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+  }
+
+  .app-reach-domain > .dw-icon {
+    grid-row: 1;
+    align-self: start;
+    margin-top: 2px;
   }
 
   .app-reach-open {
