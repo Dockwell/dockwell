@@ -63,6 +63,10 @@ func realServer(t *testing.T, backend store.Backend) realDeps {
 
 func importIn(t *testing.T, c dockwellv1connect.ComposeServiceClient, req *dockwellv1.ImportComposeRequest) *dockwellv1.Change {
 	t.Helper()
+	// These change what's there on purpose, which a file with no name has to say.
+	if req.GetProject() == "" {
+		req.Project = "default"
+	}
 	res, err := c.ImportCompose(t.Context(), connect.NewRequest(req))
 	if err != nil {
 		t.Fatalf("ImportCompose: %v", err)
@@ -315,7 +319,7 @@ func testANameCantShadowAnother(t *testing.T, backend store.Backend) {
 		t.Fatalf("a second environment = %v: %s", got.GetState(), got.GetError())
 	}
 	staging := func(body string) (*dockwellv1.Change, error) {
-		res, err := scc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: body, Environment: "staging"}))
+		res, err := scc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: body, Project: "default", Environment: "staging"}))
 		if err != nil {
 			return nil, err
 		}

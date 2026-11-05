@@ -7,49 +7,134 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"strings"
 )
 
-// Exposed is a variable whose value a Compose file writes where anyone who can
-// read what it makes sees it. Only a spec's sensitive fields are blanked (ADR
-// 0021), so a value that is a secret belongs in a service's environment.
+// Exposed is a variable whose value a Compose file writes in free text, where a
+// secret can really land, and where anyone who can read what it makes sees it: in a
+// plan, in the store's record of that plan, and in an export. Only a spec's sensitive
+// fields are blanked (ADR 0021), so a value that is a secret belongs in a service's
+// environment.
 type Exposed struct {
 	Variable string
 	// Kind says what holds it: service, volume or network.
 	Kind string
 	// Owner is that service, volume or network's name.
 	Owner string
-	// Field is its field, such as command, labels or user.
+	// Field is its field, such as command, labels or healthcheck.
 	Field string
 }
 
-// What a file can write a value into that isn't told about, which
-// docs/security/compose-variables.md lists with why. Everything else is, so a
-// field added to what Dockwell reads warns until someone decides it needn't.
+// What a plan doesn't warn of. A value shows in every field a spec keeps but its
+// sensitive ones, and a plan warns only where it is free text, as in a command or a
+// label, where a secret can really land. A name, a number or a path shows as what it
+// is. Nearly every real file has container_name: ${CONTAINER_NAME} and
+// ports: ${PORT}:80, so a warning there would be on nearly every plan, people would
+// stop reading what is always there, and the one about a password in a command would
+// go unread.
+//
+// Anything not named here warns, so a field added to what Dockwell reads warns until
+// someone decides it needn't. TestEveryFieldAVariableReaches has a row for each, and
+// fails on one without. A field is a key, or a key and what's in it, as with a health
+// check's timings, beside its test, which is what it runs.
 var (
 	quietServiceFields = keys(
-		// What runs and where it is reached, which no one keeps secret.
-		"image", "ports",
-		// Takes only a fixed word or another name in the file, or the file is
-		// refused, so a secret can't land there.
-		"restart", "network_mode", "networks", "depends_on",
-		// Changes nothing on one server, so it isn't recorded.
-		"expose",
+		// Names.
+		"image", "container_name", "network_mode", "networks", "user", "cap_add", "cap_drop", "group_add",
+		// Numbers, and one of a few words.
+		"ports", "restart", "cpus", "mem_limit", "mem_reservation", "deploy", "privileged",
+		"healthcheck.interval", "healthcheck.timeout", "healthcheck.start_period", "healthcheck.retries", "healthcheck.disable",
+		// Paths.
+		"volumes", "working_dir",
+		// Changes nothing on one server, or orders the change, so neither is kept.
+		"expose", "depends_on",
+		// Container.env is sensitive, so a plan masks it and an export leaves it
+		// out. An entry's name isn't, so a list's names still warn (walk).
+		"environment",
 	)
-	quietVolumeFields  = keys("driver_opts") // blanked
-	quietNetworkFields = keys("internal")    // true or false
+	// A driver is a name. Volume.options is sensitive, as a CIFS password has to go
+	// there.
+	quietVolumeFields = keys("driver", "driver_opts")
+	// A network's driver_opts are free text, and not sensitive.
+	quietNetworkFields = keys("driver", "internal", "external", "name")
 )
 
-// maxExposed is the most a file's report lists. A real file comes nowhere near
-// it, and a plan keeps what it says for good: 256 KiB of $a$b… would otherwise
-// be 85,000 notes.
+// quietField says a plan doesn't warn of a value at path, in what quiet is about.
+// It gives path's key too, which is what a note names.
+func quietField(quiet map[string]bool, path string) (string, bool) {
+	field, in := path, ""
+	if i := strings.IndexAny(path, ".["); i >= 0 {
+		field, in = path[:i], path[i+1:]
+	}
+	if i := strings.IndexAny(in, ".["); i >= 0 {
+		in = in[:i]
+	}
+	return field, quiet[field] || quiet[field+"."+in]
+}
+
+// maxExposed is the most a file's plan lists. A real file comes nowhere near it,
+// and a plan keeps what it says for good: 256 KiB of $a$b… would otherwise be
+// 85,000 notes. The plan says when there are more.
 const maxExposed = 100
 
-// exposedIn says where raw, a file before its variables are read, writes a
-// variable's value in plain sight, whatever values there are or aren't: a form
-// says so before anyone types a secret. It costs one pass over the file's
-// strings, and stops at maxExposed, saying there was more.
+// exposure notes where the values of a file's variables land, as they are read. It
+// goes by what they are given: a default is the file's own words, and nothing is
+// written of a variable with nothing in it.
+type exposure struct {
+	seen map[Exposed]bool
+	more bool
+}
+
+// note records that name's value lands at at. naming says it lands in the name of
+// an entry, which isn't quiet whatever the entry's field is. What it records is from
+// what the file's keys have been checked to be: a field is one Dockwell takes, and a
+// variable's name is what the reader takes as one, so neither is the file's to word.
+func (x *exposure) note(at place, name string, naming bool) {
+	var e Exposed
+	var quiet map[string]bool
+	for _, section := range []struct {
+		kind  string
+		quiet map[string]bool
+	}{{"service", quietServiceFields}, {"volume", quietVolumeFields}, {"network", quietNetworkFields}} {
+		if owner, ok := strings.CutPrefix(at.owner, "the "+section.kind+" "); ok {
+			e, quiet = Exposed{Variable: name, Kind: section.kind, Owner: owner}, section.quiet
+		}
+	}
+	if e.Kind == "" {
+		return // the file's name or version, which nothing keeps
+	}
+	field, isQuiet := quietField(quiet, at.path)
+	e.Field = field
+	if isQuiet && !naming {
+		return
+	}
+	if !x.seen[e] && len(x.seen) == maxExposed {
+		x.more = true
+		return
+	}
+	if x.seen == nil {
+		x.seen = map[Exposed]bool{}
+	}
+	x.seen[e] = true
+}
+
+// report lists what note found, in a steady order, and whether there was more.
+func (x *exposure) report() ([]Exposed, bool) {
+	out := slices.Collect(maps.Keys(x.seen))
+	slices.SortFunc(out, func(a, b Exposed) int {
+		return cmp.Or(cmp.Compare(a.Kind, b.Kind), cmp.Compare(a.Owner, b.Owner), cmp.Compare(a.Field, b.Field), cmp.Compare(a.Variable, b.Variable))
+	})
+	return out, x.more
+}
+
+// exposedIn says where raw, a file before its variables are read, could write a
+// value in free text, whatever values there are or aren't, for a form to say so
+// before anyone types a secret. A plan goes by the values it was given (exposure),
+// so what a form says is what a plan would say if each had one. It asks the same
+// quiet fields, and costs one pass over the file's strings, stopping at maxExposed
+// and saying there was more.
 func exposedIn(ctx context.Context, raw map[string]any) (found []Exposed, more bool) {
-	x := exposure{ctx: ctx, seen: map[Exposed]bool{}}
+	x := rawExposure{ctx: ctx, seen: map[Exposed]bool{}}
 	for _, section := range []struct {
 		key, kind string
 		quiet     map[string]bool
@@ -62,21 +147,28 @@ func exposedIn(ctx context.Context, raw map[string]any) (found []Exposed, more b
 		for _, name := range slices.Sorted(maps.Keys(owners)) {
 			fields, _ := owners[name].(map[string]any)
 			for _, field := range slices.Sorted(maps.Keys(fields)) {
-				if section.quiet[field] {
+				at := Exposed{Kind: section.kind, Owner: name, Field: field}
+				value := fields[field]
+				// A value here is blanked, and a name isn't. A map's keys are never
+				// read for variables, so only a list can do this.
+				if section.kind == "service" && field == "environment" {
+					x.keysOf(at, value)
 					continue
 				}
-				at := Exposed{Kind: section.kind, Owner: name, Field: field}
-				switch value := fields[field]; {
-				case section.kind == "service" && field == "environment":
-					// A value here is blanked, and a name isn't. A map's keys are
-					// never read for variables, so only a list can do this.
-					x.keysOf(at, value)
-				case section.kind == "service" && field == "healthcheck":
-					// The rest of it is times and a count, or it's refused.
-					check, _ := value.(map[string]any)
-					x.value(at, check["test"])
-				default:
+				if _, quiet := quietField(section.quiet, field); quiet {
+					continue
+				}
+				// Part of a field can be quiet where the field isn't, as a health
+				// check's timings are. Only its first key can say so.
+				within, isMap := value.(map[string]any)
+				if !isMap {
 					x.value(at, value)
+					continue
+				}
+				for _, key := range slices.Sorted(maps.Keys(within)) {
+					if _, quiet := quietField(section.quiet, field+"."+key); !quiet {
+						x.value(at, within[key])
+					}
 				}
 			}
 		}
@@ -88,14 +180,15 @@ func exposedIn(ctx context.Context, raw map[string]any) (found []Exposed, more b
 	return out, x.more
 }
 
-type exposure struct {
+// rawExposure is what exposedIn has found.
+type rawExposure struct {
 	ctx  context.Context //nolint:containedctx // one call's, for one walk
 	seen map[Exposed]bool
 	more bool
 }
 
-// value notes what the strings in v write.
-func (x *exposure) value(at Exposed, v any) {
+// value notes what the strings in v could write.
+func (x *rawExposure) value(at Exposed, v any) {
 	if x.more || x.ctx.Err() != nil {
 		return
 	}
@@ -113,9 +206,9 @@ func (x *exposure) value(at Exposed, v any) {
 	}
 }
 
-// keysOf notes what a list-form environment's names write: the part of each
+// keysOf notes what a list-form environment's names could write: the part of each
 // entry before its first =, outside any ${…}.
-func (x *exposure) keysOf(at Exposed, v any) {
+func (x *rawExposure) keysOf(at Exposed, v any) {
 	list, _ := v.([]any)
 	for _, e := range list {
 		if s, ok := e.(string); ok && !x.more && x.ctx.Err() == nil {
@@ -124,10 +217,10 @@ func (x *exposure) keysOf(at Exposed, v any) {
 	}
 }
 
-// text notes the variables whose value s can come to: ${NAME:-default} is
-// NAME's or the default's, ${NAME:+other} only other's, and ${NAME:?why}'s why
-// goes in a refusal. A default's own words aren't anyone's secret.
-func (x *exposure) text(at Exposed, s string) {
+// text notes the variables whose value s can come to: ${NAME:-default} is NAME's
+// or the default's, ${NAME:+other} only other's, and ${NAME:?why}'s why goes in a
+// refusal. A default's own words aren't anyone's secret.
+func (x *rawExposure) text(at Exposed, s string) {
 	scanVariables(s, 0, func(name string, op byte) bool {
 		if op != '+' {
 			x.note(at, name)
@@ -136,7 +229,7 @@ func (x *exposure) text(at Exposed, s string) {
 	})
 }
 
-func (x *exposure) note(at Exposed, name string) {
+func (x *rawExposure) note(at Exposed, name string) {
 	at.Variable = name
 	if !x.seen[at] && len(x.seen) == maxExposed {
 		x.more = true

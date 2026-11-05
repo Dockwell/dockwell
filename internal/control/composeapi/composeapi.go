@@ -65,7 +65,7 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 	if strings.TrimSpace(m.GetCompose()) == "" {
 		return nil, invalid(errors.New("the request has no Compose file. Pass one in compose, such as --compose \"$(cat compose.yaml)\""))
 	}
-	stack, err := compose.Parse(ctx, []byte(m.GetCompose()), m.GetVariables())
+	stack, err := compose.Read(ctx, compose.Input{File: []byte(m.GetCompose()), Variables: m.GetVariables(), Env: m.GetEnv(), Directory: m.GetDirectory()})
 	if err != nil {
 		switch {
 		case errors.Is(err, compose.ErrInvalid):
@@ -150,7 +150,7 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, Notes: slices.Concat(place.updates(running, deleted), exposedNotes(env, stack.Exposed, stack.ExposedMore))})
+	}, changes.Also{Edits: place.made, Notes: slices.Concat(place.updates(running, deleted), planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()))})
 	if err != nil {
 		return nil, err
 	}
@@ -348,61 +348,6 @@ func exposedProtos(exposed []compose.Exposed) []*dockwellv1.ExposedVariable {
 	return out
 }
 
-// exposedNotes are what a plan says of them: the fact, what it means, and what
-// to do. more says the file writes more than these.
-func exposedNotes(env string, exposed []compose.Exposed, more bool) []revision.Note {
-	out := make([]revision.Note, 0, len(exposed)+1)
-	for _, e := range exposed {
-		out = append(out, revision.Note{
-			Reason:  "exposed_variable",
-			Message: exposedMessage(e),
-			Ref:     resource.Ref{Kind: resource.Kind(e.Kind), Scope: env, Name: e.Owner},
-			Names:   []string{e.Variable, e.Field},
-		})
-	}
-	if more {
-		out = append(out, revision.Note{
-			Reason:  "exposed_more",
-			Message: fmt.Sprintf("The file writes more variables in plain sight than the %d listed here. Read it for the rest before you pass one a secret", len(exposed)),
-		})
-	}
-	return out
-}
-
-// exposedMessage says where a value lands. How to hide one depends on the
-// field: $$NAME is for a shell to read, and only some fields have one.
-func exposedMessage(e compose.Exposed) string {
-	owner := e.Owner
-	if e.Kind != string(service.Kind) {
-		owner = "the " + e.Kind + " " + e.Owner
-	}
-	field := e.Field
-	switch e.Field {
-	case "healthcheck":
-		field = "health check"
-	case "working_dir":
-		field = "working directory"
-	case "volumes":
-		field = "mounts"
-	case "driver_opts":
-		field = "driver options"
-	case "environment":
-		field = "environment variable names"
-	}
-	fact := fmt.Sprintf("The value of %s lands in %s's %s, and anyone who can read it can see it there", e.Variable, owner, field)
-	switch e.Field {
-	case "command", "entrypoint":
-		// Docker runs these as they are, so $$NAME means something only if the
-		// command itself is a shell.
-		return fmt.Sprintf("%s. To keep it hidden, pass it in environment for the app to read, or run the %s through a shell, as sh -c, with $$%s in it", fact, e.Field, e.Variable)
-	case "healthcheck":
-		return fmt.Sprintf("%s. To keep it hidden, pass it in environment, and write the test as CMD-SHELL with $$%s in it", fact, e.Variable)
-	case "environment":
-		return fmt.Sprintf("%s, as only a variable's value is hidden. Don't pass a secret in %s", fact, e.Variable)
-	}
-	return fmt.Sprintf("%s, and it can't be hidden there. Don't pass a secret in %s", fact, e.Variable)
-}
-
 // CheckCompose reads a Compose file as ImportCompose would, and says what
 // it would make or why it can't, with nothing planned or recorded.
 func (h *Handler) CheckCompose(ctx context.Context, req *connect.Request[dockwellv1.CheckComposeRequest]) (*connect.Response[dockwellv1.CheckComposeResponse], error) {
@@ -414,7 +359,7 @@ func (h *Handler) CheckCompose(ctx context.Context, req *connect.Request[dockwel
 	}
 	// The guard reads a file first, so nothing here reads one made to cost too
 	// much: it says nothing of itself, and only why it was stopped.
-	seen, stack, err := compose.Check(ctx, file, m.GetVariables())
+	seen, stack, err := compose.Check(ctx, compose.Input{File: file, Variables: m.GetVariables(), Env: m.GetEnv(), Directory: m.GetDirectory()})
 	if err != nil && !errors.Is(err, compose.ErrInvalid) {
 		if errors.Is(err, compose.ErrBusy) {
 			return nil, connect.NewError(connect.CodeResourceExhausted, err)
@@ -491,6 +436,73 @@ func (h *Handler) fileName(ctx context.Context, name string) (string, error) {
 		return nil
 	})
 	return out, err
+}
+
+// planNotes are what a plan says of a file beside its steps.
+func planNotes(env string, notices []compose.Notice) []revision.Note {
+	out := make([]revision.Note, len(notices))
+	for i, n := range notices {
+		out[i] = revision.Note{
+			Reason: n.Reason, Message: n.Message, Names: n.Names,
+			Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: n.Service},
+		}
+	}
+	return out
+}
+
+// exposedNotes are what a plan says of where a file writes a value in free text, by
+// the variable and the field and never the value: the fact, what it means, and what
+// to do. more says the file writes more than these. A variable in given came from the
+// request, and any other from the .env beside the file.
+func exposedNotes(env string, exposed []compose.Exposed, more bool, given map[string]string) []revision.Note {
+	out := make([]revision.Note, 0, len(exposed)+1)
+	for _, e := range exposed {
+		out = append(out, revision.Note{
+			Reason:  "exposed_variable",
+			Message: exposedMessage(e, given),
+			Ref:     resource.Ref{Kind: resource.Kind(e.Kind), Scope: env, Name: e.Owner},
+			Names:   []string{e.Variable, e.Field},
+		})
+	}
+	if more {
+		out = append(out, revision.Note{
+			Reason:  "exposed_more",
+			Message: fmt.Sprintf("The file writes more variables in plain sight than the %d listed here. Read it for the rest before you apply this", len(exposed)),
+		})
+	}
+	return out
+}
+
+// exposedMessage says where a value lands. How to hide one depends on the field:
+// only what runs can read it from the environment, and then only through a shell.
+func exposedMessage(e compose.Exposed, given map[string]string) string {
+	from := "your .env"
+	if _, ok := given[e.Variable]; ok {
+		from = "the request's variables"
+	}
+	owner := e.Owner + "'s"
+	if e.Kind != string(service.Kind) {
+		owner = "the " + e.Kind + " " + e.Owner + "'s"
+	}
+	field := e.Field
+	switch e.Field {
+	case "healthcheck":
+		field = "health check"
+	case "driver_opts":
+		field = "driver options"
+	case "environment":
+		field = "environment variable names"
+	}
+	fact := fmt.Sprintf("%s from %s is in %s %s, so anyone who can read this change or export this environment can read it", e.Variable, from, owner, field)
+	switch e.Field {
+	case "command", "entrypoint":
+		return fmt.Sprintf("%s. To keep it hidden, set it in environment and have the %s read it there, with sh -c, if the image has a shell", fact, e.Field)
+	case "healthcheck":
+		return fact + ". To keep it hidden, set it in environment and have the health check read it there, with CMD-SHELL, if the image has a shell"
+	case "environment":
+		return fact + ", as only a variable's value is hidden. Don't write a secret in a variable's name"
+	}
+	return fact + ". It can't be hidden there, so if it is a secret, set it in environment for the app to read instead"
 }
 
 // ExportCompose writes an environment, or one service, as a Compose file.

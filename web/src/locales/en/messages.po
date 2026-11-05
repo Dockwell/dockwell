@@ -1364,10 +1364,6 @@ msgid "Download"
 msgstr "Download"
 
 #: src/features/apps/NewAppSheet.tsx
-msgid "driver"
-msgstr "driver"
-
-#: src/features/apps/NewAppSheet.tsx
 msgid "driver options"
 msgstr "driver options"
 
@@ -2010,7 +2006,6 @@ msgstr "Memory"
 msgid "More"
 msgstr "More"
 
-#: src/features/apps/NewAppSheet.tsx
 #: src/features/apps/words.ts
 msgid "mounts"
 msgstr "mounts"
@@ -3418,6 +3413,14 @@ msgstr "The file uses these, and has no default for them."
 msgid "The file uses these. Leave one with a default empty to use its default."
 msgstr "The file uses these. Leave one with a default empty to use its default."
 
+#: src/features/changes/words.ts
+msgid "the group {path}, which is the same as root"
+msgstr "the group {path}, which is the same as root"
+
+#: src/features/changes/words.ts
+msgid "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
+msgstr "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
+
 #: src/features/apps/AppOverview.tsx
 msgid "The image's own"
 msgstr "The image's own"
@@ -3430,9 +3433,25 @@ msgstr "The last deploy failed, so Dockwell rolled it back"
 msgid "The last deploy of {name} failed"
 msgstr "The last deploy of {name} failed"
 
+#: src/features/changes/words.ts
+msgid "the Linux capability {path}"
+msgstr "the Linux capability {path}"
+
+#: src/features/changes/words.ts
+msgid "the Linux capability {path}, which is the same as root"
+msgstr "the Linux capability {path}, which is the same as root"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "the network {owner}"
 msgstr "the network {owner}"
+
+#: src/features/changes/words.ts
+msgid "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+msgstr "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+
+#: src/features/changes/words.ts
+msgid "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+msgstr "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "The old value stays in this variable's history"
@@ -3891,7 +3910,6 @@ msgstr "used {ago} from <0>{lastAddress}</0>"
 msgid "Used by"
 msgstr "Used by"
 
-#: src/features/apps/NewAppSheet.tsx
 #: src/features/apps/words.ts
 msgid "user"
 msgstr "user"
@@ -4074,7 +4092,6 @@ msgstr "Why it failed"
 msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "Without a volume, what it writes is lost when its container is replaced."
 
-#: src/features/apps/NewAppSheet.tsx
 #: src/features/apps/words.ts
 msgid "working directory"
 msgstr "working directory"

@@ -663,7 +663,7 @@ func TestAPullWithARestartPolicyThatDrifted(t *testing.T) {
 			t.Errorf("the restart policy is still %s", got.HostConfig.RestartPolicy.Name)
 		}
 		c := stored(t, s.db, plan.Change)
-		if c.State != store.ChangeApplied || !strings.Contains(string(c.Progress), "so only web's restart policy changed") {
+		if c.State != store.ChangeApplied || !strings.Contains(string(c.Progress), "so only web's restart policy or limits changed") {
 			t.Errorf("the change ended %s: %s", c.State, c.Progress)
 		}
 		if latest, _ := s.record(t); latest.Revision != 1 {

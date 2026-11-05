@@ -102,8 +102,8 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 				pinned = proto.Clone(ed.Spec)
 				namer.SetImage(pinned, resource.PinnedImage(image, digest))
 				pinWords = fmt.Sprintf("%s runs %s as revision %d ran it, %s, even if the tag has moved since", latest.Name, image, number, shortDigest(digest))
-				goneWords = fmt.Sprintf("The %s that revision %d ran, %s, is neither on the server nor in its registry, so %s runs what %s is now", image, number, shortDigest(digest), latest.Name, image)
-				goneFirst = fmt.Sprintf("the %s that revision %d ran, %s, is neither on the server nor in its registry", image, number, shortDigest(digest))
+				goneWords = fmt.Sprintf("The %s that revision %d ran, %s, isn't on the server, and its registry won't give it, so %s runs what %s is now", image, number, shortDigest(digest), latest.Name, image)
+				goneFirst = fmt.Sprintf("the %s that revision %d ran, %s, isn't on the server, and its registry won't give it", image, number, shortDigest(digest))
 				imageWord = image
 			case digest == "" && image == resource.BareImage(image) && moved(deployments):
 				goneWords = fmt.Sprintf("Revision %d ran different images of %s on each server, so %s runs what %s is now", number, image, latest.Name, image)

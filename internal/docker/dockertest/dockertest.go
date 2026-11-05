@@ -85,7 +85,12 @@ type Engine struct {
 	// Registry has the images a pull can find, by reference.
 	Registry map[string]Image
 	// Find, when set, finds an image Registry doesn't have.
-	Find       func(ref string) (Image, bool)
+	Find func(ref string) (Image, bool)
+	// RegistryDown has the registry not answer, so the engine can't say what it
+	// has.
+	RegistryDown bool
+	// NCPU is how many CPUs the fake server has. Zero means 8.
+	NCPU       int
 	images     map[string]*image // pulled, by reference and by ID
 	containers map[string]*container
 	volumes    map[string]*docker.Volume
@@ -230,8 +235,6 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 			options = append(options, "name=userns")
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu()})
-	case parts[0] == "distribution":
-		e.serveDistribution(w, path)
 	case parts[0] == "containers":
 		e.serveContainers(w, r, parts[1:])
 	case parts[0] == "images":
@@ -253,22 +256,6 @@ func (e *Engine) ncpu() int {
 		return e.NCPU
 	}
 	return 8
-}
-
-// serveDistribution answers as the engine does when asked what a registry has:
-// a reference the registry has, or an error as it reports one, for each thing
-// Unreachable and the Registry say.
-func (e *Engine) serveDistribution(w http.ResponseWriter, path string) {
-	if e.RegistryDown {
-		fail(w, http.StatusInternalServerError, "Get \"https://registry-1.docker.io/v2/\": net/http: request canceled while waiting for connection")
-		return
-	}
-	ref := strings.TrimSuffix(strings.TrimPrefix(path, "/distribution/"), "/json")
-	if _, ok := e.Registry[ref]; !ok {
-		fail(w, http.StatusNotFound, "manifest unknown: manifest unknown for %s", ref)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"Descriptor": map[string]string{"digest": "sha256:" + newID()}})
 }
 
 // AddLocalImage puts an image on the fake server that no registry has, as one
@@ -412,13 +399,21 @@ func (e *Engine) Forget(digest string) {
 
 // serveDistribution says what a registry has of a reference, with nothing pulled.
 func (e *Engine) serveDistribution(w http.ResponseWriter, ref string) {
+	if e.RegistryDown {
+		fail(w, http.StatusInternalServerError, "Get \"https://registry-1.docker.io/v2/\": net/http: request canceled while waiting for connection")
+		return
+	}
 	digest := ""
 	if _, pinned, ok := strings.Cut(ref, "@"); ok {
 		if _, known := e.published[pinned]; known {
 			digest = pinned
 		}
 	}
-	if src, ok := e.Registry[ref]; ok {
+	src, ok := e.Registry[ref]
+	if !ok && e.Find != nil {
+		src, ok = e.Find(ref)
+	}
+	if ok {
 		digest = digestOf(ref, src)
 	}
 	if digest == "" {

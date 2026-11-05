@@ -156,8 +156,9 @@ type Decision struct {
 	// as the record says. Resuming needs no registry, so it compares what the
 	// server has with what runs, and goes on from there.
 	Pulled bool `json:",omitempty"`
-	// ImageGone is true when the digest its spec pins is neither on the server nor
-	// in its registry, so applying it could only fail.
+	// ImageGone is true when the digest its spec pins isn't on the server, and its
+	// registry won't give it, so applying it could only fail. A registry that doesn't
+	// answer says nothing of it.
 	ImageGone bool `json:",omitempty"`
 	// Ingress is what the step does to its server's ingress, beside the
 	// route itself: starting it takes the server's public ports. A plan's

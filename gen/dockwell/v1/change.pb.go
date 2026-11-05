@@ -2780,14 +2780,19 @@ func (x *PlanPlace) GetEnvironment() string {
 type PlanNote struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What it is about, for a surface that says it in its own words:
-	// "exposed_variable" for a Compose variable written in plain sight,
-	// "exposed_more" for a file that writes more of them than a plan lists,
+	// "exposed_variable" for a variable whose value a Compose file writes in
+	// free text, such as a command or a label, where anyone who can read the plan
+	// reads it, "exposed_more" for a file that writes more of them than a plan
+	// lists, "container_name" for a name a service now answers to as an alias,
+	// "no_build" for an image a Compose file builds and Dockwell doesn't,
+	// "cpu_reservation" for a CPU reservation Docker has no way to keep,
+	// "host_network_ports" for ports the server's own network doesn't publish,
 	// "updates_project" for a Compose file that changes a project already running
 	// services, "volumes_stay" for a rollback that leaves a service's data as it
 	// is, "values_latest" for one that keeps the latest value of what the service
 	// uses, "pulls_again" for a deploy of the tag it already names, "leaves_pin" for
-	// one of the tag a rollback pinned, which replaces it whatever the pull finds, and
-	// "digest_pinned" and "digest_gone" for a rollback that does, or can't, run
+	// one of the tag a rollback pinned, which replaces it whatever the pull finds,
+	// and "digest_pinned" and "digest_gone" for a rollback that does, or can't, run
 	// exactly the image a revision ran. Another reason may come: its message says
 	// what it means.
 	Reason string `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
@@ -2798,7 +2803,8 @@ type PlanNote struct {
 	// The names it is about: the variable, then the field that holds it, for
 	// "exposed_variable"; the project, then the services it runs, for
 	// "updates_project"; the volumes and server paths for "volumes_stay"; the
-	// variables and secrets, by the names the service sees, for "values_latest".
+	// variables and secrets, by the names the service sees, for "values_latest";
+	// the container_name, or the image, or the ports. Never a variable's value.
 	Names         []string `protobuf:"bytes,4,rep,name=names,proto3" json:"names,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3340,8 +3346,9 @@ type PlanStep struct {
 	// nothing otherwise, which its progress says. With nothing but a restart policy
 	// to change, it changes that in place otherwise.
 	Pull bool `protobuf:"varint,17,opt,name=pull,proto3" json:"pull,omitempty"`
-	// True when the digest its spec pins is neither on the server nor in its
-	// registry, so applying it could only fail.
+	// True when the digest its spec pins isn't on the server, and its registry
+	// won't give it, so applying it could only fail. A registry that doesn't answer
+	// says nothing of it, so this stays false.
 	ImageGone     bool `protobuf:"varint,18,opt,name=image_gone,json=imageGone,proto3" json:"image_gone,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

@@ -46,10 +46,9 @@ func UseGuard() { guardPath = "/proc/self/exe" }
 // guardRequest is what a child reads, all of what Parse reads, so nothing the
 // parent goes on to read gets there without the child having read it first.
 type guardRequest struct {
-	File      []byte            `json:"file"`
-	Variables map[string]string `json:"variables"`
-	CPU       uint64            `json:"cpu"`
-	Memory    uint64            `json:"memory"`
+	Input
+	CPU    uint64 `json:"cpu"`
+	Memory uint64 `json:"memory"`
 	// Inspect asks it to say what the file says of itself, on its stdout.
 	Inspect bool `json:"inspect,omitempty"`
 }
@@ -64,11 +63,11 @@ const maxInspection = 8 << 20
 // costs the same here, and there's no second form of a Stack or an error to
 // carry across. What the child says is its own reading of the file, which
 // nothing here repeats, so only the child pays for it.
-func guard(ctx context.Context, file []byte, variables map[string]string, asked bool) (Inspection, error) {
+func guard(ctx context.Context, in Input, asked bool) (Inspection, error) {
 	if guardPath == "" {
 		return Inspection{}, nil
 	}
-	body, err := json.Marshal(guardRequest{file, variables, guardCPU, guardMemory, asked})
+	body, err := json.Marshal(guardRequest{in, guardCPU, guardMemory, asked})
 	if err != nil {
 		return Inspection{}, fmt.Errorf("can't pass the Compose file to be read: %w", err)
 	}
@@ -161,11 +160,11 @@ func RunGuard(in io.Reader, out io.Writer) error {
 	}
 	ctx := context.Background()
 	if req.Inspect {
-		if err := json.NewEncoder(out).Encode(inspect(ctx, req.File, req.Variables)); err != nil {
+		if err := json.NewEncoder(out).Encode(inspect(ctx, req.Input)); err != nil {
 			return fmt.Errorf("can't say what it read: %w", err)
 		}
 	}
-	_, _ = parse(ctx, req.File, req.Variables)
+	_, _ = parse(ctx, req.Input)
 	return nil
 }
 

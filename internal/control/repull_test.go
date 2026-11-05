@@ -204,7 +204,7 @@ func TestARollbackOfAMovingTagPutsBackWhatRan(t *testing.T) {
 			t.Fatalf("rolling back with the image gone = %v", err)
 		}
 		c = gone.Msg.GetChange()
-		if note := noteOf(c, "digest_gone"); note == nil || !strings.Contains(note.GetMessage(), "is neither on the server nor in its registry, so web runs what "+latest+" is now") {
+		if note := noteOf(c, "digest_gone"); note == nil || !strings.Contains(note.GetMessage(), "isn't on the server, and its registry won't give it, so web runs what "+latest+" is now") {
 			t.Errorf("the plan's notes = %v", c.GetPlan().GetNotes())
 		}
 		if noteOf(c, "digest_pinned") != nil {
@@ -434,13 +434,13 @@ func TestAPullOnTwoServersRecordsBoth(t *testing.T) {
 func TestCheckComposeRefusesBeforeAskingForValues(t *testing.T) {
 	b := newBench(t, store.SQLite)
 	res, err := b.cc.CheckCompose(t.Context(), connect.NewRequest(&dockwellv1.CheckComposeRequest{
-		Compose: "services:\n  web:\n    image: nginx:${TAG}\n    network_mode: host\n",
+		Compose: "services:\n  web:\n    image: nginx:${TAG}\n    network_mode: none\n",
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	r := res.Msg.GetRefusal()
-	if !strings.Contains(r.GetMessage(), "network_mode host") || r.GetLine() != 4 || r.GetEndLine() != 4 {
+	if !strings.Contains(r.GetMessage(), "network_mode none") || r.GetLine() != 4 || r.GetEndLine() != 4 {
 		t.Errorf("the refusal = %v", r)
 	}
 	if got := res.Msg.GetVariables(); len(got) != 1 || got[0].GetName() != "TAG" {

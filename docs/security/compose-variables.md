@@ -19,7 +19,7 @@ What happens to a value passed to a Compose file, who can read it afterwards, an
 
 | Threat | Mitigation |
 | --- | --- |
-| A read-only token reads a password from a command, a label, a user or a mount | Only a spec's `(sensitive)` fields are blanked, and `command` isn't, on purpose: see the decision below. So this is possible, and the person importing the file is told first. A pass over the file's strings records each variable that can land in any field but those listed under "Not recorded", with a value or not, default or not. `CheckCompose` says so while the file is being typed, before the value is, and `ImportCompose` and the plan say it again. |
+| A read-only token reads a password from a command, an entrypoint, a health check or a label | Only a spec's `(sensitive)` fields are blanked, and `command` isn't, on purpose: see the decision below. So this is possible, and the person importing the file is told first. A pass over the file's strings records each variable that can land in any field but those listed under "Not recorded", with a value or not, default or not. `CheckCompose` says so while the file is being typed, before the value is, and `ImportCompose` and the plan say it again. |
 | Someone doesn't notice the warning | It says the fact, what it means, and the fix, which depends on the field: pass the value in `environment`, which is blanked, for the app to read, or read `$$NAME` in a shell, in a `CMD-SHELL` health check or a command run as `sh -c`. A label, a user or a mount has no shell, so it says not to pass a secret. The plan's note reaches the CLI too. |
 | A plan or a timeline entry repeats a value | A plan shows a command as a field that changed, so a value written there shows in that plan, as the warning says. The warning itself names the variable and never holds its value. |
 | A value in `environment` is read back | `Container.env` is sensitive: a response carries its keys alone, a plan says it changed, an export writes `KEY: null`, and a config hash leaves it out. |
@@ -27,13 +27,15 @@ What happens to a value passed to a Compose file, who can read it afterwards, an
 
 ### Not recorded
 
-These are what the warning leaves out, on purpose. `TestAQuietFieldCantHoldASecret` holds the second row to its word.
+These are what the warning leaves out, on purpose. `TestEveryFieldAVariableReaches` has a row for each field Dockwell takes, and fails on a field without one, so a field added later warns until someone decides it needn't. A plan goes by the values it was given and a form by what they could be, and both ask the same list.
 
 | Where | Why |
 | --- | --- |
-| `name:`, `image` and `ports` | These say what runs and where it is reached, and no one keeps them secret. A value there is the file's own choice. |
-| `restart`, `network_mode`, a service's `networks` and `depends_on`, a health check's times and retries, a network's `internal` | Each takes only a fixed word, a number or another name in the file. A file that puts anything else there is refused, so a secret can't land there. |
-| `expose` | It changes nothing on one server, so it isn't kept. |
+| `name:`, and a service's `image`, `container_name`, `network_mode`, `networks`, `user`, `cap_add`, `cap_drop` and `group_add` | Each is a name, and shows as what it is. Nearly every real file writes these from a variable, so a warning there would be on nearly every plan, and the one about a password in a command would go unread. |
+| `ports`, `restart`, `cpus`, `mem_limit`, `mem_reservation`, `deploy`, `privileged`, and a health check's times, retries and `disable` | Each is a number or one of a few words. |
+| `volumes` and `working_dir` | Each is a path, and shows as what it is. |
+| A volume's or a network's `driver`, and a network's `internal`, `external` and `name` | Each is a name or a word. |
+| `expose` and `depends_on` | They change nothing on one server, or order the change, so neither is kept. |
 | A value in `environment`, and a volume's `driver_opts` | They're sensitive, so they are blanked. A list entry's name isn't, so a variable in one does warn. |
 | A default's own words | The person wrote them in plain sight, in a file that is exported as it is. The variable beside them counts, as its value lands there once it has one. |
 

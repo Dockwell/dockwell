@@ -58,11 +58,26 @@ type Stack struct {
 	// Variables are the values of the environment's variables, by name, for
 	// Export to write for the services that use them. Never a secret's.
 	Variables map[string]string
-	// Exposed says where the file writes a variable's value that anyone who
-	// can read what it makes can see, for a surface to warn about.
+	// Notices are what the plan should say of the file that no step does.
+	Notices []Notice
+	// Exposed says where the file writes a variable's value that anyone who can
+	// read what it makes sees, for the plan to warn of.
 	Exposed []Exposed
 	// ExposedMore says the file writes more than Exposed lists.
 	ExposedMore bool
+}
+
+// Notice is what a plan should say of a file that no step does, such as an
+// image the file builds and Dockwell doesn't.
+type Notice struct {
+	// Reason says what it is about, for a surface with words of its own.
+	Reason string
+	// Service is the service it is about.
+	Service string
+	// Message says it, for people. It holds only what has been checked.
+	Message string
+	// Names are what it is about, such as the image.
+	Names []string
 }
 
 // ErrInvalid is a Compose file Dockwell can't take, with why.
@@ -118,17 +133,19 @@ var (
 	// why says why a key Dockwell can't run is refused, and what to do,
 	// where that is more than removing it.
 	why = map[string]string{ //nolint:gosec // reasons for refusing keys such as secrets, not credentials
-		"build":          "uses `build`, and Dockwell can't build an image yet. Build and push the image, then name it with `image`",
-		"env_file":       "reads `env_file`, a file beside the Compose file, which Dockwell doesn't have. Put the variables in `environment`",
-		"label_file":     "reads `label_file`, a file beside the Compose file, which Dockwell doesn't have. Put the labels in `labels`",
-		"container_name": "names its container, which Dockwell names as Compose does. Remove `container_name`",
-		"extends":        "uses `extends`, and Dockwell can't follow another service yet. Write the service out in full",
-		"profiles":       "is in `profiles`, which Dockwell doesn't select. Remove `profiles` to run it, or the service to leave it out",
-		"secrets":        "uses Compose `secrets`, which Dockwell can't run yet. Pass the values as environment variables",
-		"configs":        "uses Compose `configs`, which Dockwell can't run yet. Mount the files from the server instead",
-		"include":        "uses `include`, for other files Dockwell doesn't have. Put everything in one file",
-		"external":       "is `external`, made outside the file, which Dockwell can't refer to yet. Let the file make it",
-		"name":           "names itself in Docker, which Dockwell names as Compose does, `<project>_<name>`. Remove `name`",
+		"build":      "builds an image, which Dockwell can't do yet. Build and push the image, then name it with `image`",
+		"env_file":   "reads `env_file`, a file beside the Compose file, which Dockwell doesn't have. Put the variables in `environment`",
+		"label_file": "reads `label_file`, a file beside the Compose file, which Dockwell doesn't have. Put the labels in `labels`",
+		"extends":    "extends another service, which Dockwell can't follow yet. Write the service out in full",
+		"profiles":   "is in `profiles`, which Dockwell doesn't select. Remove `profiles` to run it, or the service to leave it out",
+		"secrets":    "uses Compose `secrets`, which Dockwell can't run yet. Pass the values as environment variables",
+		"configs":    "uses Compose `configs`, which Dockwell can't run yet. Mount the files from the server instead",
+		"include":    "includes other files, which Dockwell doesn't have. Put everything in one file",
+		"external":   "is `external`, made outside the file, and a service can only join a network that is, for now. Let the file make the volume, or mount its path on the server",
+		"pid":        "shares a process namespace, which Dockwell can't run yet: with the server's, it sees and signals every process there. Remove `pid`",
+		"ipc":        "shares an IPC namespace, which Dockwell can't run yet. Remove `ipc`",
+		"devices":    "uses the server's devices, which Dockwell can't run yet. Remove `devices`, or run it with docker run for now",
+		"name":       "names itself in Docker, which Dockwell names as Compose does, `<project>_<name>`. Remove `name`",
 	}
 )
 
@@ -385,7 +402,25 @@ const maxWaiting = 16
 // would: resolving variables, the default network, and references between
 // services, volumes and networks.
 func Parse(ctx context.Context, file []byte, variables map[string]string) (*Stack, error) {
-	_, stack, err := read(ctx, file, variables, false)
+	return Read(ctx, Input{File: file, Variables: variables})
+}
+
+// Input is a Compose file, and what it reads beside it.
+type Input struct {
+	File []byte
+	// Variables are values for what it uses, which win over Env, as a shell's
+	// win over an .env file.
+	Variables map[string]string
+	// Env is the text of the .env file beside it.
+	Env string
+	// Directory is where it is on the servers, which a path relative to it
+	// starts from.
+	Directory string
+}
+
+// Read reads a file as Parse does, with what it reads beside it.
+func Read(ctx context.Context, in Input) (*Stack, error) {
+	_, stack, err := read(ctx, in, false)
 	return stack, err
 }
 
@@ -393,12 +428,18 @@ func Parse(ctx context.Context, file []byte, variables map[string]string) (*Stac
 // file says of itself when asked, as anything that reads a file does so under
 // its limits; then Parse's reading here, of a file the child read to the end of
 // what this will. So what it costs here, the child has already paid for.
-func read(ctx context.Context, file []byte, variables map[string]string, asked bool) (Inspection, *Stack, error) {
-	if len(file) > MaxFile {
+func read(ctx context.Context, in Input, asked bool) (Inspection, *Stack, error) {
+	if len(in.File) > MaxFile {
 		return Inspection{}, nil, invalid("the Compose file is %d KiB, and Dockwell reads files of up to %d KiB. "+
-			"Leave out what Dockwell doesn't run, or import the services in more than one file", len(file)>>10, MaxFile>>10)
+			"Leave out what Dockwell doesn't run, or import the services in more than one file", len(in.File)>>10, MaxFile>>10)
 	}
-	if err := checkVariables(variables); err != nil {
+	if len(in.Env) > MaxEnv {
+		return Inspection{}, nil, invalid("the .env file is %d KiB, and Dockwell reads files of up to %d KiB. Leave out what the Compose file doesn't use", len(in.Env)>>10, MaxEnv>>10)
+	}
+	if err := checkVariables(in.Variables); err != nil {
+		return Inspection{}, nil, err
+	}
+	if err := checkDirectory(in.Directory); err != nil {
 		return Inspection{}, nil, err
 	}
 	if waiting.Add(1) > maxWaiting {
@@ -413,20 +454,24 @@ func read(ctx context.Context, file []byte, variables map[string]string, asked b
 		waiting.Add(-1)
 		return Inspection{}, nil, fmt.Errorf("stopped waiting to read the Compose file: %w", ctx.Err())
 	}
-	seen, err := guard(ctx, file, variables, asked)
+	seen, err := guard(ctx, in, asked)
 	if err != nil {
 		return Inspection{}, nil, err
 	}
 	if asked && guardPath == "" {
-		seen = inspect(ctx, file, variables)
+		seen = inspect(ctx, in)
 	}
-	stack, err := parse(ctx, file, variables)
+	stack, err := parse(ctx, in)
 	return seen, stack, err
 }
 
 // parse reads a file in this process.
-func parse(ctx context.Context, file []byte, variables map[string]string) (*Stack, error) {
-	raw, err := checkRaw(file)
+func parse(ctx context.Context, in Input) (*Stack, error) {
+	variables, err := readEnv(in.Env, in.Variables)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := checkRaw(in.File)
 	if err != nil {
 		return nil, err
 	}
@@ -434,7 +479,15 @@ func parse(ctx context.Context, file []byte, variables map[string]string) (*Stac
 	// matters comes back as an error.
 	quiet.Do(func() { logrus.SetOutput(io.Discard) })
 
-	dict, err := interpolate(ctx, raw, variables)
+	built, err := takeBuilds(raw)
+	if err != nil {
+		return nil, err
+	}
+	dict, exposed, err := interpolate(ctx, raw, variables)
+	if err != nil {
+		return nil, err
+	}
+	limits, unkept, err := takeResources(dict)
 	if err != nil {
 		return nil, err
 	}
@@ -457,19 +510,63 @@ func parse(ctx context.Context, file []byte, variables map[string]string) (*Stac
 	if ctx.Err() != nil {
 		return nil, stopped(ctx)
 	}
-	if err := m.resolve(variables); err != nil {
+	m.limits, m.notices = limits, unkept
+	if err := m.resolve(variables, in.Directory); err != nil {
 		return nil, err
+	}
+	for _, name := range built {
+		image := m.Services[name].Image
+		if err := container.CheckImage(image); err != nil {
+			return nil, invalid("the service %s: %v", name, err)
+		}
+		m.notices = append(m.notices, Notice{
+			Reason: "no_build", Service: name, Names: []string{image},
+			Message: fmt.Sprintf("%s has build beside image, and Dockwell builds nothing, so it runs %s as named: that image must be on the server, or a pull must be able to get it", name, image),
+		})
 	}
 	out, err := stack(&m)
 	if err != nil {
 		return nil, err
 	}
 	out.Name, _ = dict["name"].(string)
-	out.Exposed, out.ExposedMore = exposedIn(ctx, raw)
+	out.Exposed, out.ExposedMore = exposed.report()
 	if ctx.Err() != nil {
 		return nil, stopped(ctx)
 	}
+	if err := checkPlanWords(out); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+// A name a plan's notes say: what a service, a network, a container, an image, a
+// variable or a field can be called, and nothing that could read as words. Square
+// brackets are for an image's registry at an IPv6 address.
+var planName = regexp.MustCompile(`^[A-Za-z0-9_\[][A-Za-z0-9_.:/@+\[\]-]*$`)
+
+// maxPlanName is the most of one that a plan says: an image with a long tag and a
+// digest fits.
+const maxPlanName = 512
+
+// checkPlanWords refuses a file whose names a plan couldn't say as they are, since
+// a plan's notes are Dockwell's words with names in them. Each name has a check of
+// its own, which says more. This is what holds if a new note names something that
+// doesn't, so a file's values can't write what a person reads as the plan's. It
+// doesn't repeat the name, as it may come from a variable.
+func checkPlanWords(s *Stack) error {
+	var names []string
+	for _, n := range s.Notices {
+		names = append(append(names, n.Service), n.Names...)
+	}
+	for _, e := range s.Exposed {
+		names = append(names, e.Variable, e.Owner, e.Field)
+	}
+	for _, name := range names {
+		if len(name) > maxPlanName || !planName.MatchString(name) {
+			return invalid("the Compose file names something a plan can't say as it is. Use letters, digits, dots, dashes and underscores in its names")
+		}
+	}
+	return nil
 }
 
 // decode reads a canonical Compose model into compose-go's types, as its
@@ -710,9 +807,9 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 	if s.Entrypoint != nil && len(s.Entrypoint) == 0 {
 		c.NoEntrypoint = true
 	}
-	restart, ok := restarts[s.Restart]
-	if !ok {
-		return nil, invalidAt(place{what, "restart"}, "%s restarts %q, which Dockwell can't run yet. Use no, always, unless-stopped or on-failure, without a count", what, s.Restart)
+	var err error
+	if c.Restart, c.RestartRetries, err = readRestart(what, s.Restart); err != nil {
+		return nil, err
 	}
 	c.CapAdd, c.CapDrop, c.GroupAdd, c.Privileged, c.Resources = s.CapAdd, s.CapDrop, s.GroupAdd, s.Privileged, p.limits[name]
 	for _, k := range slices.Sorted(maps.Keys(s.Environment)) {
@@ -747,8 +844,8 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 		case v.Type == types.VolumeTypeVolume:
 			m.Source = &resourcev1.Mount_Volume{Volume: v.Source}
 		case v.Type == types.VolumeTypeBind && !path.IsAbs(v.Source):
-			return nil, invalidAt(at, "%s mounts %s, a path relative to the Compose file, which means nothing on a server. Use an absolute path, such as /srv/%s/data, or a named volume",
-				what, v.Source, name)
+			return nil, invalidAt(at, "%s mounts %s, a path relative to the Compose file, and Dockwell doesn't know where the file is on the server. "+
+				"Pass the directory it is in, as directory (--directory on the CLI), or use an absolute path, such as /srv/%s/data, or a named volume", what, v.Source, name)
 		case v.Type == types.VolumeTypeBind:
 			m.Source = &resourcev1.Mount_HostPath{HostPath: v.Source}
 		default:
@@ -756,10 +853,8 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 		}
 		c.Mounts = append(c.Mounts, m)
 	}
-	switch s.NetworkMode {
-	case "", "bridge":
-	default:
-		return nil, invalidAt(place{what, "network_mode"}, "%s has network_mode %s, which Dockwell can't run yet. Put it on networks instead", what, s.NetworkMode)
+	if err := joinNetworks(name, s, c, p); err != nil {
+		return nil, err
 	}
 	if hc := s.HealthCheck; hc != nil {
 		if hc.Disable {
@@ -787,17 +882,17 @@ func readRestart(what, restart string) (resourcev1.RestartPolicy, uint32, error)
 	name, count, counted := strings.Cut(restart, ":")
 	policy, known := restarts[name]
 	if !known {
-		return 0, 0, invalid("%s restarts %q, which Docker doesn't take. Use no, always, unless-stopped or on-failure", what, restart)
+		return 0, 0, invalidAt(place{what, "restart"}, "%s restarts %q, which Docker doesn't take. Use no, always, unless-stopped or on-failure", what, restart)
 	}
 	if !counted {
 		return policy, 0, nil
 	}
 	if name != "on-failure" {
-		return 0, 0, invalid("%s restarts %q, and only on-failure takes a count. Use on-failure:%s, or leave the count out", what, restart, count)
+		return 0, 0, invalidAt(place{what, "restart"}, "%s restarts %q, and only on-failure takes a count. Use on-failure:%s, or leave the count out", what, restart, count)
 	}
 	n, err := strconv.ParseUint(count, 10, 31)
 	if err != nil {
-		return 0, 0, invalid("%s restarts %q, and on-failure's count is a number of times, such as on-failure:5", what, restart)
+		return 0, 0, invalidAt(place{what, "restart"}, "%s restarts %q, and on-failure's count is a number of times, such as on-failure:5", what, restart)
 	}
 	return policy, uint32(n), nil
 }

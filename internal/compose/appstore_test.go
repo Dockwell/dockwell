@@ -4,6 +4,7 @@ package compose
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"io/fs"
 	"maps"
@@ -151,7 +152,7 @@ func (r *storeReport) read(t *testing.T, root, file string) {
 
 // readStore reads a file as a change does, through each spec's Validate.
 func readStore(text []byte, variables map[string]string, directory string) (*Stack, error) {
-	stack, err := parse(Input{File: text, Variables: variables, Directory: directory})
+	stack, err := parse(context.Background(), Input{File: text, Variables: variables, Directory: directory})
 	if err != nil {
 		return nil, err
 	}

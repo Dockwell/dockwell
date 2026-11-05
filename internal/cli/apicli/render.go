@@ -302,13 +302,21 @@ func ifNewerIn(p *dockwellv1.Plan) []string {
 }
 
 // replacesIfNewer says a step replaces what runs only if its pull finds a newer
-// image: it has nothing to change that a container can't change in place.
+// image: it has nothing to change that a container can't change in place, which is
+// its restart policy and its limits, but for lifting a limit, as the driver reads
+// a limit of zero as leaving it as it is.
 func replacesIfNewer(st *dockwellv1.PlanStep) bool {
 	if !st.GetPull() || st.GetAction() != dockwellv1.PlanAction_PLAN_ACTION_REPLACE {
 		return false
 	}
 	for _, c := range st.GetChanges() {
-		if strings.TrimPrefix(c.GetPath(), "app.") != "restart" {
+		switch strings.TrimPrefix(c.GetPath(), "app.") {
+		case "restart", "restart_retries":
+		case "resources.cpus", "resources.memory", "resources.memory_reservation":
+			if c.GetOp() == dockwellv1.FieldOp_FIELD_OP_REMOVED {
+				return false
+			}
+		default:
 			return false
 		}
 	}
@@ -633,7 +641,12 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		}
 	}
 	for _, n := range p.GetNotes() {
-		fmt.Fprintf(w, "Note: %s.\n", strings.TrimSuffix(n.GetMessage(), "."))
+		// A value anyone can read stops nobody, and is the most a note can say.
+		label := "Note"
+		if strings.HasPrefix(n.GetReason(), "exposed_") {
+			label = "Warning"
+		}
+		fmt.Fprintf(w, "%s: %s.\n", label, strings.TrimSuffix(n.GetMessage(), "."))
 	}
 }
 

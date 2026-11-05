@@ -227,20 +227,6 @@ type Note struct {
 	Names []string `json:",omitempty"`
 }
 
-// Note is something a person should know before applying a plan that no step
-// says, as it is about what stays as it is or what can be read. It never stops
-// anyone applying it.
-type Note struct {
-	// Reason says what it is about, for a surface with words of its own.
-	Reason string
-	// Message says it, for people.
-	Message string
-	// Ref is the resource it is about.
-	Ref resource.Ref
-	// Names are what it is about, as the API's PlanNote says.
-	Names []string `json:",omitempty"`
-}
-
 // Proposal is a set of edits someone wants to make.
 type Proposal struct {
 	Summary string // what it is for, in the actor's words

@@ -1364,10 +1364,6 @@ msgid "Download"
 msgstr "下载"
 
 #: src/features/apps/NewAppSheet.tsx
-msgid "driver"
-msgstr "驱动"
-
-#: src/features/apps/NewAppSheet.tsx
 msgid "driver options"
 msgstr "驱动选项"
 
@@ -2010,7 +2006,6 @@ msgstr "内存"
 msgid "More"
 msgstr "更多"
 
-#: src/features/apps/NewAppSheet.tsx
 #: src/features/apps/words.ts
 msgid "mounts"
 msgstr "挂载"
@@ -3418,6 +3413,14 @@ msgstr "文件用到了这些变量，且没有默认值。"
 msgid "The file uses these. Leave one with a default empty to use its default."
 msgstr "文件使用这些变量。有默认值的留空即使用默认值。"
 
+#: src/features/changes/words.ts
+msgid "the group {path}, which is the same as root"
+msgstr "用户组 {path}，等同于 root"
+
+#: src/features/changes/words.ts
+msgid "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
+msgstr "用户组 {path}，如果它是服务器上拥有 Docker 套接字的用户组，则等同于 root"
+
 #: src/features/apps/AppOverview.tsx
 msgid "The image's own"
 msgstr "镜像自带"
@@ -3430,9 +3433,25 @@ msgstr "上次部署失败，Dockwell 已将其回滚"
 msgid "The last deploy of {name} failed"
 msgstr "{name} 的上次部署失败"
 
+#: src/features/changes/words.ts
+msgid "the Linux capability {path}"
+msgstr "Linux 能力 {path}"
+
+#: src/features/changes/words.ts
+msgid "the Linux capability {path}, which is the same as root"
+msgstr "Linux 能力 {path}，等同于 root"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "the network {owner}"
 msgstr "网络 {owner}"
+
+#: src/features/changes/words.ts
+msgid "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称和 {detail} 响应：该网络上的其他任何内容，包括其他项目的服务，都能访问它，它也能访问它们"
+
+#: src/features/changes/words.ts
+msgid "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称响应：该网络上的其他任何内容，包括其他项目的服务，都能访问它，它也能访问它们"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "The old value stays in this variable's history"
@@ -3891,7 +3910,6 @@ msgstr "{ago}从 <0>{lastAddress}</0> 使用过"
 msgid "Used by"
 msgstr "使用者"
 
-#: src/features/apps/NewAppSheet.tsx
 #: src/features/apps/words.ts
 msgid "user"
 msgstr "用户"
@@ -4074,7 +4092,6 @@ msgstr "失败原因"
 msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "没有卷时，容器被替换后写入的内容会丢失。"
 
-#: src/features/apps/NewAppSheet.tsx
 #: src/features/apps/words.ts
 msgid "working directory"
 msgstr "工作目录"

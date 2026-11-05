@@ -6,6 +6,7 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
 import type { Change, ResourceRef } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
@@ -18,7 +19,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/compose.proto.
  */
 export const file_dockwell_v1_compose: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9jb21wb3NlLnByb3RvEgtkb2Nrd2VsbC52MSL+AQoUSW1wb3J0Q29tcG9zZVJlcXVlc3QSDwoHc3VtbWFyeRgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEg8KB2NvbXBvc2UYBCABKAkSQwoJdmFyaWFibGVzGAUgAygLMjAuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlcXVlc3QuVmFyaWFibGVzRW50cnkSDwoHc2VydmVycxgGIAMoCRIWCg5yZW1vdmVfb3JwaGFucxgHIAEoCBowCg5WYXJpYWJsZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIosBChVJbXBvcnRDb21wb3NlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlEjcKEWV4cG9zZWRfdmFyaWFibGVzGAIgAygLMhwuZG9ja3dlbGwudjEuRXhwb3NlZFZhcmlhYmxlEhQKDG1vcmVfZXhwb3NlZBgDIAEoCCKcAQoTQ2hlY2tDb21wb3NlUmVxdWVzdBIPCgdjb21wb3NlGAEgASgJEkIKCXZhcmlhYmxlcxgCIAMoCzIvLmRvY2t3ZWxsLnYxLkNoZWNrQ29tcG9zZVJlcXVlc3QuVmFyaWFibGVzRW50cnkaMAoOVmFyaWFibGVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKhAgoUQ2hlY2tDb21wb3NlUmVzcG9uc2USLAoHcmVmdXNhbBgBIAEoCzIbLmRvY2t3ZWxsLnYxLkNvbXBvc2VSZWZ1c2FsEi8KCXZhcmlhYmxlcxgCIAMoCzIcLmRvY2t3ZWxsLnYxLkNvbXBvc2VWYXJpYWJsZRIqCghzZXJ2aWNlcxgDIAMoCzIYLmRvY2t3ZWxsLnYxLlNlcnZpY2VJbmZvEg8KB3ZvbHVtZXMYBCADKAkSEAoIbmV0d29ya3MYBSADKAkSDAoEbmFtZRgGIAEoCRI3ChFleHBvc2VkX3ZhcmlhYmxlcxgHIAMoCzIcLmRvY2t3ZWxsLnYxLkV4cG9zZWRWYXJpYWJsZRIUCgxtb3JlX2V4cG9zZWQYCCABKAgiWgoPRXhwb3NlZFZhcmlhYmxlEgwKBG5hbWUYASABKAkSKgoIcmVzb3VyY2UYAiABKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhINCgVmaWVsZBgDIAEoCSJBCg5Db21wb3NlUmVmdXNhbBIPCgdtZXNzYWdlGAEgASgJEgwKBGxpbmUYAiABKAUSEAoIZW5kX2xpbmUYAyABKAUiMQoPQ29tcG9zZVZhcmlhYmxlEgwKBG5hbWUYASABKAkSEAoIcmVxdWlyZWQYAiABKAgiTQoURXhwb3J0Q29tcG9zZVJlcXVlc3QSDwoHcHJvamVjdBgBIAEoCRITCgtlbnZpcm9ubWVudBgCIAEoCRIPCgdzZXJ2aWNlGAMgASgJIjkKFUV4cG9ydENvbXBvc2VSZXNwb25zZRIPCgdjb21wb3NlGAEgASgJEg8KB29taXR0ZWQYAiADKAky9gIKDkNvbXBvc2VTZXJ2aWNlEnkKDUltcG9ydENvbXBvc2USIS5kb2Nrd2VsbC52MS5JbXBvcnRDb21wb3NlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkltcG9ydENvbXBvc2VSZXNwb25zZSIhoLsYAoLT5JMCFzoBKiISL3YxL2NvbXBvc2U6aW1wb3J0EnUKDENoZWNrQ29tcG9zZRIgLmRvY2t3ZWxsLnYxLkNoZWNrQ29tcG9zZVJlcXVlc3QaIS5kb2Nrd2VsbC52MS5DaGVja0NvbXBvc2VSZXNwb25zZSIgoLsYAoLT5JMCFjoBKiIRL3YxL2NvbXBvc2U6Y2hlY2sScgoNRXhwb3J0Q29tcG9zZRIhLmRvY2t3ZWxsLnYxLkV4cG9ydENvbXBvc2VSZXF1ZXN0GiIuZG9ja3dlbGwudjEuRXhwb3J0Q29tcG9zZVJlc3BvbnNlIhqQAgGguxgBgtPkkwINEgsvdjEvY29tcG9zZUKlAQoPY29tLmRvY2t3ZWxsLnYxQgxDb21wb3NlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_options, file_dockwell_v1_service, file_google_api_annotations]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9jb21wb3NlLnByb3RvEgtkb2Nrd2VsbC52MSKkAgoUSW1wb3J0Q29tcG9zZVJlcXVlc3QSDwoHc3VtbWFyeRgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEg8KB2NvbXBvc2UYBCABKAkSQwoJdmFyaWFibGVzGAUgAygLMjAuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlcXVlc3QuVmFyaWFibGVzRW50cnkSDwoHc2VydmVycxgGIAMoCRIWCg5yZW1vdmVfb3JwaGFucxgHIAEoCBIRCgNlbnYYCCABKAlCBMjzGAESEQoJZGlyZWN0b3J5GAkgASgJGjAKDlZhcmlhYmxlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiiwEKFUltcG9ydENvbXBvc2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USNwoRZXhwb3NlZF92YXJpYWJsZXMYAiADKAsyHC5kb2Nrd2VsbC52MS5FeHBvc2VkVmFyaWFibGUSFAoMbW9yZV9leHBvc2VkGAMgASgIIsIBChNDaGVja0NvbXBvc2VSZXF1ZXN0Eg8KB2NvbXBvc2UYASABKAkSQgoJdmFyaWFibGVzGAIgAygLMi8uZG9ja3dlbGwudjEuQ2hlY2tDb21wb3NlUmVxdWVzdC5WYXJpYWJsZXNFbnRyeRIRCgNlbnYYAyABKAlCBMjzGAESEQoJZGlyZWN0b3J5GAQgASgJGjAKDlZhcmlhYmxlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEioQIKFENoZWNrQ29tcG9zZVJlc3BvbnNlEiwKB3JlZnVzYWwYASABKAsyGy5kb2Nrd2VsbC52MS5Db21wb3NlUmVmdXNhbBIvCgl2YXJpYWJsZXMYAiADKAsyHC5kb2Nrd2VsbC52MS5Db21wb3NlVmFyaWFibGUSKgoIc2VydmljZXMYAyADKAsyGC5kb2Nrd2VsbC52MS5TZXJ2aWNlSW5mbxIPCgd2b2x1bWVzGAQgAygJEhAKCG5ldHdvcmtzGAUgAygJEgwKBG5hbWUYBiABKAkSNwoRZXhwb3NlZF92YXJpYWJsZXMYByADKAsyHC5kb2Nrd2VsbC52MS5FeHBvc2VkVmFyaWFibGUSFAoMbW9yZV9leHBvc2VkGAggASgIIloKD0V4cG9zZWRWYXJpYWJsZRIMCgRuYW1lGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSDQoFZmllbGQYAyABKAkiQQoOQ29tcG9zZVJlZnVzYWwSDwoHbWVzc2FnZRgBIAEoCRIMCgRsaW5lGAIgASgFEhAKCGVuZF9saW5lGAMgASgFIjEKD0NvbXBvc2VWYXJpYWJsZRIMCgRuYW1lGAEgASgJEhAKCHJlcXVpcmVkGAIgASgIIk0KFEV4cG9ydENvbXBvc2VSZXF1ZXN0Eg8KB3Byb2plY3QYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkSDwoHc2VydmljZRgDIAEoCSI5ChVFeHBvcnRDb21wb3NlUmVzcG9uc2USDwoHY29tcG9zZRgBIAEoCRIPCgdvbWl0dGVkGAIgAygJMvYCCg5Db21wb3NlU2VydmljZRJ5Cg1JbXBvcnRDb21wb3NlEiEuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5JbXBvcnRDb21wb3NlUmVzcG9uc2UiIaC7GAKC0+STAhc6ASoiEi92MS9jb21wb3NlOmltcG9ydBJ1CgxDaGVja0NvbXBvc2USIC5kb2Nrd2VsbC52MS5DaGVja0NvbXBvc2VSZXF1ZXN0GiEuZG9ja3dlbGwudjEuQ2hlY2tDb21wb3NlUmVzcG9uc2UiIKC7GAKC0+STAhY6ASoiES92MS9jb21wb3NlOmNoZWNrEnIKDUV4cG9ydENvbXBvc2USIS5kb2Nrd2VsbC52MS5FeHBvcnRDb21wb3NlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkV4cG9ydENvbXBvc2VSZXNwb25zZSIakAIBoLsYAYLT5JMCDRILL3YxL2NvbXBvc2VCpQEKD2NvbS5kb2Nrd2VsbC52MUIMQ29tcG9zZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_dockwell_v1_service, file_google_api_annotations]);
 
 /**
  * ImportComposeRequest is a Compose file to plan into a project.
@@ -174,6 +175,21 @@ export type CheckComposeRequest = Message<"dockwell.v1.CheckComposeRequest"> & {
    * @generated from field: map<string, string> variables = 2;
    */
   variables: { [key: string]: string };
+
+  /**
+   * The .env file beside the Compose file, as ImportCompose takes it. A variable
+   * it gives needs no other value.
+   *
+   * @generated from field: string env = 3;
+   */
+  env: string;
+
+  /**
+   * The directory the file is in on the servers, as ImportCompose takes it.
+   *
+   * @generated from field: string directory = 4;
+   */
+  directory: string;
 };
 
 /**
@@ -264,11 +280,11 @@ export const CheckComposeResponseSchema: GenMessage<CheckComposeResponse> = /*@_
   messageDesc(file_dockwell_v1_compose, 3);
 
 /**
- * ExposedVariable is a variable whose value a Compose file writes where anyone
- * who can read what it makes sees it. Only what the schema marks sensitive is
- * blanked, such as a service's environment values: a command, a label or a user
- * isn't, as seeing them is useful and they rarely hold a secret. It counts every
- * field but those docs/security/compose-variables.md lists as not recorded.
+ * ExposedVariable is a variable whose value a Compose file writes in free text,
+ * where anyone who can read what it makes sees it. Only what the schema marks
+ * sensitive is blanked, such as a service's environment values: a command or a
+ * label isn't, as seeing them is useful and they rarely hold a secret. A name, a
+ * number or a path doesn't count, as docs/security/compose-variables.md lists.
  *
  * @generated from message dockwell.v1.ExposedVariable
  */
@@ -289,9 +305,9 @@ export type ExposedVariable = Message<"dockwell.v1.ExposedVariable"> & {
   resource?: ResourceRef | undefined;
 
   /**
-   * The field that holds it, as the file names it, such as "command", "labels",
-   * "user", "healthcheck" or "driver_opts". "environment" is a list entry's
-   * name, as a value there is blanked and a name isn't.
+   * The field that holds it, as the file names it, such as "command",
+   * "entrypoint", "labels", "healthcheck" or "driver_opts". "environment" is a
+   * list entry's name, as a value there is blanked and a name isn't.
    *
    * @generated from field: string field = 3;
    */

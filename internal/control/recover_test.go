@@ -300,6 +300,13 @@ func TestARemovedContainerWithNoImageSaysNothingRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	b.e.Forget(digestA)
+	// A registry that says it won't give it is refused as it plans.
+	_, err := b.s.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: web.GetId(), Image: latest}))
+	if err == nil || !strings.Contains(err.Error(), "won't give it to a pull") {
+		t.Errorf("planning an image no one has = %v", err)
+	}
+	// One that doesn't answer says nothing, so it fails as it applies.
+	b.e.RegistryDown = true
 	got := applied(t, b.c, b.deploy(t, web.GetId(), latest))
 	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED {
 		t.Fatalf("the deploy ended %v", got.GetState())
@@ -432,4 +439,72 @@ func TestAStepSaysWhatItDid(t *testing.T) {
 			t.Errorf("%v, did %v", got.GetState(), didOf(got))
 		}
 	})
+}
+
+// A registry that doesn't answer says nothing of an image, so a rollback stays on
+// the digest, and doesn't claim it's gone. One that says it won't give it does.
+func TestARollbackOnlySaysADigestIsGoneIfItsRegistrySaysSo(t *testing.T) {
+	setUp := func(t *testing.T) (*bench, *dockwellv1.ServiceInfo) {
+		t.Helper()
+		b := newBench(t, store.SQLite)
+		_, web := runLatest(t, b)
+		moveLatest(b.e, digestB)
+		b.done(t, b.deploy(t, web.GetId(), latest))
+		return b, web
+	}
+	rollback := func(t *testing.T, b *bench, id string) *dockwellv1.Change {
+		t.Helper()
+		back, err := b.s.RollBackService(t.Context(), connect.NewRequest(&dockwellv1.RollBackServiceRequest{Id: id, Revision: 1}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return back.Msg.GetChange()
+	}
+
+	t.Run("a registry that doesn't answer", func(t *testing.T) {
+		b, web := setUp(t)
+		b.e.Forget(digestA)
+		b.e.RegistryDown = true
+		c := rollback(t, b, web.GetId())
+		if noteOf(c, "digest_gone") != nil || noteOf(c, "digest_pinned") == nil {
+			t.Errorf("the plan's notes are %v", c.GetPlan().GetNotes())
+		}
+	})
+
+	t.Run("a registry that won't give it", func(t *testing.T) {
+		b, web := setUp(t)
+		b.e.Forget(digestA)
+		// All that's left is the tag, which it runs, so that's refused, saying why.
+		_, err := b.s.RollBackService(t.Context(), connect.NewRequest(&dockwellv1.RollBackServiceRequest{Id: web.GetId(), Revision: 1}))
+		if err == nil || !strings.Contains(err.Error(), "isn't on the server, and its registry won't give it") {
+			t.Errorf("rolling back = %v", err)
+		}
+	})
+}
+
+// A form can pass what a file reads beside it, as an import does, so what it says
+// is what importing it would.
+func TestCheckComposeReadsWhatIsBesideTheFile(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	const file = "services:\n  web:\n    image: nginx:1\n    volumes: [\"./data:/data\"]\n    command: x ${FROM_ENV}\n"
+	res, err := b.cc.CheckCompose(t.Context(), connect.NewRequest(&dockwellv1.CheckComposeRequest{Compose: file, Env: "FROM_ENV=a\n", Directory: "/srv/app"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Msg.GetRefusal() != nil {
+		t.Errorf("with its .env and its directory, it's refused: %v", res.Msg.GetRefusal())
+	}
+	if got := res.Msg.GetVariables(); len(got) != 1 || got[0].GetRequired() {
+		t.Errorf("the variables = %v", got)
+	}
+	if got := res.Msg.GetServices()[0].GetSpec().String(); !strings.Contains(got, "/srv/app/data") {
+		t.Errorf("the mount doesn't start at the directory: %s", got)
+	}
+	bare, err := b.cc.CheckCompose(t.Context(), connect.NewRequest(&dockwellv1.CheckComposeRequest{Compose: file}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bare.Msg.GetRefusal() == nil {
+		t.Error("with neither, it's taken")
+	}
 }

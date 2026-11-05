@@ -109,8 +109,8 @@ type Variable struct {
 // that reading is the child's, so its limits cover it: a file made to cost too
 // much is stopped there, and says nothing of itself. Its error is what Parse's
 // is.
-func Check(ctx context.Context, file []byte, given map[string]string) (Inspection, *Stack, error) {
-	seen, stack, err := read(ctx, file, given, true)
+func Check(ctx context.Context, in Input) (Inspection, *Stack, error) {
+	seen, stack, err := read(ctx, in, true)
 	if err != nil && !errors.Is(err, ErrInvalid) || errors.Is(err, ErrCostly) {
 		return Inspection{}, nil, err
 	}
@@ -149,15 +149,28 @@ type Refused struct {
 // than this says nothing: one that isn't YAML, or comes to too much once its
 // aliases are read, which reading each alias again here would pay for. A caller
 // takes a turn at reading first, and with a guard this is the child's to do.
-func inspect(ctx context.Context, file []byte, given map[string]string) Inspection {
+func inspect(ctx context.Context, in Input) Inspection {
 	var raw map[string]any
-	if yaml.Unmarshal(file, &raw) != nil {
+	if yaml.Unmarshal(in.File, &raw) != nil {
 		return Inspection{}
+	}
+	// What an .env gives needs nothing more. One Parse would refuse says so itself,
+	// and until then gives nothing here.
+	env, err := readEnv(in.Env, nil)
+	if err != nil {
+		env = nil
+	}
+	given, err := readEnv(in.Env, in.Variables)
+	if err != nil {
+		given = in.Variables
 	}
 	dropExtensions(raw)
 	if measure(raw) != nil {
 		return Inspection{}
 	}
+	// As Parse does, so what nothing reads needs no value and writes nothing. One
+	// that has nothing else to run is refused there.
+	_, _ = takeBuilds(raw)
 	seen := map[string]bool{}
 	var walk func(v any)
 	walk = func(v any) {
@@ -167,7 +180,8 @@ func inspect(ctx context.Context, file []byte, given map[string]string) Inspecti
 				return
 			}
 			scanVariables(v, 0, func(name string, op byte) bool {
-				seen[name] = seen[name] || op == 0 || op == '?'
+				_, inEnv := env[name]
+				seen[name] = seen[name] || !inEnv && (op == 0 || op == '?')
 				return true
 			})
 		case map[string]any:
@@ -187,7 +201,7 @@ func inspect(ctx context.Context, file []byte, given map[string]string) Inspecti
 	}
 	slices.SortFunc(out.Variables, func(a, b Variable) int { return cmp.Compare(a.Name, b.Name) })
 	out.Exposed, out.ExposedMore = exposedIn(ctx, raw)
-	out.Refused = refusedPastVariables(ctx, file, raw, given, out.Variables)
+	out.Refused = refusedPastVariables(ctx, in, raw, given, out.Variables)
 	return out
 }
 
@@ -195,7 +209,7 @@ func inspect(ctx context.Context, file []byte, given map[string]string) Inspecti
 // for what a file would be refused for whatever they hold. Parse stops at the
 // first it can't fill in, which is before most of what it refuses. A refusal of a
 // field a variable is in may be about that stand-in, so it says nothing of those.
-func refusedPastVariables(ctx context.Context, file []byte, raw map[string]any, given map[string]string, used []Variable) *Refused {
+func refusedPastVariables(ctx context.Context, in Input, raw map[string]any, given map[string]string, used []Variable) *Refused {
 	filled := maps.Clone(given)
 	if filled == nil {
 		filled = map[string]string{}
@@ -209,12 +223,12 @@ func refusedPastVariables(ctx context.Context, file []byte, raw map[string]any, 
 	if !lacking {
 		return nil
 	}
-	_, err := parse(ctx, file, filled)
+	_, err := parse(ctx, Input{File: in.File, Variables: filled, Directory: in.Directory})
 	var at *refusal
 	if !errors.As(err, &at) || at.from > 0 || holdsVariable(raw, at.at) {
 		return nil
 	}
-	from, to := linesOf(file, err)
+	from, to := linesOf(in.File, err)
 	return &Refused{Message: Message(err), From: from, To: to}
 }
 

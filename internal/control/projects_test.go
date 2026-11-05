@@ -257,8 +257,10 @@ func TestAComposeFileSaysWhereItExposesAVariable(t *testing.T) {
       test: ["CMD", "check", "$PROBE_TOKEN"]
 `
 		vars := map[string]string{"REDIS_PASSWORD": secret, "LABEL_SECRET": "l", "PROBE_TOKEN": "p"}
-		// OWNER counts though it has a default: a value lands there once it's given.
+		// A form goes by what could come, so OWNER counts though it has a default: a
+		// value lands there once it's given. A plan goes by the values it has.
 		want := []string{"LABEL_SECRET/shop/labels", "OWNER/shop/labels", "PROBE_TOKEN/shop/healthcheck", "REDIS_PASSWORD/shop/command"}
+		given := []string{"LABEL_SECRET/shop/labels", "PROBE_TOKEN/shop/healthcheck", "REDIS_PASSWORD/shop/command"}
 		names := func(list []*dockwellv1.ExposedVariable) []string {
 			out := make([]string, len(list))
 			for i, e := range list {
@@ -291,11 +293,11 @@ func TestAComposeFileSaysWhereItExposesAVariable(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := names(res.Msg.GetExposedVariables()); !slices.Equal(got, want) {
-			t.Errorf("the import says %v, want %v", got, want)
+		if got := names(res.Msg.GetExposedVariables()); !slices.Equal(got, given) {
+			t.Errorf("the import says %v, want %v", got, given)
 		}
 		notes := res.Msg.GetChange().GetPlan().GetNotes()
-		if len(notes) != len(want) {
+		if len(notes) != len(given) {
 			t.Fatalf("the plan's notes are %v", notes)
 		}
 		var note *dockwellv1.PlanNote
@@ -305,9 +307,8 @@ func TestAComposeFileSaysWhereItExposesAVariable(t *testing.T) {
 			}
 		}
 		if note == nil || note.GetReason() != "exposed_variable" ||
-			!strings.Contains(note.GetMessage(), "anyone who can read it can see it") ||
-			!strings.Contains(note.GetMessage(), "pass it in environment for the app to read") ||
-			!strings.Contains(note.GetMessage(), "through a shell, as sh -c, with $$REDIS_PASSWORD") ||
+			!strings.Contains(note.GetMessage(), "anyone who can read this change or export this environment can read it") ||
+			!strings.Contains(note.GetMessage(), "set it in environment and have the command read it there, with sh -c") ||
 			note.GetResource().GetName() != "shop" {
 			t.Errorf("the note says %v", note)
 		}
@@ -316,7 +317,7 @@ func TestAComposeFileSaysWhereItExposesAVariable(t *testing.T) {
 		}
 		// GetChange reads the same notes back.
 		got, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: res.Msg.GetChange().GetId()}))
-		if err != nil || len(got.Msg.GetChange().GetPlan().GetNotes()) != len(want) {
+		if err != nil || len(got.Msg.GetChange().GetPlan().GetNotes()) != len(given) {
 			t.Errorf("GetChange's notes = %v, %v", got.Msg.GetChange().GetPlan().GetNotes(), err)
 		}
 

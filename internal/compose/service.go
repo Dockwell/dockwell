@@ -29,7 +29,7 @@ func takeBuilds(raw map[string]any) ([]string, error) {
 			continue
 		}
 		if _, ok := svc["image"]; !ok {
-			return nil, invalid("the service %s %s", name, why["build"])
+			return nil, invalidAt(place{"the service " + name, "build"}, "the service %s %s", name, why["build"])
 		}
 		delete(svc, "build")
 		built = append(built, name)
@@ -126,18 +126,18 @@ func either(what, shortName string, short any, longName string, long any, read f
 func (m *model) readNetworkMode(what string, s *types.ServiceConfig) error {
 	mode := s.NetworkMode
 	if mode != "" && len(s.Networks) > 0 {
-		return invalid("%s has both network_mode and networks, which Compose doesn't take together. Keep one of them", what)
+		return invalidAt(place{what, "network_mode"}, "%s has both network_mode and networks, which Compose doesn't take together. Keep one of them", what)
 	}
 	kind, _, shared := strings.Cut(mode, ":")
 	switch {
 	case mode == "", mode == "bridge", mode == "host":
 		return nil
 	case mode == "none":
-		return invalid("%s has network_mode none, no network at all, which Dockwell can't run yet. Remove it, or put the service on a network", what)
+		return invalidAt(place{what, "network_mode"}, "%s has network_mode none, no network at all, which Dockwell can't run yet. Remove it, or put the service on a network", what)
 	case shared && (kind == "service" || kind == "container"):
-		return invalid("%s has network_mode %s, sharing another container's network, which Dockwell can't run yet. Put both on one network, where each reaches the other by its name", what, mode)
+		return invalidAt(place{what, "network_mode"}, "%s has network_mode %s, sharing another container's network, which Dockwell can't run yet. Put both on one network, where each reaches the other by its name", what, mode)
 	case shared:
-		return invalid("%s has network_mode %s, which Dockwell can't run yet. Use host, bridge or a network's name", what, mode)
+		return invalidAt(place{what, "network_mode"}, "%s has network_mode %s, which Dockwell can't run yet. Use host, bridge or a network's name", what, mode)
 	}
 	if _, listed := m.Networks[mode]; !listed {
 		if m.Networks == nil {

@@ -510,11 +510,18 @@ func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) 
 	return dec, nil
 }
 
-// inPlace says Docker can make changes without recreating the container, as it
-// can only for a change that is nothing but the restart policy.
+// inPlace reports a change that is nothing but what Docker changes on a running
+// container: the restart policy, and its limits. It reads a limit of zero as
+// leaving it as it is, so lifting one takes a new container.
 func inPlace(changes []resource.Change) bool {
 	for _, c := range changes {
-		if c.Path != "restart" {
+		switch c.Path {
+		case "restart", "restart_retries":
+		case "resources.cpus", "resources.memory", "resources.memory_reservation":
+			if c.Op == resource.OpRemoved {
+				return false
+			}
+		default:
 			return false
 		}
 	}
@@ -633,9 +640,9 @@ func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desi
 			case inPlace(step.Changes):
 				resource.Report(ctx, resource.Outcome{
 					Did:  resource.Did(resource.ActionUpdate),
-					Note: fmt.Sprintf("%s is already the newest image, so only %s's restart policy changed", spec.GetImage(), t.Service),
+					Note: fmt.Sprintf("%s is already the newest image, so only %s's restart policy or limits changed", spec.GetImage(), t.Service),
 				})
-				return d.Runtime.SetRestart(ctx, t, spec.GetRestart())
+				return d.Runtime.Update(ctx, t, spec)
 			}
 		}
 		return d.Runtime.Run(ctx, t, spec, step.Restores)

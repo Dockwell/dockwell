@@ -1200,10 +1200,6 @@ function ExposedNote({ group }: { group: ExposedGroup }) {
     entrypoint: t`entrypoint`,
     labels: t`labels`,
     healthcheck: t`health check`,
-    user: t`user`,
-    working_dir: t`working directory`,
-    volumes: t`mounts`,
-    driver: t`driver`,
     driver_opts: t`driver options`,
     environment: t`environment variable names`,
   };

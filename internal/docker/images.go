@@ -48,18 +48,6 @@ func repository(ref string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(name, "docker.io/"), "library/")
 }
 
-// RegistryHas reports whether a reference's registry can give it, without pulling
-// anything. An engine that can't ask, or a registry that won't say, counts as no.
-func (c *Client) RegistryHas(ctx context.Context, ref string) bool {
-	var out struct {
-		Descriptor struct {
-			Digest string `json:"digest"`
-		} `json:"Descriptor"`
-	}
-	err := c.do(ctx, http.MethodGet, "/distribution/"+escRef(ref)+"/json", nil, nil, &out)
-	return err == nil && out.Descriptor.Digest != ""
-}
-
 // InspectImage returns an image by reference or ID; a missing one is an
 // error that IsNotFound reports.
 func (c *Client) InspectImage(ctx context.Context, ref string) (*Image, error) {

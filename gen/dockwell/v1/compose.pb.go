@@ -236,7 +236,12 @@ type CheckComposeRequest struct {
 	// The Compose file, as YAML, as ImportCompose takes it.
 	Compose string `protobuf:"bytes,1,opt,name=compose,proto3" json:"compose,omitempty"`
 	// Values for the variables the file uses, as ImportCompose takes them.
-	Variables     map[string]string `protobuf:"bytes,2,rep,name=variables,proto3" json:"variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Variables map[string]string `protobuf:"bytes,2,rep,name=variables,proto3" json:"variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// The .env file beside the Compose file, as ImportCompose takes it. A variable
+	// it gives needs no other value.
+	Env string `protobuf:"bytes,3,opt,name=env,proto3" json:"env,omitempty"`
+	// The directory the file is in on the servers, as ImportCompose takes it.
+	Directory     string `protobuf:"bytes,4,opt,name=directory,proto3" json:"directory,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -283,6 +288,20 @@ func (x *CheckComposeRequest) GetVariables() map[string]string {
 		return x.Variables
 	}
 	return nil
+}
+
+func (x *CheckComposeRequest) GetEnv() string {
+	if x != nil {
+		return x.Env
+	}
+	return ""
+}
+
+func (x *CheckComposeRequest) GetDirectory() string {
+	if x != nil {
+		return x.Directory
+	}
+	return ""
 }
 
 // CheckComposeResponse says what a Compose file would make, or why it can't.
@@ -404,11 +423,11 @@ func (x *CheckComposeResponse) GetMoreExposed() bool {
 	return false
 }
 
-// ExposedVariable is a variable whose value a Compose file writes where anyone
-// who can read what it makes sees it. Only what the schema marks sensitive is
-// blanked, such as a service's environment values: a command, a label or a user
-// isn't, as seeing them is useful and they rarely hold a secret. It counts every
-// field but those docs/security/compose-variables.md lists as not recorded.
+// ExposedVariable is a variable whose value a Compose file writes in free text,
+// where anyone who can read what it makes sees it. Only what the schema marks
+// sensitive is blanked, such as a service's environment values: a command or a
+// label isn't, as seeing them is useful and they rarely hold a secret. A name, a
+// number or a path doesn't count, as docs/security/compose-variables.md lists.
 type ExposedVariable struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The variable, such as "REDIS_PASSWORD".
@@ -416,9 +435,9 @@ type ExposedVariable struct {
 	// The service, volume or network whose spec holds its value, by kind and
 	// name.
 	Resource *ResourceRef `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
-	// The field that holds it, as the file names it, such as "command", "labels",
-	// "user", "healthcheck" or "driver_opts". "environment" is a list entry's
-	// name, as a value there is blanked and a name isn't.
+	// The field that holds it, as the file names it, such as "command",
+	// "entrypoint", "labels", "healthcheck" or "driver_opts". "environment" is a
+	// list entry's name, as a value there is blanked and a name isn't.
 	Field         string `protobuf:"bytes,3,opt,name=field,proto3" json:"field,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -728,7 +747,7 @@ var File_dockwell_v1_compose_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x19dockwell/v1/service.proto\x1a\x1cgoogle/api/annotations.proto\"\xd5\x02\n" +
+	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x19dockwell/v1/service.proto\x1a\x1cgoogle/api/annotations.proto\"\x8b\x03\n" +
 	"\x14ImportComposeRequest\x12\x18\n" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
@@ -745,10 +764,12 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\x15ImportComposeResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\x12I\n" +
 	"\x11exposed_variables\x18\x02 \x03(\v2\x1c.dockwell.v1.ExposedVariableR\x10exposedVariables\x12!\n" +
-	"\fmore_exposed\x18\x03 \x01(\bR\vmoreExposed\"\xbc\x01\n" +
+	"\fmore_exposed\x18\x03 \x01(\bR\vmoreExposed\"\xf2\x01\n" +
 	"\x13CheckComposeRequest\x12\x18\n" +
 	"\acompose\x18\x01 \x01(\tR\acompose\x12M\n" +
-	"\tvariables\x18\x02 \x03(\v2/.dockwell.v1.CheckComposeRequest.VariablesEntryR\tvariables\x1a<\n" +
+	"\tvariables\x18\x02 \x03(\v2/.dockwell.v1.CheckComposeRequest.VariablesEntryR\tvariables\x12\x16\n" +
+	"\x03env\x18\x03 \x01(\tB\x04\xc8\xf3\x18\x01R\x03env\x12\x1c\n" +
+	"\tdirectory\x18\x04 \x01(\tR\tdirectory\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf7\x02\n" +

@@ -357,8 +357,8 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   await page.goto(`${origin}/apps/new?source=compose`);
   const compose = page.getByRole("dialog", { name: "New app" });
   const field = compose.getByLabel("Compose file");
-  await field.fill(`services:\n  front:\n    image: ${FIRST}\n    build: .\n  back:\n    image: ${SECOND}\n`);
-  await compose.locator(".dw-field-error", { hasText: "Line 4: the service front uses build" }).waitFor();
+  await field.fill(`services:\n  front:\n    image: ${FIRST}\n    sysctls: [a=b]\n  back:\n    image: ${SECOND}\n`);
+  await compose.locator(".dw-field-error", { hasText: "Line 4: the service front uses sysctls" }).waitFor();
   await shoot(page, "apps-compose-refused");
   await field.fill(`services:\n  front:\n    image: ${FIRST}\n  back:\n    image: ${SECOND}\n`);
   await compose.getByRole("region", { name: "What this file makes" }).getByText("This makes 2 apps").waitFor();

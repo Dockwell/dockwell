@@ -354,6 +354,21 @@ func TestPlanViewSaysWhereItLands(t *testing.T) {
 	}
 }
 
+// Every kind of access the API can name has words in the CLI, or a person would
+// approve what it can't say.
+func TestEveryAccessKindHasWords(t *testing.T) {
+	values := dockwellv1.HostAccessKind(0).Descriptor().Values()
+	for i := range values.Len() {
+		kind := dockwellv1.HostAccessKind(values.Get(i).Number())
+		if kind == dockwellv1.HostAccessKind_HOST_ACCESS_KIND_UNSPECIFIED {
+			continue
+		}
+		if got := accessWords([]*dockwellv1.HostAccess{{Kind: kind, Path: "x"}})[0]; strings.HasPrefix(got, "access(") {
+			t.Errorf("%s has no words in the CLI: %s", kind, got)
+		}
+	}
+}
+
 // A pull with nothing else to do doesn't say it replaces for certain.
 func TestPlanViewSaysAPullReplacesOnlyIfNewer(t *testing.T) {
 	step := func(changes ...*dockwellv1.FieldChange) *dockwellv1.Plan {
@@ -407,6 +422,17 @@ func TestAPlanSaysWhatAPullOnlyMayDo(t *testing.T) {
 			want:   []string{"1 to replace if newer", "Update, and replace if newer", "Undo for 7 days if this replaces anything."},
 		},
 		{
+			name:   "a pull with a limit to put right",
+			change: planOf(1, &dockwellv1.PlanStep{Resource: web, Action: replace, Pull: true, Changes: []*dockwellv1.FieldChange{{Path: "app.resources.memory", Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, From: "1", To: "2"}}}),
+			want:   []string{"1 to replace if newer", "Update, and replace if newer"},
+		},
+		{
+			name:    "a pull with a limit to lift, which takes a new container",
+			change:  planOf(1, &dockwellv1.PlanStep{Resource: web, Action: replace, Pull: true, Changes: []*dockwellv1.FieldChange{{Path: "app.resources.memory", Op: dockwellv1.FieldOp_FIELD_OP_REMOVED, From: "1"}}}),
+			want:    []string{"1 to replace ·"},
+			wantNot: []string{"if newer"},
+		},
+		{
 			name:    "a pull with its image to change as well",
 			change:  planOf(1, &dockwellv1.PlanStep{Resource: web, Action: replace, Pull: true, Changes: []*dockwellv1.FieldChange{{Path: "app.image", From: "a@sha256:1", To: "a"}}}),
 			want:    []string{"1 to replace ·", "Undo for 7 days once applied."},
@@ -440,5 +466,34 @@ func TestAPlanSaysWhatAPullOnlyMayDo(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A value anyone can read is the most a note can say, short of stopping anyone, so
+// it stands out from one that isn't.
+func TestPlanViewWarnsOfAValueInPlainSight(t *testing.T) {
+	var buf bytes.Buffer
+	PlanView(&buf, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{
+		{Reason: "exposed_variable", Message: "REDIS_PASSWORD from your .env is in redis's command"},
+		{Reason: "exposed_more", Message: "The file writes more variables in plain sight"},
+		{Reason: "no_build", Message: "web has build beside image"},
+	}})
+	for _, want := range []string{
+		"Warning: REDIS_PASSWORD from your .env is in redis's command.\n",
+		"Warning: The file writes more variables in plain sight.\n",
+		"Note: web has build beside image.\n",
+	} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("PlanView doesn't say %q:\n%s", want, buf.String())
+		}
+	}
+}
+
+// What a plan says beside its steps, the CLI says too.
+func TestPlanViewSaysNotes(t *testing.T) {
+	var buf bytes.Buffer
+	PlanView(&buf, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{{Reason: "no_build", Message: "web has build beside image, and Dockwell builds nothing."}}})
+	if !strings.Contains(buf.String(), "Note: web has build beside image, and Dockwell builds nothing.\n") {
+		t.Errorf("PlanView =\n%s", buf.String())
 	}
 }

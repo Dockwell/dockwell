@@ -118,6 +118,11 @@ message CheckComposeRequest {
   string compose = 1;
   // Values for the variables the file uses, as ImportCompose takes them.
   map<string, string> variables = 2;
+  // The .env file beside the Compose file, as ImportCompose takes it. A variable
+  // it gives needs no other value.
+  string env = 3 [(dockwell.resource.v1alpha1.sensitive) = true];
+  // The directory the file is in on the servers, as ImportCompose takes it.
+  string directory = 4;
 }
 
 // CheckComposeResponse says what a Compose file would make, or why it can't.
@@ -150,20 +155,20 @@ message CheckComposeResponse {
   bool more_exposed = 8;
 }
 
-// ExposedVariable is a variable whose value a Compose file writes where anyone
-// who can read what it makes sees it. Only what the schema marks sensitive is
-// blanked, such as a service's environment values: a command, a label or a user
-// isn't, as seeing them is useful and they rarely hold a secret. It counts every
-// field but those docs/security/compose-variables.md lists as not recorded.
+// ExposedVariable is a variable whose value a Compose file writes in free text,
+// where anyone who can read what it makes sees it. Only what the schema marks
+// sensitive is blanked, such as a service's environment values: a command or a
+// label isn't, as seeing them is useful and they rarely hold a secret. A name, a
+// number or a path doesn't count, as docs/security/compose-variables.md lists.
 message ExposedVariable {
   // The variable, such as "REDIS_PASSWORD".
   string name = 1;
   // The service, volume or network whose spec holds its value, by kind and
   // name.
   ResourceRef resource = 2;
-  // The field that holds it, as the file names it, such as "command", "labels",
-  // "user", "healthcheck" or "driver_opts". "environment" is a list entry's
-  // name, as a value there is blanked and a name isn't.
+  // The field that holds it, as the file names it, such as "command",
+  // "entrypoint", "labels", "healthcheck" or "driver_opts". "environment" is a
+  // list entry's name, as a value there is blanked and a name isn't.
   string field = 3;
 }
 

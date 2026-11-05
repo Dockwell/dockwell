@@ -89,11 +89,11 @@ func TestAGuardStopsAFileThatCostsTooMuch(t *testing.T) {
 			c.limit()
 			// A file that costs little passes under the same limit, so the
 			// limit isn't just stopping the child from starting.
-			if _, err := guard(t.Context(), []byte("services:\n  web:\n    image: nginx:1.27\n"), nil, false); err != nil {
+			if _, err := guard(t.Context(), Input{File: []byte("services:\n  web:\n    image: nginx:1.27\n")}, false); err != nil {
 				t.Fatalf("a small file under this limit: %v", err)
 			}
 			start := time.Now()
-			_, err := guard(t.Context(), file, vars, false)
+			_, err := guard(t.Context(), Input{File: file, Variables: vars}, false)
 			if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "more time or memory") {
 				t.Errorf("guard = %.300v, want it refused for what it costs", err)
 			}
@@ -123,7 +123,7 @@ func TestAGuardTakesTheLargestRealFiles(t *testing.T) {
 			func(i int) string { return "  s" + strconv.Itoa(i) + ": {image: 'nginx:1'}\n" }),
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := guard(t.Context(), []byte(file), nil, false); err != nil {
+			if _, err := guard(t.Context(), Input{File: []byte(file)}, false); err != nil {
 				t.Errorf("a file of %d KiB: %.300v", len(file)>>10, err)
 			}
 		})
@@ -171,12 +171,12 @@ func TestALongNameCantMultiplyItself(t *testing.T) {
 	file := func(name int) []byte {
 		return []byte("services:\n  " + strings.Repeat("a", name) + ":\n    image: nginx:1\n    ports: [" + bad + "]\n")
 	}
-	_, err := parse(t.Context(), file(64<<10), nil)
+	_, err := parse(t.Context(), Input{File: file(64 << 10)})
 	if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "a name of 65536 bytes") {
 		t.Errorf("a long name = %.300v, want it refused for its length", err)
 	}
 	// At the limit, what the file's mistakes come to doesn't reach the caller.
-	_, err = parse(t.Context(), file(MaxName), nil)
+	_, err = parse(t.Context(), Input{File: file(MaxName)})
 	if !errors.Is(err, ErrInvalid) {
 		t.Fatalf("Parse = %.300v, want it refused", err)
 	}
@@ -208,7 +208,7 @@ func TestAChildSaysWhyItFailed(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			guarded(t)
 			guardPath = script(strings.ReplaceAll(name, " ", "-"), c.body)
-			_, err := guard(t.Context(), []byte("services: {}\n"), nil, false)
+			_, err := guard(t.Context(), Input{File: []byte("services: {}\n")}, false)
 			if err == nil || !strings.Contains(err.Error(), c.want) {
 				t.Fatalf("guard = %v, want it to say %q", err, c.want)
 			}
@@ -268,7 +268,7 @@ func TestCheckStopsAtTheGuard(t *testing.T) {
 	file, vars := costly()
 	named := append([]byte("name: shop\n"), file...)
 
-	seen, stack, err := Check(t.Context(), named, vars)
+	seen, stack, err := Check(t.Context(), Input{File: named, Variables: vars})
 	if !errors.Is(err, ErrCostly) || !errors.Is(err, ErrInvalid) {
 		t.Fatalf("Check = %v, want it stopped", err)
 	}
@@ -280,7 +280,7 @@ func TestCheckStopsAtTheGuard(t *testing.T) {
 	}
 
 	// One it can read says what it says of itself, refused or not.
-	seen, _, err = Check(t.Context(), []byte("name: shop\nservices:\n  web:\n    image: a:${TAG}\n"), nil)
+	seen, _, err = Check(t.Context(), Input{File: []byte("name: shop\nservices:\n  web:\n    image: a:${TAG}\n")})
 	if !errors.Is(err, ErrInvalid) || errors.Is(err, ErrCostly) || seen.Name != "shop" || len(seen.Variables) != 1 {
 		t.Errorf("a file that needs a variable = %+v, %v", seen, err)
 	}
@@ -319,7 +319,7 @@ func TestCheckIsReadInTheChild(t *testing.T) {
 	file := []byte("name: from-the-file\nservices:\n  web:\n    image: nginx:1\n    command: x ${FROM_THE_FILE:-a}\n")
 
 	guardPath = script("says", `echo '{"name":"from-the-child","variables":[{"Name":"FROM_THE_CHILD","Required":true}]}'`)
-	seen, stack, err := Check(t.Context(), file, nil)
+	seen, stack, err := Check(t.Context(), Input{File: file})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,12 +335,12 @@ func TestCheckIsReadInTheChild(t *testing.T) {
 
 	// One that says more than a file could, to fill the parent's memory.
 	guardPath = script("floods", fmt.Sprintf("head -c %d /dev/zero", maxInspection+1))
-	if _, _, err := Check(t.Context(), file, nil); !errors.Is(err, ErrCostly) {
+	if _, _, err := Check(t.Context(), Input{File: file}); !errors.Is(err, ErrCostly) {
 		t.Errorf("a child that says too much = %v, want it stopped", err)
 	}
 
 	guardPath = script("garbles", "echo not-json")
-	_, _, err = Check(t.Context(), file, nil)
+	_, _, err = Check(t.Context(), Input{File: file})
 	if err == nil || errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "about the server") {
 		t.Errorf("a child that makes no sense = %v, want it said to be the server's fault", err)
 	}
@@ -357,7 +357,7 @@ func TestCheckIsReadInTheChild(t *testing.T) {
 func TestCheckOfACostlyFileIsQuick(t *testing.T) {
 	guarded(t)
 	start := time.Now()
-	seen, stack, err := Check(t.Context(), costlyToInspect(), nil)
+	seen, stack, err := Check(t.Context(), Input{File: costlyToInspect()})
 	if took := time.Since(start); took > 10*time.Second {
 		t.Errorf("Check took %v, which holds one of two turns at reading from everyone else", took)
 	}
@@ -379,17 +379,17 @@ func TestLeavingStopsACheck(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	file := []byte("name: shop\nservices:\n  web:\n    image: nginx:1\n    command: x ${A:-b}\n")
-	if _, _, err := Check(ctx, file, nil); !errors.Is(err, context.Canceled) {
+	if _, _, err := Check(ctx, Input{File: file}); !errors.Is(err, context.Canceled) {
 		t.Errorf("Check = %v, want it stopped", err)
 	}
-	if seen := inspect(ctx, file, nil); len(seen.Variables) != 0 || len(seen.Exposed) != 0 {
+	if seen := inspect(ctx, Input{File: file}); len(seen.Variables) != 0 || len(seen.Exposed) != 0 {
 		t.Errorf("inspect read on for no one: %+v", seen)
 	}
 	// Each walk stops by itself too, as a walk is what takes the time.
-	if _, err := interpolate(ctx, map[string]any{"a": "$A"}, map[string]string{"A": "b"}); !errors.Is(err, context.Canceled) {
+	if _, _, err := interpolate(ctx, map[string]any{"a": "$A"}, map[string]string{"A": "b"}); !errors.Is(err, context.Canceled) {
 		t.Errorf("interpolate = %v, want it stopped", err)
 	}
-	if _, err := parse(ctx, file, nil); !errors.Is(err, context.Canceled) {
+	if _, err := parse(ctx, Input{File: file}); !errors.Is(err, context.Canceled) {
 		t.Errorf("parse = %v, want it stopped", err)
 	}
 	in := &interpolator{ctx: ctx, missing: map[string]bool{}}
@@ -398,5 +398,57 @@ func TestLeavingStopsACheck(t *testing.T) {
 	}
 	if got, _ := exposedIn(ctx, map[string]any{"services": map[string]any{"web": map[string]any{"command": "$A"}}}); len(got) != 0 {
 		t.Errorf("exposedIn read on for no one: %+v", got)
+	}
+}
+
+// The child reads all a file reads: a value that costs too much is stopped there
+// from an .env as from the request, and a relative path doesn't end the read before
+// what comes after it, once it knows where the file is.
+func TestTheChildReadsAllThatIsGiven(t *testing.T) {
+	guarded(t)
+	guardCPU = 1
+	long := strings.Repeat("x", 60000)
+	costly := []byte("services:\n  slow:\n    image: nginx:1\n    command: ${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}\n")
+	_, err := guard(t.Context(), Input{File: costly, Env: "A=" + long + "\n"}, false)
+	if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "more time or memory") {
+		t.Errorf("a costly value in an .env = %.300v, want it stopped", err)
+	}
+	behind := []byte("services:\n  slow:\n    image: nginx:1\n    volumes: [\"./data:/data\"]\n    command: ${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}\n")
+	_, err = guard(t.Context(), Input{File: behind, Variables: map[string]string{"A": long}, Directory: "/srv/app"}, false)
+	if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "more time or memory") {
+		t.Errorf("a costly value behind a relative path = %.300v, want it stopped", err)
+	}
+}
+
+// The new keys take no more than the rest of a file does: each costs in proportion
+// to what it takes of the budget a file has.
+func TestTheNewKeysCostWhatTheFileDoes(t *testing.T) {
+	guarded(t)
+	build := func(head string, each func(i int) string, tail string) []byte {
+		var b strings.Builder
+		b.WriteString(head)
+		for i := 0; b.Len() < MaxFile-len(tail)-64; i++ {
+			b.WriteString(each(i))
+		}
+		b.WriteString(tail)
+		return []byte(b.String())
+	}
+	for name, file := range map[string][]byte{
+		"capabilities": build("services:\n  web:\n    image: nginx:1\n    cap_add:\n", func(int) string { return "      - NET_ADMIN\n" }, ""),
+		"groups":       build("services:\n  web:\n    image: nginx:1\n    group_add:\n", func(i int) string { return "      - \"" + strconv.Itoa(i) + "\"\n" }, ""),
+		"aliases":      build("services:\n  web:\n    image: nginx:1\n    networks:\n      back:\n        aliases:\n", func(i int) string { return "          - a" + strconv.Itoa(i) + "\n" }, "networks: {back: {}}\n"),
+		"networks":     build("services:\n  web:\n    image: nginx:1\n    networks:\n", func(i int) string { return "      n" + strconv.Itoa(i) + ": {aliases: [a]}\n" }, ""),
+		"externals":    build("services:\n  web:\n    image: nginx:1\nnetworks:\n", func(i int) string { return "  n" + strconv.Itoa(i) + ": {external: true}\n" }, ""),
+		"builds":       build("services:\n", func(i int) string { return "  s" + strconv.Itoa(i) + ": {image: 'nginx:1', build: .}\n" }, ""),
+		"limits":       build("services:\n", func(i int) string { return "  s" + strconv.Itoa(i) + ": {image: 'nginx:1', cpus: 1, mem_limit: 64M}\n" }, ""),
+		"names": build("services:\n", func(i int) string {
+			return "  s" + strconv.Itoa(i) + ": {image: 'nginx:1', container_name: c" + strconv.Itoa(i) + "}\n"
+		}, ""),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := guard(t.Context(), Input{File: file}, false); err != nil {
+				t.Errorf("a file of %d KiB: %.300v", len(file)>>10, err)
+			}
+		})
 	}
 }

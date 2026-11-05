@@ -33,10 +33,10 @@ services:
 		{Name: "TAG"},
 		{Name: "TWICE", Required: true},
 	}
-	if got := inspect(t.Context(), []byte(file), nil).Variables; !slices.Equal(got, want) {
+	if got := inspect(t.Context(), Input{File: []byte(file)}).Variables; !slices.Equal(got, want) {
 		t.Errorf("Variables = %+v, want %+v", got, want)
 	}
-	if got := inspect(t.Context(), []byte("not: [yaml"), nil).Variables; got != nil {
+	if got := inspect(t.Context(), Input{File: []byte("not: [yaml")}).Variables; got != nil {
 		t.Errorf("Variables of what isn't YAML = %+v", got)
 	}
 }
@@ -47,7 +47,7 @@ func TestLineFindsWhatIsRefused(t *testing.T) {
 		name, file string
 		line       int
 	}{
-		{"a field a service can't take", "services:\n  web:\n    image: nginx\n    build: .\n", 4},
+		{"a field a service can't take", "services:\n  web:\n    image: nginx\n    sysctls: [a=b]\n", 4},
 		{"a top-level field", "services:\n  web:\n    image: nginx\nsecrets:\n  a: {}\n", 4},
 		{"a field of a health check", "services:\n  web:\n    image: nginx\n    healthcheck:\n      test: [CMD, x]\n      start_interval: 1s\n", 6},
 		{"a volume's own field", "services:\n  web:\n    image: nginx\nvolumes:\n  data:\n    external: true\n", 6},
@@ -55,8 +55,8 @@ func TestLineFindsWhatIsRefused(t *testing.T) {
 		{"a service without an image", "services:\n  web:\n    command: x\n  api:\n    command: y\n", 4},
 		{"what isn't YAML", "services:\n  web:\n  - [\n", 3},
 		{"a relative mount", "services:\n  web:\n    image: nginx\n    volumes:\n      - /srv/a:/a\n      - ./data:/data\n", 6},
-		{"network_mode", "services:\n  web:\n    image: nginx\n    network_mode: host\n", 4},
-		{"a restart it can't run", "services:\n  web:\n    image: nginx\n    user: a\n    restart: on-failure:3\n", 5},
+		{"network_mode", "services:\n  web:\n    image: nginx\n    network_mode: none\n", 4},
+		{"a restart it can't run", "services:\n  web:\n    image: nginx\n    user: a\n    restart: always:3\n", 5},
 		{"a port it can't run", "services:\n  web:\n    image: nginx\n    ports:\n      - \"8080:80\"\n      - \"80\"\n", 6},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -85,7 +85,7 @@ func TestVariablesStopsAtTheDepthParseDoes(t *testing.T) {
 		b.WriteString("}")
 	}
 	b.WriteString("\"\n")
-	got := inspect(t.Context(), []byte(b.String()), nil).Variables
+	got := inspect(t.Context(), Input{File: []byte(b.String())}).Variables
 	if len(got) != 1 || got[0].Name != "A" || got[0].Required {
 		t.Errorf("Variables = %+v", got)
 	}
@@ -102,7 +102,7 @@ func TestVariablesLeavesAFileThatComesToTooMuch(t *testing.T) {
 	if b.Len() > MaxFile {
 		t.Fatalf("the file is %d bytes, over the cap", b.Len())
 	}
-	if got := inspect(t.Context(), []byte(b.String()), nil).Variables; got != nil {
+	if got := inspect(t.Context(), Input{File: []byte(b.String())}).Variables; got != nil {
 		t.Errorf("Variables = %+v, want none", got)
 	}
 }
@@ -158,14 +158,14 @@ func TestAFileIsRefusedBeforeItsVariablesHaveValues(t *testing.T) {
 		line int
 	}{
 		"a relative mount":   {head + "    volumes: [\"./data:/data\"]\n", "a path relative to the Compose file", 4},
-		"network_mode":       {head + "    network_mode: host\n", "has network_mode host", 4},
+		"network_mode":       {head + "    network_mode: none\n", "has network_mode none", 4},
 		"nothing wrong":      {head, "", 0},
 		"its own variable":   {head + "    network_mode: ${MODE}\n", "", 0},
 		"a variable's mount": {head + "    volumes: [\"${DATA}:/data\"]\n", "", 0},
 		"a restart":          {head + "    restart: ${R}\n", "", 0},
 	} {
 		t.Run(name, func(t *testing.T) {
-			got := inspect(t.Context(), []byte(c.file), nil).Refused
+			got := inspect(t.Context(), Input{File: []byte(c.file)}).Refused
 			if c.says == "" {
 				if got != nil {
 					t.Errorf("Refused = %+v, want nothing", got)
@@ -178,7 +178,7 @@ func TestAFileIsRefusedBeforeItsVariablesHaveValues(t *testing.T) {
 		})
 	}
 	// Once there's nothing missing, Parse says it itself.
-	if got := inspect(t.Context(), []byte(head+"    network_mode: host\n"), map[string]string{"TAG": "1"}).Refused; got != nil {
+	if got := inspect(t.Context(), Input{File: []byte(head + "    network_mode: none\n"), Variables: map[string]string{"TAG": "1"}}).Refused; got != nil {
 		t.Errorf("with every value given, Refused = %+v", got)
 	}
 }
