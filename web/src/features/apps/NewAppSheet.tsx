@@ -1228,8 +1228,8 @@ function ExposedNote({ group }: { group: ExposedGroup }) {
       case "entrypoint":
         return (
           <Trans>
-            It is more than one word there, and one name can't stand for that. To keep it hidden, write the {where} as a
-            list, with each word its own variable.
+            Its value has a space, a quote or another character Compose reads as part of the line, so one name can't
+            stand for it. To keep it hidden, write the {where} as a list, with each word its own variable.
           </Trans>
         );
       case "environment":

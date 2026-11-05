@@ -27,6 +27,9 @@ type Exposed struct {
 	Owner string
 	// Field is its field, such as command, labels or healthcheck.
 	Field string
+	// Whole says it is text as the rest of a command written as one string, which
+	// another value on it made text, and not for its own sake.
+	Whole bool
 }
 
 // What a plan doesn't warn of. A value shows in every field a spec keeps but its
@@ -95,7 +98,14 @@ type exposure struct {
 // an entry, which isn't quiet whatever the entry's field is. What it records is from
 // what the file's keys have been checked to be: a field is one Dockwell takes, and a
 // variable's name is what the reader takes as one, so neither is the file's to word.
-func (x *exposure) note(at place, name string, naming bool) {
+func (x *exposure) note(at place, name string, naming bool) { x.record(at, name, naming, false) }
+
+// noteText records that name's value lands as text in a field that would otherwise
+// keep it by name: as what one name can't stand for, or, with whole, as the rest of a
+// line another value made all text.
+func (x *exposure) noteText(at place, name string, whole bool) { x.record(at, name, false, whole) }
+
+func (x *exposure) record(at place, name string, naming, whole bool) {
 	var e Exposed
 	var quiet map[string]bool
 	for _, section := range []struct {
@@ -110,7 +120,7 @@ func (x *exposure) note(at place, name string, naming bool) {
 		return // the file's name or version, which nothing keeps
 	}
 	field, isQuiet := quietField(quiet, at.path)
-	e.Field = field
+	e.Field, e.Whole = field, whole
 	if isQuiet && !naming {
 		return
 	}

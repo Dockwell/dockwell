@@ -108,14 +108,14 @@ func (in *interpolator) referenceField(service string, at place, v any) (any, er
 	// Compose splits a command written as one string into words once its variables
 	// are read, so a value can make more than one. A name can't stand for that.
 	if line, ok := named.(string); ok && at.path != binding.FieldTest {
-		split, kept := in.splitNamed(line, literal.(string), names)
-		if !kept {
-			for _, name := range names {
-				in.note(exposure, at, name)
-			}
+		split := in.splitNamed(line, literal.(string), names)
+		for _, name := range split.text {
+			in.note(exposure, at, name, split.whole)
+		}
+		if split.words == nil {
 			return literal, nil
 		}
-		words, named = split, anyOf(split)
+		words, named = split.words, anyOf(split.words)
 		if names, err = binding.NamesIn(words); err != nil {
 			return nil, invalid("%s can't name a value: %v", at, err)
 		}
@@ -127,11 +127,12 @@ func (in *interpolator) referenceField(service string, at place, v any) (any, er
 	return named, nil
 }
 
-// note says a value lands in plain sight at at.
-func (in *interpolator) note(x *exposure, at place, name string) {
+// note says a value lands in plain sight at at. whole says it does as the rest of a
+// line that one value made text, and not for its own sake.
+func (in *interpolator) note(x *exposure, at place, name string, whole bool) {
 	if x != nil {
 		if value, ok := in.variables[name]; ok && value != "" {
-			x.note(at, name, false)
+			x.noteText(at, name, whole && !splitsALine(value))
 		}
 	}
 }
@@ -152,36 +153,104 @@ func (in *interpolator) keep(service, field string, names []string) {
 	}
 }
 
+// split is what splitNamed makes of a line.
+type split struct {
+	// words are the line's words, with the names that stand for their values in
+	// them, or nil when nothing on the line can keep its name.
+	words []string
+	// text names the values that are in the words as text, or all of the line's when
+	// words is nil.
+	text []string
+	// whole says the line is all text, words and all.
+	whole bool
+}
+
 // splitNamed splits a command written as one string, with its names in it, into
-// words, and says whether they stand for what Compose would make of it with the
-// values in. Where they don't, a value makes more than one word, or its quotes or
-// backslashes mean something once they are in the line: the file's words go on
-// meaning what they mean, as text, and the plan says so. A line that Compose can't
-// read with a value in it, as one with a lone quote can't, says nothing to hold it
-// to, so the value stays the one word it is. Nor can one with a name a label says the
-// environment holds, which is a name whatever it is given: a value given for it, of
-// any shape, is refused as set twice, and doesn't become text to get round that.
-func (in *interpolator) splitNamed(line, literal string, names []string) ([]string, bool) {
+// words, so that they stand for what Compose would make of it with the values in.
+//
+// A value with a space, a quote, a backslash or another character Compose reads as
+// part of the line can make more words than one, or other words than its own, and a
+// name can't stand for that. That value is written into the line as text, and the
+// plan says so, and every other value keeps its name, as long as the words come to
+// just what Compose makes of the line. If they don't, which no file in 1Panel's store
+// comes near, the file's words go on meaning what they mean, all as text, and the plan
+// says that too.
+//
+// A line that Compose can't read with its values in, as one with a lone quote can't,
+// says nothing to hold the words to, so each value stays the one word it is. Nor can
+// one with a name a label says the environment holds, which is a name whatever it is
+// given: a value given for it, of any shape, is refused as set twice, and doesn't
+// become text to get round that.
+func (in *interpolator) splitNamed(line, literal string, names []string) split {
 	words, err := shellwords.Parse(line)
 	if err != nil {
-		return nil, false
+		return split{text: names, whole: true}
 	}
 	values := make(map[string]string, len(names))
 	for _, name := range names {
 		if in.listing[name] {
-			return words, true
+			return split{words: words}
 		}
 		values[name] = in.variables[name]
 	}
 	said, err := shellwords.Parse(literal)
 	if err != nil {
-		return words, true
+		return split{words: words}
 	}
-	got, err := binding.Render(words, values)
-	if err != nil || !slices.Equal(got, said) {
-		return nil, false
+	if got, err := binding.Render(words, values); err == nil && slices.Equal(got, said) {
+		return split{words: words}
 	}
-	return words, true
+	var text []string
+	for _, name := range names {
+		if splitsALine(values[name]) {
+			text = append(text, name)
+		}
+	}
+	if len(text) > 0 {
+		if mixed, err := shellwords.Parse(writeIn(line, values, text)); err == nil {
+			if got, err := binding.Render(mixed, values); err == nil && slices.Equal(got, said) {
+				return split{words: mixed, text: text}
+			}
+		}
+	}
+	return split{text: names, whole: true}
+}
+
+// splitsALine reports a value that, written into a line, can make other words than
+// its own: one with a space, a quote, a backslash, or what Compose's splitter stops
+// at or takes as a command's.
+func splitsALine(value string) bool {
+	return strings.ContainsAny(value, " \t\r\n\\'\"`;&|<>()")
+}
+
+// writeIn writes the values of names into a line of words with names in them, as
+// text, in the form those words take, with a $ of their own as $$.
+func writeIn(line string, values map[string]string, names []string) string {
+	var b strings.Builder
+	for i := 0; i < len(line); {
+		switch {
+		case strings.HasPrefix(line[i:], "$$"):
+			b.WriteString("$$")
+			i += 2
+		case strings.HasPrefix(line[i:], "${"):
+			end := strings.IndexByte(line[i:], '}')
+			if end < 0 {
+				b.WriteString(line[i:])
+				return b.String()
+			}
+			name := line[i+2 : i+end]
+			if slices.Contains(names, name) {
+				b.WriteString(strings.ReplaceAll(values[name], "$", "$$"))
+			} else {
+				b.WriteString(line[i : i+end+1])
+			}
+			i += end + 1
+		default:
+			b.WriteByte(line[i])
+			i++
+		}
+	}
+	return b.String()
 }
 
 // wordsOfField lists the words of a field as it stands: a string, or a list of them.

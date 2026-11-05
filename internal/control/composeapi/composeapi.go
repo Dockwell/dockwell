@@ -528,7 +528,10 @@ func exposedMessage(e compose.Exposed, given map[string]string) string {
 	fact := fmt.Sprintf("%s from %s is in %s %s, so anyone who can read this change or export this environment can read it", e.Variable, from, owner, field)
 	switch e.Field {
 	case "command", "entrypoint":
-		return fmt.Sprintf("%s. It is more than one word there, and one name can't stand for that. To keep it hidden, write the %s as a list, with each word its own variable", fact, e.Field)
+		if e.Whole {
+			return fmt.Sprintf("%s. Another value on that line is what one name can't stand for, and Dockwell couldn't keep the rest of the line apart from it, so the whole line is text. To keep it hidden, write the %s as a list, with each word its own variable", fact, e.Field)
+		}
+		return fmt.Sprintf("%s. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the %s as a list, with each word its own variable", fact, e.Field)
 	case "environment":
 		return fact + ", as only a variable's value is hidden. Don't write a secret in a variable's name"
 	}

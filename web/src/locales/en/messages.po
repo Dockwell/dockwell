@@ -1264,8 +1264,8 @@ msgid "Anyone who can read this app can see it. It can't be hidden there, so don
 msgstr "Anyone who can read this app can see it. It can't be hidden there, so don't pass a secret there."
 
 #: src/features/changes/notices.tsx
-msgid "Anyone who can read this app can see it. It is more than one word there, and one name can't stand for that. To keep it hidden, write the {where} as a list, with each word its own variable."
-msgstr "Anyone who can read this app can see it. It is more than one word there, and one name can't stand for that. To keep it hidden, write the {where} as a list, with each word its own variable."
+msgid "Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
+msgstr "Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
 
 #: src/features/changes/words.ts
 msgid "API token"
@@ -2856,10 +2856,6 @@ msgstr "It has to stay healthy for {soak}. If it isn't healthy within {healthyWi
 msgid "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, the new one goes, and what was stopped stays stopped"
 msgstr "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, the new one goes, and what was stopped stays stopped"
 
-#: src/features/apps/NewAppSheet.tsx
-msgid "It is more than one word there, and one name can't stand for that. To keep it hidden, write the {where} as a list, with each word its own variable."
-msgstr "It is more than one word there, and one name can't stand for that. To keep it hidden, write the {where} as a list, with each word its own variable."
-
 #: src/features/servers/ServerCallout.tsx
 msgid "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
 msgstr "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
@@ -2999,6 +2995,10 @@ msgstr "Its rollout order says to stop first, so there are never two"
 #: src/features/changes/notices.tsx
 msgid "its server"
 msgstr "its server"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
+msgstr "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Its whole project"

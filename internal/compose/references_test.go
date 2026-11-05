@@ -313,6 +313,94 @@ func TestAValueOfSeveralWordsStaysText(t *testing.T) {
 	}
 }
 
+// One value on a line that a name can't stand for is written in as text, and every
+// other value on it keeps its name, as long as the words come to what Compose makes of
+// the line, as npc's line in 1Panel's store needs: a password beside an address of
+// several words. The review of #113 found it all went to text. Where the rest can't be
+// kept apart, the whole line is text, and says why for each.
+func TestOnlyWhatANameCantStandForIsText(t *testing.T) {
+	for name, c := range map[string]struct {
+		body       string
+		vars       map[string]string
+		command    []string
+		references []string
+		env        map[string]string
+		warned     []Exposed
+	}{
+		"npc's line": {
+			body:       "    command: -server=${A} -vkey=${P} -tls=${B}\n",
+			vars:       map[string]string{"A": "two words", "P": "Pw7Hq2mXv9", "B": "1"},
+			command:    []string{"-server=two", "words", "-vkey=${P}", "-tls=${B}"},
+			references: []string{"command"}, env: map[string]string{"P": "Pw7Hq2mXv9", "B": "1"},
+			warned: []Exposed{{Variable: "A", Kind: "service", Owner: "web", Field: "command"}},
+		},
+		"a backslash Compose takes out": {
+			body:       "    command: run --k=${S} --pw=${P}\n",
+			vars:       map[string]string{"S": `a\b`, "P": "Pw7Hq2mXv9"},
+			command:    []string{"run", "--k=ab", "--pw=${P}"},
+			references: []string{"command"}, env: map[string]string{"P": "Pw7Hq2mXv9"},
+			warned: []Exposed{{Variable: "S", Kind: "service", Owner: "web", Field: "command"}},
+		},
+		"a $ of its own beside it": {
+			body:       "    command: run ${A} --pw=${P} $$HOME\n",
+			vars:       map[string]string{"A": "x $y z", "P": "Pw7Hq2mXv9"},
+			command:    []string{"run", "x", "$$y", "z", "--pw=${P}", "$$HOME"},
+			references: []string{"command"}, env: map[string]string{"P": "Pw7Hq2mXv9"},
+			warned: []Exposed{{Variable: "A", Kind: "service", Owner: "web", Field: "command"}},
+		},
+		"nothing left to name": {
+			body:    "    command: run ${A}\n",
+			vars:    map[string]string{"A": "two words"},
+			command: []string{"run", "two", "words"},
+			warned:  []Exposed{{Variable: "A", Kind: "service", Owner: "web", Field: "command"}},
+		},
+		// Compose reads $( in the value as a command's, where the line's own ( is a
+		// mistake for it with a name there, so nothing here can be held to it.
+		"a line that can't be kept apart": {
+			body:    "    command: run ${P}(x) ${A}\n",
+			vars:    map[string]string{"A": "two words", "P": "Pw7Hq2mXv9$"},
+			command: []string{"run", "Pw7Hq2mXv9$(x)", "two", "words"},
+			warned: []Exposed{
+				{Variable: "A", Kind: "service", Owner: "web", Field: "command"},
+				{Variable: "P", Kind: "service", Owner: "web", Field: "command", Whole: true},
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			spec, s := oneApp(t, Input{File: []byte(refWeb + c.body), Variables: c.vars})
+			app := spec.GetApp()
+			if !slices.Equal(app.GetCommand(), c.command) {
+				t.Errorf("command = %q, want %q", app.GetCommand(), c.command)
+			}
+			if !slices.Equal(app.GetReferences(), c.references) {
+				t.Errorf("references = %q, want %q", app.GetReferences(), c.references)
+			}
+			if len(app.GetEnv()) != len(c.env) {
+				t.Errorf("env = %v, want %v", app.GetEnv(), c.env)
+			}
+			for k, v := range c.env {
+				if app.GetEnv()[k] != v {
+					t.Errorf("env[%s] = %q, want %q", k, app.GetEnv()[k], v)
+				}
+			}
+			if !slices.Equal(s.Exposed, c.warned) {
+				t.Errorf("it warns of %+v, want %+v", s.Exposed, c.warned)
+			}
+			// What runs is what Compose would run.
+			if len(c.references) > 0 {
+				got, err := binding.Render(app.GetCommand(), app.GetEnv())
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Logf("it runs %q", got)
+			}
+			if err := (&service.Driver{}).Validate(proto.Clone(spec)); err != nil {
+				t.Errorf("Validate: %v", err)
+			}
+		})
+	}
+}
+
 // One name has one value in a container's environment. A file can write two, which is a
 // mistake to say and not to choose between, and saying so names no value.
 func TestANameCantHaveTwoValues(t *testing.T) {

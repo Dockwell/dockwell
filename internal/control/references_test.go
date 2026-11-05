@@ -502,7 +502,7 @@ func testWhatStaysTextIsWarnedOfAndNothingElse(t *testing.T, backend store.Backe
 		}
 	}
 	want := "START_COMMAND from the request's variables is in vllm's command, so anyone who can read this change or export this environment can read it. " +
-		"It is more than one word there, and one name can't stand for that. To keep it hidden, write the command as a list, with each word its own variable"
+		"Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the command as a list, with each word its own variable"
 	if note == nil || note.GetMessage() != want {
 		t.Errorf("the plan says %v, want %q", note, want)
 	}

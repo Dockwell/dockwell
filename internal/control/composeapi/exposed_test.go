@@ -13,7 +13,8 @@ import (
 // how to keep it hidden, which depends on whether what is there can name a value.
 func TestExposedMessage(t *testing.T) {
 	const anyone = ", so anyone who can read this change or export this environment can read it"
-	const words = "It is more than one word there, and one name can't stand for that. To keep it hidden, write the "
+	const words = "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the "
+	const whole = "Another value on that line is what one name can't stand for, and Dockwell couldn't keep the rest of the line apart from it, so the whole line is text. To keep it hidden, write the "
 	const notThere = "It can't be hidden there, so if it is a secret, set it in environment for the app to read instead"
 	for _, c := range []struct {
 		e    compose.Exposed
@@ -26,6 +27,10 @@ func TestExposedMessage(t *testing.T) {
 		{
 			compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "entrypoint"},
 			"V from your .env is in web's entrypoint" + anyone + ". " + words + "entrypoint as a list, with each word its own variable",
+		},
+		{
+			compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "command", Whole: true},
+			"V from your .env is in web's command" + anyone + ". " + whole + "command as a list, with each word its own variable",
 		},
 		{
 			compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "labels"},

@@ -1264,8 +1264,8 @@ msgid "Anyone who can read this app can see it. It can't be hidden there, so don
 msgstr "能读取此应用的任何人都能看到它。那里无法隐藏它，所以不要在那里传入机密。"
 
 #: src/features/changes/notices.tsx
-msgid "Anyone who can read this app can see it. It is more than one word there, and one name can't stand for that. To keep it hidden, write the {where} as a list, with each word its own variable."
-msgstr "能读取此应用的任何人都能看到它。它在那里不止一个词，一个名称无法代表多个词。要隐藏它，请把{where}写成列表，每个词使用各自的变量。"
+msgid "Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
+msgstr "能读取此应用的任何人都能看到它。它的值含有空格、引号或 Compose 会当作这一行一部分来读的其他字符，所以一个名称无法代表它。要隐藏它，请把{where}写成列表，每个词使用各自的变量。"
 
 #: src/features/changes/words.ts
 msgid "API token"
@@ -2856,10 +2856,6 @@ msgstr "它必须保持健康 {soak}。如果在 {healthyWithin} 内未恢复健
 msgid "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, the new one goes, and what was stopped stays stopped"
 msgstr "它必须保持健康 {soak}。如果在 {healthyWithin} 内未恢复健康，新容器会被移除，已停止的容器保持停止"
 
-#: src/features/apps/NewAppSheet.tsx
-msgid "It is more than one word there, and one name can't stand for that. To keep it hidden, write the {where} as a list, with each word its own variable."
-msgstr "它在那里不止一个词，一个名称无法代表多个词。要隐藏它，请把{where}写成列表，每个词使用各自的变量。"
-
 #: src/features/servers/ServerCallout.tsx
 msgid "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
 msgstr "它已加入，但代理尚未连接，所以还没有数据。请在该服务器上运行 <0>dockwell run</0> 启动代理。"
@@ -2999,6 +2995,10 @@ msgstr "其发布顺序设置为先停止，因此不会同时存在两个容器
 #: src/features/changes/notices.tsx
 msgid "its server"
 msgstr "它的服务器"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
+msgstr "它的值含有空格、引号或 Compose 会当作这一行一部分来读的其他字符，所以一个名称无法代表它。要隐藏它，请把{where}写成列表，每个词使用各自的变量。"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Its whole project"
