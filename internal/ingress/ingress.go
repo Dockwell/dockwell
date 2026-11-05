@@ -161,6 +161,8 @@ func (p *Panel) Moves() bool { return p != nil && p.Release != nil }
 type Manager struct {
 	Client *docker.Client
 	Proxy  Proxy
+	// DrainPoll is how often Drain looks at what is in flight: drainPoll when zero.
+	DrainPoll time.Duration
 	// Dir is the ingress's directory on the server.
 	Dir string
 	// Panel is the panel on this server, or nil.

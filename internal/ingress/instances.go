@@ -3,6 +3,7 @@
 package ingress
 
 import (
+	"cmp"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -1252,7 +1253,7 @@ func (m *Manager) Drain(ctx context.Context, i Instance) error {
 	if err != nil {
 		return err
 	}
-	t := time.NewTicker(drainPoll)
+	t := time.NewTicker(cmp.Or(m.DrainPoll, drainPoll))
 	defer t.Stop()
 	// A request the old config took just before the reload may not be counted
 	// yet, so nothing in flight counts only when it is read twice, a poll

@@ -149,7 +149,7 @@ type agent struct {
 func agentOn(client *docker.Client, dir string) *agent {
 	m := &ingress.Manager{
 		Client: client, Proxy: fileProxy{path: filepath.Join(dir, "routes.json")}, Dir: dir,
-		Holders: &ingress.Holders{Client: client},
+		Holders: &ingress.Holders{Client: client}, DrainPoll: time.Millisecond,
 	}
 	rt := &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, HealthWait: 2 * time.Second, ListenWait: 2 * time.Second, Ingress: listening{m}}
 	c := container.Driver{Runtime: rt}
