@@ -152,15 +152,19 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	if g := s.Goes; g != nil {
 		p.Goes = &dockwellv1.RouteGoes{Where: g.Where, Domain: g.Domain, Find: visitorsFind[g.Find]}
 	}
+	if m := s.Moves; m != nil {
+		p.Moves = &dockwellv1.RouteMove{Where: m.Where, From: m.From, To: m.To, ToPort: m.ToPort}
+	}
 	return p
 }
 
 var visitorsFind = map[resource.VisitorsFind]dockwellv1.VisitorsFind{
-	resource.VisitorsLoseIt:   dockwellv1.VisitorsFind_VISITORS_FIND_UNSPECIFIED,
-	resource.VisitorsRefused:  dockwellv1.VisitorsFind_VISITORS_FIND_REFUSED,
-	resource.VisitorsTLSError: dockwellv1.VisitorsFind_VISITORS_FIND_TLS_ERROR,
-	resource.VisitorsNotFound: dockwellv1.VisitorsFind_VISITORS_FIND_NOT_FOUND,
-	resource.VisitorsRest:     dockwellv1.VisitorsFind_VISITORS_FIND_REST,
+	resource.VisitorsLoseIt:        dockwellv1.VisitorsFind_VISITORS_FIND_UNSPECIFIED,
+	resource.VisitorsRefused:       dockwellv1.VisitorsFind_VISITORS_FIND_REFUSED,
+	resource.VisitorsTLSError:      dockwellv1.VisitorsFind_VISITORS_FIND_TLS_ERROR,
+	resource.VisitorsNotFound:      dockwellv1.VisitorsFind_VISITORS_FIND_NOT_FOUND,
+	resource.VisitorsRest:          dockwellv1.VisitorsFind_VISITORS_FIND_REST,
+	resource.VisitorsNothingBehind: dockwellv1.VisitorsFind_VISITORS_FIND_NOTHING_BEHIND,
 }
 
 // rollout converts how a step replaces a running service; nil stays nil.
@@ -357,6 +361,9 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		s.Goes = &resource.RouteGoes{Where: g.GetWhere(), Domain: g.GetDomain(), Find: find}
 	}
 	s.Rollout, s.Restart = fromRollout(p.GetRollout()), p.GetRestart()
+	if m := p.GetMoves(); m != nil {
+		s.Moves = &resource.RouteMove{Where: m.GetWhere(), From: m.GetFrom(), To: m.GetTo(), ToPort: m.GetToPort()}
+	}
 	return s, nil
 }
 

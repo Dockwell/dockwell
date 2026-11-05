@@ -404,7 +404,18 @@ func (*Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resourc
 	case actual == nil:
 		return withAnswers(resource.Decision{Action: resource.ActionCreate, Unencrypted: plain(desired)}, desired), nil
 	}
-	return withAnswers(resource.Decision{Action: resource.ActionUpdate, Unencrypted: plain(desired) && !plain(actual)}, desired), nil
+	dec := withAnswers(resource.Decision{Action: resource.ActionUpdate, Unencrypted: plain(desired) && !plain(actual)}, desired)
+	dec.Moves = moveOf(actual, desired)
+	return dec, nil
+}
+
+// moveOf says a route leaves the service it sent to, or nil if it doesn't.
+func moveOf(actual, desired proto.Message) *resource.RouteMove {
+	was, now := actual.(*resourcev1.Route), desired.(*resourcev1.Route)
+	if was.GetService() == "" || was.GetService() == now.GetService() {
+		return nil
+	}
+	return &resource.RouteMove{Where: Where(now), From: was.GetService(), To: now.GetService(), ToPort: now.GetHostPort()}
 }
 
 // withAnswers says who a route answers, when it isn't what every route answers:

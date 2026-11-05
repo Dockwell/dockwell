@@ -947,6 +947,22 @@ message PlanStep {
   // served. It never stops a plan, and the fingerprint leaves it out. Numbered
   // apart, as open work adds to this message.
   RouteGoes goes = 31;
+  // Set when a route leaves the service it sent to for another, as what a domain
+  // reaches changing is easy to miss among a plan's fields. It never stops a plan.
+  // Numbered apart, as open work adds to this message.
+  RouteMove moves = 32;
+}
+
+// RouteMove is a route leaving one service for another.
+message RouteMove {
+  // Its domain and path, as people read them, such as "app.example.com/api".
+  string where = 1;
+  // The service it sent to.
+  string from = 2;
+  // The service it goes to. Empty when it goes to to_port on the server.
+  string to = 3;
+  // The port on the server it goes to, when it goes to no service.
+  uint32 to_port = 4;
 }
 
 // RouteGoes is a route a step takes away.
@@ -973,6 +989,9 @@ enum VisitorsFind {
   VISITORS_FIND_NOT_FOUND = 3;
   // What the rest of the domain serves, or a 404 if nothing covers that path.
   VISITORS_FIND_REST = 4;
+  // Whatever what's in front shows when it can't connect, as the proxy has stopped,
+  // and the route took no certificate.
+  VISITORS_FIND_NOTHING_BEHIND = 5;
 }
 
 // RouteAnswers is who a route answers, as its plan says.

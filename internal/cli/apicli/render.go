@@ -731,6 +731,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			if line := goesWords(st.GetGoes()); line != "" {
 				fmt.Fprintln(tw, "      "+line)
 			}
+			if line := movesWords(st.GetMoves()); line != "" {
+				fmt.Fprintln(tw, "      "+line)
+			}
 			for _, warning := range st.GetWarnings() {
 				if warning == dockwellv1.PlanWarning_PLAN_WARNING_MAY_LOCK_OUT {
 					fmt.Fprintln(tw, "      May cut off remote access to "+s.GetServerName()+", such as SSH.")
@@ -884,6 +887,18 @@ func unencryptedWords(server string) string {
 	return fmt.Sprintf("Traffic for this route reaches %s unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it.", server)
 }
 
+// movesWords says a route leaves the service it sent to, as what a domain reaches
+// changing is easy to miss among a plan's fields.
+func movesWords(m *dockwellv1.RouteMove) string {
+	if m == nil {
+		return ""
+	}
+	if m.GetTo() == "" {
+		return fmt.Sprintf("%s leaves %s, and goes to port %d on the server.", m.GetWhere(), m.GetFrom(), m.GetToPort())
+	}
+	return fmt.Sprintf("%s leaves %s, and goes to %s.", m.GetWhere(), m.GetFrom(), m.GetTo())
+}
+
 // goesWords says what someone visiting a route finds once a step takes it away, as a
 // plan's "no downtime" says nothing of it.
 func goesWords(g *dockwellv1.RouteGoes) string {
@@ -897,6 +912,8 @@ func goesWords(g *dockwellv1.RouteGoes) string {
 		return fmt.Sprintf("Anyone visiting %s gets a browser's connection error, as nothing here answers for that name over HTTPS any more.", g.GetWhere())
 	case dockwellv1.VisitorsFind_VISITORS_FIND_NOT_FOUND:
 		return fmt.Sprintf("What's in front gets a 404 for %s, so visitors see whatever it shows for one.", g.GetWhere())
+	case dockwellv1.VisitorsFind_VISITORS_FIND_NOTHING_BEHIND:
+		return fmt.Sprintf("What's in front can't connect for %s any more, so visitors see whatever it shows for that.", g.GetWhere())
 	case dockwellv1.VisitorsFind_VISITORS_FIND_REST:
 		return fmt.Sprintf("Anyone visiting %s gets what the rest of %s serves, or a 404 if nothing covers that path.", g.GetWhere(), g.GetDomain())
 	default:

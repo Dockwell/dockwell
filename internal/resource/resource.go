@@ -211,6 +211,20 @@ type Decision struct {
 	// what it served. It never stops a plan, and a fingerprint leaves it out, as it
 	// depends on the server's other routes.
 	Goes *RouteGoes `json:",omitempty"`
+	// Moves says a route leaves the service it sent to for another, as what a domain
+	// reaches changing is easy to miss among a plan's fields. It never stops a plan,
+	// and the fingerprint covers the spec that says it.
+	Moves *RouteMove `json:",omitempty"`
+}
+
+// RouteMove is a route leaving one service for another.
+type RouteMove struct {
+	// Where is its domain and path, as people read them.
+	Where string
+	From  string
+	// To is the service it goes to. Empty when it goes to ToPort on the server.
+	To     string `json:",omitempty"`
+	ToPort uint32 `json:",omitempty"`
 }
 
 // VisitorsFind is what someone visiting a route finds once it's gone.
@@ -231,6 +245,9 @@ const (
 	// VisitorsRest is what the rest of the domain serves, or a 404 if nothing covers
 	// that path.
 	VisitorsRest
+	// VisitorsNothingBehind is whatever what's in front shows when it can't connect,
+	// as the proxy has stopped, and it took no certificate.
+	VisitorsNothingBehind
 )
 
 // RouteGoes is a route a step takes away.

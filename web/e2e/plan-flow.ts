@@ -654,6 +654,41 @@ export async function planFlow(
     fail(`the plan moves as a domain arrives: ${heldAtReview}, then ${heldOnArrival}`);
   }
   await page.getByRole("button", { name: /^Done/ }).click();
+
+  step("plan: with many domains, the plan is still there to see, and what doesn't fit is a click away");
+  await page.unroute(stubbed);
+  await page.route(stubbed, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/proto",
+      body: Buffer.concat(
+        Array.from({ length: 14 }, (_, i) =>
+          aPendingDomain(`site-${i}.example.com`, "fixme", "Waiting for its certificate."),
+        ),
+      ),
+    }),
+  );
+  await page.getByRole("button", { name: "Deploy", exact: true }).click();
+  await heldForm.getByLabel("Image").fill("nginx:1.28-alpine");
+  await heldForm.getByRole("button", { name: /Review plan/ }).click();
+  await plan.waitFor({ timeout: 30_000 });
+  await plan.locator(".plan-room-held .is-domain").first().waitFor({ state: "attached" });
+  const manyAtReview = await planRowTop(page);
+  const windowHeight = page.viewportSize()?.height ?? 900;
+  if (manyAtReview > windowHeight - 200) {
+    fail(`with 14 domains the plan's first row is at ${manyAtReview}, in a window ${windowHeight} tall`);
+  }
+  await plan.getByRole("button", { name: /Apply plan/ }).click();
+  await page.getByRole("heading", { name: "fixme is live" }).waitFor({ timeout: 30_000 });
+  const more = page.getByRole("button", { name: "and 11 more" });
+  await more.waitFor();
+  const manyOnArrival = await planRowTop(page);
+  if (Math.abs(manyOnArrival - manyAtReview) > 0.5) {
+    fail(`the plan moves with many domains: ${manyAtReview}, then ${manyOnArrival}`);
+  }
+  await more.click();
+  await page.locator(".plan-reach-row.is-domain", { hasText: "site-13.example.com" }).waitFor();
+  await page.getByRole("button", { name: /^Done/ }).click();
   await page.unroute(stubbed);
   await page.reload();
   await page.getByRole("heading", { level: 1, name: "fixme", exact: true }).waitFor();

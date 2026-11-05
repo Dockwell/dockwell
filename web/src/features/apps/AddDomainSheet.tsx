@@ -2,7 +2,14 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { type Change, ChangeService, ChangeState, DomainService, type ServiceInfo } from "@dockwell/api";
+import {
+  type Change,
+  ChangeService,
+  ChangeState,
+  type DomainRoute,
+  DomainService,
+  type ServiceInfo,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -26,6 +33,16 @@ import { useTunnelSwitchName } from "./DomainNote";
 import { formRefusal, proxyList, refusedField, routeName } from "./domains";
 import { validPort } from "./form";
 
+/** A domain that's refused a certificate, moved behind what's in front by editing the routes it has. */
+export interface MoveBehind {
+  domain: string;
+  port: string;
+  /** The route this form's port is for. */
+  route: string;
+  /** All of the domain's routes, as a domain is served one way or the other. */
+  routes: readonly DomainRoute[];
+}
+
 /** What ends TLS in front of this server, which says who the route answers. */
 type InFront = "tunnel" | "cloudflare" | "proxy" | "anyone";
 
@@ -46,7 +63,7 @@ export function AddDomainSheet({
   service: ServiceInfo;
   onClose: () => void;
   /** A domain that needs moving behind a tunnel, as it's refused a certificate. */
-  start?: { domain: string; port: string };
+  start?: MoveBehind;
 }) {
   const { t } = useLingui();
   const transport = useTransport();
@@ -75,6 +92,13 @@ export function AddDomainSheet({
   const field = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const switchName = useTunnelSwitchName();
+  // A domain's root may be with another app already, whatever its route is called.
+  // Going on moves it, the same either way, so this says that before it does.
+  const typed = domain.trim().toLowerCase();
+  const held = known.data?.domains.find((d) => d.name === typed)?.routes.find((route) => route.path === "");
+  const leaves = !start && held && held.service !== name ? held : undefined;
+  const leavesPort = leaves?.hostPort ?? 0;
+  const leavesApp = leaves?.service || t`port ${leavesPort} on the server`;
   const choiceName = useId();
 
   /** Takes you to the first field that was refused, ready to change, as New app does. */
@@ -153,24 +177,47 @@ export function AddDomainSheet({
     try {
       change = (
         await client.proposeChange({
-          summary: t`Send ${wanted} to ${name}`,
-          edits: [
-            {
-              resource: { kind: "route", scope: environment, name: routeName(wanted, known.data?.domains) },
-              spec: {
-                kind: {
-                  case: "route",
-                  value: {
-                    domain: wanted,
-                    service: name,
-                    ...(onServer ? { hostPort: Number(port) } : { port: Number(port) }),
-                    ...(noCertificate ? front() : {}),
+          summary: start ? t`Move ${typed} behind what's in front` : t`Send ${wanted} to ${name}`,
+          edits: start
+            ? start.routes.map((route) => ({
+                resource: { kind: "route", scope: environment, name: route.name },
+                spec: {
+                  kind: {
+                    case: "route" as const,
+                    value: {
+                      domain: wanted,
+                      path: route.path,
+                      service: route.service,
+                      // A person's own port is for the route they asked from. The rest stay as they are.
+                      ...(route.hostPort
+                        ? { hostPort: route.name === start.route ? Number(port) : route.hostPort }
+                        : { port: route.name === start.route ? Number(port) : route.port }),
+                      ...(noCertificate ? front() : {}),
+                    },
                   },
                 },
-              },
-              ...(server ? { servers: [server] } : {}),
-            },
-          ],
+              }))
+            : [
+                {
+                  resource: {
+                    kind: "route",
+                    scope: environment,
+                    name: held?.name ?? routeName(wanted, known.data?.domains),
+                  },
+                  spec: {
+                    kind: {
+                      case: "route",
+                      value: {
+                        domain: wanted,
+                        service: name,
+                        ...(onServer ? { hostPort: Number(port) } : { port: Number(port) }),
+                        ...(noCertificate ? front() : {}),
+                      },
+                    },
+                  },
+                  ...(server ? { servers: [server] } : {}),
+                },
+              ],
         })
       ).change;
     } catch (err) {
@@ -221,7 +268,7 @@ export function AddDomainSheet({
       open
       over={plan ? <PlanView opening={plan} /> : undefined}
       initialFocusRef={field}
-      title={t`Add a domain to ${name}`}
+      title={start ? t`Move ${typed} behind what's in front` : t`Add a domain to ${name}`}
       subtitle={
         !noCertificate
           ? t`People reach the app at this name, over HTTPS`
@@ -271,6 +318,7 @@ export function AddDomainSheet({
           autoCorrect="off"
           spellCheck={false}
           value={domain}
+          readOnly={start !== undefined}
           error={domainError}
           hint={
             !noCertificate
@@ -284,6 +332,13 @@ export function AddDomainSheet({
             setDomainError(undefined);
           }}
         />
+        {leaves ? (
+          <Callout tone="warning">
+            <Trans>
+              {typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}.
+            </Trans>
+          </Callout>
+        ) : null}
         <TextField
           label={onServer ? t`Port on the server` : t`Port in the app`}
           mono

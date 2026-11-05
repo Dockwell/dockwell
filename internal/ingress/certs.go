@@ -156,7 +156,7 @@ func certMessage(domain string, st CertState, check *resource.DomainCheck) strin
 		return ""
 	case st.Phase == CertIssued:
 		return fmt.Sprintf("Renewing the certificate for %s failed, though the one it has still serves until %s. %s %s",
-			domain, st.NotAfter.UTC().Format("2 January 2006"), problemWords(domain, st, check), retry)
+			domain, st.NotAfter.UTC().Format("2 January 2006"), upperFirst(problemWords(domain, st, check)), retry)
 	case st.Phase == CertPending:
 		if check != nil && check.State == resource.DomainNoRecord {
 			return fmt.Sprintf("%s has no DNS record yet, so its certificate can't come and it doesn't answer over HTTPS. %s Dockwell tries as soon as it sees the record.", domain, pointHere(check))
@@ -223,6 +223,14 @@ func pointHere(check *resource.DomainCheck) string {
 		return "Point an A or AAAA record at this server, " + strings.Join(check.Here, " or ") + "."
 	}
 	return "Point an A or AAAA record at this server."
+}
+
+// upperFirst starts a sentence made of words that may follow a colon elsewhere.
+func upperFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func sentence(s string) string {

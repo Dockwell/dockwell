@@ -165,6 +165,33 @@ func TestARouteToAPortOnTheServerCanSayWhoseItIs(t *testing.T) {
 	}
 }
 
+// A route leaving the service it sent to says so, as that's easy to miss among its fields.
+func TestARouteMovingBetweenServicesSaysSo(t *testing.T) {
+	to := func(service string) *resourcev1.Route {
+		return &resourcev1.Route{Domain: "a.example.com", Path: "/api", Service: service, Port: 80}
+	}
+	dec, err := (&Driver{}).Plan(to("api"), to("nginx"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := dec.Moves; m == nil || m.Where != "a.example.com/api" || m.From != "api" || m.To != "nginx" {
+		t.Errorf("Moves = %+v", m)
+	}
+	dec, _ = (&Driver{}).Plan(to("api"), &resourcev1.Route{Domain: "a.example.com", HostPort: 8080}, nil)
+	if m := dec.Moves; m == nil || m.From != "api" || m.To != "" || m.ToPort != 8080 {
+		t.Errorf("to a port on the server, Moves = %+v", m)
+	}
+	// Staying with its service isn't a move, and what was no service's hasn't left one.
+	for name, tc := range map[string][2]*resourcev1.Route{
+		"the same service": {to("api"), to("api")},
+		"from no service":  {{Domain: "a.example.com", HostPort: 8080}, to("nginx")},
+	} {
+		if dec, _ := (&Driver{}).Plan(tc[0], tc[1], nil); dec.Moves != nil {
+			t.Errorf("%s: Moves = %+v", name, dec.Moves)
+		}
+	}
+}
+
 // A plan made with no word from the server still says the route goes, and where.
 func TestARouteGoingSaysWhereWithNoWordFromTheServer(t *testing.T) {
 	dec, err := (&Driver{}).Plan(spec("a.example.com", "/api"), nil, nil)

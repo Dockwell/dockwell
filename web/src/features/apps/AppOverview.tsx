@@ -41,7 +41,7 @@ import { MachineWords } from "../changes/FailureNotice";
 import { withoutIds } from "../changes/plan";
 import { CopyButton } from "../servers/CopyButton";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
-import { AddDomainSheet } from "./AddDomainSheet";
+import { AddDomainSheet, type MoveBehind } from "./AddDomainSheet";
 import { AddPortSheet } from "./AddPortSheet";
 import { useApp, useRevisions } from "./AppContext";
 import {
@@ -274,7 +274,7 @@ function RunningPanel() {
   }, [add, navigate, service.id]);
   // Once something reaches it, the ways to add another sit up here.
   const { domains, failed: domainsUnread } = useAppDomains(service);
-  const [movingBehind, setMovingBehind] = useState<{ domain: string; port: string }>();
+  const [movingBehind, setMovingBehind] = useState<MoveBehind>();
   // What it couldn't read may well be there, so the ways to add another stay in reach.
   const reached = (app?.ports.length ?? 0) > 0 || domains.length > 0 || domainsUnread;
   // While it deploys, what runs is the revision before it, if there is one.
@@ -482,7 +482,7 @@ function ReachedAt({
   service: ServiceInfo;
   onAddPort: () => void;
   onAddDomain: () => void;
-  onMoveBehind: (start: { domain: string; port: string }) => void;
+  onMoveBehind: (start: MoveBehind) => void;
 }) {
   const { t } = useLingui();
   const { servers } = useFleetView();
@@ -561,7 +561,14 @@ function ReachedAt({
             domain={domain}
             route={route}
             onRemove={() => remove(routeWhere(domain, route), route.name)}
-            onMoveBehind={() => onMoveBehind({ domain: domain.name, port: String(route.hostPort || route.port) })}
+            onMoveBehind={() =>
+              onMoveBehind({
+                domain: domain.name,
+                port: String(route.hostPort || route.port),
+                route: route.name,
+                routes: domain.routes,
+              })
+            }
           />
         ))}
         {rows.map((row) => {

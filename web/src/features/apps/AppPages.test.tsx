@@ -1458,10 +1458,66 @@ describe("an app's overview", () => {
       expect(row).not.toHaveTextContent("set tls to off");
       expect(row).toHaveTextContent('turn on "A tunnel or a proxy in front handles HTTPS" for this domain');
       await user.click(within(row).getByRole("button", { name: "It's behind a tunnel or a proxy" }));
-      const sheet = await screen.findByRole("dialog", { name: "Add a domain to web" });
+      const sheet = await screen.findByRole("dialog", { name: "Move app.example.com behind what's in front" });
       expect(within(sheet).getByLabelText("Domain")).toHaveValue("app.example.com");
+      expect(within(sheet).getByLabelText("Domain")).toHaveAttribute("readonly");
       expect(within(sheet).getByLabelText("Port in the app")).toHaveValue("8080");
       expect(within(sheet).getByRole("switch", { name: /A tunnel or a proxy in front/ })).toBeChecked();
+    });
+
+    it("moves a domain behind a tunnel by editing the routes it has, whatever they're called", async () => {
+      const user = userEvent.setup();
+      const edits: { resource?: { name: string }; servers: string[]; spec?: { kind: { value: unknown } } }[] = [];
+      const said =
+        "If this server sits behind a tunnel, or a proxy that ends TLS, it needs no certificate: set tls to off on its routes.";
+      const running = await atPage(
+        () => ({
+          domains: [
+            {
+              ...aDomain({ certificate: certificate(CertificateState.FAILED, said) }),
+              // As the guide makes them, by hand, with names the form wouldn't give them.
+              routes: [
+                { id: "rte_1", name: "www", path: "", service: "web", port: 8080 },
+                { id: "rte_2", name: "api", path: "/api", service: "api", port: 9000 },
+              ],
+            },
+          ],
+        }),
+        {
+          changes: {
+            watchChange: feed<WatchChangeResponse>().stream,
+            discardChange: () => ({}),
+            proposeChange: (req) => {
+              edits.push(...(req.edits as never[]));
+              return { change: webPlanned() };
+            },
+          },
+        },
+      );
+      await user.click(await within(running).findByRole("button", { name: "It's behind a tunnel or a proxy" }));
+      const sheet = await screen.findByRole("dialog", { name: "Move app.example.com behind what's in front" });
+      await user.clear(within(sheet).getByLabelText("Port in the app"));
+      await user.type(within(sheet).getByLabelText("Port in the app"), "8081");
+      await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+      await screen.findByRole("dialog", { name: "Review plan" });
+      // A domain is served one way or the other, so all its routes go, and each keeps what it has.
+      expect(edits.map((edit) => edit.resource?.name)).toEqual(["www", "api"]);
+      expect(edits[0]?.spec?.kind.value).toMatchObject({
+        domain: "app.example.com",
+        service: "web",
+        port: 8081,
+        tls: "off",
+        trustedProxies: ["127.0.0.1"],
+      });
+      expect(edits[1]?.spec?.kind.value).toMatchObject({
+        domain: "app.example.com",
+        path: "/api",
+        service: "api",
+        port: 9000,
+        tls: "off",
+      });
+      // It stays on the server it runs on.
+      expect(edits.map((edit) => edit.servers)).toEqual([[], []]);
     });
 
     it("removes a domain as a plan", async () => {
@@ -1599,7 +1655,7 @@ describe("an app's overview", () => {
 
   describe("when an arrival sends you here to add what reaches it", () => {
     let router: ReturnType<typeof renderAt>["router"];
-    const toArrival = async (user: ReturnType<typeof userEvent.setup>) => {
+    const toArrival = async (user: ReturnType<typeof userEvent.setup>, domains: object[] = []) => {
       const alone = anApp("alone", "nginx:1.5", {}, {});
       const watch = feed<WatchChangeResponse>();
       const planned = webPlanned();
@@ -1624,7 +1680,7 @@ describe("an app's overview", () => {
             listServiceRevisions: () => ({ revisions }),
             deployService: () => ({ change: planned }),
           },
-          domains: { listDomains: () => ({ domains: [] }) },
+          domains: { listDomains: () => ({ domains: domains as never }) },
           changes: {
             watchChange: watch.stream,
             applyChange: () => ({ change: moved(planned, { state: ChangeState.APPLYING }) }),
@@ -1660,6 +1716,144 @@ describe("an app's overview", () => {
     });
   });
 
+  it("has nothing to open or copy in an arrival, for a domain whose server isn't connected, and goes to its page", async () => {
+    const user = userEvent.setup();
+    const alone = anApp("alone", "nginx:1.5", {}, {});
+    const planned = webPlanned();
+    const resource = planned.plan?.resources[0];
+    if (resource) {
+      resource.id = alone.id;
+      if (resource.resource)
+        Object.assign(resource.resource, { kind: "service", name: "alone", scope: alone.resource?.scope });
+    }
+    const step = planned.plan?.servers[0]?.steps[0];
+    if (step?.resource) Object.assign(step.resource, { kind: "service", name: "alone" });
+    const watch = feed<WatchChangeResponse>();
+    const { router } = renderAt(
+      "/apps/svc_alone",
+      api([alone], {
+        services: {
+          listServices: () => ({ services: [alone] }),
+          listServiceRevisions: () => ({ revisions }),
+          deployService: () => ({ change: planned }),
+        },
+        domains: {
+          listDomains: () => ({
+            domains: [
+              {
+                name: "app.example.com",
+                url: "https://app.example.com",
+                routes: [{ id: "rte_1", name: "app", service: "alone", port: 80 }],
+                servers: [
+                  {
+                    serverId: SERVER,
+                    serverName: "hz-1",
+                    stale: true,
+                    status: { domain: "app.example.com", certificate: { state: CertificateState.ISSUED } },
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+        changes: {
+          watchChange: watch.stream,
+          applyChange: () => ({ change: moved(planned, { state: ChangeState.APPLYING }) }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Deploy" }));
+    const form = await screen.findByRole("dialog", { name: "Deploy alone" });
+    await user.clear(within(form).getByLabelText("Image"));
+    await user.type(within(form).getByLabelText("Image"), "nginx:1.6");
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    const review = await screen.findByRole("dialog", { name: "Review plan" });
+    await user.click(within(review).getByRole("button", { name: /Apply plan/ }));
+    await screen.findByRole("dialog", { name: "Applying" });
+    watch.push(watched(applied(planned)));
+    const done = await screen.findByRole("dialog", { name: "alone is live" });
+    const row = (await within(done).findByText("app.example.com", { selector: ".plan-reach-at" })).closest(
+      ".plan-reach-row",
+    ) as HTMLElement;
+    expect(row).toHaveTextContent("Not connected");
+    expect(row).toHaveTextContent("hz-1 isn't connected, so this is what it last said: Valid.");
+    expect(within(row).queryByRole("link", { name: "app.example.com" })).toBeNull();
+    expect(within(row).queryByRole("button", { name: "Copy app.example.com" })).toBeNull();
+    await user.click(within(row).getByRole("link", { name: "Check its page" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/servers/${SERVER}`));
+    expect(screen.queryByRole("dialog", { name: "alone is live" })).toBeNull();
+  });
+
+  it("says so in an open arrival too, as its server goes", async () => {
+    const user = userEvent.setup();
+    const alone = anApp("alone", "nginx:1.5", {}, {});
+    const planned = webPlanned();
+    const resource = planned.plan?.resources[0];
+    if (resource) {
+      resource.id = alone.id;
+      if (resource.resource)
+        Object.assign(resource.resource, { kind: "service", name: "alone", scope: alone.resource?.scope });
+    }
+    const step = planned.plan?.servers[0]?.steps[0];
+    if (step?.resource) Object.assign(step.resource, { kind: "service", name: "alone" });
+    const fleet = feed<WatchServersResponse>();
+    fleet.push(changed(aServer({ id: SERVER, name: "hz-1" })), snapshotComplete);
+    const watch = feed<WatchChangeResponse>();
+    let stale = false;
+    renderAt(
+      "/apps/svc_alone",
+      api([alone], {
+        services: {
+          listServices: () => ({ services: [alone] }),
+          listServiceRevisions: () => ({ revisions }),
+          deployService: () => ({ change: planned }),
+        },
+        servers: { watchServers: fleet.stream },
+        domains: {
+          // Asked for by service on the page, and by environment in the arrival, which is what this is about.
+          listDomains: (req) => ({
+            domains: req.service
+              ? []
+              : [
+                  {
+                    name: "app.example.com",
+                    url: "https://app.example.com",
+                    routes: [{ id: "rte_1", name: "app", service: "alone", port: 80 }],
+                    servers: [
+                      {
+                        serverId: SERVER,
+                        serverName: "hz-1",
+                        stale,
+                        status: { domain: "app.example.com", certificate: { state: CertificateState.ISSUED } },
+                      },
+                    ],
+                  },
+                ],
+          }),
+        },
+        changes: {
+          watchChange: watch.stream,
+          applyChange: () => ({ change: moved(planned, { state: ChangeState.APPLYING }) }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Deploy" }));
+    const form = await screen.findByRole("dialog", { name: "Deploy alone" });
+    await user.clear(within(form).getByLabelText("Image"));
+    await user.type(within(form).getByLabelText("Image"), "nginx:1.6");
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    const review = await screen.findByRole("dialog", { name: "Review plan" });
+    await user.click(within(review).getByRole("button", { name: /Apply plan/ }));
+    await screen.findByRole("dialog", { name: "Applying" });
+    watch.push(watched(applied(planned)));
+    const done = await screen.findByRole("dialog", { name: "alone is live" });
+    expect(await within(done).findByRole("link", { name: "app.example.com" })).toBeVisible();
+    stale = true;
+    act(() => fleet.push(changed(aServer({ id: SERVER, name: "hz-1", connection: Connection.UNREACHABLE }))));
+    expect(await within(done).findByText("Not connected")).toBeVisible();
+    expect(within(done).queryByRole("link", { name: "app.example.com" })).toBeNull();
+  });
+
   it("opens nothing for an address that asks for what isn't a form", async () => {
     const alone = anApp("alone", "nginx:1.5", {}, {});
     renderAt(
@@ -1674,12 +1868,214 @@ describe("an app's overview", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  describe("a domain whose server isn't connected", () => {
+    const issued = (state: CertificateState, message = "") => ({
+      domain: "app.example.com",
+      certificate: {
+        state,
+        message,
+        ...(state === CertificateState.ISSUED
+          ? { expireTime: timestampFromDate(new Date(Date.now() + 61 * 86_400_000 - 60_000)) }
+          : {}),
+      },
+    });
+    const away = (status?: object) => ({
+      name: "app.example.com",
+      url: "https://app.example.com",
+      routes: [{ id: "rte_1", name: "app-example-com", service: "web", port: 80 }],
+      servers: [{ serverId: SERVER, serverName: "hz-1", stale: true, ...(status ? { status } : {}) }],
+    });
+    const seen = aServer({
+      id: SERVER,
+      name: "hz-1",
+      connection: Connection.UNREACHABLE,
+      lastSeenTime: timestampFromDate(new Date(Date.now() - 5 * 60_000)),
+    });
+    const atPage = (listDomains: () => { domains: ReturnType<typeof away>[] }) => {
+      const app = anApp("web", "nginx:1.5", {}, {});
+      renderAt(
+        "/apps/svc_web",
+        api(
+          [app],
+          {
+            services: { listServices: () => ({ services: [app] }), listServiceRevisions: () => ({ revisions }) },
+            domains: { listDomains },
+          },
+          seen,
+        ),
+      );
+      return screen.findByRole("region", { name: "Running" });
+    };
+
+    it("doesn't say it's serving: it names the server, and what it last said, and when", async () => {
+      const running = await atPage(() => ({ domains: [away(issued(CertificateState.ISSUED))] }));
+      const row = (await within(running).findByText("app.example.com")).closest("li") as HTMLElement;
+      expect(row).toHaveTextContent("Not connected");
+      expect(row).toHaveTextContent(/hz-1 isn't connected, so this is what it last said, .*ago: Valid for 61 days\./);
+      expect(row.querySelector(".dw-tone-healthy")).toBeNull();
+      expect(within(row).queryByRole("link", { name: "Open app.example.com" })).toBeNull();
+      expect(within(row).getByRole("link", { name: "Check its page" })).toHaveAttribute("href", `/servers/${SERVER}`);
+      await expectAccessible(running);
+    });
+
+    it("frames a certificate on its way as what it last said, not as what's happening", async () => {
+      const said =
+        "Getting a certificate for app.example.com. It answers over HTTPS once that's done, which usually takes under a minute.";
+      const running = await atPage(() => ({ domains: [away(issued(CertificateState.PENDING, said))] }));
+      const row = (await within(running).findByText("app.example.com")).closest("li") as HTMLElement;
+      expect(row).toHaveTextContent(/hz-1 isn't connected, so this is what it last said, .*ago: Getting a certificate/);
+      expect(row).toHaveTextContent("Not connected");
+      expect(row).not.toHaveTextContent("Issuing");
+    });
+
+    it("says so of a failure too, without calling it one, as nothing is known of it now", async () => {
+      const running = await atPage(() => ({
+        domains: [away(issued(CertificateState.FAILED, "DNS points elsewhere."))],
+      }));
+      const row = (await within(running).findByText("app.example.com")).closest("li") as HTMLElement;
+      expect(row).not.toHaveClass("is-failed");
+      expect(row).toHaveTextContent(/last said, .*ago: DNS points elsewhere\./);
+    });
+
+    it("says it hasn't said anything, when it never has", async () => {
+      const running = await atPage(() => ({ domains: [away()] }));
+      const row = (await within(running).findByText("app.example.com")).closest("li") as HTMLElement;
+      expect(row).toHaveTextContent("hz-1 isn't connected, and hasn't said anything of this yet.");
+    });
+
+    it("says so as soon as the server goes, though what serves isn't otherwise read again", async () => {
+      const watch = feed<WatchServersResponse>();
+      const connected = aServer({ id: SERVER, name: "hz-1", connection: Connection.CONNECTED });
+      watch.push(changed(connected), snapshotComplete);
+      let stale = false;
+      const app = anApp("web", "nginx:1.5", {}, {});
+      renderAt(
+        "/apps/svc_web",
+        api([app], {
+          services: { listServices: () => ({ services: [app] }), listServiceRevisions: () => ({ revisions }) },
+          servers: { watchServers: watch.stream },
+          domains: {
+            listDomains: () => {
+              const server = { serverId: SERVER, serverName: "hz-1", stale, status: issued(CertificateState.ISSUED) };
+              return { domains: [{ ...away(), servers: [server] }] };
+            },
+          },
+        }),
+      );
+      const running = await screen.findByRole("region", { name: "Running" });
+      expect(await within(running).findByText("Valid for 61 days")).toBeVisible();
+      stale = true;
+      act(() => watch.push(changed(aServer({ id: SERVER, name: "hz-1", connection: Connection.UNREACHABLE }))));
+      expect(await within(running).findByText("Not connected")).toBeVisible();
+      expect(within(running).queryByText("Valid for 61 days", { exact: true })).toBeNull();
+      // And back, the same way.
+      stale = false;
+      act(() => watch.push(changed(connected)));
+      expect(await within(running).findByText("Valid for 61 days")).toBeVisible();
+      expect(within(running).queryByText("Not connected")).toBeNull();
+    });
+
+    it("reads again less often after a while, and goes back to itself once the server's back", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        let domains = [away(issued(CertificateState.ISSUED))];
+        let reads = 0;
+        const running = await atPage(() => {
+          reads += 1;
+          return { domains };
+        });
+        await within(running).findByText("Not connected");
+        await act(() => vi.advanceTimersByTimeAsync(65_000));
+        const settled = reads;
+        await act(() => vi.advanceTimersByTimeAsync(60_000));
+        expect(reads - settled).toBeLessThanOrEqual(3);
+        domains = [
+          {
+            ...away(issued(CertificateState.ISSUED)),
+            servers: [{ ...away(issued(CertificateState.ISSUED)).servers[0], stale: false }] as never,
+          },
+        ];
+        await act(() => vi.advanceTimersByTimeAsync(31_000));
+        expect(await within(running).findByText("Valid for 61 days")).toBeVisible();
+        expect(within(running).queryByText("Not connected")).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe("a domain another app has", () => {
+    const held = (route: string, more: object = {}) => ({
+      name: "app.example.com",
+      url: "https://app.example.com",
+      routes: [{ id: "rte_1", name: route, path: "", service: "api", port: 80, ...more }],
+      servers: [{ serverId: SERVER, serverName: "hz-1" }],
+    });
+    const typed = async (domains: ReturnType<typeof held>[], domain = "app.example.com") => {
+      const user = userEvent.setup();
+      const edits: { resource?: { name: string } }[] = [];
+      const app = anApp("web", "nginx:1.5", {}, {});
+      renderAt(
+        "/apps/svc_web",
+        api([app], {
+          services: { listServices: () => ({ services: [app] }), listServiceRevisions: () => ({ revisions }) },
+          // What's sent to this app is asked for by name, and what the form checks isn't.
+          domains: { listDomains: (req) => ({ domains: req.service ? [] : domains }) },
+          changes: {
+            watchChange: feed<WatchChangeResponse>().stream,
+            discardChange: () => ({}),
+            proposeChange: (req) => {
+              edits.push(...(req.edits as never[]));
+              return { change: webPlanned() };
+            },
+          },
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a domain to web" });
+      await user.type(within(sheet).getByLabelText("Domain"), domain);
+      return { user, sheet, edits };
+    };
+
+    // The same whatever its route is called: one the form would make, or the guide's.
+    it.each([["app-example-com"], ["www"]])("says it leaves that app, and moves route %s", async (route) => {
+      const { user, sheet, edits } = await typed([held(route)]);
+      const warning = await within(sheet).findByRole("status");
+      expect(warning).toHaveTextContent("app.example.com goes to api now. Going on moves it here, and it leaves api.");
+      await expectAccessible(sheet);
+      await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+      await screen.findByRole("dialog", { name: "Review plan" });
+      expect(edits[0]?.resource?.name).toBe(route);
+    });
+
+    it("says where it goes now, for what's no app's", async () => {
+      const { sheet } = await typed([held("www", { service: "", port: 0, hostPort: 8080 })]);
+      expect(await within(sheet).findByRole("status")).toHaveTextContent(
+        "app.example.com goes to port 8080 on the server now.",
+      );
+    });
+
+    it("says nothing of a domain that's this app's, or of a path under one that isn't", async () => {
+      const { sheet } = await typed([held("www", { service: "web" })]);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(sheet).not.toHaveTextContent("Going on moves it");
+    });
+
+    it("gives a domain's root a name of its own, beside a path that has the one it would take", async () => {
+      expect(
+        routeName("app.example.com", [
+          { name: "app.example.com", routes: [{ name: "app-example-com", path: "/api" }] },
+        ] as never),
+      ).toBe("app-example-com-2");
+    });
+  });
+
   describe("a domain no server has said anything of", () => {
     const silent = (tls = "off") => ({
       name: "app.example.com",
       url: `${tls === "off" ? "http" : "https"}://app.example.com`,
       routes: [{ id: "res_1", name: "app-example-com", service: "alone", port: 80, tls }],
-      servers: [{ serverId: "srv_1", serverName: "hz-1", stale: true }],
+      servers: [{ serverId: "srv_1", serverName: "hz-1", stale: false }],
     });
     const atPage = (listDomains: () => { domains: ReturnType<typeof silent>[] }) => {
       const alone = anApp("alone", "nginx:1.5", {}, {});
@@ -1790,7 +2186,7 @@ describe("an app's overview", () => {
                 name: "app.example.com",
                 url: "http://app.example.com",
                 routes: [{ id: "res_1", name: "app-example-com", service: "alone", port: 80, tls: "off" }],
-                servers: [{ serverName: "hz-1", stale: true }],
+                servers: [{ serverName: "hz-1", stale: false }],
               },
             ],
           }),

@@ -145,9 +145,21 @@ func TestAStepTakesOnlyWhereAPathLeadsFromAnAgent(t *testing.T) {
 	}
 }
 
+// So does which app a route leaves.
+func TestARouteMovingSurvivesTheWayToTheAPI(t *testing.T) {
+	s := resource.Step{Decision: resource.Decision{Moves: &resource.RouteMove{Where: "a.example.com", From: "api", To: "nginx", ToPort: 8080}}}
+	back, err := FromStep(Step(s, "rte_1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.Moves == nil || *back.Moves != *s.Moves {
+		t.Errorf("it came back as %+v", back.Moves)
+	}
+}
+
 // What a visitor finds crosses from the agent to the control plane and the API whole.
 func TestARouteGoingSurvivesTheWayToTheAPI(t *testing.T) {
-	for _, find := range []resource.VisitorsFind{resource.VisitorsLoseIt, resource.VisitorsRefused, resource.VisitorsTLSError, resource.VisitorsNotFound, resource.VisitorsRest} {
+	for _, find := range []resource.VisitorsFind{resource.VisitorsLoseIt, resource.VisitorsRefused, resource.VisitorsTLSError, resource.VisitorsNotFound, resource.VisitorsRest, resource.VisitorsNothingBehind} {
 		s := resource.Step{Decision: resource.Decision{Goes: &resource.RouteGoes{Where: "a.example.com/api", Domain: "a.example.com", Find: find}}}
 		back, err := FromStep(Step(s, "rte_1"))
 		if err != nil {

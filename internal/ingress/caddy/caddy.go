@@ -51,7 +51,9 @@ const (
 	derivedPrefix = "dockwell.plain."
 	plainClosedID = derivedPrefix + "closed"
 	plainNoneID   = derivedPrefix + "none"
-	routesPath    = "/config/apps/http/servers/" + serverName + "/routes"
+	// secureNoneID is the same for the HTTPS server, and is made anew with it.
+	secureNoneID = derivedPrefix + "secure-none"
+	routesPath   = "/config/apps/http/servers/" + serverName + "/routes"
 	// serversPath is every server, whose ETag covers them all, as one reload can
 	// move a route from one to the other.
 	serversPath = "/config/apps/http/servers"
@@ -916,7 +918,10 @@ func routesIn(servers map[string]json.RawMessage) (all, others []json.RawMessage
 	if all, err = read(serverName); err != nil {
 		return nil, nil, err
 	}
-	all = slices.DeleteFunc(all, func(raw json.RawMessage) bool { return isGeneration(routeID(raw)) })
+	all = slices.DeleteFunc(all, func(raw json.RawMessage) bool {
+		id := routeID(raw)
+		return isGeneration(id) || id == secureNoneID
+	})
 	plain, err := read(httpServerName)
 	if err != nil {
 		return nil, nil, err
@@ -1352,6 +1357,9 @@ func (c *Caddy) editServers(servers map[string]json.RawMessage, edit func([]json
 	}
 	trusted := trustedRanges(next)
 	secure = withTrust(secure, len(trusted) > 0)
+	if secure, err = withSecureNone(secure); err != nil {
+		return err
+	}
 	plain = withTrust(plain, len(trusted) > 0)
 	var tlsServer map[string]json.RawMessage
 	if err := unmarshalIf(servers[serverName], &tlsServer); err != nil {
@@ -1560,16 +1568,45 @@ func withDerived(plain, secure []json.RawMessage) ([]json.RawMessage, error) {
 	}
 	none, err := json.Marshal(map[string]any{
 		"@id": plainNoneID, "terminal": true,
-		"handle": []map[string]any{{
-			"handler": "static_response", "status_code": http.StatusNotFound,
-			"body":    "There's no site at this address.\n",
-			"headers": map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}, "Cache-Control": {"no-store"}},
-		}},
+		"handle": noSite,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return append(plain, none), nil
+}
+
+// noSite answers for what no route covers, as Caddy would otherwise answer an empty
+// 200, which reads as a site that works.
+var noSite = []map[string]any{{
+	"handler": "static_response", "status_code": http.StatusNotFound,
+	"body":    "There's no site at this address.\n",
+	"headers": map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}, "Cache-Control": {"no-store"}},
+}}
+
+// withSecureNone has a domain with a certificate answer a 404 for a path none of its
+// routes covers, as with a route to /api alone. It's for those domains alone, so it
+// says nothing of the panel's, or of what isn't Dockwell's.
+func withSecureNone(secure []json.RawMessage) ([]json.RawMessage, error) {
+	var domains []string
+	for _, raw := range secure {
+		if read, ok := readRoute(raw); ok && !read.Edited && !slices.Contains(domains, read.Domain) {
+			domains = append(domains, read.Domain)
+		}
+	}
+	if len(domains) == 0 {
+		return secure, nil
+	}
+	slices.Sort(domains)
+	none, err := json.Marshal(map[string]any{
+		"@id": secureNoneID, "terminal": true,
+		"match":  []matcher{{Host: domains}},
+		"handle": noSite,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return append(secure, none), nil
 }
 
 // sortRoutes puts what is most specific first, as Caddy takes the first route
@@ -1592,7 +1629,7 @@ func sortRoutes(routes []json.RawMessage) {
 			return key{rank: 1}
 		case id == closedRouteID, id == plainClosedID:
 			return key{rank: 2}
-		case id == plainNoneID:
+		case id == plainNoneID, id == secureNoneID:
 			return key{rank: 4}
 		}
 		r, _ := readRoute(raw)

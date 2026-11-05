@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { durationMs } from "@bufbuild/protobuf/wkt";
+import { durationMs, timestampMs } from "@bufbuild/protobuf/wkt";
 import { Connection, type Server } from "@dockwell/api";
 import { type Status, useUIStrings } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
@@ -53,6 +53,8 @@ export interface ServerSummary {
   id: string;
   name: string;
   connection: Connection;
+  /** When it was last heard from, for one that isn't connected, as only then does this hold still. */
+  lastSeen?: number;
   /** The address people reach it on, from its inventory. */
   address: string | undefined;
 }
@@ -103,6 +105,9 @@ function summaries(servers: readonly Server[], prev: readonly ServerSummary[] | 
       name: server.name,
       connection: server.connection,
       address: primaryAddress(server.inventory?.addresses ?? []),
+      ...(server.connection !== Connection.CONNECTED && server.lastSeenTime
+        ? { lastSeen: timestampMs(server.lastSeenTime) }
+        : {}),
     };
     const old = prev?.[i];
     return old && sameSummary(old, summary) ? old : summary;
@@ -111,7 +116,13 @@ function summaries(servers: readonly Server[], prev: readonly ServerSummary[] | 
 }
 
 function sameSummary(a: ServerSummary, b: ServerSummary): boolean {
-  return a.id === b.id && a.name === b.name && a.connection === b.connection && a.address === b.address;
+  return (
+    a.id === b.id &&
+    a.name === b.name &&
+    a.connection === b.connection &&
+    a.address === b.address &&
+    a.lastSeen === b.lastSeen
+  );
 }
 
 function sameView(a: FleetView, b: FleetView): boolean {
