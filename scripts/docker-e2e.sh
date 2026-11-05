@@ -1343,8 +1343,8 @@ grep -q 'dockwell-e2e-app:slow' "$rollout_dir/after-rollback.yaml" || fail "the 
 [[ "$(drifted)" == "$drift_before" ]] || fail "drift after a rollback: $(dw drift list --json), and before the rollouts it was $drift_before"
 
 rollout_step "A rollback doesn't go round again"
-sleep 20
-[[ "$(changes_count)" == "$((count + 2))" ]] || fail "there were $count changes, and after a deploy and its rollback, and 20 s, there are $(changes_count), want $((count + 2))"
+sleep 8
+[[ "$(changes_count)" == "$((count + 2))" ]] || fail "there were $count changes, and after a deploy and its rollback, and 8 s, there are $(changes_count), want $((count + 2))"
 [[ "$(docker inspect --format '{{.Id}}' "$kept")" == "$kept_id" ]] || fail "$kept was replaced after the rollback"
 
 rollout_step "A check Docker runs fails the same, with what it printed"

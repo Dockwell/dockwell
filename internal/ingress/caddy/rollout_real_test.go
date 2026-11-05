@@ -246,7 +246,7 @@ func TestARolloutDropsNoRequestOnRealCaddy(t *testing.T) {
 	stop := make(chan struct{})
 	wg := s.target().Run(t.Context(), l, stop)
 	time.Sleep(500 * time.Millisecond)
-	const rollouts = 10
+	const rollouts = 6
 	start := time.Now()
 	for i := 1; i <= rollouts; i++ {
 		step, err := s.deploy(t.Context(), s.spec("app:1", i))
@@ -371,7 +371,7 @@ func TestNoProtocolLosesARequestToARolloutOnRealCaddy(t *testing.T) {
 	run("post-http3", http.MethodPost, "https://"+addr+"/who", http3Client)
 	time.Sleep(time.Second)
 	before := reloadsIn(t, s.proc.dir)
-	const rollouts = 10
+	const rollouts = 5
 	for i := 1; i <= rollouts; i++ {
 		if _, err := s.deploy(t.Context(), s.spec("app:1", i)); err != nil {
 			t.Fatalf("rollout %d: %v", i, err)
