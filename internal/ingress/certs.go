@@ -278,6 +278,10 @@ type statusBoard struct {
 	outdated bool
 	// ownPorts is what was last logged of routes to ports Dockwell listens on.
 	ownPorts string
+	// restarts is how many times the proxy had been started again when it was
+	// last looked at, once restartsKnown.
+	restarts      int
+	restartsKnown bool
 	// ingress is what was last published of the ingress.
 	ingress *dockwellv1.IngressStatus
 }

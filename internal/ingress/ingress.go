@@ -97,6 +97,11 @@ type Status struct {
 	// Image is what it runs, by reference, as a move to a newer version needs
 	// to go back to.
 	Image string
+	// Restarts is how many times its runtime has started it again since it was
+	// made, and OutOfMemory says the last of those was for going past its memory
+	// limit.
+	Restarts    int
+	OutOfMemory bool
 }
 
 // Route is what a proxy serves. It holds what the proxy has, not intent:
@@ -1275,6 +1280,7 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 		return m.stop(ctx)
 	}
 	m.noteOutdated(ctx, st)
+	m.noteRestarts(ctx, st)
 	m.noteOwnPorts(ctx, routes)
 	// The network first: a route that dials a subnet someone else has now mustn't
 	// get a request, even from a proxy that is starting. Routes to the server's own
@@ -1353,6 +1359,24 @@ func (m *Manager) noteOutdated(ctx context.Context, st Status) {
 		m.logger().WarnContext(ctx, "the ingress runs another version than this release of Dockwell pins, which may be missing security fixes. It moves to the pinned one on this server's next route change",
 			slog.String("proxy", m.Proxy.Name()), slog.String("version", st.Version), slog.String("pinned", st.Pinned))
 	}
+}
+
+// noteRestarts says when the proxy was started again for going past its memory
+// limit, once for each time the agent sees, as every site on the server and the
+// panel's domain dropped then, and nothing else says why. Routes don't take it
+// there: connections do, such as many WebSockets held open, from one client or
+// many (docs/security/ingress.md).
+func (m *Manager) noteRestarts(ctx context.Context, st Status) {
+	b := &m.status
+	b.mu.Lock()
+	seen, known := b.restarts, b.restartsKnown
+	b.restarts, b.restartsKnown = st.Restarts, true
+	b.mu.Unlock()
+	if !st.OutOfMemory || (known && st.Restarts <= seen) {
+		return
+	}
+	m.logger().WarnContext(ctx, "the ingress went past its memory limit, and Docker started it again, which dropped every site on this server, and the panel's domain, for a moment. Connections take it there, not routes: thousands held open, such as WebSockets, from one client or many. If this goes on, limit connections per client in front of this server, with a firewall or a proxy such as Cloudflare",
+		slog.String("proxy", m.Proxy.Name()), slog.Int("restarts", st.Restarts))
 }
 
 // noteOwnPorts says once when a route sends to a port Dockwell has come to listen

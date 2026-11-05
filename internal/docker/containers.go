@@ -180,6 +180,10 @@ type State struct {
 	// StartedAt and FinishedAt are zero until it first starts and stops.
 	StartedAt  time.Time `json:"StartedAt,omitzero"`
 	FinishedAt time.Time `json:"FinishedAt,omitzero"`
+	// OOMKilled is true when the kernel killed it for going past its memory
+	// limit, the last time it stopped. It stays so as a restart policy starts it
+	// again, which CI's Docker job holds.
+	OOMKilled bool `json:"OOMKilled"`
 }
 
 // Health is a container's health check status: "starting", "healthy" or

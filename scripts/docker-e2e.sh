@@ -120,7 +120,7 @@ cleanup() {
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
-  docker rm --force e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server e2e-not-started dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker rm --force e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
   moving_tidy
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-lan e2e-tunnel e2e-other >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
@@ -1262,6 +1262,40 @@ if over_https >/dev/null 2>&1; then fail "Caddy served from half a config, so th
 start_dockwell
 wait_for_dockwell
 serves "the agent didn't put back Caddy's last config, cut short"
+
+step "Ingress: a last config that has gone comes back, rather than Caddy being stopped as a server with no routes"
+stop_dockwell
+docker stop --time 5 dockwell-ingress >/dev/null || fail "docker stop dockwell-ingress failed"
+priv rm -f "$autosave" || fail "can't remove $autosave"
+docker start dockwell-ingress >/dev/null || fail "docker start dockwell-ingress failed"
+for _ in $(seq 100); do
+  admin /config/ >/dev/null 2>&1 && break
+  sleep 0.1
+done
+admin /config/ >/dev/null || fail "Caddy didn't start from its bootstrap"
+if over_https >/dev/null 2>&1; then fail "Caddy served from its bootstrap, so this proves nothing"; fi
+start_dockwell
+wait_for_dockwell
+serves "the agent didn't put back Caddy's last config, gone"
+priv test -f "$autosave" || fail "Caddy's last config wasn't written again"
+
+step "Docker says a container it started again went past its memory limit, which the agent reads of Caddy"
+# Not Caddy itself, which the agent makes again in the moment it isn't running. The
+# agent says why every site dropped from what this reads (docs/security/ingress.md).
+docker run -d --name e2e-oom --memory 16m --memory-swap 16m --restart unless-stopped nginx:1.27-alpine sh -c 'sleep 2; tail /dev/zero' >/dev/null ||
+  fail "can't run e2e-oom"
+oom="" state=""
+for _ in $(seq 300); do
+  state=$(docker inspect --format '{{.RestartCount}} {{.State.Running}} {{.State.Restarting}} {{.State.OOMKilled}}' e2e-oom) || fail "docker inspect e2e-oom failed"
+  read -r restarts running restarting oom_killed <<<"$state"
+  if ((restarts >= 1)) && [[ "$running" == true && "$restarting" == false ]]; then
+    oom=$oom_killed
+    break
+  fi
+  sleep 0.1
+done
+docker rm --force e2e-oom >/dev/null || fail "can't remove e2e-oom"
+[[ "$oom" == true ]] || fail "a container Docker started again after it went past its memory limit says OOMKilled '$oom' ($state: restarts, running, restarting, OOMKilled), so the agent wouldn't say why every site dropped"
 
 step "Ingress: docker network prune can't take the network, and a network lost comes back on its subnet"
 subnet=$(docker network inspect --format '{{(index .IPAM.Config 0).Subnet}}' dockwell_ingress) || fail "there's no network dockwell_ingress"

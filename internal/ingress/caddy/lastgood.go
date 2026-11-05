@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 )
 
@@ -224,9 +225,13 @@ func (c *Caddy) Recover(ctx context.Context) (recovered bool, err error) {
 	case err != nil:
 		return false, err
 	}
-	if damaged(running) {
+	// A Caddy that came up from an empty file runs nothing, and one that came up
+	// from its bootstrap, as when its last config went missing, runs none of what
+	// the agent last gave it. Either reads as a server with no routes, which the
+	// agent would stop, so the copy goes back in.
+	if damaged(running) || startedBare(running) {
 		good := c.readGood()
-		if good == nil {
+		if good == nil || startedBare(good) {
 			return false, nil
 		}
 		if _, _, err := c.call(ctx, http.MethodPost, "/load", good, nil); err != nil {
@@ -238,8 +243,19 @@ func (c *Caddy) Recover(ctx context.Context) (recovered bool, err error) {
 		return false, err
 	}
 	b, missing, err := c.lastConfig()
-	if err != nil || missing || !damaged(b) {
+	if err != nil {
 		return false, err
+	}
+	// Caddy writes its file on every change, so one that has gone is someone's
+	// doing, and its next start would come up from the bootstrap.
+	if missing {
+		if err := c.writeLastConfig(running); err != nil {
+			return false, fmt.Errorf("can't put back Caddy's last config: %w", err)
+		}
+		return true, nil
+	}
+	if !damaged(b) {
+		return false, nil
 	}
 	// It may have been caught between Caddy's truncating and its writing.
 	select {
@@ -258,6 +274,39 @@ func (c *Caddy) Recover(ctx context.Context) (recovered bool, err error) {
 		return false, fmt.Errorf("can't put back Caddy's last config: %w", err)
 	}
 	return true, nil
+}
+
+// startedBare reports a whole config with no generation route on either of
+// Dockwell's servers. Every change writes one, and the bootstrap has none, so this
+// is a Caddy that started from that rather than from what it last ran, or a config
+// loaded by hand.
+func startedBare(config []byte) bool {
+	var top struct {
+		Apps struct {
+			HTTP struct {
+				Servers map[string]json.RawMessage `json:"servers"`
+			} `json:"http"`
+		} `json:"apps"`
+	}
+	if json.Unmarshal(config, &top) != nil {
+		return false
+	}
+	for _, name := range []string{serverName, httpServerName} {
+		var server struct {
+			Routes json.RawMessage `json:"routes"`
+		}
+		if len(top.Apps.HTTP.Servers[name]) == 0 || json.Unmarshal(top.Apps.HTTP.Servers[name], &server) != nil {
+			continue
+		}
+		routes, err := decodeRoutes(server.Routes)
+		if err != nil {
+			continue
+		}
+		if slices.ContainsFunc(routes, func(r json.RawMessage) bool { return isGeneration(routeID(r)) }) {
+			return false
+		}
+	}
+	return true
 }
 
 // editLastConfig changes the routes in Caddy's last config, for when it is down:

@@ -140,6 +140,25 @@ func TestStatusSaysWhichVersionItRuns(t *testing.T) {
 	}
 }
 
+// Docker keeps how many times it started Caddy again, and whether the last was
+// for its memory, which is all that says why every site dropped for a moment.
+func TestStatusSaysCaddyRestartedForMemory(t *testing.T) {
+	c, e := onEngine(t)
+	if err := c.Run(t.Context(), "/etc/dockwell/bootstrap.json"); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := c.Status(t.Context()); err != nil || st.Restarts != 0 || st.OutOfMemory {
+		t.Errorf("Status of a fresh one = %+v, %v", st, err)
+	}
+	e.Edit(ingress.ContainerName, func(got *docker.Container) {
+		got.RestartCount = 2
+		got.State.OOMKilled = true
+	})
+	if st, err := c.Status(t.Context()); err != nil || st.Restarts != 2 || !st.OutOfMemory || !st.Running {
+		t.Errorf("Status after a restart for memory = %+v, %v", st, err)
+	}
+}
+
 func TestAMirrorChangesTheRepositoryAlone(t *testing.T) {
 	c, e := onEngine(t)
 	c.Mirror = "registry.example.com/library/caddy"

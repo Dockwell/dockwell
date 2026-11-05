@@ -107,6 +107,7 @@ func (c *Container) Status(ctx context.Context) (ingress.Status, error) {
 		Exists: true, Running: got.State.Running && !got.State.Restarting,
 		Outdated: !strings.HasSuffix(got.Config.Image, "@"+Digest),
 		Version:  got.Config.Labels[versionLabel], Pinned: Tag, Image: got.Config.Image,
+		Restarts: got.RestartCount, OutOfMemory: got.State.OOMKilled,
 	}, nil
 }
 
