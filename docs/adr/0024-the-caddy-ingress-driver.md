@@ -152,7 +152,7 @@ Every change to Caddy's config goes through its admin API, a single `PATCH` of t
 
 So each route's `reverse_proxy` has `stream_close_delay: 24h`, as Caddy otherwise closes every upgraded connection when its config reloads, and `flush_interval: -1`, so streams flow as they're written. A WebSocket that stays open past the 24 h is closed then, and the old config it held goes with it, which bounds what reloads leave behind. `grace_period` doesn't cut a request on a reload, as it goes on in the old config until it ends (the test passes with a grace of 1 ms). It matters as Caddy stops, so it is 25 s, under the 30 s Docker waits before it kills it. A test (`TestReloadsDropNothingOnRealCaddy`) holds this on real Caddy in CI: 8 clients of short requests, a WebSocket that echoes, a stream and a slow request, through 32 config changes, of the route they use and of others, and no failure of any of them.
 
-Caddy keeps `X-Forwarded-For` for itself: with no `trusted_proxies`, it overwrites what a client sends, so a service reads the real client. `strict_sni_host` answers 421 to a request whose `Host` isn't its TLS name.
+Caddy keeps `X-Forwarded-For` for itself: with no `trusted_proxies`, it overwrites what a client sends, so a service reads the real client. It also sets `X-Real-IP` to that address, so an app moved from OpenResty keeps working, and removes what else a client might claim, such as `Forwarded`, `True-Client-IP` and `CF-Connecting-IP` (`forgeableHeaders`). `strict_sni_host` answers 421 to a request whose `Host` isn't its TLS name. `allow_0rtt` is false, as a request in HTTP/3's early data can be replayed by anyone who captured it, and its source address isn't proven; a client waits one round trip more.
 
 ### Plans
 

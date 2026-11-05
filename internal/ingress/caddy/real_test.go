@@ -24,6 +24,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/http3"
+
 	"github.com/dockwell/dockwell/internal/ingress"
 )
 
@@ -238,6 +241,7 @@ func backend(t *testing.T, name string) (dial string) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"name": name, "host": r.Host, "xff": r.Header.Get("X-Forwarded-For"), "proto": r.Header.Get("X-Forwarded-Proto"), "path": r.URL.Path,
+			"real": r.Header.Get("X-Real-Ip"), "early": r.Header.Get("Early-Data"),
 		})
 	})
 	mux.HandleFunc("/slow", func(w http.ResponseWriter, r *http.Request) {
@@ -406,6 +410,104 @@ func TestHeadersAreCaddysOwnOnRealCaddy(t *testing.T) {
 	if res, err := c.client("nope.example.net").Get("https://nope.example.net/who"); err == nil {
 		_ = res.Body.Close()
 		t.Error("a name with no route got an answer over TLS")
+	}
+}
+
+// Apps moved from another proxy often trust one of these for per-address
+// limits and allowlists, so none of what a client says in them may arrive, and
+// X-Real-IP must be the real address, or they'd stop working.
+func TestNoClientAddressHeaderReachesAServiceOnRealCaddy(t *testing.T) {
+	c := startCaddy(t)
+	var mu sync.Mutex
+	seen := http.Header{}
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		seen = r.Header.Clone()
+		mu.Unlock()
+	}))
+	t.Cleanup(srv.Close)
+	put(t, c, aRoute("dockwell.env.www", "app.example.net", "", strings.TrimPrefix(srv.URL, "http://")))
+	_ = c.waitServing(t, "app.example.net", "/").Body.Close()
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://app.example.net/", http.NoBody)
+	names := append([]string{"X-Forwarded-For", "X-Real-Ip"}, forgeableHeaders...)
+	for _, h := range names {
+		req.Header.Set(h, "6.6.6.6")
+	}
+	req.Header["X_forwarded_for"] = []string{"6.6.6.6"}
+	req.Header["X_real_ip"] = []string{"6.6.6.6"}
+	res, err := c.client("app.example.net").Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	mu.Lock()
+	defer mu.Unlock()
+	for k, v := range seen {
+		if strings.Contains(strings.Join(v, ","), "6.6.6.6") {
+			t.Errorf("a client's %s: %v reached the service", k, v)
+		}
+	}
+	if got := seen.Get("X-Real-Ip"); got != "127.0.0.1" {
+		t.Errorf("the service reads X-Real-IP %q, want the real client, 127.0.0.1", got)
+	}
+	if got := seen.Get("X-Forwarded-For"); got != "127.0.0.1" {
+		t.Errorf("the service reads X-Forwarded-For %q, want the real client, 127.0.0.1", got)
+	}
+}
+
+// Early data can be replayed by anyone who captured it, and its source address
+// isn't proven. This asks for it as a browser that remembers a server does. A
+// request Caddy took in early data reaches its upstream with Early-Data: 1, as
+// RFC 8470 asks; with 0-RTT off, the client's early data is refused and it
+// sends the same request again, once the handshake is done.
+func TestEarlyDataIsRefusedOnRealCaddy(t *testing.T) {
+	c := startCaddy(t)
+	put(t, c, aRoute("dockwell.env.www", "app.example.net", "", backend(t, "web")))
+	_ = c.waitServing(t, "app.example.net", "/who").Body.Close()
+
+	sessions := tls.NewLRUClientSessionCache(4)
+	tlsConfig := &tls.Config{InsecureSkipVerify: true, ServerName: "app.example.net", ClientSessionCache: sessions, NextProtos: []string{http3.NextProtoH3}}
+	var last atomic.Pointer[quic.Conn]
+	transport := func() *http3.Transport {
+		return &http3.Transport{
+			TLSClientConfig: tlsConfig, QUICConfig: &quic.Config{Allow0RTT: true},
+			Dial: func(ctx context.Context, _ string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
+				conn, err := quic.DialAddrEarly(ctx, fmt.Sprintf("127.0.0.1:%d", c.tls), tlsCfg, cfg)
+				if err == nil {
+					last.Store(conn)
+				}
+				return conn, err
+			},
+		}
+	}
+	// The first connection has nothing to resume, and gets a ticket to.
+	first := transport()
+	defer first.Close()
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://app.example.net/who", http.NoBody)
+	res, err := first.RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := who(t, res); got["early"] != "" {
+		t.Fatalf("a first connection's request reads as early data: %v", got)
+	}
+	time.Sleep(200 * time.Millisecond) // for the ticket, which comes after the handshake
+
+	second := transport()
+	defer second.Close()
+	req, _ = http.NewRequestWithContext(t.Context(), http3.MethodGet0RTT, "https://app.example.net/who", http.NoBody)
+	res, err = second.RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := who(t, res)
+	conn := last.Load()
+	<-conn.HandshakeComplete()
+	if used := conn.ConnectionState().Used0RTT; got["early"] != "" || used {
+		t.Errorf("Caddy took a request in early data, replayable by anyone who captured it: the upstream read Early-Data %q, and the connection says used 0-RTT %v", got["early"], used)
+	}
+	if got["name"] != "web" {
+		t.Errorf("the request answered %v, want it served once the handshake was done", got)
 	}
 }
 

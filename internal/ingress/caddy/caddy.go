@@ -215,6 +215,38 @@ type handler struct {
 	StreamCloseDelay string         `json:"stream_close_delay,omitempty"`
 	LoadBalancing    *loadBalancing `json:"load_balancing,omitempty"`
 	Transport        *transport     `json:"transport,omitempty"`
+	Headers          *headers       `json:"headers,omitempty"`
+}
+
+// headers changes what a handler sends upstream.
+type headers struct {
+	Request *headerOps `json:"request,omitempty"`
+}
+
+type headerOps struct {
+	Set    map[string][]string `json:"set,omitempty"`
+	Delete []string            `json:"delete,omitempty"`
+}
+
+// forgeableHeaders say where a request came from, and only Caddy knows, so none
+// of what a client sends in them reaches a service. Caddy already overwrites
+// X-Forwarded-For, with no trusted_proxies. An app moved from another proxy
+// often trusts one of these for per-address limits and allowlists, so a forged
+// one is a way around them.
+var forgeableHeaders = []string{
+	"Forwarded", "Forwarded-For", "X-Client-Ip", "X-Cluster-Client-Ip", "X-Originating-Ip", "X-Remote-Ip", "X-Remote-Addr",
+	"True-Client-Ip", "Cf-Connecting-Ip", "Cf-Connecting-Ipv6", "Fastly-Client-Ip", "Ali-Cdn-Real-Ip", "Proxy-Client-Ip", "Wl-Proxy-Client-Ip",
+	"X-Envoy-External-Address", "X-Original-Forwarded-For",
+}
+
+// clientAddress is what every route sends upstream of where a request came
+// from: X-Real-IP is the client's real address, so an app moved from OpenResty
+// keeps working, and what else a client might claim is gone.
+func clientAddress() *headers {
+	return &headers{Request: &headerOps{
+		Set:    map[string][]string{"X-Real-Ip": {"{http.request.remote.host}"}},
+		Delete: forgeableHeaders,
+	}}
 }
 
 type route struct {
@@ -238,6 +270,7 @@ func routeJSON(r ingress.Route) route {
 	return route{ID: r.ID, Match: []matcher{m}, Terminal: true, Handle: []handler{{
 		Handler: "reverse_proxy", Upstreams: ups, FlushInterval: -1, StreamCloseDelay: streamClose,
 		LoadBalancing: &loadBalancing{TryDuration: tryDuration, TryInterval: tryInterval},
+		Headers:       clientAddress(),
 	}}}
 }
 
@@ -248,6 +281,7 @@ func panelRoute(p *ingress.PanelSite, socket string) route {
 	return route{ID: panelRouteID, Match: []matcher{{Host: []string{p.Domain}}}, Terminal: true, Handle: []handler{{
 		Handler: "reverse_proxy", Upstreams: []upstream{{Dial: "unix/" + socket}}, FlushInterval: -1, StreamCloseDelay: streamClose,
 		Transport: &transport{Protocol: "http", Versions: []string{"h2c", "1.1"}},
+		Headers:   clientAddress(),
 	}}}
 }
 
@@ -290,6 +324,10 @@ func (c *Caddy) bootstrap(panel *ingress.PanelSite) ([]byte, error) {
 	}
 	servers[serverName] = map[string]any{
 		"listen": []string{":" + strconv.Itoa(httpsPort)}, "strict_sni_host": true, "routes": routes,
+		// Early data can be replayed by anyone who captured it, and its source
+		// address isn't proven, so a request in it is neither safe to act on
+		// nor safe to attribute. A client simply waits one round trip more.
+		"allow_0rtt": false,
 	}
 	config := map[string]any{
 		"admin": map[string]any{
@@ -591,7 +629,7 @@ func routeID(raw json.RawMessage) string {
 var (
 	knownRouteKeys   = []string{"@id", "match", "handle", "terminal"}
 	knownMatchKeys   = []string{"host", "path"}
-	knownHandlerKeys = []string{"handler", "upstreams", "flush_interval", "stream_close_delay", "load_balancing"}
+	knownHandlerKeys = []string{"handler", "upstreams", "flush_interval", "stream_close_delay", "load_balancing", "headers"}
 )
 
 // readRoute reads one of Dockwell's routes; ok is false for another's, which
@@ -618,8 +656,27 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	for _, u := range r.Handle[0].Upstreams {
 		out.Upstreams = append(out.Upstreams, u.Dial)
 	}
-	out.Edited = out.Edited || !onlyKnownKeys(raw)
+	out.Edited = out.Edited || !onlyKnownKeys(raw) || !headersAreOurs(raw)
 	return out, true
+}
+
+// headersAreOurs reports a route that changes the headers it sends as Dockwell
+// has it do, or, as an older config may, not at all. Its key alone isn't enough:
+// a header added by hand is a hand edit, and would otherwise read as nothing.
+func headersAreOurs(raw json.RawMessage) bool {
+	var r struct {
+		Handle []struct {
+			Headers json.RawMessage `json:"headers"`
+		} `json:"handle"`
+	}
+	if json.Unmarshal(raw, &r) != nil || len(r.Handle) != 1 {
+		return false
+	}
+	if len(r.Handle[0].Headers) == 0 {
+		return true
+	}
+	ours, err := json.Marshal(clientAddress())
+	return err == nil && sameJSON(r.Handle[0].Headers, ours)
 }
 
 func onlyKnownKeys(raw json.RawMessage) bool {

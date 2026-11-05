@@ -26,6 +26,8 @@ Every request a server takes from the internet goes through its ingress, so this
 - **Pretend to be HTTPS to the panel.** They can't. The panel's proxied listener is a unix socket, and a request it takes is HTTPS because of that listener. No header decides it. `X-Forwarded-For` is what Caddy wrote: with no `trusted_proxies`, it overwrites what a client sends.
 - **Reach a site by another name.** A `Host` that isn't the TLS name gets 421 (`strict_sni_host`), and a name with no route gets a TLS alert: nothing is served for it, and no certificate is asked for, as on-demand issuance is off.
 - **Burn the CA's rate limit.** They can't trigger issuance: Caddy issues only for the names in routes.
+- **Forge where a request came from.** They can't. Caddy overwrites `X-Forwarded-For`, sets `X-Real-IP` to the real client address, and removes what else a client might claim, such as `Forwarded`, `True-Client-IP` and `CF-Connecting-IP`, so an app that trusts one of these for per-address limits or allowlists reads the truth or nothing. A CDN in front of a server isn't configured for: with one, what a service reads is the CDN's address.
+- **Replay a captured request.** They can't. HTTP/3's 0-RTT is off, so Caddy takes no request before the handshake finishes, and none in early data, whose source address isn't proven either. A test holds this on real Caddy.
 
 ### A compromised app
 
