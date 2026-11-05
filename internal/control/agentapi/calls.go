@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -142,6 +143,13 @@ func (a *Agents) Agent(server string) (resource.Agent, bool) {
 		return nil, false
 	}
 	return s, true
+}
+
+// Connected returns the servers with an agent connected now.
+func (a *Agents) Connected() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Collect(maps.Keys(a.sessions))
 }
 
 // Session returns a server's stream, the one calls go to now, and whether it
@@ -635,7 +643,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	defer clear(values)
 	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled}
 	if d := resource.DeployOf(ctx); d != (resource.Deploy{}) {
-		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback, Reverts: d.Reverts, RollsBackRevert: d.RollsBackRevert}
+		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback}
 	}
 	var seal func(*Session) error
 	if uses {
@@ -836,10 +844,16 @@ func (s *Session) Logs(ctx context.Context, call *agentv1.LogsCall, each func(*a
 }
 
 // LogSources asks the agent which containers a service has logs from.
-func (s *Session) LogSources(ctx context.Context, ref *dockwellv1.ResourceRef) ([]*dockwellv1.LogSource, error) {
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_LogSources{LogSources: &agentv1.LogSourcesCall{Resource: ref}}}, ObserveTimeout, nil)
+func (s *Session) LogSources(ctx context.Context, ref *dockwellv1.ResourceRef, forgottenUpTo int64) ([]*dockwellv1.LogSource, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_LogSources{LogSources: &agentv1.LogSourcesCall{Resource: ref, ForgottenUpTo: forgottenUpTo}}}, ObserveTimeout, nil)
 	if err != nil {
 		return nil, err
 	}
 	return r.GetLogSources().GetSources(), nil
+}
+
+// Forgotten tells a server which services' kept logs are out of reach.
+func (s *Session) Forgotten(ctx context.Context, services []*agentv1.ForgottenService) error {
+	_, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Forgotten{Forgotten: &agentv1.ForgottenCall{Services: services}}}, ObserveTimeout, nil)
+	return err
 }

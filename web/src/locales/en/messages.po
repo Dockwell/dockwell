@@ -571,6 +571,10 @@ msgstr "{secrets, plural, one {# secret} other {# secrets}}"
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, one {# variable} other {# variables}}"
 
+#: src/features/changes/notices.tsx
+msgid "{server} is offline, so what it kept of {name} stays on its disk until it's back"
+msgstr "{server} is offline, so what it kept of {name} stays on its disk until it's back"
+
 #: src/features/activity/describe.ts
 msgid "{server} joined as the control server"
 msgstr "{server} joined as the control server"
@@ -2638,6 +2642,10 @@ msgstr "It can read that path on the server."
 #: src/features/apps/NewAppSheet.tsx
 msgid "It can't be hidden there, so don't pass a secret there."
 msgstr "It can't be hidden there, so don't pass a secret there."
+
+#: src/features/changes/notices.tsx
+msgid "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
+msgstr "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
 
 #: src/features/changes/RollbackLine.tsx
 msgid "It can't tell what is running there until then. Check that the server and its agent are up."

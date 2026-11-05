@@ -43,11 +43,18 @@ func (f *fullServer) addDockerServer(t *testing.T) *dockertest.Engine {
 // addServerWith is addDockerServer with more drivers on the server's agent.
 func (f *fullServer) addServerWith(t *testing.T, more func() []resource.Type) *dockertest.Engine {
 	t.Helper()
+	return f.addServerNamed(t, "hz-1", more, nil)
+}
+
+// addServerNamed adds a server by name. prepare runs before its agent connects, for
+// what is on its disk before it joins.
+func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []resource.Type, prepare func(*dockertest.Engine, *agentlogs.Archive)) *dockertest.Engine {
+	t.Helper()
 	key, csr, err := pki.NewServerKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	joined, err := f.ident.EnrollLocal(t.Context(), csr, "hz-1")
+	joined, err := f.ident.EnrollLocal(t.Context(), csr, name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,6 +70,9 @@ func (f *fullServer) addServerWith(t *testing.T, more func() []resource.Type) *d
 	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}}, &network.Driver{Client: client}}
 	if more != nil {
 		drivers = append(drivers, more()...)
+	}
+	if prepare != nil {
+		prepare(e, archive)
 	}
 	s := &testServer{
 		id:      enroll.New(joined.Server.ID, joined.Server.Name, "https://"+f.agentAddr, key, joined.Cert, f.ident.CA().Certificate()),

@@ -226,11 +226,7 @@ type logKeeper struct {
 	began, finished []string
 	failed          []bool
 	running         []bool
-	forgot, brought int
 }
-
-func (k *logKeeper) Forget(string, string)  { k.forgot++ }
-func (k *logKeeper) Restore(string, string) { k.brought++ }
 
 func (k *logKeeper) Begin(_ context.Context, c *docker.Container, failed bool) container.LogKeep {
 	k.began = append(k.began, c.ID)
@@ -299,67 +295,6 @@ func TestAReplaceKeepsTheOldContainersLog(t *testing.T) {
 	}
 	if keeper.began[len(keeper.began)-1] != last {
 		t.Errorf("deleting didn't keep the log: began %v", keeper.began)
-	}
-}
-
-// Deleting a service hides what its server kept, and what can undo it brings it
-// back. A rollback that takes away a first deploy that failed isn't a deletion, and
-// a replace that undoes a change doesn't bring back an older service's.
-func TestDeletingHidesKeptLogsAndUndoingBringsThemBack(t *testing.T) {
-	e := dockertest.New(t)
-	e.Registry["app:1"] = dockertest.Image{}
-	e.Registry["app:2"] = dockertest.Image{}
-	keeper := &logKeeper{}
-	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Logs: keeper}
-	target := container.Target{Name: "web", Project: "p", Service: "web"}
-	run := func(ctx context.Context, image string) {
-		t.Helper()
-		if err := rt.Run(ctx, target, &resourcev1.Container{Image: image}, false); err != nil {
-			t.Fatal(err)
-		}
-	}
-	remove := func(ctx context.Context) {
-		t.Helper()
-		if err := rt.Remove(ctx, target); err != nil {
-			t.Fatal(err)
-		}
-	}
-	reverts := resource.WithDeploy(t.Context(), resource.Deploy{Revision: 4, Change: "chg", Reverts: true})
-
-	run(t.Context(), "app:1")
-	if keeper.brought != 0 {
-		t.Error("making a service anew brought back kept logs")
-	}
-	run(reverts, "app:2")
-	if keeper.brought != 0 {
-		t.Error("a replace that undoes a change brought back kept logs")
-	}
-	remove(t.Context())
-	if keeper.forgot != 1 {
-		t.Errorf("deleting forgot %d times", keeper.forgot)
-	}
-	run(reverts, "app:1")
-	if keeper.brought != 1 {
-		t.Errorf("undoing a deletion brought back %d times", keeper.brought)
-	}
-
-	// A first deploy that failed: nothing to read if its rollback hid it.
-	remove(resource.WithDeploy(t.Context(), resource.Deploy{Revision: 5, Change: "chg", Rollback: true, Reverts: true}))
-	if keeper.forgot != 1 {
-		t.Error("a rollback that removes what failed hid its logs")
-	}
-
-	// An undo of a deletion that failed: the service stays deleted.
-	run(reverts, "app:1")
-	remove(resource.WithDeploy(t.Context(), resource.Deploy{Revision: 6, Change: "chg", Rollback: true, Reverts: true, RollsBackRevert: true}))
-	if keeper.forgot != 2 {
-		t.Error("a rollback of an undo left the deleted service's logs readable")
-	}
-
-	// Nothing on the server to remove says the same.
-	remove(t.Context())
-	if keeper.forgot != 3 {
-		t.Error("deleting with no container left its logs readable")
 	}
 }
 

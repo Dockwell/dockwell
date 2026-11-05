@@ -97,11 +97,6 @@ type LogKeeper interface {
 	// container failed, so its log outlives those of containers replaced in
 	// the ordinary way.
 	Begin(ctx context.Context, c *docker.Container, failed bool) LogKeep
-	// Forget takes what the server kept of a service out of reach, as it was
-	// deleted: it goes in 7 days, unless Restore brings it back first.
-	Forget(project, service string)
-	// Restore brings back what the last deletion of a service took out of reach.
-	Restore(project, service string)
 }
 
 // LogKeep is one container's log being kept.
@@ -1003,10 +998,6 @@ func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, 
 	if err := d.Client.StartContainer(ctx, id); err != nil {
 		return fmt.Errorf("docker can't start %s: %w", t.Name, err)
 	}
-	// Made where there was none by undoing a change: it brings the service back.
-	if old == nil && d.Logs != nil && resource.DeployOf(ctx).Reverts {
-		d.Logs.Restore(t.Project, t.Service)
-	}
 	d.reportRan(ctx, spec.GetImage())
 	return nil
 }
@@ -1260,7 +1251,6 @@ func (d *Docker) Remove(ctx context.Context, t Target) error {
 	} else if c, err = d.unfinished(ctx, t); err != nil {
 		return err
 	} else if c == nil {
-		d.forgetLogs(ctx, t)
 		return nil
 	}
 	keep := d.beginKeepingLogs(ctx, c)
@@ -1272,19 +1262,7 @@ func (d *Docker) Remove(ctx context.Context, t Target) error {
 		return err
 	}
 	d.keep(t, imageVolumes(c))
-	d.forgetLogs(ctx, t)
 	return nil
-}
-
-// forgetLogs takes what the server kept of a service out of reach, as it was
-// deleted. A rollback that removes a first deploy that failed isn't a deletion:
-// its logs are what its reader needs. One that rolls back an undo is, as the
-// service stays deleted.
-func (d *Docker) forgetLogs(ctx context.Context, t Target) {
-	deploy := resource.DeployOf(ctx)
-	if d.Logs != nil && (!deploy.Rollback || deploy.RollsBackRevert) {
-		d.Logs.Forget(t.Project, t.Service)
-	}
 }
 
 func or(d, def time.Duration) time.Duration {

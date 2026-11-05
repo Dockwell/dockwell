@@ -270,6 +270,8 @@ message Call {
     // Read a service's logs, over SendLogs. It has no timeout, as following
     // lasts until the reader leaves, and it ends when the stream does.
     LogsCall logs = 7;
+    // Says which services' kept logs are out of reach.
+    ForgottenCall forgotten = 8;
   }
 }
 
@@ -277,7 +279,32 @@ message Call {
 message LogSourcesCall {
   // The service.
   dockwell.v1.ResourceRef resource = 1;
+  // What the server kept of revisions up to this isn't listed, as a deletion put it
+  // out of reach.
+  int64 forgotten_up_to = 2;
 }
+
+// ForgottenCall says which services' kept logs a deletion put out of reach, for what
+// to remove from the disk: each read says for itself what it can't read. It is all of
+// them, and replaces what it last said. A server hears it when it connects and from
+// time to time after that, so one that was away or joins later catches up.
+message ForgottenCall {
+  // The services.
+  repeated ForgottenService services = 1;
+}
+
+// ForgottenService is what one deleted service left.
+message ForgottenService {
+  // The service.
+  dockwell.v1.ResourceRef resource = 1;
+  // What the server kept of revisions up to this is out of reach.
+  int64 up_to_revision = 2;
+  // True once it can't be undone, so it goes from the disk.
+  bool expired = 3;
+}
+
+// ForgottenResult answers a ForgottenCall.
+message ForgottenResult {}
 
 // LogsCall asks the agent to read a service's logs.
 message LogsCall {
@@ -322,6 +349,9 @@ message LogsCall {
   // Only lines from this long ago until now, by this server's clock, which is
   // the clock its lines' times are on. Set in place of since.
   google.protobuf.Duration last = 17;
+  // What the server kept of revisions up to this isn't read, as a deletion put it
+  // out of reach.
+  int64 forgotten_up_to = 18;
 }
 
 // LogCursor is a place in one source's lines.
@@ -366,6 +396,9 @@ message SendLogsRequest {
   bool caught_up = 4;
   // What a search read, once it is done.
   repeated LogScan scans = 5;
+  // When this stream began, by this server's clock, on its first message: since
+  // when a source with no place is read, if the stream has to carry on.
+  google.protobuf.Timestamp started = 6;
 }
 
 // SendLogsResponse is empty.
@@ -408,12 +441,6 @@ message Deploy {
   // True when the change rolls a failed one back, so what the step replaces
   // or removes failed.
   bool rollback = 3;
-  // True when the change undoes or rolls back another, so a container the step
-  // makes where there was none brings back a deleted service.
-  bool reverts = 4;
-  // True when the change rolls back one that itself undid another, so a
-  // container the step removes takes a deleted service away again.
-  bool rolls_back_revert = 5;
 }
 
 // Values are what a service's variables and secrets resolve to on the
@@ -467,6 +494,8 @@ message CallResult {
     LogSourcesResult log_sources = 6;
     // A logs call read all it was asked for, or its reader left.
     LogsResult logs = 7;
+    // Answers forgotten.
+    ForgottenResult forgotten = 8;
   }
 }
 

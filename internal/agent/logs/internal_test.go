@@ -4,10 +4,14 @@ package logs
 
 import (
 	"bytes"
+	"context"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 )
@@ -107,10 +111,40 @@ func TestFinishingAKeptLogDoesntWaitForAPrune(t *testing.T) {
 // The names a label can give can't reach what a deletion set aside.
 func TestSafeNames(t *testing.T) {
 	for name, want := range map[string]bool{
-		"web": true, "env_01abc": true, "": false, ".": false, "..": false, ".deleted": false, ".copying-abc": false, "a/b": false, `a\b`: false, "a\x00b": false,
+		"web": true, "env_01abc": true, "": false, ".": false, "..": false, ".hidden": false, ".copying-abc": false, "a/b": false, `a\b`: false, "a\x00b": false,
 	} {
 		if got := safeName(name); got != want {
 			t.Errorf("safeName(%q) = %v", name, got)
 		}
+	}
+}
+
+// Gathering a message is linear in what it says, and with its reader gone it stops.
+func TestGatheringIsLinearAndStopsWithItsReader(t *testing.T) {
+	const n = 200_000
+	full := func(ctx context.Context) *stream {
+		s := &stream{ctx: ctx, call: &agentv1.LogsCall{}, open: map[string]*openChunk{}, gaps: make(map[string]*gap, n)}
+		for i := range n {
+			s.gaps[strconv.Itoa(i)] = &gap{told: &dockwellv1.LogGap{}}
+		}
+		return s
+	}
+	begin := time.Now()
+	if m := full(t.Context()).gather(); len(m.GetChunks()) != n {
+		t.Errorf("it gathered %d chunks", len(m.GetChunks()))
+	}
+	// A search through what has gathered for each would take minutes.
+	if took := time.Since(begin); took > 30*time.Second {
+		t.Errorf("gathering %d took %s", n, took)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	s := full(ctx)
+	cancel()
+	begin = time.Now()
+	if m := s.gather(); len(m.GetChunks()) != 0 {
+		t.Errorf("with its reader gone it gathered %d chunks", len(m.GetChunks()))
+	}
+	if took := time.Since(begin); took > time.Second {
+		t.Errorf("with its reader gone it took %s", took)
 	}
 }

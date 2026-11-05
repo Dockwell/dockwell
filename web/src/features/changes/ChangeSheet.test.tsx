@@ -541,6 +541,32 @@ describe("the plan sheet", () => {
     await expectAccessible(document.body);
   });
 
+  it("says what an offline server keeps of a deleted service, and until when", async () => {
+    const noted = webPlanned();
+    if (noted.plan) {
+      noted.plan.notes = [
+        create(PlanNoteSchema, {
+          reason: "kept_logs_offline",
+          message: "b is offline, so what it kept of web stays on its disk until it's back.",
+          resource: { kind: "service", name: "web" },
+          names: ["b"],
+        }),
+      ];
+    }
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: noted }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const callout = (await within(sheet).findByText(/stays on its disk/)).closest(".dw-callout") as HTMLElement;
+    expect(callout.querySelector(".dw-callout-title")).toHaveTextContent(
+      "b is offline, so what it kept of web stays on its disk until it's back",
+    );
+    expect(callout).toHaveTextContent(
+      "It can't be read meanwhile, and it goes once the server is back and the 7 days are up.",
+    );
+    await expectAccessible(document.body);
+  });
+
   it("leaves a plan's own word to a row once something worse has the Callout", async () => {
     const noted = webPlanned();
     if (noted.plan) {

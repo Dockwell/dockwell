@@ -278,6 +278,82 @@ func TestAFollowReadsARestartItDidNotSee(t *testing.T) {
 	}
 }
 
+// A call names at most what a server reads for one, whatever the control plane said,
+// so a crafted token costs a server nothing however many sources it names.
+func TestACallNamingMoreThanAServerTakesIsRefused(t *testing.T) {
+	at := timestamppb.New(time.Now())
+	cursors := func(n int) []*agentv1.LogCursor {
+		out := make([]*agentv1.LogCursor, n)
+		for i := range out {
+			out[i] = &agentv1.LogCursor{SourceId: fmt.Sprintf("%012x", i), Time: at, Count: 1}
+		}
+		return out
+	}
+	ids := func(n int) []string {
+		out := make([]string, n)
+		for i := range out {
+			out[i] = fmt.Sprintf("%012x", i)
+		}
+		return out
+	}
+	over := logs.MaxNamedSources + 1
+	for name, call := range map[string]*agentv1.LogsCall{
+		"after":      {After: cursors(over)},
+		"before":     {Before: cursors(over)},
+		"source_ids": {SourceIds: ids(over)},
+		"levels":     {Levels: make([]dockwellv1.LogLevel, logs.MaxLevels+1)},
+		"query":      {Query: strings.Repeat("x", 1<<10+1)},
+		"bad after":  {After: []*agentv1.LogCursor{{SourceId: "../../etc", Time: at}}},
+		"bad source": {SourceIds: []string{strings.Repeat("a", 65)}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			addContainer(t, e, "app-1", 1)
+			r := newReader(t, e)
+			call.Resource, call.Follow = testRef, true
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			err := r.Stream(ctx, call, func(*agentv1.SendLogsRequest) error { return nil })
+			if err == nil || !strings.Contains(err.Error(), "read nothing") {
+				t.Errorf("it said %v", err)
+			}
+			if e.Followers() != 0 {
+				t.Error("it read a log first")
+			}
+		})
+	}
+}
+
+// As much as a call can name, it costs next to nothing, and ends at once with its
+// reader: a marker for each made-up source, and no more.
+func TestTheMostACallCanNameCostsLittle(t *testing.T) {
+	e := dockertest.New(t)
+	addContainer(t, e, "app-1", 1)
+	r := newReader(t, e)
+	at := timestamppb.New(time.Now().Add(-time.Hour))
+	after := make([]*agentv1.LogCursor, logs.MaxNamedSources)
+	for i := range after {
+		after[i] = &agentv1.LogCursor{SourceId: fmt.Sprintf("%012x", i), Time: at, Count: 1}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	c := newCollector()
+	done := follow(ctx, r, &agentv1.LogsCall{Tail: -1, After: after, ResumeFrom: at}, c)
+	waitFor(t, "a marker for each", func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return len(c.gaps) == logs.MaxNamedSources
+	})
+	left := time.Now()
+	cancel()
+	if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
+		t.Errorf("it ended with %v", err)
+	}
+	if took := time.Since(left); took > time.Second {
+		t.Errorf("it took %s to stop after its reader left", took)
+	}
+}
+
 // More containers than a stream reads at once get a word, rather than silence,
 // and a turn once one stops.
 func TestAStreamSaysWhichContainersWaitForRoom(t *testing.T) {
@@ -822,102 +898,122 @@ func TestAPageBoundaryKeepsLinesOfOneTime(t *testing.T) {
 	}
 }
 
-// A deleted service's kept logs can't be read by any name, a new service of the same
-// name starts clean, and undoing the deletion brings them back.
-func TestADeletedServicesLogsLeaveUnlessUndone(t *testing.T) {
+// What a deletion put out of reach isn't read, or listed, however it is asked for. A
+// service made again keeps its name, its directory and its ID, and what it writes
+// reads, as its revisions are later. A call that says nothing reads it all, as when the
+// deletion was undone.
+func TestAReadLeavesOutWhatADeletionPutOutOfReach(t *testing.T) {
 	e := dockertest.New(t)
-	addContainer(t, e, "app-1", 1)
+	addContainer(t, e, "app-1", 3)
 	e.Print("app-1", docker.Stdout, "password=hunter2")
 	r := newReader(t, e)
 	keep(t, r, e, "app-1", false)
-	if len(r.Archive.List(testProject, testService)) != 1 {
-		t.Fatal("the log wasn't kept")
-	}
-
-	r.Archive.Forget(testProject, testService)
-	if got := r.Archive.List(testProject, testService); len(got) != 0 {
-		t.Errorf("a deleted service still lists %v", got)
-	}
-	for _, name := range []string{testService, ".deleted", "../.deleted/" + testProject + "/" + testService} {
-		if got := r.Archive.List(testProject, name); len(got) != 0 {
-			t.Errorf("the name %q reads what was deleted: %v", name, got)
-		}
-	}
-	if got := r.Archive.List(".deleted", testProject); len(got) != 0 {
-		t.Errorf("the project .deleted reads what was deleted: %v", got)
-	}
-	c := once(t, r, &agentv1.LogsCall{IncludeKept: true, Tail: 100})
-	if c.count() != 0 {
-		t.Errorf("reading a deleted service got %q", c.got())
-	}
-
-	// A new one of that name writes and keeps logs of its own.
-	addContainer(t, e, "app-2", 1)
+	addContainer(t, e, "app-2", 5)
 	e.Print("app-2", docker.Stdout, "the new one")
-	keep(t, r, e, "app-2", false)
-	c = once(t, r, &agentv1.LogsCall{IncludeKept: true, Tail: 100})
-	if got := c.got(); len(got) != 1 || got[0] != "the new one" {
-		t.Errorf("a new service of the name read %q", got)
-	}
+	keep(t, r, e, "app-2", true)
 
-	// Deleted in turn, and undone, it brings back its own, not the older one's.
-	r.Archive.Forget(testProject, testService)
-	r.Archive.Restore(testProject, testService)
-	c = once(t, r, &agentv1.LogsCall{IncludeKept: true, Tail: 100})
-	if got := c.got(); len(got) != 1 || got[0] != "the new one" {
-		t.Errorf("undoing the newest deletion read %q", got)
+	read := func(upTo int64) []string {
+		t.Helper()
+		got := once(t, r, &agentv1.LogsCall{IncludeKept: true, Tail: 100, ForgottenUpTo: upTo}).got()
+		slices.Sort(got)
+		return got
+	}
+	if got := read(4); !slices.Equal(got, []string{"the new one"}) {
+		t.Errorf("past the deletion it read %q", got)
+	}
+	if got := read(5); len(got) != 0 {
+		t.Errorf("with both out of reach it read %q", got)
+	}
+	if got := read(0); !slices.Equal(got, []string{"password=hunter2", "the new one"}) {
+		t.Errorf("with nothing out of reach it read %q", got)
+	}
+	listed, err := r.Sources(t.Context(), testRef, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 1 || listed[0].GetRevision() != 5 {
+		t.Errorf("past the deletion it listed %v", listed)
 	}
 }
 
-func TestUndoingADeletionBringsItsLogsBack(t *testing.T) {
+// A kept log with no revision, as a container Compose made has none, is taken to be
+// from before a deletion, as nothing says it isn't.
+func TestAKeptLogWithNoRevisionIsOutOfReachAfterADeletion(t *testing.T) {
 	e := dockertest.New(t)
-	addContainer(t, e, "app-1", 1)
-	e.Print("app-1", docker.Stdout, "from before")
+	ctr := addContainer(t, e, "app-1", 1)
+	delete(ctr.Config.Labels, docker.OwnPrefix+"revision")
+	e.Print("app-1", docker.Stdout, "from Compose")
 	r := newReader(t, e)
-	keep(t, r, e, "app-1", true)
-	r.Archive.Forget(testProject, testService)
-	r.Archive.Restore(testProject, testService)
-	c := once(t, r, &agentv1.LogsCall{IncludeKept: true, Tail: 100})
-	if got := c.got(); len(got) != 1 || got[0] != "from before" {
-		t.Errorf("after undoing the deletion it read %q", got)
+	keep(t, r, e, "app-1", false)
+	if got := once(t, r, &agentv1.LogsCall{IncludeKept: true, Tail: 100, ForgottenUpTo: 1}).got(); len(got) != 0 {
+		t.Errorf("it read %q", got)
+	}
+	if got := once(t, r, &agentv1.LogsCall{IncludeKept: true, Tail: 100}).got(); len(got) != 1 {
+		t.Errorf("with no deletion it read %q", got)
 	}
 }
 
-// What a deletion hid goes 7 days after it, as undoing it can't come later.
-func TestADeletedServicesLogsGoAfterSevenDays(t *testing.T) {
+// What a deletion put out of reach stays while it can be undone, and goes from the
+// disk once the control plane says it can't, leaving what a later revision wrote.
+func TestWhatADeletionPutOutOfReachGoesOnceItCantBeUndone(t *testing.T) {
 	e := dockertest.New(t)
-	addContainer(t, e, "app-1", 1)
+	addContainer(t, e, "app-1", 3)
 	e.Print("app-1", docker.Stdout, "from before")
 	r := newReader(t, e)
 	keep(t, r, e, "app-1", false)
-	now := time.Now()
-	r.Archive.Now = func() time.Time { return now }
-	r.Archive.Forget(testProject, testService)
-	hidden := filepath.Join(r.Archive.Dir, ".deleted", testProject, testService)
-	entries := func() int {
-		list, err := os.ReadDir(hidden)
-		if err != nil {
-			return 0
+	addContainer(t, e, "app-2", 5)
+	e.Print("app-2", docker.Stdout, "the new one")
+	keep(t, r, e, "app-2", true)
+	revisions := func() []int64 {
+		var out []int64
+		for _, k := range r.Archive.List(testProject, testService) {
+			out = append(out, k.Revision)
 		}
-		return len(list)
+		slices.Sort(out)
+		return out
 	}
-	now = now.Add(logs.DeletedFor - time.Minute)
+
+	r.Forgotten([]*agentv1.ForgottenService{{Resource: testRef, UpToRevision: 4}})
+	if got := revisions(); !slices.Equal(got, []int64{3, 5}) {
+		t.Fatalf("while it can be undone, the server keeps revisions %v", got)
+	}
+	r.Forgotten([]*agentv1.ForgottenService{{Resource: testRef, UpToRevision: 4, Expired: true}})
+	if got := revisions(); !slices.Equal(got, []int64{5}) {
+		t.Errorf("once it can't be undone, the server keeps revisions %v", got)
+	}
+	// Told again, as it is each hour, it changes nothing.
+	r.Forgotten([]*agentv1.ForgottenService{{Resource: testRef, UpToRevision: 4, Expired: true}})
+	if got := revisions(); !slices.Equal(got, []int64{5}) {
+		t.Errorf("told again, the server keeps revisions %v", got)
+	}
+}
+
+// Running out of room, what a deletion put out of reach goes before what can be read.
+func TestWhatADeletionPutOutOfReachGoesFirstWhenFull(t *testing.T) {
+	e := dockertest.New(t)
+	addContainer(t, e, "gone-1", 3)
+	e.Print("gone-1", docker.Stdout, strings.Repeat("from before ", 2000))
+	r := newReader(t, e)
+	keep(t, r, e, "gone-1", true)
+	addContainer(t, e, "gone-2", 5)
+	e.Print("gone-2", docker.Stdout, strings.Repeat("the new one ", 2000))
+	keep(t, r, e, "gone-2", true)
+	r.Archive.WaitPruned()
+	if got := r.Archive.List(testProject, testService); len(got) != 1 {
+		t.Fatalf("one slot keeps %d", len(got))
+	}
+	addContainer(t, e, "gone-3", 6)
+	e.Print("gone-3", docker.Stdout, strings.Repeat("replaced ", 2000))
+	keep(t, r, e, "gone-3", false)
+	r.Archive.WaitPruned()
+	r.Forgotten([]*agentv1.ForgottenService{{Resource: testRef, UpToRevision: 5}})
+	r.Archive.Budget = 1
 	if err := r.Archive.Prune(); err != nil {
 		t.Fatal(err)
 	}
-	if entries() != 1 {
-		t.Fatal("what a deletion hid left before its time")
-	}
-	now = now.Add(2 * time.Minute)
-	if err := r.Archive.Prune(); err != nil {
-		t.Fatal(err)
-	}
-	if entries() != 0 {
-		t.Error("what a deletion hid stayed past its time")
-	}
-	r.Archive.Restore(testProject, testService)
-	if got := r.Archive.List(testProject, testService); len(got) != 0 {
-		t.Errorf("undoing too late brought back %v", got)
+	left := r.Archive.List(testProject, testService)
+	if len(left) != 1 || left[0].Revision != 6 {
+		t.Errorf("over budget it kept %v, want the newest", left)
 	}
 }
 

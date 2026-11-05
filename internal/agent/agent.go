@@ -77,8 +77,11 @@ type DomainReporter interface {
 // engine's, each on a connection of its own, so log lines never stand between
 // the control plane and the agent's stats, plans and applies.
 type LogReader interface {
-	// Sources lists the containers a service has logs from.
-	Sources(ctx context.Context, ref *dockwellv1.ResourceRef) ([]*dockwellv1.LogSource, error)
+	// Sources lists the containers a service has logs from, leaving out what it
+	// kept of revisions up to forgottenUpTo, which a deletion put out of reach.
+	Sources(ctx context.Context, ref *dockwellv1.ResourceRef, forgottenUpTo int64) ([]*dockwellv1.LogSource, error)
+	// Forgotten says which services' kept logs no reader may see any more.
+	Forgotten(services []*agentv1.ForgottenService)
 	// Stream reads what a call asks for, passing it to send, until it has read
 	// it all or ctx ends. send may block: a follow drops what it can't send,
 	// and says how much.

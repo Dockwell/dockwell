@@ -200,9 +200,11 @@ type blockingLogs struct {
 	after chan *agentv1.LogCursor
 }
 
-func (*blockingLogs) Sources(context.Context, *dockwellv1.ResourceRef) ([]*dockwellv1.LogSource, error) {
+func (*blockingLogs) Sources(context.Context, *dockwellv1.ResourceRef, int64) ([]*dockwellv1.LogSource, error) {
 	return nil, nil
 }
+
+func (*blockingLogs) Forgotten([]*agentv1.ForgottenService) {}
 
 func (l *blockingLogs) Stream(ctx context.Context, call *agentv1.LogsCall, send func(*agentv1.SendLogsRequest) error) error {
 	n := l.calls.Add(1)

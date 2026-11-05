@@ -654,7 +654,7 @@ func TestAKeptLogOutlivesItsContainer(t *testing.T) {
 	}
 	id := ctr.ID[:12]
 
-	found, err := r.Sources(ctx, testRef)
+	found, err := r.Sources(ctx, testRef, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -720,7 +720,7 @@ func TestKeepsTheLastFailedAndTheLastReplaced(t *testing.T) {
 		e.Print(name, docker.Stdout, name)
 		made[kind] = keep(t, r, e, name, kind == "failed")
 	}
-	found, err := r.Sources(t.Context(), testRef)
+	found, err := r.Sources(t.Context(), testRef, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

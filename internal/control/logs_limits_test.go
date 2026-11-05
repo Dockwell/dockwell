@@ -5,6 +5,7 @@ package control
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -141,15 +142,13 @@ func TestADeletedServicesLogsAreOutOfReachUnlessUndone(t *testing.T) {
 	if !said {
 		t.Errorf("the plan to delete it doesn't say what happens to its logs: %v", gone.GetPlan().GetServers())
 	}
-	if lines := logTexts(t, lc, id); len(lines) != 0 {
-		t.Errorf("a deleted service read by its ID: %q", lines)
+	_, err = lc.ReadLogs(t.Context(), connect.NewRequest(&dockwellv1.ReadLogsRequest{Id: id}))
+	if connect.CodeOf(err) != connect.CodeNotFound || !strings.Contains(err.Error(), "web was deleted") {
+		t.Errorf("reading a deleted service by its ID said %v", err)
 	}
-	list, err := lc.ListLogSources(t.Context(), connect.NewRequest(&dockwellv1.ListLogSourcesRequest{Id: id}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !list.Msg.GetService().GetDeleted() || len(list.Msg.GetSources()) != 0 {
-		t.Errorf("a deleted service lists %v", list.Msg)
+	_, err = lc.ListLogSources(t.Context(), connect.NewRequest(&dockwellv1.ListLogSourcesRequest{Id: id}))
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Errorf("listing a deleted service by its ID said %v", err)
 	}
 
 	// Undoing it brings them back, as it does its data.
@@ -198,6 +197,154 @@ func TestAFailedFirstDeploysLogsStayReadable(t *testing.T) {
 			return s.GetState() == dockwellv1.LogSourceState_LOG_SOURCE_STATE_KEPT
 		})
 	})
+}
+
+// A crafted token is refused through the API, by name and by ID, with nothing asked of
+// an agent, and a stream's own token is taken back.
+func TestACraftedTokenIsRefusedAndAStreamsOwnIsTaken(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	lc := logClient(b, b.origin)
+	done := apply(t, c, propose(t, c, "Run web", runImage("ghcr.io/acme/shop:1.4")))
+	name := docker.ContainerName(docker.Project(done.GetPlan().GetResources()[0].GetResource().GetScope()), "web")
+
+	server := f.lastDocker.id.ServerID
+	places := map[string][2]int64{}
+	for i := range 100_000 {
+		places[fmt.Sprintf("%x", i)] = [2]int64{1700000000000000000, 1}
+	}
+	raw, err := json.Marshal(map[string]any{"s": map[string]any{server: map[string]any{"l": 1700000000000000000, "c": places}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw)
+	stream, err := lc.WatchLogs(t.Context(), connect.NewRequest(&dockwellv1.WatchLogsRequest{Id: "web", ResumeToken: token}))
+	if err == nil {
+		for stream.Receive() {
+			t.Fatalf("a crafted token got %v", stream.Msg())
+		}
+		err = stream.Err()
+	}
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "resume_token") {
+		t.Errorf("it said %v", err)
+	}
+	if e.Followers() != 0 {
+		t.Error("an agent read logs for it")
+	}
+
+	e.Print(name, docker.Stdout, "one")
+	r := follow(t, lc, &dockwellv1.WatchLogsRequest{Id: "web"})
+	r.waitLines("one")
+	eventually(t, "a token", func() bool {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return r.token != ""
+	})
+	r.mu.Lock()
+	own := r.token
+	r.mu.Unlock()
+	r.cancel()
+	if err := <-r.done; connect.CodeOf(err) != connect.CodeCanceled {
+		t.Fatalf("the first stream ended with %v", err)
+	}
+	e.Print(name, docker.Stdout, "two")
+	again := follow(t, lc, &dockwellv1.WatchLogsRequest{Id: "web", ResumeToken: own})
+	again.waitLines("two")
+}
+
+// A next page goes on working on a service with sources on several servers, each told
+// only of its own.
+func TestPagesReadBackAcrossServers(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	onA := f.addServerNamed(t, "a", nil, nil)
+	a := f.lastDocker.id.ServerID
+	onB := f.addServerNamed(t, "b", nil, nil)
+	second := f.lastDocker.id.ServerID
+	c := changeClient(b, b.origin)
+	lc := logClient(b, b.origin)
+	edit := runImage("ghcr.io/acme/shop:1.4")
+	edit.Servers = []string{a, second}
+	done := apply(t, c, propose(t, c, "Run web", edit))
+	if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("it ended %v: %s", done.GetState(), done.GetError())
+	}
+	name := docker.ContainerName(docker.Project(done.GetPlan().GetResources()[0].GetResource().GetScope()), "web")
+	want := map[string]bool{}
+	for i := range 30 {
+		for side, e := range map[string]*dockertest.Engine{"a": onA, "b": onB} {
+			line := fmt.Sprintf("%s %02d", side, i)
+			e.Print(name, docker.Stdout, line)
+			want[line] = true
+		}
+	}
+	seen := map[string]int{}
+	token := ""
+	for range 20 {
+		res, err := lc.ReadLogs(t.Context(), connect.NewRequest(&dockwellv1.ReadLogsRequest{Id: "web", PageSize: 10, PageToken: token}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, ch := range res.Msg.GetChunks() {
+			for _, l := range ch.GetLines() {
+				seen[l.GetText()]++
+			}
+		}
+		token = res.Msg.GetNextPageToken()
+		if token == "" {
+			break
+		}
+	}
+	for line := range want {
+		if seen[line] != 1 {
+			t.Errorf("%q read %d times", line, seen[line])
+		}
+	}
+}
+
+// A source a stream hadn't heard from when it dropped, as a new container is in a
+// deploy that starts it first, keeps what it printed before another's last line.
+func TestAQuietSourceKeepsItsLinesAcrossAReconnect(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	lc := logClient(b, b.origin)
+	done := apply(t, c, propose(t, c, "Run web", runImage("ghcr.io/acme/shop:1.4")))
+	scope := done.GetPlan().GetResources()[0].GetResource().GetScope()
+	project := docker.Project(scope)
+	name := docker.ContainerName(project, "web")
+
+	r := follow(t, lc, &dockwellv1.WatchLogsRequest{Id: "web", Tail: -1})
+	r.waitCaughtUp()
+	// A second container, which a look finds up to half a second on, prints before
+	// the first's last line, which arrives at once.
+	second := e.AddContainer(docker.Container{
+		Name: "/" + name + "-new",
+		Config: docker.Config{Image: "ghcr.io/acme/shop:1.5", Labels: map[string]string{
+			docker.LabelProject: project, docker.LabelService: "web", docker.LabelNumber: "2",
+		}},
+		Created: time.Now().UTC(),
+		State:   docker.State{Status: "running", Running: true, StartedAt: time.Now().UTC()},
+	})
+	e.Print(strings.TrimPrefix(second.Name, "/"), docker.Stdout, "the new one said this")
+	time.Sleep(10 * time.Millisecond)
+	e.Print(name, docker.Stdout, "the old one's last")
+	r.waitLines("the old one's last")
+	r.mu.Lock()
+	token, heard := r.token, slices.Contains(r.lines, "the new one said this")
+	r.mu.Unlock()
+	r.cancel()
+	if err := <-r.done; connect.CodeOf(err) != connect.CodeCanceled {
+		t.Fatalf("the first stream ended with %v", err)
+	}
+	if heard {
+		t.Skip("a look found the new one before the old one's line came, which this can't test")
+	}
+	again := follow(t, lc, &dockwellv1.WatchLogsRequest{Id: "web", ResumeToken: token})
+	again.waitLines("the new one said this")
 }
 
 // A plan and a check both say when a file's log rotation isn't what Dockwell takes.

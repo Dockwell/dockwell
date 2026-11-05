@@ -6,8 +6,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
+
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 )
 
 // What a server spends on reading logs, whoever reads them.
@@ -57,6 +60,64 @@ var (
 	errBusyReader = fmt.Errorf("you have %d streams of logs open on this server, the most one reader can. Close one, and Dockwell tries again", MaxStreamsPerReader)
 	errBusySearch = fmt.Errorf("too many searches are reading logs on this server, at most %d, as the other places wait for someone reading live. Try again in a moment", MaxStreams-keptForLive)
 )
+
+// What a call may name, which the agent checks whatever the control plane did, as
+// each named source costs it memory and work. A next page or a stream that carries on
+// names only sources it read, so a real one is within these.
+const (
+	// MaxNamedSources is the most sources a call names in each of its lists.
+	MaxNamedSources = 64
+	// MaxLevels is more than there are levels, for a list that repeats one.
+	MaxLevels = 8
+	// maxSourceID is far longer than a source's ID, the start of a container's.
+	maxSourceID = 64
+	// maxQuery is the longest search a call asks for, which travels down the main stream.
+	maxQuery = 1 << 10
+)
+
+// ValidSourceID reports what can be a source's ID.
+func ValidSourceID(id string) bool {
+	if id == "" || len(id) > maxSourceID {
+		return false
+	}
+	for i := range len(id) {
+		switch c := id[i]; {
+		case c >= '0' && c <= '9', c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c == '-', c == '_', c == '.':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// checkCall refuses a call that names more than a server reads for one.
+func checkCall(call *agentv1.LogsCall) error {
+	refuse := func(what string, n, limit int) error {
+		return fmt.Errorf("this call names %d %s, and a server takes at most %d for one, so it read nothing. The control plane checks this first, so check that the two are the same version", n, what, limit)
+	}
+	for _, list := range []int{len(call.GetAfter()), len(call.GetBefore()), len(call.GetSourceIds())} {
+		if list > MaxNamedSources {
+			return refuse("sources", list, MaxNamedSources)
+		}
+	}
+	if n := len(call.GetLevels()); n > MaxLevels {
+		return refuse("levels", n, MaxLevels)
+	}
+	if n := len(call.GetQuery()); n > maxQuery {
+		return refuse("bytes of search", n, maxQuery)
+	}
+	for _, c := range slices.Concat(call.GetAfter(), call.GetBefore()) {
+		if !ValidSourceID(c.GetSourceId()) {
+			return errors.New("this call names a source that isn't one, so it read nothing. The control plane checks this first, so check that the two are the same version")
+		}
+	}
+	for _, id := range call.GetSourceIds() {
+		if !ValidSourceID(id) {
+			return errors.New("this call names a source that isn't one, so it read nothing. The control plane checks this first, so check that the two are the same version")
+		}
+	}
+	return nil
+}
 
 // join gives a stream a place among this server's readers, and a share of what
 // the server carries live.

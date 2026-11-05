@@ -35,12 +35,6 @@ type Deploy struct {
 	Revision int
 	Change   string
 	Rollback bool
-	// Reverts says the change undoes or rolls back another, so what a step makes
-	// where there was none brings back something deleted.
-	Reverts bool
-	// RollsBackRevert says the change rolls back one that itself undid another,
-	// so what a step removes stays deleted.
-	RollsBackRevert bool
 }
 
 type deployKey struct{}

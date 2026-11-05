@@ -167,7 +167,7 @@ func TestLogsOnRealDocker(t *testing.T) {
 
 	// A replace keeps the log, which reads back when the container has gone.
 	runReal(t, client, rt, project, "web", `echo second; sleep 60`, 2)
-	found, err := reader.Sources(t.Context(), ref)
+	found, err := reader.Sources(t.Context(), ref, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -326,7 +326,6 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if d := call.GetApply().GetDeploy(); d != nil {
 			ctx = resource.WithDeploy(ctx, resource.Deploy{
 				Revision: int(d.GetRevision()), Change: d.GetChangeId(), Rollback: d.GetRollback(),
-				Reverts: d.GetReverts(), RollsBackRevert: d.GetRollsBackRevert(),
 			})
 		}
 		// The values of what the spec uses, opened in memory for this
@@ -379,11 +378,17 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if c.cfg.Logs == nil {
 			return fail(errors.New("this agent can't read logs, as it has no Docker driver"))
 		}
-		sources, err := c.cfg.Logs.Sources(ctx, call.GetLogSources().GetResource())
+		sources, err := c.cfg.Logs.Sources(ctx, call.GetLogSources().GetResource(), call.GetLogSources().GetForgottenUpTo())
 		if err != nil {
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_LogSources{LogSources: &agentv1.LogSourcesResult{Sources: sources}}}
+	}
+	if f := call.GetForgotten(); f != nil {
+		if c.cfg.Logs != nil {
+			c.cfg.Logs.Forgotten(f.GetServices())
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Forgotten{Forgotten: &agentv1.ForgottenResult{}}}
 	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
 		Message: "this agent doesn't know that call; update it to the control plane's version",

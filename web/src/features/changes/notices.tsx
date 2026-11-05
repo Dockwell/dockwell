@@ -332,6 +332,14 @@ export function useWarnings(plan: Plan | undefined, applied = false): Notice[] {
           detail: t`A rollback puts back which variables and secrets it uses, not what they held then. To go back on a value, change it in Variables and secrets.`,
         };
       }
+      case "kept_logs_offline": {
+        const [server = ""] = note.names;
+        return {
+          key,
+          title: t`${server} is offline, so what it kept of ${name} stays on its disk until it's back`,
+          detail: t`It can't be read meanwhile, and it goes once the server is back and the 7 days are up.`,
+        };
+      }
       case "exposed_more":
         return {
           key,

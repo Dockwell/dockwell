@@ -99,8 +99,8 @@ func (r *Reader) logger() *slog.Logger {
 }
 
 // Sources lists the containers a service has logs from, newest first.
-func (r *Reader) Sources(ctx context.Context, ref *dockwellv1.ResourceRef) ([]*dockwellv1.LogSource, error) {
-	found, err := r.sources(ctx, docker.Project(ref.GetScope()), ref.GetName(), true)
+func (r *Reader) Sources(ctx context.Context, ref *dockwellv1.ResourceRef, forgottenUpTo int64) ([]*dockwellv1.LogSource, error) {
+	found, err := r.sources(ctx, docker.Project(ref.GetScope()), ref.GetName(), true, forgottenUpTo)
 	if err != nil {
 		return nil, err
 	}
@@ -120,9 +120,17 @@ type source struct {
 	kept *Kept
 }
 
+// Forgotten says which services' kept logs no reader may see any more.
+func (r *Reader) Forgotten(services []*agentv1.ForgottenService) {
+	if r.Archive != nil {
+		r.Archive.Forgotten(services)
+	}
+}
+
 // sources lists a service's containers: those Docker has, and, with kept, those
-// the archive has that Docker no longer does.
-func (r *Reader) sources(ctx context.Context, project, service string, kept bool) ([]*source, error) {
+// the archive has that Docker no longer does, leaving out what it kept of revisions
+// up to forgottenUpTo.
+func (r *Reader) sources(ctx context.Context, project, service string, kept bool, forgottenUpTo int64) ([]*source, error) {
 	list, err := r.Client.ListContainers(ctx, map[string][]string{
 		"label": {docker.LabelProject + "=" + project, docker.LabelService + "=" + service},
 	})
@@ -147,7 +155,7 @@ func (r *Reader) sources(ctx context.Context, project, service string, kept bool
 	}
 	if kept && r.Archive != nil {
 		for _, k := range r.Archive.List(project, service) {
-			if !have[k.ContainerID] {
+			if !have[k.ContainerID] && (forgottenUpTo == 0 || k.Revision > forgottenUpTo) {
 				out = append(out, &source{proto: keptSource(k), kept: k})
 			}
 		}
@@ -230,6 +238,9 @@ func stamp(t time.Time) *timestamppb.Timestamp {
 // that stays blocked past a limit ends the stream, with send still blocked, as
 // no reader is there: ending it is then up to send's own context.
 func (r *Reader) Stream(ctx context.Context, call *agentv1.LogsCall, send func(*agentv1.SendLogsRequest) error) error {
+	if err := checkCall(call); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	s := &stream{
@@ -327,6 +338,8 @@ type stream struct {
 	updates  []*dockwellv1.LogSource
 	scans    []*agentv1.LogScan
 	caught   bool // to say so with the next message
+	// startSaid says the first message has gone, which says when the stream began.
+	startSaid bool
 
 	flushMu sync.Mutex // sends go out in the order they were built
 
@@ -473,7 +486,7 @@ func (s *stream) run() error {
 // scan finds the sources there are, says what changed of them, and starts
 // reading those not being read.
 func (s *stream) scan(first bool) error {
-	found, err := s.r.sources(s.ctx, s.project, s.service, true)
+	found, err := s.r.sources(s.ctx, s.project, s.service, true, s.call.GetForgottenUpTo())
 	if err != nil {
 		return err
 	}
@@ -992,7 +1005,9 @@ func (s *stream) gather() *agentv1.SendLogsRequest {
 	now := time.Now()
 	m := &agentv1.SendLogsRequest{Stream: s.call.GetStream(), Sources: s.updates, Scans: s.scans, CaughtUp: s.caught}
 	s.updates, s.scans, s.caught = nil, nil, false
+	chunks := make(map[string]int, len(s.order))
 	for _, id := range s.order {
+		chunks[id] = len(m.Chunks)
 		m.Chunks = append(m.Chunks, s.open[id].chunk)
 		delete(s.open, id)
 	}
@@ -1000,12 +1015,17 @@ func (s *stream) gather() *agentv1.SendLogsRequest {
 	s.openSize = 0
 	// Each source's gap comes before its lines, or alone, once it is due.
 	for id, g := range s.gaps {
+		// With its reader gone, nothing it says goes anywhere.
+		if s.ctx.Err() != nil {
+			break
+		}
 		if g.told == nil && (g.lines == 0 || now.Sub(g.said) < gapEvery) {
 			continue
 		}
-		i := slices.IndexFunc(m.Chunks, func(c *dockwellv1.LogChunk) bool { return c.GetSourceId() == id })
-		if i < 0 {
+		i, ok := chunks[id]
+		if !ok {
 			i = len(m.Chunks)
+			chunks[id] = i
 			m.Chunks = append(m.Chunks, &dockwellv1.LogChunk{SourceId: id})
 		}
 		m.Chunks[i].Gap = g.proto()
@@ -1013,6 +1033,10 @@ func (s *stream) gather() *agentv1.SendLogsRequest {
 	}
 	if len(m.GetChunks()) == 0 && len(m.GetSources()) == 0 && len(m.GetScans()) == 0 && !m.GetCaughtUp() {
 		return nil
+	}
+	if !s.startSaid {
+		s.startSaid = true
+		m.Started = timestamppb.New(s.start)
 	}
 	return m
 }

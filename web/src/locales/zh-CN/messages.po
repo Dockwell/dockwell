@@ -571,6 +571,10 @@ msgstr "{secrets, plural, other {# 个密钥}}"
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, other {# 个变量}}"
 
+#: src/features/changes/notices.tsx
+msgid "{server} is offline, so what it kept of {name} stays on its disk until it's back"
+msgstr "{server} 已离线，它保留的 {name} 日志会留在磁盘上，直到它恢复连接"
+
 #: src/features/activity/describe.ts
 msgid "{server} joined as the control server"
 msgstr "{server} 作为控制服务器加入"
@@ -2638,6 +2642,10 @@ msgstr "它可以读取服务器上的该路径。"
 #: src/features/apps/NewAppSheet.tsx
 msgid "It can't be hidden there, so don't pass a secret there."
 msgstr "这里无法隐藏值，所以不要在这里传入机密。"
+
+#: src/features/changes/notices.tsx
+msgid "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
+msgstr "在此期间无法读取；服务器恢复连接且满 7 天后，这些日志会被删除。"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "It can't tell what is running there until then. Check that the server and its agent are up."

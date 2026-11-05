@@ -22,6 +22,7 @@ import (
 	"syscall"
 	"time"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource/container"
 )
@@ -39,13 +40,6 @@ const (
 	// RetainFor is how long a kept log stays at most. Logs may hold secrets,
 	// so they don't stay for ever just because the budget has room.
 	RetainFor = 30 * 24 * time.Hour
-	// DeletedFor is how long what a deleted service's server kept stays, unread,
-	// for undoing the deletion to bring back: as long as a change can be undone.
-	DeletedFor = 7 * 24 * time.Hour
-	// deletedDir holds what deleted services left, apart from every service's
-	// directory, so no name reaches it. safeName refuses names that start with
-	// a dot.
-	deletedDir = ".deleted"
 	// minFreeBytes keeps the archive off a nearly full disk, which is what a
 	// failed deploy may be about.
 	minFreeBytes = 1 << 30
@@ -84,7 +78,7 @@ type Kept struct {
 	Disk int64 `json:"disk"`
 	// dir is where its files are.
 	dir string
-	// hidden says a deletion took it out of reach.
+	// hidden says a deletion put it out of reach.
 	hidden bool
 }
 
@@ -122,7 +116,10 @@ type Archive struct {
 	// Now is the time; nil means time.Now.
 	Now func() time.Time
 
-	mu sync.Mutex // held while what is kept is pruned, hidden or brought back
+	mu sync.Mutex // held while what is kept is pruned, or told what is out of reach
+	// forgotten is what the control plane last said a deletion put out of reach,
+	// by service.
+	forgotten map[string]*agentv1.ForgottenService
 
 	pruning sync.WaitGroup
 }
@@ -418,6 +415,9 @@ func (k *keep) Finish(ctx context.Context, c *docker.Container) {
 	})
 }
 
+// WaitPruned waits for what Finish left pruning on its own time.
+func (a *Archive) WaitPruned() { a.pruning.Wait() }
+
 // commit writes the record and moves the log into place.
 func (k *keep) commit() error {
 	for _, name := range k.segments {
@@ -534,94 +534,40 @@ func readKept(dir string) (*Kept, error) {
 	return &k, nil
 }
 
-// Forget takes what a service's server kept of it out of reach, as the service
-// was deleted: no name reads it from here on, and a new service of the same name
-// starts clean. It stays for DeletedFor, for Restore to bring back, as undoing
-// the deletion does. A deletion that left nothing is noted all the same, so that
-// bringing it back can't bring back an older one's.
-func (a *Archive) Forget(project, service string) {
-	dir, ok := a.serviceDir(project, service)
-	if !ok {
-		return
-	}
+// Forgotten says which services' kept logs a deletion put out of reach, replacing what
+// it last said. What can no longer be undone goes from the disk now, and what still can
+// goes first if the archive runs out of room. What is read isn't decided here: each
+// call says what is out of reach, as of when it was made.
+func (a *Archive) Forgotten(services []*agentv1.ForgottenService) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	to := filepath.Join(a.Dir, deletedDir, project, service, strconv.FormatInt(a.now().UnixNano(), 10))
-	err := os.MkdirAll(filepath.Dir(to), 0o700)
-	if err == nil {
-		err = a.chmodParents(filepath.Dir(to))
-	}
-	if err == nil {
-		err = os.Rename(dir, to)
-		if errors.Is(err, fs.ErrNotExist) {
-			err = os.Mkdir(to, 0o700)
-		}
-	}
-	if err != nil {
-		// Reading it must stop whatever else went wrong.
-		a.logger().Warn("can't set aside what the server kept of a deleted service, so it removes it", slog.String("service", service), slog.String("error", err.Error()))
-		_ = os.RemoveAll(dir)
-	}
-}
-
-// Restore brings back what the newest deletion of a service set aside, when
-// undoing it makes the service again.
-func (a *Archive) Restore(project, service string) {
-	dir, ok := a.serviceDir(project, service)
-	if !ok {
-		return
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	from := a.newestDeletion(project, service)
-	if from == "" {
-		return
-	}
-	defer os.RemoveAll(from)
-	entries, err := os.ReadDir(from)
-	if err != nil {
-		a.logger().Warn("can't bring back what the server kept of a service", slog.String("service", service), slog.String("error", err.Error()))
-		return
-	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		a.logger().Warn("can't bring back what the server kept of a service", slog.String("service", service), slog.String("error", err.Error()))
-		return
-	}
-	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), ".") {
+	a.forgotten = make(map[string]*agentv1.ForgottenService, len(services))
+	for _, f := range services {
+		project, service := docker.Project(f.GetResource().GetScope()), f.GetResource().GetName()
+		dir, ok := a.serviceDir(project, service)
+		if !ok {
 			continue
 		}
-		if err := os.Rename(filepath.Join(from, e.Name()), filepath.Join(dir, e.Name())); err != nil {
-			a.logger().Warn("can't bring back what the server kept of a container", slog.String("service", service), slog.String("error", err.Error()))
+		a.forgotten[project+"/"+service] = f
+		if !f.GetExpired() {
+			continue
 		}
-	}
-}
-
-// newestDeletion finds what the last deletion of a service set aside, if it is
-// still within its time.
-func (a *Archive) newestDeletion(project, service string) string {
-	dir := filepath.Join(a.Dir, deletedDir, project, service)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return ""
-	}
-	newest := int64(0)
-	for _, e := range entries {
-		if at, err := strconv.ParseInt(e.Name(), 10, 64); err == nil && at > newest {
-			newest = at
+		for _, k := range a.listIn(dir) {
+			if k.Revision > f.GetUpToRevision() {
+				continue
+			}
+			if err := os.RemoveAll(k.dir); err != nil {
+				a.logger().Warn("can't remove what the server kept of a deleted service; it tries again when next told", slog.String("service", service), slog.String("error", err.Error()))
+			}
 		}
+		_ = os.Remove(dir) // only if nothing is left
 	}
-	if newest == 0 || a.now().Sub(time.Unix(0, newest)) >= DeletedFor {
-		return ""
-	}
-	return filepath.Join(dir, strconv.FormatInt(newest, 10))
 }
 
 // Prune applies the archive's limits. Each service keeps its newest failed and
-// its newest replaced container on each server; nothing stays past RetainFor,
-// and what a deletion set aside no longer than DeletedFor; and the whole stays
-// within its budget, the oldest going first, what a deletion set aside before
-// what was replaced, and that before what failed.
+// its newest replaced container on each server; nothing stays past RetainFor; and
+// the whole stays within its budget, the oldest going first, what a deletion put out
+// of reach before what was replaced, and that before what failed.
 func (a *Archive) Prune() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -650,6 +596,7 @@ func (a *Archive) Prune() error {
 				continue
 			}
 			dir := filepath.Join(a.Dir, p.Name(), s.Name())
+			upTo := a.forgotten[p.Name()+"/"+s.Name()].GetUpToRevision()
 			seen := map[string]bool{}
 			for _, k := range a.listIn(dir) {
 				if seen[k.slot()] || k.KeptAt.Before(cutoff) {
@@ -659,6 +606,7 @@ func (a *Archive) Prune() error {
 					continue
 				}
 				seen[k.slot()] = true
+				k.hidden = k.Revision <= upTo && upTo > 0
 				all = append(all, k)
 			}
 			a.removeAbandoned(dir)
@@ -666,16 +614,11 @@ func (a *Archive) Prune() error {
 		}
 		_ = os.Remove(filepath.Join(a.Dir, p.Name()))
 	}
-	hidden, err := a.pruneDeleted(cutoff)
-	if err != nil {
-		return err
-	}
-	all = append(all, hidden...)
 	total := int64(0)
 	for _, k := range all {
 		total += k.Disk
 	}
-	// What goes first sorts first: what a deletion set aside, then replaced,
+	// What goes first sorts first: what a deletion put out of reach, then replaced,
 	// then failed, then oldest. The newest of all stays, whatever it takes, as
 	// what was just kept.
 	rank := func(k *Kept) int {
@@ -712,40 +655,6 @@ func (a *Archive) Prune() error {
 		total -= k.Disk
 	}
 	return nil
-}
-
-// pruneDeleted removes what deletions set aside once its time is up, and returns
-// what is left of it, for the budget.
-func (a *Archive) pruneDeleted(cutoff time.Time) ([]*Kept, error) {
-	root := filepath.Join(a.Dir, deletedDir)
-	sets, err := filepath.Glob(filepath.Join(root, "*", "*", "*"))
-	if err != nil {
-		return nil, err
-	}
-	var out []*Kept
-	for _, set := range sets {
-		at, err := strconv.ParseInt(filepath.Base(set), 10, 64)
-		if err != nil || a.now().Sub(time.Unix(0, at)) >= DeletedFor {
-			if err := os.RemoveAll(set); err != nil {
-				return nil, err
-			}
-			service := filepath.Dir(set)
-			_ = os.Remove(service) // only if nothing is left
-			_ = os.Remove(filepath.Dir(service))
-			continue
-		}
-		for _, k := range a.listIn(set) {
-			if k.KeptAt.Before(cutoff) {
-				if err := os.RemoveAll(k.dir); err != nil {
-					return nil, err
-				}
-				continue
-			}
-			k.hidden = true
-			out = append(out, k)
-		}
-	}
-	return out, nil
 }
 
 // removeAbandoned clears copies a crash left behind, once they are old.

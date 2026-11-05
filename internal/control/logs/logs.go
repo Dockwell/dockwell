@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -27,6 +28,7 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	agentlogs "github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
@@ -35,6 +37,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -103,9 +106,84 @@ type Options struct {
 	AuditEvery time.Duration
 	// WriteStall replaces how long a write to a reader can make no progress.
 	WriteStall time.Duration
+	// Now replaces the time.
+	Now func() time.Time
+	// TellEvery replaces tellEvery.
+	TellEvery time.Duration
 }
 
 var _ dockwellv1connect.LogServiceHandler = (*Handler)(nil)
+
+// tellEvery is how often servers hear what deletions put out of reach, besides when
+// they connect. What is out of reach already is, as the control plane reads nothing
+// of it: this is for what leaves the disk, which goes by the day.
+const tellEvery = time.Hour
+
+// KeepTelling tells every connected server what deletions put out of reach, every
+// tellEvery until ctx is done.
+func (h *Handler) KeepTelling(ctx context.Context) {
+	every := h.options.TellEvery
+	if every <= 0 {
+		every = tellEvery
+	}
+	tick := time.NewTicker(every)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+			h.TellAll(ctx)
+		}
+	}
+}
+
+// TellAll tells every connected server what deletions put out of reach.
+func (h *Handler) TellAll(ctx context.Context) {
+	for _, server := range h.agents.Connected() {
+		h.tell(ctx, server)
+	}
+}
+
+// tell says to one server what deletions put out of reach: all of it, so a server
+// that was away or joined since catches up, and of every service, as any server may
+// hold what a service left. With nothing to say it says nothing: at worst a server goes
+// on thinking something is out of reach that undoing brought back, which only sets the
+// order things leave in if it runs out of room.
+func (h *Handler) tell(ctx context.Context, server string) {
+	session, ok := h.agents.Session(server)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, callWait)
+	defer cancel()
+	now := h.now()
+	var services []*agentv1.ForgottenService
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		found, err := revision.ForgottenServices(ctx, tx, string(service.Kind), now.Add(-agentlogs.RetainFor))
+		if err != nil {
+			return err
+		}
+		services = make([]*agentv1.ForgottenService, len(found))
+		for i := range found {
+			f := &found[i]
+			services[i] = &agentv1.ForgottenService{
+				Resource:     &dockwellv1.ResourceRef{Kind: f.Resource.Kind, Scope: f.Resource.Scope, Name: f.Resource.Name},
+				UpToRevision: int64(f.UpTo),
+				Expired:      now.Sub(f.At) >= revision.UndoWindow,
+			}
+		}
+		return nil
+	})
+	// An empty list says something too: an undone deletion no longer counts against
+	// what a server keeps.
+	if err == nil {
+		err = session.Forgotten(ctx, services)
+	}
+	if err != nil && ctx.Err() == nil {
+		h.logger.WarnContext(ctx, "can't tell a server what deletions put out of reach; it hears again within the hour", slog.String("server", server), slog.String("error", err.Error()))
+	}
+}
 
 // New returns a handler that reads logs through agents.
 func New(agents *agentapi.Agents, ch *changes.Handler, db *store.DB, logger *slog.Logger, options Options) *Handler {
@@ -115,10 +193,15 @@ func New(agents *agentapi.Agents, ch *changes.Handler, db *store.DB, logger *slo
 	if options.WriteStall <= 0 {
 		options.WriteStall = writeStall
 	}
-	return &Handler{
-		agents: agents, changes: ch, db: db, logger: logger, now: time.Now, options: options,
+	if options.Now == nil {
+		options.Now = time.Now
+	}
+	h := &Handler{
+		agents: agents, changes: ch, db: db, logger: logger, now: options.Now, options: options,
 		audited: map[string]time.Time{}, pages: map[string]int{},
 	}
+	agents.OnConnect(func(server string) { h.tell(context.Background(), server) })
+	return h
 }
 
 // server is one server a service is on, or was on.
@@ -134,17 +217,22 @@ type target struct {
 	id          string
 	ref         resource.Ref
 	environment string
-	deleted     bool
-	servers     []server
+	// deleted says it has no spec now, which a deletion leaves, and so does a first
+	// deploy that failed and was rolled back, whose logs can be read.
+	deleted bool
+	// forgotten is what a deletion put out of reach.
+	forgotten revision.Forgotten
+	servers   []server
 }
 
 func (t *target) proto() *dockwellv1.LoggedService {
 	return &dockwellv1.LoggedService{Id: t.id, Name: t.ref.Name, Environment: t.environment, Deleted: t.deleted}
 }
 
-// resolve finds the service a request names. A deleted service can be asked for
-// by ID, as what its servers kept can still be read, such as when its first
-// deploy failed and was rolled back.
+// resolve finds the service a request names. One with no spec can be asked for by
+// ID, as what its servers kept can still be read when its first deploy failed and was
+// rolled back. One that was deleted can't, by any name, on any server, whether or not
+// that server has heard, as nothing is asked of it.
 func (h *Handler) resolve(ctx context.Context, name, project, environment string) (*target, error) {
 	if name == "" {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("name a service, by its name or its ID"), "invalid")
@@ -175,6 +263,9 @@ func (h *Handler) resolve(ctx context.Context, name, project, environment string
 		}
 		t.id, t.deleted = res.ID, res.Spec == nil
 		t.ref = resource.Ref{Kind: service.Kind, Scope: res.Scope, Name: res.Name}
+		if t.forgotten, err = revision.ForgottenOf(ctx, tx, res); err != nil {
+			return err
+		}
 		if env, err := tx.GetResourceByID(ctx, res.Scope); err == nil {
 			t.environment = env.Name
 		}
@@ -185,8 +276,15 @@ func (h *Handler) resolve(ctx context.Context, name, project, environment string
 		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no service %s. Check its name with dockwell resources list --kind service", name), "not_found")
 	case err != nil:
 		return nil, h.internal(ctx, err)
+	case t.forgotten.Deleted:
+		return nil, deletedError(t.ref.Name)
 	}
 	return t, nil
+}
+
+// deletedError refuses to read what a deleted service left.
+func deletedError(name string) error {
+	return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("%s was deleted, so what its servers kept can't be read. Undoing the deletion within 7 days brings it back", name), "not_found")
 }
 
 // servers finds where a service is and has been. A server that was removed from
@@ -368,7 +466,7 @@ func (h *Handler) sourcesOn(ctx context.Context, t *target, s server) ([]*dockwe
 	}
 	ctx, cancel := context.WithTimeout(ctx, callWait)
 	defer cancel()
-	sources, err := session.LogSources(ctx, resourceRef(t.ref))
+	sources, err := session.LogSources(ctx, resourceRef(t.ref), int64(t.forgotten.UpTo))
 	if err != nil {
 		return nil, unavailable(s, err)
 	}
@@ -483,7 +581,10 @@ func (h *Handler) ReadLogs(ctx context.Context, req *connect.Request[dockwellv1.
 	if err := checkQuery(m.GetQuery()); err != nil {
 		return nil, err
 	}
-	before, err := readPageToken(m.GetPageToken())
+	if err := checkLists(m.GetSourceIds(), m.GetLevels(), m.GetChangeId()); err != nil {
+		return nil, err
+	}
+	before, err := readPageToken(m.GetPageToken(), t.servers)
 	if err != nil {
 		return nil, err
 	}
@@ -494,24 +595,24 @@ func (h *Handler) ReadLogs(ctx context.Context, req *connect.Request[dockwellv1.
 		return nil, err
 	}
 	who := reader(ctx)
-	call := func() *agentv1.LogsCall {
+	// Each server is asked for what is its own, so what an agent is told stays within
+	// what it takes, however many servers a service is on. A next page reads only the
+	// sources with more to read, and not a server with none.
+	call := func(server string) *agentv1.LogsCall {
+		sources := m.GetSourceIds()
+		if m.GetPageToken() != "" {
+			sources = before.sourceIDs(server)
+			if len(m.GetSourceIds()) > 0 {
+				sources = slices.DeleteFunc(sources, func(source string) bool { return !slices.Contains(m.GetSourceIds(), source) })
+			}
+			if len(sources) == 0 {
+				return nil
+			}
+		}
 		return &agentv1.LogsCall{
-			Resource: resourceRef(t.ref), Since: m.GetSince(), Last: m.GetLast(), Until: m.GetUntil(), Tail: int32(size), //nolint:gosec // bounded above
-			SourceIds: m.GetSourceIds(), Revision: m.GetRevision(), ChangeId: m.GetChangeId(),
-			Levels: m.GetLevels(), Query: m.GetQuery(), IncludeKept: true, Before: before.cursors(), Reader: who,
-		}
-	}
-	// A next page reads only the sources with more to read.
-	if m.GetPageToken() != "" {
-		only := before.sourceIDs()
-		if len(m.GetSourceIds()) > 0 {
-			only = slices.DeleteFunc(only, func(source string) bool { return !slices.Contains(m.GetSourceIds(), source) })
-		}
-		base := call
-		call = func() *agentv1.LogsCall {
-			c := base()
-			c.SourceIds = only
-			return c
+			Resource: resourceRef(t.ref), Since: m.GetSince(), Last: m.GetLast(), Until: m.GetUntil(), Tail: int32(size), //nolint:gosec // bounded by MaxPageSize
+			SourceIds: sources, Revision: m.GetRevision(), ChangeId: m.GetChangeId(), ForgottenUpTo: int64(t.forgotten.UpTo),
+			Levels: m.GetLevels(), Query: m.GetQuery(), IncludeKept: true, Before: before.cursors(server), Reader: who,
 		}
 	}
 	page := newPage(size, before)
@@ -527,13 +628,17 @@ func (h *Handler) ReadLogs(ctx context.Context, req *connect.Request[dockwellv1.
 				mu.Unlock()
 				return
 			}
-			err := session.Logs(ctx, call(), func(u *agentv1.SendLogsRequest) error {
+			c := call(s.id)
+			if c == nil {
+				return
+			}
+			err := session.Logs(ctx, c, func(u *agentv1.SendLogsRequest) error {
 				mu.Lock()
 				defer mu.Unlock()
 				for _, src := range u.GetSources() {
 					src.ServerId, src.ServerName = s.id, s.name
 				}
-				page.add(u)
+				page.add(s.id, u)
 				return nil
 			})
 			if err != nil && ctx.Err() == nil {
@@ -558,8 +663,11 @@ func (h *Handler) ReadLogs(ctx context.Context, req *connect.Request[dockwellv1.
 
 // page gathers what several servers send for one page, within pageBytes.
 type page struct {
-	size    int
-	before  pageToken
+	size int
+	// before is where each source's last page ended, and on which server each
+	// source is.
+	before  map[string][2]int64
+	on      map[string]string
 	lines   map[string][]*dockwellv1.LogLine
 	sources map[string]*dockwellv1.LogSource
 	scans   []*agentv1.LogScan
@@ -573,7 +681,7 @@ type page struct {
 
 func newPage(size int, before pageToken) *page {
 	return &page{
-		size: size, before: before, lines: map[string][]*dockwellv1.LogLine{}, sources: map[string]*dockwellv1.LogSource{},
+		size: size, before: before.flat(), on: map[string]string{}, lines: map[string][]*dockwellv1.LogLine{}, sources: map[string]*dockwellv1.LogSource{},
 		gone: map[string]*dockwellv1.LogGap{}, cut: map[string]bool{},
 	}
 }
@@ -594,9 +702,10 @@ func lineCost(l *dockwellv1.LogLine) int {
 	return n
 }
 
-func (p *page) add(u *agentv1.SendLogsRequest) {
+func (p *page) add(server string, u *agentv1.SendLogsRequest) {
 	for _, s := range u.GetSources() {
 		p.sources[s.GetId()] = s
+		p.on[s.GetId()] = server
 	}
 	p.scans = append(p.scans, u.GetScans()...)
 	for _, s := range u.GetScans() {
@@ -605,6 +714,7 @@ func (p *page) add(u *agentv1.SendLogsRequest) {
 		}
 	}
 	for _, c := range u.GetChunks() {
+		p.on[c.GetSourceId()] = server
 		if g := c.GetGap(); g.GetReason() == dockwellv1.LogGapReason_LOG_GAP_REASON_GONE {
 			p.gone[c.GetSourceId()] = g
 		}
@@ -673,10 +783,10 @@ func (p *page) finish(res *dockwellv1.ReadLogsResponse, searching bool) {
 		}
 		switch {
 		case len(kept) > 0:
-			next[source] = p.placeOf(source, kept)
+			next.set(p.on[source], source, p.placeOf(source, kept))
 		case !oldest.IsZero():
 			// All of it was older than what the page kept.
-			next[source] = [2]int64{oldest.UnixNano()}
+			next.set(p.on[source], source, [2]int64{oldest.UnixNano()})
 		}
 	}
 	res.NextPageToken = next.encode()
@@ -723,10 +833,17 @@ func (p *page) placeOf(source string, kept []*dockwellv1.LogLine) [2]int64 {
 	return [2]int64{t.UnixNano(), held}
 }
 
-// pageToken is where the next page starts: for each source, the time of the
-// oldest line the page before held, in nanoseconds, and how many lines the pages
-// so far hold of that time.
-type pageToken map[string][2]int64
+// pageToken is where the next page starts: for each server, and each of its sources,
+// the time of the oldest line the page before held, in nanoseconds, and how many
+// lines the pages so far hold of that time.
+type pageToken map[string]map[string][2]int64
+
+func (t pageToken) set(server, source string, place [2]int64) {
+	if t[server] == nil {
+		t[server] = map[string][2]int64{}
+	}
+	t[server][source] = place
+}
 
 func (t pageToken) encode() string {
 	if len(t) == 0 {
@@ -736,9 +853,12 @@ func (t pageToken) encode() string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-func readPageToken(s string) (pageToken, error) {
+func readPageToken(s string, servers []server) (pageToken, error) {
 	if s == "" {
 		return nil, nil
+	}
+	if err := checkTokenSize("page_token", s); err != nil {
+		return nil, err
 	}
 	t := pageToken{}
 	b, err := base64.RawURLEncoding.DecodeString(s)
@@ -746,20 +866,39 @@ func readPageToken(s string) (pageToken, error) {
 		err = json.Unmarshal(b, &t)
 	}
 	if err != nil {
-		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("this page_token isn't one a page of logs gave. Leave it out to start again"), "invalid")
+		return nil, badToken("page_token", "isn't one a page of logs gave")
+	}
+	for server, places := range t {
+		if !isServerOf(servers, server) {
+			delete(t, server)
+			continue
+		}
+		if err := checkPlaces("page_token", places); err != nil {
+			return nil, err
+		}
 	}
 	return t, nil
 }
 
-func (t pageToken) cursors() []*agentv1.LogCursor {
-	var out []*agentv1.LogCursor
-	for _, source := range slices.Sorted(maps.Keys(t)) {
-		out = append(out, &agentv1.LogCursor{SourceId: source, Time: timestamppb.New(time.Unix(0, t[source][0])), Count: uint32(t[source][1])}) //nolint:gosec // a small count
+// flat is every source's place, whichever server it is on.
+func (t pageToken) flat() map[string][2]int64 {
+	out := map[string][2]int64{}
+	for _, places := range t {
+		maps.Copy(out, places)
 	}
 	return out
 }
 
-func (t pageToken) sourceIDs() []string { return slices.Sorted(maps.Keys(t)) }
+func (t pageToken) cursors(server string) []*agentv1.LogCursor {
+	var out []*agentv1.LogCursor
+	for _, source := range slices.Sorted(maps.Keys(t[server])) {
+		place := t[server][source]
+		out = append(out, &agentv1.LogCursor{SourceId: source, Time: timestamppb.New(time.Unix(0, place[0])), Count: uint32(place[1])}) //nolint:gosec // checked as it was read
+	}
+	return out
+}
+
+func (t pageToken) sourceIDs(server string) []string { return slices.Sorted(maps.Keys(t[server])) }
 
 // resumeToken is where a stream carries on: for each server, where each source
 // has got to, and the time of the last line, by that server's clock.
@@ -770,6 +909,12 @@ type resumeToken struct {
 type serverPlace struct {
 	// Last is the time of the last line from the server, in nanoseconds.
 	Last int64 `json:"l"`
+	// From is since when a source with no place here is read, by the server's clock:
+	// when the stream began, as a source that printed nothing in what the reader has
+	// may have printed before another source's last line. It moves on only past a
+	// source the token forgot, which reading from further back would repeat. So only
+	// on a server with over maxPlaces sources can one with no place lose lines.
+	From int64 `json:"f,omitempty"`
 	// Sources are where each source has got to, as a time and how many lines
 	// have just that time.
 	Sources map[string][2]int64 `json:"c"`
@@ -780,24 +925,114 @@ func (t *resumeToken) encode() string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-func readResumeToken(s string) (*resumeToken, error) {
+func readResumeToken(s string, servers []server) (*resumeToken, error) {
 	t := &resumeToken{Servers: map[string]*serverPlace{}}
 	if s == "" {
 		return t, nil
+	}
+	if err := checkTokenSize("resume_token", s); err != nil {
+		return nil, err
 	}
 	b, err := base64.RawURLEncoding.DecodeString(s)
 	if err == nil {
 		err = json.Unmarshal(b, t)
 	}
 	if err != nil || t.Servers == nil {
-		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("this resume_token isn't one a stream of logs gave. Leave it out to start again"), "invalid")
+		return nil, badToken("resume_token", "isn't one a stream of logs gave")
+	}
+	for server, place := range t.Servers {
+		if !isServerOf(servers, server) {
+			delete(t.Servers, server)
+			continue
+		}
+		if place == nil {
+			return nil, badToken("resume_token", "gives no place on a server")
+		}
+		if place.Last < 0 || place.From < 0 {
+			return nil, badToken("resume_token", "gives a place in a log that can't be one")
+		}
+		if err := checkPlaces("resume_token", place.Sources); err != nil {
+			return nil, err
+		}
 	}
 	return t, nil
 }
 
-// maxPlaces bounds how many sources a token names on one server, the newest
-// kept. A source it forgets, which has long gone quiet, is read again by time.
-const maxPlaces = 64
+// isServerOf says whether a server is one of those a service is or has been on.
+func isServerOf(servers []server, serverID string) bool {
+	return slices.ContainsFunc(servers, func(s server) bool { return s.id == serverID })
+}
+
+const (
+	// maxPlaces bounds how many sources a token names on one server, the newest
+	// kept. A source it forgets, which has long gone quiet, is read again by time.
+	// It is what an agent takes of a call, which it checks for itself.
+	maxPlaces = agentlogs.MaxNamedSources
+	// maxTokenBytes bounds a token before anything reads it. It holds every source
+	// of about 170 servers, each at maxPlaces, and many more of what really runs.
+	maxTokenBytes = 1 << 20
+	// maxLevels is more than the levels there are, for a list that repeats one.
+	maxLevels = agentlogs.MaxLevels
+	// maxChangeID bounds a change to filter by, far longer than any is.
+	maxChangeID = 64
+)
+
+// A token comes back from whoever holds it, so nothing in it is taken on trust: its
+// size, how many sources it names, what they are called and the times it gives are
+// all checked, and what it says of a server that isn't this service's goes unread.
+
+// badToken refuses a token, saying what is wrong with it and what to do.
+func badToken(field, why string) error {
+	return authapi.ReasonError(connect.CodeInvalidArgument,
+		fmt.Errorf("this %s %s, so the logs can't carry on from it. Leave it out to start again, or use the one you were last given", field, why), "invalid")
+}
+
+// checkTokenSize refuses a token too long to be one, before reading it.
+func checkTokenSize(field, token string) error {
+	if len(token) > maxTokenBytes {
+		return badToken(field, fmt.Sprintf("is %d bytes, and one is at most %d", len(token), maxTokenBytes))
+	}
+	return nil
+}
+
+// checkPlaces checks what a token says of the sources on one server.
+func checkPlaces(field string, places map[string][2]int64) error {
+	if len(places) > maxPlaces {
+		return badToken(field, fmt.Sprintf("names %d sources on a server, and one names at most %d", len(places), maxPlaces))
+	}
+	for source, c := range places {
+		switch {
+		case !agentlogs.ValidSourceID(source):
+			return badToken(field, "names a source that isn't one")
+		case c[0] < 0 || c[1] < 0 || c[1] > math.MaxUint32:
+			return badToken(field, "gives a place in a log that can't be one")
+		}
+	}
+	return nil
+}
+
+// checkLists refuses what a request names more of than there can be, as each goes
+// to every server the service is on.
+func checkLists(sources []string, levels []dockwellv1.LogLevel, change string) error {
+	invalid := func(format string, args ...any) error {
+		return authapi.ReasonError(connect.CodeInvalidArgument, fmt.Errorf(format, args...), "invalid")
+	}
+	if len(sources) > agentlogs.MaxNamedSources {
+		return invalid("this names %d sources, and a read takes at most %d. Leave source_ids out to read them all", len(sources), agentlogs.MaxNamedSources)
+	}
+	for _, source := range sources {
+		if !agentlogs.ValidSourceID(source) {
+			return invalid("source_ids names a source that isn't one. Find what there is with dockwell logs sources")
+		}
+	}
+	if len(levels) > maxLevels {
+		return invalid("this names %d levels, more than there are. Name each one once", len(levels))
+	}
+	if len(change) > maxChangeID {
+		return invalid("change_id is %d bytes, which no change's is. Find it with dockwell changes list", len(change))
+	}
+	return nil
+}
 
 // note moves a server's place past a line.
 func (p *serverPlace) note(source string, t time.Time) {
@@ -823,11 +1058,12 @@ func (p *serverPlace) note(source string, t time.Time) {
 			}
 		}
 		delete(p.Sources, oldest)
+		p.From = max(p.From, at)
 	}
 }
 
 func (p *serverPlace) clone() *serverPlace {
-	out := &serverPlace{Last: p.Last, Sources: maps.Clone(p.Sources)}
+	out := &serverPlace{Last: p.Last, From: p.From, Sources: maps.Clone(p.Sources)}
 	return out
 }
 
@@ -841,7 +1077,11 @@ func (p *serverPlace) apply(call *agentv1.LogsCall) {
 		c := p.Sources[source]
 		call.After = append(call.After, &agentv1.LogCursor{SourceId: source, Time: timestamppb.New(time.Unix(0, c[0])), Count: uint32(c[1])}) //nolint:gosec // a small count
 	}
-	call.ResumeFrom = timestamppb.New(time.Unix(0, p.Last))
+	from := p.From
+	if from == 0 {
+		from = p.Last
+	}
+	call.ResumeFrom = timestamppb.New(time.Unix(0, from))
 	call.Tail = 0
 }
 
@@ -867,6 +1107,9 @@ func (h *Handler) WatchLogs(ctx context.Context, req *connect.Request[dockwellv1
 	if err := checkQuery(m.GetQuery()); err != nil {
 		return err
 	}
+	if err := checkLists(m.GetSourceIds(), m.GetLevels(), m.GetChangeId()); err != nil {
+		return err
+	}
 	tail := m.GetTail()
 	switch {
 	case tail == 0:
@@ -874,7 +1117,7 @@ func (h *Handler) WatchLogs(ctx context.Context, req *connect.Request[dockwellv1
 	case tail < -1 || tail > MaxTail:
 		return authapi.ReasonError(connect.CodeInvalidArgument, fmt.Errorf("tail takes -1 for no lines, up to %d", MaxTail), "invalid")
 	}
-	places, err := readResumeToken(m.GetResumeToken())
+	places, err := readResumeToken(m.GetResumeToken(), t.servers)
 	if err != nil {
 		return err
 	}
@@ -887,7 +1130,7 @@ func (h *Handler) WatchLogs(ctx context.Context, req *connect.Request[dockwellv1
 	}
 	base := &agentv1.LogsCall{
 		Resource: resourceRef(t.ref), Since: m.GetSince(), Last: m.GetLast(), Until: m.GetUntil(), Tail: tail, Follow: !m.GetOnce(),
-		SourceIds: m.GetSourceIds(), Revision: m.GetRevision(), ChangeId: m.GetChangeId(),
+		SourceIds: m.GetSourceIds(), Revision: m.GetRevision(), ChangeId: m.GetChangeId(), ForgottenUpTo: int64(t.forgotten.UpTo),
 		Levels: m.GetLevels(), Query: m.GetQuery(), Reader: reader(ctx),
 		// A range and a read to the end take in what the servers kept, as lines
 		// of that time may be there. Following shows what runs now.
@@ -984,7 +1227,9 @@ func (h *Handler) WatchLogs(ctx context.Context, req *connect.Request[dockwellv1
 			}
 		case <-placement.C:
 			if !m.GetOnce() {
-				w.lookAgain()
+				if err := w.lookAgain(); err != nil {
+					return err
+				}
 			}
 		case <-audit.C:
 			if err := h.record(ctx, t, "follow"); err != nil {
@@ -1055,21 +1300,37 @@ func (w *watch) caughtUp(m *dockwellv1.WatchLogsResponse) {
 	}
 }
 
-// lookAgain finds servers the service moved to since the stream started.
-func (w *watch) lookAgain() {
+// lookAgain finds servers the service moved to since the stream started, and ends
+// the stream if a deletion has put what it reads out of reach since then. A service
+// made again since is read afresh, for what the new one wrote alone.
+func (w *watch) lookAgain() error {
 	t := *w.t
 	err := w.h.db.View(w.ctx, func(tx *store.Tx) error {
 		res, err := tx.GetResourceByID(w.ctx, w.t.id)
 		if err != nil {
 			return err
 		}
+		if t.forgotten, err = revision.ForgottenOf(w.ctx, tx, res); err != nil {
+			return err
+		}
 		return w.h.servers(w.ctx, tx, &t, res)
 	})
 	if err != nil {
-		return
+		// It looks again in a moment, and nothing has changed for a reader until then.
+		if w.ctx.Err() == nil {
+			w.h.logger.WarnContext(w.ctx, "can't look where a service's logs are; it looks again shortly", slog.String("error", err.Error()))
+		}
+		return nil
+	}
+	if t.forgotten.Deleted {
+		return deletedError(w.t.ref.Name)
+	}
+	if t.forgotten.UpTo != w.t.forgotten.UpTo {
+		return connect.NewError(connect.CodeUnavailable, fmt.Errorf("%s was deleted and made again, so this stream ended. Read it again for what the new one wrote", w.t.ref.Name))
 	}
 	w.t.servers = t.servers
 	w.startRelays()
+	return nil
 }
 
 // relay reads one server's logs until there are no more to read, carrying on
@@ -1116,6 +1377,9 @@ func (w *watch) relay(s server, place *serverPlace) {
 		call := cloneCall(w.base)
 		place.apply(call)
 		err := session.Logs(w.ctx, call, func(u *agentv1.SendLogsRequest) error {
+			if t := u.GetStarted(); t != nil && place.From == 0 {
+				place.From = t.AsTime().UnixNano()
+			}
 			for _, c := range u.GetChunks() {
 				for _, l := range c.GetLines() {
 					place.note(c.GetSourceId(), l.GetTime().AsTime())
@@ -1176,5 +1440,6 @@ func cloneCall(c *agentv1.LogsCall) *agentv1.LogsCall {
 		Resource: c.GetResource(), Since: c.GetSince(), Until: c.GetUntil(), Tail: c.GetTail(), Follow: c.GetFollow(),
 		SourceIds: c.GetSourceIds(), Revision: c.GetRevision(), ChangeId: c.GetChangeId(), Levels: c.GetLevels(),
 		Query: c.GetQuery(), IncludeKept: c.GetIncludeKept(), Reader: c.GetReader(), Last: c.GetLast(),
+		ForgottenUpTo: c.GetForgottenUpTo(),
 	}
 }
