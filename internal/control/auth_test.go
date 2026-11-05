@@ -131,6 +131,7 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	keeper := secretstest.Keeper(db, kinds)
 	agents := agentapi.NewAgents(kinds, logger)
 	agents.SendValues(keeper)
+	agents.CheckNaming(keeper)
 	engine := revision.New(db, kinds, agents, keeper, logger)
 	agents.OnConnect(func(string) { _ = engine.Resume(context.Background()) })
 	t.Cleanup(engine.Wait)

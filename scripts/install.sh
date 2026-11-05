@@ -87,6 +87,8 @@ Options:
   --cosign-mirror <url>
                        download cosign from a mirror of its GitHub releases
                        (env DOCKWELL_COSIGN_MIRROR)
+  --downgrade          install a release older than the one installed, which
+                       it otherwise refuses (env DOCKWELL_DOWNGRADE=1)
   --uninstall          remove Dockwell; your workloads and data stay
   --remove-ingress     with --uninstall, also remove Dockwell's ingress, which
                        frees the ports it holds; your routes stop answering
@@ -310,6 +312,39 @@ valid_version() {
 	case $1 in
 	'' | *[!0-9A-Za-z.+-]*) return 1 ;;
 	esac
+}
+
+# older says whether version $1 comes before version $2, as releases are numbered:
+# major, minor and patch, and a pre-release before the release it leads to, as a
+# build from between releases, such as 0.2.1-0.20261105181253-d7d1a767db49, is.
+older() {
+	awk -v a="$1" -v b="$2" 'BEGIN {
+		na = split(a, x, "-"); nb = split(b, y, "-")
+		split(x[1], ca, "."); split(y[1], cb, ".")
+		for (i = 1; i <= 3; i++) {
+			if (ca[i] + 0 < cb[i] + 0) exit 0
+			if (ca[i] + 0 > cb[i] + 0) exit 1
+		}
+		exit !(na > 1 && nb == 1)
+	}'
+}
+
+# going_back refuses a release older than the one installed, unless --downgrade
+# says to, as an older agent can lack what the control plane relies on, and an
+# older control plane can't read a database a newer one has moved on. A mirror
+# can serve an older release as the latest, so the latest is held to it too.
+going_back() {
+	[ -n "$installed_version" ] && older "$version" "$installed_version" || return 0
+	cost="An older agent can lack what the control plane relies on: one from before a command could name a value reads such a command with its values written in, so the control plane reads, plans and applies nothing on this server that names one until it is updated again. An older control plane refuses a database a newer one has moved on."
+	if [ -n "$downgrade" ]; then
+		say "Going back from v$installed_version to v$version, as --downgrade says. $cost"
+		return 0
+	fi
+	why="v$version is older than v$installed_version, which is installed here, so nothing was installed. $cost"
+	if [ -n "$latest" ]; then
+		fail "$why It is the latest release at $releases, so that may be behind: check it, or pin a release with --version. To go back on purpose, run this again with --downgrade."
+	fi
+	fail "$why To go back on purpose, run this again with --downgrade."
 }
 
 # resolve sets version to the release to install, and downloads its checksums.
@@ -738,6 +773,7 @@ install_dockwell() {
 	build_note=
 	pick_build
 	resolve
+	going_back
 	current=$installed_version
 	changed=
 	if [ "$current" = "$version" ] && [ "$installed_build" = "$build" ]; then
@@ -957,6 +993,8 @@ main() {
 	version=${DOCKWELL_VERSION:-}
 	mirror=${DOCKWELL_MIRROR:-}
 	cosign_mirror=${DOCKWELL_COSIGN_MIRROR:-}
+	downgrade=
+	[ "${DOCKWELL_DOWNGRADE:-}" != 1 ] || downgrade=1
 	from_env=${DOCKWELL_JOIN:-${DOCKWELL_VERSION:-${DOCKWELL_MIRROR:-${DOCKWELL_COSIGN_MIRROR:-}}}}
 	action=install
 	remove_ingress=
@@ -996,6 +1034,10 @@ main() {
 			;;
 		--cosign-mirror=*)
 			cosign_mirror=${1#--cosign-mirror=}
+			shift
+			;;
+		--downgrade)
+			downgrade=1
 			shift
 			;;
 		--uninstall)

@@ -62,6 +62,8 @@ type Agents struct {
 	// values finds the values of the variables and secrets a service uses,
 	// for the server it is about to run on.
 	values resource.Values
+	// naming says what names values on a server, for agents that don't write them in.
+	naming Naming
 
 	mu        sync.Mutex
 	sessions  map[string]*Session // the newest stream of each server
@@ -189,6 +191,22 @@ func (a *Agents) SendValues(values resource.Values) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.values = values
+}
+
+// Naming says which resources name values in what runs on a server, the keeper's
+// secrets.Keeper.NamingValues.
+type Naming interface {
+	NamingValues(ctx context.Context, server string, refs []resource.Ref) ([]resource.Ref, error)
+}
+
+// CheckNaming has each stream ask naming, of an agent that doesn't say it writes a
+// container's references in, which of what it reads, plans and applies names values,
+// and refuse those (Session.checkReads). Without it, nothing is asked, as in tests
+// that run no keeper.
+func (a *Agents) CheckNaming(naming Naming) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.naming = naming
 }
 
 // OnConnect calls fn, in its own goroutine, each time a server's agent
@@ -690,6 +708,13 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 	if err := s.checkAllWrites(desired); err != nil {
 		return nil, err
 	}
+	refs := make([]resource.Ref, len(desired))
+	for i, d := range desired {
+		refs[i] = d.Ref
+	}
+	if err := s.checkReads(ctx, refs); err != nil {
+		return nil, err
+	}
 	call := &agentv1.PlanCall{}
 	for _, d := range desired {
 		if err := s.supports(d.Ref); err != nil {
@@ -749,6 +774,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 		return err
 	}
 	if err := s.checkWrites(step.Ref, desired); err != nil {
+		return err
+	}
+	if err := s.checkReads(ctx, []resource.Ref{step.Ref}); err != nil {
 		return err
 	}
 	dr, err := desiredProto(step.Ref, desired)
@@ -823,6 +851,32 @@ func (s *Session) checkWrites(ref resource.Ref, spec proto.Message) error {
 	return fmt.Errorf("the agent on %s can't write a value into a command, and %s names one there. Update the agent on %s", s.name, ref.Name, s.name)
 }
 
+// checkReads refuses, for an agent that doesn't say it writes references in, any of
+// refs that names values on this server, now or in what the server was given. Such an
+// agent reads a container's command as Docker has it, so what it reports of one,
+// whatever the spec it is asked about, would carry a value into drift and plans. The
+// whole call is refused, so drift reports the server as unchecked, and says why.
+func (s *Session) checkReads(ctx context.Context, refs []resource.Ref) error {
+	if s.writesReferences || len(refs) == 0 {
+		return nil
+	}
+	s.agents.mu.Lock()
+	naming := s.agents.naming
+	s.agents.mu.Unlock()
+	if naming == nil {
+		return nil
+	}
+	named, err := naming.NamingValues(ctx, s.server, refs)
+	if err != nil {
+		return fmt.Errorf("can't tell whether what %s runs names a value in its command: %w", s.name, err)
+	}
+	if len(named) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: the agent on %s is from before a command could name a value, so it reads %s's command with its values written in. "+
+		"Nothing on %s that names a value is read, planned or applied until you update the agent there", resource.ErrAgentTooOld, s.name, named[0].Name, s.name)
+}
+
 // checkAllWrites is checkWrites for all a plan asks of this agent.
 func (s *Session) checkAllWrites(desired []resource.Desired) error {
 	for _, d := range desired {
@@ -840,6 +894,9 @@ func (s *Session) noDeliveryKey(ref resource.Ref) error {
 
 // Observe asks the agent for resources as the server has them.
 func (s *Session) Observe(ctx context.Context, refs []resource.Ref) ([]proto.Message, error) {
+	if err := s.checkReads(ctx, refs); err != nil {
+		return nil, err
+	}
 	call := &agentv1.ObserveCall{}
 	for _, ref := range refs {
 		if err := s.supports(ref); err != nil {

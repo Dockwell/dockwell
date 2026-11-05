@@ -345,6 +345,16 @@ said "Dockwell v$NEW is already installed"
 [ "$(pid)" = "$before" ] || die "running it again on the same version restarted the service"
 ok "nothing to do, and the service kept running"
 
+step "Refuse to go back to an older release, and say what it costs"
+before=$(pid)
+if run_install good --version "$OLD"; then die "v$OLD was installed over v$NEW with no --downgrade"; fi
+said "v$OLD is older than v$NEW, which is installed here, so nothing was installed."
+said "reads, plans and applies nothing on this server that names one until it is updated again"
+said "run this again with --downgrade"
+version_is "$NEW"
+[ "$(pid)" = "$before" ] || die "refusing an older release restarted the service"
+ok "refused v$OLD over v$NEW, said why, and the service kept running"
+
 step "Uninstall"
 stop_direct
 run_install good --uninstall || die "uninstalling failed"

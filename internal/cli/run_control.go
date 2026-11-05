@@ -257,6 +257,7 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 	keeper := secrets.New(db, key, kinds.With(scope.Types()...))
 	agents := agentapi.NewAgents(kinds, logger)
 	agents.SendValues(keeper)
+	agents.CheckNaming(keeper)
 	engine := revision.New(db, kinds, agents, keeper, logger)
 	resumeCtx := context.WithoutCancel(ctx)
 	resume := func() {

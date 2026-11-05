@@ -980,6 +980,8 @@ func serverReason(err error) (string, bool) {
 		return "server_offline", true
 	case errors.Is(err, resource.ErrNoDriver):
 		return "no_driver", true
+	case errors.Is(err, resource.ErrAgentTooOld):
+		return "agent_outdated", true
 	case errors.As(err, &agent) && errors.Is(err, context.DeadlineExceeded):
 		return "agent_timeout", true
 	case errors.As(err, &agent):

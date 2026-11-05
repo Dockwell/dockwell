@@ -1109,6 +1109,11 @@ func (r *Registry) Type(kind Kind) (Type, error) {
 // plan or apply resources of that kind.
 var ErrNoDriver = errors.New("no driver for this kind")
 
+// ErrAgentTooOld is an agent from before a container's command could name a value,
+// which would read such a container's command as Docker has it, value and all
+// (ADR 0022). Nothing is read, planned or applied on it that names a value.
+var ErrAgentTooOld = errors.New("the agent is older than what this server runs")
+
 // Kinds lists the kinds the registry has drivers for, sorted.
 func (r *Registry) Kinds() []Kind {
 	var out []Kind

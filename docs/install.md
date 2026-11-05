@@ -234,6 +234,7 @@ To delete your data too, run `rm -rf /var/lib/dockwell`. Do it after removing th
 | --- | --- | --- |
 | `--join <ticket>` | `DOCKWELL_JOIN` | Join a control plane with a ticket from `dockwell token create`, and run only the agent |
 | `--version <version>` | `DOCKWELL_VERSION` | Install that release, such as `0.1.0`, instead of the latest |
+| `--downgrade` | `DOCKWELL_DOWNGRADE=1` | Install a release older than the one installed, which it otherwise refuses, as an older agent can lack what the control plane relies on |
 | `--mirror <url>` | `DOCKWELL_MIRROR` | Download Dockwell from a [mirror](#install-through-a-mirror) of its GitHub releases, and check it without reaching Sigstore |
 | `--cosign-mirror <url>` | `DOCKWELL_COSIGN_MIRROR` | Download cosign from a mirror of its GitHub releases |
 | `--uninstall` | | Remove Dockwell, and keep your workloads and data |
@@ -280,7 +281,7 @@ From mainland China, and from other networks where GitHub or Sigstore is slow or
 - Sigstore's trust root must match the SHA-256 pinned in the script. cosign checks the signature against it, so the install never contacts Sigstore.
 - The checksums must carry the signature of Dockwell's release workflow at that release's tag, and the archive must match them.
 
-If the mirror changed any of these, nothing is installed. What a mirror can still do is fail to serve you, serve an out-of-date release, or serve an older release as the latest. To rule out the last, pin a release with `--version`.
+If the mirror changed any of these, nothing is installed. What a mirror can still do is fail to serve you, serve an out-of-date release, or serve an older release as the latest. The script refuses to install a release older than the one installed, the latest included, unless you pass `--downgrade`, and says what it costs. To rule out an out-of-date release on a new server, pin one with `--version`.
 
 ### What a mirror serves
 

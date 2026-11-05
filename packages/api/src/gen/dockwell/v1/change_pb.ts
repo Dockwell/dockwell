@@ -684,8 +684,10 @@ export type UncheckedServer = Message<"dockwell.v1.UncheckedServer"> & {
   /**
    * Why, as a word an error's reason would be: "server_offline" for an
    * agent that isn't connected, or dropped while it was checked, whose
-   * drift is checked once it reconnects; "agent_timeout"; "no_driver"; or
-   * "agent_failed".
+   * drift is checked once it reconnects; "agent_timeout"; "no_driver";
+   * "agent_outdated" for an agent from before a command could name a value,
+   * which would read one's command with its values written in, so it reads
+   * nothing that names one until it is updated; or "agent_failed".
    *
    * @generated from field: string reason = 3;
    */
