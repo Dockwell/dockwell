@@ -592,8 +592,10 @@ func TestAPausedContainerReadsAsNotRunning(t *testing.T) {
 	}{
 		{name: "no check", before: dockwellv1.HealthState_HEALTH_STATE_NO_CHECK, after: dockwellv1.HealthState_HEALTH_STATE_NO_CHECK},
 		{name: "Docker's check", docker: true, before: dockwellv1.HealthState_HEALTH_STATE_HEALTHY, after: dockwellv1.HealthState_HEALTH_STATE_HEALTHY},
-		{name: "the agent's check", extra: []string{health.Label, `{"tcp":{"port":80},"interval":5000000}`},
-			before: dockwellv1.HealthState_HEALTH_STATE_HEALTHY, after: dockwellv1.HealthState_HEALTH_STATE_HEALTHY},
+		{
+			name: "the agent's check", extra: []string{health.Label, `{"tcp":{"port":80},"interval":5000000}`},
+			before: dockwellv1.HealthState_HEALTH_STATE_HEALTHY, after: dockwellv1.HealthState_HEALTH_STATE_HEALTHY,
+		},
 	} {
 		t.Run(way.name, func(t *testing.T) {
 			e := dockertest.New(t)

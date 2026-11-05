@@ -413,7 +413,7 @@ type writers struct {
 	most int
 }
 
-func (w *writers) watch(r *rolling, volume string) {
+func (w *writers) watch(r *rolling, source string) {
 	r.docker.Intercept(func(req *http.Request) error {
 		if req.Method != http.MethodPost || !strings.HasSuffix(req.URL.Path, "/start") {
 			return nil
@@ -424,7 +424,7 @@ func (w *writers) watch(r *rolling, volume string) {
 			if c == nil || !c.State.Running {
 				continue
 			}
-			if slices.ContainsFunc(c.HostConfig.Mounts, func(m docker.Mount) bool { return strings.HasSuffix(m.Source, volume) }) {
+			if slices.ContainsFunc(c.HostConfig.Mounts, func(m docker.Mount) bool { return strings.HasSuffix(m.Source, source) }) {
 				n++
 			}
 		}
