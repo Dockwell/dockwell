@@ -856,7 +856,8 @@ func (a *Agents) uploadFor(server string, token uint64) *upload {
 // send meanwhile, and says how much.
 //
 // It returns ErrLost when the stream ends first, and ErrNotConnected when the
-// call never reached the agent. A reader carries on with the next stream.
+// call never reached the agent, or the agent stopped it to move to a new stream.
+// A reader carries on with the next stream.
 func (s *Session) Logs(ctx context.Context, call *agentv1.LogsCall, each func(*agentv1.SendLogsRequest) error) error {
 	up := s.agents.openUpload(s.server)
 	defer s.agents.closeUpload(up)
@@ -885,6 +886,11 @@ func (s *Session) Logs(ctx context.Context, call *agentv1.LogsCall, each func(*a
 		s.mu.Unlock()
 		return s.notConnected()
 	}
+	// The result and the stream's end can both be ready when the select wakes, as
+	// each may take its time, and Go picks one at random. A result that is there
+	// wins: the agent answered, and a read that finished hasn't lost its agent.
+	var r *agentv1.CallResult
+wait:
 	for {
 		select {
 		case m := <-up.messages:
@@ -892,21 +898,32 @@ func (s *Session) Logs(ctx context.Context, call *agentv1.LogsCall, each func(*a
 				cancel()
 				return err
 			}
-		case r := <-result:
-			switch e := r.GetError(); {
-			case e == nil:
-				return nil
-			case e.GetDraining():
-				return s.notConnected()
-			default:
-				return &resource.ServerError{Server: s.name, Err: errors.New(e.GetMessage())}
-			}
+		case r = <-result:
+			break wait
 		case <-s.done:
+			select {
+			case r = <-result:
+				break wait
+			default:
+			}
+			// An agent moves as soon as it hears the control plane has stopped
+			// sending, which can be before a read it stopped has answered.
+			if s.moving() {
+				return s.notConnected()
+			}
 			return fault.New(ErrLost, "%s's agent disconnected while it read logs", s.name)
 		case <-ctx.Done():
 			cancel()
 			return ctx.Err()
 		}
+	}
+	switch e := r.GetError(); {
+	case e == nil:
+		return nil
+	case e.GetDraining():
+		return s.notConnected()
+	default:
+		return &resource.ServerError{Server: s.name, Err: errors.New(e.GetMessage())}
 	}
 }
 

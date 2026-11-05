@@ -4644,6 +4644,13 @@ components:
                          stops nothing a plan counts as downtime, and yet stops people reaching what it
                          served. It never stops a plan, and the fingerprint leaves it out. Numbered
                          apart, as open work adds to this message.
+                moves:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteMove'
+                    description: |-
+                        Set when a route leaves the service it sent to for another, as what a domain
+                         reaches changing is easy to miss among a plan's fields. It never stops a plan.
+                         Numbered apart, as open work adds to this message.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -5349,10 +5356,28 @@ components:
                         - VISITORS_FIND_TLS_ERROR
                         - VISITORS_FIND_NOT_FOUND
                         - VISITORS_FIND_REST
+                        - VISITORS_FIND_NOTHING_BEHIND
                     type: string
                     description: What someone visiting it finds.
                     format: enum
             description: RouteGoes is a route a step takes away.
+        RouteMove:
+            type: object
+            properties:
+                where:
+                    type: string
+                    description: Its domain and path, as people read them, such as "app.example.com/api".
+                from:
+                    type: string
+                    description: The service it sent to.
+                to:
+                    type: string
+                    description: The service it goes to. Empty when it goes to to_port on the server.
+                toPort:
+                    type: integer
+                    description: The port on the server it goes to, when it goes to no service.
+                    format: uint32
+            description: RouteMove is a route leaving one service for another.
         Secret:
             type: object
             properties:

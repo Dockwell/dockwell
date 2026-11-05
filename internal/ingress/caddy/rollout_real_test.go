@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -678,12 +679,13 @@ func TestTheGenerationRouteIsntARouteOnRealCaddy(t *testing.T) {
 	if err := json.Unmarshal(servers[serverName], &server); err != nil {
 		t.Fatal(err)
 	}
-	if len(server.Routes) != 2 || routeID(server.Routes[0]) != generationRouteID {
-		ids := make([]string, len(server.Routes))
-		for i := range server.Routes {
-			ids[i] = routeID(server.Routes[i])
-		}
-		t.Errorf("Caddy has the routes %v, want the generation's first", ids)
+	ids := make([]string, len(server.Routes))
+	for i := range server.Routes {
+		ids[i] = routeID(server.Routes[i])
+	}
+	// The generation's first, and last is what answers for a path the route doesn't cover.
+	if want := []string{generationRouteID, "dockwell.env.www", secureNoneID}; !slices.Equal(ids, want) {
+		t.Errorf("Caddy has the routes %v, want %v", ids, want)
 	}
 }
 

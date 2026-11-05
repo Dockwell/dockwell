@@ -823,7 +823,7 @@ func TestWhatAVisitorFindsAsARouteGoes(t *testing.T) {
 		want     resource.VisitorsFind
 	}{
 		{name: "the last route", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80)}, goes: "a", where: "a.example.com", want: resource.VisitorsRefused},
-		{name: "the last route, a tunnel's, as nothing holds port 80 either", have: map[string]*resourcev1.Route{"a": plain("a.example.com")}, goes: "a", where: "a.example.com", want: resource.VisitorsRefused},
+		{name: "the last route, a tunnel's, where visitors see what's in front", have: map[string]*resourcev1.Route{"a": plain("a.example.com")}, goes: "a", where: "a.example.com", want: resource.VisitorsNothingBehind},
 		{name: "another domain stays, over HTTPS", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80), "b": spec("b.example.com", "", "web", 80)}, goes: "a", where: "a.example.com", want: resource.VisitorsTLSError},
 		{name: "a path, with the domain's root staying", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80), "api": spec("a.example.com", "/api", "web", 80)}, goes: "api", where: "a.example.com/api", want: resource.VisitorsRest},
 		{name: "a tunnel's, with another staying", have: map[string]*resourcev1.Route{"a": plain("a.example.com"), "b": plain("b.example.com")}, goes: "a", where: "a.example.com", want: resource.VisitorsNotFound},

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -360,5 +361,13 @@ func TestAFailedDNSLookupIsntNoRecord(t *testing.T) {
 	problem, detail, _ := ClassifyFailure(`urn:ietf:params:acme:error:dns - DNS problem: NXDOMAIN looking up A for app.example.com`)
 	if msg := certMessage("app.example.com", CertState{Phase: CertFailed, Problem: problem, Detail: detail}, nil); !strings.Contains(msg, "A or AAAA") {
 		t.Errorf("for NXDOMAIN it says: %s", msg)
+	}
+}
+
+// A failing renewal says what's wrong in a sentence of its own.
+func TestARenewalThatFailsStartsItsSentence(t *testing.T) {
+	msg := certMessage("app.example.com", CertState{Phase: CertIssued, Problem: ProblemConnection, NotAfter: time.Date(2027, 2, 3, 0, 0, 0, 0, time.UTC)}, nil)
+	if !strings.Contains(msg, "until 3 February 2027. The certificate authority couldn't reach") {
+		t.Errorf("it reads %q", msg)
 	}
 }

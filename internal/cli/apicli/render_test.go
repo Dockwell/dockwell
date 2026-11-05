@@ -798,14 +798,27 @@ func TestDNSThatPointsElsewhereNamesTheSetting(t *testing.T) {
 	}
 }
 
+func TestARouteMovingSaysWhichAppItLeaves(t *testing.T) {
+	if got := movesWords(&dockwellv1.RouteMove{Where: "app.example.com", From: "api", To: "nginx"}); got != "app.example.com leaves api, and goes to nginx." {
+		t.Errorf("it says %q", got)
+	}
+	if got := movesWords(&dockwellv1.RouteMove{Where: "app.example.com", From: "api", ToPort: 8080}); got != "app.example.com leaves api, and goes to port 8080 on the server." {
+		t.Errorf("to a port, it says %q", got)
+	}
+	if got := movesWords(nil); got != "" {
+		t.Errorf("no move says %q", got)
+	}
+}
+
 // A plan's "no downtime" says nothing of a route going, so its line does.
 func TestARouteGoingSaysWhatAVisitorFinds(t *testing.T) {
 	for find, want := range map[dockwellv1.VisitorsFind]string{
-		dockwellv1.VisitorsFind_VISITORS_FIND_REFUSED:     "gets a refused connection",
-		dockwellv1.VisitorsFind_VISITORS_FIND_TLS_ERROR:   "browser's connection error",
-		dockwellv1.VisitorsFind_VISITORS_FIND_NOT_FOUND:   "gets a 404",
-		dockwellv1.VisitorsFind_VISITORS_FIND_REST:        "what the rest of app.example.com serves",
-		dockwellv1.VisitorsFind_VISITORS_FIND_UNSPECIFIED: "stops reaching it",
+		dockwellv1.VisitorsFind_VISITORS_FIND_REFUSED:        "gets a refused connection",
+		dockwellv1.VisitorsFind_VISITORS_FIND_TLS_ERROR:      "browser's connection error",
+		dockwellv1.VisitorsFind_VISITORS_FIND_NOT_FOUND:      "gets a 404",
+		dockwellv1.VisitorsFind_VISITORS_FIND_REST:           "what the rest of app.example.com serves",
+		dockwellv1.VisitorsFind_VISITORS_FIND_NOTHING_BEHIND: "whatever it shows for that",
+		dockwellv1.VisitorsFind_VISITORS_FIND_UNSPECIFIED:    "stops reaching it",
 	} {
 		got := goesWords(&dockwellv1.RouteGoes{Where: "app.example.com/api", Domain: "app.example.com", Find: find})
 		if !strings.Contains(got, want) || !strings.Contains(got, "app.example.com/api") {

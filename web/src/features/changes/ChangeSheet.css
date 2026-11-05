@@ -236,6 +236,27 @@ a.plan-reach-at:focus-visible {
   color: var(--warning);
 }
 
+/* Level with the names above it, past their icons. */
+.plan-reach-more {
+  margin-inline-start: calc(16px + var(--space-2));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.plan-reach-more:hover {
+  text-decoration: underline;
+}
+
+.plan-reach-more:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 /* Nothing reaches it yet, and what to do about that. */
 .plan-unreached {
   display: flex;

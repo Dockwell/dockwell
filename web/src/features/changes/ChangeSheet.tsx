@@ -1391,10 +1391,18 @@ function useReach(plan: Plan | undefined, change: Change | undefined, landed: bo
     const planned = routes.find((r) => r.resource?.name === name);
     return planned ? nextStepOf(planned) : undefined;
   };
-  const domains: DomainInReach[] = read.rows.map(({ domain, route }) => {
-    const next = nextOf(route.name);
-    return { key: route.id, where: routeWhere(domain, route), read: { domain, route }, ...(next ? { next } : {}) };
-  });
+  // What the change itself makes leads, then what's wrong, as only the first few show.
+  const ownFirst = (row: { domain: Domain; route: DomainRoute }) => {
+    if (routes.some((r) => r.resource?.name === row.route.name)) return 0;
+    const state = lookOf(row.domain).state;
+    return state === "failed" ? 1 : state === "stale" ? 2 : state === "pending" ? 3 : 4;
+  };
+  const domains: DomainInReach[] = [...read.rows]
+    .sort((a, b) => ownFirst(a) - ownFirst(b))
+    .map(({ domain, route }) => {
+      const next = nextOf(route.name);
+      return { key: route.id, where: routeWhere(domain, route), read: { domain, route }, ...(next ? { next } : {}) };
+    });
   for (const route of unread) {
     const name = domainOf(route);
     if (!name) continue;
@@ -1455,6 +1463,9 @@ function useReach(plan: Plan | undefined, change: Change | undefined, landed: bo
   };
 }
 
+/** How many rows an arrival shows of where it's reached, as the plan comes after them and has to be seen. */
+const REACH_SHOWN = 3;
+
 /** Nothing reaches what a plan brings to life yet, in words the arrival and its room share. */
 function useNothingWords(reach: Reach): string {
   const { t } = useLingui();
@@ -1473,13 +1484,14 @@ function useNothingWords(reach: Reach): string {
 function ReachRoom({ reach, phone, children }: { reach: Reach; phone: boolean; children: ReactNode }) {
   const nothing = useNothingWords(reach);
   const several = reach.live.length > 1;
+  const heldPorts = Math.max(0, REACH_SHOWN - reach.domains.length);
   return (
     <div className="plan-room">
       {children}
       <div className="plan-room-held" aria-hidden="true">
         {reach.kind === "rows" ? (
           <>
-            {reach.domains.map((domain) => (
+            {reach.domains.slice(0, REACH_SHOWN).map((domain) => (
               <HeldRow
                 key={domain.key}
                 where={domain.where}
@@ -1487,9 +1499,10 @@ function ReachRoom({ reach, phone, children }: { reach: Reach; phone: boolean; c
                 note={domain.read ? lookOf(domain.read.domain).message : ""}
               />
             ))}
-            {Array.from({ length: reach.portRows }, (_, i) => `port-${i}`).map((key) => (
+            {Array.from({ length: Math.min(heldPorts, reach.portRows) }, (_, i) => `port-${i}`).map((key) => (
               <div key={key} className="plan-reach-row" />
             ))}
+            {reach.domains.length + reach.portRows > REACH_SHOWN ? <div className="plan-reach-row" /> : null}
           </>
         ) : reach.kind === "nothing" ? (
           <div className="plan-lead is-next">
@@ -1583,6 +1596,7 @@ function Arrival({
   const { t } = useLingui();
   const nothing = useNothingWords(reach);
   const [landedAt] = useState(() => Date.now());
+  const [wholeList, setWholeList] = useState(false);
   // What the list said before a change to its ports isn't what it says now, which is on its way.
   const portsMoved = reach.live.some((r) => r.changes.some((c) => c.path.startsWith("app.ports")));
   const portsBehind = portsMoved && reach.servicesReadAt < landedAt && !reach.servicesFailed;
@@ -1616,6 +1630,9 @@ function Arrival({
       </div>
     );
   }
+  const domains = wholeList ? reach.domains : reach.domains.slice(0, REACH_SHOWN);
+  const ports = wholeList ? reach.ports : reach.ports.slice(0, Math.max(0, REACH_SHOWN - domains.length));
+  const more = reach.domains.length + reach.ports.length - domains.length - ports.length;
   return (
     <>
       {reach.domainsFailed ? (
@@ -1633,7 +1650,7 @@ function Arrival({
       ) : null}
       {reach.domains.length + reach.ports.length > 0 ? (
         <ul className="plan-reach">
-          {reach.domains.map(({ key, where, read, port, next }) =>
+          {domains.map(({ key, where, read, port, next }) =>
             read ? (
               <DomainReach key={key} domain={read.domain} route={read.route} next={next} onLeave={onLeave} />
             ) : (
@@ -1661,7 +1678,7 @@ function Arrival({
               </li>
             ),
           )}
-          {reach.ports.map(({ at, local, target, udp }) => (
+          {ports.map(({ at, local, target, udp }) => (
             <li key={at} className="plan-reach-row">
               <Icon name="globe" size={16} />
               {local || udp ? (
@@ -1677,6 +1694,13 @@ function Arrival({
               <CopyButton text={at} label={t`Copy ${at}`} />
             </li>
           ))}
+          {more > 0 ? (
+            <li className="plan-reach-row">
+              <button type="button" className="plan-reach-more" onClick={() => setWholeList(true)}>
+                <Trans>and {more} more</Trans>
+              </button>
+            </li>
+          ) : null}
         </ul>
       ) : null}
     </>

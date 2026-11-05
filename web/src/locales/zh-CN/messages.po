@@ -678,6 +678,10 @@ msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
 msgid "{trouble, plural, one {# needs a look} other {# need a look}}"
 msgstr "{trouble, plural, other {# 个需要查看}}"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."
+msgstr "{typed} 目前指向 {leavesApp}。继续操作会将它移到这里，并离开 {leavesApp}。"
+
 #: src/features/shell/Topbar.tsx
 msgid "{unknown} in an unknown state"
 msgstr "{unknown} 台状态未知"
@@ -705,6 +709,14 @@ msgstr "{volumes, plural, other {# 个卷}}"
 #: src/features/shell/Topbar.tsx
 msgid "{waiting} waiting for an agent"
 msgstr "{waiting} 台等待代理连接"
+
+#: src/features/changes/words.ts
+msgid "{where} leaves {from}, and goes to {to}."
+msgstr "{where} 离开 {from}，转到 {to}。"
+
+#: src/features/changes/words.ts
+msgid "{where} leaves {from}, and goes to port {toPort} on the server."
+msgstr "{where} 离开 {from}，转到服务器上的 {toPort} 端口。"
 
 #. placeholder {0}: window.location.host
 #: src/features/auth/SignInPage.tsx
@@ -806,6 +818,18 @@ msgstr "<0>{revision}</0> 于 {finished} 被替换。"
 #: src/features/apps/DomainNote.tsx
 msgid "<0>{server}</0> hasn't reported yet. <1>Check its page</1>"
 msgstr "<0>{server}</0> 尚未上报。<1>查看其页面</1>"
+
+#: src/features/apps/DomainNote.tsx
+msgid "<0>{server}</0> isn't connected, and hasn't said anything of this yet. <1>Check its page</1>"
+msgstr "<0>{server}</0> 未连接，也尚未上报过此项。<1>查看其页面</1>"
+
+#: src/features/apps/DomainNote.tsx
+msgid "<0>{server}</0> isn't connected, so this is what it last said, {when}: {last}. <1>Check its page</1>"
+msgstr "<0>{server}</0> 未连接，以下是它最后的上报（{when}）：{last}。<1>查看其页面</1>"
+
+#: src/features/apps/DomainNote.tsx
+msgid "<0>{server}</0> isn't connected, so this is what it last said: {last}. <1>Check its page</1>"
+msgstr "<0>{server}</0> 未连接，以下是它最后的上报：{last}。<1>查看其页面</1>"
 
 #: src/features/apps/AppLayout.tsx
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
@@ -1187,6 +1211,7 @@ msgid "An image has no spaces. Write it as nginx:1.27."
 msgstr "镜像名称不能有空格，请写成 nginx:1.27。"
 
 #: src/features/apps/AppDeployments.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "and {more} more"
 msgstr "另外 {more} 项"
 
@@ -3245,6 +3270,10 @@ msgstr "挂载位置"
 msgid "mounts"
 msgstr "挂载"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Move {typed} behind what's in front"
+msgstr "将 {typed} 移到前面的代理之后"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Move to another app"
 msgstr "换到另一个应用"
@@ -3467,6 +3496,7 @@ msgstr "未上报"
 msgid "None set"
 msgstr "未设置"
 
+#: src/features/apps/DomainNote.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Not connected"
 msgstr "未连接"
@@ -3912,6 +3942,10 @@ msgstr "将它的 DNS 指向你的隧道或代理。"
 #: src/features/changes/fields.tsx
 msgid "port"
 msgstr "端口"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "port {leavesPort} on the server"
+msgstr "服务器上的 {leavesPort} 端口"
 
 #: src/features/apps/AppOverview.tsx
 msgid "port {target}"
@@ -6108,6 +6142,10 @@ msgstr "你看到的内容可能已过时。请确认服务器上的 dockwell ru
 #: src/features/apps/AddDomainSheet.tsx
 msgid "What's in front"
 msgstr "前面是什么"
+
+#: src/features/changes/words.ts
+msgid "What's in front can't connect for {where} any more, so visitors see whatever it shows for that."
+msgstr "前面的代理无法再连接 {where}，因此访问者会看到它对此显示的内容。"
 
 #: src/features/changes/words.ts
 msgid "What's in front gets a 404 for {where}, so visitors see whatever it shows for one."

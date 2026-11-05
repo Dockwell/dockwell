@@ -3,8 +3,9 @@
 import { createQueryOptions, useQuery, useTransport } from "@connectrpc/connect-query";
 import { CertificateState, type Domain, type DomainRoute, DomainService, type ServiceInfo } from "@dockwell/api";
 import { useQueries } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
+import { useFleetView } from "../servers/useFleet";
 import { environmentOf, nameOf, tidyMessage } from "./app";
 
 /** How often a domain whose certificate isn't there yet is read again, which is how the API says to follow it. */
@@ -34,8 +35,9 @@ export function routeName(domain: string, existing: readonly Domain[] = []): str
   // what's refused is the address, in the server's words, and not a name nobody typed.
   const lettered = label.replace(/^[^a-z]+/, "") || `route-${label.replace(/^-+/, "")}`;
   const base = lettered.slice(0, MAX_LABEL).replace(/-+$/, "");
+  // Whatever holds the name but this domain's own root, proposing it would move.
   const takenByAnother = (name: string) =>
-    existing.some((d) => d.name !== domain && d.routes.some((route) => route.name === name));
+    existing.some((d) => d.routes.some((route) => route.name === name && (d.name !== domain || route.path !== "")));
   if (!takenByAnother(base)) return base;
   for (let i = 2; ; i++) {
     const suffix = `-${i}`;
@@ -54,7 +56,7 @@ export function proxyList(written: string): string[] {
 
 /** Where a domain stands, as far as someone reaching it goes. */
 export interface DomainLook {
-  state: "serving" | "pending" | "failed";
+  state: "serving" | "pending" | "failed" | "stale";
   /** What to say of it, from the server, when it isn't serving. */
   message: string;
   /** It serves with no certificate here, as TLS ends before this server. */
@@ -67,6 +69,10 @@ export interface DomainLook {
   warning?: boolean;
   /** When its certificate runs out, the soonest of its servers', in ms. */
   expires?: number;
+  /** Its server isn't connected, so nothing here is known to be so any more. */
+  stale?: { id: string; name: string };
+  /** What that server last said, for one that isn't connected. */
+  said?: DomainLook;
 }
 
 /** True when a domain asks for no certificate, as TLS ends before its server: there's none to say it's getting, whatever the server has yet to report. */
@@ -132,8 +138,18 @@ export function panelWords(message: string, switchName: string): string {
   return message.replace(/set tls to off(?: on its routes)?/g, `turn on "${switchName}" for this domain`);
 }
 
-/** The worst of what a domain's servers say, as it needs them all. */
+/**
+ * Where a domain stands, as far as someone reaching it goes. With a server that isn't
+ * connected, nothing is known of that any more, only what it last said.
+ */
 export function lookOf(domain: Domain): DomainLook {
+  const said = heardFrom(domain);
+  const away = domain.servers.find((server) => server.stale);
+  return away ? { state: "stale", message: "", stale: { id: away.serverId, name: away.serverName }, said } : said;
+}
+
+/** The worst of what a domain's servers say, as it needs them all. */
+function heardFrom(domain: Domain): DomainLook {
   for (const server of domain.servers) {
     if (server.ingress?.message) return { state: "failed", message: server.ingress.message };
   }
@@ -182,7 +198,7 @@ function usePace(): (key: string, domains: readonly Domain[]) => number | false 
   const silentSince = useRef(new Map<string, number>());
   return (key, domains) => {
     const looks = domains.map(lookOf).filter((look) => look.state !== "serving" || look.warning);
-    if (looks.length === 0 || !looks.every((look) => look.unreported || look.orphaned)) {
+    if (looks.length === 0 || !looks.every((look) => look.unreported || look.orphaned || look.stale)) {
       silentSince.current.delete(key);
       return looks.length === 0 ? false : POLL_MS;
     }
@@ -190,6 +206,23 @@ function usePace(): (key: string, domains: readonly Domain[]) => number | false 
     silentSince.current.set(key, since);
     return Date.now() - since >= SILENT_AFTER_MS ? SILENT_POLL_MS : POLL_MS;
   };
+}
+
+/**
+ * Reads again as a server connects or goes, as what's said of a domain depends on that,
+ * and one that serves isn't otherwise read again.
+ */
+function useReadAgainAsServersMove(read: () => void) {
+  const { servers } = useFleetView();
+  const connections = servers?.map((server) => `${server.id}:${server.connection}`).join();
+  const last = useRef(connections);
+  const reading = useRef(read);
+  reading.current = read;
+  useEffect(() => {
+    const was = last.current;
+    last.current = connections;
+    if (was !== undefined && connections !== undefined && was !== connections) reading.current();
+  }, [connections]);
 }
 
 /** The domains an app is reached at, read again until each settles: a failed certificate is retried by itself. */
@@ -206,6 +239,7 @@ export function useAppDomains(service: ServiceInfo): {
     { environment: environmentOf(service), service: nameOf(service) },
     { refetchInterval: (state) => pace("", state.state.data?.domains ?? []) },
   );
+  useReadAgainAsServersMove(() => void query.refetch());
   return {
     domains: query.data?.domains ?? [],
     isPending: query.isPending,
@@ -252,6 +286,9 @@ export function useDomainsReaching(reaches: readonly EnvironmentReach[]): {
       refetchInterval: (query: { state: { data?: { domains: Domain[] } | undefined } }) =>
         pace(reach.environment, reachingOf(reach, query.state.data?.domains ?? [])),
     })),
+  });
+  useReadAgainAsServersMove(() => {
+    for (const read of reads) void read.refetch();
   });
   const failures = reads.filter((read) => read.isError);
   return {

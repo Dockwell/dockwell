@@ -129,13 +129,26 @@ func (p *process) Remove(context.Context) error {
 	return nil
 }
 
+// portsGiven is what freePort has given out, as nothing holds a port until the
+// Caddy it's for starts, so asking again would find it free.
+var (
+	portsGivenMu sync.Mutex
+	portsGiven   = map[int]bool{}
+)
+
 // freePort finds a port nothing holds, on TCP and on UDP, on every address, as
-// Caddy binds. It is below the kernel's ephemeral range, so that an outgoing
-// connection or another test's listener doesn't take it in the meantime.
+// Caddy binds, and that it hasn't given out before. It is below the kernel's
+// ephemeral range, so that an outgoing connection or another test's listener
+// doesn't take it in the meantime.
 func freePort(t *testing.T) int {
 	t.Helper()
+	portsGivenMu.Lock()
+	defer portsGivenMu.Unlock()
 	for range 200 {
 		port := 20000 + mrand.IntN(12000)
+		if portsGiven[port] {
+			continue
+		}
 		l, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", fmt.Sprintf(":%d", port))
 		if err != nil {
 			continue
@@ -143,11 +156,27 @@ func freePort(t *testing.T) int {
 		_ = l.Close()
 		if u, err := (&net.ListenConfig{}).ListenPacket(context.Background(), "udp", fmt.Sprintf(":%d", port)); err == nil {
 			_ = u.Close()
+			portsGiven[port] = true
 			return port
 		}
 	}
 	t.Fatal("no free port")
 	return 0
+}
+
+// Nothing holds a port between freePort and Caddy starting, so asking again can't
+// be told it's taken: the HTTP and HTTPS ports once came back the same, and Caddy
+// refused the config.
+func TestAPortIsGivenOutOnce(t *testing.T) {
+	seen := map[int]bool{}
+	// Without the memory, a repeat is all but certain well before this many.
+	for range 500 {
+		port := freePort(t)
+		if seen[port] {
+			t.Fatalf("port %d was given out twice", port)
+		}
+		seen[port] = true
+	}
 }
 
 // shortDir is a directory whose sockets fit the 108 bytes Linux allows.
@@ -334,6 +363,46 @@ func TestTheAdminAPIIsOnlyOnItsSocketOnRealCaddy(t *testing.T) {
 		if cerr != nil || !strings.Contains(string(b), "unix/") {
 			t.Errorf("something answers on 127.0.0.1:2019, and Caddy's admin config is %s, %v", b, cerr)
 		}
+	}
+}
+
+// A domain with a route to one path answers a 404 for the rest, as a plain route does.
+// Caddy would otherwise answer an empty 200, which reads as a site that works.
+func TestAPathNothingCoversIsA404OverHTTPSOnRealCaddy(t *testing.T) {
+	c := startCaddy(t)
+	api := backend(t, "api")
+	put(t, c, aRoute("dockwell.env.api", "app.example.net", "/api", api))
+	if got := c.whoAt(t, "app.example.net", "/api/who"); got["name"] != "api" {
+		t.Fatalf("/api reaches %v", got)
+	}
+	res, err := c.client("app.example.net").Get("https://app.example.net/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusNotFound || !strings.Contains(string(body), "no site at this address") {
+		t.Errorf("the root of a domain with /api alone answers %d, %q, want a 404", res.StatusCode, body)
+	}
+	// It isn't one of the routes, and comes back as it was each time they change.
+	routes, err := c.Routes(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 1 || routes[0].Edited || routes[0].Path != "/api" {
+		t.Errorf("it reads back as %+v", routes)
+	}
+	// A route to the root comes ahead of it.
+	web := backend(t, "web")
+	put(t, c, aRoute("dockwell.env.www", "app.example.net", "", web))
+	if got := c.whoAt(t, "app.example.net", "/who"); got["name"] != "web" {
+		t.Errorf("the root, with a route to it, reaches %v", got)
+	}
+	if got := c.whoAt(t, "app.example.net", "/api/who"); got["name"] != "api" {
+		t.Errorf("/api reaches %v", got)
 	}
 }
 

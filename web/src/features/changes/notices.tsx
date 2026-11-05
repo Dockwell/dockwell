@@ -487,6 +487,7 @@ export function useAsides(plan: Plan | undefined): Notice[] {
         out.push({ key: `answers-${key}-${line}`, title: line, notice: true });
       }
       if (step.goes) out.push({ key: `goes-${key}`, title: words.goes(step.goes), notice: true });
+      if (step.moves) out.push({ key: `moves-${key}`, title: words.moves(step.moves), notice: true });
       if (reloadsProxy(step)) out.push({ key: `reload-${key}`, title: `${words.reload(server.serverName)}.` });
       if (step.restores) out.push({ key: `restores-${key}`, title: t`${name} gets back the data the server kept.` });
       if (step.hidesLogs) {

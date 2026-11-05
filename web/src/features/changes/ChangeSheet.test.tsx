@@ -29,6 +29,7 @@ import {
   RolloutPlanSchema,
   RouteAnswersSchema,
   RouteGoesSchema,
+  RouteMoveSchema,
   RouteReach,
   ServerPlanSchema,
   ServerPortCheckSchema,
@@ -1618,7 +1619,7 @@ describe("the plan sheet, once it runs", () => {
         name: "app.example.com",
         url: "http://app.example.com",
         routes: [{ id: "res_route", name: "app-example-com", service: "web", port: 80, tls: "off" }],
-        servers: [{ serverName: "hz-1", stale: true }],
+        servers: [{ serverName: "hz-1", stale: false }],
       };
       const change = applied(aServicePlan());
       const planned = change.plan?.resources[0]?.resource;
@@ -1758,6 +1759,107 @@ describe("the plan sheet, once it runs", () => {
       expect(done).toHaveTextContent("its certificate can't come");
     });
 
+    it("says plainly which app a domain leaves, and for which", async () => {
+      const change = moved(aRoutePlan(PlanAction.UPDATE), { state: ChangeState.PLANNED });
+      const step = change.plan?.servers[0]?.steps[0];
+      if (step) step.moves = create(RouteMoveSchema, { where: "app.example.com", from: "api", to: "web" });
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const review = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(review).toHaveTextContent("app.example.com leaves api, and goes to web.");
+    });
+
+    it("says it goes to a port, when that's where it goes", async () => {
+      const change = moved(aRoutePlan(PlanAction.UPDATE), { state: ChangeState.PLANNED });
+      const step = change.plan?.servers[0]?.steps[0];
+      if (step) step.moves = create(RouteMoveSchema, { where: "app.example.com", from: "api", toPort: 8080 });
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const review = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(review).toHaveTextContent("app.example.com leaves api, and goes to port 8080 on the server.");
+    });
+
+    describe("with many of them", () => {
+      const many = (n: number, broken?: number) =>
+        Array.from({ length: n }, (_, i) =>
+          aDomain(
+            `site-${i + 1}.example.com`,
+            i === broken ? CertificateState.FAILED : CertificateState.ISSUED,
+            i === broken ? "DNS points elsewhere" : "",
+          ),
+        );
+
+      it("folds them after a few, so the plan is still there to see, and opens them when asked", async () => {
+        const user = userEvent.setup();
+        arrivedWith(many(14), [{ hostPort: 8080, containerPort: 80 }]);
+        const done = await screen.findByRole("dialog", { name: "web is live" });
+        await within(done).findByRole("link", { name: "site-1.example.com" });
+        expect(done.querySelectorAll(".plan-reach-row.is-domain")).toHaveLength(3);
+        const more = within(done).getByRole("button", { name: "and 12 more" });
+        await expectAccessible(document.body);
+        await user.click(more);
+        expect(done.querySelectorAll(".plan-reach-row.is-domain")).toHaveLength(14);
+        expect(within(done).getByRole("link", { name: /:8080/ })).toBeVisible();
+        expect(within(done).queryByRole("button", { name: /more$/ })).toBeNull();
+      });
+
+      it("doesn't fold what fits", async () => {
+        arrivedWith(many(3));
+        const done = await screen.findByRole("dialog", { name: "web is live" });
+        await within(done).findByRole("link", { name: "site-3.example.com" });
+        expect(within(done).queryByRole("button", { name: /more$/ })).toBeNull();
+      });
+
+      it("leads with what's wrong, so folding doesn't hide it", async () => {
+        arrivedWith(many(14, 11));
+        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const first = await within(done).findByText("site-12.example.com", { selector: ".plan-reach-at" });
+        expect(done.querySelector(".plan-reach-row")).toContainElement(first);
+      });
+
+      it("leads with what the change itself makes, ahead of what's wrong", async () => {
+        const change = applied(aServicePlan());
+        const planned = change.plan?.resources[0]?.resource;
+        if (planned) planned.scope = "env_1";
+        change.plan?.resources.push(
+          create(PlannedResourceSchema, {
+            id: "res_route",
+            resource: { kind: "route", scope: "env_1", name: "site-14-example-com" },
+            action: PlanAction.CREATE,
+            changes: [{ path: "domain", op: FieldOp.ADDED, to: "site-14.example.com" }],
+          }),
+        );
+        arrivedWith(many(14, 0), [], change);
+        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const first = await within(done).findByText("site-14.example.com", {
+          selector: "a.plan-reach-at code, code.plan-reach-at",
+        });
+        expect(done.querySelector(".plan-reach-row")).toContainElement(first);
+        expect(done.querySelectorAll(".plan-reach-row")[1]).toHaveTextContent("site-1.example.com");
+      });
+
+      it("holds room at the review for what will show, and the line for the rest", async () => {
+        const change = aServicePlan();
+        const planned = change.plan?.resources[0]?.resource;
+        if (planned) planned.scope = "env_1";
+        renderSheet(
+          { kind: "plan", make: () => Promise.resolve({ change }) },
+          {
+            services: { listServices: () => ({ services: [aService([])] }) },
+            domains: { listDomains: () => ({ domains: many(14) }) },
+            changes: { watchChange: feed<WatchChangeResponse>().stream },
+          },
+        );
+        const review = await screen.findByRole("dialog", { name: "Review plan" });
+        await waitFor(() => expect(review.querySelectorAll(".plan-room-held .is-domain")).toHaveLength(3));
+        expect(review.querySelectorAll(".plan-room-held > .plan-reach-row:not(.is-domain)")).toHaveLength(1);
+      });
+    });
+
     describe("as a route goes", () => {
       const going = (find: VisitorsFind, where = "app.example.com", domain = "app.example.com") => {
         const change = moved(aRoutePlan(PlanAction.DELETE), { state: ChangeState.PLANNED });
@@ -1798,6 +1900,7 @@ describe("the plan sheet, once it runs", () => {
         [VisitorsFind.TLS_ERROR, /gets a browser's connection error/],
         [VisitorsFind.NOT_FOUND, /What's in front gets a 404/],
         [VisitorsFind.REST, /gets what the rest of app\.example\.com serves/],
+        [VisitorsFind.NOTHING_BEHIND, /What's in front can't connect for app\.example\.com/],
         [VisitorsFind.UNSPECIFIED, /stops reaching it/],
       ])("says what a visitor finds, and never that nothing goes down: %s", async (find, words) => {
         const change = going(find);

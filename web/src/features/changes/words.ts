@@ -15,6 +15,7 @@ import {
   type RolloutPlan,
   type RouteAnswers,
   type RouteGoes,
+  type RouteMove,
   RouteReach,
   type ServerPortCheck,
   StepEffect,
@@ -73,6 +74,8 @@ export interface ChangeWords {
   unencrypted(server: string): string;
   /** What someone visiting a route finds once a step takes it away. */
   goes(goes: RouteGoes): string;
+  /** A route leaving the app it sent to, which is easy to miss among a plan's fields. */
+  moves(moves: RouteMove): string;
   /** Who a route answers, when it isn't anyone over HTTPS sent to a service, a sentence each. */
   answers(answers: RouteAnswers | undefined, port: ServerPortCheck | undefined, server: string): string[];
   /** How a step replaces what runs, and what that means, a sentence each. `span` words a duration in milliseconds. */
@@ -407,11 +410,18 @@ export function useChangeWords(): ChangeWords {
             return t`Anyone visiting ${where} gets a browser's connection error, as nothing here answers for that name over HTTPS any more.`;
           case VisitorsFind.NOT_FOUND:
             return t`What's in front gets a 404 for ${where}, so visitors see whatever it shows for one.`;
+          case VisitorsFind.NOTHING_BEHIND:
+            return t`What's in front can't connect for ${where} any more, so visitors see whatever it shows for that.`;
           case VisitorsFind.REST:
             return t`Anyone visiting ${where} gets what the rest of ${domain} serves, or a 404 if nothing covers that path.`;
           default:
             return t`Anyone visiting ${where} stops reaching it.`;
         }
+      },
+      moves({ where, from, to, toPort }) {
+        return to
+          ? t`${where} leaves ${from}, and goes to ${to}.`
+          : t`${where} leaves ${from}, and goes to port ${toPort} on the server.`;
       },
       answers(answers, port, server) {
         if (!answers) return [];

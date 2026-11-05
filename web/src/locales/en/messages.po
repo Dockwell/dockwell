@@ -678,6 +678,10 @@ msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps don
 msgid "{trouble, plural, one {# needs a look} other {# need a look}}"
 msgstr "{trouble, plural, one {# needs a look} other {# need a look}}"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."
+msgstr "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."
+
 #: src/features/shell/Topbar.tsx
 msgid "{unknown} in an unknown state"
 msgstr "{unknown} in an unknown state"
@@ -705,6 +709,14 @@ msgstr "{volumes, plural, one {a volume} other {# volumes}}"
 #: src/features/shell/Topbar.tsx
 msgid "{waiting} waiting for an agent"
 msgstr "{waiting} waiting for an agent"
+
+#: src/features/changes/words.ts
+msgid "{where} leaves {from}, and goes to {to}."
+msgstr "{where} leaves {from}, and goes to {to}."
+
+#: src/features/changes/words.ts
+msgid "{where} leaves {from}, and goes to port {toPort} on the server."
+msgstr "{where} leaves {from}, and goes to port {toPort} on the server."
 
 #. placeholder {0}: window.location.host
 #: src/features/auth/SignInPage.tsx
@@ -806,6 +818,18 @@ msgstr "<0>{revision}</0> was replaced at {finished}."
 #: src/features/apps/DomainNote.tsx
 msgid "<0>{server}</0> hasn't reported yet. <1>Check its page</1>"
 msgstr "<0>{server}</0> hasn't reported yet. <1>Check its page</1>"
+
+#: src/features/apps/DomainNote.tsx
+msgid "<0>{server}</0> isn't connected, and hasn't said anything of this yet. <1>Check its page</1>"
+msgstr "<0>{server}</0> isn't connected, and hasn't said anything of this yet. <1>Check its page</1>"
+
+#: src/features/apps/DomainNote.tsx
+msgid "<0>{server}</0> isn't connected, so this is what it last said, {when}: {last}. <1>Check its page</1>"
+msgstr "<0>{server}</0> isn't connected, so this is what it last said, {when}: {last}. <1>Check its page</1>"
+
+#: src/features/apps/DomainNote.tsx
+msgid "<0>{server}</0> isn't connected, so this is what it last said: {last}. <1>Check its page</1>"
+msgstr "<0>{server}</0> isn't connected, so this is what it last said: {last}. <1>Check its page</1>"
 
 #: src/features/apps/AppLayout.tsx
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
@@ -1187,6 +1211,7 @@ msgid "An image has no spaces. Write it as nginx:1.27."
 msgstr "An image has no spaces. Write it as nginx:1.27."
 
 #: src/features/apps/AppDeployments.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "and {more} more"
 msgstr "and {more} more"
 
@@ -3245,6 +3270,10 @@ msgstr "mounted at"
 msgid "mounts"
 msgstr "mounts"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Move {typed} behind what's in front"
+msgstr "Move {typed} behind what's in front"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Move to another app"
 msgstr "Move to another app"
@@ -3467,6 +3496,7 @@ msgstr "None reported"
 msgid "None set"
 msgstr "None set"
 
+#: src/features/apps/DomainNote.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Not connected"
 msgstr "Not connected"
@@ -3912,6 +3942,10 @@ msgstr "Point its DNS at your tunnel or proxy."
 #: src/features/changes/fields.tsx
 msgid "port"
 msgstr "port"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "port {leavesPort} on the server"
+msgstr "port {leavesPort} on the server"
 
 #: src/features/apps/AppOverview.tsx
 msgid "port {target}"
@@ -6108,6 +6142,10 @@ msgstr "What you see may be out of date. Check that dockwell run is still runnin
 #: src/features/apps/AddDomainSheet.tsx
 msgid "What's in front"
 msgstr "What's in front"
+
+#: src/features/changes/words.ts
+msgid "What's in front can't connect for {where} any more, so visitors see whatever it shows for that."
+msgstr "What's in front can't connect for {where} any more, so visitors see whatever it shows for that."
 
 #: src/features/changes/words.ts
 msgid "What's in front gets a 404 for {where}, so visitors see whatever it shows for one."

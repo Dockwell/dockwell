@@ -58,6 +58,68 @@ func TestACallOutOfTimeSaysSoWhicheverEndComesFirst(t *testing.T) {
 	}
 }
 
+// An agent's answer to a logs call and its stream's end can both be ready when the
+// call wakes to read them, as when whoever reads is slow to take the last lines and
+// the agent goes just after. What it answered stands, however Go picks: a read that
+// finished doesn't read as an agent that went. An agent that said it was moving
+// stopped the read to do so, so the reader carries on, answer or no answer.
+func TestALogsCallTakesTheAgentsAnswerAsItsStreamEnds(t *testing.T) {
+	kinds := resource.NewRegistry(&firewall.Driver{})
+	run := func(answer *agentv1.CallResult, moving bool) error {
+		a := NewAgents(kinds, slog.New(slog.DiscardHandler))
+		calls := make(chan *agentv1.Call, 1)
+		s := a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(firewall.Kind)}}, func(msg *agentv1.ConnectResponse) error {
+			if c := msg.GetCall(); c != nil {
+				calls <- c
+			}
+			return nil
+		})
+		defer s.close()
+		var id uint64
+		result := make(chan error, 1)
+		go func() {
+			result <- s.Logs(t.Context(), &agentv1.LogsCall{}, func(*agentv1.SendLogsRequest) error {
+				if moving {
+					s.drain()
+				}
+				if answer != nil {
+					r := fresh(answer)
+					r.Id = id
+					s.deliver(r)
+				}
+				s.close()
+				return nil
+			})
+		}()
+		c := <-calls
+		id = c.GetId()
+		a.uploadFor("srv_1", c.GetLogs().GetStream()).messages <- &agentv1.SendLogsRequest{}
+		return <-result
+	}
+	finished := &agentv1.CallResult{Result: &agentv1.CallResult_Logs{Logs: &agentv1.LogsResult{}}}
+	failed := &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: "Docker isn't running"}}}
+	stopped := &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: "moving to a new stream", Draining: true}}}
+	// Go picks at random, so a wrong pick shows within a few tries.
+	for range 40 {
+		if err := run(finished, false); err != nil {
+			t.Fatalf("a read that finished as its stream ended = %v, want it finished", err)
+		}
+		var server *resource.ServerError
+		if err := run(failed, false); !errors.As(err, &server) {
+			t.Fatalf("a read that failed as its stream ended = %v, want what the agent said", err)
+		}
+		if err := run(stopped, true); !errors.Is(err, resource.ErrNotConnected) {
+			t.Fatalf("a read the agent stopped to move = %v, want it to say it can carry on", err)
+		}
+		if err := run(nil, true); !errors.Is(err, resource.ErrNotConnected) {
+			t.Fatalf("a read whose agent moved before it answered = %v, want it to say it can carry on", err)
+		}
+		if err := run(nil, false); !errors.Is(err, ErrLost) {
+			t.Fatalf("a read whose agent went with no word = %v, want it lost", err)
+		}
+	}
+}
+
 // A rollout's call gets what its plan says it may take, on top of what any step
 // gets, or a long start period would read as an agent that didn't answer, and the
 // agent would stop a step that was going as it should.

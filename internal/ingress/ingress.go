@@ -554,6 +554,8 @@ func (m *Manager) Goes(ctx context.Context, ref resource.Ref, desired []resource
 		}
 	}
 	switch {
+	case left == 0 && gone.Plain:
+		goes.Find = resource.VisitorsNothingBehind
 	case left == 0:
 		goes.Find = resource.VisitorsRefused
 	case sameDomain:
