@@ -1408,8 +1408,9 @@ type Route struct {
 	// The path it covers, such as "/api": that path and what is under it,
 	// which reach the service as they are. Empty covers the whole domain.
 	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
-	// The service to send it to, by name, in the route's environment. Empty when
-	// host_port names a port on the server instead.
+	// The service to send it to, by name, in the route's environment. With
+	// host_port it says whose route this is, as the route dials that port rather than
+	// the service's container. Empty only for a host_port that is no service's.
 	Service string `protobuf:"bytes,3,opt,name=service,proto3" json:"service,omitempty"`
 	// The port the service listens on inside its container, such as 8080. Empty
 	// when host_port names a port on the server instead.
@@ -1435,9 +1436,9 @@ type Route struct {
 	// a public range wider than /12, or /28 in IPv6, or a private one wider than /8,
 	// isn't taken.
 	TrustedProxies []string `protobuf:"bytes,6,rep,name=trusted_proxies,json=trustedProxies,proto3" json:"trusted_proxies,omitempty"`
-	// A port on the server itself, such as 8080, in place of service and port, for
-	// something that isn't a Dockwell service, or a service on the server's own
-	// network, which a route can't send to by name. The proxy dials 127.0.0.1 on it,
+	// A port on the server itself, such as 8080, in place of port, for a service on
+	// the server's own network, which a route can't send to by name, or with no service
+	// at all, for something that isn't a Dockwell service. The proxy dials 127.0.0.1 on it,
 	// so what's there sees every caller as local. It reaches past containers, so a
 	// person approves it, and any change to where it answers. Dockwell's own ports,
 	// and Docker's API on 2375 and 2376, aren't taken.

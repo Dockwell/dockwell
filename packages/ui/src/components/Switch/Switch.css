@@ -63,3 +63,23 @@
 .dw-switch.is-disabled .dw-switch-label {
   cursor: not-allowed;
 }
+
+/* Big enough for a thumb: its words toggle it too, and it stands as tall as what's beside it. */
+@media (max-width: 640px), (pointer: coarse) {
+  .dw-switch {
+    align-items: center;
+    min-height: 44px;
+  }
+  .dw-switch-track {
+    width: 44px;
+    height: 26px;
+    margin-top: 0;
+  }
+  .dw-switch-thumb {
+    width: 22px;
+    height: 22px;
+  }
+  .dw-switch-track[aria-checked="true"] .dw-switch-thumb {
+    transform: translateX(18px);
+  }
+}

@@ -13,11 +13,13 @@ import {
   IntentKind,
   PlanAction,
   type RouteAnswers,
+  type RouteGoes,
   RouteReach,
   type ServerPortCheck,
   StepEffect,
   StepState,
   Surface,
+  VisitorsFind,
 } from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
@@ -66,6 +68,8 @@ export interface ChangeWords {
   domain(check: DomainCheck | undefined): string;
   /** What a route that takes no certificate means, as TLS ends before its server. It never stops a plan. */
   unencrypted(server: string): string;
+  /** What someone visiting a route finds once a step takes it away. */
+  goes(goes: RouteGoes): string;
   /** Who a route answers, when it isn't anyone over HTTPS sent to a service, a sentence each. */
   answers(answers: RouteAnswers | undefined, port: ServerPortCheck | undefined, server: string): string[];
 }
@@ -364,6 +368,20 @@ export function useChangeWords(): ChangeWords {
       },
       unencrypted(server) {
         return t`Traffic for this route reaches ${server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it`;
+      },
+      goes({ where, domain, find }) {
+        switch (find) {
+          case VisitorsFind.REFUSED:
+            return t`Anyone visiting ${where} gets a refused connection, as nothing answers on this server's port any more.`;
+          case VisitorsFind.TLS_ERROR:
+            return t`Anyone visiting ${where} gets a browser's connection error, as nothing here answers for that name over HTTPS any more.`;
+          case VisitorsFind.NOT_FOUND:
+            return t`What's in front gets a 404 for ${where}, so visitors see whatever it shows for one.`;
+          case VisitorsFind.REST:
+            return t`Anyone visiting ${where} gets what the rest of ${domain} serves, or a 404 if nothing covers that path.`;
+          default:
+            return t`Anyone visiting ${where} stops reaching it.`;
+        }
       },
       answers(answers, port, server) {
         if (!answers) return [];

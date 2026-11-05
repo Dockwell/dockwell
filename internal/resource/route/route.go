@@ -49,6 +49,9 @@ type Ingress interface {
 	// Returning names stopped containers that Docker starts again when it next
 	// restarts, and that may then take the proxy's ports. It only warns.
 	Returning(ctx context.Context, ref resource.Ref, spec *resourcev1.Route, desired []resource.Desired) []string
+	// Goes says what someone visiting the route finds once the plan takes it away,
+	// or nil if the proxy doesn't have it. It only informs.
+	Goes(ctx context.Context, ref resource.Ref, desired []resource.Desired) *resource.RouteGoes
 	// Listening names what listens on a port on the server, or says nothing does.
 	// With neither, it couldn't say. It only informs.
 	Listening(ctx context.Context, port uint32) (who string, nothing bool)
@@ -141,6 +144,21 @@ func CheckDomain(d string) error {
 	return nil
 }
 
+// checkDomainFor is CheckDomain for a route, whose tls says whether a certificate
+// has anything to do with it: a reserved name is refused either way, and it isn't
+// for want of a certificate when the route asks for none.
+func checkDomainFor(r *resourcev1.Route) error {
+	d := r.GetDomain()
+	err := CheckDomain(d)
+	if err == nil || r.GetTls() != ingress.TLSOff {
+		return err
+	}
+	if last := d[strings.LastIndex(d, ".")+1:]; reservedTLDs[last] {
+		return fmt.Errorf("%s is under .%s, which is reserved, and a route takes only a public domain, with a certificate here or without. On a private network, use a public name whose DNS points at this server's private address, such as app.example.com", d, last)
+	}
+	return err
+}
+
 func checkLabel(domain, l string) error {
 	if l == "" || len(l) > 63 || l[0] == '-' || l[len(l)-1] == '-' {
 		return fmt.Errorf("%s isn't a valid domain: each part between dots has 1 to 63 characters, and starts and ends with a letter or digit, as in app.example.com", domain)
@@ -208,7 +226,7 @@ func (d *Driver) Validate(spec proto.Message) error {
 	if r.GetPath() == "/" {
 		r.Path = ""
 	}
-	if err := CheckDomain(r.GetDomain()); err != nil {
+	if err := checkDomainFor(r); err != nil {
 		return err
 	}
 	if err := CheckPath(r.GetPath()); err != nil {
@@ -265,9 +283,11 @@ func checkTLS(r *resourcev1.Route) error {
 	return nil
 }
 
-// checkHostPort refuses a route that names a port on the server and a service
-// too, as only one of them can be where it sends. Which ports are Dockwell's own
-// is the server's to say (Ingress.Check).
+// checkHostPort refuses a route that names a port on the server and a port in a
+// container too, as only one of them can be where it dials. It may name a service:
+// that says whose route this is, as for a service on the server's own network, which
+// nothing can dial by name. Which ports are Dockwell's own is the server's to say
+// (Ingress.Check).
 func checkHostPort(r *resourcev1.Route) error {
 	if r.GetHostPort() > 65535 {
 		return fmt.Errorf("a route's host_port is a port on the server itself, from 1 to 65535, such as 8080, not %d", r.GetHostPort())
@@ -275,15 +295,18 @@ func checkHostPort(r *resourcev1.Route) error {
 	if slices.Contains(dockerAPIPorts, r.GetHostPort()) {
 		return fmt.Errorf("port %d is Docker's API, which is root on the server to anyone who reaches it, so no route may send to it. If you run something else there, move it to another port", r.GetHostPort())
 	}
-	if r.GetService() != "" || r.GetPort() != 0 {
-		return fmt.Errorf("this route names a service and the server's port %d, and a route sends to one or the other. Leave out service and port, or host_port", r.GetHostPort())
+	if r.GetPort() != 0 {
+		return fmt.Errorf("this route names port %d in a container and the server's port %d, and it can dial only one of them. Leave out port, or host_port", r.GetPort(), r.GetHostPort())
+	}
+	if r.GetService() != "" {
+		return resource.CheckLabel("service", r.GetService(), "web")
 	}
 	return nil
 }
 
-// References is the service the route sends to. What that service reaches on
-// its server isn't the route's: it sends traffic there, and has no part in
-// what the service mounts.
+// References is the service the route sends to, or whose route it is when it
+// dials a port on the server. What that service reaches on its server isn't the
+// route's: it sends traffic there, and has no part in what the service mounts.
 func (*Driver) References(spec proto.Message) []resource.Reference {
 	s := spec.(*resourcev1.Route).GetService()
 	if s == "" {
@@ -373,7 +396,11 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 func (*Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
 	switch {
 	case desired == nil:
-		return resource.Decision{Action: resource.ActionDelete}, nil
+		dec := resource.Decision{Action: resource.ActionDelete}
+		if r, ok := actual.(*resourcev1.Route); ok && r != nil {
+			dec.Goes = &resource.RouteGoes{Where: Where(r), Domain: r.GetDomain()}
+		}
+		return dec, nil
 	case actual == nil:
 		return withAnswers(resource.Decision{Action: resource.ActionCreate, Unencrypted: plain(desired)}, desired), nil
 	}
@@ -422,6 +449,11 @@ func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired pr
 	}
 	dec.Ingress, dec.Domain = effect, check
 	dec.Returning = d.Ingress.Returning(ctx, ref, spec, resource.DesiredIn(ctx))
+	if spec == nil {
+		if goes := d.Ingress.Goes(ctx, ref, resource.DesiredIn(ctx)); goes != nil {
+			dec.Goes = goes
+		}
+	}
 	if c := dec.ServerPort; c != nil {
 		c.Listening, c.Nothing = d.Ingress.Listening(ctx, c.Port)
 	}

@@ -259,3 +259,59 @@ func TestAPlainDomainSaysPlainHTTP(t *testing.T) {
 		}
 	})
 }
+
+// A service on the server's own network has a domain like any other's, as its route
+// says whose it is, though what it dials is a port on the server.
+func TestAServiceFindsARouteThatDialsAPortOnTheServer(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		logger := slog.New(slog.DiscardHandler)
+		if _, err := revision.Setup(t.Context(), db, logger); err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now()
+		if err := db.Update(t.Context(), func(tx *store.Tx) error {
+			return tx.CreateServer(t.Context(), store.Server{ID: "srv_on", Name: "hz-1", CreatedAt: now, CertSerial: "srv_on", CertNotAfter: now})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		kinds := resource.NewRegistry(&service.Driver{}, &route.Driver{})
+		e := revision.New(db, kinds, agents{}, secretstest.Keeper(db, kinds), logger)
+		var tr scope.Tree
+		if err := db.View(t.Context(), func(tx *store.Tx) (err error) {
+			tr, err = scope.Load(t.Context(), tx)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		env := tr.Projects[0].Environments[0].ID
+		p, err := e.Propose(t.Context(), revision.Proposal{Summary: "Run onhost at a domain", Actor: "usr_test", Edits: []revision.Edit{
+			{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "onhost"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27", HostNetwork: true}}}},
+			{Ref: resource.Ref{Kind: route.Kind, Scope: env, Name: "www"}, Spec: &resourcev1.Route{Domain: "app.example.net", Service: "onhost", HostPort: 8080}},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := e.Apply(t.Context(), p.Change); err != nil {
+			t.Fatal(err)
+		}
+		h := New(kinds, db, reports{}, logger)
+		for _, tc := range []struct {
+			service string
+			want    int
+		}{{"onhost", 1}, {"another", 0}} {
+			res, err := h.ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{Environment: env, Service: tc.service}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(res.Msg.GetDomains()) != tc.want {
+				t.Fatalf("%s has domains %v, want %d", tc.service, res.Msg.GetDomains(), tc.want)
+			}
+			if tc.want == 1 {
+				if r := res.Msg.GetDomains()[0].GetRoutes()[0]; r.GetService() != "onhost" || r.GetHostPort() != 8080 || r.GetPort() != 0 {
+					t.Errorf("its route reads %v", r)
+				}
+			}
+		}
+	})
+}

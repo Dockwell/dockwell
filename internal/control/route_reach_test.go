@@ -40,6 +40,10 @@ func (*routesInMemory) Judge(context.Context, resource.Ref, *resourcev1.Route, [
 	return nil, nil, nil
 }
 
+func (*routesInMemory) Goes(context.Context, resource.Ref, []resource.Desired) *resource.RouteGoes {
+	return nil
+}
+
 func (*routesInMemory) Returning(context.Context, resource.Ref, *resourcev1.Route, []resource.Desired) []string {
 	return nil
 }

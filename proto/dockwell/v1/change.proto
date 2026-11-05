@@ -890,6 +890,37 @@ message PlanStep {
   // then on they can't be read, and they go in 7 days, unless undoing the
   // step brings them back. Numbered apart, as open work adds to this message.
   bool hides_logs = 30;
+  // What someone visiting a route finds once this step takes it away. A route
+  // stops nothing a plan counts as downtime, and yet stops people reaching what it
+  // served. It never stops a plan, and the fingerprint leaves it out. Numbered
+  // apart, as open work adds to this message.
+  RouteGoes goes = 31;
+}
+
+// RouteGoes is a route a step takes away.
+message RouteGoes {
+  // Its domain and path, as people read them, such as "app.example.com/api".
+  string where = 1;
+  // The domain alone.
+  string domain = 2;
+  // What someone visiting it finds.
+  VisitorsFind find = 3;
+}
+
+// VisitorsFind is what someone visiting a route finds once it's gone.
+enum VisitorsFind {
+  // That they no longer reach it, with no word from the server on how.
+  VISITORS_FIND_UNSPECIFIED = 0;
+  // A refused connection, as nothing holds the server's port.
+  VISITORS_FIND_REFUSED = 1;
+  // A browser's connection error, as the proxy still runs and has nothing for that
+  // name over HTTPS.
+  VISITORS_FIND_TLS_ERROR = 2;
+  // A 404 from the proxy, which is what's in front gets for a route that took no
+  // certificate.
+  VISITORS_FIND_NOT_FOUND = 3;
+  // What the rest of the domain serves, or a 404 if nothing covers that path.
+  VISITORS_FIND_REST = 4;
 }
 
 // RouteAnswers is who a route answers, as its plan says.

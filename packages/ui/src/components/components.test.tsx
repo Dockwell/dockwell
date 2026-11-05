@@ -15,6 +15,7 @@ import { Kbd } from "./Kbd/Kbd";
 import { Logo } from "./Logo/Logo";
 import { Panel } from "./Panel/Panel";
 import { StatusBadge } from "./StatusBadge/StatusBadge";
+import { Switch } from "./Switch/Switch";
 import { Tag } from "./Tag/Tag";
 
 describe("Icon", () => {
@@ -257,5 +258,31 @@ describe("Logo", () => {
     const { container } = render(<Logo variant="icon" height={32} title="Dockwell app" />);
     expect(screen.getByRole("img", { name: "Dockwell app" })).toHaveAttribute("width", "32");
     expect(container.querySelector("rect")).toHaveAttribute("fill", "#191c1a");
+  });
+});
+
+describe("Switch", () => {
+  it("turns on and off by its words as well as its track, and has its label for a name", async () => {
+    const user = userEvent.setup();
+    const changes: boolean[] = [];
+    const { container } = render(
+      <Switch label="A tunnel in front" description="Says what it does" onChange={(on) => changes.push(on)} />,
+    );
+    const toggle = screen.getByRole("switch", { name: "A tunnel in front" });
+    await user.click(screen.getByText("Says what it does"));
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    await user.click(screen.getByText("A tunnel in front"));
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    await user.click(toggle);
+    expect(changes).toEqual([true, false, true]);
+    await expectAccessible(container);
+  });
+
+  it("does nothing, by its words either, while it's disabled", async () => {
+    const user = userEvent.setup();
+    const changes: boolean[] = [];
+    render(<Switch label="Off for now" description="Because of this" disabled onChange={(on) => changes.push(on)} />);
+    await user.click(screen.getByText("Because of this"));
+    expect(changes).toEqual([]);
   });
 });

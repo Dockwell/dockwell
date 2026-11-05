@@ -9,11 +9,16 @@ import {
   ChangeService,
   ChangeState,
   Connection,
+  type Domain,
+  type DomainRoute,
+  DomainService,
   type EditSchema,
   EventService,
+  FieldOp,
   IntentKind,
   type Plan,
   PlanAction,
+  type PlannedResource,
   ResourceService,
   ServiceService,
   StepState,
@@ -31,6 +36,7 @@ import {
   Sheet,
   SheetSwap,
   SheetView,
+  StatusBadge,
   TextField,
   useMediaQuery,
   useSheetViewAway,
@@ -38,6 +44,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
@@ -45,6 +52,15 @@ import { formatDay } from "../../lib/format";
 import { onApple } from "../../lib/platform";
 import { useTimeWords } from "../../lib/time";
 import { appOf, unreached } from "../apps/app";
+import { DomainFacts, DomainNote, useSilent } from "../apps/DomainNote";
+import {
+  type EnvironmentReach,
+  lookOf,
+  routeWhere,
+  TUNNEL_GUIDE,
+  useDomainsReaching,
+  visitorUrl,
+} from "../apps/domains";
 import { useServices } from "../apps/useServices";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
@@ -56,6 +72,7 @@ import { type Notice, needsConfirming, useAsides, useRisks, useWarnings } from "
 import { PlanSteps } from "./PlanSteps";
 import {
   canUndo,
+  changeTo,
   changing,
   diffResources,
   failedStep,
@@ -73,7 +90,10 @@ import {
   onlyDeletes,
   onlyIfNewer,
   replacesIfNewer,
+  routeDomain,
+  routeWhereOf,
   shortFingerprint,
+  shownName,
   wentOffline,
   withoutIds,
 } from "./plan";
@@ -289,9 +309,9 @@ function letGo(client: Client<typeof ChangeService>, proposal: Proposal): void {
   }, 0);
 }
 
-/** Reads what a change applied or undone may have changed again: the resources, the services, the timeline's pages and the changes. */
+/** Reads what a change applied or undone may have changed again: the resources, the services and their domains, the timeline's pages and the changes. */
 function refreshAfter(queryClient: QueryClient): void {
-  for (const schema of [ResourceService, ServiceService, EventService, ChangeService, VariableService]) {
+  for (const schema of [ResourceService, ServiceService, DomainService, EventService, ChangeService, VariableService]) {
     void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
   }
 }
@@ -543,9 +563,10 @@ function ChangeSheet({
       ? opening.summary
       : (change?.summary ?? (opening.kind === "propose" ? opening.summary : undefined));
   const title = useTitle(phase, plan, change);
-  const subject = changing(plan)[0]?.resource?.name ?? "";
+  const subject = shownName(changing(plan)[0]);
   const names = [
     ...changing(plan).map((r) => r.resource?.name ?? ""),
+    ...changing(plan).map(shownName),
     ...(plan?.servers ?? []).map((s) => s.serverName),
   ];
   const applyWords = deleting
@@ -711,6 +732,7 @@ function ChangeSheet({
         rows={rows}
         onRollbackSettled={readAgain}
         witnessed={witnessed}
+        onLeave={leave}
       />
     </SheetView>
   );
@@ -729,7 +751,7 @@ function TitleWithState({ phase, live, children }: { phase: Phase; live: boolean
       <span className={`plan-title-mark dw-tone-${applying ? "cobalt" : "healthy"}`}>
         <Glyph shape={applying ? "spinner" : "circle"} size={applying ? 14 : 10} />
       </span>
-      {children}
+      <span className="plan-title-words">{children}</span>
     </span>
   );
 }
@@ -765,7 +787,7 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
       const all = changing(plan);
       const one = all.length === 1 ? all[0] : undefined;
       if (one) {
-        const name = one.resource?.name ?? "";
+        const name = shownName(one);
         const verb = words.verb(one.action, "failed");
         return t`${verb} ${name}`;
       }
@@ -796,7 +818,7 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   if (live.length > 1) return plural(live.length, { one: "# app is live", other: "# apps are live" });
   const all = changing(plan);
   const only = all[0];
-  const subject = only?.resource?.name ?? "";
+  const subject = shownName(only);
   if (all.length > 1) {
     return onlyDeletes(plan)
       ? plural(all.length, { one: "# resource is deleted", other: "# resources are deleted" })
@@ -826,6 +848,7 @@ function PlanBody({
   rows,
   onRollbackSettled,
   witnessed,
+  onLeave,
 }: {
   phase: Phase;
   phone: boolean;
@@ -838,15 +861,21 @@ function PlanBody({
   onRollbackSettled: () => void;
   /** This sheet watched it happen, so what it says of what runs now is so. */
   witnessed: boolean;
+  /** Closes the sheet, when something in it goes elsewhere. */
+  onLeave: () => void;
 }) {
   const { t } = useLingui();
   const words = useChangeWords();
   const alsoWords = useAlsoWords();
   const risks = useRisks(plan);
-  const warnings = useWarnings(plan, phase !== "review");
+  // Worked out from the review on, so an arrival has what it says as it lands, and room for it.
+  const reach = useReach(plan, change, phase === "arrived");
+  const serving = reach.domains.flatMap(({ read }) =>
+    read && lookOf(read.domain).state === "serving" ? [read.domain.name] : [],
+  );
+  const warnings = useWarnings(plan, phase !== "review", serving);
   const asides = useAsides(plan);
   const fleet = isFleet(plan);
-
   if (phase === "planning") {
     return (
       <div className="plan-body">
@@ -937,25 +966,31 @@ function PlanBody({
       ) : null}
       {/* One line that holds its place through the flow: the plan's reach, then where it is reached. */}
       {(phase === "review" && !phone) || phase === "applying" ? (
-        <div className="plan-lead">
-          <Icon name="activity" size={16} />
-          <span>
-            <Impact plan={plan} />
-          </span>
-          {phase === "applying" && steps.length > 1 ? (
-            <span className="plan-lead-count">{t`${stepsDone} of ${steps.length} done`}</span>
-          ) : null}
-        </div>
+        <ReachRoom reach={reach} phone={phone}>
+          <div className="plan-lead">
+            <Icon name="activity" size={16} />
+            <span>
+              <Impact plan={plan} />
+            </span>
+            {phase === "applying" && steps.length > 1 ? (
+              <span className="plan-lead-count">{t`${stepsDone} of ${steps.length} done`}</span>
+            ) : null}
+          </div>
+        </ReachRoom>
       ) : null}
       {phase === "arrived" && change && nothingNewer ? (
-        <div className="plan-lead">
-          <Icon name="check" size={16} />
-          <span>
-            <MachineWords>{nothingNewer}</MachineWords>
-          </span>
-        </div>
+        <ReachRoom reach={reach} phone={phone}>
+          <div className="plan-lead">
+            <Icon name="check" size={16} />
+            <span>
+              <MachineWords>{nothingNewer}</MachineWords>
+            </span>
+          </div>
+        </ReachRoom>
       ) : null}
-      {phase === "arrived" && change && !nothingNewer ? <Arrival plan={plan} change={change} /> : null}
+      {phase === "arrived" && change && !nothingNewer ? (
+        <Arrival reach={reach} change={change} phone={phone} onLeave={onLeave} />
+      ) : null}
       {phase === "history" && change ? <OnRecord change={change} /> : null}
       {phase !== "discarded" ? <Places plan={plan} /> : null}
       <section className="plan-section" aria-label={cameToNothing ? setOut : t`Plan`}>
@@ -1157,8 +1192,14 @@ function Impact({ plan }: { plan: Plan | undefined }) {
     .flatMap((s) => s.steps)
     .filter((s) => s.downtime)
     .every(replacesIfNewer);
+  const going = servers.flatMap((s) => s.steps).flatMap((s) => (s.goes ? [s.goes] : []));
+  const lost = going[0]?.where ?? "";
   const running =
-    down === 0 ? (
+    going.length > 1 ? (
+      <Trans>visitors lose {going.length} addresses</Trans>
+    ) : going.length === 1 ? (
+      <Trans>visitors lose {lost}</Trans>
+    ) : down === 0 ? (
       <Trans>no downtime expected</Trans>
     ) : ifNewer ? (
       <Trans>about {span} down, if there is a newer image</Trans>
@@ -1225,27 +1266,150 @@ function Impact({ plan }: { plan: Plan | undefined }) {
   );
 }
 
-/** The arrival's first line: where it is reached, or that nothing can reach it yet, and what to do about that. */
-function Arrival({ plan, change }: { plan: Plan | undefined; change: Change }) {
+/** A port an arrival says it's reached at. */
+interface PortReach {
+  at: string;
+  local: boolean;
+  target: number;
+  udp: boolean;
+}
+
+/** What to do next for a route behind what ends TLS in front of it, as nothing else there is Dockwell's to do. */
+type NextStep = "tunnel" | "cloudflare" | "proxy";
+
+/** A route an arrival leads with: what was read of it, or until then what the plan that adds it says. */
+interface DomainInReach {
+  key: string;
+  /** Its domain and path. */
+  where: string;
+  read?: { domain: Domain; route: DomainRoute };
+  /** The port it sends to, from the plan, until it's read. */
+  port?: number;
+  next?: NextStep;
+}
+
+/**
+ * What a change's arrival leads with. It's worked out from the review on, with what
+ * the plan says of what it'll change, so there's room for it before it's there.
+ */
+interface Reach {
+  kind: "took" | "nothing" | "rows";
+  domains: readonly DomainInReach[];
+  ports: readonly PortReach[];
+  /** How many rows its ports will take once the change is through, which ports can't say before then. */
+  portRows: number;
+  live: readonly PlannedResource[];
+  server: string;
+  /** What's to read hasn't been: it can't say where this is reached, or that nothing does it. */
+  reading: boolean;
+  domainsFailed: boolean;
+  retryingDomains: boolean;
+  retryDomains: () => void;
+  /** When the services were last read, and whether reading them failed. */
+  servicesReadAt: number;
+  servicesFailed: boolean;
+}
+
+/** How many ports a service has once a plan's through, from how many it has now. */
+function portsAfter(now: number, planned: PlannedResource): number {
+  const count = (op: FieldOp) =>
+    new Set(planned.changes.filter((c) => c.op === op).flatMap((c) => /^app\.ports\[(\d+)\]/.exec(c.path)?.[1] ?? []))
+      .size;
+  return now + count(FieldOp.ADDED) - count(FieldOp.REMOVED);
+}
+
+/**
+ * The environments a plan's services and routes are in, each with its own, as a name
+ * means something only in its environment.
+ */
+function reachesOf(live: readonly PlannedResource[], routes: readonly PlannedResource[]): EnvironmentReach[] {
+  const environments = [...new Set([...live, ...routes].map((r) => r.resource?.scope ?? ""))].filter((e) => e !== "");
+  const named = (resources: readonly PlannedResource[], environment: string) =>
+    resources.filter((r) => r.resource?.scope === environment).map((r) => r.resource?.name ?? "");
+  return environments.map((environment) => ({
+    environment,
+    services: named(live, environment),
+    routes: named(routes, environment),
+  }));
+}
+
+/** What's left to do for a route with no certificate, by what the plan says it answers. Nothing, for one that answers anyone. */
+function nextStepOf(planned: PlannedResource): NextStep | undefined {
+  if (changeTo(planned, "tls") !== "off" || changeTo(planned, "plain_for_anyone") === "true") return undefined;
+  const proxies = planned.changes.filter((c) => c.path.startsWith("trusted_proxies")).map((c) => c.to);
+  if (proxies.includes("cloudflare")) return "cloudflare";
+  // The server writes a lone address as a range, as it does whatever is named.
+  return proxies.every((proxy) => /^(127\.0\.0\.1|::1)(\/(32|128))?$/.test(proxy ?? "")) ? "tunnel" : "proxy";
+}
+
+function useNextWords(next: NextStep | undefined): string {
   const { t } = useLingui();
-  const services = useServices().data;
+  switch (next) {
+    case "tunnel":
+      return t`Next, point your tunnel's service at http://127.0.0.1:80. https:// there fails, as this server takes no certificate.`;
+    case "cloudflare":
+      return t`Next, set this zone's SSL/TLS mode to Flexible in Cloudflare. This path crosses the open internet unencrypted, so a tunnel is the better way.`;
+    case "proxy":
+      return t`Next, point what's in front at port 80 on this server, over http://. https:// there fails, as this server takes no certificate.`;
+    default:
+      return "";
+  }
+}
+
+/** What to do next, and where the guide says more. */
+function NextStepNote({ next }: { next: NextStep }) {
+  const words = useNextWords(next);
+  return (
+    <>
+      {words}{" "}
+      <a className="domain-note-link" href={TUNNEL_GUIDE} target="_blank" rel="noreferrer">
+        <Trans>See the guide</Trans>
+      </a>
+    </>
+  );
+}
+
+function useReach(plan: Plan | undefined, change: Change | undefined, landed: boolean): Reach {
+  const listed = useServices();
   const { servers } = useFleetView();
   const live = goesLive(plan).filter((r) => r.resource?.kind === "service");
+  const routes = (plan?.resources ?? []).filter((r) => r.resource?.kind === "route" && r.action !== PlanAction.DELETE);
+  const read = useDomainsReaching(reachesOf(live, routes));
+
+  // What the plan adds isn't in a read from before it, and it says what the domain is.
+  const unread = routes.filter((r) => !read.routes.has(r.resource?.name ?? ""));
+  const domainOf = routeDomain;
+  const nextOf = (name: string) => {
+    const planned = routes.find((r) => r.resource?.name === name);
+    return planned ? nextStepOf(planned) : undefined;
+  };
+  const domains: DomainInReach[] = read.rows.map(({ domain, route }) => {
+    const next = nextOf(route.name);
+    return { key: route.id, where: routeWhere(domain, route), read: { domain, route }, ...(next ? { next } : {}) };
+  });
+  for (const route of unread) {
+    const name = domainOf(route);
+    if (!name) continue;
+    const where = routeWhereOf(route) ?? name;
+    if (domains.some((domain) => domain.where === where)) continue;
+    const next = nextStepOf(route);
+    const port = Number(changeTo(route, "host_port") ?? changeTo(route, "port") ?? 0);
+    domains.push({ key: route.id, where, ...(port ? { port } : {}), ...(next ? { next } : {}) });
+  }
+
   // A new app with no port among its fields publishes none, which the plan says at once, before the list is read again.
   const unpublished = unreached(change);
-  const known = live.map((r) => services?.find((s) => s.id === r.id));
+  const known = live.map((r) => listed.data?.find((s) => s.id === r.id));
   const nowhere =
     live.length > 0 &&
     live.every((r) => r.action === PlanAction.CREATE && unpublished.includes(r.resource?.name ?? ""));
-  if (live.length === 0 || (!nowhere && known.some((s) => !s))) return <TookLine change={change} />;
-  const rows = known.flatMap((service) => {
+  const ports = known.flatMap((service) => {
     if (!service) return [];
-    const ports = appOf(service)?.ports ?? [];
     const addresses = service.deployments.map(
       (d) => servers?.find((s) => s.id === d.serverId)?.address ?? d.serverName,
     );
     return addresses.flatMap((address) =>
-      ports.map((port) => {
+      (appOf(service)?.ports ?? []).map((port) => {
         const local = port.hostIp === "127.0.0.1" || port.hostIp === "::1";
         const host = port.hostIp && port.hostIp !== "0.0.0.0" && port.hostIp !== "::" ? port.hostIp : address;
         const at = `${host.includes(":") ? `[${host}]` : host}:${port.hostPort}`;
@@ -1253,43 +1417,313 @@ function Arrival({ plan, change }: { plan: Plan | undefined; change: Change }) {
       }),
     );
   });
-  if (nowhere || rows.length === 0) {
-    const name = live[0]?.resource?.name ?? "";
-    const server = plan?.servers[0]?.serverName ?? "";
+  const portRows = live.reduce((all, r, i) => {
+    const service = known[i];
+    const now = service ? (appOf(service)?.ports.length ?? 0) : 0;
+    // Once the list has the change, as it may while it applies, what it says is what's after.
+    const after = service && service.revision > r.baseRevision ? now : portsAfter(now, r);
+    return all + Math.max(0, after) * Math.max(1, service?.deployments.length ?? plan?.servers.length ?? 1);
+  }, 0);
+
+  const kind = (): Reach["kind"] => {
+    if (domains.length > 0 || (landed && read.failed)) return "rows";
+    if (live.length === 0) return "took";
+    if (landed ? ports.length > 0 && !nowhere : portRows > 0) return "rows";
+    return nowhere || known.every((service) => service) ? "nothing" : "took";
+  };
+  return {
+    kind: kind(),
+    domains,
+    ports,
+    portRows,
+    live,
+    server: plan?.servers[0]?.serverName ?? "",
+    reading: read.isLoading || (!read.failed && unread.some((route) => !domainOf(route))),
+    domainsFailed: read.failed,
+    retryingDomains: read.retrying,
+    retryDomains: read.retry,
+    servicesReadAt: listed.dataUpdatedAt,
+    servicesFailed: listed.isError,
+  };
+}
+
+/** Nothing reaches what a plan brings to life yet, in words the arrival and its room share. */
+function useNothingWords(reach: Reach): string {
+  const { t } = useLingui();
+  const name = reach.live[0]?.resource?.name ?? "";
+  const server = reach.server;
+  return reach.live.length === 1
+    ? t`Nothing outside ${server} reaches ${name} yet.`
+    : t`Nothing outside the server reaches these yet.`;
+}
+
+/**
+ * Holds room for what the arrival will lead with, from the review on, so the plan
+ * stays where it is as that arrives. The words are in attributes, styled in, as this
+ * is only there to take up the space they will: nothing reads them, or finds them.
+ */
+function ReachRoom({ reach, phone, children }: { reach: Reach; phone: boolean; children: ReactNode }) {
+  const nothing = useNothingWords(reach);
+  const several = reach.live.length > 1;
+  return (
+    <div className="plan-room">
+      {children}
+      <div className="plan-room-held" aria-hidden="true">
+        {reach.kind === "rows" ? (
+          <>
+            {reach.domains.map((domain) => (
+              <HeldRow
+                key={domain.key}
+                where={domain.where}
+                next={domain.next}
+                note={domain.read ? lookOf(domain.read.domain).message : ""}
+              />
+            ))}
+            {Array.from({ length: reach.portRows }, (_, i) => `port-${i}`).map((key) => (
+              <div key={key} className="plan-reach-row" />
+            ))}
+          </>
+        ) : reach.kind === "nothing" ? (
+          <div className="plan-lead is-next">
+            <span className="plan-room-icon" />
+            <div className="plan-unreached">
+              <span data-words={nothing} />
+              {(several ? reach.live : reach.live.slice(0, 1)).map((r) => (
+                <div key={r.id} className="plan-add-reach">
+                  <span className={cx("dw-btn", phone ? "dw-btn-lg" : "dw-btn-sm")} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** A route's row in the room held for it: its lines, and none of its words to read or find. */
+function HeldRow({ where, next, note }: { where: string; next: NextStep | undefined; note: string }) {
+  const nextWords = useNextWords(next);
+  const words = [note, nextWords].filter((said) => said !== "").join(" ");
+  return (
+    <div className="plan-reach-row is-domain">
+      <span className="plan-room-icon" />
+      <span className="plan-reach-at" data-words={where} />
+      <span className="plan-copy-room" />
+      <span className="plan-reach-facts" data-words="-" />
+      {words ? <span className="plan-reach-how" data-words={words} /> : null}
+    </div>
+  );
+}
+
+/** Takes you to the app's page, with the form to add a domain or a port open there. */
+function AddReach({
+  planned,
+  labelled,
+  phone,
+  onLeave,
+}: {
+  planned: PlannedResource;
+  /** Several apps are on offer, so each button says which it's for. */
+  labelled: boolean;
+  phone: boolean;
+  onLeave: () => void;
+}) {
+  const { t } = useLingui();
+  const router = useRouter({ warn: false });
+  const name = planned.resource?.name ?? "";
+  const go = (add: "domain" | "port") => {
+    onLeave();
+    void router.navigate({ to: "/apps/$serviceId", params: { serviceId: planned.id }, search: { add } });
+  };
+  const size = phone ? "lg" : "sm";
+  return (
+    <div className="plan-add-reach">
+      {labelled ? <code className="plan-add-reach-name">{name}</code> : null}
+      <Button
+        icon="plus"
+        size={size}
+        {...(labelled ? { "aria-label": t`Add a domain to ${name}` } : {})}
+        onClick={() => go("domain")}
+      >
+        <Trans>Add a domain</Trans>
+      </Button>
+      <Button
+        icon="plus"
+        size={size}
+        {...(labelled ? { "aria-label": t`Add a port to ${name}` } : {})}
+        onClick={() => go("port")}
+      >
+        <Trans>Add a port</Trans>
+      </Button>
+    </div>
+  );
+}
+
+/** The arrival's first line: where it is reached, or that nothing can reach it yet, and what to do about that. */
+function Arrival({
+  reach,
+  change,
+  phone,
+  onLeave,
+}: {
+  reach: Reach;
+  change: Change;
+  phone: boolean;
+  onLeave: () => void;
+}) {
+  const { t } = useLingui();
+  const nothing = useNothingWords(reach);
+  const [landedAt] = useState(() => Date.now());
+  // What the list said before a change to its ports isn't what it says now, which is on its way.
+  const portsMoved = reach.live.some((r) => r.changes.some((c) => c.path.startsWith("app.ports")));
+  const portsBehind = portsMoved && reach.servicesReadAt < landedAt && !reach.servicesFailed;
+  if (reach.kind === "took" || reach.reading || portsBehind) {
+    return (
+      <ReachRoom reach={reach} phone={phone}>
+        <TookLine change={change} />
+      </ReachRoom>
+    );
+  }
+  if (reach.kind === "nothing") {
     return (
       <div className="plan-lead is-next">
         <Icon name="globe" size={16} />
-        <span>
-          {live.length === 1 ? (
-            <Trans>
-              Nothing outside <code>{server}</code> reaches <code>{name}</code> yet. Add a port on its page.
-            </Trans>
-          ) : (
-            <Trans>Nothing outside the server reaches these yet. Add a port on an app's page.</Trans>
-          )}
-        </span>
+        <div className="plan-unreached">
+          <span>
+            <MachineWords names={[reach.server, ...reach.live.map((r) => r.resource?.name ?? "")]}>
+              {nothing}
+            </MachineWords>
+          </span>
+          {reach.live.map((planned) => (
+            <AddReach
+              key={planned.id}
+              planned={planned}
+              labelled={reach.live.length > 1}
+              phone={phone}
+              onLeave={onLeave}
+            />
+          ))}
+        </div>
       </div>
     );
   }
   return (
-    <ul className="plan-reach">
-      {rows.map(({ at, local, target, udp }) => (
-        <li key={at} className="plan-reach-row">
-          <Icon name="globe" size={16} />
-          {local || udp ? (
-            <code className="plan-reach-at">{at}</code>
-          ) : (
-            <a className="plan-reach-at" href={`http://${at}`} target="_blank" rel="noreferrer">
-              <code>{at}</code>
-              <Icon name="external" size={14} />
-            </a>
+    <>
+      {reach.domainsFailed ? (
+        <Callout
+          tone="warning"
+          title={t`Couldn't read the addresses this is reached at`}
+          actions={
+            <Button onClick={reach.retryDomains} loading={reach.retryingDomains}>
+              <Trans>Try again</Trans>
+            </Button>
+          }
+        >
+          <Trans>The change itself applied. Trying again only reads them, and changes nothing.</Trans>
+        </Callout>
+      ) : null}
+      {reach.domains.length + reach.ports.length > 0 ? (
+        <ul className="plan-reach">
+          {reach.domains.map(({ key, where, read, port, next }) =>
+            read ? (
+              <DomainReach key={key} domain={read.domain} route={read.route} next={next} onLeave={onLeave} />
+            ) : (
+              <li key={key} className="plan-reach-row is-domain">
+                <Icon name="globe" size={16} />
+                <code className="plan-reach-at">{where}</code>
+                <span className="plan-copy-room" />
+                <span className="plan-reach-facts">
+                  <span className="domain-facts">
+                    <StatusBadge status="deploying" label={t`Waiting for the server`} labelIsState />
+                    {port ? (
+                      <span className="domain-port">
+                        <Trans>
+                          Port <code>{port}</code>
+                        </Trans>
+                      </span>
+                    ) : null}
+                  </span>
+                </span>
+                {next ? (
+                  <span className="plan-reach-how">
+                    <NextStepNote next={next} />
+                  </span>
+                ) : null}
+              </li>
+            ),
           )}
-          {local ? <span className="plan-reach-how">{t`only on the server`}</span> : null}
-          {udp ? <span className="plan-reach-how">{t`port ${target}, UDP`}</span> : null}
-          <CopyButton text={at} label={t`Copy ${at}`} />
-        </li>
-      ))}
-    </ul>
+          {reach.ports.map(({ at, local, target, udp }) => (
+            <li key={at} className="plan-reach-row">
+              <Icon name="globe" size={16} />
+              {local || udp ? (
+                <code className="plan-reach-at">{at}</code>
+              ) : (
+                <a className="plan-reach-at" href={`http://${at}`} target="_blank" rel="noreferrer">
+                  <code>{at}</code>
+                  <Icon name="external" size={14} />
+                </a>
+              )}
+              {local ? <span className="plan-reach-how">{t`only on the server`}</span> : null}
+              {udp ? <span className="plan-reach-how">{t`port ${target}, UDP`}</span> : null}
+              <CopyButton text={at} label={t`Copy ${at}`} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * A route in an arrival: open once it serves, and until then what the server says of
+ * it. Its address is where someone visiting goes, which the row, its link and its copy
+ * all agree on.
+ */
+function DomainReach({
+  domain,
+  route,
+  next,
+  onLeave,
+}: {
+  domain: Domain;
+  route: DomainRoute;
+  next: NextStep | undefined;
+  onLeave: () => void;
+}) {
+  const { t } = useLingui();
+  const look = lookOf(domain);
+  const silent = useSilent(look);
+  const where = routeWhere(domain, route);
+  const serving = look.state === "serving";
+  const url = visitorUrl(domain, route);
+  return (
+    <li
+      className={cx(
+        "plan-reach-row",
+        "is-domain",
+        look.state === "failed" && "is-failed",
+        look.warning && "is-warning",
+      )}
+    >
+      <Icon name="globe" size={16} />
+      {serving ? (
+        <a className="plan-reach-at" href={url} target="_blank" rel="noreferrer">
+          <code>{where}</code>
+          <Icon name="external" size={14} />
+        </a>
+      ) : (
+        <code className="plan-reach-at">{where}</code>
+      )}
+      {serving ? <CopyButton text={url} label={t`Copy ${where}`} /> : <span className="plan-copy-room" />}
+      <span className="plan-reach-facts">
+        <DomainFacts domain={domain} route={route} look={look} silent={silent} />
+      </span>
+      <span className="plan-reach-how">
+        <DomainNote domain={domain} look={look} silent={silent} onLeave={onLeave} />
+        {next && look.state !== "failed" ? <NextStepNote next={next} /> : null}
+      </span>
+    </li>
   );
 }
 

@@ -152,6 +152,30 @@ const addPort = (port: number) => async (form: ReturnType<Page["getByRole"]>) =>
   await form.getByLabel("In the app").fill("80");
 };
 
+/**
+ * What ListDomains answers, in the wire format the built panel reads: one domain, waiting
+ * on its certificate. The fake engine can't run the ingress, so this stands in for a route.
+ */
+function aPendingDomain(name: string, service: string, message: string): Buffer {
+  const length = (n: number) => {
+    const out: number[] = [];
+    let left = n;
+    for (; left > 127; left >>>= 7) out.push((left & 127) | 128);
+    out.push(left);
+    return Buffer.from(out);
+  };
+  const bytes = (field: number, value: Buffer | string) => {
+    const body = Buffer.from(value);
+    return Buffer.concat([Buffer.from([(field << 3) | 2]), length(body.length), body]);
+  };
+  const number = (field: number, value: number) => Buffer.from([field << 3, value]);
+  const route = Buffer.concat([bytes(1, "rte_stub"), bytes(2, "stub"), bytes(4, service), number(5, 80)]);
+  const certificate = Buffer.concat([number(1, 1), bytes(3, message)]);
+  const status = Buffer.concat([bytes(1, name), bytes(2, certificate)]);
+  const server = Buffer.concat([bytes(1, "srv_stub"), bytes(2, "stub"), bytes(3, status)]);
+  return bytes(1, Buffer.concat([bytes(1, name), bytes(3, `https://${name}`), bytes(4, route), bytes(5, server)]));
+}
+
 /** Where the plan's first row is, to see whether it holds its place as the plan runs. */
 async function planRowTop(page: Page): Promise<number> {
   return (await page.locator(".dw-sheet-layer:not(.is-leaving) .dw-plan-res").first().boundingBox())?.y ?? Number.NaN;
@@ -293,7 +317,9 @@ export async function planFlow(page: Page, { origin, browser, context, step, sho
   if (!arrived.includes("1 created") || arrived.includes("to create"))
     fail(`the arrival isn't in the past tense: ${arrived}`);
   if (arrived.includes("no downtime")) fail("the arrival still promises no downtime");
-  if (!arrived.includes("Add a port on its page")) fail(`the arrival doesn't say nothing can reach it: ${arrived}`);
+  if (!arrived.includes("Nothing outside")) fail(`the arrival doesn't say nothing can reach it: ${arrived}`);
+  await page.getByRole("button", { name: "Add a domain" }).waitFor();
+  await page.getByRole("button", { name: "Add a port" }).waitFor();
   await expectAxe(page, "an arrival");
   await expectContrast(page, "an arrival, light");
   await dark();
@@ -562,6 +588,34 @@ export async function planFlow(page: Page, { origin, browser, context, step, sho
   }
   await page.getByRole("button", { name: /^Done/ }).click();
   await page.waitForFunction(() => document.activeElement?.textContent?.trim().startsWith("Deploy"));
+
+  step("plan: a domain's row has its room from the review on, and nothing moves as it arrives");
+  const stubbed = /DomainService\/ListDomains/;
+  await page.route(stubbed, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/proto",
+      body: aPendingDomain("held.example.com", "fixme", "Waiting for the certificate authority to answer."),
+    }),
+  );
+  await page.getByRole("button", { name: "Deploy", exact: true }).click();
+  const heldForm = page.getByRole("dialog", { name: "Deploy fixme" });
+  await heldForm.getByLabel("Image").fill("nginx:1.27-alpine");
+  await heldForm.getByRole("button", { name: /Review plan/ }).click();
+  await plan.waitFor({ timeout: 30_000 });
+  await plan.locator(".plan-room-held .is-domain .plan-reach-how").waitFor({ state: "attached" });
+  const heldAtReview = await planRowTop(page);
+  await plan.getByRole("button", { name: /Apply plan/ }).click();
+  await page.getByRole("heading", { name: "fixme is live" }).waitFor({ timeout: 30_000 });
+  await page.locator(".plan-reach-row.is-domain", { hasText: "held.example.com" }).waitFor();
+  const heldOnArrival = await planRowTop(page);
+  if (Math.abs(heldOnArrival - heldAtReview) > 0.5) {
+    fail(`the plan moves as a domain arrives: ${heldAtReview}, then ${heldOnArrival}`);
+  }
+  await page.getByRole("button", { name: /^Done/ }).click();
+  await page.unroute(stubbed);
+  await page.reload();
+  await page.getByRole("heading", { level: 1, name: "fixme", exact: true }).waitFor();
 
   step("plan: a port reads as a port, and focus finds the page's heading when what opened it has gone");
   await page.getByRole("button", { name: "Add a port" }).first().click();

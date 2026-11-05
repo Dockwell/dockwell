@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/netip"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -291,6 +293,92 @@ func TestAFailedCertificateNamesTheSetting(t *testing.T) {
 				t.Errorf("the panel's message names a setting its domain can't take")
 			}
 		})
+	}
+}
+
+// A route that dials a port on the server can say whose it is, which the proxy can't
+// tell, so the agent keeps it: it reads back as what was asked for, or it'd be drift
+// for as long as it ran, and a restart doesn't lose it.
+func TestARouteToAPortOnTheServerReadsBackAsWhoseItIs(t *testing.T) {
+	s := newSetup(t)
+	owned := &resourcev1.Route{Domain: "app.example.com", Service: "onhost", HostPort: 8080}
+	s.apply(t, "www", owned)
+	routes, _ := s.proxy.Routes(t.Context())
+	if len(routes) != 1 || !slices.Equal(routes[0].Upstreams, []string{"127.0.0.1:8080"}) {
+		t.Fatalf("the proxy has %+v, want it to dial the port and not the service", routes)
+	}
+	if s.engine.Network(docker.IngressNetwork) != nil {
+		t.Error("a route to a port on the server made the ingress network, for the service it names")
+	}
+	got, err := s.Observe(t.Context(), routeRef("www"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !proto.Equal(got, owned) {
+		t.Errorf("it reads back as %v, want %v", got, owned)
+	}
+	// As the agent starts again: all it has is what it kept.
+	s.table = table{}
+	if got, err = s.Observe(t.Context(), routeRef("www")); err != nil || !proto.Equal(got, owned) {
+		t.Errorf("after a restart it reads back as %v, %v", got, err)
+	}
+	// It stops being that service's once it says so, and a route that's gone leaves nothing.
+	s.apply(t, "www", hostPortSpec(8080))
+	if got, err = s.Observe(t.Context(), routeRef("www")); err != nil || !proto.Equal(got, hostPortSpec(8080)) {
+		t.Errorf("with no service any more it reads back as %v, %v", got, err)
+	}
+	s.apply(t, "www", owned)
+	s.apply(t, "www", nil)
+	if len(s.table.Owners) != 0 {
+		t.Errorf("a route that's gone is still owned: %v", s.table.Owners)
+	}
+}
+
+// A rollout moves what dials a container. A route that dials a port on the server
+// isn't that, whoever's it is: nothing moves it, drains it, or gives it an address.
+func TestARolloutLeavesARouteToAPortOnTheServerAlone(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "byname", &resourcev1.Route{Domain: "app.example.com", Service: "web", Port: 80})
+	side := &resourcev1.Route{Domain: "side.example.com", Service: "web", HostPort: 8080}
+	s.apply(t, "side", side)
+	next := Instance{Project: docker.Project(envID), Service: "web", Number: 2}
+	if _, _, ok, err := s.Endpoint(t.Context(), next); err != nil || !ok {
+		t.Fatalf("Endpoint = %v, %v", ok, err)
+	}
+	if err := s.AddUpstream(t.Context(), next); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Drain(t.Context(), Instance{Project: docker.Project(envID), Service: "web", Number: 1}); err != nil {
+		t.Fatal(err)
+	}
+	routes, _ := s.proxy.Routes(t.Context())
+	byID := map[string][]string{}
+	for _, r := range routes {
+		byID[r.ID] = r.Upstreams
+	}
+	if got := byID[RouteID(routeRef("side"))]; !slices.Equal(got, []string{"127.0.0.1:8080"}) {
+		t.Errorf("a rollout moved a route to a port on the server: %v", got)
+	}
+	if got := byID[RouteID(routeRef("byname"))]; len(got) != 1 || strings.HasPrefix(got[0], "127.0.0.1") {
+		t.Errorf("the route by name should have moved to the new instance alone: %v", got)
+	}
+	// And a service with nothing but that route has nothing a rollout can touch.
+	alone := newSetup(t)
+	alone.apply(t, "www", &resourcev1.Route{Domain: "app.example.com", Service: "onhost", HostPort: 8080})
+	i := Instance{Project: docker.Project(envID), Service: "onhost", Number: 1}
+	if _, _, ok, err := alone.Endpoint(t.Context(), i); err != nil || ok {
+		t.Errorf("Endpoint = %v, %v, want none, as nothing dials it by address", ok, err)
+	}
+	log := len(alone.proxy.log)
+	for name, call := range map[string]func(context.Context, Instance) error{
+		"AddUpstream": alone.AddUpstream, "Drain": alone.Drain, "RemoveUpstream": alone.RemoveUpstream,
+	} {
+		if err := call(t.Context(), i); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	if len(alone.proxy.log) != log {
+		t.Errorf("the proxy did %v", alone.proxy.log[log:])
 	}
 }
 
@@ -714,4 +802,68 @@ func TestARouteLeftOnAServiceIsFound(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A route going stops nothing a plan counts as downtime, and yet stops people reaching
+// it, in a way that depends on what else stays. Each of these is what real Caddy does.
+func TestWhatAVisitorFindsAsARouteGoes(t *testing.T) {
+	plain := func(domain string) *resourcev1.Route {
+		return &resourcev1.Route{Domain: domain, Service: "web", Port: 80, Tls: TLSOff}
+	}
+	for _, tc := range []struct {
+		name     string
+		have     map[string]*resourcev1.Route
+		goes     string
+		alsoGoes []string
+		where    string
+		want     resource.VisitorsFind
+	}{
+		{name: "the last route", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80)}, goes: "a", where: "a.example.com", want: resource.VisitorsRefused},
+		{name: "the last route, a tunnel's, as nothing holds port 80 either", have: map[string]*resourcev1.Route{"a": plain("a.example.com")}, goes: "a", where: "a.example.com", want: resource.VisitorsRefused},
+		{name: "another domain stays, over HTTPS", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80), "b": spec("b.example.com", "", "web", 80)}, goes: "a", where: "a.example.com", want: resource.VisitorsTLSError},
+		{name: "a path, with the domain's root staying", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80), "api": spec("a.example.com", "/api", "web", 80)}, goes: "api", where: "a.example.com/api", want: resource.VisitorsRest},
+		{name: "a tunnel's, with another staying", have: map[string]*resourcev1.Route{"a": plain("a.example.com"), "b": plain("b.example.com")}, goes: "a", where: "a.example.com", want: resource.VisitorsNotFound},
+		{name: "an HTTPS one, with only tunnels staying, so 443 goes too", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80), "b": plain("b.example.com")}, goes: "a", where: "a.example.com", want: resource.VisitorsRefused},
+		{name: "every route in one change", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80), "b": spec("b.example.com", "", "web", 80)}, goes: "a", alsoGoes: []string{"b"}, where: "a.example.com", want: resource.VisitorsRefused},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newSetup(t)
+			for _, name := range slices.Sorted(maps.Keys(tc.have)) {
+				s.apply(t, name, tc.have[name])
+			}
+			desired := []resource.Desired{{Ref: routeRef(tc.goes)}}
+			for _, name := range tc.alsoGoes {
+				desired = append(desired, resource.Desired{Ref: routeRef(name)})
+			}
+			got := s.Goes(t.Context(), routeRef(tc.goes), desired)
+			if got == nil || got.Where != tc.where || got.Find != tc.want {
+				t.Errorf("Goes = %+v, want %s to find %d", got, tc.where, tc.want)
+			}
+		})
+	}
+	if got := newSetup(t).Goes(t.Context(), routeRef("nope"), []resource.Desired{{Ref: routeRef("nope")}}); got != nil {
+		t.Errorf("a route the proxy doesn't have: %+v", got)
+	}
+}
+
+// A settled server reads its domains once a minute, which is a long time to look at
+// "waiting" after a route has just changed, so a change has it read at once.
+func TestARouteChangingHasItsDomainReadAtOnce(t *testing.T) {
+	s := newSetup(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	s.apply(t, "first", &resourcev1.Route{Domain: "first.example.com", Service: "web", Port: 80, Tls: TLSOff})
+	s.watchOnce(ctx)
+	go s.Watch(ctx)
+	// Long enough for the first read to be over, and the watch to have settled to its minute.
+	time.Sleep(100 * time.Millisecond)
+	s.apply(t, "www", &resourcev1.Route{Domain: "app.example.com", Service: "web", Port: 80, Tls: TLSOff})
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if slices.ContainsFunc(s.Domains(), func(d *dockwellv1.DomainStatus) bool { return d.GetDomain() == "app.example.com" }) {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Errorf("Domains = %v, and it should have read the new route within seconds, not at the next minute", s.Domains())
 }

@@ -23,7 +23,7 @@ Three things in [ADR 0024](0024-the-caddy-ingress-driver.md) were written for a 
 - **A domain is served one way or the other.** All of a domain's routes take the same setting. It's a claim the engine holds, as for a domain's one environment: it sees every route and the whole of a change, when it's proposed and again as it applies, so a plan made while the server was offline can't get past it, and a change can turn them together though its steps go one by one.
 - **The domain's certificate reads `none`,** with the message "None: TLS ends before this server", not pending or failed. It asks nothing of DNS, which points at what's in front, so the agent reads none, says nothing of it in a plan, and doesn't watch it as waiting.
 - **It doesn't count against the limits on what waits for a certificate,** as it asks the authority for nothing.
-- **The API's `url` says `http://`,** which is what this server serves. It can't tell what's in front, and on a private network there may be nothing to answer HTTPS.
+- **The API's `url` says `http://`,** which is what this server serves. It can't tell what's in front, and on a private network there may be nothing to answer HTTPS. The panel is about where a visitor goes, so its row, copy and link say `https://`, and `http://` only for a route that says `plain_for_anyone`.
 
 ### A route with no certificate doesn't answer the whole internet
 
@@ -114,7 +114,9 @@ A route naming `127.0.0.1` behind a tunnel reads `X-Forwarded-For`. Cloudflare a
 
 ### A route can reach a port on the server itself
 
-For something that isn't a container, such as a process on the host, or a container someone else runs on a loopback port. `host_port` stands in for `service` and `port`.
+For something that isn't a container, such as a process on the host, or a container someone else runs on a loopback port. `host_port` stands in for `port`, and for `service` when what's there is no service's.
+
+**A route can name both.** `service` says whose it is, and `host_port` says where it dials, rather than the service's container. That's how a service on the server's own network has a domain like any other's: `ListDomains` finds it by its service, a service with such a route can't go while it serves, in the same words as any route, and a plan can take the two together. The form sends both for a service on the server's own network. The host-access gate is unchanged, as it's the port a person approves. The proxy can't tell whose a route is, so the agent keeps that beside its addresses, and a route reads back as what was asked for, not as drift. A rollout moves what dials a container, so it never touches such a route: `routesOf` and the address table go by what a route dials, and a route that dials `127.0.0.1` is nothing of theirs.
 
 - **Host access, of the new kind `server_port`,** under ADR 0021's gate, with the port in the plan. It reaches past containers, to whatever listens there. What a person approves is the port at a domain and path, over HTTPS or plain HTTP: a person who approved it behind Access on one name hasn't approved it on another, so any of those changing is another approval, and so is another port or another server.
 - **The plan says what that lets happen,** in `PlanStep.answers` and `PlanStep.server_port`: who can now reach the port, that what's there sees every caller as `127.0.0.1`, which an app that trusts localhost will believe, and what listens there, from what the agent can read, or that nothing does yet.

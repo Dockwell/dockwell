@@ -127,7 +127,7 @@ dockwell routes create www --domain app.example.com --service myapp --port 8080 
 dockwell routes create shop --domain shop.example.com --host-port 8081 --yes
 ```
 
-A service on the server's own network, as `network_mode: host` runs one, takes `--host-port` too, with the port it listens on. Docker can't put it on the ingress's network, so a route to it by name is refused, and says so.
+A service on the server's own network, as `network_mode: host` runs one, takes `--host-port` too, with the port it listens on, beside `--service` to say whose route it is. Docker can't put it on the ingress's network, so a route that dials it by name is refused, and says so.
 
 Caddy starts as a container, on the server's own network, and takes the ports. The plan names any stopped container that Docker would start again and that may take them, so you can run the same two commands on it. On a server with its panel on a domain, the first route moves that domain behind Caddy, which only a person can approve, in the panel. Its address, passkeys and sessions stay, and it keeps its certificate until Caddy has its own.
 

@@ -10,6 +10,8 @@
 // docker-panel-e2e on real Docker, where publishing a port and reaching it
 // means something.
 
+import { request } from "node:http";
+
 import type { Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
@@ -28,6 +30,8 @@ export interface AppsFlowOptions {
   reachable?: boolean;
   /** An image that starts and exits at once, for a deploy that fails. */
   failing: string;
+  /** Whether a certificate authority is there to ask, for a domain over HTTPS on a real engine. */
+  certificates?: boolean;
 }
 
 const FIRST = "nginx:1.27-alpine";
@@ -47,13 +51,32 @@ async function applyPlan(page: Page, done: string) {
   await finish.click();
 }
 
+/** What the ingress on this machine answers for a name, as something on its own network asks it. */
+function throughIngress(name: string): Promise<string> {
+  return new Promise((done) => {
+    const req = request({ host: "127.0.0.1", port: 80, path: "/", headers: { Host: name }, timeout: 2000 }, (res) => {
+      let body = "";
+      res.on("data", (chunk: Buffer) => {
+        body += chunk.toString();
+      });
+      res.on("end", () => done(`${res.headers.server ?? ""} ${body}`));
+    });
+    req.on("timeout", () => req.destroy());
+    req.on("error", (err) => done(String(err)));
+    req.end();
+  });
+}
+
 /** Where the list's Status column starts, which nothing a row says should move. */
 async function statusColumn(page: Page): Promise<number> {
   const head = await page.getByRole("columnheader", { name: "Status" }).boundingBox();
   return head?.x ?? fail("the list has no Status column");
 }
 
-export async function appsFlow(page: Page, { origin, step, shoot, docker, port, reachable, failing }: AppsFlowOptions) {
+export async function appsFlow(
+  page: Page,
+  { origin, step, shoot, docker, port, reachable, failing, certificates }: AppsFlowOptions,
+) {
   /** The one container of a service, as Docker has it. */
   const running = async (service: string) => {
     const all = (await docker()).filter((c) => c.service === service);
@@ -134,8 +157,16 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   await shoot(page, "apps-plan");
   await plan.getByRole("button", { name: /Apply plan/ }).click();
   await page.getByRole("dialog", { name: /Applying|nginx is live/ }).waitFor();
-  await page.getByRole("button", { name: "Open nginx" }).click({ timeout: 120_000 });
+  await page.getByRole("button", { name: "Open nginx" }).waitFor({ timeout: 120_000 });
+  await shoot(page, "apps-arrival-nothing-reaches-it");
+
+  step("apps: nothing reaches it yet, so its arrival offers a port, and that opens the form on the app's page");
+  await page.getByRole("dialog", { name: "nginx is live" }).getByRole("button", { name: "Add a port" }).click();
   await page.getByRole("heading", { level: 1, name: "nginx", exact: true }).waitFor();
+  const offered = page.getByRole("dialog", { name: "Add a port to nginx" });
+  await offered.waitFor();
+  await offered.getByRole("button", { name: "Cancel" }).click();
+  await offered.waitFor({ state: "hidden" });
   const panel = page.getByRole("region", { name: "Running" });
   await panel.getByText(FIRST).waitFor();
   await expectDocker("nginx", FIRST);
@@ -274,6 +305,37 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   if (fits.callout.wraps !== "anywhere") fail(`a callout's image wraps as ${fits.callout.wraps}`);
   if (!fits.callout.stacked) fail("at 360 px a callout's actions don't sit under its text");
   await shoot(page, "apps-phone");
+
+  step("apps: a domain behind a tunnel is one switch away, and fits the narrowest phone");
+  await page.getByRole("button", { name: "Add a domain" }).first().click();
+  const addDomain = page.getByRole("dialog", { name: /^Add a domain to / });
+  await addDomain.getByLabel("Domain").fill("app.example.com");
+  await addDomain.getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ }).click();
+  await addDomain.getByRole("radio", { name: /Cloudflare's proxy/ }).check();
+  await addDomain.getByText(/crosses the open internet unencrypted/).waitFor();
+  await addDomain.getByText("Point its DNS at your tunnel or proxy.").waitFor();
+  // Big enough for a thumb, and its words turn it on and off too.
+  const thumb = await addDomain.locator(".app-front-switch").boundingBox();
+  if ((thumb?.height ?? 0) < 44) fail(`at 360 px the switch is ${thumb?.height} px tall, beside fields 44 tall`);
+  await addDomain.getByText("This server takes no certificate", { exact: false }).click();
+  await addDomain.getByRole("group", { name: "What's in front" }).waitFor({ state: "detached" });
+  await addDomain.getByText("This server takes no certificate", { exact: false }).click();
+  await addDomain.getByRole("group", { name: "What's in front" }).waitFor();
+  const widens = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  if (widens) fail("at 360 px the domain form widens the page");
+  await shoot(page, "apps-domain-tunnel");
+  // The server takes what the form asks, and the plan says what that means.
+  await addDomain.getByRole("button", { name: /Review plan/ }).click();
+  const tunnelPlan = page.getByRole("dialog", { name: "Review plan" });
+  await tunnelPlan.waitFor({ timeout: 30_000 });
+  await tunnelPlan.getByText(/reaches .+ unencrypted, as TLS ends before it/).waitFor();
+  await shoot(page, "apps-domain-tunnel-plan");
+  await tunnelPlan.getByRole("button", { name: "Cancel" }).click();
+  // Cancelling comes back to what was typed.
+  await addDomain.waitFor();
+  if (!(await addDomain.getByRole("radio", { name: /Cloudflare's proxy/ }).isChecked()))
+    fail("cancelling the plan lost what's in front");
+  await addDomain.getByRole("button", { name: "Cancel" }).click();
   // A long file's refusal is still on screen, above the sheet's footer.
   await page.goto(`${origin}/apps/new?source=compose`);
   const longFile = Array.from({ length: 40 }, (_, i) => `  svc${i}:\n    image: ${FIRST}`).join("\n");
@@ -290,6 +352,195 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   if (seen.error > seen.foot) fail(`at 360 px a Compose error ends at ${seen.error}, under the footer at ${seen.foot}`);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(wideAt);
+
+  // Only a real engine can run the ingress. It holds port 80 for as long as it runs.
+  if (reachable) {
+    step("apps: a domain behind a tunnel, applied, serves the app through Caddy, and the arrival says what it is");
+    // Long enough to wrap on a phone, where it has to keep its icon and its copy button.
+    const tunnelled = "a-tunnel-with-a-name-long-enough-to-wrap.e2e-dockwell.example.net";
+    await page.getByRole("button", { name: "Add a domain" }).first().click();
+    const form = page.getByRole("dialog", { name: /^Add a domain to / });
+    await form.getByLabel("Domain").fill(tunnelled);
+    await form.getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ }).click();
+    await form.getByRole("button", { name: /Review plan/ }).click();
+    const review = page.getByRole("dialog", { name: "Review plan" });
+    await review.waitFor({ timeout: 30_000 });
+    // Nothing moves from the review until the row has settled, in any frame. The sheet slides in first.
+    await page.waitForTimeout(400);
+    const moved = page.evaluate(
+      ({ settled, frames }) =>
+        new Promise<number[]>((done) => {
+          const tops = new Set<number>();
+          let left = frames;
+          const look = () => {
+            const layer = document.querySelector(".dw-sheet-layer:not(.is-leaving)");
+            const row = layer?.querySelector(".dw-plan-res");
+            if (row) tops.add(Math.round(row.getBoundingClientRect().y));
+            left -= 1;
+            if (left === 0 || layer?.querySelector(".plan-reach")?.textContent?.includes(settled)) done([...tops]);
+            else requestAnimationFrame(look);
+          };
+          look();
+        }),
+      { settled: "TLS ends in front", frames: 60 * 300 },
+    );
+    await review.getByRole("button", { name: /Apply plan/ }).click();
+    const row = page.locator(".plan-reach-row", { hasText: tunnelled });
+    await row.waitFor({ timeout: 180_000 });
+    await row.getByText("TLS ends in front").waitFor({ timeout: 120_000 });
+    await row.getByText(/point your tunnel's service at http:\/\/127\.0\.0\.1:80/).waitFor();
+    const tops = await moved;
+    if (Math.max(...tops) - Math.min(...tops) > 1) fail(`the plan moves as a domain arrives: ${tops.join(", ")}`);
+    // Someone visiting comes in through what ends TLS, so that's where its link goes.
+    const visit = await row.getByRole("link", { name: tunnelled }).getAttribute("href");
+    if (visit !== `https://${tunnelled}`) fail(`a tunnel's link goes to ${visit}`);
+    await page.setViewportSize({ width: 360, height: 844 });
+    const nameBox = await row.locator(".plan-reach-at").boundingBox();
+    for (const [what, part] of [
+      ["icon", row.locator(":scope > .dw-icon")],
+      ["copy button", row.getByRole("button")],
+    ] as const) {
+      const box = await part.boundingBox();
+      if (!nameBox || !box || box.y >= nameBox.y + nameBox.height || nameBox.y >= box.y + box.height)
+        fail(`on a phone, a long domain's ${what} isn't on a line of its name: ${JSON.stringify({ nameBox, box })}`);
+    }
+    if (await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth))
+      fail("on a phone, an arrival with a long domain widens the page");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    // The app's page behind it has read it too, and doesn't wait for its cache to run out.
+    const onPage = page.locator(".app-reach-domain", { hasText: tunnelled });
+    await onPage.waitFor({ timeout: 10_000 });
+    // The real thing: what a tunnel on this server's own network would ask.
+    let answered = "";
+    for (let i = 0; i < 40 && !answered.includes("nginx"); i++) {
+      answered = await throughIngress(tunnelled);
+      if (!answered.includes("nginx")) await page.waitForTimeout(500);
+    }
+    if (!answered.includes("nginx")) fail(`Caddy doesn't send ${tunnelled} to the app: ${answered.slice(0, 200)}`);
+    // Undoing it takes the route, and the ingress with it, so what follows has port 80 free.
+    await page.getByRole("button", { name: /Undo until/ }).click();
+    await applyPlan(page, "Done");
+    await form.waitFor({ state: "hidden" });
+    await onPage.waitFor({ state: "detached", timeout: 10_000 });
+    await expectServes("nginx/1.27");
+
+    if (certificates) {
+      step("apps: a domain over HTTPS goes from pending to issued through the panel, and its row keeps its name");
+      const secure = "secure.e2e-dockwell.example.net";
+      await page.getByRole("button", { name: "Add a domain" }).first().click();
+      await form.getByLabel("Domain").fill(secure);
+      await form.getByRole("button", { name: /Review plan/ }).click();
+      await review.waitFor({ timeout: 30_000 });
+      await review.getByRole("button", { name: /Apply plan/ }).click();
+      const secureRow = page.locator(".plan-reach-row", { hasText: secure });
+      await secureRow.getByText(/Valid for \d+ days/).waitFor({ timeout: 180_000 });
+      const opens = await secureRow.getByRole("link", { name: secure }).getAttribute("href");
+      if (opens !== `https://${secure}`) fail(`a domain's link goes to ${opens}`);
+      await page.getByRole("button", { name: "Done", exact: true }).click();
+      // At desktop width, as the name was squeezed out of this row before.
+      const secureOnPage = page.locator(".app-reach-domain", { hasText: secure });
+      await secureOnPage.getByText(/Valid for \d+ days/).waitFor({ timeout: 10_000 });
+      const named = await secureOnPage.locator(".app-reach-at").boundingBox();
+      if ((named?.width ?? 0) < 200) fail(`at 1440 px a domain's name is ${named?.width} px wide`);
+      step("apps: removing a live domain is a plan that says what a visitor finds, and it goes");
+      await secureOnPage.getByRole("button", { name: `Remove ${secure}` }).click();
+      await review.waitFor({ timeout: 30_000 });
+      await review
+        .getByText(new RegExp(`Anyone visiting ${secure.replaceAll(".", "\\.")} gets a refused connection`))
+        .waitFor();
+      if ((await review.innerText()).includes("no downtime expected"))
+        fail("removing a live domain promises no downtime");
+      await applyPlan(page, "Done");
+      await secureOnPage.waitFor({ state: "detached", timeout: 10_000 });
+      await expectServes("nginx/1.27");
+    }
+
+    step(
+      "apps: an app on the server's own network is reached at its domain, on its page too, and deleting it takes both",
+    );
+    const hostPort = (port ?? 18081) + 2;
+    const bare = "onhost.e2e-dockwell.example.net";
+    const call = async (method: string, body: unknown) =>
+      page.evaluate(
+        async ({ method, body }) => {
+          const res = await fetch(`/dockwell.v1.ChangeService/${method}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Connect-Protocol-Version": "1" },
+            body: JSON.stringify(body),
+          });
+          return (await res.json()) as { change?: { id: string; state?: string; plan?: { fingerprint?: string } } };
+        },
+        { method, body },
+      );
+    const { change } = await call("ProposeChange", {
+      summary: "Run onhost",
+      edits: [
+        {
+          resource: { kind: "service", name: "onhost" },
+          spec: {
+            service: {
+              app: {
+                image: FIRST,
+                hostNetwork: true,
+                // nginx's image listens on port 80, which Caddy holds on this network.
+                command: [
+                  "sh",
+                  "-c",
+                  `sed -i -E '/\\[::\\]:80;/d; s/listen +80;/listen 127.0.0.1:${hostPort};/' /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'`,
+                ],
+              },
+            },
+          },
+        },
+      ],
+    });
+    if (!change) fail("the server planned no change for an app on its own network");
+    await call("ApplyChange", { id: change?.id, fingerprint: change?.plan?.fingerprint });
+    for (let i = 0; i < 240; i++) {
+      const now = await call("GetChange", { id: change?.id });
+      if (now.change?.state === "CHANGE_STATE_APPLIED") break;
+      if (now.change?.state === "CHANGE_STATE_FAILED") fail("the app on the server's own network failed to run");
+      await page.waitForTimeout(500);
+    }
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Apps" }).click();
+    await page
+      .getByRole("link", { name: /^onhost/ })
+      .first()
+      .click();
+    await page.getByRole("heading", { level: 1, name: "onhost", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Add a domain" }).first().click();
+    await form.getByLabel("Domain").fill(bare);
+    const portOnServer = form.getByLabel("Port on the server");
+    if ((await portOnServer.inputValue()) !== "")
+      fail("the form offers a port on the server's own network that may not work");
+    await portOnServer.fill(String(hostPort));
+    await form.getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ }).click();
+    await form.getByRole("button", { name: /Review plan/ }).click();
+    await applyPlan(page, "Done");
+    await form.waitFor({ state: "hidden" });
+    const hostRow = page.locator(".app-reach-domain", { hasText: bare });
+    await hostRow.waitFor({ timeout: 30_000 });
+    if ((await page.getByRole("region", { name: "Running" }).innerText()).includes("Nothing outside"))
+      fail("the page says nothing reaches an app whose domain it lists");
+    let onHost = "";
+    for (let i = 0; i < 40 && !onHost.includes("nginx"); i++) {
+      onHost = await throughIngress(bare);
+      if (!onHost.includes("nginx")) await page.waitForTimeout(500);
+    }
+    if (!onHost.includes("nginx")) fail(`Caddy doesn't send ${bare} to the app's port: ${onHost.slice(0, 200)}`);
+    await page.reload();
+    await hostRow.waitFor({ timeout: 30_000 });
+    await page.getByRole("button", { name: "Delete this app" }).click();
+    await review.waitFor({ timeout: 30_000 });
+    for (const goes of [bare, "onhost"]) await review.locator(".dw-plan-res", { hasText: goes }).first().waitFor();
+    await applyPlan(page, "Done");
+    await page.getByRole("heading", { level: 1, name: "Apps", exact: true }).waitFor({ timeout: 30_000 });
+    await page
+      .getByRole("link", { name: /^nginx/ })
+      .first()
+      .click();
+    await page.getByRole("heading", { level: 1, name: "nginx", exact: true }).waitFor();
+  }
 
   await page.getByRole("link", { name: /Deployments/ }).click();
   await page.getByRole("row", { name: /r5/ }).getByText("Failed").waitFor();

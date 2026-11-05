@@ -218,6 +218,7 @@ function StepRow({
           {returning ? <span className="plan-step-warn">{returning}</span> : null}
           {dns ? <span className="plan-step-warn">{dns}</span> : null}
           {step.unencrypted ? <span className="plan-step-notice">{words.unencrypted(server)}</span> : null}
+          {step.goes ? <span className="plan-step-notice">{words.goes(step.goes)}</span> : null}
           {words.answers(step.answers, step.serverPort, server).map((line) => (
             <span key={line} className="plan-step-notice">
               {line}

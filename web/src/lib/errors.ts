@@ -39,6 +39,7 @@ export function sentence(error: unknown): string {
   const err = ConnectError.from(error);
   const text = (err.rawMessage || err.message).trim();
   if (!text) return "";
-  const capital = text.charAt(0).toUpperCase() + text.slice(1);
+  // A domain or an address leads as it's written.
+  const capital = /^\S*[.:/]\S*\s/.test(text) ? text : text.charAt(0).toUpperCase() + text.slice(1);
   return /[.!?]$/.test(capital) ? capital : `${capital}.`;
 }
