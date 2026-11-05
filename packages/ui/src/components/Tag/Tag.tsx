@@ -14,6 +14,8 @@ export interface TagProps {
   value?: string;
   /** cobalt marks a tag the system manages, such as a pool or a build server. */
   tone?: "cobalt";
+  /** Sets human words in sans, such as "Read-only": a tag is mono for what machines read. */
+  words?: boolean;
   icon?: IconName;
   /** Shows a remove button, for tags that are part of an editable selector. */
   onRemove?: () => void;
@@ -23,13 +25,13 @@ export interface TagProps {
   className?: string;
 }
 
-/** A key:value label or selector, set in mono because machines read it. Tags never carry status. */
-export function Tag({ label, value, tone, icon, onRemove, removeLabel, children, className }: TagProps) {
+/** A key:value label or selector, set in mono because machines read it, or in sans for words a person reads. Tags never carry status. */
+export function Tag({ label, value, tone, words = false, icon, onRemove, removeLabel, children, className }: TagProps) {
   const strings = useUIStrings();
   const plainChildren = typeof children === "string" || typeof children === "number" ? String(children) : "";
   const text = removeLabel ?? ([label, value].filter((part) => part != null).join(":") || plainChildren);
   return (
-    <span className={cx("dw-tag", tone && `dw-tag-${tone}`, className)}>
+    <span className={cx("dw-tag", tone && `dw-tag-${tone}`, words && "dw-tag-words", className)}>
       {icon ? <Icon name={icon} size={12} /> : null}
       {label != null ? <span className="dw-tag-key">{value != null ? `${label}:` : label}</span> : null}
       {value != null ? <span className="dw-tag-value">{value}</span> : children}

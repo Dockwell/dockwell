@@ -4,13 +4,10 @@
 # Runs built dockwell binaries against this machine's Docker Engine, end to
 # end through the CLI: a service from an image runs, changes and is undone;
 # the environment exports as a Compose file that docker compose reads and
-# lists; a Compose file imports; a service using a variable and a secret
-# runs with their values, exports without the secret, and imports again
-# with no change; and everything goes again. A file in the shapes real ones
-# have runs on a network the server has, with what it asks for really applied,
-# and reaches another project on it by name, and a route with no certificate
-# reaches it there, as it does a service on the server's own network, by its port
-# alone. Then the agent build joins the
+# lists; a Compose file imports, and two with a service of one name run side
+# by side; a service using a variable and a secret runs with their values,
+# exports without the secret, and imports again with no change; and everything
+# goes again. Then the agent build joins the
 # full build's control plane, and runs a container on the same Docker. Before
 # that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
 # and serves a real container over HTTPS through Caddy, and routes that take no
@@ -43,7 +40,7 @@ agent_data=$(mktemp -d)
 log=$(mktemp)
 agent_log=$(mktemp)
 project=""
-real_projects=()
+extra_projects=""
 agent_pid=""
 
 port=${addr##*:}
@@ -91,15 +88,10 @@ restore_daemon() {
   priv systemctl restart docker
 }
 cleanup() {
-  restore_daemon || true
-  if [[ -n "$project" ]]; then
-    docker compose -p "$project" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
-  fi
-  for p in "${real_projects[@]}"; do
+  for p in $project $extra_projects; do
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
-  docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
-  docker rm --force e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker rm --force e2e-agent-web e2e-holds-80 e2e-returns dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
   priv kill "$pid" 2>/dev/null || true
@@ -284,7 +276,7 @@ fi
 [[ "$costly" == *"more time or memory"* ]] || fail "a file made to cost too much failed some other way: ${costly:0:300}"
 dw changes list --json >/dev/null || fail "the control plane didn't carry on after a file that cost too much"
 
-dw compose import --compose "$(cat "$data/stack.yaml")" --yes || fail "compose import failed"
+dw compose import --project default --compose "$(cat "$data/stack.yaml")" --yes || fail "compose import failed"
 services=$(docker compose -p "$project" ps --format '{{.Service}}' | sort | tr '\n' ' ') || fail "docker compose -p $project ps failed"
 [[ "$services" == "cache web " ]] || fail "after the import, docker compose lists '$services', want cache and web"
 docker volume inspect "${project}_cache-data" >/dev/null || fail "the import made no volume ${project}_cache-data"
@@ -378,6 +370,39 @@ dw volumes delete cache-data --yes >/dev/null 2>&1
 status=$?
 set -e
 [[ "$status" == 4 ]] || fail "volumes delete exited $status, want 4: a plan that destroys data waits for a person"
+
+step "Two Compose files with a service of one name run side by side"
+# With nothing to say where it goes, a file is refused now the default project
+# has what it would change.
+dw services create keeper --app-image nginx:1.27-alpine --yes || fail "services create keeper failed"
+if out=$(dw compose import --compose "services: {keeper: {image: nginx:1.28-alpine}}" --yes 2>&1); then
+  fail "a file with no name was imported into a project with apps: $out"
+fi
+grep -q "names no project" <<<"$out" || fail "a file with no name was refused saying: $out"
+named_file() { printf 'name: %s\nservices:\n  db:\n    image: %s\n' "$1" "$2"; }
+dw compose import --compose "$(named_file blog nginx:1.27-alpine)" --yes || fail "importing blog failed"
+dw compose import --compose "$(named_file wiki nginx:1.28-alpine)" --yes || fail "importing wiki failed"
+dbs=$(docker ps --filter label=com.docker.compose.service=db --format '{{.Names}} {{.Image}} {{.Networks}}') || fail "docker ps failed"
+[[ "$(wc -l <<<"$dbs")" == 2 ]] || fail "Docker runs these dbs, want two: $dbs"
+project_of() { docker ps --filter label=com.docker.compose.service=db --filter "ancestor=$1" --format '{{.Label "com.docker.compose.project"}}'; }
+blog_project=$(project_of nginx:1.27-alpine) || fail "docker ps failed"
+wiki_project=$(project_of nginx:1.28-alpine) || fail "docker ps failed"
+extra_projects="$blog_project $wiki_project"
+[[ -n "$blog_project" && -n "$wiki_project" && "$blog_project" != "$wiki_project" ]] ||
+  fail "the two files' dbs are in projects '$blog_project' and '$wiki_project', want one each"
+members=$(docker network inspect --format '{{range .Containers}}{{.Name}} {{end}}' "${blog_project}_default") ||
+  fail "blog has no network of its own"
+[[ "$members" != *"$wiki_project"* ]] || fail "wiki's db is on blog's network: $members"
+docker network inspect "${wiki_project}_default" >/dev/null || fail "wiki has no network of its own"
+listed=$(docker compose -p "$blog_project" ps --format '{{.Service}}') || fail "docker compose -p $blog_project ps failed"
+[[ "$listed" == db ]] || fail "docker compose lists '$listed' in blog's project, want db"
+# Naming one again updates it, and doesn't touch the other.
+dw compose import --compose "$(named_file blog nginx:1.28-alpine)" --yes || fail "importing blog again failed"
+again=$(docker ps --filter "label=com.docker.compose.project=$blog_project" --format '{{.Image}}') || fail "docker ps failed"
+[[ "$again" == nginx:1.28-alpine ]] || fail "after importing blog again, its db runs '$again'"
+dw services delete db --project blog --yes || fail "deleting blog's db failed"
+dw services delete db --project wiki --yes || fail "deleting wiki's db failed"
+dw services delete keeper --project default --yes || fail "deleting keeper failed"
 
 step "Ingress: Pebble, Let's Encrypt's test CA, on this machine"
 in_ingress=1

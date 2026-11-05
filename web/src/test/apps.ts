@@ -44,9 +44,16 @@ export function anApp(
   return create(ServiceInfoSchema, { ...base, ...init } as MessageInitShape<typeof ServiceInfoSchema>);
 }
 
-/** The services of a Compose file: they share its default network. */
-export function aStack(...names: string[]): ServiceInfo[] {
-  return names.map((name) => anApp(name, `ghcr.io/acme/${name}:1.0`, { networks: ["default"] }));
+/** The services of a Compose file, in a project of its own: they share its default network. */
+export function aProject(project: string, ...names: string[]): ServiceInfo[] {
+  return names.map((name) =>
+    anApp(
+      name,
+      `ghcr.io/acme/${name}:1.0`,
+      { networks: ["default"] },
+      { id: `svc_${project}_${name}`, resource: { kind: "service", scope: `env_${project}`, name } },
+    ),
+  );
 }
 
 /** Revision number of a service that deployed image, live unless it says otherwise. */
@@ -89,6 +96,27 @@ export function places(...more: string[]) {
       resources:
         req.kind === "project"
           ? [resource("prj_1", "project", "org_1", "default")]
+          : req.kind === "environment"
+            ? environments
+            : [],
+    }),
+  };
+}
+
+/** The API's answer once Compose files have made projects: the hidden default, then one for each, with its production. */
+export function projectPlaces(...projects: string[]) {
+  const environments = [
+    resource(ENV, "environment", "prj_1", "production"),
+    ...projects.map((name) => resource(`env_${name}`, "environment", `prj_${name}`, "production")),
+  ];
+  return {
+    listResources: (req: { kind: string }) => ({
+      resources:
+        req.kind === "project"
+          ? [
+              resource("prj_1", "project", "org_1", "default"),
+              ...projects.map((name) => resource(`prj_${name}`, "project", "org_1", name)),
+            ]
           : req.kind === "environment"
             ? environments
             : [],

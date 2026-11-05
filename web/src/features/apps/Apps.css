@@ -4,7 +4,7 @@
 .app-crumbs {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   min-width: 0;
   font-size: 13px;
   line-height: 18px;
@@ -12,12 +12,18 @@
 }
 
 .app-crumbs a {
+  border-radius: var(--radius-xs);
   color: inherit;
   text-decoration: none;
 }
 
 .app-crumbs a:hover {
   color: var(--ink);
+}
+
+.app-crumbs a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .app-crumbs [aria-current="page"] {
@@ -40,6 +46,59 @@
   font-size: 13px;
   line-height: 18px;
   color: var(--ink-muted);
+}
+
+/* An image's name, or another machine value, in a sentence of a title. */
+.app-title-code {
+  font: 400 13px / 18px var(--font-mono);
+}
+
+/* An image's name keeps its end when it doesn't fit: the path clips first. */
+.image-name {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  font: 400 12px / 18px var(--font-mono);
+  white-space: nowrap;
+}
+
+.image-name-path {
+  flex: 0 999 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.image-name-end {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.apps-image,
+.dw-cell-sub.image-name {
+  color: var(--ink-muted);
+}
+
+/* How to read an app's logs until they're here. */
+.app-logs-command {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.app-logs-command code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: 400 13px / 20px var(--font-mono);
+  text-align: left;
 }
 
 .app-panel-link {
@@ -103,15 +162,26 @@
   min-width: 0;
 }
 
+/* The filter stays in reach down a long list, and the table's heads below it. */
+.apps-section {
+  --apps-sticky-top: 0px;
+}
+
+.apps-section.has-filters {
+  --apps-sticky-top: calc(var(--control-sm) + 2 * var(--space-2));
+}
+
 .apps-filters {
+  position: sticky;
+  top: 0;
+  z-index: calc(var(--z-sticky) + 1);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
-}
-
-.apps-fill {
-  flex: 1 1 var(--space-6);
+  margin-block: calc(-1 * var(--space-2));
+  padding-block: var(--space-2);
+  background: var(--canvas);
 }
 
 .apps-filter {
@@ -129,10 +199,30 @@
   color: var(--ink-muted);
 }
 
-/* The name takes what the other columns leave, and clips rather than push them off. */
-.apps-table td:first-child {
-  width: 100%;
-  max-width: 0;
+/* Columns keep their widths whatever a row says, so a state that changes moves nothing. */
+.apps-table.dw-table-wrap {
+  overflow: clip;
+}
+
+.apps-table .dw-table {
+  table-layout: fixed;
+}
+
+.apps-table .dw-table th {
+  top: var(--apps-sticky-top);
+}
+
+.apps-table .dw-table td {
+  overflow: hidden;
+}
+
+.apps-status {
+  max-width: 100%;
+}
+
+.apps-status .dw-status-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .apps-clip {
@@ -159,7 +249,7 @@
 }
 
 .apps-table .is-member td:first-child {
-  padding-left: calc(var(--space-4) + 22px);
+  padding-left: calc(var(--space-4) + var(--space-5));
 }
 
 .apps-stack {
@@ -177,9 +267,9 @@
   flex: none;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  margin-left: -4px;
+  width: var(--space-5);
+  height: var(--space-5);
+  margin-left: calc(-1 * var(--space-1));
   padding: 0;
   border: 0;
   border-radius: var(--radius-xs);
@@ -202,7 +292,7 @@
 .apps-stack-sub {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
   font-size: 12px;
   line-height: 16px;
   color: var(--ink-muted);
@@ -283,10 +373,10 @@
 .apps-phone-sub {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: var(--space-1);
   min-width: 0;
   overflow: hidden;
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 16px;
   color: var(--ink-muted);
   white-space: nowrap;
@@ -333,16 +423,16 @@
 }
 
 /* The shape of a list on its way. Nothing shimmers: only three things in the system loop. */
-.apps-skeleton-row {
+.apps-skeleton-line {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 6px;
+  gap: var(--space-2);
   height: 56px;
   padding: 0 var(--space-4);
 }
 
-.apps-skeleton-row + .apps-skeleton-row {
+.apps-skeleton-line + .apps-skeleton-line {
   border-top: 1px solid var(--line);
 }
 
@@ -382,36 +472,46 @@
   gap: var(--space-4);
 }
 
-.app-running-now {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--space-4);
+.app-running-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
-.app-running-line {
+/* A phone has no lead, so who deployed it and when is said here. */
+.app-running-now {
+  padding: var(--space-3) var(--space-4);
   font-size: 14px;
   line-height: 20px;
-  font-weight: 500;
-}
-
-.app-running-line .app-muted {
-  font-weight: 400;
 }
 
 .app-running-image {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
   min-width: 0;
+  min-height: 44px;
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-4);
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.app-running-label {
+  flex: none;
   color: var(--ink-muted);
 }
 
 .app-running-image code {
+  flex: 1 1 auto;
   min-width: 0;
-  font-size: 12px;
-  line-height: 18px;
+  font: 400 12px / 18px var(--font-mono);
   overflow-wrap: anywhere;
+}
+
+/* On a phone the line above the address needs a rule under it; on wide screens the address leads. */
+.app-running .app-running-now + * {
+  border-top: 1px solid var(--line);
 }
 
 /* Where an app is reached: domains first when they come (#27), then ports. */
@@ -425,22 +525,26 @@
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto 28px;
   align-items: center;
-  column-gap: 10px;
+  column-gap: var(--space-3);
   min-height: 44px;
   padding: 0 var(--space-3) 0 var(--space-4);
   border-top: 1px solid var(--line);
   color: var(--ink-muted);
 }
 
+.app-reach > :first-child {
+  border-top: 0;
+}
+
 .app-reach-at {
   overflow: hidden;
   color: var(--ink);
-  font-size: 13px;
+  font: 400 13px / 20px var(--font-mono);
   text-overflow: ellipsis;
 }
 
 .app-reach-to {
-  font-size: 12.5px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -466,9 +570,8 @@
 .app-reach-none {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
-  column-gap: 10px;
+  column-gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--line);
   font-size: 13px;
   line-height: 18px;
   color: var(--ink-muted);
@@ -476,6 +579,24 @@
 
 .app-reach-none .dw-icon {
   margin-top: 1px;
+}
+
+.app-reach-none-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.app-reach-none-text p {
+  color: var(--ink);
+}
+
+/* The ways to be reached, side by side: a port now, and a domain with #27. */
+.app-reach-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .app-running-servers {
@@ -510,7 +631,7 @@
 }
 
 .app-facts code {
-  font-size: 12.5px;
+  font: 400 12px / 20px var(--font-mono);
 }
 
 .app-facts a {
@@ -552,13 +673,13 @@
 .app-mount-target {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   min-width: 0;
   color: var(--ink-muted);
 }
 
 .app-mount code {
-  font-size: 12.5px;
+  font: 400 12px / 18px var(--font-mono);
   color: var(--ink);
   overflow-wrap: anywhere;
 }
@@ -608,7 +729,7 @@
 
 .app-companion-name {
   overflow: hidden;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 18px;
   font-weight: 550;
   text-overflow: ellipsis;
@@ -616,20 +737,14 @@
 }
 
 .app-companion-image {
-  overflow: hidden;
-  font-size: 12px;
-  line-height: 16px;
   color: var(--ink-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.app-delete {
+.app-delete .dw-panel-body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: var(--space-1) var(--space-1) 0;
 }
 
 .app-delete-text {
@@ -638,10 +753,10 @@
   color: var(--ink-muted);
 }
 
-/* Phones keep Logs and Deploy in reach of a thumb, above the tab bar. */
+/* Phones keep Deploy in reach of a thumb, above the tab bar. */
 .app-actionbar {
   position: sticky;
-  bottom: 62px;
+  bottom: var(--tabbar-height);
   z-index: var(--z-sticky);
   display: flex;
   gap: var(--space-2);
@@ -659,7 +774,7 @@
 /* Below a short tab, it still sits at the foot of the screen. */
 @media (max-width: 639.98px) {
   .page.app-page {
-    min-height: calc(100dvh - 56px - 62px);
+    min-height: calc(100dvh - 56px - var(--tabbar-height));
   }
 
   .app-actionbar {
@@ -677,7 +792,7 @@
 .app-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
@@ -724,18 +839,19 @@
   align-items: start;
 }
 
-/* The remove button sits level with its row's inputs, under their labels. */
-.app-row-remove {
-  margin-top: 24px;
+/* Labels sit over a section's first row alone, and the rest of its row stays level with the inputs. */
+.app-row {
+  align-items: end;
+}
+
+.app-port-arrow {
+  align-self: end;
+  height: var(--control-md);
+  color: var(--ink-muted);
 }
 
 .app-port {
   grid-template-columns: minmax(0, 1fr) 14px minmax(0, 1fr) 88px 32px;
-}
-
-.app-port-arrow {
-  margin-top: 33px;
-  color: var(--ink-muted);
 }
 
 .app-env,
@@ -788,9 +904,30 @@
 }
 
 .app-field-note {
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 18px;
   color: var(--ink-muted);
+}
+
+/* What a re-import could delete: how many, and the names on request. */
+.app-orphans {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.app-orphan-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-orphan-list code {
+  font: 400 12px / 18px var(--font-mono);
 }
 
 /* What a mount reaches on its server, said at the field, before the plan says it again. */
@@ -802,8 +939,12 @@
   border-radius: var(--radius-sm);
   background: var(--warning-soft);
   color: var(--warning);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 18px;
+}
+
+.app-reach-note code {
+  overflow-wrap: anywhere;
 }
 
 .app-reach-note span {
@@ -825,8 +966,20 @@
   gap: var(--space-3);
 }
 
+.app-var-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
 .app-var-name {
   font-weight: 500;
+}
+
+.app-required {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-muted);
 }
 
 /* What a Compose file makes, as the API reads it. */
@@ -849,7 +1002,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: 10px var(--space-3);
+  padding: var(--space-2) var(--space-3);
 }
 
 .compose-service + .compose-service {
@@ -865,7 +1018,7 @@
 }
 
 .compose-service-name {
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 18px;
   font-weight: 550;
 }
@@ -906,7 +1059,7 @@
 }
 
 .compose-rest code {
-  font-size: 12.5px;
+  font: 400 12px / 18px var(--font-mono);
 }
 
 /* The exported file: a well, as logs and code are. */
@@ -919,10 +1072,12 @@
   background: var(--surface-sunken);
 }
 
+/* It wraps rather than clips: a comment reads whole, and copying takes the file as it is. */
 .export-file pre {
   margin: 0;
   font: 400 12px / 18px var(--font-mono);
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .export-file:focus-visible {
@@ -962,9 +1117,12 @@
   font-size: 13px;
 }
 
-.deploy-table td:nth-child(3) {
-  width: 100%;
-  max-width: 0;
+.deploy-table .dw-table {
+  table-layout: fixed;
+}
+
+.deploy-table .dw-table td {
+  overflow: hidden;
 }
 
 .deploy-number {
@@ -982,7 +1140,7 @@
 .deploy-what {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: var(--space-1);
   min-width: 0;
   overflow: hidden;
   font-size: 12px;
@@ -1010,7 +1168,7 @@
 .deploy-who-name {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
@@ -1020,7 +1178,7 @@
 }
 
 .deploy-who-via {
-  padding-left: 20px;
+  padding-left: calc(14px + var(--space-1));
   font-size: 12px;
   line-height: 16px;
   color: var(--ink-muted);
@@ -1031,7 +1189,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .deploy-panel {
@@ -1046,11 +1204,11 @@
 .deploy-panel-title {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
 }
 
 .deploy-panel-time {
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .deploy-body {
@@ -1062,11 +1220,64 @@
 .deploy-part {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-2);
 }
 
-.app-facts dd.deploy-image code {
+/* A field's old value over its new one, each whole, so nothing breaks in the middle of a word. */
+.deploy-diff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.deploy-diff-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
   font-size: 12px;
+  line-height: 18px;
+}
+
+.deploy-diff-path {
+  font: 500 12px / 18px var(--font-mono);
+}
+
+.deploy-diff-values {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.deploy-diff-from,
+.deploy-diff-to {
+  max-width: 100%;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-xs);
+  font: 400 12px / 18px var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.deploy-diff-from {
+  background: var(--diff-remove-soft);
+  color: var(--diff-remove);
+  text-decoration: line-through;
+}
+
+.deploy-diff-to {
+  background: var(--diff-add-soft);
+  color: var(--diff-add);
+  text-decoration: none;
+}
+
+.deploy-diff-from code,
+.deploy-diff-to code {
+  font: inherit;
 }
 
 .deploy-rollout {
@@ -1098,7 +1309,12 @@
   margin-top: auto;
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--line);
-  font-size: 12.5px;
+  font-size: 12px;
+}
+
+.deploy-matches {
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .deploy-phone {
@@ -1145,7 +1361,7 @@
 
 .deploy-phone-time {
   margin-left: auto;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--ink-muted);
 }
 
@@ -1156,7 +1372,7 @@
 }
 
 .deploy-phone-by {
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 16px;
   color: var(--ink-muted);
 }
@@ -1204,7 +1420,6 @@
 
 .app-sheet.is-phone .app-row-remove {
   width: 44px;
-  margin-top: 24px;
 }
 
 .app-sheet.is-phone .app-check {
@@ -1251,8 +1466,13 @@
     flex: 1 1 100%;
   }
 
-  .apps-fill {
-    display: none;
+  /* Under the phone's own header, which is sticky too. */
+  .apps-filters {
+    top: 56px;
+  }
+
+  .app-actionbar .dw-btn {
+    flex: 1 1 auto;
   }
 
   .app-overview,
@@ -1289,9 +1509,35 @@
     margin-block: -12px;
   }
 
+  /* Two lines, the address first and whole, as a clipped address is no address. */
   .app-reach-row {
-    grid-template-columns: 16px minmax(0, 1fr) auto 44px;
+    grid-template-columns: 16px minmax(0, 1fr) 44px;
+    row-gap: 2px;
+    padding-block: var(--space-2);
     padding-right: var(--space-1);
+  }
+
+  .app-reach-row > .dw-icon {
+    grid-row: 1 / span 2;
+    align-self: start;
+    margin-top: 2px;
+  }
+
+  .app-reach-at {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .app-reach-to {
+    grid-column: 2;
+    grid-row: 2;
+    white-space: normal;
+  }
+
+  .app-reach-open {
+    grid-column: 3;
+    grid-row: 1 / span 2;
   }
 
   .app-reach-open {

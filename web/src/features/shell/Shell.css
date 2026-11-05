@@ -277,6 +277,11 @@
 
 /* ---------- Tab bar ---------- */
 
+/* How tall the tab bar is, for what sits right above it. */
+:root {
+  --tabbar-height: 62px;
+}
+
 .tabbar {
   position: sticky;
   bottom: 0;

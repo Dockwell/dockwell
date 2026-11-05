@@ -15,6 +15,21 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
+// notYAML says a file isn't YAML, in words for people: the line the parser
+// names last, which is where it gave up, and what to look at. The parser's own
+// sentence helps no one who isn't writing a parser.
+func notYAML(err error) error {
+	text := err.Error()
+	if strings.Contains(text, "aliasing") {
+		return invalid("the Compose file's aliases expand too far, which YAML calls excessive aliasing, so Dockwell doesn't read it. Write the repeated parts out, or use fewer aliases")
+	}
+	all := yamlLine.FindAllStringSubmatch(text, -1)
+	if len(all) == 0 {
+		return invalid("the Compose file isn't valid YAML. Check its indentation, and that quotes and brackets close")
+	}
+	return invalid("line %s: check the indentation, and that quotes and brackets close", all[len(all)-1][1])
+}
+
 // refusal is an ErrInvalid that knows the place in the file it is about, so
 // a form can point at the line.
 type refusal struct {
@@ -184,8 +199,8 @@ func Line(ctx context.Context, file []byte, err error) int {
 	}
 	var doc yaml.Node
 	if yerr := yaml.Unmarshal(file, &doc); yerr != nil || len(doc.Content) == 0 {
-		if m := yamlLine.FindStringSubmatch(Message(err)); m != nil {
-			n, _ := strconv.Atoi(m[1])
+		if all := yamlLine.FindAllStringSubmatch(Message(err), -1); len(all) > 0 {
+			n, _ := strconv.Atoi(all[len(all)-1][1])
 			return n
 		}
 		return 0

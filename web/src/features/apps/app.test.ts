@@ -1,23 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { create } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
-import { Connection, DeploymentState } from "@dockwell/api";
+import { ChangeSchema, ChangeState, Connection, DeploymentState, FieldOp } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
-import { anApp, aRevision, aStack, SERVER } from "../../test/apps";
+import { anApp, aProject, aRevision, SERVER } from "../../test/apps";
 import type { ServerSummary } from "../servers/server";
 import {
   appState,
   canRollBackTo,
   companions,
+  containerName,
   envNames,
   fieldName,
   groupApps,
   groupState,
+  imageChange,
   matches,
   nameFromImage,
+  type PlaceOf,
+  shortImage,
   shortImages,
   sortGroups,
   tidyMessage,
+  toLabel,
+  unreached,
 } from "./app";
 
 const online: ServerSummary = { id: SERVER, name: "hz-1", connection: Connection.CONNECTED, address: "49.12.33.7" };
@@ -52,9 +59,28 @@ describe("an app's state", () => {
     expect(appState(withState(DeploymentState.LIVE), [offline])).toMatchObject({ kind: "offline", servers: ["hz-1"] });
   });
 
-  it("takes a server the fleet doesn't list yet as saying nothing", () => {
-    expect(appState(withState(DeploymentState.LIVE), undefined).kind).toBe("live");
-    expect(appState(withState(DeploymentState.LIVE), []).kind).toBe("live");
+  it("doesn't say live before it knows, while the fleet hasn't answered", () => {
+    expect(appState(withState(DeploymentState.LIVE), undefined)).toMatchObject({ kind: "unknown", status: "stopped" });
+  });
+
+  it("isn't placed once each server it ran on has left the fleet", () => {
+    expect(appState(withState(DeploymentState.LIVE), [])).toMatchObject({ kind: "unplaced", status: "stopped" });
+    const on = (id: string, name: string) => ({ serverId: id, serverName: name, state: DeploymentState.LIVE });
+    const both = anApp("web", "nginx", {}, { deployments: [on(SERVER, "hz-1"), on("srv_gone", "hz-2")] });
+    expect(appState(both, [online]).kind).toBe("live");
+  });
+
+  it("is failed, not deploying forever, once its change has failed", () => {
+    const stuck = anApp(
+      "web",
+      "nginx",
+      {},
+      {
+        changeState: ChangeState.FAILED,
+        deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.PENDING }],
+      },
+    );
+    expect(appState(stuck, [online]).kind).toBe("failed");
   });
 
   it("says when Dockwell put back what ran before", () => {
@@ -62,65 +88,71 @@ describe("an app's state", () => {
     expect(appState(app, [online])).toMatchObject({ kind: "rolled-back", status: "degraded" });
   });
 
-  it("has nowhere to run once every server has left", () => {
+  it("has nowhere to run when no revision placed it", () => {
     expect(appState(anApp("web", "nginx", {}, { deployments: [] }), [online]).kind).toBe("unplaced");
   });
 });
 
 describe("what the list shows as one thing", () => {
-  it("is one stack for the services that share a network", () => {
-    const groups = groupApps(aStack("web", "api", "worker", "db", "cache"));
+  const placeOf = (id: string): PlaceOf | undefined =>
+    id === "env_prod"
+      ? { label: "default", isDefault: true }
+      : id.startsWith("env_")
+        ? { label: id.slice(4), isDefault: false }
+        : undefined;
+
+  it("is one row for a project's services, by its name", () => {
+    const groups = groupApps(aProject("shop", "web", "api", "worker", "db", "cache"), placeOf);
     expect(groups).toHaveLength(1);
-    expect(groups[0]?.stack).toBe(true);
+    expect(groups[0]).toMatchObject({ stack: true, name: "shop", key: "env_shop" });
     expect(groups[0]?.services.map((s) => s.resource?.name)).toEqual(["api", "cache", "db", "web", "worker"]);
   });
 
-  it("follows what connects them, through a service on two networks, and a volume they share", () => {
-    const groups = groupApps([
-      anApp("web", "a", { networks: ["front"] }),
-      anApp("api", "b", { networks: ["front", "back"] }),
-      anApp("db", "c", { networks: ["back"] }),
-      anApp("sidecar", "d", { mounts: [{ source: { case: "volume", value: "data" }, target: "/d" }] }),
-      anApp("backup", "e", { mounts: [{ source: { case: "volume", value: "data" }, target: "/d" }] }),
-    ]);
-    expect(groups.map((g) => g.services.length).sort()).toEqual([2, 3]);
+  it("keeps two projects apart, whatever their services are called and however they connect", () => {
+    const groups = groupApps([...aProject("blog", "db", "web"), ...aProject("git", "db", "web")], placeOf);
+    expect(groups.map((g) => g.name)).toEqual(["blog", "git"]);
+    expect(groups.map((g) => g.services.length)).toEqual([2, 2]);
   });
 
-  it("keeps an app alone when nothing connects it, even on the same server path", () => {
-    const groups = groupApps([
-      anApp("nginx", "a"),
-      anApp("redis", "b"),
-      anApp("x", "c", { mounts: [{ source: { case: "hostPath", value: "/srv" }, target: "/d" }] }),
-      anApp("y", "d", { mounts: [{ source: { case: "hostPath", value: "/srv" }, target: "/d" }] }),
-    ]);
-    expect(groups).toHaveLength(4);
-    expect(groups.every((g) => !g.stack)).toBe(true);
-  });
-
-  it("doesn't reach across environments: their networks are their own", () => {
-    const staging = anApp(
-      "web",
-      "a",
-      { networks: ["default"] },
-      { id: "svc_s", resource: { kind: "service", scope: "env_staging", name: "web" } },
+  it("keeps an app of the default project a row of its own, connected or not", () => {
+    const groups = groupApps(
+      [anApp("nginx", "a", { networks: ["default"] }), anApp("redis", "b", { networks: ["default"] })],
+      placeOf,
     );
-    const prod = anApp("web", "a", { networks: ["default"] });
-    expect(groupApps([staging, prod])).toHaveLength(2);
+    expect(groups).toHaveLength(2);
+    expect(groups.every((g) => !g.stack && g.name === "")).toBe(true);
   });
 
-  it("names what a service runs with", () => {
-    const stack = aStack("web", "api", "db");
-    const alone = anApp("nginx", "a");
-    expect(companions(stack[0] ?? alone, [...stack, alone]).map((s) => s.resource?.name)).toEqual(["api", "db"]);
-    expect(companions(alone, [...stack, alone])).toEqual([]);
+  it("calls a project of one service by its name, with nothing to fold", () => {
+    const [group] = groupApps(aProject("blog", "web"), placeOf);
+    expect(group).toMatchObject({ stack: false, name: "blog" });
+  });
+
+  it("leaves an app alone while where it lives isn't known", () => {
+    expect(groupApps(aProject("blog", "web", "db"), () => undefined)).toHaveLength(2);
+  });
+
+  it("runs with the rest of its project, and in the default project with what it shares a network or volume with", () => {
+    const [web, api, db] = aProject("shop", "web", "api", "db");
+    if (!web || !api || !db) throw new Error("no project");
+    expect(companions(web, [web, api, db], placeOf).map((s) => s.resource?.name)).toEqual(["api", "db"]);
+    const a = anApp("a", "x", { networks: ["front"] });
+    const b = anApp("b", "x", { networks: ["front"] });
+    const shared = (name: string) =>
+      anApp(name, "x", { mounts: [{ source: { case: "volume", value: "data" }, target: "/d" }] });
+    const alone = anApp("alone", "x");
+    const all = [a, b, shared("c"), shared("d"), alone];
+    expect(companions(a, all, placeOf).map((s) => s.resource?.name)).toEqual(["b"]);
+    expect(companions(shared("c"), all, placeOf).map((s) => s.resource?.name)).toEqual(["d"]);
+    expect(companions(alone, all, placeOf)).toEqual([]);
   });
 
   it("takes its state from its most concerning service, and comes first when that needs you", () => {
-    const stack = aStack("web", "api");
+    const stack = aProject("shop", "web", "api");
     const failing = stack[1]?.deployments[0];
     if (failing) failing.state = DeploymentState.FAILED;
     const quiet = anApp("nginx", "a", {}, { updateTime: timestampNow() });
-    const groups = groupApps([quiet, ...stack]);
+    const groups = groupApps([quiet, ...stack], placeOf);
     const stackGroup = groups.find((g) => g.stack);
     expect(stackGroup && groupState(stackGroup, [online]).kind).toBe("failed");
     expect(sortGroups(groups, [online])[0]?.stack).toBe(true);
@@ -159,6 +191,28 @@ describe("the words an app goes by", () => {
     expect(shortImages("registry:5000/a:1", "registry:5000/a:2")).toBe("1 → 2");
     expect(shortImages("nginx:1.27", "caddy:2")).toBe("nginx:1.27 → caddy:2");
     expect(shortImages("nginx", "nginx:2")).toBe("nginx → nginx:2");
+    expect(imageChange("getmeili/meilisearch:v1.11", "getmeili/meilisearch:broken")).toEqual({
+      from: "v1.11",
+      to: "broken",
+    });
+    expect(imageChange("a.example/x/api:1", "b.example/y/web:2")).toEqual({ from: "api:1", to: "web:2" });
+  });
+
+  it("tells an image apart by the end of its name on a narrow screen", () => {
+    expect(shortImage("registry.internal.acme.example.com/platform/backend:1.4.2")).toBe("backend:1.4.2");
+    expect(shortImage("nginx:1.27")).toBe("nginx:1.27");
+  });
+
+  it("makes a name into one a project can have", () => {
+    expect(toLabel("my_app")).toBe("my-app");
+    expect(toLabel("1panel-wordpress")).toBe("panel-wordpress");
+    expect(toLabel("Shop")).toBe("shop");
+    expect(toLabel("___")).toBe("");
+  });
+
+  it("names a service's container as Compose does", () => {
+    const app = anApp("web", "a", {}, { resource: { kind: "service", scope: "env_01KAT", name: "web" } });
+    expect(containerName(app)).toBe("env_01kat-web-1");
   });
 
   it("reads a plan's path as the service's own field", () => {
@@ -171,9 +225,25 @@ describe("the words an app goes by", () => {
     expect(envNames(undefined)).toEqual([]);
   });
 
-  it("won't roll back to a revision that failed or deleted the service", () => {
+  it("says which new services a plan leaves out of reach", () => {
+    const change = create(ChangeSchema, {
+      plan: {
+        resources: [
+          { resource: { kind: "network", name: "default" } },
+          { resource: { kind: "service", name: "db" }, changes: [{ path: "app.image", op: FieldOp.ADDED }] },
+          { resource: { kind: "service", name: "web" }, changes: [{ path: "app.ports[0]", op: FieldOp.ADDED }] },
+          { resource: { kind: "service", name: "old" }, baseRevision: 2n },
+        ],
+      },
+    });
+    expect(unreached(change)).toEqual(["db"]);
+    expect(unreached(undefined)).toEqual([]);
+  });
+
+  it("won't roll back to a revision that failed, deleted the service, or matches what runs", () => {
     expect(canRollBackTo(aRevision(2n, "a"))).toBe(true);
     expect(canRollBackTo(aRevision(2n, "a", { deleted: true }))).toBe(false);
+    expect(canRollBackTo(aRevision(2n, "a", { matchesLatest: true }))).toBe(false);
     expect(
       canRollBackTo(aRevision(2n, "a", { deployments: [{ serverId: SERVER, state: DeploymentState.FAILED }] })),
     ).toBe(false);

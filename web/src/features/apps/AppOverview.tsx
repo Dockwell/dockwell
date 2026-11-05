@@ -3,7 +3,15 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { ChangeState, Connection, type Container, type Mount, type ServiceInfo, ServiceService } from "@dockwell/api";
+import {
+  ChangeState,
+  Connection,
+  type Container,
+  type Mount,
+  Protocol,
+  type ServiceInfo,
+  ServiceService,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -23,26 +31,31 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { useChangeWords } from "../changes/words";
 import { CopyButton } from "../servers/CopyButton";
-import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { useAgoNow, useFleetView } from "../servers/useFleet";
+import { AddPortSheet } from "./AddPortSheet";
 import { useApp, useRevisions } from "./AppContext";
 import {
   appOf,
   appState,
   canRollBackTo,
   companions,
+  deployedAt,
   environmentOf,
   envNames,
   imageOf,
+  isMoving,
   nameOf,
   revisionName,
   tidyMessage,
 } from "./app";
 import { ExportSheet } from "./ExportSheet";
-import { useRevisionLook, useRevisionTitle } from "./revision";
+import { ImageName } from "./ImageName";
+import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
+import { usePlaces } from "./useServices";
 import { useAppWords } from "./words";
 
 const RECENT = 5;
@@ -88,6 +101,7 @@ function AppNotice() {
       return (
         <Callout
           tone="info"
+          shape="spinner"
           title={t`Deploying ${revision} of ${name}`}
           actions={
             <Button onClick={() => openChange(service.changeId)}>
@@ -174,25 +188,35 @@ function AppNotice() {
   return null;
 }
 
-/** What runs now, and where it is reached. */
+/**
+ * What runs now, and where it is reached. Who deployed it and when is the
+ * page's lead and the timeline's first line, so wide screens lead here with
+ * the address; a phone has no lead, so it says it here. During a deploy the
+ * image that runs is the one before it, until it is replaced.
+ */
 function RunningPanel() {
   const { t } = useLingui();
   const { service, state } = useApp();
   const phone = useMediaQuery(PHONE_QUERY);
   const { fleet, servers } = useFleetView();
   const words = useAppWords();
-  const change = useChangeWords();
+  const who = useWhoWords();
   const time = useTimeWords();
-  const now = useControlPlaneNow(30_000);
-  const latest = useRevisions(service.id).revisions?.[0]?.change;
+  const now = useAgoNow(deployedAt(service));
+  const revisions = useRevisions(service.id).revisions;
   const app = appOf(service);
   const image = imageOf(service);
   const revision = revisionName(service.revision);
   const when = service.updateTime ? time.ago(timestampDate(service.updateTime), now) : "";
-  const actor = latest?.appliedBy?.name || latest?.proposedBy?.name;
-  const via = latest ? change.via(latest.appliedVia || latest.proposedVia) : "";
   const stateWord = words.state(state);
-  const moving = state.kind === "deploying" || state.kind === "waiting";
+  const moving = isMoving(state);
+  const by = who.phrase(revisions?.[0]?.change);
+  const [addingPort, setAddingPort] = useState(false);
+  // While it deploys, what runs is the revision before it, if there is one.
+  const before = moving
+    ? revisions?.find((r) => r.number < service.revision && !r.deleted && r.image !== "")
+    : undefined;
+  const running = moving ? (before?.image ?? "") : image;
   const columns: TableColumn<ServiceInfo["deployments"][number] & { id: string }>[] = [
     {
       key: "server",
@@ -205,11 +229,11 @@ function RunningPanel() {
       width: 160,
       render: (row) => {
         const online = servers?.find((s) => s.id === row.serverId)?.connection ?? Connection.CONNECTED;
-        const one = appState({ deployments: [row], rolledBackChangeId: "" }, servers);
+        const one = appState({ deployments: [row], rolledBackChangeId: "", changeState: service.changeState }, servers);
         return (
           <StatusBadge
             status={online === Connection.CONNECTED ? one.status : "degraded"}
-            label={online === Connection.CONNECTED ? words.deployment(row.state) : t`Offline`}
+            label={online === Connection.CONNECTED ? words.state(one) : t`Offline`}
             labelIsState
           />
         );
@@ -219,34 +243,52 @@ function RunningPanel() {
   return (
     <Panel
       title={t`Running`}
-      // The title carries it on wide screens; the phone's header has only the word.
-      actions={phone ? <StatusBadge status={state.status} label={stateWord} labelIsState variant="pill" /> : null}
+      actions={
+        // The title carries the state on wide screens; the phone's header has only the word.
+        <span className="app-running-actions">
+          {phone ? <StatusBadge status={state.status} label={stateWord} labelIsState variant="pill" /> : null}
+          {(app?.ports.length ?? 0) > 0 ? (
+            <button type="button" className="app-panel-link" onClick={() => setAddingPort(true)}>
+              <Trans>Add a port</Trans>
+            </button>
+          ) : null}
+        </span>
+      }
       flush
       className="app-running"
     >
-      <div className="app-running-now">
-        <span className="app-running-line">
+      {phone ? (
+        <p className="app-running-now">
           {moving ? (
             <Trans>
               {revision} started deploying {when}
             </Trans>
-          ) : actor ? (
-            <Trans>
-              {revision} deployed {when} by {actor}
-            </Trans>
           ) : (
-            <Trans>
-              {revision} deployed {when}
-            </Trans>
+            <>
+              <Trans>
+                {revision} deployed {when}
+              </Trans>{" "}
+              {by}
+            </>
           )}
-          {via ? <span className="app-muted"> · {via}</span> : null}
-        </span>
-        <span className="app-running-image">
-          <code>{image}</code>
-          <CopyButton text={image} label={t`Copy the image`} />
-        </span>
+        </p>
+      ) : null}
+      <ReachedAt app={app} service={service} onAddPort={() => setAddingPort(true)} />
+      <div className="app-running-image">
+        {running ? (
+          <>
+            <span className="app-running-label">
+              <Trans>Image</Trans>
+            </span>
+            <code>{running}</code>
+            <CopyButton text={running} label={t`Copy the image`} />
+          </>
+        ) : (
+          <span className="app-muted">
+            <Trans>Nothing yet. It runs once the deploy finishes.</Trans>
+          </span>
+        )}
       </div>
-      <ReachedAt app={app} service={service} />
       {fleet ? (
         <Table
           className="app-running-servers"
@@ -256,30 +298,47 @@ function RunningPanel() {
           caption={t`Where it runs`}
         />
       ) : null}
+      {addingPort ? <AddPortSheet service={service} onClose={() => setAddingPort(false)} /> : null}
     </Panel>
   );
 }
 
 /**
  * Where an app is reached from outside its server: its published ports today.
- * Domains belong here too, first, when routes land (#27).
+ * Domains belong here too, first, when routes land (#27), and the way to add
+ * one sits beside the way to add a port.
  */
-function ReachedAt({ app, service }: { app: Container | undefined; service: ServiceInfo }) {
+function ReachedAt({
+  app,
+  service,
+  onAddPort,
+}: {
+  app: Container | undefined;
+  service: ServiceInfo;
+  onAddPort: () => void;
+}) {
   const { t } = useLingui();
   const { servers } = useFleetView();
   const ports = app?.ports ?? [];
   if (ports.length === 0) {
     return (
-      <p className="app-reach-none">
+      <div className="app-reach-none">
         <Icon name="globe" size={16} />
-        <span>
-          {(app?.networks.length ?? 0) > 0 ? (
-            <Trans>Nothing outside the server reaches it, as it publishes no port. Other apps on its network do.</Trans>
-          ) : (
-            <Trans>Nothing outside the server reaches it, as it publishes no port.</Trans>
-          )}
-        </span>
-      </p>
+        <div className="app-reach-none-text">
+          <p>
+            {(app?.networks.length ?? 0) > 0 ? (
+              <Trans>Nothing outside the server reaches it yet. Other apps on its network do.</Trans>
+            ) : (
+              <Trans>Nothing outside the server reaches it yet.</Trans>
+            )}
+          </p>
+          <div className="app-reach-actions">
+            <Button icon="plus" onClick={onAddPort}>
+              <Trans>Add a port</Trans>
+            </Button>
+          </div>
+        </div>
+      </div>
     );
   }
   const addresses = service.deployments.map((d) => servers?.find((s) => s.id === d.serverId)?.address ?? d.serverName);
@@ -288,7 +347,9 @@ function ReachedAt({ app, service }: { app: Container | undefined; service: Serv
       const local = port.hostIp === "127.0.0.1" || port.hostIp === "::1";
       const host = port.hostIp && port.hostIp !== "0.0.0.0" && port.hostIp !== "::" ? port.hostIp : address;
       const at = `${host.includes(":") ? `[${host}]` : host}:${port.hostPort}`;
-      return { at, local, target: port.containerPort, udp: port.protocol === 2 };
+      const udp = port.protocol === Protocol.UDP;
+      // The same port over TCP and over UDP are two rows at one address.
+      return { key: `${at}/${udp ? "udp" : "tcp"}`, at, local, target: port.containerPort, udp };
     }),
   );
   return (
@@ -296,7 +357,7 @@ function ReachedAt({ app, service }: { app: Container | undefined; service: Serv
       {rows.map((row) => {
         const { target, at } = row;
         return (
-          <li key={row.at} className="app-reach-row">
+          <li key={row.key} className="app-reach-row">
             <Icon name="globe" size={16} />
             <code className="app-reach-at">{row.at}</code>
             <span className="app-reach-to">
@@ -327,31 +388,32 @@ function RecentDeployments() {
   const { service, state } = useApp();
   const name = nameOf(service);
   const time = useTimeWords();
-  const now = useControlPlaneNow(30_000);
+  const now = useAgoNow(deployedAt(service));
   const sheet = useChangeSheet();
   const transport = useTransport();
   const lookOf = useRevisionLook();
   const revisionTitle = useRevisionTitle();
-  const { revisions, isPending } = useRevisions(service.id);
-  const moving = state.kind === "deploying" || state.kind === "waiting";
+  const who = useWhoWords();
+  const { revisions, isPending, error, refetch, isFetching } = useRevisions(service.id);
+  const moving = isMoving(state);
   const shown = (revisions ?? []).slice(0, RECENT);
-  // The newest revision that isn't the live one and would run.
+  // The newest revision that would run, and that differs from what runs now.
   const back = (revisions ?? []).slice(1).find(canRollBackTo);
   const backTo = back ? revisionName(back.number) : "";
   const events: TimelineEvent[] = shown.map((rev, i) => {
     const change = rev.change;
     const when = rev.createTime ? timestampDate(rev.createTime) : new Date(0);
     const failed = change?.state === ChangeState.FAILED;
-    const look = lookOf(rev, service.revision);
+    const look = lookOf(rev, service.revision, state);
     return {
       id: rev.number.toString(),
-      kind: change?.reverts ? "rollback" : "deploy",
+      kind: change?.reverts || rev.rolledBackTo > 0n ? "rollback" : "deploy",
       ...(failed ? { tone: "critical" as const } : {}),
       // The state shows where it says something: on the one that is live, and on what didn't work.
       ...(i === 0 || failed ? { status: look.status, statusLabel: look.word } : {}),
       title: revisionTitle(rev),
       revision: revisionName(rev.number),
-      actor: change?.appliedBy?.name || change?.proposedBy?.name || "",
+      actor: who.name(change),
       time: time.ago(when, now),
       datetime: when.toISOString(),
       // Nothing goes back while it is still moving.
@@ -368,7 +430,19 @@ function RecentDeployments() {
         </Link>
       }
     >
-      {isPending ? (
+      {error && !revisions ? (
+        <Callout
+          tone="critical"
+          title={t`Can't load the deployments`}
+          actions={
+            <Button onClick={() => void refetch()} loading={isFetching}>
+              <Trans>Try again</Trans>
+            </Button>
+          }
+        >
+          {sentence(error)}
+        </Callout>
+      ) : isPending ? (
         <p className="app-note" aria-busy="true">
           <Trans>Loading deployments</Trans>
         </p>
@@ -448,7 +522,7 @@ function ConfigurationPanel() {
             </dd>
           </>
         ) : null}
-        <dt>{t`Restarts`}</dt>
+        <dt>{t`Restart policy`}</dt>
         <dd>{words.restart(app?.restart ?? 0)}</dd>
         {health.length > 0 ? (
           <>
@@ -520,8 +594,8 @@ function MountRow({ mount }: { mount: Mount }) {
         <code>{mount.target}</code>
       </span>
       <span className="app-mount-tags">
-        {isPath ? <Tag>{t`Server path`}</Tag> : null}
-        {mount.readOnly ? <Tag>{t`Read-only`}</Tag> : null}
+        {isPath ? <Tag words>{t`Server path`}</Tag> : null}
+        {mount.readOnly ? <Tag words>{t`Read-only`}</Tag> : null}
       </span>
     </li>
   );
@@ -532,8 +606,9 @@ function RunsWithPanel() {
   const { t } = useLingui();
   const { service, services } = useApp();
   const { servers } = useFleetView();
+  const places = usePlaces();
   const words = useAppWords();
-  const others = companions(service, services);
+  const others = companions(service, services, places.place);
   if (others.length === 0) return null;
   return (
     <Panel title={t`Runs with`} flush>
@@ -545,7 +620,7 @@ function RunsWithPanel() {
               <Link to="/apps/$serviceId" params={{ serviceId: other.id }} className="app-companion">
                 <span className="app-companion-text">
                   <span className="app-companion-name">{nameOf(other)}</span>
-                  <code className="app-companion-image">{imageOf(other)}</code>
+                  <ImageName image={imageOf(other)} className="app-companion-image" />
                 </span>
                 <StatusBadge status={state.status} label={words.state(state)} labelIsState />
               </Link>
@@ -566,7 +641,7 @@ function DeletePanel() {
   const name = nameOf(service);
   const resource = service.resource;
   return (
-    <div className="app-delete">
+    <Panel className="app-delete">
       <p className="app-delete-text">
         <Trans>
           Deleting {name} stops it and removes its container. Its volumes stay, and you review a plan first.
@@ -589,6 +664,6 @@ function DeletePanel() {
       >
         <Trans>Delete this app</Trans>
       </Button>
-    </div>
+    </Panel>
   );
 }

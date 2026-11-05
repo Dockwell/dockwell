@@ -12,6 +12,10 @@
   color: var(--ink);
   white-space: nowrap;
 }
+.dw-tag-words {
+  font-family: var(--font-sans);
+  font-weight: 500;
+}
 .dw-tag .dw-icon {
   color: var(--ink-muted);
   margin-right: 3px;

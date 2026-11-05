@@ -27,7 +27,7 @@ import { formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { Reconnecting } from "../servers/FleetNotes";
-import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import {
@@ -42,10 +42,13 @@ import {
   imageOf,
   matches,
   nameOf,
+  needsALook,
   revisionName,
+  shortImage,
   sortGroups,
 } from "./app";
 import { ExportSheet } from "./ExportSheet";
+import { ImageName } from "./ImageName";
 import { usePlaces, useServices, useServicesLive } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
@@ -63,25 +66,67 @@ const FILTER_FROM = 6;
 /** A SegmentedControl holds up to five; past that, a select. */
 const SEGMENTS = 5;
 
-/** The names a stack shows in its title before it says how many more. */
-const STACK_NAMES = 3;
+/** From this wide, the image has a column of its own, as the eye shouldn't have to cross the row for it. */
+const IMAGE_COLUMN_QUERY = "(min-width: 1100px)";
 
-/** One row of the list: an app, a stack's head, or a service in a stack. */
+/** Where the list remembers what is folded, and how many apps there were. Conveniences of this browser alone. */
+const FOLDED_KEY = "dockwell.apps.folded";
+const COUNT_KEY = "dockwell.apps.count";
+
+function remembered(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function remember(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Private windows and full disks forget, and the list works without it.
+  }
+}
+
+/** What was folded, as it was left, so moving away and back keeps it. */
+function useFolded() {
+  const [folded, setFolded] = useState<ReadonlySet<string>>(() => {
+    try {
+      const stored: unknown = JSON.parse(remembered(FOLDED_KEY) ?? "[]");
+      return new Set(Array.isArray(stored) ? stored.filter((k) => typeof k === "string") : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const toggle = (key: string) =>
+    setFolded((was) => {
+      const next = new Set(was);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      remember(FOLDED_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  return [folded, toggle] as const;
+}
+
+/** One row of the list: an app, a project's head, or a service in a project. */
 interface Row {
   id: string;
   kind: "app" | "stack" | "member";
   group: AppGroup;
   service?: ServiceInfo;
-  /** The row after this one is still in the same stack. */
+  /** The last service of its project. */
   last: boolean;
 }
 
 /**
  * Every app: what it runs, how its latest deploy went, its revision and when
  * it deployed, live (Apps-List, M-Apps). Columns follow what the API has and
- * how many servers there are: no server column with one server. A Compose
- * file's services show as one stack, its head first (ADR 0026). What needs
- * you comes first; the rest are newest first.
+ * how many servers there are: no server column with one server. A project's
+ * services show as one row with its name that folds, and an app in the default
+ * project as a row of its own (ADR 0026). What needs you comes first; the rest
+ * are newest first.
  */
 export function AppsPage({
   search = {},
@@ -101,7 +146,7 @@ export function AppsPage({
   const places = usePlaces();
   const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const [collapsed, toggle] = useFolded();
   const [typed, setTyped] = useState(search.q ?? "");
   const query = useDeferredValue(typed);
 
@@ -119,8 +164,8 @@ export function AppsPage({
     for (const s of all ?? []) counts.set(environmentOf(s), (counts.get(environmentOf(s)) ?? 0) + 1);
     return places.environments.map((e) => ({ ...e, count: counts.get(e.id) ?? 0 }));
   }, [all, places.environments]);
-  // Environments stay out of sight until there is a choice (PRD principle 4).
-  const choosing = environments.length > 1;
+  // Environments stay out of sight until a project has a choice of them (ADR 0014).
+  const choosing = places.showsEnvironment;
   const environment = choosing ? (search.environment ?? "") : "";
   const shown = useMemo(
     () =>
@@ -131,12 +176,14 @@ export function AppsPage({
       ),
     [all, environment, search.server],
   );
-  const groups = useMemo(() => sortGroups(groupApps(shown), servers), [shown, servers]);
+  const groups = useMemo(() => sortGroups(groupApps(shown, places.place), servers), [shown, places.place, servers]);
   const filtering = query.trim() !== "";
   const rows = useMemo(() => {
     const out: Row[] = [];
     for (const group of groups) {
-      const members = group.services.filter((s) => matches(s, query));
+      // A project's name finds all of it; otherwise what matches is what shows.
+      const whole = group.name !== "" && group.name.toLowerCase().includes(query.trim().toLowerCase());
+      const members = whole ? group.services : group.services.filter((s) => matches(s, query));
       if (members.length === 0) continue;
       const [first] = group.services;
       if (!group.stack && first) {
@@ -154,25 +201,28 @@ export function AppsPage({
   }, [groups, query, collapsed, filtering]);
 
   const open = (id: string) => void navigate({ to: "/apps/$serviceId", params: { serviceId: id } });
-  const toggle = (key: string) =>
-    setCollapsed((was) => {
-      const next = new Set(was);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
 
-  const elsewhere = (all?.length ?? 0) - shown.length;
+  const pending = services.isPending || places.isPending;
+  const count = all?.length ?? 0;
+  // The filter's row is there or not by how many apps there are: remembering
+  // last time's count keeps the list from moving when they land.
+  useEffect(() => {
+    if (all) remember(COUNT_KEY, String(all.length));
+  }, [all]);
+  const filters = pending ? Number(remembered(COUNT_KEY) ?? 0) >= FILTER_FROM : count >= FILTER_FROM;
+  const elsewhere = count - shown.length;
   const lead = useLead(shown, environment ? places.label(environment) : "");
   const newApp = (
     <RouterButtonLink to="/apps/new" variant="primary" icon="plus" className="apps-new">
       <Trans>New app</Trans>
     </RouterButtonLink>
   );
+  // One environment is one Compose file, so export where it is clear which.
+  const oneEnvironment = environment !== "" || places.environments.length === 1;
 
   let body: ReactNode;
-  if (services.isPending) {
-    body = <ListSkeleton label={t`Loading apps`} />;
+  if (pending) {
+    body = <AppsSkeleton label={t`Loading apps`} fleet={fleet} />;
   } else if (services.error) {
     body = (
       <Callout
@@ -212,7 +262,7 @@ export function AppsPage({
               No app here has <code>{query}</code> in its name or image. Try part of a name, or clear the filter.
             </Trans>
           ) : (
-            <Trans>There are no apps here yet. Choose another environment, or make one here with New app.</Trans>
+            <Trans>There are no apps here yet. Choose another environment, or make one with New app.</Trans>
           )}
         </p>
       </EmptyState>
@@ -229,25 +279,38 @@ export function AppsPage({
   return (
     <Page
       title={t`Apps`}
-      lead={all && all.length > 0 ? lead : undefined}
+      // The line is held while they load, so the list doesn't move when it lands.
+      lead={pending || count === 0 ? <span aria-hidden="true">&nbsp;</span> : lead}
       status={reconnecting ? <Reconnecting /> : undefined}
       className="apps-page"
       actions={
         <>
-          {/* One environment is one Compose file, so it has to be clear which. */}
-          {(all?.length ?? 0) > 0 && (!choosing || environment !== "") ? (
+          {count > 0 && oneEnvironment ? (
             <Button icon="download" onClick={() => setExporting(true)}>
               <Trans>Export</Trans>
             </Button>
           ) : null}
-          {/* The empty state offers it, and a view has one primary button. */}
-          {all?.length === 0 ? null : newApp}
+          {/* The empty state offers it, a view has one primary button, and until the list lands which it is isn't known. */}
+          {pending || count === 0 ? null : newApp}
         </>
       }
     >
-      <section className="apps-section" aria-label={t`Apps`}>
-        {choosing || fleet || (all?.length ?? 0) >= FILTER_FROM ? (
+      <section className={cx("apps-section", filters && "has-filters")} aria-label={t`Apps`}>
+        {choosing || fleet || filters ? (
           <div className="apps-filters">
+            {filters ? (
+              <TextField
+                className="apps-filter"
+                size={phone ? "lg" : "sm"}
+                icon="search"
+                type="search"
+                placeholder={t`Filter by name or image`}
+                aria-label={t`Filter apps`}
+                value={typed}
+                disabled={pending}
+                onChange={(event) => setTyped(event.target.value)}
+              />
+            ) : null}
             {choosing && envOptions.length <= SEGMENTS ? (
               <SegmentedControl
                 options={[{ value: "", label: t`All` }, ...envOptions]}
@@ -282,25 +345,12 @@ export function AppsPage({
                 onChange={(event) => onSearch?.({ ...search, server: event.target.value || undefined })}
               />
             ) : null}
-            <span className="apps-fill" />
-            {(all?.length ?? 0) >= FILTER_FROM ? (
-              <TextField
-                className="apps-filter"
-                size={phone ? "lg" : "sm"}
-                icon="search"
-                type="search"
-                placeholder={t`Filter by name or image`}
-                aria-label={t`Filter apps`}
-                value={typed}
-                onChange={(event) => setTyped(event.target.value)}
-              />
-            ) : null}
           </div>
         ) : null}
-        {phone && all && all.length > 0 ? (
+        {phone && (pending || count > 0) ? (
           <div className="apps-phone-head">
-            <h2 className="dw-text-heading apps-phone-count">{lead}</h2>
-            {newApp}
+            <h2 className="dw-text-heading apps-phone-count">{pending ? <>&nbsp;</> : lead}</h2>
+            {pending ? null : newApp}
           </div>
         ) : null}
         {body}
@@ -335,23 +385,32 @@ function useLead(services: readonly ServiceInfo[], where: string): string {
   let moving = 0;
   let trouble = 0;
   for (const s of services) {
-    const kind = appState(s, servers).kind;
-    if (kind === "deploying") moving++;
-    else if (kind !== "live") trouble++;
+    const state = appState(s, servers);
+    if (state.kind === "deploying") moving++;
+    else if (needsALook(state)) trouble++;
   }
-  return [total, trouble > 0 ? t`${trouble} need a look` : "", moving > 0 ? t`${moving} deploying` : ""]
+  return [
+    total,
+    trouble > 0 ? plural(trouble, { one: "# needs a look", other: "# need a look" }) : "",
+    moving > 0 ? t`${moving} deploying` : "",
+  ]
     .filter(Boolean)
     .join(" · ");
 }
 
-/** A stack's title, from its services' names. */
-function useStackTitle() {
+/** The columns' heads, which the list and its skeleton share so nothing moves when it lands. */
+function useColumnHeads(fleet: boolean, wide: boolean) {
   const { t } = useLingui();
-  return (group: AppGroup): string => {
-    const names = group.services.slice(0, STACK_NAMES).map(nameOf).join(", ");
-    const more = group.services.length - STACK_NAMES;
-    return more > 0 ? t`${names} and ${more} more` : names;
-  };
+  return useMemo(() => {
+    const heads: { key: string; header: string; width?: number | string; align?: "right" }[] = [
+      { key: "app", header: t`App` },
+    ];
+    if (wide) heads.push({ key: "image", header: t`Image`, width: "42%" });
+    heads.push({ key: "status", header: t`Status`, width: 152 }, { key: "revision", header: t`Revision`, width: 88 });
+    if (fleet) heads.push({ key: "servers", header: t`Runs on`, width: 168 });
+    heads.push({ key: "deployed", header: t`Deployed`, width: 104, align: "right" });
+    return heads;
+  }, [t, fleet, wide]);
 }
 
 interface TableProps {
@@ -368,92 +427,86 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen }: TableP
   const { servers } = useFleetView();
   const words = useAppWords();
   const time = useTimeWords();
-  const now = useControlPlaneNow(30_000);
-  const stackTitle = useStackTitle();
+  const wide = useMediaQuery(IMAGE_COLUMN_QUERY);
+  const heads = useColumnHeads(fleet, wide);
+  const newest = useMemo(() => {
+    let out: Date | undefined;
+    for (const row of rows) {
+      const when = row.service ? deployedAt(row.service) : groupDeployedAt(row.group);
+      if (!out || when > out) out = when;
+    }
+    return out;
+  }, [rows]);
+  const now = useAgoNow(newest);
   const columns = useMemo<TableColumn<Row>[]>(() => {
-    const out: TableColumn<Row>[] = [
-      {
-        key: "app",
-        header: t`App`,
-        render: (row) => {
-          if (row.kind === "stack") {
-            const count = row.group.services.length;
-            const expanded = !collapsed.has(row.group.key);
-            const title = stackTitle(row.group);
-            return (
-              <div className="apps-stack">
-                <button
-                  type="button"
-                  className="apps-stack-toggle"
-                  aria-expanded={expanded}
-                  aria-label={expanded ? t`Fold ${title}` : t`Unfold ${title}`}
-                  onClick={() => onToggle(row.group.key)}
-                >
-                  <Icon name={expanded ? "chevron-down" : "chevron-right"} size={14} />
-                </button>
-                <span className="dw-cell">
-                  <span className="dw-cell-title apps-clip">{title}</span>
+    const render: Record<string, (row: Row) => ReactNode> = {
+      app: (row) => {
+        if (row.kind === "stack") {
+          const count = row.group.services.length;
+          const expanded = !collapsed.has(row.group.key);
+          const title = row.group.name;
+          return (
+            <div className="apps-stack">
+              <button
+                type="button"
+                className="apps-stack-toggle"
+                aria-expanded={expanded}
+                aria-label={expanded ? t`Fold ${title}` : t`Unfold ${title}`}
+                onClick={() => onToggle(row.group.key)}
+              >
+                <Icon name={expanded ? "chevron-down" : "chevron-right"} size={14} />
+              </button>
+              <span className="dw-cell">
+                <span className="dw-cell-title apps-clip" title={title}>
+                  {title}
+                </span>
+                {wide ? null : (
                   <span className="apps-stack-sub">
                     <Icon name="layers" size={12} />
-                    {plural(count, { one: "Stack of # service", other: "Stack of # services" })}
+                    {plural(count, { one: "# app", other: "# apps" })}
                   </span>
-                </span>
-              </div>
-            );
-          }
-          const service = row.service as ServiceInfo;
-          return (
-            <span className="dw-cell">
-              {/* The row takes the keyboard; the link is for a new tab, and for screen readers' lists of links. */}
-              <Link
-                to="/apps/$serviceId"
-                params={{ serviceId: service.id }}
-                className="dw-cell-title apps-clip apps-name"
-                tabIndex={-1}
-              >
-                {nameOf(service)}
-              </Link>
-              <span className="dw-cell-sub apps-clip" title={imageOf(service)}>
-                {imageOf(service)}
+                )}
               </span>
-            </span>
+            </div>
           );
-        },
+        }
+        const service = row.service as ServiceInfo;
+        const name = row.kind === "app" && row.group.name ? row.group.name : nameOf(service);
+        return (
+          <span className="dw-cell">
+            {/* The row takes the keyboard; the link is for a new tab, and for screen readers' lists of links. */}
+            <Link
+              to="/apps/$serviceId"
+              params={{ serviceId: service.id }}
+              className="dw-cell-title apps-clip apps-name"
+              title={name}
+              tabIndex={-1}
+            >
+              {name}
+            </Link>
+            {wide ? null : <ImageName image={imageOf(service)} className="dw-cell-sub" />}
+          </span>
+        );
       },
-      {
-        key: "status",
-        header: t`Status`,
-        width: 152,
-        render: (row) => {
-          const state: AppState =
-            row.kind === "stack" ? groupState(row.group, servers) : appState(row.service as ServiceInfo, servers);
-          return <StatusBadge status={state.status} label={words.state(state)} labelIsState className="apps-status" />;
-        },
+      image: (row) => {
+        if (row.service) return <ImageName image={imageOf(row.service)} className="apps-image" />;
+        const count = row.group.services.length;
+        return (
+          <span className="apps-stack-sub">
+            <Icon name="layers" size={12} />
+            {plural(count, { one: "# app", other: "# apps" })}
+          </span>
+        );
       },
-      {
-        key: "revision",
-        header: t`Revision`,
-        width: 88,
-        mono: true,
-        render: (row) => (row.service ? revisionName(row.service.revision) : null),
+      status: (row) => {
+        const state: AppState =
+          row.kind === "stack" ? groupState(row.group, servers) : appState(row.service as ServiceInfo, servers);
+        const word = words.state(state);
+        return <StatusBadge status={state.status} label={word} labelIsState className="apps-status" title={word} />;
       },
-    ];
-    if (fleet) {
-      out.push({
-        key: "servers",
-        header: t`Runs on`,
-        width: 168,
-        muted: true,
-        render: (row) => (row.service ? <RunsOn service={row.service} /> : <StackServers group={row.group} />),
-      });
-    }
-    out.push({
-      key: "deployed",
-      header: t`Deployed`,
-      width: 104,
-      align: "right",
-      muted: true,
-      render: (row) => {
+      revision: (row) => (row.service ? revisionName(row.service.revision) : <span aria-hidden="true">—</span>),
+      servers: (row) => (row.service ? <RunsOn service={row.service} /> : <StackServers group={row.group} />),
+      deployed: (row) => {
         const when = row.service ? deployedAt(row.service) : groupDeployedAt(row.group);
         return (
           <time dateTime={when.toISOString()} title={formatDateTime(when, i18n.locale)}>
@@ -461,9 +514,14 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen }: TableP
           </time>
         );
       },
-    });
-    return out;
-  }, [t, i18n, words, servers, fleet, time, now, collapsed, onToggle, stackTitle]);
+    };
+    return heads.map((head) => ({
+      ...head,
+      ...(head.key === "revision" ? { mono: true } : {}),
+      ...(head.key === "servers" || head.key === "deployed" ? { muted: true } : {}),
+      render: render[head.key] as (row: Row) => ReactNode,
+    }));
+  }, [t, i18n, words, servers, time, now, collapsed, onToggle, wide, heads]);
 
   return (
     <Table<Row>
@@ -489,12 +547,16 @@ function RunsOn({ service }: { service: ServiceInfo }) {
     const count = names.length;
     return <span title={names.join(", ")}>{plural(count, { one: "# server", other: "# servers" })}</span>;
   }
-  return <code className="apps-servers">{names.join(", ")}</code>;
+  return (
+    <code className="apps-servers apps-clip" title={names.join(", ")}>
+      {names.join(", ")}
+    </code>
+  );
 }
 
 function StackServers({ group }: { group: AppGroup }) {
   const names = [...new Set(group.services.flatMap((s) => s.deployments.map((d) => d.serverName)))];
-  if (names.length === 1) return <code className="apps-servers">{names[0]}</code>;
+  if (names.length === 1) return <code className="apps-servers apps-clip">{names[0]}</code>;
   const count = names.length;
   return <span title={names.join(", ")}>{plural(count, { one: "# server", other: "# servers" })}</span>;
 }
@@ -511,7 +573,6 @@ function PhoneList({
 }) {
   const { servers, fleet } = useFleetView();
   const words = useAppWords();
-  const stackTitle = useStackTitle();
   return (
     <Panel flush className="apps-phone">
       {rows.map((row) => {
@@ -531,13 +592,13 @@ function PhoneList({
                 <Glyph shape={STATUS[state.status].shape} size={10} />
               </span>
               <span className="apps-phone-text">
-                <span className="apps-phone-name">{stackTitle(row.group)}</span>
+                <span className="apps-phone-name">{row.group.name}</span>
                 <span className="apps-phone-sub">
                   <span className={cx(state.kind !== "live" && `apps-phone-word dw-tone-${STATUS[state.status].tone}`)}>
                     {words.state(state)}
                   </span>
                   <span aria-hidden="true">·</span>
-                  <span>{plural(count, { one: "Stack of # service", other: "Stack of # services" })}</span>
+                  <span>{plural(count, { one: "# app", other: "# apps" })}</span>
                 </span>
               </span>
               <Icon name={expanded ? "chevron-down" : "chevron-right"} size={16} className="apps-phone-chevron" />
@@ -546,6 +607,8 @@ function PhoneList({
         }
         const service = row.service as ServiceInfo;
         const state = appState(service, servers);
+        const image = imageOf(service);
+        const where = service.deployments.map((d) => d.serverName).join(", ");
         return (
           <Link
             key={row.id}
@@ -557,7 +620,9 @@ function PhoneList({
               <Glyph shape={STATUS[state.status].shape} size={10} />
             </span>
             <span className="apps-phone-text">
-              <span className="apps-phone-name">{nameOf(service)}</span>
+              <span className="apps-phone-name">
+                {row.kind === "app" && row.group.name ? row.group.name : nameOf(service)}
+              </span>
               <span className="apps-phone-sub">
                 <span className={cx(state.kind !== "live" && `apps-phone-word dw-tone-${STATUS[state.status].tone}`)}>
                   {words.state(state)}
@@ -565,8 +630,8 @@ function PhoneList({
                 <span aria-hidden="true">·</span>
                 <code className="apps-phone-rev">{revisionName(service.revision)}</code>
                 <span aria-hidden="true">·</span>
-                <span className="apps-phone-image">
-                  {fleet ? service.deployments.map((d) => d.serverName).join(", ") : imageOf(service)}
+                <span className="apps-phone-image" title={fleet ? where : image}>
+                  {fleet ? where : shortImage(image)}
                 </span>
               </span>
             </span>
@@ -578,7 +643,34 @@ function PhoneList({
   );
 }
 
-/** While the first list is on its way: the shape of the table, so nothing moves when it lands. */
+/** While the list is on its way: the table with its heads, so nothing moves when it lands. */
+function AppsSkeleton({ label, fleet }: { label: string; fleet: boolean }) {
+  const phone = useMediaQuery(PHONE_QUERY);
+  const wide = useMediaQuery(IMAGE_COLUMN_QUERY);
+  const heads = useColumnHeads(fleet, wide);
+  const columns = useMemo<TableColumn<{ id: string }>[]>(
+    () =>
+      heads.map((head) => ({
+        ...head,
+        render: () => <span className="apps-skeleton-bar" style={{ width: head.key === "app" ? "44%" : "64%" }} />,
+      })),
+    [heads],
+  );
+  if (phone) return <ListSkeleton label={label} />;
+  return (
+    <div aria-busy="true">
+      <span className="dw-sr">{label}</span>
+      <Table
+        className="apps-table apps-skeleton"
+        columns={columns}
+        rows={[{ id: "1" }, { id: "2" }, { id: "3" }]}
+        rowClassName={() => "apps-skeleton-row"}
+      />
+    </div>
+  );
+}
+
+/** While a first list is on its way: the shape of its rows. */
 export function ListSkeleton({ label }: { label: string }) {
   const widths = ["44%", "32%", "38%"];
   return (
@@ -586,7 +678,7 @@ export function ListSkeleton({ label }: { label: string }) {
       <div aria-busy="true">
         <span className="dw-sr">{label}</span>
         {widths.map((width) => (
-          <div key={width} className="apps-skeleton-row" aria-hidden="true">
+          <div key={width} className="apps-skeleton-line" aria-hidden="true">
             <span className="apps-skeleton-bar" style={{ width }} />
             <span className="apps-skeleton-bar is-short" />
           </div>

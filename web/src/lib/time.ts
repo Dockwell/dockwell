@@ -2,7 +2,7 @@
 
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatDay } from "./format";
 
@@ -18,6 +18,53 @@ export function useNow(interval = SECOND): number {
     const timer = setInterval(() => setNow(Date.now()), interval);
     return () => clearInterval(timer);
   }, [interval]);
+  return now;
+}
+
+/** How often "3 min ago" is looked at again: it moves once a minute, and being off by this says nothing untrue. */
+const COARSE = 30 * SECOND;
+
+type Listener = (now: number) => void;
+
+const listeners = new Set<Listener>();
+let shared: ReturnType<typeof setInterval> | undefined;
+
+/** Every shown time listens to one timer, which runs only while one does. */
+function onTick(listener: Listener): () => void {
+  listeners.add(listener);
+  shared ??= setInterval(() => {
+    const now = Date.now();
+    for (const each of listeners) each(now);
+  }, SECOND);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) {
+      clearInterval(shared);
+      shared = undefined;
+    }
+  };
+}
+
+/**
+ * The current time, for a screen that shows how long ago things were: it
+ * moves every second while the newest of them is under a minute old, as "2 s
+ * ago" would otherwise be false to the second, and every 30 s after that. A
+ * screen renders again only when it moves. newest is on the browser's clock.
+ */
+export function useTickingNow(newest: number | undefined): number {
+  const [now, setNow] = useState(() => Date.now());
+  const seen = useRef(newest);
+  seen.current = newest;
+  useEffect(
+    () =>
+      onTick((at) =>
+        setNow((was) => {
+          const fine = seen.current !== undefined && at - seen.current < MINUTE + SECOND;
+          return fine || at - was >= COARSE ? at : was;
+        }),
+      ),
+    [],
+  );
   return now;
 }
 

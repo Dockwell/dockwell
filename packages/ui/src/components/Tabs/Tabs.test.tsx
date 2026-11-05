@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -117,5 +117,40 @@ describe("TabNav", () => {
     expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Deployments 128" })).toHaveAttribute("href", "/b");
     await expectAccessible(container);
+  });
+});
+
+describe("a tab list that doesn't fit", () => {
+  function sized(el: HTMLElement, sizes: { clientWidth: number; scrollWidth: number; scrollLeft?: number }) {
+    for (const [key, value] of Object.entries(sizes)) {
+      Object.defineProperty(el, key, { configurable: true, value });
+    }
+  }
+
+  it("fades the edge with more past it, and only then", () => {
+    const { rerender } = render(
+      <TabNav label="App sections">
+        <TabLink href="/a">Overview</TabLink>
+      </TabNav>,
+    );
+    const nav = screen.getByRole("navigation", { name: "App sections" });
+    expect(nav).not.toHaveAttribute("data-more");
+
+    sized(nav, { clientWidth: 300, scrollWidth: 400, scrollLeft: 0 });
+    fireEvent.scroll(nav);
+    expect(nav).toHaveAttribute("data-more", "end");
+
+    sized(nav, { clientWidth: 300, scrollWidth: 400, scrollLeft: 50 });
+    fireEvent.scroll(nav);
+    expect(nav).toHaveAttribute("data-more", "both");
+
+    sized(nav, { clientWidth: 300, scrollWidth: 400, scrollLeft: 100 });
+    fireEvent.scroll(nav);
+    expect(nav).toHaveAttribute("data-more", "start");
+    rerender(
+      <TabNav label="App sections">
+        <TabLink href="/a">Overview</TabLink>
+      </TabNav>,
+    );
   });
 });

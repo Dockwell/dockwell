@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { AnchorHTMLAttributes, ReactNode, Ref } from "react";
+import { type AnchorHTMLAttributes, type ReactNode, type Ref, useEffect, useRef, useState } from "react";
 
 import { cx } from "../../lib/cx";
 import { handleRovingKeyDown, tabStop } from "../../lib/roving";
@@ -8,6 +8,33 @@ import { useControlled } from "../../lib/useControlled";
 import { Icon } from "../Icon/Icon";
 import type { IconName } from "../Icon/icons";
 import "./Tabs.css";
+
+/**
+ * Says which edges of a list that scrolls sideways have more past them, for
+ * its fade. Nothing at all when it all fits.
+ */
+function useMoreEdges<E extends HTMLElement>() {
+  const ref = useRef<E>(null);
+  const [more, setMore] = useState<"start" | "end" | "both" | undefined>();
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const start = el.scrollLeft > 1;
+      const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setMore(start && end ? "both" : start ? "start" : end ? "end" : undefined);
+    };
+    measure();
+    el.addEventListener("scroll", measure, { passive: true });
+    const seen = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measure);
+    seen?.observe(el);
+    return () => {
+      el.removeEventListener("scroll", measure);
+      seen?.disconnect();
+    };
+  }, []);
+  return { ref, more };
+}
 
 export interface TabItem<Id extends string = string> {
   id: Id;
@@ -51,8 +78,11 @@ export function Tabs<Id extends string = string>({
   // Uncontrolled, the first tab stands in while the stored one isn't among the tabs, as when they load after mount.
   const current = value !== undefined ? value : tabStop(ids, stored);
   const stop = tabStop(ids, current);
+  const { ref, more } = useMoreEdges<HTMLDivElement>();
   return (
     <div
+      ref={ref}
+      data-more={more}
       className={cx("dw-tabs", className)}
       role="tablist"
       aria-label={label}
@@ -100,8 +130,9 @@ export interface TabNavProps {
  * as Tabs. For a view inside one page, use Tabs.
  */
 export function TabNav({ label, children, className }: TabNavProps) {
+  const { ref, more } = useMoreEdges<HTMLElement>();
   return (
-    <nav className={cx("dw-tabs", className)} aria-label={label}>
+    <nav ref={ref} data-more={more} className={cx("dw-tabs", className)} aria-label={label}>
       {children}
     </nav>
   );

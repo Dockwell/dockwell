@@ -15,13 +15,6 @@ msgstr ", secret"
 msgid "(modified)"
 msgstr "(modified)"
 
-#. placeholder {0}: orphans.length
-#. placeholder {1}: orphans.join(", ")
-#. placeholder {2}: orphans.join(", ")
-#: src/features/apps/NewAppSheet.tsx
-msgid "{0, plural, one {{1} is here already, and not in the file. Otherwise it stays as it is.} other {{2} are here already, and not in the file. Otherwise they stay as they are.}}"
-msgstr "{0, plural, one {{1} is here already, and not in the file. Otherwise it stays as it is.} other {{2} are here already, and not in the file. Otherwise they stay as they are.}}"
-
 #. placeholder {0}: state.servers.length
 #: src/features/apps/AppOverview.tsx
 msgid "{0, plural, one {{servers} isn't connected} other {{servers} aren't connected}}"
@@ -44,8 +37,8 @@ msgstr "{0, plural, one {Network} other {Networks}}"
 
 #. placeholder {0}: services.length
 #: src/features/apps/NewAppSheet.tsx
-msgid "{0, plural, one {This makes # service} other {This makes # services}}"
-msgstr "{0, plural, one {This makes # service} other {This makes # services}}"
+msgid "{0, plural, one {This makes # app} other {This makes # apps}}"
+msgstr "{0, plural, one {This makes # app} other {This makes # apps}}"
 
 #. placeholder {0}: volumes.length
 #: src/features/apps/NewAppSheet.tsx
@@ -111,6 +104,10 @@ msgstr "{count, plural, one {# day} other {# days}}"
 msgid "{count, plural, one {# hour} other {# hours}}"
 msgstr "{count, plural, one {# hour} other {# hours}}"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
+msgstr "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
+
 #: src/app/Providers.tsx
 #: src/features/apps/AppsPage.tsx
 msgid "{count, plural, one {# server} other {# servers}}"
@@ -121,12 +118,8 @@ msgid "{count, plural, one {# variable} other {# variables}}"
 msgstr "{count, plural, one {# variable} other {# variables}}"
 
 #: src/features/apps/NewAppSheet.tsx
-msgid "{count, plural, one {Run a Compose file of # service} other {Run a Compose file of # services}}"
-msgstr "{count, plural, one {Run a Compose file of # service} other {Run a Compose file of # services}}"
-
-#: src/features/apps/AppsPage.tsx
-msgid "{count, plural, one {Stack of # service} other {Stack of # services}}"
-msgstr "{count, plural, one {Stack of # service} other {Stack of # services}}"
+msgid "{count, plural, one {Show it} other {Show them}}"
+msgstr "{count, plural, one {Show it} other {Show them}}"
 
 #: src/app/Providers.tsx
 msgid "{count} degraded"
@@ -256,10 +249,6 @@ msgstr "{names} · about {span} down"
 msgid "{names} · no downtime expected"
 msgstr "{names} · no downtime expected"
 
-#: src/features/apps/AppsPage.tsx
-msgid "{names} and {more} more"
-msgstr "{names} and {more} more"
-
 #: src/features/servers/ServerPanels.tsx
 msgid "{now} now"
 msgstr "{now} now"
@@ -299,10 +288,6 @@ msgstr "{reads}, relabelled for SELinux as shared"
 #: src/features/apps/AppOverview.tsx
 msgid "{revision} deployed {when}"
 msgstr "{revision} deployed {when}"
-
-#: src/features/apps/AppOverview.tsx
-msgid "{revision} deployed {when} by {actor}"
-msgstr "{revision} deployed {when} by {actor}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "{revision} started deploying {when}"
@@ -347,13 +332,17 @@ msgstr "{servers} offline"
 msgid "{share} of {size} used"
 msgstr "{share} of {size} used"
 
+#: src/features/apps/AppDeployments.tsx
+msgid "{shown} already matches what runs"
+msgstr "{shown} already matches what runs"
+
 #: src/features/activity/describe.ts
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 
 #: src/features/apps/AppsPage.tsx
-msgid "{trouble} need a look"
-msgstr "{trouble} need a look"
+msgid "{trouble, plural, one {# needs a look} other {# need a look}}"
+msgstr "{trouble, plural, one {# needs a look} other {# need a look}}"
 
 #: src/features/shell/Topbar.tsx
 msgid "{unknown} in an unknown state"
@@ -376,13 +365,21 @@ msgstr "<0>{0}</0> · the panel for {name}"
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> may have been removed, or the link may be wrong."
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "<0>{project}</0> is here already, so the plan updates what's in it."
+msgstr "<0>{project}</0> is here already, so the plan updates what's in it."
+
 #: src/features/apps/AppLayout.tsx
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 msgstr "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 
 #: src/features/apps/NewAppSheet.tsx
-msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. A signed-in person has to approve that in the plan."
-msgstr "<0>{source}</0> gives this app control of Docker on the server, the same as root. A signed-in person has to approve that in the plan."
+msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
+msgstr "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "<0>{variable}</0> is written in {service}'s {where}, so anyone who can read this app can see its value. To keep it hidden, pass it in <1>environment</1>, and use <2>{dollar}</2> there."
+msgstr "<0>{variable}</0> is written in {service}'s {where}, so anyone who can read this app can see its value. To keep it hidden, pass it in <1>environment</1>, and use <2>{dollar}</2> there."
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "1, 5 and 15 min"
@@ -416,8 +413,8 @@ msgstr "A claim link works only until someone claims the install. Sign in instea
 msgid "A secret needs a value."
 msgstr "A secret needs a value."
 #: src/features/apps/ExportSheet.tsx
-msgid "A file docker compose runs without Dockwell, with no secrets in it"
-msgstr "A file docker compose runs without Dockwell, with no secrets in it"
+msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
+msgstr "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 
 #: src/features/activity/describe.ts
 msgid "a server"
@@ -426,6 +423,10 @@ msgstr "a server"
 #: src/features/changes/ChangeSheet.tsx
 msgid "A step failed, so the change stopped there"
 msgstr "A step failed, so the change stopped there"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "A volume such as data at /data, or a server path."
+msgstr "A volume such as data at /data, or a server path."
 
 #: src/features/activity/ActivityPage.tsx
 msgid "About"
@@ -473,6 +474,14 @@ msgstr "Add"
 #: src/features/auth/ProfilePage.tsx
 msgid "Add a passkey for {rpId} now, so you can sign in here next time without another link."
 msgstr "Add a passkey for {rpId} now, so you can sign in here next time without another link."
+
+#: src/features/apps/AppOverview.tsx
+msgid "Add a port"
+msgstr "Add a port"
+
+#: src/features/apps/AddPortSheet.tsx
+msgid "Add a port to {name}"
+msgstr "Add a port to {name}"
 
 #: src/features/auth/ProfilePage.tsx
 msgid "Add a second way to sign in"
@@ -614,8 +623,8 @@ msgid "and {more} more"
 msgstr "and {more} more"
 
 #: src/features/apps/NewAppSheet.tsx
-msgid "Any image your server can pull, from Docker Hub or another registry."
-msgstr "Any image your server can pull, from Docker Hub or another registry."
+msgid "Any image your server can pull, such as nginx:1.27."
+msgstr "Any image your server can pull, such as nginx:1.27."
 
 #: src/features/changes/words.ts
 msgid "anyone on the internet"
@@ -710,6 +719,10 @@ msgstr "Brings back the data the server kept"
 msgid "By"
 msgstr "By"
 
+#: src/features/apps/revision.ts
+msgid "by {name}"
+msgstr "by {name}"
+
 #: src/features/auth/AuthGate.tsx
 msgid "Can't check your session"
 msgstr "Can't check your session"
@@ -727,12 +740,17 @@ msgid "Can't load the apps"
 msgstr "Can't load the apps"
 
 #: src/features/apps/AppDeployments.tsx
+#: src/features/apps/AppOverview.tsx
 msgid "Can't load the deployments"
 msgstr "Can't load the deployments"
 
 #: src/features/apps/AppLayout.tsx
 msgid "Can't load this app"
 msgstr "Can't load this app"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Can't make a plan"
+msgstr "Can't make a plan"
 
 #: src/features/auth/AuthGate.tsx
 #: src/features/system/Unreachable.tsx
@@ -749,6 +767,7 @@ msgid "Can't scan it? Enter this key instead: <0>{0}</0>"
 msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 
 #: src/app/Providers.tsx
+#: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/TokensPanel.tsx
@@ -781,6 +800,18 @@ msgstr "Change the variable {trimmed}"
 msgid "changed"
 msgstr "changed"
 
+#: src/features/apps/revision.ts
+msgid "Changed {field}"
+msgstr "Changed {field}"
+
+#: src/features/apps/revision.ts
+msgid "Changed {field} and {more} more"
+msgstr "Changed {field} and {more} more"
+
+#: src/features/apps/AppDeployments.tsx
+msgid "Changed, and hidden"
+msgstr "Changed, and hidden"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Changes"
 msgstr "Changes"
@@ -788,6 +819,14 @@ msgstr "Changes"
 #: src/features/activity/ActivityPage.tsx
 msgid "Changes, servers joining and sign-ins show up here as they happen."
 msgstr "Changes, servers joining and sign-ins show up here as they happen."
+
+#: src/features/apps/revision.ts
+msgid "Changing {field}"
+msgstr "Changing {field}"
+
+#: src/features/apps/revision.ts
+msgid "Changing {field} and {more} more"
+msgstr "Changing {field} and {more} more"
 
 #: src/features/system/StatusPage.tsx
 msgid "Check it from a terminal"
@@ -865,6 +904,10 @@ msgstr "Code sign-in is locked after 10 wrong codes in a row. Sign in with a pas
 #: src/features/auth/TotpPanel.tsx
 msgid "Codes copied"
 msgstr "Codes copied"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "command"
+msgstr "command"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Command"
@@ -980,6 +1023,10 @@ msgstr "Copy codes"
 msgid "Copy command"
 msgstr "Copy command"
 
+#: src/routes/_shell/apps.$serviceId.logs.tsx
+msgid "Copy the command"
+msgstr "Copy the command"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
 msgstr "Copy the image"
@@ -991,6 +1038,22 @@ msgstr "Copy this token now. It won't be shown again."
 #: src/features/auth/TokensPanel.tsx
 msgid "Copy token"
 msgstr "Copy token"
+
+#: src/features/apps/revision.ts
+msgid "Couldn't change {field}"
+msgstr "Couldn't change {field}"
+
+#: src/features/apps/revision.ts
+msgid "Couldn't change {field} and {more} more"
+msgstr "Couldn't change {field} and {more} more"
+
+#: src/features/apps/revision.ts
+msgid "Couldn't create from"
+msgstr "Couldn't create from"
+
+#: src/features/apps/revision.ts
+msgid "Couldn't deploy"
+msgstr "Couldn't deploy"
 
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
@@ -1047,9 +1110,17 @@ msgstr "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer<
 msgid "Created an API token"
 msgstr "Created an API token"
 
+#: src/features/apps/revision.ts
+msgid "Created from"
+msgstr "Created from"
+
 #: src/features/activity/describe.ts
 msgid "Created the API token {name}"
 msgstr "Created the API token {name}"
+
+#: src/features/apps/revision.ts
+msgid "Creating from"
+msgstr "Creating from"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Creating passkey"
@@ -1111,16 +1182,14 @@ msgstr "Deploy your first app"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/apps/revision.ts
+#: src/features/apps/words.ts
 msgid "Deployed"
 msgstr "Deployed"
 
 #: src/features/apps/AppLayout.tsx
 msgid "deployed {ago}"
 msgstr "deployed {ago}"
-
-#: src/features/apps/AppLayout.tsx
-msgid "deployed {ago} by {actor}"
-msgstr "deployed {ago} by {actor}"
 
 #: src/app/Providers.tsx
 #: src/features/apps/revision.ts
@@ -1131,6 +1200,10 @@ msgstr "Deploying"
 #: src/features/apps/AppOverview.tsx
 msgid "Deploying {revision} of {name}"
 msgstr "Deploying {revision} of {name}"
+
+#: src/features/apps/AppLayout.tsx
+msgid "Deploying <0>{image}</0>, started {ago}"
+msgstr "Deploying <0>{image}</0>, started {ago}"
 
 #: src/features/apps/AppLayout.tsx
 msgid "Deployments"
@@ -1286,6 +1359,10 @@ msgstr "Enter the email of your account."
 msgid "Enter your name."
 msgstr "Enter your name."
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "entrypoint"
+msgstr "entrypoint"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Entrypoint"
 msgstr "Entrypoint"
@@ -1387,6 +1464,14 @@ msgstr "firewall"
 msgid "Firewall rule"
 msgstr "Firewall rule"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "Fix line {line} to review the plan"
+msgstr "Fix line {line} to review the plan"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Fix the file to review the plan"
+msgstr "Fix the file to review the plan"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Fix what it says, then deploy again."
 msgstr "Fix what it says, then deploy again."
@@ -1444,6 +1529,10 @@ msgstr "From the API"
 msgid "From the CLI"
 msgstr "From the CLI"
 
+#: src/features/apps/revision.ts
+msgid "from the CLI on {local}"
+msgstr "from the CLI on {local}"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "From the link <0>dockwell run</0> printed. Run <1>dockwell claim</1> on {name} for a new one."
 msgstr "From the link <0>dockwell run</0> printed. Run <1>dockwell claim</1> on {name} for a new one."
@@ -1455,6 +1544,14 @@ msgstr "From the panel"
 #: src/features/auth/ClaimPage.tsx
 msgid "Full access to {name}"
 msgstr "Full access to {name}"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Give {first} a value to review the plan"
+msgstr "Give {first} a value to review the plan"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Give each variable a value to review the plan"
+msgstr "Give each variable a value to review the plan"
 
 #: src/features/system/StatusPage.tsx
 msgid "Go"
@@ -1469,6 +1566,10 @@ msgstr "Go to the apps"
 #: src/features/shell/NotYet.tsx
 msgid "Go to the overview"
 msgstr "Go to the overview"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "health check"
+msgstr "health check"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Health check"
@@ -1523,6 +1624,8 @@ msgid "If you lost a passkey, add a new one now, then remove the lost one below.
 msgstr "If you lost a passkey, add a new one now, then remove the lost one below."
 
 #: src/features/apps/AppDeployments.tsx
+#: src/features/apps/AppOverview.tsx
+#: src/features/apps/AppsPage.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "Image"
@@ -1560,6 +1663,7 @@ msgstr "In 90 days"
 msgid "In a shell on the control server"
 msgstr "In a shell on the control server"
 
+#: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "In the app"
 msgstr "In the app"
@@ -1623,13 +1727,17 @@ msgstr "Its agent has disconnected. Check that <0>dockwell run</0> is still runn
 msgid "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
 msgstr "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
+msgstr "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy"
 msgstr "Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy"
 
 #: src/features/apps/ExportSheet.tsx
-msgid "Its whole environment"
-msgstr "Its whole environment"
+msgid "Its whole project"
+msgstr "Its whole project"
 
 #: src/app/Providers.tsx
 msgid "job"
@@ -1663,6 +1771,9 @@ msgstr "Kernel"
 #: src/features/variables/VariablesPage.tsx
 msgid "Key"
 msgstr "Key"
+#: src/features/apps/NewAppSheet.tsx
+msgid "labels"
+msgstr "labels"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "last {span}"
@@ -1679,6 +1790,12 @@ msgstr "Left out as they may hold secrets"
 #: src/features/shell/MorePage.tsx
 msgid "Light"
 msgstr "Light"
+
+#. placeholder {0}: refused.line
+#. placeholder {1}: refused.text
+#: src/features/apps/NewAppSheet.tsx
+msgid "Line {0}: {1}"
+msgstr "Line {0}: {1}"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Link expires"
@@ -1699,8 +1816,8 @@ msgid "Live"
 msgstr "Live"
 
 #: src/routes/_shell/apps.$serviceId.logs.tsx
-msgid "Live logs arrive in this tab with a later change. Until then, read them with docker logs on the server."
-msgstr "Live logs arrive in this tab with a later change. Until then, read them with docker logs on the server."
+msgid "Live logs arrive in this tab with a later change. Until then, read them on the server:"
+msgstr "Live logs arrive in this tab with a later change. Until then, read them on the server:"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "Load average"
@@ -1835,6 +1952,14 @@ msgstr "More"
 msgid "Move to another app"
 msgstr "Move to another app"
 
+#: src/features/apps/revision.ts
+msgid "Moved"
+msgstr "Moved"
+
+#: src/features/apps/revision.ts
+msgid "Moving"
+msgstr "Moving"
+
 #: src/features/apps/AppEnvironment.tsx
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/ClaimPage.tsx
@@ -1848,6 +1973,10 @@ msgstr "Name it, such as DATABASE_URL."
 #: src/features/apps/NewAppSheet.tsx
 msgid "Name a volume, or an absolute path on the server."
 msgstr "Name a volume, or an absolute path on the server."
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Name it to review the plan"
+msgstr "Name it to review the plan"
 
 #: src/features/apps/DeploySheet.tsx
 msgid "Name the image to run, such as {current}."
@@ -2018,6 +2147,10 @@ msgstr "Not placed"
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "Nothing changed on the server. Reload the page to try again."
 
+#: src/features/apps/AddPortSheet.tsx
+msgid "Nothing changes until you apply the plan"
+msgstr "Nothing changes until you apply the plan"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Nothing here yet"
 msgstr "Nothing here yet"
@@ -2047,12 +2180,12 @@ msgid "Nothing outside the server reaches it until you publish a port."
 msgstr "Nothing outside the server reaches it until you publish a port."
 
 #: src/features/apps/AppOverview.tsx
-msgid "Nothing outside the server reaches it, as it publishes no port."
-msgstr "Nothing outside the server reaches it, as it publishes no port."
+msgid "Nothing outside the server reaches it yet."
+msgstr "Nothing outside the server reaches it yet."
 
 #: src/features/apps/AppOverview.tsx
-msgid "Nothing outside the server reaches it, as it publishes no port. Other apps on its network do."
-msgstr "Nothing outside the server reaches it, as it publishes no port. Other apps on its network do."
+msgid "Nothing outside the server reaches it yet. Other apps on its network do."
+msgstr "Nothing outside the server reaches it yet. Other apps on its network do."
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Nothing runs on a server: Dockwell records it and it applies at once."
@@ -2066,6 +2199,10 @@ msgstr "Nothing runs until you apply the plan"
 #: src/features/changes/words.ts
 msgid "Nothing to do"
 msgstr "Nothing to do"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Nothing yet. It runs once the deploy finishes."
+msgstr "Nothing yet. It runs once the deploy finishes."
 
 #: src/features/auth/SessionsPanel.tsx
 msgid "now"
@@ -2089,6 +2226,7 @@ msgstr "Offline"
 msgid "On"
 msgstr "On"
 
+#: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "On the server"
 msgstr "On the server"
@@ -2192,8 +2330,16 @@ msgid "Optional"
 msgstr "Optional"
 
 #: src/features/apps/NewAppSheet.tsx
+msgid "Other apps are here, so it needs a name of its own, such as <0>shop</0>. Its apps show as one row, on a network of their own."
+msgstr "Other apps are here, so it needs a name of its own, such as <0>shop</0>. Its apps show as one row, on a network of their own."
+
+#: src/features/apps/NewAppSheet.tsx
 msgid "Other apps on its network reach it by this name."
 msgstr "Other apps on its network reach it by this name."
+
+#: src/features/apps/AddPortSheet.tsx
+msgid "Outside the server, people reach the app through it"
+msgstr "Outside the server, people reach the app through it"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/overview/Overview.tsx
@@ -2244,6 +2390,10 @@ msgid "Passkeys need a hostname, not an IP address. Open the panel at http://loc
 msgstr "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 
 #: src/features/apps/NewAppSheet.tsx
+msgid "Paste a Compose file to review its plan"
+msgstr "Paste a Compose file to review its plan"
+
+#: src/features/apps/NewAppSheet.tsx
 msgid "Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan."
 msgstr "Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan."
 
@@ -2268,6 +2418,7 @@ msgid "plain HTTP on {path} for anyone who can reach this server, around whateve
 msgstr "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/apps/AppDeployments.tsx
 #: src/features/changes/ChangeSheet.tsx
 msgid "Plan"
 msgstr "Plan"
@@ -2325,6 +2476,7 @@ msgstr "Profile and security"
 msgid "project"
 msgstr "project"
 
+#: src/features/apps/NewAppSheet.tsx
 #: src/features/changes/words.ts
 msgid "Project"
 msgstr "Project"
@@ -2342,6 +2494,7 @@ msgstr "Proposed by"
 msgid "Protected environment"
 msgstr "Protected environment"
 
+#: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "Protocol"
 msgstr "Protocol"
@@ -2357,6 +2510,10 @@ msgstr "Public IPv4"
 #: src/features/servers/ServerPanels.tsx
 msgid "Public IPv6"
 msgstr "Public IPv6"
+
+#: src/features/apps/AddPortSheet.tsx
+msgid "Publish port {hostPort} on {name}"
+msgstr "Publish port {hostPort} on {name}"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "QR code for your authenticator app"
@@ -2395,6 +2552,10 @@ msgstr "Read-only"
 #: src/features/changes/words.ts
 msgid "read-write"
 msgstr "read-write"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Reading the file"
+msgstr "Reading the file"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads servers and their state. Changes nothing."
@@ -2498,6 +2659,10 @@ msgstr "Replace codes"
 msgid "Replaced"
 msgstr "Replaced"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "Required"
+msgstr "Required"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "resource"
 msgstr "resource"
@@ -2507,6 +2672,9 @@ msgid "Resources"
 msgstr "Resources"
 
 #: src/features/apps/AppOverview.tsx
+msgid "Restart policy"
+msgstr "Restart policy"
+
 #: src/features/changes/words.ts
 msgid "Restarts"
 msgstr "Restarts"
@@ -2542,6 +2710,7 @@ msgid "Revealed the secret {name}"
 msgstr "Revealed the secret {name}"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -2609,6 +2778,10 @@ msgstr "Rolled back after a failed deploy"
 msgid "Rolled back by"
 msgstr "Rolled back by"
 
+#: src/features/apps/revision.ts
+msgid "Rolled back to {target}"
+msgstr "Rolled back to {target}"
+
 #: src/features/apps/AppDeployments.tsx
 msgid "Rollout"
 msgstr "Rollout"
@@ -2621,6 +2794,10 @@ msgstr "Rolls back"
 msgid "Rotated the key that wraps every secret"
 msgstr "Rotated the key that wraps every secret"
 #: src/features/apps/NewAppSheet.tsx
+msgid "Run {projectName} from a Compose file"
+msgstr "Run {projectName} from a Compose file"
+
+#: src/features/apps/NewAppSheet.tsx
 msgid "Run {wanted} as {name}"
 msgstr "Run {wanted} as {name}"
 
@@ -2631,6 +2808,10 @@ msgstr "Route"
 #: src/features/overview/Overview.tsx
 msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
 msgstr "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Run a Compose file"
+msgstr "Run a Compose file"
 
 #: src/features/apps/AppsPage.tsx
 msgid "Run an image or a Compose file on your server. You review a plan before anything starts."
@@ -2766,8 +2947,8 @@ msgid "Sessions"
 msgstr "Sessions"
 
 #: src/features/apps/ExportSheet.tsx
-msgid "Set each variable in the shell, or in an .env file beside the Compose file, before you run docker compose up."
-msgstr "Set each variable in the shell, or in an .env file beside the Compose file, before you run docker compose up."
+msgid "Set each variable in the shell, or in an <0>.env</0> file beside the Compose file, before you run <1>docker compose up</1>."
+msgstr "Set each variable in the shell, or in an <0>.env</0> file beside the Compose file, before you run <1>docker compose up</1>."
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Set up"
@@ -2931,10 +3112,6 @@ msgstr "Source"
 msgid "Start with read only, and allow writes only when the job needs them."
 msgstr "Start with read only, and allow writes only when the job needs them."
 
-#: src/features/apps/AppLayout.tsx
-msgid "started {ago}"
-msgstr "started {ago}"
-
 #: src/features/activity/ActivityPage.tsx
 msgid "State"
 msgstr "State"
@@ -2960,6 +3137,10 @@ msgstr "Stopped"
 #: src/features/auth/TotpPanel.tsx
 msgid "Such as 1Password, Google Authenticator or Aegis"
 msgstr "Such as 1Password, Google Authenticator or Aegis"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Such as 8080 on the server, to 80 in the app."
+msgstr "Such as 8080 on the server, to 80 in the app."
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Synced"
@@ -3006,10 +3187,6 @@ msgstr "That code doesn't match. Check that your phone's clock is right, then en
 #: src/features/auth/messages.ts
 msgid "That code was already used. Wait for the next one in your authenticator app."
 msgstr "That code was already used. Wait for the next one in your authenticator app."
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "That didn't plan"
-msgstr "That didn't plan"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "That didn't work"
@@ -3075,6 +3252,10 @@ msgstr "The change failed"
 msgid "The CLI"
 msgstr "The CLI"
 
+#: src/features/apps/revision.ts
+msgid "the CLI on {local}"
+msgstr "the CLI on {local}"
+
 #: src/features/auth/messages.ts
 msgid "The control plane couldn't check your session just now. Try again in a moment."
 msgstr "The control plane couldn't check your session just now. Try again in a moment."
@@ -3131,8 +3312,8 @@ msgid "The deploy waits for its agent, and carries on once it reconnects. Check 
 msgstr "The deploy waits for its agent, and carries on once it reconnects. Check that <0>dockwell run</0> is still running on the server."
 
 #: src/features/apps/NewAppSheet.tsx
-msgid "The file names these, with no default. They aren't saved with it."
-msgstr "The file names these, with no default. They aren't saved with it."
+msgid "The file uses these, and has no default for them."
+msgstr "The file uses these, and has no default for them."
 
 #: src/features/apps/AppOverview.tsx
 msgid "The image's own"
@@ -3228,8 +3409,8 @@ msgid "Theme"
 msgstr "Theme"
 
 #: src/features/apps/AppsPage.tsx
-msgid "There are no apps here yet. Choose another environment, or make one here with New app."
-msgstr "There are no apps here yet. Choose another environment, or make one here with New app."
+msgid "There are no apps here yet. Choose another environment, or make one with New app."
+msgstr "There are no apps here yet. Choose another environment, or make one with New app."
 
 #: src/features/system/NotFound.tsx
 msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
@@ -3262,6 +3443,14 @@ msgstr "This control plane"
 #: src/features/auth/messages.ts
 msgid "This device already has a passkey for your account here. Use it, or pick another device or security key."
 msgstr "This device already has a passkey for your account here. Use it, or pick another device or security key."
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
+msgstr "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "This file is too large to read"
+msgstr "This file is too large to read"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "This install already has an owner"
@@ -3300,8 +3489,8 @@ msgid "This plan gives more access to a server"
 msgstr "This plan gives more access to a server"
 
 #: src/features/apps/NewAppSheet.tsx
-msgid "This reaches <0>{source}</0> on the server. A signed-in person has to approve that in the plan."
-msgstr "This reaches <0>{source}</0> on the server. A signed-in person has to approve that in the plan."
+msgid "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."
+msgstr "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."
 
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"
@@ -3382,6 +3571,7 @@ msgid "trend"
 msgstr "trend"
 
 #: src/features/apps/AppDeployments.tsx
+#: src/features/apps/AppOverview.tsx
 #: src/features/apps/AppsPage.tsx
 msgid "Try again"
 msgstr "Try again"
@@ -3520,6 +3710,7 @@ msgstr "Use a code from your authenticator app"
 msgid "Use a passkey instead"
 msgstr "Use a passkey instead"
 
+#: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "Use a port from 1 to 65535."
 msgstr "Use a port from 1 to 65535."
@@ -3538,6 +3729,10 @@ msgstr "Use an absolute path, such as /data."
 #: src/features/apps/NewAppSheet.tsx
 msgid "Use letters, digits and underscores, starting with a letter or underscore."
 msgstr "Use letters, digits and underscores, starting with a letter or underscore."
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Use lowercase letters, digits and dashes, starting with a letter, such as shop."
+msgstr "Use lowercase letters, digits and dashes, starting with a letter, such as shop."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Use lowercase letters, digits and dashes, starting with a letter, such as web."
@@ -3681,10 +3876,17 @@ msgstr "What the services in {envName} use, by name. Changing a value restarts e
 #: src/features/apps/NewAppSheet.tsx
 msgid "What it writes elsewhere goes when its container is replaced."
 msgstr "What it writes elsewhere goes when its container is replaced."
+#: src/features/apps/AddPortSheet.tsx
+msgid "What people connect to, such as 8080."
+msgstr "What people connect to, such as 8080."
 
 #: src/features/apps/AppsPage.tsx
 msgid "What runs on your servers isn't affected."
 msgstr "What runs on your servers isn't affected."
+
+#: src/features/apps/AddPortSheet.tsx
+msgid "What the app listens on, such as 80."
+msgstr "What the app listens on, such as 80."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "What this file makes"
@@ -3737,6 +3939,10 @@ msgstr "whoever comes through {list}"
 #: src/features/apps/AppDeployments.tsx
 msgid "Why it failed"
 msgstr "Why it failed"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Without a volume, what it writes is lost when its container is replaced."
+msgstr "Without a volume, what it writes is lost when its container is replaced."
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Works here"

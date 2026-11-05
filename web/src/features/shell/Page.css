@@ -18,8 +18,10 @@
   gap: var(--space-4);
 }
 
+/* It takes what the actions leave, so a long lead wraps rather than push them to a line of their own. */
 .page-heading {
   display: flex;
+  flex: 1 1 0;
   flex-direction: column;
   gap: var(--space-1);
   min-width: 0;
@@ -51,11 +53,12 @@
 }
 
 .page-lead code {
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .page-actions {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   gap: var(--space-2);
 }

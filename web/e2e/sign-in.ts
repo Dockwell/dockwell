@@ -35,6 +35,7 @@ import { parseArgs } from "node:util";
 import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
 
 import { appsFlow } from "./apps-flow.ts";
+import { dockerProbe } from "./docker-probe.ts";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -91,6 +92,9 @@ function nav(page: Page) {
   return page.getByRole("navigation", { name: "Main" });
 }
 
+/** Where the fake Docker Engine's socket is, once it has started. */
+let fakeSocket = "";
+
 /** Starts the fake Docker Engine and says where its socket is, for dockwell to reach it. */
 async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
   const path = values["fake-docker"];
@@ -100,6 +104,7 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
     docker?.stdout?.once("data", (b: Buffer) => done(b.toString().trim()));
     docker?.once("error", refused);
   });
+  fakeSocket = socket;
   return { DOCKER_HOST: `unix://${socket}` };
 }
 
@@ -735,7 +740,9 @@ async function main() {
   step(
     `  ${secretId} added through a plan, revealed with the passkey and on the timeline; a token, and a page's script, were refused`,
   );
-  if (values["fake-docker"]) await appsFlow(page, { origin, step, shoot });
+  if (fakeSocket !== "") {
+    await appsFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket), failing: "nginx:broken" });
+  }
 
   step("sign out on a phone, from More");
   await page.setViewportSize({ width: 390, height: 844 });

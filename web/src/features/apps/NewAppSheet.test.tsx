@@ -21,7 +21,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { anApp, places, SERVER } from "../../test/apps";
+import { anApp, places, projectPlaces, SERVER } from "../../test/apps";
 import { moved, watched } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -217,14 +217,14 @@ describe("New app, from an image", () => {
     await user.click(within(sheet).getByRole("button", { name: "Add port" }));
     await user.type(within(sheet).getByLabelText("On the server"), "99999");
     await user.click(within(sheet).getByRole("button", { name: "Add variable" }));
-    await user.type(within(sheet).getByPlaceholderText("LOG_LEVEL"), "1BAD");
+    await user.type(within(sheet).getAllByLabelText("Name")[1] as HTMLElement, "1BAD");
     await user.click(within(sheet).getByRole("button", { name: "Add volume" }));
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     expect(within(sheet).getByLabelText(/^Name/, { selector: "[placeholder=nginx]" })).toHaveAccessibleDescription(
       /lowercase letters/,
     );
     expect(within(sheet).getByLabelText("On the server")).toHaveAccessibleDescription("Use a port from 1 to 65535.");
-    expect(within(sheet).getByPlaceholderText("LOG_LEVEL")).toHaveAccessibleDescription(
+    expect(within(sheet).getAllByLabelText("Name")[1]).toHaveAccessibleDescription(
       /Use letters, digits and underscores/,
     );
     expect(within(sheet).getByLabelText("Volume or server path")).toHaveAccessibleDescription(/Name a volume/);
@@ -320,8 +320,11 @@ describe("New app, from an image", () => {
     await user.type(within(sheet).getByLabelText("On the server"), "8080");
     await user.type(within(sheet).getByLabelText("In the app"), "80");
     await user.click(within(sheet).getByRole("button", { name: "Add variable" }));
-    within(sheet).getByPlaceholderText("LOG_LEVEL").focus();
+    within(sheet).getAllByLabelText("Name")[1]?.focus();
     await user.paste("A=1\nB=2");
+    // Its fields are named once over the first row, and read out on every row.
+    expect(sheet.querySelectorAll(".app-env label")).toHaveLength(2);
+    expect(within(sheet).getAllByRole("textbox", { name: "Value" })).toHaveLength(2);
     expect(
       within(sheet)
         .getAllByLabelText("Value")
@@ -370,7 +373,7 @@ describe("New app, from an image", () => {
     await user.click(within(sheet).getByRole("button", { name: "Add volume" }));
     const source = within(sheet).getByLabelText("Volume or server path");
     await user.type(source, "/srv/data");
-    expect(within(sheet).getByText(/on the server\. A signed-in person has to approve/)).toBeVisible();
+    expect(within(sheet).getByText(/on the server\. You approve this in the plan; API tokens can't/)).toBeVisible();
     await user.clear(source);
     await user.type(source, "/var/run/docker.sock");
     expect(within(sheet).getByText(/control of Docker on the server, the same as root/)).toBeVisible();
@@ -456,7 +459,7 @@ describe("New app, from a Compose file", () => {
           }),
         importCompose: (req) => {
           imports.push(req);
-          return { change: planned({ summary: "Run a Compose file of 2 services" }) };
+          return { change: planned({ summary: "Run a Compose file" }) };
         },
       }),
       changes: {
@@ -472,7 +475,7 @@ describe("New app, from a Compose file", () => {
     await user.click(within(sheet).getByLabelText("Compose file"));
     await user.paste("services:\n  web:\n    image: ghcr.io/acme/web:1\n");
     const preview = await within(sheet).findByRole("region", { name: "What this file makes" });
-    expect(preview).toHaveTextContent("This makes 2 services");
+    expect(preview).toHaveTextContent("This makes 2 apps");
     expect(preview).toHaveTextContent("ghcr.io/acme/web:1");
     expect(preview).toHaveTextContent("8080:80");
     expect(preview).toHaveTextContent("Reaches /srv/conf");
@@ -482,7 +485,7 @@ describe("New app, from a Compose file", () => {
     await waitFor(() => expect(review).toBeEnabled());
     await user.click(review);
     await screen.findByRole("dialog", { name: "Review plan" });
-    expect(imports[0]?.summary).toBe("Run a Compose file of 2 services");
+    expect(imports[0]?.summary).toBe("Run a Compose file");
     expect(imports[0]?.compose).toContain("ghcr.io/acme/web:1");
     expect(imports[0]?.environment).toBe("");
     expect(imports[0]?.servers).toEqual([]);
@@ -503,7 +506,7 @@ describe("New app, from a Compose file", () => {
           create(CheckComposeResponseSchema, {
             refusal: {
               message:
-                "the service web builds an image, which Dockwell can't do yet. Build and push the image, then name it with image",
+                "the service web uses `build`, and Dockwell can't build an image yet. Build and push the image, then name it with `image`",
               line: 3,
             },
           }),
@@ -513,10 +516,202 @@ describe("New app, from a Compose file", () => {
     const field = within(sheet).getByLabelText("Compose file");
     await user.click(field);
     await user.paste("services:\n  web:\n    build: .\n");
-    await waitFor(() => expect(field).toHaveAccessibleDescription(/^The service web builds an image/));
+    await waitFor(() => expect(field).toHaveAccessibleDescription(/^Line 3: the service web uses build/));
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(document.querySelector(".dw-code-mark")).toHaveStyle({ "--dw-code-line": "2" });
+    // The file's own words are in mono.
+    const words = [...sheet.querySelectorAll(".dw-field-error code")].map((c) => c.textContent);
+    expect(words).toEqual(["build", "image"]);
+    const review = within(sheet).getByRole("button", { name: "Review plan" });
+    expect(review).toBeDisabled();
+    // And the footer says why it can't go on.
+    expect(within(sheet).getByText("Fix line 3 to review the plan")).toBeVisible();
+    await expectAccessible(document.body);
+  });
+
+  it("says a file that isn't YAML at the line the parser gave up on, with no parser in it", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/new?source=compose",
+      compose({
+        checkCompose: () =>
+          create(CheckComposeResponseSchema, {
+            refusal: { message: "line 6: check the indentation, and that quotes and brackets close", line: 6 },
+          }),
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    const field = within(sheet).getByLabelText("Compose file");
+    await user.click(field);
+    await user.paste("services:\n  web:\n  image: [\n");
+    await waitFor(() =>
+      expect(field).toHaveAccessibleDescription("Line 6: check the indentation, and that quotes and brackets close."),
+    );
+    expect(document.querySelector(".dw-code-mark")).toHaveStyle({ "--dw-code-line": "5" });
+  });
+
+  it("says a file over the limit in plain words, without asking the API", async () => {
+    const user = userEvent.setup();
+    const check = vi.fn(() => create(CheckComposeResponseSchema, {}));
+    renderAt("/apps/new?source=compose", compose({ checkCompose: check }));
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    const field = within(sheet).getByLabelText("Compose file");
+    await user.click(field);
+    await user.paste(`# ${"x".repeat(300 << 10)}\nservices: {}\n`);
+    await waitFor(() =>
+      expect(field).toHaveAccessibleDescription(/^This file is 301 KiB, and Dockwell reads files of up to 256 KiB/),
+    );
     expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
+    expect(within(sheet).getByText("This file is too large to read")).toBeVisible();
+    await new Promise((r) => setTimeout(r, 400));
+    expect(check).not.toHaveBeenCalled();
+  });
+
+  it("grows the field with the file, up to a point", async () => {
+    const user = userEvent.setup();
+    const { container } = renderAt(
+      "/apps/new?source=compose",
+      compose({ checkCompose: () => create(CheckComposeResponseSchema, {}) }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    const input = () => container.ownerDocument.querySelector<HTMLElement>(".dw-code-input");
+    expect(input()).toHaveStyle({ "--dw-code-lines": "12" });
+    const field = within(sheet).getByLabelText("Compose file");
+    await user.click(field);
+    await user.paste("x\n".repeat(20));
+    expect(input()).toHaveStyle({ "--dw-code-lines": "22" });
+    await user.paste("x\n".repeat(200));
+    expect(input()).toHaveStyle({ "--dw-code-lines": "28" });
+  });
+
+  it("names the project from the file, which you can change, and sends it", async () => {
+    const user = userEvent.setup();
+    const imports: ImportComposeRequest[] = [];
+    renderAt("/apps/new?source=compose", {
+      ...compose({
+        checkCompose: () => create(CheckComposeResponseSchema, { name: "my_shop", services: [web] }),
+        importCompose: (req) => {
+          imports.push(req);
+          return { change: planned() };
+        },
+      }),
+      changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange: () => ({}) },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(within(sheet).getByLabelText("Compose file"));
+    await user.paste("name: my_shop\nservices:\n  web:\n    image: a\n");
+    const name = within(sheet).getByLabelText(/^Name/);
+    // A name that wouldn't do is made into one that does.
+    await waitFor(() => expect(name).toHaveValue("my-shop"));
+    await waitFor(() => expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled());
+    await user.clear(name);
+    await user.type(name, "storefront");
+    await waitFor(() => expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled());
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(imports[0]).toMatchObject({ project: "storefront", summary: "Run storefront from a Compose file" });
+  });
+
+  it("needs a name once other apps are here, as it could change what's there", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/new?source=compose", {
+      ...compose({ checkCompose: () => create(CheckComposeResponseSchema, { services: [web] }) }),
+      services: { listServices: () => ({ services: [anApp("old", "old:1")] }), listServiceRevisions: () => ({}) },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(within(sheet).getByLabelText("Compose file"));
+    await user.paste("services:\n  web:\n    image: a\n");
+    const review = within(sheet).getByRole("button", { name: "Review plan" });
+    await within(sheet).findByRole("region", { name: "What this file makes" });
+    await within(sheet).findByText("Name it to review the plan");
+    expect(review).toBeDisabled();
+    await user.type(within(sheet).getByLabelText(/^Name/), "Not A Label");
+    expect(within(sheet).getByLabelText(/^Name/)).toHaveAccessibleDescription(/Use lowercase letters/);
+    expect(review).toBeDisabled();
+    await user.clear(within(sheet).getByLabelText(/^Name/));
+    await user.type(within(sheet).getByLabelText(/^Name/), "shop");
+    await waitFor(() => expect(review).toBeEnabled());
+  });
+
+  it("lets a file go in the default project with no name while that has no apps", async () => {
+    const user = userEvent.setup();
+    const imports: ImportComposeRequest[] = [];
+    renderAt("/apps/new?source=compose", {
+      ...compose({
+        checkCompose: () => create(CheckComposeResponseSchema, { services: [web] }),
+        importCompose: (req) => {
+          imports.push(req);
+          return { change: planned() };
+        },
+      }),
+      changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange: () => ({}) },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(within(sheet).getByLabelText("Compose file"));
+    await user.paste("services:\n  web:\n    image: a\n");
+    await waitFor(() => expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled());
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(imports[0]).toMatchObject({ project: "", summary: "Run a Compose file" });
+  });
+
+  it("puts the API's word that a file needs a project at the name", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/new?source=compose", {
+      ...compose({
+        checkCompose: () => create(CheckComposeResponseSchema, { services: [web] }),
+        importCompose: () => {
+          const err = new ConnectError("the Compose file names no project", Code.InvalidArgument);
+          err.metadata.set("Dockwell-Error", "needs_project");
+          throw err;
+        },
+      }),
+    });
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(within(sheet).getByLabelText("Compose file"));
+    await user.paste("services:\n  web:\n    image: a\n");
+    await waitFor(() => expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled());
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() =>
+      expect(within(sheet).getByLabelText(/^Name/)).toHaveAccessibleDescription(/The Compose file names no project/),
+    );
+  });
+
+  it("says when a name is here already, so the plan updates it", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/new?source=compose", {
+      ...compose({ checkCompose: () => create(CheckComposeResponseSchema, { name: "shop", services: [web] }) }),
+      resources: projectPlaces("shop"),
+    });
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(within(sheet).getByLabelText("Compose file"));
+    await user.paste("name: shop\nservices:\n  web:\n    image: a\n");
+    await waitFor(() =>
+      expect(within(sheet).getByLabelText(/^Name/)).toHaveAccessibleDescription(/shop is here already/),
+    );
+  });
+
+  it("says when a file writes a variable's value where anyone can read it, before there is a value", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/new?source=compose", {
+      ...compose({
+        checkCompose: () =>
+          create(CheckComposeResponseSchema, {
+            variables: [{ name: "REDIS_PASSWORD", required: true }],
+            exposedVariables: [{ name: "REDIS_PASSWORD", service: "shop", field: "command" }],
+            refusal: { message: "the Compose file uses REDIS_PASSWORD, with no value" },
+          }),
+      }),
+    });
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(within(sheet).getByLabelText("Compose file"));
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a Compose variable, as the file has it
+    await user.paste('services:\n  shop:\n    image: a\n    command: ["${REDIS_PASSWORD}"]\n');
+    const note = await within(sheet).findByText(/so anyone who can read this app can see its value/);
+    expect(note).toHaveTextContent("REDIS_PASSWORD is written in shop's command");
+    expect(note).toHaveTextContent("pass it in environment, and use $$REDIS_PASSWORD");
+    // No false promise that a value isn't saved.
+    expect(sheet).not.toHaveTextContent("aren't saved");
     await expectAccessible(document.body);
   });
 
@@ -544,7 +739,10 @@ describe("New app, from a Compose file", () => {
     const field = within(sheet).getByLabelText("Compose file");
     await user.click(field);
     await user.paste("services:\n  web:\n    image: a:$TAG\n");
-    const tag = await within(sheet).findByLabelText("TAG");
+    const tag = await within(sheet).findByLabelText(/^TAG/);
+    // It says which it needs.
+    expect(within(sheet).getByText("Required")).toBeVisible();
+    expect(within(sheet).getByText("Give TAG a value to review the plan")).toBeVisible();
     expect(field).not.toHaveAttribute("aria-invalid");
     // What has a default waits behind a button.
     expect(within(sheet).queryByLabelText(/HOST/)).not.toBeInTheDocument();
@@ -575,8 +773,14 @@ describe("New app, from a Compose file", () => {
     const sheet = await screen.findByRole("dialog", { name: "New app" });
     await user.click(within(sheet).getByLabelText("Compose file"));
     await user.paste("services:\n  web:\n    image: a\n");
+    // Into the project it would change, on purpose.
+    await user.type(within(sheet).getByLabelText(/^Name/), "default");
     const remove = await within(sheet).findByRole("switch", { name: /Remove what isn't in this file/ });
-    expect(sheet).toHaveTextContent("old is here already");
+    // How many, and the names only when asked: there may be seventy.
+    expect(sheet).toHaveTextContent("1 other app is here.");
+    expect(within(sheet).queryByText("old")).not.toBeInTheDocument();
+    await user.click(within(sheet).getByRole("button", { name: "Show it" }));
+    expect(within(sheet).getByText("old")).toBeVisible();
     await user.click(remove);
     await waitFor(() => expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled());
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));

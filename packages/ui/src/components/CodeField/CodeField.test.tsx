@@ -57,4 +57,32 @@ describe("CodeField", () => {
     expect(container.querySelector(".dw-code-numbers")).toHaveStyle({ transform: "translateY(-40px)" });
     expect(container.querySelector(".dw-code-marks")).toHaveStyle({ transform: "translateY(-40px)" });
   });
+
+  it("brings the marked line into view when the mark moves, and leaves it alone otherwise", () => {
+    const long = Array.from({ length: 200 }, (_, i) => `line ${i + 1}`).join("\n");
+    const { rerender } = render(<CodeField label="File" value={long} onChange={() => {}} />);
+    const field = screen.getByLabelText<HTMLTextAreaElement>("File");
+    Object.defineProperty(field, "clientHeight", { configurable: true, value: 200 });
+    field.style.lineHeight = "20px";
+    field.scrollTop = 3000;
+
+    rerender(<CodeField label="File" value={long} markedLine={6} onChange={() => {}} />);
+    expect(field.scrollTop).toBe(10);
+
+    // Scrolled away, the same mark stays where the reader went.
+    field.scrollTop = 1500;
+    rerender(<CodeField label="File" value={`${long}\n`} markedLine={6} onChange={() => {}} />);
+    expect(field.scrollTop).toBe(1500);
+
+    // Already in view, nothing jumps.
+    field.scrollTop = 100;
+    rerender(<CodeField label="File" value={long} markedLine={10} onChange={() => {}} />);
+    expect(field.scrollTop).toBe(100);
+  });
+
+  it("still hands its ref to whoever passes one", () => {
+    const seen: (HTMLTextAreaElement | null)[] = [];
+    render(<CodeField label="File" value="a" onChange={() => {}} ref={(el) => void seen.push(el)} />);
+    expect(seen[0]).toBe(screen.getByLabelText("File"));
+  });
 });

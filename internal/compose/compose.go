@@ -111,19 +111,17 @@ var (
 	// why says why a key Dockwell can't run is refused, and what to do,
 	// where that is more than removing it.
 	why = map[string]string{ //nolint:gosec // reasons for refusing keys such as secrets, not credentials
-		"build":      "builds an image, which Dockwell can't do yet. Build and push the image, then name it with image",
-		"env_file":   "reads env_file, a file beside the Compose file, which Dockwell doesn't have. Put the variables in environment",
-		"label_file": "reads label_file, a file beside the Compose file, which Dockwell doesn't have. Put the labels in labels",
-		"extends":    "extends another service, which Dockwell can't follow yet. Write the service out in full",
-		"profiles":   "is in profiles, which Dockwell doesn't select. Remove profiles to run it, or the service to leave it out",
-		"secrets":    "uses Compose secrets, which Dockwell can't run yet. Pass the values as environment variables",
-		"configs":    "uses Compose configs, which Dockwell can't run yet. Mount the files from the server instead",
-		"include":    "includes other files, which Dockwell doesn't have. Put everything in one file",
-		"external":   "is external, made outside the file, and a service can only join a network that is, for now. Let the file make the volume, or mount its path on the server",
-		"pid":        "shares a process namespace, which Dockwell can't run yet: with the server's, it sees and signals every process there. Remove pid",
-		"ipc":        "shares an IPC namespace, which Dockwell can't run yet. Remove ipc",
-		"devices":    "uses the server's devices, which Dockwell can't run yet. Remove devices, or run it with docker run for now",
-		"name":       "names itself in Docker, which Dockwell names as Compose does, <project>_<name>. Remove name",
+		"build":          "uses `build`, and Dockwell can't build an image yet. Build and push the image, then name it with `image`",
+		"env_file":       "reads `env_file`, a file beside the Compose file, which Dockwell doesn't have. Put the variables in `environment`",
+		"label_file":     "reads `label_file`, a file beside the Compose file, which Dockwell doesn't have. Put the labels in `labels`",
+		"container_name": "names its container, which Dockwell names as Compose does. Remove `container_name`",
+		"extends":        "uses `extends`, and Dockwell can't follow another service yet. Write the service out in full",
+		"profiles":       "is in `profiles`, which Dockwell doesn't select. Remove `profiles` to run it, or the service to leave it out",
+		"secrets":        "uses Compose `secrets`, which Dockwell can't run yet. Pass the values as environment variables",
+		"configs":        "uses Compose `configs`, which Dockwell can't run yet. Mount the files from the server instead",
+		"include":        "uses `include`, for other files Dockwell doesn't have. Put everything in one file",
+		"external":       "is `external`, made outside the file, which Dockwell can't refer to yet. Let the file make it",
+		"name":           "names itself in Docker, which Dockwell names as Compose does, `<project>_<name>`. Remove `name`",
 	}
 )
 
@@ -145,7 +143,7 @@ func check(what string, m map[string]any, allowed map[string]bool) error {
 		if reason, ok := why[k]; ok {
 			return invalidAt(place{what, k}, "%s %s", what, reason)
 		}
-		return invalidAt(place{what, k}, "%s uses %s, which Dockwell can't run yet. Remove it from the Compose file to import it", what, k)
+		return invalidAt(place{what, k}, "%s uses `%s`, which Dockwell can't run yet. Remove it from the Compose file to import it", what, k)
 	}
 	return nil
 }
@@ -156,7 +154,7 @@ func check(what string, m map[string]any, allowed map[string]bool) error {
 func checkRaw(file []byte) (map[string]any, error) {
 	var raw map[string]any
 	if err := yaml.Unmarshal(file, &raw); err != nil {
-		return nil, invalid("the Compose file isn't valid YAML: %v", err)
+		return nil, notYAML(err)
 	}
 	if len(raw) == 0 {
 		return nil, invalid("the Compose file is empty. Give it services, such as web with image: nginx:1.27")

@@ -130,6 +130,16 @@ export function onPhone() {
   }));
 }
 
+/** A wide screen where only this media query matches. */
+export function onScreen(matching: string) {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === matching,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
 /** Renders a hook against api. */
 export function renderHookWithApi<T>(hook: () => T, api: Api) {
   return renderHook(hook, { wrapper: apiWrapper(api) });

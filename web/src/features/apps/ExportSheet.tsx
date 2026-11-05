@@ -27,10 +27,13 @@ export function ExportSheet({
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const [whole, setWhole] = useState(service === undefined);
-  const query = useQuery(ComposeService.method.exportCompose, {
-    environment,
-    service: whole ? "" : (service ?? ""),
-  });
+  // Each time from the control plane: a file from before the last deploy would
+  // be wrong, and nothing else reads it again when a change applies.
+  const query = useQuery(
+    ComposeService.method.exportCompose,
+    { environment, service: whole ? "" : (service ?? "") },
+    { staleTime: 0, gcTime: 0 },
+  );
   const file = query.data?.compose ?? "";
   const omitted = query.data?.omitted ?? [];
   const [copied, setCopied] = useState(false);
@@ -65,7 +68,11 @@ export function ExportSheet({
     <Sheet
       open
       title={t`Export as Compose`}
-      subtitle={t`A file docker compose runs without Dockwell, with no secrets in it`}
+      subtitle={
+        <Trans>
+          A file <code>docker compose</code> runs without Dockwell, with no secrets in it
+        </Trans>
+      }
       onClose={onClose}
       className={cx("app-sheet", phone && "is-phone")}
       footer={
@@ -92,7 +99,7 @@ export function ExportSheet({
               label={t`What to export`}
               options={[
                 { value: "service", label: t`This app` },
-                { value: "environment", label: t`Its whole environment` },
+                { value: "environment", label: t`Its whole project` },
               ]}
               value={whole ? "environment" : "service"}
               onChange={(value) => setWhole(value === "environment")}
@@ -114,8 +121,8 @@ export function ExportSheet({
               ))}
             </ul>
             <Trans>
-              Set each variable in the shell, or in an .env file beside the Compose file, before you run docker compose
-              up.
+              Set each variable in the shell, or in an <code>.env</code> file beside the Compose file, before you run{" "}
+              <code>docker compose up</code>.
             </Trans>
           </Callout>
         ) : null}

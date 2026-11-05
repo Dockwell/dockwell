@@ -4,7 +4,6 @@ import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
-  type Actor,
   ActorKind,
   ChangeState,
   DeploymentState,
@@ -21,8 +20,6 @@ import {
   type IconName,
   Panel,
   PHONE_QUERY,
-  PlanDiff,
-  type PlanResource,
   Sheet,
   type Status,
   StatusBadge,
@@ -40,11 +37,12 @@ import { formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useChangeWords } from "../changes/words";
-import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { useApp, useRevisions } from "./AppContext";
 import { ListSkeleton } from "./AppsPage";
-import { canRollBackTo, fieldName, nameOf, revisionName, shortImages, tidyMessage } from "./app";
-import { type Look, useRevisionLook, useRevisionTitle } from "./revision";
+import { canRollBackTo, fieldName, imageChange, nameOf, revisionName, shortImages, tidyMessage } from "./app";
+import { ImageName } from "./ImageName";
+import { type Look, useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { useAppWords } from "./words";
 
 const DEPLOYMENT_LOOKS: Partial<Record<DeploymentState, Status>> = {
@@ -55,7 +53,7 @@ const DEPLOYMENT_LOOKS: Partial<Record<DeploymentState, Status>> = {
 
 /** Where a change came from, by its mark: a person, a token, or Dockwell. */
 function triggerIcon(rev: ServiceRevision): IconName {
-  if (rev.change?.reverts) return "undo";
+  if (rev.change?.reverts || rev.rolledBackTo > 0n) return "undo";
   const kind = (rev.change?.appliedBy ?? rev.change?.proposedBy)?.kind;
   if (kind === ActorKind.TOKEN) return "key";
   if (kind === ActorKind.SHELL) return "terminal";
@@ -81,18 +79,19 @@ function took(rev: ServiceRevision): number | undefined {
  */
 export function AppDeployments() {
   const { t, i18n } = useLingui();
-  const { service } = useApp();
+  const { service, state } = useApp();
   const phone = useMediaQuery(PHONE_QUERY);
   const time = useTimeWords();
-  const now = useControlPlaneNow(30_000);
   const look = useRevisionLook();
   const revisionTitle = useRevisionTitle();
+  const who = useWhoWords();
   const navigate = useNavigate();
   const words = useChangeWords();
   const search: { revision?: string } = useSearch({ strict: false });
   const history = useRevisions(service.id);
   const appName = nameOf(service);
   const { revisions } = history;
+  const now = useAgoNow(revisions?.[0]?.createTime ? timestampDate(revisions[0].createTime) : undefined);
   const rollBack = useRollBack();
   const latest = service.revision;
   const selectedNumber = search.revision;
@@ -131,8 +130,8 @@ export function AppDeployments() {
         header: t`Status`,
         width: 116,
         render: (rev) => {
-          const { status, word } = look(rev, latest);
-          return <StatusBadge status={status} label={word} labelIsState />;
+          const { status, word } = look(rev, latest, state);
+          return <StatusBadge status={status} label={word} labelIsState title={word} className="apps-status" />;
         },
       },
       {
@@ -152,13 +151,15 @@ export function AppDeployments() {
         header: t`By`,
         width: 164,
         render: (rev) => {
-          const actor: Actor | undefined = rev.change?.appliedBy ?? rev.change?.proposedBy;
+          const name = who.name(rev.change);
           const via = rev.change ? words.via(rev.change.appliedVia || rev.change.proposedVia) : "";
           return (
             <span className="dw-cell deploy-who">
               <span className="deploy-who-name">
                 <Icon name={triggerIcon(rev)} size={14} />
-                <span className="deploy-clip">{actor?.name || t`Someone`}</span>
+                <span className="deploy-clip" title={name}>
+                  {name || t`Someone`}
+                </span>
               </span>
               <span className="deploy-who-via">{via}</span>
             </span>
@@ -193,7 +194,7 @@ export function AppDeployments() {
       },
     });
     return out;
-  }, [t, i18n, latest, look, revisionTitle, words, time, now]);
+  }, [t, i18n, latest, look, state, revisionTitle, words, who, time, now]);
 
   const newest = revisions?.[0] ? revisionName(revisions[0].number) : undefined;
   const lastShown = revisions?.[revisions.length - 1];
@@ -232,7 +233,7 @@ export function AppDeployments() {
         <Panel flush>
           <ul className="deploy-phone">
             {revisions.map((rev) => {
-              const { status, word } = look(rev, latest);
+              const { status, word } = look(rev, latest, state);
               const when = rev.createTime ? timestampDate(rev.createTime) : new Date(0);
               return (
                 <li key={rev.number.toString()}>
@@ -243,9 +244,7 @@ export function AppDeployments() {
                       <span className="deploy-phone-time">{time.ago(when, now)}</span>
                     </span>
                     <span className="deploy-phone-summary">{revisionTitle(rev)}</span>
-                    <span className="deploy-phone-by">
-                      {rev.change?.appliedBy?.name || rev.change?.proposedBy?.name}
-                    </span>
+                    <span className="deploy-phone-by">{who.name(rev.change)}</span>
                   </button>
                 </li>
               );
@@ -290,7 +289,7 @@ export function AppDeployments() {
         <RevisionPanel
           rev={selected}
           latest={latest}
-          look={look(selected, latest)}
+          look={look(selected, latest, state)}
           onRollBack={rollBack}
           revisions={revisions ?? []}
         />
@@ -303,7 +302,7 @@ export function AppDeployments() {
           onClose={() => select(undefined)}
           className="app-sheet is-phone"
           footer={
-            <RollBackButton target={rollBackTarget(selected, latest, revisions ?? [])} onRollBack={rollBack} wide />
+            <RollBackFoot rev={selected} latest={latest} revisions={revisions ?? []} onRollBack={rollBack} wide />
           }
         >
           <RevisionBody rev={selected} />
@@ -339,7 +338,8 @@ function useRollBack() {
 
 /**
  * Where the way back from a revision goes: from the one that is live, to the
- * one before it that ran; from any other, to it. Nowhere while it is moving.
+ * newest before it that ran and differs from it; from any other, to it, unless
+ * it matches what runs. Nowhere while it is moving.
  */
 function rollBackTarget(
   rev: ServiceRevision,
@@ -357,7 +357,7 @@ function ChangedLine({ rev }: { rev: ServiceRevision }) {
   const changes = rev.changes;
   const [first] = changes;
   if (rev.deleted) return <span>{t`Deleted`}</span>;
-  if (!first || rev.number === 1n) return <code className="deploy-clip">{rev.image}</code>;
+  if (!first || rev.number === 1n) return <ImageName image={rev.image} />;
   const more = changes.length - 1;
   const name = fieldName(first.path);
   const secret = first.sensitive;
@@ -382,26 +382,47 @@ function ChangedLine({ rev }: { rev: ServiceRevision }) {
   );
 }
 
-function RollBackButton({
-  target,
+/** The way back from a revision, or why there isn't one that would change anything. */
+function RollBackFoot({
+  rev,
+  latest,
+  revisions,
   onRollBack,
   wide = false,
 }: {
-  target: ServiceRevision | undefined;
+  rev: ServiceRevision;
+  latest: bigint;
+  revisions: readonly ServiceRevision[];
   onRollBack: (rev: ServiceRevision) => void;
   wide?: boolean;
 }) {
-  if (!target) return null;
+  const target = rollBackTarget(rev, latest, revisions);
+  const shown = revisionName(rev.number);
+  if (!target) {
+    if (rev.number === latest || !rev.matchesLatest) return null;
+    return (
+      <span className="deploy-matches app-muted">
+        <Trans>{shown} already matches what runs</Trans>
+      </span>
+    );
+  }
   const name = revisionName(target.number);
   return (
-    <Button
-      icon="undo"
-      size={wide ? "lg" : "md"}
-      onClick={() => onRollBack(target)}
-      className={cx(wide && "deploy-wide")}
-    >
-      <Trans>Roll back to {name}</Trans>
-    </Button>
+    <>
+      {wide ? null : (
+        <span className="app-muted">
+          <Trans>Opens a plan to review first</Trans>
+        </span>
+      )}
+      <Button
+        icon="undo"
+        size={wide ? "lg" : "md"}
+        onClick={() => onRollBack(target)}
+        className={cx(wide && "deploy-wide")}
+      >
+        <Trans>Roll back to {name}</Trans>
+      </Button>
+    </>
   );
 }
 
@@ -420,10 +441,10 @@ function RevisionPanel({
 }) {
   const { i18n } = useLingui();
   const time = useTimeWords();
-  const now = useControlPlaneNow(30_000);
   const when = rev.createTime ? timestampDate(rev.createTime) : new Date(0);
+  const now = useAgoNow(when);
   const name = revisionName(rev.number);
-  const target = rollBackTarget(rev, latest, revisions);
+  const foot = rollBackTarget(rev, latest, revisions) !== undefined || (rev.number !== latest && rev.matchesLatest);
   return (
     <div className="deploy-panel">
       <Panel
@@ -443,12 +464,9 @@ function RevisionPanel({
         <div className="deploy-panel-body">
           <RevisionBody rev={rev} />
         </div>
-        {target ? (
+        {foot ? (
           <div className="deploy-foot">
-            <span className="app-muted">
-              <Trans>Opens a plan to review first</Trans>
-            </span>
-            <RollBackButton target={target} onRollBack={onRollBack} />
+            <RollBackFoot rev={rev} latest={latest} revisions={revisions} onRollBack={onRollBack} />
           </div>
         ) : null}
       </Panel>
@@ -456,42 +474,63 @@ function RevisionPanel({
   );
 }
 
+/**
+ * What a revision changed, each field's old value above its new one, so a long
+ * value never breaks in the middle of a word. An image reads by what moved, and
+ * its full name is the Image fact below.
+ */
+function RevisionDiff({ rev }: { rev: ServiceRevision }) {
+  const { t } = useLingui();
+  return (
+    <ul className="deploy-diff">
+      {rev.changes.map((change) => {
+        const path = fieldName(change.path);
+        const image =
+          path === "image" && change.op === FieldOp.MODIFIED ? imageChange(change.from, change.to) : undefined;
+        const from = image?.from ?? change.from;
+        const to = image?.to ?? change.to;
+        return (
+          <li key={change.path} className="deploy-diff-row">
+            <code className="deploy-diff-path">{path}</code>
+            {change.sensitive ? (
+              <span className="app-muted">{t`Changed, and hidden`}</span>
+            ) : (
+              <span className="deploy-diff-values">
+                {change.op !== FieldOp.ADDED && from !== "" ? (
+                  <del className="deploy-diff-from">
+                    <code>{from}</code>
+                  </del>
+                ) : null}
+                {change.op !== FieldOp.REMOVED && to !== "" ? (
+                  <ins className="deploy-diff-to">
+                    <code>{to}</code>
+                  </ins>
+                ) : null}
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /** What a revision did and how it went. */
 function RevisionBody({ rev }: { rev: ServiceRevision }) {
   const { t, i18n } = useLingui();
   const appWords = useAppWords();
-  const { service } = useApp();
   const { fleet } = useFleetView();
   const change = rev.change;
   const words = useChangeWords();
+  const who = useWhoWords();
   const time = useTimeWords();
   const failed = rev.deployments.find((d) => d.state === DeploymentState.FAILED);
-  const actor = change?.appliedBy ?? change?.proposedBy;
   const via = change ? words.surface(change.appliedVia || change.proposedVia) : "";
   const proposedApart =
     change?.appliedBy && change.proposedBy && change.proposedBy.id !== change.appliedBy.id
       ? change.proposedBy
       : undefined;
   const duration = took(rev);
-  const resources = useMemo<PlanResource[]>(
-    () => [
-      {
-        id: rev.number.toString(),
-        action: rev.deleted ? "destroy" : rev.number === 1n ? "create" : "update",
-        kind: "service",
-        name: nameOf(service),
-        changes: rev.changes.map((c) => {
-          const out: { path: string; from?: string | { secret: true }; to?: string | { secret: true } } = {
-            path: fieldName(c.path),
-          };
-          if (c.op !== FieldOp.ADDED) out.from = c.sensitive ? { secret: true } : c.from;
-          if (c.op !== FieldOp.REMOVED) out.to = c.sensitive ? { secret: true } : c.to;
-          return out;
-        }),
-      },
-    ],
-    [rev, service],
-  );
   const when = rev.createTime ? timestampDate(rev.createTime) : new Date(0);
   return (
     <div className="deploy-body">
@@ -512,7 +551,7 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
             <Trans>What changed</Trans>
           </h3>
           {rev.changes.length > 0 ? (
-            <PlanDiff resources={resources} />
+            <RevisionDiff rev={rev} />
           ) : (
             <p className="app-note">
               <Trans>Nothing in its spec changed. It moved, or came back as it was.</Trans>
@@ -522,7 +561,7 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
       )}
       <dl className="app-facts">
         <dt>{t`Who`}</dt>
-        <dd>{actor?.name || t`Someone`}</dd>
+        <dd>{who.name(change) || t`Someone`}</dd>
         <dt>{t`From`}</dt>
         <dd>{via}</dd>
         {proposedApart ? (
@@ -540,6 +579,12 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
           <>
             <dt>{t`Took`}</dt>
             <dd>{time.bound(duration)}</dd>
+          </>
+        ) : null}
+        {change?.summary ? (
+          <>
+            <dt>{t`Plan`}</dt>
+            <dd>{change.summary}</dd>
           </>
         ) : null}
         {rev.image ? (

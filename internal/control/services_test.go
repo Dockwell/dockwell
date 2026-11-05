@@ -327,7 +327,7 @@ func TestCheckCompose(t *testing.T) {
 		}
 
 		res = check("services:\n  web:\n    image: nginx\n    build: .\n", nil)
-		if got := res.GetRefusal(); !strings.HasPrefix(got.GetMessage(), "the service web builds an image") || got.GetLine() != 4 || len(res.GetServices()) != 0 {
+		if got := res.GetRefusal(); !strings.HasPrefix(got.GetMessage(), "the service web uses `build`") || got.GetLine() != 4 || len(res.GetServices()) != 0 {
 			t.Errorf("checking a build = %v", res)
 		}
 		res = check("services:\n  sh:\n    image: alpine\n    volumes: [\"/:/host\"]\n", nil)

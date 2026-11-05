@@ -13,6 +13,27 @@
   background-origin: content-box;
   background-clip: content-box;
 }
+/* Where more of the list is out of sight, its edge fades, so it reads as one that scrolls. */
+.dw-tabs[data-more="end"] {
+  mask-image: linear-gradient(to left, transparent, #000 var(--space-8));
+}
+.dw-tabs[data-more="start"] {
+  mask-image: linear-gradient(to right, transparent, #000 var(--space-8));
+}
+.dw-tabs[data-more="both"] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--space-8),
+    #000 calc(100% - var(--space-8)),
+    transparent
+  );
+}
+@media (max-width: 639.98px) {
+  .dw-tabs {
+    gap: var(--space-4);
+  }
+}
 .dw-tab {
   position: relative;
   display: inline-flex;

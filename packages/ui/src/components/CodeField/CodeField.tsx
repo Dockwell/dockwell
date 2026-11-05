@@ -5,6 +5,7 @@ import {
   type ReactNode,
   type Ref,
   type TextareaHTMLAttributes,
+  useEffect,
   useId,
   useMemo,
   useRef,
@@ -24,13 +25,16 @@ export interface CodeFieldProps extends Omit<TextareaHTMLAttributes<HTMLTextArea
   hint?: ReactNode;
   /** Replaces the hint. Say what is wrong and how to fix it. */
   error?: ReactNode;
-  /** The line the error is about, from 1, which the field marks. */
+  /** The line the error is about, from 1, which the field marks and brings into view. */
   markedLine?: number | undefined;
   /** How many lines show before it scrolls. */
   lines?: number;
   value: string;
   ref?: Ref<HTMLTextAreaElement>;
 }
+
+/** The height of a line, should the styles not say. */
+const LINE_HEIGHT = 20;
 
 /**
  * A multi-line input for text a machine parses, such as a Compose file, with
@@ -48,6 +52,7 @@ export function CodeField({
   className,
   id,
   onScroll,
+  ref,
   "aria-describedby": describedBy,
   "aria-invalid": ariaInvalid,
   ...rest
@@ -60,8 +65,19 @@ export function CodeField({
   const hasMessage = hasContent(message);
   const gutter = useRef<HTMLDivElement>(null);
   const marks = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement | null>(null);
   const count = useMemo(() => Math.max(value.split("\n").length, 1), [value]);
   const numbers = useMemo(() => Array.from({ length: count }, (_, i) => i + 1).join("\n"), [count]);
+  // Only when the mark moves: a file that keeps its fault stays where it was scrolled to.
+  useEffect(() => {
+    const el = input.current;
+    if (!el || !markedLine || markedLine < 1) return;
+    const line = Number.parseFloat(getComputedStyle(el).lineHeight) || LINE_HEIGHT;
+    const top = (markedLine - 1) * line;
+    if (top < el.scrollTop || top + line > el.scrollTop + el.clientHeight) {
+      el.scrollTop = Math.max(0, top - (el.clientHeight - line) / 2);
+    }
+  }, [markedLine]);
   return (
     <div className={cx("dw-field", "dw-code-field", invalid && "is-invalid", className)}>
       {hasContent(label) || hasContent(actions) ? (
@@ -93,6 +109,11 @@ export function CodeField({
             autoCapitalize="off"
             autoCorrect="off"
             {...rest}
+            ref={(el) => {
+              input.current = el;
+              if (typeof ref === "function") ref(el);
+              else if (ref) ref.current = el;
+            }}
             id={inputId}
             value={value}
             wrap="off"

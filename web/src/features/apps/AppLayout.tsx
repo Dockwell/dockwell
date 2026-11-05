@@ -10,13 +10,14 @@ import { sentence } from "../../lib/errors";
 import { RouterButtonLink, RouterTabLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { Reconnecting } from "../servers/FleetNotes";
-import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { AppContext, useApp, useRevisions } from "./AppContext";
-import { appState, imageOf, nameOf, revisionName } from "./app";
+import { appState, deployedAt, environmentOf, imageOf, isMoving, nameOf, revisionName, shortImage } from "./app";
 import { DeploySheet } from "./DeploySheet";
-import { useServices, useServicesLive } from "./useServices";
+import { useWhoWords } from "./revision";
+import { usePlaces, useServices, useServicesLive } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
 
@@ -80,13 +81,19 @@ export function AppLayout({ serviceId, children }: { serviceId: string; children
   );
 }
 
-function Crumbs({ name }: { name?: string }) {
+function Crumbs({ name, project }: { name?: string; project?: string | undefined }) {
   const { t } = useLingui();
   return (
     <nav className="app-crumbs" aria-label={t`Breadcrumb`}>
       <Link to="/apps">
         <Trans>Apps</Trans>
       </Link>
+      {project ? (
+        <>
+          <span aria-hidden="true">/</span>
+          <span>{project}</span>
+        </>
+      ) : null}
       {name ? (
         <>
           <span aria-hidden="true">/</span>
@@ -102,23 +109,26 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const { service, state } = useApp();
   const words = useAppWords();
   const time = useTimeWords();
+  const who = useWhoWords();
+  const places = usePlaces();
   const phone = useMediaQuery(PHONE_QUERY);
-  const now = useControlPlaneNow(30_000);
+  const now = useAgoNow(deployedAt(service));
   const [deploying, setDeploying] = useState(false);
   const serviceId = service.id;
   const name = nameOf(service);
   const image = imageOf(service);
   const revision = revisionName(service.revision);
   const latest = useRevisions(serviceId).revisions?.[0];
-  const actor = latest?.change?.appliedBy?.name || latest?.change?.proposedBy?.name;
+  const by = who.phrase(latest?.change);
   const ago = service.updateTime ? time.ago(timestampDate(service.updateTime), now) : "";
   const stateWord = words.state(state);
-  const moving = state.kind === "deploying" || state.kind === "waiting";
+  const moving = isMoving(state);
+  const place = places.place(environmentOf(service));
   return (
     <Page
       title={name}
       back="/apps"
-      breadcrumb={<Crumbs name={name} />}
+      breadcrumb={<Crumbs name={name} project={place && !place.isDefault ? place.label : undefined} />}
       badge={
         <>
           <StatusBadge status={state.status} label={stateWord} labelIsState />
@@ -126,31 +136,24 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
         </>
       }
       lead={
-        <>
-          <code>{image}</code>
-          {" · "}
-          {moving ? (
-            <Trans>started {ago}</Trans>
-          ) : actor ? (
-            <Trans>
-              deployed {ago} by {actor}
-            </Trans>
-          ) : (
-            <Trans>deployed {ago}</Trans>
-          )}
-        </>
+        moving ? (
+          <Trans>
+            Deploying <code>{image}</code>, started {ago}
+          </Trans>
+        ) : (
+          <>
+            <code>{image}</code>
+            {" · "}
+            <Trans>deployed {ago}</Trans> {by}
+          </>
+        )
       }
       actions={
-        <>
-          <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal">
-            <Trans>Logs</Trans>
-          </RouterButtonLink>
-          <Button variant="primary" icon="deploy" onClick={() => setDeploying(true)}>
-            <Trans>Deploy</Trans>
-          </Button>
-        </>
+        <Button variant="primary" icon="deploy" onClick={() => setDeploying(true)}>
+          <Trans>Deploy</Trans>
+        </Button>
       }
-      phoneSub={`${revision} · ${stateWord}`}
+      phoneSub={`${revision} · ${stateWord}${phone ? ` · ${shortImage(image)}` : ""}`}
       status={reconnecting ? <Reconnecting /> : undefined}
       className="app-page"
     >
@@ -171,9 +174,6 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       {children}
       {phone ? (
         <div className="app-actionbar">
-          <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal" size="lg">
-            <Trans>Logs</Trans>
-          </RouterButtonLink>
           <Button variant="primary" icon="deploy" size="lg" onClick={() => setDeploying(true)}>
             <Trans>Deploy</Trans>
           </Button>

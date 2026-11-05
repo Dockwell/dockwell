@@ -47,7 +47,8 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
-import { appOf, environmentOf, imageOf, nameFromImage, nameOf, SERVICE_NAME, tidyMessage } from "./app";
+import { appOf, environmentOf, imageOf, nameFromImage, nameOf, SERVICE_NAME, tidyMessage, toLabel } from "./app";
+import { composeRefusal, type RefusedAt, withCode } from "./composeWords";
 import {
   appEdits,
   type EnvRow,
@@ -72,13 +73,21 @@ const nextKey = () => ++rowKeys;
 
 const CHECK_AFTER_MS = 300;
 
+/** The largest Compose file the API reads (compose.MaxFile). A larger one gets a plain word here, rather than a protocol error. */
+const MAX_FILE = 256 << 10;
+
+/** How many lines the Compose field starts with, and the most it grows to before it scrolls. */
+const FILE_LINES = 12;
+const MAX_FILE_LINES = 28;
+
 /**
  * New app (Apps-New): one sheet that takes an image or a Compose file and
  * ends in the plan. Nothing runs until the plan applies. An image needs only
  * its name; ports, variables and volumes wait behind a button each, and
- * where it runs shows only once there is a choice. A Compose file is read as
- * you type, says what it would make, and says at the line what Dockwell can't
- * run. Git and catalog sources come in phase 2, so they aren't here.
+ * where it runs shows only once there is a choice. A Compose file gets a
+ * project of its own, named from the file (ADR 0026); it is read as you type,
+ * says what it would make, and says at the line what Dockwell can't run. Git
+ * and catalog sources come in phase 2, so they aren't here.
  */
 export function NewAppSheet({
   source,
@@ -109,14 +118,13 @@ export function NewAppSheet({
     firstField.current?.focus();
   }, [source]);
 
-  const choosesEnvironment = places.environments.length > 1;
   const [environment, setEnvironment] = useState("");
-  const scope = environment || places.environments[0]?.id || "";
   const [chosenServers, setChosenServers] = useState<readonly string[]>([]);
 
   const [image, setImage] = useState<ImageForm>({ image: "", name: "", ports: [], env: [], mounts: [] });
   const [errors, setErrors] = useState<FormErrors>({});
   const [file, setFile] = useState("");
+  const [typedProject, setTypedProject] = useState<string>();
   const [variables, setVariables] = useState<Readonly<Record<string, string>>>({});
   const [removeOrphans, setRemoveOrphans] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -124,10 +132,31 @@ export function NewAppSheet({
   const [planning, setPlanning] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
+  const fileBytes = useMemo(() => new TextEncoder().encode(file).length, [file]);
+  const fileTooBig = fileBytes > MAX_FILE;
+  const check = useComposeCheck(source === "compose" && !fileTooBig ? file : "", variables);
+
+  // A Compose file goes in the project it names, and an image in the one chosen.
+  const project = typedProject ?? toLabel(check.data?.name ?? "");
+  const projectName = project.trim();
+  const projectKnown = places.projects.includes(projectName);
+  const defaultPlace = places.defaultEnvironment;
+  const defaultHasApps = (services ?? []).some((s) => places.place(environmentOf(s))?.isDefault);
+  const fileEnvironments = useMemo(
+    () => places.environments.filter((e) => (projectName ? e.project === projectName : e.isDefault)),
+    [places.environments, projectName],
+  );
+  const choices = source === "compose" ? fileEnvironments : places.environments;
+  const choosesEnvironment = choices.length > 1;
+  // A file's project may be new, and then nothing here is its environment.
+  const scope =
+    (choices.some((e) => e.id === environment) ? environment : "") ||
+    (source === "compose" ? fileEnvironments[0]?.id : defaultPlace?.id) ||
+    "";
+
   const volumes = useQuery(ResourceService.method.listResources, { kind: "volume", scope }, { enabled: scope !== "" })
     .data?.resources;
   const name = image.name.trim() || nameFromImage(image.image);
-  const check = useComposeCheck(source === "compose" ? file : "", variables);
 
   const inEnvironment = useMemo(
     () => (services ?? []).filter((s) => !scope || environmentOf(s) === scope),
@@ -135,17 +164,23 @@ export function NewAppSheet({
   );
   const orphans = useMemo(() => {
     const inFile = new Set((check.data?.services ?? []).map(nameOf));
-    return check.data && inFile.size > 0 ? inEnvironment.map(nameOf).filter((n) => !inFile.has(n)) : [];
-  }, [check.data, inEnvironment]);
+    if (!check.data || inFile.size === 0 || (projectName !== "" && !projectKnown)) return [];
+    return inEnvironment.map(nameOf).filter((n) => !inFile.has(n));
+  }, [check.data, inEnvironment, projectName, projectKnown]);
 
   const missingVariables = (check.data?.variables ?? [])
     .filter((v) => v.required && !variables[v.name])
     .map((v) => v.name);
+  const projectInvalid = projectName !== "" && !SERVICE_NAME.test(projectName);
+  const projectMissing = projectName === "" && defaultHasApps;
   const composeReady =
     file.trim() !== "" &&
+    !fileTooBig &&
     !check.isPending &&
     !check.error &&
     !check.data?.refusal &&
+    !projectInvalid &&
+    !projectMissing &&
     (check.data?.services.length ?? 0) > 0;
   const needsPlace = fleet && chosenServers.length === 0;
 
@@ -227,7 +262,8 @@ export function NewAppSheet({
       try {
         const count = check.data?.services.length ?? 0;
         const res = await composer.importCompose({
-          summary: plural(count, { one: "Run a Compose file of # service", other: "Run a Compose file of # services" }),
+          summary: projectName ? t`Run ${projectName} from a Compose file` : t`Run a Compose file`,
+          project: projectName,
           compose: file,
           environment: choosesEnvironment ? scope : "",
           variables,
@@ -236,7 +272,8 @@ export function NewAppSheet({
         });
         review(res.change, count === 1 ? "app" : "list");
       } catch (err) {
-        setFailure(sentence(err));
+        if (reasonOf(err) === "needs_project") setErrors({ project: sentence(err) });
+        else setFailure(sentence(err));
       } finally {
         setBusy(false);
       }
@@ -287,6 +324,27 @@ export function NewAppSheet({
   const onlyName = only?.name ?? "";
   const subtitle = only && !choosesEnvironment ? t`Runs on ${onlyName}` : undefined;
 
+  // Why Review plan can't be pressed yet, where it can't.
+  const whyNot: string | undefined = (() => {
+    if (source !== "compose" || composeReady) return undefined;
+    if (file.trim() === "") return t`Paste a Compose file to review its plan`;
+    if (fileTooBig) return t`This file is too large to read`;
+    if (check.isPending) return t`Reading the file`;
+    const refused = check.data?.refusal;
+    if (missingVariables.length > 0) {
+      const [first] = missingVariables;
+      return missingVariables.length === 1
+        ? t`Give ${first} a value to review the plan`
+        : t`Give each variable a value to review the plan`;
+    }
+    if (refused) {
+      const line = refused.line;
+      return line > 0 ? t`Fix line ${line} to review the plan` : t`Fix the file to review the plan`;
+    }
+    if (projectMissing || projectInvalid) return t`Name it to review the plan`;
+    return undefined;
+  })();
+
   const hostReach = source === "image" && image.mounts.some((m) => pathReach(m.source));
   const fileReach =
     source === "compose" &&
@@ -317,7 +375,9 @@ export function NewAppSheet({
           <>
             <span className="dw-sheet-note">
               <Icon name={hostReach || fileReach ? "shield" : "commit"} size={14} />
-              {hostReach || fileReach ? (
+              {whyNot ? (
+                whyNot
+              ) : hostReach || fileReach ? (
                 <Trans>You approve what it reaches in the plan</Trans>
               ) : (
                 <Trans>Nothing runs until you apply the plan</Trans>
@@ -351,7 +411,7 @@ export function NewAppSheet({
         {/* Lets Enter in a field do what the button in the sheet's footer does. */}
         <button type="submit" hidden />
         {failure ? (
-          <Callout tone="critical" title={t`That didn't plan`}>
+          <Callout tone="critical" title={t`Can't make a plan`}>
             {failure}
           </Callout>
         ) : null}
@@ -371,9 +431,9 @@ export function NewAppSheet({
             />
           </div>
         </div>
-        {choosesEnvironment ? (
+        {source === "image" && choosesEnvironment ? (
           <SelectField
-            label={t`Environment`}
+            label={places.showsEnvironment ? t`Environment` : t`Project`}
             value={scope}
             options={places.environments.map((e) => ({ value: e.id, label: e.label }))}
             onChange={(event) => setEnvironment(event.target.value)}
@@ -384,24 +444,41 @@ export function NewAppSheet({
         ) : (
           <ComposeFields
             file={file}
-            onFile={setFile}
+            onFile={(next) => {
+              setFile(next);
+              setErrors(({ project: _, ...rest }) => rest);
+            }}
+            tooBig={fileTooBig ? fileBytes : undefined}
             variables={variables}
             onVariables={setVariables}
             check={check}
             missing={missingVariables}
             fieldRef={firstField}
+            project={project}
+            onProject={(next) => {
+              setTypedProject(next);
+              setErrors(({ project: _, ...rest }) => rest);
+            }}
+            projectError={
+              errors["project"] ??
+              (projectInvalid
+                ? t`Use lowercase letters, digits and dashes, starting with a letter, such as shop.`
+                : undefined)
+            }
+            projectKnown={projectKnown}
+            projectRequired={defaultHasApps}
           />
         )}
-        {source === "compose" && orphans.length > 0 ? (
-          <Switch
-            label={t`Remove what isn't in this file`}
-            description={plural(orphans.length, {
-              one: `${orphans.join(", ")} is here already, and not in the file. Otherwise it stays as it is.`,
-              other: `${orphans.join(", ")} are here already, and not in the file. Otherwise they stay as they are.`,
-            })}
-            checked={removeOrphans}
-            onChange={setRemoveOrphans}
+        {source === "compose" && choosesEnvironment ? (
+          <SelectField
+            label={t`Environment`}
+            value={scope}
+            options={fileEnvironments.map((e) => ({ value: e.id, label: e.name }))}
+            onChange={(event) => setEnvironment(event.target.value)}
           />
+        ) : null}
+        {source === "compose" && orphans.length > 0 ? (
+          <Orphans names={orphans} checked={removeOrphans} onChange={setRemoveOrphans} />
         ) : null}
         {fleet ? (
           <RunsOnField
@@ -416,6 +493,55 @@ export function NewAppSheet({
         ) : null}
       </form>
     </Sheet>
+  );
+}
+
+/**
+ * What a re-import can delete, on a control that can delete all of it, so it
+ * says how many and lists them only when asked.
+ */
+function Orphans({
+  names,
+  checked,
+  onChange,
+}: {
+  names: readonly string[];
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  const { t } = useLingui();
+  const [shown, setShown] = useState(false);
+  const count = names.length;
+  return (
+    <div className="app-orphans">
+      <Switch
+        label={t`Remove what isn't in this file`}
+        description={plural(count, {
+          one: "# other app is here. Otherwise it stays as it is.",
+          other: "# other apps are here. Otherwise they stay as they are.",
+        })}
+        checked={checked}
+        onChange={onChange}
+      />
+      <Button
+        variant="ghost"
+        size="sm"
+        icon={shown ? "chevron-down" : "chevron-right"}
+        aria-expanded={shown}
+        onClick={() => setShown((was) => !was)}
+      >
+        {plural(count, { one: "Show it", other: "Show them" })}
+      </Button>
+      {shown ? (
+        <ul className="app-orphan-list">
+          {names.map((name) => (
+            <li key={name}>
+              <code>{name}</code>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -447,10 +573,9 @@ function ImageFields({
         ref={fieldRef}
         label={t`Image`}
         mono
-        placeholder="nginx:1.27"
         value={form.image}
         error={errors["image"]}
-        hint={t`Any image your server can pull, from Docker Hub or another registry.`}
+        hint={t`Any image your server can pull, such as nginx:1.27.`}
         onChange={(event) => update({ image: event.target.value }, "image")}
       />
       <TextField
@@ -515,17 +640,18 @@ function PortsSection({ form, errors, update, clear }: SectionProps) {
   return (
     <fieldset className="app-section" aria-labelledby={id}>
       <SectionHead title={t`Ports`} id={id} add={t`Add port`} onAdd={add}>
-        {form.ports.length === 0 ? t`Nothing outside the server reaches it until you publish a port.` : null}
+        {form.ports.length === 0
+          ? t`Nothing outside the server reaches it until you publish a port.`
+          : t`Such as 8080 on the server, to 80 in the app.`}
       </SectionHead>
-      {form.ports.map((row) => (
+      {form.ports.map((row, i) => (
         <div key={row.key} className="app-row-group">
-          <div className="app-row app-port">
+          <div className={cx("app-row app-port", i === 0 && "is-first")}>
             <TextField
-              label={t`On the server`}
+              {...rowLabel(i, t`On the server`)}
               mono
               inputMode="numeric"
               autoFocus={row.host === "" && row.container === ""}
-              placeholder="8080"
               value={row.host}
               invalid={Boolean(errors[`ports.${row.key}.host`])}
               aria-describedby={`${id}-${row.key}`}
@@ -536,10 +662,9 @@ function PortsSection({ form, errors, update, clear }: SectionProps) {
             />
             <Icon name="arrow-right" size={14} className="app-port-arrow" />
             <TextField
-              label={t`In the app`}
+              {...rowLabel(i, t`In the app`)}
               mono
               inputMode="numeric"
-              placeholder="80"
               value={row.container}
               invalid={Boolean(errors[`ports.${row.key}.container`])}
               aria-describedby={`${id}-${row.key}`}
@@ -549,7 +674,7 @@ function PortsSection({ form, errors, update, clear }: SectionProps) {
               }}
             />
             <SelectField
-              label={t`Protocol`}
+              {...rowLabel(i, t`Protocol`)}
               className="app-port-protocol"
               value={row.protocol}
               options={[
@@ -596,14 +721,13 @@ function EnvSection({ form, errors, update, clear }: SectionProps) {
       <SectionHead title={t`Environment variables`} id={id} add={t`Add variable`} onAdd={add}>
         {t`Plans say a value changed, and never show it.`}
       </SectionHead>
-      {form.env.map((row) => (
+      {form.env.map((row, i) => (
         <div key={row.key} className="app-row-group">
-          <div className="app-row app-env">
+          <div className={cx("app-row app-env", i === 0 && "is-first")}>
             <TextField
-              label={t`Name`}
+              {...rowLabel(i, t`Name`)}
               mono
               autoFocus={row.name === ""}
-              placeholder="LOG_LEVEL"
               value={row.name}
               invalid={Boolean(errors[`env.${row.key}.name`])}
               aria-describedby={`${id}-${row.key}`}
@@ -614,7 +738,7 @@ function EnvSection({ form, errors, update, clear }: SectionProps) {
               }}
             />
             <TextField
-              label={t`Value`}
+              {...rowLabel(i, t`Value`)}
               mono
               autoComplete="off"
               value={row.value}
@@ -641,21 +765,22 @@ function MountsSection({ form, errors, update, clear }: SectionProps) {
   return (
     <fieldset className="app-section" aria-labelledby={id}>
       <SectionHead title={t`Volumes`} id={id} add={t`Add volume`} onAdd={add}>
-        {form.mounts.length === 0 ? t`What it writes elsewhere goes when its container is replaced.` : null}
+        {form.mounts.length === 0
+          ? t`Without a volume, what it writes is lost when its container is replaced.`
+          : t`A volume such as data at /data, or a server path.`}
       </SectionHead>
-      {form.mounts.map((row) => {
+      {form.mounts.map((row, i) => {
         const refused = errors[`mounts.${row.key}.source`] ?? errors[`mounts.${row.key}.target`];
         // Once it is refused, what it would have reached is beside the point.
         const reach = refused ? undefined : pathReach(row.source);
         const source = row.source.trim();
         return (
           <div key={row.key} className="app-row-group">
-            <div className="app-row app-mount-row">
+            <div className={cx("app-row app-mount-row", i === 0 && "is-first")}>
               <TextField
-                label={t`Volume or server path`}
+                {...rowLabel(i, t`Volume or server path`)}
                 mono
                 autoFocus={row.source === ""}
-                placeholder="data"
                 value={row.source}
                 invalid={Boolean(errors[`mounts.${row.key}.source`])}
                 aria-describedby={`${id}-${row.key}`}
@@ -665,9 +790,8 @@ function MountsSection({ form, errors, update, clear }: SectionProps) {
                 }}
               />
               <TextField
-                label={t`Path in the app`}
+                {...rowLabel(i, t`Path in the app`)}
                 mono
-                placeholder="/data"
                 value={row.target}
                 invalid={Boolean(errors[`mounts.${row.key}.target`])}
                 aria-describedby={`${id}-${row.key}`}
@@ -695,8 +819,8 @@ function MountsSection({ form, errors, update, clear }: SectionProps) {
                 <Icon name="shield" size={14} />
                 <span>
                   <Trans>
-                    <code>{source}</code> gives this app control of Docker on the server, the same as root. A signed-in
-                    person has to approve that in the plan.
+                    <code>{source}</code> gives this app control of Docker on the server, the same as root. You approve
+                    this in the plan; API tokens can't.
                   </Trans>
                 </span>
               </p>
@@ -705,8 +829,7 @@ function MountsSection({ form, errors, update, clear }: SectionProps) {
                 <Icon name="shield" size={14} />
                 <span>
                   <Trans>
-                    This reaches <code>{source}</code> on the server. A signed-in person has to approve that in the
-                    plan.
+                    This reaches <code>{source}</code> on the server. You approve this in the plan; API tokens can't.
                   </Trans>
                 </span>
               </p>
@@ -722,6 +845,14 @@ function MountsSection({ form, errors, update, clear }: SectionProps) {
       })}
     </fieldset>
   );
+}
+
+/**
+ * A field's name in a row of fields: shown over the first row, and read out on
+ * every row, so "Name / Value" doesn't repeat down the form.
+ */
+function rowLabel(index: number, label: string): { label: string } | { "aria-label": string } {
+  return index === 0 ? { label } : { "aria-label": label };
 }
 
 /** What's wrong with a row's fields, under the row, across its width. */
@@ -759,19 +890,32 @@ function useComposeCheck(file: string, variables: Readonly<Record<string, string
 function ComposeFields({
   file,
   onFile,
+  tooBig,
   variables,
   onVariables,
   check,
   missing,
   fieldRef,
+  project,
+  onProject,
+  projectError,
+  projectKnown,
+  projectRequired,
 }: {
   fieldRef: Ref<HTMLInputElement & HTMLTextAreaElement>;
   file: string;
   onFile: (file: string) => void;
+  /** How large the file is, when it's too large for the API to read. */
+  tooBig: number | undefined;
   variables: Readonly<Record<string, string>>;
   onVariables: (variables: Readonly<Record<string, string>>) => void;
   check: ReturnType<typeof useComposeCheck>;
   missing: readonly string[];
+  project: string;
+  onProject: (name: string) => void;
+  projectError: string | undefined;
+  projectKnown: boolean;
+  projectRequired: boolean;
 }) {
   const { t } = useLingui();
   const input = useRef<HTMLInputElement>(null);
@@ -780,12 +924,24 @@ function ComposeFields({
   const allVars = check.data?.variables ?? [];
   const required = allVars.filter((v) => v.required);
   const optional = allVars.filter((v) => !v.required);
+  const exposed = check.data?.exposedVariables ?? [];
   // A refusal of a variable that has no value yet is what the fields below already ask for.
-  const refusedMessage =
-    refusal && !missing.some((name) => refusal.message.includes(name)) ? refusal.message : undefined;
+  const refused: RefusedAt | undefined =
+    refusal && !missing.some((name) => refusal.message.includes(name)) ? composeRefusal(refusal) : undefined;
   const readFile = async (chosen: File | undefined) => {
     if (chosen) onFile(await chosen.text());
   };
+  const lineCount = file.split("\n").length;
+  const kib = tooBig === undefined ? 0 : Math.ceil(tooBig / 1024);
+  const limit = MAX_FILE >> 10;
+  const fileError =
+    tooBig !== undefined
+      ? t`This file is ${kib} KiB, and Dockwell reads files of up to ${limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file.`
+      : refused
+        ? refused.line > 0
+          ? t`Line ${refused.line}: ${refused.text}`
+          : refused.text
+        : undefined;
   return (
     <>
       {/* biome-ignore lint/a11y/noStaticElementInteractions: dropping a file is a shortcut for the button beside the label */}
@@ -800,12 +956,12 @@ function ComposeFields({
         <CodeField
           ref={fieldRef}
           label={t`Compose file`}
-          lines={12}
+          lines={Math.min(Math.max(FILE_LINES, lineCount + 1), MAX_FILE_LINES)}
           value={file}
           onChange={(event) => onFile(event.target.value)}
           placeholder={'services:\n  web:\n    image: nginx:1.27\n    ports:\n      - "8080:80"'}
-          error={refusedMessage ? capitalize(refusedMessage) : undefined}
-          markedLine={refusedMessage ? refusal?.line : undefined}
+          error={fileError ? withCode(fileError) : undefined}
+          markedLine={refused?.line}
           hint={t`Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan.`}
           actions={
             <>
@@ -833,6 +989,31 @@ function ComposeFields({
           {sentence(check.error)}
         </Callout>
       ) : null}
+      <TextField
+        label={t`Name`}
+        mono
+        optional={!projectRequired && project === ""}
+        value={project}
+        error={projectError}
+        hint={
+          projectKnown ? (
+            <Trans>
+              <code>{project}</code> is here already, so the plan updates what's in it.
+            </Trans>
+          ) : projectRequired ? (
+            <Trans>
+              Other apps are here, so it needs a name of its own, such as <code>shop</code>. Its apps show as one row,
+              on a network of their own.
+            </Trans>
+          ) : (
+            <Trans>
+              Its apps show as one row with this name, on a network of their own. Importing under this name again
+              updates them.
+            </Trans>
+          )
+        }
+        onChange={(event) => onProject(event.target.value)}
+      />
       {required.length > 0 || optional.length > 0 ? (
         <fieldset className="app-section" aria-label={t`Variables`}>
           <div className="app-section-head">
@@ -842,7 +1023,7 @@ function ComposeFields({
               </span>
               {required.length > 0 ? (
                 <span className="dw-field-hint">
-                  <Trans>The file names these, with no default. They aren't saved with it.</Trans>
+                  <Trans>The file uses these, and has no default for them.</Trans>
                 </span>
               ) : null}
             </div>
@@ -862,7 +1043,16 @@ function ComposeFields({
             {[...required, ...(showOptional ? optional : [])].map((v) => (
               <TextField
                 key={v.name}
-                label={<code className="app-var-name">{v.name}</code>}
+                label={
+                  <span className="app-var-label">
+                    <code className="app-var-name">{v.name}</code>
+                    {v.required ? (
+                      <span className="app-required">
+                        <Trans>Required</Trans>
+                      </span>
+                    ) : null}
+                  </span>
+                }
                 optional={!v.required}
                 mono
                 autoComplete="off"
@@ -873,14 +1063,40 @@ function ComposeFields({
           </div>
         </fieldset>
       ) : null}
+      {exposed.map((e) => (
+        <ExposedNote key={`${e.service}/${e.field}/${e.name}`} variable={e.name} service={e.service} field={e.field} />
+      ))}
       <ComposePreview check={check.data} />
     </>
   );
 }
 
-function capitalize(text: string): string {
-  const out = text.charAt(0).toUpperCase() + text.slice(1);
-  return /[.!?]$/.test(out) ? out : `${out}.`;
+/**
+ * Where a file writes a variable's value in plain sight. Only a service's
+ * environment is hidden, so this is the moment to say so, before anyone types
+ * a secret into the field above.
+ */
+function ExposedNote({ variable, service, field }: { variable: string; service: string; field: string }) {
+  const { t } = useLingui();
+  const words: Readonly<Record<string, string>> = {
+    command: t`command`,
+    entrypoint: t`entrypoint`,
+    labels: t`labels`,
+    healthcheck: t`health check`,
+  };
+  const where = words[field] ?? field;
+  const dollar = `$$${variable}`;
+  return (
+    <p className="app-reach-note">
+      <Icon name="shield" size={14} />
+      <span>
+        <Trans>
+          <code>{variable}</code> is written in {service}'s {where}, so anyone who can read this app can see its value.
+          To keep it hidden, pass it in <code>environment</code>, and use <code>{dollar}</code> there.
+        </Trans>
+      </span>
+    </p>
+  );
 }
 
 /** What the file would make, as the API reads it. */
@@ -893,7 +1109,7 @@ function ComposePreview({ check }: { check: CheckComposeResponse | undefined }) 
   return (
     <section className="compose-preview" aria-label={t`What this file makes`}>
       <h3 className="dw-text-label">
-        {plural(services.length, { one: "This makes # service", other: "This makes # services" })}
+        {plural(services.length, { one: "This makes # app", other: "This makes # apps" })}
       </h3>
       <ul className="compose-services">
         {services.map((service) => {
@@ -915,7 +1131,9 @@ function ComposePreview({ check }: { check: CheckComposeResponse | undefined }) 
                     </Tag>
                   ))}
                   {secrets > 0 ? (
-                    <Tag icon="key">{plural(secrets, { one: "# variable", other: "# variables" })}</Tag>
+                    <Tag icon="key" words>
+                      {plural(secrets, { one: "# variable", other: "# variables" })}
+                    </Tag>
                   ) : null}
                   {hostPaths.map((path) => (
                     <StatusBadge key={path} status="degraded" label={t`Reaches ${path}`} />
@@ -984,7 +1202,7 @@ function RunsOnField({
               }
             />
             <code className="app-server-name">{server.name}</code>
-            {server.connection === Connection.CONNECTED ? null : <Tag>{t`Offline`}</Tag>}
+            {server.connection === Connection.CONNECTED ? null : <Tag words>{t`Offline`}</Tag>}
           </label>
         ))}
       </div>

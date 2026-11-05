@@ -8,7 +8,7 @@ import type { AppState } from "./app";
 
 /** The words the app screens share, in the active locale. */
 export interface AppWords {
-  /** Where an app stands, in a word or two: "Live", "Waiting for hz-1". */
+  /** Where an app stands, in a word or two: "Live", "Waiting for hz-1", or "Deployed" where that's all it knows. */
   state(state: AppState): string;
   /** How a deployment went: "Live", "Failed". */
   deployment(state: DeploymentState): string;
@@ -37,6 +37,8 @@ export function useAppWords(): AppWords {
             return t`Rolled back`;
           case "unplaced":
             return t`Not placed`;
+          case "unknown":
+            return t`Deployed`;
         }
       },
       deployment(state) {
