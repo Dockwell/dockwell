@@ -354,3 +354,52 @@ func TestRemoveIngressNeedsUninstall(t *testing.T) {
 		t.Errorf("--remove-ingress alone = %v:\n%s", err, out)
 	}
 }
+
+// The install script doesn't go back a version on its own: an older agent can lack
+// what the control plane relies on, as one from before a command could name a value
+// does, and the latest a mirror serves can be older than what is installed. It says
+// what that costs, and goes back only when asked. Builds between releases count as
+// before the release they lead to.
+func TestTheInstallScriptDoesntGoBackOnItsOwn(t *testing.T) {
+	steps := installSteps(t)
+	for _, c := range []struct {
+		installed, version string
+		latest, downgrade  bool
+		refused            bool
+		says               string
+	}{
+		{installed: "0.3.0", version: "0.2.0", refused: true, says: "v0.2.0 is older than v0.3.0, which is installed here, so nothing was installed."},
+		{installed: "0.3.0", version: "0.2.0", latest: true, refused: true, says: "It is the latest release at"},
+		{installed: "0.3.0", version: "0.2.0", downgrade: true, says: "Going back from v0.3.0 to v0.2.0, as --downgrade says."},
+		{installed: "0.3.0", version: "0.3.0"},
+		{installed: "0.2.0", version: "0.3.0"},
+		{installed: "0.2.1-0.20261105181253-d7d1a767db49", version: "0.2.0", refused: true, says: "v0.2.0 is older than"},
+		{installed: "0.2.1-0.20261105181253-d7d1a767db49", version: "0.2.1"},
+		{installed: "0.10.0", version: "0.9.0", refused: true, says: "v0.9.0 is older than v0.10.0"},
+		{installed: "", version: "0.1.0"},
+	} {
+		latest, downgrade := "", ""
+		if c.latest {
+			latest = "1"
+		}
+		if c.downgrade {
+			downgrade = "1"
+		}
+		cmd := exec.CommandContext(t.Context(), "sh", "-c",
+			`. "$1"; installed_version=$2; version=$3; latest=$4; downgrade=$5; releases=https://releases.example; going_back; echo went on`,
+			"sh", steps, c.installed, c.version, latest, downgrade)
+		out, err := cmd.CombinedOutput()
+		if refused := err != nil; refused != c.refused {
+			t.Errorf("%s over %s: refused %t, want %t:\n%s", c.version, c.installed, refused, c.refused, out)
+		}
+		if !strings.Contains(string(out), c.says) {
+			t.Errorf("%s over %s says %q, want it to say %q", c.version, c.installed, out, c.says)
+		}
+		if c.refused && !strings.Contains(string(out), "reads, plans and applies nothing on this server that names one until it is updated again") {
+			t.Errorf("%s over %s doesn't say what it costs: %s", c.version, c.installed, out)
+		}
+		if c.refused && !strings.Contains(string(out), "--downgrade") {
+			t.Errorf("%s over %s doesn't say how to go back on purpose: %s", c.version, c.installed, out)
+		}
+	}
+}
