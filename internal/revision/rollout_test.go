@@ -1144,6 +1144,97 @@ func TestWhatStartsAContainerStoppedByHand(t *testing.T) {
 	})
 }
 
+// A deploy of what's stopped ends with it running and verified, the same tag again
+// included. Where nothing about it would change, that's the same container, as under
+// docker compose up, so what it wrote stays, and the step says so rather than that it
+// replaced it. A tag that moved makes a new one, with the data its image keeps, and
+// what's stopped holds no port and writes nothing, so that takes no new plan. A pull
+// that fails says that first.
+func TestADeployOfWhatIsStoppedEndsRunning(t *testing.T) {
+	const started = "web wasn't running, and nothing about it changed, so the same container started"
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		for name, way := range map[string]struct {
+			image   string
+			ports   []*resourcev1.PortMapping
+			volumes []string
+		}{
+			"sharing nothing":        {image: "good:1"},
+			"with a published port":  {image: "good:1", ports: []*resourcev1.PortMapping{{HostPort: 18080, ContainerPort: 80}}},
+			"with data in its image": {image: "db:1", volumes: []string{"/data"}},
+		} {
+			edit := func(r *rolling) Edit {
+				ed := r.edit(way.image)
+				ed.Spec.(*resourcev1.Service).GetApp().Ports = way.ports
+				return ed
+			}
+			for what, tc := range map[string]struct {
+				before  func(r *rolling)
+				same    bool
+				did     resource.Action
+				message string
+			}{
+				"nothing newer": {before: func(*rolling) {}, same: true, did: resource.ActionUpdate, message: started},
+				"a tag that moved": {
+					before: func(r *rolling) {
+						r.docker.Registry[way.image] = dockertest.Image{Digest: "sha256:" + strings.Repeat("e", 64), Volumes: way.volumes, Config: docker.Config{Cmd: []string{"app"}}}
+					},
+					did: resource.ActionReplace, message: "Replaced service web on hz-1",
+				},
+				"its registry gone": {
+					before: func(r *rolling) {
+						r.docker.Intercept(func(req *http.Request) error {
+							if strings.HasSuffix(req.URL.Path, "/images/create") {
+								return errors.New("the registry doesn't answer")
+							}
+							return nil
+						})
+					},
+					same: true, did: resource.ActionUpdate, message: "so web runs the image this server has",
+				},
+			} {
+				t.Run(name+"/"+what, func(t *testing.T) {
+					r := setupRolling(t, b)
+					apply(t, r.engine, propose(t, r.engine, "Run web", edit(r)))
+					r.docker.Stop(r.instances()[0])
+					before := r.newest()
+					tc.before(r)
+					defer r.docker.Intercept(nil)
+
+					ed := edit(r)
+					ed.Pull, ed.Run = true, true
+					p := propose(t, r.engine, "Deploy again", ed)
+					if !slices.ContainsFunc(p.Notes, func(n Note) bool { return n.Reason == "starts_stopped" }) {
+						t.Errorf("its plan's notes are %+v, and should say it starts it", p.Notes)
+					}
+					if step := p.step("srv_A", r.ref); step == nil || step.Downtime != 0 {
+						t.Errorf("nothing is up to take down, and its step is %+v", step)
+					}
+					apply(t, r.engine, p)
+
+					now := r.newest()
+					if got := r.instances(); len(got) != 1 || !now.State.Running {
+						t.Errorf("Docker has %v, and the newest is running=%t", got, now.State.Running)
+					}
+					if (now.ID == before.ID) != tc.same {
+						t.Errorf("it was %s and is %s, and they should be the same: %t", before.ID, now.ID, tc.same)
+					}
+					if way.volumes != nil && (len(now.Mounts) == 0 || now.Mounts[0].Name != before.Mounts[0].Name) {
+						t.Errorf("what its image keeps was on %s, and is on %+v", before.Mounts[0].Name, now.Mounts)
+					}
+					progress, err := decodeProgress(stored(t, r.db, p.Change).Progress)
+					if err != nil {
+						t.Fatal(err)
+					}
+					st := &progress.Steps[0]
+					if st.Did == nil || *st.Did != tc.did || !strings.Contains(st.Message, tc.message) {
+						t.Errorf("the step did %v and says %q, want %s and %q", st.Did, st.Message, tc.did, tc.message)
+					}
+				})
+			}
+		}
+	})
+}
+
 // DecodedPlan reads the plan a change has on record.
 func DecodedPlan(t *testing.T, db *store.DB, changeID string) *Plan {
 	t.Helper()

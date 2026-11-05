@@ -792,7 +792,7 @@ func rolloutWords(r *dockwellv1.RolloutPlan, restart, stopped bool) []string {
 			}
 			say("On %s, other services can reach the new container by %s before it has passed its check, beside the old one, as Docker can't add a name to a container later.", strings.Join(n, ", "), name)
 		}
-	} else {
+	} else if !stopped {
 		if p := r.GetPorts(); len(p) > 0 {
 			say("Two containers can't publish %s at once, so the old one stops first.", strings.Join(p, ", "))
 		}

@@ -180,6 +180,8 @@ A stop by hand isn't drift (ADR 0021), so nothing Dockwell does on its own start
 | A change in place, which skips verifying, as nothing runs to verify | Any change that replaces it |
 | A rollback of another service's change | |
 
+**Where it's already what's asked for, the same container starts,** as under `docker compose up`, so what it wrote stays, and the step says so rather than that it replaced it. A new image, a tag that moved or a changed spec makes a new one, as for any replace, and what's stopped holds no port and writes nothing, so that costs no downtime and no new plan. A plan can't say which until a pull has run, so it says only that this starts it.
+
 The plan says so, in the form "web is stopped, so this starts it", with no downtime, as nothing is up to take down. Such a step can't read as already so while the container isn't running, and it's verified before it reads as live. A rollback that follows a failure runs before anyone reads its plan, and where what failed is still there, its plan says only what replaces it.
 
 **A stop a rollout made isn't a stop by hand,** as its mark says (above), so a resume finishes what it began.

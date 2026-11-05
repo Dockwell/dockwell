@@ -507,6 +507,27 @@ describe("the plan sheet", () => {
     await expectAccessible(document.body);
   });
 
+  it("says nothing of stopping first for what's already stopped", async () => {
+    const stopped = webPlanned();
+    const step = stopped.plan?.servers[0]?.steps[0];
+    if (!step) throw new Error("webPlanned has no step");
+    step.restart = "chg_1";
+    step.changes = [create(FieldChangeSchema, { path: "state", from: "exited", to: "running" })];
+    step.rollout = create(RolloutPlanSchema, {
+      ports: ["8080/tcp"],
+      volumes: ["data"],
+      hostNetwork: true,
+      chosen: true,
+    });
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: stopped }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: /plan/i });
+    expect(sheet).not.toHaveTextContent("stops first");
+    expect(sheet).not.toHaveTextContent("stop first");
+    expect(sheet).not.toHaveTextContent("Two containers");
+  });
+
   it("says why a step has to stop first, with its downtime", async () => {
     const stopping = webPlanned();
     const step = stopping.plan?.servers[0]?.steps[0];

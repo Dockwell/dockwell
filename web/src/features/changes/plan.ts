@@ -338,7 +338,7 @@ export function foundNothingNewer(change: Change | undefined): string {
  * Whether a step replaces what runs only if its pull finds a newer image: it has
  * nothing to change that a container can't change in place. Anything else it
  * changes, such as a container that has stopped or a limit it no longer has, it
- * replaces whatever the pull finds. The CLI's replacesIfNewer is the same rule.
+ * changes whatever the pull finds. The CLI's replacesIfNewer is the same rule.
  */
 export function replacesIfNewer(step: PlanStep): boolean {
   if (!step.pull || step.action !== PlanAction.REPLACE) return false;

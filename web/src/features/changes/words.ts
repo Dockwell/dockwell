@@ -499,7 +499,8 @@ export function useChangeWords(): ChangeWords {
               { notice: true },
             );
           }
-        } else {
+        } else if (!stopped) {
+          // Nothing runs, so nothing stops first.
           if (ports !== "") say(t`Two containers can't publish ${ports} at once, so the old one stops first`);
           if (plan.hostNetwork) {
             say(

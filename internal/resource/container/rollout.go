@@ -637,8 +637,10 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 		return err
 	}
 	// What was planned as nothing stopping can't turn into two writers, or
-	// into downtime nobody reviewed, because the server changed since.
-	if dec.Rollout != nil && dec.Rollout.Rolling && !plan.Rolling {
+	// into downtime nobody reviewed, because the server changed since. Where none of
+	// it runs, as when the tag of what's stopped moved, it can't be either.
+	runs := slices.ContainsFunc(others, func(o *instance) bool { return o.State.Running || o.stopping })
+	if dec.Rollout != nil && dec.Rollout.Rolling && !plan.Rolling && runs {
 		shared := slices.Concat(plan.Ports, plan.Volumes, plan.Paths, plan.ImageData, plan.CantTell, plan.EditedRoutes)
 		if plan.HostNetwork {
 			shared = append(shared, "the server's own network")
@@ -646,10 +648,23 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 		return fmt.Errorf("the plan was to start a new %s before stopping the old one, but it now shares %s with what runs, so two containers can't run at once. Nothing was stopped. Plan the change again",
 			t.Service, human.List(shared))
 	}
+	// What isn't running and is already what's asked for only has to start, as under
+	// docker compose up, so what it wrote stays. Its plan can't say that, as a pull may
+	// yet find something newer, so the step says what it did.
+	startsOnly := keep != nil && len(others) == 0 && dec.Restart == "" && notRunning(keep.Container) != "" &&
+		!keep.temp && !keep.stopping && keep.State.Status != neverStarted
 	if plan.Rolling {
-		return d.startFirst(ctx, t, spec, dec, keep, others, plan)
+		err = d.startFirst(ctx, t, spec, dec, keep, others, plan)
+	} else {
+		err = d.stopFirst(ctx, t, spec, dec, keep, others)
 	}
-	return d.stopFirst(ctx, t, spec, dec, keep, others)
+	if err == nil && startsOnly {
+		resource.Report(ctx, resource.Outcome{
+			Did:  resource.Did(resource.ActionUpdate),
+			Note: t.Service + " wasn't running, and nothing about it changed, so the same container started",
+		})
+	}
+	return err
 }
 
 // nextNumber is the number of a new instance: one past the highest of the

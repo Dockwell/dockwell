@@ -670,6 +670,8 @@ func TestAskingToRunWhatSomeoneStoppedStartsIt(t *testing.T) {
 			return back.Msg.GetChange()
 		}
 	}
+	// Where nothing about it would change, the same container starts, and says so.
+	startsTheSame := map[string]bool{"deploying the same tag": true, "rolling back to what matches": true}
 	for name, plan := range map[string]func(t *testing.T, b *bench, id string) *dockwellv1.Change{
 		"deploying another tag": func(t *testing.T, b *bench, id string) *dockwellv1.Change {
 			t.Helper()
@@ -692,6 +694,7 @@ func TestAskingToRunWhatSomeoneStoppedStartsIt(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			b, container, web := setUp(t)
+			before := b.e.Serving(container).ID
 			c := plan(t, b, web.GetId())
 			note := noteOf(c, "starts_stopped")
 			if note == nil || note.GetMessage() != "web is stopped, so this starts it" {
@@ -711,8 +714,18 @@ func TestAskingToRunWhatSomeoneStoppedStartsIt(t *testing.T) {
 			if said := got.GetSteps()[0].GetMessage(); strings.Contains(said, "stays as it is") || strings.Contains(said, "already") {
 				t.Errorf("the step says %q, of what wasn't running", said)
 			}
-			if did := got.GetSteps()[0].GetDid(); did != dockwellv1.PlanAction_PLAN_ACTION_REPLACE {
-				t.Errorf("the step did %v", did)
+			did, want := got.GetSteps()[0].GetDid(), dockwellv1.PlanAction_PLAN_ACTION_REPLACE
+			if startsTheSame[name] {
+				want = dockwellv1.PlanAction_PLAN_ACTION_UPDATE
+			}
+			if did != want {
+				t.Errorf("the step did %v, want %v", did, want)
+			}
+			if said := got.GetSteps()[0].GetMessage(); strings.Contains(said, "the same container started") != startsTheSame[name] {
+				t.Errorf("the step says %q", said)
+			}
+			if ctr != nil && (ctr.ID == before) != startsTheSame[name] {
+				t.Errorf("it was %s and is %s", before, ctr.ID)
 			}
 		})
 	}

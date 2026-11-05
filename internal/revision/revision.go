@@ -2426,7 +2426,8 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		callCtx = resource.WithProgress(callCtx, func(m string) { e.progressed(c.ID, index, m) })
 		var told resource.Outcome
 		callCtx = resource.WithOutcome(callCtx, func(o resource.Outcome) {
-			told.Digest, told.Note, told.Untouched = cmp.Or(o.Digest, told.Digest), cmp.Or(o.Note, told.Note), told.Untouched || o.Untouched
+			// The first note stands: that a pull failed says more than what came of it.
+			told.Digest, told.Note, told.Untouched = cmp.Or(o.Digest, told.Digest), cmp.Or(told.Note, o.Note), told.Untouched || o.Untouched
 			told.Did = cmp.Or(o.Did, told.Did)
 			if o.Replacing {
 				e.pulledNewer(ctx, c.ID, items, it, q.server, o)

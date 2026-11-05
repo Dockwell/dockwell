@@ -710,6 +710,10 @@ func TestRolloutWordsSayWhatFollows(t *testing.T) {
 			plan: &dockwellv1.RolloutPlan{Rolling: true, Soak: soak, HealthyWithin: within, Others: []string{"web-1"}, EarlyNetworks: []string{"back"}}, stopped: true,
 			want: []string{"It has to stay healthy for 5 s", "Dockwell rolls this back"}, not: []string{"goes on serving", "in flight", "beside the old one"},
 		},
+		"what someone stopped, where a replace has to stop first": {
+			plan: &dockwellv1.RolloutPlan{Ports: []string{"8080/tcp"}, Volumes: []string{"data"}, HostNetwork: true, Chosen: true}, stopped: true, restart: true,
+			not: []string{"stops first", "stop first", "Two containers"},
+		},
 		"a restart of what someone stopped": {
 			plan: &dockwellv1.RolloutPlan{Rolling: true, Soak: soak, HealthyWithin: within}, stopped: true, restart: true,
 			want: []string{"what was stopped stays stopped"}, not: []string{"what runs", "rolls this back"},

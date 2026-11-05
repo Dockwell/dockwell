@@ -742,16 +742,20 @@ docker rm --force "$(moving_id)" >/dev/null || fail "can't remove the app's cont
 moving_comes_back "was removed"
 [[ "$(moving_revisions | jq '.revisions | length')" == "$written" ]] || fail "bringing back the same image wrote a revision: $(moving_revisions)"
 
-step "A moving tag: with its registry back, a deploy and a rollback each replace what's stopped, and it runs"
+step "A moving tag: with its registry back and nothing newer, a deploy and a rollback each run what's stopped"
 docker start e2e-registry >/dev/null || fail "can't start the registry again"
 registry_up
 docker stop --time 1 "$(moving_id)" >/dev/null || fail "can't stop the app's container"
 before=$(moving_id)
 said=$(dw services deploy moving --image "$moving" --yes 2>&1) || fail "deploying what's stopped failed: $said"
 if grep -qF "stays as it is" <<<"$said"; then fail "it says it stays as it is, and it wasn't running: $said"; fi
-[[ "$(moving_id)" != "$before" ]] || fail "what's stopped wasn't replaced"
 moving_running
 moving_serves second
+# It's already what this asks for, so it's the same container that starts, as under
+# docker compose up, and the step says that, rather than that it replaced it.
+[[ "$(moving_id)" == "$before" ]] || fail "what's stopped was replaced, with nothing newer to replace it with: $said"
+grep -qF "so the same container started" <<<"$said" || fail "it doesn't say the same container started: $said"
+if grep -qF "Replaced service moving" <<<"$said"; then fail "it says it replaced what it only started: $said"; fi
 docker stop --time 1 "$(moving_id)" >/dev/null || fail "can't stop the app's container"
 same=$(moving_revisions | jq -r '[.revisions[1:][] | select(.matchesLatest)][0].number') || fail "services revisions failed"
 [[ "$same" != null ]] || fail "no revision matches the latest: $(moving_revisions)"
