@@ -20,7 +20,7 @@ import {
 } from "@dockwell/api";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
@@ -38,6 +38,10 @@ import {
 import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
 
 const HOUR = 3_600_000;
+// Midday, so that what these say about "today" and "yesterday" holds at any hour:
+// an hour ago is yesterday at 00:30, and 26 hours ago is two days back at 01:00.
+vi.setSystemTime(new Date(2026, 10, 4, 12, 0));
+
 const shop = applied(shopPlanned(), new Date(Date.now() - 2 * 60_000));
 const shopEvent = changeEvent(shop);
 const signIn = auditEvent({
@@ -68,6 +72,10 @@ function renderActivity(watch: ReturnType<typeof feed<WatchEventsResponse>>, api
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+afterAll(() => {
+  vi.useRealTimers();
 });
 
 describe("Activity", () => {
