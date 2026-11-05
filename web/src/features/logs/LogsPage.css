@@ -417,6 +417,17 @@
   display: none;
 }
 
+/* And more than the word beside its dot, as Pause or Follow says the same, and four digits leave no room for both. */
+.logs.is-phone .logs-stream:has(.logs-errors) .dw-live .dw-held {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .logs.is-phone .logs-errors {
   margin-inline-end: 0;
 }
@@ -447,6 +458,31 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+.logs-view-part .dw-seg {
+  display: flex;
+}
+
+.logs-view-part .dw-seg-item {
+  flex: 1 1 0;
+  justify-content: center;
+  height: 44px;
+}
+
+/* A list, as deploys don't all fit side by side, least of all in the words of a longer language. */
+.logs-view-part .logs-deploys {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.logs-view-part .logs-deploys .dw-seg {
+  flex-direction: column;
+}
+
+.logs-view-part .logs-deploys .dw-seg-item {
+  flex: none;
+  justify-content: flex-start;
 }
 
 .logs-view-label {

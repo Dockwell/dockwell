@@ -151,7 +151,8 @@ export function LogFoot({
   if (stale) {
     words = <Trans>Press Enter to search all the servers keep.</Trans>;
   } else if (deep) {
-    words = deep.loading || deep.error || deep.reached === 0 ? null : <DeepWords store={store} deep={deep} />;
+    // With nothing found, the empty state says this already.
+    words = deep.loading || deep.error || store.matches === 0 ? null : <DeepWords store={store} deep={deep} />;
   } else if (query) {
     const shown = store.matches.toLocaleString(i18n.locale);
     const total = store.total.toLocaleString(i18n.locale);

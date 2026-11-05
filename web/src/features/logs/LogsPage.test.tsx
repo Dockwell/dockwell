@@ -614,6 +614,17 @@ describe("what a view says of itself", () => {
     await screen.findByText('Nothing in all the servers keep has "far".');
   });
 
+  it("says once how far a search that found nothing reached", async () => {
+    const readLogs = vi.fn(() => ({
+      sources: [running],
+      searchedLines: 1500n,
+      searchedBackTo: { seconds: T0 - 86_400n, nanos: 0 },
+    }));
+    await withLines([line("here")], { readLogs }, `${URL}?q=far&deep=true`);
+    await screen.findByRole("heading", { name: 'Nothing in all the servers keep has "far".' });
+    expect(screen.getAllByText(/0 matches in 1,500 lines/)).toHaveLength(1);
+  });
+
   it("leaves a machine's name as written when a server can't read logs", async () => {
     const { logs, stream } = api();
     renderAt(URL, { logs });

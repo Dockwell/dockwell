@@ -795,16 +795,23 @@ async function main() {
         small.push(`${el.textContent || el.getAttribute("aria-label")}: ${box.height}`);
       }
     }
+    const status = document.querySelector(".dw-log-head .dw-live")?.getBoundingClientRect();
+    const tools = document.querySelector(".dw-log-head .dw-log-tools")?.getBoundingClientRect();
     return {
       share: body.getBoundingClientRect().height / window.innerHeight,
       tabbar: document.querySelector(".tabbar") !== null,
       small,
+      errors: document.querySelector(".logs-errors-count")?.textContent ?? "",
+      crowded: status && tools ? Math.round(status.right - tools.left) : 0,
     };
   });
   step(`  the log takes ${Math.round(room.share * 100)}% of a phone's screen`);
   if (room.tabbar) fail("a phone shows the tab bar on an app's logs");
   if (room.share < 0.6) fail(`the log takes ${Math.round(room.share * 100)}% of a phone's screen`);
   if (room.small.length > 0) fail(`targets under 44 px on a phone: ${room.small.join(", ")}`);
+  if (!/\d,\d/.test(room.errors))
+    fail(`the phone's log head needs thousands of errors to be tested, and has ${room.errors}`);
+  if (room.crowded > 0) fail(`with ${room.errors}, a phone's log head runs ${room.crowded} px into its own tools`);
   await page.setViewportSize({ width: 1440, height: 970 });
 
   step("closing the page stops the reading on the agent");
