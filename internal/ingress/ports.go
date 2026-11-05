@@ -5,7 +5,9 @@ package ingress
 import (
 	"bufio"
 	"context"
+	"encoding/hex"
 	"fmt"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -71,6 +73,9 @@ type Holder struct {
 	Unknown bool
 	// Container is the container it is in, if any.
 	Container string
+	// Process is the name the kernel has for it, such as dockerd, when the agent
+	// can read it.
+	Process string
 }
 
 // Holders finds what holds a server's ports, from what the kernel says and
@@ -91,13 +96,32 @@ func (h *Holders) proc() string {
 	return "/proc"
 }
 
-// Of says what holds each port, in the order of ports.
+// Of says what holds each port, in the order of ports. A socket on one address
+// holds the port for a proxy that listens on every one, so every address counts.
 func (h *Holders) Of(ctx context.Context, ports []Port) ([]Holder, error) {
-	published, err := h.published(ctx)
+	return h.of(ctx, ports, func(netip.Addr) bool { return true })
+}
+
+// Dialled says what a proxy reaches on each port as it dials 127.0.0.1, as for a
+// route to a port on the server: only what listens on every address, or on that
+// one. What listens on another of the server's addresses alone, or on IPv6 alone,
+// isn't reached, and isn't named.
+func (h *Holders) Dialled(ctx context.Context, ports []Port) ([]Holder, error) {
+	return h.of(ctx, ports, func(a netip.Addr) bool {
+		a = a.Unmap()
+		return a.IsUnspecified() || a == serverLoopback
+	})
+}
+
+// serverLoopback is where a proxy dials a port on the server (ServerHost).
+var serverLoopback = netip.MustParseAddr(ServerHost)
+
+func (h *Holders) of(ctx context.Context, ports []Port, on func(netip.Addr) bool) ([]Holder, error) {
+	published, err := h.published(ctx, on)
 	if err != nil {
 		return nil, err
 	}
-	sockets, err := h.sockets()
+	sockets, err := h.sockets(on)
 	if err != nil {
 		return nil, err
 	}
@@ -120,8 +144,9 @@ func (h *Holders) Of(ctx context.Context, ports []Port) ([]Holder, error) {
 	return out, nil
 }
 
-// published are the ports containers publish, and who by.
-func (h *Holders) published(ctx context.Context) (map[Port]string, error) {
+// published are the ports containers publish on an address on takes, and who by.
+// Docker says "0.0.0.0" or "::" for every address.
+func (h *Holders) published(ctx context.Context, on func(netip.Addr) bool) (map[Port]string, error) {
 	list, err := h.Client.ListContainers(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -130,6 +155,9 @@ func (h *Holders) published(ctx context.Context) (map[Port]string, error) {
 	for _, c := range list {
 		for _, p := range c.Ports {
 			if p.PublicPort == 0 || len(c.Names) == 0 {
+				continue
+			}
+			if addr, err := netip.ParseAddr(p.IP); err == nil && !on(addr) {
 				continue
 			}
 			port := Port{Number: int(p.PublicPort), UDP: p.Type == "udp"}
@@ -141,10 +169,24 @@ func (h *Holders) published(ctx context.Context) (map[Port]string, error) {
 	return out, nil
 }
 
+// procAddress reads an address as the kernel's tables write it: in hex, IPv4 as one
+// 32-bit word and IPv6 as four, each in the machine's byte order, which is little
+// endian on every architecture Dockwell is built for.
+func procAddress(hexAddr string) (netip.Addr, bool) {
+	b, err := hex.DecodeString(hexAddr)
+	if err != nil || (len(b) != 4 && len(b) != 16) {
+		return netip.Addr{}, false
+	}
+	for i := 0; i < len(b); i += 4 {
+		b[i], b[i+1], b[i+2], b[i+3] = b[i+3], b[i+2], b[i+1], b[i]
+	}
+	addr, ok := netip.AddrFromSlice(b)
+	return addr, ok
+}
+
 // sockets reads the kernel's table of listening TCP sockets and bound UDP
-// ones, by port. A socket on one address holds the port for a proxy that
-// listens on every one, so every address counts.
-func (h *Holders) sockets() (map[Port][]string, error) {
+// ones, by port, on the addresses on takes.
+func (h *Holders) sockets(on func(netip.Addr) bool) (map[Port][]string, error) {
 	out := map[Port][]string{}
 	for _, f := range []struct {
 		name  string
@@ -166,8 +208,11 @@ func (h *Holders) sockets() (map[Port][]string, error) {
 			if len(fields) < 10 || fields[3] != f.state {
 				continue
 			}
-			_, hexPort, ok := strings.Cut(fields[1], ":")
+			hexAddr, hexPort, ok := strings.Cut(fields[1], ":")
 			if !ok {
+				continue
+			}
+			if addr, ok := procAddress(hexAddr); !ok || !on(addr) {
 				continue
 			}
 			n, err := strconv.ParseUint(hexPort, 16, 16)
@@ -231,9 +276,9 @@ func (h *Holders) holder(ctx context.Context, p Port, inodes []string, owners ma
 		}
 		name := h.processName(pid)
 		if c := h.containerOf(ctx, pid); c != "" {
-			return Holder{Port: p, Words: name + ", in the container " + c, Container: c}
+			return Holder{Port: p, Words: name + ", in the container " + c, Container: c, Process: name}
 		}
-		return Holder{Port: p, Words: name}
+		return Holder{Port: p, Words: name, Process: name}
 	}
 	return Holder{Port: p, Words: "a process the agent can't name", Unknown: true}
 }

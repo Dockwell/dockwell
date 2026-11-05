@@ -604,7 +604,7 @@ func (m *Manager) Check(ctx context.Context, _ resource.Ref, desired []resource.
 	if err != nil {
 		return err
 	}
-	if err := m.checkHostPorts(desired); err != nil {
+	if err := m.checkHostPorts(ctx, desired); err != nil {
 		return err
 	}
 	if err := m.checkServersNetwork(ctx, desired); err != nil {
@@ -692,7 +692,7 @@ func (m *Manager) RoutedAfter(ctx context.Context, i Instance, desired []resourc
 // Listening names what listens on a port on the server, for a plan to say, or says
 // nothing does. With neither, it couldn't say, and it never stops a plan.
 func (m *Manager) Listening(ctx context.Context, port uint32) (who string, nothing bool) {
-	held, err := m.holders().Of(ctx, []Port{{Number: int(port)}})
+	held, err := m.holders().Dialled(ctx, []Port{{Number: int(port)}})
 	if err != nil {
 		return "", false
 	}
@@ -703,8 +703,10 @@ func (m *Manager) Listening(ctx context.Context, port uint32) (who string, nothi
 }
 
 // checkHostPorts refuses a route to a port on the server that is Dockwell's own:
-// the panel's and its other listeners, or the proxy's, which would dial itself.
-func (m *Manager) checkHostPorts(desired []resource.Desired) error {
+// the panel's and its other listeners, or the proxy's, which would dial itself. It
+// refuses Docker's own listener on any port too: route.Validate refuses 2375 and
+// 2376 by number, and dockerd can be told to listen anywhere.
+func (m *Manager) checkHostPorts(ctx context.Context, desired []resource.Desired) error {
 	for _, d := range desired {
 		spec := routeSpec(d)
 		if spec == nil || spec.GetHostPort() == 0 {
@@ -717,9 +719,16 @@ func (m *Manager) checkHostPorts(desired []resource.Desired) error {
 		if slices.ContainsFunc(m.ports(), func(p Port) bool { return p.Number == port && !p.UDP }) {
 			return fmt.Errorf("port %d on this server is the one %s listens on, so a route to it would send requests round in a circle. Choose the port of what you mean to serve", port, m.Proxy.Name())
 		}
+		held, err := m.holders().Dialled(ctx, []Port{{Number: port}})
+		if err == nil && len(held) > 0 && held[0].Process == dockerDaemon {
+			return fmt.Errorf("port %d on this server is Docker's API, as %s listens there, and that's root on the server to anyone who reaches it, so no route may send to it. If you run something else there, move Docker's API off that port", port, held[0].Words)
+		}
 	}
 	return nil
 }
+
+// dockerDaemon is the name the kernel has for Docker's engine.
+const dockerDaemon = "dockerd"
 
 // checkPorts refuses what would stop the proxy holding the ports it needs: all of
 // them if it has to start, and otherwise those it doesn't hold yet. This comes
@@ -900,7 +909,7 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 	if err := m.checkLimits(ctx, step, applyMargin); err != nil {
 		return err
 	}
-	if err := m.checkHostPorts(step); err != nil {
+	if err := m.checkHostPorts(ctx, step); err != nil {
 		return err
 	}
 	st, err := m.Proxy.Status(ctx)
