@@ -9,7 +9,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
-import { useChangeSheet } from "../changes/ChangeSheet";
+import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { appOf, environmentOf, nameOf, tidyMessage } from "./app";
 import { proxyList, routeName } from "./domains";
 import { validPort } from "./form";
@@ -25,7 +25,6 @@ import { validPort } from "./form";
 export function AddDomainSheet({ service, onClose }: { service: ServiceInfo; onClose: () => void }) {
   const { t } = useLingui();
   const transport = useTransport();
-  const sheet = useChangeSheet();
   const phone = useMediaQuery(PHONE_QUERY);
   const client = useMemo(() => createClient(ChangeService, transport), [transport]);
   const name = nameOf(service);
@@ -43,17 +42,17 @@ export function AddDomainSheet({ service, onClose }: { service: ServiceInfo; onC
   const [domainError, setDomainError] = useState<string>();
   const [portError, setPortError] = useState<string>();
   const [failure, setFailure] = useState<string>();
-  const [hidden, setHidden] = useState(false);
+  const [plan, setPlan] = useState<Opening>();
   const field = useRef<HTMLInputElement>(null);
 
   // Back from a plan that failed, what it said is at the field, ready to change.
   const reveal = useRef(false);
   useEffect(() => {
-    if (hidden || !reveal.current) return;
+    if (plan || !reveal.current) return;
     reveal.current = false;
     field.current?.focus();
     field.current?.select();
-  }, [hidden]);
+  }, [plan]);
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -98,18 +97,19 @@ export function AddDomainSheet({ service, onClose }: { service: ServiceInfo; onC
       return;
     }
     setBusy(false);
-    setHidden(true);
-    sheet.open({
+    setPlan({
       kind: "plan",
       make: () => Promise.resolve({ change }),
+      retryLabel: t`Edit and try again`,
+      onDone: onClose,
       onClose: (after) => {
         // Cancelling comes back here, with what you typed, as failing does, saying why
         // at the field. Anything else is under way or over.
         if (after?.state === ChangeState.FAILED) {
           setDomainError(tidyMessage(after.error));
           reveal.current = true;
-          setHidden(false);
-        } else if (after && after.state === ChangeState.PLANNED) setHidden(false);
+          setPlan(undefined);
+        } else if (!after || after.state === ChangeState.PLANNED) setPlan(undefined);
         else onClose();
       },
     });
@@ -117,7 +117,8 @@ export function AddDomainSheet({ service, onClose }: { service: ServiceInfo; onC
 
   return (
     <Sheet
-      open={!hidden}
+      open
+      over={plan ? <PlanView opening={plan} /> : undefined}
       initialFocusRef={field}
       title={t`Add a domain to ${name}`}
       subtitle={

@@ -1637,6 +1637,7 @@ msgstr "复制 {at}"
 msgid "Copy {ip}"
 msgstr "复制 {ip}"
 
+#: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Copy {name}"
 msgstr "复制 {name}"
@@ -2183,6 +2184,7 @@ msgstr "如果你丢了身份验证器应用，每个恢复码可以配合你的
 msgid "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
 msgstr "它运行过的每台服务器都已离开集群，因此 Dockwell 无法在那里查看或更改它，它的容器可能仍在那些服务器上运行。部署它，即可在集群中的服务器上运行。"
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -2453,6 +2455,7 @@ msgid "Full access to {name}"
 msgstr "完全访问 {name}"
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "Getting its certificate"
 msgstr "正在获取证书"
 
@@ -3350,8 +3353,8 @@ msgid "Nothing matches these filters. Clear them to see everything."
 msgstr "没有符合这些筛选条件的内容。清除筛选即可查看全部。"
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "Nothing outside <0>{server}</0> reaches <1>{name}</1> yet. Add a port on its page."
-msgstr "<0>{server}</0> 之外还无法访问 <1>{name}</1>。请在其页面添加端口。"
+msgid "Nothing outside <0>{server}</0> reaches <1>{name}</1> yet. Add a port or a domain."
+msgstr "<0>{server}</0> 之外还无法访问 <1>{name}</1>。请添加端口或域名。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Nothing outside the server reaches it until you publish a port."
@@ -3366,8 +3369,8 @@ msgid "Nothing outside the server reaches it yet. Other apps on its network do."
 msgstr "服务器外部暂时无法访问它。同一网络中的其他应用可以访问。"
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "Nothing outside the server reaches these yet. Add a port on an app's page."
-msgstr "服务器之外还无法访问这些应用。请在应用页面添加端口。"
+msgid "Nothing outside the server reaches these yet. Add a port or a domain to each."
+msgstr "服务器之外还无法访问这些应用。请分别添加端口或域名。"
 
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -5273,6 +5276,7 @@ msgstr "时间"
 msgid "Time range"
 msgstr "时间范围"
 #: src/features/apps/AppOverview.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "TLS ends before this server"
 msgstr "TLS 在到达此服务器之前终止"
 

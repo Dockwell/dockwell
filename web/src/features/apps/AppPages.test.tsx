@@ -895,7 +895,7 @@ describe("an app's overview", () => {
               throw err;
             }
             edits.push(req.edits[0] as never);
-            return { change: { id: "chg_1", state: ChangeState.PLANNED, plan: {} } };
+            return { change: webPlanned() };
           },
         },
       }),
@@ -932,6 +932,48 @@ describe("an app's overview", () => {
     });
   });
 
+  it("hands a domain over to its plan, and comes back to what was typed", async () => {
+    const user = userEvent.setup();
+    const alone = anApp("alone", "nginx:1.5", {}, {});
+    const watch = feed<WatchChangeResponse>();
+    renderAt(
+      "/apps/svc_alone",
+      api([alone], {
+        services: { listServices: () => ({ services: [alone] }), listServiceRevisions: () => ({ revisions }) },
+        domains: { listDomains: () => ({ domains: [] }) },
+        changes: {
+          watchChange: watch.stream,
+          discardChange: () => ({}),
+          proposeChange: () => ({ change: webPlanned() }),
+          applyChange: () => ({ change: moved(webPlanned(), { state: ChangeState.APPLYING }) }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain to alone" });
+    await user.type(within(sheet).getByLabelText("Domain"), "app.example.com");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+
+    // Cancelling comes back here, with what was typed.
+    const review = await screen.findByRole("dialog", { name: "Review plan" });
+    await user.click(within(review).getByRole("button", { name: "Cancel" }));
+    const back = await screen.findByRole("dialog", { name: "Add a domain to alone" });
+    expect(within(back).getByLabelText("Domain")).toHaveValue("app.example.com");
+
+    // A plan that fails comes back too, saying why at the field, ready to change.
+    await user.click(within(back).getByRole("button", { name: /Review plan/ }));
+    const again = await screen.findByRole("dialog", { name: "Review plan" });
+    await user.click(within(again).getByRole("button", { name: /Apply plan/ }));
+    await screen.findByRole("dialog", { name: "Applying" });
+    watch.push(watched(moved(webPlanned(), { state: ChangeState.FAILED, error: "the agent can't reach Caddy" })));
+    const failed = await screen.findByRole("dialog", { name: /^Couldn't / });
+    await user.click(within(failed).getByRole("button", { name: /Edit and try again/ }));
+    const fix = await screen.findByRole("dialog", { name: "Add a domain to alone" });
+    const field = within(fix).getByLabelText("Domain");
+    expect(field).toHaveAccessibleDescription("The agent can't reach Caddy");
+    await waitFor(() => expect(field).toHaveFocus());
+  });
+
   it("gets a certificate unless it's asked not to, and sends an app on the server's network to its port", async () => {
     const user = userEvent.setup();
     const edits: { spec?: { kind: { value: unknown } } }[] = [];
@@ -946,7 +988,7 @@ describe("an app's overview", () => {
           discardChange: () => ({}),
           proposeChange: (req) => {
             edits.push(req.edits[0] as never);
-            return { change: { id: "chg_1", state: ChangeState.PLANNED, plan: {} } };
+            return { change: webPlanned() };
           },
         },
       }),

@@ -10,6 +10,8 @@
 // docker-panel-e2e on real Docker, where publishing a port and reaching it
 // means something.
 
+import { request } from "node:http";
+
 import type { Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
@@ -45,6 +47,22 @@ async function applyPlan(page: Page, done: string) {
   const finish = page.getByRole("button", { name: done, exact: true });
   await finish.waitFor({ timeout: 120_000 });
   await finish.click();
+}
+
+/** What the ingress on this machine answers for a name, as something on its own network asks it. */
+function throughIngress(name: string): Promise<string> {
+  return new Promise((done) => {
+    const req = request({ host: "127.0.0.1", port: 80, path: "/", headers: { Host: name }, timeout: 2000 }, (res) => {
+      let body = "";
+      res.on("data", (chunk: Buffer) => {
+        body += chunk.toString();
+      });
+      res.on("end", () => done(`${res.headers.server ?? ""} ${body}`));
+    });
+    req.on("timeout", () => req.destroy());
+    req.on("error", (err) => done(String(err)));
+    req.end();
+  });
 }
 
 /** Where the list's Status column starts, which nothing a row says should move. */
@@ -313,6 +331,37 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   if (seen.error > seen.foot) fail(`at 360 px a Compose error ends at ${seen.error}, under the footer at ${seen.foot}`);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(wideAt);
+
+  // Only a real engine can run the ingress. It holds port 80 for as long as it runs.
+  if (reachable) {
+    step("apps: a domain behind a tunnel, applied, serves the app through Caddy, and the arrival says what it is");
+    const tunnelled = "tunnel.e2e-dockwell.example.net";
+    await page.getByRole("button", { name: "Add a domain" }).first().click();
+    const form = page.getByRole("dialog", { name: /^Add a domain to / });
+    await form.getByLabel("Domain").fill(tunnelled);
+    await form.getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ }).click();
+    await form.getByRole("button", { name: /Review plan/ }).click();
+    const review = page.getByRole("dialog", { name: "Review plan" });
+    await review.waitFor({ timeout: 30_000 });
+    await review.getByRole("button", { name: /Apply plan/ }).click();
+    const row = page.locator(".plan-reach-row", { hasText: tunnelled });
+    await row.waitFor({ timeout: 180_000 });
+    await row.getByText("TLS ends before this server").waitFor({ timeout: 120_000 });
+    if ((await row.innerText()).includes("http"))
+      fail(`the arrival gives a tunnel's address a scheme: ${await row.innerText()}`);
+    // The real thing: what a tunnel on this server's own network would ask.
+    let answered = "";
+    for (let i = 0; i < 40 && !answered.includes("nginx"); i++) {
+      answered = await throughIngress(tunnelled);
+      if (!answered.includes("nginx")) await page.waitForTimeout(500);
+    }
+    if (!answered.includes("nginx")) fail(`Caddy doesn't send ${tunnelled} to the app: ${answered.slice(0, 200)}`);
+    // Undoing it takes the route, and the ingress with it, so what follows has port 80 free.
+    await page.getByRole("button", { name: /Undo until/ }).click();
+    await applyPlan(page, "Done");
+    await form.waitFor({ state: "hidden" });
+    await expectServes("nginx/1.27");
+  }
 
   await page.getByRole("link", { name: /Deployments/ }).click();
   await page.getByRole("row", { name: /r5/ }).getByText("Failed").waitFor();

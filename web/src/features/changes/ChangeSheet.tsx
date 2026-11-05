@@ -9,6 +9,7 @@ import {
   ChangeService,
   ChangeState,
   Connection,
+  type Domain,
   type EditSchema,
   EventService,
   IntentKind,
@@ -45,6 +46,7 @@ import { formatDay } from "../../lib/format";
 import { onApple } from "../../lib/platform";
 import { useTimeWords } from "../../lib/time";
 import { appOf, unreached } from "../apps/app";
+import { lookOf, useDomainsReaching } from "../apps/domains";
 import { useServices } from "../apps/useServices";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
@@ -847,6 +849,8 @@ function PlanBody({
   const asides = useAsides(plan);
   const fleet = isFleet(plan);
 
+  // Read from the review on, so an arrival has them as it lands.
+  useDomainsOfPlan(plan);
   if (phase === "planning") {
     return (
       <div className="plan-body">
@@ -1231,13 +1235,16 @@ function Arrival({ plan, change }: { plan: Plan | undefined; change: Change }) {
   const services = useServices().data;
   const { servers } = useFleetView();
   const live = goesLive(plan).filter((r) => r.resource?.kind === "service");
+  const reaching = useDomainsOfPlan(plan);
   // A new app with no port among its fields publishes none, which the plan says at once, before the list is read again.
   const unpublished = unreached(change);
   const known = live.map((r) => services?.find((s) => s.id === r.id));
   const nowhere =
     live.length > 0 &&
     live.every((r) => r.action === PlanAction.CREATE && unpublished.includes(r.resource?.name ?? ""));
-  if (live.length === 0 || (!nowhere && known.some((s) => !s))) return <TookLine change={change} />;
+  const domains = reaching.domains;
+  if (reaching.isLoading || (live.length === 0 && domains.length === 0)) return <TookLine change={change} />;
+  if (domains.length === 0 && !nowhere && known.some((s) => !s)) return <TookLine change={change} />;
   const rows = known.flatMap((service) => {
     if (!service) return [];
     const ports = appOf(service)?.ports ?? [];
@@ -1253,7 +1260,7 @@ function Arrival({ plan, change }: { plan: Plan | undefined; change: Change }) {
       }),
     );
   });
-  if (nowhere || rows.length === 0) {
+  if (domains.length === 0 && (nowhere || rows.length === 0)) {
     const name = live[0]?.resource?.name ?? "";
     const server = plan?.servers[0]?.serverName ?? "";
     return (
@@ -1262,10 +1269,10 @@ function Arrival({ plan, change }: { plan: Plan | undefined; change: Change }) {
         <span>
           {live.length === 1 ? (
             <Trans>
-              Nothing outside <code>{server}</code> reaches <code>{name}</code> yet. Add a port on its page.
+              Nothing outside <code>{server}</code> reaches <code>{name}</code> yet. Add a port or a domain.
             </Trans>
           ) : (
-            <Trans>Nothing outside the server reaches these yet. Add a port on an app's page.</Trans>
+            <Trans>Nothing outside the server reaches these yet. Add a port or a domain to each.</Trans>
           )}
         </span>
       </div>
@@ -1273,6 +1280,9 @@ function Arrival({ plan, change }: { plan: Plan | undefined; change: Change }) {
   }
   return (
     <ul className="plan-reach">
+      {domains.map((domain) => (
+        <DomainReach key={domain.name} domain={domain} />
+      ))}
       {rows.map(({ at, local, target, udp }) => (
         <li key={at} className="plan-reach-row">
           <Icon name="globe" size={16} />
@@ -1290,6 +1300,54 @@ function Arrival({ plan, change }: { plan: Plan | undefined; change: Change }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * The domains a plan's arrival leads with: a domain is how people reach what it sends
+ * to, ahead of any port, and a change can be nothing but a route, which says where it
+ * went. The sheet reads them from the review on, so an arrival has them as it lands,
+ * and nothing moves when it does.
+ */
+function useDomainsOfPlan(plan: Plan | undefined) {
+  const live = goesLive(plan).filter((r) => r.resource?.kind === "service");
+  const routes = (plan?.resources ?? []).filter((r) => r.resource?.kind === "route" && r.action !== PlanAction.DELETE);
+  return useDomainsReaching(
+    [...live, ...routes][0]?.resource?.scope ?? "",
+    live.map((r) => r.resource?.name ?? ""),
+    routes.map((r) => r.resource?.name ?? ""),
+  );
+}
+
+/**
+ * A domain in an arrival: open once it serves, and until then what the server says
+ * of its certificate. Behind a tunnel or a proxy it's the name alone: what this server
+ * serves is http://, and how people reach it is for what's in front to say, which may
+ * well be HTTPS, so it's never written or copied as the address.
+ */
+function DomainReach({ domain }: { domain: Domain }) {
+  const { t } = useLingui();
+  const look = lookOf(domain);
+  const name = domain.name;
+  const serving = look.state === "serving";
+  return (
+    <li className={cx("plan-reach-row", "is-domain", look.state === "failed" && "is-failed")}>
+      <Icon name="globe" size={16} />
+      {serving ? (
+        <a className="plan-reach-at" href={domain.url} target="_blank" rel="noreferrer">
+          <code>{name}</code>
+          <Icon name="external" size={14} />
+        </a>
+      ) : (
+        <code className="plan-reach-at">{name}</code>
+      )}
+      {look.noCertificate ? (
+        <span className="plan-reach-how">{t`TLS ends before this server`}</span>
+      ) : serving ? null : (
+        <span className="plan-reach-how">{look.message || t`Getting its certificate`}</span>
+      )}
+      {serving ? <CopyButton text={look.noCertificate ? name : domain.url} label={t`Copy ${name}`} /> : null}
+    </li>
   );
 }
 

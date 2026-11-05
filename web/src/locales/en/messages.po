@@ -1637,6 +1637,7 @@ msgstr "Copy {at}"
 msgid "Copy {ip}"
 msgstr "Copy {ip}"
 
+#: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Copy {name}"
 msgstr "Copy {name}"
@@ -2183,6 +2184,7 @@ msgstr "Each code signs you in once, with your email, if you lose your authentic
 msgid "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
 msgstr "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -2453,6 +2455,7 @@ msgid "Full access to {name}"
 msgstr "Full access to {name}"
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "Getting its certificate"
 msgstr "Getting its certificate"
 
@@ -3350,8 +3353,8 @@ msgid "Nothing matches these filters. Clear them to see everything."
 msgstr "Nothing matches these filters. Clear them to see everything."
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "Nothing outside <0>{server}</0> reaches <1>{name}</1> yet. Add a port on its page."
-msgstr "Nothing outside <0>{server}</0> reaches <1>{name}</1> yet. Add a port on its page."
+msgid "Nothing outside <0>{server}</0> reaches <1>{name}</1> yet. Add a port or a domain."
+msgstr "Nothing outside <0>{server}</0> reaches <1>{name}</1> yet. Add a port or a domain."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Nothing outside the server reaches it until you publish a port."
@@ -3366,8 +3369,8 @@ msgid "Nothing outside the server reaches it yet. Other apps on its network do."
 msgstr "Nothing outside the server reaches it yet. Other apps on its network do."
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "Nothing outside the server reaches these yet. Add a port on an app's page."
-msgstr "Nothing outside the server reaches these yet. Add a port on an app's page."
+msgid "Nothing outside the server reaches these yet. Add a port or a domain to each."
+msgstr "Nothing outside the server reaches these yet. Add a port or a domain to each."
 
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -5273,6 +5276,7 @@ msgstr "Time"
 msgid "Time range"
 msgstr "Time range"
 #: src/features/apps/AppOverview.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "TLS ends before this server"
 msgstr "TLS ends before this server"
 

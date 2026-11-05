@@ -86,7 +86,29 @@ export function useAppDomains(service: ServiceInfo): { domains: readonly Domain[
   return { domains: query.data?.domains ?? [], isPending: query.isPending };
 }
 
-/** Where an app's domain sends people, once it has one. */
-export function useAppAddress(service: ServiceInfo): string | undefined {
-  return useAppDomains(service).domains[0]?.url;
+/**
+ * The domains a change's arrival leads with: those that send to the services it
+ * brought to life, and its own routes, as a change can be nothing but a route. A
+ * change reads as one environment, so this reads that one's, however many services
+ * it has, and again until each settles. isLoading is true until it has read them.
+ */
+export function useDomainsReaching(
+  environment: string,
+  services: readonly string[],
+  routes: readonly string[],
+): { domains: readonly Domain[]; isLoading: boolean } {
+  const reaching = (domain: Domain) =>
+    domain.routes.some((route) => services.includes(route.service) || routes.includes(route.name));
+  const query = useQuery(
+    DomainService.method.listDomains,
+    { environment },
+    {
+      enabled: environment !== "" && services.length + routes.length > 0,
+      refetchInterval: (state) =>
+        (state.state.data?.domains ?? []).some((domain) => reaching(domain) && lookOf(domain).state !== "serving")
+          ? POLL_MS
+          : false,
+    },
+  );
+  return { domains: (query.data?.domains ?? []).filter(reaching), isLoading: query.isLoading };
 }

@@ -188,6 +188,16 @@ a.plan-reach-at:focus-visible {
   color: var(--ink-muted);
 }
 
+/* What a server says of a certificate can be a sentence, under the name on a phone. */
+.plan-reach-row.is-domain {
+  flex-wrap: wrap;
+  padding-block: var(--space-1);
+}
+
+.plan-reach-row.is-failed .plan-reach-how {
+  color: var(--critical);
+}
+
 .plan-reach-row .copy-button {
   margin-left: auto;
 }

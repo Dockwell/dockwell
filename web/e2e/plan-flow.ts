@@ -293,7 +293,7 @@ export async function planFlow(page: Page, { origin, browser, context, step, sho
   if (!arrived.includes("1 created") || arrived.includes("to create"))
     fail(`the arrival isn't in the past tense: ${arrived}`);
   if (arrived.includes("no downtime")) fail("the arrival still promises no downtime");
-  if (!arrived.includes("Add a port on its page")) fail(`the arrival doesn't say nothing can reach it: ${arrived}`);
+  if (!arrived.includes("Add a port or a domain.")) fail(`the arrival doesn't say nothing can reach it: ${arrived}`);
   await expectAxe(page, "an arrival");
   await expectContrast(page, "an arrival, light");
   await dark();

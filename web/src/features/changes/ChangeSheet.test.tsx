@@ -5,6 +5,7 @@ import { type Timestamp, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import {
   type ApplyChangeRequest,
+  CertificateState,
   type Change,
   ChangeState,
   DomainCheckSchema,
@@ -963,8 +964,166 @@ describe("the plan sheet, once it runs", () => {
       },
     );
     const done = await screen.findByRole("dialog", { name: "web is live" });
-    await within(done).findByText(/Add a port on its page/);
-    expect(done).toHaveTextContent("Nothing outside hz-1 reaches web yet. Add a port on its page.");
+    await within(done).findByText(/Add a port or a domain\./);
+    expect(done).toHaveTextContent("Nothing outside hz-1 reaches web yet. Add a port or a domain.");
+  });
+
+  describe("with a domain", () => {
+    const aDomain = (
+      name: string,
+      state: CertificateState,
+      message = "",
+      service = "web",
+      url = `https://${name}`,
+    ) => ({
+      name,
+      url,
+      routes: [{ id: `res_${name}`, name: name.replaceAll(".", "-"), service, port: 80 }],
+      servers: [{ serverName: "hz-1", status: { domain: name, certificate: { state, message } } }],
+    });
+    const arrivedWith = (
+      domains: ReturnType<typeof aDomain>[],
+      ports: MessageInitShape<typeof PortMappingSchema>[] = [],
+      change = applied(aServicePlan()),
+    ) => {
+      const planned = change.plan?.resources[0]?.resource;
+      if (planned) planned.scope = "env_1";
+      const asked: string[] = [];
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        {
+          services: { listServices: () => ({ services: [aService(ports)] }) },
+          domains: {
+            listDomains: (req) => {
+              asked.push(req.environment);
+              return { domains };
+            },
+          },
+          changes: { watchChange: feed<WatchChangeResponse>().stream },
+        },
+      );
+      return asked;
+    };
+
+    it("leads with the domain, ahead of a port, and opens it over HTTPS", async () => {
+      const user = userEvent.setup();
+      const asked = arrivedWith(
+        [aDomain("app.example.com", CertificateState.ISSUED)],
+        [{ hostPort: 8080, containerPort: 80 }],
+      );
+      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const link = await within(done).findByRole("link", { name: "app.example.com" });
+      expect(link).toHaveAttribute("href", "https://app.example.com");
+      expect(asked).toContain("env_1");
+      const rows = done.querySelectorAll(".plan-reach-row");
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toContainElement(link);
+      await user.click(within(done).getByRole("button", { name: "Copy app.example.com" }));
+      expect(await navigator.clipboard.readText()).toBe("https://app.example.com");
+      await expectAccessible(document.body);
+    });
+
+    it("doesn't present a tunnel's http:// as how people reach it", async () => {
+      const user = userEvent.setup();
+      arrivedWith([aDomain("app.example.com", CertificateState.NONE, "", "web", "http://app.example.com")]);
+      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const row = (await within(done).findByText("app.example.com")).closest(".plan-reach-row");
+      expect(row).toHaveTextContent("TLS ends before this server");
+      expect(row?.textContent).not.toMatch(/https?:|HTTPS/);
+      // It's a name to copy, not an address with a scheme someone might paste as the way in.
+      await user.click(within(done).getByRole("button", { name: "Copy app.example.com" }));
+      expect(await navigator.clipboard.readText()).toBe("app.example.com");
+      expect(done).not.toHaveTextContent("Nothing outside");
+    });
+
+    it("says what its certificate is doing until it's there, with nothing to open", async () => {
+      arrivedWith([
+        aDomain("app.example.com", CertificateState.PENDING, "Waiting for the certificate authority to answer"),
+      ]);
+      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const row = (await within(done).findByText("app.example.com")).closest(".plan-reach-row");
+      expect(row).toHaveTextContent("Waiting for the certificate authority to answer");
+      expect(within(done).queryByRole("link", { name: /app\.example\.com/ })).toBeNull();
+      expect(within(done).queryByRole("button", { name: "Copy app.example.com" })).toBeNull();
+    });
+
+    it("follows a certificate until it's there, as the sheet may well still be open", async () => {
+      const change = applied(aServicePlan());
+      const planned = change.plan?.resources[0]?.resource;
+      if (planned) planned.scope = "env_1";
+      let domains = [aDomain("app.example.com", CertificateState.PENDING, "Waiting for the certificate authority")];
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        {
+          services: { listServices: () => ({ services: [aService([])] }) },
+          domains: { listDomains: () => ({ domains }) },
+          changes: { watchChange: feed<WatchChangeResponse>().stream },
+        },
+      );
+      const done = await screen.findByRole("dialog", { name: "web is live" });
+      await within(done).findByText("Waiting for the certificate authority");
+      domains = [aDomain("app.example.com", CertificateState.ISSUED)];
+      expect(await within(done).findByRole("link", { name: "app.example.com" }, { timeout: 7000 })).toBeVisible();
+    }, 15_000);
+
+    it("says why a certificate failed, as the server words it", async () => {
+      arrivedWith([aDomain("app.example.com", CertificateState.FAILED, "DNS for app.example.com points elsewhere")]);
+      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const row = (await within(done).findByText("app.example.com")).closest(".plan-reach-row");
+      expect(row).toHaveClass("is-failed");
+      expect(row).toHaveTextContent("DNS for app.example.com points elsewhere");
+    });
+
+    it("leaves out what sends to another app", async () => {
+      arrivedWith(
+        [aDomain("other.example.com", CertificateState.ISSUED, "", "other")],
+        [{ hostPort: 8080, containerPort: 80 }],
+      );
+      const done = await screen.findByRole("dialog", { name: "web is live" });
+      await within(done).findByRole("link", { name: /:8080/ });
+      expect(done).not.toHaveTextContent("other.example.com");
+    });
+
+    const aRoutePlan = (action: PlanAction) => {
+      const change = applied(aServicePlan());
+      const resource = change.plan?.resources[0];
+      const step = change.plan?.servers[0]?.steps[0];
+      if (resource?.resource) resource.resource = { ...resource.resource, kind: "route", name: "app-example-com" };
+      if (resource) resource.action = action;
+      if (step?.resource) step.resource.kind = "route";
+      if (step) step.action = action;
+      return change;
+    };
+
+    it("says where a change that is nothing but a route went", async () => {
+      arrivedWith([aDomain("app.example.com", CertificateState.ISSUED, "", "web")], [], aRoutePlan(PlanAction.CREATE));
+      const link = await screen.findByRole("link", { name: "app.example.com" });
+      expect(link).toHaveAttribute("href", "https://app.example.com");
+    });
+
+    it("says nothing of a route the change took away", async () => {
+      arrivedWith([aDomain("app.example.com", CertificateState.ISSUED, "", "web")], [], aRoutePlan(PlanAction.DELETE));
+      await screen.findByRole("dialog");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(screen.queryByRole("link", { name: "app.example.com" })).toBeNull();
+    });
+
+    it("waits to say nothing reaches it until it has read the domains", async () => {
+      const change = applied(aServicePlan());
+      const planned = change.plan?.resources[0]?.resource;
+      if (planned) planned.scope = "env_1";
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        {
+          services: { listServices: () => ({ services: [aService([])] }) },
+          domains: { listDomains: () => new Promise(() => {}) },
+          changes: { watchChange: feed<WatchChangeResponse>().stream },
+        },
+      );
+      const done = await screen.findByRole("dialog", { name: "web is live" });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(done).not.toHaveTextContent("Nothing outside");
+    });
   });
 
   it("says at once that a new app with no port can't be reached, before the list is read again", async () => {
@@ -983,7 +1142,7 @@ describe("the plan sheet, once it runs", () => {
       },
     );
     const done = await screen.findByRole("dialog", { name: "web is live" });
-    expect(await within(done).findByText(/Add a port on its page/)).toBeVisible();
+    expect(await within(done).findByText(/Add a port or a domain\./)).toBeVisible();
   });
 
   it("doesn't call a change on record live, as it may not be any more", async () => {
