@@ -373,7 +373,7 @@ describe("restarting an app", () => {
           },
         ],
       },
-    } as MessageInitShape<typeof ChangeSchema>);
+    } as unknown as MessageInitShape<typeof ChangeSchema>);
 
   it.each([
     { rolling: true, reads: /A new container takes over/ },
@@ -395,7 +395,8 @@ describe("restarting an app", () => {
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     expect(asked[0]?.id).toBe("svc_web");
     expect(sheet).toHaveTextContent(reads);
-    expect(sheet).toHaveTextContent("No undo, as a restart changes nothing to go back to");
+    expect(sheet).toHaveTextContent("A restart has no undo, as it changes nothing to go back to.");
+    expect(sheet.querySelector(".dw-sheet-note")).toHaveTextContent("No undo");
     expect(sheet).not.toHaveTextContent(/Undo for \d+ days/);
     await expectAccessible(document.body);
   });
@@ -445,7 +446,7 @@ describe("how it has run lately, on its page", () => {
     expect(await within(panel).findAllByRole("listitem")).toHaveLength(1);
     expect(panel).toHaveTextContent("web turned unhealthy on hz-1");
     expect(panel).toHaveTextContent("GET / answered 503");
-    expect(panel).toHaveTextContent("It changed 7 more times since the last time this said.");
+    expect(panel).toHaveTextContent("It changed 7 more times since the last of these.");
     expect(panel.querySelector(".dw-tone-warning")).not.toBeNull();
     await expectAccessible(container);
   });

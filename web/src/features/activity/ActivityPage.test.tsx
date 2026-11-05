@@ -650,7 +650,7 @@ describe("Activity's health", () => {
     });
     const rows = await screen.findAllByRole("row", { name: /web turned unhealthy/ });
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toHaveTextContent("It changed 12 more times since the last time this said.");
+    expect(rows[0]).toHaveTextContent("It changed 12 more times since the last of these.");
     await expectAccessible(document.body);
   });
 

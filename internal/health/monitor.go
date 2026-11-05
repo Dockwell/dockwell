@@ -473,14 +473,15 @@ func (m *Monitor) read(ctx context.Context, id string, w *watched) {
 	}
 	switch {
 	case s.Restarting:
-		w.last = &Result{Output: "the container keeps restarting: it last exited with code " + strconv.Itoa(s.ExitCode), At: time.Now()}
+		m.foundOut(w, "the container keeps restarting: it last exited with code "+strconv.Itoa(s.ExitCode))
 		m.setState(w, dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY)
 	case s.Paused:
-		w.last, w.failing = &Result{Output: pausedWords, At: time.Now()}, 0
+		w.failing = 0
+		m.foundOut(w, pausedWords)
 		m.setState(w, dockwellv1.HealthState_HEALTH_STATE_PAUSED)
 	case !s.Running:
-		w.last = &Result{Output: "the container isn't running: it is " + cmp.Or(s.Status, "stopped") + ", with exit code " + strconv.Itoa(s.ExitCode), At: time.Now()}
 		w.failing = 0
+		m.foundOut(w, "the container isn't running: it is "+cmp.Or(s.Status, "stopped")+", with exit code "+strconv.Itoa(s.ExitCode))
 		m.setState(w, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING)
 	case w.check != nil:
 		// The checks say. A container that started again begins again.
@@ -531,6 +532,19 @@ func (m *Monitor) listed(w *watched, state string) {
 			m.setState(w, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING)
 		}
 	}
+}
+
+// foundOut records what a read found out that no check did. What's new goes out at once:
+// a list has said it doesn't run by now, and this is why, such as how it exited. What
+// isn't new says nothing, as each read finds the same.
+func (m *Monitor) foundOut(w *watched, output string) {
+	if w.last != nil && w.last.Output == output {
+		w.last.At = time.Now()
+		return
+	}
+	w.last = &Result{Output: output, At: time.Now()}
+	m.dirty = true
+	m.tell()
 }
 
 // setState moves a container's state on, and says so at once.

@@ -627,6 +627,16 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		c.log.end()
 		e.detach(c)
 		w.WriteHeader(http.StatusNoContent)
+	case r.Method == http.MethodPost && action == "x-dockwell-health":
+		// Only here, for a test that drives this engine from outside its process: it
+		// has no checks to run, so it's told how one went.
+		status, output := r.URL.Query().Get("status"), r.URL.Query().Get("output")
+		h := &docker.Health{Status: status, Log: []docker.HealthRun{{End: time.Now(), Output: output}}}
+		if status == "unhealthy" {
+			h.FailingStreak, h.Log[0].ExitCode = 3, 1
+		}
+		c.State.Health = h
+		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && action == "rename":
 		name := r.URL.Query().Get("name")
 		if e.named(name) != nil {

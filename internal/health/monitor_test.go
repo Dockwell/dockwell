@@ -752,3 +752,28 @@ func TestWhatTheListSaysReachesTheStateWhenAReadFails(t *testing.T) {
 		})
 	}
 }
+
+// A list says a container doesn't run before a read says how it exited. That goes out
+// as soon as it's known, and not with the next report that would have gone anyway.
+func TestHowAContainerExitedGoesOutAtOnce(t *testing.T) {
+	e := dockertest.New(t)
+	name := strings.TrimPrefix(add(e, "web").Name, "/")
+	m := &health.Monitor{Client: e.Client(), Scan: 5 * time.Millisecond, Refresh: time.Hour}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); m.Run(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+	eventually(t, "it reads as running", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NO_CHECK))
+	e.Edit(name, func(c *docker.Container) { c.State = docker.State{Status: "exited", ExitCode: 137} })
+	deadline := time.After(10 * time.Second)
+	for {
+		select {
+		case <-m.Changed():
+			if said := m.Report()[0].GetLast().GetOutput(); strings.Contains(said, "exit code 137") {
+				return
+			}
+		case <-deadline:
+			t.Fatalf("nothing told of how it exited, and it says %q", m.Report()[0].GetLast().GetOutput())
+		}
+	}
+}

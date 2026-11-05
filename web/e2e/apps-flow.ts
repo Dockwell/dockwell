@@ -156,18 +156,18 @@ export async function appsFlow(
     .waitFor();
   await shoot(page, "apps-plan");
   await plan.getByRole("button", { name: /Apply plan/ }).click();
-  await page.getByRole("dialog", { name: /Applying|nginx is live/ }).waitFor();
+  await page.getByRole("dialog", { name: /Applying|nginx is (deployed|running)/ }).waitFor();
   await page.getByRole("button", { name: "Open nginx" }).waitFor({ timeout: 120_000 });
   await shoot(page, "apps-arrival-nothing-reaches-it");
 
   step("apps: nothing reaches it yet, so its arrival offers a port, and that opens the form on the app's page");
-  await page.getByRole("dialog", { name: "nginx is live" }).getByRole("button", { name: "Add a port" }).click();
+  await page.getByRole("dialog", { name: /^nginx is (deployed|running)$/ }).getByRole("button", { name: "Add a port" }).click();
   await page.getByRole("heading", { level: 1, name: "nginx", exact: true }).waitFor();
   const offered = page.getByRole("dialog", { name: "Add a port to nginx" });
   await offered.waitFor();
   await offered.getByRole("button", { name: "Cancel" }).click();
   await offered.waitFor({ state: "hidden" });
-  const panel = page.getByRole("region", { name: "Running" });
+  const panel = page.getByRole("region", { name: "What runs" });
   await panel.getByText(FIRST).waitFor();
   await expectDocker("nginx", FIRST);
   await shoot(page, "apps-overview");
@@ -189,7 +189,7 @@ export async function appsFlow(
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Apps" }).click();
   const row = page.getByRole("row", { name: /nginx/ });
   await row.waitFor();
-  for (const text of [FIRST, "Live", "r2"]) await row.getByText(text).first().waitFor();
+  for (const text of [FIRST, "Running", "r2"]) await row.getByText(text).first().waitFor({ timeout: 40_000 });
   if ((await page.getByRole("columnheader", { name: "Runs on" }).count()) > 0)
     fail("the list has a server column with one server");
   const columnAt = await statusColumn(page);
@@ -226,8 +226,8 @@ export async function appsFlow(
   await page.getByRole("link", { name: /Deployments/ }).click();
   const r3 = page.getByRole("row", { name: /r3/ });
   await r3.waitFor();
-  await r3.getByText("Live").waitFor();
-  await r3.getByText("Deployed").waitFor();
+  await r3.getByText("Deployed", { exact: true }).waitFor();
+  if ((await r3.innerText()).includes("Live")) fail(`a revision says it's live, which its record can't: ${await r3.innerText()}`);
   await r3.getByText("Mira Chen").waitFor();
   await r3.getByText("From the panel").waitFor();
   await page.getByRole("row", { name: /r2/ }).getByText("Replaced").waitFor();
@@ -237,7 +237,7 @@ export async function appsFlow(
   await page.getByRole("button", { name: "Roll back to r2" }).click();
   await applyPlan(page, "Done");
   const r4 = page.getByRole("row", { name: /r4/ });
-  await r4.getByText("Live").waitFor({ timeout: 15_000 });
+  await r4.getByText("Deployed", { exact: true }).waitFor({ timeout: 15_000 });
   await r4.getByText("Rolled back to r2").waitFor();
   await page.getByRole("row", { name: /r3/ }).getByText("Rolled back").waitFor();
   await page.getByRole("link", { name: "Overview", exact: true }).last().click();
@@ -301,7 +301,7 @@ export async function appsFlow(
   if (fits.page > 0) fail(`at 360 px the page is ${fits.page} px too wide`);
   if (fits.address !== 0) fail(`at 360 px the address is clipped by ${fits.address} px`);
   if (fits.tabs > 0) fail(`at 360 px the tabs overflow by ${fits.tabs} px`);
-  if (fits.offers.join() !== "Deploy") fail(`the thumb bar offers ${fits.offers.join()}`);
+  if (fits.offers.join() !== "Restart,Deploy") fail(`the thumb bar offers ${fits.offers.join()}`);
   if (fits.callout.wraps !== "anywhere") fail(`a callout's image wraps as ${fits.callout.wraps}`);
   if (!fits.callout.stacked) fail("at 360 px a callout's actions don't sit under its text");
   await shoot(page, "apps-phone");
@@ -522,7 +522,7 @@ export async function appsFlow(
     await form.waitFor({ state: "hidden" });
     const hostRow = page.locator(".app-reach-domain", { hasText: bare });
     await hostRow.waitFor({ timeout: 30_000 });
-    if ((await page.getByRole("region", { name: "Running" }).innerText()).includes("Nothing outside"))
+    if ((await page.getByRole("region", { name: "What runs" }).innerText()).includes("Nothing outside"))
       fail("the page says nothing reaches an app whose domain it lists");
     let onHost = "";
     for (let i = 0; i < 40 && !onHost.includes("nginx"); i++) {
@@ -587,7 +587,7 @@ export async function appsFlow(
   // A status word is ink, and its shape carries the tone.
   const colours = await page
     .getByRole("row", { name: /nginx/ })
-    .locator(".dw-status")
+    .locator(".apps-record-state")
     .evaluate((badge) => {
       const glyph = badge.querySelector(".dw-glyph");
       const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim();

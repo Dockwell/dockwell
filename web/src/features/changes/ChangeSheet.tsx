@@ -598,7 +598,7 @@ function ChangeSheet({
     <span className="dw-sheet-note">
       <Icon name="undo" size={14} />
       {restarts(plan) ? (
-        <Trans>No undo, as a restart changes nothing to go back to</Trans>
+        <Trans>No undo</Trans>
       ) : onlyIfNewer(plan) ? (
         <Trans>Undo for {undoDays} days if this replaces anything</Trans>
       ) : (
@@ -1888,6 +1888,13 @@ function Effects({
   // What is there today: a step that fails puts back what ran, as ADR 0017 has it. Waves and their checks are #28.
   // A restart changes no spec, so it has nothing to roll back to.
   const restarting = restarts(plan);
+  if (restarting) {
+    rows.push({
+      key: "no-undo",
+      icon: "undo",
+      title: <Trans>A restart has no undo, as it changes nothing to go back to.</Trans>,
+    });
+  }
   const serving = restarting
     ? []
     : changing(plan).filter((r) => r.resource?.kind === "service" && r.action !== PlanAction.DELETE);

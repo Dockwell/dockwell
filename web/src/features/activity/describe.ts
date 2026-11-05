@@ -146,8 +146,8 @@ export function useHealthEventWords(): HealthEventWords {
       const count = event.health?.flips ?? 0;
       return count > 0
         ? plural(count, {
-            one: "It changed # more time since the last time this said.",
-            other: "It changed # more times since the last time this said.",
+            one: "It changed once more since the last of these.",
+            other: "It changed # more times since the last of these.",
           })
         : "";
     };
@@ -169,7 +169,8 @@ export function useHealthEventWords(): HealthEventWords {
         return undefined;
       },
       detail(event) {
-        return [event.health?.output ?? "", flips(event)].filter(Boolean).join(" · ");
+        const said = event.health?.output ?? "";
+        return [said.charAt(0).toUpperCase() + said.slice(1), flips(event)].filter(Boolean).join(" · ");
       },
     };
   }, [t]);

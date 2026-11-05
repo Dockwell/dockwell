@@ -35,6 +35,7 @@ const (
 	healthy    = dockwellv1.HealthState_HEALTH_STATE_HEALTHY
 	unhealthy  = dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY
 	notRunning = dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING
+	paused     = dockwellv1.HealthState_HEALTH_STATE_PAUSED
 )
 
 // reports is what servers last said, as Agents keeps it.
@@ -237,6 +238,10 @@ func TestStatesAddUp(t *testing.T) {
 		{[]dockwellv1.HealthState{healthy, starting}, starting},
 		{[]dockwellv1.HealthState{healthy, unhealthy, notRunning}, unhealthy},
 		{[]dockwellv1.HealthState{unknown, notRunning}, notRunning},
+		{[]dockwellv1.HealthState{healthy, paused}, paused},
+		{[]dockwellv1.HealthState{unknown, paused}, paused},
+		{[]dockwellv1.HealthState{paused, notRunning}, notRunning},
+		{[]dockwellv1.HealthState{paused, unhealthy}, unhealthy},
 	} {
 		if got := Worst(tc.in); got != tc.want {
 			t.Errorf("the worst of %v = %v, want %v", tc.in, got, tc.want)
@@ -244,6 +249,50 @@ func TestStatesAddUp(t *testing.T) {
 	}
 	if got := Best(nil); got != notRunning {
 		t.Errorf("the best of nothing = %v", got)
+	}
+	// While one takes over from another, what serves is what that server reads as, and
+	// a paused one serves nothing.
+	for _, tc := range []struct {
+		in   []dockwellv1.HealthState
+		want dockwellv1.HealthState
+	}{
+		{[]dockwellv1.HealthState{paused, healthy}, healthy},
+		{[]dockwellv1.HealthState{paused, unhealthy}, unhealthy},
+		{[]dockwellv1.HealthState{paused, notRunning}, paused},
+	} {
+		list := make([]*dockwellv1.InstanceHealth, len(tc.in))
+		for i, state := range tc.in {
+			list[i] = &dockwellv1.InstanceHealth{State: state}
+		}
+		if got := Best(list); got != tc.want {
+			t.Errorf("the best of %v = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+}
+
+// A paused service serves nothing, so the timeline tells of it, and of its coming back.
+func TestTheTimelineHearsOfAPause(t *testing.T) {
+	w := newWorld(t, store.SQLite)
+	c := &clock{now: time.Unix(1_800_000_000, 0)}
+	r := w.newRecorder(c)
+	say := func(state dockwellv1.HealthState) {
+		r.Heard("srv_A", []*dockwellv1.InstanceHealth{w.instance("web", 1, state, "")})
+	}
+	say(healthy)
+	r.Record(t.Context())
+	say(paused)
+	c.tick(Dwell)
+	r.Record(t.Context())
+	got := w.events(t)
+	if len(got) != 1 || got[0].State != paused {
+		t.Fatalf("after a pause lasted, the timeline has %v", got)
+	}
+	c.tick(HoldOff)
+	say(healthy)
+	c.tick(Dwell)
+	r.Record(t.Context())
+	if got = w.events(t); len(got) != 2 || got[1].State != healthy || got[1].Previous != paused {
+		t.Fatalf("after it came back, the timeline has %v", got)
 	}
 }
 

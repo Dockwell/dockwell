@@ -1073,7 +1073,7 @@ describe("what a Compose file reads beside it", () => {
     // It isn't the Compose file that's wrong.
     expect(within(sheet).getByLabelText("Compose file")).not.toHaveAttribute("aria-invalid", "true");
     expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
-    expect(sheet).toHaveTextContent("Fix the .env file to review the plan");
+    await waitFor(() => expect(sheet).toHaveTextContent("Fix the .env file to review the plan"));
   });
 
   it("opens the directory where a relative path needs it, and puts what's wrong there", async () => {
@@ -1093,7 +1093,7 @@ describe("what a Compose file reads beside it", () => {
     const directory = await within(sheet).findByLabelText(/Directory on the server/);
     await waitFor(() => expect(directory).toHaveAttribute("aria-invalid", "true"));
     expect(within(sheet).getByLabelText("Compose file")).not.toHaveAttribute("aria-invalid", "true");
-    expect(sheet).toHaveTextContent("Say where the file is to review the plan");
+    await waitFor(() => expect(sheet).toHaveTextContent("Say where the file is to review the plan"));
     await user.type(directory, "/opt/shop");
     await waitFor(() => expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled());
   });

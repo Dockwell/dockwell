@@ -101,6 +101,16 @@ A stop-first replace goes through `swapready`, `swapmarked`, `swapstopped`, `swa
 
 Either way it ends in one healthy instance and no orphan, or in a failure that says why, as any step can. A step isn't done until its check has passed on what runs now, and how far it got doesn't settle that. A stop-first step takes the old container away before it waits for the new one's check, so once it is cut short there, the new one runs, reads as its spec, and nothing is left over to say the step didn't end. Only the record knows. So a resume keeps each step the record doesn't have as ended, even with nothing left for it to do, as a finishing step: the agent changes nothing, and asks the check, with its window from there. If it doesn't pass, the step fails, and the change rolls back like any other. A step that ended on record has had its check, and isn't asked again. `internal/fault` had no injection, so this adds `fault.Points`, and the kill test re-executes the test binary as an agent that kills itself with `SIGKILL` at each point, forward, rolling back and after a reboot.
 
+### What the panel says
+
+The record says what was deployed, and health says what runs, and a screen says both, kept apart. A deployment that went well reads as deployed, which says nothing of whether it runs now, and "Live" is gone from the panel, as it read as that. What runs comes from `ListHealth`, one read for every app, every 10 s while a screen that shows it is open and in front, and every 2 s for 30 s after a change moves on. There is no stream of it to follow, and an agent looks every 5 s anyway.
+
+Each state has a shape, a word and a colour. Only a check that passed is healthy, and green. What nothing checks reads as running, as a ring with a dot, and says that only means it started. What nobody can say anything of reads as unknown, as a dashed ring. Those two are new to the design system, as a filled circle in another colour would still read as healthy, and stopped's ring would read as stopped. An unhealthy one is a triangle, one that isn't running a square, one paused the hollow ring, and one starting the arc.
+
+What the panel can't read isn't what the app is. A failed read leaves what it last read for 30 s, then says it can't read, in words about Dockwell and never the app: it never reads as not running, and it isn't counted among what needs a look. An agent reads Docker on a pace of its own, so for up to 30 s after a change, a report from before it ended doesn't say that what it made isn't running.
+
+What a plan sheet says of a rollback goes by this too: it says what Dockwell did, and only that something runs where its server does.
+
 ### What can't roll says so
 
 `decide` looks at what the two containers would share. Any of these stop it rolling, and the plan names them, with the downtime:

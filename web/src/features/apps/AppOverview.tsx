@@ -103,26 +103,23 @@ export function AppOverview() {
   );
 }
 
-/** What a health state comes to, as a notice, where the record has nothing worse to say. */
+/**
+ * What a health state comes to, as a notice, where the record has nothing worse to say:
+ * the fact, what follows and what to do. What its check said is in the panel below it.
+ */
 function HealthNotice({ health, name, serviceId }: { health: AppHealth; name: string; serviceId: string }) {
   const { t } = useLingui();
   const { fleet } = useFleetView();
-  const words = useHealthWords();
-  const now = useAgoNow(undefined);
   if (health.read !== "read") return null;
-  const those = health.servers.filter((s) => s.kind === health.kind);
-  const where = those.map((s) => s.serverName).join(", ");
+  const where = health.servers
+    .filter((s) => s.kind === health.kind)
+    .map((s) => s.serverName)
+    .join(", ");
   const logs = (
     <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }}>
       <Trans>See its logs</Trans>
     </RouterButtonLink>
   );
-  const said = those.map((s) => (
-    <p key={s.serverId} className="app-notice-said">
-      {fleet ? <code>{s.serverName}: </code> : null}
-      <MachineWords names={[s.container]}>{words.says(s, now)}</MachineWords>
-    </p>
-  ));
   switch (health.kind) {
     case "not-running":
       return (
@@ -131,7 +128,6 @@ function HealthNotice({ health, name, serviceId }: { health: AppHealth; name: st
           title={fleet ? t`${name} isn't running on ${where}` : t`${name} isn't running`}
           actions={logs}
         >
-          {said}
           <Trans>Nothing starts it on its own. Restart it, or deploy.</Trans>
         </Callout>
       );
@@ -142,20 +138,18 @@ function HealthNotice({ health, name, serviceId }: { health: AppHealth; name: st
           title={fleet ? t`${name} fails its health check on ${where}` : t`${name} fails its health check`}
           actions={logs}
         >
-          {said}
           <Trans>It stays up until someone changes something. Fix what its check reports, or the check, then deploy.</Trans>
         </Callout>
       );
     case "paused":
       return (
         <Callout tone="warning" title={fleet ? t`${name} is paused on ${where}` : t`${name} is paused`}>
-          {said}
+          <Trans>It serves nothing until someone unpauses it, and restarting or deploying it also puts that right.</Trans>
         </Callout>
       );
     case "unknown":
       return (
         <Callout tone="warning" title={t`Nobody can say how ${name} runs`}>
-          {said}
           <Trans>
             It may well be running. Check that <code>dockwell run</code> is still running on the server.
           </Trans>
@@ -384,7 +378,6 @@ function RunningPanel() {
       actions={
         // The title carries the state on wide screens; the phone's header has only the word.
         <span className="app-running-actions">
-          {phone ? <HealthBadge health={health} variant="pill" /> : null}
           {reached ? (
             <>
               <button type="button" className="app-panel-link" onClick={() => setAddingDomain(true)}>
