@@ -95,5 +95,8 @@ export default defineConfig(({ command }) => ({
     css: false,
     restoreMocks: true,
     unstubGlobals: true,
+    // Above asyncUtilTimeout in src/test/setup.ts, so a slow wait reads as what it
+    // was waiting for, not as a test that ran out of time.
+    testTimeout: 15_000,
   },
 }));
