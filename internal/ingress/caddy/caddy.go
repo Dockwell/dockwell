@@ -255,6 +255,10 @@ type matcher struct {
 	RemoteIP *remoteIP `json:"remote_ip,omitempty"`
 	// Header holds what a request must carry, in what a route believes of it.
 	Header map[string][]string `json:"header,omitempty"`
+	// VarsRegexp holds what a placeholder must look like, in the same. It looks at
+	// what the placeholder gives, as header_regexp passes if any one line of a header
+	// matches, and the placeholder joins them all.
+	VarsRegexp map[string]pattern `json:"vars_regexp,omitempty"`
 }
 
 type remoteIP struct {
@@ -373,8 +377,8 @@ func distrustingAddress() *headers {
 
 // believingAddress is what a route that names a proxy sends, from what its own
 // steps decided (beliefOf). A service reads one address, not a list a client may
-// have written the start of. X-Forwarded-Host is the Host this request came with,
-// as a proxy passes on what a visitor writes there, and an app builds links from it.
+// have written the start of. A proxy passes on what a visitor writes in
+// X-Forwarded-Host, and an app builds links from it, so ownName writes over that.
 func believingAddress() *headers {
 	client, scheme := "{http.vars."+clientVar+"}", "{http.vars."+schemeVar+"}"
 	return &headers{Request: &headerOps{
@@ -386,6 +390,31 @@ func believingAddress() *headers {
 	}}
 }
 
+// ownName has a route tell a service its own domain, in Host and X-Forwarded-Host.
+// Caddy matches a route on the name before the last colon of Host and lets the rest
+// through, so Host: app.example.net:1,evil.example.org reaches the route, and
+// frameworks take the last of a list, and build a reset link from it. A port a proxy
+// in front keeps in Host goes with that.
+func ownName(h *headers, domain string) *headers {
+	h.Request.Set["Host"] = []string{domain}
+	h.Request.Set["X-Forwarded-Host"] = []string{domain}
+	return h
+}
+
+// addressShape is what CF-Connecting-IP must look like to reach a service as its
+// client's address. Anyone with a Worker on Cloudflare can write that header, so a
+// list, nothing at all, or text an app might print goes no further. It's the shape
+// of an address, not a check of one: Caddy compiles this for every route that names
+// the preset, and an exact pattern costs more than three times the memory there. So
+// 999.1.1.1 gets through, and an app that parses it refuses it. Every address that
+// netip writes matches, as a real one that didn't would read as Cloudflare's own.
+const addressShape = `^(?:[0-9]{1,3}(?:\.[0-9]{1,3}){3}|[0-9A-Fa-f]{0,4}(?::{1,2}[0-9A-Fa-f]{1,4}){1,7}:{0,2}|[0-9A-Fa-f]{0,4}::)$`
+
+// pattern is what Caddy's vars_regexp matcher takes for a placeholder.
+type pattern struct {
+	Pattern string `json:"pattern"`
+}
+
 // beliefOf is what a route that names a proxy believes of a request: the peer on
 // the connection and the scheme it came over, unless the peer is one it named. Only
 // that route's own list counts, though Caddy finds {http.vars.client_ip} by what any
@@ -393,9 +422,10 @@ func believingAddress() *headers {
 //
 //   - From a range it named, the client is the first address from the right of
 //     X-Forwarded-For that no route on the server names.
-//   - From Cloudflare's, the client is CF-Connecting-IP, and X-Forwarded-For isn't
-//     read: those ranges are shared by all its customers, and a Worker's request
-//     comes from one with whatever X-Forwarded-For its author wrote (ADR 0030).
+//   - From Cloudflare's, the client is CF-Connecting-IP if it has the shape of an
+//     address, and otherwise the peer. X-Forwarded-For isn't read: those ranges are
+//     shared by all its customers, and a Worker's request comes from one with
+//     whatever X-Forwarded-For its author wrote (ADR 0030).
 //   - From either, https is taken at its word, and nothing else is: a visitor can't
 //     put anything else in front of an app through it.
 func beliefOf(named, edge []string) handler {
@@ -408,7 +438,7 @@ func beliefOf(named, edge []string) handler {
 	}
 	if len(edge) > 0 {
 		steps = append(steps, beliefRoute{
-			Match:  []matcher{{RemoteIP: &remoteIP{Ranges: edge}, Header: map[string][]string{"Cf-Connecting-Ip": {"*"}}}},
+			Match:  []matcher{{RemoteIP: &remoteIP{Ranges: edge}, VarsRegexp: map[string]pattern{edgeClient: {Pattern: addressShape}}}},
 			Handle: []map[string]string{{"handler": "vars", clientVar: edgeClient}},
 		})
 	}
@@ -480,11 +510,11 @@ func routeJSON(r ingress.Route) route {
 	h := handler{
 		Handler: "reverse_proxy", Upstreams: ups, FlushInterval: -1, StreamCloseDelay: streamClose,
 		LoadBalancing: &loadBalancing{TryDuration: tryDuration, TryInterval: tryInterval},
-		Headers:       clientAddress(),
+		Headers:       ownName(clientAddress(), r.Domain),
 	}
 	handle := []handler{h}
 	if len(r.TrustedProxies)+len(r.EdgeProxies) > 0 {
-		h.Headers = believingAddress()
+		h.Headers = ownName(believingAddress(), r.Domain)
 		handle = []handler{beliefOf(r.TrustedProxies, r.EdgeProxies), h}
 	}
 	return route{ID: r.ID, Match: []matcher{m}, Terminal: true, Handle: handle}
@@ -975,7 +1005,7 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 		out.TrustedProxies, out.EdgeProxies = readBelief(r.Handle[0])
 	}
 	out.PlainForAnyone = out.Plain && r.Match[0].RemoteIP == nil
-	out.Edited = out.Edited || !onlyKnownKeys(raw) || !headersAreOurs(raw, len(r.Handle) == 2) || !beliefAndReachAreOurs(r, out)
+	out.Edited = out.Edited || !onlyKnownKeys(raw) || !headersAreOurs(raw, len(r.Handle) == 2, out.Domain) || !beliefAndReachAreOurs(r, out)
 	return out, true
 }
 
@@ -1003,8 +1033,9 @@ func beliefAndReachAreOurs(r route, read ingress.Route) bool {
 // headersAreOurs reports a route that changes the headers it sends as Dockwell
 // has it do, or, as an older config may, not at all. Its key alone isn't enough:
 // a header added by hand is a hand edit, and would otherwise read as nothing. A
-// route that trusts a proxy believes it, and one that doesn't never does.
-func headersAreOurs(raw json.RawMessage, trusts bool) bool {
+// route that trusts a proxy believes it, and one that doesn't never does. A shape
+// from before ownName reads as ours, and the next change writes over it (withTrust).
+func headersAreOurs(raw json.RawMessage, trusts bool, domain string) bool {
 	var r struct {
 		Handle []struct {
 			Headers json.RawMessage `json:"headers"`
@@ -1017,9 +1048,9 @@ func headersAreOurs(raw json.RawMessage, trusts bool) bool {
 	if len(have) == 0 {
 		return !trusts
 	}
-	shapes := []*headers{clientAddress(), olderClientAddress(), distrustingAddress()}
+	shapes := []*headers{ownName(clientAddress(), domain), ownName(distrustingAddress(), domain), clientAddress(), olderClientAddress(), distrustingAddress()}
 	if trusts {
-		shapes = []*headers{believingAddress()}
+		shapes = []*headers{ownName(believingAddress(), domain), believingAddress()}
 	}
 	return slices.ContainsFunc(shapes, func(h *headers) bool {
 		ours, err := json.Marshal(h)
@@ -1185,21 +1216,26 @@ func withTrust(routes []json.RawMessage, serverTrusts bool) []json.RawMessage {
 		if !ok || read.Edited {
 			continue
 		}
-		// One with steps of its own already decides for itself.
 		var r route
-		if json.Unmarshal(raw, &r) != nil || len(r.Handle) != 1 {
+		if json.Unmarshal(raw, &r) != nil || len(r.Handle) == 0 {
 			continue
 		}
-		want := clientAddress()
-		if serverTrusts {
-			want = distrustingAddress()
+		// One with steps of its own decides for itself what it believes, whatever the
+		// server trusts, and only needs its own name written.
+		want := ownName(clientAddress(), read.Domain)
+		switch {
+		case len(r.Handle) == 2:
+			want = ownName(believingAddress(), read.Domain)
+		case serverTrusts:
+			want = ownName(distrustingAddress(), read.Domain)
 		}
-		have, err1 := json.Marshal(r.Handle[0].Headers)
+		last := &r.Handle[len(r.Handle)-1]
+		have, err1 := json.Marshal(last.Headers)
 		ours, err2 := json.Marshal(want)
 		if err1 != nil || err2 != nil || sameJSON(have, ours) {
 			continue
 		}
-		r.Handle[0].Headers = want
+		last.Headers = want
 		if b, err := json.Marshal(r); err == nil {
 			routes[i] = b
 		}

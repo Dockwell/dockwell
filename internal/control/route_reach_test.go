@@ -237,6 +237,60 @@ func testARoutesReach(t *testing.T, backend store.Backend) {
 	refused("a proxy for a plain route", propose(t, script, "Answer a proxy", edit("other", &resourcev1.Route{Domain: "else.example.net", Service: "web", Port: 8080, Tls: "off", TrustedProxies: []string{"203.0.113.9"}})), "203.0.113.9/32")
 }
 
+// What a plan needs a person for is part of its fingerprint, as that's the only thing
+// that stops a plan made before a domain had a certificate applying after it. A token
+// plans a plain route on a new name, which needs nobody. The name then has a
+// certificate and loses it, so the same route now takes that domain off HTTPS, which
+// needs a person, and the old plan says nothing of that.
+func TestAPlanFromBeforeADomainsCertificateDoesntApplyAfter(t *testing.T) {
+	storetest.Each(t, testAPlanFromBeforeACertificate)
+}
+
+func testAPlanFromBeforeACertificate(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+	f.addServerWith(t, func() []resource.Type { return []resource.Type{&route.Driver{Ingress: ing}} })
+	person := changeClient(b, b.origin)
+	token := createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
+	script := changeClient(bearer{token: token, rt: b.client.Transport}, b.origin)
+	first := importCompose(t, dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON()), "services:\n  web:\n    image: ghcr.io/acme/shop:1.4\n", nil, false)
+	if got := apply(t, person, first); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the service: %v", got)
+	}
+	env := first.GetPlan().GetResources()[0].GetResource().GetScope()
+	ref := func(name string) *dockwellv1.ResourceRef {
+		return &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: env, Name: name}
+	}
+	on := func(name string, tls string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{Resource: ref(name), Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "stale.example.net", Service: "web", Port: 80, Tls: tls}}}}
+	}
+
+	old := propose(t, script, "Plain, before anything", on("plain", "off"))
+	if old.GetPlan().GetHostAccess() {
+		t.Fatalf("a new plain name plans host access: %s", hostAccessOf(old))
+	}
+	if got := apply(t, script, propose(t, script, "Its first certificate", on("secure", ""))); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the certificate: %v", got)
+	}
+	if got := apply(t, script, propose(t, script, "And its going", &dockwellv1.Edit{Resource: ref("secure"), Delete: true})); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("its going: %v", got)
+	}
+	again := propose(t, script, "The same, now", on("plain", "off"))
+	if !again.GetPlan().GetHostAccess() {
+		t.Fatalf("the same route now plans no host access, so this proves nothing: %s", hostAccessOf(again))
+	}
+
+	_, err := script.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: old.GetId(), Fingerprint: old.GetPlan().GetFingerprint()}))
+	if err == nil {
+		t.Fatal("a token applied a plan from before the domain's certificate, which now takes it off HTTPS with no person")
+	}
+	t.Logf("refused: %v", err)
+	if _, there := ing.routes[resource.Ref{Kind: route.Kind, Scope: env, Name: "plain"}]; there {
+		t.Error("the route was made")
+	}
+}
+
 // hostAccessOf lists what a change's plan says a person approves.
 func hostAccessOf(ch *dockwellv1.Change) string {
 	var says []string
