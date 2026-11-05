@@ -96,6 +96,10 @@ export function useLogStream(
       abort.signal,
       BACKOFF,
       async (connected) => {
+        // Once for each connection, as React keeps every update until it next
+        // renders, and one that changes nothing doesn't make it, so a long follow
+        // would keep them all, with what each message's closure holds.
+        let saidLive = false;
         for await (const m of client.watchLogs({ ...req, resumeToken: token }, { signal: abort.signal })) {
           connected();
           if (m.resumeToken) token = m.resumeToken;
@@ -114,6 +118,7 @@ export function useLogStream(
             schedule();
           }
           if (changed || m.caughtUp) {
+            saidLive = true;
             setState((was) => ({
               ...was,
               status: "live",
@@ -122,7 +127,8 @@ export function useLogStream(
               servers: new Map(servers),
               error: undefined,
             }));
-          } else {
+          } else if (!saidLive) {
+            saidLive = true;
             setState((was) => (was.status === "live" ? was : { ...was, status: "live", error: undefined }));
           }
         }
