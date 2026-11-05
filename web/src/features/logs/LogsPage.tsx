@@ -206,7 +206,12 @@ export function LogsPage({
     const merged = new Map<string, LogSource>();
     for (const s of allSources ?? []) merged.set(s.id, s);
     for (const [id, s] of stream.sources) merged.set(id, s);
-    for (const s of deep.sources) merged.set(s.id, s);
+    // A search says how things were as it ran, so what's read live goes over it, and what
+    // it found that nothing lists now has gone, however it read then.
+    for (const s of deep.sources) {
+      if (merged.has(s.id)) continue;
+      merged.set(s.id, allSources && s.state !== LogSourceState.KEPT ? { ...s, state: LogSourceState.GONE } : s);
+    }
     const read = new Map(stream.sources);
     for (const s of deep.sources) read.set(s.id, s);
     const labelled = withLabels(merged, read);

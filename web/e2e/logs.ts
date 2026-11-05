@@ -503,7 +503,7 @@ async function main() {
   step("a rolling deploy shows both containers, by their names, for the seconds both run, and the head says what runs");
   // What the log has its head say of how many run, and never of replicas, as there are none.
   const logHead = async () => {
-    const text = await page.locator(".dw-log-title").innerText();
+    const text = await page.locator(".dw-log-name").innerText();
     if (/replica/i.test(await page.locator("main").innerText())) fail(`the page speaks of replicas: ${text}`);
     return text;
   };
@@ -536,18 +536,29 @@ async function main() {
   const shownNames = await page.locator(".dw-log-src").allInnerTexts();
   if (shownNames.some((n) => n.includes("stopping_"))) fail(`a source reads ${shownNames.join(", ")}`);
   await rolled;
-  // Where the new one began, by the name it goes by.
-  await page
-    .getByText(new RegExp(`${newOne} started r\\d+`))
-    .first()
-    .waitFor();
-  await until("the head to say only what runs, once the move is over", async () => !/containers/.test(await logHead()));
+  const headSettles = async (when: string) => {
+    const end = Date.now() + 20_000;
+    while (/containers/.test(await logHead())) {
+      if (Date.now() > end)
+        fail(`${when}, the head says: ${await logHead()}. The server lists:\n${dockwell("logs", "sources", "web")}`);
+      await sleep(100);
+    }
+  };
+  await headSettles("once the move is over");
   if (await page.getByRole("radio", { name: "All containers" }).count())
     fail("a filter is offered, with one container");
   await shoot(page, "rolled-one-running");
+  // Where the new one began, by the name it goes by. In the whole of what's loaded, as
+  // only the rows on screen are drawn, and that one has scrolled away by now.
+  const [marked] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Download these lines" }).click(),
+  ]);
+  const loaded = readFileSync((await marked.path()) ?? fail("no download"), "utf8");
+  if (!loaded.includes(`-- new container ${newOne} of `)) fail(`what's loaded doesn't say where ${newOne} began`);
   // However many it has read that have gone.
   for (const image of ["ghcr.io/acme/shop:next2", "ghcr.io/acme/shop:next3"]) await deploying(image);
-  await until("the head to say only what runs, after several deploys", async () => !/containers/.test(await logHead()));
+  await headSettles("after several deploys");
   await post("/print", "2026-11-04 14:22:01 INFO only the one says this");
   await page.getByText("only the one says this").first().waitFor();
   if (/containers/.test(await logHead())) fail(`after several deploys, the head says: ${await logHead()}`);

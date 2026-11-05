@@ -239,6 +239,44 @@ describe("LogsPage", () => {
     expect(screen.queryByRole("radio", { name: "All containers" })).toBeNull();
   });
 
+  it("doesn't count what a search found as running, once what's read live says otherwise", async () => {
+    const web = (id: string, n: number, state = LogSourceState.RUNNING) =>
+      create(LogSourceSchema, { ...running, id, state, containerName: `env-web-${n}` });
+    const was = web("aaaa00000001", 1);
+    const lost = web("aaaa00000002", 2);
+    const { logs, stream } = api(sourcesOf(was));
+    const readLogs = vi.fn(() => ({ sources: [was, lost], chunks: [] }));
+    const user = userEvent.setup();
+    const { container } = renderAt(URL, { logs: { ...logs, readLogs } });
+    await screen.findByRole("log");
+    await act(() =>
+      stream.send(message({ sources: [was], chunks: [{ sourceId: was.id, lines: [line("before")] }], caughtUp: true })),
+    );
+    await screen.findByText("before");
+    const field = screen.getByRole("textbox", { name: "Search logs" });
+    await user.type(field, "far");
+    await user.click(await screen.findByRole("button", { name: "Search all the servers keep" }));
+    await waitFor(() => expect(readLogs).toHaveBeenCalled());
+    await user.click(screen.getByRole("radio", { name: "Lines loaded" }));
+    // The search saw both running. Since, one has gone, and the other was kept.
+    const now = web("aaaa00000003", 3);
+    await act(() =>
+      stream.send(
+        message({
+          sources: [web("aaaa00000001", 1, LogSourceState.KEPT), now],
+          chunks: [{ sourceId: now.id, lines: [line("after")] }],
+          caughtUp: true,
+        }),
+      ),
+    );
+    await user.clear(field);
+    await screen.findByText("after");
+    const head = () => container.querySelector(".dw-log-name")?.textContent ?? "";
+    await waitFor(() => expect(head()).toContain("web · production"));
+    expect(head()).not.toMatch(/container/);
+    expect(screen.queryByRole("radio", { name: "All containers" })).toBeNull();
+  });
+
   it("forgets a filter on a name that has gone, as a deploy moves on from it", async () => {
     const { logs, stream } = api(sourcesOf(running));
     renderAt(`${URL}?replica=web-9`, { logs });

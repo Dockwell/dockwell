@@ -479,6 +479,12 @@ func TestAFollowerReadsBothContainersOfARollout(t *testing.T) {
 				t.Errorf("the stream has %q %d times, in %q", line, n, r.got())
 			}
 		}
+		// It hears that the old one has gone, so it stops counting it as running.
+		eventually(t, "the follower to hear what became of the old one", func() bool {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			return r.sources[old.ID[:12]].GetState() == dockwellv1.LogSourceState_LOG_SOURCE_STATE_KEPT
+		})
 		// Each by what a person knows it by, as the one replica there is.
 		r.mu.Lock()
 		for _, id := range []string{old.ID[:12], next[:12]} {
