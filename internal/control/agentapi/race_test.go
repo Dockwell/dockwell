@@ -108,16 +108,172 @@ func TestALogsCallTakesTheAgentsAnswerAsItsStreamEnds(t *testing.T) {
 		if err := run(failed, false); !errors.As(err, &server) {
 			t.Fatalf("a read that failed as its stream ended = %v, want what the agent said", err)
 		}
-		if err := run(stopped, true); !errors.Is(err, resource.ErrNotConnected) {
+		if err := run(stopped, true); !errors.Is(err, ErrMoving) || !errors.Is(err, resource.ErrNotConnected) {
 			t.Fatalf("a read the agent stopped to move = %v, want it to say it can carry on", err)
 		}
-		if err := run(nil, true); !errors.Is(err, resource.ErrNotConnected) {
+		// The agent can stop a read before it has said it's moving.
+		if err := run(stopped, false); !errors.Is(err, ErrMoving) {
+			t.Fatalf("a read stopped ahead of the word that its agent moves = %v, want it to say it can carry on", err)
+		}
+		if err := run(nil, true); !errors.Is(err, ErrMoving) {
 			t.Fatalf("a read whose agent moved before it answered = %v, want it to say it can carry on", err)
 		}
-		if err := run(nil, false); !errors.Is(err, ErrLost) {
+		if err := run(nil, false); !errors.Is(err, ErrLost) || errors.Is(err, ErrMoving) {
 			t.Fatalf("a read whose agent went with no word = %v, want it lost", err)
 		}
 	}
+}
+
+// A read waits for an agent that said it's moving, for no longer than it's given, and
+// for nothing else.
+func TestAReadWaitsForAMoveAndNothingElse(t *testing.T) {
+	const forever = time.Hour
+	kinds := resource.NewRegistry(&firewall.Driver{})
+	open := func(a *Agents) *Session {
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(firewall.Kind)}}, func(*agentv1.ConnectResponse) error { return nil })
+	}
+	type got struct {
+		session *Session
+		ok      bool
+		took    time.Duration
+	}
+	read := func(t *testing.T, ctx context.Context, a *Agents, within time.Duration) got {
+		t.Helper()
+		out := make(chan got, 1)
+		start := time.Now()
+		go func() {
+			s, ok := a.SessionPastMove(ctx, "srv_1", within)
+			out <- got{s, ok, time.Since(start)}
+		}()
+		select {
+		case g := <-out:
+			return g
+		case <-time.After(5 * time.Second):
+			t.Fatal("the read waited for what it shouldn't")
+			return got{}
+		}
+	}
+	fresh := func() *Agents { return NewAgents(kinds, slog.New(slog.DiscardHandler)) }
+
+	t.Run("a connected server is there", func(t *testing.T) {
+		a := fresh()
+		s := open(a)
+		defer s.close()
+		if g := read(t, t.Context(), a, forever); !g.ok || g.session != s {
+			t.Errorf("got %+v, want its stream", g)
+		}
+	})
+	t.Run("a server that never connected isn't waited for", func(t *testing.T) {
+		if g := read(t, t.Context(), fresh(), forever); g.ok {
+			t.Errorf("got %+v, want it not connected", g)
+		}
+	})
+	t.Run("an agent that went with no word isn't waited for", func(t *testing.T) {
+		a := fresh()
+		open(a).close()
+		if g := read(t, t.Context(), a, forever); g.ok {
+			t.Errorf("got %+v, want it not connected", g)
+		}
+	})
+	t.Run("an agent moving is waited for, over its old stream's end", func(t *testing.T) {
+		a := fresh()
+		old := open(a)
+		old.drain()
+		next := make(chan *Session, 1)
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			old.close()
+			time.Sleep(50 * time.Millisecond)
+			next <- open(a)
+		}()
+		g := read(t, t.Context(), a, forever)
+		s := <-next
+		defer s.close()
+		if !g.ok || g.session != s {
+			t.Errorf("got %+v, want its next stream", g)
+		}
+	})
+	t.Run("a read begun between two streams waits for the next", func(t *testing.T) {
+		a := fresh()
+		old := open(a)
+		old.drain()
+		old.close()
+		next := make(chan *Session, 1)
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			next <- open(a)
+		}()
+		g := read(t, t.Context(), a, forever)
+		s := <-next
+		defer s.close()
+		if !g.ok || g.session != s {
+			t.Errorf("got %+v, want its next stream", g)
+		}
+	})
+	t.Run("an agent that doesn't come back is out of time", func(t *testing.T) {
+		a := fresh()
+		old := open(a)
+		old.drain()
+		old.close()
+		const within = 200 * time.Millisecond
+		if g := read(t, t.Context(), a, within); g.ok || g.took < within-20*time.Millisecond {
+			t.Errorf("got %+v, want it not connected after %s", g, within)
+		}
+	})
+	t.Run("a move that can't finish yet is out of time too", func(t *testing.T) {
+		a := fresh()
+		old := open(a)
+		defer old.close()
+		old.drain()
+		const within = 200 * time.Millisecond
+		if g := read(t, t.Context(), a, within); g.ok || g.took < within-20*time.Millisecond {
+			t.Errorf("got %+v, want it not connected after %s", g, within)
+		}
+	})
+	t.Run("the time runs from the stream's end, not the read", func(t *testing.T) {
+		a := fresh()
+		old := open(a)
+		old.drain()
+		old.close()
+		const within = 2 * time.Second
+		time.Sleep(1500 * time.Millisecond)
+		if g := read(t, t.Context(), a, within); g.ok || g.took > 1500*time.Millisecond {
+			t.Errorf("got %+v, want it not connected in what's left of %s", g, within)
+		}
+	})
+	t.Run("a move long past isn't waited for", func(t *testing.T) {
+		a := fresh()
+		old := open(a)
+		old.drain()
+		old.close()
+		a.mu.Lock()
+		a.moved["srv_1"] = time.Now().Add(-forever)
+		a.mu.Unlock()
+		if g := read(t, t.Context(), a, time.Minute); g.ok {
+			t.Errorf("got %+v, want it not connected", g)
+		}
+	})
+	t.Run("a stream that opens clears the move", func(t *testing.T) {
+		a := fresh()
+		old := open(a)
+		old.drain()
+		old.close()
+		open(a).close() // and this one goes with no word
+		if g := read(t, t.Context(), a, forever); g.ok {
+			t.Errorf("got %+v, want it not connected", g)
+		}
+	})
+	t.Run("a reader that left stops waiting", func(t *testing.T) {
+		a := fresh()
+		old := open(a)
+		old.drain()
+		old.close()
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if g := read(t, ctx, a, forever); g.ok {
+			t.Errorf("got %+v, want nothing", g)
+		}
+	})
 }
 
 // A rollout's call gets what its plan says it may take, on top of what any step
