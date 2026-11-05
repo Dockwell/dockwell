@@ -72,7 +72,8 @@ export async function healthFlow(page: Page, options: HealthFlowOptions) {
   const pageSays = async (word: string) => {
     const panel = page.getByRole("region", { name: "What runs" });
     await panel.locator(".app-runs-row").getByText(word, { exact: true }).waitFor({ timeout: SEEN_WITHIN });
-    await page.locator(".page-head, .page").first().getByText(word, { exact: true }).first().waitFor();
+    // A phone has no head of this kind, and every flow here is on a wide screen.
+    await page.locator(".page-title-row").getByText(word, { exact: true }).waitFor();
   };
   const goToList = () => page.goto(`${origin}/apps`);
   const goToApp = async (name: string) => {

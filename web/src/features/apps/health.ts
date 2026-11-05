@@ -253,7 +253,7 @@ export interface HealthView {
 export function useHealth(): HealthView {
   const transport = useTransport();
   const queryClient = useQueryClient();
-  const { data, isError, dataUpdatedAt, isPending } = useQuery({
+  const { data, isError, dataUpdatedAt, errorUpdatedAt, isPending } = useQuery({
     queryKey: createConnectQueryKey({
       schema: HealthService.method.listHealth,
       input: {},
@@ -274,7 +274,8 @@ export function useHealth(): HealthView {
     staleTime: 0,
     refetchInterval: () => ((soonUntil.get(queryClient) ?? 0) > Date.now() ? READ_SOON_MS : READ_EVERY_MS),
   });
-  const doubtful = isError && (data === undefined || Date.now() - dataUpdatedAt > TRUST_FOR_MS);
+  // By when the last read failed, as a list that's only re-read reads nothing else that moves.
+  const doubtful = isError && (data === undefined || errorUpdatedAt - dataUpdatedAt > TRUST_FOR_MS);
   return useMemo(() => {
     const byId = new Map((data?.services ?? []).map((s) => [s.id, healthOf(s)]));
     return {

@@ -140,8 +140,10 @@ describe("what runs, from what the server says", () => {
       const panel = await screen.findByRole("region", { name: "What runs" });
       await waitFor(() => expect(panel).toHaveTextContent(word));
       expect(panel).toHaveTextContent(says);
-      const lead = page.container.querySelector(".page-head, .page") as HTMLElement;
-      expect(lead).toHaveTextContent(word);
+      // The app's head says so too, and only that it's healthy where a check passed.
+      const head = page.container.querySelector(".page-title-row") as HTMLElement;
+      expect(head).toHaveTextContent(word);
+      if (word !== "Healthy") expect(head.querySelector(".dw-tone-healthy")).toBeNull();
       if (notice) expect(page.container.querySelector(".dw-callout")).toHaveTextContent(notice);
       else expect(page.container.querySelector(".dw-callout")).toBeNull();
       await expectAccessible(page.container);
@@ -226,6 +228,32 @@ describe("what runs, from what the server says", () => {
     expect(row.querySelector(".dw-tone-critical")).toBeNull();
     // It isn't the app that needs a look.
     expect(screen.queryByText(/needs? a look/)).not.toBeInTheDocument();
+  });
+
+  it("lets what it last read stand through a failed read or two, and then says it can't read", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let failing = false;
+      renderAt(
+        "/apps",
+        api([web], {
+          listHealth: () => {
+            if (failing) throw new ConnectError("the control plane is restarting", Code.Unavailable);
+            return { services: [aHealth("svc_web", { state: HealthState.NO_CHECK })] };
+          },
+        }),
+      );
+      const row = await screen.findByRole("row", { name: /web/ });
+      await waitFor(() => expect(row).toHaveTextContent("Running"));
+      failing = true;
+      await vi.advanceTimersByTimeAsync(11_000);
+      expect(row).toHaveTextContent("Running");
+      await vi.advanceTimersByTimeAsync(30_000);
+      await waitFor(() => expect(row).toHaveTextContent("Unknown"));
+      expect(row).not.toHaveTextContent("Not running");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("says on an app's page that it can't read, with no notice of what's wrong with the app", async () => {
