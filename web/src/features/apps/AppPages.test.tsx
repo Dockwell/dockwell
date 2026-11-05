@@ -5,6 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ActorKind,
   type AddServicePortRequest,
+  ChangeSchema,
   ChangeState,
   Connection,
   DeploymentState,
@@ -277,6 +278,32 @@ describe("an app's frame", () => {
     expect(link.getAttribute("href")).toContain("/apps/svc_web/logs");
     first.unmount();
     renderAt("/apps/svc_web/deployments?revision=2", { ...api(), logs });
+    await screen.findByRole("table", { name: "Revisions of web" });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
+  });
+
+  it("offers no logs of a revision whose server went away", async () => {
+    const lost = aRevision(3n, "ghcr.io/acme/web:1.5", {
+      change: create(ChangeSchema, {
+        id: "chg_lost",
+        state: ChangeState.FAILED,
+        steps: [create(StepProgressSchema, { state: StepState.FAILED, lost: true })],
+      }),
+    });
+    renderAt("/apps/svc_web/deployments?revision=3", {
+      ...api(),
+      services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: [lost] }) },
+      logs: {
+        listLogSources: () => ({
+          service: { id: "svc_web", name: "web" },
+          sources: [{ id: "aaaaaaaaaaaa", revision: 3n }],
+        }),
+        watchLogs: async function* () {
+          yield* [];
+        },
+      },
+    });
     await screen.findByRole("table", { name: "Revisions of web" });
     await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
     expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();

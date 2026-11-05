@@ -50,6 +50,11 @@ function Opener({ opening }: { opening: Opening }) {
   return null;
 }
 
+// The link needs a router and its own data, and Activity's tests have those. Here it's where it goes.
+vi.mock("../logs/DeployLogLinks", () => ({
+  FailedDeployLogs: () => <a href="#logs">Read this deploy's logs</a>,
+}));
+
 function show(change: Change, more: Partial<Opening> = {}, watch = feed<WatchChangeResponse>()) {
   const applies: ApplyChangeRequest[] = [];
   const opening = { kind: "plan", make: () => Promise.resolve({ change }), ...more } as Opening;
@@ -1001,6 +1006,30 @@ describe("a change that failed", () => {
     const many = moved(aCompose(), { state: ChangeState.FAILED, error: "no." });
     show(many);
     await screen.findByRole("dialog", { name: "Couldn't create blog" });
+  });
+});
+
+describe("the logs of a deploy that failed", () => {
+  it("are one link away, under why it failed", async () => {
+    show(moved(aDeploy(), { state: ChangeState.FAILED, error: "web didn't start." }));
+    const sheet = await screen.findByRole("dialog", { name: /Couldn't/ });
+    const link = await within(sheet).findByRole("link", { name: "Read this deploy's logs" });
+    const notice = within(sheet).getByRole("alert");
+    expect(notice.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("aren't offered when its server went away, as they can't be read", async () => {
+    show(
+      moved(aDeploy(), {
+        state: ChangeState.FAILED,
+        error: "hz-1 went offline during this step.",
+        steps: [
+          create(StepProgressSchema, { serverId: "srv_1", resourceId: "res_web", state: StepState.FAILED, lost: true }),
+        ],
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "hz-1 went offline during this deploy" });
+    expect(within(sheet).queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
   });
 });
 

@@ -410,6 +410,29 @@ describe("Activity", () => {
     expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
   });
 
+  it("offers no logs of a deploy whose server went away", async () => {
+    const planned = webPlanned();
+    const service = planned.plan?.resources[0];
+    if (service?.resource) service.resource.kind = "service";
+    const failedChange = moved(applied(planned, new Date(Date.now() - 60_000)), {
+      state: ChangeState.FAILED,
+      error: "hz-1 went offline during this step.",
+      steps: [create(StepProgressSchema, { state: StepState.FAILED, lost: true })],
+    });
+    const getChange = vi.fn(() => ({ change: failedChange }));
+    renderAt(`/activity?event=${failedChange.id}`, {
+      events: { watchEvents: feedOf(snapshot([changeEvent(failedChange)])) },
+      changes: { getChange },
+      logs: {
+        listLogSources: () => ({ sources: [{ id: "aaaaaaaaaaaa", changeId: failedChange.id }] }),
+        watchLogs: quietLogs,
+      },
+    });
+    await waitFor(() => expect(getChange).toHaveBeenCalled());
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
+  });
+
   it("still offers them while a server can't say", async () => {
     const planned = webPlanned();
     const service = planned.plan?.resources[0];

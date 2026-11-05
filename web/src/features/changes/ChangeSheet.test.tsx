@@ -250,6 +250,7 @@ describe("the plan sheet", () => {
       ];
     }
     step.healthUnknown = true;
+    step.hidesLogs = true;
     step.hostAccess = [
       create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/app/config", readOnly: true }),
       create(HostAccessSchema, { kind: HostAccessKind.DOCKER_SOCKET, path: "/var/run/docker.sock" }),
@@ -304,6 +305,7 @@ describe("the plan sheet", () => {
       risk.compareDocumentPosition(sheet.querySelector(".dw-plan") as Element) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(sheet).not.toHaveTextContent("about 2 s down, no downtime");
+    expect(sheet).toHaveTextContent("web's kept logs can't be read from then on, and go in 7 days.");
     expect(sheet).toHaveTextContent("web may take longer to be healthy, as its image isn't on the server yet.");
     expect(sheet).toHaveTextContent("about 2 s down, and up to 1 min 50 s until healthy");
     // The confirmation sits in the footer beside Apply, with the reason Apply waits.
