@@ -756,7 +756,13 @@ func ownAddress(t *testing.T) string {
 // from too.
 func (r *realCaddy) plainGetAt(t *testing.T, addr, host string, headers map[string]string) plainAnswer {
 	t.Helper()
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://%s:%d/who", addr, r.http), http.NoBody)
+	return r.plainGetPathAt(t, addr, host, "/who", headers)
+}
+
+// plainGetPathAt is plainGetAt for a path of the caller's.
+func (r *realCaddy) plainGetPathAt(t *testing.T, addr, host, path string, headers map[string]string) plainAnswer {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://%s:%d%s", addr, r.http, path), http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -766,7 +772,7 @@ func (r *realCaddy) plainGetAt(t *testing.T, addr, host string, headers map[stri
 	}
 	res, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
-		t.Fatalf("GET http://%s/who as %s: %v", addr, host, err)
+		t.Fatalf("GET http://%s%s as %s: %v", addr, path, host, err)
 	}
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
@@ -861,6 +867,41 @@ func TestAPlainRouteAnswersOnlyWhoItNamesOnRealCaddy(t *testing.T) {
 	stranger("a closed route", "none.example.net", own)
 	if got := c.plainGetAt(t, own, "open.example.net", nil); got.status != http.StatusServiceUnavailable {
 		t.Errorf("closed, a route for anyone answers %d", got.status)
+	}
+}
+
+// What a route answers is part of its matcher, so a stranger's request under a path
+// only a proxy reaches goes on to what else covers it. The threat model accepts that,
+// and says what follows: if the domain's root sends to another service, the path's
+// isn't reached, and if it sends to the same one, that's reached at that path, past
+// the proxy, as the root sends it every path.
+func TestAStrangerGoesPastAPathOnlyAProxyReachesOnRealCaddy(t *testing.T) {
+	c := startPlain(t)
+	own := ownAddress(t)
+	guarded := func(domain, rootDial, adminDial string) {
+		t.Helper()
+		root := plainRoute("dockwell.env.root-"+domain, domain, rootDial)
+		root.PlainForAnyone = true
+		admin := plainRoute("dockwell.env.admin-"+domain, domain, adminDial)
+		admin.Path = "/admin"
+		admin.TrustedProxies = []string{own + "/32"}
+		put(t, c, root)
+		put(t, c, admin)
+	}
+
+	guarded("two.example.net", backend(t, "root"), backend(t, "admin"))
+	if seen := c.plainGetPathAt(t, own, "two.example.net", "/admin/who", nil).who(t); seen["name"] != "admin" {
+		t.Fatalf("the proxy it names reached %v, so this proves nothing", seen)
+	}
+	if seen := c.plainGetPathAt(t, "127.0.0.1", "two.example.net", "/admin/who", nil).who(t); seen["name"] != "root" {
+		t.Errorf("with a service of its own, a stranger reached %v, want what the domain's root serves", seen)
+	}
+
+	web := backend(t, "web")
+	guarded("one.example.net", web, web)
+	seen := c.plainGetPathAt(t, "127.0.0.1", "one.example.net", "/admin/who", nil).who(t)
+	if seen["name"] != "web" || seen["path"] != "/admin/who" {
+		t.Errorf("on one service, a stranger reached %v, want it at that path, as the threat model says", seen)
 	}
 }
 

@@ -193,6 +193,25 @@ func TestARouteMovingBetweenServicesSaysSo(t *testing.T) {
 	}
 }
 
+// On a route to a port on the server, service says whose it is, and where it dials
+// comes from the port. So a token can change or remove it on what a person approved:
+// that moves the route between apps' pages and delete plans, and reaches nothing more.
+func TestAServiceOnARouteToAPortIsNoMoreReach(t *testing.T) {
+	d := &Driver{}
+	route := func(service string) *resourcev1.Route {
+		return &resourcev1.Route{Domain: "a.example.com", Service: service, HostPort: 8080}
+	}
+	want := d.HostAccess(route(""))
+	if len(want) != 1 {
+		t.Fatalf("a route to a port on the server reaches %+v", want)
+	}
+	for _, service := range []string{"web", "api"} {
+		if got := d.HostAccess(route(service)); !reflect.DeepEqual(got, want) {
+			t.Errorf("with the service %s it reaches %+v, want %+v", service, got, want)
+		}
+	}
+}
+
 // A plan made with no word from the server still says the route goes, and where.
 func TestARouteGoingSaysWhereWithNoWordFromTheServer(t *testing.T) {
 	dec, err := (&Driver{}).Plan(spec("a.example.com", "/api"), nil, nil)
