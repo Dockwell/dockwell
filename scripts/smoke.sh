@@ -91,6 +91,8 @@ csp=$(curl -fsS "${resolve[@]}" -o /dev/null -D - -H 'Accept: text/html' "$panel
 # The control plane reads each Compose file in this hidden command first.
 printf '%s' '{"file":"c2VydmljZXM6IHt9Cg==","variables":{},"cpu":5,"memory":1073741824}' | env -i GOMAXPROCS=2 "$bin" __read-compose ||
   fail "the command that reads a Compose file in a limited child failed"
-"$bin" --help 2>&1 | grep -q __read-compose && fail "the command that reads a Compose file in a limited child shows in the help"
+# Into a variable first: a failing --help would pass this as a pipe, under pipefail.
+help=$("$bin" --help 2>&1) || fail "dockwell --help failed: $help"
+if [[ "$help" == *__read-compose* ]]; then fail "the command that reads a Compose file in a limited child shows in the help"; fi
 
 echo "smoke: health, API over Connect and REST, the OpenAPI document, sign-in guard and panel all answer on $addr"

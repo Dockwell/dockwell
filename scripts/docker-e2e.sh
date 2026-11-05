@@ -282,7 +282,7 @@ container=$(docker ps --filter label=com.docker.compose.service=web --format '{{
 project=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$container") ||
   fail "docker inspect $container failed"
 [[ "$project" == env_* ]] || fail "$container is in the Compose project '$project', want its environment's, env_…"
-says nginx curl -fsS "http://127.0.0.1:$web_port/" || fail "web doesn't serve on port $web_port"
+says nginx curl -fsS --max-time 10 "http://127.0.0.1:$web_port/" || fail "web doesn't serve on port $web_port"
 env_of() { docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container"; }
 says '^GREETING=hello$' env_of || fail "web's environment is $(env_of)"
 
@@ -308,8 +308,8 @@ for _ in $(seq 50); do
 done
 follower_pid=$(head -n 1 "$follow_log" | tr -d '\r')
 [[ "$follower_pid" =~ ^[0-9]+$ ]] || fail "dockwell logs follow didn't start: $(cat "$follow_log")"
-curl -fsS "http://127.0.0.1:$web_port/e2e-follows-this" >/dev/null 2>&1 || true
-curl -fsS "http://127.0.0.1:$web_port/" >/dev/null
+curl -fsS --max-time 10 "http://127.0.0.1:$web_port/e2e-follows-this" >/dev/null 2>&1 || true
+curl -fsS --max-time 10 "http://127.0.0.1:$web_port/" >/dev/null
 for _ in $(seq 50); do
   grep -q 'e2e-follows-this' "$follow_log" && break
   sleep 0.1
@@ -447,9 +447,6 @@ jq -e '[.change.plan.resources[] | select((.changes // []) | length > 0)] | leng
 jq -e '[.change.plan.servers[]?.steps[]? | select((.action // "") | IN("", "PLAN_ACTION_NONE") | not)] | length == 0' <<<"$imported" >/dev/null ||
   fail "importing the export runs a step: $imported"
 if [[ "$imported" == *"$secret_value"* ]]; then fail "the plan holds the secret's value"; fi
-[[ "$(docker inspect --format '{{.Id}}' "$api")" == "$api_id" ]] || fail "importing the export recreated api"
-api_env=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$api") || fail "docker inspect $api failed"
-grep -qx "DATABASE_PASSWORD=$secret_value" <<<"$api_env" || fail "importing the export took the secret's value from api"
 
 step "A container docker compose makes from the export reads back as the service"
 DATABASE_PASSWORD=$secret_value docker compose -f "$data/values.yaml" up --detach --no-deps api || fail "docker compose up api failed"
@@ -457,7 +454,18 @@ DATABASE_PASSWORD=$secret_value docker compose -f "$data/values.yaml" up --detac
 drift=$(dw drift list --json) || fail "drift list failed"
 jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after docker compose up from the export: $drift"
 
-step "A rotation still reaches it, so the import kept the reference"
+step "The same with no value in the shell reads as drift, and with it back, as none"
+env -u DATABASE_PASSWORD docker compose -f "$data/values.yaml" up --detach --no-deps --force-recreate api || fail "docker compose up api failed"
+api_env=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$api") || fail "docker inspect $api failed"
+if grep -q '^DATABASE_PASSWORD=' <<<"$api_env"; then fail "docker compose gave api the secret from nowhere, so this reads back nothing new"; fi
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e 'any((.drift // [])[]; .resource.name == "api")' <<<"$drift" >/dev/null || fail "api without its secret isn't drift: $drift"
+if [[ "$drift" == *"$secret_value"* ]]; then fail "drift holds the secret's value"; fi
+DATABASE_PASSWORD=$secret_value docker compose -f "$data/values.yaml" up --detach --no-deps --force-recreate api || fail "docker compose up api failed"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift with the secret back: $drift"
+
+step "A rotation reaches what docker compose made from the export"
 secret_next=e2e-s3cret-next
 printf '%s' "$secret_next" >"$data/secret-value"
 dw secrets update DB_PASSWORD --value-file "$data/secret-value" --yes || fail "secrets update failed"
@@ -745,6 +753,19 @@ digest_first=$(build_and_push first)
 [[ "$digest_first" == sha256:* ]] || fail "pushing the first image said its digest is '$digest_first'"
 dw services create moving --app-image "$moving" --app-ports "$ports" --yes || fail "services create moving failed"
 moving_serves first
+
+step "A moving tag: an image the registry hasn't got is refused as it plans, by name"
+# This registry and not Docker Hub, so that doesn't have to be up for this to pass.
+nothing=$(printf 'services:\n  gone:\n    image: %s\n    build: .\n' "$moving_repo:no-such-tag")
+if out=$(dw compose import --compose "$nothing" --project default --environment production --plan-only 2>&1); then
+  fail "an image no one has was planned: ${out:0:300}"
+fi
+[[ "$out" == *"won't give it to a pull"* ]] || fail "an image no one has failed some other way: ${out:0:300}"
+nothing=$(printf 'services:\n  gone:\n    image: 127.0.0.1:%s/e2e-no-such-repository:1\n    build: .\n' "$registry_port")
+if out=$(dw compose import --compose "$nothing" --project default --environment production --plan-only 2>&1); then
+  fail "an image of a repository no one has was planned: ${out:0:300}"
+fi
+[[ "$out" == *"won't give it to a pull"* ]] || fail "an image of a repository no one has failed some other way: ${out:0:300}"
 
 step "A moving tag: deploying it again pulls what it points at now, and replaces what runs"
 digest_second=$(build_and_push second)
@@ -2163,7 +2184,7 @@ has '.[0].NetworkSettings.Networks | keys == ["e2e-edge"]'
 has '.[0].HostConfig.Binds | length == 1'
 bind=$(jq -r '.[0].HostConfig.Binds[0]' <<<"$inspected")
 [[ "$bind" == "$real_dir/data:/data" ]] || fail "./data mounts as '$bind', want $real_dir/data:/data"
-page=$(curl -fsS "http://127.0.0.1:$real_port/") || fail "shop doesn't serve on port $real_port, on the empty HOST_IP's every address"
+page=$(curl -fsS --max-time 10 "http://127.0.0.1:$real_port/") || fail "shop doesn't serve on port $real_port, on the empty HOST_IP's every address"
 [[ "$page" == *nginx* ]] || fail "shop serves something other than nginx on port $real_port: ${page:0:300}"
 drift=$(dw drift list --json) || fail "drift list failed"
 # Another environment has drift of its own by now, as an ingress step above prunes
@@ -2172,10 +2193,46 @@ jq -e 'any((.drift // [])[]; .resource.name == "shop") | not' <<<"$drift" >/dev/
 
 step "A limit changes in place, on a token, and the file's container stays"
 before=$(jq -r '.[0].Id' <<<"$inspected")
+started=$(jq -r '.[0].State.StartedAt' <<<"$inspected")
 import_real --variables MEMORY_LIMIT=128M --yes >/dev/null || fail "changing the limit failed"
 inspected=$(docker inspect "$shop") || fail "docker inspect $shop failed"
 [[ "$(jq -r '.[0].Id' <<<"$inspected")" == "$before" ]] || fail "changing a limit recreated $shop"
+[[ "$(jq -r '.[0].State.StartedAt' <<<"$inspected")" == "$started" ]] || fail "changing a limit restarted $shop"
 has '.[0].HostConfig.Memory == 134217728'
+has '.[0].HostConfig.MemorySwap == 268435456'
+
+step "A limit lifted takes a new container, as Docker can't lift one in place"
+limited_file() { printf 'services:\n  limited:\n    image: nginx:1.27-alpine\n%s' "$1"; }
+limited_id() { docker ps --filter label=com.docker.compose.service=limited --format '{{.ID}}'; }
+dw compose import --compose "$(limited_file $'    deploy:\n      resources:\n        limits:\n          memory: 64M\n')" --project default --environment other --yes >/dev/null ||
+  fail "importing a limit failed"
+before=$(limited_id) || fail "docker ps failed"
+[[ -n "$before" ]] || fail "Docker runs nothing for limited"
+real_projects+=("$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$before")")
+[[ "$(docker inspect --format '{{.HostConfig.Memory}}' "$before")" == 67108864 ]] || fail "limited runs without its limit: $(docker inspect --format '{{json .HostConfig}}' "$before")"
+dw compose import --compose "$(limited_file '')" --project default --environment other --yes >/dev/null || fail "lifting the limit failed"
+after=$(limited_id) || fail "docker ps failed"
+[[ -n "$after" && "$after" != "$before" ]] || fail "lifting the limit left the container '$after', which was '$before'"
+[[ "$(docker inspect --format '{{.HostConfig.Memory}}' "$after")" == 0 ]] || fail "limited keeps a limit: $(docker inspect --format '{{json .HostConfig}}' "$after")"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e 'any((.drift // [])[]; .resource.name == "limited") | not' <<<"$drift" >/dev/null || fail "drift with the limit lifted: $drift"
+dw services delete limited --project default --environment other --yes >/dev/null || fail "services delete limited failed"
+
+step "A privileged service needs a person, runs privileged and isn't drift"
+privileged_file=$(printf 'services:\n  privileged:\n    image: nginx:1.27-alpine\n    privileged: true\n')
+planned=$(dw compose import --compose "$privileged_file" --project default --environment other --plan-only --json) || fail "importing a privileged service failed"
+change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import printed what isn't JSON: $planned"
+[[ "$change" == chg_* ]] || fail "compose import planned no change: $planned"
+jq -e '.change.plan.hostAccess == true' <<<"$planned" >/dev/null || fail "a privileged service plans no host access: $planned"
+token_refused "$change"
+person_apply "$change"
+privileged=$(docker ps --filter label=com.docker.compose.service=privileged --format '{{.ID}}') || fail "docker ps failed"
+[[ -n "$privileged" ]] || fail "Docker runs nothing for privileged"
+real_projects+=("$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$privileged")")
+[[ "$(docker inspect --format '{{.HostConfig.Privileged}}' "$privileged")" == true ]] || fail "the service runs without privileged"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e 'any((.drift // [])[]; .resource.name == "privileged") | not' <<<"$drift" >/dev/null || fail "drift with a privileged service running: $drift"
+dw services delete privileged --project default --environment other --yes >/dev/null || fail "services delete privileged failed"
 
 step "It exports as a file docker compose reads, naming the network as external"
 dw compose export --environment real >"$data/real-export.yaml" || fail "compose export failed"
@@ -2206,17 +2263,27 @@ if out=$(dw compose import --compose "$clash" --project default --environment ot
 fi
 [[ "$out" == *"already does"* ]] || fail "a name another has failed some other way: ${out:0:300}"
 
+step "A stopped container keeps its name on the network"
+# Docker keeps a stopped container on its networks, with its aliases, so stopping one
+# frees nothing, and starting it would have two answer to one name.
+docker stop --time 1 "$shop" >/dev/null || fail "docker stop $shop failed"
+if out=$(dw compose import --compose "$clash" --project default --environment other --plan-only 2>&1); then
+  fail "a name a stopped container has was planned: ${out:0:300}"
+fi
+[[ "$out" == *"already does"* ]] || fail "a name a stopped container has failed some other way: ${out:0:300}"
+docker start "$shop" >/dev/null || fail "docker start $shop failed"
+for _ in $(seq 150); do
+  [[ "$(docker inspect --format '{{.State.Health.Status}}' "$shop")" == healthy ]] && break
+  sleep 0.2
+done
+[[ "$(docker inspect --format '{{.State.Health.Status}}' "$shop")" == healthy ]] || fail "$shop didn't turn healthy after starting again"
+
 step "What isn't on the server is refused as it plans, by name"
 missing=$(printf 'services:\n  gone:\n    image: nginx:1.27-alpine\n    networks: [e2e-missing]\nnetworks:\n  e2e-missing:\n    external: true\n')
 if out=$(dw compose import --compose "$missing" --project default --environment other --plan-only 2>&1); then
   fail "a network the server hasn't got was planned: ${out:0:300}"
 fi
 [[ "$out" == *"the network e2e-missing isn't on this server"* ]] || fail "a missing network failed some other way: ${out:0:300}"
-nothing=$(printf 'services:\n  gone:\n    image: dockwell-e2e-no-such-image:1\n    build: .\n')
-if out=$(dw compose import --compose "$nothing" --project default --environment other --plan-only 2>&1); then
-  fail "an image no one has was planned: ${out:0:300}"
-fi
-[[ "$out" == *"won't give it to a pull"* ]] || fail "an image no one has failed some other way: ${out:0:300}"
 
 in_ingress=1
 step "Ingress: a route with no certificate reaches a service on a network the server has, and isn't drift"
