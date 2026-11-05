@@ -4,6 +4,7 @@ package compose_test
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -380,24 +381,8 @@ func TestReadingAnEnvFile(t *testing.T) {
 		"unquoted": "V=pa$sword\n", "braced": "V=pa${sword}\n", "double quotes": "V=\"pa$sword\"\n",
 	} {
 		_, err := compose.Read(t.Context(), compose.Input{File: []byte(file), Env: env})
-		if !errors.Is(err, compose.ErrInvalid) || !strings.Contains(err.Error(), "sets V from sword, which has no value") {
-			t.Errorf("%s = %v, want it refused, by name", name, err)
-		}
-	}
-	// What is wrong says where, and never holds what the file does.
-	const secret = "hunter2-secret"
-	for name, env := range map[string]string{
-		"no close": "V=\"" + secret + "\n",
-		"no name":  "=" + secret + "\n",
-		"bad name": "A!" + secret + "=x\n",
-		"bad var":  "V=" + secret + "${!}\n",
-	} {
-		_, err := compose.Read(t.Context(), compose.Input{File: []byte(file), Env: env})
-		if !errors.Is(err, compose.ErrInvalid) {
-			t.Errorf("%s = %v, want it refused", name, err)
-		}
-		if err != nil && strings.Contains(err.Error(), secret) {
-			t.Errorf("%s repeats what the file holds: %v", name, err)
+		if !errors.Is(err, compose.ErrInvalid) || !strings.Contains(err.Error(), "use $$, or put the value in single quotes") {
+			t.Errorf("%s = %v, want it refused, saying how to write a $", name, err)
 		}
 	}
 	// Given a value, so what refuses it can only be its size.
@@ -488,6 +473,53 @@ func TestAnExportOfTheNewFieldsReadsBack(t *testing.T) {
 			}
 			if !proto.Equal(got, app) {
 				t.Errorf("reads back differently: %v\n%s", resource.Diff(app, got), out.File)
+			}
+		})
+	}
+}
+
+// A refusal of an .env says which line, and how to fix it, and holds nothing of
+// what is on the line: not a value, not what follows a $ in one, and not what reads
+// as a name, as a line can be a password with a colon in it.
+func TestAnEnvRefusalHoldsNothingItRead(t *testing.T) {
+	const secret = "kX9qSecretTail"
+	file := "services:\n  web:\n    image: nginx:1.27\n    environment:\n      V: ${V:-x}\n"
+	dollar := "use $$, or put the value in single quotes"
+	for name, c := range map[string]struct {
+		env, says string
+		line      int
+	}{
+		"a $ in a value":             {env: "V=hunter2$" + secret + "\n", says: dollar, line: 1},
+		"a $ in double quotes":       {env: "V=\"hunter2$" + secret + "\"\n", says: dollar, line: 1},
+		"a $ and braces":             {env: "V=hunter2${" + secret + "}\n", says: dollar, line: 1},
+		"a $ in a default":           {env: "V=${NOPE:-${" + secret + "}}\n", says: dollar, line: 1},
+		"on a later line":            {env: "A=1\n\nV=hunter2$" + secret + "\n", says: dollar, line: 3},
+		"after a line of two":        {env: "A=\"two\nlines\"\nV=$" + secret + "\n", says: dollar, line: 3},
+		"a $ it can't read":          {env: "V=" + secret + "${!}\n", says: dollar, line: 1},
+		"braces that don't close":    {env: "V=" + secret + "${A\n", says: dollar, line: 1},
+		"a reason of its own":        {env: "V=${NOPE:?" + secret + "}\n", says: dollar, line: 1},
+		"a raw line, read as a name": {env: secret + ":tail$NOPE\n", says: dollar, line: 1},
+		"a raw line, with a quote":   {env: secret + ":\"open\n", says: "a quote that doesn't close", line: 1},
+		"a double quote left open":   {env: "V=\"" + secret + "\n", says: "a quote that doesn't close", line: 1},
+		"a single quote left open":   {env: "V='" + secret + "\n", says: "a quote that doesn't close", line: 1},
+		"something else in a name":   {env: "A!" + secret + "=x\n", says: "other than a name", line: 1},
+		"a value with no name":       {env: "=" + secret + "\n", says: "a value with no name", line: 1},
+		"too much, once it's read":   {env: "A=" + strings.Repeat(secret, 4000) + "\n" + strings.Repeat("B=hunter2$A$A$A$A$A$A$A$A\n", 20), says: "past 2 MiB", line: 6},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := compose.Read(t.Context(), compose.Input{File: []byte(file), Env: c.env})
+			if !errors.Is(err, compose.ErrInvalid) {
+				t.Fatalf("Read = %v, want it refused", err)
+			}
+			got := compose.Message(err)
+			if strings.Contains(got, secret) || strings.Contains(got, "hunter2") {
+				t.Errorf("the refusal holds what the line does: %s", got)
+			}
+			if !strings.Contains(got, fmt.Sprintf("line %d ", c.line)) {
+				t.Errorf("it doesn't say line %d: %s", c.line, got)
+			}
+			if !strings.Contains(got, c.says) {
+				t.Errorf("it doesn't say %q: %s", c.says, got)
 			}
 		})
 	}

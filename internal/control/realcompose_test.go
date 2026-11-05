@@ -3,6 +3,7 @@
 package control
 
 import (
+	"log/slog"
 	"slices"
 	"strings"
 	"testing"
@@ -508,5 +509,46 @@ func testAnEnvFileAndAVariableAServiceUses(t *testing.T, backend store.Backend) 
 	_, err := cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: file, Env: "LOG_LEVEL=debug\n"}))
 	if err == nil || !strings.Contains(err.Error(), "LOG_LEVEL is set in the app's environment and from a variable too") {
 		t.Errorf("another value for a variable it uses, from an .env = %v, want it refused", err)
+	}
+}
+
+// A refusal of an .env goes back to the caller, so into a CI's output, and into the
+// control plane's log, at info. Neither gets any part of a value.
+func TestAnEnvRefusalStaysOutOfTheLog(t *testing.T) {
+	storetest.Each(t, testAnEnvRefusalStaysOutOfTheLog)
+}
+
+func testAnEnvRefusalStaysOutOfTheLog(t *testing.T, backend store.Backend) {
+	logs := &syncBuffer{}
+	f := startFullLogging(t, backend, nil, slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	b := signedIn(t, f)
+	f.addDockerServer(t)
+	cc := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	const tail = "kX9qTailOfThePassword"
+	for name, env := range map[string]string{
+		"after a $":         "DB_PASSWORD=hunter2$" + tail + "\n",
+		"in double quotes":  "DB_PASSWORD=\"hunter2$" + tail + "\"\n",
+		"a quote left open": "DB_PASSWORD=\"hunter2" + tail + "\n",
+		"a raw line":        "hunter2" + tail + ":x$y\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{
+				Compose: shop("    environment:\n      DB_PASSWORD: ${DB_PASSWORD:-x}\n"), Env: env,
+			}))
+			if reasonOf(err) != "invalid" {
+				t.Fatalf("ImportCompose = %v, want it refused", err)
+			}
+			if strings.Contains(err.Error(), tail) {
+				t.Errorf("the refusal holds the value: %v", err)
+			}
+		})
+	}
+	if !strings.Contains(logs.String(), "rpc failed") {
+		t.Fatal("the log has none of these, so this looks at the wrong log")
+	}
+	for _, line := range strings.Split(logs.String(), "\n") {
+		if strings.Contains(line, tail) || strings.Contains(line, "hunter2") {
+			t.Errorf("the control plane's log, at info, holds the value: %s", line)
+		}
 	}
 }

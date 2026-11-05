@@ -17,8 +17,10 @@ const MaxEnv = 64 << 10
 // variables with given over them, as a shell's win over a file's. A value may
 // name a variable set earlier in the file, or given. compose-go leaves one that
 // has no value blank, so a password with a $ in it would quietly be another
-// password: this refuses it, as interpolate refuses one in a Compose file. What it
-// says never holds what it read, as an .env holds secrets.
+// password: this refuses it, as interpolate refuses one in a Compose file. A refusal
+// names a line and never what is on it: an .env holds secrets, and what comes after
+// a $ in a password reads as a variable's name, so a name is no safer than a value.
+// A refusal goes back to the caller and into the control plane's log.
 func readEnv(text string, given map[string]string) (map[string]string, error) {
 	if text == "" {
 		return given, nil
@@ -41,7 +43,7 @@ func readEnv(text string, given map[string]string) (map[string]string, error) {
 			// A name alone takes its value from what is given, or has none.
 			continue
 		}
-		value, err := r.value(in, key)
+		value, err := r.value(in)
 		if err != nil {
 			return nil, err
 		}
@@ -111,20 +113,20 @@ func (r *envReader) key() (string, bool, error) {
 }
 
 // value reads the value that comes next, and resolves what it names.
-func (r *envReader) value(in *interpolator, key string) (string, error) {
+func (r *envReader) value(in *interpolator) (string, error) {
 	line := r.line
 	switch {
 	case strings.HasPrefix(r.rest, `"`), strings.HasPrefix(r.rest, "'"):
 		quote := r.rest[0]
 		raw, n, ok := quotedValue(r.rest, quote)
 		if !ok {
-			return "", invalid("line %d of the .env file has a quote that doesn't close, in %s. Close it", line, key)
+			return "", invalid("line %d of the .env file has a quote that doesn't close. Close it", line)
 		}
 		r.advance(n)
 		if quote == '\'' {
 			return raw, nil
 		}
-		return expandEnv(in, escapes(raw), key, line)
+		return expandEnv(in, escapes(raw), line)
 	}
 	end := strings.IndexByte(r.rest, '\n')
 	if end < 0 {
@@ -132,26 +134,22 @@ func (r *envReader) value(in *interpolator, key string) (string, error) {
 	}
 	raw, _, _ := strings.Cut(r.rest[:end], " #")
 	r.advance(end)
-	return expandEnv(in, strings.TrimRightFunc(raw, unicode.IsSpace), key, line)
+	return expandEnv(in, strings.TrimRightFunc(raw, unicode.IsSpace), line)
 }
 
-// expandEnv resolves the variables a value names. A variable it names with no
-// value is refused by name, and what it can't read says where, not what.
-func expandEnv(in *interpolator, value, key string, line int) (string, error) {
-	at := place{owner: "the .env file"}
-	out, err := in.substitute(at, value)
+// expandEnv resolves the variables a value names. What goes wrong says where, and
+// how to write what the value meant, and nothing of what the line holds, the name
+// after its $ included.
+func expandEnv(in *interpolator, value string, line int) (string, error) {
+	out, err := in.substitute(place{owner: "the .env file"}, value)
 	if len(in.missing) > 0 {
-		var names []string
-		for name := range in.missing {
-			names = append(names, name)
-		}
-		if len(names) > 1 {
-			names = names[:1]
-		}
-		return "", invalid("line %d of the .env file sets %s from %s, which has no value. Set it earlier in the file, or write a $ of your own as $$, or put the value in single quotes", line, key, names[0])
+		return "", invalid("line %d of the .env file has a $ before a name with no value. To write a $ of your own, use $$, or put the value in single quotes. To use a variable, set it earlier in the file", line)
+	}
+	if in.expanded > MaxExpansion {
+		return "", invalid("line %d of the .env file takes the variables past %d MiB once they are expanded, which Dockwell doesn't read. Use each long value less often, or shorten it", line, MaxExpansion>>20)
 	}
 	if err != nil {
-		return "", invalid("line %d of the .env file has a $ in %s that Dockwell can't read as a variable. Write a $ of your own as $$, or put the value in single quotes", line, key)
+		return "", invalid("line %d of the .env file has a $ that Dockwell can't read as a variable. To write a $ of your own, use $$, or put the value in single quotes", line)
 	}
 	return out, nil
 }
