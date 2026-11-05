@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -580,6 +581,78 @@ func TestBinaryAndLongLinesStayValid(t *testing.T) {
 	if len(got[3]) != docker.MaxLogLine || c.byLine[got[3]].GetCutBytes() != uint32(40_000-docker.MaxLogLine) {
 		t.Errorf("a long line came as %d bytes, %d cut", len(got[3]), c.byLine[got[3]].GetCutBytes())
 	}
+}
+
+// A long line comes in parts as Docker writes it, and reads as one line whatever its
+// length, up to and past where it is cut, with the line after it untouched.
+func TestALongLineReadsAsOneWhateverItsLength(t *testing.T) {
+	const part = 16 << 10
+	for _, n := range []int{part - 1, part, part + 1, 2 * part, 40_000} {
+		e := dockertest.New(t)
+		addContainer(t, e, "app-1", 1)
+		e.Print("app-1", docker.Stdout, strings.Repeat("y", n), "the line after")
+		c := once(t, newReader(t, e), &agentv1.LogsCall{})
+		got := c.got()
+		if len(got) != 2 || got[1] != "the line after" {
+			t.Fatalf("%d bytes read as %d lines", n, len(got))
+		}
+		kept := min(n, docker.MaxLogLine)
+		if len(got[0]) != kept || int(c.byLine[got[0]].GetCutBytes()) != n-kept {
+			t.Errorf("%d bytes came as %d, %d cut", n, len(got[0]), c.byLine[got[0]].GetCutBytes())
+		}
+	}
+}
+
+// All a long line's parts carry its time, so a stream that carries on reads it once and
+// whole: not again after it, and all of it from before it, by a place or by a time.
+func TestALongLineCarriesOnWhole(t *testing.T) {
+	e := dockertest.New(t)
+	ctr := addContainer(t, e, "app-1", 1)
+	base := time.Now().Add(-time.Minute).UTC()
+	long := strings.Repeat("x", 40_000)
+	e.PrintAt("app-1", base, docker.Stdout, "before")
+	e.PrintAt("app-1", base.Add(time.Millisecond), docker.Stdout, long)
+	e.PrintAt("app-1", base.Add(2*time.Millisecond), docker.Stdout, "after")
+	cut := long[:docker.MaxLogLine]
+	for name, tc := range map[string]struct {
+		call *agentv1.LogsCall
+		want []string
+	}{
+		"from a place after it": {
+			&agentv1.LogsCall{After: []*agentv1.LogCursor{{SourceId: ctr.ID[:12], Time: timestamppb.New(base.Add(time.Millisecond)), Count: 1}}},
+			[]string{"after"},
+		},
+		"from a place before it": {
+			&agentv1.LogsCall{After: []*agentv1.LogCursor{{SourceId: ctr.ID[:12], Time: timestamppb.New(base), Count: 1}}},
+			[]string{cut, "after"},
+		},
+		"from its time": {
+			&agentv1.LogsCall{ResumeFrom: timestamppb.New(base.Add(time.Millisecond))},
+			[]string{cut, "after"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			c := newCollector()
+			follow(ctx, newReader(t, e), tc.call, c)
+			waitFor(t, "the lines", func() bool { return c.count() >= len(tc.want) })
+			if got := c.got(); !slices.Equal(got, tc.want) {
+				t.Errorf("read %d lines, of %v bytes", len(got), lengths(got))
+			}
+			if tc.want[0] == cut && int(c.byLine[cut].GetCutBytes()) != len(long)-len(cut) {
+				t.Errorf("the long line has %d cut", c.byLine[cut].GetCutBytes())
+			}
+		})
+	}
+}
+
+func lengths(lines []string) []int {
+	out := make([]int, len(lines))
+	for i, l := range lines {
+		out[i] = len(l)
+	}
+	return out
 }
 
 func TestALogThatCantBeReadSaysSo(t *testing.T) {

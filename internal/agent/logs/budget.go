@@ -38,8 +38,8 @@ const (
 	// them.
 	TotalBytesPerSecond = 4 << 20
 	// shedBytesPerSecond is how fast all a server's follows read Docker between
-	// them, for lines they don't send: those they drop, and those their filters
-	// don't take. Looking at a line costs little, and a writer far past this
+	// them, for what they don't send: lines they drop, lines their filters don't
+	// take, and what is cut from a long line. Looking at a line costs little, and a writer far past this
 	// would otherwise take a core just to be looked at. A writer past it is
 	// behind what Docker rotates away within a second or so, and what goes that
 	// way isn't counted, so a marker's count can be short at such a rate.
@@ -217,16 +217,22 @@ type bucket struct {
 	last   time.Time
 }
 
-func newBucket() *bucket { return &bucket{last: time.Now()} }
+func newBucket() *bucket { return &bucket{} }
 
 // set changes the rate. A burst is a quarter of a second's worth: enough not to
-// cut a normal burst of lines, little enough to hold the rate.
+// cut a normal burst of lines, little enough to hold the rate. A stream starts with
+// one, as what a container prints as it starts is often why someone is reading. A
+// later change of share adds nothing, so joining and leaving can't refill it.
 func (b *bucket) set(rate int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.rate = float64(rate)
 	b.burst = b.rate / 4
-	if b.last.IsZero() || b.tokens > b.burst {
+	switch {
+	case b.last.IsZero():
+		b.last = time.Now()
+		b.tokens = b.burst
+	case b.tokens > b.burst:
 		b.tokens = b.burst
 	}
 }

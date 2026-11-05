@@ -135,7 +135,7 @@ func TestLogsOnRealDocker(t *testing.T) {
 		}
 	}
 	if long == nil || len(long.GetText()) != docker.MaxLogLine || int(long.GetCutBytes())+len(long.GetText()) != 40000 {
-		t.Errorf("a 40 KB line came as %d bytes with %d cut", len(long.GetText()), long.GetCutBytes())
+		t.Errorf("a 40 KB line came as %d bytes with %d cut, and the markers said %v", len(long.GetText()), long.GetCutBytes(), c.gaps)
 	}
 	if l := c.byLine["\x1b[31mERROR\x1b[0m red"]; l.GetLevel() != dockwellv1.LogLevel_LOG_LEVEL_ERROR {
 		t.Errorf("the coloured line came as %v", l)

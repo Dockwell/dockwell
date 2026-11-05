@@ -881,11 +881,15 @@ func (s *stream) offer(st *sourceState, src *source, e *docker.LogEntry, t time.
 		}
 	}
 	if live {
-		size := len(e.Text) + e.Cut
-		if reason := s.admit(size + lineOverhead); reason != dockwellv1.LogGapReason_LOG_GAP_REASON_UNSPECIFIED {
-			s.drop(src.proto.GetId(), e, reason, size)
+		// A line costs what it carries, so one longer than a burst still comes. What
+		// is cut from it was read and goes nowhere, as a dropped line's was.
+		if reason := s.admit(len(e.Text) + lineOverhead); reason != dockwellv1.LogGapReason_LOG_GAP_REASON_UNSPECIFIED {
+			s.drop(src.proto.GetId(), e, reason, len(e.Text)+e.Cut)
 			s.shed.wait(s.ctx, e.Size)
 			return
+		}
+		if e.Cut > 0 {
+			s.shed.wait(s.ctx, e.Cut)
 		}
 	}
 	if t.IsZero() {

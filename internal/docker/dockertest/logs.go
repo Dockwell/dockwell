@@ -167,6 +167,9 @@ func (e *Engine) Rotate(name string, keep int) {
 // went away stops counting at once, as Docker sees its connection close.
 func (e *Engine) Followers() int { return int(e.followers.Load()) }
 
+// partBytes is where the engine cuts a long line into parts.
+const partBytes = 16 << 10
+
 var logsPath = regexp.MustCompile(`^(?:/v[0-9.]+)?/containers/([^/]+)/logs$`)
 
 // serveLogs answers a request for a container's log, if this is one, as the
@@ -207,20 +210,31 @@ func (e *Engine) serveLogs(w http.ResponseWriter, r *http.Request) bool {
 	flusher.Flush()
 	out := bufio.NewWriterSize(w, 64<<10)
 	tty := c.Config.Tty
-	send := func(s docker.LogStream, at time.Time, text string) error {
-		line := at.Format("2006-01-02T15:04:05.000000000Z") + " " + text + "\n"
+	frame := func(s docker.LogStream, payload string) error {
 		if tty {
-			_, err := out.WriteString(strings.ReplaceAll(line, "\n", "\r\n"))
+			_, err := out.WriteString(strings.ReplaceAll(payload, "\n", "\r\n"))
 			return err
 		}
 		var hdr [8]byte
 		hdr[0] = byte(s)
-		binary.BigEndian.PutUint32(hdr[4:], uint32(len(line))) //nolint:gosec // a test's lines are short
+		binary.BigEndian.PutUint32(hdr[4:], uint32(len(payload))) //nolint:gosec // a test's lines are short
 		if _, err := out.Write(hdr[:]); err != nil {
 			return err
 		}
-		_, err := out.WriteString(line)
+		_, err := out.WriteString(payload)
 		return err
+	}
+	// As the engine does, a line of partBytes or more goes in parts, each with the
+	// time of the first, and only the last with a newline, which may be all it holds.
+	send := func(s docker.LogStream, at time.Time, text string) error {
+		stamp := at.Format("2006-01-02T15:04:05.000000000Z") + " "
+		for len(text) >= partBytes {
+			if err := frame(s, stamp+text[:partBytes]); err != nil {
+				return err
+			}
+			text = text[partBytes:]
+		}
+		return frame(s, stamp+text+"\n")
 	}
 
 	lines, _, _ := c.log.waiting(0)

@@ -119,6 +119,20 @@ func TestSafeNames(t *testing.T) {
 	}
 }
 
+// A stream starts with a burst to spend, as what a container prints as it starts is
+// often why someone is reading, and a change of its share doesn't give it another.
+func TestABucketStartsWithItsBurst(t *testing.T) {
+	b := newBucket()
+	b.set(LiveBytesPerSecond)
+	if !b.take(LiveBytesPerSecond / 4) {
+		t.Error("a new stream can't send its first burst")
+	}
+	b.set(LiveBytesPerSecond)
+	if b.take(LiveBytesPerSecond / 8) {
+		t.Error("a change of share gave it another burst")
+	}
+}
+
 // Gathering a message is linear in what it says, and with its reader gone it stops.
 func TestGatheringIsLinearAndStopsWithItsReader(t *testing.T) {
 	const n = 200_000

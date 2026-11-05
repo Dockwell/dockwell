@@ -580,6 +580,85 @@ func TestFollowsAreHeldToThePace(t *testing.T) {
 	}
 }
 
+// A follow carries a burst from its first moment, as when it opens on a container that
+// is just starting and prints why it failed.
+func TestAFollowCarriesABurstFromItsFirstMoment(t *testing.T) {
+	e := dockertest.New(t)
+	addContainer(t, e, "app-1", 1)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	c := newCollector()
+	follow(ctx, newReader(t, e), &agentv1.LogsCall{Tail: 100}, c)
+	waitFor(t, "the follower", func() bool { return e.Followers() == 1 })
+	long := strings.Repeat("x", 40_000)
+	const burst = 6
+	for i := range burst {
+		e.Print("app-1", docker.Stdout, fmt.Sprintf("%d %s", i, long))
+	}
+	e.Print("app-1", docker.Stdout, "the line after")
+	waitFor(t, "the line after", func() bool { return slices.Contains(c.got(), "the line after") })
+	got := c.got()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(got) != burst+1 || len(c.gaps) != 0 {
+		t.Fatalf("read %d of %d lines, and the markers said %v", len(got), burst+1, c.gaps)
+	}
+	for i, text := range got[:burst] {
+		if len(text) != docker.MaxLogLine || !strings.HasPrefix(text, fmt.Sprintf("%d x", i)) {
+			t.Errorf("line %d came as %d bytes, starting %.8q", i, len(text), text)
+		}
+	}
+}
+
+// A line costs what it carries, so one longer than any burst still comes, cut.
+func TestALiveLineLongerThanABurstStillComes(t *testing.T) {
+	e := dockertest.New(t)
+	addContainer(t, e, "app-1", 1)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	c := newCollector()
+	follow(ctx, newReader(t, e), &agentv1.LogsCall{Tail: -1}, c)
+	waitFor(t, "the follower", func() bool { return e.Followers() == 1 })
+	time.Sleep(300 * time.Millisecond) // past any first burst, so this is the line's size alone
+	const size = logs.LiveBytesPerSecond
+	e.Print("app-1", docker.Stdout, strings.Repeat("x", size), "the line after")
+	waitFor(t, "the line after", func() bool { return slices.Contains(c.got(), "the line after") })
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	line := c.byLine[strings.Repeat("x", docker.MaxLogLine)]
+	if line == nil || int(line.GetCutBytes())+docker.MaxLogLine != size || len(c.gaps) != 0 {
+		t.Errorf("a line of %d bytes came as %v with %d cut, and the markers said %v", size, line != nil, line.GetCutBytes(), c.gaps)
+	}
+}
+
+// What is cut from a long line was read and goes nowhere, so a container writing long
+// lines is read at the pace of what is dropped, however fast the wire may carry them.
+func TestWhatALongLineCutsIsReadAtThePace(t *testing.T) {
+	const (
+		pace    = 8 << 20
+		size    = 1 << 20
+		seconds = 2
+	)
+	e := dockertest.New(t)
+	addContainer(t, e, "app-1", 1)
+	r := newReader(t, e)
+	r.LiveRate, r.TotalRate, r.ShedRate = 1<<40, 1<<40, pace
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	flood := e.Flood("app-1", size)
+	defer flood.Stop()
+	follow(ctx, r, &agentv1.LogsCall{Tail: -1}, newCollector())
+	waitFor(t, "the follower", func() bool { return e.Followers() == 1 })
+	time.Sleep(300 * time.Millisecond)
+	before := flood.Lines()
+	time.Sleep(seconds * time.Second)
+	rate := float64(flood.Lines()-before) * size / seconds
+	t.Logf("read %.1f MB/s", rate/(1<<20))
+	if rate > 1.3*pace {
+		t.Errorf("read %.1f MB/s, past the pace of %d MiB/s", rate/(1<<20), pace>>20)
+	}
+}
+
 // A line that's filtered out doesn't slow a follow of what matches below the pace.
 func TestPacingDoesntDelayAQuietFollow(t *testing.T) {
 	e := dockertest.New(t)

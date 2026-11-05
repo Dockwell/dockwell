@@ -52,7 +52,7 @@ Each logs call sends its lines over `AgentService.SendLogs`, a client stream on 
 | --- | --- | --- |
 | Docker to the agent | 64 KiB read buffer, one line at a time, without allocating | Reads on, counting |
 | A line | 16 KiB, the rest counted as `cut_bytes` | The line is cut, and says so |
-| The agent, for one follow | 2 MiB/s for a stream. 4 MiB/s for the server, divided evenly between the services followed, and each service's between its followers | Drops, reason `TOO_FAST`, or `SHARED` when its share is what stopped it |
+| The agent, for one follow | 2 MiB/s for a stream. 4 MiB/s for the server, divided evenly between the services followed, and each service's between its followers. A stream starts with a quarter of a second's worth to spend, and a line costs what it carries, at most 16 KiB however long it was | Drops, reason `TOO_FAST`, or `SHARED` when its share is what stopped it |
 | The agent to the network | 8 messages of 32 KiB | Drops, reason `READER_BEHIND` |
 | The control plane | One message at a time per server, 256 KiB gathered for a reader | Stops reading: flow control. A stalled write gives up after 30 s |
 | The browser | 100,000 lines and 64 MiB; a batch every 100 ms | The oldest leave, and the view says so |
