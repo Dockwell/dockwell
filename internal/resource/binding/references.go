@@ -6,6 +6,8 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"path"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -182,6 +184,71 @@ func CheckWords(c *resourcev1.Container, known func(string) bool) error {
 		}
 	}
 	return nil
+}
+
+// NamedAsText says, by field, the names that read as ${NAME} in a container's fields
+// that don't name values, for which known has a value: those run as the words
+// ${NAME}, a password among them, which anyone who reads the spec knows. A shell that
+// reads it for itself, as with sh -c or CMD-SHELL, gets it from the environment as
+// it runs, which is what it is for, so that isn't counted.
+func NamedAsText(c *resourcev1.Container, known func(string) bool) map[string][]string {
+	out := map[string][]string{}
+	note := func(field string, words []string, from int) {
+		for _, w := range words[min(from, len(words)):] {
+			for _, m := range spelledName.FindAllStringSubmatch(w, -1) {
+				if known(m[1]) && !slices.Contains(out[field], m[1]) {
+					out[field] = append(out[field], m[1])
+				}
+			}
+		}
+	}
+	listed := func(field string) bool { return slices.Contains(c.GetReferences(), field) }
+	// A shell's script is what follows its -c, wherever in the entrypoint and the
+	// command that comes.
+	entrypoint, command := c.GetEntrypoint(), c.GetCommand()
+	script := shellScript(slices.Concat(entrypoint, command))
+	if !listed(FieldEntrypoint) {
+		note(FieldEntrypoint, entrypoint[:min(script, len(entrypoint))], 0)
+	}
+	if !listed(FieldCommand) {
+		note(FieldCommand, command[:max(0, min(script-len(entrypoint), len(command)))], 0)
+	}
+	if test := c.GetHealthcheck().GetTest(); !listed(FieldTest) && len(test) > 1 && test[0] == "CMD" {
+		note(FieldTest, test, 1)
+	}
+	for field := range out {
+		slices.Sort(out[field])
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// spelledName is ${NAME}, as a word that doesn't name values can spell it.
+var spelledName = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+
+// shells are what reads a script with -c, by the name of their program.
+var shells = []string{"sh", "bash", "ash", "dash", "zsh", "ksh", "busybox"}
+
+// shellScript is where a shell's script starts in argv, past its -c, or len(argv)
+// when no shell reads one there.
+func shellScript(argv []string) int {
+	for i := 0; i+1 < len(argv); i++ {
+		if !slices.Contains(shells, path.Base(argv[i])) {
+			continue
+		}
+		for j := i + 1; j < len(argv); j++ {
+			flag := argv[j]
+			if !strings.HasPrefix(flag, "-") || strings.HasPrefix(flag, "--") {
+				break
+			}
+			if strings.Contains(flag, "c") {
+				return j + 1
+			}
+		}
+	}
+	return len(argv)
 }
 
 // WritesReferences reports a spec that needs an agent to write its references in:

@@ -3246,6 +3246,8 @@ func (x *PlanPlace) GetEnvironment() string {
 type PlanNote struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What it is about, for a surface that says it in its own words:
+	// "named_as_text" for ${NAME} written as text in a field references doesn't
+	// list, for a name the resource has a value for, which runs as those words;
 	// "exposed_variable" for a variable whose value a Compose file writes in
 	// free text, such as a label, where anyone who can read the plan
 	// reads it, "exposed_more" for a file that writes more of them than a plan

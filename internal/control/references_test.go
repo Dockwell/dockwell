@@ -548,3 +548,44 @@ func testAReferencesLabelReadsBackFromDockerCompose(t *testing.T, backend store.
 		t.Errorf("the export's label reads:\n%s", exported.Msg.GetCompose())
 	}
 }
+
+// A command written by hand with ${PW} in it, and no references, runs those words as
+// the password, which anyone who reads the plan knows. Older specs mean what they did,
+// so the plan says so, and how to have it name the value, rather than refuse. The
+// review of #113 found it.
+func TestANameWrittenAsTextIsSaid(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.AddLocalImage("redis:8", dockertest.Image{})
+	c := changeClient(b, b.origin)
+	edit := secretNaming("redis:8")
+	edit.GetSpec().GetService().GetApp().References = nil
+	planned := propose(t, c, "Run redis", secretSpec("DB_PASSWORD", "pw-alpha-7Hq2mXv9Lr4Kd8Zs"), edit)
+	var said *dockwellv1.PlanNote
+	for _, n := range planned.GetPlan().GetNotes() {
+		if n.GetReason() == "named_as_text" {
+			said = n
+		}
+	}
+	want := "redis's command has ${PW} as text, as references doesn't list command, so it runs with those words and not the value of PW. To have it name the value, list command in its references"
+	if said == nil || said.GetMessage() != want || !slices.Equal(said.GetNames(), []string{"command", "PW"}) || said.GetResource().GetName() != "redis" {
+		t.Errorf("the plan's note is %v, want %q", said, want)
+	}
+	discard(t, c, planned)
+	// Named, or read by a shell, says nothing.
+	for name, app := range map[string]*resourcev1.Container{
+		"named":      {Image: "redis:8", Command: []string{"redis-server", "--requirepass", "${PW}"}, References: []string{"command"}},
+		"in a shell": {Image: "redis:8", Command: []string{"sh", "-c", "exec redis-server --requirepass \"${PW}\""}},
+	} {
+		edit := secretNaming("redis:8")
+		edit.GetSpec().GetService().Runs = &resourcev1.Service_App{App: app}
+		planned := propose(t, c, "Run redis", secretSpec("DB_PASSWORD", "pw-alpha-7Hq2mXv9Lr4Kd8Zs"), edit)
+		for _, n := range planned.GetPlan().GetNotes() {
+			if n.GetReason() == "named_as_text" {
+				t.Errorf("%s: the plan says %v", name, n)
+			}
+		}
+		discard(t, c, planned)
+	}
+}

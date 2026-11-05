@@ -312,6 +312,18 @@ func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 	return container.ServiceAccess(spec.(*resourcev1.Service).GetApp())
 }
 
+// NamedAsText says what the app writes as ${NAME} as text, for what its environment
+// or the service's uses has.
+func (*Driver) NamedAsText(spec proto.Message) map[string][]string {
+	svc := spec.(*resourcev1.Service)
+	return binding.NamedAsText(svc.GetApp(), func(name string) bool {
+		_, inEnv := svc.GetApp().GetEnv()[name]
+		_, v := svc.GetVariables()[name]
+		_, s := svc.GetSecrets()[name]
+		return inEnv || v || s
+	})
+}
+
 // Normalize orders the app, as Validate would.
 func (*Driver) Normalize(spec proto.Message) {
 	container.Normalize(spec.(*resourcev1.Service).GetApp())

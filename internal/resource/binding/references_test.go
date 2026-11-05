@@ -106,3 +106,42 @@ func TestHideMasksAValueInWhatDockerSays(t *testing.T) {
 		}
 	}
 }
+
+// A field that doesn't name values runs ${NAME} as those words, which is worth saying
+// where the container has a value of that name. A shell that reads it for itself is
+// what that is for, so it isn't counted.
+func TestNamedAsText(t *testing.T) {
+	known := func(n string) bool { return n == "PW" || n == "TOKEN" }
+	for name, c := range map[string]struct {
+		c    *resourcev1.Container
+		want map[string][]string
+	}{
+		"a command": {&resourcev1.Container{Command: []string{"redis-server", "--requirepass", "${PW}"}}, map[string][]string{"command": {"PW"}}},
+		"two names, once each": {
+			&resourcev1.Container{Command: []string{"--a=${PW}", "--b=${TOKEN}", "--c=${PW}"}},
+			map[string][]string{"command": {"PW", "TOKEN"}},
+		},
+		"an entrypoint":             {&resourcev1.Container{Entrypoint: []string{"run", "${TOKEN}"}}, map[string][]string{"entrypoint": {"TOKEN"}}},
+		"a test":                    {&resourcev1.Container{Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD", "redis-cli", "-a", "${PW}", "ping"}}}, map[string][]string{"healthcheck.test": {"PW"}}},
+		"listed":                    {&resourcev1.Container{Command: []string{"${PW}"}, References: []string{"command"}}, nil},
+		"a name it has no value of": {&resourcev1.Container{Command: []string{"${OTHER}", "${HOME}"}}, nil},
+		"a shell's script":          {&resourcev1.Container{Command: []string{"sh", "-c", "exec redis-server --requirepass ${PW}"}}, nil},
+		"a shell with flags":        {&resourcev1.Container{Command: []string{"/bin/bash", "-lc", "exec run ${PW}"}}, nil},
+		"a shell's script beside":   {&resourcev1.Container{Entrypoint: []string{"/bin/sh", "-c"}, Command: []string{"exec run ${PW}"}}, nil},
+		"a word before the shell":   {&resourcev1.Container{Command: []string{"--key=${PW}", "sh", "-c", "echo ${TOKEN}"}}, map[string][]string{"command": {"PW"}}},
+		"a shell with no -c":        {&resourcev1.Container{Command: []string{"sh", "/run.sh", "${PW}"}}, map[string][]string{"command": {"PW"}}},
+		"a test in a shell":         {&resourcev1.Container{Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD-SHELL", "redis-cli -a ${PW} ping"}}}, nil},
+		"a dollar of its own":       {&resourcev1.Container{Command: []string{"$PW", "$HOME"}}, nil},
+	} {
+		got := binding.NamedAsText(c.c, known)
+		if len(got) != len(c.want) {
+			t.Errorf("%s: NamedAsText = %v, want %v", name, got, c.want)
+			continue
+		}
+		for field, names := range c.want {
+			if !slices.Equal(got[field], names) {
+				t.Errorf("%s: NamedAsText = %v, want %v", name, got, c.want)
+			}
+		}
+	}
+}

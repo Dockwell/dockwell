@@ -164,6 +164,13 @@ func (*Driver) Validate(spec proto.Message) error {
 	return checkOwnNames(c)
 }
 
+// NamedAsText says what the container writes as ${NAME} as text, for what its
+// environment has.
+func (*Driver) NamedAsText(spec proto.Message) map[string][]string {
+	c := spec.(*resourcev1.Container)
+	return binding.NamedAsText(c, func(name string) bool { _, ok := c.GetEnv()[name]; return ok })
+}
+
 // Normalize orders a spec Validate refuses, as a newer rule may refuse a
 // stored one, as Validate would order it.
 func (*Driver) Normalize(spec proto.Message) { Normalize(spec.(*resourcev1.Container)) }

@@ -765,7 +765,15 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		if strings.HasPrefix(n.GetReason(), "exposed_") {
 			label = "Warning"
 		}
-		fmt.Fprintf(w, "%s: %s.\n", label, strings.TrimSuffix(n.GetMessage(), "."))
+		message := strings.TrimSuffix(n.GetMessage(), ".")
+		if names := n.GetNames(); n.GetReason() == "named_as_text" && len(names) > 0 {
+			flag := "--app-references"
+			if n.GetResource().GetKind() == "container" {
+				flag = "--references"
+			}
+			message += fmt.Sprintf(", with %s %s on the command line", flag, names[0])
+		}
+		fmt.Fprintf(w, "%s: %s.\n", label, message)
 	}
 }
 

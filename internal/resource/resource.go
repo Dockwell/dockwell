@@ -974,6 +974,25 @@ type DataKeeper interface {
 	KeptData(spec proto.Message) []string
 }
 
+// TextNamer is a kind whose spec can write, as text, what reads as naming a value
+// it has: ${NAME} in a field that doesn't name values, which runs as those words.
+type TextNamer interface {
+	// NamedAsText says, by field, what a spec writes as ${NAME} in a field that holds
+	// text, for a name it has a value for.
+	NamedAsText(spec proto.Message) map[string][]string
+}
+
+// NamedAsText says what spec writes as ${NAME} as text, if its kind is a TextNamer.
+func (r *Registry) NamedAsText(kind Kind, spec proto.Message) map[string][]string {
+	if spec == nil {
+		return nil
+	}
+	if n, ok := r.types[kind].(TextNamer); ok {
+		return n.NamedAsText(spec)
+	}
+	return nil
+}
+
 // KeptData names what spec writes to, if its kind is a DataKeeper.
 func (r *Registry) KeptData(ref Ref, spec proto.Message) []string {
 	if spec == nil {
