@@ -16,6 +16,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -56,7 +57,7 @@ func setupDocker(t *testing.T, b store.Backend, ids ...string) (*Engine, map[str
 		t.Fatal(err)
 	}
 	kinds := resource.NewRegistry(&container.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{})
-	return New(db, kinds, agents, slog.New(slog.DiscardHandler)), engines, db
+	return New(db, kinds, agents, secretstest.Keeper(db, kinds), slog.New(slog.DiscardHandler)), engines, db
 }
 
 // uses is a service named web that mounts the volume data and joins the

@@ -75,6 +75,8 @@ It changes only these files:
 
 Dockwell itself keeps its state in `/var/lib/dockwell`.
 
+On a control server, `/var/lib/dockwell/control/key` is the install's key. It opens every secret the database keeps, the control plane's certificate authority and the authenticator-app secrets, and the database holds them only encrypted ([ADR 0022](adr/0022-secrets-encrypted-at-rest.md)). Back it up, apart from the database: a backup of the database without the key opens none of them, and the key lost is all of them lost. `dockwell rotate-key` rotates the key that wraps every secret's own key, and the control plane can keep running while it does.
+
 The service sets `GOMEMLIMIT=200MiB`, a soft limit on the memory the Go runtime manages. It is sized from the PRD's budget of 250 MB for the control plane and its agent, and leaves the rest for memory Go doesn't manage, such as the binary's own pages and SQLite's cache. A few minutes after starting, an idle agent on its own uses about 19 MB with the agent build, and a control server about 37 MB, most of it pages of the binary, so the limit only comes into play if memory grows far past that.
 
 ## Upgrade

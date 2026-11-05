@@ -26,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -74,7 +75,7 @@ func engineWith(t *testing.T, b store.Backend, servers int) (*Handler, *revision
 		t.Fatal(err)
 	}
 	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{})
-	e := revision.New(db, kinds, f, logger)
+	e := revision.New(db, kinds, f, secretstest.Keeper(db, kinds), logger)
 	return New(e, db, logger), e, f, db
 }
 
@@ -254,7 +255,7 @@ func testErrorMessagesStateTheFactFirst(t *testing.T, backend store.Backend) {
 	close(release)
 	e.Wait()
 
-	stopped := revision.New(db, e.Kinds(), f, slog.New(slog.DiscardHandler))
+	stopped := revision.New(db, e.Kinds(), f, secretstest.Keeper(db, e.Kinds()), slog.New(slog.DiscardHandler))
 	if err := stopped.Stop(ctx); err != nil {
 		t.Fatal(err)
 	}

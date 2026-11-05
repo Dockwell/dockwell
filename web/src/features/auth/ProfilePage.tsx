@@ -169,6 +169,8 @@ function ProfileCallout({ via, rpId }: { via?: ProfileVia; rpId: string }) {
       <Callout tone="info" title={t`No passkey works at ${rpId} yet`} actions={addButton}>
         <Trans>
           Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code.
+          If you came here after adding a domain, run <code>dockwell recover</code> on the server: its link signs you in
+          here, so you can add a passkey with no code.
         </Trans>
         {add.problem ? <span className="profile-callout-error"> {add.problem}</span> : null}
       </Callout>

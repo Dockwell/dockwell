@@ -37,6 +37,7 @@ import { type ReactNode, useCallback, useMemo, useRef } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatClock, formatDateTime, formatWeekday } from "../../lib/format";
+import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { initials } from "../auth/user";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -558,7 +559,13 @@ function Scopes({
 }
 
 /** The kinds whose IDs say what they are, by their prefix. */
-const KIND_OF_PREFIX: Readonly<Record<string, string>> = { prj: "project", env: "environment", svc: "service" };
+const KIND_OF_PREFIX: Readonly<Record<string, string>> = {
+  prj: "project",
+  env: "environment",
+  svc: "service",
+  var: "variable",
+  sec: "secret",
+};
 
 /**
  * The kind of resource an ID belongs to, from its prefix, or "" for an ID
@@ -589,6 +596,19 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
   const ago = time.ago(date, now);
   const kindWord = event.actor ? words.actorKind(event.actor.kind) : "";
   const look = change ? words.state(change.state) : undefined;
+  // A change to a variable or secret, or a reveal, leads to its environment's list of them.
+  const valueEnv = change
+    ? full.data?.change?.plan?.resources.find((r) => r.resource?.kind === "variable" || r.resource?.kind === "secret")
+        ?.resource?.scope
+    : event.action === "secret.reveal"
+      ? event.subject?.scope || undefined
+      : undefined;
+  const toVariables =
+    valueEnv !== undefined ? (
+      <RouterButtonLink to="/variables" search={{ environment: valueEnv }} variant="ghost" icon="key">
+        <Trans>Open the variables and secrets</Trans>
+      </RouterButtonLink>
+    ) : null;
   return (
     <div className="activity-detail">
       <Panel
@@ -692,6 +712,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
           ) : null}
           {change ? (
             <div className="activity-detail-actions">
+              {toVariables}
               {canUndo(change, now) ? (
                 <Button icon="undo" onClick={() => onUndo(change.id)}>
                   <Trans>Undo this change</Trans>
@@ -705,6 +726,8 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
                 {change.state === ChangeState.PLANNED ? <Trans>Review plan</Trans> : <Trans>Open plan</Trans>}
               </Button>
             </div>
+          ) : toVariables ? (
+            <div className="activity-detail-actions">{toVariables}</div>
           ) : null}
         </div>
       </Panel>

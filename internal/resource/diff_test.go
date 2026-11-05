@@ -3,10 +3,15 @@
 package resource_test
 
 import (
+	"slices"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 )
 
 func TestDiffNamesEachFieldAsThePanelShowsIt(t *testing.T) {
@@ -69,5 +74,117 @@ func TestDiffSeesThroughAmbiguousLists(t *testing.T) {
 	got := resource.Diff(a, b)
 	if len(got) != 2 || got[0].Path != "command[0]" || got[1].Path != "command[1]" || got[1].Op != resource.OpRemoved {
 		t.Errorf("changes: %+v", got)
+	}
+}
+
+// A rotation counts every sensitive value the new spec sets as changed,
+// whatever the old one held, and never says which held the same: a map's
+// keys still show, as added, kept or removed.
+func TestDiffRotatingNeverComparesAValue(t *testing.T) {
+	from := &resourcev1.Container{Image: "web:1", Env: map[string]string{"A": "same", "B": "old", "GONE": "x"}}
+	to := &resourcev1.Container{Image: "web:1", Env: map[string]string{"A": "same", "B": "new", "NEW": "y"}}
+	want := []resource.Change{
+		{Path: "env[A]", Op: resource.OpModified, Sensitive: true},
+		{Path: "env[B]", Op: resource.OpModified, Sensitive: true},
+		{Path: "env[GONE]", Op: resource.OpRemoved, Sensitive: true},
+		{Path: "env[NEW]", Op: resource.OpAdded, Sensitive: true},
+	}
+	if got := resource.DiffRotating(from, to); !slices.Equal(got, want) {
+		t.Errorf("DiffRotating = %+v, want %+v", got, want)
+	}
+	if got := resource.Diff(from, to); len(got) != 3 {
+		t.Errorf("Diff = %+v, want the three that differ", got)
+	}
+	same := &resourcev1.Secret{Value: "hunter2"}
+	if got := resource.DiffRotating(same, same); !slices.Equal(got, []resource.Change{{Path: "value", Op: resource.OpModified, Sensitive: true}}) {
+		t.Errorf("rotating a secret to its own value = %+v", got)
+	}
+	if got := resource.DiffRotating(&resourcev1.FirewallRule{Port: 22}, &resourcev1.FirewallRule{Port: 22}); len(got) != 0 {
+		t.Errorf("a rotation of what holds no secret = %+v", got)
+	}
+	for m, want := range map[proto.Message]bool{
+		&resourcev1.Secret{Value: "x"}:                         true,
+		&resourcev1.Secret{}:                                   false,
+		&resourcev1.Container{Env: map[string]string{"A": ""}}: true,
+		&resourcev1.Container{Image: "web:1"}:                  false,
+		&resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Env: map[string]string{"A": "1"}}}}: true,
+		&resourcev1.Service{Secrets: map[string]string{"A": ""}}:                                                         false,
+	} {
+		if got := resource.SetsSensitive(m); got != want {
+			t.Errorf("SetsSensitive(%v) = %v, want %v", m, got, want)
+		}
+	}
+}
+
+// A message says whether it holds a secret's value, at any depth, apart
+// from any other sensitive field beside it.
+func TestSetsSensitiveOfFindsOneKindsValue(t *testing.T) {
+	secret := variable.SecretType{}
+	edit := func(spec *resourcev1.Spec) *dockwellv1.ProposeChangeRequest {
+		return &dockwellv1.ProposeChangeRequest{Edits: []*dockwellv1.Edit{{Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}}}, {Spec: spec}}}
+	}
+	for what, c := range map[string]struct {
+		m    proto.Message
+		want bool
+	}{
+		"a secret":               {&resourcev1.Secret{Value: "x"}, true},
+		"a secret with no value": {&resourcev1.Secret{}, false},
+		"a secret in an edit":    {edit(&resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: "x"}}}), true},
+		"a container in an edit": {edit(&resourcev1.Spec{Kind: &resourcev1.Spec_Container{Container: &resourcev1.Container{Env: map[string]string{"A": "1"}}}}), false},
+		"a variable":             {&resourcev1.Variable{Value: "x"}, false},
+	} {
+		if got := resource.SetsSensitiveOf(secret, c.m); got != c.want {
+			t.Errorf("SetsSensitiveOf(%s) = %v, want %v", what, got, c.want)
+		}
+	}
+	if !resource.MayHold((&dockwellv1.Edit{}).ProtoReflect().Descriptor(), secret) || resource.MayHold((&resourcev1.Container{}).ProtoReflect().Descriptor(), secret) {
+		t.Error("MayHold misreads what may hold a secret")
+	}
+}
+
+// A path names a sensitive field when any field along it is one, and a
+// path the message doesn't have counts as sensitive. A map's key is a key,
+// whatever it holds, such as the dots of a label like traefik.enable.
+func TestSensitivePath(t *testing.T) {
+	service := (&resourcev1.Service{}).ProtoReflect().Descriptor()
+	ctr := (&resourcev1.Container{}).ProtoReflect().Descriptor()
+	for path, want := range map[string]bool{
+		"app.env[API_KEY]":                          true,
+		"app.env[api.key]":                          true,
+		"app.env[a]b.c]":                            true,
+		"app.image":                                 false,
+		"app.ports[0].host_port":                    false,
+		"app.ports[12].container_port":              false,
+		"app.command[1]":                            false,
+		"app.labels[traefik.enable]":                false,
+		"app.labels[traefik.http.routers.web.rule]": false,
+		"app.labels[odd]key.with[brackets]":         false,
+		"secrets[DATABASE_URL]":                     false,
+		"revisions[DATABASE_URL]":                   false,
+		"app.nonsense":                              true,
+		"app.ports[0].host_port.x":                  true,
+		"app.ports[x].host_port":                    true,
+		"app.ports[0]x":                             true,
+		"app.image[0]":                              true,
+		"app.labels":                                false,
+		"app.ports":                                 false,
+		"app.ports[0]":                              false,
+		"app.":                                      true,
+		"":                                          true,
+		// A whole message holds what is in it, the environment included.
+		"app":     true,
+		"app.env": true,
+		"secrets": false,
+	} {
+		if got := resource.SensitivePath(service, path); got != want {
+			t.Errorf("resource.SensitivePath(Service, %q) = %v, want %v", path, got, want)
+		}
+	}
+	if !resource.SensitivePath(ctr, "env[API_KEY]") || !resource.SensitivePath(ctr, "env") || resource.SensitivePath(ctr, "image") ||
+		resource.SensitivePath(ctr, "labels[com.example.team]") || resource.SensitivePath(ctr, "ports") {
+		t.Error("SensitivePath misreads a container's paths")
+	}
+	if !resource.SensitivePath((&resourcev1.Secret{}).ProtoReflect().Descriptor(), "value") {
+		t.Error("a secret's value isn't sensitive")
 	}
 }

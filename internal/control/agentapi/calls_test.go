@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -235,6 +236,73 @@ func TestACallRefusedWhileTheAgentMovesIsSentAgain(t *testing.T) {
 	// A call that reaches the stream the agent left goes to its new one.
 	if _, err := a.Plan(t.Context(), nil); err != nil {
 		t.Errorf("a call on the stream the agent moved from = %v, want it sent on the new one", err)
+	}
+}
+
+// fixedValues is a keeper that gives every step the same values.
+type fixedValues map[string]string
+
+func (v fixedValues) Values(context.Context, string, resource.Ref, proto.Message) (map[string]string, error) {
+	return maps.Clone(v), nil
+}
+
+// Values are sealed to one stream's delivery key, which the agent drops
+// when it moves to a new stream. A step that uses a secret, refused while
+// the agent moves to a renewed certificate and sent again on its next
+// stream, carries its values sealed again for that stream, so it runs
+// rather than failing and rolling its change back.
+func TestValuesAreSealedAgainForTheStreamACallMovesTo(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	fw, engine := newGate(), containertest.NewFake()
+	s.agents.SendValues(fixedValues{"TOKEN": "s3cret-on-the-next-stream"})
+	runAgent(t, s, id, resource.NewRegistry(&firewall.Driver{Backend: fw}, &service.Driver{Containers: container.Driver{Runtime: engine}}))
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	slow := resource.Step{Ref: resource.Ref{Kind: firewall.Kind, Scope: id.ServerID, Name: "slow"}, Decision: resource.Decision{Action: resource.ActionCreate}}
+	rule := &resourcev1.FirewallRule{Port: 8080}
+	if err := (&firewall.Driver{}).Validate(rule); err != nil {
+		t.Fatal(err)
+	}
+	ruled := make(chan error, 1)
+	go func() { ruled <- a.Apply(t.Context(), slow, rule) }()
+	<-fw.started
+
+	id.Replace(id.Key(), id.Cert()) // renewed: the agent drains its stream
+	time.Sleep(50 * time.Millisecond)
+	web := resource.Ref{Kind: service.Kind, Scope: "env_01JD6Z3R8M9QF2K7T4XW5BNC0V", Name: "web"}
+	svc := &resourcev1.Service{
+		Runs:      &resourcev1.Service_App{App: &resourcev1.Container{Image: "acme/web:1"}},
+		Secrets:   map[string]string{"TOKEN": "API_TOKEN"},
+		Revisions: map[string]int64{"TOKEN": 1},
+	}
+	if err := (&service.Driver{}).Validate(svc); err != nil {
+		t.Fatal(err)
+	}
+	applied := make(chan error, 1)
+	go func() {
+		applied <- a.Apply(t.Context(), resource.Step{Ref: web, Decision: resource.Decision{Action: resource.ActionCreate}}, svc)
+	}()
+	select {
+	case err := <-applied:
+		t.Fatalf("a step sent while the agent drains ended with %v before the call under way did; want it refused, and sent again", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	close(fw.release)
+	if err := <-ruled; err != nil {
+		t.Errorf("the call under way as the agent moved = %v, want it to finish", err)
+	}
+	select {
+	case err := <-applied:
+		if err != nil {
+			t.Fatalf("the step sent again on the agent's next stream = %v, want it to run with its values", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the refused step wasn't sent again on the agent's next stream")
+	}
+	got, err := engine.Inspect(t.Context(), service.Target(web))
+	if err != nil || got.GetEnv()["TOKEN"] != "s3cret-on-the-next-stream" {
+		t.Errorf("the service's container runs with %v, %v; want the secret it uses", got.GetEnv(), err)
 	}
 }
 
@@ -528,6 +596,112 @@ func TestAHungCheckDoesntHoldTheStream(t *testing.T) {
 		case <-connected:
 		case <-time.After(within):
 			t.Fatalf("connection %d didn't come within %s: a check that hung held up the stream", i+1, within)
+		}
+	}
+}
+
+// A field the schema marks sensitive never shows its value in a plan,
+// whatever the agent says of it: an agent that reports a container's
+// environment unmasked, as a buggy or older one might, has it masked.
+func TestAnAgentCantPutASecretInAPlan(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	stream := openStream(t, id, string(container.Kind))
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	web := resource.Ref{Kind: container.Kind, Scope: id.ServerID, Name: "web"}
+	type planned struct {
+		steps []resource.Step
+		err   error
+	}
+	done := make(chan planned, 1)
+	go func() {
+		steps, err := a.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: &resourcev1.Container{Image: "nginx:1.28"}}})
+		done <- planned{steps, err}
+	}()
+	msg, err := stream.Receive()
+	if err != nil || msg.GetCall().GetPlan() == nil {
+		t.Fatalf("the control plane sent %v, %v, want a plan", msg, err)
+	}
+	leaky := &dockwellv1.PlanStep{
+		Resource: resourcepb.Ref(web), Action: dockwellv1.PlanAction_PLAN_ACTION_REPLACE, Effect: dockwellv1.StepEffect_STEP_EFFECT_RECREATE,
+		Changes: []*dockwellv1.FieldChange{
+			{Path: "env[API_KEY]", Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, From: "old-s3cret", To: "new-s3cret"},
+			{Path: "image", Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, From: "nginx:1.27", To: "nginx:1.28"},
+			{Path: "labels[traefik.enable]", Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, From: "false", To: "true"},
+		},
+	}
+	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: &agentv1.CallResult{
+		Id: msg.GetCall().GetId(), Result: &agentv1.CallResult_Plan{Plan: &agentv1.PlanResult{Steps: []*dockwellv1.PlanStep{leaky}}},
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	got := <-done
+	if got.err != nil || len(got.steps) != 1 || len(got.steps[0].Changes) != 3 {
+		t.Fatalf("Plan = %+v, %v", got.steps, got.err)
+	}
+	env, image, label := got.steps[0].Changes[0], got.steps[0].Changes[1], got.steps[0].Changes[2]
+	if !env.Sensitive || env.From != "" || env.To != "" {
+		t.Errorf("the environment's change = %+v, want it masked", env)
+	}
+	if image.Sensitive || image.To != "nginx:1.28" {
+		t.Errorf("the image's change = %+v, want it shown", image)
+	}
+	// A label's key holds dots, and is still a label's: not sensitive.
+	if label.Sensitive || label.To != "true" {
+		t.Errorf("the label's change = %+v, want it shown", label)
+	}
+}
+
+// A change an agent reports at a path that names a whole message, or a
+// whole map, is masked when anything within it is sensitive: a service's
+// app holds its container's environment. The Docker driver reports such
+// steps.
+func TestAnAgentCantPutASecretInAPlanAtAWholeMessage(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	stream := openStream(t, id, string(container.Kind), string(service.Kind))
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	for _, c := range []struct {
+		ref           resource.Ref
+		spec          proto.Message
+		masked, shown string
+	}{
+		{resource.Ref{Kind: service.Kind, Scope: id.ServerID, Name: "api"}, &resourcev1.Service{}, "app", "secrets[DB]"},
+		{resource.Ref{Kind: container.Kind, Scope: id.ServerID, Name: "web"}, &resourcev1.Container{Image: "nginx:1.28"}, "env", "ports"},
+	} {
+		done := make(chan []resource.Step, 1)
+		go func() {
+			steps, err := a.Plan(t.Context(), []resource.Desired{{Ref: c.ref, Spec: c.spec}})
+			if err != nil {
+				t.Error(err)
+			}
+			done <- steps
+		}()
+		msg, err := stream.Receive()
+		if err != nil || msg.GetCall().GetPlan() == nil {
+			t.Fatalf("the control plane sent %v, %v, want a plan", msg, err)
+		}
+		leaky := &dockwellv1.PlanStep{
+			Resource: resourcepb.Ref(c.ref), Action: dockwellv1.PlanAction_PLAN_ACTION_REPLACE, Effect: dockwellv1.StepEffect_STEP_EFFECT_RECREATE,
+			Changes: []*dockwellv1.FieldChange{
+				{Path: c.masked, Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, From: "Container{env: API_KEY=old-s3cret}", To: "Container{env: API_KEY=new-s3cret}"},
+				{Path: c.shown, Op: dockwellv1.FieldOp_FIELD_OP_ADDED, To: "DB"},
+			},
+		}
+		if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: &agentv1.CallResult{
+			Id: msg.GetCall().GetId(), Result: &agentv1.CallResult_Plan{Plan: &agentv1.PlanResult{Steps: []*dockwellv1.PlanStep{leaky}}},
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+		steps := <-done
+		if len(steps) != 1 || len(steps[0].Changes) != 2 {
+			t.Fatalf("%s: Plan = %+v", c.ref.Kind, steps)
+		}
+		if m := steps[0].Changes[0]; !m.Sensitive || m.From != "" || m.To != "" {
+			t.Errorf("%s: the change at %s = %+v, want it masked", c.ref.Kind, c.masked, m)
+		}
+		if s := steps[0].Changes[1]; s.Sensitive || s.To != "DB" {
+			t.Errorf("%s: the change at %s = %+v, want it shown", c.ref.Kind, c.shown, s)
 		}
 	}
 }

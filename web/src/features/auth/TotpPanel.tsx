@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { AuthService } from "@dockwell/api";
+import { AuthService, StepUpAction } from "@dockwell/api";
 import { Button, ButtonLink, Callout, Panel, Sheet, StatusBadge, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
@@ -11,6 +11,7 @@ import { encode } from "uqr";
 import { CopyButton } from "../system/CopyCommand";
 import { normalizeCode } from "./code";
 import { useAuthError } from "./messages";
+import { withStepUpIfAsked } from "./stepUp";
 
 /** Code sign-in with an authenticator app, and its recovery codes. */
 export function TotpPanel() {
@@ -19,17 +20,39 @@ export function TotpPanel() {
   const transport = useTransport();
   const explain = useAuthError();
   const [sheet, setSheet] = useState<"setup" | "codes" | undefined>();
+  const [setup, setSetup] = useState<Setup>();
   const [confirmOff, setConfirmOff] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [problem, setProblem] = useState<string>();
   const state = totp.data?.totp;
   const on = Boolean(state?.enabled);
+
+  // Your passkey confirms it, then a new key is made for the app to scan:
+  // each setup replaces the key the last one gave.
+  const startSetup = async () => {
+    setStarting(true);
+    setProblem(undefined);
+    try {
+      const res = await withStepUpIfAsked(transport, StepUpAction.SET_UP_CODES, "", (proof) =>
+        createClient(AuthService, transport).beginTotpSetup({ proof }),
+      );
+      setSetup({ secret: res.secret, uri: res.uri });
+      setSheet("setup");
+    } catch (err) {
+      setProblem(explain(err));
+    } finally {
+      setStarting(false);
+    }
+  };
 
   const turnOff = async () => {
     setBusy(true);
     setProblem(undefined);
     try {
-      await createClient(AuthService, transport).disableTotp({});
+      await withStepUpIfAsked(transport, StepUpAction.DISABLE_CODES, "", (proof) =>
+        createClient(AuthService, transport).disableTotp({ proof }),
+      );
       setConfirmOff(false);
       await totp.refetch();
     } catch (err) {
@@ -83,7 +106,7 @@ export function TotpPanel() {
                 <Button size="sm" icon="refresh" onClick={() => setSheet("codes")}>
                   <Trans>New recovery codes</Trans>
                 </Button>
-                <Button size="sm" onClick={() => setSheet("setup")}>
+                <Button size="sm" loading={starting} onClick={() => void startSetup()}>
                   <Trans>Move to another app</Trans>
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setConfirmOff(true)}>
@@ -92,7 +115,7 @@ export function TotpPanel() {
               </>
             )
           ) : (
-            <Button size="sm" icon="lock" onClick={() => setSheet("setup")}>
+            <Button size="sm" icon="lock" loading={starting} onClick={() => void startSetup()}>
               <Trans>Set up</Trans>
             </Button>
           )}
@@ -100,9 +123,18 @@ export function TotpPanel() {
       </div>
       <TotpSetupSheet
         open={sheet === "setup"}
+        setup={setup}
         onClose={() => {
           setSheet(undefined);
+          setSetup(undefined);
           void totp.refetch();
+        }}
+        onCancel={() => {
+          // The key it showed works nowhere now. If this doesn't reach the
+          // control plane, the key ends by itself within 10 minutes.
+          void createClient(AuthService, transport)
+            .cancelTotpSetup({})
+            .catch(() => {});
         }}
       />
       <RegenerateSheet
@@ -117,38 +149,37 @@ export function TotpPanel() {
   );
 }
 
-/** Scan, confirm with a code, then save the recovery codes. */
-function TotpSetupSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** A new authenticator key, to scan once. */
+interface Setup {
+  secret: string;
+  uri: string;
+}
+
+interface TotpSetupSheetProps {
+  open: boolean;
+  setup: Setup | undefined;
+  onClose: () => void;
+  /** Called as the sheet closes before the setup finished. */
+  onCancel: () => void;
+}
+
+/** Scan the new key, confirm with a code, then save the recovery codes. */
+function TotpSetupSheet({ open, setup, onClose, onCancel }: TotpSetupSheetProps) {
   const { t } = useLingui();
   const transport = useTransport();
   const explain = useAuthError();
-  const [setup, setSetup] = useState<{ secret: string; uri: string }>();
   const [code, setCode] = useState("");
   const [codes, setCodes] = useState<string[]>();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
-  // Kept as it came, and put in words as the sheet draws, so the setup below needn't depend on the words.
-  const [setupFailure, setSetupFailure] = useState<unknown>();
 
-  // Once each time the sheet opens: each setup replaces the key the last one gave, which may have been scanned already.
+  // Each time the sheet opens, it starts over.
   useEffect(() => {
-    if (!open) {
-      setSetup(undefined);
-      setCode("");
-      setCodes(undefined);
-      setProblem(undefined);
-      setSetupFailure(undefined);
-      return;
-    }
-    let live = true;
-    createClient(AuthService, transport)
-      .beginTotpSetup({})
-      .then((res) => live && setSetup({ secret: res.secret, uri: res.uri }))
-      .catch((err: unknown) => live && setSetupFailure(err));
-    return () => {
-      live = false;
-    };
-  }, [open, transport]);
+    if (open) return;
+    setCode("");
+    setCodes(undefined);
+    setProblem(undefined);
+  }, [open]);
 
   const confirm = async (event: FormEvent) => {
     event.preventDefault();
@@ -188,7 +219,10 @@ function TotpSetupSheet({ open, onClose }: { open: boolean; onClose: () => void 
   return (
     <Sheet
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        onCancel();
+        onClose();
+      }}
       title={t`Set up an authenticator app`}
       subtitle={t`Such as 1Password, Google Authenticator or Aegis`}
       footer={
@@ -228,9 +262,9 @@ function TotpSetupSheet({ open, onClose }: { open: boolean; onClose: () => void 
             />
           </li>
         </ol>
-        {problem || setupFailure ? (
+        {problem ? (
           <Callout tone="critical" title={t`The authenticator app isn't set up yet`}>
-            {problem ?? explain(setupFailure)}
+            {problem}
           </Callout>
         ) : null}
       </form>
@@ -258,7 +292,9 @@ function RegenerateSheet({ open, left, onClose }: { open: boolean; left: number;
     setBusy(true);
     setProblem(undefined);
     try {
-      const res = await createClient(AuthService, transport).regenerateRecoveryCodes({});
+      const res = await withStepUpIfAsked(transport, StepUpAction.REGENERATE_RECOVERY_CODES, "", (proof) =>
+        createClient(AuthService, transport).regenerateRecoveryCodes({ proof }),
+      );
       setCodes(res.recoveryCodes);
     } catch (err) {
       setProblem(explain(err));

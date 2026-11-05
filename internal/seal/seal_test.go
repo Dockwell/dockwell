@@ -110,3 +110,39 @@ func TestLoadNeverCreates(t *testing.T) {
 		t.Fatalf("Load of an existing key = %v", err)
 	}
 }
+
+func TestDerive(t *testing.T) {
+	dir := t.TempDir()
+	a, err := LoadOrCreate(filepath.Join(dir, "a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := LoadOrCreate(filepath.Join(dir, "b"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := LoadOrCreate(filepath.Join(dir, "a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	one := a.Derive("fingerprint")
+	if len(one) != 32 {
+		t.Fatalf("Derive gave %d bytes, want 32", len(one))
+	}
+	if !bytes.Equal(one, again.Derive("fingerprint")) {
+		t.Error("the same key and purpose derived different keys")
+	}
+	if bytes.Equal(one, a.Derive("other")) {
+		t.Error("two purposes derived the same key")
+	}
+	if bytes.Equal(one, b.Derive("fingerprint")) {
+		t.Error("two keys derived the same key for one purpose")
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(one, raw) {
+		t.Error("Derive gave the key itself")
+	}
+}

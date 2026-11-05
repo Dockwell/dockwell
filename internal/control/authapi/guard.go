@@ -338,6 +338,11 @@ var tokenAccess = func() map[string]auth.Access {
 				md := sd.Methods().Get(j)
 				effect, _ := proto.GetExtension(md.Options(), dockwellv1.E_Effect).(dockwellv1.Effect)
 				procedure := "/" + string(sd.FullName()) + "/" + string(md.Name())
+				if person, _ := proto.GetExtension(md.Options(), dockwellv1.E_NeedsSession).(bool); person {
+					// It needs a person, whatever its effect.
+					m[procedure] = auth.AccessSession
+					continue
+				}
 				switch effect {
 				case dockwellv1.Effect_EFFECT_READ:
 					m[procedure] = auth.AccessRead

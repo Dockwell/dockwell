@@ -57,10 +57,11 @@ var (
 	serverActions = []string{"server.join", "server.renew", "server.revoke"}
 	accessActions = []string{
 		"owner.claim", "auth.sign_in", "session.revoke",
-		"passkey.add", "passkey.remove",
-		"totp.enable", "totp.disable", "totp.unlock", "recovery_codes.regenerate",
+		"passkey.add", "passkey.add_with_recovery_code", "passkey.add_with_authenticator_code", "passkey.remove",
+		"totp.enable", "totp.disable", "totp.unlock", "totp.setup_discarded", "recovery_codes.regenerate",
 		"token.create", "token.revoke",
 		"sign_in_link.create", "claim_link.create", "join_token.create",
+		"secret.reveal", "secrets.rotate_key",
 	}
 )
 
@@ -466,7 +467,7 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_SERVER
 	}
 	if a.Target != "" {
-		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target)}
+		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target), Scope: look.Scope(a.Target)}
 	}
 	return e
 }

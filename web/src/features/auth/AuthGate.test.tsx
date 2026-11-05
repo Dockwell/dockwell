@@ -179,6 +179,7 @@ describe("the sign-in gate", () => {
         listPasskeys: () => ({ passkeys: [{ id: "pky_1", name: "YubiKey 5C", rpId: "localhost" }] }),
         listSessions: () => ({ sessions: [] }),
         getTotp: () => ({}),
+        // Removing a passkey finds the session ended.
         removePasskey: () => {
           signedIn = false;
           throw authError(Code.Unauthenticated, "session_ended");
@@ -209,6 +210,7 @@ describe("the sign-in gate", () => {
         listPasskeys: () => ({ passkeys: [{ id: "pky_1", name: "YubiKey 5C", rpId: "localhost" }] }),
         listSessions: () => ({ sessions: [] }),
         getTotp: () => ({}),
+        // Removing a passkey finds the session ended.
         removePasskey: () => {
           signedIn = false;
           throw authError(Code.Unauthenticated, "session_ended");

@@ -36,9 +36,12 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/revision"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/seal"
+	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/serve"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -221,8 +224,10 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 	// stopping lets them finish their steps or leaves them for the next
 	// start, and the store closes only after (srv.Run).
 	kinds := controlKinds()
+	keeper := secrets.New(db, key, kinds.With(scope.Types()...))
 	agents := agentapi.NewAgents(kinds, logger)
-	engine := revision.New(db, kinds, agents, logger)
+	agents.SendValues(keeper)
+	engine := revision.New(db, kinds, agents, keeper, logger)
 	resumeCtx := context.WithoutCancel(ctx)
 	resume := func() {
 		if err := engine.Resume(resumeCtx); err != nil {
@@ -243,6 +248,7 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		Changes:       engine,
 		Agents:        agents,
 		Store:         db,
+		Secrets:       keeper,
 	})
 	if err != nil {
 		closeAll()
@@ -276,9 +282,10 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 // controlKinds are the kinds the control plane knows: it checks their specs
 // and plans them for a server that is offline. Servers run them only where
 // their agents have drivers, which they report in their hello: the Docker
-// kinds while Docker answers. The firewall's driver comes with #27.
+// kinds while Docker answers. Variables and secrets run on no server. The
+// firewall's driver comes with #27.
 func controlKinds() *resource.Registry {
-	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{})
+	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, variable.Type{}, variable.SecretType{})
 }
 
 // openState opens the control plane's key, its state and its identity,

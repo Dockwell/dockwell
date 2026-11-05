@@ -67,6 +67,11 @@ const (
 	// AuthServiceRevokeOtherSessionsProcedure is the fully-qualified name of the AuthService's
 	// RevokeOtherSessions RPC.
 	AuthServiceRevokeOtherSessionsProcedure = "/dockwell.v1.AuthService/RevokeOtherSessions"
+	// AuthServiceBeginStepUpProcedure is the fully-qualified name of the AuthService's BeginStepUp RPC.
+	AuthServiceBeginStepUpProcedure = "/dockwell.v1.AuthService/BeginStepUp"
+	// AuthServiceFinishStepUpProcedure is the fully-qualified name of the AuthService's FinishStepUp
+	// RPC.
+	AuthServiceFinishStepUpProcedure = "/dockwell.v1.AuthService/FinishStepUp"
 	// AuthServiceListPasskeysProcedure is the fully-qualified name of the AuthService's ListPasskeys
 	// RPC.
 	AuthServiceListPasskeysProcedure = "/dockwell.v1.AuthService/ListPasskeys"
@@ -87,6 +92,9 @@ const (
 	// AuthServiceConfirmTotpSetupProcedure is the fully-qualified name of the AuthService's
 	// ConfirmTotpSetup RPC.
 	AuthServiceConfirmTotpSetupProcedure = "/dockwell.v1.AuthService/ConfirmTotpSetup"
+	// AuthServiceCancelTotpSetupProcedure is the fully-qualified name of the AuthService's
+	// CancelTotpSetup RPC.
+	AuthServiceCancelTotpSetupProcedure = "/dockwell.v1.AuthService/CancelTotpSetup"
 	// AuthServiceDisableTotpProcedure is the fully-qualified name of the AuthService's DisableTotp RPC.
 	AuthServiceDisableTotpProcedure = "/dockwell.v1.AuthService/DisableTotp"
 	// AuthServiceRegenerateRecoveryCodesProcedure is the fully-qualified name of the AuthService's
@@ -128,29 +136,59 @@ type AuthServiceClient interface {
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
 	// RevokeOtherSessions ends every session of yours except this one.
 	RevokeOtherSessions(context.Context, *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error)
+	// BeginStepUp starts confirming, with a passkey you have for the address
+	// of this request, an action that needs a person right now: revealing a
+	// secret, or changing how you sign in or your API tokens. Pass the
+	// passkey's answer to FinishStepUp.
+	//
+	// Call the action without a proof first. It checks everything else, such
+	// as the last way in or a token's name, and only then refuses with the
+	// reason needs_step_up. Step up, and call it again with the proof, which
+	// the action spends only once nothing else refuses it.
+	BeginStepUp(context.Context, *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error)
+	// FinishStepUp checks the passkey's answer and returns a proof for the
+	// action it began with. The proof works once, within a minute, in this
+	// session alone, for that action on that target.
+	FinishStepUp(context.Context, *connect.Request[v1.FinishStepUpRequest]) (*connect.Response[v1.FinishStepUpResponse], error)
 	// ListPasskeys returns your passkeys, oldest first.
 	ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error)
 	// BeginAddPasskey starts adding a passkey for the address of this request.
+	// It needs a proof from FinishStepUp for adding a passkey, made with a
+	// passkey you have for this address. A sign-in in the last 10 minutes
+	// that needed no passkey here confirms one passkey instead, so you can
+	// add one when you have none here: a link from dockwell recover, a
+	// recovery code, or a code from an authenticator app when no passkey is
+	// registered for this address.
 	BeginAddPasskey(context.Context, *connect.Request[v1.BeginAddPasskeyRequest]) (*connect.Response[v1.BeginAddPasskeyResponse], error)
-	// FinishAddPasskey saves the new passkey.
+	// FinishAddPasskey saves the new passkey. One a sign-in confirmed is
+	// checked again: still within its 10 minutes, and the first since.
 	FinishAddPasskey(context.Context, *connect.Request[v1.FinishAddPasskeyRequest]) (*connect.Response[v1.FinishAddPasskeyResponse], error)
-	// RemovePasskey removes one of your passkeys. It refuses to remove your last
-	// way to sign in.
+	// RemovePasskey removes one of your passkeys. It needs a proof from
+	// FinishStepUp for removing it. It refuses to remove your last way to sign
+	// in.
 	RemovePasskey(context.Context, *connect.Request[v1.RemovePasskeyRequest]) (*connect.Response[v1.RemovePasskeyResponse], error)
 	// GetTotp says whether you sign in with an authenticator app, and how many
 	// recovery codes are left.
 	GetTotp(context.Context, *connect.Request[v1.GetTotpRequest]) (*connect.Response[v1.GetTotpResponse], error)
-	// BeginTotpSetup makes a new authenticator secret. It takes effect only
-	// once ConfirmTotpSetup checks a code from it.
+	// BeginTotpSetup makes a new authenticator secret. It needs a proof from
+	// FinishStepUp for setting up code sign-in. The secret takes effect only
+	// once ConfirmTotpSetup checks a code from it, in this session, within
+	// 10 minutes.
 	BeginTotpSetup(context.Context, *connect.Request[v1.BeginTotpSetupRequest]) (*connect.Response[v1.BeginTotpSetupResponse], error)
 	// ConfirmTotpSetup checks a code from the new secret, turns code sign-in
-	// on, and returns new recovery codes. They are shown once.
+	// on, and returns new recovery codes. They are shown once. Only the
+	// session that began the setup can, and 5 wrong codes end it, so it needs
+	// a new step-up.
 	ConfirmTotpSetup(context.Context, *connect.Request[v1.ConfirmTotpSetupRequest]) (*connect.Response[v1.ConfirmTotpSetupResponse], error)
+	// CancelTotpSetup forgets the setup this session began, so its secret
+	// works nowhere. It does nothing when none is waiting.
+	CancelTotpSetup(context.Context, *connect.Request[v1.CancelTotpSetupRequest]) (*connect.Response[v1.CancelTotpSetupResponse], error)
 	// DisableTotp turns code sign-in off and deletes the secret and recovery
-	// codes. It refuses when that would leave no way to sign in.
+	// codes. It needs a proof from FinishStepUp for turning code sign-in off.
+	// It refuses when that would leave no way to sign in.
 	DisableTotp(context.Context, *connect.Request[v1.DisableTotpRequest]) (*connect.Response[v1.DisableTotpResponse], error)
 	// RegenerateRecoveryCodes replaces your recovery codes. The old ones stop
-	// working.
+	// working. It needs a proof from FinishStepUp for making recovery codes.
 	RegenerateRecoveryCodes(context.Context, *connect.Request[v1.RegenerateRecoveryCodesRequest]) (*connect.Response[v1.RegenerateRecoveryCodesResponse], error)
 	// UnlockCodeSignIn turns code sign-in back on after too many wrong codes
 	// locked it.
@@ -242,6 +280,18 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("RevokeOtherSessions")),
 			connect.WithClientOptions(opts...),
 		),
+		beginStepUp: connect.NewClient[v1.BeginStepUpRequest, v1.BeginStepUpResponse](
+			httpClient,
+			baseURL+AuthServiceBeginStepUpProcedure,
+			connect.WithSchema(authServiceMethods.ByName("BeginStepUp")),
+			connect.WithClientOptions(opts...),
+		),
+		finishStepUp: connect.NewClient[v1.FinishStepUpRequest, v1.FinishStepUpResponse](
+			httpClient,
+			baseURL+AuthServiceFinishStepUpProcedure,
+			connect.WithSchema(authServiceMethods.ByName("FinishStepUp")),
+			connect.WithClientOptions(opts...),
+		),
 		listPasskeys: connect.NewClient[v1.ListPasskeysRequest, v1.ListPasskeysResponse](
 			httpClient,
 			baseURL+AuthServiceListPasskeysProcedure,
@@ -286,6 +336,12 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("ConfirmTotpSetup")),
 			connect.WithClientOptions(opts...),
 		),
+		cancelTotpSetup: connect.NewClient[v1.CancelTotpSetupRequest, v1.CancelTotpSetupResponse](
+			httpClient,
+			baseURL+AuthServiceCancelTotpSetupProcedure,
+			connect.WithSchema(authServiceMethods.ByName("CancelTotpSetup")),
+			connect.WithClientOptions(opts...),
+		),
 		disableTotp: connect.NewClient[v1.DisableTotpRequest, v1.DisableTotpResponse](
 			httpClient,
 			baseURL+AuthServiceDisableTotpProcedure,
@@ -321,6 +377,8 @@ type authServiceClient struct {
 	listSessions            *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
 	revokeSession           *connect.Client[v1.RevokeSessionRequest, v1.RevokeSessionResponse]
 	revokeOtherSessions     *connect.Client[v1.RevokeOtherSessionsRequest, v1.RevokeOtherSessionsResponse]
+	beginStepUp             *connect.Client[v1.BeginStepUpRequest, v1.BeginStepUpResponse]
+	finishStepUp            *connect.Client[v1.FinishStepUpRequest, v1.FinishStepUpResponse]
 	listPasskeys            *connect.Client[v1.ListPasskeysRequest, v1.ListPasskeysResponse]
 	beginAddPasskey         *connect.Client[v1.BeginAddPasskeyRequest, v1.BeginAddPasskeyResponse]
 	finishAddPasskey        *connect.Client[v1.FinishAddPasskeyRequest, v1.FinishAddPasskeyResponse]
@@ -328,6 +386,7 @@ type authServiceClient struct {
 	getTotp                 *connect.Client[v1.GetTotpRequest, v1.GetTotpResponse]
 	beginTotpSetup          *connect.Client[v1.BeginTotpSetupRequest, v1.BeginTotpSetupResponse]
 	confirmTotpSetup        *connect.Client[v1.ConfirmTotpSetupRequest, v1.ConfirmTotpSetupResponse]
+	cancelTotpSetup         *connect.Client[v1.CancelTotpSetupRequest, v1.CancelTotpSetupResponse]
 	disableTotp             *connect.Client[v1.DisableTotpRequest, v1.DisableTotpResponse]
 	regenerateRecoveryCodes *connect.Client[v1.RegenerateRecoveryCodesRequest, v1.RegenerateRecoveryCodesResponse]
 	unlockCodeSignIn        *connect.Client[v1.UnlockCodeSignInRequest, v1.UnlockCodeSignInResponse]
@@ -393,6 +452,16 @@ func (c *authServiceClient) RevokeOtherSessions(ctx context.Context, req *connec
 	return c.revokeOtherSessions.CallUnary(ctx, req)
 }
 
+// BeginStepUp calls dockwell.v1.AuthService.BeginStepUp.
+func (c *authServiceClient) BeginStepUp(ctx context.Context, req *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error) {
+	return c.beginStepUp.CallUnary(ctx, req)
+}
+
+// FinishStepUp calls dockwell.v1.AuthService.FinishStepUp.
+func (c *authServiceClient) FinishStepUp(ctx context.Context, req *connect.Request[v1.FinishStepUpRequest]) (*connect.Response[v1.FinishStepUpResponse], error) {
+	return c.finishStepUp.CallUnary(ctx, req)
+}
+
 // ListPasskeys calls dockwell.v1.AuthService.ListPasskeys.
 func (c *authServiceClient) ListPasskeys(ctx context.Context, req *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error) {
 	return c.listPasskeys.CallUnary(ctx, req)
@@ -426,6 +495,11 @@ func (c *authServiceClient) BeginTotpSetup(ctx context.Context, req *connect.Req
 // ConfirmTotpSetup calls dockwell.v1.AuthService.ConfirmTotpSetup.
 func (c *authServiceClient) ConfirmTotpSetup(ctx context.Context, req *connect.Request[v1.ConfirmTotpSetupRequest]) (*connect.Response[v1.ConfirmTotpSetupResponse], error) {
 	return c.confirmTotpSetup.CallUnary(ctx, req)
+}
+
+// CancelTotpSetup calls dockwell.v1.AuthService.CancelTotpSetup.
+func (c *authServiceClient) CancelTotpSetup(ctx context.Context, req *connect.Request[v1.CancelTotpSetupRequest]) (*connect.Response[v1.CancelTotpSetupResponse], error) {
+	return c.cancelTotpSetup.CallUnary(ctx, req)
 }
 
 // DisableTotp calls dockwell.v1.AuthService.DisableTotp.
@@ -474,29 +548,59 @@ type AuthServiceHandler interface {
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
 	// RevokeOtherSessions ends every session of yours except this one.
 	RevokeOtherSessions(context.Context, *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error)
+	// BeginStepUp starts confirming, with a passkey you have for the address
+	// of this request, an action that needs a person right now: revealing a
+	// secret, or changing how you sign in or your API tokens. Pass the
+	// passkey's answer to FinishStepUp.
+	//
+	// Call the action without a proof first. It checks everything else, such
+	// as the last way in or a token's name, and only then refuses with the
+	// reason needs_step_up. Step up, and call it again with the proof, which
+	// the action spends only once nothing else refuses it.
+	BeginStepUp(context.Context, *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error)
+	// FinishStepUp checks the passkey's answer and returns a proof for the
+	// action it began with. The proof works once, within a minute, in this
+	// session alone, for that action on that target.
+	FinishStepUp(context.Context, *connect.Request[v1.FinishStepUpRequest]) (*connect.Response[v1.FinishStepUpResponse], error)
 	// ListPasskeys returns your passkeys, oldest first.
 	ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error)
 	// BeginAddPasskey starts adding a passkey for the address of this request.
+	// It needs a proof from FinishStepUp for adding a passkey, made with a
+	// passkey you have for this address. A sign-in in the last 10 minutes
+	// that needed no passkey here confirms one passkey instead, so you can
+	// add one when you have none here: a link from dockwell recover, a
+	// recovery code, or a code from an authenticator app when no passkey is
+	// registered for this address.
 	BeginAddPasskey(context.Context, *connect.Request[v1.BeginAddPasskeyRequest]) (*connect.Response[v1.BeginAddPasskeyResponse], error)
-	// FinishAddPasskey saves the new passkey.
+	// FinishAddPasskey saves the new passkey. One a sign-in confirmed is
+	// checked again: still within its 10 minutes, and the first since.
 	FinishAddPasskey(context.Context, *connect.Request[v1.FinishAddPasskeyRequest]) (*connect.Response[v1.FinishAddPasskeyResponse], error)
-	// RemovePasskey removes one of your passkeys. It refuses to remove your last
-	// way to sign in.
+	// RemovePasskey removes one of your passkeys. It needs a proof from
+	// FinishStepUp for removing it. It refuses to remove your last way to sign
+	// in.
 	RemovePasskey(context.Context, *connect.Request[v1.RemovePasskeyRequest]) (*connect.Response[v1.RemovePasskeyResponse], error)
 	// GetTotp says whether you sign in with an authenticator app, and how many
 	// recovery codes are left.
 	GetTotp(context.Context, *connect.Request[v1.GetTotpRequest]) (*connect.Response[v1.GetTotpResponse], error)
-	// BeginTotpSetup makes a new authenticator secret. It takes effect only
-	// once ConfirmTotpSetup checks a code from it.
+	// BeginTotpSetup makes a new authenticator secret. It needs a proof from
+	// FinishStepUp for setting up code sign-in. The secret takes effect only
+	// once ConfirmTotpSetup checks a code from it, in this session, within
+	// 10 minutes.
 	BeginTotpSetup(context.Context, *connect.Request[v1.BeginTotpSetupRequest]) (*connect.Response[v1.BeginTotpSetupResponse], error)
 	// ConfirmTotpSetup checks a code from the new secret, turns code sign-in
-	// on, and returns new recovery codes. They are shown once.
+	// on, and returns new recovery codes. They are shown once. Only the
+	// session that began the setup can, and 5 wrong codes end it, so it needs
+	// a new step-up.
 	ConfirmTotpSetup(context.Context, *connect.Request[v1.ConfirmTotpSetupRequest]) (*connect.Response[v1.ConfirmTotpSetupResponse], error)
+	// CancelTotpSetup forgets the setup this session began, so its secret
+	// works nowhere. It does nothing when none is waiting.
+	CancelTotpSetup(context.Context, *connect.Request[v1.CancelTotpSetupRequest]) (*connect.Response[v1.CancelTotpSetupResponse], error)
 	// DisableTotp turns code sign-in off and deletes the secret and recovery
-	// codes. It refuses when that would leave no way to sign in.
+	// codes. It needs a proof from FinishStepUp for turning code sign-in off.
+	// It refuses when that would leave no way to sign in.
 	DisableTotp(context.Context, *connect.Request[v1.DisableTotpRequest]) (*connect.Response[v1.DisableTotpResponse], error)
 	// RegenerateRecoveryCodes replaces your recovery codes. The old ones stop
-	// working.
+	// working. It needs a proof from FinishStepUp for making recovery codes.
 	RegenerateRecoveryCodes(context.Context, *connect.Request[v1.RegenerateRecoveryCodesRequest]) (*connect.Response[v1.RegenerateRecoveryCodesResponse], error)
 	// UnlockCodeSignIn turns code sign-in back on after too many wrong codes
 	// locked it.
@@ -584,6 +688,18 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("RevokeOtherSessions")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceBeginStepUpHandler := connect.NewUnaryHandler(
+		AuthServiceBeginStepUpProcedure,
+		svc.BeginStepUp,
+		connect.WithSchema(authServiceMethods.ByName("BeginStepUp")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceFinishStepUpHandler := connect.NewUnaryHandler(
+		AuthServiceFinishStepUpProcedure,
+		svc.FinishStepUp,
+		connect.WithSchema(authServiceMethods.ByName("FinishStepUp")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authServiceListPasskeysHandler := connect.NewUnaryHandler(
 		AuthServiceListPasskeysProcedure,
 		svc.ListPasskeys,
@@ -626,6 +742,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		AuthServiceConfirmTotpSetupProcedure,
 		svc.ConfirmTotpSetup,
 		connect.WithSchema(authServiceMethods.ByName("ConfirmTotpSetup")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceCancelTotpSetupHandler := connect.NewUnaryHandler(
+		AuthServiceCancelTotpSetupProcedure,
+		svc.CancelTotpSetup,
+		connect.WithSchema(authServiceMethods.ByName("CancelTotpSetup")),
 		connect.WithHandlerOptions(opts...),
 	)
 	authServiceDisableTotpHandler := connect.NewUnaryHandler(
@@ -672,6 +794,10 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceRevokeSessionHandler.ServeHTTP(w, r)
 		case AuthServiceRevokeOtherSessionsProcedure:
 			authServiceRevokeOtherSessionsHandler.ServeHTTP(w, r)
+		case AuthServiceBeginStepUpProcedure:
+			authServiceBeginStepUpHandler.ServeHTTP(w, r)
+		case AuthServiceFinishStepUpProcedure:
+			authServiceFinishStepUpHandler.ServeHTTP(w, r)
 		case AuthServiceListPasskeysProcedure:
 			authServiceListPasskeysHandler.ServeHTTP(w, r)
 		case AuthServiceBeginAddPasskeyProcedure:
@@ -686,6 +812,8 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceBeginTotpSetupHandler.ServeHTTP(w, r)
 		case AuthServiceConfirmTotpSetupProcedure:
 			authServiceConfirmTotpSetupHandler.ServeHTTP(w, r)
+		case AuthServiceCancelTotpSetupProcedure:
+			authServiceCancelTotpSetupHandler.ServeHTTP(w, r)
 		case AuthServiceDisableTotpProcedure:
 			authServiceDisableTotpHandler.ServeHTTP(w, r)
 		case AuthServiceRegenerateRecoveryCodesProcedure:
@@ -749,6 +877,14 @@ func (UnimplementedAuthServiceHandler) RevokeOtherSessions(context.Context, *con
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.RevokeOtherSessions is not implemented"))
 }
 
+func (UnimplementedAuthServiceHandler) BeginStepUp(context.Context, *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.BeginStepUp is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) FinishStepUp(context.Context, *connect.Request[v1.FinishStepUpRequest]) (*connect.Response[v1.FinishStepUpResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.FinishStepUp is not implemented"))
+}
+
 func (UnimplementedAuthServiceHandler) ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.ListPasskeys is not implemented"))
 }
@@ -775,6 +911,10 @@ func (UnimplementedAuthServiceHandler) BeginTotpSetup(context.Context, *connect.
 
 func (UnimplementedAuthServiceHandler) ConfirmTotpSetup(context.Context, *connect.Request[v1.ConfirmTotpSetupRequest]) (*connect.Response[v1.ConfirmTotpSetupResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.ConfirmTotpSetup is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) CancelTotpSetup(context.Context, *connect.Request[v1.CancelTotpSetupRequest]) (*connect.Response[v1.CancelTotpSetupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.CancelTotpSetup is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) DisableTotp(context.Context, *connect.Request[v1.DisableTotpRequest]) (*connect.Response[v1.DisableTotpResponse], error) {

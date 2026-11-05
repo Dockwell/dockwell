@@ -5,6 +5,7 @@ package revision
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"strings"
@@ -20,6 +21,9 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/container/containertest"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/variable"
+	"github.com/dockwell/dockwell/internal/secrets"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -70,7 +74,7 @@ func setupAt(t *testing.T, b store.Backend, ids ...string) (*Engine, fleet, *sto
 				&container.Driver{Runtime: s.docker, RecreateDowntime: recreate},
 				&firewall.Driver{Backend: s.firewall},
 				&service.Driver{Containers: container.Driver{Runtime: s.docker, RecreateDowntime: recreate}},
-			)}
+			), Server: id, Values: secretstest.Keeper(db, testKinds())}
 			f[id] = s
 		}
 		return nil
@@ -86,9 +90,15 @@ func newEngine(db *store.DB, f fleet) *Engine { return newEngineWith(db, f) }
 
 // newEngineWith is newEngine reaching the servers through agents.
 func newEngineWith(db *store.DB, agents Agents) *Engine {
-	// The control plane's drivers only read specs; they never reach a server.
-	kinds := resource.NewRegistry(&container.Driver{RecreateDowntime: recreate}, &firewall.Driver{}, &service.Driver{})
-	return New(db, kinds, agents, slog.New(slog.DiscardHandler))
+	kinds := testKinds()
+	return New(db, kinds, agents, secretstest.Keeper(db, kinds), slog.New(slog.DiscardHandler))
+}
+
+// testKinds are the kinds the control plane knows. Its drivers only read
+// specs; they never reach a server.
+func testKinds() *resource.Registry {
+	return resource.NewRegistry(&container.Driver{RecreateDowntime: recreate}, &firewall.Driver{}, &service.Driver{},
+		variable.Type{}, variable.SecretType{})
 }
 
 func web(image string) Edit {
@@ -315,6 +325,174 @@ func testApplyRefusesWhenTheServerMovedSinceThePlan(t *testing.T, backend store.
 	f["srv_A"].docker.Edit("web", func(c *resourcev1.Container) { c.Image = "nginx:1.26" })
 	if err := e.Apply(t.Context(), p.Change); !errors.Is(err, ErrPlanChanged) {
 		t.Errorf("applying after the server changed = %v, want ErrPlanChanged", err)
+	}
+}
+
+// plannedBefore records a planned change as an earlier version did: its
+// fingerprint hashes specs as they are, its items aren't sealed, and
+// nothing rotates. It returns the change, as the store keeps it, with its
+// plan and items.
+func plannedBefore(t *testing.T, e *Engine, db *store.DB, summary string, edits ...Edit) (store.Change, *Plan, []item) {
+	t.Helper()
+	items, err := e.items(t.Context(), edits, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changeID := "chg_before_" + strings.ReplaceAll(strings.ToLower(summary), " ", "_")
+	plan, err := e.plan(t.Context(), changeID, items, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.plain == plan.Fingerprint {
+		t.Fatal("the plain fingerprint is the keyed one, so the test can't tell which applying checks")
+	}
+	c := store.Change{
+		ID: changeID, Summary: summary, Actor: "usr_test", State: store.ChangePlanned, Fingerprint: plan.plain,
+		FingerprintScheme: fingerprintPlain, CreatedAt: time.Now(), ProposedVia: ViaPanel, Servers: serversOf(plan),
+	}
+	plan.Change, plan.Summary = c.ID, summary
+	if c.Plan, err = json.Marshal(plan); err != nil {
+		t.Fatal(err)
+	}
+	for i := range items {
+		it := &items[i]
+		c.Items = append(c.Items, store.ChangeItem{
+			ResourceID: it.id, Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, BaseRevision: it.base, Spec: it.encoded, Servers: it.servers,
+		})
+	}
+	if err := db.Revise(t.Context(), func(tx *store.RevisionTx) error { return tx.CreateChange(t.Context(), c) }); err != nil {
+		t.Fatal(err)
+	}
+	return c, plan, items
+}
+
+// leftApplying records a change as an earlier version left it when it
+// stopped partway: planned as plannedBefore has it, its revisions committed
+// as they were then, in the clear, and its steps still to run.
+func leftApplying(t *testing.T, e *Engine, db *store.DB, summary string, edits ...Edit) string {
+	t.Helper()
+	c, plan, items := plannedBefore(t, e, db, summary, edits...)
+	record, err := json.Marshal(newProgress(plan, items))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	if err := db.Revise(t.Context(), func(tx *store.RevisionTx) error {
+		for i := range items {
+			it := &items[i]
+			rev, err := tx.AddRevision(t.Context(), store.NewRevision{
+				Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, ID: it.id, Spec: it.encoded, Change: c.ID, Position: i, At: now,
+			})
+			if err != nil {
+				return err
+			}
+			if err := tx.PlaceRevision(t.Context(), rev.ID, rev.Revision, it.servers, now); err != nil {
+				return err
+			}
+		}
+		return tx.StartApplying(t.Context(), c.ID, c.Actor, c.ProposedVia, record, now)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return c.ID
+}
+
+// A change planned before ADR 0022 has a fingerprint that hashed every
+// spec as it is, and applying it now digests some specs with a key. It
+// still applies while its plan is the one reviewed, read as it was
+// fingerprinted then, and runs its steps on the servers; one whose plan
+// moved says it was planned by an earlier version, rather than that the
+// servers changed. One that asks for a container kept its environment
+// unsealed, which is no longer read: it says so, and to propose it again.
+func TestAChangePlannedBeforeTheUpgradeStillApplies(t *testing.T) {
+	storetest.Each(t, testAChangePlannedBeforeTheUpgradeStillApplies)
+}
+
+func testAChangePlannedBeforeTheUpgradeStillApplies(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A")
+	apply(t, e, propose(t, e, "Run web", web("nginx:1.27")))
+
+	held, plan, _ := plannedBefore(t, e, db, "Open http", rule("srv_A", "http", 80))
+	if len(plan.Steps()) != 1 || plan.Steps()[0].Action != resource.ActionCreate {
+		t.Fatalf("the change plans %+v, want a step on its server", plan.Steps())
+	}
+	if err := e.Apply(t.Context(), held.ID); err != nil {
+		t.Errorf("applying a change planned before the upgrade, whose plan holds = %v, want it applied", err)
+	}
+	if c := stored(t, db, held.ID); c.State != store.ChangeApplied || c.FingerprintScheme != fingerprintPlain {
+		t.Errorf("after applying, the change is %s under scheme %d, want applied under %d", c.State, c.FingerprintScheme, fingerprintPlain)
+	}
+	if r, err := f["srv_A"].firewall.Rule(t.Context(), "http"); err != nil || r == nil {
+		t.Errorf("the step of a change planned before the upgrade didn't run: %v, %v", r, err)
+	}
+
+	moved, _, _ := plannedBefore(t, e, db, "Open https", rule("srv_A", "https", 443))
+	if err := f["srv_A"].firewall.Put(t.Context(), "https", rule("srv_A", "https", 443).Spec.(*resourcev1.FirewallRule)); err != nil {
+		t.Fatal(err)
+	}
+	err := e.Apply(t.Context(), moved.ID)
+	if !errors.Is(err, ErrPlanChanged) || !strings.Contains(err.Error(), "was planned by an earlier version of Dockwell") ||
+		strings.Contains(err.Error(), "the servers changed since") {
+		t.Errorf("applying a change planned before the upgrade, whose plan moved = %v, want ErrPlanChanged saying it was planned before", err)
+	}
+
+	unsealed, _, _ := plannedBefore(t, e, db, "Upgrade web", web("nginx:1.28"))
+	err = e.Apply(t.Context(), unsealed.ID)
+	if !errors.Is(err, ErrPlanChanged) || !strings.Contains(err.Error(), "kept what it asks of container web in srv_A unencrypted") ||
+		!strings.Contains(err.Error(), "Propose the change again") {
+		t.Errorf("applying a change planned before the upgrade, with a container's environment in the clear = %v, want it refused", err)
+	}
+	if image(t, f["srv_A"]) != "nginx:1.27" {
+		t.Error("a change whose spec was stored in the clear ran")
+	}
+}
+
+// A change an earlier version left applying finishes after the upgrade,
+// under the scheme it was planned with: the next start runs the steps that
+// remain, and those the server already has need nothing. One holding a
+// spec of a kind that may hold secrets, in the clear, is refused and stays
+// on record, says why, and holds up no other.
+func TestAChangeLeftApplyingFinishesAfterTheUpgrade(t *testing.T) {
+	storetest.Each(t, testAChangeLeftApplyingFinishesAfterTheUpgrade)
+}
+
+func testAChangeLeftApplyingFinishesAfterTheUpgrade(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A")
+	id := leftApplying(t, e, db, "Open the web", rule("srv_A", "http", 80), rule("srv_A", "https", 443))
+	// The first step ran before it stopped.
+	if err := f["srv_A"].firewall.Put(t.Context(), "http", rule("srv_A", "http", 80).Spec.(*resourcev1.FirewallRule)); err != nil {
+		t.Fatal(err)
+	}
+	upgraded := newEngine(db, f)
+	if err := upgraded.Resume(t.Context()); err != nil {
+		t.Fatalf("Resume after the upgrade = %v", err)
+	}
+	upgraded.Wait()
+	if c := stored(t, db, id); c.State != store.ChangeApplied || c.FingerprintScheme != fingerprintPlain {
+		t.Errorf("after resuming, the change is %s under scheme %d, want applied under %d", c.State, c.FingerprintScheme, fingerprintPlain)
+	}
+	for _, name := range []string{"http", "https"} {
+		if r, err := f["srv_A"].firewall.Rule(t.Context(), name); err != nil || r == nil {
+			t.Errorf("after resuming, %s isn't on the server: %v, %v", name, r, err)
+		}
+	}
+
+	stuck := leftApplying(t, e, db, "Run web", web("nginx:1.27"))
+	other := leftApplying(t, e, db, "Open ssh", rule("srv_A", "ssh", 22))
+	upgraded = newEngine(db, f)
+	err := upgraded.Resume(t.Context())
+	if !errors.Is(err, secrets.ErrUnsealed) {
+		t.Errorf("Resume with a container stored in the clear = %v, want it to say so", err)
+	}
+	upgraded.Wait()
+	if c := stored(t, db, stuck); c.State != store.ChangeApplying {
+		t.Errorf("the change holding a spec in the clear is %s, want it left applying", c.State)
+	}
+	if c := stored(t, db, other); c.State != store.ChangeApplied {
+		t.Errorf("the change beside it is %s, want applied", c.State)
+	}
+	if got, _ := f["srv_A"].docker.Inspect(t.Context(), container.HostTarget(resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"})); got != nil {
+		t.Errorf("a spec stored in the clear ran: %v", got)
 	}
 }
 

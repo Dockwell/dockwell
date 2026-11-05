@@ -372,9 +372,10 @@ func bind(source string, m *resourcev1.Mount) string {
 	return b
 }
 
-// environment is a spec's environment as Docker takes it. Values are
-// plain for now; the agent resolves secret references here once
-// environments hold them (#29).
+// environment is a spec's environment as Docker takes it. For a service
+// it holds the values of what the service uses, which the service driver
+// resolved in memory for this one call (binding.Environment), so nothing
+// here may log it or keep it. The config hash leaves its values out too.
 func environment(spec *resourcev1.Container) []string {
 	keys := slices.Sorted(maps.Keys(spec.GetEnv()))
 	out := make([]string, 0, len(keys))

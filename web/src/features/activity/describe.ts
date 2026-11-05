@@ -45,12 +45,34 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return { title: t`Signed out other sessions`, icon: "logout" };
         case "passkey.add":
           return { title: name ? t`Added the passkey ${name}` : t`Added a passkey`, icon: "key" };
+        case "passkey.add_with_recovery_code":
+          // A recovery code stood in for the passkey: worth a look, as
+          // whoever holds a code can do it.
+          return {
+            title: name
+              ? t`Added the passkey ${name} after signing in with a recovery code`
+              : t`Added a passkey after signing in with a recovery code`,
+            icon: "key",
+            tone: "warning",
+          };
+        case "passkey.add_with_authenticator_code":
+          // As after a recovery code: a code stood in for the passkey.
+          return {
+            title: name
+              ? t`Added the passkey ${name} after signing in with an authenticator code`
+              : t`Added a passkey after signing in with an authenticator code`,
+            icon: "key",
+            tone: "warning",
+          };
         case "passkey.remove":
           return { title: name ? t`Removed the passkey ${name}` : t`Removed a passkey`, icon: "key" };
         case "totp.enable":
           return { title: t`Turned on codes from an authenticator app`, icon: "lock" };
         case "totp.disable":
           return { title: t`Turned off codes from an authenticator app`, icon: "lock" };
+        case "totp.setup_discarded":
+          // Wrong codes for a setup someone began, which may not be yours.
+          return { title: t`Ended an authenticator app's setup after 5 wrong codes`, icon: "lock", tone: "warning" };
         case "totp.unlock":
           return {
             title: name ? t`Unlocked codes for ${name}` : t`Unlocked codes from an authenticator app`,
@@ -71,6 +93,10 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return { title: t`Made a link to claim this install`, icon: "link" };
         case "join_token.create":
           return { title: t`Made a join ticket for a new server`, icon: "server" };
+        case "secret.reveal":
+          return { title: name ? t`Revealed the secret ${name}` : t`Revealed a secret`, icon: "eye" };
+        case "secrets.rotate_key":
+          return { title: t`Rotated the key that wraps every secret`, icon: "key" };
       }
       return { title: event.action, icon: event.kind === EventKind.SERVER ? "server" : "users" };
     },

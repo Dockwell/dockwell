@@ -8,7 +8,12 @@ import (
 
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/variable"
+	"github.com/dockwell/dockwell/internal/resource/volume"
+	"github.com/dockwell/dockwell/internal/scope"
 )
 
 // A service's name goes in its URL and its container's name, so it is a DNS
@@ -42,6 +47,31 @@ func TestContainersCantTakeAServicesName(t *testing.T) {
 	} {
 		if err := (&container.Driver{}).CheckName(name); (err == nil) != ok {
 			t.Errorf("CheckName(%q) = %v", name, err)
+		}
+	}
+}
+
+// The kinds whose specs may hold a secret are the ones the revision store
+// keeps sealed: a secret, a service or a container, whose environment may
+// hold one, and a volume, whose options hold a CIFS password. A variable, a
+// network, a project, an environment and a firewall rule hold none.
+func TestWhichKindsAreSealed(t *testing.T) {
+	for _, c := range []struct {
+		t    resource.Type
+		want bool
+	}{
+		{variable.SecretType{}, true},
+		{&service.Driver{}, true},
+		{&container.Driver{}, true},
+		{&volume.Driver{}, true},
+		{variable.Type{}, false},
+		{&network.Driver{}, false},
+		{scope.ProjectType{}, false},
+		{scope.EnvironmentType{}, false},
+		{&firewall.Driver{}, false},
+	} {
+		if got := resource.Sealed(c.t); got != c.want {
+			t.Errorf("resource.Sealed(%s) = %t, want %t", c.t.Kind(), got, c.want)
 		}
 	}
 }

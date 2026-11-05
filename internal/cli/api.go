@@ -55,6 +55,7 @@ func apiCommands(stdio IO, g *globalFlags) ([]*cobra.Command, error) {
 	env := &apicli.Env{
 		Out: stdio.Out, Err: stdio.Err, In: stdio.In, Getenv: stdio.Getenv,
 		Interactive: stdio.Interactive,
+		ReadSecret:  a.readValue,
 		Connect:     a.connect,
 		Kinds:       controlKinds().With(scope.Types()...),
 	}
@@ -489,6 +490,19 @@ func (a *apiAccess) readSecret(prompt string) (string, error) {
 	}
 	line, _, _ := strings.Cut(string(b), "\n")
 	return strings.TrimSpace(line), nil
+}
+
+// readValue reads a secret's value on a terminal, without echo. Unlike a
+// token, it is kept as typed: only the line's end is dropped.
+func (a *apiAccess) readValue(prompt string) (string, error) {
+	f, ok := a.stdio.In.(*os.File)
+	if !ok || !term.IsTerminal(int(f.Fd())) {
+		return "", errors.New("standard input isn't a terminal, so the value can't be asked for. Pipe it in instead")
+	}
+	fmt.Fprint(a.stdio.Err, prompt)
+	b, err := term.ReadPassword(int(f.Fd()))
+	fmt.Fprintln(a.stdio.Err)
+	return string(b), err
 }
 
 func (a *apiAccess) loginCmd() *cobra.Command {

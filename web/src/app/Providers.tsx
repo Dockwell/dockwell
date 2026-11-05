@@ -98,6 +98,7 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
           container: t`container`,
           domain: t`domain`,
           secret: t`secret`,
+          variable: t`variable`,
           database: t`database`,
           job: t`job`,
           volume: t`volume`,

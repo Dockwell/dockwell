@@ -68,7 +68,7 @@ var (
 		"Check that you copied all of it, or create a new one under Profile and security")
 	ErrTokenScope = errors.New("this API token is read-only, so it can't make changes. " +
 		"Create a read-write token under Profile and security")
-	ErrNeedsSession = errors.New("API tokens can't remove data, cut off access, or change how you sign in and your tokens. " +
+	ErrNeedsSession = errors.New("API tokens can't remove data, cut off access, reveal a secret, or change how you sign in and your tokens. " +
 		"Sign in and do it in the panel")
 )
 
@@ -135,12 +135,17 @@ func liveToken(tok *store.APIToken, now time.Time) bool {
 }
 
 // CreateToken makes a token for the principal, who must have signed in: a
-// token can't make another. Unset expires makes one that doesn't expire.
-func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope string, expires *time.Time) (NewToken, error) {
-	if p.Token != nil {
+// token can't make another. It needs proof of a step-up for creating a
+// token, so a stolen session can't make one to keep. Unset expires makes
+// one that doesn't expire. A request it refuses for anything else, such as
+// an invalid name or the most tokens, leaves the proof unspent, and is
+// refused before the proof is asked for.
+func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope string, expires *time.Time, proof string) (NewToken, error) {
+	if p.Token != nil || p.Session.ID == "" {
 		return NewToken{}, ErrNeedsSession
 	}
-	return s.createToken(ctx, func(*store.Tx) (store.User, error) { return p.User, nil }, p.Actor(), name, scope, expires)
+	return s.createToken(ctx, func(*store.Tx) (store.User, error) { return p.User, nil }, p.Actor(), name, scope, expires,
+		func() error { return s.confirmed(p, proof, StepUpCreateToken) })
 }
 
 // LocalTokenTTL is how long a token for local access lasts.
@@ -160,7 +165,7 @@ func (s *Service) CreateLocalToken(ctx context.Context, actor, name, scope strin
 			return u, errors.New("this install has no owner yet, so local access has nobody to act for. Claim it with the link from dockwell claim")
 		}
 		return u, err
-	}, actor, name, scope, &expires)
+	}, actor, name, scope, &expires, nil)
 }
 
 // RevokeLocalToken revokes a token CreateLocalToken made, for whoever can
@@ -196,8 +201,12 @@ func (s *Service) RevokeLocalToken(ctx context.Context, actor, tokenID string) (
 }
 
 // createToken makes a token for the user who returns, in the transaction
-// that stores it.
-func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, name, scope string, expires *time.Time) (NewToken, error) {
+// that stores it. confirm, when set, is called once nothing else refuses
+// it, the most tokens included, and before anything is stored, to check it
+// may be made: it may spend a step-up's proof.
+func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, name, scope string, expires *time.Time,
+	confirm func() error,
+) (NewToken, error) {
 	name = strings.Join(strings.Fields(cleanText(name)), " ")
 	if name == "" || len([]rune(name)) > maxTokenName {
 		return NewToken{}, fmt.Errorf("%w: name the token after what will use it, in up to %d characters, such as GitHub Actions deploy",
@@ -240,6 +249,11 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 		if live >= maxTokens {
 			return fmt.Errorf("%w: you have %d API tokens, the most you can have. Revoke one you no longer use, then try again",
 				ErrInvalid, maxTokens)
+		}
+		if confirm != nil {
+			if err := confirm(); err != nil {
+				return err
+			}
 		}
 		if err := tx.CreateAPIToken(ctx, tok); err != nil {
 			return err

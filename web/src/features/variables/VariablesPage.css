@@ -1,0 +1,213 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* An environment's variables and secrets, as App-Environment draws an app's. */
+.variables-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.variables-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  min-width: 0;
+}
+
+.variables-counts {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+/* Panels, as .dw-panel draws them; that stylesheet comes with Panel, which this page doesn't use. */
+.variables-form,
+.variables-list,
+.variables-empty {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+/* The form to add or change one: key, value, the secret switch, the button. */
+.variables-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.variables-form-key {
+  flex: 0 1 304px;
+  min-width: 200px;
+}
+
+.variables-form-value {
+  flex: 1 1 280px;
+  min-width: 200px;
+}
+
+.variables-form-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Below the fields, the whole width of the form. */
+.variables-form-note {
+  flex: 1 1 100%;
+}
+
+.variables-note {
+  padding: var(--space-4);
+  color: var(--ink-muted);
+}
+
+.variables-key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.variables-key code {
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.variables-secret-mark {
+  display: inline-flex;
+  color: var(--ink-muted);
+}
+
+.variables-value {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.variables-secret {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.variables-masked {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-muted);
+  letter-spacing: 0.08em;
+}
+
+.variables-revealed {
+  padding: 2px var(--space-1);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+}
+
+/* Reveal is an eye on wide screens, as the mock draws it; phones spell it out. */
+.variables-button-word {
+  display: none;
+}
+
+.variables-error {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--critical);
+}
+
+.variables-users {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.variables-users li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.variables-muted {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+
+.variables-updated {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.variables-actions {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+/* Phones: one card a row, as the app screens' phone layouts stack theirs. */
+.variables-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.variables-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  min-width: 0;
+}
+
+.variables-item + .variables-item {
+  border-top: 1px solid var(--line);
+}
+
+.variables-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.variables-item .variables-button-word {
+  display: inline;
+}
+
+.variables-item .variables-actions .dw-btn,
+.variables-item .variables-secret .dw-btn {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.variables-item .variables-form-key,
+.variables-item .variables-form-value {
+  min-width: 0;
+}
+
+@media (max-width: 639px) {
+  .variables-form-key,
+  .variables-form-value {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .variables-form-actions {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+}

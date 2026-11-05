@@ -143,8 +143,9 @@ message Event {
   // rolled it back. GetChange has the plan in full.
   Change change = 7;
   // What the event is about, other than its actor: the server that joined
-  // or was removed, the API token or passkey made or removed, or the
-  // person a sign-in link is for. Unset when there is nothing more to name.
+  // or was removed, the API token or passkey made or removed, the person a
+  // sign-in link is for, or the secret revealed. Unset when there is
+  // nothing more to name.
   EventSubject subject = 8;
 }
 
@@ -156,6 +157,10 @@ message EventSubject {
   // Empty when it has none, or when it is gone and Dockwell no longer
   // keeps it.
   string name = 2;
+  // What it lives in, by ID, for a resource that lives in another: a
+  // secret's environment, as "env_…", for a secret revealed. Empty
+  // otherwise.
+  string scope = 3;
 }
 
 // EventKind sorts events, for filtering.

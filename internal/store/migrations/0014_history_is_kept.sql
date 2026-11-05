@@ -1,0 +1,7 @@
+-- SPDX-License-Identifier: AGPL-3.0-only
+-- What 0011 and 0012 added to history is kept as history is (ADR 0009):
+-- how a change's fingerprint was made never changes, and what a revision
+-- uses is written once with it, never changed and never deleted. The
+-- triggers are in the dialect files, 0014_history_is_kept.sqlite.sql and
+-- 0014_history_is_kept.postgres.sql. See
+-- docs/adr/0022-secrets-encrypted-at-rest.md.

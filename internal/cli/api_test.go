@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -16,11 +17,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/spf13/pflag"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -30,6 +33,8 @@ import (
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/cli/apicli"
 	"github.com/dockwell/dockwell/internal/cli/apicmd"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 )
 
 // runIn runs the CLI with standard input and, when interactive, as if a
@@ -77,7 +82,8 @@ func claimWithTokens(t *testing.T, link string) (url, readWrite, readOnly string
 	if err != nil {
 		t.Fatalf("BeginClaim: %v", err)
 	}
-	cred, _, err := (&authtest.Authenticator{}).Create(begin.Msg.GetOptionsJson(), base)
+	passkeys := &authtest.Authenticator{}
+	cred, _, err := passkeys.Create(begin.Msg.GetOptionsJson(), base)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,8 +94,21 @@ func claimWithTokens(t *testing.T, link string) (url, readWrite, readOnly string
 	}
 	tokens := dockwellv1connect.NewTokenServiceClient(client, base, connect.WithInterceptors(originHeader(base)))
 	create := func(name string, scope dockwellv1.TokenScope) string {
+		// Making a token takes the passkey, just now.
+		up, err := c.BeginStepUp(t.Context(), connect.NewRequest(&dockwellv1.BeginStepUpRequest{Action: dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN}))
+		if err != nil {
+			t.Fatalf("BeginStepUp: %v", err)
+		}
+		answer, err := passkeys.Get(up.Msg.GetOptionsJson(), base, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		proof, err := c.FinishStepUp(t.Context(), connect.NewRequest(&dockwellv1.FinishStepUpRequest{CeremonyId: up.Msg.GetCeremonyId(), CredentialJson: answer}))
+		if err != nil {
+			t.Fatalf("FinishStepUp: %v", err)
+		}
 		res, err := tokens.CreateToken(t.Context(), connect.NewRequest(&dockwellv1.CreateTokenRequest{
-			Name: name, Scope: scope, Expiration: &dockwellv1.CreateTokenRequest_Ttl{Ttl: durationpb.New(time.Hour)},
+			Name: name, Scope: scope, Expiration: &dockwellv1.CreateTokenRequest_Ttl{Ttl: durationpb.New(time.Hour)}, Proof: proof.Msg.GetProof(),
 		}))
 		if err != nil {
 			t.Fatalf("CreateToken: %v", err)
@@ -167,6 +186,101 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		r = run(t, env, "projects", "create", "shop", "--yes")
 		if r.code != exitUsage || !strings.Contains(r.err, "project shop already exists. Change it with dockwell projects update shop") {
 			t.Errorf("creating shop again = %d %q", r.code, r.err)
+		}
+	})
+
+	// shop is there too now, so each names its project.
+	t.Run("a secret's value comes from standard input or a file, never a flag", func(t *testing.T) {
+		r := runIn(t, env, "s3cret-from-stdin\n", false, "secrets", "create", "DB_PASSWORD", "--value-file", "-", "--project", "default", "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "+ secret DB_PASSWORD") || !strings.Contains(r.out, "Applied chg_") {
+			t.Fatalf("secrets create from standard input = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		file := filepath.Join(t.TempDir(), "value")
+		if err := os.WriteFile(file, []byte("s3cret-from-a-file\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		r = run(t, env, "secrets", "update", "DB_PASSWORD", "--value-file", file, "--project", "default", "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "~ secret DB_PASSWORD") {
+			t.Fatalf("secrets update from a file = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		// The CLI refuses a value no secret can hold, naming the limit a
+		// secret has, before it proposes anything; one at the limit, with
+		// the newline an editor adds, goes through.
+		big := filepath.Join(t.TempDir(), "big")
+		if err := os.WriteFile(big, []byte(strings.Repeat("x", variable.MaxValue+1)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		r = run(t, env, "secrets", "update", "DB_PASSWORD", "--value-file", big, "--project", "default", "--yes")
+		if r.code == exitOK || !strings.Contains(r.err, "the value is over 64 KiB, so no secret can hold it") {
+			t.Errorf("a value over the limit = %d %q, want it refused, naming 64 KiB", r.code, r.err)
+		}
+		if err := os.WriteFile(big, []byte(strings.Repeat("x", variable.MaxValue)+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		r = run(t, env, "secrets", "update", "DB_PASSWORD", "--value-file", big, "--project", "default", "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "~ secret DB_PASSWORD") {
+			t.Fatalf("a value at the limit = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		r = run(t, env, "variables", "create", "LOG_LEVEL", "--value", "debug", "--project", "default", "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "debug") {
+			t.Fatalf("variables create = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		list := run(t, env, "variables", "list", "--project", "default")
+		if list.code != exitOK || !strings.Contains(list.out, "DB_PASSWORD") || !strings.Contains(list.out, "LOG_LEVEL") {
+			t.Errorf("variables list = %d:\n%s%s", list.code, list.out, list.err)
+		}
+		r = run(t, env, "secrets", "create", "OTHER", "--value", "s3cret-on-the-command-line", "--project", "default", "--yes")
+		if r.code != exitUsage || !strings.Contains(r.err, "unknown flag: --value") {
+			t.Errorf("a secret's value as a flag = %d %q, want it refused", r.code, r.err)
+		}
+		id := regexp.MustCompile(`sec_[0-9A-Z]{26}`).FindString(run(t, env, "variables", "list", "--project", "default", "--json").out)
+		r = run(t, env, "secrets", "reveal", id, "--proof", "anything")
+		if r.code == exitOK || !strings.Contains(r.err, "reveal a secret") {
+			t.Errorf("secrets reveal with a token = %d %q, want it refused", r.code, r.err)
+		}
+		for _, text := range []string{r.out, r.err, list.out, list.err} {
+			if strings.Contains(text, "s3cret") {
+				t.Errorf("the CLI printed a secret's value:\n%s", text)
+			}
+		}
+
+		// Making a variable a secret is one change, which deletes the one
+		// and makes the other; the CLI proposes its edits, the secret's
+		// from a file, so the value stays off the command line.
+		if r = run(t, env, "variables", "create", "MAIL_TOKEN", "--value", "plain-for-now", "--project", "default", "--yes"); r.code != exitOK {
+			t.Fatalf("variables create = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		secretEdit := `{"resource":{"name":"MAIL_TOKEN"},"project":"default","spec":{"secret":{"value":"s3cret-mail-token"}}}`
+		// Not as JSON on the command line, where shell history keeps it.
+		r = run(t, env, "changes", "propose", "--summary", "Inline", "--edits", secretEdit, "--yes")
+		if r.code != exitUsage || !strings.Contains(r.err, "--edits: the JSON sets a secret's value") ||
+			!strings.Contains(r.err, "pass --edits @file, or pipe it in with --edits -") || strings.Contains(r.err, "s3cret") {
+			t.Errorf("a secret in inline JSON = %d %q, want it refused", r.code, r.err)
+		}
+		// A container's environment is configuration, and may go inline,
+		// as with --env KEY=VALUE. Without --yes and a terminal it stays
+		// planned, so nothing runs where there is Docker to run it, and
+		// where there isn't, the plan says that instead.
+		r = run(t, env, "changes", "propose", "--summary", "Inline",
+			"--edits", `{"resource":{"name":"web"},"spec":{"container":{"image":"nginx","env":{"TOKEN":"x"}}}}`)
+		if strings.Contains(r.err, "the JSON sets") ||
+			!strings.Contains(r.err, "is planned, but there's no terminal") && !strings.Contains(r.err, "can't run container web now") {
+			t.Errorf("a container's environment in inline JSON = %d %q, want it read", r.code, r.err)
+		}
+		piped := `{"resource":{"name":"PIPED_TOKEN"},"project":"default","spec":{"secret":{"value":"s3cret-piped"}}}`
+		r = runIn(t, env, piped, false, "changes", "propose", "--summary", "From standard input", "--edits", "-", "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "+ secret PIPED_TOKEN") || strings.Contains(r.out+r.err, "s3cret") {
+			t.Errorf("a secret's edit from standard input = %d:\n%s\n%s", r.code, r.out, r.err)
+		}
+		edit := filepath.Join(t.TempDir(), "secret.json")
+		if err := os.WriteFile(edit, []byte(secretEdit), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		r = run(t, env, "changes", "propose", "--summary", "Make MAIL_TOKEN a secret",
+			"--edits", `{"resource":{"kind":"variable","name":"MAIL_TOKEN"},"project":"default","delete":true}`, "--edits", "@"+edit, "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "- variable MAIL_TOKEN") || !strings.Contains(r.out, "+ secret MAIL_TOKEN") ||
+			strings.Contains(r.out+r.err, "s3cret") {
+			t.Errorf("making a variable a secret = %d:\n%s\n%s", r.code, r.out, r.err)
 		}
 	})
 
@@ -468,6 +582,48 @@ func TestEveryMethodHasACommand(t *testing.T) {
 	}
 }
 
+// A secret's value reaches the CLI only from a file or standard input: its
+// kind's commands have no flag that takes its text, and the one flag that
+// takes JSON that may hold one refuses it inline. A new flag that may hold
+// one fails here, to be looked at.
+func TestASecretsValueNeverComesFromAFlagsText(t *testing.T) {
+	root, err := newRootCmd(IO{Out: io.Discard, Err: io.Discard, Getenv: func(string) string { return "" }, In: strings.NewReader("")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, verb := range []string{"create", "update"} {
+		cmd, _, err := root.Find([]string{"secrets", verb})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cmd.Flags().Lookup("value") != nil || cmd.Flags().Lookup("value-file") == nil {
+			t.Errorf("dockwell secrets %s should take --value-file, and no --value", verb)
+		}
+		cmd.Flags().VisitAll(func(f *pflag.Flag) {
+			if f.Value.Type() == "json" {
+				t.Errorf("dockwell secrets %s --%s takes JSON, which may hold the value", verb, f.Name)
+			}
+		})
+	}
+	var held []string
+	for _, m := range apicmd.Methods() {
+		desc, err := protoregistry.GlobalFiles.FindDescriptorByName(protoreflect.FullName(m.Name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		fields := desc.(protoreflect.MethodDescriptor).Input().Fields()
+		for _, f := range m.Fields {
+			fd := fields.ByName(protoreflect.Name(strings.SplitN(f.Path, ".", 2)[0]))
+			if fd != nil && fd.Message() != nil && resource.MayHold(fd.Message(), variable.SecretType{}) {
+				held = append(held, m.Noun+" "+m.Verb+" "+f.Path)
+			}
+		}
+	}
+	if want := []string{"changes propose edits"}; !slices.Equal(held, want) {
+		t.Errorf("the flags whose JSON may hold a secret's value are %v, want %v, which refuses it inline", held, want)
+	}
+}
+
 // TestCommandNamesDontCollide checks that no API command takes the name of
 // one of this server's commands, or a name confusingly like one, such as
 // tokens beside token.
@@ -501,5 +657,46 @@ func TestCommandNamesDontCollide(t *testing.T) {
 	}
 	if !slices.Contains(api, "servers") || !slices.Contains(api, "changes") || !slices.Contains(api, "drift") || !slices.Contains(api, "projects") {
 		t.Errorf("the API commands are %v", api)
+	}
+}
+
+// A noun's short help names what it does: each of its commands, as
+// "Reveal, create, update or delete secrets", or when they are many those
+// of one word, and how many more. A kind's commands that join a noun a
+// service's methods have, as secrets does, are named too.
+func TestNounHelpNamesEveryCommand(t *testing.T) {
+	root, err := newRootCmd(IO{Getenv: func(string) string { return "" }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range root.Commands() {
+		if c.GroupID != apicli.GroupID {
+			continue
+		}
+		var verbs []string
+		for _, sub := range c.Commands() {
+			if !sub.Hidden && sub.Name() != "help" {
+				verbs = append(verbs, sub.Name())
+			}
+		}
+		more := regexp.MustCompile(`, and (\d+) more$`).FindStringSubmatch(c.Short)
+		missing := 0
+		for _, v := range verbs {
+			if len(verbs) > 1 && !strings.Contains(strings.ToLower(c.Short), strings.ReplaceAll(v, "-", " ")) {
+				missing++
+			}
+		}
+		if missing > 0 && (len(more) < 2 || more[1] != strconv.Itoa(missing)) {
+			t.Errorf("the help of dockwell %s, %q, names %d of its commands %v", c.Name(), c.Short, len(verbs)-missing, verbs)
+		}
+	}
+	for noun, want := range map[string]string{
+		"secrets":   "Reveal, create, update or delete secrets",
+		"variables": "List, create, update or delete variables",
+	} {
+		c, _, err := root.Find([]string{noun})
+		if err != nil || c.Short != want || !strings.Contains(c.Long, "dockwell "+noun+" create, update and delete each propose a change") {
+			t.Errorf("the help of dockwell %s = %q, %v:\n%s\nwant %q, and to say what create, update and delete do", noun, c.Short, err, c.Long, want)
+		}
 	}
 }

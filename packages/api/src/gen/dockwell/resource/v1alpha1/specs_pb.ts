@@ -10,6 +10,7 @@
 
 import type { GenEnum, GenExtension, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, extDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import { file_google_api_field_behavior } from "../../../google/api/field_behavior_pb";
 import type { FieldOptions } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_descriptor } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
@@ -18,7 +19,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/resource/v1alpha1/specs.proto.
  */
 export const file_dockwell_resource_v1alpha1_specs: GenFile = /*@__PURE__*/
-  fileDesc("CiZkb2Nrd2VsbC9yZXNvdXJjZS92MWFscGhhMS9zcGVjcy5wcm90bxIaZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEi0QQKCUNvbnRhaW5lchINCgVpbWFnZRgBIAEoCRIPCgdjb21tYW5kGAIgAygJEkEKA2VudhgDIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5FbnZFbnRyeUIEyPMYARI2CgVwb3J0cxgEIAMoCzInLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlBvcnRNYXBwaW5nEjoKB3Jlc3RhcnQYBSABKA4yKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5SZXN0YXJ0UG9saWN5EkEKBmxhYmVscxgGIAMoCzIxLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5MYWJlbHNFbnRyeRISCgplbnRyeXBvaW50GAcgAygJEjEKBm1vdW50cxgIIAMoCzIhLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLk1vdW50EhAKCG5ldHdvcmtzGAkgAygJEgwKBHVzZXIYCiABKAkSEwoLd29ya2luZ19kaXIYCyABKAkSPAoLaGVhbHRoY2hlY2sYDCABKAsyJy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5IZWFsdGhjaGVjaxIVCg1ub19lbnRyeXBvaW50GA0gASgIGioKCEVudkVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaLQoLTGFiZWxzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKRAQoFTW91bnQSEAoGdm9sdW1lGAEgASgJSAASEwoJaG9zdF9wYXRoGAIgASgJSAASDgoGdGFyZ2V0GAMgASgJEhEKCXJlYWRfb25seRgEIAEoCBI0CgdyZWxhYmVsGAUgASgOMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUmVsYWJlbEIICgZzb3VyY2UiZQoLSGVhbHRoY2hlY2sSDAoEdGVzdBgBIAMoCRIQCghpbnRlcnZhbBgCIAEoCRIPCgd0aW1lb3V0GAMgASgJEhQKDHN0YXJ0X3BlcmlvZBgEIAEoCRIPCgdyZXRyaWVzGAUgASgNIoEBCgtQb3J0TWFwcGluZxIRCglob3N0X3BvcnQYASABKA0SFgoOY29udGFpbmVyX3BvcnQYAiABKA0SNgoIcHJvdG9jb2wYAyABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm90b2NvbBIPCgdob3N0X2lwGAQgASgJIrIBCgxGaXJld2FsbFJ1bGUSOgoGYWN0aW9uGAEgASgOMiouZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRmlyZXdhbGxBY3Rpb24SNgoIcHJvdG9jb2wYAiABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm90b2NvbBIMCgRwb3J0GAMgASgNEg8KB3NvdXJjZXMYBCADKAkSDwoHY29tbWVudBgFIAEoCSIfCgdQcm9qZWN0EhQKDGRpc3BsYXlfbmFtZRgBIAEoCSIjCgtFbnZpcm9ubWVudBIUCgxkaXNwbGF5X25hbWUYASABKAkiRwoHU2VydmljZRI0CgNhcHAYASABKAsyJS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db250YWluZXJIAEIGCgRydW5zIv8BCgZWb2x1bWUSDgoGZHJpdmVyGAEgASgJEkYKB29wdGlvbnMYAiADKAsyLy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Wb2x1bWUuT3B0aW9uc0VudHJ5QgTI8xgBEj4KBmxhYmVscxgDIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlZvbHVtZS5MYWJlbHNFbnRyeRouCgxPcHRpb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIo4CCgdOZXR3b3JrEg4KBmRyaXZlchgBIAEoCRJBCgdvcHRpb25zGAIgAygLMjAuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTmV0d29yay5PcHRpb25zRW50cnkSEAoIaW50ZXJuYWwYAyABKAgSPwoGbGFiZWxzGAQgAygLMi8uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTmV0d29yay5MYWJlbHNFbnRyeRouCgxPcHRpb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIqsDCgRTcGVjEjYKB3Byb2plY3QYASABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm9qZWN0SAASPgoLZW52aXJvbm1lbnQYAiABKAsyJy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5FbnZpcm9ubWVudEgAEjYKB3NlcnZpY2UYAyABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5TZXJ2aWNlSAASOgoJY29udGFpbmVyGAQgASgLMiUuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQ29udGFpbmVySAASQQoNZmlyZXdhbGxfcnVsZRgFIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkZpcmV3YWxsUnVsZUgAEjQKBnZvbHVtZRgGIAEoCzIiLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlZvbHVtZUgAEjYKB25ldHdvcmsYByABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5OZXR3b3JrSABCBgoEa2luZCpLCgdSZWxhYmVsEhcKE1JFTEFCRUxfVU5TUEVDSUZJRUQQABISCg5SRUxBQkVMX1NIQVJFRBABEhMKD1JFTEFCRUxfUFJJVkFURRACKqMBCg1SZXN0YXJ0UG9saWN5Eh4KGlJFU1RBUlRfUE9MSUNZX1VOU1BFQ0lGSUVEEAASFQoRUkVTVEFSVF9QT0xJQ1lfTk8QARIdChlSRVNUQVJUX1BPTElDWV9PTl9GQUlMVVJFEAISIQodUkVTVEFSVF9QT0xJQ1lfVU5MRVNTX1NUT1BQRUQQAxIZChVSRVNUQVJUX1BPTElDWV9BTFdBWVMQBCpICghQcm90b2NvbBIYChRQUk9UT0NPTF9VTlNQRUNJRklFRBAAEhAKDFBST1RPQ09MX1RDUBABEhAKDFBST1RPQ09MX1VEUBACKmYKDkZpcmV3YWxsQWN0aW9uEh8KG0ZJUkVXQUxMX0FDVElPTl9VTlNQRUNJRklFRBAAEhkKFUZJUkVXQUxMX0FDVElPTl9BTExPVxABEhgKFEZJUkVXQUxMX0FDVElPTl9ERU5ZEAI6PQoJc2Vuc2l0aXZlEh0uZ29vZ2xlLnByb3RvYnVmLkZpZWxkT3B0aW9ucxi5jgMgASgIUglzZW5zaXRpdmVChAIKHmNvbS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMUIKU3BlY3NQcm90b1ABWkxnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9yZXNvdXJjZS92MWFscGhhMTtyZXNvdXJjZXYxYWxwaGExogIDRFJYqgIaRG9ja3dlbGwuUmVzb3VyY2UuVjFhbHBoYTHKAhpEb2Nrd2VsbFxSZXNvdXJjZVxWMWFscGhhMeICJkRvY2t3ZWxsXFJlc291cmNlXFYxYWxwaGExXEdQQk1ldGFkYXRh6gIcRG9ja3dlbGw6OlJlc291cmNlOjpWMWFscGhhMWIGcHJvdG8z", [file_google_protobuf_descriptor]);
+  fileDesc("CiZkb2Nrd2VsbC9yZXNvdXJjZS92MWFscGhhMS9zcGVjcy5wcm90bxIaZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEi0QQKCUNvbnRhaW5lchINCgVpbWFnZRgBIAEoCRIPCgdjb21tYW5kGAIgAygJEkEKA2VudhgDIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5FbnZFbnRyeUIEyPMYARI2CgVwb3J0cxgEIAMoCzInLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlBvcnRNYXBwaW5nEjoKB3Jlc3RhcnQYBSABKA4yKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5SZXN0YXJ0UG9saWN5EkEKBmxhYmVscxgGIAMoCzIxLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5MYWJlbHNFbnRyeRISCgplbnRyeXBvaW50GAcgAygJEjEKBm1vdW50cxgIIAMoCzIhLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLk1vdW50EhAKCG5ldHdvcmtzGAkgAygJEgwKBHVzZXIYCiABKAkSEwoLd29ya2luZ19kaXIYCyABKAkSPAoLaGVhbHRoY2hlY2sYDCABKAsyJy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5IZWFsdGhjaGVjaxIVCg1ub19lbnRyeXBvaW50GA0gASgIGioKCEVudkVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaLQoLTGFiZWxzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKRAQoFTW91bnQSEAoGdm9sdW1lGAEgASgJSAASEwoJaG9zdF9wYXRoGAIgASgJSAASDgoGdGFyZ2V0GAMgASgJEhEKCXJlYWRfb25seRgEIAEoCBI0CgdyZWxhYmVsGAUgASgOMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUmVsYWJlbEIICgZzb3VyY2UiZQoLSGVhbHRoY2hlY2sSDAoEdGVzdBgBIAMoCRIQCghpbnRlcnZhbBgCIAEoCRIPCgd0aW1lb3V0GAMgASgJEhQKDHN0YXJ0X3BlcmlvZBgEIAEoCRIPCgdyZXRyaWVzGAUgASgNIoEBCgtQb3J0TWFwcGluZxIRCglob3N0X3BvcnQYASABKA0SFgoOY29udGFpbmVyX3BvcnQYAiABKA0SNgoIcHJvdG9jb2wYAyABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm90b2NvbBIPCgdob3N0X2lwGAQgASgJIrIBCgxGaXJld2FsbFJ1bGUSOgoGYWN0aW9uGAEgASgOMiouZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRmlyZXdhbGxBY3Rpb24SNgoIcHJvdG9jb2wYAiABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm90b2NvbBIMCgRwb3J0GAMgASgNEg8KB3NvdXJjZXMYBCADKAkSDwoHY29tbWVudBgFIAEoCSIfCgdQcm9qZWN0EhQKDGRpc3BsYXlfbmFtZRgBIAEoCSIjCgtFbnZpcm9ubWVudBIUCgxkaXNwbGF5X25hbWUYASABKAkisgMKB1NlcnZpY2USNAoDYXBwGAEgASgLMiUuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQ29udGFpbmVySAASRQoJdmFyaWFibGVzGAIgAygLMjIuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuU2VydmljZS5WYXJpYWJsZXNFbnRyeRJBCgdzZWNyZXRzGAMgAygLMjAuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuU2VydmljZS5TZWNyZXRzRW50cnkSSwoJcmV2aXNpb25zGAQgAygLMjIuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuU2VydmljZS5SZXZpc2lvbnNFbnRyeUIE4kEBAxowCg5WYXJpYWJsZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi4KDFNlY3JldHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGjAKDlJldmlzaW9uc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoAzoCOAFCBgoEcnVucyIZCghWYXJpYWJsZRINCgV2YWx1ZRgBIAEoCSIdCgZTZWNyZXQSEwoFdmFsdWUYASABKAlCBMjzGAEi/wEKBlZvbHVtZRIOCgZkcml2ZXIYASABKAkSRgoHb3B0aW9ucxgCIAMoCzIvLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlZvbHVtZS5PcHRpb25zRW50cnlCBMjzGAESPgoGbGFiZWxzGAMgAygLMi4uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuVm9sdW1lLkxhYmVsc0VudHJ5Gi4KDE9wdGlvbnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi0KC0xhYmVsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEijgIKB05ldHdvcmsSDgoGZHJpdmVyGAEgASgJEkEKB29wdGlvbnMYAiADKAsyMC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5OZXR3b3JrLk9wdGlvbnNFbnRyeRIQCghpbnRlcm5hbBgDIAEoCBI/CgZsYWJlbHMYBCADKAsyLy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5OZXR3b3JrLkxhYmVsc0VudHJ5Gi4KDE9wdGlvbnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi0KC0xhYmVsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEimwQKBFNwZWMSNgoHcHJvamVjdBgBIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlByb2plY3RIABI+CgtlbnZpcm9ubWVudBgCIAEoCzInLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkVudmlyb25tZW50SAASNgoHc2VydmljZRgDIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlNlcnZpY2VIABI6Cgljb250YWluZXIYBCABKAsyJS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db250YWluZXJIABJBCg1maXJld2FsbF9ydWxlGAUgASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRmlyZXdhbGxSdWxlSAASNAoGdm9sdW1lGAYgASgLMiIuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuVm9sdW1lSAASNgoHbmV0d29yaxgHIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLk5ldHdvcmtIABI4Cgh2YXJpYWJsZRgIIAEoCzIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlZhcmlhYmxlSAASNAoGc2VjcmV0GAkgASgLMiIuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuU2VjcmV0SABCBgoEa2luZCpLCgdSZWxhYmVsEhcKE1JFTEFCRUxfVU5TUEVDSUZJRUQQABISCg5SRUxBQkVMX1NIQVJFRBABEhMKD1JFTEFCRUxfUFJJVkFURRACKqMBCg1SZXN0YXJ0UG9saWN5Eh4KGlJFU1RBUlRfUE9MSUNZX1VOU1BFQ0lGSUVEEAASFQoRUkVTVEFSVF9QT0xJQ1lfTk8QARIdChlSRVNUQVJUX1BPTElDWV9PTl9GQUlMVVJFEAISIQodUkVTVEFSVF9QT0xJQ1lfVU5MRVNTX1NUT1BQRUQQAxIZChVSRVNUQVJUX1BPTElDWV9BTFdBWVMQBCpICghQcm90b2NvbBIYChRQUk9UT0NPTF9VTlNQRUNJRklFRBAAEhAKDFBST1RPQ09MX1RDUBABEhAKDFBST1RPQ09MX1VEUBACKmYKDkZpcmV3YWxsQWN0aW9uEh8KG0ZJUkVXQUxMX0FDVElPTl9VTlNQRUNJRklFRBAAEhkKFUZJUkVXQUxMX0FDVElPTl9BTExPVxABEhgKFEZJUkVXQUxMX0FDVElPTl9ERU5ZEAI6PQoJc2Vuc2l0aXZlEh0uZ29vZ2xlLnByb3RvYnVmLkZpZWxkT3B0aW9ucxi5jgMgASgIUglzZW5zaXRpdmVChAIKHmNvbS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMUIKU3BlY3NQcm90b1ABWkxnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9yZXNvdXJjZS92MWFscGhhMTtyZXNvdXJjZXYxYWxwaGExogIDRFJYqgIaRG9ja3dlbGwuUmVzb3VyY2UuVjFhbHBoYTHKAhpEb2Nrd2VsbFxSZXNvdXJjZVxWMWFscGhhMeICJkRvY2t3ZWxsXFJlc291cmNlXFYxYWxwaGExXEdQQk1ldGFkYXRh6gIcRG9ja3dlbGw6OlJlc291cmNlOjpWMWFscGhhMWIGcHJvdG8z", [file_google_api_field_behavior, file_google_protobuf_descriptor]);
 
 /**
  * Container is one Docker container: run by hand on a server, or a
@@ -397,6 +398,11 @@ export const EnvironmentSchema: GenMessage<Environment> = /*@__PURE__*/
  * networks. Websites, databases, catalog apps and jobs come later. Where it
  * runs isn't part of the spec: each revision is deployed on its servers.
  *
+ * A service uses its environment's variables and secrets by reference:
+ * the environment holds each value once, and a service names the ones it
+ * uses, under the names it expects. So changing a value changes every
+ * service that uses it, in one plan.
+ *
  * @generated from message dockwell.resource.v1alpha1.Service
  */
 export type Service = Message<"dockwell.resource.v1alpha1.Service"> & {
@@ -414,6 +420,35 @@ export type Service = Message<"dockwell.resource.v1alpha1.Service"> & {
     value: Container;
     case: "app";
   } | { case: undefined; value?: undefined };
+
+  /**
+   * The environment's variables the service uses, each under the name the
+   * service sees it as: DATABASE_HOST=DB_HOST gives the service the
+   * variable DB_HOST as DATABASE_HOST. An empty value means the variable of
+   * the same name.
+   *
+   * @generated from field: map<string, string> variables = 2;
+   */
+  variables: { [key: string]: string };
+
+  /**
+   * The environment's secrets the service uses, named as for variables.
+   * Using a secret doesn't let anyone read it: its value goes only to the
+   * servers the service runs on, and only their agents decrypt it.
+   *
+   * @generated from field: map<string, string> secrets = 3;
+   */
+  secrets: { [key: string]: string };
+
+  /**
+   * The revision of each variable and secret the service uses, by the name
+   * the service sees it as. Dockwell sets it when a change is planned, so a
+   * service whose variable or secret changes gets a revision of its own,
+   * and restarts with the new value. An edit's is ignored.
+   *
+   * @generated from field: map<string, int64> revisions = 4;
+   */
+  revisions: { [key: string]: bigint };
 };
 
 /**
@@ -422,6 +457,54 @@ export type Service = Message<"dockwell.resource.v1alpha1.Service"> & {
  */
 export const ServiceSchema: GenMessage<Service> = /*@__PURE__*/
   messageDesc(file_dockwell_resource_v1alpha1_specs, 7);
+
+/**
+ * Variable is a value of an environment that its services use, such as
+ * LOG_LEVEL=info. It isn't secret: plans, history and the panel show it.
+ * Keep anything that is in a Secret.
+ *
+ * @generated from message dockwell.resource.v1alpha1.Variable
+ */
+export type Variable = Message<"dockwell.resource.v1alpha1.Variable"> & {
+  /**
+   * The value.
+   *
+   * @generated from field: string value = 1;
+   */
+  value: string;
+};
+
+/**
+ * Describes the message dockwell.resource.v1alpha1.Variable.
+ * Use `create(VariableSchema)` to create a new message.
+ */
+export const VariableSchema: GenMessage<Variable> = /*@__PURE__*/
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 8);
+
+/**
+ * Secret is a value of an environment that its services use without anyone
+ * reading it back, such as a database password. Dockwell keeps it
+ * encrypted, sends it only to the servers that run a service that uses it,
+ * and never shows it in plans, history or logs. Revealing it takes a
+ * passkey, and is audited.
+ *
+ * @generated from message dockwell.resource.v1alpha1.Secret
+ */
+export type Secret = Message<"dockwell.resource.v1alpha1.Secret"> & {
+  /**
+   * The value. Every edit sets it whole.
+   *
+   * @generated from field: string value = 1;
+   */
+  value: string;
+};
+
+/**
+ * Describes the message dockwell.resource.v1alpha1.Secret.
+ * Use `create(SecretSchema)` to create a new message.
+ */
+export const SecretSchema: GenMessage<Secret> = /*@__PURE__*/
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 9);
 
 /**
  * Volume is a Docker volume in an environment, which its services mount
@@ -461,7 +544,7 @@ export type Volume = Message<"dockwell.resource.v1alpha1.Volume"> & {
  * Use `create(VolumeSchema)` to create a new message.
  */
 export const VolumeSchema: GenMessage<Volume> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 8);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 10);
 
 /**
  * Network is a Docker network in an environment, which its services join
@@ -507,7 +590,7 @@ export type Network = Message<"dockwell.resource.v1alpha1.Network"> & {
  * Use `create(NetworkSchema)` to create a new message.
  */
 export const NetworkSchema: GenMessage<Network> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 9);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 11);
 
 /**
  * Spec is the desired state of one resource, of any kind: the field that is
@@ -578,6 +661,22 @@ export type Spec = Message<"dockwell.resource.v1alpha1.Spec"> & {
      */
     value: Network;
     case: "network";
+  } | {
+    /**
+     * A variable of an environment, kind "variable".
+     *
+     * @generated from field: dockwell.resource.v1alpha1.Variable variable = 8;
+     */
+    value: Variable;
+    case: "variable";
+  } | {
+    /**
+     * A secret of an environment, kind "secret".
+     *
+     * @generated from field: dockwell.resource.v1alpha1.Secret secret = 9;
+     */
+    value: Secret;
+    case: "secret";
   } | { case: undefined; value?: undefined };
 };
 
@@ -586,7 +685,7 @@ export type Spec = Message<"dockwell.resource.v1alpha1.Spec"> & {
  * Use `create(SpecSchema)` to create a new message.
  */
 export const SpecSchema: GenMessage<Spec> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 10);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 12);
 
 /**
  * Relabel is how Docker labels a server path for SELinux when it mounts
@@ -741,7 +840,8 @@ export const FirewallActionSchema: GenEnum<FirewallAction> = /*@__PURE__*/
 
 /**
  * True for fields that may hold secrets. Plans, history and logs say that
- * such a field changed, but never show its value.
+ * such a field changed, but never show its value, and the revision store
+ * keeps every spec of a kind that has one encrypted (ADR 0022).
  *
  * @generated from extension: bool sensitive = 51001;
  */

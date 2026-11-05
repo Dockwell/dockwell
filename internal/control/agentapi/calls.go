@@ -20,6 +20,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	"github.com/dockwell/dockwell/internal/secrets"
 )
 
 // How long a call may take when its caller sets no deadline. Planning and
@@ -52,6 +53,9 @@ var errDraining = errors.New("the agent is moving to a new stream")
 type Agents struct {
 	kinds  *resource.Registry
 	logger *slog.Logger
+	// values finds the values of the variables and secrets a service uses,
+	// for the server it is about to run on.
+	values resource.Values
 
 	mu        sync.Mutex
 	sessions  map[string]*Session // the newest stream of each server
@@ -65,6 +69,15 @@ type Agents struct {
 // send back.
 func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{kinds: kinds, logger: logger, sessions: map[string]*Session{}, opened: make(chan struct{})}
+}
+
+// SendValues has the agents send each step the values of the variables and
+// secrets its spec uses, from values, sealed to the stream's delivery key.
+// Without it, a step that uses any fails.
+func (a *Agents) SendValues(values resource.Values) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.values = values
 }
 
 // OnConnect calls fn, in its own goroutine, each time a server's agent
@@ -92,7 +105,7 @@ func (a *Agents) Agent(server string) (resource.Agent, bool) {
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, server: server, name: name, send: send,
+		agents: a, server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
@@ -129,6 +142,9 @@ type Session struct {
 	// unavailable says why the agent can't run a kind it has a driver
 	// for, such as Docker not running.
 	unavailable map[resource.Kind]string
+	// deliveryKey is the stream's own public key, which the values of
+	// variables and secrets are sealed to.
+	deliveryKey []byte
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -303,8 +319,10 @@ func (s *Session) drain() {
 // call sends c and waits for its result, until ctx is done or the stream
 // ends. c's timeout is what remains of ctx's deadline, or fallback. A call
 // the agent refuses because it is moving to a new stream didn't run, so it
-// is sent again on the new one, within the same time.
-func (s *Session) call(ctx context.Context, c *agentv1.Call, fallback time.Duration) (*agentv1.CallResult, error) {
+// is sent again on the new one, within the same time. prepare, when set,
+// readies c for each stream it is sent on, as values sealed to one
+// stream's delivery key open on no other.
+func (s *Session) call(ctx context.Context, c *agentv1.Call, fallback time.Duration, prepare func(*Session) error) (*agentv1.CallResult, error) {
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, fallback)
@@ -313,6 +331,11 @@ func (s *Session) call(ctx context.Context, c *agentv1.Call, fallback time.Durat
 	deadline, _ := ctx.Deadline()
 	timeout := time.Until(deadline)
 	for {
+		if prepare != nil {
+			if err := prepare(s); err != nil {
+				return nil, err
+			}
+		}
 		r, err := s.callOnce(ctx, c)
 		if !errors.Is(err, errDraining) {
 			return r, s.timedOut(ctx, err, timeout)
@@ -459,7 +482,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		}
 		call.Desired = append(call.Desired, dr)
 	}
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: call}}, PlanTimeout)
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: call}}, PlanTimeout, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -477,11 +500,27 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		}
 		// The step is about the resource asked for, whatever the agent says.
 		steps[i].Ref = desired[i].Ref
+		// A field the schema marks sensitive never shows its value, whatever
+		// the agent says of it: plans are kept, and an agent that got it
+		// wrong mustn't put a secret in one.
+		if t, err := s.agents.kinds.Type(desired[i].Ref.Kind); err == nil {
+			md := t.New().ProtoReflect().Descriptor()
+			for j := range steps[i].Changes {
+				c := &steps[i].Changes[j]
+				if c.Sensitive || resource.SensitivePath(md, c.Path) {
+					c.Sensitive, c.From, c.To = true, "", ""
+				}
+			}
+		}
 	}
 	return steps, nil
 }
 
-// Apply asks the agent to carry out a step and verify the result.
+// Apply asks the agent to carry out a step and verify the result. A step
+// whose spec uses variables or secrets carries their values, sealed to the
+// delivery key of the stream it goes out on, which only this agent, on
+// that stream, can open. A step sent again on the agent's next stream, as
+// when it moves to a renewed certificate, is sealed again for that one.
 func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
 	if err := s.supports(step.Ref); err != nil {
 		return err
@@ -490,8 +529,62 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err != nil {
 		return err
 	}
-	_, err = s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr}}}, ApplyTimeout)
+	values, uses, err := s.values(ctx, step.Ref, desired)
+	if err != nil {
+		return err
+	}
+	defer clear(values)
+	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr}
+	var seal func(*Session) error
+	if uses {
+		seal = func(on *Session) error {
+			sealed, err := on.seal(step.Ref, values)
+			call.Values = sealed
+			return err
+		}
+	}
+	_, err = s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, ApplyTimeout, seal)
 	return err
+}
+
+// values are the values of what a desired spec uses, from the keeper, and
+// whether it uses any.
+func (s *Session) values(ctx context.Context, ref resource.Ref, desired proto.Message) (map[string]string, bool, error) {
+	t, err := s.agents.kinds.Type(ref.Kind)
+	if err != nil || len(resource.Uses(t, desired)) == 0 {
+		return nil, false, err
+	}
+	s.agents.mu.Lock()
+	provider := s.agents.values
+	s.agents.mu.Unlock()
+	if provider == nil {
+		return nil, false, fmt.Errorf("can't send the variables and secrets %s uses to %s: this control plane has no keeper for them", ref, s.name)
+	}
+	if len(s.deliveryKey) == 0 {
+		return nil, false, s.noDeliveryKey(ref)
+	}
+	values, err := provider.Values(ctx, s.server, ref, desired)
+	if err != nil {
+		return nil, false, err
+	}
+	return values, true, nil
+}
+
+// seal seals values for a resource to this stream's delivery key.
+func (s *Session) seal(ref resource.Ref, values map[string]string) ([]byte, error) {
+	if len(s.deliveryKey) == 0 {
+		return nil, s.noDeliveryKey(ref)
+	}
+	sealed, err := secrets.SealValues(s.deliveryKey, s.server, ref, values)
+	if err != nil {
+		return nil, fmt.Errorf("can't seal the values %s uses for %s: %w", ref.Name, s.name, err)
+	}
+	return sealed, nil
+}
+
+func (s *Session) noDeliveryKey(ref resource.Ref) error {
+	return fmt.Errorf("the agent on %s sent no delivery key, so it can't receive the variables and secrets %s uses. Update the agent on %s",
+		s.name, ref.Name, s.name)
 }
 
 // Observe asks the agent for resources as the server has them.
@@ -503,7 +596,7 @@ func (s *Session) Observe(ctx context.Context, refs []resource.Ref) ([]proto.Mes
 		}
 		call.Resources = append(call.Resources, resourcepb.Ref(ref))
 	}
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Observe{Observe: call}}, ObserveTimeout)
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Observe{Observe: call}}, ObserveTimeout, nil)
 	if err != nil {
 		return nil, err
 	}

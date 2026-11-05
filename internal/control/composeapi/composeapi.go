@@ -27,8 +27,10 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/scope"
+	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -37,15 +39,16 @@ type Handler struct {
 	changes *changes.Handler
 	kinds   *resource.Registry
 	db      *store.DB
+	keeper  *secrets.Keeper
 	logger  *slog.Logger
 }
 
 var _ dockwellv1connect.ComposeServiceHandler = (*Handler)(nil)
 
 // New returns a handler that plans through changes, and reads specs from
-// db with kinds.
-func New(ch *changes.Handler, kinds *resource.Registry, db *store.DB, logger *slog.Logger) *Handler {
-	return &Handler{changes: ch, kinds: kinds, db: db, logger: logger}
+// db with kinds, opening the sealed ones with keeper.
+func New(ch *changes.Handler, kinds *resource.Registry, db *store.DB, keeper *secrets.Keeper, logger *slog.Logger) *Handler {
+	return &Handler{changes: ch, kinds: kinds, db: db, keeper: keeper, logger: logger}
 }
 
 func invalid(err error) error {
@@ -71,6 +74,9 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 			return nil, connect.NewError(connect.CodeResourceExhausted, err)
 		}
 		return nil, err
+	}
+	if err := h.useVariables(ctx, env.ID, stack); err != nil {
+		return nil, h.internal(ctx, err)
 	}
 	var edits []*dockwellv1.Edit
 	keep := map[string]bool{}
@@ -143,13 +149,17 @@ func (h *Handler) ExportCompose(ctx context.Context, req *connect.Request[dockwe
 	}
 	stack := &compose.Stack{}
 	err = h.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		if stack.Variables, err = h.variables(ctx, tx, env.ID); err != nil {
+			return err
+		}
 		for _, kind := range []resource.Kind{service.Kind, volume.Kind, network.Kind} {
 			list, err := tx.ListResources(ctx, env.ID, string(kind))
 			if err != nil {
 				return err
 			}
 			for _, r := range list {
-				spec, err := h.kinds.Decode(kind, r.Spec)
+				spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
 				if err != nil {
 					return err
 				}
@@ -180,6 +190,58 @@ func (h *Handler) ExportCompose(ctx context.Context, req *connect.Request[dockwe
 	return connect.NewResponse(&dockwellv1.ExportComposeResponse{Compose: string(out.File), Omitted: out.Omitted}), nil
 }
 
+// variables are the values of an environment's variables, by name. A
+// variable's spec is never sealed, and nothing here reads a secret's.
+func (h *Handler) variables(ctx context.Context, tx *store.Tx, envID string) (map[string]string, error) {
+	list, err := tx.ListResources(ctx, envID, string(variable.VariableKind))
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(list))
+	for _, r := range list {
+		spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return nil, err
+		}
+		if v, ok := spec.(*resourcev1.Variable); ok {
+			out[r.Name] = v.GetValue()
+		}
+	}
+	return out, nil
+}
+
+// useVariables takes out of a file's environment the values an export
+// wrote for the variables a service uses, which are the environment's to
+// hold, as the service uses them by reference. A value that differs stays,
+// so the driver refuses it as set twice rather than drop what the file
+// says. A secret's is never compared: a file that gives one a value is
+// refused the same way, whatever it is.
+func (h *Handler) useVariables(ctx context.Context, envID string, stack *compose.Stack) error {
+	if !slices.ContainsFunc(stack.Services, func(s compose.Item[*resourcev1.Service]) bool { return len(s.Spec.GetVariables()) > 0 }) {
+		return nil
+	}
+	var values map[string]string
+	err := h.db.View(ctx, func(tx *store.Tx) (err error) {
+		values, err = h.variables(ctx, tx, envID)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	for _, s := range stack.Services {
+		app := s.Spec.GetApp()
+		for as, name := range s.Spec.GetVariables() {
+			if v, ok := app.GetEnv()[as]; ok && values[name] == v {
+				delete(app.Env, as)
+			}
+		}
+		if len(app.GetEnv()) == 0 {
+			app.Env = nil
+		}
+	}
+	return nil
+}
+
 // only narrows a stack to one service, with the volumes and networks it
 // uses.
 func only(stack *compose.Stack, name, env string) (*compose.Stack, error) {
@@ -196,7 +258,7 @@ func only(stack *compose.Stack, name, env string) (*compose.Stack, error) {
 	}
 	svc := stack.Services[i]
 	app := svc.Spec.GetApp()
-	out := &compose.Stack{Services: []compose.Item[*resourcev1.Service]{{Name: svc.Name, Spec: proto.CloneOf(svc.Spec)}}}
+	out := &compose.Stack{Services: []compose.Item[*resourcev1.Service]{{Name: svc.Name, Spec: proto.CloneOf(svc.Spec)}}, Variables: stack.Variables}
 	for _, v := range stack.Volumes {
 		if slices.ContainsFunc(app.GetMounts(), func(m *resourcev1.Mount) bool { return m.GetVolume() == v.Name }) {
 			out.Volumes = append(out.Volumes, v)

@@ -89,7 +89,7 @@ func TestNormalizeCode(t *testing.T) {
 // recovery codes.
 func (f *fixture) enableTOTP(t *testing.T, p Principal) ([]byte, []string) {
 	t.Helper()
-	setup, err := f.svc.BeginTOTP(t.Context(), p)
+	setup, err := f.svc.BeginTOTP(t.Context(), p, f.proof(t, p, StepUpSetUpCodes, ""))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +291,7 @@ func testRecoveryCodesAreReplacedTogether(t *testing.T, backend store.Backend) {
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
 	p := ownerPrincipal(owner)
 	_, old := f.enableTOTP(t, p)
-	fresh, err := f.svc.RegenerateRecoveryCodes(t.Context(), p)
+	fresh, err := f.svc.RegenerateRecoveryCodes(t.Context(), p, f.proof(t, p, StepUpRecoveryCodes, ""))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,6 +315,156 @@ func testRecoveryCodesAreReplacedTogether(t *testing.T, backend store.Backend) {
 	}
 }
 
+// wrongCodeFor is a code that isn't one of secret's right now, however
+// the clock is off.
+func (f *fixture) wrongCodeFor(secret []byte) string {
+	step := totpStep(f.clock.now())
+	for i := 0; ; i++ {
+		code := fmt.Sprintf("%06d", i)
+		if code != totpCode(secret, step-1) && code != totpCode(secret, step) && code != totpCode(secret, step+1) {
+			return code
+		}
+	}
+}
+
+// begun starts setting up codes in p's session, and returns the new secret.
+func (f *fixture) begun(t *testing.T, p Principal) []byte {
+	t.Helper()
+	setup, err := f.svc.BeginTOTP(t.Context(), p, f.proof(t, p, StepUpSetUpCodes, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret, err := totpEncoding.DecodeString(setup.Secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return secret
+}
+
+// A setup of code sign-in ends in recovery codes, which sign in and add a
+// passkey, so a session that never proved the step-up can't finish one the
+// person began and left. Only the session that proved it can, with a right
+// code, within 10 minutes.
+func TestOnlyTheSessionThatBeganASetupFinishesIt(t *testing.T) {
+	storetest.Each(t, testOnlyTheSessionThatBeganASetupFinishesIt)
+}
+
+func testOnlyTheSessionThatBeganASetupFinishesIt(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
+	a := &authtest.Authenticator{}
+	p := ownerPrincipal(f.claim(t, localhost, a))
+	stolen := ownerPrincipal(must(f.passkeySignIn(t, localhost, a, nil)))
+	ctx := t.Context()
+	right := func(secret []byte) string { return totpCode(secret, totpStep(f.clock.now())) }
+
+	// Another session gets nothing, right code or wrong, however many it
+	// tries, and leaves the setup as it was.
+	secret := f.begun(t, p)
+	for range 20 {
+		if _, err := f.svc.ConfirmTOTP(ctx, stolen, f.wrongCodeFor(secret)); !errors.Is(err, ErrNoPendingTOTP) {
+			t.Fatalf("a wrong code from another session = %v, want ErrNoPendingTOTP", err)
+		}
+	}
+	if codes, err := f.svc.ConfirmTOTP(ctx, stolen, right(secret)); !errors.Is(err, ErrNoPendingTOTP) || codes != nil {
+		t.Fatalf("the right code from another session = %v, %v, want ErrNoPendingTOTP", codes, err)
+	}
+	if err := f.svc.CancelTOTP(ctx, stolen); err != nil {
+		t.Fatal(err)
+	}
+	if codes, err := f.svc.ConfirmTOTP(ctx, p, right(secret)); err != nil || len(codes) != 10 {
+		t.Fatalf("the session that began it, after another's tries = %v, %v, want 10 recovery codes", codes, err)
+	}
+	f.clock.advance(totpPeriod * time.Second)
+
+	// A token has no session to begin one in.
+	token := Principal{User: p.User, Token: &store.APIToken{ID: "tok_1", UserID: p.User.ID}}
+	if _, err := f.svc.ConfirmTOTP(ctx, token, "123456"); !errors.Is(err, ErrNeedsSession) {
+		t.Errorf("a token confirming a setup = %v, want ErrNeedsSession", err)
+	}
+	if err := f.svc.CancelTOTP(ctx, token); !errors.Is(err, ErrNeedsSession) {
+		t.Errorf("a token cancelling a setup = %v, want ErrNeedsSession", err)
+	}
+
+	// 10 minutes end it, and the secret goes with them.
+	secret = f.begun(t, p)
+	f.clock.advance(totpSetupTTL)
+	if _, err := f.svc.ConfirmTOTP(ctx, p, right(secret)); !errors.Is(err, ErrNoPendingTOTP) {
+		t.Errorf("confirming a setup after %s = %v, want ErrNoPendingTOTP", totpSetupTTL, err)
+	}
+	if u := f.user(t, p); u.TOTPPending != nil || u.TOTPPendingSession != "" {
+		t.Errorf("after expiring, the user's row = %+v, want no pending secret", u)
+	}
+
+	// Closing the sheet ends it, once, and only the session's own.
+	secret = f.begun(t, p)
+	if err := f.svc.CancelTOTP(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	if u := f.user(t, p); u.TOTPPending != nil {
+		t.Error("cancelling left the secret pending")
+	}
+	if _, err := f.svc.ConfirmTOTP(ctx, p, right(secret)); !errors.Is(err, ErrNoPendingTOTP) {
+		t.Errorf("confirming a cancelled setup = %v, want ErrNoPendingTOTP", err)
+	}
+	if err := f.svc.CancelTOTP(ctx, p); err != nil {
+		t.Errorf("cancelling with nothing waiting: %v", err)
+	}
+}
+
+// 5 wrong codes end a setup: its secret goes, finishing it takes a new
+// step-up, and Activity shows it. Fewer don't, and a right code clears the
+// count. The count is in the store, so a restart doesn't reset it.
+func TestWrongCodesEndASetup(t *testing.T) { storetest.Each(t, testWrongCodesEndASetup) }
+
+func testWrongCodesEndASetup(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
+	p := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
+	ctx := t.Context()
+	secret := f.begun(t, p)
+	wrong := func() error {
+		_, err := f.svc.ConfirmTOTP(ctx, p, f.wrongCodeFor(secret))
+		return err
+	}
+	for i := range totpSetupFailures - 1 {
+		if err := wrong(); !errors.Is(err, ErrTOTPMismatch) {
+			t.Fatalf("wrong code %d = %v, want ErrTOTPMismatch", i+1, err)
+		}
+		f.svc = f.restart(t)
+	}
+	if got := f.user(t, p).TOTPPendingFailures; got != totpSetupFailures-1 {
+		t.Errorf("wrong codes counted = %d, want %d", got, totpSetupFailures-1)
+	}
+	if ev := f.auditEvents(t, "totp.setup_discarded"); len(ev) != 0 {
+		t.Errorf("events before the last wrong code = %+v", ev)
+	}
+	if err := wrong(); !errors.Is(err, ErrTOTPSetupEnded) {
+		t.Fatalf("wrong code %d = %v, want ErrTOTPSetupEnded", totpSetupFailures, err)
+	}
+	if u := f.user(t, p); u.TOTPPending != nil || u.TOTPPendingFailures != 0 {
+		t.Errorf("after the last wrong code, the user's row = %+v, want no pending secret", u)
+	}
+	if ev := f.auditEvents(t, "totp.setup_discarded"); len(ev) != 1 || ev[0].Actor != p.Actor() || ev[0].Detail != "after 5 wrong codes" {
+		t.Errorf("events after the last wrong code = %+v, want one", ev)
+	}
+	if _, err := f.svc.ConfirmTOTP(ctx, p, totpCode(secret, totpStep(f.clock.now()))); !errors.Is(err, ErrNoPendingTOTP) {
+		t.Errorf("the right code once it ended = %v, want ErrNoPendingTOTP", err)
+	}
+	if _, err := f.svc.BeginTOTP(ctx, p, ""); !errors.Is(err, ErrNeedsStepUp) {
+		t.Errorf("starting again without a step-up = %v, want ErrNeedsStepUp", err)
+	}
+
+	// A new step-up starts a new count.
+	secret = f.begun(t, p)
+	for range totpSetupFailures - 1 {
+		if err := wrong(); !errors.Is(err, ErrTOTPMismatch) {
+			t.Fatalf("a wrong code in a new setup = %v, want ErrTOTPMismatch", err)
+		}
+	}
+	if codes, err := f.svc.ConfirmTOTP(ctx, p, totpCode(secret, totpStep(f.clock.now()))); err != nil || len(codes) != 10 {
+		t.Errorf("the right code in a new setup = %v, %v, want 10 recovery codes", codes, err)
+	}
+}
+
 func TestNeverRemoveTheLastWayIn(t *testing.T) { storetest.Each(t, testNeverRemoveTheLastWayIn) }
 
 func testNeverRemoveTheLastWayIn(t *testing.T, backend store.Backend) {
@@ -323,17 +473,19 @@ func testNeverRemoveTheLastWayIn(t *testing.T, backend store.Backend) {
 	owner := f.claim(t, localhost, a)
 	p := ownerPrincipal(owner)
 	keys, _ := f.svc.ListPasskeys(t.Context(), p)
-	if err := f.svc.RemovePasskey(t.Context(), p, keys[0].ID); !errors.Is(err, ErrLastWayIn) {
+	// A refusal leaves the proof unspent, so it works once codes do.
+	remove := f.proof(t, p, StepUpRemovePasskey, keys[0].ID)
+	if err := f.svc.RemovePasskey(t.Context(), p, keys[0].ID, remove); !errors.Is(err, ErrLastWayIn) {
 		t.Errorf("removing the only passkey = %v, want ErrLastWayIn", err)
 	}
 	f.enableTOTP(t, p)
-	if err := f.svc.RemovePasskey(t.Context(), p, keys[0].ID); err != nil {
+	if err := f.svc.RemovePasskey(t.Context(), p, keys[0].ID, remove); err != nil {
 		t.Errorf("removing the passkey once codes work: %v", err)
 	}
-	if err := f.svc.DisableTOTP(t.Context(), p); !errors.Is(err, ErrLastWayIn) {
+	if err := f.svc.DisableTOTP(t.Context(), p, "unused"); !errors.Is(err, ErrLastWayIn) {
 		t.Errorf("turning off codes with no passkey left = %v, want ErrLastWayIn", err)
 	}
-	if err := f.svc.RemovePasskey(t.Context(), p, keys[0].ID); !errors.Is(err, ErrNotFound) {
+	if err := f.svc.RemovePasskey(t.Context(), p, keys[0].ID, remove); !errors.Is(err, ErrNotFound) {
 		t.Errorf("removing it again = %v, want ErrNotFound", err)
 	}
 	evs := f.events(t)
@@ -353,7 +505,7 @@ func testPasskeysForAnOldDomainArentAWayIn(t *testing.T, backend store.Backend) 
 	a := &authtest.Authenticator{}
 	owner := f.claim(t, onDomain, a)
 	p := ownerPrincipal(owner)
-	cer, err := f.svc.BeginAddPasskey(t.Context(), localhost, p)
+	cer, err := f.svc.BeginAddPasskey(t.Context(), localhost, p, f.stepUpAt(t, onDomain, p, a, StepUpAddPasskey, "").Proof)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,23 +526,23 @@ func testPasskeysForAnOldDomainArentAWayIn(t *testing.T, backend store.Backend) 
 	// The panel loses its domain: only the localhost passkey still works.
 	f.domain = ""
 	f.svc = f.restart(t)
-	if err := f.svc.RemovePasskey(t.Context(), p, local.ID); !errors.Is(err, ErrLastWayIn) {
+	if err := f.svc.RemovePasskey(t.Context(), p, local.ID, "unused"); !errors.Is(err, ErrLastWayIn) {
 		t.Errorf("removing the only passkey that works here = %v, want ErrLastWayIn", err)
 	}
 	f.enableTOTP(t, p)
 	f.domain = "new.acme.dev"
 	f.svc = f.restart(t)
-	if err := f.svc.RemovePasskey(t.Context(), p, local.ID); err != nil {
+	if err := f.svc.RemovePasskey(t.Context(), p, local.ID, f.proof(t, p, StepUpRemovePasskey, local.ID)); err != nil {
 		t.Errorf("removing it once codes work: %v", err)
 	}
-	if err := f.svc.DisableTOTP(t.Context(), p); !errors.Is(err, ErrLastWayIn) {
+	if err := f.svc.DisableTOTP(t.Context(), p, "unused"); !errors.Is(err, ErrLastWayIn) {
 		t.Errorf("turning off codes with only a passkey for an old domain left = %v, want ErrLastWayIn", err)
 	}
 
 	// Back on the domain the passkey was made for, it counts again.
 	f.domain = "panel.acme.dev"
 	f.svc = f.restart(t)
-	if err := f.svc.DisableTOTP(t.Context(), p); err != nil {
+	if err := f.svc.DisableTOTP(t.Context(), p, f.stepUpAt(t, onDomain, p, a, StepUpDisableCodes, "").Proof); err != nil {
 		t.Errorf("turning off codes with a passkey for this domain: %v", err)
 	}
 }

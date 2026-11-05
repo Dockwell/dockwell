@@ -12,7 +12,9 @@ package seal
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hkdf"
 	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -32,6 +34,7 @@ var ErrOpen = errors.New("can't open sealed value")
 // Key seals and opens values.
 type Key struct {
 	aead cipher.AEAD
+	raw  []byte // for Derive
 }
 
 // LoadOrCreate reads the key at path, creating it with 0600 permissions if
@@ -69,6 +72,15 @@ func Load(path string) (*Key, error) {
 		return nil, fmt.Errorf("can't find the key at %s: %w. Run this on the control server, as the user that runs dockwell", path, err)
 	}
 	return LoadOrCreate(path)
+}
+
+// FromBytes makes a key from its 32 bytes, for tests that need one key in
+// several places. Everything else loads the key from its file.
+func FromBytes(raw []byte) (*Key, error) {
+	if len(raw) != keySize {
+		return nil, fmt.Errorf("a key is %d bytes, not %d", keySize, len(raw))
+	}
+	return newKey(append([]byte(nil), raw...))
 }
 
 // Commit moves the key at from to path once what it seals is on record,
@@ -117,7 +129,19 @@ func newKey(raw []byte) (*Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Key{aead: aead}, nil
+	return &Key{aead: aead, raw: raw}, nil
+}
+
+// Derive returns a 32-byte key of its own for purpose, made from this one
+// with HKDF-SHA256, for a use that needs the key itself rather than
+// sealing, such as a keyed hash. Each purpose gets a different key, and
+// none of them gives this one away.
+func (k *Key) Derive(purpose string) []byte {
+	out, err := hkdf.Key(sha256.New, k.raw, nil, "dockwell "+purpose, keySize)
+	if err != nil {
+		panic("seal: HKDF can't derive a 32-byte key: " + err.Error()) // only for lengths beyond 255 hashes
+	}
+	return out
 }
 
 // Seal encrypts plaintext for purpose.

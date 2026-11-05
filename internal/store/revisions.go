@@ -68,10 +68,14 @@ type Change struct {
 	State       string
 	Reverts     string // the change this undoes or rolls back, if any
 	Fingerprint string
-	Plan        []byte
-	Error       string
-	CreatedAt   time.Time
-	AppliedAt   time.Time // zero until applied
+	// FingerprintScheme says how Fingerprint was made, as the revision
+	// store numbers its schemes. A change recorded before schemes were
+	// recorded has 1.
+	FingerprintScheme int
+	Plan              []byte
+	Error             string
+	CreatedAt         time.Time
+	AppliedAt         time.Time // zero until applied
 	// ProposedVia is the surface it was proposed from, such as "panel".
 	ProposedVia string
 	// AppliedBy and AppliedVia are who applied it and from where; empty
@@ -101,6 +105,9 @@ type ChangeItem struct {
 	// host-level kind, and none for a deletion or a kind that runs on no
 	// server.
 	Servers []string
+	// Rotates is true when the edit sets a secret's value, which plans as
+	// changed whatever it holds (ADR 0022).
+	Rotates bool
 }
 
 // Resource is a managed resource with its latest revision.
@@ -143,16 +150,21 @@ type Deployment struct {
 
 // CreateChange records a planned change and its items.
 func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
-	_, err := t.exec(ctx, `INSERT INTO changes (id, summary, actor, state, reverts, fingerprint, plan, created_at, proposed_via)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		c.ID, c.Summary, c.Actor, c.State, nullString(c.Reverts), c.Fingerprint, c.Plan, millis(c.CreatedAt), c.ProposedVia)
+	scheme := c.FingerprintScheme
+	if scheme == 0 {
+		scheme = 1
+	}
+	_, err := t.exec(ctx, `INSERT INTO changes (id, summary, actor, state, reverts, fingerprint, fingerprint_scheme, plan, created_at, proposed_via)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.ID, c.Summary, c.Actor, c.State, nullString(c.Reverts), c.Fingerprint, scheme, c.Plan, millis(c.CreatedAt), c.ProposedVia)
 	if err != nil {
 		return fmt.Errorf("can't record change %s: %w", c.ID, err)
 	}
-	for i, it := range c.Items {
-		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
-			strings.Join(it.Servers, " ")); err != nil {
+	for i := range c.Items {
+		it := &c.Items[i]
+		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers, rotates)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
+			strings.Join(it.Servers, " "), boolInt(it.Rotates)); err != nil {
 			return fmt.Errorf("can't record change %s: %w", c.ID, err)
 		}
 	}
@@ -164,7 +176,7 @@ func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
 	return nil
 }
 
-const changeColumns = `id, summary, actor, state, reverts, fingerprint, plan, error, created_at, applied_at,
+const changeColumns = `id, summary, actor, state, reverts, fingerprint, fingerprint_scheme, plan, error, created_at, applied_at,
 	proposed_via, applied_by, applied_via, progress`
 
 func scanChange(row interface{ Scan(...any) error }) (Change, error) {
@@ -172,7 +184,7 @@ func scanChange(row interface{ Scan(...any) error }) (Change, error) {
 	var reverts, errText, appliedBy, appliedVia sql.NullString
 	var created int64
 	var applied sql.NullInt64
-	err := row.Scan(&c.ID, &c.Summary, &c.Actor, &c.State, &reverts, &c.Fingerprint, &c.Plan, &errText, &created, &applied,
+	err := row.Scan(&c.ID, &c.Summary, &c.Actor, &c.State, &reverts, &c.Fingerprint, &c.FingerprintScheme, &c.Plan, &errText, &created, &applied,
 		&c.ProposedVia, &appliedBy, &appliedVia, &c.Progress)
 	c.Reverts, c.Error, c.CreatedAt = reverts.String, errText.String, fromMillis(created)
 	c.AppliedBy, c.AppliedVia = appliedBy.String, appliedVia.String
@@ -191,7 +203,7 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
 	}
-	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers
+	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers, rotates
 		FROM change_items WHERE change_id = ? ORDER BY position`, changeID)
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
@@ -201,9 +213,11 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 		var it ChangeItem
 		var servers string
 		var deleted bool
-		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers); err != nil {
+		var rotates int64
+		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers, &rotates); err != nil {
 			return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
 		}
+		it.Rotates = rotates != 0
 		it.Spec = spec(it.Spec, deleted)
 		if servers != "" {
 			it.Servers = strings.Fields(servers)
@@ -418,15 +432,56 @@ func (t *Tx) ListPlaced(ctx context.Context, server string) ([]Resource, error) 
 		WHERE d.server_id = ? AND v.spec IS NOT NULL ORDER BY r.kind, r.scope, r.name`, server)
 }
 
+// SpecAt says where a stored spec lives: in a revision of a resource, by
+// its number, or in an item of a change, by its position. The secrets
+// keeper binds a sealed spec to it, so one copied anywhere else, even to
+// another revision of the same resource, doesn't open (ADR 0022).
+type SpecAt struct {
+	ResourceID string
+	Kind       string
+	// Revision is the revision's number, for a spec in a revision.
+	Revision int
+	// Change and Position name the change and the item's place in it, for
+	// a spec a change asks for.
+	Change   string
+	Position int
+}
+
+// InRevision is where a revision keeps its spec.
+func InRevision(resourceID, kind string, number int) SpecAt {
+	return SpecAt{ResourceID: resourceID, Kind: kind, Revision: number}
+}
+
+// InChange is where a change keeps the spec its item at position asks
+// for.
+func InChange(resourceID, kind, changeID string, position int) SpecAt {
+	return SpecAt{ResourceID: resourceID, Kind: kind, Change: changeID, Position: position}
+}
+
 // NewRevision is the next revision of a resource.
 type NewRevision struct {
 	Kind, Scope, Name string
 	// ID names the resource if this is its first revision.
-	ID       string
+	ID string
+	// Number is the number the revision must get, which a sealed spec is
+	// bound to; 0 takes the next, whatever it is.
+	Number   int
 	Spec     []byte // nil deletes
 	Change   string
 	Position int // of the change item asking for it
 	At       time.Time
+	// Uses is what the spec uses of others in its scope, by reference,
+	// kept in the clear beside it.
+	Uses []Use
+}
+
+// Use is one resource that a revision uses in its scope, such as a secret
+// a service uses, by reference.
+type Use struct {
+	As       string // the name the user sees it as, such as DATABASE_URL
+	Kind     string
+	Name     string
+	Revision int // the revision it is pinned to; 0 when it isn't
 }
 
 // AddRevision writes the next revision of a resource, creating the
@@ -444,6 +499,9 @@ func (t *RevisionTx) AddRevision(ctx context.Context, n NewRevision) (Revision, 
 		return Revision{}, err
 	}
 	r.Revision++
+	if n.Number != 0 && n.Number != r.Revision {
+		return Revision{}, fmt.Errorf("%s %s is at revision %d, so its next is %d, not %d: %w", n.Kind, n.Name, r.Revision-1, r.Revision, n.Number, ErrConflict)
+	}
 	r.Spec, r.ChangeID = n.Spec, n.Change
 	if _, err := t.exec(ctx, `INSERT INTO revisions (resource_id, number, spec, change_id, position, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
 		r.ID, r.Revision, n.Spec, n.Change, n.Position, millis(n.At)); err != nil {
@@ -452,7 +510,52 @@ func (t *RevisionTx) AddRevision(ctx context.Context, n NewRevision) (Revision, 
 	if _, err := t.exec(ctx, `UPDATE resources SET revision = ? WHERE id = ?`, r.Revision, r.ID); err != nil {
 		return Revision{}, fmt.Errorf("can't record a revision of %s %s: %w", n.Kind, n.Name, err)
 	}
+	for _, u := range n.Uses {
+		if _, err := t.exec(ctx, `INSERT INTO revision_uses (resource_id, revision, scope, used_as, used_kind, used_name, used_revision)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`, r.ID, r.Revision, n.Scope, u.As, u.Kind, u.Name, u.Revision); err != nil {
+			return Revision{}, fmt.Errorf("can't record what %s %s uses: %w", n.Kind, n.Name, err)
+		}
+	}
 	return Revision{Resource: r, CreatedAt: n.At}, nil
+}
+
+// Using is a resource whose latest revision uses another in its scope,
+// and what it uses.
+type Using struct {
+	ID, Kind, Scope, Name string
+	Revision              int // the user's latest revision
+	Uses                  Use
+}
+
+// UsersOf returns what the resources in scope use, at their latest
+// revisions, by the user's kind and name, then the name each use is seen
+// as. A deleted resource uses nothing. With kind set, it returns only the
+// uses of that kind; with names set too, only of those names.
+func (t *Tx) UsersOf(ctx context.Context, scope, kind string, names ...string) ([]Using, error) {
+	query := `SELECT r.id, r.kind, r.scope, r.name, r.revision, u.used_as, u.used_kind, u.used_name, u.used_revision
+		FROM revision_uses u JOIN resources r ON r.id = u.resource_id AND r.revision = u.revision
+		WHERE u.scope = ? AND (u.used_kind = ? OR ? = '')`
+	args := []any{scope, kind, kind}
+	if len(names) > 0 {
+		query += ` AND u.used_name IN (` + marks(len(names)) + `)`
+		for _, n := range names {
+			args = append(args, n)
+		}
+	}
+	rows, err := t.query(ctx, query+` ORDER BY r.kind, r.name, u.used_as`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read what the resources of %s use: %w", scope, err)
+	}
+	defer rows.Close()
+	var out []Using
+	for rows.Next() {
+		var u Using
+		if err := rows.Scan(&u.ID, &u.Kind, &u.Scope, &u.Name, &u.Revision, &u.Uses.As, &u.Uses.Kind, &u.Uses.Name, &u.Uses.Revision); err != nil {
+			return nil, fmt.Errorf("can't read what the resources of %s use: %w", scope, err)
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
 }
 
 const revisionColumns = `r.id, r.kind, r.scope, r.name, v.number, v.spec, v.spec IS NULL, v.change_id, v.created_at`

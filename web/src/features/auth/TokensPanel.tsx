@@ -3,7 +3,7 @@
 import { durationFromMs, timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { type Token, TokenScope, TokenService } from "@dockwell/api";
+import { StepUpAction, type Token, TokenScope, TokenService } from "@dockwell/api";
 import { Button, Callout, cx, Icon, Panel, Sheet, StatusBadge, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useEffect, useId, useState } from "react";
@@ -13,6 +13,7 @@ import { useTimeWords } from "../../lib/time";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { CopyButton } from "../system/CopyCommand";
 import { useAuthError } from "./messages";
+import { withStepUpIfAsked } from "./stepUp";
 import "./TokensPanel.css";
 
 const DAY = 86_400_000;
@@ -255,13 +256,18 @@ function CreateTokenSheet({
     setBusy(true);
     setProblem(undefined);
     try {
-      const res = await createClient(TokenService, transport).createToken({
-        name: trimmed,
-        scope,
-        // A ttl, so the control plane's clock sets the expiry, whatever the browser's says.
-        expiration:
-          expiry === "never" ? { case: undefined } : { case: "ttl", value: durationFromMs(Number(expiry) * DAY) },
-      });
+      // Your browser asks for your passkey, to confirm it's you making it,
+      // once nothing else stops it.
+      const res = await withStepUpIfAsked(transport, StepUpAction.CREATE_TOKEN, "", (proof) =>
+        createClient(TokenService, transport).createToken({
+          name: trimmed,
+          scope,
+          proof,
+          // A ttl, so the control plane's clock sets the expiry, whatever the browser's says.
+          expiration:
+            expiry === "never" ? { case: undefined } : { case: "ttl", value: durationFromMs(Number(expiry) * DAY) },
+        }),
+      );
       onCreated({
         name: res.token?.name ?? trimmed,
         secret: res.secret,

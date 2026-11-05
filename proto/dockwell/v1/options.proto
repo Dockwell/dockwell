@@ -43,6 +43,11 @@ extend google.protobuf.MethodOptions {
   // How the dockwell CLI names the method's command, where its rules give a
   // name that is taken or misleading. Most methods leave it unset.
   Command command = 50101;
+  // True for a method no API token may call, whatever its scope and
+  // effect, because it needs a person in a signed-in session: revealing a
+  // secret, which also takes a fresh passkey assertion. AuthService and
+  // TokenService, which no token may call at all, leave it unset.
+  bool needs_session = 50102;
 }
 
 // Noun describes one noun of the dockwell CLI, the command that holds the

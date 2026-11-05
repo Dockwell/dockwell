@@ -5,19 +5,26 @@ package agent
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/container/containertest"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/secrets"
 )
 
 // slowFirewall puts the rule "slow" in place only once released, or not at
@@ -85,7 +92,7 @@ func TestCallsCloseBeforeTheyStop(t *testing.T) {
 	out := &sent{results: map[uint64]*agentv1.CallResult{}}
 	c := newCalls(context.Background(), Config{
 		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw}),
-	}, out.send)
+	}, out.send, nil)
 
 	c.start(applyCall(t, 1, "slow"))
 	<-fw.started
@@ -130,7 +137,7 @@ func TestStoppingCancelsWhatStillRuns(t *testing.T) {
 	out := &sent{results: map[uint64]*agentv1.CallResult{}}
 	c := newCalls(context.Background(), Config{
 		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw}),
-	}, out.send)
+	}, out.send, nil)
 	c.start(applyCall(t, 1, "slow"))
 	<-fw.started
 	c.stop()
@@ -146,7 +153,7 @@ func TestAnApplyWithAnUnknownActionRunsNothing(t *testing.T) {
 	out := &sent{results: map[uint64]*agentv1.CallResult{}}
 	c := newCalls(context.Background(), Config{
 		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw}),
-	}, out.send)
+	}, out.send, nil)
 	call := applyCall(t, 1, "http")
 	call.GetApply().GetStep().Action = 42
 	c.start(call)
@@ -233,7 +240,7 @@ func TestAStepCutShortByStoppingSendsNoResult(t *testing.T) {
 	out := &sent{results: map[uint64]*agentv1.CallResult{}}
 	c := newCalls(context.Background(), Config{
 		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw}),
-	}, out.send)
+	}, out.send, nil)
 	c.start(applyCall(t, 1, "slow"))
 	<-fw.started
 	c.stop()
@@ -246,7 +253,7 @@ func TestAStepCutShortByStoppingSendsNoResult(t *testing.T) {
 	out = &sent{results: map[uint64]*agentv1.CallResult{}}
 	c = newCalls(context.Background(), Config{
 		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw}),
-	}, out.send)
+	}, out.send, nil)
 	defer c.stop()
 	c.start(applyCall(t, 2, "slow"))
 	<-fw.started
@@ -257,5 +264,71 @@ func TestAStepCutShortByStoppingSendsNoResult(t *testing.T) {
 	}
 	if r := out.result(2); r == nil {
 		t.Error("a step the control plane cancelled sent nothing, want it to answer")
+	}
+}
+
+// peeking is a Desired that notes what its context carries.
+type peeking struct {
+	mu     sync.Mutex
+	calls  int
+	values map[string]string
+}
+
+func (p *peeking) Applied(ctx context.Context, _ resource.Ref, _ proto.Message) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.calls++
+	if v := resource.ValuesFrom(ctx); v != nil {
+		p.values = maps.Clone(v) // the agent clears its own once the step ends
+	}
+	return nil
+}
+
+// The values of what a step's spec uses reach its driver, and never
+// Desired, which may keep what it hears, as #32's cache will: it hears
+// the step with a context that holds none.
+func TestDesiredHearsNoValues(t *testing.T) {
+	key, err := delivery.NewKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	docker, desired := containertest.NewFake(), &peeking{}
+	out := &sent{results: map[uint64]*agentv1.CallResult{}}
+	c := newCalls(context.Background(), Config{
+		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&service.Driver{Containers: container.Driver{Runtime: docker}}),
+		Desired: desired,
+	}, out.send, key)
+	web := resource.Ref{Kind: service.Kind, Scope: "env_A", Name: "web"}
+	svc := &resourcev1.Service{
+		Runs:      &resourcev1.Service_App{App: &resourcev1.Container{Image: "acme/web:1"}},
+		Secrets:   map[string]string{"TOKEN": "API_TOKEN"},
+		Revisions: map[string]int64{"TOKEN": 3},
+	}
+	if err := (&service.Driver{}).Validate(svc); err != nil {
+		t.Fatal(err)
+	}
+	spec, err := resource.Encode(svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sealed, err := secrets.SealValues(key.Public(), "", web, map[string]string{"TOKEN": "s3cret-not-for-desired"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	step := resource.Step{Ref: web, Decision: resource.Decision{Action: resource.ActionCreate}}
+	c.start(&agentv1.Call{Id: 1, Timeout: durationpb.New(time.Minute), Call: &agentv1.Call_Apply{Apply: &agentv1.ApplyCall{
+		Step: resourcepb.Step(step, ""), Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(web), Spec: spec}, Values: sealed,
+	}}})
+	c.stop()
+	if r := out.result(1); r.GetApply() == nil {
+		t.Fatalf("the step ended with %v, want it applied", r)
+	}
+	if got, _ := docker.Inspect(t.Context(), service.Target(web)); got.GetEnv()["TOKEN"] != "s3cret-not-for-desired" {
+		t.Fatalf("the driver ran the container with %v; the test didn't send what it meant to", got.GetEnv())
+	}
+	desired.mu.Lock()
+	defer desired.mu.Unlock()
+	if desired.calls != 1 || desired.values != nil {
+		t.Errorf("Desired heard of %d steps, with values %v; want one, and no values", desired.calls, desired.values)
 	}
 }

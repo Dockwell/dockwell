@@ -70,7 +70,15 @@ paths:
                 ProposeChange plans a set of edits and records them as a planned
                  change, ready to apply or discard. Planning asks each server's agent
                  what the edits would take there, and changes nothing on any server. The
-                 same edits against the same state give the same plan and fingerprint.
+                 same edits against the same state give the same plan, and the same
+                 fingerprint unless they edit a kind that may hold secrets, which each
+                 change digests for itself.
+
+                 An edit that sets a secret's value is a rotation: it plans as a change,
+                 and restarts what uses the secret, whatever the value is. So a plan
+                 never says whether it is the value already there. Any other sensitive
+                 field, such as a container's environment, compares as usual: an equal
+                 value is no change, and a plan masks one that differs.
             operationId: ChangeService_ProposeChange
             requestBody:
                 content:
@@ -576,13 +584,14 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/passkeys/{id}:
-        delete:
+    /v1/passkeys/{id}:remove:
+        post:
             tags:
                 - AuthService
             description: |-
-                RemovePasskey removes one of your passkeys. It refuses to remove your last
-                 way to sign in.
+                RemovePasskey removes one of your passkeys. It needs a proof from
+                 FinishStepUp for removing it. It refuses to remove your last way to sign
+                 in.
             operationId: AuthService_RemovePasskey
             parameters:
                 - name: id
@@ -591,6 +600,12 @@ paths:
                   required: true
                   schema:
                     type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RemovePasskeyRequest'
+                required: true
             responses:
                 "200":
                     description: OK
@@ -608,7 +623,14 @@ paths:
         post:
             tags:
                 - AuthService
-            description: BeginAddPasskey starts adding a passkey for the address of this request.
+            description: |-
+                BeginAddPasskey starts adding a passkey for the address of this request.
+                 It needs a proof from FinishStepUp for adding a passkey, made with a
+                 passkey you have for this address. A sign-in in the last 10 minutes
+                 that needed no passkey here confirms one passkey instead, so you can
+                 add one when you have none here: a link from dockwell recover, a
+                 recovery code, or a code from an authenticator app when no passkey is
+                 registered for this address.
             operationId: AuthService_BeginAddPasskey
             requestBody:
                 content:
@@ -633,7 +655,9 @@ paths:
         post:
             tags:
                 - AuthService
-            description: FinishAddPasskey saves the new passkey.
+            description: |-
+                FinishAddPasskey saves the new passkey. One a sign-in confirmed is
+                 checked again: still within its 10 minutes, and the first since.
             operationId: AuthService_FinishAddPasskey
             requestBody:
                 content:
@@ -698,6 +722,42 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListResourcesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/secrets/{id}:reveal:
+        post:
+            tags:
+                - VariableService
+            description: |-
+                RevealSecret returns a secret's latest value. It needs a signed-in
+                 session and a proof from FinishStepUp for this secret, made with a
+                 passkey moments before, which works once. No API token can call it.
+                 Every reveal is in the audit log.
+            operationId: VariableService_RevealSecret
+            parameters:
+                - name: id
+                  in: path
+                  description: The secret's ID, such as "sec_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RevealSecretRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevealSecretResponse'
                 default:
                     description: Default error response
                     content:
@@ -825,6 +885,40 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/sessions:beginStepUp:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                BeginStepUp starts confirming, with a passkey you have for the address
+                 of this request, an action that needs a person right now: revealing a
+                 secret, or changing how you sign in or your API tokens. Pass the
+                 passkey's answer to FinishStepUp.
+
+                 Call the action without a proof first. It checks everything else, such
+                 as the last way in or a token's name, and only then refuses with the
+                 reason needs_step_up. Step up, and call it again with the proof, which
+                 the action spends only once nothing else refuses it.
+            operationId: AuthService_BeginStepUp
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginStepUpRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginStepUpResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/sessions:finishPasskeySignIn:
         post:
             tags:
@@ -844,6 +938,34 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/FinishPasskeySignInResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/sessions:finishStepUp:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                FinishStepUp checks the passkey's answer and returns a proof for the
+                 action it began with. The proof works once, within a minute, in this
+                 session alone, for that action on that target.
+            operationId: AuthService_FinishStepUp
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FinishStepUpRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FinishStepUpResponse'
                 default:
                     description: Default error response
                     content:
@@ -976,8 +1098,9 @@ paths:
             tags:
                 - TokenService
             description: |-
-                CreateToken makes a new token for you. The secret is in the response,
-                 and only there: Dockwell keeps only its hash.
+                CreateToken makes a new token for you. It needs a proof from
+                 AuthService.FinishStepUp for creating a token. The secret is in the
+                 response, and only there: Dockwell keeps only its hash.
             operationId: TokenService_CreateToken
             requestBody:
                 content:
@@ -1058,8 +1181,10 @@ paths:
             tags:
                 - AuthService
             description: |-
-                BeginTotpSetup makes a new authenticator secret. It takes effect only
-                 once ConfirmTotpSetup checks a code from it.
+                BeginTotpSetup makes a new authenticator secret. It needs a proof from
+                 FinishStepUp for setting up code sign-in. The secret takes effect only
+                 once ConfirmTotpSetup checks a code from it, in this session, within
+                 10 minutes.
             operationId: AuthService_BeginTotpSetup
             requestBody:
                 content:
@@ -1080,13 +1205,42 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/totp:cancelSetup:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                CancelTotpSetup forgets the setup this session began, so its secret
+                 works nowhere. It does nothing when none is waiting.
+            operationId: AuthService_CancelTotpSetup
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CancelTotpSetupRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CancelTotpSetupResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/totp:confirmSetup:
         post:
             tags:
                 - AuthService
             description: |-
                 ConfirmTotpSetup checks a code from the new secret, turns code sign-in
-                 on, and returns new recovery codes. They are shown once.
+                 on, and returns new recovery codes. They are shown once. Only the
+                 session that began the setup can, and 5 wrong codes end it, so it needs
+                 a new step-up.
             operationId: AuthService_ConfirmTotpSetup
             requestBody:
                 content:
@@ -1113,7 +1267,8 @@ paths:
                 - AuthService
             description: |-
                 DisableTotp turns code sign-in off and deletes the secret and recovery
-                 codes. It refuses when that would leave no way to sign in.
+                 codes. It needs a proof from FinishStepUp for turning code sign-in off.
+                 It refuses when that would leave no way to sign in.
             operationId: AuthService_DisableTotp
             requestBody:
                 content:
@@ -1140,7 +1295,7 @@ paths:
                 - AuthService
             description: |-
                 RegenerateRecoveryCodes replaces your recovery codes. The old ones stop
-                 working.
+                 working. It needs a proof from FinishStepUp for making recovery codes.
             operationId: AuthService_RegenerateRecoveryCodes
             requestBody:
                 content:
@@ -1182,6 +1337,59 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/UnlockCodeSignInResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/variables:
+        get:
+            tags:
+                - VariableService
+            description: |-
+                ListVariables returns an environment's variables and secrets, by name,
+                 a page at a time: each variable with its value, each secret without it,
+                 and the services that use each.
+            operationId: VariableService_ListVariables
+            parameters:
+                - name: environment
+                  in: query
+                  description: |-
+                    The environment, by name or ID. Leave it out while its project has only
+                     one; once there are several, leaving it out is an error that names
+                     them.
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: |-
+                    The environment's project, by name or ID. Leave it out while there is
+                     only one project, or when environment is an ID.
+                  schema:
+                    type: string
+                - name: pageSize
+                  in: query
+                  description: |-
+                    How many variables and secrets to return: 500 when unset, and at most
+                     1000.
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: |-
+                    Where to start: the next_page_token of the page before. Pass the same
+                     environment with it.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListVariablesResponse'
                 default:
                     description: Default error response
                     content:
@@ -1277,8 +1485,14 @@ components:
             description: ApplyChangeResponse carries the change as it starts applying.
         BeginAddPasskeyRequest:
             type: object
-            properties: {}
-            description: BeginAddPasskeyRequest takes no parameters.
+            properties:
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for adding a passkey. Leave it out within
+                         10 minutes of signing in with a code, a recovery code or a link from
+                         dockwell recover.
+            description: BeginAddPasskeyRequest confirms adding a passkey.
         BeginAddPasskeyResponse:
             type: object
             properties:
@@ -1328,10 +1542,48 @@ components:
                     type: string
                     description: PublicKeyCredentialRequestOptionsJSON.
             description: BeginPasskeySignInResponse carries the options for the passkey assertion.
+        BeginStepUpRequest:
+            type: object
+            properties:
+                action:
+                    enum:
+                        - STEP_UP_ACTION_UNSPECIFIED
+                        - STEP_UP_ACTION_REVEAL_SECRET
+                        - STEP_UP_ACTION_ADD_PASSKEY
+                        - STEP_UP_ACTION_REMOVE_PASSKEY
+                        - STEP_UP_ACTION_SET_UP_CODES
+                        - STEP_UP_ACTION_DISABLE_CODES
+                        - STEP_UP_ACTION_REGENERATE_RECOVERY_CODES
+                        - STEP_UP_ACTION_CREATE_TOKEN
+                    type: string
+                    description: The action.
+                    format: enum
+                target:
+                    type: string
+                    description: |-
+                        What it acts on: a secret's ID to reveal it, a passkey's to remove it.
+                         Leave it out for an action on your own account, such as adding a
+                         passkey.
+            description: BeginStepUpRequest says what the passkey confirms.
+        BeginStepUpResponse:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                    description: Pass back to FinishStepUp.
+                optionsJson:
+                    type: string
+                    description: |-
+                        PublicKeyCredentialRequestOptionsJSON, which allows only your passkeys
+                         for this address.
+            description: BeginStepUpResponse carries the options for the passkey's assertion.
         BeginTotpSetupRequest:
             type: object
-            properties: {}
-            description: BeginTotpSetupRequest takes no parameters.
+            properties:
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp, for setting up code sign-in.
+            description: BeginTotpSetupRequest confirms setting up code sign-in.
         BeginTotpSetupResponse:
             type: object
             properties:
@@ -1379,6 +1631,14 @@ components:
                          there were two, which are all the full build.
                     format: enum
             description: BuildInfo identifies one build of the dockwell binary.
+        CancelTotpSetupRequest:
+            type: object
+            properties: {}
+            description: CancelTotpSetupRequest takes nothing.
+        CancelTotpSetupResponse:
+            type: object
+            properties: {}
+            description: CancelTotpSetupResponse is empty.
         Change:
             type: object
             properties:
@@ -1620,6 +1880,9 @@ components:
                         How long it works for, from when the control plane makes it, such as
                          "7776000s" for 90 days. The control plane's clock sets the expiry, so
                          a client whose clock is off doesn't move it.
+                proof:
+                    type: string
+                    description: The proof from AuthService.FinishStepUp, for creating a token.
             description: CreateTokenRequest describes the new token.
         CreateTokenResponse:
             type: object
@@ -1636,8 +1899,11 @@ components:
             description: CreateTokenResponse carries the new token and its secret.
         DisableTotpRequest:
             type: object
-            properties: {}
-            description: DisableTotpRequest takes no parameters.
+            properties:
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp, for turning code sign-in off.
+            description: DisableTotpRequest confirms turning code sign-in off.
         DisableTotpResponse:
             type: object
             properties: {}
@@ -1764,6 +2030,43 @@ components:
                 Environment is a stage of a project, such as production or staging, with
                  its own config. A project starts with one, named "production", which
                  stays out of sight until there is a second.
+        EnvironmentVariable:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: 'Its ID: "var_…" for a variable, "sec_…" for a secret.'
+                name:
+                    type: string
+                    description: Its name, such as "DATABASE_URL".
+                secret:
+                    type: boolean
+                    description: True for a secret, whose value only RevealSecret returns.
+                value:
+                    type: string
+                    description: A variable's value. Always empty for a secret.
+                revision:
+                    type: string
+                    description: Its latest revision.
+                updateTime:
+                    type: string
+                    description: When its latest revision was applied.
+                    format: date-time
+                updatedBy:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: Who made its latest revision.
+                changeId:
+                    type: string
+                    description: The change that made its latest revision.
+                usedBy:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/VariableUse'
+                    description: The services that use it, by name.
+            description: |-
+                EnvironmentVariable is one variable or secret of an environment, as its
+                 latest revision has it.
         Event:
             type: object
             properties:
@@ -1822,8 +2125,9 @@ components:
                         - $ref: '#/components/schemas/EventSubject'
                     description: |-
                         What the event is about, other than its actor: the server that joined
-                         or was removed, the API token or passkey made or removed, or the
-                         person a sign-in link is for. Unset when there is nothing more to name.
+                         or was removed, the API token or passkey made or removed, the person a
+                         sign-in link is for, or the secret revealed. Unset when there is
+                         nothing more to name.
             description: Event is one thing that happened.
         EventSubject:
             type: object
@@ -1837,6 +2141,12 @@ components:
                         Its name, such as "hz-2", "GitHub Actions deploy" or "Mira Chen".
                          Empty when it has none, or when it is gone and Dockwell no longer
                          keeps it.
+                scope:
+                    type: string
+                    description: |-
+                        What it lives in, by ID, for a resource that lives in another: a
+                         secret's environment, as "env_…", for a secret revealed. Empty
+                         otherwise.
             description: EventSubject names what an event is about.
         ExportComposeResponse:
             type: object
@@ -1952,6 +2262,27 @@ components:
             description: |-
                 FinishPasskeySignInResponse carries who signed in. The response sets the
                  session cookie.
+        FinishStepUpRequest:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                    description: From BeginStepUp.
+                credentialJson:
+                    type: string
+                    description: AuthenticationResponseJSON from navigator.credentials.get.
+            description: FinishStepUpRequest carries the passkey's answer.
+        FinishStepUpResponse:
+            type: object
+            properties:
+                proof:
+                    type: string
+                    description: Pass it to the action's method, such as RevealSecret's proof.
+                expireTime:
+                    type: string
+                    description: When it stops working, a minute from now.
+                    format: date-time
+            description: FinishStepUpResponse carries the proof.
         FirewallRule:
             type: object
             properties:
@@ -2287,6 +2618,21 @@ components:
                         $ref: '#/components/schemas/Token'
                     description: Tokens that still work, newest first.
             description: ListTokensResponse lists tokens.
+        ListVariablesResponse:
+            type: object
+            properties:
+                environmentId:
+                    type: string
+                    description: The environment's ID, such as "env_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                variables:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/EnvironmentVariable'
+                    description: Its variables and secrets, by name.
+                nextPageToken:
+                    type: string
+                    description: Pass it as page_token for the next page. Empty on the last page.
+            description: ListVariablesResponse is an environment's variables and secrets.
         Mount:
             type: object
             properties:
@@ -2379,9 +2725,11 @@ components:
                 fingerprint:
                     type: string
                     description: |-
-                        A hash of what the plan does. The same edits against the same state
-                         have the same fingerprint, and applying checks that a fresh plan still
-                         has it.
+                        A hash of what the plan does, for this change. Applying checks that a
+                         fresh plan still has it. The same edits against the same state have
+                         the same fingerprint, unless they edit a kind that may hold secrets:
+                         that is digested for each change alone, so no two changes'
+                         fingerprints say they set the same value.
                 summary:
                     allOf:
                         - $ref: '#/components/schemas/PlanSummary'
@@ -2643,8 +2991,11 @@ components:
             description: ProposeChangeResponse carries the planned change.
         RegenerateRecoveryCodesRequest:
             type: object
-            properties: {}
-            description: RegenerateRecoveryCodesRequest takes no parameters.
+            properties:
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp, for making recovery codes.
+            description: RegenerateRecoveryCodesRequest confirms making new recovery codes.
         RegenerateRecoveryCodesResponse:
             type: object
             properties:
@@ -2654,6 +3005,16 @@ components:
                         type: string
                     description: Ten one-time recovery codes. They are shown only now.
             description: RegenerateRecoveryCodesResponse carries the new codes.
+        RemovePasskeyRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The passkey's ID.
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp, for removing this passkey.
+            description: RemovePasskeyRequest names a passkey.
         RemovePasskeyResponse:
             type: object
             properties: {}
@@ -2700,6 +3061,28 @@ components:
                     type: string
                     description: Its name, unique among its kind in its scope, such as "web".
             description: ResourceRef names a resource.
+        RevealSecretRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The secret's ID, such as "sec_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for revealing this secret. It works once,
+                         within a minute, in the session that made it.
+            description: RevealSecretRequest names a secret to reveal.
+        RevealSecretResponse:
+            type: object
+            properties:
+                value:
+                    type: string
+                    description: The value.
+                revision:
+                    type: string
+                    description: The revision it is from.
+            description: RevealSecretResponse carries a secret's value.
         RevertDriftRequest:
             type: object
             properties:
@@ -2752,6 +3135,18 @@ components:
             type: object
             properties: {}
             description: RevokeTokenResponse is empty.
+        Secret:
+            type: object
+            properties:
+                value:
+                    type: string
+                    description: The value. Every edit sets it whole.
+            description: |-
+                Secret is a value of an environment that its services use without anyone
+                 reading it back, such as a database password. Dockwell keeps it
+                 encrypted, sends it only to the servers that run a service that uses it,
+                 and never shows it in plans, history or logs. Revealing it takes a
+                 passkey, and is audited.
         Server:
             type: object
             properties:
@@ -2944,6 +3339,33 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/Container'
                     description: An app from an image.
+                variables:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The environment's variables the service uses, each under the name the
+                         service sees it as: DATABASE_HOST=DB_HOST gives the service the
+                         variable DB_HOST as DATABASE_HOST. An empty value means the variable of
+                         the same name.
+                secrets:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The environment's secrets the service uses, named as for variables.
+                         Using a secret doesn't let anyone read it: its value goes only to the
+                         servers the service runs on, and only their agents decrypt it.
+                revisions:
+                    readOnly: true
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The revision of each variable and secret the service uses, by the name
+                         the service sees it as. Dockwell sets it when a change is planned, so a
+                         service whose variable or secret changes gets a revision of its own,
+                         and restarts with the new value. An edit's is ignored.
             description: |-
                 Service is anything that runs in an environment, placed on servers: for
                  now an app from an image, run as one container on each server it is
@@ -2951,6 +3373,11 @@ components:
                  so docker compose sees it. A Compose file becomes services, volumes and
                  networks. Websites, databases, catalog apps and jobs come later. Where it
                  runs isn't part of the spec: each revision is deployed on its servers.
+
+                 A service uses its environment's variables and secrets by reference:
+                 the environment holds each value once, and a service names the ones it
+                 uses, under the names it expects. So changing a value changes every
+                 service that uses it, in one plan.
         Session:
             type: object
             properties:
@@ -3080,6 +3507,14 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/Network'
                     description: A network in an environment, kind "network".
+                variable:
+                    allOf:
+                        - $ref: '#/components/schemas/Variable'
+                    description: A variable of an environment, kind "variable".
+                secret:
+                    allOf:
+                        - $ref: '#/components/schemas/Secret'
+                    description: A secret of an environment, kind "secret".
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
@@ -3281,6 +3716,29 @@ components:
                     description: When the account was made.
                     format: date-time
             description: User is a person who signs in to the panel.
+        Variable:
+            type: object
+            properties:
+                value:
+                    type: string
+                    description: The value.
+            description: |-
+                Variable is a value of an environment that its services use, such as
+                 LOG_LEVEL=info. It isn't secret: plans, history and the panel show it.
+                 Keep anything that is in a Secret.
+        VariableUse:
+            type: object
+            properties:
+                serviceId:
+                    type: string
+                    description: The service's ID.
+                service:
+                    type: string
+                    description: The service's name, such as "api".
+                name:
+                    type: string
+                    description: The name the service sees it as, such as "DATABASE_URL".
+            description: VariableUse is a service that uses a variable or secret.
         Volume:
             type: object
             properties:
@@ -3410,3 +3868,15 @@ tags:
          whose effect is EFFECT_READ; a read-write token may also call EFFECT_PLAN
          and EFFECT_APPLY methods. No token may call an EFFECT_DESTRUCTIVE method,
          AuthService, or this service: they need a signed-in session.
+    - name: VariableService
+      description: |-
+        VariableService reads an environment's variables and secrets, and reveals
+         a secret's value to the person who asks, once they confirm it with a
+         passkey. Change them with ChangeService, as edits of kind "variable" or
+         "secret": each change is a plan, which lists every service that restarts
+         with the new value. See docs/adr/0022-secrets-encrypted-at-rest.md.
+
+         Services use variables and secrets by reference. Using one, which is an
+         edit of the service, doesn't let anyone read it: no response carries a
+         secret's value but RevealSecret's, which needs a signed-in session, and
+         no API token can call it.

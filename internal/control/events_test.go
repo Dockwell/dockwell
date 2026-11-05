@@ -24,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -616,7 +617,8 @@ func testAWatchSaysWhatWasDiscarded(t *testing.T, backend store.Backend) {
 	}
 	defer other.Close()
 	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{})
-	elsewhere := revision.New(other, kinds, agentapi.NewAgents(kinds, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler))
+	elsewhere := revision.New(other, kinds, agentapi.NewAgents(kinds, slog.New(slog.DiscardHandler)), secretstest.Keeper(other, kinds),
+		slog.New(slog.DiscardHandler))
 	if err := elsewhere.Discard(t.Context(), sent.GetId(), revision.By{Actor: "cli:mira@hz-1", Via: store.SurfaceCLI}); err != nil {
 		t.Fatal(err)
 	}

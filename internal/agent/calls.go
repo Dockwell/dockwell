@@ -4,6 +4,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -12,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
@@ -30,12 +32,16 @@ const drainLimit = 15 * time.Minute
 // waits for it. So no call starts while stop waits, and moving to a renewed
 // certificate never cuts a step off that it took on.
 type calls struct {
-	ctx    context.Context // the calls', apart from the stream's
-	end    context.CancelFunc
-	cfg    Config
-	local  resource.Local
-	send   func(*agentv1.ConnectRequest) error
-	logger *slog.Logger
+	ctx   context.Context // the calls', apart from the stream's
+	end   context.CancelFunc
+	cfg   Config
+	local resource.Local
+	// delivery opens the values of variables and secrets sent for a step,
+	// sealed for server.
+	delivery *delivery.Key
+	server   string
+	send     func(*agentv1.ConnectRequest) error
+	logger   *slog.Logger
 
 	mu      sync.Mutex
 	running map[uint64]context.CancelFunc
@@ -48,10 +54,14 @@ type calls struct {
 	drainedOnce sync.Once
 }
 
-func newCalls(ctx context.Context, cfg Config, send func(*agentv1.ConnectRequest) error) *calls {
+func newCalls(ctx context.Context, cfg Config, send func(*agentv1.ConnectRequest) error, key *delivery.Key) *calls {
 	ctx, end := context.WithCancel(ctx)
+	var server string
+	if cfg.Identity != nil {
+		server = cfg.Identity.ServerID
+	}
 	return &calls{
-		ctx: ctx, end: end, cfg: cfg, local: resource.Local{Drivers: cfg.Drivers}, send: send, logger: cfg.Logger,
+		ctx: ctx, end: end, cfg: cfg, local: resource.Local{Drivers: cfg.Drivers}, delivery: key, server: server, send: send, logger: cfg.Logger,
 		running: map[uint64]context.CancelFunc{}, idle: make(chan struct{}, 1), drained: make(chan struct{}),
 	}
 }
@@ -226,7 +236,22 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		progress := c.progress(call.GetId())
 		defer progress.stop()
 		ctx = resource.WithProgress(ctx, progress.say)
-		if err := c.local.Apply(ctx, step, spec); err != nil {
+		// The values of what the spec uses, opened in memory for this
+		// step alone; they never reach a log, the disk or Desired, which
+		// hears of the step with the call's own context.
+		applyCtx := ctx
+		if sealed := call.GetApply().GetValues(); len(sealed) > 0 {
+			if c.delivery == nil {
+				return fail(errors.New("this agent has no delivery key to open the values sent for this step"))
+			}
+			values, err := c.delivery.Open(c.server, ref, sealed)
+			if err != nil {
+				return fail(err)
+			}
+			defer clear(values)
+			applyCtx = resource.WithValues(ctx, values)
+		}
+		if err := c.local.Apply(applyCtx, step, spec); err != nil {
 			return fail(err)
 		}
 		if c.cfg.Desired != nil {

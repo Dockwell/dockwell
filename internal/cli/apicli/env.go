@@ -23,6 +23,9 @@ type Env struct {
 	// Interactive reports whether a person is at a terminal to answer
 	// questions: standard input and standard error are both terminals.
 	Interactive func() bool
+	// ReadSecret asks for a value on the terminal without showing it as it
+	// is typed. Nil reads standard input as it is.
+	ReadSecret func(prompt string) (string, error)
 	// Connect finds the control plane and the API token to call it with,
 	// from what the flags say. For local access, Renew asks for a new token,
 	// after the control plane rejected the one it had, and Moved asks where

@@ -3,6 +3,7 @@
 package store_test
 
 import (
+	"cmp"
 	"errors"
 	"slices"
 	"strings"
@@ -127,7 +128,11 @@ func TestTheObjectModel(t *testing.T) {
 			}); err != nil {
 				return err
 			}
-			rev, err := tx.AddRevision(ctx, store.NewRevision{Kind: "service", Scope: "env_1", Name: "web", Spec: []byte{4}, Change: "chg_2", At: later})
+			// A revision sealed for a number other than its own isn't written.
+			if _, err := tx.AddRevision(ctx, store.NewRevision{Kind: "service", Scope: "env_1", Name: "web", Number: 3, Spec: []byte{4}, Change: "chg_2", At: later}); !errors.Is(err, store.ErrConflict) {
+				t.Errorf("AddRevision as number 3 of a resource at 1 = %v, want ErrConflict", err)
+			}
+			rev, err := tx.AddRevision(ctx, store.NewRevision{Kind: "service", Scope: "env_1", Name: "web", Number: 2, Spec: []byte{4}, Change: "chg_2", At: later})
 			if err != nil || rev.Revision != 2 || rev.ID != "svc_1" {
 				t.Errorf("AddRevision = %+v, %v", rev, err)
 			}
@@ -183,6 +188,12 @@ func TestHistoryIsAppendOnly(t *testing.T) {
 			if _, err := tx.AddRevision(ctx, store.NewRevision{Kind: "firewall.rule", Scope: "srv_A", Name: "ssh", ID: "res_1", Spec: []byte{1}, Change: "chg_1", At: now}); err != nil {
 				return err
 			}
+			if _, err := tx.AddRevision(ctx, store.NewRevision{
+				Kind: "service", Scope: "env_1", Name: "api", ID: "svc_1", Spec: []byte{1}, Change: "chg_1", At: now,
+				Uses: []store.Use{{As: "DB", Kind: "secret", Name: "DB", Revision: 3}},
+			}); err != nil {
+				return err
+			}
 			return tx.PlaceRevision(ctx, "res_1", 1, []string{"srv_A"}, now)
 		})
 		for _, q := range []string{
@@ -193,6 +204,11 @@ func TestHistoryIsAppendOnly(t *testing.T) {
 			`UPDATE changes SET plan = 'x'`,
 			`UPDATE changes SET fingerprint = 'x'`,
 			`UPDATE changes SET proposed_via = 'x'`,
+			`UPDATE changes SET fingerprint_scheme = 1`,
+			`UPDATE change_items SET rotates = 1`,
+			`UPDATE revision_uses SET used_revision = 1`,
+			`UPDATE revision_uses SET used_name = 'OTHER'`,
+			`DELETE FROM revision_uses`,
 			`UPDATE changes SET state = 'abandoned'`,
 			`DELETE FROM changes`,
 			`UPDATE resources SET revision = 5`,
@@ -323,5 +339,89 @@ func TestChangesInAStateComeFromAnIndex(t *testing.T) {
 		if !strings.Contains(plan, want) {
 			t.Errorf("listing the changes left applying runs as\n%s\nwant it to look the state up in an index (%q)", plan, want)
 		}
+	})
+}
+
+// What a revision uses is kept beside it, so the store finds what uses a
+// value without reading a spec: only each resource's latest revision
+// counts, and a deleted resource uses nothing. An environment's values
+// list by name, with who made each, a page at a time.
+func TestUsesAndValuesByName(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		ctx := t.Context()
+		now := time.Now().UTC().Truncate(time.Millisecond)
+		change := func(tx *store.RevisionTx, id, actor string) error {
+			return tx.CreateChange(ctx, store.Change{ID: id, Summary: id, Actor: actor, State: store.ChangeApplying, Fingerprint: "f", Plan: []byte("{}"), CreatedAt: now})
+		}
+		revise(t, db, func(tx *store.RevisionTx) error {
+			if err := change(tx, "chg_1", "user:usr_mira"); err != nil {
+				return err
+			}
+			for _, r := range []store.NewRevision{
+				{Kind: "secret", Name: "DB_PASSWORD", ID: "sec_1"},
+				{Kind: "variable", Name: "LOG_LEVEL", ID: "var_1"},
+				{Kind: "variable", Name: "API_URL", ID: "var_2"},
+				{Kind: "secret", Name: "OTHER", Scope: "env_2", ID: "sec_2"},
+				{Kind: "service", Name: "web", ID: "svc_1", Uses: []store.Use{
+					{As: "DATABASE_PASSWORD", Kind: "secret", Name: "DB_PASSWORD", Revision: 1},
+					{As: "LOG_LEVEL", Kind: "variable", Name: "LOG_LEVEL", Revision: 1},
+				}},
+				{Kind: "service", Name: "worker", ID: "svc_2", Uses: []store.Use{{As: "DB_PASSWORD", Kind: "secret", Name: "DB_PASSWORD", Revision: 1}}},
+				{Kind: "service", Name: "gone", ID: "svc_3", Uses: []store.Use{{As: "DB_PASSWORD", Kind: "secret", Name: "DB_PASSWORD", Revision: 1}}},
+			} {
+				r.Scope = cmp.Or(r.Scope, "env_1")
+				r.Spec, r.Change, r.At = []byte{1}, "chg_1", now
+				if _, err := tx.AddRevision(ctx, r); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		// worker stops using the password; gone is deleted.
+		revise(t, db, func(tx *store.RevisionTx) error {
+			if err := change(tx, "chg_2", "token:tok_ci"); err != nil {
+				return err
+			}
+			if _, err := tx.AddRevision(ctx, store.NewRevision{Kind: "service", Scope: "env_1", Name: "worker", Spec: []byte{2}, Change: "chg_2", At: now}); err != nil {
+				return err
+			}
+			_, err := tx.AddRevision(ctx, store.NewRevision{Kind: "service", Scope: "env_1", Name: "gone", Change: "chg_2", At: now})
+			return err
+		})
+		_ = db.View(ctx, func(tx *store.Tx) error {
+			users, err := tx.UsersOf(ctx, "env_1", "secret", "DB_PASSWORD")
+			if err != nil || len(users) != 1 || users[0].ID != "svc_1" || users[0].Uses.As != "DATABASE_PASSWORD" || users[0].Uses.Revision != 1 {
+				t.Errorf("UsersOf(DB_PASSWORD) = %+v, %v; want web alone, as DATABASE_PASSWORD", users, err)
+			}
+			all, err := tx.UsersOf(ctx, "env_1", "")
+			if err != nil || len(all) != 2 || all[0].Uses.As != "DATABASE_PASSWORD" || all[1].Uses.As != "LOG_LEVEL" {
+				t.Errorf("UsersOf(env_1) = %+v, %v; want web's two uses", all, err)
+			}
+			if none, err := tx.UsersOf(ctx, "env_2", ""); err != nil || len(none) != 0 {
+				t.Errorf("UsersOf(env_2) = %+v, %v; want nothing", none, err)
+			}
+
+			kinds := []string{"variable", "secret"}
+			var names []string
+			var after store.NamedResource
+			for {
+				page, err := tx.PageByName(ctx, "env_1", kinds, after, 2)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, r := range page {
+					names = append(names, r.Name+" by "+r.Actor)
+				}
+				if len(page) < 2 {
+					break
+				}
+				after = page[len(page)-1]
+			}
+			if want := []string{"API_URL by user:usr_mira", "DB_PASSWORD by user:usr_mira", "LOG_LEVEL by user:usr_mira"}; !slices.Equal(names, want) {
+				t.Errorf("PageByName, two at a time = %q, want %q", names, want)
+			}
+			return nil
+		})
 	})
 }

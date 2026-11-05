@@ -52,9 +52,46 @@ func (e *ServerError) Error() string { return e.Server + ": " + e.Err.Error() }
 
 func (e *ServerError) Unwrap() error { return e.Err }
 
+// Values finds what a desired spec's uses resolve to on one server: each
+// value by the name it is seen as. The control plane's keeper implements
+// it, and gives values only for a resource placed on that server. See
+// docs/adr/0022-secrets-encrypted-at-rest.md.
+type Values interface {
+	Values(ctx context.Context, server string, ref Ref, desired proto.Message) (map[string]string, error)
+}
+
+type valuesKey struct{}
+
+// WithValues gives a driver's Apply the values of what its desired spec
+// uses, for that one call. They live in memory only.
+func WithValues(ctx context.Context, values map[string]string) context.Context {
+	return context.WithValue(ctx, valuesKey{}, values)
+}
+
+// ValuesFrom returns the values WithValues gave, or nil.
+func ValuesFrom(ctx context.Context) map[string]string {
+	v, _ := ctx.Value(valuesKey{}).(map[string]string)
+	return v
+}
+
+// Uses reports what a desired spec of d's kind uses, if anything.
+func Uses(t Type, spec proto.Message) []Use {
+	b, ok := t.(Binder)
+	if !ok || spec == nil {
+		return nil
+	}
+	return b.Uses(spec)
+}
+
 // Local is an Agent backed by drivers in this process.
 type Local struct {
 	Drivers *Registry
+	// Server and Values give an agent in this process the values of what a
+	// desired spec uses, as the agent stream gives a remote agent. Without
+	// them, the values come with the context, as the agent's stream puts
+	// them there.
+	Server string
+	Values Values
 }
 
 var _ Agent = Local{}
@@ -151,6 +188,13 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 	}
 	if desired, err = normalize(d, desired); err != nil {
 		return fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err)
+	}
+	if l.Values != nil && len(Uses(d, desired)) > 0 {
+		values, err := l.Values.Values(ctx, l.Server, step.Ref, desired)
+		if err != nil {
+			return fmt.Errorf("can't get the values %s uses: %w", step.Ref, err)
+		}
+		ctx = WithValues(ctx, values)
 	}
 	if err := d.Apply(ctx, step, desired); err != nil {
 		return fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err)

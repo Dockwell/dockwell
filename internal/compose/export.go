@@ -15,8 +15,10 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/network"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 )
 
 // The file's shape, in the order docker compose config writes it.
@@ -80,9 +82,12 @@ type Exported struct {
 //
 // It never writes a secret. An environment variable whose value may hold
 // one, as its field's sensitive option says, is listed by name alone, for
-// docker compose to take from its shell. That is every variable until
-// environments separate plain values from secrets (#29); plain ones are
-// written whole from then on.
+// docker compose to take from its shell: a container's own environment,
+// and the secrets a service uses. The variables a service uses aren't
+// secret, so their values are written whole. The label that says what a
+// service uses goes in too, names and revisions alone, so a container
+// docker compose makes reads back as the service, and importing the file
+// keeps its references (usesOf).
 func Export(project string, stack *Stack) (*Exported, error) {
 	f := file{Name: project, Services: map[string]serviceEntry{}}
 	var omitted []string
@@ -104,6 +109,18 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		}
 		var left []string
 		entry.Environment, left = environment(c)
+		for _, u := range binding.Uses(s.Spec) {
+			if entry.Environment == nil {
+				entry.Environment = map[string]*string{}
+			}
+			if v, ok := stack.Variables[u.Name]; ok && u.Kind == variable.VariableKind {
+				v = escape(v)
+				entry.Environment[u.As] = &v
+				continue
+			}
+			entry.Environment[u.As] = nil
+			left = append(left, u.As)
+		}
 		for _, k := range left {
 			omitted = append(omitted, s.Name+"."+k)
 		}
@@ -152,8 +169,18 @@ func Export(project string, stack *Stack) (*Exported, error) {
 				}
 			}
 		}
-		entry.Labels = maps.Clone(c.GetLabels())
-		if own := container.OwnLabels(c); len(own) > 0 {
+		// The labels of the container the service runs as, what it uses
+		// included, with its environment's names alone.
+		names := maps.Clone(c.GetEnv())
+		if names == nil && len(binding.Uses(s.Spec)) > 0 {
+			names = map[string]string{}
+		}
+		for _, u := range binding.Uses(s.Spec) {
+			names[u.As] = ""
+		}
+		run := binding.App(s.Spec, names)
+		entry.Labels = maps.Clone(run.GetLabels())
+		if own := container.OwnLabels(run); len(own) > 0 {
 			if entry.Labels == nil {
 				entry.Labels = map[string]string{}
 			}
@@ -217,9 +244,10 @@ func Export(project string, stack *Stack) (*Exported, error) {
 	return &Exported{File: buf.Bytes(), Omitted: omitted}, nil
 }
 
-// environment is a container's environment for a Compose file, and the
-// variables left out as they may hold secrets. It reads the env field's
-// sensitive option, so plain values are written once #29 makes them so.
+// environment is a container's own environment for a Compose file, and
+// the variables left out as they may hold secrets. It reads the env field's
+// sensitive option: a workload's environment stays configuration that may
+// hold one, and what is plain lives in the environment's variables.
 func environment(c *resourcev1.Container) (map[string]*string, []string) {
 	env := c.GetEnv()
 	if len(env) == 0 {

@@ -46,7 +46,7 @@ service AuthService {
   };
   option (dockwell.v1.nouns) = {
     name: "passkeys"
-    help: "Passkeys are how you sign in to the panel. A browser, a phone or a security key makes each one, for one address, and only it can use it. Adding and removing them needs a signed-in session, which no API token gives, so you do it in the panel, under Profile and security."
+    help: "Passkeys are how you sign in to the panel. A browser, a phone or a security key makes each one, for one address, and only it can use it. Adding and removing them needs a signed-in session, which no API token gives, and a passkey you already have to confirm it, so you do it in the panel, under Profile and security."
   };
   option (dockwell.v1.nouns) = {
     name: "sessions"
@@ -54,7 +54,7 @@ service AuthService {
   };
   option (dockwell.v1.nouns) = {
     name: "totp"
-    help: "Code sign-in lets you sign in with a code from an authenticator app, or with a one-time recovery code, beside your passkeys. Wrong codes slow it down, and too many lock it until UnlockCodeSignIn turns it back on. Setting it up needs a signed-in session, which no API token gives, so you do it in the panel, under Profile and security."
+    help: "Code sign-in lets you sign in with a code from an authenticator app, or with a one-time recovery code, beside your passkeys. Wrong codes slow it down, and too many lock it until UnlockCodeSignIn turns it back on. Setting it up needs a signed-in session, which no API token gives, and your passkey to confirm it, so you do it in the panel, under Profile and security."
   };
 
   // GetAuthState says whether the install has an owner, who is signed in on
@@ -170,6 +170,34 @@ service AuthService {
     };
   }
 
+  // BeginStepUp starts confirming, with a passkey you have for the address
+  // of this request, an action that needs a person right now: revealing a
+  // secret, or changing how you sign in or your API tokens. Pass the
+  // passkey's answer to FinishStepUp.
+  //
+  // Call the action without a proof first. It checks everything else, such
+  // as the last way in or a token's name, and only then refuses with the
+  // reason needs_step_up. Step up, and call it again with the proof, which
+  // the action spends only once nothing else refuses it.
+  rpc BeginStepUp(BeginStepUpRequest) returns (BeginStepUpResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {
+      post: "/v1/sessions:beginStepUp"
+      body: "*"
+    };
+  }
+
+  // FinishStepUp checks the passkey's answer and returns a proof for the
+  // action it began with. The proof works once, within a minute, in this
+  // session alone, for that action on that target.
+  rpc FinishStepUp(FinishStepUpRequest) returns (FinishStepUpResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/sessions:finishStepUp"
+      body: "*"
+    };
+  }
+
   // ListPasskeys returns your passkeys, oldest first.
   rpc ListPasskeys(ListPasskeysRequest) returns (ListPasskeysResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -178,6 +206,12 @@ service AuthService {
   }
 
   // BeginAddPasskey starts adding a passkey for the address of this request.
+  // It needs a proof from FinishStepUp for adding a passkey, made with a
+  // passkey you have for this address. A sign-in in the last 10 minutes
+  // that needed no passkey here confirms one passkey instead, so you can
+  // add one when you have none here: a link from dockwell recover, a
+  // recovery code, or a code from an authenticator app when no passkey is
+  // registered for this address.
   rpc BeginAddPasskey(BeginAddPasskeyRequest) returns (BeginAddPasskeyResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
     option (google.api.http) = {
@@ -186,7 +220,8 @@ service AuthService {
     };
   }
 
-  // FinishAddPasskey saves the new passkey.
+  // FinishAddPasskey saves the new passkey. One a sign-in confirmed is
+  // checked again: still within its 10 minutes, and the first since.
   rpc FinishAddPasskey(FinishAddPasskeyRequest) returns (FinishAddPasskeyResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (google.api.http) = {
@@ -195,11 +230,15 @@ service AuthService {
     };
   }
 
-  // RemovePasskey removes one of your passkeys. It refuses to remove your last
-  // way to sign in.
+  // RemovePasskey removes one of your passkeys. It needs a proof from
+  // FinishStepUp for removing it. It refuses to remove your last way to sign
+  // in.
   rpc RemovePasskey(RemovePasskeyRequest) returns (RemovePasskeyResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
-    option (google.api.http) = {delete: "/v1/passkeys/{id}"};
+    option (google.api.http) = {
+      post: "/v1/passkeys/{id}:remove"
+      body: "*"
+    };
   }
 
   // GetTotp says whether you sign in with an authenticator app, and how many
@@ -210,8 +249,10 @@ service AuthService {
     option (google.api.http) = {get: "/v1/totp"};
   }
 
-  // BeginTotpSetup makes a new authenticator secret. It takes effect only
-  // once ConfirmTotpSetup checks a code from it.
+  // BeginTotpSetup makes a new authenticator secret. It needs a proof from
+  // FinishStepUp for setting up code sign-in. The secret takes effect only
+  // once ConfirmTotpSetup checks a code from it, in this session, within
+  // 10 minutes.
   rpc BeginTotpSetup(BeginTotpSetupRequest) returns (BeginTotpSetupResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (google.api.http) = {
@@ -221,7 +262,9 @@ service AuthService {
   }
 
   // ConfirmTotpSetup checks a code from the new secret, turns code sign-in
-  // on, and returns new recovery codes. They are shown once.
+  // on, and returns new recovery codes. They are shown once. Only the
+  // session that began the setup can, and 5 wrong codes end it, so it needs
+  // a new step-up.
   rpc ConfirmTotpSetup(ConfirmTotpSetupRequest) returns (ConfirmTotpSetupResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (google.api.http) = {
@@ -230,8 +273,19 @@ service AuthService {
     };
   }
 
+  // CancelTotpSetup forgets the setup this session began, so its secret
+  // works nowhere. It does nothing when none is waiting.
+  rpc CancelTotpSetup(CancelTotpSetupRequest) returns (CancelTotpSetupResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/totp:cancelSetup"
+      body: "*"
+    };
+  }
+
   // DisableTotp turns code sign-in off and deletes the secret and recovery
-  // codes. It refuses when that would leave no way to sign in.
+  // codes. It needs a proof from FinishStepUp for turning code sign-in off.
+  // It refuses when that would leave no way to sign in.
   rpc DisableTotp(DisableTotpRequest) returns (DisableTotpResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
     option (google.api.http) = {
@@ -241,7 +295,7 @@ service AuthService {
   }
 
   // RegenerateRecoveryCodes replaces your recovery codes. The old ones stop
-  // working.
+  // working. It needs a proof from FinishStepUp for making recovery codes.
   rpc RegenerateRecoveryCodes(RegenerateRecoveryCodesRequest) returns (RegenerateRecoveryCodesResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
     option (google.api.http) = {
@@ -521,8 +575,71 @@ message Passkey {
   bool suspected_copy = 7;
 }
 
-// BeginAddPasskeyRequest takes no parameters.
-message BeginAddPasskeyRequest {}
+// StepUpAction is an action that needs a fresh passkey assertion.
+enum StepUpAction {
+  STEP_UP_ACTION_UNSPECIFIED = 0;
+  // Revealing a secret's value, with RevealSecret. The target is the
+  // secret's ID.
+  STEP_UP_ACTION_REVEAL_SECRET = 1;
+  // Adding a passkey, with BeginAddPasskey. It has no target.
+  STEP_UP_ACTION_ADD_PASSKEY = 2;
+  // Removing a passkey, with RemovePasskey. The target is the passkey's ID.
+  STEP_UP_ACTION_REMOVE_PASSKEY = 3;
+  // Setting up code sign-in with a new authenticator secret, with
+  // BeginTotpSetup, which ConfirmTotpSetup finishes with new recovery
+  // codes. It has no target.
+  STEP_UP_ACTION_SET_UP_CODES = 4;
+  // Turning code sign-in off, with DisableTotp. It has no target.
+  STEP_UP_ACTION_DISABLE_CODES = 5;
+  // Making new recovery codes, with RegenerateRecoveryCodes. It has no
+  // target.
+  STEP_UP_ACTION_REGENERATE_RECOVERY_CODES = 6;
+  // Creating an API token, with TokenService.CreateToken. It has no target.
+  STEP_UP_ACTION_CREATE_TOKEN = 7;
+}
+
+// BeginStepUpRequest says what the passkey confirms.
+message BeginStepUpRequest {
+  // The action.
+  StepUpAction action = 1;
+  // What it acts on: a secret's ID to reveal it, a passkey's to remove it.
+  // Leave it out for an action on your own account, such as adding a
+  // passkey.
+  string target = 2;
+}
+
+// BeginStepUpResponse carries the options for the passkey's assertion.
+message BeginStepUpResponse {
+  // Pass back to FinishStepUp.
+  string ceremony_id = 1;
+  // PublicKeyCredentialRequestOptionsJSON, which allows only your passkeys
+  // for this address.
+  string options_json = 2;
+}
+
+// FinishStepUpRequest carries the passkey's answer.
+message FinishStepUpRequest {
+  // From BeginStepUp.
+  string ceremony_id = 1;
+  // AuthenticationResponseJSON from navigator.credentials.get.
+  string credential_json = 2;
+}
+
+// FinishStepUpResponse carries the proof.
+message FinishStepUpResponse {
+  // Pass it to the action's method, such as RevealSecret's proof.
+  string proof = 1;
+  // When it stops working, a minute from now.
+  google.protobuf.Timestamp expire_time = 2;
+}
+
+// BeginAddPasskeyRequest confirms adding a passkey.
+message BeginAddPasskeyRequest {
+  // The proof from FinishStepUp, for adding a passkey. Leave it out within
+  // 10 minutes of signing in with a code, a recovery code or a link from
+  // dockwell recover.
+  string proof = 1;
+}
 
 // BeginAddPasskeyResponse carries the options for creating the passkey.
 message BeginAddPasskeyResponse {
@@ -552,6 +669,8 @@ message FinishAddPasskeyResponse {
 message RemovePasskeyRequest {
   // The passkey's ID.
   string id = 1;
+  // The proof from FinishStepUp, for removing this passkey.
+  string proof = 2;
 }
 
 // RemovePasskeyResponse is empty.
@@ -579,8 +698,11 @@ message Totp {
   google.protobuf.Timestamp lock_time = 4;
 }
 
-// BeginTotpSetupRequest takes no parameters.
-message BeginTotpSetupRequest {}
+// BeginTotpSetupRequest confirms setting up code sign-in.
+message BeginTotpSetupRequest {
+  // The proof from FinishStepUp, for setting up code sign-in.
+  string proof = 1;
+}
 
 // BeginTotpSetupResponse carries the new secret.
 message BeginTotpSetupResponse {
@@ -602,14 +724,26 @@ message ConfirmTotpSetupResponse {
   repeated string recovery_codes = 1;
 }
 
-// DisableTotpRequest takes no parameters.
-message DisableTotpRequest {}
+// CancelTotpSetupRequest takes nothing.
+message CancelTotpSetupRequest {}
+
+// CancelTotpSetupResponse is empty.
+message CancelTotpSetupResponse {}
+
+// DisableTotpRequest confirms turning code sign-in off.
+message DisableTotpRequest {
+  // The proof from FinishStepUp, for turning code sign-in off.
+  string proof = 1;
+}
 
 // DisableTotpResponse is empty.
 message DisableTotpResponse {}
 
-// RegenerateRecoveryCodesRequest takes no parameters.
-message RegenerateRecoveryCodesRequest {}
+// RegenerateRecoveryCodesRequest confirms making new recovery codes.
+message RegenerateRecoveryCodesRequest {
+  // The proof from FinishStepUp, for making recovery codes.
+  string proof = 1;
+}
 
 // RegenerateRecoveryCodesResponse carries the new codes.
 message RegenerateRecoveryCodesResponse {

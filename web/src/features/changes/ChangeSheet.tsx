@@ -15,6 +15,7 @@ import {
   ResourceService,
   type ServerPlan,
   type StepProgress,
+  VariableService,
 } from "@dockwell/api";
 import {
   Button,
@@ -141,7 +142,7 @@ function letGo(client: Client<typeof ChangeService>, proposal: Proposal): void {
 
 /** Reads what a change applied or undone may have changed again: the resources, the timeline's pages and the changes. */
 function refreshAfter(queryClient: QueryClient): void {
-  for (const schema of [ResourceService, EventService, ChangeService]) {
+  for (const schema of [ResourceService, EventService, ChangeService, VariableService]) {
     void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
   }
 }

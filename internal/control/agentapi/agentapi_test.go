@@ -33,6 +33,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/serve"
 	"github.com/dockwell/dockwell/internal/store"
@@ -79,7 +80,7 @@ func startStackWith(t *testing.T, silence time.Duration, logger *slog.Logger, wi
 	if err != nil {
 		t.Fatal(err)
 	}
-	agents := agentapi.NewAgents(resource.NewRegistry(&container.Driver{}, &firewall.Driver{}), logger)
+	agents := agentapi.NewAgents(resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}), logger)
 	opts := []agentapi.Option{agentapi.WithStreamTiming(silence, 50*time.Millisecond)}
 	if withAgents {
 		opts = append(opts, agentapi.WithAgents(agents))

@@ -8,7 +8,10 @@ import {
   ActorSchema,
   ChangeState,
   EventKind,
+  FieldOp,
   type ListEventsRequest,
+  PlanAction,
+  PlannedResourceSchema,
   ResourceSchema,
   StepProgressSchema,
   StepState,
@@ -151,6 +154,82 @@ describe("Activity", () => {
     expect(undos).toEqual([expect.objectContaining({ id: "chg_shop" })]);
     expect(await within(sheet).findByText("Undo Create the project shop")).toBeVisible();
     expect(sheet).toHaveTextContent("2 to destroy");
+  });
+
+  it("leads from a change to a secret, and from a reveal, to the variables and secrets", async () => {
+    const user = userEvent.setup();
+    const watch = feed<WatchEventsResponse>();
+    const rotation = moved(shop, { id: "chg_rotate", summary: "Rotate the database password" });
+    if (rotation.plan) {
+      rotation.plan.resources = [
+        create(PlannedResourceSchema, {
+          id: "sec_db",
+          resource: { kind: "secret", scope: "env_prod", name: "DB_PASSWORD" },
+          action: PlanAction.UPDATE,
+          changes: [{ path: "value", op: FieldOp.MODIFIED, sensitive: true }],
+        }),
+      ];
+    }
+    const reveal = auditEvent({
+      id: "evt_reveal",
+      action: "secret.reveal",
+      time: timestampFromDate(new Date(Date.now() - 2 * HOUR)),
+      subject: { id: "sec_db", name: "DB_PASSWORD", scope: "env_staging" },
+    });
+    watch.push(snapshot([changeEvent(rotation), reveal]));
+    const { router } = renderActivity(watch, {
+      changes: { getChange: () => ({ change: rotation }), watchChange: feed<WatchChangeResponse>().stream },
+      variables: { listVariables: () => ({ environmentId: "env_prod" }) },
+    });
+
+    await user.click(await screen.findByRole("row", { name: /Revealed the secret DB_PASSWORD/ }));
+    // One link, to the environment the secret lives in.
+    expect(await screen.findAllByRole("link", { name: "Open the variables and secrets" })).toHaveLength(1);
+    await user.click(screen.getByRole("link", { name: "Open the variables and secrets" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/variables"));
+    expect(router.state.location.search).toEqual({ environment: "env_staging" });
+
+    await act(() => router.navigate({ to: "/activity", search: { event: "chg_rotate" } }));
+    const detail = await screen.findByRole("region", { name: "Rotate the database password" });
+    expect(await within(detail).findByText("DB_PASSWORD")).toBeVisible();
+    expect(within(detail).getAllByRole("link", { name: "Open the variables and secrets" })).toHaveLength(1);
+    await user.click(within(detail).getByRole("link", { name: "Open the variables and secrets" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ environment: "env_prod" }));
+  });
+
+  it("marks a setup that wrong codes ended as worth a look", async () => {
+    const watch = feed<WatchEventsResponse>();
+    watch.push(
+      snapshot([
+        auditEvent({
+          id: "evt_ended",
+          action: "totp.setup_discarded",
+          time: timestampFromDate(new Date(Date.now() - HOUR)),
+        }),
+      ]),
+    );
+    renderActivity(watch, {});
+    const row = await screen.findByRole("row", { name: /Ended an authenticator app's setup after 5 wrong codes/ });
+    expect(row.querySelector(".dw-tone-warning, [data-tone='warning']")).not.toBeNull();
+  });
+
+  it.each([
+    ["passkey.add_with_recovery_code", "a recovery code"],
+    ["passkey.add_with_authenticator_code", "an authenticator code"],
+  ])("marks %s, a passkey added after %s, as worth a look", async (action, code) => {
+    const watch = feed<WatchEventsResponse>();
+    const added = auditEvent({
+      id: "evt_recovered",
+      action,
+      time: timestampFromDate(new Date(Date.now() - HOUR)),
+      subject: { id: "pky_new", name: "Unknown laptop" },
+    });
+    watch.push(snapshot([added]));
+    renderActivity(watch, {});
+    const row = await screen.findByRole("row", {
+      name: new RegExp(`Added the passkey Unknown laptop after signing in with ${code}`),
+    });
+    expect(row.querySelector(".dw-tone-warning, [data-tone='warning']")).not.toBeNull();
   });
 
   it("filters by kind and actor, in its address", async () => {

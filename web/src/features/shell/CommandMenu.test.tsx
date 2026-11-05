@@ -73,7 +73,12 @@ describe("the command bar", () => {
       within(environments)
         .getAllByRole("option")
         .map((o) => o.textContent),
-    ).toEqual(["Show the activity of default / production", "Show the activity of default / staging"]);
+    ).toEqual([
+      "Show the activity of default / production",
+      "Open the variables and secrets of default / production",
+      "Show the activity of default / staging",
+      "Open the variables and secrets of default / staging",
+    ]);
     await expectAccessible(document.body);
     await user.click(within(bar).getByRole("option", { name: /Show the activity of shop/ }));
     await waitFor(() => expect(router.state.location.search).toEqual({ resource: "prj_shop" }));

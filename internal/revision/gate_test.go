@@ -157,7 +157,7 @@ func TestResumeKeepsARestoreARestore(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		next := New(db, controlKinds(), onDocker{"srv_A": plain}, slog.New(slog.DiscardHandler))
+		next := New(db, controlKinds(), onDocker{"srv_A": plain}, e.sealer, slog.New(slog.DiscardHandler))
 		err = next.Resume(t.Context())
 		next.Wait()
 		c := stored(t, db, undo.Change)
@@ -274,7 +274,7 @@ func TestResumeKeepsARestoreOfAnImagesData(t *testing.T) {
 		if err := fake.Client().RemoveVolume(t.Context(), kept); err != nil {
 			t.Fatal(err)
 		}
-		next := New(db, controlKinds(), onDocker{"srv_A": plain}, slog.New(slog.DiscardHandler))
+		next := New(db, controlKinds(), onDocker{"srv_A": plain}, e.sealer, slog.New(slog.DiscardHandler))
 		err = next.Resume(t.Context())
 		next.Wait()
 		if c := fake.Container(name); c != nil {

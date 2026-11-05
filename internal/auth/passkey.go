@@ -266,23 +266,52 @@ func (s *Service) ListPasskeys(ctx context.Context, p Principal) ([]Passkey, err
 }
 
 // BeginAddPasskey starts adding a passkey for the principal on client's
-// address. Passkeys they already have here are excluded, so the same
-// authenticator isn't registered twice.
-func (s *Service) BeginAddPasskey(ctx context.Context, client Client, p Principal) (Ceremony, error) {
+// address. It needs proof of a step-up for adding a passkey, so a stolen
+// session can't add one of its own, unless the session signed in just now
+// in a way that needed no passkey here (freshSignIn). Without either, it
+// says a step-up is needed, or with no passkey here to give one, to sign in
+// again. Passkeys they already have here are excluded, so the same
+// authenticator isn't registered twice. The ceremony works only in this
+// session.
+func (s *Service) BeginAddPasskey(ctx context.Context, client Client, p Principal, proof string) (Ceremony, error) {
+	if p.Token != nil || p.Session.ID == "" {
+		return Ceremony{}, ErrNeedsSession
+	}
 	now := s.now()
 	rp, err := s.relyingParty(client.Site)
 	if err != nil {
 		return Ceremony{}, err
 	}
-	existing, err := s.ListPasskeys(ctx, p)
+	var exclude []protocol.CredentialDescriptor
+	var fresh string
+	var here bool // a passkey here can confirm it
+	err = s.db.View(ctx, func(tx *store.Tx) error {
+		all, err := tx.ListPasskeys(ctx, p.User.ID)
+		if err != nil {
+			return err
+		}
+		for i := range all {
+			if all[i].RPID != client.Site.RPID {
+				continue
+			}
+			pk, err := decodePasskey(all[i])
+			if err != nil {
+				return err
+			}
+			exclude = append(exclude, pk.Credential.Descriptor())
+			here = here || all[i].CloneWarningAt == nil
+		}
+		fresh, _, err = s.freshSignIn(ctx, tx, p, client.Site.RPID)
+		return err
+	})
 	if err != nil {
 		return Ceremony{}, err
 	}
-	var exclude []protocol.CredentialDescriptor
-	for i := range existing {
-		if existing[i].RPID == client.Site.RPID {
-			exclude = append(exclude, existing[i].Credential.Descriptor())
-		}
+	switch {
+	case proof == "" && fresh == "" && !here:
+		return Ceremony{}, ErrNeedsFreshSignIn
+	case proof == "" && fresh == "":
+		return Ceremony{}, ErrNeedsStepUp
 	}
 	creation, session, err := rp.BeginRegistration(&waUser{user: p.User},
 		webauthn.WithExclusions(exclude),
@@ -295,17 +324,33 @@ func (s *Service) BeginAddPasskey(ctx context.Context, client Client, p Principa
 	if err != nil {
 		return Ceremony{}, err
 	}
-	key := s.ceremonies.put(&ceremony{kind: ceremonyAddPasskey, site: client.Site, session: *session, expires: now.Add(ceremonyTTL), user: p.User}, now)
+	// The proof is spent last, once nothing else can refuse.
+	cer := &ceremony{
+		kind: ceremonyAddPasskey, site: client.Site, session: *session, expires: now.Add(ceremonyTTL), user: p.User, sessionID: p.Session.ID,
+		confirmed: fresh, fresh: proof == "",
+	}
+	if proof != "" {
+		if err := s.confirmed(p, proof, StepUpAddPasskey); err != nil {
+			return Ceremony{}, err
+		}
+		cer.confirmed = "confirmed with a passkey"
+	}
+	key := s.ceremonies.put(cer, now)
 	return Ceremony{ID: key, Options: options}, nil
 }
 
-// FinishAddPasskey checks and saves a new passkey for the principal.
+// FinishAddPasskey checks and saves a new passkey for the principal. One
+// that a sign-in just now confirms, with no step-up, is checked again as
+// it is stored: still within RecentSignIn of signing in, and still the
+// first since (freshSignIn). One a recovery code or an authenticator code
+// confirmed is a security event on the timeline of its own:
+// passkey.add_with_recovery_code or passkey.add_with_authenticator_code.
 func (s *Service) FinishAddPasskey(ctx context.Context, client Client, p Principal, ceremonyID string, credential []byte, name string) (Passkey, error) {
 	cer, err := s.ceremonies.take(ceremonyID, ceremonyAddPasskey, s.now())
 	if err != nil {
 		return Passkey{}, err
 	}
-	if cer.site != client.Site || cer.user.ID != p.User.ID {
+	if cer.site != client.Site || cer.user.ID != p.User.ID || cer.sessionID != p.Session.ID {
 		return Passkey{}, ErrCeremonyExpired
 	}
 	cred, err := s.verifyNewPasskey(client.Site, &waUser{user: p.User}, cer.session, credential)
@@ -315,11 +360,42 @@ func (s *Service) FinishAddPasskey(ctx context.Context, client Client, p Princip
 	}
 	var pk store.Passkey
 	err = s.db.Update(ctx, func(tx *store.Tx) error {
+		action := "passkey.add"
+		if cer.fresh {
+			by, ok, err := s.freshSignIn(ctx, tx, p, client.Site.RPID)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				creds, err := s.stepUpCredentials(ctx, tx, p.User.ID, client.Site.RPID)
+				if err != nil {
+					return err
+				}
+				if len(creds) == 0 {
+					return ErrNeedsFreshSignIn
+				}
+				return ErrNeedsStepUp
+			}
+			// Once: a session that used it since, as a ceremony begun
+			// beside this one did, can't again.
+			if err := tx.AddPasskeyOnce(ctx, p.Session.ID, s.now()); errors.Is(err, store.ErrConflict) {
+				return ErrNeedsStepUp
+			} else if err != nil {
+				return err
+			}
+			cer.confirmed = by
+			switch p.Session.Method {
+			case MethodRecoveryCode:
+				action = "passkey.add_with_recovery_code"
+			case MethodAuthenticator:
+				action = "passkey.add_with_authenticator_code"
+			}
+		}
 		var err error
 		if pk, err = s.storePasskey(ctx, tx, p.User, client.Site, cred, name); err != nil {
 			return err
 		}
-		return s.auditOn(ctx, tx, p.Actor(), "passkey.add", p.User.ID, pk.ID, pk.ID+" for "+pk.RPID+" from "+client.remoteIP())
+		return s.auditOn(ctx, tx, p.Actor(), action, p.User.ID, pk.ID, pk.ID+" for "+pk.RPID+" from "+client.remoteIP()+", "+cer.confirmed)
 	})
 	if err != nil {
 		return Passkey{}, err
@@ -345,10 +421,14 @@ func (s *Service) usablePasskeys(all []store.Passkey, except string) int {
 	return n
 }
 
-// RemovePasskey removes one of the principal's passkeys. It refuses to
-// remove the last way in: afterwards there must be another passkey that
-// signs in at the panel's addresses now, or code sign-in.
-func (s *Service) RemovePasskey(ctx context.Context, p Principal, passkeyID string) error {
+// RemovePasskey removes one of the principal's passkeys, with proof of a
+// step-up for removing it. It refuses to remove the last way in:
+// afterwards there must be another passkey that signs in at the panel's
+// addresses now, or code sign-in. A refusal leaves the proof unspent.
+func (s *Service) RemovePasskey(ctx context.Context, p Principal, passkeyID, proof string) error {
+	if p.Token != nil || p.Session.ID == "" {
+		return ErrNeedsSession
+	}
 	return s.db.Update(ctx, func(tx *store.Tx) error {
 		all, err := tx.ListPasskeys(ctx, p.User.ID)
 		if err != nil {
@@ -363,6 +443,9 @@ func (s *Service) RemovePasskey(ctx context.Context, p Principal, passkeyID stri
 		}
 		if s.usablePasskeys(all, passkeyID) == 0 && user.TOTPSecret == nil {
 			return ErrLastWayIn
+		}
+		if err := s.UseStepUp(p, proof, StepUpRemovePasskey, passkeyID); err != nil {
+			return err
 		}
 		if err := tx.DeletePasskey(ctx, p.User.ID, passkeyID); err != nil {
 			return err

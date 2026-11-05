@@ -57,7 +57,13 @@ export function useAuthError() {
         case "token_scope":
           return t`That API token is read-only, so it can't make changes. Create a read-write token under Profile and security.`;
         case "needs_session":
-          return t`API tokens can't remove data, cut off access, or change how you sign in and your tokens. Sign in and do it in the panel.`;
+          return t`API tokens can't remove data, cut off access, reveal a secret, or change how you sign in and your tokens. Sign in and do it in the panel.`;
+        case "needs_step_up":
+          return t`That needs your passkey just now, and the confirmation was missing, used or expired. Try again, and confirm when your browser asks.`;
+        case "no_passkey_here":
+          return t`Confirming this needs a passkey for this address, and you have none here. Add one under Profile and security, then try again.`;
+        case "needs_fresh_sign_in":
+          return t`Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes.`;
         case "passkey_rejected":
           return t`That passkey isn't registered for this address, or it couldn't be verified. Try another passkey, or sign in with a code.`;
         case "passkey_copied":
@@ -90,6 +96,10 @@ export function useAuthError() {
           return t`That would leave you no way to sign in. Add another passkey or an authenticator app first.`;
         case "needs_hostname":
           return t`Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port.`;
+        case "no_pending_totp":
+          return t`This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again.`;
+        case "totp_setup_ended":
+          return t`That was the last try. 5 wrong codes ended this setup, and its key no longer works. Close this and set it up again, which asks for your passkey.`;
         case "totp_mismatch":
           return t`That code doesn't match. Check that your phone's clock is right, then enter the current code.`;
         default:

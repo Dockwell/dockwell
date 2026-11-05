@@ -61,6 +61,10 @@ export function useChangeWords(): ChangeWords {
             return t`Network`;
           case "firewall.rule":
             return t`Firewall rule`;
+          case "variable":
+            return t`Variable`;
+          case "secret":
+            return t`Secret`;
         }
         return kind;
       },

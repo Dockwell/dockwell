@@ -15,6 +15,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strconv"
@@ -344,6 +345,51 @@ func CheckLabel(what, name, example string) error {
 	return nil
 }
 
+// Valuer is a Type whose resources are values that others in their scope
+// use, such as an environment's variables and secrets that its services
+// use. A valuer runs on no server itself, whatever its level: it has
+// revisions and plans, and its value goes to the servers of whatever uses
+// it, when that is applied.
+type Valuer interface {
+	// Value returns a spec's value.
+	Value(spec proto.Message) string
+}
+
+// Use is one resource that another uses, in the same scope.
+type Use struct {
+	// As is the name the user sees it as, such as DATABASE_URL.
+	As   string
+	Kind Kind
+	// Name is its name in the scope.
+	Name string
+	// Revision is the revision it is pinned to, 0 when it isn't.
+	Revision int
+}
+
+// Binder is a Type whose specs use other resources of their scope by name,
+// such as a service that uses its environment's variables and secrets.
+// The revision store checks that each is there, pins each use to the
+// revision it resolves to when a change is planned, so a binder's spec
+// changes whenever what it uses does, and adds every binder a change
+// affects to that change.
+type Binder interface {
+	// Uses lists what a spec uses, by the name it sees each as.
+	Uses(spec proto.Message) []Use
+	// Pin sets the revision of each use in spec, by the name it is seen
+	// as. A use missing from revisions is unpinned.
+	Pin(spec proto.Message, revisions map[string]int)
+}
+
+// Rebinder is a Binder that can use a resource of another kind in place of
+// one it uses, by the same name, as when a variable becomes a secret. The
+// revision store rebinds every resource that uses a value which a change
+// replaces with one of another kind, so the switch is one plan.
+type Rebinder interface {
+	// Rebind makes spec use the resource of kind to named name wherever
+	// it uses the one of kind from, under the same names.
+	Rebind(spec proto.Message, name string, from, to Kind)
+}
+
 // Driver manages one kind of resource on a server. Drivers run where the
 // resource is: on the agent. Kinds whose level doesn't run on servers have
 // a Type and no driver.
@@ -411,6 +457,11 @@ type Normalizer interface {
 // or isn't on its servers, and makes what is named first.
 type Referrer interface {
 	References(spec proto.Message) []Reference
+	// ReferenceKinds are the kinds its specs can name. So a change to no
+	// resource of those kinds leaves what is stored naming what it did, and
+	// nothing need open a stored spec to find out, as a sealed one takes
+	// its key to.
+	ReferenceKinds() []Kind
 }
 
 // Reference is a resource a spec names, in the spec's own scope.
@@ -433,6 +484,16 @@ func (r *Registry) References(kind Kind, spec proto.Message) []Reference {
 		return ref.References(spec)
 	}
 	return nil
+}
+
+// Named reports whether any kind's specs can name a resource of kind.
+func (r *Registry) Named(kind Kind) bool {
+	for _, t := range r.types {
+		if ref, ok := t.(Referrer); ok && slices.Contains(ref.ReferenceKinds(), kind) {
+			return true
+		}
+	}
+	return false
 }
 
 // HasReferrers reports whether any kind names others.
@@ -521,6 +582,13 @@ func (r *Registry) Kinds() []Kind {
 			out = append(out, k)
 		}
 	}
+	slices.Sort(out)
+	return out
+}
+
+// All lists every kind the registry has a type for, sorted.
+func (r *Registry) All() []Kind {
+	out := slices.Collect(maps.Keys(r.types))
 	slices.Sort(out)
 	return out
 }

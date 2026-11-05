@@ -356,6 +356,48 @@ func (t *Tx) PageResources(ctx context.Context, kind, scope, after string, limit
 	return out, rows.Err()
 }
 
+// NamedResource is a resource that exists now, with when its latest
+// revision was made and who made the change that made it.
+type NamedResource struct {
+	LiveResource
+	Actor string // as the change has it, such as "user:usr_…"
+}
+
+// PageByName returns at most limit resources that exist now in scope, of
+// any of kinds, by name and then kind, after the one with name and kind
+// after, with the actor of each latest revision's change.
+func (t *Tx) PageByName(ctx context.Context, scope string, kinds []string, after NamedResource, limit int) ([]NamedResource, error) {
+	if len(kinds) == 0 {
+		return nil, nil
+	}
+	args := []any{scope}
+	for _, k := range kinds {
+		args = append(args, k)
+	}
+	args = append(args, after.Name, after.Name, after.Name, after.Kind, limit)
+	rows, err := t.query(ctx, `SELECT `+resourceColumns+`, v.created_at, c.actor`+latest+`
+		JOIN changes c ON c.id = v.change_id
+		WHERE r.scope = ? AND r.kind IN (`+marks(len(kinds))+`) AND v.spec IS NOT NULL
+		AND (? = '' OR r.name > ? OR r.name = ? AND r.kind > ?)
+		ORDER BY r.name, r.kind LIMIT ?`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't list the resources of %s: %w", scope, err)
+	}
+	defer rows.Close()
+	var out []NamedResource
+	for rows.Next() {
+		var r NamedResource
+		var deleted bool
+		var at int64
+		if err := rows.Scan(&r.ID, &r.Kind, &r.Scope, &r.Name, &r.Revision, &r.Spec, &deleted, &r.ChangeID, &at, &r.Actor); err != nil {
+			return nil, fmt.Errorf("can't list the resources of %s: %w", scope, err)
+		}
+		r.Spec, r.UpdatedAt = spec(r.Spec, deleted), fromMillis(at)
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // signal wakes whoever waits on it, all at once, each time it fires.
 type signal struct {
 	mu sync.Mutex

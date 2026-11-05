@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -336,10 +337,12 @@ func testPlanApplyAndUndoThroughTheAPI(t *testing.T, backend store.Backend) {
 		t.Fatal("planning ran a container")
 	}
 
-	// The same proposal against the same state plans the same.
+	// The same proposal against the same state plans the same, with a
+	// fingerprint of its own, as a container is a kind that may hold secrets.
 	again := propose(t, c, "Run web", webEdit("nginx:1.27", map[string]string{"API_KEY": "s3cret-value"}))
-	if again.GetPlan().GetFingerprint() != plan.GetFingerprint() || again.GetId() == planned.GetId() {
-		t.Errorf("planning again gave fingerprint %s, want %s", again.GetPlan().GetFingerprint(), plan.GetFingerprint())
+	if again.GetPlan().GetFingerprint() == plan.GetFingerprint() || again.GetId() == planned.GetId() ||
+		!proto.Equal(again.GetPlan().GetSummary(), plan.GetSummary()) || len(again.GetPlan().GetServers()) != len(plan.GetServers()) {
+		t.Errorf("planning again gave %v, want %v with a fingerprint of its own", again.GetPlan(), plan)
 	}
 	discarded, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: again.GetId()}))
 	if err != nil || discarded.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_DISCARDED {
@@ -1011,7 +1014,8 @@ func testAStopMidApplyLeavesTheChangeForTheNextStart(t *testing.T, backend store
 	// The next start, with hz-1's agent back, finishes it.
 	close(hz1.fw.release)
 	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{})
-	next := revision.New(f.store, kinds, localAgents{hz1.id.ServerID: resource.Local{Drivers: hz1.drivers}}, slog.New(slog.DiscardHandler))
+	next := revision.New(f.store, kinds, localAgents{hz1.id.ServerID: resource.Local{Drivers: hz1.drivers}}, secretstest.Keeper(f.store, kinds),
+		slog.New(slog.DiscardHandler))
 	if err := next.Resume(t.Context()); err != nil {
 		t.Fatal(err)
 	}

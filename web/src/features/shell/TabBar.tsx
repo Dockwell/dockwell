@@ -9,13 +9,22 @@ import { firstSegment, inActivity, isUpcoming, UPCOMING } from "./sections";
 
 type Tab = "overview" | "apps" | "servers" | "activity" | "more";
 
-/** The tab a path belongs to. Sections without a tab of their own, and your profile, live under More. */
+/**
+ * The tab a path belongs to. Sections without a tab of their own, your
+ * profile, and an environment's variables and secrets live under More.
+ */
 export function tabOf(pathname: string): Tab {
   const segment = firstSegment(pathname);
   if (segment === "") return "overview";
   if (inActivity(segment)) return "activity";
   if (segment === "apps" || segment === "servers") return segment;
-  if (segment === "more" || segment === "profile" || (isUpcoming(segment) && UPCOMING[segment].inMore)) return "more";
+  if (
+    segment === "more" ||
+    segment === "profile" ||
+    segment === "variables" ||
+    (isUpcoming(segment) && UPCOMING[segment].inMore)
+  )
+    return "more";
   return "overview";
 }
 

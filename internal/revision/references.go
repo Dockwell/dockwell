@@ -117,6 +117,14 @@ func (e *Engine) standing(ctx context.Context, tx *store.Tx, items []item, scope
 			inChange[items[i].ref] = &items[i]
 		}
 	}
+	// What is stored and not in the change matters only for what it names,
+	// and only if the change touches a kind it can name. Otherwise its spec
+	// stays sealed: a rotation opens the services it pins again, and no
+	// others (ADR 0022).
+	named := false
+	for ref := range inChange {
+		named = named || e.kinds.Named(ref.Kind)
+	}
 	var out []live
 	for _, r := range stored {
 		ref := resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}
@@ -124,8 +132,8 @@ func (e *Engine) standing(ctx context.Context, tx *store.Tx, items []item, scope
 			continue
 		}
 		l := live{ref: ref}
-		if e.isReferrer(ref.Kind) {
-			if l.spec, err = e.kinds.Decode(ref.Kind, r.Spec); err != nil {
+		if named && e.isReferrer(ref.Kind) {
+			if l.spec, err = e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec); err != nil {
 				return nil, err
 			}
 		}

@@ -4,10 +4,15 @@ import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
+  type BeginAddPasskeyRequest,
+  type BeginStepUpRequest,
+  type BeginTotpSetupRequest,
   type CreateTokenRequest,
+  type FinishStepUpRequest,
   PasskeySchema,
   SessionSchema,
   SignInMethod,
+  StepUpAction,
   TokenSchema,
   TokenScope,
   TotpSchema,
@@ -18,7 +23,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { authError, authState, creationOptions, stubPasskeys } from "../../test/auth";
+import { authError, authState, creationOptions, requestOptions, stubPasskeys } from "../../test/auth";
 import { onPhone, renderAt } from "../../test/render";
 import { groupSecret } from "./TotpPanel";
 
@@ -79,10 +84,31 @@ const grafana = create(TokenSchema, {
 });
 const secret = "dwt_4f9K2xQ7Lr8eVb3NcR5tYw1ZaD6gHj0kMp9sUq2XnE4x9Ta";
 
+/** The proof the stand-in control plane gives a step-up for action. */
+const proofFor = (action: StepUpAction) => `proof-${action}`;
+
+/**
+ * An action a step-up confirms, as the control plane answers it: refused
+ * with needs_step_up without a proof, once nothing else refuses it, and
+ * done with one.
+ */
+function confirmed<Req extends { proof: string }, Res>(done: (req: Req) => Res) {
+  return vi.fn((req: Req) => {
+    if (req.proof === "") throw authError(Code.PermissionDenied, "needs_step_up");
+    return done(req);
+  });
+}
+
 function api(overrides: Record<string, unknown> = {}, tokens: Record<string, unknown> = {}) {
   return {
     auth: {
       getAuthState: () => authState(),
+      // A step-up answers with a proof for the action it began with.
+      beginStepUp: vi.fn((req: BeginStepUpRequest) => ({
+        ceremonyId: `cer-${req.action}`,
+        optionsJson: requestOptions,
+      })),
+      finishStepUp: vi.fn((req: FinishStepUpRequest) => ({ proof: `proof-${req.ceremonyId.slice(4)}` })),
       listPasskeys: vi.fn(() => ({ passkeys: [laptop, yubikey] })),
       listSessions: vi.fn(() => ({ sessions })),
       getTotp: vi.fn(() => ({ totp: create(TotpSchema, { enabled: true, recoveryCodesLeft: 7 }) })),
@@ -175,14 +201,38 @@ describe("ProfilePage", () => {
     await waitFor(() => expect(revokeOtherSessions).toHaveBeenCalledOnce());
   });
 
-  it("asks before removing a passkey, and explains when it's the last way in", async () => {
-    const removePasskey = vi.fn(() => Promise.reject(authError(Code.FailedPrecondition, "last_way_in")));
-    renderAt("/profile", api({ removePasskey }));
+  it("asks before removing a passkey, and confirms it with one", async () => {
+    const passkeys = stubPasskeys();
+    const removePasskey = confirmed(() => ({}));
+    const calls = api({ removePasskey });
+    renderAt("/profile", calls);
     await userEvent.click(await screen.findByRole("button", { name: "Remove YubiKey 5C" }));
     expect(removePasskey).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(removePasskey).toHaveBeenCalledTimes(2));
+    expect(calls.auth.beginStepUp).toHaveBeenCalledWith(
+      expect.objectContaining({ action: StepUpAction.REMOVE_PASSKEY, target: "pky_2" }),
+      expect.anything(),
+    );
+    expect(passkeys.get).toHaveBeenCalledOnce();
+    expect(removePasskey).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: "pky_2", proof: proofFor(StepUpAction.REMOVE_PASSKEY) }),
+      expect.anything(),
+    );
+  });
+
+  it("explains when a passkey is the last way in, without asking for one first", async () => {
+    const passkeys = stubPasskeys();
+    const removePasskey = vi.fn(() => Promise.reject(authError(Code.FailedPrecondition, "last_way_in")));
+    const calls = api({ removePasskey });
+    renderAt("/profile", calls);
+    await userEvent.click(await screen.findByRole("button", { name: "Remove YubiKey 5C" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("That would leave you no way to sign in.");
-    expect(removePasskey).toHaveBeenCalledWith(expect.objectContaining({ id: "pky_2" }), expect.anything());
+    expect(removePasskey).toHaveBeenCalledOnce();
+    expect(removePasskey).toHaveBeenCalledWith(expect.objectContaining({ id: "pky_2", proof: "" }), expect.anything());
+    expect(calls.auth.beginStepUp).not.toHaveBeenCalled();
+    expect(passkeys.get).not.toHaveBeenCalled();
   });
 
   it("adds a passkey for this address", async () => {
@@ -197,6 +247,41 @@ describe("ProfilePage", () => {
     expect(passkeys.create).toHaveBeenCalledOnce();
   });
 
+  it("confirms adding a passkey with one you have, when the control plane asks", async () => {
+    const passkeys = stubPasskeys();
+    const asked: BeginAddPasskeyRequest[] = [];
+    const finishAddPasskey = vi.fn(() => ({}));
+    const calls = api({
+      beginAddPasskey: (req: BeginAddPasskeyRequest) => {
+        asked.push(req);
+        if (req.proof === "") throw authError(Code.PermissionDenied, "needs_step_up");
+        return { ceremonyId: "cer_9", optionsJson: creationOptions };
+      },
+      finishAddPasskey,
+    });
+    renderAt("/profile", calls);
+    await userEvent.click(await screen.findByRole("button", { name: "Add passkey" }));
+    await waitFor(() => expect(finishAddPasskey).toHaveBeenCalledOnce());
+    expect(asked.map((r) => r.proof)).toEqual(["", proofFor(StepUpAction.ADD_PASSKEY)]);
+    expect(passkeys.get).toHaveBeenCalledOnce();
+    expect(passkeys.create).toHaveBeenCalledOnce();
+  });
+
+  it("says to sign in again when no passkey here can confirm adding one", async () => {
+    stubPasskeys();
+    renderAt(
+      "/profile",
+      api({
+        beginAddPasskey: () => Promise.reject(authError(Code.PermissionDenied, "needs_step_up")),
+        beginStepUp: () => Promise.reject(authError(Code.FailedPrecondition, "needs_fresh_sign_in")),
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Add passkey" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes.",
+    );
+  });
+
   it("asks for a passkey on a new address", async () => {
     stubPasskeys();
     renderAt(
@@ -204,6 +289,9 @@ describe("ProfilePage", () => {
       api({ getAuthState: () => authState({ rpId: "panel.example.com", domain: "panel.example.com" }) }),
     );
     expect(await screen.findByText("No passkey works at panel.example.com yet")).toBeVisible();
+    expect(screen.getByText("dockwell recover").parentElement).toHaveTextContent(
+      "run dockwell recover on the server: its link signs you in here, so you can add a passkey with no code.",
+    );
   });
 
   it("warns that code sign-in is locked, and unlocks it", async () => {
@@ -283,6 +371,7 @@ describe("ProfilePage", () => {
   });
 
   it("shows nothing from the session before after signing in again", async () => {
+    stubPasskeys();
     let signedIn = true;
     let passkeys = [create(PasskeySchema, { id: "pky_0", name: "Old laptop", rpId: "localhost" })];
     const removePasskey = vi.fn(() => {
@@ -388,18 +477,22 @@ describe("ProfilePage", () => {
     expect(screen.getByRole("heading", { level: 1, name: "More" })).toBeVisible();
   });
 
-  it("sets up an authenticator app and shows the recovery codes once", async () => {
+  it("sets up an authenticator app, confirmed with a passkey, and shows the recovery codes once", async () => {
+    stubPasskeys();
     const codes = Array.from({ length: 10 }, (_, i) => `7KQ2-M9XD-4TPA-ZR3${i}`);
     const confirmTotpSetup = vi.fn(() => ({ recoveryCodes: codes }));
+    const cancelTotpSetup = vi.fn(() => ({}));
+    const beginTotpSetup = confirmed((_req: BeginTotpSetupRequest) => ({
+      secret: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP",
+      uri: "otpauth://totp/Dockwell:mira%40acme.dev?secret=JBSWY3DP",
+    }));
     renderAt(
       "/profile",
       api({
         getTotp: () => ({ totp: create(TotpSchema, { enabled: false }) }),
-        beginTotpSetup: () => ({
-          secret: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP",
-          uri: "otpauth://totp/Dockwell:mira%40acme.dev?secret=JBSWY3DP",
-        }),
+        beginTotpSetup,
         confirmTotpSetup,
+        cancelTotpSetup,
       }),
     );
     await userEvent.click(await screen.findByRole("button", { name: "Set up" }));
@@ -415,23 +508,88 @@ describe("ProfilePage", () => {
     expect(download).toHaveAttribute("download", "dockwell-recovery-codes.txt");
     expect(download).toHaveClass("dw-btn", "dw-btn-secondary", "dw-btn-sm");
     expect(confirmTotpSetup).toHaveBeenCalledWith(expect.objectContaining({ code: "123456" }), expect.anything());
+    expect(beginTotpSetup.mock.calls.map((c) => c[0].proof)).toEqual(["", proofFor(StepUpAction.SET_UP_CODES)]);
+    await userEvent.click(within(saved).getByRole("button", { name: "I saved them" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // Finished, so there's nothing to forget.
+    expect(cancelTotpSetup).not.toHaveBeenCalled();
+  });
+
+  it("forgets the new key when you close the setup before finishing it", async () => {
+    stubPasskeys();
+    const cancelTotpSetup = vi.fn(() => ({}));
+    renderAt(
+      "/profile",
+      api({
+        getTotp: () => ({ totp: create(TotpSchema, { enabled: false }) }),
+        beginTotpSetup: confirmed(() => ({
+          secret: "JBSWY3DPEHPK3PXP",
+          uri: "otpauth://totp/Dockwell?secret=JBSWY3DP",
+        })),
+        cancelTotpSetup,
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Set up" }));
+    const sheet = await screen.findByRole("dialog", { name: "Set up an authenticator app" });
+    expect(cancelTotpSetup).not.toHaveBeenCalled();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(cancelTotpSetup).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("says when wrong codes ended the setup, and that it takes the passkey again", async () => {
+    stubPasskeys();
+    renderAt(
+      "/profile",
+      api({
+        getTotp: () => ({ totp: create(TotpSchema, { enabled: false }) }),
+        beginTotpSetup: confirmed(() => ({
+          secret: "JBSWY3DPEHPK3PXP",
+          uri: "otpauth://totp/Dockwell?secret=JBSWY3DP",
+        })),
+        confirmTotpSetup: () => Promise.reject(authError(Code.FailedPrecondition, "totp_setup_ended")),
+        cancelTotpSetup: () => ({}),
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Set up" }));
+    const sheet = await screen.findByRole("dialog", { name: "Set up an authenticator app" });
+    await userEvent.type(within(sheet).getByLabelText("Enter the 6-digit code it shows"), "123456");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Turn on" }));
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent(
+      "That was the last try. 5 wrong codes ended this setup, and its key no longer works.",
+    );
+  });
+
+  it("confirms turning codes off with a passkey", async () => {
+    stubPasskeys();
+    const disableTotp = confirmed(() => ({}));
+    renderAt("/profile", api({ disableTotp }));
+    await userEvent.click(await screen.findByRole("button", { name: "Turn off" }));
+    await userEvent.click(screen.getByRole("button", { name: "Turn off and delete codes" }));
+    await waitFor(() =>
+      expect(disableTotp).toHaveBeenCalledWith(
+        expect.objectContaining({ proof: proofFor(StepUpAction.DISABLE_CODES) }),
+        expect.anything(),
+      ),
+    );
   });
 
   it("copies the recovery codes, says so to screen readers, and is ready to copy again", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
+      stubPasskeys();
       const writeText = vi.fn(async () => {});
       vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
       const codes = Array.from({ length: 10 }, (_, i) => `7KQ2-M9XD-4TPA-ZR3${i}`);
-      renderAt(
-        "/profile",
-        api({
-          regenerateRecoveryCodes: () => ({ recoveryCodes: codes }),
-        }),
-      );
+      const regenerateRecoveryCodes = confirmed(() => ({ recoveryCodes: codes }));
+      renderAt("/profile", api({ regenerateRecoveryCodes }));
       await userEvent.click(await screen.findByRole("button", { name: "New recovery codes" }));
       await userEvent.click(await screen.findByRole("button", { name: "Replace codes" }));
       const saved = await screen.findByRole("dialog", { name: "Save your recovery codes" });
+      expect(regenerateRecoveryCodes).toHaveBeenCalledWith(
+        expect.objectContaining({ proof: proofFor(StepUpAction.REGENERATE_RECOVERY_CODES) }),
+        expect.anything(),
+      );
 
       await userEvent.click(within(saved).getByRole("button", { name: "Copy codes" }));
       expect(writeText).toHaveBeenCalledWith(codes.join("\n"));
@@ -448,6 +606,7 @@ describe("ProfilePage", () => {
   });
 
   it("keeps the key you scanned while the sheet is open, whatever the language does", async () => {
+    stubPasskeys();
     let made = 0;
     const beginTotpSetup = vi.fn(() => {
       made += 1;
@@ -466,6 +625,7 @@ describe("ProfilePage", () => {
   });
 
   it("says why the authenticator app's setup couldn't start", async () => {
+    stubPasskeys();
     renderAt(
       "/profile",
       api({
@@ -474,9 +634,9 @@ describe("ProfilePage", () => {
       }),
     );
     await userEvent.click(await screen.findByRole("button", { name: "Set up" }));
-    const sheet = await screen.findByRole("dialog", { name: "Set up an authenticator app" });
-    expect(await within(sheet).findByRole("alert")).toHaveTextContent("Connection refused.");
-    expect(within(sheet).getByRole("button", { name: "Turn on" })).toBeDisabled();
+    const panel = within(await screen.findByRole("region", { name: "Authenticator app" }));
+    expect(await panel.findByRole("alert")).toHaveTextContent("Connection refused.");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("lists API tokens, where each was last used, and when it expires", async () => {
@@ -498,11 +658,12 @@ describe("ProfilePage", () => {
     expect(await panel.findByText(/No tokens yet/)).toBeVisible();
   });
 
-  it("creates a token, and shows its secret once with a way to copy it", async () => {
+  it("creates a token, confirmed with a passkey, and shows its secret once with a way to copy it", async () => {
+    stubPasskeys();
     const writeText = vi.fn(async () => {});
     vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
     const listTokens = vi.fn(() => ({ tokens: [grafana] }));
-    const createToken = vi.fn((req: CreateTokenRequest) => ({
+    const createToken = confirmed((req: CreateTokenRequest) => ({
       token: create(TokenSchema, {
         ...deploy,
         name: req.name,
@@ -525,10 +686,11 @@ describe("ProfilePage", () => {
     await userEvent.selectOptions(sheet.getByRole("combobox", { name: "Expires" }), "In 30 days");
     await userEvent.click(sheet.getByRole("button", { name: "Create token" }));
 
-    await waitFor(() => expect(createToken).toHaveBeenCalledOnce());
-    const sent = createToken.mock.calls[0]?.[0];
+    await waitFor(() => expect(createToken).toHaveBeenCalledTimes(2));
+    const sent = createToken.mock.calls[1]?.[0];
     expect(sent?.name).toBe("Nightly backup check");
     expect(sent?.scope).toBe(TokenScope.READ_WRITE);
+    expect(sent?.proof).toBe(proofFor(StepUpAction.CREATE_TOKEN));
     // A ttl, so the control plane's clock sets the expiry, not the browser's.
     expect(sent?.expiration.case).toBe("ttl");
     expect(sent?.expiration.case === "ttl" ? Number(sent.expiration.value.seconds) * 1_000 : 0).toBe(30 * DAY);
@@ -548,7 +710,8 @@ describe("ProfilePage", () => {
   });
 
   it("makes a token that doesn't expire, when asked", async () => {
-    const createToken = vi.fn((_req: CreateTokenRequest) => ({
+    stubPasskeys();
+    const createToken = confirmed((_req: CreateTokenRequest) => ({
       token: create(TokenSchema, { ...grafana, name: "Grafana" }),
       secret,
     }));
@@ -558,14 +721,15 @@ describe("ProfilePage", () => {
     await userEvent.type(sheet.getByRole("textbox", { name: "Name" }), "Grafana");
     await userEvent.selectOptions(sheet.getByRole("combobox", { name: "Expires" }), "Never");
     await userEvent.click(sheet.getByRole("button", { name: "Create token" }));
-    await waitFor(() => expect(createToken).toHaveBeenCalledOnce());
-    const sent = createToken.mock.calls[0]?.[0];
+    await waitFor(() => expect(createToken).toHaveBeenCalledTimes(2));
+    const sent = createToken.mock.calls[1]?.[0];
     expect(sent).toMatchObject({ name: "Grafana", scope: TokenScope.READ_ONLY });
     expect(sent?.expiration.case).toBeUndefined();
     expect(await screen.findByText(/It doesn't expire\./)).toBeVisible();
   });
 
   it("asks for a name before making a token, and says why one wasn't made", async () => {
+    const passkeys = stubPasskeys();
     const createToken = vi.fn(() =>
       Promise.reject(
         authError(
@@ -587,6 +751,8 @@ describe("ProfilePage", () => {
     expect(await sheet.findByRole("alert")).toHaveTextContent(
       "You have 100 API tokens, the most you can have. Revoke one you no longer use, then try again.",
     );
+    // Refused before any passkey is asked for.
+    expect(passkeys.get).not.toHaveBeenCalled();
   });
 
   it("asks before revoking a token", async () => {
