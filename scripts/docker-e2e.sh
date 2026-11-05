@@ -521,9 +521,24 @@ nothing_shows() {
   for value in "$@"; do
     if [[ "$reads" == *"$value"* ]]; then fail "what the install says holds $value: $(grep -F -- "$value" <<<"$reads" | head -3)"; fi
     if grep -q -F -- "$value" "$log"; then fail "the control plane's log holds $value"; fi
-    # shellcheck disable=SC2086 # the database's files, however many there are
-    if priv grep -a -q -F -- "$value" "$data"/control/state.db*; then fail "the database's own files hold $value"; fi
+    # As whoever runs Dockwell, whose directory this shell may not be able to list, and
+    # only 1 says it read them and didn't find it: anything else would pass for that.
+    found=0
+    # shellcheck disable=SC2016 # for the shell it starts to read
+    priv sh -c 'grep -a -q -F -- "$1" "$2"/control/state.db*' sh "$value" "$data" || found=$?
+    case $found in
+      0) fail "the database's own files hold $value" ;;
+      1) ;;
+      *) fail "can't read the database's own files, so nothing says they don't hold $value" ;;
+    esac
   done
+}
+# delete_kept deletes a service whose image keeps data, as redis:7.4-alpine does at
+# /data, so a person applies it, and no token can.
+delete_kept() {
+  local planned
+  planned=$(dw services delete "$1" --plan-only --json) || fail "planning to delete $1 failed"
+  person_apply "$(jq -r '.change.id' <<<"$planned")"
 }
 dw compose import --project default --compose "$(cat "$data/redis.yaml")" --env-file "$data/redis.env" --yes ||
   fail "importing a password in a command failed"
@@ -573,7 +588,7 @@ secured=$(named_container secured)
 answers "$secured" "$redis_given" || fail "$secured doesn't take the new password"
 if answers "$secured" "$redis_password"; then fail "$secured still takes the old password"; fi
 nothing_shows "$redis_password" "$redis_given"
-dw services delete secured --yes || fail "services delete secured failed"
+delete_kept secured
 
 step "A secret in a command needs no value in a file, can't be given one, and rotates"
 printf '%s' "$redis_secret" >"$data/secret-value"
@@ -602,7 +617,7 @@ named=$(named_container named)
 answers "$named" "$redis_rotated" || fail "the rotation didn't reach $named"
 if answers "$named" "$redis_secret"; then fail "$named still takes the old value"; fi
 nothing_shows "$redis_secret" "$redis_rotated"
-dw services delete named --yes || fail "services delete named failed"
+delete_kept named
 dw secrets delete REDIS_SECRET --yes || fail "secrets delete failed"
 
 step "Services go"
