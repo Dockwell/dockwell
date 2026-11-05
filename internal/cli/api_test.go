@@ -258,11 +258,13 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 			t.Errorf("a secret in inline JSON = %d %q, want it refused", r.code, r.err)
 		}
 		// A container's environment is configuration, and may go inline,
-		// as with --env KEY=VALUE. Without --yes it is only planned, so
-		// nothing runs, or says Docker isn't here on a machine without it.
+		// as with --env KEY=VALUE. Without --yes and a terminal it stays
+		// planned, so nothing runs where there is Docker to run it, and
+		// where there isn't, the plan says that instead.
 		r = run(t, env, "changes", "propose", "--summary", "Inline",
 			"--edits", `{"resource":{"name":"web"},"spec":{"container":{"image":"nginx","env":{"TOKEN":"x"}}}}`)
-		if strings.Contains(r.err, "the JSON sets") || r.code != exitOK && !strings.Contains(r.err, "can't run container web now") {
+		if strings.Contains(r.err, "the JSON sets") ||
+			!strings.Contains(r.err, "is planned, but there's no terminal") && !strings.Contains(r.err, "can't run container web now") {
 			t.Errorf("a container's environment in inline JSON = %d %q, want it read", r.code, r.err)
 		}
 		piped := `{"resource":{"name":"PIPED_TOKEN"},"project":"default","spec":{"secret":{"value":"s3cret-piped"}}}`
