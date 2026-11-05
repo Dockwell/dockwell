@@ -131,6 +131,15 @@ func (m *Monitor) Changed() <-chan struct{} {
 	return m.signal
 }
 
+// DockerUnreadableSince is since when Docker hasn't answered: a list failed, and
+// none has come since. It is the zero time while Docker answers.
+func (m *Monitor) DockerUnreadableSince() time.Time {
+	m.init()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.blindSince
+}
+
 // ScannedAt is when a list of the server's containers last came from Docker: the
 // zero time until one has.
 func (m *Monitor) ScannedAt() time.Time {

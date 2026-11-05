@@ -374,6 +374,15 @@ func TestWords(t *testing.T) {
 	if got := In(now.Add(3*time.Hour), now); got != "in 3 hours" {
 		t.Errorf("In = %s", got)
 	}
+	// A value with a word of its own says it, as the panel does.
+	for state, want := range map[dockwellv1.HealthState]string{
+		dockwellv1.HealthState_HEALTH_STATE_NO_CHECK: "Running", dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING: "Not running",
+		dockwellv1.HealthState_HEALTH_STATE_HEALTHY: "Healthy",
+	} {
+		if got := word(state); got != want {
+			t.Errorf("%s reads %q, want %q", state, got, want)
+		}
+	}
 }
 
 // Each thing that needs a person is said as what it is: a domain isn't more

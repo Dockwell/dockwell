@@ -40,7 +40,7 @@ An HTTP or TCP check goes only to the container, at the address Docker reports f
 | `UNHEALTHY` | The check failed as often as it may |
 | `NOT_RUNNING` | The server said, and the service has no running container there |
 | `PAUSED` | Someone paused it. It serves nothing until it is unpaused, and nothing checks it, though Docker counts it as running |
-| `UNKNOWN` | Nobody can say: the agent hasn't read Docker yet, isn't connected, can't read Docker now, or what it said is too old to stand. What it last said comes with `stale` |
+| `UNKNOWN` | Nobody can say: the agent hasn't read Docker yet, isn't connected, can't read Docker now, or what it said is too old to stand. What it last said comes with `stale`. An agent that is connected and can't read Docker says since when, as `docker_unreadable_since`, on the service's server and on the server itself, so the panel says which it is and how to check it |
 
 A service on a server is as well as its best container, as two exist while one takes over, and what serves is the one that passed. A service across servers is as well as its worst server.
 

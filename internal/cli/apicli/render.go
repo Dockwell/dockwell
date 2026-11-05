@@ -112,7 +112,8 @@ func when(t *timestamppb.Timestamp, now time.Time) string {
 }
 
 // enumWord writes an enum value as a word: CONNECTION_CONNECTED is
-// "Connected", TOKEN_SCOPE_READ_ONLY "Read only".
+// "Connected", TOKEN_SCOPE_READ_ONLY "Read only", and a value with a word of its
+// own that, as HEALTH_STATE_NO_CHECK is "Running".
 func enumWord(ed protoreflect.EnumDescriptor, n protoreflect.EnumNumber) string {
 	v := ed.Values().ByNumber(n)
 	if v == nil {
@@ -120,6 +121,9 @@ func enumWord(ed protoreflect.EnumDescriptor, n protoreflect.EnumNumber) string 
 	}
 	if n == 0 {
 		return ""
+	}
+	if w, _ := proto.GetExtension(v.Options(), dockwellv1.E_Word).(string); w != "" {
+		return w
 	}
 	return capitalize(strings.ReplaceAll(enumName(ed, v), "-", " "))
 }

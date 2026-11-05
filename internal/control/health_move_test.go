@@ -29,8 +29,9 @@ func (s saysRunning) Report() []*dockwellv1.InstanceHealth {
 		State: dockwellv1.HealthState_HEALTH_STATE_NO_CHECK, Check: dockwellv1.HealthCheckKind_HEALTH_CHECK_KIND_NONE, Since: timestamppb.Now(),
 	}}
 }
-func (saysRunning) ScannedAt() time.Time     { return time.Now() }
-func (saysRunning) Changed() <-chan struct{} { return nil }
+func (saysRunning) ScannedAt() time.Time             { return time.Now() }
+func (saysRunning) DockerUnreadableSince() time.Time { return time.Time{} }
+func (saysRunning) Changed() <-chan struct{}         { return nil }
 
 // lookout reads, again and again, how web is, whether its server's agent is there
 // to say how a domain is, and whether its server is connected, and keeps when each

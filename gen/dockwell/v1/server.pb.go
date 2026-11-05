@@ -393,9 +393,14 @@ type Server struct {
 	ConnectTime *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=connect_time,json=connectTime,proto3" json:"connect_time,omitempty"`
 	// Where its ingress stands, as it last said. Unset for a server with no
 	// routes, as nothing on it wants the public ports.
-	Ingress       *IngressStatus `protobuf:"bytes,12,opt,name=ingress,proto3" json:"ingress,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Ingress *IngressStatus `protobuf:"bytes,12,opt,name=ingress,proto3" json:"ingress,omitempty"`
+	// Since when its agent hasn't been able to read Docker, on the server's
+	// clock, as it last said: Docker isn't running, or doesn't answer. Nobody
+	// can say how what runs there is until it can. Unset while it can, and for a
+	// server that isn't connected.
+	DockerUnreadableSince *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=docker_unreadable_since,json=dockerUnreadableSince,proto3" json:"docker_unreadable_since,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *Server) Reset() {
@@ -508,6 +513,13 @@ func (x *Server) GetConnectTime() *timestamppb.Timestamp {
 func (x *Server) GetIngress() *IngressStatus {
 	if x != nil {
 		return x.Ingress
+	}
+	return nil
+}
+
+func (x *Server) GetDockerUnreadableSince() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DockerUnreadableSince
 	}
 	return nil
 }
@@ -957,7 +969,7 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x14WatchServersResponse\x12+\n" +
 	"\x06server\x18\x01 \x01(\v2\x13.dockwell.v1.ServerR\x06server\x12\x18\n" +
 	"\aremoved\x18\x02 \x01(\bR\aremoved\x12+\n" +
-	"\x11snapshot_complete\x18\x03 \x01(\bR\x10snapshotComplete\"\xd9\x04\n" +
+	"\x11snapshot_complete\x18\x03 \x01(\bR\x10snapshotComplete\"\xad\x05\n" +
 	"\x06Server\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12;\n" +
@@ -975,7 +987,8 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x0econtrol_server\x18\n" +
 	" \x01(\bR\rcontrolServer\x12=\n" +
 	"\fconnect_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\vconnectTime\x124\n" +
-	"\aingress\x18\f \x01(\v2\x1a.dockwell.v1.IngressStatusR\aingress\"\xad\x03\n" +
+	"\aingress\x18\f \x01(\v2\x1a.dockwell.v1.IngressStatusR\aingress\x12R\n" +
+	"\x17docker_unreadable_since\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\x15dockerUnreadableSince\"\xad\x03\n" +
 	"\x0fServerInventory\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x17\n" +
 	"\aos_name\x18\x02 \x01(\tR\x06osName\x12\x13\n" +
@@ -1079,21 +1092,22 @@ var file_dockwell_v1_server_proto_depIdxs = []int32{
 	13, // 9: dockwell.v1.Server.agent_build:type_name -> dockwell.v1.BuildInfo
 	12, // 10: dockwell.v1.Server.connect_time:type_name -> google.protobuf.Timestamp
 	14, // 11: dockwell.v1.Server.ingress:type_name -> dockwell.v1.IngressStatus
-	9,  // 12: dockwell.v1.ServerInventory.disks:type_name -> dockwell.v1.Disk
-	12, // 13: dockwell.v1.ServerStats.time:type_name -> google.protobuf.Timestamp
-	11, // 14: dockwell.v1.ServerStats.disks:type_name -> dockwell.v1.DiskUsage
-	15, // 15: dockwell.v1.ServerStats.uptime:type_name -> google.protobuf.Duration
-	1,  // 16: dockwell.v1.ServerService.ListServers:input_type -> dockwell.v1.ListServersRequest
-	3,  // 17: dockwell.v1.ServerService.GetServer:input_type -> dockwell.v1.GetServerRequest
-	5,  // 18: dockwell.v1.ServerService.WatchServers:input_type -> dockwell.v1.WatchServersRequest
-	2,  // 19: dockwell.v1.ServerService.ListServers:output_type -> dockwell.v1.ListServersResponse
-	4,  // 20: dockwell.v1.ServerService.GetServer:output_type -> dockwell.v1.GetServerResponse
-	6,  // 21: dockwell.v1.ServerService.WatchServers:output_type -> dockwell.v1.WatchServersResponse
-	19, // [19:22] is the sub-list for method output_type
-	16, // [16:19] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	12, // 12: dockwell.v1.Server.docker_unreadable_since:type_name -> google.protobuf.Timestamp
+	9,  // 13: dockwell.v1.ServerInventory.disks:type_name -> dockwell.v1.Disk
+	12, // 14: dockwell.v1.ServerStats.time:type_name -> google.protobuf.Timestamp
+	11, // 15: dockwell.v1.ServerStats.disks:type_name -> dockwell.v1.DiskUsage
+	15, // 16: dockwell.v1.ServerStats.uptime:type_name -> google.protobuf.Duration
+	1,  // 17: dockwell.v1.ServerService.ListServers:input_type -> dockwell.v1.ListServersRequest
+	3,  // 18: dockwell.v1.ServerService.GetServer:input_type -> dockwell.v1.GetServerRequest
+	5,  // 19: dockwell.v1.ServerService.WatchServers:input_type -> dockwell.v1.WatchServersRequest
+	2,  // 20: dockwell.v1.ServerService.ListServers:output_type -> dockwell.v1.ListServersResponse
+	4,  // 21: dockwell.v1.ServerService.GetServer:output_type -> dockwell.v1.GetServerResponse
+	6,  // 22: dockwell.v1.ServerService.WatchServers:output_type -> dockwell.v1.WatchServersResponse
+	20, // [20:23] is the sub-list for method output_type
+	17, // [17:20] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_server_proto_init() }

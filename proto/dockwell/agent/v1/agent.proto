@@ -94,6 +94,9 @@ message Health {
   // When it sent this, on the same clock, so the control plane can tell how old
   // something in it is without their clocks agreeing.
   google.protobuf.Timestamp reported_at = 3;
+  // Since when it hasn't been able to read Docker, on the same clock: a list of
+  // containers failed, and none has come since. Unset while it can.
+  google.protobuf.Timestamp docker_unreadable_since = 4;
 }
 
 // Domains is where the certificate and DNS of each of a server's routes'

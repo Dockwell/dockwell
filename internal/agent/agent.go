@@ -79,6 +79,9 @@ type HealthReporter interface {
 	// ScannedAt is when it last read what the server runs: the zero time until it
 	// has, when it has nothing to say.
 	ScannedAt() time.Time
+	// DockerUnreadableSince is since when it hasn't been able to read Docker: the
+	// zero time while it can.
+	DockerUnreadableSince() time.Time
 	// Changed signals when Report has something new to say.
 	Changed() <-chan struct{}
 }
@@ -464,9 +467,11 @@ func session(ctx context.Context, cfg Config) (err error) {
 			if scanned.IsZero() {
 				return nil // what it hasn't read isn't that nothing runs
 			}
-			return send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Health{Health: &agentv1.Health{
-				Instances: instances, ScannedAt: timestamppb.New(scanned), ReportedAt: timestamppb.Now(),
-			}}})
+			h := &agentv1.Health{Instances: instances, ScannedAt: timestamppb.New(scanned), ReportedAt: timestamppb.Now()}
+			if blind := cfg.Health.DockerUnreadableSince(); !blind.IsZero() {
+				h.DockerUnreadableSince = timestamppb.New(blind)
+			}
+			return send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Health{Health: h}})
 		}
 		if err := sendHealth(); err != nil {
 			return err

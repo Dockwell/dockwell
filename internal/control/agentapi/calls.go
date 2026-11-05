@@ -123,9 +123,13 @@ func (a *Agents) ReportHealth(server string, h *agentv1.Health) {
 	}
 	instances := fitToShow(h.GetInstances())
 	a.mu.Lock()
-	a.health[server] = health.Report{
+	report := health.Report{
 		Said: true, Instances: instances, ScannedAt: h.GetScannedAt().AsTime(), ReportedAt: h.GetReportedAt().AsTime(), ReceivedAt: time.Now(),
 	}
+	if h.GetDockerUnreadableSince() != nil {
+		report.DockerUnreadableSince = h.GetDockerUnreadableSince().AsTime()
+	}
+	a.health[server] = report
 	hear := a.healthHearer
 	a.mu.Unlock()
 	if hear != nil {

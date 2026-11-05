@@ -320,6 +320,7 @@ func TestDockerGoneLeavesNoClaimStanding(t *testing.T) {
 		}},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			e := dockertest.New(t)
 			c := add(e, "web")
 			if tc.setup != nil {
@@ -337,11 +338,21 @@ func TestDockerGoneLeavesNoClaimStanding(t *testing.T) {
 				}
 				return nil
 			})
+			if !m.DockerUnreadableSince().IsZero() {
+				t.Errorf("with Docker there, it says it can't read it since %s", m.DockerUnreadableSince())
+			}
+			gone := time.Now()
 			eventually(t, "it stops claiming that", m, stateOf(n, dockwellv1.HealthState_HEALTH_STATE_UNKNOWN))
 			if got := m.ScannedAt(); got.After(scanned.Add(time.Second)) {
 				t.Errorf("it says it read Docker at %s, with Docker gone since before", got)
 			}
+			// It says it can't read Docker, since about when it went, so whoever reads it is told why.
+			if since := m.DockerUnreadableSince(); since.Before(gone.Add(-time.Second)) || since.After(time.Now()) {
+				t.Errorf("it says it can't read Docker since %s, with Docker gone at %s", since, gone)
+			}
 			down.Store(false)
+			// At its slower pace, which is no more than 5 s.
+			eventually(t, "it says it reads Docker again", m, func(map[string]*dockwellv1.InstanceHealth) bool { return m.DockerUnreadableSince().IsZero() })
 			// It looks again at its slower pace, so this needs no more than that.
 			m2 := start(t, e, nil)
 			eventually(t, "a monitor with Docker back reads it", m2, stateOf(n, tc.want))

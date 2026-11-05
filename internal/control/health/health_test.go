@@ -685,6 +685,36 @@ func TestWhatIsTooOldToStandReadsAsNotKnown(t *testing.T) {
 	})
 }
 
+// An agent that can't read Docker is there, and says so: what only Docker can say
+// isn't known, and what it last found isn't that nothing runs.
+func TestAnAgentThatCantReadDockerSaysSo(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		w := newWorld(t, b)
+		blind := time.Now().Add(-2 * time.Minute)
+		unknown := w.instance("web", 1, dockwellv1.HealthState_HEALTH_STATE_UNKNOWN, "")
+		for name, instances := range map[string][]*dockwellv1.InstanceHealth{"with what it found": {unknown}, "having found none": nil} {
+			t.Run(name, func(t *testing.T) {
+				h := New(w.db, oneReport{agenthealth.Report{Said: true, Instances: instances, DockerUnreadableSince: blind}}, slog.New(slog.DiscardHandler))
+				got := w.list(t, h, &dockwellv1.ListHealthRequest{})[0]
+				s := got.GetServers()[0]
+				if got.GetState() != dockwellv1.HealthState_HEALTH_STATE_UNKNOWN || s.GetStale() || !s.GetDockerUnreadableSince().AsTime().Equal(blind) {
+					t.Errorf("it reads %s, stale=%t, Docker unreadable since %v; want unknown, not stale, since %s", got.GetState(), s.GetStale(), s.GetDockerUnreadableSince(), blind)
+				}
+			})
+		}
+		// Once it is gone, all of it is stale, which says more.
+		h := New(w.db, goneReport{agenthealth.Report{Said: true, Instances: []*dockwellv1.InstanceHealth{unknown}, DockerUnreadableSince: blind}}, slog.New(slog.DiscardHandler))
+		if s := w.list(t, h, &dockwellv1.ListHealthRequest{})[0].GetServers()[0]; !s.GetStale() || s.GetDockerUnreadableSince() != nil {
+			t.Errorf("with its agent gone, it reads stale=%t, Docker unreadable since %v; want stale, and nothing of Docker", s.GetStale(), s.GetDockerUnreadableSince())
+		}
+	})
+}
+
+// goneReport is every server's agent having said the same, and gone since.
+type goneReport struct{ report agenthealth.Report }
+
+func (o goneReport) Health(string) (agenthealth.Report, bool) { return o.report, false }
+
 // oneReport is every server's agent having said the same, and connected.
 type oneReport struct{ report agenthealth.Report }
 

@@ -5468,6 +5468,14 @@ components:
                     description: |-
                         Where its ingress stands, as it last said. Unset for a server with no
                          routes, as nothing on it wants the public ports.
+                dockerUnreadableSince:
+                    type: string
+                    description: |-
+                        Since when its agent hasn't been able to read Docker, on the server's
+                         clock, as it last said: Docker isn't running, or doesn't answer. Nobody
+                         can say how what runs there is until it can. Unset while it can, and for a
+                         server that isn't connected.
+                    format: date-time
             description: Server is one machine running the agent.
         ServerHealth:
             type: object
@@ -5512,6 +5520,14 @@ components:
                     description: |-
                         When its agent last read the list of containers from Docker, on the server's
                          clock. Unset until it has.
+                    format: date-time
+                dockerUnreadableSince:
+                    type: string
+                    description: |-
+                        Since when its agent hasn't been able to read Docker, on the server's
+                         clock: Docker isn't running, or doesn't answer, so what only Docker can say
+                         is HEALTH_STATE_UNKNOWN while the agent is connected. Unset while it can,
+                         and when stale.
                     format: date-time
             description: ServerHealth is how a service is on one server.
         ServerInventory:

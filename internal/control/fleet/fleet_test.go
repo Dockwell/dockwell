@@ -164,6 +164,35 @@ func TestAHoldKeepsAMovingServerConnected(t *testing.T) {
 	}
 }
 
+// Whether a server's agent can read Docker is said with each report of health, and a
+// new stream says it anew.
+func TestAServerSaysWhenItsAgentCantReadDocker(t *testing.T) {
+	h, _ := newHub(t, "hz-1")
+	since := timestamppb.New(time.Date(2026, 11, 4, 9, 30, 0, 0, time.UTC))
+	first, _ := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)
+	if got := h.List()[0].GetDockerUnreadableSince(); got != nil {
+		t.Errorf("before it says, Docker is unreadable since %v", got)
+	}
+	h.RecordDocker("srv_A", since)
+	if got := h.List()[0].GetDockerUnreadableSince(); !got.AsTime().Equal(since.AsTime()) {
+		t.Errorf("Docker is unreadable since %v, want %v", got, since)
+	}
+	first()
+	if got := h.List()[0]; got.GetDockerUnreadableSince() != nil {
+		t.Errorf("a server that isn't connected says Docker is unreadable since %v, which nobody can say now", got.GetDockerUnreadableSince())
+	}
+	second, _ := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)
+	defer second()
+	if got := h.List()[0].GetDockerUnreadableSince(); got != nil {
+		t.Errorf("a new stream starts with what the last said, %v", got)
+	}
+	h.RecordDocker("srv_A", since)
+	h.RecordDocker("srv_A", nil)
+	if got := h.List()[0].GetDockerUnreadableSince(); got != nil {
+		t.Errorf("once Docker answers, it is unreadable since %v", got)
+	}
+}
+
 func TestHistoryStartsAgainAfterAGap(t *testing.T) {
 	h, _ := newHub(t, "hz-1")
 	detach, err := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)

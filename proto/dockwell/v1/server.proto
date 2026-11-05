@@ -121,6 +121,11 @@ message Server {
   // Where its ingress stands, as it last said. Unset for a server with no
   // routes, as nothing on it wants the public ports.
   IngressStatus ingress = 12;
+  // Since when its agent hasn't been able to read Docker, on the server's
+  // clock, as it last said: Docker isn't running, or doesn't answer. Nobody
+  // can say how what runs there is until it can. Unset while it can, and for a
+  // server that isn't connected.
+  google.protobuf.Timestamp docker_unreadable_since = 13;
 }
 
 // ServerInventory is what a server is: its system and hardware.

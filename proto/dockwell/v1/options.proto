@@ -87,3 +87,10 @@ extend google.protobuf.FieldOptions {
   // such as --token for a claim link's token. Most fields leave it unset.
   string flag = 50100;
 }
+
+extend google.protobuf.EnumValueOptions {
+  // What people read for a value, where that isn't its name in words: the
+  // dockwell CLI's word for it, which the panel says too, such as "Running" for
+  // HEALTH_STATE_NO_CHECK. Most values leave it unset.
+  string word = 50100;
+}

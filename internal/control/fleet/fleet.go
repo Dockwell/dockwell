@@ -68,6 +68,9 @@ type live struct {
 	// held counts a stream that ended as its agent moved to a new one, until the
 	// next opens or it runs out.
 	held *time.Timer
+	// dockerUnreadableSince is since when its agent hasn't been able to read
+	// Docker, as it last said, on the server's clock. Each stream says it anew.
+	dockerUnreadableSince *timestamppb.Timestamp
 }
 
 // Hub is the fleet's live state.
@@ -184,6 +187,7 @@ func (h *Hub) Attach(ctx context.Context, srv store.Server, inventory *dockwellv
 	l.inventory, l.build, l.lastSeen = inventory, build, now
 	if l.streams == 0 {
 		l.connectedAt = now
+		l.dockerUnreadableSince = nil
 	}
 	l.streams++
 	if l.held != nil {
@@ -259,6 +263,20 @@ func (h *Hub) RecordIngress(id string, ingress *dockwellv1.IngressStatus) {
 		return
 	}
 	l.ingress = ingress
+	h.notifyLocked(id, false)
+}
+
+// RecordDocker keeps since when a server's agent hasn't been able to read Docker,
+// as it says with each report of its services' health, and tells whoever is watching
+// when that changes. Nil is that it can.
+func (h *Hub) RecordDocker(id string, since *timestamppb.Timestamp) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	l, ok := h.servers[id]
+	if !ok || proto.Equal(l.dockerUnreadableSince, since) {
+		return
+	}
+	l.dockerUnreadableSince = since
 	h.notifyLocked(id, false)
 }
 
@@ -375,6 +393,7 @@ func (h *Hub) toProtoLocked(id string, l *live, withHistory bool) *dockwellv1.Se
 	case l.streams > 0:
 		s.Connection = dockwellv1.Connection_CONNECTION_CONNECTED
 		s.ConnectTime = timestamppb.New(l.connectedAt)
+		s.DockerUnreadableSince = l.dockerUnreadableSince
 	case l.inventory != nil:
 		s.Connection = dockwellv1.Connection_CONNECTION_UNREACHABLE
 	default:
