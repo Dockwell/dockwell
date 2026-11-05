@@ -205,11 +205,11 @@ describe("the list's order", () => {
     );
     const first = renderAt("/apps", api([quiet], running(quiet)));
     await waitFor(() => expect(rowNames()).toEqual(["quiet"]));
-    expect(screen.getByRole("columnheader", { name: "Revision" })).toHaveStyle({ width: "128px" });
+    expect(screen.getByRole("columnheader", { name: "Revision" })).toHaveStyle({ width: "152px" });
     first.unmount();
     renderAt("/apps", api([deploying], running(deploying)));
     await waitFor(() => expect(screen.getByRole("row", { name: /web/ })).toHaveTextContent("Deploying"));
-    expect(screen.getByRole("columnheader", { name: "Revision" })).toHaveStyle({ width: "128px" });
+    expect(screen.getByRole("columnheader", { name: "Revision" })).toHaveStyle({ width: "152px" });
   });
 
   it("counts as people do among the calm", async () => {

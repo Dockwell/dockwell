@@ -73,8 +73,8 @@ const ORDER_WAIT_MS = 3_000;
 /** The most rows the list holds the place of while it waits. */
 const HELD_ROWS = 12;
 
-/** Room for a revision, such as r1284, and for most of what a record says beside it on one line. */
-const REVISION_WIDTH = 128;
+/** Room for a revision, such as r12, and for what a record most often says beside it, Rolled back or Deploying, on one line. */
+const REVISION_WIDTH = 152;
 
 /** A SegmentedControl holds up to five; past that, a select. */
 const SEGMENTS = 5;
