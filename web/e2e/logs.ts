@@ -270,6 +270,19 @@ function contrastProblems(): string[] {
   return problems;
 }
 
+/** Waits out colours on their way to a new theme, as a contrast read in the middle of one means nothing. */
+async function colorsSettled(page: Page) {
+  await sleep(50);
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a instanceof CSSTransition)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
+}
+
 function logBody(page: Page) {
   return page.getByRole("log");
 }
@@ -788,7 +801,7 @@ async function main() {
   await page.getByText("on an error's ground").first().waitFor();
   for (const scheme of ["dark", "light"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
-    await sleep(100);
+    await colorsSettled(page);
     const low = await page.evaluate(contrastProblems);
     if (low.length > 0) fail(`in the ${scheme} theme: ${low.join("; ")}`);
   }
@@ -797,7 +810,7 @@ async function main() {
   await page.locator("mark.dw-log-hit").first().waitFor();
   for (const scheme of ["dark", "light"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
-    await sleep(100);
+    await colorsSettled(page);
     const marks = await page.evaluate(contrastOfMarks);
     step(
       `  ${scheme}: a chip's edge on against off ${marks.chip.toFixed(2)}:1; a match against its line ${marks.hit.toFixed(2)}:1, its text ${marks.hitText.toFixed(2)}:1`,
