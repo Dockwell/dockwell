@@ -507,6 +507,33 @@ describe("the plan sheet", () => {
     await expectAccessible(document.body);
   });
 
+  it("says only what's true of what's stopped, as nothing is up to go on serving", async () => {
+    const stopped = webPlanned();
+    const step = stopped.plan?.servers[0]?.steps[0];
+    if (!step) throw new Error("webPlanned has no step");
+    step.downtime = undefined;
+    const server = stopped.plan?.servers[0];
+    if (server) server.downtime = undefined;
+    step.changes = [create(FieldChangeSchema, { path: "state", from: "exited", to: "running" })];
+    step.rollout = create(RolloutPlanSchema, {
+      rolling: true,
+      soak: create(DurationSchema, { seconds: 5n }),
+      healthyWithin: create(DurationSchema, { seconds: 90n }),
+      drain: create(DurationSchema, { seconds: 30n }),
+      others: ["web-1"],
+      earlyNetworks: ["back"],
+    });
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: stopped }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: /plan/i });
+    expect(sheet).toHaveTextContent("It has to stay healthy for 5 s");
+    expect(sheet).not.toHaveTextContent("rolling, with nothing stopped");
+    expect(sheet).not.toHaveTextContent("goes on serving");
+    expect(sheet).not.toHaveTextContent("in flight");
+    expect(sheet).not.toHaveTextContent("beside the old one");
+  });
+
   it("says nothing of stopping first for what's already stopped", async () => {
     const stopped = webPlanned();
     const step = stopped.plan?.servers[0]?.steps[0];
@@ -586,6 +613,11 @@ describe("the plan sheet", () => {
       soak: create(DurationSchema, { seconds: 5n }),
       healthyWithin: create(DurationSchema, { seconds: 90n }),
     });
+    // What it would roll back to, were this a deploy.
+    const service = restart.plan?.resources[0];
+    if (!service) throw new Error("webPlanned has no resource");
+    service.resource = create(ResourceRefSchema, { kind: "service", name: "web" });
+    service.baseRevision = 3n;
     renderSheet(proposeWeb, {
       changes: { proposeChange: () => ({ change: restart }), watchChange: feed<WatchChangeResponse>().stream },
     });
