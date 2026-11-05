@@ -77,13 +77,16 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
         memory: t`Memory`,
       },
       logStream: {
-        live: t`Live`,
+        live: t`Following`,
         paused: t`Paused`,
         follow: t`Follow`,
         pause: t`Pause`,
         level: { warn: t`Warning`, error: t`Error` },
         newLines: (count) => plural(count, { one: "# new line", other: "# new lines" }),
+        manyNewLines: t`10k+ new lines`,
         showAll: t`Show all of this line`,
+        expand: t`Set out`,
+        collapse: t`Put back`,
         cut: (size) => t`${size} more not kept`,
       },
       planDiff: {

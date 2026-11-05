@@ -21,6 +21,7 @@ export {
   type LogLine,
   type LogLines,
   LogStream,
+  type LogStreamHandle,
   type LogStreamProps,
 } from "./components/LogStream/LogStream";
 export { Metric, type MetricProps } from "./components/Metric/Metric";

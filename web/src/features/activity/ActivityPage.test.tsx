@@ -380,12 +380,50 @@ describe("Activity", () => {
     const { router } = renderAt(`/activity?event=${failedChange.id}`, {
       events: { watchEvents: feedOf(snapshot([changeEvent(failedChange)])) },
       changes: { getChange: () => ({ change: failedChange }) },
-      logs: { listLogSources: () => ({}), watchLogs: quietLogs },
+      logs: {
+        listLogSources: () => ({ sources: [{ id: "aaaaaaaaaaaa", changeId: failedChange.id }] }),
+        watchLogs: quietLogs,
+      },
     });
     const link = await screen.findByRole("link", { name: "Read this deploy's logs" });
     expect(link).toHaveAttribute("href", `/apps/${service?.id}/logs?change=${failedChange.id}`);
     await userEvent.setup().click(link);
     await waitFor(() => expect(router.state.location.pathname).toBe(`/apps/${service?.id}/logs`));
+  });
+
+  it("offers no logs of a deploy that never made a container", async () => {
+    const planned = webPlanned();
+    const service = planned.plan?.resources[0];
+    if (service?.resource) service.resource.kind = "service";
+    const failedChange = moved(applied(planned, new Date(Date.now() - 60_000)), {
+      state: ChangeState.FAILED,
+      error: "web didn't start",
+    });
+    const listLogSources = vi.fn(() => ({ sources: [{ id: "aaaaaaaaaaaa", changeId: "chg_another" }] }));
+    renderAt(`/activity?event=${failedChange.id}`, {
+      events: { watchEvents: feedOf(snapshot([changeEvent(failedChange)])) },
+      changes: { getChange: () => ({ change: failedChange }) },
+      logs: { listLogSources, watchLogs: quietLogs },
+    });
+    await waitFor(() => expect(listLogSources).toHaveBeenCalled());
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
+  });
+
+  it("still offers them while a server can't say", async () => {
+    const planned = webPlanned();
+    const service = planned.plan?.resources[0];
+    if (service?.resource) service.resource.kind = "service";
+    const failedChange = moved(applied(planned, new Date(Date.now() - 60_000)), { state: ChangeState.FAILED });
+    renderAt(`/activity?event=${failedChange.id}`, {
+      events: { watchEvents: feedOf(snapshot([changeEvent(failedChange)])) },
+      changes: { getChange: () => ({ change: failedChange }) },
+      logs: {
+        listLogSources: () => ({ servers: [{ serverId: "srv_1", serverName: "hz-1", message: "no agent" }] }),
+        watchLogs: quietLogs,
+      },
+    });
+    expect(await screen.findByRole("link", { name: "Read this deploy's logs" })).toBeVisible();
   });
 
   it("counts only the steps that ran to the end", async () => {

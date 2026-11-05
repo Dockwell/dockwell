@@ -17,8 +17,9 @@ const (
 	// was only paused carries on from where it was.
 	writeStall = 30 * time.Second
 	// writeStep is how much goes out at a time, each with that long to go, so a
-	// slow reader of a large page is fine as long as it reads at all: at least
-	// 64 KiB each 30 s.
+	// slow reader of a large page is fine as long as it reads at all. The system
+	// lets a write go on only once a third of its send buffer has room, which a
+	// slow link's is small enough to reach well within that time.
 	writeStep = 64 << 10
 )
 
@@ -88,9 +89,9 @@ func (w *stallWriter) Write(p []byte) (int, error) {
 	written := 0
 	for len(p) > 0 {
 		n := min(len(p), writeStep)
-		_ = w.control.SetWriteDeadline(time.Now().Add(w.stall)) // a writer that takes none has no reader to stall
+		w.arm()
 		m, err := w.ResponseWriter.Write(p[:n])
-		_ = w.control.SetWriteDeadline(time.Time{})
+		w.disarm()
 		written += m
 		if err != nil {
 			return written, err
@@ -102,10 +103,18 @@ func (w *stallWriter) Write(p []byte) (int, error) {
 
 // FlushError sends what is buffered, within the same limit.
 func (w *stallWriter) FlushError() error {
-	_ = w.control.SetWriteDeadline(time.Now().Add(w.stall))
-	defer func() { _ = w.control.SetWriteDeadline(time.Time{}) }()
+	w.arm()
+	defer w.disarm()
 	return w.control.Flush()
 }
+
+// arm gives a write its time. A writer that takes no deadline has no reader to
+// stall, so that isn't an error.
+func (w *stallWriter) arm() { _ = w.control.SetWriteDeadline(time.Now().Add(w.stall)) }
+
+// disarm takes it away, as HTTP/2 ends the stream at a deadline whether or not a
+// write is under way, and a stream can stay quiet for days.
+func (w *stallWriter) disarm() { _ = w.control.SetWriteDeadline(time.Time{}) }
 
 // Flush is FlushError for what can't take an error.
 func (w *stallWriter) Flush() { _ = w.FlushError() }

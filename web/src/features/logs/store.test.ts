@@ -4,7 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import { type LogChunk, LogChunkSchema, LogGapReason, LogLevel } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
-import { LogStore, MAX_BYTES, MAX_LINES, NO_FILTER } from "./store";
+import { type Entry, LogStore, MAX_BYTES, MAX_HELD, MAX_LINES, NO_FILTER } from "./store";
 
 const T0 = 1_793_832_000n;
 
@@ -169,5 +169,127 @@ describe("LogStore", () => {
     // Generous, as test machines vary: a keystroke's search must not be felt.
     expect(searched - added).toBeLessThan(250);
     expect(added - started).toBeLessThan(1000);
+  });
+
+  describe("while it holds still", () => {
+    const flood = (store: LogStore, from: number, n: number) =>
+      store.add([chunk("a", ...Array.from({ length: n }, (_, i) => line(from + i, `line ${from + i}`)))]);
+
+    it("keeps what shows, and only counts what comes", () => {
+      const store = new LogStore();
+      flood(store, 0, 3);
+      const version = store.length;
+      store.setHolding(true);
+      flood(store, 3, 5);
+      expect(store.length).toBe(version);
+      expect(store.arrived).toBe(5);
+      expect(store.at(store.start + 2)?.text).toBe("line 2");
+    });
+
+    it("loses none of what shows at any rate of lines", () => {
+      const store = new LogStore();
+      flood(store, 0, 1000);
+      const start = store.start;
+      store.setHolding(true);
+      for (let i = 0; i < 30; i++) flood(store, 1000 + i * 10_000, 10_000);
+      expect(store.start).toBe(start);
+      expect(store.length).toBe(1000);
+      expect(store.arrived).toBe(300_000);
+    });
+
+    it("shows what came once it moves again, the newest of it, and says what it let go", () => {
+      const store = new LogStore();
+      flood(store, 0, 3);
+      store.setHolding(true);
+      flood(store, 3, MAX_HELD + 10);
+      store.setHolding(false);
+      expect(store.arrived).toBe(0);
+      const last = store.at(store.start + store.length - 1);
+      expect(last?.text).toBe(`line ${3 + MAX_HELD + 9}`);
+      const marker = store.entryAt(store.start + 3);
+      expect(marker?.left).toBe(10);
+      // A line can't be confused with it.
+      expect(store.oldest()?.text).toBe("line 0");
+    });
+
+    it("still takes older lines a reader asked for", () => {
+      const store = new LogStore();
+      flood(store, 100, 2);
+      store.setHolding(true);
+      store.addOlder([chunk("a", line(1, "older"))]);
+      expect(store.at(store.start)?.text).toBe("older");
+    });
+  });
+
+  describe("errors", () => {
+    const levels = (store: LogStore, lines: [string, number, LogLevel][], source = "a") =>
+      store.add([chunk(source, ...lines.map(([text, at, level]) => line(at, text, level)))]);
+
+    it("counts a stack trace as one", () => {
+      const store = new LogStore();
+      levels(store, [
+        ["fine", 0, LogLevel.INFO],
+        ["boom", 1, LogLevel.ERROR],
+        ["  frame", 1, LogLevel.ERROR],
+        ["  frame", 1, LogLevel.ERROR],
+        ["again", 9, LogLevel.ERROR],
+      ]);
+      expect(store.errors).toBe(2);
+      expect(store.errorAt(0)?.text).toBe("boom");
+      expect(store.errorAt(1)?.text).toBe("again");
+    });
+
+    it("finds an error where it is, through a filter", () => {
+      const store = new LogStore();
+      levels(store, [
+        ["fine", 0, LogLevel.INFO],
+        ["boom", 1, LogLevel.ERROR],
+        ["fine", 2, LogLevel.INFO],
+        ["again", 9, LogLevel.ERROR],
+      ]);
+      const boom = store.errorAt(0) as Entry;
+      expect(store.positionOfEntry(boom)).toBe(store.start + 1);
+      store.setFilter({ levels: new Set([LogLevel.ERROR]), label: "", query: "" });
+      expect(store.positionOfEntry(boom)).toBe(store.start);
+      store.setFilter({ levels: new Set([LogLevel.WARN]), label: "", query: "" });
+      expect(store.positionOfEntry(boom)).toBeUndefined();
+    });
+
+    it("works them out again when another source's lines merge in", () => {
+      const store = new LogStore();
+      levels(store, [["later", 10, LogLevel.ERROR]]);
+      levels(store, [["earlier", 1, LogLevel.ERROR]], "b");
+      expect(store.errors).toBe(2);
+      expect(store.errorAt(0)?.text).toBe("earlier");
+    });
+
+    it("lets one go when it leaves", () => {
+      const store = new LogStore();
+      levels(store, [["boom", 0, LogLevel.ERROR]]);
+      store.add([chunk("a", ...Array.from({ length: MAX_LINES }, (_, i) => line(i + 1, "fine")))]);
+      expect(store.errors).toBe(0);
+    });
+  });
+
+  it("says where the last lines left out were, and doesn't count a search's", () => {
+    const store = new LogStore();
+    store.add([
+      create(LogChunkSchema, {
+        sourceId: "a",
+        gap: { reason: LogGapReason.TOO_FAST, lines: 12n, endTime: { seconds: T0 + 5n, nanos: 0 } },
+        lines: [line(9, "a")],
+      }),
+    ]);
+    expect(store.skipped).toBe(12);
+    const skip = store.lastSkip as Entry;
+    expect(store.positionOfEntry(skip)).toBe(store.start);
+    store.add([
+      create(LogChunkSchema, {
+        sourceId: "a",
+        gap: { reason: LogGapReason.MATCH_LIMIT, lines: 40n, endTime: { seconds: T0 + 6n, nanos: 0 } },
+      }),
+    ]);
+    expect(store.skipped).toBe(12);
+    expect(store.lastSkip).toBe(skip);
   });
 });

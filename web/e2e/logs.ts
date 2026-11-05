@@ -184,6 +184,52 @@ async function shoot(page: Page, name: string) {
   await sleep(100);
 }
 
+/** Runs in the page: what falls short of WCAG AA's contrast, by what is on screen now. */
+function contrastProblems(): string[] {
+  const channels = (color: string): number[] => {
+    const probe = document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D;
+    probe.fillStyle = color;
+    probe.fillRect(0, 0, 1, 1);
+    return [...probe.getImageData(0, 0, 1, 1).data];
+  };
+  const over = (top: number[], under: number[]): number[] => {
+    const a = (top[3] ?? 255) / 255;
+    return [0, 1, 2].map((i) => (top[i] ?? 0) * a + (under[i] ?? 0) * (1 - a));
+  };
+  const ground = (el: Element | null): number[] => {
+    if (!el) return [255, 255, 255];
+    return over(channels(getComputedStyle(el).backgroundColor), ground(el.parentElement));
+  };
+  const light = (c: number[]) =>
+    [0, 1, 2]
+      .map((i) => {
+        const v = (c[i] ?? 0) / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      })
+      .reduce((sum, v, i) => sum + v * ([0.2126, 0.7152, 0.0722][i] ?? 0), 0);
+  const ratio = (a: number[], b: number[]) => {
+    const [hi, lo] = [light(a), light(b)].sort((x, y) => y - x) as [number, number];
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  const problems: string[] = [];
+  for (const selector of [
+    ".dw-log-line.is-error .dw-log-text",
+    ".dw-log-line.is-error .dw-ansi-red",
+    ".dw-log-line.is-error .dw-ansi-green",
+    ".dw-log-line.is-error .dw-ansi-yellow",
+    ".dw-log-line.is-carried .dw-log-text",
+    ".dw-log-foot",
+    ".logs-chip.is-on .logs-chip-face",
+    ".logs-chip:not(.is-on) .logs-chip-face",
+  ]) {
+    const el = document.querySelector(selector);
+    if (!el) continue;
+    const got = ratio(over(channels(getComputedStyle(el).color), ground(el)), ground(el));
+    if (got < 4.5) problems.push(`${selector} is ${got.toFixed(2)}:1`);
+  }
+  return problems;
+}
+
 function logBody(page: Page) {
   return page.getByRole("log");
 }
@@ -226,7 +272,7 @@ async function main() {
 
   step("no logs yet is a state of its own");
   await page.goto(url);
-  await page.getByText("No logs yet.").waitFor({ timeout: 15_000 });
+  await page.getByRole("heading", { name: "No logs yet" }).waitFor({ timeout: 15_000 });
   await shoot(page, "empty");
 
   step("a line reaches the browser within a second");
@@ -295,7 +341,7 @@ async function main() {
 
   step("following stops when the reader scrolls up, and resumes on request");
   await post("/rate?lines=200&size=120");
-  await page.getByRole("status").getByText("Live").waitFor();
+  await page.getByRole("status").getByText("Following").waitFor();
   await sleep(600);
   const log = logBody(page);
   await log.hover();
@@ -321,15 +367,14 @@ async function main() {
   await jump.waitFor();
   await page.screenshot({ path: shots ? join(shots, "paused.png") : join(data, "paused.png") });
   await page.getByRole("button", { name: "Follow", exact: true }).click();
-  await page.getByRole("status").getByText("Live").waitFor();
+  await page.getByRole("status").getByText("Following").waitFor();
   await until("the log to reach the end", () =>
     log.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight < 20),
   );
   await post("/rate?lines=0");
 
   step("filter by level, and search with what it found marked");
-  await page.getByRole("button", { name: "Info" }).click();
-  await page.getByRole("button", { name: "Warn", exact: true }).click();
+  await page.getByRole("button", { name: "Errors", exact: true }).click({ modifiers: ["Shift"] });
   await post("/print", "ERROR the filter keeps this\nWARN the filter hides this\nand this, with no level");
   await page.getByText("the filter keeps this").first().waitFor();
   await sleep(300);
@@ -338,7 +383,7 @@ async function main() {
   if (!page.url().includes("levels=error")) fail(`the filter isn't in the URL: ${page.url()}`);
   await shoot(page, "errors");
   await page.getByRole("button", { name: "Info" }).click();
-  await page.getByRole("button", { name: "Warn", exact: true }).click();
+  await page.getByRole("button", { name: "Warnings", exact: true }).click();
   await page.getByRole("textbox", { name: "Search logs" }).fill("checkout");
   await page.locator("mark.dw-log-hit").first().waitFor();
   await page
@@ -346,20 +391,26 @@ async function main() {
     .first()
     .waitFor();
   await shoot(page, "search");
+  step("Enter goes through what it found, and a match shows among the lines around it");
+  await page.getByRole("textbox", { name: "Search logs" }).press("Enter");
+  await page.locator(".dw-log-line.is-current").first().waitFor();
+  await page.getByText(/^\d+ of \d+$/).waitFor();
+  await page.locator(".dw-log-line.is-current").first().hover();
+  await page.getByRole("button", { name: "Show in context" }).first().click();
+  await page.getByRole("dialog").locator(".dw-log-line.is-current").waitFor();
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog").waitFor({ state: "hidden" });
   await page.getByRole("textbox", { name: "Search logs" }).fill("nothing has this in it");
-  await page.getByText("Nothing here matches these filters.").waitFor();
+  await page.getByText(/^Nothing in the [\d,]+ lines loaded has "nothing has this in it"\.$/).waitFor();
   await shoot(page, "no-match");
   step("search all that the servers keep");
   await page.getByRole("textbox", { name: "Search logs" }).fill("checkout");
-  await page.getByRole("button", { name: "Search all the servers keep" }).click();
-  await page.getByText(/as far as the servers keep logs/).waitFor();
+  await page.getByRole("radio", { name: "All the servers keep" }).click();
+  await page.getByText(/That is all the servers keep\./).waitFor();
+  await page.getByText(/\d+ matches? in [\d,]+ lines, back to/).waitFor();
   await shoot(page, "deep-search");
-  await page.getByRole("button", { name: "Back to the lines loaded" }).click();
-  await page
-    .getByRole("button", { name: "Clear filters" })
-    .waitFor({ state: "hidden" })
-    .catch(() => {});
-  await page.getByRole("textbox", { name: "Search logs" }).fill("");
+  await page.getByRole("radio", { name: "Lines loaded" }).click();
+  await page.getByRole("textbox", { name: "Search logs" }).press("Escape");
 
   step("copy and download what shows");
   await page.getByRole("button", { name: "Copy these lines" }).click();
@@ -387,7 +438,13 @@ async function main() {
   await logsLink.first().waitFor();
   await logsLink.first().click();
   await page.getByText("giving up after 3 tries").waitFor();
-  await page.getByText("This deploy failed and was rolled back.").waitFor();
+  await page.getByRole("alert").getByText("failed at").waitFor();
+  step("  it opens at the first error, not following, with what to do next");
+  await page.locator(".dw-log-line.is-current").getByText("can't reach the database").waitFor();
+  await page
+    .getByRole("group", { name: "Errors in this log" })
+    .getByText(/1 of \d+/)
+    .waitFor();
   await shoot(page, "failed-deploy");
   await page.getByRole("radio", { name: "Running now" }).click();
   await page.waitForFunction(() => !window.location.search.includes("change="));
@@ -427,7 +484,7 @@ async function main() {
   await page.keyboard.press("PageUp");
   await page.getByRole("status").getByText("Paused").waitFor({ timeout: 2000 });
   await page.keyboard.press("End");
-  await page.getByRole("status").getByText("Live").waitFor({ timeout: 2000 });
+  await page.getByRole("status").getByText("Following").waitFor({ timeout: 2000 });
 
   step("a server that goes offline is stated, and its logs carry on when it returns");
   const ticket =
@@ -508,7 +565,7 @@ async function main() {
   const written = async () => Number((await (await fetch(`${load}/written`)).text()).trim());
   const writtenBefore = await written();
   await post("/rate?lines=5000&size=120");
-  await page.getByRole("status").getByText("Live").waitFor();
+  await page.getByRole("status").getByText("Following").waitFor();
   const stopFilling = await watchFrames(page);
   await sleep(21_000);
   const filling = await stopFilling();
@@ -537,7 +594,7 @@ async function main() {
   const typed = Date.now();
   await search.fill("products/4242 ");
   // It really is at the limit: the figures above are worth nothing otherwise.
-  await page.getByText(/of the 100,000 lines loaded match/).waitFor();
+  await page.getByText(/of the 100,000 lines loaded match/).waitFor({ timeout: 10_000 });
   step(
     `  a search over all of them, from typing to the answer (120 ms of that waits for the next key): ${Date.now() - typed} ms`,
   );
@@ -546,7 +603,10 @@ async function main() {
   step("a flood gets a marker saying how many lines it missed");
   await post("/flood?size=200");
   await page.getByRole("button", { name: "Follow", exact: true }).click();
-  await page.getByText(/lines not shown so far/).waitFor({ timeout: 10_000 });
+  await page
+    .getByText(/lines? not shown/)
+    .first()
+    .waitFor({ timeout: 10_000 });
   await page.screenshot({ path: shots ? join(shots, "flood.png") : join(data, "flood.png") });
   await post("/flood?size=0");
   // The last marker is in the log once it stops, for a reader who goes to it.
@@ -559,6 +619,91 @@ async function main() {
   });
   if (!/not shown/.test(missed)) step("  (the last marker is further up than the screen)");
   await page.getByRole("button", { name: "Follow", exact: true }).click();
+
+  step("while paused, what shows holds still, however fast lines come");
+  await post("/rate?lines=16000&size=120");
+  await page.getByRole("status").getByText("Following").waitFor();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await page.getByRole("status").getByText("Paused").waitFor();
+  const reading = async () =>
+    page.evaluate(() => {
+      const el = document.querySelector('[role="log"]') as HTMLElement;
+      const box = el.getBoundingClientRect();
+      const row = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)?.closest(".dw-log-row");
+      return row?.textContent ?? "";
+    });
+  const held = await reading();
+  await sleep(8000);
+  if (!held || (await reading()) !== held)
+    fail("the line being read changed while paused, under 16,000 lines a second");
+  await page.getByText(/Paused at \d\d:\d\d:\d\d\. [\d,]+ lines since\./).waitFor();
+  await page.getByRole("button", { name: /10k\+ new lines/ }).waitFor();
+  await post("/rate?lines=0");
+  await page.getByRole("button", { name: "Follow", exact: true }).click();
+
+  step("nothing moves as what is said changes");
+  const places = () =>
+    page.evaluate(() => {
+      const top = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
+      return {
+        log: top('[role="log"]')?.top,
+        copy: top('[aria-label="Copy these lines"]')?.left,
+        title: top(".dw-log-name")?.left,
+      };
+    });
+  await sleep(300);
+  const following = await places();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await sleep(200);
+  const paused = await places();
+  await page.getByRole("textbox", { name: "Search logs" }).fill("products");
+  await sleep(300);
+  const searching = await places();
+  await page.getByRole("textbox", { name: "Search logs" }).press("Escape");
+  await page.getByRole("button", { name: "Follow", exact: true }).click();
+  for (const [name, moved] of Object.entries({ paused, searching })) {
+    if (JSON.stringify(moved) !== JSON.stringify(following)) {
+      fail(`${name}, what sits around the log moved: ${JSON.stringify(following)} to ${JSON.stringify(moved)}`);
+    }
+  }
+
+  step("what shows holds AA contrast, in both themes");
+  await post(
+    "/print",
+    "ERROR \u001b[31mred\u001b[0m \u001b[32mgreen\u001b[0m \u001b[33myellow\u001b[0m on an error's ground\n    carried on",
+  );
+  await page.getByText("on an error's ground").first().waitFor();
+  for (const scheme of ["dark", "light"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await sleep(100);
+    const low = await page.evaluate(contrastProblems);
+    if (low.length > 0) fail(`in the ${scheme} theme: ${low.join("; ")}`);
+  }
+  await page.emulateMedia({ colorScheme: "dark" });
+
+  step("a phone gives the log the room, and targets of 44 px");
+  await page.setViewportSize({ width: 360, height: 740 });
+  await sleep(300);
+  const room = await page.evaluate(() => {
+    const body = document.querySelector('[role="log"]') as HTMLElement;
+    const small: string[] = [];
+    for (const el of document.querySelectorAll<HTMLElement>(".logs button, .logs a, .logs [role=radio]")) {
+      const box = el.getBoundingClientRect();
+      if (box.height > 0 && box.height < 44 && !el.closest(".dw-log-actions, .is-held")) {
+        small.push(`${el.textContent || el.getAttribute("aria-label")}: ${box.height}`);
+      }
+    }
+    return {
+      share: body.getBoundingClientRect().height / window.innerHeight,
+      tabbar: document.querySelector(".tabbar") !== null,
+      small,
+    };
+  });
+  step(`  the log takes ${Math.round(room.share * 100)}% of a phone's screen`);
+  if (room.tabbar) fail("a phone shows the tab bar on an app's logs");
+  if (room.share < 0.6) fail(`the log takes ${Math.round(room.share * 100)}% of a phone's screen`);
+  if (room.small.length > 0) fail(`targets under 44 px on a phone: ${room.small.join(", ")}`);
+  await page.setViewportSize({ width: 1440, height: 970 });
 
   step("closing the page stops the reading on the agent");
   const followers = async () => Number((await (await fetch(`${load}/followers`)).text()).trim());

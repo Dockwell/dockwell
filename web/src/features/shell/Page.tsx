@@ -32,6 +32,10 @@ export interface PageProps {
   phoneSub?: ReactNode;
   /** Where the phone header's back button goes. Pages a tab opens have none. */
   back?: Back;
+  /** Where the phone header's back button goes, if not one of the usual places. */
+  backLink?: ReactNode;
+  /** Takes the place of the phone header's search, for a page that has its own. */
+  phoneAction?: ReactNode;
   /** A quiet note on the state of the page's data, such as "Reconnecting". */
   status?: ReactNode;
   children?: ReactNode;
@@ -54,6 +58,8 @@ export function Page({
   phoneMachineTitle = false,
   phoneSub,
   back,
+  backLink,
+  phoneAction,
   status,
   children,
   className,
@@ -70,6 +76,8 @@ export function Page({
           machineTitle={phoneTitle === undefined ? machineTitle : phoneMachineTitle}
           sub={phoneSub}
           back={back}
+          backLink={backLink}
+          action={phoneAction}
         />
       ) : null}
       <div className={cx("page", className)}>
@@ -102,15 +110,19 @@ interface MobileHeaderProps {
   machineTitle: boolean;
   sub?: ReactNode;
   back?: Back | undefined;
+  backLink?: ReactNode;
+  action?: ReactNode;
 }
 
 /** The phone's header: back where there's somewhere to go back to, the title, and search. */
-function MobileHeader({ title, machineTitle, sub, back }: MobileHeaderProps) {
+function MobileHeader({ title, machineTitle, sub, back, backLink, action }: MobileHeaderProps) {
   const { t } = useLingui();
   const openCommandBar = useOpenCommandBar();
   return (
     <header className="mobile-header">
-      {back ? (
+      {backLink ? (
+        backLink
+      ) : back ? (
         <Link to={back} className="mobile-header-button" aria-label={t`Back`}>
           <Icon name="arrow-left" size={20} />
         </Link>
@@ -121,14 +133,16 @@ function MobileHeader({ title, machineTitle, sub, back }: MobileHeaderProps) {
         <h1 className={cx("mobile-header-title", machineTitle && "is-machine")}>{title}</h1>
         {sub ? <p className="mobile-header-sub">{sub}</p> : null}
       </div>
-      <button
-        type="button"
-        className="mobile-header-button"
-        aria-label={t`Search or run a command`}
-        onClick={openCommandBar}
-      >
-        <Icon name="search" size={20} />
-      </button>
+      {action ?? (
+        <button
+          type="button"
+          className="mobile-header-button"
+          aria-label={t`Search or run a command`}
+          onClick={openCommandBar}
+        >
+          <Icon name="search" size={20} />
+        </button>
+      )}
     </header>
   );
 }

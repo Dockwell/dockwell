@@ -5645,3 +5645,379 @@ msgstr "No server runs {name}"
 #: src/features/auth/ProfilePage.tsx
 msgid "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code."
 msgstr "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code."
+
+#. placeholder {0}: e.left
+#: src/features/logs/draw.ts
+msgid "{0, plural, one {{count} line came while this view was paused, and left it unseen.} other {{count} lines came while this view was paused, and left it unseen.}}"
+msgstr "{0, plural, one {{count} line came while this view was paused, and left it unseen.} other {{count} lines came while this view was paused, and left it unseen.}}"
+
+#. placeholder {0}: now.store.matches
+#: src/features/logs/LogsPage.tsx
+msgid "{0, plural, one {{count} line matches.} other {{count} lines match.}}"
+msgstr "{0, plural, one {{count} line matches.} other {{count} lines match.}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} line from {source} not shown: it wrote faster than a live view can carry. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: it wrote faster than a live view can carry. Read them with dockwell logs read.}}"
+msgstr "{0, plural, one {{lines} line from {source} not shown: it wrote faster than a live view can carry. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: it wrote faster than a live view can carry. Read them with dockwell logs read.}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} line from {source} not shown: this server shares what it carries live between everyone reading it, and this was past this view's share. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: this server shares what it carries live between everyone reading it, and these were past this view's share. Read them with dockwell logs read.}}"
+msgstr "{0, plural, one {{lines} line from {source} not shown: this server shares what it carries live between everyone reading it, and this was past this view's share. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: this server shares what it carries live between everyone reading it, and these were past this view's share. Read them with dockwell logs read.}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
+msgstr "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
+
+#. placeholder {0}: store.arrived
+#: src/features/logs/LogFoot.tsx
+msgid "{0, plural, one {Paused at {at}. {count} line since.} other {Paused at {at}. {count} lines since.}}"
+msgstr "{0, plural, one {Paused at {at}. {count} line since.} other {Paused at {at}. {count} lines since.}}"
+
+#. placeholder {0}: step.toLocaleString(i18n.locale)
+#. placeholder {1}: active.matches.toLocaleString(i18n.locale)
+#: src/features/logs/LogsPage.tsx
+msgid "{0} of {1}"
+msgstr "{0} of {1}"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{down} couldn't be searched, so its lines aren't in this."
+msgstr "{down} couldn't be searched, so its lines aren't in this."
+
+#: src/features/logs/LogsPage.tsx
+msgid "{errors, plural, one {{count} error} other {{count} errors}}"
+msgstr "{errors, plural, one {{count} error} other {{count} errors}}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{first} couldn't be searched"
+msgstr "{first} couldn't be searched"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
+msgstr "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
+
+#: src/features/logs/LogNote.tsx
+msgid "{name} has no container now, so these are the logs of its last deploy."
+msgstr "{name} has no container now, so these are the logs of its last deploy."
+
+#: src/features/logs/LogsPage.tsx
+msgid "{name} has no containers yet"
+msgstr "{name} has no containers yet"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{name} hasn't written anything. Its first lines show here as it writes them."
+msgstr "{name} hasn't written anything. Its first lines show here as it writes them."
+
+#: src/features/apps/AppLayout.tsx
+msgid "{name} logs"
+msgstr "{name} logs"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{number} of {count}"
+msgstr "{number} of {count}"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{rangeLabel}, to {to}. Refresh for newer lines."
+msgstr "{rangeLabel}, to {to}. Refresh for newer lines."
+
+#: src/features/logs/LogFoot.tsx
+msgid "{speed} lines/s"
+msgstr "{speed} lines/s"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{value, plural, one {{count} line not shown} other {{count} lines not shown}}"
+msgstr "{value, plural, one {{count} line not shown} other {{count} lines not shown}}"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{value, plural, one {About {count} line not shown} other {About {count} lines not shown}}"
+msgstr "{value, plural, one {About {count} line not shown} other {About {count} lines not shown}}"
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{image}</0> exited with code {code}."
+msgstr "<0>{image}</0> exited with code {code}."
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{image}</0> exited with no error."
+msgstr "<0>{image}</0> exited with no error."
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{revision}</0> failed at {finished} and was rolled back to <1>{rolledBackTo}</1>."
+msgstr "<0>{revision}</0> failed at {finished} and was rolled back to <1>{rolledBackTo}</1>."
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{revision}</0> failed at {finished} and was rolled back."
+msgstr "<0>{revision}</0> failed at {finished} and was rolled back."
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{revision}</0> was replaced at {finished}."
+msgstr "<0>{revision}</0> was replaced at {finished}."
+
+#: src/app/Providers.tsx
+msgid "10k+ new lines"
+msgstr "10k+ new lines"
+
+#: src/features/logs/LogsPage.tsx
+msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
+msgstr "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
+
+#: src/features/logs/LogsPage.tsx
+msgid "All the servers keep"
+msgstr "All the servers keep"
+
+#: src/features/logs/LogContext.tsx
+msgid "Can't read the lines around it"
+msgstr "Can't read the lines around it"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Can't read these logs now"
+msgstr "Can't read these logs now"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Choose a longer range, or follow what it writes next."
+msgstr "Choose a longer range, or follow what it writes next."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Clear the search"
+msgstr "Clear the search"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Close the search"
+msgstr "Close the search"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Copied this line"
+msgstr "Copied this line"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Copy this line"
+msgstr "Copy this line"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Deploy it, and its logs show here as it starts."
+msgstr "Deploy it, and its logs show here as it starts."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Enter goes to the next match up the log, and Shift+Enter down it. Escape clears the search."
+msgstr "Enter goes to the next match up the log, and Shift+Enter down it. Escape clears the search."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Errors in this log"
+msgstr "Errors in this log"
+
+#: src/features/logs/LogsPage.tsx
+msgid "failed"
+msgstr "failed"
+
+#: src/app/Providers.tsx
+msgid "Following"
+msgstr "Following"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Go to the last"
+msgstr "Go to the last"
+
+#: src/features/logs/LogsPage.tsx
+msgid "It reads each container's log, at most for 30 s."
+msgstr "It reads each container's log, at most for 30 s."
+
+#: src/features/logs/LogNote.tsx
+msgid "It wrote more than the server keeps of one container, so not all of its lines are here."
+msgstr "It wrote more than the server keeps of one container, so not all of its lines are here."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Its agent isn't connected, so its lines weren't read. Check the server, then search again."
+msgstr "Its agent isn't connected, so its lines weren't read. Check the server, then search again."
+
+#: src/features/logs/LogNote.tsx
+msgid "Its agent isn't connected, so its logs can't be read now. Its containers keep running and logging. Check the server. Lines written meanwhile arrive when it reconnects, as far as Docker kept them."
+msgstr "Its agent isn't connected, so its logs can't be read now. Its containers keep running and logging. Check the server. Lines written meanwhile arrive when it reconnects, as far as Docker kept them."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Its logs show here once they can be read."
+msgstr "Its logs show here once they can be read."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Last 1 h"
+msgstr "Last 1 h"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Last 15 min"
+msgstr "Last 15 min"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Last 24 h"
+msgstr "Last 24 h"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
+msgstr "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
+
+#: src/features/logs/LogContext.tsx
+msgid "Lines around this one"
+msgstr "Lines around this one"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Lines loaded"
+msgstr "Lines loaded"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Next error"
+msgstr "Next error"
+
+#: src/features/logs/LogsPage.tsx
+msgid "No logs yet"
+msgstr "No logs yet"
+
+#: src/features/logs/LogContext.tsx
+msgid "Nothing else was written around this line."
+msgstr "Nothing else was written around this line."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing in all the servers keep has \"{highlight}\"."
+msgstr "Nothing in all the servers keep has \"{highlight}\"."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing in the {total} lines loaded has \"{query}\"."
+msgstr "Nothing in the {total} lines loaded has \"{query}\"."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing to show until {servers} is back"
+msgstr "Nothing to show until {servers} is back"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing was written in this time"
+msgstr "Nothing was written in this time"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Pause to read"
+msgstr "Pause to read"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Press Enter to search all the servers keep."
+msgstr "Press Enter to search all the servers keep."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Previous error"
+msgstr "Previous error"
+
+#: src/app/Providers.tsx
+msgid "Put back"
+msgstr "Put back"
+
+#: src/features/logs/DeployLogLinks.tsx
+msgid "Read {name}'s logs from this deploy"
+msgstr "Read {name}'s logs from this deploy"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Read the failed deploy's logs"
+msgstr "Read the failed deploy's logs"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Read them with <0>dockwell logs read</0>."
+msgstr "Read them with <0>dockwell logs read</0>."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Read this range again"
+msgstr "Read this range again"
+
+#: src/features/logs/LogContext.tsx
+msgid "Reading the lines around it"
+msgstr "Reading the lines around it"
+
+#: src/features/logs/LogNote.tsx
+msgid "Reconnecting to the control server"
+msgstr "Reconnecting to the control server"
+
+#: src/features/logs/LogsPage.tsx
+msgid "replaced"
+msgstr "replaced"
+
+#: src/app/Providers.tsx
+msgid "Set out"
+msgstr "Set out"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Show in context"
+msgstr "Show in context"
+
+#: src/features/logs/LogNote.tsx
+msgid "Show less"
+msgstr "Show less"
+
+#: src/features/logs/LogNote.tsx
+msgid "Show more"
+msgstr "Show more"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Start of the log"
+msgstr "Start of the log"
+
+#: src/features/logs/LogFoot.tsx
+msgid "That is all the servers keep."
+msgstr "That is all the servers keep."
+
+#: src/features/logs/LogsPage.tsx
+msgid "The search failed"
+msgstr "The search failed"
+
+#: src/features/logs/LogFoot.tsx
+msgid "The search stopped after 30 s, at {at}. Read older lines with <0>dockwell logs read</0>."
+msgstr "The search stopped after 30 s, at {at}. Read older lines with <0>dockwell logs read</0>."
+
+#: src/features/logs/LogFoot.tsx
+msgid "The search stopped at the newest 1,000,000 lines of a container, at {at}. Read older lines with <0>dockwell logs read</0>."
+msgstr "The search stopped at the newest 1,000,000 lines of a container, at {at}. Read older lines with <0>dockwell logs read</0>."
+
+#: src/features/logs/LogsPage.tsx
+msgid "The servers have no lines of this app."
+msgstr "The servers have no lines of this app."
+
+#: src/features/logs/LogsPage.tsx
+msgid "There are no lines to copy"
+msgstr "There are no lines to copy"
+
+#: src/features/logs/LogsPage.tsx
+msgid "There are no lines to download"
+msgstr "There are no lines to download"
+
+#: src/features/logs/LogFoot.tsx
+msgid "this app wrote faster than a live view can carry."
+msgstr "this app wrote faster than a live view can carry."
+
+#: src/features/logs/LogFoot.tsx
+msgid "this page or the network to it fell behind."
+msgstr "this page or the network to it fell behind."
+
+#: src/features/logs/LogFoot.tsx
+msgid "this server shares what it carries live between everyone reading it."
+msgstr "this server shares what it carries live between everyone reading it."
+
+#: src/features/logs/LogsPage.tsx
+msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
+msgstr "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Time"
+msgstr "Time"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Type what to find, and press Enter. It reads each container's log, at most for 30 s."
+msgstr "Type what to find, and press Enter. It reads each container's log, at most for 30 s."
+
+#: src/features/logs/LogsPage.tsx
+msgid "What the servers keep goes back further than what is loaded here."
+msgstr "What the servers keep goes back further than what is loaded here."
+
+#: src/features/logs/LogsPage.tsx
+msgid "What to search"
+msgstr "What to search"
+
+#: src/features/logs/LogsPage.tsx
+msgid "What to show"
+msgstr "What to show"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Wrap long lines"
+msgstr "Wrap long lines"

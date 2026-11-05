@@ -31,12 +31,15 @@ export function tabOf(pathname: string): Tab {
 /** The phone's tab bar, in place of the rail below 640px. */
 export function TabBar({ view }: { view: FleetView }) {
   const { t } = useLingui();
-  const tab = tabOf(useLocation({ select: (location) => location.pathname }));
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const tab = tabOf(pathname);
   const props = (id: Tab) => ({
     className: cx("tabbar-item", tab === id && "is-active"),
     "aria-current": tab === id ? ("page" as const) : undefined,
     activeOptions: { exact: true },
   });
+  // An app's logs have all of a phone's screen, as what is wrong is what matters.
+  if (/^\/apps\/[^/]+\/logs\/?$/.test(pathname)) return null;
   return (
     <nav className="tabbar" aria-label={t`Main`}>
       <Link to="/" {...props("overview")}>

@@ -49,10 +49,16 @@ function final(err: ConnectError): boolean {
  *
  * Leaving stops it at once, all the way to the agent.
  */
-export function useLogStream(request: Request | undefined, store: LogStore, onSources?: () => void): StreamState {
+export function useLogStream(
+  request: Request | undefined,
+  store: LogStore,
+  onSources?: () => void,
+  /** Changes to read the same request again, as refreshing a time range does. */
+  again = 0,
+): StreamState {
   const transport = useTransport();
   const [state, setState] = useState<StreamState>(START);
-  const key = request ? JSON.stringify(request, bigints) : "";
+  const key = request ? `${again}/${JSON.stringify(request, bigints)}` : "";
   const latest = useRef(request);
   latest.current = request;
   const heard = useRef(onSources);

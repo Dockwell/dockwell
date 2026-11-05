@@ -15,7 +15,7 @@ import {
   type WatchLogsResponse,
   WatchLogsResponseSchema,
 } from "@dockwell/api";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -39,6 +39,7 @@ const running = create(LogSourceSchema, {
   containerName: "env-web-1",
 });
 const second = create(LogSourceSchema, { ...running, id: "bbbbbbbbbbbb", serverId: "srv_2", serverName: "hz-2" });
+
 const failed = create(LogSourceSchema, {
   ...running,
   id: "cccccccccccc",
@@ -147,7 +148,7 @@ describe("LogsPage", () => {
     await screen.findByText("GET /healthz 200");
     expect(container.querySelector(".dw-log-src")).toBeNull();
     expect(screen.getByRole("log")).toHaveAttribute("aria-live", "off");
-    expect(within(screen.getByRole("log").closest(".dw-log") as HTMLElement).getByText("Live")).toBeVisible();
+    expect(within(screen.getByRole("log").closest(".dw-log") as HTMLElement).getByText("Following")).toBeVisible();
     await expectAccessible(container);
   });
 
@@ -182,14 +183,15 @@ describe("LogsPage", () => {
     const first = renderAt(URL, { logs: empty.logs });
     await screen.findByRole("log");
     await act(() => empty.stream.send(message({ caughtUp: true })));
-    await screen.findByText(/web has no containers yet/);
+    await screen.findByRole("heading", { name: "web has no containers yet" });
     first.unmount();
 
     const quiet = api();
     renderAt(URL, { logs: quiet.logs });
     await screen.findByText("Reading logs");
     await act(() => quiet.stream.send(message({ sources: [running], caughtUp: true })));
-    await screen.findByText(/No logs yet\. web hasn't written anything/);
+    await screen.findByRole("heading", { name: "No logs yet" });
+    await screen.findByText(/web hasn't written anything/);
   });
 
   it("states a server that goes offline, and takes it back", async () => {
@@ -211,7 +213,9 @@ describe("LogsPage", () => {
       ),
     );
     await screen.findByText("hz-1 is offline");
-    expect(screen.getByRole("alert")).toHaveTextContent("The lines from while it was away arrive when it returns");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Its agent isn't connected, so its logs can't be read now. Its containers keep running and logging. Check the server. Lines written meanwhile arrive when it reconnects, as far as Docker kept them.",
+    );
     await act(() =>
       stream.send(message({ servers: [{ serverId: "srv_1", serverName: "hz-1", state: ServerLogState.READING }] })),
     );
@@ -270,9 +274,11 @@ describe("LogsPage", () => {
     await waitFor(() => expect(router.state.location.search).toMatchObject({ q: "cart" }));
     await user.clear(screen.getByRole("textbox", { name: "Search logs" }));
     await user.type(screen.getByRole("textbox", { name: "Search logs" }), "zzz");
-    await screen.findByText("Nothing here matches these filters.");
-    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    await screen.findByText('Nothing in the 2 lines loaded has "zzz".');
+    expect(screen.getByRole("button", { name: "Search all the servers keep" })).toBeVisible();
+    await user.keyboard("{Escape}");
     await screen.findByText("GET /orders 200");
+    expect(screen.getByRole("textbox", { name: "Search logs" })).toHaveValue("");
   });
 
   it("searches all the servers keep on request, and says how far it reached", async () => {
@@ -291,14 +297,26 @@ describe("LogsPage", () => {
       ),
     );
     const user = userEvent.setup();
-    await user.type(screen.getByRole("textbox", { name: "Search logs" }), "far");
+    const field = screen.getByRole("textbox", { name: "Search logs" });
+    await user.type(field, "far");
+    // Nothing loaded has it: the way on is named, and so is what was looked for.
+    await screen.findByText('Nothing in the 1 lines loaded has "far".');
     await user.click(await screen.findByRole("button", { name: "Search all the servers keep" }));
     // Marked where it matched, so split across elements.
     await waitFor(() => expect(screen.getByRole("log")).toHaveTextContent("found far back"));
     expect(readLogs.mock.calls.length).toBe(1);
-    await screen.findByText(/Searched 1,500 lines, back to/);
-    await screen.findByText(/as far as the servers keep logs/);
-    await user.click(screen.getByRole("button", { name: "Back to the lines loaded" }));
+    await screen.findByText(/1 match in 1,500 lines, back to/);
+    await screen.findByText(/That is all the servers keep\./);
+    expect(screen.getByRole("radio", { name: "All the servers keep" })).toBeChecked();
+    // Typing doesn't search again, nor go back to the lines loaded: Enter does the one.
+    await user.type(field, "ther");
+    await screen.findByText("Press Enter to search all the servers keep.");
+    // Past how long a search of what is loaded waits for the next key.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 200)));
+    expect(readLogs.mock.calls.length).toBe(1);
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(readLogs.mock.calls.length).toBe(2));
+    await user.click(screen.getByRole("radio", { name: "Lines loaded" }));
     await waitFor(() => expect(screen.getByRole("log")).not.toHaveTextContent("found far back"));
   });
 
@@ -320,8 +338,10 @@ describe("LogsPage", () => {
         }),
       ),
     );
-    await screen.findByText(/1,204 lines from hz-1 not shown: it wrote faster than a live view carries/);
-    await screen.findByText(/1,204 lines not shown so far/);
+    await screen.findByText(/1,204 lines from hz-1 not shown: it wrote faster than a live view can carry/);
+    await screen.findByText(/About 1,200 lines not shown/);
+    await screen.findByText(/this app wrote faster than a live view can carry/);
+    expect(screen.getByRole("button", { name: "Go to the last" })).toBeVisible();
   });
 
   it("shows a deploy that failed, by the link Activity gives", async () => {
@@ -330,7 +350,7 @@ describe("LogsPage", () => {
     await screen.findByRole("log");
     await waitFor(() => expect(requests[0]?.changeId).toBe("chg_2"));
     expect(requests[0]?.once).toBe(true);
-    await screen.findByText("This deploy failed and was rolled back.", { exact: false });
+    await screen.findByText("failed at", { exact: false });
     await act(() =>
       stream.send(
         message({
@@ -342,8 +362,8 @@ describe("LogsPage", () => {
     );
     await screen.findByText("ERROR no database");
     // It isn't following anything.
-    expect(screen.queryByText("Live")).toBeNull();
-    expect(screen.getByRole("radio", { name: /r2 · failed/ })).toBeChecked();
+    expect(screen.queryByText("Following")).toBeNull();
+    expect(screen.getByRole("radio", { name: /r2\s*failed/ })).toBeChecked();
   });
 
   it("says when a deploy's logs are gone", async () => {
@@ -361,7 +381,7 @@ describe("LogsPage", () => {
     await userEvent.setup().click(screen.getByRole("radio", { name: "1 h" }));
     await waitFor(() => expect(requests.some((r) => r.once && r.last?.seconds === 3600n)).toBe(true));
     await act(() => stream.end());
-    await screen.findByText("Nothing was written in this time.");
+    await screen.findByRole("heading", { name: "Nothing was written in this time" });
     expect(screen.queryByText("Paused")).toBeNull();
   });
 
@@ -381,7 +401,7 @@ describe("LogsPage", () => {
     );
     await screen.findByText("before");
     await act(() => stream.fail(new ConnectError("gone", Code.Unavailable)));
-    await screen.findByText("Reconnecting to the control plane");
+    await screen.findByText("Reconnecting to the control server");
     await waitFor(() => expect(requests.at(-1)?.resumeToken).toBe("place-1"), { timeout: 3000 });
   });
 
@@ -401,6 +421,7 @@ describe("LogsPage", () => {
     );
     await screen.findByRole("textbox", { name: "搜索日志" });
     expect(screen.getByRole("button", { name: "警告" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "错误" })).toBeVisible();
     expect(screen.getByRole("radio", { name: "1 小时" })).toBeInTheDocument();
     await expectAccessible(container);
   });
@@ -422,6 +443,18 @@ describe("LogsPage", () => {
       );
       await screen.findByRole("button", { name: "All levels" });
       const user = userEvent.setup();
+      // All of the screen, with the search behind the header's button.
+      expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+      expect(screen.queryByRole("navigation", { name: "App sections" })).toBeNull();
+      expect(screen.queryByRole("textbox", { name: "Search logs" })).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Search logs" }));
+      expect(await screen.findByRole("textbox", { name: "Search logs" })).toHaveFocus();
+      await user.click(screen.getByRole("button", { name: "Close the search" }));
+      await screen.findByRole("button", { name: "All levels" });
+      // What to show is a tap away.
+      await user.click(screen.getByRole("button", { name: "Live" }));
+      expect(await screen.findByRole("radio", { name: "15 min" })).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Close" }));
       await user.click(screen.getByRole("button", { name: "Errors" }));
       await waitFor(() => expect(router.state.location.search).toMatchObject({ levels: "error" }));
       expect(screen.getByRole("button", { name: "All levels" })).toHaveAttribute("aria-pressed", "false");
@@ -431,6 +464,386 @@ describe("LogsPage", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+/** Renders the logs with lines in them, and the means to go on. */
+async function withLines(lines: ReturnType<typeof line>[], extra: Partial<NonNullable<Api["logs"]>> = {}, url = URL) {
+  const { logs, stream, requests } = api();
+  const view = renderAt(url, { logs: { ...logs, ...extra } });
+  await screen.findByRole("log");
+  await act(() =>
+    stream.send(message({ sources: [running], chunks: [{ sourceId: running.id, lines }], caughtUp: true })),
+  );
+  return { ...view, stream, requests, user: userEvent.setup() };
+}
+
+describe("reading a failed deploy", () => {
+  const trace = [
+    line("starting up", 0),
+    line("ERROR no database", 1, LogLevel.ERROR),
+    line("    at connect (db.go:42)", 1, LogLevel.ERROR),
+    line("ERROR still no database", 5, LogLevel.ERROR),
+    line("giving up", 6),
+  ];
+
+  it("opens at the first error, and goes through them", async () => {
+    const { logs, stream } = api(sourcesOf(running, failed));
+    const { container } = renderAt(`${URL}?change=chg_2`, { logs });
+    await screen.findByRole("log");
+    await act(() => stream.send(message({ sources: [failed], chunks: [{ sourceId: failed.id, lines: trace }] })));
+    await act(() => stream.end());
+    await waitFor(() =>
+      expect(container.querySelector(".dw-log-line.is-current")).toHaveTextContent("ERROR no database"),
+    );
+    // A stack trace is one error. Nothing pulls the view away from it to the end.
+    const group = screen.getByRole("group", { name: "Errors in this log" });
+    expect(group).toHaveTextContent("1 of 2");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Next error" }));
+    await waitFor(() =>
+      expect(container.querySelector(".dw-log-line.is-current")).toHaveTextContent("ERROR still no database"),
+    );
+    expect(group).toHaveTextContent("2 of 2");
+    await user.click(screen.getByRole("button", { name: "Next error" }));
+    expect(group).toHaveTextContent("1 of 2");
+    await user.click(screen.getByRole("button", { name: "Previous error" }));
+    expect(group).toHaveTextContent("2 of 2");
+    await expectAccessible(container);
+  });
+
+  it("says when and why it failed, with the revision that took over, and not how long logs stay", async () => {
+    const dead = create(LogSourceSchema, {
+      ...failed,
+      image: "shop:crash",
+      exitCode: 1,
+      finishTime: timestampFromMs(new Date(2026, 10, 5, 1, 19).getTime()),
+    });
+    vi.setSystemTime(new Date(2026, 10, 5, 12, 0));
+    try {
+      const { logs } = api(sourcesOf(create(LogSourceSchema, { ...running, revision: 3n }), dead));
+      renderAt(`${URL}?change=chg_2`, { logs });
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("r2 failed at 01:19 and was rolled back to r3.");
+      expect(alert).toHaveTextContent("shop:crash exited with code 1.");
+      expect(alert).not.toHaveTextContent("30 days");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives the day when it wasn't today", async () => {
+    const dead = create(LogSourceSchema, {
+      ...failed,
+      finishTime: timestampFromMs(new Date(2026, 9, 1, 1, 19).getTime()),
+    });
+    const { logs } = api(sourcesOf(running, dead));
+    renderAt(`${URL}?change=chg_2`, { logs });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/1 Oct, 01:19/);
+  });
+
+  it("labels a deploy with its revision in mono and how it ended in words, leaving the machine's name as it is", async () => {
+    const { logs } = api(sourcesOf(running, failed));
+    const { container } = renderAt(`${URL}?change=chg_2`, { logs });
+    const option = await screen.findByRole("radio", { name: /r2\s*failed/ });
+    expect(option.querySelector("code")).toHaveTextContent("r2");
+    expect(option.querySelector("svg")).not.toBeNull();
+    expect(screen.getByRole("radio", { name: /Running now · r3/ })).toBeVisible();
+    expect(container.textContent).not.toContain("R2");
+  });
+
+  it("is named by the app it was of, once there is no app", async () => {
+    const { logs } = api(sourcesOf(failed));
+    renderAt(URL, { logs });
+    expect(await screen.findByRole("heading", { level: 1, name: "web" })).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("web");
+  });
+});
+
+describe("what a view says of itself", () => {
+  it("doesn't call a deployed app empty because its server is offline", async () => {
+    const list = create(ListLogSourcesResponseSchema, {
+      service: { id: SERVICE, name: "worker", environment: "production" },
+      servers: [{ serverId: "srv_2", serverName: "hz-2", state: ServerLogState.OFFLINE, message: "no agent" }],
+    });
+    const { logs, stream } = api(list);
+    renderAt(URL, { logs });
+    await screen.findByRole("log");
+    await act(() =>
+      stream.send(
+        message({
+          servers: [{ serverId: "srv_2", serverName: "hz-2", state: ServerLogState.OFFLINE, message: "no agent" }],
+          caughtUp: true,
+        }),
+      ),
+    );
+    await screen.findByText("hz-2 is offline");
+    await screen.findByRole("heading", { name: "Nothing to show until hz-2 is back" });
+    expect(screen.queryByText(/no containers yet/)).toBeNull();
+  });
+
+  it("says which server a search didn't reach, rather than that nothing matched", async () => {
+    const readLogs = vi.fn(() => ({
+      servers: [{ serverId: "srv_2", serverName: "hz-2", state: ServerLogState.OFFLINE, message: "no agent" }],
+    }));
+    await withLines([line("here")], { readLogs }, `${URL}?q=far&deep=true`);
+    await screen.findByRole("heading", { name: "hz-2 couldn't be searched" });
+    expect(screen.queryByText(/Nothing in all the servers keep/)).toBeNull();
+    expect(screen.queryByText(/no lines/)).toBeNull();
+  });
+
+  it("shows a search that failed as a failure, with a way to try again", async () => {
+    let fail = true;
+    const readLogs = vi.fn(() => {
+      if (fail) throw new ConnectError("hz-2 can't read logs now", Code.Internal);
+      return {};
+    });
+    const { logs, stream } = api(sourcesOf(second));
+    const view = renderAt(`${URL}?q=far&deep=true`, { logs: { ...logs, readLogs } });
+    await screen.findByRole("log");
+    await act(() => stream.send(message({ sources: [second], caughtUp: true })));
+    const user = userEvent.setup();
+    void view;
+    await screen.findByRole("heading", { name: "The search failed" });
+    expect(screen.queryByText(/Nothing in all/)).toBeNull();
+    // A machine's name stays as it was written, though it comes first.
+    await screen.findByText("hz-2 can't read logs now.");
+    fail = false;
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(readLogs.mock.calls.length).toBe(2));
+    await screen.findByText('Nothing in all the servers keep has "far".');
+  });
+
+  it("leaves a machine's name as written when a server can't read logs", async () => {
+    const { logs, stream } = api();
+    renderAt(URL, { logs });
+    await screen.findByRole("log");
+    await act(() =>
+      stream.send(
+        message({
+          servers: [
+            {
+              serverId: "srv_2",
+              serverName: "hz-2",
+              state: ServerLogState.UNAVAILABLE,
+              message: "hz-2 can't read logs now: hz-2's Docker isn't running",
+            },
+          ],
+        }),
+      ),
+    );
+    const note = await screen.findByText("hz-2's Docker isn't running.");
+    expect(note).toBeVisible();
+    expect(document.body.textContent).not.toContain("Hz-2");
+  });
+
+  it("says how a search stopped, with what is true of it", async () => {
+    const stopped = (fields: object) =>
+      vi.fn(() => ({
+        chunks: [{ sourceId: running.id, lines: [line("a far line")] }],
+        sources: [running],
+        searchedLines: 323n,
+        searchCutShort: true,
+        searchedBackTo: { seconds: T0, nanos: 0 },
+        ...fields,
+      }));
+    const first = await withLines(
+      [line("here")],
+      { readLogs: stopped({ searchTimedOut: true }) },
+      `${URL}?q=far&deep=true`,
+    );
+    await screen.findByText(/The search stopped after 30 s, at/);
+    expect(screen.queryByText(/specific/)).toBeNull();
+    first.unmount();
+    await withLines([line("here")], { readLogs: stopped({}) }, `${URL}?q=far&deep=true`);
+    await screen.findByText(/The search stopped at the newest 1,000,000 lines of a container/);
+  });
+
+  it("states the window of a time range, and reads it again on asking", async () => {
+    const { requests, user } = await withLines([line("here")], {}, `${URL}?range=15m`);
+    await screen.findByText(/Last 15 min, to \d\d:\d\d\. Refresh for newer lines\./);
+    const before = requests.length;
+    await user.click(screen.getByRole("button", { name: "Read this range again" }));
+    await waitFor(() => expect(requests.length).toBe(before + 1));
+  });
+
+  it("says which zone its times are in", async () => {
+    await withLines([line("here")]);
+    expect(screen.getByRole("log").closest(".dw-log")?.querySelector(".dw-log-meta")).toHaveTextContent(/UTC/);
+    await screen.findByText(/· UTC/);
+  });
+});
+
+describe("searching the lines loaded", () => {
+  const lines = [line("cart one"), line("GET /other", 1), line("cart two", 2), line("CART three", 3)];
+
+  it("goes through matches with Enter and Shift+Enter, and says which", async () => {
+    const { container, user } = await withLines(lines);
+    const field = screen.getByRole("textbox", { name: "Search logs" });
+    await user.type(field, "cart");
+    await waitFor(() => expect(screen.queryByText("GET /other")).toBeNull());
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(container.querySelector(".dw-log-line.is-current")).toHaveTextContent("CART three"));
+    expect(screen.getByText("3 of 3")).toBeVisible();
+    expect(container.querySelector("mark.is-current")).toHaveTextContent("CART");
+    await user.keyboard("{Enter}");
+    expect(screen.getByText("2 of 3")).toBeVisible();
+    await user.keyboard("{Shift>}{Enter}{/Shift}");
+    expect(screen.getByText("3 of 3")).toBeVisible();
+    // On past either end, it comes round.
+    await user.keyboard("{Shift>}{Enter}{/Shift}");
+    expect(screen.getByText("1 of 3")).toBeVisible();
+  });
+
+  it("goes back to following once a search it went through is cleared", async () => {
+    const { user } = await withLines(lines);
+    const field = screen.getByRole("textbox", { name: "Search logs" });
+    await user.type(field, "cart");
+    await waitFor(() => expect(screen.queryByText("GET /other")).toBeNull());
+    await user.keyboard("{Enter}");
+    await screen.findByText("Paused");
+    await user.keyboard("{Escape}");
+    await screen.findByText("Following");
+  });
+
+  it("clears with Escape, or the button", async () => {
+    const { user } = await withLines(lines);
+    const field = screen.getByRole("textbox", { name: "Search logs" });
+    await user.type(field, "cart");
+    await user.keyboard("{Escape}");
+    expect(field).toHaveValue("");
+    await screen.findByText("GET /other");
+    await user.type(field, "cart");
+    await user.click(screen.getByRole("button", { name: "Clear the search" }));
+    expect(field).toHaveValue("");
+    await screen.findByText("GET /other");
+  });
+
+  it("shows a match among the lines around it, and leaves the search as it was", async () => {
+    const readLogs = vi.fn(() => ({
+      chunks: [{ sourceId: running.id, lines: [line("before it"), line("cart one"), line("after it", 1)] }],
+    }));
+    const { container, user } = await withLines(lines, { readLogs });
+    const field = screen.getByRole("textbox", { name: "Search logs" });
+    await user.type(field, "cart");
+    await waitFor(() => expect(screen.queryByText("GET /other")).toBeNull());
+    const row = Array.from(container.querySelectorAll<HTMLElement>(".dw-log-line")).find((el) =>
+      el.textContent?.includes("cart one"),
+    ) as HTMLElement;
+    await user.hover(row);
+    fireEvent.click(await within(row).findByRole("button", { name: "Show in context" }));
+    const sheet = await screen.findByRole("dialog");
+    await within(sheet).findByText("before it");
+    const asked = readLogs.mock.calls[0] as unknown as [{ sourceIds: string[]; until: unknown; query: string }];
+    expect(asked[0].sourceIds).toEqual([running.id]);
+    expect(asked[0].until).toBeDefined();
+    expect(asked[0].query).toBe("");
+    await waitFor(() => expect(sheet.querySelector(".dw-log-line.is-current")).toHaveTextContent("cart one"));
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(field).toHaveValue("cart");
+  });
+
+  it("says how many it found to a screen reader once, after typing stops", async () => {
+    const { container, stream, user } = await withLines(lines);
+    const live = () =>
+      Array.from(container.querySelectorAll('[aria-live="polite"]'))
+        .map((el) => el.textContent)
+        .filter(Boolean);
+    const said: string[] = [];
+    const watch = new MutationObserver(() => said.push(...live()));
+    watch.observe(container, { subtree: true, characterData: true, childList: true });
+    await user.type(screen.getByRole("textbox", { name: "Search logs" }), "cart");
+    // The count on screen goes on moving, as what comes does.
+    for (let i = 0; i < 5; i++) {
+      await act(() => stream.send(message({ chunks: [{ sourceId: running.id, lines: [line(`cart ${i}`, 4 + i)] }] })));
+    }
+    expect(said).toEqual([]);
+    await waitFor(() => expect(said.length).toBeGreaterThan(0), { timeout: 2000 });
+    watch.disconnect();
+    expect(new Set(said).size).toBe(1);
+  });
+});
+
+describe("levels", () => {
+  it("shows a level alone on asking, and keeps the last one on", async () => {
+    const { router, user } = await withLines([line("a")]);
+    const errors = screen.getByRole("button", { name: "Errors" });
+    await user.keyboard("{Shift>}");
+    await user.click(errors);
+    await user.keyboard("{/Shift}");
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ levels: "error" }));
+    expect(errors).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Info" })).toHaveAttribute("aria-pressed", "false");
+    // The last one on stays on: it doesn't turn on all three.
+    await user.click(errors);
+    expect(errors).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Info" })).toHaveAttribute("aria-pressed", "false");
+    await user.dblClick(screen.getByRole("button", { name: "Warnings" }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ levels: "warn" }));
+  });
+
+  it("calls them one thing on any layout", async () => {
+    await withLines([line("a")]);
+    expect(screen.getByRole("button", { name: "Warnings" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Warn" })).toBeNull();
+  });
+});
+
+describe("taking lines away", () => {
+  it("can't copy or download what isn't there", async () => {
+    const { logs } = api();
+    renderAt(URL, { logs });
+    await screen.findByRole("log");
+    expect(screen.getByRole("button", { name: "Copy these lines" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Download these lines" })).toBeDisabled();
+  });
+
+  it("copies with the time as the screen has it, and names a level once", async () => {
+    {
+      const { user } = await withLines([
+        line("ERROR POST /cart", 0, LogLevel.ERROR),
+        line("no word for it", 1, LogLevel.ERROR),
+        line("a line", 2),
+      ]);
+      await waitFor(() => expect(screen.getByRole("button", { name: "Copy these lines" })).toBeEnabled());
+      const writeText = vi.spyOn(navigator.clipboard, "writeText");
+      await user.click(screen.getByRole("button", { name: "Copy these lines" }));
+      await waitFor(() => expect(writeText).toHaveBeenCalled());
+      const copied = (writeText.mock.calls[0] as unknown as [string])[0].split("\n");
+      const when = new Date(Number(T0) * 1000);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      expect(copied[0]).toContain(`T${pad(when.getHours())}:${pad(when.getMinutes())}:`);
+      expect(copied[0]).toMatch(/(Z|[+-]\d\d:\d\d) hz-1 ERROR POST \/cart$|\+00:00 hz-1 ERROR POST \/cart$/);
+      expect(copied[0]).not.toContain("ERROR ERROR");
+      expect(copied[1]).toMatch(/hz-1 ERROR no word for it$/);
+      expect(copied[2]).toMatch(/hz-1 a line$/);
+    }
+  });
+
+  it("copies one line", async () => {
+    {
+      const { container, user } = await withLines([line("the one"), line("another", 1)]);
+      await screen.findByText("the one");
+      const writeText = vi.spyOn(navigator.clipboard, "writeText");
+      const row = Array.from(container.querySelectorAll<HTMLElement>(".dw-log-line")).find((el) =>
+        el.textContent?.includes("the one"),
+      ) as HTMLElement;
+      await user.hover(row);
+      fireEvent.click(await within(row).findByRole("button", { name: "Copy this line" }));
+      await waitFor(() => expect(writeText).toHaveBeenCalled());
+      expect((writeText.mock.calls[0] as unknown as [string])[0]).toMatch(/hz-1 the one$/);
+    }
+  });
+});
+
+describe("a long line", () => {
+  it("keeps wrapping in the URL, and follows it", async () => {
+    const { container, router, user } = await withLines([line("a line")]);
+    expect(container.querySelector(".dw-log")).not.toHaveClass("no-wrap");
+    await user.click(screen.getByRole("button", { name: "Wrap long lines" }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ nowrap: true }));
+    expect(container.querySelector(".dw-log")).toHaveClass("no-wrap");
   });
 });
 

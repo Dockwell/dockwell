@@ -23,6 +23,25 @@
   max-width: 320px;
 }
 
+/* What is typed is for a machine to find, in mono. What it says of itself is for a person. */
+.logs-search .dw-input-el::placeholder {
+  font-family: var(--font-sans);
+}
+
+.logs-search-end {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-1);
+}
+
+.logs-search-count {
+  color: var(--ink-muted);
+  font: var(--text-caption);
+  white-space: nowrap;
+}
+
 .logs-fill {
   flex: 1 1 0;
 }
@@ -61,8 +80,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-full);
   background: transparent;
-  font-size: 12.5px;
-  font-weight: 550;
+  font: var(--text-label);
   line-height: 1;
   white-space: nowrap;
   transition:
@@ -70,13 +88,21 @@
     color 120ms var(--ease-out);
 }
 
-.logs-chip.is-on .logs-chip-face {
-  background: var(--surface);
-  color: var(--ink);
+@media (prefers-reduced-motion: reduce) {
+  .logs-chip-face {
+    transition-duration: 0.001ms;
+  }
 }
 
 .logs-chip:hover .logs-chip-face {
   background: var(--surface-sunken);
+}
+
+/* On reads at a glance, whatever the chip's own hue: the ground and the word both change. */
+.logs-chip.is-on .logs-chip-face {
+  border-color: transparent;
+  background: var(--selection);
+  color: var(--cobalt);
 }
 
 .logs-chip:focus-visible {
@@ -95,13 +121,14 @@
 
 .logs-chip-glyph {
   display: flex;
+  color: var(--ink-muted);
 }
 
-.logs-chip-glyph.is-warning {
+.logs-chip.is-on .logs-chip-glyph.is-warning {
   color: var(--warning);
 }
 
-.logs-chip-glyph.is-critical {
+.logs-chip.is-on .logs-chip-glyph.is-critical {
   color: var(--critical);
 }
 
@@ -114,31 +141,65 @@
 }
 
 .logs-deploys-label {
-  font-size: 12.5px;
-  font-weight: 550;
+  font: var(--text-caption);
   color: var(--ink-muted);
 }
 
-.logs-reach {
-  flex: none;
-  font-size: 12.5px;
-  line-height: 18px;
-  color: var(--ink-muted);
-}
-
-.logs-skipped {
-  flex: none;
-  display: flex;
-  align-items: baseline;
+/* A deploy: its revision in mono, how it ended in a glyph and a word in sans. */
+.logs-deploy {
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-2);
-  font-size: 12.5px;
-  line-height: 18px;
-  color: var(--ink-muted);
 }
 
-.logs-skipped > svg {
-  flex: none;
-  color: var(--warning);
+.logs-deploy code {
+  font: var(--text-code-sm);
+}
+
+.logs-deploy-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-weight: 500;
+}
+
+.logs-deploy-state.is-critical {
+  color: var(--critical);
+}
+
+.logs-note code {
+  font: var(--text-code-sm);
+}
+
+.logs-note p {
+  margin-block-start: var(--space-1);
+}
+
+/* Going through the errors in a log. */
+.logs-errors {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-end: var(--space-2);
+}
+
+.logs-errors-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-muted);
+  font: var(--text-caption);
+  white-space: nowrap;
+}
+
+.logs-errors-count > svg {
+  color: var(--critical);
+}
+
+.logs-wrap.is-on {
+  color: var(--cobalt);
 }
 
 .logs-select {
@@ -164,42 +225,13 @@
   pointer-events: none;
 }
 
-.logs-link {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--link);
-  font: inherit;
-  cursor: pointer;
-}
-
-.logs-link:hover {
-  text-decoration: underline;
-}
-
-.logs-link:focus-visible {
-  outline: none;
-  border-radius: var(--radius-xs);
-  box-shadow: var(--focus-ring);
-}
-
-.logs-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-3);
-  max-width: 420px;
-  text-align: center;
-}
-
 .logs-earlier,
 .logs-held {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
-  font-family: var(--font-sans);
-  font-size: 12.5px;
+  font: var(--text-caption);
   color: var(--ink-muted);
 }
 
@@ -208,10 +240,77 @@
   min-height: 0;
 }
 
-.logs-panel {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
+/* What a log says when it has nothing: on the log's ground, in its frame, with no frame of its own. */
+.logs-stream .empty-state {
+  width: 100%;
+  border: 0;
+  background: none;
+  padding-block: var(--space-6);
+}
+
+.logs-working {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.logs-working .dw-spin {
+  animation: dw-spin 1s linear infinite;
+}
+
+/* What the log says of itself, a line under it, which holds its place. */
+.logs-stream .dw-log-foot {
+  min-width: 0;
+}
+
+.logs-foot-words {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.logs-foot-words code {
+  font: var(--text-code-sm);
+}
+
+.logs-foot-skip {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.logs-foot-rate {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.logs-foot-button {
+  flex: none;
+  --control-sm: 20px;
+  font: var(--text-caption);
+  color: var(--link);
+}
+
+/* Too narrow to say it on one line, it takes the room it needs. */
+@container (max-width: 999.98px) {
+  .logs-stream .dw-log-foot {
+    flex-wrap: wrap;
+    gap: 0 var(--space-3);
+  }
+  .logs-foot-words {
+    white-space: normal;
+  }
+}
+
+.logs-context-stream {
+  height: 100%;
 }
 
 .logs-bar {
@@ -240,12 +339,6 @@
   font-size: 13px;
 }
 
-.logs-chips .logs-chip.is-on .logs-chip-face {
-  border-color: transparent;
-  background: var(--selection);
-  color: var(--cobalt);
-}
-
 .logs-chips .logs-chip:not(.is-on) .logs-chip-face {
   background: var(--surface);
   color: var(--ink);
@@ -259,26 +352,66 @@
   background: var(--line);
 }
 
-/* A phone: search, then one row of chips that scrolls, the log, and what to do with it. */
-.logs.is-phone {
-  gap: var(--space-2);
-}
-
-.logs.is-phone .logs-tools {
-  gap: var(--space-2);
-}
-
-.logs.is-phone .logs-search {
-  flex: 1 1 100%;
-  max-width: none;
+/* A phone: chips that scroll, the log, and what to do with it, which is nearly all
+   of the screen. Everything else is a tap away. Every target is 44 px. */
+.logs.is-phone,
+.logs-view {
+  --control-sm: 44px;
   --control-md: 44px;
 }
 
-.logs.is-phone .logs-range {
+.logs.is-phone {
+  gap: 0;
+}
+
+/* What it says in a row: the glyph, the title, and the way to the rest. */
+.logs.is-phone .logs-note {
+  align-items: flex-start;
+  flex-direction: row;
+  margin-block-end: var(--space-2);
+  padding-block: var(--space-2);
+}
+
+.logs.is-phone .logs-note .dw-callout-body {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.logs.is-phone .logs-note .dw-callout-actions {
+  flex: none;
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) 0;
+}
+
+.logs.is-phone .logs-tools {
+  gap: 0 var(--space-2);
+  padding-block-end: var(--space-1);
+}
+
+.logs.is-phone .logs-search {
+  flex: 1 1 0;
+  max-width: none;
+}
+
+.logs.is-phone .logs-scope {
   order: 3;
+  flex: 1 1 100%;
+  margin-block: var(--space-1);
 }
 
 .logs.is-phone .logs-stream {
+  border-radius: var(--radius-sm);
+}
+
+/* Going through the errors matters more here than a name the header has already. */
+.logs.is-phone .logs-stream:has(.logs-errors) .dw-log-name {
+  display: none;
+}
+
+.logs.is-phone .logs-errors {
+  margin-inline-end: 0;
+}
+
+.logs.is-phone .logs-foot-button {
   --control-sm: 44px;
 }
 
@@ -286,11 +419,27 @@
   flex: none;
   display: flex;
   gap: var(--space-2);
-  padding-top: var(--space-1);
-  --control-md: 48px;
+  padding-top: var(--space-2);
 }
 
 .logs.is-phone .logs-bar .dw-btn {
   flex: 1 1 0;
   font-size: 14px;
+}
+
+.logs-view-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.logs-view-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.logs-view-label {
+  font: var(--text-caption);
+  color: var(--ink-muted);
 }

@@ -19,7 +19,7 @@ import {
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -260,6 +260,26 @@ describe("an app's frame", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Roll back to r1" }));
     await waitFor(() => expect(asked).toEqual([1n]));
+  });
+
+  it("reaches the logs of a revision that has them, and offers none of one that hasn't", async () => {
+    const logs = {
+      listLogSources: () => ({
+        service: { id: "svc_web", name: "web" },
+        sources: [{ id: "aaaaaaaaaaaa", revision: 3n, serverName: "hz-1" }],
+      }),
+      watchLogs: async function* () {
+        yield* [];
+      },
+    };
+    const first = renderAt("/apps/svc_web/deployments?revision=3", { ...api(), logs });
+    const link = await screen.findByRole("link", { name: "Read this deploy's logs" });
+    expect(link.getAttribute("href")).toContain("/apps/svc_web/logs");
+    first.unmount();
+    renderAt("/apps/svc_web/deployments?revision=2", { ...api(), logs });
+    await screen.findByRole("table", { name: "Revisions of web" });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
   });
 
   it("keeps Deploy in reach on a phone, and tells the app's state in the header", async () => {

@@ -80,8 +80,14 @@ export interface UIStrings {
     level: Readonly<Record<Exclude<LogLevel, "info">, string>>;
     /** Button that jumps to the newest line, given how many came since following stopped. */
     newLines: (count: number) => string;
+    /** The same, when so many came that the number is only "a lot". */
+    manyNewLines: string;
     /** Button at the end of a very long line that shows the rest of it. */
     showAll: string;
+    /** Button on a JSON line that sets it out over several. */
+    expand: string;
+    /** Button that puts it back. */
+    collapse: string;
     /** After a line cut short, given how much more it had, such as "12 KB". */
     cut: (size: string) => string;
   };
@@ -153,13 +159,16 @@ export const englishStrings: UIStrings = {
     memory: "Memory",
   },
   logStream: {
-    live: "Live",
+    live: "Following",
     paused: "Paused",
     follow: "Follow",
     pause: "Pause",
     level: { warn: "Warning", error: "Error" },
     newLines: (count) => (count === 1 ? "1 new line" : `${count.toLocaleString("en")} new lines`),
+    manyNewLines: "10k+ new lines",
     showAll: "Show all of this line",
+    expand: "Set out",
+    collapse: "Put back",
     cut: (size) => `${size} more not kept`,
   },
   planDiff: {

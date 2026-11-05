@@ -4,9 +4,11 @@ import {
   Fragment,
   memo,
   type ReactNode,
+  type Ref,
   useCallback,
   useEffect,
   useId,
+  useImperativeHandle,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -21,7 +23,7 @@ import { useControlled } from "../../lib/useControlled";
 import { Button } from "../Button/Button";
 import { Glyph } from "../Glyph/Glyph";
 import { Icon } from "../Icon/Icon";
-import { type LogSpan, parseAnsi } from "./ansi";
+import { type LogSpan, parseAnsi, plainText } from "./ansi";
 import { HeightIndex } from "./heights";
 import "./LogStream.css";
 
@@ -44,6 +46,16 @@ export interface LogLine {
   cut?: string;
   /** A note in the stream rather than a line of it, such as lines left out. */
   notice?: "info" | "warning";
+  /** When it was written, in milliseconds, so lines close together can read as one. */
+  at?: number;
+  /** The day it was written, in words. It shows where the day changes. */
+  day?: string;
+}
+
+/** What a page can do with a stream that is showing. */
+export interface LogStreamHandle {
+  /** Brings a position into view, stopping following. */
+  show(position: number): void;
 }
 
 /**
@@ -63,6 +75,8 @@ export interface LogLines {
   at(position: number): LogLine | undefined;
   /** The position of a line by its ID, if it is here, to keep a reader's place. */
   positionOf?(id: string | number): number | undefined;
+  /** How many have come that don't show yet, while what shows holds still for a reader. */
+  readonly arrived?: number;
 }
 
 export interface LogStreamProps {
@@ -85,6 +99,21 @@ export interface LogStreamProps {
   empty?: ReactNode;
   /** Above the lines, such as a way to load older ones. */
   top?: ReactNode;
+  /** A line under the log, which holds its place whether or not it has words in it. */
+  foot?: ReactNode;
+  /** Beside the title, such as the zone times are in. */
+  meta?: ReactNode;
+  /** Wraps long lines, or cuts them at the edge. */
+  wrap?: boolean;
+  /** The line a reader is on: a search's current match, or the current error. */
+  current?: string | number | undefined;
+  /** What can be done with one line, shown as it is pointed at. */
+  actions?: (line: LogLine, position: number) => ReactNode;
+  /** A line as text, when a selection of whole lines is copied. */
+  copyLine?: (line: LogLine) => string;
+  /** Holds a place for Pause while not live, so what sits beside it stays put. */
+  holdFollow?: boolean;
+  ref?: Ref<LogStreamHandle>;
   className?: string;
 }
 
@@ -104,6 +133,49 @@ const NO_LAYOUT_ROWS = 200;
 const SETTLE_MS = 300;
 /** How much of a line is drawn until a reader asks for the rest. */
 const LONG_LINE = 1000;
+/** How far apart lines of one level can be, in milliseconds, and still read as one thing, as a stack trace does. */
+const GROUP_MS = 100;
+/** Past this, how many lines came is only "a lot", as the exact number moves too fast to read. */
+const MANY_LINES = 10_000;
+
+/** A line as text, as it shows. */
+function lineText(line: LogLine): string {
+  return [line.time, line.source, plainText(line.text)].filter(Boolean).join(" ");
+}
+
+/** Whether this line carries on the one before it: of one level, from one source, and close in time. */
+function continues(before: LogLine | undefined, line: LogLine): boolean {
+  if (!before || before.notice || line.notice) return false;
+  if (!line.level || line.level === "info" || before.level !== line.level || before.source !== line.source)
+    return false;
+  if (before.at !== undefined && line.at !== undefined) return Math.abs(line.at - before.at) <= GROUP_MS;
+  return before.time === line.time;
+}
+
+/** A JSON line set out over several, what it says first, or undefined if it isn't one. */
+export function prettyJson(text: string): string | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const fields = value as Record<string, unknown>;
+  const first = ["msg", "message"].filter((key) => key in fields);
+  const keys = [...first, ...Object.keys(fields).filter((key) => !first.includes(key))];
+  return keys
+    .map((key) => {
+      const field = fields[key];
+      return `${key}: ${typeof field === "string" ? field : JSON.stringify(field, null, 2)}`;
+    })
+    .join("\n");
+}
+
+/** Whether a line looks like JSON that prettyJson may set out, without reading it. */
+function looksLikeJson(text: string): boolean {
+  return text.startsWith("{") && text.endsWith("}");
+}
 
 function fromArray(lines: readonly LogLine[], version: number, epoch: number): LogLines {
   return { length: lines.length, start: 0, version, epoch, at: (position) => lines[position] };
@@ -134,6 +206,14 @@ export function LogStream({
   highlight = "",
   empty,
   top,
+  foot,
+  meta,
+  wrap = true,
+  current,
+  actions,
+  copyLine = lineText,
+  holdFollow = false,
+  ref,
   className,
 }: LogStreamProps) {
   const strings = useUIStrings();
@@ -170,12 +250,26 @@ export function LogStream({
   const [view, setView] = useState({ top: 0, height: 0 });
   const rows = useRef(new Map<number, HTMLDivElement>());
   const [expanded, setExpanded] = useState<ReadonlySet<string | number>>(new Set());
+  // The line tapped or clicked, for a finger, which has nothing to hover with, and
+  // the one pointed at. A line's actions are drawn only for these and the current
+  // line, as a flood draws every row anew many times a second.
+  const [activeLine, setActiveLine] = useState<string | number | undefined>(undefined);
+  const [pointedLine, setPointedLine] = useState<string | number | undefined>(undefined);
+  const rowsBox = useRef<HTMLDivElement>(null);
+  // A position to bring into view, which holds until its row has been measured.
+  const wanted = useRef<number | undefined>(undefined);
+  // Which rows a selection starts and ends in, kept drawn so it survives scrolling.
+  const chosenRows = useRef<readonly [number, number] | undefined>(undefined);
+  const wraps = useRef(wrap);
+  wraps.current = wrap;
 
   const estimate = useCallback((line: LogLine | undefined) => {
     if (!line) return ROW;
-    const wrap =
-      columns.current > 0 ? Math.max(1, Math.ceil(Math.min(line.text.length, LONG_LINE) / columns.current)) : 1;
-    return wrap * ROW + (phone.current && !line.notice ? PHONE_EXTRA : 0);
+    const lines =
+      wraps.current && columns.current > 0
+        ? Math.max(1, Math.ceil(Math.min(line.text.length, LONG_LINE) / columns.current))
+        : 1;
+    return lines * ROW + (phone.current && !line.notice ? PHONE_EXTRA : 0);
   }, []);
 
   // Keeps the heights in step with the lines. It only moves forward with their
@@ -208,6 +302,18 @@ export function LogStream({
     ? Math.min(end, index.current.at(view.top + view.height) + OVERSCAN + 1)
     : Math.min(end, lines.start + NO_LAYOUT_ROWS);
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      show(position: number) {
+        wanted.current = position;
+        setFollow(false);
+        redraw();
+      },
+    }),
+    [setFollow],
+  );
+
   const onHeights = useCallback(() => {
     const el = body.current;
     if (!el) return;
@@ -237,7 +343,16 @@ export function LogStream({
       if (position < topRow) moved += h - was;
     }
     if (changed) redraw();
-    if (follow && lines.length > 0) {
+    const position = wanted.current;
+    if (position !== undefined) {
+      const room = rowsBox.current?.offsetTop ?? 0;
+      el.scrollTop = Math.max(0, room + index.current.offset(position) - el.clientHeight / 3);
+      expected.current = el.scrollTop;
+      pendingTop.current = undefined;
+      // Once it is drawn and measured, this was its place. Until then it was a guess.
+      if (rows.current.has(position)) wanted.current = undefined;
+      else redraw();
+    } else if (follow && lines.length > 0) {
       el.scrollTop = el.scrollHeight;
       expected.current = el.scrollTop;
       pendingTop.current = undefined;
@@ -311,10 +426,13 @@ export function LogStream({
     // scroll itself. Only what a reader does counts, and their wheel, keys and
     // fingers say so on their own.
     const settling = performance.now() < settledAt.current;
-    if (!ours && follow && now < lastTop.current && el.scrollHeight - now - el.clientHeight >= AT_END) {
+    const atEnd = el.scrollHeight - now - el.clientHeight < AT_END;
+    if (!ours && follow && now < lastTop.current && !atEnd) {
       if (settling) el.scrollTop = el.scrollHeight;
       else setFollow(false);
     }
+    // Going back down to the end is asking to follow again.
+    if (!ours && !settling && !follow && live && atEnd && now > lastTop.current) setFollow(true);
     lastTop.current = now;
     if (scrolling.current === 0) {
       scrolling.current = requestAnimationFrame(() => {
@@ -342,21 +460,90 @@ export function LogStream({
     }
   };
 
+  // Text being chosen with the mouse holds still. A click that chose nothing goes
+  // back to following, as nothing needed holding.
+  const pressPaused = useRef(false);
+  const chosenInLog = useCallback(() => {
+    const chosen = document.getSelection();
+    return Boolean(chosen && !chosen.isCollapsed && body.current?.contains(chosen.anchorNode));
+  }, []);
+  const onPress = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    // The scrollbar itself, whose scroll events come too late to hold it.
+    if (e.target === e.currentTarget) {
+      reading();
+      return;
+    }
+    if (e.pointerType !== "mouse" || !follow || !(e.target as Element).closest(".dw-log-row")) return;
+    pressPaused.current = true;
+    reading();
+    window.addEventListener(
+      "pointerup",
+      () => {
+        if (pressPaused.current && !chosenInLog()) setFollow(true);
+        pressPaused.current = false;
+      },
+      { once: true },
+    );
+  };
+
+  // A selection made any other way holds still as well, and the rows it starts
+  // and ends in stay drawn, so it outlives scrolling away from it.
+  useEffect(() => {
+    const changed = () => {
+      const chosen = document.getSelection();
+      if (!chosen || chosen.isCollapsed || !body.current?.contains(chosen.anchorNode)) {
+        chosenRows.current = undefined;
+        return;
+      }
+      const from = rowPosition(chosen.anchorNode);
+      const to = rowPosition(chosen.focusNode);
+      if (from !== undefined && to !== undefined) chosenRows.current = from <= to ? [from, to] : [to, from];
+      if (followRef.current) setFollow(false);
+    };
+    document.addEventListener("selectionchange", changed);
+    return () => document.removeEventListener("selectionchange", changed);
+  }, [setFollow]);
+  const followRef = useRef(follow);
+  followRef.current = follow;
+
+  // Whole lines copy as what they are, a line of text each, rather than as cells
+  // on lines of their own. Part of one line copies as the browser does.
+  const onCopy = (e: React.ClipboardEvent) => {
+    const chosen = document.getSelection();
+    if (!chosen || chosen.isCollapsed) return;
+    const from = rowPosition(chosen.anchorNode);
+    const to = rowPosition(chosen.focusNode);
+    if (from === undefined || to === undefined) return;
+    const inOneText = from === to && closestText(chosen.anchorNode) && closestText(chosen.focusNode);
+    if (inOneText) return;
+    const text: string[] = [];
+    for (let p = Math.min(from, to); p <= Math.max(from, to); p++) {
+      const line = lines.at(p);
+      if (line) text.push(line.notice ? line.text : copyLine(line));
+    }
+    e.clipboardData.setData("text/plain", text.join("\n"));
+    e.preventDefault();
+  };
+
   // How many have come since following stopped.
   const pausedAt = useRef(end);
   if (follow) pausedAt.current = end;
-  const newLines = Math.max(0, end - pausedAt.current);
+  const newLines = lines.arrived ?? Math.max(0, end - pausedAt.current);
 
   const drawn: ReactNode[] = [];
   const nextRows = new Map<number, HTMLDivElement>();
   rows.current = nextRows;
-  for (let p = first; p < last; p++) {
+  const drawRow = (p: number) => {
     const line = lines.at(p);
-    if (!line) continue;
+    if (!line) return;
     const key = line.id ?? p;
+    const before = p > lines.start ? lines.at(p - 1) : undefined;
+    const carries = continues(before, line);
     drawn.push(
       <div
         key={key}
+        data-position={p}
         className="dw-log-row"
         style={{ transform: `translateY(${index.current.offset(p)}px)` }}
         ref={(el) => {
@@ -365,24 +552,61 @@ export function LogStream({
       >
         <Row
           line={line}
+          position={p}
           showSource={showSource}
           highlight={highlight}
           strings={strings}
           open={expanded.has(key)}
-          onOpen={() => setExpanded((was) => new Set(was).add(key))}
+          onOpen={() =>
+            setExpanded((was) => {
+              const next = new Set(was);
+              if (!next.delete(key)) next.add(key);
+              return next;
+            })
+          }
+          carries={carries}
+          sameTime={Boolean(before && !before.notice && before.time === line.time && before.source === line.source)}
+          day={line.day && before?.day !== line.day ? line.day : undefined}
+          current={current !== undefined && line.id === current}
+          active={activeLine !== undefined && line.id === activeLine}
+          actions={
+            actions &&
+            line.id !== undefined &&
+            (line.id === current || line.id === activeLine || line.id === pointedLine)
+              ? actions
+              : undefined
+          }
         />
       </div>,
     );
-  }
+  };
+  // In order, so the rows a selection holds keep their places in the document.
+  const held = chosenRows.current;
+  if (held && held[0] < first) drawRow(held[0]);
+  if (held && held[1] < first && held[1] !== held[0]) drawRow(held[1]);
+  for (let p = first; p < last; p++) drawRow(p);
+  if (held && held[0] >= last) drawRow(held[0]);
+  if (held && held[1] >= last && held[1] !== held[0]) drawRow(held[1]);
 
   return (
-    <div className={cx("dw-log", height === "fill" && "is-fill", !showSource && "no-source", className)}>
+    <div
+      className={cx(
+        "dw-log",
+        height === "fill" && "is-fill",
+        !showSource && "no-source",
+        !wrap && "no-wrap",
+        className,
+      )}
+    >
       <div className="dw-log-head">
         <div className="dw-log-title">
           {live ? (
             <span className={cx("dw-live", !follow && "is-paused")} role="status">
               <span className="dw-live-dot" />
-              {follow ? strings.logStream.live : strings.logStream.paused}
+              <Held
+                now={follow ? strings.logStream.live : strings.logStream.paused}
+                other={follow ? strings.logStream.paused : strings.logStream.live}
+              />
             </span>
           ) : null}
           {hasTitle ? (
@@ -390,18 +614,24 @@ export function LogStream({
               {title}
             </span>
           ) : null}
+          {hasContent(meta) ? <span className="dw-log-meta">{meta}</span> : null}
         </div>
         <div className="dw-log-tools">
           {toolbar}
-          {live ? (
+          {live || holdFollow ? (
             <Button
               size="sm"
               variant="ghost"
               icon={follow ? "pause" : "play"}
               aria-controls={bodyId}
               onClick={() => setFollow(!follow)}
+              className={cx(!live && "is-held")}
+              disabled={!live}
             >
-              {follow ? strings.logStream.pause : strings.logStream.follow}
+              <Held
+                now={follow ? strings.logStream.pause : strings.logStream.follow}
+                other={follow ? strings.logStream.follow : strings.logStream.pause}
+              />
             </Button>
           ) : null}
         </div>
@@ -424,15 +654,21 @@ export function LogStream({
             // A finger moving down drags the lines down: scrolling up.
             if ((e.touches[0]?.clientY ?? 0) > touchY.current + 4) reading();
           }}
-          onPointerDown={(e) => {
-            // The scrollbar itself, whose scroll events come too late to hold it.
-            if (e.target === e.currentTarget) reading();
+          onPointerDown={onPress}
+          onClick={(e) => {
+            if (chosenInLog()) return;
+            const row = (e.target as Element).closest<HTMLElement>(".dw-log-row");
+            const line = row ? lines.at(Number(row.dataset["position"])) : undefined;
+            setActiveLine(line?.id);
           }}
-          onMouseUp={() => {
-            // Text chosen to copy would go as new lines push it out.
-            const chosen = document.getSelection();
-            if (chosen && !chosen.isCollapsed && body.current?.contains(chosen.anchorNode)) reading();
+          onCopy={onCopy}
+          onPointerOver={(e) => {
+            if (!actions || e.pointerType === "touch") return;
+            const row = (e.target as Element).closest<HTMLElement>(".dw-log-row");
+            const line = row ? lines.at(Number(row.dataset["position"])) : undefined;
+            if (line?.id !== pointedLine) setPointedLine(line?.id);
           }}
+          onPointerLeave={() => setPointedLine(undefined)}
           role="log"
           // Each line isn't news: a log can write thousands a second. The status
           // above says when the stream starts and stops.
@@ -443,7 +679,7 @@ export function LogStream({
           tabIndex={0}
         >
           {top ? <div className="dw-log-top">{top}</div> : null}
-          <div className="dw-log-rows" style={{ height: index.current.total }}>
+          <div ref={rowsBox} className="dw-log-rows" style={{ height: index.current.total }}>
             {drawn}
           </div>
           {lines.length === 0 && hasContent(empty) ? <div className="dw-log-empty">{empty}</div> : null}
@@ -456,12 +692,40 @@ export function LogStream({
             className="dw-log-jump"
             onClick={() => setFollow(true)}
           >
-            {strings.logStream.newLines(newLines)}
+            {newLines > MANY_LINES ? strings.logStream.manyNewLines : strings.logStream.newLines(newLines)}
           </Button>
         ) : null}
       </div>
+      {foot === undefined ? null : <div className="dw-log-foot">{foot}</div>}
     </div>
   );
+}
+
+/** Words that change in a place as wide as the widest, so what is beside them stays put. */
+function Held({ now, other }: { now: string; other: string }) {
+  return (
+    <span className="dw-held">
+      <span>{now}</span>
+      <span aria-hidden="true" className="dw-held-other">
+        {other}
+      </span>
+    </span>
+  );
+}
+
+function rowOf(node: Node | null): HTMLElement | null {
+  const el = node instanceof Element ? node : (node?.parentElement ?? null);
+  return el?.closest<HTMLElement>(".dw-log-row") ?? null;
+}
+
+function rowPosition(node: Node | null): number | undefined {
+  const row = rowOf(node);
+  return row ? Number(row.dataset["position"]) : undefined;
+}
+
+function closestText(node: Node | null): boolean {
+  const el = node instanceof Element ? node : (node?.parentElement ?? null);
+  return Boolean(el?.closest(".dw-log-text"));
 }
 
 /** How wide one character of the log's type is, in pixels. */
@@ -477,85 +741,152 @@ function charWidth(el: HTMLElement): number {
 
 interface RowProps {
   line: LogLine;
+  position: number;
   showSource: boolean;
   highlight: string;
   strings: UIStrings;
   open: boolean;
   onOpen: () => void;
+  /** It carries on the line before, as a stack trace's frames do. */
+  carries: boolean;
+  /** The line before has the same time, from the same source. */
+  sameTime: boolean;
+  /** Its day, where that changes. */
+  day: string | undefined;
+  current: boolean;
+  active: boolean;
+  actions: ((line: LogLine, position: number) => ReactNode) | undefined;
 }
 
 /** One entry. It redraws only when what it shows changes, not with each batch of lines. */
 const Row = memo(
-  function Row({ line, showSource, highlight, strings, open, onOpen }: RowProps) {
+  function Row({
+    line,
+    position,
+    showSource,
+    highlight,
+    strings,
+    open,
+    onOpen,
+    carries,
+    sameTime,
+    day,
+    current,
+    active,
+    actions,
+  }: RowProps) {
+    const dayRow = day ? <div className="dw-log-day">{day}</div> : null;
     if (line.notice) {
       return (
-        <div className={cx("dw-log-notice", `is-${line.notice}`)}>
-          {line.notice === "warning" ? <Glyph shape={TONE.warning.shape} size={8} /> : null}
-          <span>{line.text}</span>
-        </div>
+        <>
+          {dayRow}
+          <div className={cx("dw-log-notice", `is-${line.notice}`)}>
+            {line.notice === "warning" ? <Glyph shape={TONE.warning.shape} size={8} /> : null}
+            <span>{line.text}</span>
+          </div>
+        </>
       );
     }
     const level = line.level ?? "info";
     const long = !open && line.text.length > LONG_LINE;
+    const json = looksLikeJson(line.text);
+    const pretty = open && json ? prettyJson(line.text) : undefined;
+    const tools = actions?.(line, position);
     return (
-      <div className={cx("dw-log-line", `is-${level}`)}>
-        <span className="dw-log-time" title={line.timeTitle}>
-          {line.time}
-        </span>
-        {showSource ? (
-          <span className="dw-log-src" title={line.sourceTitle ?? line.source}>
-            {line.source}
-          </span>
-        ) : null}
-        <span className="dw-log-lvl">
-          {level === "info" ? null : (
-            <>
-              <Glyph shape={LEVEL_SHAPE[level]} size={8} />
-              <span className="dw-log-lvl-word">{strings.logStream.level[level]}</span>
-            </>
+      <>
+        {dayRow}
+        <div
+          className={cx(
+            "dw-log-line",
+            `is-${level}`,
+            carries && "is-carried",
+            current && "is-current",
+            active && "is-active",
           )}
-        </span>
-        <span className="dw-log-text">
-          <LineText text={long ? line.text.slice(0, LONG_LINE) : line.text} highlight={highlight} />
-          {long ? (
-            <button type="button" className="dw-log-more" onClick={onOpen}>
-              <Icon name="chevron-down" size={14} />
-              {strings.logStream.showAll}
-            </button>
+        >
+          <span className={cx("dw-log-time", sameTime && "is-repeat")} title={line.timeTitle}>
+            {line.time}
+          </span>
+          {showSource ? (
+            <span className={cx("dw-log-src", sameTime && "is-repeat")} title={line.sourceTitle ?? line.source}>
+              {line.source}
+            </span>
           ) : null}
-          {line.cut ? <span className="dw-log-cut"> {strings.logStream.cut(line.cut)}</span> : null}
-        </span>
-      </div>
+          <span className="dw-log-lvl">
+            {level === "info" || carries ? null : (
+              <>
+                <Glyph shape={LEVEL_SHAPE[level]} size={8} />
+                <span className="dw-log-lvl-word">{strings.logStream.level[level]}</span>
+              </>
+            )}
+          </span>
+          <span className="dw-log-text">
+            {pretty ? (
+              <span className="dw-log-pretty">{pretty}</span>
+            ) : (
+              <LineText
+                text={long ? line.text.slice(0, LONG_LINE) : line.text}
+                highlight={highlight}
+                current={current}
+              />
+            )}
+            {long ? (
+              <>
+                <span aria-hidden="true">…</span>
+                <button type="button" className="dw-log-more" onClick={onOpen}>
+                  <Icon name="chevron-down" size={14} />
+                  {strings.logStream.showAll}
+                </button>
+              </>
+            ) : null}
+            {json && !long ? (
+              <button type="button" className="dw-log-more" aria-expanded={open} onClick={onOpen}>
+                <Icon name={open ? "chevron-up" : "chevron-down"} size={14} />
+                {open ? strings.logStream.collapse : strings.logStream.expand}
+              </button>
+            ) : null}
+            {line.cut ? <span className="dw-log-cut"> {strings.logStream.cut(line.cut)}</span> : null}
+          </span>
+          {tools ? <span className="dw-log-actions">{tools}</span> : null}
+        </div>
+      </>
     );
   },
   (a, b) =>
     a.line === b.line &&
+    a.position === b.position &&
     a.showSource === b.showSource &&
     a.highlight === b.highlight &&
     a.open === b.open &&
-    a.strings === b.strings,
+    a.strings === b.strings &&
+    a.carries === b.carries &&
+    a.sameTime === b.sameTime &&
+    a.day === b.day &&
+    a.current === b.current &&
+    a.active === b.active &&
+    a.actions === b.actions,
 );
 
 /** A line's text, with its colours and what a search found in it. */
-function LineText({ text, highlight }: { text: string; highlight: string }) {
+function LineText({ text, highlight, current }: { text: string; highlight: string; current: boolean }) {
   const spans = parseAnsi(text);
-  if (highlight === "") return <>{spans.map(drawSpan)}</>;
+  if (highlight === "") return <>{spans.map((span, i) => drawSpan(span, i, current))}</>;
   const parts = markHits(spans, highlight);
-  return <>{parts.map(drawSpan)}</>;
+  return <>{parts.map((span, i) => drawSpan(span, i, current))}</>;
 }
 
 interface Mark extends LogSpan {
   hit?: boolean;
 }
 
-function drawSpan(span: Mark, i: number): ReactNode {
+function drawSpan(span: Mark, i: number, current: boolean): ReactNode {
   const classes = cx(
     span.color && `dw-ansi-${span.color}`,
     span.bold && "dw-ansi-bold",
     span.dim && "dw-ansi-dim",
     span.underline && "dw-ansi-underline",
   );
-  const content = span.hit ? <mark className="dw-log-hit">{span.text}</mark> : span.text;
+  const content = span.hit ? <mark className={cx("dw-log-hit", current && "is-current")}>{span.text}</mark> : span.text;
   return classes ? (
     <span key={i} className={classes}>
       {content}

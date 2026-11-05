@@ -62,7 +62,20 @@ func isContinuation(line []byte) bool {
 			return true
 		}
 	}
-	return isNumberedFrame(line) || isCallFrame(line)
+	return isNumberedFrame(line) || isCallFrame(line) || isCloser(line)
+}
+
+// isCloser reads a line of nothing but closing brackets, as what a runtime prints
+// of an object ends with, at the start of the line, after its indented fields.
+func isCloser(line []byte) bool {
+	for _, c := range line {
+		switch c {
+		case '}', ']', ')', ',', ';', ' ':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 var continuationPrefixes = [][]byte{

@@ -20,6 +20,7 @@ function readSearch(search: Record<string, unknown>): LogsSearch {
     if (value) out[key] = value;
   }
   if (search["deep"] === true) out.deep = true;
+  if (search["nowrap"] === true) out.nowrap = true;
   const revision = Number(search["revision"]);
   if (Number.isSafeInteger(revision) && revision > 0) out.revision = revision;
   return out;

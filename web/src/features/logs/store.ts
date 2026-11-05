@@ -1,12 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type LogLine as ApiLine, type LogChunk, type LogGap, LogLevel, type LogStream } from "@dockwell/api";
+import {
+  type LogLine as ApiLine,
+  type LogChunk,
+  type LogGap,
+  LogGapReason,
+  LogLevel,
+  type LogStream,
+} from "@dockwell/api";
 import { type LogLine, type LogLines, plainText } from "@dockwell/ui";
 
 /** The most lines a view keeps. Older ones leave, and the view says so. */
 export const MAX_LINES = 100_000;
 /** The most text a view keeps: a hundred thousand lines of 16 KiB would be far too much. */
 export const MAX_BYTES = 64 << 20;
+/**
+ * The most a paused view sets aside of what comes, past which only the count goes
+ * on. A reader who follows again wants the newest lines, and what shows stays as
+ * it was until then, however long they read.
+ */
+export const MAX_HELD = 20_000;
+export const MAX_HELD_BYTES = 16 << 20;
+/** How far apart lines of one level can be, in milliseconds, and still read as one thing, as a stack trace does. */
+const GROUP_MS = 100;
 
 /** One thing in a log's order: a line, or a note about a place in it. */
 export interface Entry {
@@ -24,6 +40,8 @@ export interface Entry {
   gap?: LogGap;
   /** A new container of a replica starts here, as a deploy does. */
   started?: true;
+  /** How many lines that came while this view was paused left it unseen. */
+  left?: number;
   /** How it was last drawn, with the words of drawnAt. */
   drawn?: LogLine;
   drawnAt?: number;
@@ -85,6 +103,26 @@ export class LogStore implements LogLines {
   evicted = 0;
   /** How many lines never reached this view, as markers in it said, to go on saying so. */
   skipped = 0;
+  /** How many lines have ever come, for how fast they are coming. */
+  received = 0;
+  /** The newest marker of lines left out, to go to. */
+  lastSkip: Entry | undefined;
+
+  /** Whether what shows holds still, with what comes set aside. */
+  private holding = false;
+  /** When it started to, in milliseconds. */
+  heldSince = 0;
+  private held: Entry[] = [];
+  private heldHead = 0;
+  private heldBytes = 0;
+  private heldCount = 0;
+  private heldLost = 0;
+
+  /** The first line of each error, oldest first, for going through them. */
+  private errorEntries: Entry[] = [];
+  private errorsHead = 0;
+  /** How many of what the filter keeps are notes, not lines. */
+  private notesKept = 0;
   private sources = new Map<string, string>();
   private seen = new Set<string>();
   private replicas = new Map<string, string>();
@@ -129,6 +167,16 @@ export class LogStore implements LogLines {
     this.bytes = 0;
     this.evicted = 0;
     this.skipped = 0;
+    this.lastSkip = undefined;
+    this.received = 0;
+    this.held = [];
+    this.heldHead = 0;
+    this.heldBytes = 0;
+    this.heldCount = 0;
+    this.heldLost = 0;
+    this.errorEntries = [];
+    this.errorsHead = 0;
+    this.notesKept = 0;
     this.seen.clear();
     this.kept = this.pattern || this.filter.levels.size > 0 || this.filter.label ? [] : undefined;
     this.keptHead = 0;
@@ -149,6 +197,61 @@ export class LogStore implements LogLines {
   /** How many entries there are, whatever the filter keeps. */
   get total(): number {
     return this.entries.length - this.head;
+  }
+
+  /** How many have come that don't show yet, while what shows holds still. */
+  get arrived(): number {
+    return this.holding ? this.heldCount : 0;
+  }
+
+  /** How many of what shows are lines, not notes. */
+  get matches(): number {
+    return this.kept ? this.length - this.notesKept : this.total;
+  }
+
+  /** How many errors there are, a stack trace counting as one. */
+  get errors(): number {
+    return this.errorEntries.length - this.errorsHead;
+  }
+
+  /** The first line of an error, by its number from the oldest. */
+  errorAt(index: number): Entry | undefined {
+    return this.errorEntries[this.errorsHead + index];
+  }
+
+  /**
+   * Holds what shows still, or lets it move again with what came meanwhile. Held,
+   * nothing leaves, so the line a reader is on stays theirs at any rate of lines.
+   */
+  setHolding(on: boolean): void {
+    if (on === this.holding) return;
+    this.holding = on;
+    if (on) {
+      this.heldSince = Date.now();
+      this.heldCount = 0;
+      this.bump();
+      return;
+    }
+    const batch = this.held.slice(this.heldHead);
+    if (this.heldLost > 0) {
+      // Where what left was: before the first of what stayed.
+      const left = this.entry("", this.lastHeldTime(batch), { left: this.heldLost });
+      left.nanos -= 1;
+      batch.unshift(left);
+    }
+    this.held = [];
+    this.heldHead = 0;
+    this.heldBytes = 0;
+    this.heldCount = 0;
+    this.heldLost = 0;
+    if (batch.length > 0) this.insert(batch);
+    else this.bump();
+  }
+
+  private lastHeldTime(batch: readonly Entry[]): ApiLine["time"] {
+    const first = batch[0];
+    if (!first) return undefined;
+    return { $typeName: "google.protobuf.Timestamp", seconds: BigInt(Math.floor(first.ms / 1000)), nanos: first.nanos };
   }
 
   /** The labels of the sources with lines here. */
@@ -179,12 +282,41 @@ export class LogStore implements LogLines {
     // Near the end is where a reader mostly is, and it is ordered by time, so a
     // search would need the entry's time; going through a screenful is rare.
     for (let i = this.entries.length - 1; i >= this.head; i--) {
-      if (this.entries[i]?.id === id) {
-        const absolute = i - this.head + this.base;
-        if (!this.kept) return absolute;
-        const at = this.kept.indexOf(absolute, this.keptHead);
-        return at < 0 ? undefined : at - this.keptHead + this.keptBase;
-      }
+      if (this.entries[i]?.id === id) return this.positionAt(i);
+    }
+    return undefined;
+  }
+
+  /** Where an entry is, in what shows, if it does, in O(log n) as its time says. */
+  positionOfEntry(entry: Entry): number | undefined {
+    let low = this.head;
+    let high = this.entries.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (compare(this.entries[mid] as Entry, entry) < 0) low = mid + 1;
+      else high = mid;
+    }
+    return this.entries[low] === entry ? this.positionAt(low) : undefined;
+  }
+
+  private positionAt(index: number): number | undefined {
+    const absolute = index - this.head + this.base;
+    if (!this.kept) return absolute;
+    let low = this.keptHead;
+    let high = this.kept.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if ((this.kept[mid] as number) < absolute) low = mid + 1;
+      else high = mid;
+    }
+    return this.kept[low] === absolute ? low - this.keptHead + this.keptBase : undefined;
+  }
+
+  /** The next line that shows after a position, going by, or undefined if there is none. */
+  lineFrom(position: number, by: 1 | -1): number | undefined {
+    for (let p = position; p >= this.start && p < this.start + this.length; p += by) {
+      const e = this.entryAt(p);
+      if (e && !e.gap && !e.started && e.left === undefined) return p;
     }
     return undefined;
   }
@@ -193,21 +325,51 @@ export class LogStore implements LogLines {
   add(chunks: readonly LogChunk[]): void {
     const batch: Entry[] = [];
     for (const chunk of chunks) this.take(chunk, batch);
-    this.insert(batch);
+    if (this.holding) this.setAside(batch);
+    else this.insert(batch);
   }
 
-  /** Takes in a page of older lines. */
+  /** Keeps the newest of what comes while what shows holds still, and counts it all. */
+  private setAside(batch: readonly Entry[]): void {
+    if (batch.length === 0) return;
+    for (const e of batch) {
+      this.held.push(e);
+      this.heldBytes += e.text.length;
+      if (!e.gap && !e.started) this.heldCount++;
+    }
+    while (this.held.length - this.heldHead > MAX_HELD || this.heldBytes > MAX_HELD_BYTES) {
+      const e = this.held[this.heldHead] as Entry;
+      this.heldHead++;
+      this.heldBytes -= e.text.length;
+      if (!e.gap && !e.started) this.heldLost++;
+    }
+    if (this.heldHead > 16_384) {
+      this.held = this.held.slice(this.heldHead);
+      this.heldHead = 0;
+    }
+    this.bump();
+  }
+
+  /** Takes in a page of older lines, which show whatever else holds still. */
   addOlder(chunks: readonly LogChunk[]): void {
-    this.add(chunks);
+    const batch: Entry[] = [];
+    for (const chunk of chunks) this.take(chunk, batch);
+    this.insert(batch);
   }
 
   private take(chunk: LogChunk, batch: Entry[]): void {
     const source = chunk.sourceId;
     const firstOfSource = !this.seen.has(source) && chunk.lines.length > 0;
     if (chunk.gap) {
-      this.skipped += Number(chunk.gap.lines);
-      const at = chunk.lines[0]?.time ?? chunk.gap.endTime ?? chunk.gap.startTime;
-      batch.push(this.entry(source, at, { gap: chunk.gap }));
+      // Where the lines it stands for were, which its chunk's first line may be
+      // well after.
+      const at = chunk.gap.endTime ?? chunk.lines[0]?.time ?? chunk.gap.startTime;
+      const marker = this.entry(source, at, { gap: chunk.gap });
+      batch.push(marker);
+      if (chunk.gap.reason !== LogGapReason.MATCH_LIMIT) {
+        this.skipped += Number(chunk.gap.lines);
+        if (chunk.gap.lines > 0n) this.lastSkip = marker;
+      }
     }
     if (firstOfSource) {
       // Another container of this replica has written here: a deploy. Say where
@@ -218,11 +380,11 @@ export class LogStore implements LogLines {
       }
       this.seen.add(source);
     }
+    this.received += chunk.lines.length;
     for (const line of chunk.lines) batch.push(this.lineEntry(source, line));
   }
 
   private lineEntry(source: string, line: ApiLine): Entry {
-    this.bytes += line.text.length;
     return {
       id: this.nextId++,
       ms: timeMs(line.time),
@@ -254,16 +416,46 @@ export class LogStore implements LogLines {
     batch.sort(compare);
     const last = this.entries[this.entries.length - 1];
     const first = batch[0] as Entry;
+    for (const e of batch) this.bytes += e.text.length;
     if (!last || this.entries.length === this.head || compare(last, first) <= 0) {
       for (const e of batch) {
+        this.noteError(e, this.entries[this.entries.length - 1]);
         this.entries.push(e);
-        if (this.kept && this.keeps(e)) this.kept.push(this.base + this.entries.length - 1 - this.head);
+        if (this.kept && this.keeps(e)) {
+          this.kept.push(this.base + this.entries.length - 1 - this.head);
+          if (e.gap || e.started || e.left !== undefined) this.notesKept++;
+        }
       }
     } else {
       this.merge(batch);
     }
     this.evict();
     this.bump();
+  }
+
+  /** Notes the first line of an error, which what carries it on, as a stack trace's frames do, isn't. */
+  private noteError(e: Entry, before: Entry | undefined): void {
+    if (e.level !== LogLevel.ERROR || e.gap || e.started) return;
+    const carries =
+      before !== undefined &&
+      before.level === LogLevel.ERROR &&
+      before.source === e.source &&
+      e.ms - before.ms <= GROUP_MS;
+    if (!carries) this.errorEntries.push(e);
+  }
+
+  /** Works out the errors again from a place in the log, as lines merged in may change them. */
+  private redoErrors(from: number): void {
+    const start = this.entries[from];
+    if (!start) return;
+    while (this.errorEntries.length > this.errorsHead) {
+      const last = this.errorEntries[this.errorEntries.length - 1] as Entry;
+      if (compare(last, start) < 0) break;
+      this.errorEntries.pop();
+    }
+    for (let i = from; i < this.entries.length; i++) {
+      this.noteError(this.entries[i] as Entry, i > this.head ? this.entries[i - 1] : undefined);
+    }
   }
 
   /** Puts lines where their times say, which moves what comes after them. */
@@ -291,6 +483,7 @@ export class LogStore implements LogLines {
         b++;
       }
     }
+    this.redoErrors(low);
     this.epoch++;
     if (this.kept) this.refilter();
   }
@@ -305,12 +498,19 @@ export class LogStore implements LogLines {
       this.bytes -= e.text.length;
       this.head++;
       gone++;
-      if (!e.gap && !e.started) this.evicted++;
+      if (!e.gap && !e.started && e.left === undefined) this.evicted++;
+      if (this.errorEntries[this.errorsHead] === e) this.errorsHead++;
     }
     if (gone === 0) return;
     this.base += gone;
+    if (this.errorsHead > 16_384) {
+      this.errorEntries = this.errorEntries.slice(this.errorsHead);
+      this.errorsHead = 0;
+    }
     if (this.kept) {
       while (this.keptHead < this.kept.length && (this.kept[this.keptHead] as number) < this.base) {
+        const e = this.entries[(this.kept[this.keptHead] as number) - this.base + this.head];
+        if (e && (e.gap || e.started || e.left !== undefined)) this.notesKept--;
         this.keptHead++;
         this.keptBase++;
       }
@@ -327,7 +527,7 @@ export class LogStore implements LogLines {
 
   private keeps(e: Entry): boolean {
     // What is missing shows whatever the filters, so a reader always knows.
-    if (e.gap) return true;
+    if (e.gap || e.left !== undefined) return true;
     const { levels, label } = this.filter;
     if (e.started) return levels.size === 0 && !this.pattern;
     if (levels.size > 0 && !levels.has(shownLevel(e.level))) return false;
@@ -350,6 +550,7 @@ export class LogStore implements LogLines {
 
   private refilter(): void {
     const { levels, label } = this.filter;
+    this.notesKept = 0;
     if (levels.size === 0 && !label && !this.pattern) {
       this.kept = undefined;
       this.keptHead = 0;
@@ -358,7 +559,11 @@ export class LogStore implements LogLines {
     }
     const kept: number[] = [];
     for (let i = this.head; i < this.entries.length; i++) {
-      if (this.keeps(this.entries[i] as Entry)) kept.push(i - this.head + this.base);
+      const e = this.entries[i] as Entry;
+      if (this.keeps(e)) {
+        kept.push(i - this.head + this.base);
+        if (e.gap || e.started || e.left !== undefined) this.notesKept++;
+      }
     }
     this.kept = kept;
     this.keptHead = 0;
@@ -379,7 +584,7 @@ export class LogStore implements LogLines {
   oldest(): Entry | undefined {
     for (let i = this.head; i < this.entries.length; i++) {
       const e = this.entries[i] as Entry;
-      if (!e.gap && !e.started) return e;
+      if (!e.gap && !e.started && e.left === undefined) return e;
     }
     return undefined;
   }

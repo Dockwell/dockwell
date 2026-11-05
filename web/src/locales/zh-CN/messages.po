@@ -5645,3 +5645,379 @@ msgstr "没有服务器运行 {name}"
 #: src/features/auth/ProfilePage.tsx
 msgid "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code."
 msgstr "通行密钥属于创建它的地址。请为 {rpId} 添加一个，这样在这里登录就不需要验证码。"
+
+#. placeholder {0}: e.left
+#: src/features/logs/draw.ts
+msgid "{0, plural, one {{count} line came while this view was paused, and left it unseen.} other {{count} lines came while this view was paused, and left it unseen.}}"
+msgstr "{0, plural, other {此视图暂停期间有 {count} 行日志未能显示，已被丢弃。}}"
+
+#. placeholder {0}: now.store.matches
+#: src/features/logs/LogsPage.tsx
+msgid "{0, plural, one {{count} line matches.} other {{count} lines match.}}"
+msgstr "{0, plural, other {{count} 行匹配。}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} line from {source} not shown: it wrote faster than a live view can carry. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: it wrote faster than a live view can carry. Read them with dockwell logs read.}}"
+msgstr "{0, plural, other {{source} 有 {lines} 行未显示：它的写入速度超过了实时视图的承载能力。请用 dockwell logs read 读取。}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} line from {source} not shown: this server shares what it carries live between everyone reading it, and this was past this view's share. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: this server shares what it carries live between everyone reading it, and these were past this view's share. Read them with dockwell logs read.}}"
+msgstr "{0, plural, other {{source} 有 {lines} 行未显示：这台服务器的实时带宽由所有读者分享，这些行超出了此视图的份额。请用 dockwell logs read 读取。}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
+msgstr "{0, plural, other {{source} 有 {lines} 条较早的匹配未显示：读到末尾时，每个容器只保留最新的 2 MB。}}"
+
+#. placeholder {0}: store.arrived
+#: src/features/logs/LogFoot.tsx
+msgid "{0, plural, one {Paused at {at}. {count} line since.} other {Paused at {at}. {count} lines since.}}"
+msgstr "{0, plural, other {已于 {at} 暂停。此后又有 {count} 行。}}"
+
+#. placeholder {0}: step.toLocaleString(i18n.locale)
+#. placeholder {1}: active.matches.toLocaleString(i18n.locale)
+#: src/features/logs/LogsPage.tsx
+msgid "{0} of {1}"
+msgstr "第 {0} 个，共 {1} 个"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{down} couldn't be searched, so its lines aren't in this."
+msgstr "无法搜索 {down}，结果中不含它的日志。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{errors, plural, one {{count} error} other {{count} errors}}"
+msgstr "{errors, plural, other {{count} 个错误}}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{first} couldn't be searched"
+msgstr "无法搜索 {first}"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
+msgstr "{matches, plural, other {在 {lines} 行中找到 {count} 处匹配，最早到 {at}。}}"
+
+#: src/features/logs/LogNote.tsx
+msgid "{name} has no container now, so these are the logs of its last deploy."
+msgstr "{name} 现在没有容器，这里是它上一次部署的日志。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{name} has no containers yet"
+msgstr "{name} 还没有容器"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{name} hasn't written anything. Its first lines show here as it writes them."
+msgstr "{name} 还没有写入任何内容。它一写入，第一批日志就会显示在这里。"
+
+#: src/features/apps/AppLayout.tsx
+msgid "{name} logs"
+msgstr "{name} 日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{number} of {count}"
+msgstr "第 {number} 个，共 {count} 个"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{rangeLabel}, to {to}. Refresh for newer lines."
+msgstr "{rangeLabel}，截至 {to}。刷新可查看更新的日志。"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{speed} lines/s"
+msgstr "{speed} 行/秒"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{value, plural, one {{count} line not shown} other {{count} lines not shown}}"
+msgstr "{value, plural, other {{count} 行未显示}}"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{value, plural, one {About {count} line not shown} other {About {count} lines not shown}}"
+msgstr "{value, plural, other {约 {count} 行未显示}}"
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{image}</0> exited with code {code}."
+msgstr "<0>{image}</0> 以退出码 {code} 退出。"
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{image}</0> exited with no error."
+msgstr "<0>{image}</0> 正常退出。"
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{revision}</0> failed at {finished} and was rolled back to <1>{rolledBackTo}</1>."
+msgstr "<0>{revision}</0> 于 {finished} 失败，已回滚到 <1>{rolledBackTo}</1>。"
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{revision}</0> failed at {finished} and was rolled back."
+msgstr "<0>{revision}</0> 于 {finished} 失败，已回滚。"
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{revision}</0> was replaced at {finished}."
+msgstr "<0>{revision}</0> 于 {finished} 被替换。"
+
+#: src/app/Providers.tsx
+msgid "10k+ new lines"
+msgstr "超过 1 万行新日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
+msgstr "容器被移除时，它的日志也会一并移除。每台服务器为每个应用保留最近一个失败和最近一个被替换的容器的日志，保留 30 天，总量不超过 256 MB；已删除应用的日志保留 7 天。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "All the servers keep"
+msgstr "服务器保留的全部日志"
+
+#: src/features/logs/LogContext.tsx
+msgid "Can't read the lines around it"
+msgstr "无法读取它前后的日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Can't read these logs now"
+msgstr "现在无法读取这些日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Choose a longer range, or follow what it writes next."
+msgstr "请选择更长的时间范围，或跟随它接下来写入的内容。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Clear the search"
+msgstr "清除搜索"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Close the search"
+msgstr "关闭搜索"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Copied this line"
+msgstr "已复制这一行"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Copy this line"
+msgstr "复制这一行"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Deploy it, and its logs show here as it starts."
+msgstr "部署后，它启动时日志就会显示在这里。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Enter goes to the next match up the log, and Shift+Enter down it. Escape clears the search."
+msgstr "按 Enter 向上跳到下一处匹配，按 Shift+Enter 向下跳。按 Escape 清除搜索。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Errors in this log"
+msgstr "此日志中的错误"
+
+#: src/features/logs/LogsPage.tsx
+msgid "failed"
+msgstr "失败"
+
+#: src/app/Providers.tsx
+msgid "Following"
+msgstr "跟随中"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Go to the last"
+msgstr "转到最后一处"
+
+#: src/features/logs/LogsPage.tsx
+msgid "It reads each container's log, at most for 30 s."
+msgstr "它会读取每个容器的日志，最长 30 秒。"
+
+#: src/features/logs/LogNote.tsx
+msgid "It wrote more than the server keeps of one container, so not all of its lines are here."
+msgstr "它写入的内容超过了服务器为单个容器保留的量，所以这里不是全部日志。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Its agent isn't connected, so its lines weren't read. Check the server, then search again."
+msgstr "它的 Agent 未连接，所以没有读取它的日志。请检查服务器，然后再次搜索。"
+
+#: src/features/logs/LogNote.tsx
+msgid "Its agent isn't connected, so its logs can't be read now. Its containers keep running and logging. Check the server. Lines written meanwhile arrive when it reconnects, as far as Docker kept them."
+msgstr "它的 Agent 未连接，所以现在无法读取它的日志。它的容器仍在运行并写入日志。请检查服务器。重新连接后，这期间写入的日志会到达，以 Docker 保留的为限。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Its logs show here once they can be read."
+msgstr "能读取时，它的日志就会显示在这里。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Last 1 h"
+msgstr "最近 1 小时"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Last 15 min"
+msgstr "最近 15 分钟"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Last 24 h"
+msgstr "最近 24 小时"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
+msgstr "级别根据每行文本判断。未标明级别的行算作信息。双击或按住 Shift 点击可只显示该级别。"
+
+#: src/features/logs/LogContext.tsx
+msgid "Lines around this one"
+msgstr "这一行前后的日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Lines loaded"
+msgstr "已加载的行"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Next error"
+msgstr "下一个错误"
+
+#: src/features/logs/LogsPage.tsx
+msgid "No logs yet"
+msgstr "还没有日志"
+
+#: src/features/logs/LogContext.tsx
+msgid "Nothing else was written around this line."
+msgstr "这一行前后没有其他日志。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing in all the servers keep has \"{highlight}\"."
+msgstr "服务器保留的全部日志中没有“{highlight}”。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing in the {total} lines loaded has \"{query}\"."
+msgstr "已加载的 {total} 行中没有“{query}”。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing to show until {servers} is back"
+msgstr "{servers} 恢复前没有可显示的内容"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing was written in this time"
+msgstr "这段时间内没有写入内容"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Pause to read"
+msgstr "暂停以便阅读"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Press Enter to search all the servers keep."
+msgstr "按 Enter 搜索服务器保留的全部日志。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Previous error"
+msgstr "上一个错误"
+
+#: src/app/Providers.tsx
+msgid "Put back"
+msgstr "收起"
+
+#: src/features/logs/DeployLogLinks.tsx
+msgid "Read {name}'s logs from this deploy"
+msgstr "阅读此次部署中 {name} 的日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Read the failed deploy's logs"
+msgstr "阅读失败部署的日志"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Read them with <0>dockwell logs read</0>."
+msgstr "请用 <0>dockwell logs read</0> 读取。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Read this range again"
+msgstr "重新读取此时间范围"
+
+#: src/features/logs/LogContext.tsx
+msgid "Reading the lines around it"
+msgstr "正在读取它前后的日志"
+
+#: src/features/logs/LogNote.tsx
+msgid "Reconnecting to the control server"
+msgstr "正在重新连接控制服务器"
+
+#: src/features/logs/LogsPage.tsx
+msgid "replaced"
+msgstr "已替换"
+
+#: src/app/Providers.tsx
+msgid "Set out"
+msgstr "展开"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Show in context"
+msgstr "查看上下文"
+
+#: src/features/logs/LogNote.tsx
+msgid "Show less"
+msgstr "收起"
+
+#: src/features/logs/LogNote.tsx
+msgid "Show more"
+msgstr "展开"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Start of the log"
+msgstr "日志开头"
+
+#: src/features/logs/LogFoot.tsx
+msgid "That is all the servers keep."
+msgstr "这是服务器保留的全部日志。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "The search failed"
+msgstr "搜索失败"
+
+#: src/features/logs/LogFoot.tsx
+msgid "The search stopped after 30 s, at {at}. Read older lines with <0>dockwell logs read</0>."
+msgstr "搜索在 30 秒后停止，读到 {at}。较早的日志请用 <0>dockwell logs read</0> 读取。"
+
+#: src/features/logs/LogFoot.tsx
+msgid "The search stopped at the newest 1,000,000 lines of a container, at {at}. Read older lines with <0>dockwell logs read</0>."
+msgstr "搜索在读完一个容器最新的 1,000,000 行后停止，读到 {at}。较早的日志请用 <0>dockwell logs read</0> 读取。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "The servers have no lines of this app."
+msgstr "服务器上没有这个应用的日志。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "There are no lines to copy"
+msgstr "没有可复制的日志"
+
+#: src/features/logs/LogsPage.tsx
+msgid "There are no lines to download"
+msgstr "没有可下载的日志"
+
+#: src/features/logs/LogFoot.tsx
+msgid "this app wrote faster than a live view can carry."
+msgstr "这个应用的写入速度超过了实时视图的承载能力。"
+
+#: src/features/logs/LogFoot.tsx
+msgid "this page or the network to it fell behind."
+msgstr "此页面或它的网络跟不上了。"
+
+#: src/features/logs/LogFoot.tsx
+msgid "this server shares what it carries live between everyone reading it."
+msgstr "这台服务器的实时带宽由所有读者分享。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
+msgstr "此视图保留最新的 {most} 行。较早的日志请用 <0>dockwell logs read</0> 读取。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Time"
+msgstr "时间"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Type what to find, and press Enter. It reads each container's log, at most for 30 s."
+msgstr "输入要查找的内容，然后按 Enter。它会读取每个容器的日志，最长 30 秒。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "What the servers keep goes back further than what is loaded here."
+msgstr "服务器保留的日志比这里加载的更久远。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "What to search"
+msgstr "搜索范围"
+
+#: src/features/logs/LogsPage.tsx
+msgid "What to show"
+msgstr "显示内容"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Wrap long lines"
+msgstr "自动换行"

@@ -200,6 +200,33 @@ func TestAFailedFirstDeploysLogsStayReadable(t *testing.T) {
 	})
 }
 
+// A plan and a check both say when a file's log rotation isn't what Dockwell takes.
+func TestAComposeFilesRotationIsSaidNotDropped(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	f.addDockerServer(t)
+	cc := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	file := "services: {web: {image: 'ghcr.io/acme/shop:1.4', logging: {options: {max-size: 1g}}}}\n"
+	check, err := cc.CheckCompose(t.Context(), connect.NewRequest(&dockwellv1.CheckComposeRequest{Compose: file}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(check.Msg.GetNotes()) != 1 || !strings.Contains(check.Msg.GetNotes()[0], "max-size 1g") || !strings.Contains(check.Msg.GetNotes()[0], "5 files of 10 MiB") {
+		t.Errorf("the check says %v", check.Msg.GetNotes())
+	}
+	imported, err := cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: file}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	said := false
+	for _, n := range imported.Msg.GetChange().GetPlan().GetNotes() {
+		said = said || (n.GetReason() == "log_rotation" && strings.Contains(n.GetMessage(), "max-size 1g"))
+	}
+	if !said {
+		t.Errorf("the plan says %v", imported.Msg.GetChange().GetPlan().GetNotes())
+	}
+}
+
 // A query is a search, not a way to send megabytes down an agent's main stream.
 func TestAQueryHasALimit(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
@@ -278,7 +305,8 @@ func TestUnreadPagesDontPinTheControlPlane(t *testing.T) {
 		}
 	}
 	t.Logf("%d pages asked for and not read hold %.0f MiB; %d were refused", unread, held, refused)
-	if held > 64 {
+	// One reader's 4 places, of pages of about 7.4 MiB.
+	if held > 48 {
 		t.Errorf("%d unread pages pin %.0f MiB", unread, held)
 	}
 	if refused == 0 {

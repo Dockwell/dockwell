@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { Button, Callout, PHONE_QUERY, StatusBadge, TabNav, useMediaQuery } from "@dockwell/ui";
+import { useQuery } from "@connectrpc/connect-query";
+import { LogService } from "@dockwell/api";
+import { Button, Callout, Icon, PHONE_QUERY, StatusBadge, TabNav, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useMatch } from "@tanstack/react-router";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, type RefObject, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink, RouterTabLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { LogsSearchButton } from "../logs/phoneSearch";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
@@ -44,11 +47,7 @@ export function AppLayout({ serviceId, children }: { serviceId: string; children
   // first deploy failed and was rolled back, and Activity links to them.
   const logs = useMatch({ from: "/_shell/apps/$serviceId/logs", shouldThrow: false });
   if (!value && logs && !query.isPending && !query.error) {
-    return (
-      <Page title={t`Logs`} back="/apps" breadcrumb={<Crumbs />}>
-        {children}
-      </Page>
-    );
+    return <GoneAppFrame serviceId={serviceId}>{children}</GoneAppFrame>;
   }
   if (!value) {
     return (
@@ -115,6 +114,41 @@ function Crumbs({ name, project }: { name?: string; project?: string | undefined
   );
 }
 
+/** The frame of an app that isn't there now, named as its logs name it, for reading what its servers kept. */
+function GoneAppFrame({ serviceId, children }: { serviceId: string; children: ReactNode }) {
+  const { t } = useLingui();
+  const sources = useQuery(LogService.method.listLogSources, { id: serviceId }, { refetchOnWindowFocus: false });
+  const name = sources.data?.service?.name;
+  const searchButton = useRef<(() => void) | null>(null);
+  return (
+    <LogsSearchButton value={searchButton}>
+      <Page
+        title={name ?? t`Logs`}
+        back="/apps"
+        breadcrumb={<Crumbs {...(name ? { name } : {})} />}
+        phoneAction={<LogsSearchAction opens={searchButton} />}
+      >
+        {children}
+      </Page>
+    </LogsSearchButton>
+  );
+}
+
+/** The phone header's button on an app's logs, which opens their search. */
+function LogsSearchAction({ opens }: { opens: RefObject<(() => void) | null> }) {
+  const { t } = useLingui();
+  return (
+    <button
+      type="button"
+      className="mobile-header-button"
+      aria-label={t`Search logs`}
+      onClick={() => opens.current?.()}
+    >
+      <Icon name="search" size={20} />
+    </button>
+  );
+}
+
 function AppFrame({ reconnecting, children }: { reconnecting: boolean; children: ReactNode }) {
   const { t } = useLingui();
   const { service, state } = useApp();
@@ -126,13 +160,16 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const onLogs = useMatch({ from: "/_shell/apps/$serviceId/logs", shouldThrow: false }) !== undefined;
   const now = useAgoNow(deployedAt(service));
   const [deploying, setDeploying] = useState(false);
+  const searchButton = useRef<(() => void) | null>(null);
   const serviceId = service.id;
   const name = nameOf(service);
   const image = imageOf(service);
   const revision = revisionName(service.revision);
   const latest = useRevisions(serviceId).revisions?.[0];
   const ago = service.updateTime ? time.ago(timestampDate(service.updateTime), now) : "";
-  const stateWord = words.state(state);
+  // On the logs, "Live" would mean a third thing beside a view that follows and a
+  // time range: here it says what the container does.
+  const stateWord = onLogs && state.kind === "live" ? t`Running` : words.state(state);
   const moving = isMoving(state);
   const place = places.place(environmentOf(service));
   return (
@@ -182,25 +219,39 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           <Trans>Deploy</Trans>
         </Button>
       }
-      phoneSub={`${revision} · ${stateWord}${phone ? ` · ${shortImage(image)}` : ""}`}
+      {...(phone && onLogs
+        ? {
+            phoneTitle: t`${name} logs`,
+            backLink: (
+              <Link to="/apps/$serviceId" params={{ serviceId }} className="mobile-header-button" aria-label={t`Back`}>
+                <Icon name="arrow-left" size={20} />
+              </Link>
+            ),
+            phoneAction: <LogsSearchAction opens={searchButton} />,
+          }
+        : {})}
+      phoneSub={`${revision} · ${stateWord}${phone && !onLogs ? ` · ${shortImage(image)}` : ""}`}
       status={reconnecting ? <Reconnecting /> : undefined}
       className="app-page"
     >
-      <TabNav label={t`App sections`}>
-        <RouterTabLink to="/apps/$serviceId" params={{ serviceId }} activeOptions={{ exact: true }}>
-          <Trans>Overview</Trans>
-        </RouterTabLink>
-        <RouterTabLink to="/apps/$serviceId/deployments" params={{ serviceId }} count={Number(service.revision)}>
-          <Trans>Deployments</Trans>
-        </RouterTabLink>
-        <RouterTabLink to="/apps/$serviceId/logs" params={{ serviceId }}>
-          <Trans>Logs</Trans>
-        </RouterTabLink>
-        <RouterTabLink to="/apps/$serviceId/environment" params={{ serviceId }}>
-          <Trans>Environment</Trans>
-        </RouterTabLink>
-      </TabNav>
-      {children}
+      {/* An app's logs have all of a phone's screen, and the header goes back out of them. */}
+      {phone && onLogs ? null : (
+        <TabNav label={t`App sections`}>
+          <RouterTabLink to="/apps/$serviceId" params={{ serviceId }} activeOptions={{ exact: true }}>
+            <Trans>Overview</Trans>
+          </RouterTabLink>
+          <RouterTabLink to="/apps/$serviceId/deployments" params={{ serviceId }} count={Number(service.revision)}>
+            <Trans>Deployments</Trans>
+          </RouterTabLink>
+          <RouterTabLink to="/apps/$serviceId/logs" params={{ serviceId }}>
+            <Trans>Logs</Trans>
+          </RouterTabLink>
+          <RouterTabLink to="/apps/$serviceId/environment" params={{ serviceId }}>
+            <Trans>Environment</Trans>
+          </RouterTabLink>
+        </TabNav>
+      )}
+      <LogsSearchButton value={searchButton}>{children}</LogsSearchButton>
       {/* The logs tab has a bar of its own on a phone: Download and Copy. */}
       {phone && !onLogs ? (
         <div className="app-actionbar">

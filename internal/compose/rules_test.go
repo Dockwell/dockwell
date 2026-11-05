@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"go.yaml.in/yaml/v4"
+
 	"github.com/distribution/reference"
 	"google.golang.org/protobuf/proto"
 
@@ -234,6 +236,48 @@ func TestFilesAreReadAFewAtATime(t *testing.T) {
 
 // A file may say what Dockwell does anyway, as an export does, and nothing else
 // about where logs go.
+// A file that asks for a rotation of its own is told Dockwell's takes its place, and
+// one that asks for Dockwell's isn't told anything.
+func TestComposeSaysWhichRotationItWontTake(t *testing.T) {
+	stack, err := Parse(t.Context(), []byte(`services:
+  web: {image: a, logging: {driver: json-file, options: {max-size: 1g, max-file: "3"}}}
+  same: {image: a, logging: {options: {max-size: 10m, max-file: "5"}}}
+  none: {image: a}
+`), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stack.Rotations) != 1 || stack.Rotations[0].Service != "web" || stack.Rotations[0].Asked != "max-file 3, max-size 1g" {
+		t.Errorf("rotations = %+v", stack.Rotations)
+	}
+}
+
+// An export carries the bound, except where a server's Docker logs elsewhere by
+// default, which keeps its operator's choice.
+func TestAnExportLeavesLoggingToAServerThatLogsElsewhere(t *testing.T) {
+	stack, err := Parse(t.Context(), []byte("services: {web: {image: a}, worker: {image: b}}\n"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stack.LogDrivers = map[string]string{"worker": "journald"}
+	out, err := Export("env_1", stack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file struct {
+		Services map[string]map[string]any `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(out.File, &file); err != nil {
+		t.Fatal(err)
+	}
+	if file.Services["web"]["logging"] == nil {
+		t.Errorf("web has no rotation: %s", out.File)
+	}
+	if file.Services["worker"]["logging"] != nil {
+		t.Errorf("worker, on journald, has logging: %s", out.File)
+	}
+}
+
 func TestComposeLoggingTakesRotationAlone(t *testing.T) {
 	for file, want := range map[string]string{
 		"services: {web: {image: a, logging: {driver: json-file, options: {max-size: 10m, max-file: \"5\", compress: \"true\"}}}}": "",

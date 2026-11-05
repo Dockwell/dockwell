@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -110,6 +112,80 @@ func TestALineCantHideWhatFollows(t *testing.T) {
 	p.finish()
 	if out.String() != "\x1b[0m" {
 		t.Errorf("leaving wrote %q, want a reset", out.String())
+	}
+}
+
+// fakeWatch is a stream of logs a test scripts, one list of messages and how they
+// end for each call.
+type fakeWatch struct {
+	calls []fakeCall
+	asked []string
+}
+
+type fakeCall struct {
+	messages []*dockwellv1.WatchLogsResponse
+	err      error
+}
+
+func (f *fakeWatch) NewRequest() proto.Message { return &dockwellv1.WatchLogsRequest{} }
+
+func (f *fakeWatch) Response() protoreflect.MessageDescriptor {
+	return (&dockwellv1.WatchLogsResponse{}).ProtoReflect().Descriptor()
+}
+
+func (f *fakeWatch) Streams() bool { return true }
+
+func (f *fakeWatch) Invoke(_ context.Context, _ *Client, req proto.Message, each func(proto.Message) error) error {
+	f.asked = append(f.asked, req.(*dockwellv1.WatchLogsRequest).GetResumeToken())
+	call := f.calls[0]
+	f.calls = f.calls[1:]
+	for _, m := range call.messages {
+		if err := each(m); err != nil {
+			return err
+		}
+	}
+	return call.err
+}
+
+// A stream that drops, as when the control plane gives up on a reader that stopped
+// reading, such as a pager left open, carries on from where it was.
+func TestFollowingCarriesOnWhenAStreamDrops(t *testing.T) {
+	var out, errs bytes.Buffer
+	line := func(text, token string) *dockwellv1.WatchLogsResponse {
+		return &dockwellv1.WatchLogsResponse{ResumeToken: token, Chunks: []*dockwellv1.LogChunk{{
+			SourceId: "a", Lines: []*dockwellv1.LogLine{{Time: timestamppb.Now(), Text: text}},
+		}}}
+	}
+	watch := &fakeWatch{calls: []fakeCall{
+		{messages: []*dockwellv1.WatchLogsResponse{line("first", "place-1")}, err: connect.NewError(connect.CodeUnavailable, errors.New("reset"))},
+		{messages: []*dockwellv1.WatchLogsResponse{line("second", "place-2")}},
+	}}
+	r := &runner{env: &Env{Out: &out, Err: &errs}, opts: &options{}, client: &Client{URL: "http://x"}}
+	if err := r.followLogs(t.Context(), &Method{Call: watch}, &dockwellv1.WatchLogsRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(watch.asked, ","); got != ",place-1" {
+		t.Errorf("it asked for places %q", got)
+	}
+	if !strings.Contains(out.String(), "first") || !strings.Contains(out.String(), "second") {
+		t.Errorf("printed %q", out.String())
+	}
+	if !strings.Contains(errs.String(), "carries on from where it was") {
+		t.Errorf("said %q", errs.String())
+	}
+}
+
+// What can't get better isn't tried again.
+func TestFollowingStopsAtWhatCantGetBetter(t *testing.T) {
+	var out, errs bytes.Buffer
+	refused := connect.NewError(connect.CodeInvalidArgument, errors.New("a search takes up to 1024 bytes"))
+	watch := &fakeWatch{calls: []fakeCall{{err: refused}}}
+	r := &runner{env: &Env{Out: &out, Err: &errs}, opts: &options{}, client: &Client{URL: "http://x"}}
+	if err := r.followLogs(t.Context(), &Method{Call: watch}, &dockwellv1.WatchLogsRequest{}); err == nil {
+		t.Error("a refusal ended with no error")
+	}
+	if len(watch.asked) != 1 {
+		t.Errorf("it asked %d times", len(watch.asked))
 	}
 }
 

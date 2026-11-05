@@ -1,11 +1,52 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Change } from "@dockwell/api";
+import { useQuery } from "@connectrpc/connect-query";
+import { type Change, LogService } from "@dockwell/api";
 import { Icon } from "@dockwell/ui";
 import { Trans } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 
 import "./DeployLogLinks.css";
+
+/**
+ * A link to the logs of what one deploy ran, if there are any to read: a deploy
+ * that never made a container has none, and a server may have let go of them. A
+ * server that can't be asked may still have them, so the link stands while that
+ * isn't known.
+ */
+export function DeployLogLink({
+  serviceId,
+  change,
+  revision,
+  name,
+}: {
+  serviceId: string;
+  change?: string | undefined;
+  revision?: bigint | undefined;
+  /** Says which app, when a deploy may be of several. */
+  name?: string | undefined;
+}) {
+  const sources = useQuery(
+    LogService.method.listLogSources,
+    { id: serviceId },
+    { retry: false, refetchOnWindowFocus: false },
+  );
+  const data = sources.data;
+  if (!data) return null;
+  const has = data.sources.some((s) => (change && s.changeId === change) || (revision && s.revision === revision));
+  if (!has && data.servers.length === 0) return null;
+  return (
+    <Link
+      className="deploy-logs-link"
+      to="/apps/$serviceId/logs"
+      params={{ serviceId }}
+      search={change ? { change } : { revision: Number(revision ?? 0) }}
+    >
+      <Icon name="terminal" size={14} />
+      {name ? <Trans>Read {name}'s logs from this deploy</Trans> : <Trans>Read this deploy's logs</Trans>}
+    </Link>
+  );
+}
 
 /**
  * Links to the logs of what a failed change deployed, which is where to look
@@ -19,20 +60,12 @@ export function FailedDeployLogs({ change }: { change: Change }) {
   return (
     <div className="deploy-logs">
       {services.map((s) => (
-        <Link
+        <DeployLogLink
           key={s.id}
-          className="deploy-logs-link"
-          to="/apps/$serviceId/logs"
-          params={{ serviceId: s.id }}
-          search={{ change: change.id }}
-        >
-          <Icon name="terminal" size={14} />
-          {services.length > 1 ? (
-            <Trans>Read {s.resource?.name}'s logs from this deploy</Trans>
-          ) : (
-            <Trans>Read this deploy's logs</Trans>
-          )}
-        </Link>
+          serviceId={s.id}
+          change={change.id}
+          name={services.length > 1 ? s.resource?.name : undefined}
+        />
       ))}
     </div>
   );

@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 .dw-log {
+  /* Soft in light, where more would take text under AA, and a tint in dark, where it reads. */
+  --log-error-ground: var(--critical-soft);
+  --log-error-carried: color-mix(in srgb, var(--critical-soft) 45%, transparent);
+  --log-hit-ground: color-mix(in srgb, var(--cobalt) 18%, transparent);
+  --log-hit-current: color-mix(in srgb, var(--cobalt) 34%, transparent);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -23,6 +28,7 @@
   border-bottom: 1px solid var(--line);
 }
 .dw-log-title {
+  flex: 1 1 0;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -31,6 +37,7 @@
   font-weight: 550;
 }
 .dw-log-name {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -41,6 +48,25 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
+}
+.dw-log-meta {
+  flex: none;
+  color: var(--ink-muted);
+  font: var(--text-caption);
+}
+/* Holds its place while nothing live is there to pause, so what sits beside it stays put. */
+.dw-log-tools .is-held {
+  visibility: hidden;
+}
+/* Words that change in a place as wide as the widest of them. */
+.dw-held {
+  display: inline-grid;
+}
+.dw-held > * {
+  grid-area: 1 / 1;
+}
+.dw-held-other {
+  visibility: hidden;
 }
 .dw-live {
   flex: none;
@@ -131,6 +157,7 @@
   box-shadow: var(--shadow-float);
 }
 .dw-log-line {
+  position: relative;
   display: grid;
   grid-template-columns: 96px 120px 10px minmax(0, 1fr);
   gap: var(--space-3);
@@ -139,9 +166,6 @@
 }
 .dw-log.no-source .dw-log-line {
   grid-template-columns: 96px 10px minmax(0, 1fr);
-}
-.dw-log-line:hover {
-  background: color-mix(in srgb, var(--ink) 5%, transparent);
 }
 .dw-log-time,
 .dw-log-src {
@@ -173,21 +197,80 @@
   overflow-wrap: anywhere;
   tab-size: 4;
 }
+/* Long lines cut at the edge, for a reader who asked. */
+.dw-log.no-wrap .dw-log-text {
+  overflow: hidden;
+  white-space: pre;
+  text-overflow: ellipsis;
+}
+.dw-log-pretty {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* What a line says of the day, where that changes. */
+.dw-log-day {
+  padding: var(--space-2) var(--space-4) var(--space-1);
+  color: var(--ink-muted);
+  font: var(--text-caption);
+}
+/* A time the line above has too: there for a reader who points at it, and for copying. */
+.dw-log-time.is-repeat,
+.dw-log-src.is-repeat {
+  opacity: 0;
+}
+.dw-log-line:hover .is-repeat,
+.dw-log-line.is-active .is-repeat {
+  opacity: 1;
+}
+/* What can be done with one line, on the right of it as it is pointed at. */
+.dw-log-actions {
+  position: absolute;
+  top: 0;
+  right: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-sunken) 88%, transparent);
+  font-family: var(--font-sans);
+}
+/* On an error's ground, its own carries through, with no gap in the band. */
+.dw-log-line.is-error .dw-log-actions {
+  background: none;
+}
+/* The line a reader is on: a search's current match, or the current error. */
+.dw-log-line.is-current {
+  box-shadow: inset 2px 0 0 var(--cobalt);
+}
 .dw-log-line.is-warn .dw-log-lvl {
   color: var(--warning);
 }
+.dw-log-line:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+/* The first line of an error stands out. What carries it on, as a stack trace's
+   frames do, is quieter, so a long one doesn't shout. Text holds AA on either. */
 .dw-log-line.is-error {
-  background: color-mix(in srgb, var(--critical) 9%, transparent);
+  background: var(--log-error-ground);
+}
+.dw-log-line.is-error.is-carried {
+  background: var(--log-error-carried);
 }
 .dw-log-line.is-error .dw-log-lvl {
   color: var(--critical);
 }
-/* What a search found. Selection's ground reads under every token of ink. */
+/* What a search found, and what the reader is on, stronger. Text holds AA on both. */
 .dw-log-hit {
   border-radius: var(--radius-xs);
-  background: var(--selection);
+  background: var(--log-hit-ground);
   color: inherit;
   box-shadow: inset 0 -1px 0 var(--cobalt);
+}
+.dw-log-hit.is-current {
+  background: var(--log-hit-current);
+  box-shadow: inset 0 0 0 1px var(--cobalt);
 }
 .dw-log-cut {
   color: var(--ink-muted);
@@ -229,6 +312,18 @@
 .dw-log-notice > svg {
   flex: none;
   color: var(--warning);
+}
+/* A line under the log, which holds its place with or without words in it. */
+.dw-log-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 28px;
+  padding: var(--space-1) var(--space-4);
+  border-top: 1px solid var(--line);
+  color: var(--ink-muted);
+  font: var(--text-caption);
 }
 .dw-log-probe {
   position: absolute;
@@ -303,5 +398,49 @@
   }
   .dw-log-more {
     min-height: 44px;
+  }
+  /* A trace's frames: only their text, as what is above them says the rest. */
+  .dw-log-line.is-carried {
+    grid-template-areas: "text text text";
+    padding-block: 0 2px;
+  }
+  .dw-log-line.is-carried .dw-log-time,
+  .dw-log-line.is-carried .dw-log-src,
+  .dw-log-line.is-carried .dw-log-lvl {
+    display: none;
+  }
+  .dw-log-line.is-carried.is-active .dw-log-time {
+    display: inline;
+  }
+  /* The day's row says the zone here, as the head has no room for it. */
+  .dw-log-meta {
+    display: none;
+  }
+  /* Only when it has something to say: a phone has little room to hold. */
+  .dw-log-foot {
+    padding: var(--space-1) var(--space-3);
+  }
+  .dw-log-foot:empty {
+    display: none;
+  }
+  .dw-log-day {
+    padding-inline: var(--space-3);
+  }
+  /* A finger shows what can be done with a line by tapping it. It sits in the row
+     of time and source, and the level makes way. */
+  .dw-log-time.is-repeat,
+  .dw-log-src.is-repeat,
+  .dw-log-lvl:empty {
+    display: none;
+  }
+  .dw-log-line.is-current:not(.is-active) .dw-log-actions {
+    display: none;
+  }
+  .dw-log-line.is-active .dw-log-lvl {
+    margin-inline-end: 52px;
+  }
+  .dw-log-actions {
+    top: 0;
+    right: var(--space-1);
   }
 }
