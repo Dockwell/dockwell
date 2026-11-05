@@ -116,6 +116,54 @@ func TestConnectTimeSpansTheConnection(t *testing.T) {
 	}
 }
 
+// An agent moving to a renewed certificate closes its stream, then opens the next
+// within a second: its server is connected throughout, since the first stream
+// opened, and gone once the hold is out if no stream came.
+func TestAHoldKeepsAMovingServerConnected(t *testing.T) {
+	h, _ := newHub(t, "hz-1")
+	at := time.Date(2026, 11, 4, 9, 30, 0, 0, time.UTC)
+	h.now = func() time.Time { return at }
+	connection := func() dockwellv1.Connection { return h.List()[0].GetConnection() }
+
+	first, _ := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)
+	h.Hold("srv_A", time.Hour)
+	first()
+	if got := connection(); got != dockwellv1.Connection_CONNECTION_CONNECTED {
+		t.Errorf("between the two streams of a move: %v", got)
+	}
+	at = at.Add(time.Second)
+	second, _ := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)
+	if got := h.List()[0].GetConnectTime().AsTime(); !got.Equal(at.Add(-time.Second)) {
+		t.Errorf("after the move, connected at %v, want the first stream's time", got)
+	}
+	// The hold ended with the next stream, so that stream's end is the server's.
+	second()
+	if got := connection(); got != dockwellv1.Connection_CONNECTION_UNREACHABLE {
+		t.Errorf("after the next stream closes: %v", got)
+	}
+
+	third, _ := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)
+	h.Hold("srv_A", 20*time.Millisecond)
+	third()
+	deadline := time.Now().Add(5 * time.Second)
+	for connection() != dockwellv1.Connection_CONNECTION_UNREACHABLE {
+		if time.Now().After(deadline) {
+			t.Fatal("a server held for 20 ms still reads as connected after 5 s")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	// A hold on a server that leaves the fleet comes to nothing.
+	fourth, _ := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)
+	h.Hold("srv_A", time.Millisecond)
+	fourth()
+	h.Removed("srv_A")
+	time.Sleep(10 * time.Millisecond)
+	if n := len(h.List()); n != 0 {
+		t.Errorf("after the server left, the fleet has %d", n)
+	}
+}
+
 func TestHistoryStartsAgainAfterAGap(t *testing.T) {
 	h, _ := newHub(t, "hz-1")
 	detach, err := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)

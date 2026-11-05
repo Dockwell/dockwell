@@ -87,6 +87,8 @@ type moveRig struct {
 	door   *door
 	logs   dockwellv1connect.LogServiceClient
 	name   string
+	// signedIn is a browser that signed in, for more clients.
+	signedIn *browser
 }
 
 func startMoveRig(t *testing.T, wrap func(agent.LogReader) agent.LogReader) *moveRig {
@@ -106,7 +108,7 @@ func startMoveRig(t *testing.T, wrap func(agent.LogReader) agent.LogReader) *mov
 	}
 	server.connect(t, f)
 	return &moveRig{
-		f: f, engine: e, server: server, door: d, logs: logClient(b, b.origin),
+		f: f, engine: e, server: server, door: d, logs: logClient(b, b.origin), signedIn: b,
 		name: docker.ContainerName(docker.Project(done.GetPlan().GetResources()[0].GetResource().GetScope()), "web"),
 	}
 }

@@ -47,6 +47,13 @@ var ErrLost = resource.ErrLost
 // moving to a new stream, waits for the new one once the old one ends.
 const reconnectGrace = 30 * time.Second
 
+// MoveGrace is how long a server whose agent is moving to a new stream, as it does
+// each time its certificate is renewed, goes on reading as connected, and how long a
+// read waits for it, before it reads as offline. An agent is back within a second
+// unless something is wrong, and this leaves room for its first retries, which back
+// off from a second.
+const MoveGrace = 10 * time.Second
+
 // ErrMoving is a call the agent refused without running it, or a read it stopped,
 // because it is moving to a new stream. What it was doing can go on over the next.
 var ErrMoving = errors.New("the agent is moving to a new stream")
@@ -147,12 +154,23 @@ func fitToShow(instances []*dockwellv1.InstanceHealth) []*dockwellv1.InstanceHea
 }
 
 // Health is what a server last said of its services, and whether its agent is
-// connected to say more.
+// connected to say more. One moving to a new stream is, for MoveGrace.
 func (a *Agents) Health(server string) (report health.Report, connected bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	_, connected = a.sessions[server]
-	return a.health[server], connected
+	return a.health[server], a.connectedLocked(server)
+}
+
+// connectedLocked reports a server's agent connected, or moving to a new stream: what
+// it last said stands through a move, as it says it again as the next stream opens,
+// which it does within a second unless something is wrong. One that hasn't by
+// MoveGrace is gone, and one that went without saying it was moving is gone at once.
+func (a *Agents) connectedLocked(server string) bool {
+	if _, ok := a.sessions[server]; ok {
+		return true
+	}
+	moved, ok := a.moved[server]
+	return ok && time.Since(moved) < MoveGrace
 }
 
 // Report keeps what a server says of its routes' domains.
@@ -171,11 +189,11 @@ func (a *Agents) Ingress(server string) *dockwellv1.IngressStatus {
 }
 
 // Domain is what a server last said of a domain, and whether its agent is
-// connected to say more. The status is nil until it has said.
+// connected to say more, as Health has it. The status is nil until it has said.
 func (a *Agents) Domain(server, domain string) (status *dockwellv1.DomainStatus, connected bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	_, connected = a.sessions[server]
+	connected = a.connectedLocked(server)
 	for _, d := range a.domains[server] {
 		if d.GetDomain() == domain {
 			return d, connected
@@ -509,6 +527,13 @@ func (s *Session) writeCall(msg *agentv1.ConnectResponse) error {
 		return ErrLost
 	}
 	return s.send(msg)
+}
+
+// leftMoving reports a session that ended as its agent moved to a new stream.
+func (s *Session) leftMoving() bool {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+	return s.ended && s.draining
 }
 
 // moving reports a stream the agent left for a new one.

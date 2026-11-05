@@ -65,6 +65,9 @@ type live struct {
 	// ingress is what the server last said of its ingress. It is lost with the
 	// control plane, as the agent says it again when its stream opens.
 	ingress *dockwellv1.IngressStatus
+	// held counts a stream that ended as its agent moved to a new one, until the
+	// next opens or it runs out.
+	held *time.Timer
 }
 
 // Hub is the fleet's live state.
@@ -148,6 +151,9 @@ func (h *Hub) Removed(id string) {
 		return
 	}
 	delete(h.servers, id)
+	if l.held != nil {
+		l.held.Stop()
+	}
 	h.broadcastLocked(Update{Server: h.toProtoLocked(id, l, false), Removed: true})
 }
 
@@ -180,11 +186,42 @@ func (h *Hub) Attach(ctx context.Context, srv store.Server, inventory *dockwellv
 		l.connectedAt = now
 	}
 	l.streams++
+	if l.held != nil {
+		// The stream it held for has come, so it holds no more.
+		l.held.Stop()
+		l.held = nil
+		l.streams--
+	}
 	h.notifyLocked(id, true)
 	h.mu.Unlock()
 
 	var once sync.Once
 	return func() { once.Do(func() { h.detach(id) }) }, nil
+}
+
+// Hold has a server go on reading as connected after its stream ends, as its agent
+// moves to a new one, as it does each time its certificate is renewed: until the
+// next opens, which it does within a second, or for grace, when it reads as gone.
+// Call it before the stream's detach.
+func (h *Hub) Hold(id string, grace time.Duration) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	l, ok := h.servers[id]
+	if !ok || l.held != nil {
+		return
+	}
+	l.streams++
+	var held *time.Timer
+	held = time.AfterFunc(grace, func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		if l.held != held || h.servers[id] != l {
+			return
+		}
+		l.held = nil
+		h.detachLocked(id, l)
+	})
+	l.held = held
 }
 
 func (h *Hub) detach(id string) {
@@ -194,6 +231,10 @@ func (h *Hub) detach(id string) {
 	if !ok {
 		return
 	}
+	h.detachLocked(id, l)
+}
+
+func (h *Hub) detachLocked(id string, l *live) {
 	l.streams--
 	if l.streams == 0 {
 		l.connectedAt = time.Time{}

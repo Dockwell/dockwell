@@ -77,9 +77,8 @@ const (
 	retryEvery = 5 * time.Second
 	// MoveGrace is how long a read waits for a server whose agent is moving to a new
 	// stream, as it does each time its certificate is renewed, before it says the
-	// server is offline. An agent is back within a second unless something is wrong,
-	// and this leaves room for its first retries, which back off from a second.
-	MoveGrace = 10 * time.Second
+	// server is offline: as long as the server reads as connected everywhere else.
+	MoveGrace = agentapi.MoveGrace
 	// AuditEvery is how often one reader's reading of one service's logs goes
 	// in the audit log, at most, and how often it does while a stream stays open.
 	AuditEvery = time.Hour
