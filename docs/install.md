@@ -177,7 +177,7 @@ dockwell containers create cloudflared --image cloudflare/cloudflared:latest --n
 dockwell routes update www --domain app.example.com --service myapp --port 8080 --tls off --trusted-proxies 127.0.0.1 --yes
 ```
 
-Your app then reads the visitor's address in `X-Real-IP` and `X-Forwarded-For`, and `https` in `X-Forwarded-Proto`. It's read from the right, so what a visitor sends in that header themselves doesn't count. `CF-Connecting-IP` is stripped, whoever sends it: read `X-Real-IP` instead. With `127.0.0.1` named, anything else on the server can say the same over loopback. Treat this as what Cloudflare says connected to it, which is good for logs and for limits on visitors who aren't trying to get past them, and not for deciding who someone is: a Worker on someone else's Cloudflare zone reads as `2a06:98c0:3600::103`, [as Cloudflare's docs say](https://developers.cloudflare.com/fundamentals/reference/http-headers/), which all of them share.
+Your app then reads the visitor's address in `X-Real-IP` and `X-Forwarded-For`, and `https` in `X-Forwarded-Proto`. It's read from the right, so what a visitor sends in that header themselves doesn't count, unless their own address is in a range a route on this server names, as [the threat model](security/ingress.md) says. `CF-Connecting-IP` is stripped, whoever sends it: read `X-Real-IP` instead. With `127.0.0.1` named, anything else on the server can say the same over loopback. Treat this as what Cloudflare says connected to it, which is good for logs and for limits on visitors who aren't trying to get past them, and not for deciding who someone is: a Worker on someone else's Cloudflare zone reads as `2a06:98c0:3600::103`, [as Cloudflare's docs say](https://developers.cloudflare.com/fundamentals/reference/http-headers/), which all of them share.
 
 **If it runs on a bridge instead,** give it a network of its own, not Docker's default `bridge`. A service with no networks runs on `bridge`, and a token can deploy one with no person approving. If a route names that range, that service reaches the route, even one to a port on the server, and says who its client is.
 
@@ -200,7 +200,7 @@ Don't allowlist on that address, and don't count on a limit by it to stop someon
 
 This is inferred from [Cloudflare's header page](https://developers.cloudflare.com/fundamentals/reference/http-headers/) (last updated 28 October 2026) and [Origin Rules](https://developers.cloudflare.com/rules/origin-rules/) (last updated 14 August 2026), and hasn't been run on Cloudflare. A Worker on another zone reads as `2a06:98c0:3600::103`. One sending to a domain that isn't on Cloudflare can set the address to anything, so name the preset only for a domain Cloudflare proxies. That doesn't close it: a Worker in a customer's own zone can set the address too, and with Origin Rules' `Host` override, which that page lists for Enterprise alone, they could point a record at your server and reach your route with it.
 
-If an address has to hold, use a tunnel, above. It's what that page names to know traffic comes from your own zone, as Authenticated Origin Pulls can't here.
+If an address has to hold, use a tunnel, above. Cloudflare's header page names that to know traffic comes from your own zone, as Authenticated Origin Pulls can't here.
 
 Any other proxy that ends TLS works the same way: `--tls off`, and its address in `--trusted-proxies`, and the route answers that alone. A public range wider than `/12`, or `/28` in IPv6, or a private one wider than `/8`, isn't taken, as it wouldn't be naming a proxy.
 
