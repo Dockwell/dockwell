@@ -100,7 +100,7 @@ func claim(ctx context.Context, link, cookieFile string) error {
 	for _, c := range session {
 		header = append(header, c.Name+"="+c.Value)
 	}
-	if err := os.WriteFile(cookieFile, []byte(strings.Join(header, "; ")), 0o600); err != nil {
+	if err := os.WriteFile(cookieFile, []byte(strings.Join(header, "; ")), 0o600); err != nil { //nolint:gosec // a path the test's own caller names
 		return fmt.Errorf("can't write the session to %s: %w", cookieFile, err)
 	}
 	return nil

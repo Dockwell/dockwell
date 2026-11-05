@@ -46,14 +46,12 @@ pebble_dir=$(mktemp -d)
 tools=${E2E_INGRESS_TOOLS:-$(mktemp -d)}
 pebble_pids=()
 
-# priv runs what touches Dockwell's own files as whoever Dockwell runs as.
-priv() {
-  if [[ -n "${E2E_ROOT:-}" ]]; then
-    sudo -n "$@"
-  else
-    "$@"
-  fi
-}
+# as_dockwell is what runs a command as whoever Dockwell runs as, and priv does so
+# for what touches its files. A function run in the background is a subshell, whose
+# PID isn't the command's, so start_dockwell uses the array.
+as_dockwell=()
+[[ -z "${E2E_ROOT:-}" ]] || as_dockwell=(sudo -n)
+priv() { "${as_dockwell[@]}" "$@"; }
 
 # The ingress's certificates come from Pebble, on this machine.
 export DOCKWELL_ACME_DIRECTORY_URL=https://localhost:14000/dir
@@ -64,7 +62,7 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 
 start_dockwell() {
   # SSL_CERT_FILE is for the panel's own certificates alone, as they come through
   # Go's default roots. sudo keeps none of these unless it is told.
-  priv env SSL_CERT_FILE="$DOCKWELL_ACME_ROOTS" DOCKWELL_ACME_DIRECTORY_URL="$DOCKWELL_ACME_DIRECTORY_URL" DOCKWELL_ACME_ROOTS="$DOCKWELL_ACME_ROOTS" \
+  "${as_dockwell[@]}" env SSL_CERT_FILE="$DOCKWELL_ACME_ROOTS" DOCKWELL_ACME_DIRECTORY_URL="$DOCKWELL_ACME_DIRECTORY_URL" DOCKWELL_ACME_ROOTS="$DOCKWELL_ACME_ROOTS" \
     "$bin" run --listen "$addr" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json "$@" >>"$log" 2>&1 &
   pid=$!
 }
@@ -363,8 +361,10 @@ curl -fsS --cacert "$pebble_dir/cert.pem" https://localhost:14000/dir >/dev/null
 
 listening() { [[ -n "$(ss -H -ltn "sport = :$1")" ]]; }
 stop_dockwell() {
-  kill "$pid"
+  priv kill "$pid"
   wait "$pid" 2>/dev/null || true
+  # Everything that says "with Dockwell down" depends on this.
+  if curl -fsS --max-time 2 "http://$addr/healthz" >/dev/null 2>&1; then fail "Dockwell still answers after it was stopped"; fi
   connected=$(grep -c 'connected to the control plane' "$log" || true)
 }
 # wait_for_dockwell waits for what stop_dockwell stopped to answer, and for its

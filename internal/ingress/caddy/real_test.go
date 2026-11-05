@@ -289,6 +289,14 @@ func put(t *testing.T, c *realCaddy, r ingress.Route) {
 	}
 }
 
+// whoAt waits for a domain to answer, and reads what its upstream saw.
+func (r *realCaddy) whoAt(t *testing.T, domain, path string) map[string]string {
+	t.Helper()
+	res := r.waitServing(t, domain, path)
+	defer res.Body.Close()
+	return who(t, res)
+}
+
 // who reads what the upstream saw.
 func who(t *testing.T, res *http.Response) map[string]string {
 	t.Helper()

@@ -356,8 +356,7 @@ func TestAnEmptyLastConfigComesBackOnRealCaddy(t *testing.T) {
 	if err != nil || !recovered {
 		t.Fatalf("Recover = %v, %v", recovered, err)
 	}
-	res := c.waitServing(t, "app.example.net", "/who")
-	if got := who(t, res); got["name"] != "web" {
+	if got := c.whoAt(t, "app.example.net", "/who"); got["name"] != "web" {
 		t.Errorf("after recovering, it serves %v", got)
 	}
 	if got := answersOnTCP(t); got != "" {
@@ -410,8 +409,7 @@ func TestACutShortLastConfigComesBackOnRealCaddy(t *testing.T) {
 			if err := c.proc.Run(t.Context(), filepath.Join(c.proc.Paths().Boot, bootstrapName)); err != nil {
 				t.Fatal(err)
 			}
-			res := c.waitServing(t, "app.example.net", "/who")
-			if got := who(t, res); got["name"] != "web" {
+			if got := c.whoAt(t, "app.example.net", "/who"); got["name"] != "web" {
 				t.Errorf("it serves %v", got)
 			}
 		})
@@ -432,7 +430,7 @@ func TestStartPutsADamagedLastConfigRightOnRealCaddy(t *testing.T) {
 	if err := c.Start(t.Context(), nil); err != nil {
 		t.Fatal(err)
 	}
-	if got := who(t, c.waitServing(t, "app.example.net", "/who")); got["name"] != "web" {
+	if got := c.whoAt(t, "app.example.net", "/who"); got["name"] != "web" {
 		t.Errorf("it serves %v", got)
 	}
 }
@@ -452,7 +450,7 @@ func TestADamagedFileBehindARunningCaddyIsWrittenAgainOnRealCaddy(t *testing.T) 
 	if err != nil || missing || !strings.Contains(string(b), "app.example.net") {
 		t.Errorf("the last config is %.60q, missing %v, %v", b, missing, err)
 	}
-	if got := who(t, c.waitServing(t, "app.example.net", "/who")); got["name"] != "web" {
+	if got := c.whoAt(t, "app.example.net", "/who"); got["name"] != "web" {
 		t.Errorf("it serves %v", got)
 	}
 }
@@ -531,22 +529,22 @@ func TestAStaleRouteDoesntShadowANewOneOnRealCaddy(t *testing.T) {
 	put(t, c, aRoute("dockwell.env_old.api", "app.example.net", "/api", backend(t, "old-api")))
 	put(t, c, aRoute("dockwell.env_old.keep", "other.example.net", "", backend(t, "old-other")))
 	put(t, c, aRoute("dockwell.env_new.www", "app.example.net", "", backend(t, "new")))
-	if got := who(t, c.waitServing(t, "app.example.net", "/who"))["name"]; got != "new" {
+	if got := c.whoAt(t, "app.example.net", "/who")["name"]; got != "new" {
 		t.Errorf("app.example.net serves %q, though the plan for the new route applied", got)
 	}
 	// The other environment's path under it can't stay either: a domain lives in
 	// one environment, and it would go on taking /api.
-	if got := who(t, c.waitServing(t, "app.example.net", "/api/who"))["name"]; got != "new" {
+	if got := c.whoAt(t, "app.example.net", "/api/who")["name"]; got != "new" {
 		t.Errorf("app.example.net/api serves %q", got)
 	}
 	// Another name, which nothing has claimed, is left alone.
-	if got := who(t, c.waitServing(t, "other.example.net", "/who"))["name"]; got != "old-other" {
+	if got := c.whoAt(t, "other.example.net", "/who")["name"]; got != "old-other" {
 		t.Errorf("other.example.net serves %q", got)
 	}
 	// A path in the same environment isn't stale.
 	put(t, c, aRoute("dockwell.env_new.api", "app.example.net", "/api", backend(t, "new-api")))
 	put(t, c, aRoute("dockwell.env_new.www", "app.example.net", "", backend(t, "new-again")))
-	if got := who(t, c.waitServing(t, "app.example.net", "/api/who"))["name"]; got != "new-api" {
+	if got := c.whoAt(t, "app.example.net", "/api/who")["name"]; got != "new-api" {
 		t.Errorf("app.example.net/api serves %q after its neighbour changed", got)
 	}
 }
@@ -574,7 +572,7 @@ func TestARouteComesOutOfTheLastConfigWithCaddyDownOnRealCaddy(t *testing.T) {
 	if err := c.proc.Run(t.Context(), filepath.Join(c.proc.Paths().Boot, bootstrapName)); err != nil {
 		t.Fatal(err)
 	}
-	if got := who(t, c.waitServing(t, "b.example.net", "/who"))["name"]; got != "web" {
+	if got := c.whoAt(t, "b.example.net", "/who")["name"]; got != "web" {
 		t.Errorf("b.example.net serves %q", got)
 	}
 	if res, err := c.client("a.example.net").Get("https://a.example.net/who"); err == nil {
@@ -614,7 +612,7 @@ func TestAHungAdminAPIIsBoundedOnRealCaddy(t *testing.T) {
 		t.Errorf("after a removal it refused, Routes = %+v, %v", routes, err)
 	}
 	cont()
-	if got := who(t, c.waitServing(t, "app.example.net", "/who"))["name"]; got != "web" {
+	if got := c.whoAt(t, "app.example.net", "/who")["name"]; got != "web" {
 		t.Errorf("after waking, it serves %q", got)
 	}
 }
@@ -670,8 +668,7 @@ func TestClosedRoutesAnswer503AndThePanelDoesntOnRealCaddy(t *testing.T) {
 			t.Errorf("a closed route reached its service: %s", b)
 		}
 	}
-	res := c.waitServing(t, "panel.example.net", "/who")
-	if got := who(t, res); got["proto"] == "" {
+	if got := c.whoAt(t, "panel.example.net", "/who"); got["proto"] == "" {
 		t.Errorf("the panel's site answers %v with the routes closed", got)
 	}
 	routes, err := c.Routes(t.Context())
@@ -692,7 +689,7 @@ func TestClosedRoutesAnswer503AndThePanelDoesntOnRealCaddy(t *testing.T) {
 	if err := c.SetClosed(t.Context(), false); err != nil {
 		t.Fatal(err)
 	}
-	if got := who(t, c.waitServing(t, "app.example.net", "/who"))["name"]; got != "web" {
+	if got := c.whoAt(t, "app.example.net", "/who")["name"]; got != "web" {
 		t.Errorf("once opened, it serves %q", got)
 	}
 

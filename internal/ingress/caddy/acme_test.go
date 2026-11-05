@@ -335,7 +335,7 @@ func TestThePanelKeepsItsCertificateUntilCaddysOwnComesOnRealCaddy(t *testing.T)
 		t.Fatal(err)
 	}
 	// DNS doesn't point here yet, so the CA can't give Caddy its own.
-	got := who(t, c.waitServing(t, "panel.example.net", "/who"))
+	got := c.whoAt(t, "panel.example.net", "/who")
 	if got["proto"] == "" {
 		t.Errorf("the panel's site answers %v", got)
 	}
@@ -395,7 +395,7 @@ func TestThePanelKeepsItsCertificateUntilCaddysOwnComesOnRealCaddy(t *testing.T)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	if got := who(t, c.waitServing(t, "panel.example.net", "/who")); got["proto"] == "" {
+	if got := c.whoAt(t, "panel.example.net", "/who"); got["proto"] == "" {
 		t.Errorf("on its own certificate, the panel's site answers %v", got)
 	}
 }
