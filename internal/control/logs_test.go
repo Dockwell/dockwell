@@ -55,6 +55,8 @@ type reader struct {
 	gaps    []*dockwellv1.LogGap
 	caught  int
 	token   string
+	// states is every state it was told of any server, in order.
+	states []dockwellv1.ServerLogState
 }
 
 func follow(t *testing.T, c dockwellv1connect.LogServiceClient, req *dockwellv1.WatchLogsRequest) *reader {
@@ -84,6 +86,7 @@ func (r *reader) take(m *dockwellv1.WatchLogsResponse) {
 	}
 	for _, s := range m.GetServers() {
 		r.servers[s.GetServerName()] = s
+		r.states = append(r.states, s.GetState())
 	}
 	if m.GetCaughtUp() {
 		r.caught++

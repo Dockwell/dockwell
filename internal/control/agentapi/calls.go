@@ -46,9 +46,9 @@ var ErrLost = resource.ErrLost
 // moving to a new stream, waits for the new one once the old one ends.
 const reconnectGrace = 30 * time.Second
 
-// errDraining is a call the agent refused without running it, because it
-// is moving to a new stream.
-var errDraining = errors.New("the agent is moving to a new stream")
+// ErrMoving is a call the agent refused without running it, or a read it stopped,
+// because it is moving to a new stream. What it was doing can go on over the next.
+var ErrMoving = errors.New("the agent is moving to a new stream")
 
 // Agents reaches each connected server's agent over its stream, with the
 // calls the engine makes: plan, apply and observe. It is the engine's
@@ -69,6 +69,9 @@ type Agents struct {
 	// opened is closed, and made again, whenever a session opens, for the
 	// calls waiting for a server's next stream.
 	opened chan struct{}
+	// moved is when a server's last stream ended, for an agent that said it was
+	// moving to a new one and hasn't opened it yet.
+	moved map[string]time.Time
 	// domains is what each server last said of its routes' domains. It
 	// outlives the server's stream, so an offline server shows what it last
 	// said, and it is lost with the control plane, as the agent says it again
@@ -86,7 +89,7 @@ type Agents struct {
 // send back.
 func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
-		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, opened: make(chan struct{}),
+		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, opened: make(chan struct{}), moved: map[string]time.Time{},
 		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{}, health: map[string]health.Report{},
 	}
 }
@@ -241,6 +244,42 @@ func (a *Agents) WaitSession(ctx context.Context, server string) (*Session, erro
 	}
 }
 
+// SessionPastMove returns a server's stream, as Session does, and what it does for
+// an agent moving to a new stream is wait for that one, for no longer than within:
+// a server whose stream has been gone that long reads as not connected at once. An
+// agent that went without saying it was moving isn't waited for. A long move, such
+// as one waiting for a step under way, is out of time here too, as its agent takes
+// no reads until it has moved.
+func (a *Agents) SessionPastMove(ctx context.Context, server string, within time.Duration) (*Session, bool) {
+	deadline := time.Now().Add(within)
+	for {
+		a.mu.Lock()
+		s, opened, moved := a.sessions[server], a.opened, a.moved[server]
+		a.mu.Unlock()
+		switch {
+		case s != nil && !s.moving():
+			return s, true
+		case s == nil && moved.IsZero():
+			return nil, false
+		case s == nil && moved.Add(within).Before(deadline):
+			deadline = moved.Add(within)
+		}
+		left := time.Until(deadline)
+		if left <= 0 {
+			return nil, false
+		}
+		wait := time.NewTimer(left)
+		select {
+		case <-opened:
+		case <-wait.C: // once more, as a stream that opened as the time ran out will do
+		case <-ctx.Done():
+			wait.Stop()
+			return nil, false
+		}
+		wait.Stop()
+	}
+}
+
 // open starts a session for a stream that has said hello. send writes to
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
@@ -251,6 +290,7 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
 	a.mu.Lock()
 	a.sessions[server] = s
+	delete(a.moved, server)
 	close(a.opened)
 	a.opened = make(chan struct{})
 	a.mu.Unlock()
@@ -394,10 +434,14 @@ func (a *Agents) next(ctx context.Context, old *Session) (*Session, error) {
 func (s *Session) close() {
 	s.sendMu.Lock()
 	s.ended = true
+	moving := s.draining
 	s.sendMu.Unlock()
 	s.agents.mu.Lock()
 	if s.agents.sessions[s.server] == s {
 		delete(s.agents.sessions, s.server)
+		if moving {
+			s.agents.moved[s.server] = time.Now()
+		}
 	}
 	s.agents.mu.Unlock()
 	s.mu.Lock()
@@ -439,7 +483,7 @@ func (s *Session) writeCall(msg *agentv1.ConnectResponse) error {
 	defer s.sendMu.Unlock()
 	switch {
 	case s.draining:
-		return errDraining
+		return ErrMoving
 	case s.ended:
 		return ErrLost
 	}
@@ -486,7 +530,7 @@ func (s *Session) call(ctx context.Context, c *agentv1.Call, fallback time.Durat
 			}
 		}
 		r, err := s.callOnce(ctx, c)
-		if !errors.Is(err, errDraining) {
+		if !errors.Is(err, ErrMoving) {
 			return r, s.timedOut(err, timeout)
 		}
 		next, err := s.agents.next(ctx, s)
@@ -520,7 +564,7 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 	if s.closed {
 		s.mu.Unlock()
 		if s.moving() {
-			return nil, errDraining // the agent is on, or coming to, its next stream
+			return nil, ErrMoving // the agent is on, or coming to, its next stream
 		}
 		return nil, s.notConnected()
 	}
@@ -546,7 +590,7 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 	c.Timeout = durationpb.New(time.Until(deadline))
 	if err := s.writeCall(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Call{Call: c}}); err != nil {
 		forget()
-		if errors.Is(err, errDraining) {
+		if errors.Is(err, ErrMoving) {
 			return nil, err
 		}
 		return nil, s.notConnected()
@@ -585,7 +629,7 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 		// comes too late.
 		return nil, ctx.Err()
 	case e.GetDraining():
-		return nil, errDraining
+		return nil, ErrMoving
 	default:
 		reason := errors.New(e.GetMessage())
 		if e.GetOutOfTime() {
@@ -856,8 +900,9 @@ func (a *Agents) uploadFor(server string, token uint64) *upload {
 // send meanwhile, and says how much.
 //
 // It returns ErrLost when the stream ends first, and ErrNotConnected when the
-// call never reached the agent, or the agent stopped it to move to a new stream.
-// A reader carries on with the next stream.
+// call never reached the agent. When the agent stopped it to move to a new stream,
+// or moved before it got there, that is ErrMoving too, as the agent is on its way
+// back. A reader carries on with the next stream.
 func (s *Session) Logs(ctx context.Context, call *agentv1.LogsCall, each func(*agentv1.SendLogsRequest) error) error {
 	up := s.agents.openUpload(s.server)
 	defer s.agents.closeUpload(up)
@@ -866,6 +911,9 @@ func (s *Session) Logs(ctx context.Context, call *agentv1.LogsCall, each func(*a
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
+		if s.moving() {
+			return s.stoppedToMove()
+		}
 		return s.notConnected()
 	}
 	s.next++
@@ -884,6 +932,9 @@ func (s *Session) Logs(ctx context.Context, call *agentv1.LogsCall, each func(*a
 		s.mu.Lock()
 		delete(s.pending, c.GetId())
 		s.mu.Unlock()
+		if errors.Is(err, ErrMoving) {
+			return s.stoppedToMove()
+		}
 		return s.notConnected()
 	}
 	// The result and the stream's end can both be ready when the select wakes, as
@@ -909,7 +960,7 @@ wait:
 			// An agent moves as soon as it hears the control plane has stopped
 			// sending, which can be before a read it stopped has answered.
 			if s.moving() {
-				return s.notConnected()
+				return s.stoppedToMove()
 			}
 			return fault.New(ErrLost, "%s's agent disconnected while it read logs", s.name)
 		case <-ctx.Done():
@@ -921,10 +972,16 @@ wait:
 	case e == nil:
 		return nil
 	case e.GetDraining():
-		return s.notConnected()
+		// It can say so before it says it is moving, so this goes by the answer.
+		return s.stoppedToMove()
 	default:
 		return &resource.ServerError{Server: s.name, Err: errors.New(e.GetMessage())}
 	}
+}
+
+// stoppedToMove is a logs call that didn't finish as the agent moves to a new stream.
+func (s *Session) stoppedToMove() error {
+	return fmt.Errorf("%w: %w", ErrMoving, s.notConnected())
 }
 
 // LogSources asks the agent which containers a service has logs from.

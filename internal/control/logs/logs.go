@@ -75,6 +75,11 @@ const (
 	// retryEvery is how soon a stream tries a server again whose agent couldn't
 	// read logs, as when Docker wasn't running.
 	retryEvery = 5 * time.Second
+	// MoveGrace is how long a read waits for a server whose agent is moving to a new
+	// stream, as it does each time its certificate is renewed, before it says the
+	// server is offline. An agent is back within a second unless something is wrong,
+	// and this leaves room for its first retries, which back off from a second.
+	MoveGrace = 10 * time.Second
 	// AuditEvery is how often one reader's reading of one service's logs goes
 	// in the audit log, at most, and how often it does while a stream stays open.
 	AuditEvery = time.Hour
@@ -460,7 +465,7 @@ func (h *Handler) ListLogSources(ctx context.Context, req *connect.Request[dockw
 }
 
 func (h *Handler) sourcesOn(ctx context.Context, t *target, s server) ([]*dockwellv1.LogSource, *dockwellv1.ServerLogStatus) {
-	session, ok := h.agents.Session(s.id)
+	session, ok := h.agents.SessionPastMove(ctx, s.id, MoveGrace)
 	if !ok {
 		return nil, offline(s)
 	}
@@ -621,34 +626,46 @@ func (h *Handler) ReadLogs(ctx context.Context, req *connect.Request[dockwellv1.
 	res := &dockwellv1.ReadLogsResponse{}
 	for _, s := range t.servers {
 		wg.Go(func() {
-			session, ok := h.agents.Session(s.id)
-			if !ok {
-				mu.Lock()
-				res.Servers = append(res.Servers, offline(s))
-				mu.Unlock()
-				return
-			}
-			c := call(s.id)
-			if c == nil {
-				return
-			}
-			err := session.Logs(ctx, c, func(u *agentv1.SendLogsRequest) error {
-				mu.Lock()
-				defer mu.Unlock()
-				for _, src := range u.GetSources() {
-					src.ServerId, src.ServerName = s.id, s.name
+			// A move cuts a read short, so it starts again over the next stream,
+			// all within the one grace.
+			until := time.Now().Add(MoveGrace)
+			for {
+				session, ok := h.agents.SessionPastMove(ctx, s.id, time.Until(until))
+				if !ok {
+					mu.Lock()
+					res.Servers = append(res.Servers, offline(s))
+					mu.Unlock()
+					return
 				}
-				page.add(s.id, u)
-				return nil
-			})
-			if err != nil && ctx.Err() == nil {
-				status := unavailable(s, err)
-				if errors.Is(err, resource.ErrLost) || errors.Is(err, resource.ErrNotConnected) {
-					status = offline(s)
+				c := call(s.id)
+				if c == nil {
+					return
 				}
-				mu.Lock()
-				res.Servers = append(res.Servers, status)
-				mu.Unlock()
+				err := session.Logs(ctx, c, func(u *agentv1.SendLogsRequest) error {
+					mu.Lock()
+					defer mu.Unlock()
+					for _, src := range u.GetSources() {
+						src.ServerId, src.ServerName = s.id, s.name
+					}
+					page.add(s.id, u)
+					return nil
+				})
+				if errors.Is(err, agentapi.ErrMoving) && time.Now().Before(until) {
+					mu.Lock()
+					page.forget(s.id)
+					mu.Unlock()
+					continue
+				}
+				if err != nil && ctx.Err() == nil {
+					status := unavailable(s, err)
+					if errors.Is(err, resource.ErrLost) || errors.Is(err, resource.ErrNotConnected) {
+						status = offline(s)
+					}
+					mu.Lock()
+					res.Servers = append(res.Servers, status)
+					mu.Unlock()
+				}
+				return
 			}
 		})
 	}
@@ -670,8 +687,9 @@ type page struct {
 	on      map[string]string
 	lines   map[string][]*dockwellv1.LogLine
 	sources map[string]*dockwellv1.LogSource
-	scans   []*agentv1.LogScan
-	bytes   int
+	// scans is what each server says it searched.
+	scans map[string][]*agentv1.LogScan
+	bytes int
 	// gone is what a source's log is missing, which a marker says.
 	gone map[string]*dockwellv1.LogGap
 	// cut says a source has older lines than those kept: some were dropped
@@ -681,7 +699,7 @@ type page struct {
 
 func newPage(size int, before pageToken) *page {
 	return &page{
-		size: size, before: before.flat(), on: map[string]string{}, lines: map[string][]*dockwellv1.LogLine{}, sources: map[string]*dockwellv1.LogSource{},
+		size: size, before: before.flat(), on: map[string]string{}, lines: map[string][]*dockwellv1.LogLine{}, sources: map[string]*dockwellv1.LogSource{}, scans: map[string][]*agentv1.LogScan{},
 		gone: map[string]*dockwellv1.LogGap{}, cut: map[string]bool{},
 	}
 }
@@ -707,8 +725,9 @@ func (p *page) add(server string, u *agentv1.SendLogsRequest) {
 		p.sources[s.GetId()] = s
 		p.on[s.GetId()] = server
 	}
-	p.scans = append(p.scans, u.GetScans()...)
+	p.scans[server] = append(p.scans[server], u.GetScans()...)
 	for _, s := range u.GetScans() {
+		p.on[s.GetSourceId()] = server
 		if s.GetOlder() {
 			p.cut[s.GetSourceId()] = true
 		}
@@ -725,6 +744,24 @@ func (p *page) add(server string, u *agentv1.SendLogsRequest) {
 	}
 	if p.bytes > 2*pageBytes {
 		p.trim(pageBytes)
+	}
+}
+
+// forget drops what a server has sent, as a read that starts again sends it again.
+func (p *page) forget(server string) {
+	delete(p.scans, server)
+	for source, on := range p.on {
+		if on != server {
+			continue
+		}
+		delete(p.on, source)
+		delete(p.sources, source)
+		delete(p.gone, source)
+		delete(p.cut, source)
+		for _, l := range p.lines[source] {
+			p.bytes -= lineCost(l)
+		}
+		delete(p.lines, source)
 	}
 }
 
@@ -805,12 +842,14 @@ func (p *page) finish(res *dockwellv1.ReadLogsResponse, searching bool) {
 	if !searching {
 		return
 	}
-	for _, s := range p.scans {
-		res.SearchedLines += s.GetLines()
-		res.SearchCutShort = res.SearchCutShort || s.GetCutShort()
-		res.SearchTimedOut = res.SearchTimedOut || s.GetTimedOut()
-		if t := s.GetOldestTime(); t != nil && (res.SearchedBackTo == nil || t.AsTime().Before(res.SearchedBackTo.AsTime())) {
-			res.SearchedBackTo = t
+	for _, scans := range p.scans {
+		for _, s := range scans {
+			res.SearchedLines += s.GetLines()
+			res.SearchCutShort = res.SearchCutShort || s.GetCutShort()
+			res.SearchTimedOut = res.SearchTimedOut || s.GetTimedOut()
+			if t := s.GetOldestTime(); t != nil && (res.SearchedBackTo == nil || t.AsTime().Before(res.SearchedBackTo.AsTime())) {
+				res.SearchedBackTo = t
+			}
 		}
 	}
 }
@@ -1357,7 +1396,7 @@ func (w *watch) relay(s server, place *serverPlace) {
 		return send(event{status: status})
 	}
 	for {
-		session, ok := w.h.agents.Session(s.id)
+		session, ok := w.h.agents.SessionPastMove(w.ctx, s.id, MoveGrace)
 		if !ok {
 			if !w.base.GetFollow() {
 				report(offline(s))
@@ -1400,6 +1439,9 @@ func (w *watch) relay(s server, place *serverPlace) {
 				report(&dockwellv1.ServerLogStatus{ServerId: s.id, ServerName: s.name, State: dockwellv1.ServerLogState_SERVER_LOG_STATE_DONE})
 				return
 			}
+		case errors.Is(err, agentapi.ErrMoving):
+			// It carries on from its place over the next stream, a read to the end
+			// as a follow does, and SessionPastMove says if that doesn't come.
 		case errors.Is(err, resource.ErrLost), errors.Is(err, resource.ErrNotConnected):
 			if !w.base.GetFollow() {
 				report(offline(s))
