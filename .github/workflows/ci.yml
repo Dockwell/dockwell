@@ -85,11 +85,14 @@ jobs:
         run: scripts/smoke-agent.sh bin/dockwell-linux-amd64 bin/dockwell-agent-linux-amd64
 
   # What needs a real Docker Engine or a real Caddy, in four jobs that run side by
-  # side. Each limit is twice what the job takes, so a slow runner doesn't fail it.
+  # side. Each limit is twice what the job takes at its slowest: the slowest of
+  # ten runs of its part in the job they shared, and its own setup. So a slow
+  # runner doesn't fail it, and a hang doesn't hold every PR for long.
   docker-go:
     name: Go on Docker
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # 4 minutes at most.
+    timeout-minutes: 8
     # The drivers' tests against the runner's Docker Engine, beside docker compose
     # (ADR 0021).
     env:
@@ -121,7 +124,8 @@ jobs:
   caddy-go:
     name: Go on Caddy
     runs-on: ubuntu-24.04
-    timeout-minutes: 16
+    # 8.5 minutes at most.
+    timeout-minutes: 17
     # The ingress against real Caddy and Pebble, on high ports, with no root and no
     # Docker (ADR 0024).
     steps:
@@ -143,7 +147,8 @@ jobs:
   docker-e2e:
     name: Service end to end on Docker
     runs-on: ubuntu-24.04
-    timeout-minutes: 24
+    # 11 minutes at most.
+    timeout-minutes: 22
     # A service through the CLI end to end, beside docker compose (ADR 0021), and
     # the ingress in its container on 80 and 443, with a real certificate from
     # Pebble, which the script fetches (ADR 0024), with Dockwell as root, as on a
@@ -176,7 +181,8 @@ jobs:
   docker-panel:
     name: Panel end to end on Docker
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    # 6 minutes at most.
+    timeout-minutes: 11
     # The app screens on real Docker, in headless Chrome, which the runner image
     # has, with certificates from Pebble.
     steps:
