@@ -53,10 +53,12 @@ A check is the one thing a spec can make the agent do on the network, and what i
 - **An agent that's gone isn't called anything.** It reads `UNKNOWN`, and what it last said comes marked stale.
 - **A claim only stands for as long as someone is looking.** Each state says when it was last known and how long that may stand, at least 90 s. Past that, or when Docker stops answering, what only Docker can say reads `UNKNOWN`, and so does a report older than 90 s, whatever it says. The age comes from each clock's own counting, so a server's wrong clock can't make an old state look new. An agent is trusted with its own server, so it could still claim anything of it.
 - **An agent that hasn't read Docker yet says nothing,** so that doesn't read as nothing running.
+- **A paused container reads as not running,** as it serves nothing and Docker stops its checks, so nothing it last said stands for it.
+- **A step cut short has its check all the same.** The control plane stopping, or an agent going away, leaves a deploy or a restart to finish, and it isn't applied until what runs passes.
 - **A check passing means what it checks.** A TCP check says a port takes a connection, and an HTTP check that the path answered below 400. A command check says nothing of the port a route sends to, so a rollout also asks each route's port to take a connection before it moves anything. Once it has moved traffic, only checks go on.
 
 ## What this leaves open
 
 - **A rollback can meet data the new version migrated.** Rollback never touches a volume, so old code can read what new code wrote. Each plan that replaces a service says so (`volumes_stay`).
-- **`rollout.order: start-first` over a shared volume** means two writers for as long as the step takes. Only a spec that asks gets it, a person has to approve it, so a token can't choose it, and the plan names what's shared.
+- **`rollout.order: start-first` over a shared volume** means two writers for as long as the step takes. Only a spec that asks gets it, a person has to approve it, so a token can't choose it, and the plan names what's shared. A rollback, which nobody approves, stops first there whatever order it goes back to says, and a step stops at two writers its plan couldn't read, as on a volume its own change makes.
 - **Other services can reach a new container before it is healthy.** Docker answers a service's names for every running container that has them, and can't add a name to one that has joined. On a network the server already has, that includes other projects' containers. The plan names the networks and the names where this happens, and the record says why it can't be fixed ([ADR 0027](../adr/0027-health-checks-rollouts-and-rollback.md)). The ingress isn't affected.

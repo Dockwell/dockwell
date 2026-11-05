@@ -43,7 +43,8 @@ const (
 	// Its check failed as many times in a row as it allows, or it keeps
 	// restarting.
 	HealthState_HEALTH_STATE_UNHEALTHY HealthState = 5
-	// It isn't running: stopped, exited, or not on the server at all.
+	// It isn't running: stopped, exited, paused, or not on the server at all. A
+	// paused container counts as running to Docker, which stops its checks.
 	HealthState_HEALTH_STATE_NOT_RUNNING HealthState = 6
 )
 

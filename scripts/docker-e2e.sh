@@ -1441,6 +1441,35 @@ for kind in short fresh browser post-http1 post-http2 slow stream websocket; do
 done
 jq -e '.servedBy | length >= 5' <<<"$report" >/dev/null || fail "only $(jq '.servedBy | length' <<<"$report") containers served requests, so traffic didn't move: $(jq -c .servedBy <<<"$report")"
 
+rollout_step "Killed while a stop-first deploy waits for its check: it still has to pass it, and it rolls back"
+count=$(changes_count) || fail "changes list failed"
+deploy_app never 8 "${http_check[@]}" --app-rollout-order stop-first >/dev/null 2>&1 &
+deploying=$!
+# The old one has gone, the new one has its start period to go, and nothing else of the
+# app is left to say the step hasn't ended.
+waiting=""
+for _ in $(seq 300); do
+  list=$(app_containers) || fail "docker ps failed"
+  if [[ "$(wc -l <<<"$list")" == 1 && "$list" == *" running dockwell-e2e-app:never" ]]; then
+    waiting=1
+    break
+  fi
+  sleep 0.1
+done
+[[ -n "$waiting" ]] || fail "the stop-first deploy to kill never got as far as its check: $(app_containers)"
+kill_dockwell
+wait "$deploying" 2>/dev/null || true
+start_dockwell
+wait_for_dockwell
+back=$(rolled_back)
+jq -e '.state == "CHANGE_STATE_APPLIED"' <<<"$back" >/dev/null || fail "the rollback of a deploy killed as it waited should have applied, and is: $back"
+failed=$(dw changes list --json | jq -c '.changes[1]')
+jq -e --arg said "$check_said" '.state == "CHANGE_STATE_FAILED" and .error == $said' <<<"$failed" >/dev/null ||
+  fail "a deploy killed as it waited for a check it never passes should read as failed, saying '$check_said', and is: $failed"
+[[ "$(changes_count)" == "$((count + 2))" ]] || fail "there were $count changes, and after a deploy killed as it waited and its rollback, there are $(changes_count)"
+one_app "after a deploy killed as it waited" slow
+app_env "$app" | grep -qx DEPLOY=7 || fail "after the rollback, what runs is deploy $(app_env "$app" | grep DEPLOY), and should be the one before"
+
 rollout_step "The app goes, leaving no container behind"
 dw routes delete roll --yes || fail "routes delete roll failed"
 dw services delete app --yes || fail "services delete app failed"

@@ -183,10 +183,10 @@ func (m *Monitor) Report() []*dockwellv1.InstanceHealth {
 
 // confirmed says when a container's state was last known to hold, and how old that
 // may be and still stand: for a check the agent makes, when it last finished one,
-// and its own pace with room for a server that is behind; for anything else, what
-// the last list said.
+// and its own pace with room for a server that is behind; for anything else, and for
+// what isn't running, which no check looks at, what the last list said.
 func (m *Monitor) confirmed(w *watched) (time.Time, time.Duration) {
-	if w.check == nil || w.last == nil {
+	if w.check == nil || w.last == nil || w.dockerState != dockerRunning {
 		return m.scannedAt, max(freshFor, staleScans*m.scanEvery(len(m.watched)))
 	}
 	return w.last.At, max(freshFor, 2*w.check.IntervalOr()+w.check.TimeoutOr()+m.refreshEvery())
@@ -269,6 +269,10 @@ func (m *Monitor) Run(ctx context.Context) {
 		timer.Reset(max(wait, checkFloor))
 	}
 }
+
+// dockerRunning is the word Docker's list has for a container that runs, and isn't
+// paused or restarting.
+const dockerRunning = "running"
 
 // checkFloor keeps the loop from spinning on a check due right now.
 const checkFloor = time.Millisecond
@@ -377,6 +381,7 @@ func (m *Monitor) scan(ctx context.Context) time.Duration {
 		}
 		w.seen = true
 		w.dockerState, w.status = s.State, s.Status
+		m.listed(w, s.State)
 		if a := Address(s.NetworkSettings.Networks); a != "" {
 			w.address = a
 		}
@@ -470,6 +475,9 @@ func (m *Monitor) read(ctx context.Context, id string, w *watched) {
 	case s.Restarting:
 		w.last = &Result{Output: "the container keeps restarting: it last exited with code " + strconv.Itoa(s.ExitCode), At: time.Now()}
 		m.setState(w, dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY)
+	case s.Paused:
+		w.last, w.failing = &Result{Output: pausedWords, At: time.Now()}, 0
+		m.setState(w, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING)
 	case !s.Running:
 		w.last = &Result{Output: "the container isn't running: it is " + cmp.Or(s.Status, "stopped") + ", with exit code " + strconv.Itoa(s.ExitCode), At: time.Now()}
 		w.failing = 0
@@ -502,6 +510,25 @@ func (m *Monitor) read(ctx context.Context, id string, w *watched) {
 	}
 }
 
+// pausedWords is what a paused container comes to. Docker counts it as running and
+// stops its checks, so what they last said is as it left it, and says nothing.
+const pausedWords = "the container is paused, so it serves nothing and no check runs. Unpause it with docker unpause"
+
+// listed reads what the list says of a container that doesn't run. That stands
+// whether or not a read gets through, which only says more about it. What runs, or
+// is restarting, takes a read to say what it comes to.
+func (m *Monitor) listed(w *watched, state string) {
+	if state == dockerRunning || state == "restarting" || state == "" || w.state == dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING {
+		return
+	}
+	said := "the container isn't running: it is " + state
+	if state == "paused" {
+		said = pausedWords
+	}
+	w.last, w.failing = &Result{Output: said, At: time.Now()}, 0
+	m.setState(w, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING)
+}
+
 // setState moves a container's state on, and says so at once.
 func (m *Monitor) setState(w *watched, state dockwellv1.HealthState) {
 	if w.state == state {
@@ -526,7 +553,7 @@ func (m *Monitor) startChecks(ctx context.Context, now time.Time) time.Time {
 	defer m.mu.Unlock()
 	var next time.Time
 	for _, w := range m.watched {
-		if w.check == nil || w.probing || w.dockerState != "running" || w.address == "" {
+		if w.check == nil || w.probing || w.dockerState != dockerRunning || w.address == "" {
 			continue
 		}
 		if now.Before(w.nextCheck) {
@@ -565,8 +592,8 @@ func (m *Monitor) check(ctx context.Context, w *watched, c *Check, address strin
 		m.slow--
 	}
 	w.probing = false
-	if err != nil {
-		return // ctx ended
+	if err != nil || w.dockerState != dockerRunning {
+		return // ctx ended, or what it asked has stopped running, so it says nothing now
 	}
 	now := time.Now()
 	w.slow = now.Sub(began) >= min(slowCheck, c.TimeoutOr())

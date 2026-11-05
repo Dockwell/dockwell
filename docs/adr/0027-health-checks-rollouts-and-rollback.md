@@ -38,7 +38,7 @@ An HTTP or TCP check goes only to the container, at the address Docker reports f
 | `NO_CHECK` | It runs, and nothing checks it. The panel says "Running", and never "Healthy" |
 | `STARTING` | A check is set, and none has finished, or it is within its start period |
 | `UNHEALTHY` | The check failed as often as it may |
-| `NOT_RUNNING` | The server said, and the service has no running container there |
+| `NOT_RUNNING` | The server said, and the service has no running container there. A paused one doesn't count as running |
 | `UNKNOWN` | Nobody can say: the agent hasn't read Docker yet, isn't connected, can't read Docker now, or what it said is too old to stand. What it last said comes with `stale` |
 
 A service on a server is as well as its best container, as two exist while one takes over, and what serves is the one that passed. A service across servers is as well as its worst server.
@@ -50,6 +50,8 @@ Checks go on after a deploy, and a claim only stands for as long as someone is l
 - **A list says where each container is,** so a check goes where the container is now, and never to an address another container has since taken. Each scan also reads 8 containers in full, those read longest ago, so it gets round them all.
 - **Hung checks can't hold every worker.** At most 16 checks run at once, and what took a second or more last time gets at most half of them, so a check that would say a service has died gets its turn. Otherwise 160 checks hanging for 60 s would hold one up for about 10 min.
 - **Each state says when it was last known, and how long that may stand** (`confirmed_at`, `good_for`). That is the last check the agent made, or the last list it read, and at least 90 s. Past that, or when a list fails, what only Docker can say reads `UNKNOWN`. The control plane works out a state's age from the server's own clock and its own, so they needn't agree, and a report older than 90 s reads `UNKNOWN` whatever it says, as stats keep a stream open whatever the monitor is doing. A report comes at least every 30 s, whether or not anything changed.
+- **A paused container isn't running.** Docker counts it as running and stops its checks, so what they last said stands with nobody asking, and each list renews that. It serves nothing, so it reads as `NOT_RUNNING`, whatever checks it, and goes back as it was once it is unpaused. A check under way as it paused says nothing of it.
+- **What a list says of a container that doesn't run stands on its own.** An inspect only adds to it, so one that doesn't get through doesn't leave it reading as healthy.
 - **Having read nothing isn't that nothing runs.** An agent sends no report until it has read Docker, so the API says `UNKNOWN`, not `NOT_RUNNING`. Reading and finding nothing does say that.
 
 It watches at most 4,096 containers, and a scan takes at least 10 ms for each. With Docker down it looks every 5 s to 30 s. 3,000 services whose checks all hang stay within the 16 workers and a bounded heap (`internal/health`).
@@ -96,7 +98,7 @@ A stop-first replace goes through `swapready`, `swapmarked`, `swapstopped`, `swa
 - **The control plane stops,** or the whole server does: the change stays applying, and the next start finishes it, forward.
 - **The agent's stream drops, or the agent stops,** with the control plane still up: the step may or may not have run, so the change fails as disconnected, and its rollback commits at once and waits for the server. An agent that stops sends nothing for a step that ends in error as its stream ends, so a stop reads as this, rather than as the step having failed for a reason of its own. A restart has no rollback to wait for it, so it waits for the server itself, and finishes, once.
 
-Either way it ends in one healthy instance and no orphan. `internal/fault` had no injection, so this adds `fault.Points`, and the kill test re-executes the test binary as an agent that kills itself with `SIGKILL` at each point, forward, rolling back and after a reboot.
+Either way it ends in one healthy instance and no orphan, or in a failure that says why, as any step can. A step isn't done until its check has passed on what runs now, and how far it got doesn't settle that. A stop-first step takes the old container away before it waits for the new one's check, so once it is cut short there, the new one runs, reads as its spec, and nothing is left over to say the step didn't end. Only the record knows. So a resume keeps each step the record doesn't have as ended, even with nothing left for it to do, as a finishing step: the agent changes nothing, and asks the check, with its window from there. If it doesn't pass, the step fails, and the change rolls back like any other. A step that ended on record has had its check, and isn't asked again. `internal/fault` had no injection, so this adds `fault.Points`, and the kill test re-executes the test binary as an agent that kills itself with `SIGKILL` at each point, forward, rolling back and after a reboot.
 
 ### What can't roll says so
 
@@ -116,6 +118,10 @@ Either way it ends in one healthy instance and no orphan. `internal/fault` had n
 **The server's own network has room for one.** A container on it listens on the server's ports itself, so a second can't bind them, or one that shares them lets a check read the old container and call the new one healthy. That holds moving off it too, as the new container may publish what the old one still holds. So it stops first, either way, and `start-first` on it is refused as the spec is read. A route can't send to a service there, as it joins no other network, so that is refused at plan time too.
 
 **A tag that moved is a new image.** A deploy of the tag a service already runs asks the server for it again ([ADR 0021](0021-the-docker-driver.md)). A container of the old image still reads as the spec, which only says the tag, so the step compares what the tag names now with what each container runs, and takes the next number, or stops first, as any new image does. The plan is for that, as it can't know yet. With nothing newer, nothing happens. A run stopped partway, with a container of the new image and the old one still there, isn't done, however it reads, and goes on from there.
+
+**A rollback never takes two writers.** It runs before anyone reads its plan, so nobody could approve them. Over shared data it stops first, whatever the order it goes back to says, in its first run and in a resume. Otherwise a token could choose `start-first` while nothing was shared, deploy something sick with `stop-first`, which needs no person either, and get two containers on one volume from the rollback.
+
+**A plan is held to what it could read.** A volume the same change makes isn't there for a plan to read, so a plan to start first over nothing shared may turn out to share what the old one has. The step compares what it finds with what was approved: two writers nobody approved stop it there, before anything stops, and it says to plan again, which is what asks a person. Planning again in a resume can read that volume, and it stays what was approved.
 
 **A volume is exclusive by default.** Two writers on a database's files, even for seconds, can corrupt it, and Dockwell can't tell a database from a directory of uploads. So the safe default has a few seconds of downtime, stated in the plan, rather than a risk nothing states.
 
@@ -248,7 +254,7 @@ They don't fall out cleanly, so they wait:
 
 ## Memory
 
-Measured with `make budgets`, 5 runs of each beside a build of the commit this one sits on, on one machine, idle for 180 s: an agent on its own went from 21.0 MB to 21.6 MB (budget 40 MB), and a control plane with its own agent from 42.7 MB to 43.3 MB (budget 250 MB). That machine has no Docker, so the monitor had nothing to watch. A test holds what it costs with something to watch: 3,000 services, each with a check that hangs, make 16 checks at a time and hold 2,680 bytes of heap each, 7.7 MiB in all (`TestManyServicesStayWithinWhatAMonitorHolds`).
+Measured with `make budgets`, 5 runs of each beside a build of the commit this one sits on, on one machine, idle for 180 s: an agent on its own went from @@AGENT@@ (budget 40 MB), and a control plane with its own agent from @@CONTROL@@ (budget 250 MB). That machine has no Docker, so the monitor had nothing to watch. A test holds what it costs with something to watch: 3,000 services, each with a check that hangs, make 16 checks at a time and hold 2,680 bytes of heap each, 7.7 MiB in all (`TestManyServicesStayWithinWhatAMonitorHolds`).
 
 ## How it's tested
 

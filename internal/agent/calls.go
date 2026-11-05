@@ -293,7 +293,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if err != nil {
 				return fail(err)
 			}
-			desired = append(desired, resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart()})
+			desired = append(desired, resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart(), Rollback: d.GetRollback()})
 		}
 		steps, err := c.local.Plan(ctx, desired)
 		if err != nil {
@@ -314,7 +314,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if err != nil {
 			return fail(err)
 		}
-		step.Ref, step.Pulled = ref, call.GetApply().GetPulled()
+		step.Ref, step.Pulled, step.Finishing = ref, call.GetApply().GetPulled(), call.GetApply().GetFinishing()
 		progress := c.progress(call.GetId())
 		defer progress.stop()
 		ctx = resource.WithProgress(ctx, progress.say)

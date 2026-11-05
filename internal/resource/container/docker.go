@@ -1380,7 +1380,12 @@ func (d *Docker) Healthy(ctx context.Context, t Target) error {
 	if _, done := d.soaked.LoadAndDelete(all[0].ID); done || !all[0].State.StartedAt.IsZero() && time.Since(all[0].State.StartedAt) >= settled {
 		soak = 0 // a step held it to that already, or it isn't new
 	}
-	return d.waitHealthy(ctx, t, all[0], soak)
+	if err := d.waitHealthy(ctx, t, all[0], soak); err != nil {
+		return err
+	}
+	// A step cut short before it could say what it ran comes here with nothing else.
+	d.reportRan(ctx, all[0].Config.Image)
+	return nil
 }
 
 // healthWait is how long a container gets to pass its check, as it was made:
@@ -1464,6 +1469,10 @@ func (d *Docker) waitHealthy(ctx context.Context, t Target, i *instance, soak ti
 		case !s.Running:
 			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s stopped right after it started, with exit code %d. Check its command and variables, then try again.", t.Service, s.ExitCode),
 				fmt.Errorf("%s stopped right after it started, with exit code %d", name, s.ExitCode))
+		case s.Paused:
+			// Docker stops its checks, so what the last one said is as it left it.
+			return resource.Plainly(t.Service+" is paused, so it serves nothing and its health check doesn't run. Unpause it on this server, then try again.",
+				fmt.Errorf("%s is paused, so it serves nothing and its health check doesn't run. Unpause it with docker unpause %s", name, name))
 		case check != nil:
 			if now := time.Now(); !now.Before(nextProbe) {
 				r, err := d.probe(ctx, check, health.Address(c.NetworkSettings.Networks))

@@ -85,6 +85,12 @@ func (p *Progress) index(server, resourceID string) int {
 	return slices.IndexFunc(p.Steps, func(s StepProgress) bool { return s.Server == server && s.ResourceID == resourceID })
 }
 
+// ended says the record has a resource's step on a server as having ended.
+func (p *Progress) ended(server, resourceID string) bool {
+	i := p.index(server, resourceID)
+	return i >= 0 && p.Steps[i].State.Final()
+}
+
 // Update is one event of a watched change: a step moved on, or the change
 // did.
 type Update struct {

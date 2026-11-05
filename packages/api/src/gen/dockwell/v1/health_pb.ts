@@ -394,7 +394,8 @@ export enum HealthState {
   UNHEALTHY = 5,
 
   /**
-   * It isn't running: stopped, exited, or not on the server at all.
+   * It isn't running: stopped, exited, paused, or not on the server at all. A
+   * paused container counts as running to Docker, which stops its checks.
    *
    * @generated from enum value: HEALTH_STATE_NOT_RUNNING = 6;
    */

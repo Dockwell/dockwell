@@ -463,6 +463,10 @@ type item struct {
 	// makes its container, which may not have got as far as starting it. That isn't
 	// a stop by hand.
 	madeOn []string
+	// unfinished are the steps a run of the change stopped partway had planned on each
+	// server and didn't see end. One that now has nothing left to do still has its
+	// check to pass.
+	unfinished map[string]*resource.Step
 	// id names the resource. A new one gets its ID when the change is
 	// planned, so another item in the change can live in it.
 	id      string
@@ -480,6 +484,8 @@ type item struct {
 	// rev is the revision applying runs toward: the new one, once
 	// committed, or base when the item makes none.
 	rev int
+	// rollback says a rollback is what plans it.
+	rollback bool
 	// restart names the restart the item is to have: the change's ID. It makes
 	// no revision, so it isn't a difference between specs, and what a step makes
 	// carries it, so planning again finds it done or not.
@@ -1525,7 +1531,12 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		for i := range steps {
 			s := &steps[i]
 			if s.Action == resource.ActionNone {
-				continue
+				was := unfinishedOn(its, s.Ref, server)
+				if was == nil {
+					continue
+				}
+				*s = *was
+				s.Finishing = true
 			}
 			gained := gains[s.Ref]
 			// The panel's domain moving behind a proxy is the agent's to know,
@@ -1583,6 +1594,17 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	plan.Fingerprint = hex.EncodeToString(keyed.Sum(nil)[:16])
 	plan.plain = hex.EncodeToString(plain.Sum(nil)[:16])
 	return plan, nil
+}
+
+// unfinishedOn is the step of a resource that a run stopped partway didn't see end on
+// a server, if it is still to be there.
+func unfinishedOn(its []*item, ref resource.Ref, server string) *resource.Step {
+	for _, it := range its {
+		if it.ref == ref && it.desiredOn(server) != nil {
+			return it.unfinished[server]
+		}
+	}
+	return nil
 }
 
 // reach lists what a resource reaches on its server, from its spec: what
@@ -1664,7 +1686,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -2139,6 +2161,9 @@ func (p *Plan) step(server string, ref resource.Ref) *resource.Step {
 // too, with the plan that runs.
 func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, by By, create bool, because string) (*committed, error) {
 	rollback := IsRollback(c)
+	for i := range items {
+		items[i].rollback = rollback
+	}
 	plan, err := e.plan(ctx, c.ID, items, rollback)
 	if err != nil {
 		return nil, err
@@ -2789,11 +2814,30 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		e.letGo(ctx, changeID)
 		return nil, err
 	}
-	// What its own steps made may not have got as far as starting.
+	before, err := decodeProgress(c.Progress)
+	if err != nil {
+		e.letGo(ctx, changeID)
+		return nil, err
+	}
+	// What its own steps made may not have got as far as starting. And a step can be
+	// cut short once what it makes reads as asked for, while it waits for its check,
+	// with nothing left over to say so: only the record knows it didn't end.
 	for i := range items {
-		for _, server := range items[i].targets() {
-			if was := recorded.step(server, items[i].ref); was != nil && (was.Action == resource.ActionCreate || was.Action == resource.ActionReplace) {
-				items[i].madeOn = append(items[i].madeOn, server)
+		it := &items[i]
+		it.rollback = IsRollback(c)
+		for _, server := range it.targets() {
+			was := recorded.step(server, it.ref)
+			if was == nil {
+				continue
+			}
+			if was.Action == resource.ActionCreate || was.Action == resource.ActionReplace {
+				it.madeOn = append(it.madeOn, server)
+			}
+			if !before.ended(server, it.id) {
+				if it.unfinished == nil {
+					it.unfinished = map[string]*resource.Step{}
+				}
+				it.unfinished[server] = was
 			}
 		}
 	}
@@ -2809,18 +2853,20 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		s := &plan.Servers[si]
 		for i := range s.Steps {
 			step := &s.Steps[i]
-			if was := recorded.step(s.Server, step.Ref); was != nil && step.Action != resource.ActionDelete {
+			was := recorded.step(s.Server, step.Ref)
+			if was != nil && step.Action != resource.ActionDelete {
 				step.Restores = step.Restores || was.Restores
+			}
+			// Planning again may find two writers the first plan couldn't read, as what
+			// it shares may be a volume this change made. Nobody approved that, and it
+			// stays so, so the step stops at it, as it does in a run that isn't cut short.
+			if step.Rollout.TwoWriters() && (was == nil || !was.Rollout.TwoWriters()) {
+				step.Rollout.Chosen = false
 			}
 			for j := range items {
 				step.Pulled = step.Pulled || step.Pull && items[j].ref == step.Ref && slices.Contains(items[j].pulled, s.Server)
 			}
 		}
-	}
-	before, err := decodeProgress(c.Progress)
-	if err != nil {
-		e.letGo(ctx, changeID)
-		return nil, err
 	}
 	e.track(changeID, resumed(before, plan, items))
 	e.published(changeID, store.ChangeApplying)

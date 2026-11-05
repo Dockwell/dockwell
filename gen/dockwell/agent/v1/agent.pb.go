@@ -2234,7 +2234,10 @@ type ApplyCall struct {
 	Pulled bool `protobuf:"varint,4,opt,name=pulled,proto3" json:"pulled,omitempty"`
 	// Which deploy the step is part of, if any, which what it makes is labelled
 	// with.
-	Deploy        *Deploy `protobuf:"bytes,5,opt,name=deploy,proto3" json:"deploy,omitempty"`
+	Deploy *Deploy `protobuf:"bytes,5,opt,name=deploy,proto3" json:"deploy,omitempty"`
+	// True when a run stopped partway took the step as far as it can be seen to have
+	// gone, so all the agent does is its check.
+	Finishing     bool `protobuf:"varint,6,opt,name=finishing,proto3" json:"finishing,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2302,6 +2305,13 @@ func (x *ApplyCall) GetDeploy() *Deploy {
 		return x.Deploy
 	}
 	return nil
+}
+
+func (x *ApplyCall) GetFinishing() bool {
+	if x != nil {
+		return x.Finishing
+	}
+	return false
 }
 
 // Deploy says which revision and change a step carries out.
@@ -2477,7 +2487,10 @@ type DesiredResource struct {
 	Run bool `protobuf:"varint,4,opt,name=run,proto3" json:"run,omitempty"`
 	// Names a restart this resource is to have, though its spec hasn't changed:
 	// the change's ID. A resource that had this restart has no step to take.
-	Restart       string `protobuf:"bytes,5,opt,name=restart,proto3" json:"restart,omitempty"`
+	Restart string `protobuf:"bytes,5,opt,name=restart,proto3" json:"restart,omitempty"`
+	// Says a rollback is planning it, which runs before anyone reads its plan, so it
+	// takes nothing only a person may approve.
+	Rollback      bool `protobuf:"varint,6,opt,name=rollback,proto3" json:"rollback,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2545,6 +2558,13 @@ func (x *DesiredResource) GetRestart() string {
 		return x.Restart
 	}
 	return ""
+}
+
+func (x *DesiredResource) GetRollback() bool {
+	if x != nil {
+		return x.Rollback
+	}
+	return false
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.
@@ -3271,13 +3291,14 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\astarted\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\astarted\"\x12\n" +
 	"\x10SendLogsResponse\"H\n" +
 	"\bPlanCall\x12<\n" +
-	"\adesired\x18\x01 \x03(\v2\".dockwell.agent.v1.DesiredResourceR\adesired\"\xd7\x01\n" +
+	"\adesired\x18\x01 \x03(\v2\".dockwell.agent.v1.DesiredResourceR\adesired\"\xf5\x01\n" +
 	"\tApplyCall\x12)\n" +
 	"\x04step\x18\x01 \x01(\v2\x15.dockwell.v1.PlanStepR\x04step\x12<\n" +
 	"\adesired\x18\x02 \x01(\v2\".dockwell.agent.v1.DesiredResourceR\adesired\x12\x16\n" +
 	"\x06values\x18\x03 \x01(\fR\x06values\x12\x16\n" +
 	"\x06pulled\x18\x04 \x01(\bR\x06pulled\x121\n" +
-	"\x06deploy\x18\x05 \x01(\v2\x19.dockwell.agent.v1.DeployR\x06deploy\"]\n" +
+	"\x06deploy\x18\x05 \x01(\v2\x19.dockwell.agent.v1.DeployR\x06deploy\x12\x1c\n" +
+	"\tfinishing\x18\x06 \x01(\bR\tfinishing\"]\n" +
 	"\x06Deploy\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x03R\brevision\x12\x1b\n" +
 	"\tchange_id\x18\x02 \x01(\tR\bchangeId\x12\x1a\n" +
@@ -3288,13 +3309,14 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"E\n" +
 	"\vObserveCall\x126\n" +
-	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\xa9\x01\n" +
+	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\xc5\x01\n" +
 	"\x0fDesiredResource\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x17\n" +
 	"\x04spec\x18\x02 \x01(\fH\x00R\x04spec\x88\x01\x01\x12\x12\n" +
 	"\x04pull\x18\x03 \x01(\bR\x04pull\x12\x10\n" +
 	"\x03run\x18\x04 \x01(\bR\x03run\x12\x18\n" +
-	"\arestart\x18\x05 \x01(\tR\arestartB\a\n" +
+	"\arestart\x18\x05 \x01(\tR\arestart\x12\x1a\n" +
+	"\brollback\x18\x06 \x01(\bR\brollbackB\a\n" +
 	"\x05_spec\"\x1c\n" +
 	"\n" +
 	"CancelCall\x12\x0e\n" +

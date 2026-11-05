@@ -508,6 +508,34 @@ func TestAFailedRenameIsFinished(t *testing.T) {
 	unchanged(t, l, db, spec)
 }
 
+// Docker stops the checks of a paused container, so what it last said of one is as it
+// left it, and the container serves nothing. Waiting for it passes nothing.
+func TestAPausedContainerPassesNoCheck(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	reg := drivers(e)
+	l := resource.Local{Drivers: reg}
+	web := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}
+	spec := &resourcev1.Container{Image: "nginx:1.27"}
+	_ = container.Validate(spec)
+	if err := l.Apply(t.Context(), resource.Step{Ref: web, Decision: resource.Decision{Action: resource.ActionCreate}}, spec); err != nil {
+		t.Fatal(err)
+	}
+	e.SetHealth("web", "healthy", "ok")
+	e.Edit("web", func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" })
+	d, err := reg.Driver(container.Kind)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = d.Verify(t.Context(), web, spec)
+	if err == nil {
+		t.Fatal("a paused container passed its check")
+	}
+	if plain, _ := resource.Explain(err); !strings.Contains(plain, "web is paused") || !strings.Contains(plain, "Unpause it") {
+		t.Errorf("it says %q", plain)
+	}
+}
+
 // Waiting for health is bounded twice: by HealthWait, and by the step's
 // own time. Each is blamed only when it is what ran out.
 func TestHealthWaitsAreTold(t *testing.T) {

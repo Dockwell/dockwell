@@ -327,6 +327,9 @@ func (d *Docker) decide(ctx context.Context, t Target, spec *resourcev1.Containe
 		// What the spec wants already runs, as when rolling back a new one that
 		// failed its check: nothing needs to stop for it.
 		p.Rolling = true
+	case shared && resource.DeployOf(ctx).Rollback:
+		// A rollback runs before anyone reads its plan, so nobody approves two writers,
+		// whatever the order it goes back to says. And what it replaces has just failed.
 	case len(p.Ports) > 0 || len(p.EditedRoutes) > 0 || p.HostNetwork:
 		// A route edited by hand isn't Dockwell's to move, so what it dials has to
 		// stay what the new container has: its number, and so its address. And a
@@ -644,10 +647,11 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 		return err
 	}
 	// What was planned as nothing stopping can't turn into two writers, or
-	// into downtime nobody reviewed, because the server changed since. Where none of
-	// it runs, as when the tag of what's stopped moved, it can't be either.
+	// into downtime nobody reviewed, because the server changed since, or because what
+	// it shares is a volume its own change has just made, which the plan couldn't read.
+	// Where none of it runs, as when the tag of what's stopped moved, it can't be either.
 	runs := slices.ContainsFunc(others, func(o *instance) bool { return o.State.Running })
-	if dec.Rollout != nil && dec.Rollout.Rolling && !plan.Rolling && runs {
+	if dec.Rollout != nil && dec.Rollout.Rolling && runs && (!plan.Rolling || plan.TwoWriters() && !dec.Rollout.Chosen) {
 		shared := slices.Concat(plan.Ports, plan.Volumes, plan.Paths, plan.ImageData, plan.CantTell, plan.EditedRoutes)
 		if plan.HostNetwork {
 			shared = append(shared, "the server's own network")

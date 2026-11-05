@@ -449,6 +449,9 @@ message ApplyCall {
   // Which deploy the step is part of, if any, which what it makes is labelled
   // with.
   Deploy deploy = 5;
+  // True when a run stopped partway took the step as far as it can be seen to have
+  // gone, so all the agent does is its check.
+  bool finishing = 6;
 }
 
 // Deploy says which revision and change a step carries out.
@@ -490,6 +493,9 @@ message DesiredResource {
   // Names a restart this resource is to have, though its spec hasn't changed:
   // the change's ID. A resource that had this restart has no step to take.
   string restart = 5;
+  // Says a rollback is planning it, which runs before anyone reads its plan, so it
+  // takes nothing only a person may approve.
+  bool rollback = 6;
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.

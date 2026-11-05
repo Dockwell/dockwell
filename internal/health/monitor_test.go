@@ -576,3 +576,146 @@ func TestOnlyWhatTheSpecSetIsMasked(t *testing.T) {
 		t.Errorf("with no label, it says %q", got)
 	}
 }
+
+// A paused container counts as running to Docker, which stops its checks, and each list
+// goes on saying what they last said. It serves nothing, so it reads as not running,
+// whatever checks it, for as long as it stays paused, and goes back as it was after.
+func TestAPausedContainerReadsAsNotRunning(t *testing.T) {
+	pause := func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" }
+	unpause := func(c *docker.Container) { c.State.Paused, c.State.Status = false, "running" }
+	for _, way := range []struct {
+		name   string
+		extra  []string
+		docker bool
+		before dockwellv1.HealthState
+		after  dockwellv1.HealthState
+	}{
+		{name: "no check", before: dockwellv1.HealthState_HEALTH_STATE_NO_CHECK, after: dockwellv1.HealthState_HEALTH_STATE_NO_CHECK},
+		{name: "Docker's check", docker: true, before: dockwellv1.HealthState_HEALTH_STATE_HEALTHY, after: dockwellv1.HealthState_HEALTH_STATE_HEALTHY},
+		{name: "the agent's check", extra: []string{health.Label, `{"tcp":{"port":80},"interval":5000000}`},
+			before: dockwellv1.HealthState_HEALTH_STATE_HEALTHY, after: dockwellv1.HealthState_HEALTH_STATE_HEALTHY},
+	} {
+		t.Run(way.name, func(t *testing.T) {
+			e := dockertest.New(t)
+			name := strings.TrimPrefix(add(e, "web", way.extra...).Name, "/")
+			if way.docker {
+				e.Edit(name, func(c *docker.Container) { c.Config.Healthcheck = &docker.Healthcheck{Test: []string{"CMD", "true"}} })
+				e.SetHealth(name, "healthy", "ok")
+			}
+			var checks atomic.Int32
+			m := start(t, e, func(context.Context, *health.Check, string) (health.Result, error) {
+				checks.Add(1)
+				return health.Result{Passed: true, Output: "ok", At: time.Now()}, nil
+			})
+			eventually(t, "it reads as it does", m, stateOf(name, way.before))
+			e.Edit(name, pause)
+			got := eventually(t, "it reads as not running", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING))
+			if said := got[name].GetLast().GetOutput(); !strings.Contains(said, "paused") || got[name].GetLast().GetPassed() {
+				t.Errorf("it says %q, passed %t", said, got[name].GetLast().GetPassed())
+			}
+			// Each list goes on confirming that, and no check changes it.
+			settled := checks.Load()
+			time.Sleep(100 * time.Millisecond)
+			if got := m.Report()[0].GetState(); got != dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING {
+				t.Errorf("paused for a while, it reads %s", got)
+			}
+			if got := checks.Load(); got > settled+1 {
+				t.Errorf("%d checks of a paused container, where one could have been under way", got-settled)
+			}
+			e.Edit(name, unpause)
+			eventually(t, "it goes back as it was", m, stateOf(name, way.after))
+		})
+	}
+}
+
+// What a check found out before the container paused says nothing of it now.
+func TestACheckUnderWayWhenAContainerPausesSaysNothing(t *testing.T) {
+	e := dockertest.New(t)
+	name := strings.TrimPrefix(add(e, "web", health.Label, `{"tcp":{"port":80},"interval":1000000}`).Name, "/")
+	var began sync.Once
+	asked, release := make(chan struct{}), make(chan struct{})
+	var hold atomic.Bool
+	m := start(t, e, func(context.Context, *health.Check, string) (health.Result, error) {
+		if hold.Load() {
+			began.Do(func() { close(asked) })
+			<-release
+		}
+		return health.Result{Passed: true, Output: "ok", At: time.Now()}, nil
+	})
+	eventually(t, "it is healthy", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_HEALTHY))
+	hold.Store(true)
+	<-asked
+	e.Edit(name, func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" })
+	eventually(t, "it reads as not running", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING))
+	close(release)
+	time.Sleep(50 * time.Millisecond)
+	if got := m.Report()[0].GetState(); got != dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING {
+		t.Errorf("a check that passed before it paused made it read %s", got)
+	}
+}
+
+// What the agent checked long ago is as good as nothing, while a container runs. One
+// that doesn't run, no check looks at, and each list says so afresh, so what it reads
+// holds for as long as the lists go on, though no inspect gets through.
+func TestWhatNoCheckLooksAtHoldsAsLongAsTheListSaysIt(t *testing.T) {
+	e := dockertest.New(t)
+	c := add(e, "web", health.Label, `{"tcp":{"port":80},"interval":10000000}`)
+	name := strings.TrimPrefix(c.Name, "/")
+	m := start(t, e, func(context.Context, *health.Check, string) (health.Result, error) {
+		return health.Result{Passed: true, Output: "ok", At: time.Now()}, nil
+	})
+	eventually(t, "it is healthy", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_HEALTHY))
+	e.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/json") && strings.Contains(r.URL.Path, c.ID) {
+			return errors.New("context deadline exceeded")
+		}
+		return nil
+	})
+	defer e.Intercept(nil)
+	e.Stop(name)
+	eventually(t, "it reads as not running", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING))
+	was := m.Report()[0].GetConfirmedAt().AsTime()
+	time.Sleep(50 * time.Millisecond)
+	if now := m.Report()[0].GetConfirmedAt().AsTime(); !now.After(was) {
+		t.Errorf("each list should confirm it, and it was confirmed at %s, then %s", was, now)
+	}
+}
+
+// A list that works says a container has exited, or is paused, though an inspect of it
+// doesn't get through. That is enough to stop reading it as healthy.
+func TestWhatTheListSaysReachesTheStateWhenAReadFails(t *testing.T) {
+	for _, way := range []struct {
+		name string
+		says string
+		to   func(e *dockertest.Engine, name string)
+	}{
+		{"exited", "it is exited", func(e *dockertest.Engine, name string) { e.Stop(name) }},
+		{"paused", "paused", func(e *dockertest.Engine, name string) {
+			e.Edit(name, func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" })
+		}},
+	} {
+		t.Run(way.name, func(t *testing.T) {
+			e := dockertest.New(t)
+			c := add(e, "web")
+			name := strings.TrimPrefix(c.Name, "/")
+			e.Edit(name, func(c *docker.Container) { c.Config.Healthcheck = &docker.Healthcheck{Test: []string{"CMD", "true"}} })
+			e.SetHealth(name, "healthy", "ok")
+			m := start(t, e, nil)
+			eventually(t, "it is healthy", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_HEALTHY))
+			var refuse atomic.Bool
+			refuse.Store(true)
+			e.Intercept(func(r *http.Request) error {
+				if refuse.Load() && r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/json") && strings.Contains(r.URL.Path, c.ID) {
+					return errors.New("context deadline exceeded")
+				}
+				return nil
+			})
+			defer refuse.Store(false)
+			way.to(e, name)
+			got := eventually(t, "it reads as not running", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING))
+			if said := got[name].GetLast().GetOutput(); !strings.Contains(said, way.says) {
+				t.Errorf("it says %q, want %q", said, way.says)
+			}
+		})
+	}
+}

@@ -728,6 +728,56 @@ func (r *healthReporter) set(list ...*dockwellv1.InstanceHealth) {
 	r.changed <- struct{}{}
 }
 
+// planSeeing notes whether a plan it was asked for was a rollback's.
+type planSeeing struct {
+	*firewall.Driver
+	rollback atomic.Bool
+}
+
+func (d *planSeeing) Judge(ctx context.Context, _ resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
+	d.rollback.Store(resource.DeployOf(ctx).Rollback)
+	return d.Plan(actual, desired, changes)
+}
+
+// What a rollback may take, and that a step is only finishing, are said over the stream
+// as they would be in the process: a step that's finishing changes nothing there.
+func TestARollbackAndAFinishingStepCrossTheStream(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	fw := firewall.NewFake()
+	seeing := &planSeeing{Driver: &firewall.Driver{Backend: fw}}
+	runAgent(t, s, id, resource.NewRegistry(seeing))
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	http := resource.Ref{Kind: firewall.Kind, Scope: id.ServerID, Name: "http"}
+	rule := &resourcev1.FirewallRule{Port: 80}
+	if err := (&firewall.Driver{}).Validate(rule); err != nil {
+		t.Fatal(err)
+	}
+	for _, rollback := range []bool{true, false} {
+		if _, err := a.Plan(t.Context(), []resource.Desired{{Ref: http, Spec: rule, Rollback: rollback}}); err != nil {
+			t.Fatal(err)
+		}
+		if got := seeing.rollback.Load(); got != rollback {
+			t.Errorf("a plan with Rollback %t reached the driver as %t", rollback, got)
+		}
+	}
+	step := resource.Step{Ref: http, Decision: resource.Decision{Action: resource.ActionCreate, Finishing: true}}
+	if err := a.Apply(t.Context(), step, rule); err == nil {
+		t.Error("a step finishing what isn't there passed")
+	}
+	if fw.Len() != 0 {
+		t.Errorf("a step that's finishing put %d rules in place", fw.Len())
+	}
+	step.Finishing = false
+	if err := a.Apply(t.Context(), step, rule); err != nil {
+		t.Fatal(err)
+	}
+	step.Finishing = true
+	if err := a.Apply(t.Context(), step, rule); err != nil {
+		t.Errorf("a step finishing what is there = %v", err)
+	}
+}
+
 // How a server's services are reaches the control plane as the stream opens and
 // as it changes, whoever listens, and stays, marked as such, once the agent has
 // gone.

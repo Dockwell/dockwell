@@ -359,8 +359,9 @@ func testResumeWaitsForTheChangeItSkipped(t *testing.T, backend store.Backend) {
 	if c := stored(t, db, rollback); c.State != store.ChangeApplied {
 		t.Errorf("the rollback is %s once slow ended with srv_B back; Resume didn't run again", c.State)
 	}
-	if n := agents.of("srv_B"); n > 4 {
-		t.Errorf("Resume looked for srv_B %d times in all, want at most 4", n)
+	// To plan it, then to plan, then to check what the rollback's step has left to do.
+	if n := agents.of("srv_B"); n > 5 {
+		t.Errorf("Resume looked for srv_B %d times in all, want at most 5", n)
 	}
 }
 

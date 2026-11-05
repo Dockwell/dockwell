@@ -28,6 +28,9 @@ type Desired struct {
 	// Restart names a restart the resource is to have, though its spec hasn't
 	// changed: the change's ID. Its kind is a Settler.
 	Restart string
+	// Rollback says a rollback is planning this, which runs before anyone reads its
+	// plan, so it takes nothing only a person may approve.
+	Rollback bool
 }
 
 // Agent plans and applies on one server, with that server's drivers. In
@@ -218,10 +221,12 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback}, d
 	}
 	for i, want := range normal {
 		d, spec := drivers[i], want.Spec
+		// As the step it plans will have it, once it applies.
+		ctx := WithDeploy(ctx, Deploy{Rollback: want.Rollback})
 		if c, ok := d.(Checker); ok && spec != nil {
 			if err := c.Check(ctx, want.Ref, spec); err != nil {
 				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
@@ -366,14 +371,16 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		}
 		ctx = WithValues(ctx, values)
 	}
-	if err := d.Apply(ctx, step, desired); errors.Is(err, ErrAlreadySo) {
-		// Nothing changed, and a step that reads done still says it's running.
-		if err := d.Verify(ctx, step.Ref, desired); err != nil {
-			return fmt.Errorf("%s is as asked, but it isn't healthy: %w", step.Ref, err)
+	if !step.Finishing {
+		if err := d.Apply(ctx, step, desired); errors.Is(err, ErrAlreadySo) {
+			// Nothing changed, and a step that reads done still says it's running.
+			if err := d.Verify(ctx, step.Ref, desired); err != nil {
+				return fmt.Errorf("%s is as asked, but it isn't healthy: %w", step.Ref, err)
+			}
+			return nil
+		} else if err != nil {
+			return cantApply(step, err)
 		}
-		return nil
-	} else if err != nil {
-		return cantApply(step, err)
 	}
 	actual, err := Observe(ctx, d, step.Ref)
 	if err != nil {

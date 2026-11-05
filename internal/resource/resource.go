@@ -166,6 +166,10 @@ type Decision struct {
 	// as the record says. Resuming needs no registry, so it compares what the
 	// server has with what runs, and goes on from there.
 	Pulled bool `json:",omitempty"`
+	// Finishing is true when a run stopped partway took this step as far as it can
+	// be seen to have gone: what it makes reads as asked for, and nothing else of it
+	// is left. Nothing says its check passed, so that is all this step does.
+	Finishing bool `json:",omitempty"`
 	// ImageGone is true when the digest its spec pins isn't on the server, and its
 	// registry won't give it, so applying it could only fail. A registry that doesn't
 	// answer says nothing of it.
