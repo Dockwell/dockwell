@@ -43,7 +43,7 @@ Every request a server takes from the internet goes through its ingress, so this
 
 ### A compromised app
 
-- **Reach another environment's service through the ingress network.** It can't: `enable_icc: false` stops containers on that network reaching each other. CI's Docker job checks this on a real engine. On a shared bridge network it could, as it always could: use an environment's own networks to keep services apart.
+- **Reach another environment's service through the ingress network.** It can't: `enable_icc: false` stops containers on that network reaching each other. CI's Service end to end on Docker job checks this on a real engine. On a shared bridge network it could, as it always could: use an environment's own networks to keep services apart.
 - **Get out through the ingress network.** It can't: the network is `internal`, with no gateway. A service on an `internal` environment network stays cut off, and no container's default route moves.
 - **Reach Caddy's admin API, or the panel's socket.** Neither is on TCP. Both are in `ingress/run`, which no container may mount, as it is under Dockwell's data directory ([ADR 0021](../adr/0021-the-docker-driver.md#host-access)).
 - **Reach the panel over loopback.** A bridged container has no route to the server's loopback.

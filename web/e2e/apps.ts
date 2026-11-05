@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The app screens on this machine's Docker, for CI's Docker job: claims a
-// throwaway install in headless Chromium, then runs the flow make e2e runs on
-// a fake engine. It uses a data directory of its own, and deletes what it made,
+// The app screens on this machine's Docker, for CI's Panel end to end on Docker
+// job: claims a throwaway install in headless Chromium, then runs the flow make
+// e2e runs on a fake engine. It uses a data directory of its own, and deletes what it made,
 // on Docker too, whether or not it passes.
 //
 //   make docker-panel-e2e

@@ -79,7 +79,7 @@ What's on the other side of a tunnel can reach Caddy, which is on the server's o
 | With `--network host` | `http://127.0.0.1:80` | `127.0.0.1` | Host access, for a person to approve, as any container on that network is. `localhost` may reach `::1`, which a route naming `127.0.0.1` doesn't answer |
 | On a network of its own, with `--add-host host.docker.internal:host-gateway` | `http://host.docker.internal:80` | Its address on that network | Needs that network's range named, and not Docker's default `bridge`, where a service with no networks runs. A firewall such as ufw treats this as incoming, so it needs to allow it |
 
-The Docker job proves each of these with a container that does what `cloudflared` would, not `cloudflared` itself, which needs Cloudflare's account. A service on an `internal` environment network has no way to the server.
+CI's Service end to end on Docker job proves each of these with a container that does what `cloudflared` would, not `cloudflared` itself, which needs Cloudflare's account. A service on an `internal` environment network has no way to the server.
 
 ### What a failed certificate says
 

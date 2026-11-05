@@ -360,8 +360,9 @@ said "isn't installed on this server"
 ok "removed, and the data is still in $DATA"
 
 step "What Dockwell's ingress leaves, on a stand-in for Docker"
-# These containers have no Docker, and the Docker job runs this on a real one. What
-# this holds is the script itself, piped to sh on each system.
+# These containers have no Docker, and CI's Service end to end on Docker job runs
+# this on a real one. What this holds is the script itself, piped to sh on each
+# system.
 stub=$(mktemp -d)
 cat >"$stub/docker" <<EOF
 #!/bin/sh

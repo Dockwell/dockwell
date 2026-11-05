@@ -8,8 +8,8 @@
 // the page stops the reading on the agent. It measures the page at a hundred
 // thousand lines, and at thousands of lines a second, and prints the figures.
 // With --shots <dir> it saves screenshots at 1440, 800, 390 and 360 px, light and
-// dark, and in Chinese. CI's Docker job reads real containers' logs through the
-// CLI (scripts/docker-e2e.sh).
+// dark, and in Chinese. CI's Service end to end on Docker job reads real
+// containers' logs through the CLI (scripts/docker-e2e.sh).
 //
 //   make e2e
 //   node web/e2e/logs.ts bin/dockwell --shots /tmp/shots
