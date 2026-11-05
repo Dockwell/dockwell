@@ -904,12 +904,15 @@ func Kinds() []*apicli.Kind {
 			Field: "route",
 			Noun:  "routes",
 			Short: "A domain or path sent to a service, kind \"route\"",
-			Long:  "Route sends a domain's traffic, or a path under it, to a port of a service in\nthe route's environment, over HTTPS with a certificate Dockwell gets for the\ndomain. A server's first route starts its ingress, which takes ports 80 and 443;\nits last stops it and frees them. See docs/adr/0024-the-caddy-ingress-driver.md.",
+			Long:  "Route sends a domain's traffic, or a path under it, to a port of a service in\nthe route's environment, or to a port on the server itself. It comes over HTTPS\nwith a certificate Dockwell gets for the domain, unless tls says TLS ends before\nthis server. A server's first route starts its ingress, which takes ports 80 and\n443, or port 80 alone while no route on the server takes a certificate; its last\nstops it and frees them. See docs/adr/0024-the-caddy-ingress-driver.md and\ndocs/adr/0030-routes-behind-a-tunnel-or-a-proxy.md.",
 			Fields: []apicli.Field{
 				{Path: "domain", Help: "The domain, such as \"app.example.com\": a lowercase DNS name that a public certificate authority issues for. Wildcards aren't taken."},
 				{Path: "path", Help: "The path it covers, such as \"/api\": that path and what is under it, which reach the service as they are. Empty covers the whole domain."},
-				{Path: "service", Help: "The service to send it to, by name, in the route's environment."},
-				{Path: "port", Help: "The port the service listens on inside its container, such as 8080."},
+				{Path: "service", Help: "The service to send it to, by name, in the route's environment. Empty when host_port names a port on the server instead."},
+				{Path: "port", Help: "The port the service listens on inside its container, such as 8080. Empty when host_port names a port on the server instead."},
+				{Path: "tls", Help: "\"off\" when TLS ends before this server, as at a tunnel or a proxy in front of it: the domain is served over plain HTTP on port 80, with no certificate and no redirect to HTTPS, so its traffic reaches this server unencrypted. That is fine on a tunnel or a private network, and not on the open internet. Empty gets a certificate. A domain's routes all take the same setting."},
+				{Path: "trusted_proxies", Help: "The proxies in front of this server whose word this route takes on where a request came from, each an address, a range such as \"203.0.113.0/24\", or \"cloudflare\" for Cloudflare's published ranges. Only a request from one of them has its X-Forwarded-For believed, read from the right, and nothing is believed with this empty. A person approves each one a change adds, as a proxy that isn't really one makes client addresses forgeable. A range wider than /8 isn't taken."},
+				{Path: "host_port", Help: "A port on the server itself, such as 8080, for something that isn't a container, in place of service and port. The proxy dials 127.0.0.1 on it. It reaches past containers, so a person approves it. Dockwell's own ports aren't taken."},
 			},
 		},
 	}

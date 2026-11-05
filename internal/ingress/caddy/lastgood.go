@@ -135,6 +135,38 @@ func (c *Caddy) forgetGood() error {
 	if err := os.Remove(filepath.Join(c.Dir, goodFile)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("can't remove the copy of Caddy's last config: %w", err)
 	}
+	root, err := os.OpenRoot(c.Dir)
+	if err != nil {
+		return fmt.Errorf("can't remove what a crash left of the copy of Caddy's last config: %w", err)
+	}
+	defer root.Close()
+	if err := removeTemps(root, goodFile); err != nil {
+		return fmt.Errorf("can't remove what a crash left of the copy of Caddy's last config: %w", err)
+	}
+	return nil
+}
+
+// forgetLastConfig removes Caddy's last config, with what else in its directory
+// holds a copy, once it has stopped for its last route. The panel's key is in a
+// config while that serves, and these would otherwise stay there for any later
+// Caddy to read.
+func (c *Caddy) forgetLastConfig() error {
+	root, err := os.OpenRoot(c.configDir())
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return nil
+	case err != nil:
+		return fmt.Errorf("can't remove Caddy's last config: %w", err)
+	}
+	defer root.Close()
+	for _, name := range []string{autosaveRel, autosaveRel + ".last", autosaveRel + ".damaged"} {
+		if err := root.RemoveAll(name); err != nil {
+			return fmt.Errorf("can't remove Caddy's last config: %w", err)
+		}
+	}
+	if err := removeTemps(root, autosaveRel); err != nil {
+		return fmt.Errorf("can't remove what a crash left of Caddy's last config: %w", err)
+	}
 	return nil
 }
 
@@ -240,7 +272,7 @@ func (c *Caddy) editLastConfig(edit func([]json.RawMessage) []json.RawMessage) e
 	if missing || damaged(b) {
 		return nil
 	}
-	next, err := withRoutes(b, edit)
+	next, err := c.withRoutes(b, edit)
 	if err != nil {
 		return err
 	}
@@ -252,8 +284,8 @@ func (c *Caddy) editLastConfig(edit func([]json.RawMessage) []json.RawMessage) e
 
 // withRoutes applies an edit to the routes in a whole config, and leaves the rest
 // of it as it is, down to what Dockwell doesn't model.
-func withRoutes(config []byte, edit func([]json.RawMessage) []json.RawMessage) ([]byte, error) {
-	var top, apps, app, servers, server map[string]json.RawMessage
+func (c *Caddy) withRoutes(config []byte, edit func([]json.RawMessage) []json.RawMessage) ([]byte, error) {
+	var top, apps, app, servers map[string]json.RawMessage
 	if err := json.Unmarshal(config, &top); err != nil {
 		return nil, fmt.Errorf("can't read Caddy's last config: %w", err)
 	}
@@ -266,26 +298,11 @@ func withRoutes(config []byte, edit func([]json.RawMessage) []json.RawMessage) (
 	if err := unmarshalIf(app["servers"], &servers); err != nil {
 		return nil, err
 	}
-	if err := unmarshalIf(servers[serverName], &server); err != nil {
-		return nil, err
-	}
-	if server == nil {
+	if len(servers[serverName]) == 0 {
 		return config, nil
 	}
-	var routes []json.RawMessage
-	if err := unmarshalIf(server["routes"], &routes); err != nil {
-		return nil, err
-	}
-	next := edit(routes)
-	if next == nil {
-		next = []json.RawMessage{}
-	}
-	sortRoutes(next)
-	var err error
-	if server["routes"], err = json.Marshal(next); err != nil {
-		return nil, err
-	}
-	if servers[serverName], err = json.Marshal(server); err != nil {
+	err := c.editServers(servers, func(routes []json.RawMessage) ([]json.RawMessage, error) { return edit(routes), nil })
+	if err != nil {
 		return nil, err
 	}
 	if app["servers"], err = json.Marshal(servers); err != nil {

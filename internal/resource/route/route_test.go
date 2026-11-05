@@ -3,6 +3,7 @@
 package route
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -159,6 +160,105 @@ func TestARoutesStepsStopNothing(t *testing.T) {
 		if dec.Action != tc.want || dec.Downtime != 0 || dec.Destroys || dec.Effect != resource.EffectNone {
 			t.Errorf("Plan(%v, %v) = %+v", tc.actual, tc.desired, dec)
 		}
+	}
+}
+
+// Each rule of the fields a route behind a tunnel uses, on its own.
+func TestValidateRefusesWhatARouteCantSayOfWhereItSends(t *testing.T) {
+	d := &Driver{Reserved: "panel.example.com"}
+	for _, tc := range []struct {
+		name string
+		spec *resourcev1.Route
+		says string
+	}{
+		{"a tls it doesn't know", &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, Tls: "on"}, `takes only "off"`},
+		{"a provider's name for tls", &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, Tls: "cloudflare"}, `takes only "off"`},
+		{"the panel's domain, plain", &resourcev1.Route{Domain: "panel.example.com", Service: "web", Port: 80, Tls: "off"}, "passkeys and cookies need HTTPS"},
+		{"under the panel's domain, plain", &resourcev1.Route{Domain: "a.panel.example.com", Service: "web", Port: 80, Tls: "off"}, "passkeys and cookies need HTTPS"},
+		{"neither service nor port on the server", &resourcev1.Route{Domain: "a.example.com"}, "host_port"},
+		{"a port on the server past 65535", &resourcev1.Route{Domain: "a.example.com", HostPort: 70000}, "from 1 to 65535"},
+		{"a port on the server and a service", &resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Service: "web"}, "one or the other"},
+		{"a port on the server and a service's port", &resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Port: 80}, "one or the other"},
+		{"everyone as a proxy", &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, TrustedProxies: []string{"0.0.0.0/0"}}, "covers too much"},
+		{"what isn't a proxy", &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, TrustedProxies: []string{"{env.HOME}"}}, "isn't an address"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := d.Validate(proto.Clone(tc.spec))
+			if err == nil || !strings.Contains(err.Error(), tc.says) {
+				t.Errorf("Validate = %v, want it refused, saying %q", err, tc.says)
+			}
+		})
+	}
+}
+
+func TestValidateTakesARouteBehindATunnel(t *testing.T) {
+	d := &Driver{Reserved: "panel.example.com"}
+	r := &resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Tls: "off", TrustedProxies: []string{"cloudflare", "127.0.0.1", "cloudflare"}}
+	if err := d.Validate(r); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"127.0.0.1/32", "cloudflare"}; !slices.Equal(r.GetTrustedProxies(), want) {
+		t.Errorf("trusted proxies = %v, want them canonical, as they read back", r.GetTrustedProxies())
+	}
+	empty := &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, TrustedProxies: []string{}}
+	if err := d.Validate(empty); err != nil {
+		t.Fatal(err)
+	}
+	if !proto.Equal(empty, spec("a.example.com", "")) && empty.GetTrustedProxies() != nil {
+		t.Errorf("an empty list stays %v", empty.GetTrustedProxies())
+	}
+}
+
+// What a person approves of a route, and that nothing else about it needs one.
+func TestWhatAPersonApprovesOfARoute(t *testing.T) {
+	d := &Driver{}
+	if got := d.HostAccess(spec("a.example.com", "")); got != nil {
+		t.Errorf("an ordinary route reaches %v", got)
+	}
+	if got := d.HostAccess(&resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, Tls: "off"}); got != nil {
+		t.Errorf("a route that takes no certificate reaches %v", got)
+	}
+	got := d.HostAccess(&resourcev1.Route{Domain: "a.example.com", HostPort: 8080, TrustedProxies: []string{"10.0.0.0/8", "cloudflare"}})
+	want := []resource.Access{
+		{Kind: resource.AccessServerPort, Path: "127.0.0.1:8080"},
+		{Kind: resource.AccessTrustedProxy, Path: "10.0.0.0/8"},
+		{Kind: resource.AccessTrustedProxy, Path: "cloudflare"},
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("HostAccess = %v, want %v", got, want)
+	}
+}
+
+// A plan says when a route starts serving plain HTTP, whether or not its server can
+// be asked, and not each time something else about it changes.
+func TestAPlanSaysWhenARouteGoesUnencrypted(t *testing.T) {
+	d := &Driver{}
+	secure, plain := spec("a.example.com", ""), &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, Tls: "off"}
+	plain2 := &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 8080, Tls: "off"}
+	for _, tc := range []struct {
+		name            string
+		actual, desired proto.Message
+		want            bool
+	}{
+		{"a new plain route", nil, plain, true},
+		{"a new secure route", nil, secure, false},
+		{"turning a certificate off", secure, plain, true},
+		{"turning one on", plain, secure, false},
+		{"another change to a plain route", plain, plain2, false},
+		{"removing a plain route", plain, nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dec, err := d.Plan(tc.actual, tc.desired, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if dec.Unencrypted != tc.want {
+				t.Errorf("Unencrypted = %v, want %v", dec.Unencrypted, tc.want)
+			}
+			if len(dec.Warnings) > 0 || dec.Destroys {
+				t.Errorf("it needs a person: %+v", dec)
+			}
+		})
 	}
 }
 

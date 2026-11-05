@@ -44,6 +44,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/network"
+	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/resource/volume"
@@ -122,7 +123,7 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	if _, err := revision.Setup(t.Context(), db, logger); err != nil {
 		t.Fatal(err)
 	}
-	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, variable.Type{}, variable.SecretType{})
+	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{})
 	keeper := secretstest.Keeper(db, kinds)
 	agents := agentapi.NewAgents(kinds, logger)
 	agents.SendValues(keeper)

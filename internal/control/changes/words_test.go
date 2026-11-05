@@ -23,6 +23,8 @@ func TestWhatAPersonApprovesIsSaidAsWhatItIs(t *testing.T) {
 		{"a server path", plan("web", resource.Access{Kind: resource.AccessPath, Path: "/srv/app", ReadOnly: true}), "gives web access to its server: the server path /srv/app (read-only)"},
 		{"a takeover", plan("www", resource.Access{Kind: resource.AccessDomain, Path: "app.example.com", Detail: "production"}), "claims the domain app.example.com, which the environment production held within the last 7 days"},
 		{"the panel", plan("www", resource.Access{Kind: resource.AccessPanelDomain, Path: "panel.example.com", Detail: "Caddy"}), "moves the panel's domain, panel.example.com, behind Caddy"},
+		{"a port on the server", plan("www", resource.Access{Kind: resource.AccessServerPort, Path: "127.0.0.1:8080"}), "gives www access to its server: the port 127.0.0.1:8080 on the server itself, past its containers"},
+		{"a proxy", plan("www", resource.Access{Kind: resource.AccessTrustedProxy, Path: "cloudflare"}), "has www take cloudflare as a proxy it believes on where a request came from"},
 		{"nothing", plan("www"), ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

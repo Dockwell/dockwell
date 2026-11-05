@@ -341,6 +341,63 @@ describe("the plan sheet", () => {
     await expectAccessible(document.body);
   });
 
+  it("says what a route without a certificate means, and doesn't call it an alarm", async () => {
+    const routed = webPlanned();
+    const step = routed.plan?.servers[0]?.steps[0];
+    if (!step) throw new Error("webPlanned has no step");
+    step.unencrypted = true;
+    step.ingress = create(IngressEffectSchema, {
+      change: IngressChange.STARTS,
+      proxy: "Caddy",
+      ports: ["80/tcp"],
+    });
+    renderSheet(proposeWeb, {
+      changes: {
+        proposeChange: () => ({ change: routed }),
+        watchChange: feed<WatchChangeResponse>().stream,
+      },
+    });
+
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(sheet).toHaveTextContent("so this route starts it, and it takes ports 80/tcp");
+    const notice = within(sheet).getByText(/Traffic for this route reaches hz-1 unencrypted/);
+    expect(notice).toHaveTextContent("That's fine on a tunnel or a private network, and not on the open internet");
+    expect(notice).toHaveClass("plan-step-notice");
+    expect(notice).not.toHaveClass("plan-step-warn");
+    // It's something to know, and nothing asks for more than any other plan does.
+    const apply = await within(sheet).findByRole("button", { name: /Apply plan/ });
+    expect(apply).toBeEnabled();
+    await expectAccessible(document.body);
+  });
+
+  it("names a port on the server and a proxy to believe, as what a person approves", async () => {
+    const routed = webPlanned();
+    const step = routed.plan?.servers[0]?.steps[0];
+    if (!step) throw new Error("webPlanned has no step");
+    step.hostAccess = [
+      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PORT, path: "127.0.0.1:8080" }),
+      create(HostAccessSchema, { kind: HostAccessKind.TRUSTED_PROXY, path: "cloudflare" }),
+    ];
+    step.ingress = create(IngressEffectSchema, {
+      change: IngressChange.TAKES_PORTS,
+      proxy: "Caddy",
+      ports: ["443/tcp", "443/udp"],
+    });
+    renderSheet(proposeWeb, {
+      changes: {
+        proposeChange: () => ({ change: routed }),
+        watchChange: feed<WatchChangeResponse>().stream,
+      },
+    });
+
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(sheet).toHaveTextContent("the port 127.0.0.1:8080 on the server itself, past its containers");
+    expect(sheet).toHaveTextContent("cloudflare as a proxy it believes on where a request came from");
+    expect(sheet).toHaveTextContent(
+      "This is the first route on hz-1 that takes a certificate, so Caddy takes ports 443/tcp, 443/udp too",
+    );
+  });
+
   it("says what stopping the ingress leaves behind, and names the domain a plan takes", async () => {
     const routed = webPlanned();
     const plan = routed.plan;

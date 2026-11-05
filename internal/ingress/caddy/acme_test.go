@@ -184,7 +184,7 @@ func startCaddyWithCA(t *testing.T, p *pebble, panel *ingress.PanelSite, only st
 		}
 		fakePanel(t, dir)
 	}
-	if err := c.Start(t.Context(), panel); err != nil {
+	if err := c.Start(t.Context(), panel, false); err != nil {
 		out, _ := os.ReadFile(filepath.Join(dir, "caddy.out"))
 		t.Fatalf("%v\n%s", err, out)
 	}
@@ -273,7 +273,7 @@ func TestTheBootstrapNamesItsCA(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := &Caddy{Dir: dir, Runtime: &process{dir: dir}, ACMEDirectory: "https://ca.example/dir", ACMERoots: roots}
-	if err := c.prepare(nil); err != nil {
+	if err := c.prepare(nil, false); err != nil {
 		t.Fatal(err)
 	}
 	b, err := os.ReadFile(filepath.Join(dir, bootDirName, bootstrapName))

@@ -46,6 +46,8 @@ type fakeProxy struct {
 	recoverErr error
 	// closed is what SetClosed last said.
 	closed bool
+	// plainOnly is what it last started with.
+	plainOnly bool
 }
 
 func (p *fakeProxy) Name() string { return "Caddy" }
@@ -65,7 +67,7 @@ func (p *fakeProxy) Prepare(context.Context, *PanelSite) error {
 	return nil
 }
 
-func (p *fakeProxy) Start(_ context.Context, panel *PanelSite) error {
+func (p *fakeProxy) Start(_ context.Context, panel *PanelSite, plainOnly bool) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.log = append(p.log, "start")
@@ -75,7 +77,7 @@ func (p *fakeProxy) Start(_ context.Context, panel *PanelSite) error {
 	if p.startErr != nil {
 		return p.startErr
 	}
-	p.status, p.panel = Status{Exists: true, Running: true}, panel
+	p.status, p.panel, p.plainOnly = Status{Exists: true, Running: true}, panel, plainOnly
 	return nil
 }
 
@@ -1720,35 +1722,33 @@ func TestAPlanNamesWhatComesBackAfterAReboot(t *testing.T) {
 	}
 }
 
-func TestADaemonThatSetsNoNewPrivilegesIsRefusedByName(t *testing.T) {
+// A daemon that sets no-new-privileges for every container isn't refused: Caddy's
+// container says otherwise for itself, as Moby lets it (TestCaddySaysNoNewPrivileges
+// holds what it asks for), and the keeper needs nothing it would take away.
+func TestADaemonThatSetsNoNewPrivilegesRunsRoutes(t *testing.T) {
 	s := newSetup(t)
 	s.engine.NoNewPrivileges = true
 	ref := routeRef("www")
 	route := spec("a.example.com", "", "web", 80)
-	err := s.Check(t.Context(), ref, []resource.Desired{{Ref: ref, Spec: route}})
-	if err == nil || !strings.Contains(err.Error(), "no-new-privileges") || !strings.Contains(err.Error(), "/etc/docker/daemon.json") {
-		t.Errorf("Check = %v, want it refused by name, with the fix", err)
+	if err := s.Check(t.Context(), ref, []resource.Desired{{Ref: ref, Spec: route}}); err != nil {
+		t.Errorf("Check = %v, want it to pass", err)
 	}
-	// Before the panel lets go of anything, whatever the plan said.
-	released := false
-	s.Panel = &Panel{Domain: "panel.example.com", Release: func(context.Context) error { released = true; return nil }, Retake: func(context.Context) error { return nil }}
-	effect := &resource.IngressEffect{Change: resource.IngressStarts, PanelDomain: "panel.example.com"}
-	if err := s.Apply(t.Context(), ref, route, effect); err == nil || !strings.Contains(err.Error(), "no-new-privileges") {
-		t.Errorf("Apply = %v", err)
-	}
-	if released {
-		t.Error("the panel let go of its ports first")
+	s.apply(t, "www", route)
+	if st, _ := s.proxy.Status(t.Context()); !st.Running {
+		t.Error("the proxy didn't start")
 	}
 }
 
-// Removing a route still works on a daemon hardened after the fact.
-func TestANoNewPrivilegesDaemonStillLetsARouteGo(t *testing.T) {
+// The keeper only sleeps, so it keeps no-new-privileges, whatever Caddy needs.
+func TestTheKeeperKeepsNoNewPrivileges(t *testing.T) {
 	s := newSetup(t)
+	const image = "caddy@sha256:abc"
+	s.KeeperImage = image
+	s.engine.Registry[image] = dockertest.Image{}
 	s.apply(t, "a", spec("a.example.com", "", "web", 80))
-	s.engine.NoNewPrivileges = true
-	s.apply(t, "a", nil)
-	if routes, _ := s.proxy.Routes(t.Context()); len(routes) != 0 {
-		t.Errorf("routes %+v", routes)
+	keeper := s.engine.Container(KeeperName)
+	if keeper == nil || !slices.Contains(keeper.HostConfig.SecurityOpt, "no-new-privileges") {
+		t.Fatalf("the keeper has %+v", keeper)
 	}
 }
 
@@ -1810,9 +1810,77 @@ func TestAServerTakesAtMostItsLimitOfRoutes(t *testing.T) {
 	if err := s.Check(t.Context(), ref, []resource.Desired{{Ref: ref, Spec: spec("over.example.com", "", "web", 80)}, {Ref: existing}}); err != nil {
 		t.Errorf("a plan that deletes one and adds one = %v", err)
 	}
-	// One applied on a plan made before the others came is refused too.
-	if err := s.Apply(t.Context(), ref, spec("over.example.com", "", "web", 80), nil); err == nil || !strings.Contains(err.Error(), "at most 1000") {
-		t.Errorf("Apply past the limit = %v", err)
+	// A plan that passed swaps a route at the limit: its make runs before its
+	// delete, as the engine orders them, and a step doesn't know of the delete.
+	if err := s.Apply(t.Context(), ref, spec("over.example.com", "", "web", 80), nil); err != nil {
+		t.Fatalf("the first step of a swap at the limit = %v", err)
+	}
+	if err := s.Apply(t.Context(), existing, nil, nil); err != nil {
+		t.Fatalf("the second step of a swap at the limit = %v", err)
+	}
+	if routes, _ := s.proxy.Routes(t.Context()); len(routes) != MaxRoutes {
+		t.Errorf("a swap leaves %d routes, want %d", len(routes), MaxRoutes)
+	}
+	// Plans made a while ago, which saw fewer than there are now, can't add up
+	// without end.
+	for i := range MaxRoutes {
+		s.proxy.routes = append(s.proxy.routes, Route{ID: RouteID(routeRef(fmt.Sprintf("s%d", i))), Domain: fmt.Sprintf("s%d.example.com", i)})
+	}
+	late := routeRef("late")
+	if err := s.Apply(t.Context(), late, spec("late.example.com", "", "web", 80), nil); err == nil || !strings.Contains(err.Error(), "at most 1000") {
+		t.Errorf("Apply far past the limit = %v", err)
+	}
+}
+
+// Fixing a typo in a domain, at the limit, adds a name and takes one away. A plan
+// can do that as an edit, or as a new route and a delete.
+func TestAPlanThatLeavesThePendingCountAsItIsPasses(t *testing.T) {
+	s := newSetup(t)
+	s.proxy.status = Status{Exists: true, Running: true}
+	for i := range MaxPendingDomains {
+		s.apply(t, fmt.Sprintf("r%d", i), spec(fmt.Sprintf("r%d.example.com", i), "", "web", 80))
+	}
+	ref := routeRef("r1")
+	right := spec("right.example.com", "", "web", 80)
+	if err := s.Check(t.Context(), ref, []resource.Desired{{Ref: ref, Spec: right}}); err != nil {
+		t.Errorf("an edit of a domain at the limit = %v", err)
+	}
+	if err := s.Apply(t.Context(), ref, right, nil); err != nil {
+		t.Errorf("applying the edit = %v", err)
+	}
+	// A swap, with its make before its delete.
+	add, del := routeRef("new"), routeRef("r2")
+	fresh := spec("new.example.com", "", "web", 80)
+	if err := s.Check(t.Context(), add, []resource.Desired{{Ref: add, Spec: fresh}, {Ref: del}}); err != nil {
+		t.Errorf("a swap of a domain at the limit = %v", err)
+	}
+	if err := s.Apply(t.Context(), add, fresh, nil); err != nil {
+		t.Errorf("the first step of a swap at the limit = %v", err)
+	}
+}
+
+// What someone adding too many domains at once reads says what is true, and what
+// to do: a plan that alone is past the limit has nothing waiting to name.
+func TestTooManyDomainsInOnePlanSaysToSplitIt(t *testing.T) {
+	s := newSetup(t)
+	s.proxy.status = Status{Exists: true, Running: true}
+	var many []resource.Desired
+	for i := range 60 {
+		many = append(many, resource.Desired{Ref: routeRef(fmt.Sprintf("m%d", i)), Spec: spec(fmt.Sprintf("m%d.example.com", i), "", "web", 80)})
+	}
+	err := s.Check(t.Context(), many[0].Ref, many)
+	if err == nil {
+		t.Fatal("60 new domains went in")
+	}
+	for _, want := range []string{"adds 60 new domains", "at most 50", "Split it"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("it says %q, want %q in it", err, want)
+		}
+	}
+	for _, not := range []string{"0 domains", "such as", "none"} {
+		if strings.Contains(err.Error(), not) {
+			t.Errorf("it says %q, which has %q, of what doesn't apply", err, not)
+		}
 	}
 }
 
@@ -1838,9 +1906,6 @@ func TestPendingDomainsLimitNewOnes(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "50 domains") || !strings.Contains(err.Error(), "limit of 50") ||
 		!strings.Contains(err.Error(), "Point their DNS here") || !strings.Contains(err.Error(), "45 more") || !strings.Contains(err.Error(), "3 hours") {
 		t.Errorf("Check = %v, want it refused, with what to do", err)
-	}
-	if err := s.Apply(t.Context(), ref, spec("over.example.com", "", "web", 80), nil); err == nil || !strings.Contains(err.Error(), "limit of 50") {
-		t.Errorf("Apply = %v", err)
 	}
 	// A path under a domain it has asks the CA for nothing.
 	if err := check(routeRef("api"), "r1.example.com"); err != nil {
@@ -1870,8 +1935,24 @@ func TestPendingDomainsLimitNewOnes(t *testing.T) {
 	for i := range MaxPendingDomains + 1 {
 		many = append(many, resource.Desired{Ref: routeRef(fmt.Sprintf("m%d", i)), Spec: spec(fmt.Sprintf("m%d.example.com", i), "", "web", 80)})
 	}
-	if err := s.Check(t.Context(), many[0].Ref, many); err == nil || !strings.Contains(err.Error(), "limit of 50") {
+	if err := s.Check(t.Context(), many[0].Ref, many); err == nil || !strings.Contains(err.Error(), "at most 50") {
 		t.Errorf("a plan of 51 new domains = %v", err)
+	}
+}
+
+// A step can go past the limit for what its plan removes later, and no further: a
+// plan made a while ago saw fewer than there are now.
+func TestPendingDomainsLimitStepsToo(t *testing.T) {
+	s := newSetup(t)
+	s.proxy.status = Status{Exists: true, Running: true}
+	for i := range MaxPendingDomains * applyMargin {
+		if err := s.Apply(t.Context(), routeRef(fmt.Sprintf("r%d", i)), spec(fmt.Sprintf("r%d.example.com", i), "", "web", 80), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ref := routeRef("over")
+	if err := s.Apply(t.Context(), ref, spec("over.example.com", "", "web", 80), nil); err == nil || !strings.Contains(err.Error(), "limit of 50") {
+		t.Errorf("Apply far past the limit = %v", err)
 	}
 }
 
@@ -1920,5 +2001,156 @@ func TestAnOutdatedProxyIsLoggedOnceAndOnTheAPI(t *testing.T) {
 	s.publishIngress(t.Context())
 	if st := s.Ingress(); st != nil {
 		t.Errorf("with no routes, the API says %+v", st)
+	}
+}
+
+// A plan on a server whose panel is behind its proxy already doesn't say the panel
+// moves, with the proxy down for a moment or the agent just started, as that would
+// need a person for a token's route plan. Taking the ports back, it still says.
+func TestAPanelBehindItsProxyDoesntMoveAgain(t *testing.T) {
+	s := newSetup(t)
+	calls := &panelCalls{}
+	s.Panel = calls.panel()
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	s.proxy.status = Status{Exists: true}
+	ref := routeRef("a")
+	want := spec("a.example.com", "", "web", 8080)
+	effect, _, err := s.Judge(t.Context(), ref, want, []resource.Desired{{Ref: ref, Spec: want}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if effect == nil || effect.Change != resource.IngressStarts || effect.PanelDomain != "" {
+		t.Fatalf("the proxy down, with the panel behind it, plans %+v, want it to start with nothing about the panel", effect)
+	}
+	// As an agent just started: the marker says so before anything else has.
+	s.handed = false
+	effect, _, err = s.Judge(t.Context(), ref, want, []resource.Desired{{Ref: ref, Spec: want}})
+	if err != nil || effect == nil || effect.PanelDomain != "" {
+		t.Fatalf("a new agent with the marker there plans %+v, %v", effect, err)
+	}
+	// And the step applies, on a plan that rightly didn't say so.
+	if err := s.Apply(t.Context(), ref, want, effect); err != nil {
+		t.Errorf("Apply = %v", err)
+	}
+	// A plan for the last route says the panel takes the ports back.
+	effect, _, err = s.Judge(t.Context(), ref, nil, []resource.Desired{{Ref: ref}})
+	if err != nil || effect == nil || effect.Change != resource.IngressStops || effect.PanelDomain != "panel.example.com" {
+		t.Errorf("the last route plans %+v, %v", effect, err)
+	}
+}
+
+// A new release's pin moves nothing without a plan. The keeper goes on sleeping on
+// what it has, a reconcile never pulls, and a plan isn't held up by a pull.
+func TestANewPinLeavesTheKeeperAlone(t *testing.T) {
+	s := newSetup(t)
+	const oldImage, newImage = "caddy@sha256:old", "caddy@sha256:new"
+	s.engine.Registry[oldImage] = dockertest.Image{}
+	s.engine.Registry[newImage] = dockertest.Image{}
+	s.KeeperImage = oldImage
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	before := s.engine.Container(KeeperName)
+	if before == nil {
+		t.Fatal("no keeper")
+	}
+	var pulls int
+	s.engine.Intercept(func(r *http.Request) error {
+		if strings.HasSuffix(r.URL.Path, "/images/create") {
+			pulls++
+			return errors.New("the registry can't be reached")
+		}
+		return nil
+	})
+	defer s.engine.Intercept(nil)
+	s.KeeperImage = newImage
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if pulls != 0 {
+		t.Errorf("a reconcile pulled %d times, with the manager's lock held", pulls)
+	}
+	after := s.engine.Container(KeeperName)
+	if after == nil || after.ID != before.ID || !after.State.Running {
+		t.Fatalf("the keeper was %+v, and is %+v after a reconcile on a new pin", before, after)
+	}
+	// Stopped, it starts again as it was.
+	s.engine.Stop(KeeperName)
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if k := s.engine.Container(KeeperName); k == nil || k.ID != before.ID || !k.State.Running {
+		t.Errorf("a stopped keeper is %+v after a reconcile, want it started as it was", k)
+	}
+	// Gone, it comes back on what the server has, and no pull.
+	s.proxy.status.Image = oldImage
+	if err := s.Client.RemoveContainer(t.Context(), before.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if k := s.engine.Container(KeeperName); k == nil || !k.State.Running || k.Config.Image != oldImage {
+		t.Errorf("a removed keeper is %+v after a reconcile, want it back on what the proxy runs", k)
+	}
+	if pulls != 0 {
+		t.Errorf("a reconcile pulled %d times", pulls)
+	}
+	// A route's step, under a plan, is what moves it.
+	s.engine.Intercept(nil)
+	s.apply(t, "a", spec("a.example.com", "", "web", 8080))
+	if k := s.engine.Container(KeeperName); k == nil || !k.State.Running || k.Config.Image != newImage {
+		t.Errorf("after a route's step the keeper is %+v, want it on the new pin", k)
+	}
+}
+
+// A plan isn't held up by a keeper's image: nothing pulls under the lock.
+func TestAPullThatHangsDoesntReachAReconcile(t *testing.T) {
+	s := newSetup(t)
+	const oldImage, newImage = "caddy@sha256:old", "caddy@sha256:new"
+	s.engine.Registry[oldImage] = dockertest.Image{}
+	s.KeeperImage = oldImage
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	release := make(chan struct{})
+	defer close(release)
+	s.engine.Intercept(func(r *http.Request) error {
+		if strings.HasSuffix(r.URL.Path, "/images/create") {
+			<-release
+		}
+		return nil
+	})
+	defer s.engine.Intercept(nil)
+	s.KeeperImage = newImage
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	if err := s.Reconcile(ctx); err != nil {
+		t.Fatalf("a reconcile with a registry that hangs = %v", err)
+	}
+	ref := routeRef("b")
+	if err := s.Check(ctx, ref, []resource.Desired{{Ref: ref, Spec: spec("b.example.com", "", "web", 80)}}); err != nil {
+		t.Errorf("a plan after it = %v", err)
+	}
+}
+
+// A reconcile doesn't move a running keeper even with the new pin's image on the
+// server: only a route's step, under a plan, moves anything.
+func TestAReconcileDoesntMoveAKeeperWithTheImageHere(t *testing.T) {
+	s := newSetup(t)
+	const oldImage, newImage = "caddy@sha256:old", "caddy@sha256:new"
+	s.engine.Registry[oldImage] = dockertest.Image{}
+	s.engine.Registry[newImage] = dockertest.Image{}
+	s.KeeperImage = oldImage
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	before := s.engine.Container(KeeperName)
+	if before == nil {
+		t.Fatal("no keeper")
+	}
+	if err := s.Client.PullImage(t.Context(), newImage, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	s.KeeperImage = newImage
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if k := s.engine.Container(KeeperName); k == nil || k.ID != before.ID || k.Config.Image != oldImage {
+		t.Errorf("a reconcile moved the keeper to %+v", k)
 	}
 }

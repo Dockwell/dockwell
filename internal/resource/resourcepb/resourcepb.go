@@ -113,13 +113,16 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	}
 	p.DomainCheck = DomainCheck(s.Domain)
 	p.ReturningContainers = s.Returning
+	p.Unencrypted = s.Unencrypted
 	return p
 }
 
 var ingressChanges = map[resource.IngressChange]dockwellv1.IngressChange{
-	resource.IngressStarts:   dockwellv1.IngressChange_INGRESS_CHANGE_STARTS,
-	resource.IngressStops:    dockwellv1.IngressChange_INGRESS_CHANGE_STOPS,
-	resource.IngressRestarts: dockwellv1.IngressChange_INGRESS_CHANGE_RESTARTS,
+	resource.IngressStarts:     dockwellv1.IngressChange_INGRESS_CHANGE_STARTS,
+	resource.IngressStops:      dockwellv1.IngressChange_INGRESS_CHANGE_STOPS,
+	resource.IngressRestarts:   dockwellv1.IngressChange_INGRESS_CHANGE_RESTARTS,
+	resource.IngressTakesPorts: dockwellv1.IngressChange_INGRESS_CHANGE_TAKES_PORTS,
+	resource.IngressFreesPorts: dockwellv1.IngressChange_INGRESS_CHANGE_FREES_PORTS,
 }
 
 var domainStates = map[resource.DomainState]dockwellv1.DomainCheckState{
@@ -151,6 +154,9 @@ var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
 	resource.AccessCapability:      dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY,
 	resource.AccessGroup:           dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GROUP,
 	resource.AccessPrivileged:      dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PRIVILEGED,
+
+	resource.AccessServerPort:    dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PORT,
+	resource.AccessTrustedProxy:  dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TRUSTED_PROXY,
 }
 
 // HostAccess converts what a resource reaches on its server.
@@ -222,6 +228,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		s.Domain = &resource.DomainCheck{Domain: d.GetDomain(), State: state, Found: d.GetFound(), Here: d.GetHere()}
 	}
 	s.Returning = p.GetReturningContainers()
+	s.Unencrypted = p.GetUnencrypted()
 	return s, nil
 }
 

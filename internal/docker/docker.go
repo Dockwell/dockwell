@@ -217,12 +217,6 @@ func (i *Info) Rootless() bool {
 	return slices.Contains(i.SecurityOptions, "name=rootless")
 }
 
-// NoNewPrivileges reports an engine that sets no-new-privileges for every
-// container, so a binary's file capabilities count for nothing.
-func (i *Info) NoNewPrivileges() bool {
-	return slices.Contains(i.SecurityOptions, "name=no-new-privileges")
-}
-
 // Info asks the engine about itself.
 func (c *Client) Info(ctx context.Context) (*Info, error) {
 	var out Info

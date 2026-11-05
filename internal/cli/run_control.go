@@ -102,7 +102,7 @@ func runCommand(cmd *cobra.Command, stdio IO, g *globalFlags) runRole {
 			return err
 		}
 		if role == roleAgent {
-			return runAgent(ctx, stdio, logger, dir, id, build, nil)
+			return runAgent(ctx, stdio, logger, dir, id, build, nil, nil)
 		}
 		f.listenFromEnv = !cmd.Flags().Changed("listen") && stdio.Getenv(envListen) != ""
 		if f.database, err = g.databaseOf(stdio, dir); err != nil {
@@ -318,11 +318,38 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		}
 	}
 	wg.Go(func() {
-		agentErr = runAgent(agentCtx, stdio, logger, dir, own, build, panel)
+		agentErr = runAgent(agentCtx, stdio, logger, dir, own, build, panel, ownPorts(ls, f))
 		cancel()
 	})
 	wg.Wait()
 	return errors.Join(controlErr, agentErr)
+}
+
+// ownPorts are the TCP ports the control plane listens on, or will when it takes
+// its public ports back, none of which a route may send to: one that reached the
+// panel's loopback listener would open it to the network, which is what ADR 0011
+// refuses.
+func ownPorts(ls control.Listeners, f runFlags) []int {
+	var out []int
+	for _, ln := range []net.Listener{ls.API, ls.Agents, ls.HTTPS, ls.HTTP} {
+		if ln == nil {
+			continue
+		}
+		if addr, ok := ln.Addr().(*net.TCPAddr); ok {
+			out = append(out, addr.Port)
+		}
+	}
+	if f.domain == "" {
+		return out
+	}
+	for _, listen := range []string{f.httpsListen, f.httpListen} {
+		if _, port, err := net.SplitHostPort(listen); err == nil {
+			if n, err := strconv.Atoi(port); err == nil {
+				out = append(out, n)
+			}
+		}
+	}
+	return out
 }
 
 // onPublicPorts reports a panel on ports 80 or 443, which only one process can

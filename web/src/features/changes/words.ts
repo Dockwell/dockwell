@@ -49,6 +49,8 @@ export interface ChangeWords {
   returning(names: string[], server: string): string;
   /** What DNS said of a route's domain as this was planned, if that is worth saying. It never stops a plan. */
   domain(check: DomainCheck | undefined): string;
+  /** What a route that takes no certificate means, as TLS ends before its server. It never stops a plan. */
+  unencrypted(server: string): string;
 }
 
 /** Quotes what could read as the plan's own words, as AccessWords does on the server. */
@@ -204,6 +206,10 @@ export function useChangeWords(): ChangeWords {
               : t`the group ${path}, which is the same as root if it is the group that owns Docker's socket on the server`;
           case HostAccessKind.PRIVILEGED:
             return t`privileged mode, which gives it every device and capability on the server, the same as root`;
+          case HostAccessKind.SERVER_PORT:
+            return t`the port ${path} on the server itself, past its containers`;
+          case HostAccessKind.TRUSTED_PROXY:
+            return t`${path} as a proxy it believes on where a request came from`;
         }
         return t`something else on the server`;
       },
@@ -236,6 +242,16 @@ export function useChangeWords(): ChangeWords {
               t`${proxy} restarts on ${server}, for a newer version, so everything it serves is down for that long`,
             );
             break;
+          case IngressChange.TAKES_PORTS:
+            out.push(
+              t`This is the first route on ${server} that takes a certificate, so ${proxy} takes ports ${ports} too, and nothing it serves stops`,
+            );
+            break;
+          case IngressChange.FREES_PORTS:
+            out.push(
+              t`No route on ${server} takes a certificate after this, so ${proxy} frees ports ${ports}, and nothing it still serves stops`,
+            );
+            break;
         }
         return out;
       },
@@ -256,11 +272,14 @@ export function useChangeWords(): ChangeWords {
               ? t`${domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do`
               : t`${domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at ${here}; it comes once you do`;
           case DomainCheckState.ELSEWHERE:
-            return t`DNS for ${domain} points at ${found}, not this server (${here}), so its certificate can't come yet. Point it here; it comes once you do`;
+            return t`DNS for ${domain} points at ${found}, not this server (${here}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
           case DomainCheckState.CANT_TELL:
-            return t`DNS for ${domain} points at ${found}. This server's own addresses are private (${here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is`;
+            return t`DNS for ${domain} points at ${found}. This server's own addresses are private (${here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
         }
         return "";
+      },
+      unencrypted(server) {
+        return t`Traffic for this route reaches ${server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it`;
       },
       actorKind(kind) {
         switch (kind) {

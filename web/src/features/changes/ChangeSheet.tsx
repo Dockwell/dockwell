@@ -543,6 +543,9 @@ function ServerSteps({
                   ))}
                   {returning ? <span className="plan-step-warn">{returning}</span> : null}
                   {dns ? <span className="plan-step-warn">{dns}</span> : null}
+                  {step.unencrypted ? (
+                    <span className="plan-step-notice">{words.unencrypted(server.serverName)}</span>
+                  ) : null}
                   {live?.message && live.message !== "" ? <span>{live.message}</span> : null}
                 </span>
               </li>

@@ -313,10 +313,13 @@ message Network {
 }
 
 // Route sends a domain's traffic, or a path under it, to a port of a service
-// in the route's environment, over HTTPS with a certificate Dockwell gets for
-// the domain. A server's first route starts its ingress, which takes ports 80
-// and 443; its last stops it and frees them. See
-// docs/adr/0024-the-caddy-ingress-driver.md.
+// in the route's environment, or to a port on the server itself. It comes over
+// HTTPS with a certificate Dockwell gets for the domain, unless tls says TLS
+// ends before this server. A server's first route starts its ingress, which
+// takes ports 80 and 443, or port 80 alone while no route on the server takes
+// a certificate; its last stops it and frees them. See
+// docs/adr/0024-the-caddy-ingress-driver.md and
+// docs/adr/0030-routes-behind-a-tunnel-or-a-proxy.md.
 message Route {
   // The domain, such as "app.example.com": a lowercase DNS name that a
   // public certificate authority issues for. Wildcards aren't taken.
@@ -324,10 +327,31 @@ message Route {
   // The path it covers, such as "/api": that path and what is under it,
   // which reach the service as they are. Empty covers the whole domain.
   string path = 2;
-  // The service to send it to, by name, in the route's environment.
+  // The service to send it to, by name, in the route's environment. Empty when
+  // host_port names a port on the server instead.
   string service = 3;
-  // The port the service listens on inside its container, such as 8080.
+  // The port the service listens on inside its container, such as 8080. Empty
+  // when host_port names a port on the server instead.
   uint32 port = 4;
+  // "off" when TLS ends before this server, as at a tunnel or a proxy in front
+  // of it: the domain is served over plain HTTP on port 80, with no certificate
+  // and no redirect to HTTPS, so its traffic reaches this server unencrypted.
+  // That is fine on a tunnel or a private network, and not on the open internet.
+  // Empty gets a certificate. A domain's routes all take the same setting.
+  string tls = 5;
+  // The proxies in front of this server whose word this route takes on where a
+  // request came from, each an address, a range such as "203.0.113.0/24", or
+  // "cloudflare" for Cloudflare's published ranges. Only a request from one of
+  // them has its X-Forwarded-For believed, read from the right, and nothing is
+  // believed with this empty. A person approves each one a change adds, as a
+  // proxy that isn't really one makes client addresses forgeable. A range wider
+  // than /8 isn't taken.
+  repeated string trusted_proxies = 6;
+  // A port on the server itself, such as 8080, for something that isn't a
+  // container, in place of service and port. The proxy dials 127.0.0.1 on it. It
+  // reaches past containers, so a person approves it. Dockwell's own ports aren't
+  // taken.
+  uint32 host_port = 7;
 }
 
 // Spec is the desired state of one resource, of any kind: the field that is

@@ -356,11 +356,60 @@ func TestPlanViewWarnsOfAValueInPlainSight(t *testing.T) {
 	}
 }
 
+// A plain route's plan says what that means, and a port on the server and a proxy
+// to believe say what a person approves, each as what it is.
+func TestARoutesPlanSaysWhatIsUnencryptedAndWhatItReaches(t *testing.T) {
+	plan := &dockwellv1.Plan{HostAccess: true, Servers: []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: []*dockwellv1.PlanStep{{
+		Resource: &dockwellv1.ResourceRef{Kind: "route", Name: "www"}, Action: dockwellv1.PlanAction_PLAN_ACTION_CREATE, Unencrypted: true,
+		Ingress: &dockwellv1.IngressEffect{Change: dockwellv1.IngressChange_INGRESS_CHANGE_STARTS, Proxy: "Caddy", Ports: []string{"80/tcp"}},
+		HostAccess: []*dockwellv1.HostAccess{
+			{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PORT, Path: "127.0.0.1:8080"},
+			{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TRUSTED_PROXY, Path: "cloudflare"},
+		},
+	}}}}}
+	var out bytes.Buffer
+	PlanView(&out, plan)
+	for _, want := range []string{
+		"Traffic for this route reaches hz-1 unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet",
+		"so this route starts it, and it takes ports 80/tcp",
+		"Gives it access to hz-1: the port 127.0.0.1:8080 on the server itself, past its containers",
+		"Takes in cloudflare as a proxy it believes on where a request came from",
+		"A person approves this",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("the plan doesn't say %q:\n%s", want, out.String())
+		}
+	}
+}
+
 // What a plan says beside its steps, the CLI says too.
 func TestPlanViewSaysNotes(t *testing.T) {
 	var buf bytes.Buffer
 	PlanView(&buf, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{{Reason: "no_build", Message: "web has build beside image, and Dockwell builds nothing."}}})
 	if !strings.Contains(buf.String(), "Note: web has build beside image, and Dockwell builds nothing.\n") {
 		t.Errorf("PlanView =\n%s", buf.String())
+	}
+}
+
+func TestARoutesPlanSaysWhatPortsItTakesAndFrees(t *testing.T) {
+	for change, want := range map[dockwellv1.IngressChange]string{
+		dockwellv1.IngressChange_INGRESS_CHANGE_TAKES_PORTS: "This is the first route on hz-1 that takes a certificate, so Caddy takes ports 443/tcp and 443/udp too, and nothing it serves stops.",
+		dockwellv1.IngressChange_INGRESS_CHANGE_FREES_PORTS: "No route on hz-1 takes a certificate after this, so Caddy frees ports 443/tcp and 443/udp, and nothing it still serves stops.",
+	} {
+		got := ingressWords(&dockwellv1.IngressEffect{Change: change, Proxy: "Caddy", Ports: []string{"443/tcp", "443/udp"}}, "hz-1")
+		if len(got) != 1 || got[0] != want {
+			t.Errorf("%v says %q, want %q", change, got, want)
+		}
+	}
+}
+
+// Behind a tunnel, a domain points somewhere else, and what DNS says there leads to
+// the setting as well as to moving DNS.
+func TestDNSThatPointsElsewhereNamesTheSetting(t *testing.T) {
+	for _, state := range []dockwellv1.DomainCheckState{dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE, dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL} {
+		got := domainWords(&dockwellv1.DomainCheck{Domain: "app.example.com", State: state, Found: []string{"198.51.100.1"}, Here: []string{"10.0.0.2"}})
+		if !strings.Contains(got, "set tls to off on this route") {
+			t.Errorf("%v says %q", state, got)
+		}
 	}
 }

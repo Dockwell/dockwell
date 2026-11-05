@@ -35,6 +35,12 @@ import (
 // fake Docker Engine.
 func (f *fullServer) addDockerServer(t *testing.T) *dockertest.Engine {
 	t.Helper()
+	return f.addServerWith(t, nil)
+}
+
+// addServerWith is addDockerServer with more drivers on the server's agent.
+func (f *fullServer) addServerWith(t *testing.T, more func() []resource.Type) *dockertest.Engine {
+	t.Helper()
 	key, csr, err := pki.NewServerKey()
 	if err != nil {
 		t.Fatal(err)
@@ -51,9 +57,13 @@ func (f *fullServer) addDockerServer(t *testing.T) *dockertest.Engine {
 	e.Registry["alpine:latest"] = dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}}
 	client := e.Client()
 	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond}}
+	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}}, &network.Driver{Client: client}}
+	if more != nil {
+		drivers = append(drivers, more()...)
+	}
 	s := &testServer{
 		id:      enroll.New(joined.Server.ID, joined.Server.Name, "https://"+f.agentAddr, key, joined.Cert, f.ident.CA().Certificate()),
-		drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers}, &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}}, &network.Driver{Client: client}),
+		drivers: resource.NewRegistry(drivers...),
 	}
 	s.connect(t, f)
 	return e

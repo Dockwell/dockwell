@@ -253,6 +253,12 @@ const (
 	// The panel's domain, in path, moving behind the server's proxy, named in
 	// detail. A token mustn't be able to cut off the panel it can't approve.
 	HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN HostAccessKind = 7
+	// A port on the server itself that a route sends to, in path, as
+	// "127.0.0.1:8080". It reaches past containers, to whatever listens there.
+	HostAccessKind_HOST_ACCESS_KIND_SERVER_PORT HostAccessKind = 8
+	// A proxy a route believes on where a request came from, in path: an address,
+	// a range, or "cloudflare". What it says of a client reaches services as true.
+	HostAccessKind_HOST_ACCESS_KIND_TRUSTED_PROXY HostAccessKind = 9
 	// A network on the server that Dockwell didn't make. Whatever else is on
 	// it, other projects' services too, can reach the service, and it them.
 	HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_NETWORK HostAccessKind = 10
@@ -277,6 +283,8 @@ var (
 		5:  "HOST_ACCESS_KIND_NETWORK_DRIVER",
 		6:  "HOST_ACCESS_KIND_DOMAIN",
 		7:  "HOST_ACCESS_KIND_PANEL_DOMAIN",
+		8:  "HOST_ACCESS_KIND_SERVER_PORT",
+		9:  "HOST_ACCESS_KIND_TRUSTED_PROXY",
 		10: "HOST_ACCESS_KIND_EXTERNAL_NETWORK",
 		11: "HOST_ACCESS_KIND_CAPABILITY",
 		12: "HOST_ACCESS_KIND_GROUP",
@@ -291,6 +299,8 @@ var (
 		"HOST_ACCESS_KIND_NETWORK_DRIVER":   5,
 		"HOST_ACCESS_KIND_DOMAIN":           6,
 		"HOST_ACCESS_KIND_PANEL_DOMAIN":     7,
+		"HOST_ACCESS_KIND_SERVER_PORT":      8,
+		"HOST_ACCESS_KIND_TRUSTED_PROXY":    9,
 		"HOST_ACCESS_KIND_EXTERNAL_NETWORK": 10,
 		"HOST_ACCESS_KIND_CAPABILITY":       11,
 		"HOST_ACCESS_KIND_GROUP":            12,
@@ -339,6 +349,13 @@ const (
 	// It restarts, to a newer version, so what it serves is down for the step's
 	// downtime.
 	IngressChange_INGRESS_CHANGE_RESTARTS IngressChange = 3
+	// It keeps running and takes more ports, as the first route that needs a
+	// certificate comes to a server whose routes needed none. Nothing it serves
+	// stops.
+	IngressChange_INGRESS_CHANGE_TAKES_PORTS IngressChange = 4
+	// It keeps running and frees ports, as the last route that needs a certificate
+	// goes, or stops needing one. Nothing it still serves stops.
+	IngressChange_INGRESS_CHANGE_FREES_PORTS IngressChange = 5
 )
 
 // Enum value maps for IngressChange.
@@ -348,12 +365,16 @@ var (
 		1: "INGRESS_CHANGE_STARTS",
 		2: "INGRESS_CHANGE_STOPS",
 		3: "INGRESS_CHANGE_RESTARTS",
+		4: "INGRESS_CHANGE_TAKES_PORTS",
+		5: "INGRESS_CHANGE_FREES_PORTS",
 	}
 	IngressChange_value = map[string]int32{
 		"INGRESS_CHANGE_UNSPECIFIED": 0,
 		"INGRESS_CHANGE_STARTS":      1,
 		"INGRESS_CHANGE_STOPS":       2,
 		"INGRESS_CHANGE_RESTARTS":    3,
+		"INGRESS_CHANGE_TAKES_PORTS": 4,
+		"INGRESS_CHANGE_FREES_PORTS": 5,
 	}
 )
 
@@ -3177,8 +3198,13 @@ type PlanStep struct {
 	// its routes stop answering. It never stops a plan, and the fingerprint leaves
 	// it out. Keep one stopped with docker update --restart=no.
 	ReturningContainers []string `protobuf:"bytes,16,rep,name=returning_containers,json=returningContainers,proto3" json:"returning_containers,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// True when the step has a route serve plain HTTP that didn't, as TLS ends
+	// before this server, so its traffic reaches the server unencrypted. That is
+	// fine on a tunnel or a private network, and not on the open internet. It
+	// never stops a plan, and needs no person.
+	Unencrypted   bool `protobuf:"varint,20,opt,name=unencrypted,proto3" json:"unencrypted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PlanStep) Reset() {
@@ -3323,6 +3349,13 @@ func (x *PlanStep) GetReturningContainers() []string {
 	return nil
 }
 
+func (x *PlanStep) GetUnencrypted() bool {
+	if x != nil {
+		return x.Unencrypted
+	}
+	return false
+}
+
 // IngressEffect is what a step does to the proxy that holds a server's public
 // ports.
 type IngressEffect struct {
@@ -3332,6 +3365,7 @@ type IngressEffect struct {
 	// The proxy, such as "Caddy".
 	Proxy string `protobuf:"bytes,2,opt,name=proxy,proto3" json:"proxy,omitempty"`
 	// The ports it takes or frees, such as "80/tcp", "443/tcp" and "443/udp".
+	// A server whose routes all say tls off needs port 80 alone.
 	Ports []string `protobuf:"bytes,3,rep,name=ports,proto3" json:"ports,omitempty"`
 	// The panel's domain, when the panel moves behind the proxy as it starts,
 	// or takes the ports back as it stops. The address, passkeys and sessions
@@ -3836,7 +3870,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aremoved\x18\x04 \x01(\bR\aremoved\x125\n" +
 	"\bdowntime\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\bdowntime\x12+\n" +
 	"\x05steps\x18\x06 \x03(\v2\x15.dockwell.v1.PlanStepR\x05steps\x12>\n" +
-	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\x8b\x06\n" +
+	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xad\x06\n" +
 	"\bPlanStep\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x124\n" +
@@ -3857,7 +3891,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x0ehealth_unknown\x18\r \x01(\bR\rhealthUnknown\x124\n" +
 	"\aingress\x18\x0e \x01(\v2\x1a.dockwell.v1.IngressEffectR\aingress\x12;\n" +
 	"\fdomain_check\x18\x0f \x01(\v2\x18.dockwell.v1.DomainCheckR\vdomainCheck\x121\n" +
-	"\x14returning_containers\x18\x10 \x03(\tR\x13returningContainers\"\x92\x01\n" +
+	"\x14returning_containers\x18\x10 \x03(\tR\x13returningContainers\x12 \n" +
+	"\vunencrypted\x18\x14 \x01(\bR\vunencrypted\"\x92\x01\n" +
 	"\rIngressEffect\x122\n" +
 	"\x06change\x18\x01 \x01(\x0e2\x1a.dockwell.v1.IngressChangeR\x06change\x12\x14\n" +
 	"\x05proxy\x18\x02 \x01(\tR\x05proxy\x12\x14\n" +
@@ -3905,7 +3940,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\rSURFACE_PANEL\x10\x01\x12\x0f\n" +
 	"\vSURFACE_API\x10\x02\x12\x15\n" +
 	"\x11SURFACE_AUTOMATIC\x10\x03\x12\x0f\n" +
-	"\vSURFACE_CLI\x10\x04*\xa8\x03\n" +
+	"\vSURFACE_CLI\x10\x04*\xee\x03\n" +
 	"\x0eHostAccessKind\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_SERVER_PATH\x10\x01\x12\"\n" +
@@ -3914,17 +3949,21 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1dHOST_ACCESS_KIND_VOLUME_MOUNT\x10\x04\x12#\n" +
 	"\x1fHOST_ACCESS_KIND_NETWORK_DRIVER\x10\x05\x12\x1b\n" +
 	"\x17HOST_ACCESS_KIND_DOMAIN\x10\x06\x12!\n" +
-	"\x1dHOST_ACCESS_KIND_PANEL_DOMAIN\x10\a\x12%\n" +
+	"\x1dHOST_ACCESS_KIND_PANEL_DOMAIN\x10\a\x12 \n" +
+	"\x1cHOST_ACCESS_KIND_SERVER_PORT\x10\b\x12\"\n" +
+	"\x1eHOST_ACCESS_KIND_TRUSTED_PROXY\x10\t\x12%\n" +
 	"!HOST_ACCESS_KIND_EXTERNAL_NETWORK\x10\n" +
 	"\x12\x1f\n" +
 	"\x1bHOST_ACCESS_KIND_CAPABILITY\x10\v\x12\x1a\n" +
 	"\x16HOST_ACCESS_KIND_GROUP\x10\f\x12\x1f\n" +
-	"\x1bHOST_ACCESS_KIND_PRIVILEGED\x10\r*\x81\x01\n" +
+	"\x1bHOST_ACCESS_KIND_PRIVILEGED\x10\r*\xc1\x01\n" +
 	"\rIngressChange\x12\x1e\n" +
 	"\x1aINGRESS_CHANGE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15INGRESS_CHANGE_STARTS\x10\x01\x12\x18\n" +
 	"\x14INGRESS_CHANGE_STOPS\x10\x02\x12\x1b\n" +
-	"\x17INGRESS_CHANGE_RESTARTS\x10\x03*\xc0\x01\n" +
+	"\x17INGRESS_CHANGE_RESTARTS\x10\x03\x12\x1e\n" +
+	"\x1aINGRESS_CHANGE_TAKES_PORTS\x10\x04\x12\x1e\n" +
+	"\x1aINGRESS_CHANGE_FREES_PORTS\x10\x05*\xc0\x01\n" +
 	"\x10DomainCheckState\x12\"\n" +
 	"\x1eDOMAIN_CHECK_STATE_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eDOMAIN_CHECK_STATE_POINTS_HERE\x10\x01\x12 \n" +

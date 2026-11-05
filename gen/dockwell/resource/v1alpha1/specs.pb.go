@@ -1393,10 +1393,13 @@ func (x *Network) GetLabels() map[string]string {
 }
 
 // Route sends a domain's traffic, or a path under it, to a port of a service
-// in the route's environment, over HTTPS with a certificate Dockwell gets for
-// the domain. A server's first route starts its ingress, which takes ports 80
-// and 443; its last stops it and frees them. See
-// docs/adr/0024-the-caddy-ingress-driver.md.
+// in the route's environment, or to a port on the server itself. It comes over
+// HTTPS with a certificate Dockwell gets for the domain, unless tls says TLS
+// ends before this server. A server's first route starts its ingress, which
+// takes ports 80 and 443, or port 80 alone while no route on the server takes
+// a certificate; its last stops it and frees them. See
+// docs/adr/0024-the-caddy-ingress-driver.md and
+// docs/adr/0030-routes-behind-a-tunnel-or-a-proxy.md.
 type Route struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The domain, such as "app.example.com": a lowercase DNS name that a
@@ -1405,10 +1408,31 @@ type Route struct {
 	// The path it covers, such as "/api": that path and what is under it,
 	// which reach the service as they are. Empty covers the whole domain.
 	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
-	// The service to send it to, by name, in the route's environment.
+	// The service to send it to, by name, in the route's environment. Empty when
+	// host_port names a port on the server instead.
 	Service string `protobuf:"bytes,3,opt,name=service,proto3" json:"service,omitempty"`
-	// The port the service listens on inside its container, such as 8080.
-	Port          uint32 `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	// The port the service listens on inside its container, such as 8080. Empty
+	// when host_port names a port on the server instead.
+	Port uint32 `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	// "off" when TLS ends before this server, as at a tunnel or a proxy in front
+	// of it: the domain is served over plain HTTP on port 80, with no certificate
+	// and no redirect to HTTPS, so its traffic reaches this server unencrypted.
+	// That is fine on a tunnel or a private network, and not on the open internet.
+	// Empty gets a certificate. A domain's routes all take the same setting.
+	Tls string `protobuf:"bytes,5,opt,name=tls,proto3" json:"tls,omitempty"`
+	// The proxies in front of this server whose word this route takes on where a
+	// request came from, each an address, a range such as "203.0.113.0/24", or
+	// "cloudflare" for Cloudflare's published ranges. Only a request from one of
+	// them has its X-Forwarded-For believed, read from the right, and nothing is
+	// believed with this empty. A person approves each one a change adds, as a
+	// proxy that isn't really one makes client addresses forgeable. A range wider
+	// than /8 isn't taken.
+	TrustedProxies []string `protobuf:"bytes,6,rep,name=trusted_proxies,json=trustedProxies,proto3" json:"trusted_proxies,omitempty"`
+	// A port on the server itself, such as 8080, for something that isn't a
+	// container, in place of service and port. The proxy dials 127.0.0.1 on it. It
+	// reaches past containers, so a person approves it. Dockwell's own ports aren't
+	// taken.
+	HostPort      uint32 `protobuf:"varint,7,opt,name=host_port,json=hostPort,proto3" json:"host_port,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1467,6 +1491,27 @@ func (x *Route) GetService() string {
 func (x *Route) GetPort() uint32 {
 	if x != nil {
 		return x.Port
+	}
+	return 0
+}
+
+func (x *Route) GetTls() string {
+	if x != nil {
+		return x.Tls
+	}
+	return ""
+}
+
+func (x *Route) GetTrustedProxies() []string {
+	if x != nil {
+		return x.TrustedProxies
+	}
+	return nil
+}
+
+func (x *Route) GetHostPort() uint32 {
+	if x != nil {
+		return x.HostPort
 	}
 	return 0
 }
@@ -1828,12 +1873,15 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"a\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb9\x01\n" +
 	"\x05Route\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x18\n" +
 	"\aservice\x18\x03 \x01(\tR\aservice\x12\x12\n" +
-	"\x04port\x18\x04 \x01(\rR\x04port\"\xb1\x05\n" +
+	"\x04port\x18\x04 \x01(\rR\x04port\x12\x10\n" +
+	"\x03tls\x18\x05 \x01(\tR\x03tls\x12'\n" +
+	"\x0ftrusted_proxies\x18\x06 \x03(\tR\x0etrustedProxies\x12\x1b\n" +
+	"\thost_port\x18\a \x01(\rR\bhostPort\"\xb1\x05\n" +
 	"\x04Spec\x12?\n" +
 	"\aproject\x18\x01 \x01(\v2#.dockwell.resource.v1alpha1.ProjectH\x00R\aproject\x12K\n" +
 	"\venvironment\x18\x02 \x01(\v2'.dockwell.resource.v1alpha1.EnvironmentH\x00R\venvironment\x12?\n" +

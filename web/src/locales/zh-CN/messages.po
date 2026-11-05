@@ -195,6 +195,10 @@ msgstr "{out}，可绕过服务器的防火墙"
 msgid "{out}, with {detail}"
 msgstr "{out}，选项为 {detail}"
 
+#: src/features/changes/words.ts
+msgid "{path} as a proxy it believes on where a request came from"
+msgstr "{path}，作为它信任的代理，相信它所说的请求来源"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "{plain, plural, one {# variable} other {# variables}}"
 msgstr "{plain, plural, other {# 个变量}}"
@@ -858,12 +862,12 @@ msgid "Dismiss"
 msgstr "关闭"
 
 #: src/features/changes/words.ts
-msgid "DNS for {domain} points at {found}, not this server ({here}), so its certificate can't come yet. Point it here; it comes once you do"
-msgstr "{domain} 的 DNS 指向 {found}，而不是此服务器（{here}），因此暂时无法获取证书。请将其指向此服务器，之后即可获取证书"
+msgid "DNS for {domain} points at {found}, not this server ({here}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "{domain} 的 DNS 指向 {found}，而不是此服务器（{here}），因此暂时无法获取证书。请将其指向此服务器，之后即可获取证书。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
 
 #: src/features/changes/words.ts
-msgid "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is"
-msgstr "{domain} 的 DNS 指向 {found}。此服务器自身的地址都是私有地址（{here}），因此 Agent 无法判断它是否指向此服务器。如果不是，在指向此服务器之前无法获取证书"
+msgid "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "{domain} 的 DNS 指向 {found}。此服务器自身的地址都是私有地址（{here}），因此 Agent 无法判断它是否指向此服务器。如果不是，在指向此服务器之前无法获取证书。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Docker"
@@ -1438,6 +1442,10 @@ msgstr "这个地址没有通行密钥？通行密钥属于创建它的地址，
 #: src/features/auth/ProfilePage.tsx
 msgid "No passkey works at {rpId} yet"
 msgstr "{rpId} 上还没有可用的通行密钥"
+
+#: src/features/changes/words.ts
+msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}, and nothing it still serves stops"
+msgstr "此后 {server} 上没有路由需要证书，因此 {proxy} 会释放端口 {ports}，它仍在提供的服务都不会停止"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "No server · nothing goes down"
@@ -2394,6 +2402,10 @@ msgstr "通行密钥请求已过期。请重试。"
 msgid "The plan didn't work"
 msgstr "计划没有成功"
 
+#: src/features/changes/words.ts
+msgid "the port {path} on the server itself, past its containers"
+msgstr "服务器本身的端口 {path}，这越过了容器的边界"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "the resource filter"
 msgstr "资源筛选"
@@ -2462,6 +2474,10 @@ msgstr "这个安装已经有所有者"
 #: src/features/auth/messages.ts
 msgid "This install already has an owner. Sign in instead."
 msgstr "这个安装已经有所有者。请直接登录。"
+
+#: src/features/changes/words.ts
+msgid "This is the first route on {server} that takes a certificate, so {proxy} takes ports {ports} too, and nothing it serves stops"
+msgstr "这是 {server} 上第一条需要证书的路由，因此 {proxy} 还会占用端口 {ports}，它提供的服务都不会停止"
 
 #: src/features/changes/words.ts
 msgid "This is the last route on {server}, so {proxy} stops, and ports {ports} are free. Its certificates stay on the server for when a route comes back"
@@ -2555,6 +2571,10 @@ msgstr "验证码错误次数过多。请等待 {0} 后重试。"
 #: src/features/auth/messages.ts
 msgid "Too many wrong codes. Wait a moment, then try again."
 msgstr "验证码错误次数过多。请稍候再试。"
+
+#: src/features/changes/words.ts
+msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
+msgstr "此路由的流量以未加密的方式到达 {server}，因为 TLS 在到达它之前就已终止。在隧道或私有网络上这没有问题；在开放的互联网上则不行，沿途的任何人都能读取这些流量"
 
 #. Read after a metric's name to name its chart, as in “CPU trend”.
 #: src/app/Providers.tsx

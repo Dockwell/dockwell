@@ -95,6 +95,18 @@ func TestCaddysContainerIsAsTheADRSays(t *testing.T) {
 	}
 }
 
+// A daemon can set no-new-privileges for every container, and the image's binary
+// binds low ports with a file capability, which that setting ignores. Moby takes
+// this from the container's own options after the daemon's (parseSecurityOpt, in
+// daemon_unix.go), so it holds on such a daemon, and leaves the rest as they were.
+func TestCaddySaysNoNewPrivileges(t *testing.T) {
+	c := &Container{Dir: t.TempDir()}
+	got := c.request("caddy@sha256:abc", "/etc/dockwell/bootstrap.json")
+	if !slices.Contains(got.HostConfig.SecurityOpt, "no-new-privileges=false") {
+		t.Errorf("SecurityOpt = %v, want no-new-privileges=false", got.HostConfig.SecurityOpt)
+	}
+}
+
 // An engine with userns-remap refuses the host network to a container in a user
 // namespace (Moby's daemon_unix.go), so Caddy says it stays in the server's.
 func TestCaddyRunsOnAnEngineWithUsernsRemap(t *testing.T) {
@@ -216,7 +228,7 @@ func TestRemovingCaddyKeepsItsData(t *testing.T) {
 // the server's loopback.
 func TestTheBootstrapNamesTheSocket(t *testing.T) {
 	c := &Caddy{Dir: t.TempDir(), Runtime: &Container{}}
-	b, err := c.bootstrap(nil)
+	b, err := c.bootstrap(nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

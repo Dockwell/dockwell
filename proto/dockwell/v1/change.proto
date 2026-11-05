@@ -660,6 +660,12 @@ enum HostAccessKind {
   // The panel's domain, in path, moving behind the server's proxy, named in
   // detail. A token mustn't be able to cut off the panel it can't approve.
   HOST_ACCESS_KIND_PANEL_DOMAIN = 7;
+  // A port on the server itself that a route sends to, in path, as
+  // "127.0.0.1:8080". It reaches past containers, to whatever listens there.
+  HOST_ACCESS_KIND_SERVER_PORT = 8;
+  // A proxy a route believes on where a request came from, in path: an address,
+  // a range, or "cloudflare". What it says of a client reaches services as true.
+  HOST_ACCESS_KIND_TRUSTED_PROXY = 9;
   // A network on the server that Dockwell didn't make. Whatever else is on
   // it, other projects' services too, can reach the service, and it them.
   HOST_ACCESS_KIND_EXTERNAL_NETWORK = 10;
@@ -746,6 +752,11 @@ message PlanStep {
   // its routes stop answering. It never stops a plan, and the fingerprint leaves
   // it out. Keep one stopped with docker update --restart=no.
   repeated string returning_containers = 16;
+  // True when the step has a route serve plain HTTP that didn't, as TLS ends
+  // before this server, so its traffic reaches the server unencrypted. That is
+  // fine on a tunnel or a private network, and not on the open internet. It
+  // never stops a plan, and needs no person.
+  bool unencrypted = 20;
 }
 
 // IngressEffect is what a step does to the proxy that holds a server's public
@@ -756,6 +767,7 @@ message IngressEffect {
   // The proxy, such as "Caddy".
   string proxy = 2;
   // The ports it takes or frees, such as "80/tcp", "443/tcp" and "443/udp".
+  // A server whose routes all say tls off needs port 80 alone.
   repeated string ports = 3;
   // The panel's domain, when the panel moves behind the proxy as it starts,
   // or takes the ports back as it stops. The address, passkeys and sessions
@@ -776,6 +788,13 @@ enum IngressChange {
   // It restarts, to a newer version, so what it serves is down for the step's
   // downtime.
   INGRESS_CHANGE_RESTARTS = 3;
+  // It keeps running and takes more ports, as the first route that needs a
+  // certificate comes to a server whose routes needed none. Nothing it serves
+  // stops.
+  INGRESS_CHANGE_TAKES_PORTS = 4;
+  // It keeps running and frees ports, as the last route that needs a certificate
+  // goes, or stops needing one. Nothing it still serves stops.
+  INGRESS_CHANGE_FREES_PORTS = 5;
 }
 
 // DomainCheck is what DNS says of a domain, as a server sees it.

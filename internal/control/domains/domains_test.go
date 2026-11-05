@@ -207,3 +207,55 @@ func TestDomainsSayWhatEachSendsWhereAndWhereItsCertificateStands(t *testing.T) 
 		}
 	})
 }
+
+// A domain that takes no certificate says what this server serves, as it can't
+// tell what's in front.
+func TestAPlainDomainSaysPlainHTTP(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		logger := slog.New(slog.DiscardHandler)
+		if _, err := revision.Setup(t.Context(), db, logger); err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now()
+		if err := db.Update(t.Context(), func(tx *store.Tx) error {
+			return tx.CreateServer(t.Context(), store.Server{ID: "srv_on", Name: "srv_on", CreatedAt: now, CertSerial: "srv_on", CertNotAfter: now})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		kinds := resource.NewRegistry(&service.Driver{}, &route.Driver{})
+		e := revision.New(db, kinds, agents{}, secretstest.Keeper(db, kinds), logger)
+		var tr scope.Tree
+		if err := db.View(t.Context(), func(tx *store.Tx) (err error) {
+			tr, err = scope.Load(t.Context(), tx)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		env := tr.Projects[0].Environments[0].ID
+		p, err := e.Propose(t.Context(), revision.Proposal{Summary: "Behind a tunnel", Actor: "usr_test", Edits: []revision.Edit{
+			{Ref: resource.Ref{Kind: route.Kind, Scope: env, Name: "www"}, Spec: &resourcev1.Route{Domain: "app.example.net", HostPort: 8080, Tls: "off"}, Servers: []string{"srv_on"}},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := e.Apply(t.Context(), p.Change); err != nil {
+			t.Fatal(err)
+		}
+		h := New(kinds, db, reports{}, logger)
+		res, err := h.ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.Msg.GetDomains()) != 1 {
+			t.Fatalf("domains: %v", res.Msg.GetDomains())
+		}
+		d := res.Msg.GetDomains()[0]
+		if d.GetUrl() != "http://app.example.net" || d.GetRoutes()[0].GetUrl() != "http://app.example.net" {
+			t.Errorf("it reads %s and %s", d.GetUrl(), d.GetRoutes()[0].GetUrl())
+		}
+		if r := d.GetRoutes()[0]; r.GetTls() != "off" || r.GetHostPort() != 8080 {
+			t.Errorf("its route reads %v", r)
+		}
+	})
+}

@@ -160,6 +160,11 @@ type Decision struct {
 	// restarts, and that may then take the ports a server's proxy needs. It never
 	// stops a plan, and a fingerprint leaves it out.
 	Returning []string `json:",omitempty"`
+	// Unencrypted is true when the step has a route serve plain HTTP that didn't,
+	// as TLS ends before its server, so its traffic reaches the server
+	// unencrypted. It never stops a plan and needs no person, so it isn't a
+	// Warning, which does. The fingerprint covers the spec that says it.
+	Unencrypted bool `json:",omitempty"`
 }
 
 // IngressChange is what happens to the proxy that holds a server's public
@@ -177,6 +182,12 @@ const (
 	// IngressRestarts is a newer version of the proxy, so what it serves is
 	// down for the step's downtime.
 	IngressRestarts
+	// IngressTakesPorts is the first route that needs a certificate on a server
+	// whose routes needed none: the proxy keeps running, and takes more ports.
+	IngressTakesPorts
+	// IngressFreesPorts is the last route that needs a certificate going: the
+	// proxy keeps running, and frees the ports only that needed.
+	IngressFreesPorts
 )
 
 // IngressEffect is what a step does to a server's ingress.
@@ -284,6 +295,15 @@ const (
 	// AccessPrivileged is Docker's privileged mode: every device and capability
 	// on the server.
 	AccessPrivileged
+	// AccessServerPort is a port on the server itself that a route sends to, in
+	// Path, as 127.0.0.1:8080. It reaches past containers, to whatever listens
+	// there (ADR 0030).
+	AccessServerPort
+	// AccessTrustedProxy is a proxy a route believes on where a request came from,
+	// in Path: an address, a range or a named preset. What it says of a client
+	// reaches services as true, so one that isn't really a proxy makes client
+	// addresses forgeable (ADR 0030).
+	AccessTrustedProxy
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -392,6 +412,10 @@ func AccessWords(a Access) string {
 		return "the group " + plain(a.Path) + ", which is the same as root if it is the group that owns Docker's socket on the server"
 	case AccessPrivileged:
 		return "privileged mode, which gives it every device and capability on the server, the same as root"
+			case AccessServerPort:
+		return "the port " + plain(a.Path) + " on the server itself, past its containers"
+	case AccessTrustedProxy:
+		return plain(a.Path) + " as a proxy it believes on where a request came from"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }
