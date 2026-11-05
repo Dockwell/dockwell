@@ -715,6 +715,30 @@ func TestAGenerationMakesNothingListenOnRealCaddy(t *testing.T) {
 	}
 }
 
+// A reload leaves only the new config's file, so every config before it reads as out
+// of date from then on, which is how a connection left on one hears to go.
+func TestAReloadTakesTheOldConfigsFileOnRealCaddy(t *testing.T) {
+	c := startPlain(t)
+	files := func() []string {
+		t.Helper()
+		got, err := filepath.Glob(filepath.Join(c.generationDir(), generationPrefix+"*"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	put(t, c, plainRoute("dockwell.env.www", "app.example.net", backend(t, "a")))
+	before := files()
+	if len(before) != 1 {
+		t.Fatalf("the generation files are %v, want one", before)
+	}
+	put(t, c, plainRoute("dockwell.env.api", "api.example.net", backend(t, "b")))
+	after := files()
+	if len(after) != 1 || after[0] == before[0] {
+		t.Errorf("after a reload the generation files are %v, and were %v, want only the new config's", after, before)
+	}
+}
+
 // A config on the plain HTTP server knows it is old too, and tells a connection it
 // still has to leave.
 func TestAnOldPlainConfigSendsItsConnectionsAwayOnRealCaddy(t *testing.T) {

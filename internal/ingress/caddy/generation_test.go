@@ -3,9 +3,11 @@
 package caddy
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/dockwell/dockwell/internal/ingress"
@@ -112,5 +114,60 @@ func TestWhatARouteDialsIsReadWithSuspicion(t *testing.T) {
 	}
 	if fi, err := os.Lstat(file); err != nil || fi.Mode()&os.ModeSymlink != 0 {
 		t.Errorf("it is %v, %v", fi, err)
+	}
+}
+
+// A route that reaches its upstream some other way is a hand edit, as Dockwell didn't
+// write that, however many steps come ahead of the one that sends it on.
+func TestATransportNotOursReadsAsAnEdit(t *testing.T) {
+	const id = "dockwell.env_x.www"
+	for name, r := range map[string]ingress.Route{
+		"on its own":   {ID: id, Domain: "app.example.net", Upstreams: []string{"172.30.0.2:8080"}},
+		"after a step": {ID: id, Domain: "app.example.net", Upstreams: []string{"172.30.0.2:8080"}, TrustedProxies: []string{"10.0.0.0/8"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			body, err := json.Marshal(routeJSON(r))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, ok := readRoute(body); !ok || got.Edited {
+				t.Fatalf("as Dockwell writes it, it reads %+v, %t: %s", got, ok, body)
+			}
+			var read map[string]any
+			if err := json.Unmarshal(body, &read); err != nil {
+				t.Fatal(err)
+			}
+			steps := read["handle"].([]any)
+			steps[len(steps)-1].(map[string]any)["transport"] = map[string]any{"protocol": "http", "tls": map[string]any{}}
+			edited, err := json.Marshal(read)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, ok := readRoute(edited); !ok || !got.Edited {
+				t.Errorf("with a transport of someone else's, it reads %+v, %t", got, ok)
+			}
+		})
+	}
+}
+
+// Caddy starts from its last config, so that needs a generation of its own too, or a
+// connection on what it started from would never hear that it's old.
+func TestWhatCaddyStartsFromKnowsItIsOld(t *testing.T) {
+	dir := shortDir(t)
+	if err := EnsureDirs(dir); err != nil {
+		t.Fatal(err)
+	}
+	c := &Caddy{Dir: dir, Runtime: &Container{}}
+	config := []byte(`{"apps":{"http":{"servers":{"` + serverName + `":{"routes":[]}}}}}`)
+	next, err := c.withRoutes(config, func(routes []json.RawMessage) []json.RawMessage { return routes })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(next), generationRouteID) {
+		t.Errorf("what Caddy starts from has no generation: %s", next)
+	}
+	files, err := filepath.Glob(filepath.Join(c.generationDir(), generationPrefix+"*"))
+	if err != nil || len(files) != 1 || !strings.Contains(string(next), filepath.Base(files[0])) {
+		t.Errorf("the generation files are %v, %v, and what it starts from is %s", files, err, next)
 	}
 }
