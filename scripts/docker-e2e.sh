@@ -118,7 +118,7 @@ cleanup() {
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
   docker rm --force e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
   moving_tidy
-  docker network rm dockwell_ingress e2e-took-subnet e2e-edge >/dev/null 2>&1 || true
+  docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-tunnel >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
   priv kill "$pid" 2>/dev/null || true
   for p in "${pebble_pids[@]:-}"; do
@@ -1161,21 +1161,27 @@ reached=$(curl -sS --max-time 10 -H "Host: $behind" "http://$stranger/") || fail
 from_host=$(docker run --rm --network host nginx:1.27-alpine wget -q -T 5 -O- --header "Host: $behind" http://127.0.0.1:80/) ||
   fail "a container on the server's own network can't reach Caddy at 127.0.0.1:80"
 [[ "$from_host" == *nginx* ]] || fail "from the server's own network, 127.0.0.1:80 answers: $from_host"
-on_bridge() { docker run --rm --add-host host.docker.internal:host-gateway nginx:1.27-alpine sh -c "wget -T 5 -O- --header 'Host: $1' http://host.docker.internal:80/ 2>&1" || true; }
-from_bridge=$(on_bridge "$behind")
-[[ "$from_bridge" == *"404"* ]] || fail "a container on a bridge, with its range not named, got: $from_bridge"
-bridge=$(docker network inspect --format '{{(index .IPAM.Config 0).Subnet}}' bridge) || fail "docker network inspect bridge failed"
+on_network() { docker run --rm --network "$1" --add-host host.docker.internal:host-gateway nginx:1.27-alpine sh -c "wget -T 5 -O- --header 'Host: $2' http://host.docker.internal:80/ 2>&1" || true; }
+docker network create -o com.docker.network.bridge.name=e2e-tunnel0 e2e-tunnel >/dev/null || fail "docker network create e2e-tunnel failed"
+from_tunnel=$(on_network e2e-tunnel "$behind")
+[[ "$from_tunnel" == *"404"* ]] || fail "a container on a network of its own, with its range not named, got: $from_tunnel"
+tunnel_range=$(docker network inspect --format '{{(index .IPAM.Config 0).Subnet}}' e2e-tunnel) || fail "docker network inspect e2e-tunnel failed"
 bridged=bridged.e2e-dockwell.example.net
 set +e
-planned=$(dw routes create bridged --domain "$bridged" --service web --port 80 --tls off --trusted-proxies "$bridge" --yes 2>&1)
+planned=$(dw routes create bridged --domain "$bridged" --service web --port 80 --tls off --trusted-proxies "$tunnel_range" --yes 2>&1)
 status=$?
 set -e
 [[ "$status" == 4 ]] || fail "a route naming a proxy exited $status, want 4: it waits for a person: $planned"
 changes=$(dw changes list --json) || fail "changes list failed"
 person_apply "$(jq -r '.changes[0].id' <<<"$changes")"
-from_bridge=$(on_bridge "$bridged")
-[[ "$from_bridge" == *nginx* ]] || fail "a container on a bridge, with its range named, got: $from_bridge"
+from_tunnel=$(on_network e2e-tunnel "$bridged")
+[[ "$from_tunnel" == *nginx* ]] || fail "a container on a network of its own, with its range named, got: $from_tunnel"
+# Docker's default network is where a service with no networks runs, and a token can
+# deploy one, so what's there must not be what this route answers.
+from_default=$(on_network bridge "$bridged")
+[[ "$from_default" == *"404"* ]] || fail "a container on Docker's default network reached a route naming another network: $from_default"
 dw routes delete bridged --yes || fail "routes delete bridged failed"
+docker network rm e2e-tunnel >/dev/null || fail "docker network rm e2e-tunnel failed"
 
 # Anyone takes a person, and says so.
 open=open.e2e-dockwell.example.net

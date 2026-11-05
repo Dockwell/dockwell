@@ -10,14 +10,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -958,7 +962,7 @@ func TestAVisitorsForwardedHeadersStopAtCaddyOnRealCaddy(t *testing.T) {
 		"X-Forwarded-Ssl": "on", "X-Forwarded-Scheme": "https", "Front-End-Https": "on", "X-Url-Scheme": "https", "X-Host": "evil.example.net",
 	})
 	if got := seen.Get("X-Forwarded-Host"); got != "app.example.net" {
-		t.Errorf("X-Forwarded-Host is %q, want the Host the request came with", got)
+		t.Errorf("X-Forwarded-Host is %q, want the route's own domain", got)
 	}
 	if got := seen.Get("X-Forwarded-Proto"); got != "https" {
 		t.Errorf("X-Forwarded-Proto from the proxy it named is %q", got)
@@ -1076,6 +1080,10 @@ func TestHandEditsOfWhatARouteBelievesReadAsThemselvesOnRealCaddy(t *testing.T) 
 		},
 		"its headers": func(rt route) route {
 			rt.Handle[1].Headers = clientAddress()
+			return rt
+		},
+		"the name it tells a service": func(rt route) route {
+			rt.Handle[1].Headers = ownName(believingAddress(), "evil.example.org")
 			return rt
 		},
 	} {
@@ -1286,5 +1294,300 @@ func TestThePanelsOwnKeyGoesAndCaddysStaysOnRealCaddy(t *testing.T) {
 	}
 	if !caddysOwn {
 		t.Error("Caddy's own key for the panel's domain went, and docs/security/ingress.md says it stays until it expires")
+	}
+}
+
+// namesSeen is an upstream that keeps what it was told of its own name.
+type namesSeen struct {
+	mu              sync.Mutex
+	host, forwarded string
+}
+
+func (n *namesSeen) get() (host, forwarded string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.host, n.forwarded
+}
+
+func startNames(t *testing.T) (seen *namesSeen, dial string) {
+	t.Helper()
+	seen = &namesSeen{}
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		seen.mu.Lock()
+		defer seen.mu.Unlock()
+		seen.host, seen.forwarded = r.Host, r.Header.Get("X-Forwarded-Host")
+	}))
+	t.Cleanup(srv.Close)
+	return seen, strings.TrimPrefix(srv.URL, "http://")
+}
+
+// Caddy matches a route on the name before the last colon of Host and lets the rest
+// through, so a visitor's own name reaches a route inside Host itself. Frameworks
+// take the last of a list, and build a reset link from it. So a service reads the
+// route's own domain in both headers, on every kind of route, whatever was sent.
+func TestAServiceReadsItsRoutesOwnNameOnRealCaddy(t *testing.T) {
+	spellings := func(domain string) []string {
+		return []string{
+			domain, strings.ToUpper(domain), domain + ":80",
+			domain + ":1,evil.example.org", domain + ":evil.example.org", domain + ":1;evil.example.org", domain + ":1,evil.example.org,", domain + ":$(id)",
+		}
+	}
+	askPlain := func(c *realCaddy) func(t *testing.T, host string) int {
+		return func(t *testing.T, host string) int {
+			t.Helper()
+			return c.plainGet(t, host, "/", map[string]string{"X-Forwarded-Host": "evil.example.org"}).status
+		}
+	}
+	askTLS := func(c *realCaddy, domain string) func(t *testing.T, host string) int {
+		return func(t *testing.T, host string) int {
+			t.Helper()
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://"+domain+"/password/reset", http.NoBody)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Host = host
+			req.Header.Set("X-Forwarded-Host", "evil.example.org")
+			res, err := c.client(domain).Do(req)
+			if err != nil {
+				t.Fatalf("%s as %q: %v", domain, host, err)
+			}
+			defer res.Body.Close()
+			return res.StatusCode
+		}
+	}
+	// What's written differs with what the server trusts, so each kind goes both ways.
+	for _, trusts := range []bool{false, true} {
+		t.Run(fmt.Sprintf("a server that trusts a proxy: %v", trusts), func(t *testing.T) {
+			c := startPlain(t)
+			seen, up := startNames(t)
+			anyone := plainRoute("dockwell.env.anyone", "anyone.example.net", up)
+			anyone.PlainForAnyone = true
+			put(t, c, anyone)
+			put(t, c, plainRoute("dockwell.env.none", "none.example.net", up))
+			put(t, c, aRoute("dockwell.env.secure", "secure.example.net", "", up))
+			_ = c.waitServing(t, "secure.example.net", "/").Body.Close()
+			kinds := map[string]func(t *testing.T, host string) int{
+				"anyone.example.net": askPlain(c),
+				"none.example.net":   askPlain(c),
+				"secure.example.net": askTLS(c, "secure.example.net"),
+			}
+			if trusts {
+				named := plainRoute("dockwell.env.named", "named.example.net", up)
+				named.TrustedProxies = []string{"127.0.0.1/32"}
+				put(t, c, named)
+				edge := plainRoute("dockwell.env.edge", "edge.example.net", up)
+				edge.EdgeProxies = []string{"127.0.0.1/32"}
+				put(t, c, edge)
+				kinds["named.example.net"] = askPlain(c)
+				kinds["edge.example.net"] = askPlain(c)
+			}
+			for domain, ask := range kinds {
+				for _, host := range spellings(domain) {
+					if status := ask(t, host); status != http.StatusOK {
+						t.Errorf("%q answered %d", host, status)
+						continue
+					}
+					if gotHost, forwarded := seen.get(); gotHost != domain || forwarded != domain {
+						t.Errorf("Host %q reached the service as Host %q and X-Forwarded-Host %q, want %s in both", host, gotHost, forwarded, domain)
+					}
+				}
+			}
+		})
+	}
+}
+
+// A route written before a service read its route's own name reads as Dockwell's, so
+// an upgrade isn't drift, and the next change on the server writes the name in, for
+// a route that believes a proxy too, whose steps are left as they are.
+func TestAnOlderRouteGetsItsOwnNameAtTheNextChangeOnRealCaddy(t *testing.T) {
+	for name, tc := range map[string]struct {
+		older   func() *headers
+		trusts  bool
+		handles int
+	}{
+		"naming no proxy":   {older: clientAddress, handles: 1},
+		"older still":       {older: olderClientAddress, handles: 1},
+		"beside a proxy":    {older: distrustingAddress, handles: 1},
+		"believing a proxy": {older: believingAddress, trusts: true, handles: 2},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := startPlain(t)
+			seen, up := startNames(t)
+			r := plainRoute("dockwell.env.www", "app.example.net", up)
+			if tc.trusts {
+				r.TrustedProxies = []string{"127.0.0.1/32"}
+			}
+			put(t, c, r)
+			written := routeJSON(r)
+			written.Handle[tc.handles-1].Headers = tc.older()
+			b, err := json.Marshal(written)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := c.call(t.Context(), http.MethodPatch, "/config/apps/http/servers/"+httpServerName+"/routes/0", b, nil); err != nil {
+				t.Fatal(err)
+			}
+			routes, err := c.Routes(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(routes) != 1 || routes[0].Edited {
+				t.Fatalf("an older route reads %+v", routes)
+			}
+			put(t, c, plainRoute("dockwell.env.other", "other.example.net", up))
+			if status := c.plainGet(t, "app.example.net:1,evil.example.org", "/", nil).status; status != http.StatusOK {
+				t.Fatalf("it answered %d", status)
+			}
+			if host, forwarded := seen.get(); host != "app.example.net" || forwarded != "app.example.net" {
+				t.Errorf("after the next change, Host is %q and X-Forwarded-Host %q", host, forwarded)
+			}
+			if routes, err = c.Routes(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			for _, got := range routes {
+				if got.Edited {
+					t.Errorf("%s reads as edited by hand", got.ID)
+				}
+			}
+		})
+	}
+}
+
+// A known limit, which docs/security/ingress.md states, and this holds to what it
+// says. Caddy has the walk along X-Forwarded-For per server, so it skips an address
+// any route on the server names. Anyone whose outgoing address is in such a range
+// writes the address a service reads, and so does a customer of a shared range on a
+// route that names it, whose compute comes from that range. If this starts failing,
+// the limit may have gone: say so there too.
+func TestAnotherRoutesRangeIsWalkedPastOnRealCaddy(t *testing.T) {
+	t.Run("named on another route", func(t *testing.T) {
+		c := startPlain(t)
+		up := backend(t, "web")
+		tunnel := plainRoute("dockwell.envA.tunnel", "tunnel.example.net", up)
+		tunnel.TrustedProxies = []string{"127.0.0.1/32"}
+		put(t, c, tunnel)
+		// Without it, the visitor is read for who they are.
+		seen := c.plainGet(t, "tunnel.example.net", "/who", map[string]string{"X-Forwarded-For": "6.6.6.6, 198.51.100.9"}).who(t)
+		if seen["real"] != "198.51.100.9" {
+			t.Fatalf("with no other route naming that range, a visitor reads %v", seen)
+		}
+		lb := plainRoute("dockwell.envB.lb", "lb.example.net", up)
+		lb.TrustedProxies = []string{"198.51.100.0/24"}
+		put(t, c, lb)
+		seen = c.plainGet(t, "tunnel.example.net", "/who", map[string]string{"X-Forwarded-For": "6.6.6.6, 198.51.100.9"}).who(t)
+		if seen["real"] != "6.6.6.6" || seen["xff"] != "6.6.6.6" {
+			t.Errorf("the limit has moved: a visitor in the other route's range reads %v, and the threat model says 6.6.6.6", seen)
+		}
+		// What they get is that address alone.
+		if seen["proto"] != "http" {
+			t.Errorf("it changed X-Forwarded-Proto: %v", seen)
+		}
+		// What names no proxy isn't affected, and nor is the preset, which reads no walk.
+		put(t, c, plainRoute("dockwell.envC.none", "none.example.net", up))
+		if seen := c.plainGet(t, "none.example.net", "/who", map[string]string{"X-Forwarded-For": "6.6.6.6, 198.51.100.9"}).who(t); seen["real"] != "127.0.0.1" {
+			t.Errorf("a route naming no proxy reads %v", seen)
+		}
+		edge := plainRoute("dockwell.envD.edge", "edge.example.net", up)
+		edge.EdgeProxies = []string{"127.0.0.1/32"}
+		put(t, c, edge)
+		if seen := c.plainGet(t, "edge.example.net", "/who", map[string]string{"X-Forwarded-For": "6.6.6.6, 198.51.100.9", "Cf-Connecting-Ip": "203.0.113.7"}).who(t); seen["real"] != "203.0.113.7" {
+			t.Errorf("a route naming the preset reads %v", seen)
+		}
+	})
+	t.Run("a shared range on the route itself", func(t *testing.T) {
+		c := startPlain(t)
+		shared := plainRoute("dockwell.env.shared", "shared.example.net", backend(t, "web"))
+		shared.TrustedProxies = []string{"127.0.0.1/32", "203.0.113.0/24"} // a CDN's edge, and its compute
+		put(t, c, shared)
+		if seen := c.plainGet(t, "shared.example.net", "/who", map[string]string{"X-Forwarded-For": "6.6.6.6, 203.0.113.9"}).who(t); seen["real"] != "6.6.6.6" {
+			t.Errorf("the limit has moved: a customer of a range the route names reads %v, and the threat model says 6.6.6.6", seen)
+		}
+	})
+}
+
+// Anyone with a Worker on Cloudflare can write CF-Connecting-IP, so it reaches a
+// service only if it has the shape of an address. Otherwise the client is the peer.
+func TestWhatIsntAnAddressStopsAtCaddyOnRealCaddy(t *testing.T) {
+	c := startPlain(t)
+	edge := plainRoute("dockwell.env.edge", "edge.example.net", backend(t, "web"))
+	edge.EdgeProxies = []string{"127.0.0.1/32"}
+	put(t, c, edge)
+	for _, value := range []string{"203.0.113.9", "240.0.0.1", "2001:db8::1", "2606:4700:4700::1111", "1:2:3:4:5:6:7:8", "::1", "::", "fe80::", "2001:db8::"} {
+		seen := c.plainGet(t, "edge.example.net", "/who", map[string]string{"Cf-Connecting-Ip": value}).who(t)
+		if seen["real"] != value || seen["xff"] != value {
+			t.Errorf("an address, %q, read %v", value, seen)
+		}
+	}
+	for _, value := range []string{
+		"6.6.6.6, 7.7.7.7", "6.6.6.6,7.7.7.7", "", " ", "<script>alert(1)</script>", "' OR 1=1 --", "{http.request.host}", "localhost", "1.2.3", "1.2.3.4.5",
+		":::", "::::", "abcde::1", "2001:db8::1%eth0", "6.6.6.6 7.7.7.7", "::ffff:6.6.6.6, 7.7.7.7",
+		"{http.request.remote.host}", "{http.request.header.Host}", "6.6.6.6{http.vars.none}",
+	} {
+		seen := c.plainGet(t, "edge.example.net", "/who", map[string]string{"Cf-Connecting-Ip": value}).who(t)
+		if seen["real"] != "127.0.0.1" || seen["xff"] != "127.0.0.1" {
+			t.Errorf("%q isn't an address, and a service read %v", value, seen)
+		}
+	}
+	// Sent twice, it's a list, whatever each one looks like.
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d/who", c.http), http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "edge.example.net"
+	req.Header["Cf-Connecting-Ip"] = []string{"6.6.6.6", "7.7.7.7"}
+	res, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seen := (plainAnswer{status: res.StatusCode, body: body}).who(t); seen["real"] != "127.0.0.1" {
+		t.Errorf("the header sent twice read %v", seen)
+	}
+}
+
+// A real address that didn't have the shape would quietly read as Cloudflare's own,
+// so every address netip can write has it. An IPv4 address mapped to IPv6 is the one
+// exception, as Cloudflare sends those as IPv4.
+func TestEveryAddressHasTheShape(t *testing.T) {
+	shape := regexp.MustCompile(addressShape)
+	rng := rand.New(rand.NewPCG(1, 2))
+	for range 200000 {
+		var b [16]byte
+		for i := range b {
+			b[i] = byte(rng.IntN(256))
+		}
+		// A run of groups of zeros, anywhere, of any length, is what compresses.
+		for i := 2 * rng.IntN(9); i < 2*rng.IntN(9); i++ {
+			b[i] = 0
+		}
+		for _, a := range []netip.Addr{netip.AddrFrom16(b), netip.AddrFrom4([4]byte(b[:4]))} {
+			if !a.Is4In6() && !shape.MatchString(a.String()) {
+				t.Fatalf("%s is an address, and doesn't have the shape", a)
+			}
+		}
+	}
+	for _, a := range []string{"::", "::1", "1::", "abcd::", "1:2:3:4:5:6:7:8", "1:2:3:4:5:6:7::", "::2:3:4:5:6:7:8"} {
+		if !shape.MatchString(a) {
+			t.Errorf("%s is an address, and doesn't have the shape", a)
+		}
+	}
+}
+
+// A route is written with its own name, not left for the next change to put right
+// (withTrust), which skips what reads as edited by hand.
+func TestARouteIsWrittenWithItsOwnName(t *testing.T) {
+	plain := ingress.Route{ID: "dockwell.env.www", Domain: "app.example.net", Upstreams: []string{"127.0.0.1:9"}}
+	named := plain
+	named.TrustedProxies = []string{"127.0.0.1/32"}
+	for _, r := range []ingress.Route{plain, named} {
+		handle := routeJSON(r).Handle
+		set := handle[len(handle)-1].Headers.Request.Set
+		if !slices.Equal(set["Host"], []string{r.Domain}) || !slices.Equal(set["X-Forwarded-Host"], []string{r.Domain}) {
+			t.Errorf("%+v is written with %v", r, set)
+		}
 	}
 }
