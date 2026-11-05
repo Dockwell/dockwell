@@ -12,7 +12,7 @@
 # full build's control plane, and runs a container on the same Docker. Before
 # that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
 # and serves a real container over HTTPS through Caddy, and routes that take no
-# certificate serve over plain HTTP on port 80 alone. It uses throwaway data
+# certificate serve over plain HTTP on port 80 alone, to what they name. It uses throwaway data
 # directories and removes what it made, so it never touches a real install. It
 # needs Docker with the compose plugin, Go, curl, jq, openssl and iproute2's ss,
 # a free port (E2E_WEB_PORT, 18080 by default), and ports 80 and 443 free, for
@@ -775,9 +775,12 @@ behind=behind.e2e-dockwell.example.net
 # Each order Pebble takes, as it logs them. Nothing here may ask it for one.
 orders() { grep -c 'Added order' "$pebble_dir/pebble.out" || true; }
 orders_before=$(orders)
+# An earlier step got a certificate from Pebble, or counting them proves nothing.
+[[ "$orders_before" -gt 0 ]] || fail "Pebble has taken no order yet, so a count that doesn't move says nothing"
 made=$(dw routes create behind --domain "$behind" --service web --port 80 --tls off --yes 2>&1) || fail "routes create behind failed: $made"
 [[ "$made" == *"unencrypted"* ]] || fail "the plan doesn't say traffic reaches this server unencrypted: $made"
 [[ "$made" == *"takes ports 80/tcp."* ]] || fail "the plan doesn't say Caddy takes port 80 alone: $made"
+[[ "$made" == *"answers only what runs on"* ]] || fail "the plan doesn't say who it answers: $made"
 listening 80 || fail "nothing listens on port 80 for a route that takes no certificate"
 if listening 443; then fail "something listens on port 443 with no route needing it"; fi
 [[ -z "$(ss -H -lun 'sport = :443')" ]] || fail "something listens on UDP 443 with no route needing it"
@@ -803,15 +806,52 @@ url=$(jq -r --arg d "$behind" '.domains[] | select(.name == $d) | .url' <<<"$lis
 held=$(priv find "$data/ingress/data/caddy/certificates" -name "$behind.crt") || fail "can't look for a certificate"
 [[ -z "$held" ]] || fail "there's a certificate for a route that takes none: $held"
 
-step "Ingress: a tunnel's container reaches Caddy, on the server's own network or from a bridge"
-# Each is how docs/install.md says to run cloudflared. wget exits non-zero for
-# anything but a 2xx, so a redirect or a refused connection doesn't pass.
-through_host=$(docker run --rm --network host nginx:1.27-alpine wget -q -T 5 -O- --header "Host: $behind" http://localhost:80/) ||
-  fail "a container on the server's own network can't reach Caddy at localhost:80"
-[[ "$through_host" == *nginx* ]] || fail "from the server's own network, localhost:80 answers: $through_host"
-through_bridge=$(docker run --rm --add-host host.docker.internal:host-gateway nginx:1.27-alpine wget -q -T 5 -O- --header "Host: $behind" http://host.docker.internal:80/) ||
-  fail "a container on a bridge can't reach Caddy at host.docker.internal:80"
-[[ "$through_bridge" == *nginx* ]] || fail "from a bridge, host.docker.internal:80 answers: $through_bridge"
+step "Ingress: a route with no certificate answers what it names, not the internet"
+# This machine's own address stands for a stranger, as a request to it comes from it.
+stranger=$(hostname -I | awk '{ print $1 }')
+[[ -n "$stranger" && "$stranger" != 127.* ]] || fail "this machine has no address but loopback, so this proves nothing: '$stranger'"
+straight() { curl -sS --max-time 10 -H "Host: $1" -o /dev/null -w '%{http_code}' "http://$stranger/"; }
+nobody=$(curl -sS --max-time 10 -H 'Host: nobody.e2e-dockwell.example.net' "http://$stranger/") || fail "a name with no route didn't answer"
+[[ "$nobody" == *"no site at this address"* ]] || fail "a name with no route says: $nobody"
+reached=$(curl -sS --max-time 10 -H "Host: $behind" "http://$stranger/") || fail "http://$stranger/ didn't answer"
+[[ "$reached" == "$nobody" ]] || fail "a stranger at this server's own address got this from a route behind a tunnel, not what a name with no route gets: $reached"
+
+# Each way docs/install.md says to run something like cloudflared, with a container
+# of nginx's image doing what it would. wget says the status when it fails, so a
+# timeout doesn't read as a refusal.
+from_host=$(docker run --rm --network host nginx:1.27-alpine wget -q -T 5 -O- --header "Host: $behind" http://127.0.0.1:80/) ||
+  fail "a container on the server's own network can't reach Caddy at 127.0.0.1:80"
+[[ "$from_host" == *nginx* ]] || fail "from the server's own network, 127.0.0.1:80 answers: $from_host"
+on_bridge() { docker run --rm --add-host host.docker.internal:host-gateway nginx:1.27-alpine sh -c "wget -T 5 -O- --header 'Host: $1' http://host.docker.internal:80/ 2>&1" || true; }
+from_bridge=$(on_bridge "$behind")
+[[ "$from_bridge" == *"404"* ]] || fail "a container on a bridge, with its range not named, got: $from_bridge"
+bridge=$(docker network inspect --format '{{(index .IPAM.Config 0).Subnet}}' bridge) || fail "docker network inspect bridge failed"
+bridged=bridged.e2e-dockwell.example.net
+set +e
+planned=$(dw routes create bridged --domain "$bridged" --service web --port 80 --tls off --trusted-proxies "$bridge" --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "a route naming a proxy exited $status, want 4: it waits for a person: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+person_apply "$(jq -r '.changes[0].id' <<<"$changes")"
+from_bridge=$(on_bridge "$bridged")
+[[ "$from_bridge" == *nginx* ]] || fail "a container on a bridge, with its range named, got: $from_bridge"
+dw routes delete bridged --yes || fail "routes delete bridged failed"
+
+# Anyone takes a person, and says so.
+open=open.e2e-dockwell.example.net
+set +e
+planned=$(dw routes create open --domain "$open" --service web --port 80 --tls off --plain-for-anyone --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "a route for anyone exited $status, want 4: it waits for a person: $planned"
+[[ "$planned" == *"answers anyone who can reach"* ]] || fail "the plan doesn't say it answers anyone: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+anyone=$(jq -r '.changes[0].id' <<<"$changes")
+token_refused "$anyone"
+person_apply "$anyone"
+[[ "$(straight "$open")" == 200 ]] || fail "a route for anyone doesn't answer at $stranger"
+dw routes delete open --yes || fail "routes delete open failed"
 
 step "Ingress: a route to a port on the server needs a person, names the port, and believes the proxy it names"
 on_server=$((web_port + 1))
@@ -829,6 +869,8 @@ set -e
 [[ "$status" == 4 ]] || fail "a route to a port on the server exited $status, want 4: it waits for a person: $planned"
 [[ "$planned" == *"127.0.0.1:$on_server"* ]] || fail "the plan doesn't name the port: $planned"
 [[ "$planned" == *"127.0.0.1/32 as a proxy"* ]] || fail "the plan doesn't name the proxy: $planned"
+[[ "$planned" == *"sees each caller as this server"* ]] || fail "the plan doesn't say what's there sees everyone as local: $planned"
+[[ "$planned" == *"the container e2e-on-server"* ]] || fail "the plan doesn't name what listens there: $planned"
 changes=$(dw changes list --json) || fail "changes list failed"
 reach=$(jq -r '.changes[0].id' <<<"$changes")
 [[ "$reach" == chg_* ]] || fail "changes list has no change: $changes"
@@ -857,6 +899,12 @@ status=$?
 set -e
 [[ "$status" != 0 ]] || fail "a route went through to the panel's own port"
 [[ "$own" == *"one Dockwell listens on itself"* ]] || fail "the refusal of the panel's own port says: $own"
+set +e
+own=$(dw routes create own --domain own.e2e-dockwell.example.net --host-port 2375 --tls off --yes 2>&1)
+status=$?
+set -e
+[[ "$status" != 0 ]] || fail "a route went through to Docker's API"
+[[ "$own" == *"Docker's API"* ]] || fail "the refusal of Docker's API says: $own"
 
 step "Ingress: a route with a certificate takes port 443 beside them, and frees it as it goes"
 took=$(dw routes create www --domain "$domain" --service web --port 80 --yes 2>&1) || fail "routes create www failed: $took"
@@ -874,6 +922,17 @@ redirect=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' --resolve "$doma
 [[ "$redirect" == 308 ]] || fail "http://$domain/ answers $redirect, want its redirect"
 answer=$(plain_http -o /dev/null -w '%{http_code}') || fail "http://$behind/ didn't answer"
 [[ "$answer" == 200 ]] || fail "beside a route with a certificate, http://$behind/ answers $answer"
+# Taking it off HTTPS is a person's, and says what stops.
+set +e
+planned=$(dw routes update www --domain "$domain" --service web --port 80 --tls off --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "taking a live domain off HTTPS exited $status, want 4: it waits for a person: $planned"
+[[ "$planned" == *"which stops"* && "$planned" == *HSTS* ]] || fail "the plan doesn't say HTTPS stops: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+taking=$(jq -r '.changes[0].id' <<<"$changes")
+token_refused "$taking"
+dw changes discard "$taking" >/dev/null || fail "changes discard failed"
 freed=$(dw routes delete www --yes 2>&1) || fail "routes delete www failed: $freed"
 [[ "$freed" == *"frees ports 443/tcp and 443/udp"* ]] || fail "the plan doesn't say Caddy frees port 443: $freed"
 if listening 443; then fail "port 443 is still held with no route needing it"; fi
