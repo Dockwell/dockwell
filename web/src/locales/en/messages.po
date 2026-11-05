@@ -4905,6 +4905,10 @@ msgstr "The last deploy failed, so Dockwell rolled it back"
 msgid "The last deploy of {name} failed"
 msgstr "The last deploy of {name} failed"
 
+#: src/features/logs/LogNote.tsx
+msgid "The lines written meanwhile arrive once it answers, with none twice."
+msgstr "The lines written meanwhile arrive once it answers, with none twice."
+
 #: src/features/changes/words.ts
 msgid "the Linux capability {path}"
 msgstr "the Linux capability {path}"
@@ -4912,10 +4916,6 @@ msgstr "the Linux capability {path}"
 #: src/features/changes/words.ts
 msgid "the Linux capability {path}, which is the same as root"
 msgstr "the Linux capability {path}, which is the same as root"
-
-#: src/features/logs/LogNote.tsx
-msgid "The lines written meanwhile arrive once it answers, with none twice."
-msgstr "The lines written meanwhile arrive once it answers, with none twice."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "the network {owner}"

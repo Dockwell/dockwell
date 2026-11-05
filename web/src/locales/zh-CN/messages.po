@@ -4909,6 +4909,10 @@ msgstr "上次部署失败，Dockwell 已将其回滚"
 msgid "The last deploy of {name} failed"
 msgstr "{name} 的上次部署失败"
 
+#: src/features/logs/LogNote.tsx
+msgid "The lines written meanwhile arrive once it answers, with none twice."
+msgstr "恢复响应后，期间写入的日志会到达，不会重复。"
+
 #: src/features/changes/words.ts
 msgid "the Linux capability {path}"
 msgstr "Linux 能力 {path}"
@@ -4916,10 +4920,6 @@ msgstr "Linux 能力 {path}"
 #: src/features/changes/words.ts
 msgid "the Linux capability {path}, which is the same as root"
 msgstr "Linux 能力 {path}，等同于 root"
-
-#: src/features/logs/LogNote.tsx
-msgid "The lines written meanwhile arrive once it answers, with none twice."
-msgstr "恢复响应后，期间写入的日志会到达，不会重复。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "the network {owner}"
