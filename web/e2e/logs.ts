@@ -712,7 +712,11 @@ async function main() {
     return new Promise<string>((res) => setTimeout(() => res(el.textContent ?? ""), 300));
   });
   if (!/not shown/.test(missed)) step("  (the last marker is further up than the screen)");
-  await page.getByRole("button", { name: "Follow", exact: true }).click();
+  // Going to the end follows again, unless what shows has only just changed, and the
+  // button is gone if it did. The End key follows either way.
+  await logBody(page).focus();
+  await page.keyboard.press("End");
+  await page.getByRole("status").getByText("Following").waitFor({ timeout: 5000 });
 
   step("while paused, what shows holds still, however fast lines come");
   await post("/rate?lines=16000&size=120");
