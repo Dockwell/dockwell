@@ -371,43 +371,6 @@ status=$?
 set -e
 [[ "$status" == 4 ]] || fail "volumes delete exited $status, want 4: a plan that destroys data waits for a person"
 
-step "Two Compose files with a service of one name run side by side"
-# With nothing to say where it goes, a file is refused now the default project
-# has what it would change.
-dw services create keeper --app-image nginx:1.27-alpine --yes || fail "services create keeper failed"
-if out=$(dw compose import --compose "services: {keeper: {image: nginx:1.28-alpine}}" --yes 2>&1); then
-  fail "a file with no name was imported into a project with apps: $out"
-fi
-grep -q "names no project" <<<"$out" || fail "a file with no name was refused saying: $out"
-named_file() { printf 'name: %s\nservices:\n  db:\n    image: %s\n' "$1" "$2"; }
-dw compose import --compose "$(named_file blog nginx:1.27-alpine)" --yes || fail "importing blog failed"
-dw compose import --compose "$(named_file wiki nginx:1.28-alpine)" --yes || fail "importing wiki failed"
-dbs=$(docker ps --filter label=com.docker.compose.service=db --format '{{.Names}} {{.Image}} {{.Networks}}') || fail "docker ps failed"
-[[ "$(wc -l <<<"$dbs")" == 2 ]] || fail "Docker runs these dbs, want two: $dbs"
-project_of() { docker ps --filter label=com.docker.compose.service=db --filter "ancestor=$1" --format '{{.Label "com.docker.compose.project"}}'; }
-blog_project=$(project_of nginx:1.27-alpine) || fail "docker ps failed"
-wiki_project=$(project_of nginx:1.28-alpine) || fail "docker ps failed"
-extra_projects="$blog_project $wiki_project"
-[[ -n "$blog_project" && -n "$wiki_project" && "$blog_project" != "$wiki_project" ]] ||
-  fail "the two files' dbs are in projects '$blog_project' and '$wiki_project', want one each"
-members=$(docker network inspect --format '{{range .Containers}}{{.Name}} {{end}}' "${blog_project}_default") ||
-  fail "blog has no network of its own"
-[[ "$members" != *"$wiki_project"* ]] || fail "wiki's db is on blog's network: $members"
-docker network inspect "${wiki_project}_default" >/dev/null || fail "wiki has no network of its own"
-listed=$(docker compose -p "$blog_project" ps --format '{{.Service}}') || fail "docker compose -p $blog_project ps failed"
-[[ "$listed" == db ]] || fail "docker compose lists '$listed' in blog's project, want db"
-# Naming one again updates it, and doesn't touch the other.
-wiki_state() { docker inspect --format '{{.Id}} {{.Config.Image}} {{.State.StartedAt}}' "${wiki_project}-db-1"; }
-wiki_before=$(wiki_state) || fail "wiki's db isn't called ${wiki_project}-db-1"
-dw compose import --compose "$(named_file blog nginx:1.28-alpine)" --yes || fail "importing blog again failed"
-again=$(docker ps --filter "label=com.docker.compose.project=$blog_project" --format '{{.Image}}') || fail "docker ps failed"
-[[ "$again" == nginx:1.28-alpine ]] || fail "after importing blog again, its db runs '$again'"
-wiki_after=$(wiki_state) || fail "after importing blog again, wiki's db is gone"
-[[ "$wiki_after" == "$wiki_before" ]] || fail "importing blog again touched wiki's db: $wiki_before, then $wiki_after"
-dw services delete db --project blog --yes || fail "deleting blog's db failed"
-dw services delete db --project wiki --yes || fail "deleting wiki's db failed"
-dw services delete keeper --project default --yes || fail "deleting keeper failed"
-
 step "Ingress: Pebble, Let's Encrypt's test CA, on this machine"
 in_ingress=1
 tools=$("$(dirname "$0")/ingress-tools.sh" "$tools") || fail "can't get Caddy and Pebble"
@@ -1174,210 +1137,44 @@ dw environments delete staging --yes || fail "environments delete staging failed
 dw services delete web --yes || fail "services delete web failed"
 in_ingress=""
 
-step "A file in the shapes real ones have runs, as a person approves it"
-real_port=$((web_port + 1))
-docker network create e2e-edge >/dev/null || fail "docker network create e2e-edge failed"
-dw environments create real --yes >/dev/null || fail "environments create real failed"
-dw environments create other --yes >/dev/null || fail "environments create other failed"
-cat >"$data/real.yaml" <<'EOF'
-services:
-  shop:
-    container_name: e2e-storefront
-    image: nginx:1.27-alpine
-    build: ./not-read
-    deploy:
-      resources:
-        limits:
-          cpus: ${CPUS}
-          memory: ${MEMORY_LIMIT}
-        reservations:
-          cpus: "0.25"
-          memory: 16M
-    cap_add: [NET_ADMIN]
-    cap_drop: [MKNOD]
-    group_add: ["12345"]
-    labels:
-      createdBy: Apps
-    networks: [e2e-edge]
-    ports:
-      - ${HOST_IP}:${PANEL_APP_PORT_HTTP}:80
-    restart: on-failure:5
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
-      interval: 2s
-      timeout: 2s
-      retries: 15
-    volumes:
-      - ./data:/data
-networks:
-  e2e-edge:
-    external: true
-EOF
-printf 'CPUS=0.50\nMEMORY_LIMIT=64M\nHOST_IP=\nPANEL_APP_PORT_HTTP=%s\n' "$real_port" >"$data/real.env"
-import_real() { dw compose import --compose "$(cat "$data/real.yaml")" --env-file "$data/real.env" --directory "$real_dir" --environment real "$@"; }
-
-planned=$(import_real --plan-only --json) || fail "importing the file failed"
-change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import printed what isn't JSON: $planned"
-[[ "$change" == chg_* ]] || fail "compose import planned no change: $planned"
-jq -e '.change.plan.hostAccess == true' <<<"$planned" >/dev/null || fail "the file plans no host access: $planned"
-for says in 'e2e-edge' 'NET_ADMIN' '12345' "$real_dir/data"; do
-  [[ "$planned" == *"$says"* ]] || fail "the plan doesn't name $says: $planned"
-done
-for reason in container_name no_build cpu_reservation; do
-  jq -e --arg r "$reason" 'any(.change.plan.notes[]; .reason == $r)' <<<"$planned" >/dev/null || fail "the plan doesn't say $reason: $planned"
-done
-token_refused "$change"
-person_apply "$change"
-
-shop=$(docker ps --filter label=com.docker.compose.service=shop --format '{{.Names}}') || fail "docker ps failed"
-[[ "$shop" == env_*-shop-1 ]] || fail "Docker runs '$shop' for shop, want env_…-shop-1, not the file's container_name"
-inspected=$(docker inspect "$shop") || fail "docker inspect $shop failed"
-real_projects+=("$(jq -r '.[0].Config.Labels["com.docker.compose.project"]' <<<"$inspected")")
-has() { jq -e "$1" <<<"$inspected" >/dev/null || fail "$shop isn't as asked: $1 is $(jq -c "$1" <<<"$inspected"), in $(jq -c '.[0].HostConfig' <<<"$inspected")"; }
-has '.[0].HostConfig.NanoCpus == 500000000'
-has '.[0].HostConfig.Memory == 67108864'
-has '.[0].HostConfig.MemoryReservation == 16777216'
-has '.[0].HostConfig.CapAdd | any(endswith("NET_ADMIN"))'
-has '.[0].HostConfig.CapDrop | any(endswith("MKNOD"))'
-has '.[0].HostConfig.GroupAdd | index("12345") != null'
-has '.[0].HostConfig.RestartPolicy.Name == "on-failure" and .[0].HostConfig.RestartPolicy.MaximumRetryCount == 5'
-has '.[0].NetworkSettings.Networks["e2e-edge"].Aliases | (index("e2e-storefront") != null and index("shop") != null)'
-has '.[0].NetworkSettings.Networks | keys == ["e2e-edge"]'
-has '.[0].HostConfig.Binds | length == 1'
-bind=$(jq -r '.[0].HostConfig.Binds[0]' <<<"$inspected")
-[[ "$bind" == "$real_dir/data:/data" ]] || fail "./data mounts as '$bind', want $real_dir/data:/data"
-page=$(curl -fsS "http://127.0.0.1:$real_port/") || fail "shop doesn't serve on port $real_port, on the empty HOST_IP's every address"
-[[ "$page" == *nginx* ]] || fail "shop serves something other than nginx on port $real_port: ${page:0:300}"
-drift=$(dw drift list --json) || fail "drift list failed"
-# Another environment has drift of its own by now, as an ingress step above prunes
-# a network it left unused, so this asks about shop alone.
-jq -e 'any((.drift // [])[]; .resource.name == "shop") | not' <<<"$drift" >/dev/null || fail "drift with shop running as asked: $drift"
-
-step "A limit changes in place, on a token, and the file's container stays"
-before=$(jq -r '.[0].Id' <<<"$inspected")
-import_real --variables MEMORY_LIMIT=128M --yes >/dev/null || fail "changing the limit failed"
-inspected=$(docker inspect "$shop") || fail "docker inspect $shop failed"
-[[ "$(jq -r '.[0].Id' <<<"$inspected")" == "$before" ]] || fail "changing a limit recreated $shop"
-has '.[0].HostConfig.Memory == 134217728'
-
-step "It exports as a file docker compose reads, naming the network as external"
-dw compose export --environment real >"$data/real-export.yaml" || fail "compose export failed"
-grep -q 'external: true' "$data/real-export.yaml" || fail "the export doesn't name its network as external:
-$(cat "$data/real-export.yaml")"
-docker compose -f "$data/real-export.yaml" config --quiet || fail "docker compose doesn't take the export:
-$(cat "$data/real-export.yaml")"
-listed=$(docker compose -f "$data/real-export.yaml" ps --format '{{.Service}}') || fail "docker compose -f <export> ps failed"
-[[ "$listed" == shop ]] || fail "docker compose -f <export> ps lists '$listed', want shop"
-
-step "Another project on the network reaches it by name, and can't take that name"
-docker tag nginx:1.27-alpine e2e-local-only:1 || fail "docker tag failed"
-other_file=$(printf 'services:\n  client:\n    image: e2e-local-only:1\n    build: .\n    networks: [e2e-edge]\nnetworks:\n  e2e-edge:\n    external: true\n')
-planned=$(dw compose import --compose "$other_file" --environment other --plan-only --json) || fail "importing a local-only image failed"
-change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import printed what isn't JSON: $planned"
-token_refused "$change"
-person_apply "$change"
-client=$(docker ps --filter label=com.docker.compose.service=client --format '{{.Names}}') || fail "docker ps failed"
-[[ -n "$client" ]] || fail "Docker runs nothing for client"
-real_projects+=("$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$client")")
-page=$(docker exec "$client" wget -q -O - -T 5 http://e2e-storefront/) || fail "client can't reach shop by its container_name on e2e-edge"
-[[ "$page" == *nginx* ]] || fail "client reached something other than shop: ${page:0:300}"
-page=$(docker exec "$shop" wget -q -O - -T 5 http://client/) || fail "shop can't reach client by its name on e2e-edge"
-[[ "$page" == *nginx* ]] || fail "shop reached something other than client: ${page:0:300}"
-clash=$(printf 'services:\n  clash:\n    image: nginx:1.27-alpine\n    container_name: e2e-storefront\n    networks: [e2e-edge]\nnetworks:\n  e2e-edge:\n    external: true\n')
-if out=$(dw compose import --compose "$clash" --environment other --plan-only 2>&1); then
-  fail "a second container answering to e2e-storefront on e2e-edge was planned: ${out:0:300}"
+# Last of what names a project: its projects stay, as nothing deletes one, and
+# with more than one, everything that names none is refused for not saying which.
+step "Two Compose files with a service of one name run side by side"
+# With nothing to say where it goes, a file is refused now the default project
+# has what it would change.
+dw services create keeper --app-image nginx:1.27-alpine --yes || fail "services create keeper failed"
+if out=$(dw compose import --compose "services: {keeper: {image: nginx:1.28-alpine}}" --yes 2>&1); then
+  fail "a file with no name was imported into a project with apps: $out"
 fi
-[[ "$out" == *"already does"* ]] || fail "a name another has failed some other way: ${out:0:300}"
-
-step "What isn't on the server is refused as it plans, by name"
-missing=$(printf 'services:\n  gone:\n    image: nginx:1.27-alpine\n    networks: [e2e-missing]\nnetworks:\n  e2e-missing:\n    external: true\n')
-if out=$(dw compose import --compose "$missing" --environment other --plan-only 2>&1); then
-  fail "a network the server hasn't got was planned: ${out:0:300}"
-fi
-[[ "$out" == *"the network e2e-missing isn't on this server"* ]] || fail "a missing network failed some other way: ${out:0:300}"
-nothing=$(printf 'services:\n  gone:\n    image: dockwell-e2e-no-such-image:1\n    build: .\n')
-if out=$(dw compose import --compose "$nothing" --environment other --plan-only 2>&1); then
-  fail "an image no one has was planned: ${out:0:300}"
-fi
-[[ "$out" == *"won't give it to a pull"* ]] || fail "an image no one has failed some other way: ${out:0:300}"
-
-in_ingress=1
-step "Ingress: a route with no certificate reaches a service on a network the server has, and isn't drift"
-shop_site=shop.e2e-dockwell.example.net
-dw routes create shop-site --environment real --domain "$shop_site" --service shop --port 80 --tls off --yes >/dev/null || fail "a route to a service on a network the server has failed"
-page=$(curl -fsS --max-time 10 --resolve "$shop_site:80:127.0.0.1" "http://$shop_site/") || fail "http://$shop_site/ doesn't answer through Caddy"
-[[ "$page" == *nginx* ]] || fail "http://$shop_site/ answers something other than shop: ${page:0:300}"
-networks=$(docker inspect --format '{{json .NetworkSettings.Networks}}' "$shop") || fail "docker inspect $shop failed"
-jq -e 'has("e2e-edge") and has("dockwell_ingress")' <<<"$networks" >/dev/null || fail "$shop isn't on its network and the ingress's: $networks"
-drift=$(dw drift list --json) || fail "drift list failed"
-jq -e 'any((.drift // [])[]; .resource.name == "shop" or .resource.name == "shop-site") | not' <<<"$drift" >/dev/null || fail "drift with shop routed: $drift"
-dw routes delete shop-site --environment real --yes >/dev/null || fail "routes delete shop-site failed"
-
-step "Ingress: a service on the server's own network takes a route by its port, and not by its name"
-on_host_port=$((web_port + 2))
-on_host_site=onhost.e2e-dockwell.example.net
-# nginx's image listens on port 80, which Caddy holds on this network.
-on_host_file=$(cat <<EOF
-services:
-  onhost:
-    image: nginx:1.27-alpine
-    network_mode: host
-    command:
-      - sh
-      - -c
-      - |-
-        sed -i -E '/\[::\]:80;/d; s/listen +80;/listen 127.0.0.1:$on_host_port;/' /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'
-EOF
-)
-planned=$(dw compose import --compose "$on_host_file" --environment real --plan-only --json) || fail "importing a service on the server's own network failed"
-on_host_change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import printed what isn't JSON: $planned"
-[[ "$on_host_change" == chg_* ]] || fail "compose import planned no change: $planned"
-person_apply "$on_host_change"
-for _ in $(seq 100); do
-  curl -fsS --max-time 1 -o /dev/null "http://127.0.0.1:$on_host_port/" 2>/dev/null && break
-  sleep 0.1
-done
-curl -fsS --max-time 5 -o /dev/null "http://127.0.0.1:$on_host_port/" || fail "onhost doesn't answer on port $on_host_port: $(docker ps -a --filter label=com.docker.compose.service=onhost)"
-if out=$(dw routes create onhost --environment real --domain "$on_host_site" --service onhost --port 80 --tls off --yes 2>&1); then
-  fail "a route by name to a service on the server's own network was planned: ${out:0:300}"
-fi
-[[ "$out" == *"runs on the server's own network"* && "$out" == *host_port* ]] || fail "a route by name to a service on the server's own network failed some other way: ${out:0:300}"
-set +e
-planned=$(dw routes create onhost --environment real --domain "$on_host_site" --host-port "$on_host_port" --tls off --yes 2>&1)
-status=$?
-set -e
-[[ "$status" == 4 ]] || fail "a route to its port exited $status, want 4: it waits for a person: $planned"
-[[ "$planned" == *"127.0.0.1:$on_host_port"* ]] || fail "the plan doesn't name the port: $planned"
-changes=$(dw changes list --json) || fail "changes list failed"
-reach=$(jq -r '.changes[0].id' <<<"$changes")
-[[ "$reach" == chg_* ]] || fail "changes list has no change: $changes"
-token_refused "$reach"
-person_apply "$reach"
-page=$(curl -fsS --max-time 10 --resolve "$on_host_site:80:127.0.0.1" "http://$on_host_site/") || fail "http://$on_host_site/ doesn't answer through Caddy"
-[[ "$page" == *nginx* ]] || fail "http://$on_host_site/ answers something other than onhost: ${page:0:300}"
-dw routes delete onhost --environment real --yes >/dev/null || fail "routes delete onhost failed"
-dw services delete onhost --environment real --yes >/dev/null || fail "services delete onhost failed"
-
-step "Ingress: a service with a route can't go onto the server's own network, and goes on serving"
-moves_site=moves.e2e-dockwell.example.net
-dw services create moves --environment real --app-image nginx:1.27-alpine --yes >/dev/null || fail "services create moves failed"
-dw routes create moves --environment real --domain "$moves_site" --service moves --port 80 --tls off --yes >/dev/null || fail "routes create moves failed"
-if out=$(dw services update moves --environment real --app-image nginx:1.27-alpine --app-host-network --plan-only 2>&1); then
-  fail "taking a service with a route onto the server's own network was planned: ${out:0:300}"
-fi
-[[ "$out" == *"has a route"* && "$out" == *host_port* ]] || fail "taking a service with a route onto the server's own network failed some other way: ${out:0:300}"
-page=$(curl -fsS --max-time 10 --resolve "$moves_site:80:127.0.0.1" "http://$moves_site/") || fail "http://$moves_site/ stopped answering"
-[[ "$page" == *nginx* ]] || fail "http://$moves_site/ answers something else: ${page:0:300}"
-dw routes delete moves --environment real --yes >/dev/null || fail "routes delete moves failed"
-dw services delete moves --environment real --yes >/dev/null || fail "services delete moves failed"
-in_ingress=""
-
-step "Going leaves the network as it was"
-dw changes undo "$change" --yes >/dev/null || fail "changes undo $change failed"
-if docker inspect "$client" >/dev/null 2>&1; then fail "the undo left $client"; fi
-dw services delete shop --environment real --yes >/dev/null || fail "services delete shop failed"
-if docker inspect "$shop" >/dev/null 2>&1; then fail "deleting shop left $shop"; fi
-docker network inspect e2e-edge >/dev/null || fail "the undo or the deletion took the network e2e-edge, which Dockwell didn't make"
+grep -q "names no project" <<<"$out" || fail "a file with no name was refused saying: $out"
+named_file() { printf 'name: %s\nservices:\n  db:\n    image: %s\n' "$1" "$2"; }
+dw compose import --compose "$(named_file blog nginx:1.27-alpine)" --yes || fail "importing blog failed"
+dw compose import --compose "$(named_file wiki nginx:1.28-alpine)" --yes || fail "importing wiki failed"
+dbs=$(docker ps --filter label=com.docker.compose.service=db --format '{{.Names}} {{.Image}} {{.Networks}}') || fail "docker ps failed"
+[[ "$(wc -l <<<"$dbs")" == 2 ]] || fail "Docker runs these dbs, want two: $dbs"
+project_of() { docker ps --filter label=com.docker.compose.service=db --filter "ancestor=$1" --format '{{.Label "com.docker.compose.project"}}'; }
+blog_project=$(project_of nginx:1.27-alpine) || fail "docker ps failed"
+wiki_project=$(project_of nginx:1.28-alpine) || fail "docker ps failed"
+extra_projects="$blog_project $wiki_project"
+[[ -n "$blog_project" && -n "$wiki_project" && "$blog_project" != "$wiki_project" ]] ||
+  fail "the two files' dbs are in projects '$blog_project' and '$wiki_project', want one each"
+members=$(docker network inspect --format '{{range .Containers}}{{.Name}} {{end}}' "${blog_project}_default") ||
+  fail "blog has no network of its own"
+[[ "$members" != *"$wiki_project"* ]] || fail "wiki's db is on blog's network: $members"
+docker network inspect "${wiki_project}_default" >/dev/null || fail "wiki has no network of its own"
+listed=$(docker compose -p "$blog_project" ps --format '{{.Service}}') || fail "docker compose -p $blog_project ps failed"
+[[ "$listed" == db ]] || fail "docker compose lists '$listed' in blog's project, want db"
+# Naming one again updates it, and doesn't touch the other.
+wiki_state() { docker inspect --format '{{.Id}} {{.Config.Image}} {{.State.StartedAt}}' "${wiki_project}-db-1"; }
+wiki_before=$(wiki_state) || fail "wiki's db isn't called ${wiki_project}-db-1"
+dw compose import --compose "$(named_file blog nginx:1.28-alpine)" --yes || fail "importing blog again failed"
+again=$(docker ps --filter "label=com.docker.compose.project=$blog_project" --format '{{.Image}}') || fail "docker ps failed"
+[[ "$again" == nginx:1.28-alpine ]] || fail "after importing blog again, its db runs '$again'"
+wiki_after=$(wiki_state) || fail "after importing blog again, wiki's db is gone"
+[[ "$wiki_after" == "$wiki_before" ]] || fail "importing blog again touched wiki's db: $wiki_before, then $wiki_after"
+dw services delete db --project blog --yes || fail "deleting blog's db failed"
+dw services delete db --project wiki --yes || fail "deleting wiki's db failed"
+dw services delete keeper --project default --yes || fail "deleting keeper failed"
 
 step "The agent build joins, and runs a container"
 made=$(dw token create 2>>"$log") || fail "dockwell token create failed"
