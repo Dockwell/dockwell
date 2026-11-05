@@ -961,6 +961,131 @@ func TestARouteKeepsWhatItAsksThroughAMoveAndAHold(t *testing.T) {
 	}
 }
 
+// A route can name a service and dial a port on the server, as a host-network app's
+// does, and it means the same as one that doesn't name it: what the service rolls
+// through never reaches it. It isn't moved, it isn't held, a drain doesn't wait on
+// what it carries, and it doesn't count as what ties the service to the ingress.
+func TestARouteWithAServiceAndAPortOnTheServerIsntMovedHeldOrDrained(t *testing.T) {
+	s := newSetup(t)
+	s.DrainPoll = time.Millisecond
+	side := &resourcev1.Route{Domain: "side.example.com", Service: "web", HostPort: 9090}
+	s.apply(t, "www", spec("www.example.com", "", "web", 8080))
+	s.apply(t, "side", side)
+	id := RouteID(routeRef("side"))
+	const dials = ServerHost + ":9090"
+	project := docker.Project(envID)
+	old, next := Instance{Project: project, Service: "web", Number: 1}, Instance{Project: project, Service: "web", Number: 2}
+	// Whatever is under way there, nothing about this service is what it's waiting
+	// for, whether it reads the port itself or that port on the old container.
+	s.proxy.inFlight = map[string]int{dials: 1, s.table.Addresses[old.String()] + ":9090": 1}
+	alone := func(when string) {
+		t.Helper()
+		all, err := s.proxy.Routes(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, r := range all {
+			switch {
+			case r.ID == id:
+				found = true
+				if !slices.Equal(r.Upstreams, []string{dials}) {
+					t.Errorf("%s, the route to the port dials %v", when, r.Upstreams)
+				}
+			case slices.Contains(r.Upstreams, dials):
+				t.Errorf("%s, %s dials the port too: %v", when, r.ID, r.Upstreams)
+			}
+		}
+		if !found {
+			t.Fatalf("%s, the route to the port has gone", when)
+		}
+		got, err := s.Observe(t.Context(), routeRef("side"))
+		if err != nil || !proto.Equal(got, side) {
+			t.Errorf("%s, it reads back as %v, %v, want %v", when, got, err, side)
+		}
+	}
+	dialing := func(when string, i Instance) {
+		t.Helper()
+		all, err := s.proxy.Routes(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := s.table.Addresses[i.String()] + ":8080"
+		for _, r := range all {
+			if r.ID == RouteID(routeRef("www")) && !slices.Equal(r.Upstreams, []string{want}) {
+				t.Errorf("%s, the route by name dials %v, want %s", when, r.Upstreams, want)
+			}
+		}
+	}
+	alone("before anything moves")
+
+	if _, _, ok, err := s.Endpoint(t.Context(), next); err != nil || !ok {
+		t.Fatalf("Endpoint = %v, %v", ok, err)
+	}
+	s.engine.AddContainer(docker.Container{Name: "/" + next.ContainerName(), State: docker.State{Running: true, Status: "running"}, Config: docker.Config{Labels: map[string]string{
+		docker.LabelProject: project, docker.LabelService: "web", docker.LabelNumber: "2", docker.LabelOneoff: "False",
+	}}})
+	if err := s.AddUpstream(t.Context(), next); err != nil {
+		t.Fatal(err)
+	}
+	alone("with a new container added")
+	if err := s.Move(t.Context(), next, []Instance{old}); err != nil {
+		t.Fatal(err)
+	}
+	alone("after the move")
+	dialing("after the move", next)
+
+	release := s.Hold(old.service())
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	alone("reconciled while the service is held")
+	dialing("reconciled while the service is held", next)
+	release()
+
+	// A drain that counted this route would wait for as long as it was given, and
+	// then return as if it had finished. So it has to end well before that.
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	if err := s.Drain(ctx, old); err != nil {
+		t.Fatal(err)
+	}
+	if ctx.Err() != nil {
+		t.Errorf("a drain waited on a route to a port on the server: %v", ctx.Err())
+	}
+	alone("after a drain")
+	if err := s.RemoveUpstream(t.Context(), old); err != nil {
+		t.Fatal(err)
+	}
+	alone("after the old container went")
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	alone("reconciled after")
+
+	// It doesn't keep the service's address either, once nothing dials that.
+	s.apply(t, "www", nil)
+	alone("with the route by name gone")
+	if got := s.table.instancesOf(old.service()); len(got) != 0 {
+		t.Errorf("the route to the port kept the service on the ingress: %v", got)
+	}
+
+	// With nothing else, the service has no route a rollout has to know of, and a
+	// plan to put it on the server's own network, which such a route is for, goes on.
+	own := newSetup(t)
+	own.apply(t, "side", side)
+	i := Instance{Project: docker.Project(envID), Service: "web", Number: 1}
+	if routing, err := own.Routing(t.Context(), i.service()); err != nil || routing.Routed || len(routing.Edited) != 0 {
+		t.Errorf("Routing = %+v, %v, want nothing", routing, err)
+	}
+	if routed, err := own.RoutedAfter(t.Context(), i, nil); err != nil || routed {
+		t.Errorf("RoutedAfter = %v, %v, want no route still sending to it", routed, err)
+	}
+	if got := own.table.instancesOf(i.service()); len(got) != 0 {
+		t.Errorf("the route gave it an address: %v", got)
+	}
+}
+
 // A route to a port on the server belongs to no service: what moves a service leaves
 // it alone, and a drain doesn't wait on it, even if the port is one the service
 // publishes.
