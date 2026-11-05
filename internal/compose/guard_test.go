@@ -260,54 +260,28 @@ func TestWaitingIsLimited(t *testing.T) {
 	}
 }
 
-// The child reads all a file reads: a value that costs too much is stopped there
-// from an .env as from the request, and a relative path doesn't end the read before
-// what comes after it, once it knows where the file is.
-func TestTheChildReadsAllThatIsGiven(t *testing.T) {
+// Checking a file a person is typing goes through the guard before anything
+// reads it here, so one made to cost too much says nothing of itself.
+func TestCheckStopsAtTheGuard(t *testing.T) {
 	guarded(t)
-	guardCPU = 1
-	long := strings.Repeat("x", 60000)
-	costly := []byte("services:\n  slow:\n    image: nginx:1\n    command: ${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}\n")
-	err := guard(t.Context(), Input{File: costly, Env: "A=" + long + "\n"})
-	if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "more time or memory") {
-		t.Errorf("a costly value in an .env = %.300v, want it stopped", err)
-	}
-	behind := []byte("services:\n  slow:\n    image: nginx:1\n    volumes: [\"./data:/data\"]\n    command: ${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}${A}\n")
-	err = guard(t.Context(), Input{File: behind, Variables: map[string]string{"A": long}, Directory: "/srv/app"})
-	if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "more time or memory") {
-		t.Errorf("a costly value behind a relative path = %.300v, want it stopped", err)
-	}
-}
+	guardCPU, guardTimeout = 1, 3*time.Second
+	file, vars := costly()
+	named := append([]byte("name: shop\n"), file...)
 
-// The new keys take no more than the rest of a file does: each costs in proportion
-// to what it takes of the budget a file has.
-func TestTheNewKeysCostWhatTheFileDoes(t *testing.T) {
-	guarded(t)
-	build := func(head string, each func(i int) string, tail string) []byte {
-		var b strings.Builder
-		b.WriteString(head)
-		for i := 0; b.Len() < MaxFile-len(tail)-64; i++ {
-			b.WriteString(each(i))
-		}
-		b.WriteString(tail)
-		return []byte(b.String())
+	seen, stack, err := Check(t.Context(), named, vars)
+	if !errors.Is(err, ErrCostly) || !errors.Is(err, ErrInvalid) {
+		t.Fatalf("Check = %v, want it stopped", err)
 	}
-	for name, file := range map[string][]byte{
-		"capabilities": build("services:\n  web:\n    image: nginx:1\n    cap_add:\n", func(int) string { return "      - NET_ADMIN\n" }, ""),
-		"groups":       build("services:\n  web:\n    image: nginx:1\n    group_add:\n", func(i int) string { return "      - \"" + strconv.Itoa(i) + "\"\n" }, ""),
-		"aliases":      build("services:\n  web:\n    image: nginx:1\n    networks:\n      back:\n        aliases:\n", func(i int) string { return "          - a" + strconv.Itoa(i) + "\n" }, "networks: {back: {}}\n"),
-		"networks":     build("services:\n  web:\n    image: nginx:1\n    networks:\n", func(i int) string { return "      n" + strconv.Itoa(i) + ": {aliases: [a]}\n" }, ""),
-		"externals":    build("services:\n  web:\n    image: nginx:1\nnetworks:\n", func(i int) string { return "  n" + strconv.Itoa(i) + ": {external: true}\n" }, ""),
-		"builds":       build("services:\n", func(i int) string { return "  s" + strconv.Itoa(i) + ": {image: 'nginx:1', build: .}\n" }, ""),
-		"limits":       build("services:\n", func(i int) string { return "  s" + strconv.Itoa(i) + ": {image: 'nginx:1', cpus: 1, mem_limit: 64M}\n" }, ""),
-		"names": build("services:\n", func(i int) string {
-			return "  s" + strconv.Itoa(i) + ": {image: 'nginx:1', container_name: c" + strconv.Itoa(i) + "}\n"
-		}, ""),
-	} {
-		t.Run(name, func(t *testing.T) {
-			if err := guard(t.Context(), Input{File: file}); err != nil {
-				t.Errorf("a file of %d KiB: %.300v", len(file)>>10, err)
-			}
-		})
+	if stack != nil || seen.Name != "" || len(seen.Variables) != 0 || len(seen.Exposed) != 0 {
+		t.Errorf("the file was read past the guard: %+v, %+v", seen, stack)
+	}
+	if got := Line(t.Context(), named, err); got != 0 {
+		t.Errorf("Line = %d, want 0: it isn't about a line, and reading it again costs what the guard stopped", got)
+	}
+
+	// One it can read says what it says of itself, refused or not.
+	seen, _, err = Check(t.Context(), []byte("name: shop\nservices:\n  web:\n    image: a:${TAG}\n"), nil)
+	if !errors.Is(err, ErrInvalid) || errors.Is(err, ErrCostly) || seen.Name != "shop" || len(seen.Variables) != 1 {
+		t.Errorf("a file that needs a variable = %+v, %v", seen, err)
 	}
 }

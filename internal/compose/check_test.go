@@ -33,10 +33,10 @@ services:
 		{Name: "TAG"},
 		{Name: "TWICE", Required: true},
 	}
-	if got := Inspect(t.Context(), []byte(file), nil).Variables; !slices.Equal(got, want) {
+	if got := inspect(t.Context(), []byte(file), nil).Variables; !slices.Equal(got, want) {
 		t.Errorf("Variables = %+v, want %+v", got, want)
 	}
-	if got := Inspect(t.Context(), []byte("not: [yaml"), nil).Variables; got != nil {
+	if got := inspect(t.Context(), []byte("not: [yaml"), nil).Variables; got != nil {
 		t.Errorf("Variables of what isn't YAML = %+v", got)
 	}
 }
@@ -81,7 +81,7 @@ func TestVariablesStopsAtTheDepthParseDoes(t *testing.T) {
 		b.WriteString("}")
 	}
 	b.WriteString("\"\n")
-	got := Inspect(t.Context(), []byte(b.String()), nil).Variables
+	got := inspect(t.Context(), []byte(b.String()), nil).Variables
 	if len(got) != 1 || got[0].Name != "A" || got[0].Required {
 		t.Errorf("Variables = %+v", got)
 	}
@@ -98,7 +98,7 @@ func TestVariablesLeavesAFileThatComesToTooMuch(t *testing.T) {
 	if b.Len() > MaxFile {
 		t.Fatalf("the file is %d bytes, over the cap", b.Len())
 	}
-	if got := Inspect(t.Context(), []byte(b.String()), nil).Variables; got != nil {
+	if got := inspect(t.Context(), []byte(b.String()), nil).Variables; got != nil {
 		t.Errorf("Variables = %+v, want none", got)
 	}
 }

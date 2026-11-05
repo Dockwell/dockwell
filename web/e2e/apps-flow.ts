@@ -255,6 +255,8 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
 
   step("apps: nothing a row says moves the list's columns");
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Apps" }).click();
+  // The page it came from has rows that say this too.
+  await page.getByRole("heading", { level: 1, name: "Apps", exact: true }).waitFor();
   await page.getByRole("row", { name: /nginx/ }).getByText("Rolled back").waitFor();
   const columnNow = await statusColumn(page);
   if (columnNow !== columnAt) fail(`"Rolled back" moved the Status column from ${columnAt} to ${columnNow}`);

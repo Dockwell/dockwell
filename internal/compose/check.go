@@ -51,6 +51,18 @@ type Variable struct {
 	Required bool
 }
 
+// Check reads a file as Parse does, and says what it says of itself too, for a
+// form to show as someone types one. Everything that reads the file here comes
+// after the guard has, so a file made to cost too much is stopped there, and
+// says nothing of itself. Its error is what Parse's is.
+func Check(ctx context.Context, file []byte, given map[string]string) (Inspection, *Stack, error) {
+	stack, err := Parse(ctx, file, given)
+	if err != nil && !errors.Is(err, ErrInvalid) || errors.Is(err, ErrCostly) {
+		return Inspection{}, nil, err
+	}
+	return inspect(ctx, file, given), stack, err
+}
+
 // Inspection is what a file says of itself, whether or not Parse would take
 // it: what a form shows as someone types one.
 type Inspection struct {
@@ -64,13 +76,13 @@ type Inspection struct {
 	Exposed []Exposed
 }
 
-// Inspect reads what a file says of itself, as Parse reads it: $NAME, ${NAME}
+// inspect reads what a file says of itself, as Parse reads it: $NAME, ${NAME}
 // and ${NAME:?why} need a value, and ${NAME:-default} and ${NAME:+other} have
 // what they need. A $$ is a dollar sign. A file Parse wouldn't read further
 // than this says nothing: one that isn't YAML, or comes to too much once its
 // aliases are read, which reading each alias again here would pay for.
-func Inspect(ctx context.Context, file []byte, given map[string]string) Inspection {
-	if len(file) > MaxFile {
+func inspect(ctx context.Context, file []byte, given map[string]string) Inspection {
+	if len(file) > MaxFile || checkVariables(given) != nil {
 		return Inspection{}
 	}
 	select {
@@ -188,7 +200,8 @@ var (
 // it is about the file as a whole. It only points the way, so it is the
 // nearest line it can find, such as the service's own.
 func Line(ctx context.Context, file []byte, err error) int {
-	if len(file) > MaxFile {
+	// A file the guard stopped is read no further, and is about no one line.
+	if len(file) > MaxFile || errors.Is(err, ErrCostly) {
 		return 0
 	}
 	select {
@@ -223,8 +236,8 @@ func lineOf(root *yaml.Node, at place) int {
 	node := root
 	line := 0
 	if m := owner.FindStringSubmatch(at.owner); m != nil {
-		section := child(node, m[1]+"s")
-		if node = child(section, m[2]); node == nil {
+		section := entry(node, m[1]+"s")
+		if node = entry(section, m[2]); node == nil {
 			return nodeLine(section)
 		}
 		line = keyLine(section, m[2])
@@ -233,7 +246,7 @@ func lineOf(root *yaml.Node, at place) int {
 		}
 	}
 	for _, key := range path {
-		next := child(node, key)
+		next := entry(node, key)
 		if next == nil {
 			return line
 		}
@@ -263,8 +276,8 @@ func keyLine(n *yaml.Node, key string) int {
 	return 0
 }
 
-// child is a mapping's value at key, or nil.
-func child(n *yaml.Node, key string) *yaml.Node {
+// entry is a mapping's value at key, or nil.
+func entry(n *yaml.Node, key string) *yaml.Node {
 	if n == nil || n.Kind != yaml.MappingNode {
 		return nil
 	}

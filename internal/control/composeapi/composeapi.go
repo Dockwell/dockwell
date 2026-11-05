@@ -317,29 +317,34 @@ func exposedNotes(env string, exposed []compose.Exposed) []revision.Note {
 func (h *Handler) CheckCompose(ctx context.Context, req *connect.Request[dockwellv1.CheckComposeRequest]) (*connect.Response[dockwellv1.CheckComposeResponse], error) {
 	m := req.Msg
 	res := &dockwellv1.CheckComposeResponse{}
-	var err error
 	file := []byte(m.GetCompose())
 	if strings.TrimSpace(m.GetCompose()) == "" {
 		return connect.NewResponse(res), nil
 	}
-	seen := compose.Inspect(ctx, file, m.GetVariables())
+	// The guard reads a file first, so nothing here reads one made to cost too
+	// much: it says nothing of itself, and only why it was stopped.
+	seen, stack, err := compose.Check(ctx, file, m.GetVariables())
+	if err != nil && !errors.Is(err, compose.ErrInvalid) {
+		if errors.Is(err, compose.ErrBusy) {
+			return nil, connect.NewError(connect.CodeResourceExhausted, err)
+		}
+		return nil, h.internal(ctx, err)
+	}
 	for _, v := range seen.Variables {
 		res.Variables = append(res.Variables, &dockwellv1.ComposeVariable{Name: v.Name, Required: v.Required})
 	}
 	res.ExposedVariables = exposedProtos(seen.Exposed)
-	if res.Name, err = h.fileName(ctx, seen.Name); err != nil {
-		return nil, h.internal(ctx, err)
+	name, nameErr := h.fileName(ctx, seen.Name)
+	if nameErr != nil {
+		return nil, h.internal(ctx, nameErr)
 	}
+	res.Name = name
 	refuse := func(err error) (*connect.Response[dockwellv1.CheckComposeResponse], error) {
 		res.Refusal = &dockwellv1.ComposeRefusal{Message: compose.Message(err), Line: int32(compose.Line(ctx, file, err))} //nolint:gosec // a line of a file under compose.MaxFile
 		return connect.NewResponse(res), nil
 	}
-	stack, err := compose.Parse(ctx, file, m.GetVariables())
-	if errors.Is(err, compose.ErrInvalid) {
-		return refuse(err)
-	}
 	if err != nil {
-		return nil, h.internal(ctx, err)
+		return refuse(err)
 	}
 	// What a change's edits go through when they are proposed: the rules on
 	// images, ports and server paths are the drivers', not the file's.

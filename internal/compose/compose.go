@@ -66,6 +66,11 @@ type Stack struct {
 // ErrInvalid is a Compose file Dockwell can't take, with why.
 var ErrInvalid = errors.New("invalid Compose file")
 
+// ErrCostly is a file the guard stopped, as reading it took more time or memory
+// than Dockwell allows. Nothing should read it again.
+var ErrCostly = invalid("reading the Compose file took more time or memory than Dockwell allows, so it stopped. " +
+	"A real file doesn't: look for one very long word in a command, thousands of names in one place, or aliases repeated many times")
+
 // ErrBusy is too many files waiting to be read to wait with them.
 var ErrBusy = errors.New("too many Compose files are waiting to be read, so this one wasn't. Try again in a moment")
 

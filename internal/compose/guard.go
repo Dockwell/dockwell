@@ -100,8 +100,7 @@ func guard(ctx context.Context, in Input) error {
 	case failed || errors.Is(ctx.Err(), context.DeadlineExceeded):
 		// A signal is the CPU limit, and any other exit a crash, as Go ends when
 		// it runs out of memory, on what the file made it do.
-		return invalid("reading the Compose file took more time or memory than Dockwell allows, so it stopped. " +
-			"A real file doesn't: look for one very long word in a command, thousands of names in one place, or aliases repeated many times")
+		return ErrCostly
 	}
 	return fmt.Errorf("can't read the Compose file: %w", err)
 }
