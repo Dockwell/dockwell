@@ -525,6 +525,13 @@ func TestARouteBehindATunnelOnRealCaddy(t *testing.T) {
 	if step.Domain != nil {
 		t.Errorf("the plan says what DNS says, of a domain that points at a tunnel: %+v", step.Domain)
 	}
+	// What's there is this test's own server, which reads as this process.
+	if step.ServerPort == nil || step.ServerPort.Port != uint32(port) || step.ServerPort.Listening == "" || step.ServerPort.Nothing {
+		t.Errorf("the plan doesn't say what listens on port %d: %+v", port, step.ServerPort)
+	}
+	if step.Answers == nil || step.Answers.Reach != resource.ReachProxies || !slices.Equal(step.Answers.Proxies, []string{"127.0.0.1/32"}) {
+		t.Errorf("the plan doesn't say who it answers: %+v", step.Answers)
+	}
 	r := &realCaddy{Caddy: s.caddy, proc: s.proc, http: s.http, tls: s.tls}
 	seen := r.plainGet(t, "app.example.net", "/who", map[string]string{"X-Forwarded-For": "6.6.6.6, 198.51.100.7", "X-Forwarded-Proto": "https"}).who(t)
 	if seen["name"] != "on-the-server" || seen["real"] != "198.51.100.7" || seen["proto"] != "https" {

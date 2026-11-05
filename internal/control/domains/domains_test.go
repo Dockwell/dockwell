@@ -234,7 +234,7 @@ func TestAPlainDomainSaysPlainHTTP(t *testing.T) {
 		}
 		env := tr.Projects[0].Environments[0].ID
 		p, err := e.Propose(t.Context(), revision.Proposal{Summary: "Behind a tunnel", Actor: "usr_test", Edits: []revision.Edit{
-			{Ref: resource.Ref{Kind: route.Kind, Scope: env, Name: "www"}, Spec: &resourcev1.Route{Domain: "app.example.net", HostPort: 8080, Tls: "off"}, Servers: []string{"srv_on"}},
+			{Ref: resource.Ref{Kind: route.Kind, Scope: env, Name: "www"}, Spec: &resourcev1.Route{Domain: "app.example.net", HostPort: 8080, Tls: "off", PlainForAnyone: true}, Servers: []string{"srv_on"}},
 		}})
 		if err != nil {
 			t.Fatal(err)
@@ -254,7 +254,7 @@ func TestAPlainDomainSaysPlainHTTP(t *testing.T) {
 		if d.GetUrl() != "http://app.example.net" || d.GetRoutes()[0].GetUrl() != "http://app.example.net" {
 			t.Errorf("it reads %s and %s", d.GetUrl(), d.GetRoutes()[0].GetUrl())
 		}
-		if r := d.GetRoutes()[0]; r.GetTls() != "off" || r.GetHostPort() != 8080 {
+		if r := d.GetRoutes()[0]; r.GetTls() != "off" || r.GetHostPort() != 8080 || !r.GetPlainForAnyone() {
 			t.Errorf("its route reads %v", r)
 		}
 	})

@@ -478,6 +478,8 @@ func TestABoundOnWhatCanBeAProxy(t *testing.T) {
 		{"2001:db8::/27", false},
 		{"ff00::/8", false},
 		{"224.0.0.0/8", false},
+		{"224.0.0.1", false},
+		{"ff02::1", false},
 		{"fc00::/7", false},
 		{"10.0.0.0/7", false},
 		{"203.0.0.0/12", true},

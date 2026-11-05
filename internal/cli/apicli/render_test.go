@@ -362,7 +362,9 @@ func TestPlanViewWarnsOfAValueInPlainSight(t *testing.T) {
 func TestARoutesPlanSaysWhatIsUnencryptedAndWhatItReaches(t *testing.T) {
 	plan := &dockwellv1.Plan{HostAccess: true, Servers: []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: []*dockwellv1.PlanStep{{
 		Resource: &dockwellv1.ResourceRef{Kind: "route", Name: "www"}, Action: dockwellv1.PlanAction_PLAN_ACTION_CREATE, Unencrypted: true,
-		Ingress: &dockwellv1.IngressEffect{Change: dockwellv1.IngressChange_INGRESS_CHANGE_STARTS, Proxy: "Caddy", Ports: []string{"80/tcp"}},
+		Answers:    &dockwellv1.RouteAnswers{Reach: dockwellv1.RouteReach_ROUTE_REACH_THIS_SERVER, Plain: true},
+		ServerPort: &dockwellv1.ServerPortCheck{Port: 8080, Listening: "nginx"},
+		Ingress:    &dockwellv1.IngressEffect{Change: dockwellv1.IngressChange_INGRESS_CHANGE_STARTS, Proxy: "Caddy", Ports: []string{"80/tcp"}},
 		HostAccess: []*dockwellv1.HostAccess{
 			{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PORT, Path: "127.0.0.1:8080", Detail: "app.example.com"},
 			{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TRUSTED_PROXY, Path: "cloudflare"},
@@ -373,6 +375,9 @@ func TestARoutesPlanSaysWhatIsUnencryptedAndWhatItReaches(t *testing.T) {
 	for _, want := range []string{
 		"Traffic for this route reaches hz-1 unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet",
 		"so this route starts it, and it takes ports 80/tcp",
+		"It answers only what runs on hz-1 itself, such as a tunnel on its own network",
+		"That lets what runs on hz-1 itself reach port 8080",
+		"Listening there now: nginx.",
 		"Gives it access to hz-1: the port 127.0.0.1:8080 on the server itself, past its containers, at app.example.com",
 		"Takes in cloudflare as a proxy it believes on where a request came from",
 		"A person approves this",

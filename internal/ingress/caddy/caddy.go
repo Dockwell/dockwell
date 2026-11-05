@@ -71,7 +71,8 @@ const (
 	// adminWait bounds one call of the admin API. A Caddy that hangs, as under
 	// docker pause, accepts a connection and never answers, and the agent holds
 	// up every plan on this server while it waits. A reload of the most routes a
-	// server may have takes under a second.
+	// server may have takes a few seconds at worst, each naming the preset, as
+	// measured on a busy machine (ADR 0030).
 	adminWait = 15 * time.Second
 )
 
@@ -1181,9 +1182,10 @@ func trustedRanges(routes []json.RawMessage) []string {
 func withTrust(routes []json.RawMessage, serverTrusts bool) []json.RawMessage {
 	for i, raw := range routes {
 		read, ok := readRoute(raw)
-		if !ok || read.Edited || len(read.TrustedProxies)+len(read.EdgeProxies) > 0 {
+		if !ok || read.Edited {
 			continue
 		}
+		// One with steps of its own already decides for itself.
 		var r route
 		if json.Unmarshal(raw, &r) != nil || len(r.Handle) != 1 {
 			continue
