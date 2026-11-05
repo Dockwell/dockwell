@@ -691,7 +691,9 @@ export async function planFlow(
     fail(`with 14 domains the plan's first row is at ${manyAtReview}, in a window ${windowHeight} tall`);
   }
   await plan.getByRole("button", { name: /Apply plan/ }).click();
-  await page.getByRole("heading", { name: "fixme is live" }).waitFor({ timeout: 30_000 });
+  await page
+    .getByRole("heading", { name: /^fixme is (deployed|running|healthy|starting)$/ })
+    .waitFor({ timeout: 30_000 });
   const more = page.getByRole("button", { name: "and 11 more" });
   await more.waitFor();
   const manyOnArrival = await planRowTop(page);

@@ -1796,7 +1796,7 @@ describe("the plan sheet, once it runs", () => {
       it("folds them after a few, so the plan is still there to see, and opens them when asked", async () => {
         const user = userEvent.setup();
         arrivedWith(many(14), [{ hostPort: 8080, containerPort: 80 }]);
-        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const done = await screen.findByRole("dialog", { name: "web is deployed" });
         await within(done).findByRole("link", { name: "site-1.example.com" });
         expect(done.querySelectorAll(".plan-reach-row.is-domain")).toHaveLength(3);
         const more = within(done).getByRole("button", { name: "and 12 more" });
@@ -1809,14 +1809,14 @@ describe("the plan sheet, once it runs", () => {
 
       it("doesn't fold what fits", async () => {
         arrivedWith(many(3));
-        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const done = await screen.findByRole("dialog", { name: "web is deployed" });
         await within(done).findByRole("link", { name: "site-3.example.com" });
         expect(within(done).queryByRole("button", { name: /more$/ })).toBeNull();
       });
 
       it("leads with what's wrong, so folding doesn't hide it", async () => {
         arrivedWith(many(14, 11));
-        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const done = await screen.findByRole("dialog", { name: "web is deployed" });
         const first = await within(done).findByText("site-12.example.com", { selector: ".plan-reach-at" });
         expect(done.querySelector(".plan-reach-row")).toContainElement(first);
       });
@@ -1834,7 +1834,7 @@ describe("the plan sheet, once it runs", () => {
           }),
         );
         arrivedWith(many(14, 0), [], change);
-        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const done = await screen.findByRole("dialog", { name: "web is deployed" });
         const first = await within(done).findByText("site-14.example.com", {
           selector: "a.plan-reach-at code, code.plan-reach-at",
         });

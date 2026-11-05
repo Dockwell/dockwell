@@ -1771,7 +1771,7 @@ describe("an app's overview", () => {
     await user.click(within(review).getByRole("button", { name: /Apply plan/ }));
     await screen.findByRole("dialog", { name: "Applying" });
     watch.push(watched(applied(planned)));
-    const done = await screen.findByRole("dialog", { name: "alone is live" });
+    const done = await screen.findByRole("dialog", { name: "alone is deployed" });
     const row = (await within(done).findByText("app.example.com", { selector: ".plan-reach-at" })).closest(
       ".plan-reach-row",
     ) as HTMLElement;
@@ -1781,7 +1781,7 @@ describe("an app's overview", () => {
     expect(within(row).queryByRole("button", { name: "Copy app.example.com" })).toBeNull();
     await user.click(within(row).getByRole("link", { name: "Check its page" }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/servers/${SERVER}`));
-    expect(screen.queryByRole("dialog", { name: "alone is live" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "alone is deployed" })).toBeNull();
   });
 
   it("says so in an open arrival too, as its server goes", async () => {
@@ -1846,7 +1846,7 @@ describe("an app's overview", () => {
     await user.click(within(review).getByRole("button", { name: /Apply plan/ }));
     await screen.findByRole("dialog", { name: "Applying" });
     watch.push(watched(applied(planned)));
-    const done = await screen.findByRole("dialog", { name: "alone is live" });
+    const done = await screen.findByRole("dialog", { name: "alone is deployed" });
     expect(await within(done).findByRole("link", { name: "app.example.com" })).toBeVisible();
     stale = true;
     act(() => fleet.push(changed(aServer({ id: SERVER, name: "hz-1", connection: Connection.UNREACHABLE }))));
@@ -1904,7 +1904,7 @@ describe("an app's overview", () => {
           seen,
         ),
       );
-      return screen.findByRole("region", { name: "Running" });
+      return screen.findByRole("region", { name: "What runs" });
     };
 
     it("doesn't say it's serving: it names the server, and what it last said, and when", async () => {
@@ -1962,7 +1962,7 @@ describe("an app's overview", () => {
           },
         }),
       );
-      const running = await screen.findByRole("region", { name: "Running" });
+      const running = await screen.findByRole("region", { name: "What runs" });
       expect(await within(running).findByText("Valid for 61 days")).toBeVisible();
       stale = true;
       act(() => watch.push(changed(aServer({ id: SERVER, name: "hz-1", connection: Connection.UNREACHABLE }))));
