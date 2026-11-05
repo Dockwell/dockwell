@@ -406,14 +406,16 @@ func testThePlanSaysWhatTheFileAskedFor(t *testing.T, backend store.Backend) {
 	}
 }
 
-// An .env's values go where the file puts them, in a spec that's sealed, and no
+// An .env's value the file puts in environment is in a spec that's sealed, and no
 // further. The new fields sit in the same spec: sealed at rest, and shown in plans,
-// as nothing in them is a secret, while the environment beside them stays masked.
-func TestAnEnvFileStaysOutOfTheDatabase(t *testing.T) {
-	storetest.Each(t, testAnEnvFileStaysOutOfTheDatabase)
+// as nothing in them is a secret, while the environment beside them stays masked. A
+// value the file puts anywhere else does show: see
+// TestAValueOutsideEnvironmentShowsAndThePlanSaysSo.
+func TestAValueInEnvironmentStaysOutOfTheDatabase(t *testing.T) {
+	storetest.Each(t, testAValueInEnvironmentStaysOutOfTheDatabase)
 }
 
-func testAnEnvFileStaysOutOfTheDatabase(t *testing.T, backend store.Backend) {
+func testAValueInEnvironmentStaysOutOfTheDatabase(t *testing.T, backend store.Backend) {
 	r := realServer(t, backend)
 	c, cc, e, f := r.c, r.cc, r.e, r.f
 	const value = "env-file-7Hq2mXv9Lr4Kd8Zs"
@@ -549,6 +551,114 @@ func testAnEnvRefusalStaysOutOfTheLog(t *testing.T, backend store.Backend) {
 	for _, line := range strings.Split(logs.String(), "\n") {
 		if strings.Contains(line, tail) || strings.Contains(line, "hunter2") {
 			t.Errorf("the control plane's log, at info, holds the value: %s", line)
+		}
+	}
+}
+
+// A file that writes a value outside environment has it shown: in the plan, in the
+// changes table, and to a read-only token, through the change and through an export.
+// That is the gap #96 tracks, and this holds what's true until it is closed: the
+// plan says so, per variable and field, for a value from an .env or from variables,
+// and it says how to keep the value hidden, and never holds the value itself. When
+// #96 keeps these out, the checks that find the value here go.
+func TestAValueOutsideEnvironmentShowsAndThePlanSaysSo(t *testing.T) {
+	storetest.Each(t, testAValueOutsideEnvironmentShowsAndThePlanSaysSo)
+}
+
+func testAValueOutsideEnvironmentShowsAndThePlanSaysSo(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.AddLocalImage("redis:8", dockertest.Image{})
+	const value = "s3cr3t7Hq2mXv9Lr4Kd8Zs"
+	cc := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	c := changeClient(b, b.origin)
+	file := "services:\n  redis:\n    image: redis:8\n    command: redis-server --requirepass ${PANEL_REDIS_ROOT_PASSWORD}\n" +
+		"    healthcheck:\n      test: [\"CMD\", \"redis-cli\", \"-a\", \"${PANEL_REDIS_ROOT_PASSWORD}\", \"ping\"]\n" +
+		"    labels: {auth: \"${PANEL_REDIS_ROOT_PASSWORD}\"}\n"
+	const name = "PANEL_REDIS_ROOT_PASSWORD"
+	notes := func(ch *dockwellv1.Change) map[string]string {
+		t.Helper()
+		out := map[string]string{}
+		for _, n := range ch.GetPlan().GetNotes() {
+			if n.GetReason() != "exposed_variable" {
+				continue
+			}
+			if strings.Contains(n.GetMessage(), value) || slices.Contains(n.GetNames(), value) {
+				t.Errorf("the note holds the value: %v", n)
+			}
+			if got := n.GetResource(); got.GetKind() != string(service.Kind) || got.GetName() != "redis" || got.GetScope() == "" {
+				t.Errorf("the note is about %v", got)
+			}
+			if len(n.GetNames()) != 2 || n.GetNames()[0] != name {
+				t.Errorf("the note's names = %v", n.GetNames())
+				continue
+			}
+			out[n.GetNames()[1]] = n.GetMessage()
+		}
+		return out
+	}
+	fromEnv := importIn(t, cc, &dockwellv1.ImportComposeRequest{Compose: file, Env: name + "=" + value + "\n"})
+	said := notes(fromEnv)
+	for field, want := range map[string]string{
+		"command": name + " from your .env is in redis's command, so anyone who can read this change or export this environment can read it. " +
+			"To keep it hidden, set it in environment and have the command read it there, with sh -c, if the image has a shell",
+		"healthcheck": name + " from your .env is in redis's health check, so anyone who can read this change or export this environment can read it. " +
+			"To keep it hidden, set it in environment and have the health check read it there, with CMD-SHELL, if the image has a shell",
+		"labels": name + " from your .env is in redis's labels, so anyone who can read this change or export this environment can read it. " +
+			"It can't be hidden there, so if it is a secret, set it in environment for the app to read instead",
+	} {
+		if said[field] != want {
+			t.Errorf("for %s the plan says %q, want %q", field, said[field], want)
+		}
+	}
+	discard(t, c, fromEnv)
+
+	fromRequest := importIn(t, cc, &dockwellv1.ImportComposeRequest{Compose: file, Variables: map[string]string{name: value}})
+	if got := notes(fromRequest)["command"]; !strings.HasPrefix(got, name+" from the request's variables is in redis's command") {
+		t.Errorf("for a value in variables the plan says %q", got)
+	}
+	discard(t, c, fromRequest)
+
+	// A value only the file gave, or that only environment holds, needs no note.
+	for what, req := range map[string]*dockwellv1.ImportComposeRequest{
+		"a default":      {Compose: "services:\n  redis:\n    image: redis:8\n    command: redis-server --port ${PORT:-6379}\n"},
+		"nothing in it":  {Compose: "services:\n  redis:\n    image: redis:8\n    command: redis-server ${EXTRA}\n", Env: "EXTRA=\n"},
+		"in environment": {Compose: "services:\n  redis:\n    image: redis:8\n    environment: {K: \"${K}\"}\n", Env: "K=" + value + "\n"},
+	} {
+		ch := importIn(t, cc, req)
+		if got := notes(ch); len(got) != 0 {
+			t.Errorf("%s has notes: %v", what, got)
+		}
+		discard(t, c, ch)
+	}
+
+	// What the notes say is true: this is who reads it.
+	ch := importIn(t, cc, &dockwellv1.ImportComposeRequest{Compose: file, Env: name + "=" + value + "\n"})
+	applyConfirmed(t, c, ch)
+	ro := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY), rt: b.client.Transport}
+	got, err := changeClient(ro, b.origin).GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: ch.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got.Msg.String(), value) {
+		t.Error("a read-only token doesn't read the value in the change, so the note isn't true: see #96")
+	}
+	exp, err := dockwellv1connect.NewComposeServiceClient(ro, b.origin, connect.WithProtoJSON()).ExportCompose(t.Context(), connect.NewRequest(&dockwellv1.ExportComposeRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(exp.Msg.GetCompose(), value) {
+		t.Error("a read-only token doesn't read the value in an export, so the note isn't true: see #96")
+	}
+	dump := storetest.Dump(t, f.db)
+	if !slices.ContainsFunc(dump["changes"], func(row string) bool { return strings.Contains(row, value) }) {
+		t.Error("the changes table doesn't hold the value, so the note isn't true: see #96")
+	}
+	// A stored spec is sealed all the same, as the plan is what shows it.
+	for _, table := range []string{"revisions", "change_items"} {
+		if slices.ContainsFunc(dump[table], func(row string) bool { return strings.Contains(row, value) }) {
+			t.Errorf("%s holds the value in the clear", table)
 		}
 	}
 }

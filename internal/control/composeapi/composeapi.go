@@ -134,7 +134,7 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Notes: planNotes(env.ID, stack.Notices)})
+	}, changes.Also{Notes: slices.Concat(planNotes(env.ID, stack.Notices), exposedNotes(env.ID, stack.Exposed, stack.ExposedMore, m.GetVariables()))})
 	if err != nil {
 		return nil, err
 	}
@@ -151,6 +151,69 @@ func planNotes(env string, notices []compose.Notice) []revision.Note {
 		}
 	}
 	return out
+}
+
+// exposedNotes are what a plan says of where a file writes a value in plain sight,
+// by the variable and the field and never the value: the fact, what it means, and
+// what to do. more says the file writes more than these. A variable in given came
+// from the request, and any other from the .env beside the file.
+func exposedNotes(env string, exposed []compose.Exposed, more bool, given map[string]string) []revision.Note {
+	out := make([]revision.Note, 0, len(exposed)+1)
+	for _, e := range exposed {
+		out = append(out, revision.Note{
+			Reason:  "exposed_variable",
+			Message: exposedMessage(e, given),
+			Ref:     resource.Ref{Kind: resource.Kind(e.Kind), Scope: env, Name: e.Owner},
+			Names:   []string{e.Variable, e.Field},
+		})
+	}
+	if more {
+		out = append(out, revision.Note{
+			Reason:  "exposed_more",
+			Message: fmt.Sprintf("The file writes more variables in plain sight than the %d listed here. Read it for the rest before you apply this", len(exposed)),
+		})
+	}
+	return out
+}
+
+// exposedMessage says where a value lands. How to hide one depends on the field:
+// only what runs can read it from the environment, and then only through a shell.
+func exposedMessage(e compose.Exposed, given map[string]string) string {
+	from := "your .env"
+	if _, ok := given[e.Variable]; ok {
+		from = "the request's variables"
+	}
+	owner := e.Owner + "'s"
+	if e.Kind != string(service.Kind) {
+		owner = "the " + e.Kind + " " + e.Owner + "'s"
+	}
+	field := e.Field
+	switch e.Field {
+	case "healthcheck":
+		field = "health check"
+	case "working_dir":
+		field = "working directory"
+	case "volumes":
+		field = "mounts"
+	case "driver_opts":
+		field = "driver options"
+	case "environment":
+		field = "environment variable names"
+	case "network_mode":
+		field = "network mode"
+	case "deploy":
+		field = "limits"
+	}
+	fact := fmt.Sprintf("%s from %s is in %s %s, so anyone who can read this change or export this environment can read it", e.Variable, from, owner, field)
+	switch e.Field {
+	case "command", "entrypoint":
+		return fmt.Sprintf("%s. To keep it hidden, set it in environment and have the %s read it there, with sh -c, if the image has a shell", fact, e.Field)
+	case "healthcheck":
+		return fact + ". To keep it hidden, set it in environment and have the health check read it there, with CMD-SHELL, if the image has a shell"
+	case "environment":
+		return fact + ", as only a variable's value is hidden. Don't write a secret in a variable's name"
+	}
+	return fact + ". It can't be hidden there, so if it is a secret, set it in environment for the app to read instead"
 }
 
 // ExportCompose writes an environment, or one service, as a Compose file.

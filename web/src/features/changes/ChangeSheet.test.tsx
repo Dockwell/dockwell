@@ -206,6 +206,11 @@ describe("the plan sheet", () => {
         reason: "no_build",
         message: "web has build beside image, and Dockwell builds nothing, so it runs nginx:1.27 as named",
       }),
+      create(PlanNoteSchema, {
+        reason: "exposed_variable",
+        message: "REDIS_PASSWORD from your .env is in redis's command, so anyone who can read this change can read it",
+        names: ["REDIS_PASSWORD", "command"],
+      }),
     ];
     step.untilHealthy = { $typeName: "google.protobuf.Duration", seconds: 110n, nanos: 0 };
     step.keptPaths = ["/var/lib/postgresql/data"];
@@ -244,6 +249,12 @@ describe("the plan sheet", () => {
     );
     // What no step says, the plan says beside them.
     expect(sheet).toHaveTextContent("web has build beside image, and Dockwell builds nothing");
+    expect(sheet).toHaveTextContent("REDIS_PASSWORD from your .env is in redis's command");
+    // A value in plain sight stands with what most needs reading, not with what is by the way.
+    const iconBeside = (text: string) =>
+      within(sheet).getByText(text, { exact: false }).closest(".plan-effect")?.querySelector("svg")?.innerHTML;
+    expect(iconBeside("REDIS_PASSWORD from your .env")).toBe(iconBeside("This plan gives more access to a server"));
+    expect(iconBeside("REDIS_PASSWORD from your .env")).not.toBe(iconBeside("web has build beside image"));
     expect(sheet).toHaveTextContent(
       "Takes out of use what its image keeps at /var/lib/postgresql/data, which the server keeps for 7 days",
     );

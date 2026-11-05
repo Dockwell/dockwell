@@ -54,6 +54,11 @@ type Stack struct {
 	Variables map[string]string
 	// Notices are what the plan should say of the file that no step does.
 	Notices []Notice
+	// Exposed says where the file writes a variable's value that anyone who can
+	// read what it makes sees, for the plan to warn of.
+	Exposed []Exposed
+	// ExposedMore says the file writes more than Exposed lists.
+	ExposedMore bool
 }
 
 // Notice is what a plan should say of a file that no step does, such as an
@@ -453,7 +458,7 @@ func parse(in Input) (*Stack, error) {
 	if err != nil {
 		return nil, err
 	}
-	dict, err := interpolate(raw, variables)
+	dict, exposed, err := interpolate(raw, variables)
 	if err != nil {
 		return nil, err
 	}
@@ -488,7 +493,12 @@ func parse(in Input) (*Stack, error) {
 			Message: fmt.Sprintf("%s has build beside image, and Dockwell builds nothing, so it runs %s as named: that image must be on the server, or a pull must be able to get it", name, image),
 		})
 	}
-	return stack(&m)
+	out, err := stack(&m)
+	if err != nil {
+		return nil, err
+	}
+	out.Exposed, out.ExposedMore = exposed.report()
+	return out, nil
 }
 
 // decode reads a canonical Compose model into compose-go's types, as its

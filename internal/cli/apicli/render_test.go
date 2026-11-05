@@ -336,6 +336,26 @@ func TestEveryAccessKindHasWords(t *testing.T) {
 	}
 }
 
+// A value anyone can read is the most a note can say, short of stopping anyone, so
+// it stands out from one that isn't.
+func TestPlanViewWarnsOfAValueInPlainSight(t *testing.T) {
+	var buf bytes.Buffer
+	PlanView(&buf, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{
+		{Reason: "exposed_variable", Message: "REDIS_PASSWORD from your .env is in redis's command"},
+		{Reason: "exposed_more", Message: "The file writes more variables in plain sight"},
+		{Reason: "no_build", Message: "web has build beside image"},
+	}})
+	for _, want := range []string{
+		"Warning: REDIS_PASSWORD from your .env is in redis's command.\n",
+		"Warning: The file writes more variables in plain sight.\n",
+		"Note: web has build beside image.\n",
+	} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("PlanView doesn't say %q:\n%s", want, buf.String())
+		}
+	}
+}
+
 // What a plan says beside its steps, the CLI says too.
 func TestPlanViewSaysNotes(t *testing.T) {
 	var buf bytes.Buffer

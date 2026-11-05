@@ -1059,9 +1059,13 @@ export const PlanSchema: GenMessage<Plan> = /*@__PURE__*/
 export type PlanNote = Message<"dockwell.v1.PlanNote"> & {
   /**
    * What it is about, for a surface that says it in its own words:
-   * "container_name" for a name a service now answers to as an alias,
-   * "no_build" for an image a Compose file builds and Dockwell doesn't, and
-   * "cpu_reservation" for a CPU reservation Docker has no way to keep.
+   * "exposed_variable" for a variable whose value a Compose file writes in
+   * plain sight, "exposed_more" for a file that writes more of them than a plan
+   * lists, "container_name" for a name a service now answers to as an alias,
+   * "no_build" for an image a Compose file builds and Dockwell doesn't,
+   * "cpu_reservation" for a CPU reservation Docker has no way to keep, and
+   * "host_network_ports" for ports the server's own network doesn't publish.
+   * Another reason may come: its message says what it means.
    *
    * @generated from field: string reason = 1;
    */
@@ -1082,7 +1086,9 @@ export type PlanNote = Message<"dockwell.v1.PlanNote"> & {
   resource?: ResourceRef | undefined;
 
   /**
-   * The names it is about: the container_name, or the image.
+   * The names it is about: the variable, then the field that holds it, for
+   * "exposed_variable"; the container_name, or the image, or the ports. Never a
+   * variable's value.
    *
    * @generated from field: repeated string names = 4;
    */
