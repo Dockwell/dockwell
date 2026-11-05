@@ -534,12 +534,32 @@ nothing_shows() {
   done
 }
 # delete_kept deletes a service whose image keeps data, as redis:7.4-alpine does at
-# /data, so a person applies it, and no token can.
+# /data, so a person applies it, and no token can. The server keeps that data for 7
+# days, for an undo. This step leaves nothing behind, so it removes it, which the
+# agent's prune takes as already done.
 delete_kept() {
-  local planned
+  local planned container volumes
+  container=$(named_container "$1")
+  volumes=$(docker inspect --format '{{range .Mounts}}{{if eq .Type "volume"}}{{println .Name}}{{end}}{{end}}' "$container") ||
+    fail "docker inspect $container failed"
+  [[ -n "$volumes" ]] || fail "$container has no volume for what its image keeps, so this deletes nothing a person must approve"
   planned=$(dw services delete "$1" --plan-only --json) || fail "planning to delete $1 failed"
   person_apply "$(jq -r '.change.id' <<<"$planned")"
+  # shellcheck disable=SC2086 # one name to a line
+  docker volume rm $volumes >/dev/null || fail "can't remove what $1's image kept: $volumes"
 }
+# found is what the server has, to hold this step to leaving it as it found it: the
+# import makes the environment's default network, and each service makes a volume for
+# what its image keeps.
+found() {
+  local containers networks volumes drift
+  containers=$(docker ps -a --format '{{.Names}}' | sort | tr '\n' ' ') || return 1
+  networks=$(docker network ls --format '{{.Name}}' | sort | tr '\n' ' ') || return 1
+  volumes=$(docker volume ls -q | sort | tr '\n' ' ') || return 1
+  drift=$(dw drift list --json | jq -c '[(.drift // [])[] | .resource] | sort_by(.kind, .name)') || return 1
+  echo "containers: $containers; networks: $networks; volumes: $volumes; drift: $drift"
+}
+found_before=$(found) || fail "can't read what the server has"
 dw compose import --project default --compose "$(cat "$data/redis.yaml")" --env-file "$data/redis.env" --yes ||
   fail "importing a password in a command failed"
 secured=$(named_container secured)
@@ -589,6 +609,9 @@ answers "$secured" "$redis_given" || fail "$secured doesn't take the new passwor
 if answers "$secured" "$redis_password"; then fail "$secured still takes the old password"; fi
 nothing_shows "$redis_password" "$redis_given"
 delete_kept secured
+# The import made the environment's default network for it, which nothing else is on.
+# Left, it would go in the ingress step's docker network prune, and read as drift.
+dw networks delete default --yes || fail "networks delete default failed"
 
 step "A secret in a command needs no value in a file, can't be given one, and rotates"
 printf '%s' "$redis_secret" >"$data/secret-value"
@@ -619,6 +642,9 @@ if answers "$named" "$redis_secret"; then fail "$named still takes the old value
 nothing_shows "$redis_secret" "$redis_rotated"
 delete_kept named
 dw secrets delete REDIS_SECRET --yes || fail "secrets delete failed"
+found_after=$(found) || fail "can't read what the server has"
+[[ "$found_after" == "$found_before" ]] ||
+  fail "the steps with a password in a command left the server other than they found it: before, $found_before; after, $found_after"
 
 step "Services go"
 dw services delete cache --yes || fail "services delete cache failed"
