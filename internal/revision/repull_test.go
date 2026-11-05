@@ -67,7 +67,7 @@ func runShop(t *testing.T, b store.Backend, servers ...string) *shop {
 
 func (s *shop) pull(t *testing.T) *Plan {
 	t.Helper()
-	return propose(t, s.e, "Deploy", Edit{Ref: s.ref, Spec: shopSpec(), Base: 1, Pull: true})
+	return propose(t, s.e, "Deploy", Edit{Ref: s.ref, Spec: shopSpec(), Base: 1, Pull: true, Run: true})
 }
 
 // again is the control plane starting again, on the same database and servers.
@@ -532,6 +532,111 @@ func TestWhatAStepDidIsOnRecordAsItEnds(t *testing.T) {
 	done := make(chan struct{}, 1)
 	done <- struct{}{}
 	stopNow(t, s.e, eng, done)
+}
+
+// A resume finishes what its change asked, and that's all: what someone stopped, and
+// the change didn't ask to run, stays stopped. Asking is per service, and on record.
+func TestAResumeLeavesWhatSomeoneStoppedStopped(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, on, db := setupDocker(t, b, "srv_A")
+		eng := on["srv_A"]
+		env := production(t, db)
+		moveShop(eng, shopOld)
+		eng.Registry["ghcr.io/acme/shop:new"] = dockertest.Image{Digest: shopNewer, Config: docker.Config{Cmd: []string{"shop"}}}
+		ref := func(name string) resource.Ref { return resource.Ref{Kind: service.Kind, Scope: env, Name: name} }
+		apply(t, e, propose(t, e, "Make", Edit{Ref: ref("web"), Spec: shopSpec()}, Edit{Ref: ref("api"), Spec: shopSpec()}))
+		web, api := docker.ContainerName(docker.Project(env), "web"), docker.ContainerName(docker.Project(env), "api")
+		eng.Stop(web)
+		stopped, before := eng.Container(web).ID, eng.Container(api).ID
+
+		newer := shopSpec()
+		newer.GetApp().Image = "ghcr.io/acme/shop:new"
+		s := &shop{e: e, db: db, on: on}
+		plan := propose(t, e, "Deploy api", Edit{Ref: ref("web"), Spec: shopSpec()}, Edit{Ref: ref("api"), Spec: newer, Run: true})
+		s.stopAt(t, plan.Change, eng, atTheCreate)
+		s.resume(t)
+
+		if c := stored(t, db, plan.Change); c.State != store.ChangeApplied {
+			t.Fatalf("the change ended %s: %s", c.State, c.Error)
+		}
+		if got := eng.Container(api); got.ID == before || !got.State.Running {
+			t.Errorf("api is %+v", got)
+		}
+		if got := eng.Container(web); got.ID != stopped || got.State.Running {
+			t.Errorf("the resume started what someone stopped: %+v", got)
+		}
+	})
+}
+
+// A resume still honours what its change asked: a service it asked to run, which was
+// running when it was planned and so had no step, is started if someone stops it
+// before the change ends.
+func TestAResumeRunsWhatItsChangeAsked(t *testing.T) {
+	e, on, db := setupDocker(t, store.SQLite, "srv_A")
+	eng := on["srv_A"]
+	env := production(t, db)
+	moveShop(eng, shopOld)
+	eng.Registry["ghcr.io/acme/shop:new"] = dockertest.Image{Digest: shopNewer, Config: docker.Config{Cmd: []string{"shop"}}}
+	ref := func(name string) resource.Ref { return resource.Ref{Kind: service.Kind, Scope: env, Name: name} }
+	apply(t, e, propose(t, e, "Make", Edit{Ref: ref("web"), Spec: shopSpec()}, Edit{Ref: ref("api"), Spec: shopSpec()}))
+	web := docker.ContainerName(docker.Project(env), "web")
+
+	newer := shopSpec()
+	newer.GetApp().Image = "ghcr.io/acme/shop:new"
+	s := &shop{e: e, db: db, on: on}
+	plan := propose(t, e, "Run web, and deploy api", Edit{Ref: ref("web"), Spec: shopSpec(), Run: true}, Edit{Ref: ref("api"), Spec: newer})
+	s.stopAt(t, plan.Change, eng, atTheCreate)
+	eng.Stop(web)
+	s.resume(t)
+
+	if c := stored(t, db, plan.Change); c.State != store.ChangeApplied {
+		t.Fatalf("the change ended %s: %s", c.State, c.Error)
+	}
+	if got := eng.Container(web); got == nil || !got.State.Running {
+		t.Errorf("the change asked web to run, and after resuming it's %+v", got)
+	}
+}
+
+// What a change's own step made and didn't get as far as starting isn't a stop by
+// hand: the change resumes it, though nothing asked it to run but replacing it.
+func TestAChangeThatDiedBeforeItsContainerStartedStartsIt(t *testing.T) {
+	s := runShop(t, store.SQLite, "srv_A")
+	eng := s.on["srv_A"]
+	eng.Registry["ghcr.io/acme/shop:new"] = dockertest.Image{Digest: shopNewer, Config: docker.Config{Cmd: []string{"shop"}}}
+	newer := shopSpec()
+	newer.GetApp().Image = "ghcr.io/acme/shop:new"
+	plan := propose(t, s.e, "Change the image", Edit{Ref: s.ref, Spec: newer, Base: 1})
+	diedBeforeItStarted(t, s, plan.Change)
+	if got := eng.Container(s.name); got.State.Running {
+		t.Fatal("the stop left it running")
+	}
+	s.resume(t)
+	if c := stored(t, s.db, plan.Change); c.State != store.ChangeApplied {
+		t.Fatalf("the change ended %s: %s", c.State, c.Error)
+	}
+	if got := eng.Container(s.name); got == nil || !got.State.Running || got.Config.Image != "ghcr.io/acme/shop:new" {
+		t.Errorf("after the resume, it's %+v", got)
+	}
+}
+
+// Asked to run on two servers, each says what it does there: one starts, and the
+// other replaces only if that's newer, so the plan doesn't say that of both.
+func TestAPlanSaysWhichServerItStartsOn(t *testing.T) {
+	s := runShop(t, store.SQLite, "srv_A", "srv_B")
+	s.on["srv_A"].Stop(s.name)
+	plan := s.pull(t)
+	var said []string
+	for _, n := range plan.Notes {
+		if n.Reason == "starts_stopped" {
+			said = append(said, n.Message)
+		}
+		if n.Reason == "pulls_again" {
+			t.Errorf("the plan says %q", n.Message)
+		}
+	}
+	if len(said) != 1 || said[0] != "web is stopped on srv_A, so this starts it" {
+		t.Errorf("the plan says %v", said)
+	}
 }
 
 // A later change that got there first leaves this one nothing to do.

@@ -303,6 +303,9 @@ message DesiredResource {
   optional bytes spec = 2;
   // Asks the server for its image again as the step applies.
   bool pull = 3;
+  // Says the change asks it to run, so one that's there and isn't running is
+  // started. A stop by hand stays otherwise, unless the change replaces it anyway.
+  bool run = 4;
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.

@@ -19,6 +19,11 @@ type Desired struct {
 	// and to replace what runs only if that's newer. It says what a request asks
 	// for, not what the spec is, so it isn't kept.
 	Pull bool
+	// Run says the change asks this resource to run, so one that's there and isn't
+	// running is started: a person's own request, as a deploy or a rollback is. A
+	// stop by hand isn't drift (ADR 0021), so nothing else starts it, but for a
+	// change that replaces it anyway.
+	Run bool
 }
 
 // Agent plans and applies on one server, with that server's drivers. In
@@ -182,7 +187,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run}, d
 	}
 	for i, want := range normal {
 		d, spec := drivers[i], want.Spec
@@ -204,10 +209,11 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, err
 		}
-		// A spec can't say it should be running, so nothing differs. What's there
-		// and isn't running has to be started again, which is what a replace does,
-		// and nothing is up for that to take down.
-		if r, ok := d.(Runner); ok && spec != nil && actual != nil {
+		// A spec can't say it should be running, so nothing differs. What's there and
+		// isn't running stays so, unless this change asks it to run, which a replace
+		// does, or is replacing it anyway. The plan says which, and nothing is up for
+		// that to take down.
+		if r, ok := d.(Runner); ok && spec != nil && actual != nil && (want.Run || step.Action == ActionReplace) {
 			state, err := r.NotRunning(ctx, want.Ref)
 			if err != nil {
 				return nil, fmt.Errorf("can't read %s: %w", want.Ref, err)
@@ -329,6 +335,13 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 	}
 	if desired == nil {
 		return nil
+	}
+	// A change in place leaves what someone stopped stopped, so nothing is running
+	// to verify.
+	if r, ok := d.(Runner); ok && step.Action == ActionUpdate {
+		if state, err := r.NotRunning(ctx, step.Ref); err == nil && state != "" {
+			return nil
+		}
 	}
 	if err := d.Verify(ctx, step.Ref, desired); err != nil {
 		return fmt.Errorf("applied %s, but it isn't healthy: %w", step.Ref, err)

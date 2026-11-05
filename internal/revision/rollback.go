@@ -62,7 +62,7 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 			return fault.New(ErrCantUndo, "revision %d of %s deleted it, so there's nothing in it to go back to. Choose another revision", number, latest.Name)
 		}
 		ref := resource.Ref{Kind: resource.Kind(rev.Kind), Scope: rev.Scope, Name: rev.Name}
-		ed.Ref = ref
+		ed.Ref, ed.Run = ref, true
 		if ed.Spec, err = e.decode(ctx, tx, store.InRevision(resourceID, rev.Kind, number), rev.Spec); err != nil {
 			return err
 		}
@@ -128,7 +128,8 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 		return e.propose(ctx, plain, reverts, false)
 	}
 	exact := plain
-	exact.Edits = []Edit{{Ref: ed.Ref, Spec: pinned, Servers: ed.Servers}}
+	exact.Edits = []Edit{ed}
+	exact.Edits[0].Spec = pinned
 	exact.Notes = append(slices.Clone(notes), Note{Reason: "digest_pinned", Message: pinWords, Ref: ed.Ref})
 	plain.Notes = append(slices.Clone(notes), gone)
 	plain.IfNothing = fault.New(ErrCantUndo, "%s, and it already runs what %s is now, so going back to it would change nothing. Choose a revision that differs",

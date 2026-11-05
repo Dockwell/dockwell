@@ -459,8 +459,8 @@ func TestAPortSomethingElseHoldsIsRefused(t *testing.T) {
 		reimport := b.file(t, &dockwellv1.ImportComposeRequest{Compose: "name: one\nservices:\n  holder:\n    image: ghcr.io/acme/shop:1.5\n    ports: [\"8080:80\"]\n  beside:\n    image: ghcr.io/acme/shop:1.4\n"})
 		b.done(t, reimport)
 
-		// A stopped service isn't left as it is: the plan starts it, so a port
-		// something took since is refused, by name, as for anything about to start.
+		// Nor for what is around what it leaves as it is: a stopped service whose
+		// port something took since is no one's plan to refuse until it starts.
 		stale := "name: five\nservices:\n  still:\n    image: ghcr.io/acme/shop:1.4\n    ports: [\"6000:80\"]\n"
 		five := b.run(t, &dockwellv1.ImportComposeRequest{Compose: stale})
 		if err := client.StopContainer(t.Context(), b.e.Container(docker.ContainerName(docker.Project(five), "still")).ID, time.Second); err != nil {
@@ -476,19 +476,16 @@ func TestAPortSomethingElseHoldsIsRefused(t *testing.T) {
 		if err := client.StartContainer(t.Context(), other); err != nil {
 			t.Fatal(err)
 		}
-		_, err = b.cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: stale}))
+		again, err := b.cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: stale}))
+		if err != nil {
+			t.Errorf("re-importing what doesn't change, with its port taken since = %v", err)
+		} else if _, err := b.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: again.Msg.GetChange().GetId()})); err != nil {
+			t.Fatal(err)
+		}
+		// Asked to run, it's about to start, so that's refused, by name.
+		_, err = b.s.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: b.service(t, "five", "still").GetId(), Image: "ghcr.io/acme/shop:1.4"}))
 		if err == nil || !strings.Contains(err.Error(), "took-it") {
-			t.Errorf("re-importing a stopped service, with its port taken since = %v", err)
-		}
-		if err := client.RemoveContainer(t.Context(), other, true); err != nil {
-			t.Fatal(err)
-		}
-		again := b.file(t, &dockwellv1.ImportComposeRequest{Compose: stale})
-		if steps := again.GetPlan().GetServers()[0].GetSteps(); len(steps) != 1 || !saysState(steps[0], "exited") {
-			t.Errorf("with its port free, the plan's steps are %v", steps)
-		}
-		if _, err := b.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: again.GetId()})); err != nil {
-			t.Fatal(err)
+			t.Errorf("deploying a stopped service, with its port taken since = %v", err)
 		}
 
 		// What the plan itself moves off a port is free for another in it, and

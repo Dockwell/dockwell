@@ -256,6 +256,7 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 			summary:   cmp.Or(m.GetSummary(), fmt.Sprintf("Deploy %s to %s", m.GetImage(), name)),
 			ifNothing: fault.New(revision.ErrInvalid, "%s already runs %s, which can't change, as a digest names one image. Name another image, such as a new tag", name, m.GetImage()),
 			pull:      again,
+			run:       true,
 		}
 		switch {
 		case again && running == m.GetImage():
@@ -306,6 +307,7 @@ type editing struct {
 	summary   string
 	ifNothing error
 	pull      bool
+	run       bool
 	note      revision.Note
 }
 
@@ -349,7 +351,7 @@ func (h *Handler) edit(ctx context.Context, named, project, environment string, 
 	return h.changes.Propose(ctx, did.summary, []*dockwellv1.Edit{{
 		Resource: resourcepb.Ref(ref),
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},
-	}}, nil, changes.Also{Base: r.Revision, IfNothing: did.ifNothing, Pull: did.pull, Notes: notes})
+	}}, nil, changes.Also{Base: r.Revision, IfNothing: did.ifNothing, Pull: did.pull, Run: did.run, Notes: notes})
 }
 
 // RollBackService plans going back to an earlier revision.

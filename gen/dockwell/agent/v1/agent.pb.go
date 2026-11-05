@@ -1555,7 +1555,10 @@ type DesiredResource struct {
 	// spec is set, with no bytes.
 	Spec []byte `protobuf:"bytes,2,opt,name=spec,proto3,oneof" json:"spec,omitempty"`
 	// Asks the server for its image again as the step applies.
-	Pull          bool `protobuf:"varint,3,opt,name=pull,proto3" json:"pull,omitempty"`
+	Pull bool `protobuf:"varint,3,opt,name=pull,proto3" json:"pull,omitempty"`
+	// Says the change asks it to run, so one that's there and isn't running is
+	// started. A stop by hand stays otherwise, unless the change replaces it anyway.
+	Run           bool `protobuf:"varint,4,opt,name=run,proto3" json:"run,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1607,6 +1610,13 @@ func (x *DesiredResource) GetSpec() []byte {
 func (x *DesiredResource) GetPull() bool {
 	if x != nil {
 		return x.Pull
+	}
+	return false
+}
+
+func (x *DesiredResource) GetRun() bool {
+	if x != nil {
+		return x.Run
 	}
 	return false
 }
@@ -2118,11 +2128,12 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"E\n" +
 	"\vObserveCall\x126\n" +
-	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"}\n" +
+	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\x8f\x01\n" +
 	"\x0fDesiredResource\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x17\n" +
 	"\x04spec\x18\x02 \x01(\fH\x00R\x04spec\x88\x01\x01\x12\x12\n" +
-	"\x04pull\x18\x03 \x01(\bR\x04pullB\a\n" +
+	"\x04pull\x18\x03 \x01(\bR\x04pull\x12\x10\n" +
+	"\x03run\x18\x04 \x01(\bR\x03runB\a\n" +
 	"\x05_spec\"\x1c\n" +
 	"\n" +
 	"CancelCall\x12\x0e\n" +

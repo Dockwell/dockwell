@@ -533,7 +533,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		if err != nil {
 			return nil, err
 		}
-		dr.Pull = d.Pull
+		dr.Pull, dr.Run = d.Pull, d.Run
 		call.Desired = append(call.Desired, dr)
 	}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: call}}, PlanTimeout, nil)

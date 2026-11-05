@@ -1108,7 +1108,7 @@ export type PlanNote = Message<"dockwell.v1.PlanNote"> & {
    * is, "values_latest" for one that keeps the latest value of what the service
    * uses, "pulls_again" for a deploy of the tag it already names, "leaves_pin" for
    * one of the tag a rollback pinned, which replaces it whatever the pull finds,
-   * and "digest_pinned" and "digest_gone" for a rollback that does, or can't, run
+   * "starts_stopped" for what isn't running and this plan starts, and "digest_pinned" and "digest_gone" for a rollback that does, or can't, run
    * exactly the image a revision ran. Another reason may come: its message says
    * what it means.
    *

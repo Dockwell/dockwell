@@ -211,6 +211,13 @@ type Edit struct {
 	// deploy of the tag it already names does: the plan can't know what the tag
 	// points at now, so a revision comes only if it finds a newer image.
 	Pull bool
+	// Run says this change asks the resource to run, so one that's there and isn't
+	// running is started and verified: a person's own request, as a deploy or a
+	// rollback is. It's per resource, so a change that deploys one service and
+	// carries another unchanged leaves the other as it is, in the change and in its
+	// rollback. A stop by hand isn't drift (ADR 0021), so nothing else starts it, but
+	// for a change that replaces it anyway.
+	Run bool
 }
 
 // Note is something a person should know before applying a plan that no step
@@ -418,6 +425,12 @@ type item struct {
 	// pulled are the servers a run of the change stopped partway had already
 	// pulled on, as its revision's deployments say.
 	pulled []string
+	// run says the change asks it to run (Edit.Run).
+	run bool
+	// madeOn are the servers a run of the change stopped partway had a step on that
+	// makes its container, which may not have got as far as starting it. That isn't
+	// a stop by hand.
+	madeOn []string
 	// id names the resource. A new one gets its ID when the change is
 	// planned, so another item in the change can live in it.
 	id      string
@@ -454,6 +467,11 @@ func (it item) targets() []string {
 	out := slices.Concat(it.placed, it.servers)
 	slices.Sort(out)
 	return slices.DeleteFunc(slices.Compact(out), func(s string) bool { return slices.Contains(it.gone, s) })
+}
+
+// runsOn says the change asks the item to run on a server.
+func (it item) runsOn(server string) bool {
+	return it.run || slices.Contains(it.madeOn, server)
 }
 
 // desiredOn is what the item wants on a server: its spec where it is
@@ -502,6 +520,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if p.IfNothing != nil && plan.Empty() {
 		return nil, e.nothingToDo(ctx, items, p.IfNothing)
 	}
+	p.Notes = startingNotes(plan, p.Notes)
 	if plan.Places, err = e.places(ctx, items); err != nil {
 		return nil, err
 	}
@@ -519,6 +538,45 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		return nil, err
 	}
 	return plan, nil
+}
+
+// startingNotes are a plan's notes, saying what it starts that isn't running. That
+// happens whatever a pull finds, so that plan doesn't say it replaces only if that's
+// newer.
+func startingNotes(plan *Plan, notes []Note) []Note {
+	out := slices.Clone(notes)
+	for i := range plan.Servers {
+		s := &plan.Servers[i]
+		where := ""
+		if len(plan.Servers) > 1 {
+			where = " on " + s.Name
+		}
+		for j := range s.Steps {
+			step := &s.Steps[j]
+			word := ""
+			for _, c := range step.Changes {
+				if resource.IsStateChange(c) {
+					word = "is stopped"
+					if c.From == "paused" || c.From == "restarting" {
+						word = "is " + c.From
+					}
+				}
+			}
+			// A deploy of what someone removed makes it again.
+			if word == "" && step.Pull && step.Action == resource.ActionCreate {
+				word = "isn't there"
+			}
+			if word == "" {
+				continue
+			}
+			out = slices.DeleteFunc(out, func(n Note) bool { return n.Reason == "pulls_again" && n.Ref == step.Ref })
+			out = append(out, Note{
+				Reason: "starts_stopped", Ref: step.Ref, Names: []string{s.Name},
+				Message: fmt.Sprintf("%s %s%s, so this starts it", step.Ref.Name, word, where),
+			})
+		}
+	}
+	return out
 }
 
 // imageGone reports a step whose pinned image a server has no way to get.
@@ -621,7 +679,7 @@ func (e *Engine) changeItems(ctx context.Context, tx *store.Tx, changeID string,
 		}
 		out[i] = store.ChangeItem{
 			ResourceID: it.id, Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, BaseRevision: it.base, Spec: spec,
-			Servers: it.servers, Rotates: it.rotates, Pull: it.pull,
+			Servers: it.servers, Rotates: it.rotates, Pull: it.pull, Run: it.run,
 		}
 	}
 	return out, nil
@@ -712,7 +770,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			if err != nil {
 				return err
 			}
-			it.pull = ed.Pull
+			it.pull, it.run = ed.Pull, ed.Run
 			if ed.Base != 0 && it.base != ed.Base {
 				return fault.New(ErrStale, "%s changed while this was being planned, and planning from what was read would undo that. Try again, to plan it from the latest", ed.Ref)
 			}
@@ -1429,7 +1487,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server)}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -2466,6 +2524,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if !bytes.Equal(it.encoded, asked) || it.base == 0 {
 				continue // a later change moved it on
 			}
+			it.run = ci.Run
 			if ci.Pull {
 				moved, err := resumingPull(ctx, tx, c.ID, ci, &it)
 				if err != nil {
@@ -2518,6 +2577,19 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		return nil, fault.New(ErrPending, "%w", err)
 	}
 	e.logger.InfoContext(ctx, "resuming a change left applying", slog.String("change", c.ID))
+	recorded, err := DecodePlan(c.Plan)
+	if err != nil {
+		e.letGo(ctx, changeID)
+		return nil, err
+	}
+	// What its own steps made may not have got as far as starting.
+	for i := range items {
+		for _, server := range items[i].targets() {
+			if was := recorded.step(server, items[i].ref); was != nil && (was.Action == resource.ActionCreate || was.Action == resource.ActionReplace) {
+				items[i].madeOn = append(items[i].madeOn, server)
+			}
+		}
+	}
 	plan, err := e.plan(ctx, c.ID, items, false)
 	if err != nil {
 		e.letGo(ctx, changeID)
@@ -2526,11 +2598,6 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 	// Planning again holds to no fingerprint, so what was approved as a
 	// restore stays one: if the copy is gone by now, the step fails, rather
 	// than making the resource empty with nobody reviewing that.
-	recorded, err := DecodePlan(c.Plan)
-	if err != nil {
-		e.letGo(ctx, changeID)
-		return nil, err
-	}
 	for si := range plan.Servers {
 		s := &plan.Servers[si]
 		for i := range s.Steps {
@@ -2605,7 +2672,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 				it.id = e.newID(ref.Kind)
 			}
 		}
-		it.servers, it.rotates, it.pull = ci.Servers, ci.Rotates, ci.Pull
+		it.servers, it.rotates, it.pull, it.run = ci.Servers, ci.Rotates, ci.Pull, ci.Run
 		// Opened as the item of the change it was sealed for, of the
 		// resource the base check above makes the one there now.
 		if it.encoded, err = e.open(ctx, tx, store.InChange(cmp.Or(ci.ResourceID, it.id), ci.Kind, c.ID, i), ci.Spec); err != nil {

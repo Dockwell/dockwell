@@ -176,6 +176,11 @@ func TestARollbackThatFailedCanBeRecovered(t *testing.T) {
 						t.Errorf("the plan's steps are %v", steps)
 					}
 				}
+				// It's replaced whatever a pull finds, so the plan says nothing of a
+				// newer image.
+				if note := noteOf(plan, "pulls_again"); note != nil {
+					t.Errorf("the plan says %q, of what isn't running", note.GetMessage())
+				}
 				got := b.done(t, plan)
 				for _, s := range got.GetSteps() {
 					if strings.Contains(s.GetMessage(), "stays as it is") {
@@ -506,5 +511,173 @@ func TestCheckComposeReadsWhatIsBesideTheFile(t *testing.T) {
 	}
 	if bare.Msg.GetRefusal() == nil {
 		t.Error("with neither, it's taken")
+	}
+}
+
+// A stop by hand isn't drift (ADR 0021), so nothing Dockwell does on its own starts
+// that container: not a plan with nothing to do, a change to another service, that
+// change failing and being rolled back, or a change it can make in place.
+func TestWhatSomeoneStoppedStaysStopped(t *testing.T) {
+	const two = "name: shop\nservices:\n  web:\n    image: ghcr.io/acme/shop:1.4\n  api:\n    image: ghcr.io/acme/shop:1.4\n"
+	wantLeft := func(t *testing.T, b *bench, name, id string, plan *dockwellv1.Change) {
+		t.Helper()
+		if c := b.e.Container(name); c == nil || c.ID != id || c.State.Running {
+			t.Errorf("the stopped container is now %+v", c)
+		}
+		if note := noteOf(plan, "starts_stopped"); note != nil {
+			t.Errorf("the plan says %q", note.GetMessage())
+		}
+		for _, server := range plan.GetPlan().GetServers() {
+			for _, step := range server.GetSteps() {
+				if step.GetResource().GetName() == "web" && (saysState(step, "exited") || step.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_REPLACE) {
+					t.Errorf("the plan has a step that starts it: %v", step)
+				}
+			}
+		}
+	}
+	setUp := func(t *testing.T) (b *bench, name, id string) {
+		t.Helper()
+		b = newBench(t, store.SQLite)
+		env := b.run(t, &dockwellv1.ImportComposeRequest{Compose: two})
+		name = docker.ContainerName(docker.Project(env), "web")
+		b.e.Stop(name)
+		return b, name, b.e.Container(name).ID
+	}
+
+	t.Run("re-importing a file that changes nothing", func(t *testing.T) {
+		b, name, id := setUp(t)
+		plan := b.file(t, &dockwellv1.ImportComposeRequest{Compose: two})
+		wantLeft(t, b, name, id, plan)
+		b.done(t, plan)
+		wantLeft(t, b, name, id, plan)
+	})
+
+	t.Run("a change to another service", func(t *testing.T) {
+		b, name, id := setUp(t)
+		plan := b.file(t, &dockwellv1.ImportComposeRequest{Compose: strings.Replace(two, "api:\n    image: ghcr.io/acme/shop:1.4", "api:\n    image: ghcr.io/acme/shop:1.5", 1)})
+		b.done(t, plan)
+		wantLeft(t, b, name, id, plan)
+	})
+
+	t.Run("a change to another service that fails, and its rollback", func(t *testing.T) {
+		b, name, id := setUp(t)
+		b.e.Registry[shopBroken] = dockertest.Image{Exits: true, Config: docker.Config{Cmd: []string{"shop"}}}
+		plan := b.file(t, &dockwellv1.ImportComposeRequest{Compose: strings.Replace(two, "api:\n    image: ghcr.io/acme/shop:1.4", "api:\n    image: "+shopBroken, 1)})
+		got := applied(t, b.c, plan)
+		if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || got.GetRolledBackBy() == "" {
+			t.Fatalf("the change ended %v, rolled back by %q: %s", got.GetState(), got.GetRolledBackBy(), got.GetError())
+		}
+		var rollback *dockwellv1.Change
+		waitFor(t, "the rollback to end", func() bool {
+			rc, err := b.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: got.GetRolledBackBy()}))
+			if err != nil {
+				return false
+			}
+			rollback = rc.Msg.GetChange()
+			return rollback.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLYING
+		})
+		wantLeft(t, b, name, id, plan)
+		wantLeft(t, b, name, id, rollback)
+	})
+
+	t.Run("a change it can make in place", func(t *testing.T) {
+		b, name, id := setUp(t)
+		plan := b.file(t, &dockwellv1.ImportComposeRequest{Compose: strings.Replace(two, "web:\n    image: ghcr.io/acme/shop:1.4", "web:\n    image: ghcr.io/acme/shop:1.4\n    restart: always", 1)})
+		b.done(t, plan)
+		wantLeft(t, b, name, id, plan)
+		if got := b.e.Container(name).HostConfig.RestartPolicy.Name; got != "always" {
+			t.Errorf("the restart policy is %q", got)
+		}
+	})
+}
+
+// A person's own request to run it does run it, and any change that replaces it does
+// too, each saying so, and each verified before it reads live.
+func TestAskingToRunWhatSomeoneStoppedStartsIt(t *testing.T) {
+	const image = "ghcr.io/acme/shop:1.4"
+	const file = "name: shop\nservices:\n  web:\n    image: " + image + "\n"
+	setUp := func(t *testing.T) (*bench, string, *dockwellv1.ServiceInfo) {
+		t.Helper()
+		b := newBench(t, store.SQLite)
+		env := b.run(t, &dockwellv1.ImportComposeRequest{Compose: file})
+		web := b.service(t, "shop", "web")
+		b.done(t, b.deploy(t, web.GetId(), "ghcr.io/acme/shop:1.5"))
+		b.done(t, b.deploy(t, web.GetId(), image))
+		name := docker.ContainerName(docker.Project(env), "web")
+		b.e.Stop(name)
+		return b, name, web
+	}
+	rollback := func(revision int64) func(t *testing.T, b *bench, id string) *dockwellv1.Change {
+		return func(t *testing.T, b *bench, id string) *dockwellv1.Change {
+			t.Helper()
+			back, err := b.s.RollBackService(t.Context(), connect.NewRequest(&dockwellv1.RollBackServiceRequest{Id: id, Revision: revision}))
+			if err != nil {
+				t.Fatalf("rolling back = %v", err)
+			}
+			return back.Msg.GetChange()
+		}
+	}
+	for name, plan := range map[string]func(t *testing.T, b *bench, id string) *dockwellv1.Change{
+		"deploying another tag": func(t *testing.T, b *bench, id string) *dockwellv1.Change {
+			t.Helper()
+			return b.deploy(t, id, "ghcr.io/acme/shop:1.5")
+		},
+		"deploying the same tag": func(t *testing.T, b *bench, id string) *dockwellv1.Change {
+			t.Helper()
+			return b.deploy(t, id, image)
+		},
+		"rolling back to what matches": rollback(1),
+		"rolling back to what differs": rollback(2),
+		"a change that replaces it": func(t *testing.T, b *bench, id string) *dockwellv1.Change {
+			t.Helper()
+			res, err := b.s.AddServicePort(t.Context(), connect.NewRequest(&dockwellv1.AddServicePortRequest{Id: id, HostPort: 18081, ContainerPort: 80}))
+			if err != nil {
+				t.Fatalf("adding a port = %v", err)
+			}
+			return res.Msg.GetChange()
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			b, container, web := setUp(t)
+			before := b.e.Container(container).ID
+			c := plan(t, b, web.GetId())
+			note := noteOf(c, "starts_stopped")
+			if note == nil || note.GetMessage() != "web is stopped, so this starts it" {
+				t.Errorf("the plan's notes are %v", c.GetPlan().GetNotes())
+			}
+			if noteOf(c, "pulls_again") != nil {
+				t.Errorf("the plan says it replaces only if newer: %v", c.GetPlan().GetNotes())
+			}
+			if steps := c.GetPlan().GetServers()[0].GetSteps(); len(steps) != 1 || !saysState(steps[0], "exited") {
+				t.Errorf("the plan's steps are %v", steps)
+			}
+			got := b.done(t, c)
+			ctr := b.e.Container(container)
+			if ctr == nil || ctr.ID == before || !ctr.State.Running {
+				t.Errorf("after it, the container is %+v", ctr)
+			}
+			if said := got.GetSteps()[0].GetMessage(); strings.Contains(said, "stays as it is") || strings.Contains(said, "already") {
+				t.Errorf("the step says %q, of what wasn't running", said)
+			}
+			if did := got.GetSteps()[0].GetDid(); did != dockwellv1.PlanAction_PLAN_ACTION_REPLACE {
+				t.Errorf("the step did %v", did)
+			}
+		})
+	}
+}
+
+// A deploy of what someone removed makes it again whatever a pull finds, and says so.
+func TestDeployingWhatSomeoneRemovedSaysItStartsIt(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	name, web := runLatest(t, b)
+	if err := b.e.Client().RemoveContainer(t.Context(), b.e.Container(name).ID, true); err != nil {
+		t.Fatal(err)
+	}
+	c := b.deploy(t, web.GetId(), latest)
+	if note := noteOf(c, "starts_stopped"); note == nil || note.GetMessage() != "web isn't there, so this starts it" {
+		t.Errorf("the plan's notes are %v", c.GetPlan().GetNotes())
+	}
+	if noteOf(c, "pulls_again") != nil {
+		t.Errorf("the plan says it replaces only if newer: %v", c.GetPlan().GetNotes())
 	}
 }

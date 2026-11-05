@@ -100,6 +100,8 @@ type Also struct {
 	IfNothing error
 	// Pull asks the server for the image of what's edited again (revision.Edit).
 	Pull bool
+	// Run says this asks what's edited to run (revision.Edit).
+	Run bool
 }
 
 // Propose plans edits as a new change, as ProposeChange does, for another
@@ -137,7 +139,7 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 		return nil, fail(err)
 	}
 	for i := range edits {
-		edits[i].Base, edits[i].Pull = also.Base, also.Pull
+		edits[i].Base, edits[i].Pull, edits[i].Run = also.Base, also.Pull, also.Run
 	}
 	plan, err := h.engine.Propose(ctx, revision.Proposal{
 		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing,

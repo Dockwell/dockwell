@@ -399,10 +399,16 @@ wait_for_dockwell() {
   fail "Dockwell didn't come back within 30 s"
 }
 # kill_dockwell stops it with no warning, in the middle of whatever it's doing, as a
-# power cut or the OOM killer would. A clean stop lets a step finish first.
+# power cut or the OOM killer would. A clean stop lets a step finish first. As root
+# $pid is sudo's, and sudo can't pass on a SIGKILL, so this kills the processes
+# themselves, asked for apart from killing, as sudo's own command line would match.
 kill_dockwell() {
-  priv kill -9 "$pid"
+  local victims
+  victims=$(pgrep -f "$bin run --listen $addr") || fail "nothing to kill: Dockwell isn't running"
+  # shellcheck disable=SC2086 # one word for each process
+  priv kill -KILL $victims || fail "can't kill Dockwell, $victims"
   wait "$pid" 2>/dev/null || true
+  if curl -fsS --max-time 2 "http://$addr/healthz" >/dev/null 2>&1; then fail "Dockwell still answers after it was killed"; fi
   connected=$(grep -c 'connected to the control plane' "$log" || true)
 }
 
@@ -608,8 +614,18 @@ moving_running() {
   [[ "$(docker inspect --format '{{.State.Running}}' "$(moving_id)")" == true ]] || fail "the app's container isn't running: $(docker ps -a)"
 }
 docker stop --time 1 "$(moving_id)" >/dev/null || fail "can't stop the app's container"
+stopped_id=$(moving_id)
+# A stop by hand isn't drift, so re-importing what's unchanged leaves it stopped.
+exported=$(dw compose export) || fail "compose export failed"
+planned=$(dw compose import --compose "$exported" --plan-only --json 2>/dev/null) || fail "re-importing the export failed"
+jq -e '[(.change.plan.servers // [])[].steps[]?] | length == 0' <<<"$planned" >/dev/null || fail "re-importing what's unchanged plans steps: $planned"
+dw changes discard "$(jq -r .change.id <<<"$planned")" >/dev/null || fail "changes discard failed"
+[[ "$(moving_id)" == "$stopped_id" && "$(docker inspect --format '{{.State.Running}}' "$stopped_id")" == false ]] || fail "re-importing what's unchanged started what's stopped"
+# Asked to run it, the plan says it starts it, and nothing of a newer image.
 planned=$(dw services deploy moving --image "$moving" --plan-only --json 2>/dev/null) || fail "planning the deploy of a stopped container failed"
 jq -e '.change.plan.servers[0].steps[0].changes | any(.path == "state" and .from == "exited" and .to == "running")' <<<"$planned" >/dev/null ||
+  fail "the plan's step doesn't start what's stopped: $planned"
+jq -e '.change.plan.notes | any(.reason == "starts_stopped" and .message == "moving is stopped, so this starts it") and all(.reason != "pulls_again")' <<<"$planned" >/dev/null ||
   fail "the plan doesn't say it starts what's stopped: $planned"
 dw changes discard "$(jq -r .change.id <<<"$planned")" >/dev/null || fail "changes discard failed"
 moving_comes_back "was stopped"
