@@ -25,6 +25,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0019](0019-a-cli-generated-from-the-schema.md) | A CLI generated from the schema, with local access on the control server | Accepted |
 | [0020](0020-the-event-timeline.md) | The event timeline | Accepted |
 | [0023](0023-a-full-build-and-an-agent-build.md) | A full build and an agent build, from one codebase | Accepted |
+| [0029](0029-a-catalog-format-fed-from-other-catalogs.md) | A catalog format of our own, fed from other catalogs | Accepted |
 
 Still open from the PRD: the config-as-code format (extended Compose is recommended; needed in phase 3), and the [open questions](../product/prd.md#risks-open-questions-and-decisions).
 
