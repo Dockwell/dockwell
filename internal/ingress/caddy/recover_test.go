@@ -486,6 +486,23 @@ func TestADamagedLastConfigWithNoCopyStartsFromTheBootstrapOnRealCaddy(t *testin
 	}
 }
 
+// A copy that went missing comes back on the next look, not the next change, as
+// nothing else would say so until the day it's needed.
+func TestAMissingCopyIsWrittenAgainOnRealCaddy(t *testing.T) {
+	c := startCaddy(t)
+	put(t, c, aRoute("dockwell.env.www", "app.example.net", "", backend(t, "web")))
+	path := filepath.Join(c.Dir, goodFile)
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Recover(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if b := c.readGood(); b == nil || !strings.Contains(string(b), "app.example.net") {
+		t.Errorf("the copy is %.60q", b)
+	}
+}
+
 // A copy is never what puts the admin API back on TCP.
 func TestACopyMustListenOnTheSocket(t *testing.T) {
 	dir := shortDir(t)

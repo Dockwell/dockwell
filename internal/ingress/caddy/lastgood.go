@@ -96,7 +96,11 @@ func (c *Caddy) keepGood(b []byte) error {
 	c.goodMu.Lock()
 	defer c.goodMu.Unlock()
 	if bytes.Equal(c.good, b) {
-		return nil
+		// It may have gone from under this, and nothing else would say so until
+		// the day it's needed.
+		if _, err := os.Stat(filepath.Join(c.Dir, goodFile)); err == nil {
+			return nil
+		}
 	}
 	if err := writeIn(c.Dir, goodFile, b, 0o600, agentOwns); err != nil {
 		return fmt.Errorf("can't keep a copy of Caddy's config: %w", err)
