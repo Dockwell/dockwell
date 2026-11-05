@@ -198,6 +198,10 @@ describe("the plan sheet", () => {
       create(HostAccessSchema, { kind: HostAccessKind.EXTERNAL_NETWORK, path: "edge", detail: spoof }),
       create(HostAccessSchema, { kind: HostAccessKind.CAPABILITY, path: spoof }),
       create(HostAccessSchema, { kind: HostAccessKind.GROUP, path: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PORT, path: spoof, detail: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.TRUSTED_PROXY, path: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.PLAIN_FOR_ANYONE, path: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.HTTPS_OFF, path: spoof }),
     ];
     renderSheet(proposeWeb, {
       changes: { proposeChange: () => ({ change: reaching }), watchChange: feed<WatchChangeResponse>().stream },

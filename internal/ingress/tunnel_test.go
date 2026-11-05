@@ -596,3 +596,122 @@ func TestARouteToAPortDockwellCameToListenOnIsLogged(t *testing.T) {
 		t.Errorf("it doesn't say which:\n%s", log.String())
 	}
 }
+
+// onServersNetwork puts a service's container on the server's own network, as
+// host_network and a Compose file's network_mode: host do.
+func (s *setup) onServersNetwork(name string) {
+	s.engine.AddContainer(docker.Container{
+		Name:       "/" + docker.Project(envID) + "-" + name + "-1",
+		State:      docker.State{Running: true, Status: "running"},
+		HostConfig: docker.HostConfig{NetworkMode: "host"},
+	})
+}
+
+// Docker can't put a container on the server's own network on another, so a route
+// can't send to one by name. It's refused as it plans, and says how to reach it.
+func TestARouteToAServiceOnTheServersNetworkIsRefusedAsItPlans(t *testing.T) {
+	serviceRef := func(name string) resource.Ref { return resource.Ref{Kind: "service", Scope: envID, Name: name} }
+	on := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{HostNetwork: true}}}
+	off := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{}}}
+	for _, tc := range []struct {
+		name    string
+		route   *resourcev1.Route
+		also    []resource.Desired
+		refused string
+	}{
+		{name: "its container is there", route: spec("app.example.com", "", "edge", 80), refused: "edge"},
+		{name: "the plan puts it there", route: spec("app.example.com", "", "web", 80), also: []resource.Desired{{Ref: serviceRef("web"), Spec: on}}, refused: "web"},
+		{name: "the plan takes it off", route: spec("app.example.com", "", "edge", 80), also: []resource.Desired{{Ref: serviceRef("edge"), Spec: off}}},
+		{name: "another environment's of that name", route: spec("app.example.com", "", "web", 80), also: []resource.Desired{{Ref: resource.Ref{Kind: "service", Scope: "env_other", Name: "web"}, Spec: on}}},
+		{name: "an ordinary service", route: spec("app.example.com", "", "web", 80)},
+		{name: "one with no container yet", route: spec("app.example.com", "", "new", 80)},
+		{name: "by its port", route: hostPortSpec(8080)},
+		{name: "with no certificate, it's the same", route: &resourcev1.Route{Domain: "app.example.com", Service: "edge", Port: 80, Tls: TLSOff}, refused: "edge"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newSetup(t)
+			s.onServersNetwork("edge")
+			ref := routeRef("www")
+			err := s.Check(t.Context(), ref, append([]resource.Desired{{Ref: ref, Spec: tc.route}}, tc.also...))
+			if tc.refused == "" {
+				if err != nil {
+					t.Fatalf("refused: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("the plan went ahead")
+			}
+			for _, want := range []string{"the service " + tc.refused + " runs on the server's own network", "host_port", "off host_network"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("%q doesn't say %q", err, want)
+				}
+			}
+		})
+	}
+}
+
+// With no way to tell what a service is on, a plan says so rather than guessing, and
+// a route to a port on the server names no service to ask about.
+func TestAPlanCantSayWhatAServiceIsOnWithoutDocker(t *testing.T) {
+	s := newSetup(t)
+	ref := routeRef("www")
+	gone := errors.New("docker has gone")
+	s.engine.Intercept(func(r *http.Request) error {
+		// Only the look at the route's own container, by its name or in a list by
+		// its name, so nothing else can be why.
+		if u := r.URL.String(); strings.Contains(u, "-web-1") || strings.Contains(u, "--1") {
+			return gone
+		}
+		return nil
+	})
+	defer s.engine.Intercept(nil)
+	if err := s.Check(t.Context(), ref, []resource.Desired{{Ref: ref, Spec: spec("app.example.com", "", "web", 80)}}); err == nil {
+		t.Error("the plan went ahead with no answer from Docker")
+	}
+	if err := s.Check(t.Context(), ref, []resource.Desired{{Ref: ref, Spec: hostPortSpec(8080)}}); err != nil {
+		t.Errorf("a route to a port on the server asked about a service: %v", err)
+	}
+}
+
+// A plan made before the service moved gets the same words from its step, not
+// Docker's, and changes nothing.
+func TestAStepToAServiceOnTheServersNetworkSaysWhatToDo(t *testing.T) {
+	s := newSetup(t)
+	s.onServersNetwork("edge")
+	err := s.Apply(t.Context(), routeRef("www"), spec("app.example.com", "", "edge", 80), nil)
+	if err == nil || !strings.Contains(err.Error(), "host_port") {
+		t.Fatalf("Apply = %v, want the words that name host_port", err)
+	}
+	if routes, _ := s.proxy.Routes(t.Context()); len(routes) != 0 {
+		t.Errorf("the proxy has %+v", routes)
+	}
+}
+
+// A service going onto the server's own network is held up by a route the plan
+// leaves on it, and by nothing else.
+func TestARouteLeftOnAServiceIsFound(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "www", spec("app.example.com", "", "web", 80))
+	web := Instance{Project: docker.Project(envID), Service: "web", Number: 1}
+	for _, tc := range []struct {
+		name     string
+		instance Instance
+		desired  []resource.Desired
+		want     bool
+	}{
+		{name: "nothing in the plan touches it", instance: web, want: true},
+		{name: "the plan touches another route", instance: web, desired: []resource.Desired{{Ref: routeRef("other"), Spec: hostPortSpec(8080)}}, want: true},
+		{name: "the plan deletes it", instance: web, desired: []resource.Desired{{Ref: routeRef("www")}}},
+		{name: "the plan moves it to a port", instance: web, desired: []resource.Desired{{Ref: routeRef("www"), Spec: hostPortSpec(8080)}}},
+		{name: "another service", instance: Instance{Project: web.Project, Service: "api", Number: 1}},
+		{name: "another environment's of that name", instance: Instance{Project: "env_other", Service: "web", Number: 1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := s.RoutedAfter(t.Context(), tc.instance, tc.desired)
+			if err != nil || got != tc.want {
+				t.Errorf("RoutedAfter = %v, %v, want %v", got, err, tc.want)
+			}
+		})
+	}
+}

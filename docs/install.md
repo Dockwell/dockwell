@@ -127,6 +127,8 @@ dockwell routes create www --domain app.example.com --service myapp --port 8080 
 dockwell routes create shop --domain shop.example.com --host-port 8081 --yes
 ```
 
+A service on the server's own network, as `network_mode: host` runs one, takes `--host-port` too, with the port it listens on. Docker can't put it on the ingress's network, so a route to it by name is refused, and says so.
+
 Caddy starts as a container, on the server's own network, and takes the ports. The plan names any stopped container that Docker would start again and that may take them, so you can run the same two commands on it. On a server with its panel on a domain, the first route moves that domain behind Caddy, which only a person can approve, in the panel. Its address, passkeys and sessions stay, and it keeps its certificate until Caddy has its own.
 
 **5. If the other proxy comes back,** Caddy can't start, and your routes, and the panel's domain, stop answering. The panel still answers through an SSH tunnel. Dockwell's log names what holds the ports, with the commands above, and `dockwell servers list --json` shows it under `ingress`. Dockwell doesn't fight it for them: run those commands, and Caddy takes the ports within a minute. You can still remove a route in the meantime.
@@ -178,6 +180,8 @@ dockwell routes update www --domain app.example.com --service myapp --port 8080 
 Your app then reads the visitor's address in `X-Real-IP` and `X-Forwarded-For`, and `https` in `X-Forwarded-Proto`. It's read from the right, so what a visitor sends in that header themselves doesn't count. `CF-Connecting-IP` is stripped, whoever sends it: read `X-Real-IP` instead. With `127.0.0.1` named, anything else on the server can say the same over loopback. Treat this as what Cloudflare says connected to it, which is good for logs and rate limits, and not for deciding who someone is: a Worker on someone else's Cloudflare zone reads as `2a06:98c0:3600::103`, [as Cloudflare's docs say](https://developers.cloudflare.com/fundamentals/reference/http-headers/), which all of them share.
 
 **If it runs on a bridge instead,** started with `docker run --add-host host.docker.internal:host-gateway`, its service is `http://host.docker.internal:80`, and the route must name the bridge's range, which `docker network inspect bridge --format '{{(index .IPAM.Config 0).Subnet}}'` prints, such as `--trusted-proxies 172.17.0.0/16`. Without that, it's someone else, and gets a 404. A firewall such as ufw treats it as incoming, so allow it: `ufw allow in on docker0 to any port 80`. Keep other containers off that network, as they could say the same. A service on a network of its environment can do this too, with that network's range and the address of its gateway, if the network isn't `internal`.
+
+**On a network other projects share,** such as one a service joins with `external_networks`, it's the same with that network's range, from `docker network inspect NAME --format '{{(index .IPAM.Config 0).Subnet}}'`. Naming it names everything on it: each could reach the route, and say who its client is. So give the tunnel a network of its own, or run it on the server's own.
 
 ### Cloudflare's proxy, or another in front
 

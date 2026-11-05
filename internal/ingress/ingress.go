@@ -540,7 +540,86 @@ func (m *Manager) Check(ctx context.Context, _ resource.Ref, desired []resource.
 	if err := m.checkHostPorts(desired); err != nil {
 		return err
 	}
+	if err := m.checkServersNetwork(ctx, desired); err != nil {
+		return err
+	}
 	return m.checkPorts(ctx, have, m.portsFor(needsHTTPS(have, desired)))
+}
+
+// serversNetwork says why a route can't send to a service on the server's own
+// network by its name, and what can: Docker can't put a container there on any
+// other network, so the proxy has no address for it (ADR 0030).
+func serversNetwork(service string) error {
+	return fmt.Errorf("the service %[1]s runs on the server's own network, and Docker can't put a container there on the ingress's as well, so a route can't send to it by name. "+
+		"Send the route to the port %[1]s listens on with host_port, or take %[1]s off host_network", service)
+}
+
+// checkServersNetwork refuses a route to a service on the server's own network. What
+// the plan runs says first, as a service in it may be going onto that network or
+// coming off it, and then what the server runs.
+func (m *Manager) checkServersNetwork(ctx context.Context, desired []resource.Desired) error {
+	planned := map[Service]bool{}
+	for _, d := range desired {
+		if spec, ok := d.Spec.(*resourcev1.Service); ok {
+			planned[Service{Project: docker.Project(d.Ref.Scope), Name: d.Ref.Name}] = spec.GetApp().GetHostNetwork()
+		}
+	}
+	for _, d := range desired {
+		spec := routeSpec(d)
+		if spec == nil || spec.GetHostPort() != 0 {
+			continue
+		}
+		s := serviceOf(d.Ref, spec)
+		on, inPlan := planned[s]
+		if !inPlan {
+			c, err := m.Client.ContainerNamed(ctx, Instance{Project: s.Project, Service: s.Name, Number: 1}.ContainerName())
+			switch {
+			case docker.IsNotFound(err):
+				continue
+			case err != nil:
+				return err
+			}
+			on = c.HostConfig.NetworkMode == hostNetworkMode
+		}
+		if on {
+			return serversNetwork(s.Name)
+		}
+	}
+	return nil
+}
+
+// RoutedAfter reports a route that still sends to an instance's service once the
+// plan under way applies. Those the plan touches say for themselves, in Check.
+func (m *Manager) RoutedAfter(ctx context.Context, i Instance, desired []resource.Desired) (bool, error) {
+	if err := m.mu.lock(ctx); err != nil {
+		return false, err
+	}
+	defer m.mu.unlock()
+	if err := m.table.load(m.Dir); err != nil {
+		return false, err
+	}
+	have, err := m.Proxy.Routes(ctx)
+	if err != nil {
+		return false, err
+	}
+	in := map[string]bool{}
+	for _, d := range desired {
+		if d.Ref.Kind == routeKind {
+			in[RouteID(d.Ref)] = true
+		}
+	}
+	for k := range have {
+		r := &have[k]
+		if in[r.ID] {
+			continue
+		}
+		for _, up := range r.Upstreams {
+			if got, known := m.instanceOf(up); known && got.service() == i.service() {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 // Listening names what listens on a port on the server, for a plan to say, or says

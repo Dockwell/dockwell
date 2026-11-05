@@ -12,6 +12,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/ingress"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 // fakeIngress says a service has an address, and holds the public ports.
@@ -19,6 +20,7 @@ type fakeIngress struct {
 	address string
 	held    map[uint32]bool
 	asked   []ingress.Instance
+	routed  bool
 }
 
 func (f *fakeIngress) Endpoint(_ context.Context, i ingress.Instance) (string, docker.EndpointSettings, bool, error) {
@@ -31,6 +33,10 @@ func (f *fakeIngress) Endpoint(_ context.Context, i ingress.Instance) (string, d
 
 func (f *fakeIngress) PublicPort(_ context.Context, port uint32, _ bool) (bool, error) {
 	return f.held[port], nil
+}
+
+func (f *fakeIngress) RoutedAfter(context.Context, ingress.Instance, []resource.Desired) (bool, error) {
+	return f.routed, nil
 }
 
 func withIngress(t *testing.T, ing *fakeIngress) (*Docker, *dockertest.Engine) {
@@ -146,5 +152,58 @@ func TestAServiceCantPublishWhatTheIngressHolds(t *testing.T) {
 	}
 	if err := d.CheckHost(t.Context(), svc, &resourcev1.Container{Image: "nginx:1.27", Ports: []*resourcev1.PortMapping{{HostPort: 8080, ContainerPort: 80}}}); err != nil {
 		t.Errorf("CheckHost of another port = %v", err)
+	}
+}
+
+// A route left on a service would stop reaching it on the server's own network, so
+// the plan says so. Only a plan can tell, as it knows its other steps.
+func TestAServiceWithARouteCantGoOntoTheServersNetwork(t *testing.T) {
+	inPlan := resource.WithDesired(t.Context(), []resource.Desired{})
+	on := &resourcev1.Container{Image: "nginx:1.27", HostNetwork: true}
+	for _, tc := range []struct {
+		name    string
+		ctx     context.Context
+		routed  bool
+		spec    *resourcev1.Container
+		refused bool
+	}{
+		{name: "a route left on it", ctx: inPlan, routed: true, spec: on, refused: true},
+		{name: "no route left on it", ctx: inPlan, spec: on},
+		{name: "a route, on its own networks", ctx: inPlan, routed: true, spec: &resourcev1.Container{Image: "nginx:1.27"}},
+		{name: "as a step applies", ctx: t.Context(), routed: true, spec: on},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d, _ := withIngress(t, &fakeIngress{routed: tc.routed})
+			err := d.CheckHost(tc.ctx, svc, tc.spec)
+			switch {
+			case !tc.refused && err != nil:
+				t.Fatalf("refused: %v", err)
+			case tc.refused && err == nil:
+				t.Fatal("the plan went ahead")
+			case tc.refused && !strings.Contains(err.Error(), "host_port"):
+				t.Errorf("%q doesn't say what to do", err)
+			}
+		})
+	}
+}
+
+// When a plan moves its route to a port on the server too, the service's step can
+// come first, with the instance still holding an address. Docker would refuse that
+// container on the ingress's network, and the old one would go on running.
+func TestAServiceOnTheServersNetworkDoesntJoinTheIngress(t *testing.T) {
+	ing := &fakeIngress{address: "172.30.0.2"}
+	d, e := withIngress(t, ing)
+	if err := d.Run(t.Context(), svc, &resourcev1.Container{Image: "nginx:1.27", HostNetwork: true}, false); err != nil {
+		t.Fatal(err)
+	}
+	c := e.Container(svc.Name)
+	if _, on := c.NetworkSettings.Networks[docker.IngressNetwork]; on {
+		t.Errorf("it's on the ingress's network: %+v", c.NetworkSettings.Networks)
+	}
+	if !c.State.Running {
+		t.Errorf("it isn't running: %+v", c.State)
+	}
+	if len(ing.asked) != 0 {
+		t.Errorf("it asked the ingress for an address: %+v", ing.asked)
 	}
 }

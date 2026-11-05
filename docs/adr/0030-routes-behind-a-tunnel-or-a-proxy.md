@@ -36,7 +36,8 @@ Caddy holds port 80 on every address. On a server with a public address and no f
 | Says `plain_for_anyone` | Anyone who can reach the port. A person approves it, and the plan says so in amber |
 
 - **Anyone else gets what a name with no route gets,** the same 404, so they can't tell the route is there.
-- **A blanket rule for private addresses would let a whole LAN in,** as real servers sit on private addresses, so there's none. A container on a bridge names the bridge's range in `trusted_proxies`, which a person approves, and the install guide says how. That one is also believed, as what's on that bridge is what's in front.
+- **A blanket rule for private addresses would let a whole LAN in,** as real servers sit on private addresses, so there's none. A container on a bridge names the bridge's range in `trusted_proxies`, which a person approves, and the install guide says how. That one is also believed, as what's on that bridge is what's in front. A range names everything on it, and a network joined with `external_networks` can hold other projects' services ([ADR 0021](0021-the-docker-driver.md)), so the guide says to give a proxy a network of its own.
+- **This server is its own network too.** A service with `host_network`, which a person approves, comes from loopback, as any process on the server does, so it can reach a route that names none.
 - **It's on the route, with no listener of its own.** HTTP-01 for other routes on the same port goes first, as Caddy handles a challenge before any route (`Server.ServeHTTP`), and a test holds that against Pebble.
 - **A route with a certificate has no such limit.** It answers over HTTPS with its own certificate, whatever it believes, as it always has.
 
@@ -48,7 +49,7 @@ A route behind a tunnel on the server's own network works with nothing named, an
 
 > Traffic for this route reaches hz-1 unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it.
 
-The panel shows it in amber, not red. It isn't a `PlanWarning`, which makes a plan destructive. `PlanStep.answers` says who it answers, also in amber:
+The panel shows it in amber, not red. It isn't a `PlanWarning`, which makes a plan destructive, or a `PlanNote`, which is for what no step says, and a step says this. `PlanStep.answers` says who it answers, also in amber:
 
 > It answers only what runs on hz-1 itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets.
 
@@ -118,6 +119,7 @@ For something that isn't a container, such as a process on the host, or a contai
 - **It reads back as itself, so it isn't drift.** A dial the table doesn't know still reads as drift, and so does anything beside it.
 - **It needs no network.** Routes to the server's own ports alone don't make the ingress network or its keeper.
 - **A process listening only on IPv6 isn't reached,** as Caddy dials IPv4.
+- **It's how a route reaches a service on the server's own network** ([ADR 0021](0021-the-docker-driver.md)). Docker can't put such a container on another network, so the ingress has no address for it, and a route that names it by `service` would fail as its step ran, in Docker's words. So it's refused as it plans, and says to use `host_port`, whether the service is there or the plan takes it there. A service with a route left on it can't go there either, and goes on serving. A plan can move both: the service's step then asks the ingress for nothing, so they can run in either order.
 
 ### A real certificate with no open port
 

@@ -73,6 +73,9 @@ type Ingress interface {
 	Endpoint(ctx context.Context, instance ingress.Instance) (network string, ep docker.EndpointSettings, ok bool, err error)
 	// PublicPort reports a port the ingress holds while it has routes.
 	PublicPort(ctx context.Context, port uint32, udp bool) (bool, error)
+	// RoutedAfter reports a route that still sends to an instance's service once
+	// the plan under way applies.
+	RoutedAfter(ctx context.Context, instance ingress.Instance, desired []resource.Desired) (bool, error)
 }
 
 // Deleted is the list of volumes the server keeps for 7 days once a plan
@@ -778,7 +781,7 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 			return discard(fmt.Errorf("can't put %s on the network %s: %w", t.Name, n, err))
 		}
 	}
-	if err := d.joinIngress(ctx, t, id); err != nil {
+	if err := d.joinIngress(ctx, t, spec, id); err != nil {
 		return discard(err)
 	}
 	if old != nil {
@@ -810,9 +813,12 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 
 // joinIngress puts a service's new container on the ingress network, at its
 // instance's address, before it starts, so a replaced container serves its
-// routes as the old one did. A service with no routes doesn't join.
-func (d *Docker) joinIngress(ctx context.Context, t Target, id string) error {
-	if d.Ingress == nil || !t.Scoped {
+// routes as the old one did. A service with no routes doesn't join, and nor does
+// one on the server's own network, which Docker can't put on another. A plan
+// refuses that with a route left on it (checkRouted), so here its route is moving
+// to a port on the server in the same plan, in a later step.
+func (d *Docker) joinIngress(ctx context.Context, t Target, spec *resourcev1.Container, id string) error {
+	if d.Ingress == nil || !t.Scoped || spec.GetHostNetwork() {
 		return nil
 	}
 	network, ep, ok, err := d.Ingress.Endpoint(ctx, ingress.Instance{Project: t.Project, Service: t.Service, Number: 1})

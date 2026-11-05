@@ -8,7 +8,9 @@
 # runs with their values, exports without the secret, and imports again
 # with no change; and everything goes again. A file in the shapes real ones
 # have runs on a network the server has, with what it asks for really applied,
-# and reaches another project on it by name. Then the agent build joins the
+# and reaches another project on it by name, and a route with no certificate
+# reaches it there, as it does a service on the server's own network, by its port
+# alone. Then the agent build joins the
 # full build's control plane, and runs a container on the same Docker. Before
 # that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
 # and serves a real container over HTTPS through Caddy, and routes that take no
@@ -1269,6 +1271,77 @@ if out=$(dw compose import --compose "$nothing" --environment other --plan-only 
   fail "an image no one has was planned: ${out:0:300}"
 fi
 [[ "$out" == *"won't give it to a pull"* ]] || fail "an image no one has failed some other way: ${out:0:300}"
+
+in_ingress=1
+step "Ingress: a route with no certificate reaches a service on a network the server has, and isn't drift"
+shop_site=shop.e2e-dockwell.example.net
+dw routes create shop-site --environment real --domain "$shop_site" --service shop --port 80 --tls off --yes >/dev/null || fail "a route to a service on a network the server has failed"
+page=$(curl -fsS --max-time 10 --resolve "$shop_site:80:127.0.0.1" "http://$shop_site/") || fail "http://$shop_site/ doesn't answer through Caddy"
+[[ "$page" == *nginx* ]] || fail "http://$shop_site/ answers something other than shop: ${page:0:300}"
+networks=$(docker inspect --format '{{json .NetworkSettings.Networks}}' "$shop") || fail "docker inspect $shop failed"
+jq -e 'has("e2e-edge") and has("dockwell_ingress")' <<<"$networks" >/dev/null || fail "$shop isn't on its network and the ingress's: $networks"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e 'any((.drift // [])[]; .resource.name == "shop" or .resource.name == "shop-site") | not' <<<"$drift" >/dev/null || fail "drift with shop routed: $drift"
+dw routes delete shop-site --environment real --yes >/dev/null || fail "routes delete shop-site failed"
+
+step "Ingress: a service on the server's own network takes a route by its port, and not by its name"
+on_host_port=$((web_port + 2))
+on_host_site=onhost.e2e-dockwell.example.net
+# nginx's image listens on port 80, which Caddy holds on this network.
+on_host_file=$(cat <<EOF
+services:
+  onhost:
+    image: nginx:1.27-alpine
+    network_mode: host
+    command:
+      - sh
+      - -c
+      - |-
+        sed -i -E '/\[::\]:80;/d; s/listen +80;/listen 127.0.0.1:$on_host_port;/' /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'
+EOF
+)
+planned=$(dw compose import --compose "$on_host_file" --environment real --plan-only --json) || fail "importing a service on the server's own network failed"
+on_host_change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import printed what isn't JSON: $planned"
+[[ "$on_host_change" == chg_* ]] || fail "compose import planned no change: $planned"
+person_apply "$on_host_change"
+for _ in $(seq 100); do
+  curl -fsS --max-time 1 -o /dev/null "http://127.0.0.1:$on_host_port/" 2>/dev/null && break
+  sleep 0.1
+done
+curl -fsS --max-time 5 -o /dev/null "http://127.0.0.1:$on_host_port/" || fail "onhost doesn't answer on port $on_host_port: $(docker ps -a --filter label=com.docker.compose.service=onhost)"
+if out=$(dw routes create onhost --environment real --domain "$on_host_site" --service onhost --port 80 --tls off --yes 2>&1); then
+  fail "a route by name to a service on the server's own network was planned: ${out:0:300}"
+fi
+[[ "$out" == *"runs on the server's own network"* && "$out" == *host_port* ]] || fail "a route by name to a service on the server's own network failed some other way: ${out:0:300}"
+set +e
+planned=$(dw routes create onhost --environment real --domain "$on_host_site" --host-port "$on_host_port" --tls off --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "a route to its port exited $status, want 4: it waits for a person: $planned"
+[[ "$planned" == *"127.0.0.1:$on_host_port"* ]] || fail "the plan doesn't name the port: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+reach=$(jq -r '.changes[0].id' <<<"$changes")
+[[ "$reach" == chg_* ]] || fail "changes list has no change: $changes"
+token_refused "$reach"
+person_apply "$reach"
+page=$(curl -fsS --max-time 10 --resolve "$on_host_site:80:127.0.0.1" "http://$on_host_site/") || fail "http://$on_host_site/ doesn't answer through Caddy"
+[[ "$page" == *nginx* ]] || fail "http://$on_host_site/ answers something other than onhost: ${page:0:300}"
+dw routes delete onhost --environment real --yes >/dev/null || fail "routes delete onhost failed"
+dw services delete onhost --environment real --yes >/dev/null || fail "services delete onhost failed"
+
+step "Ingress: a service with a route can't go onto the server's own network, and goes on serving"
+moves_site=moves.e2e-dockwell.example.net
+dw services create moves --environment real --app-image nginx:1.27-alpine --yes >/dev/null || fail "services create moves failed"
+dw routes create moves --environment real --domain "$moves_site" --service moves --port 80 --tls off --yes >/dev/null || fail "routes create moves failed"
+if out=$(dw services update moves --environment real --app-image nginx:1.27-alpine --app-host-network --plan-only 2>&1); then
+  fail "taking a service with a route onto the server's own network was planned: ${out:0:300}"
+fi
+[[ "$out" == *"has a route"* && "$out" == *host_port* ]] || fail "taking a service with a route onto the server's own network failed some other way: ${out:0:300}"
+page=$(curl -fsS --max-time 10 --resolve "$moves_site:80:127.0.0.1" "http://$moves_site/") || fail "http://$moves_site/ stopped answering"
+[[ "$page" == *nginx* ]] || fail "http://$moves_site/ answers something else: ${page:0:300}"
+dw routes delete moves --environment real --yes >/dev/null || fail "routes delete moves failed"
+dw services delete moves --environment real --yes >/dev/null || fail "services delete moves failed"
+in_ingress=""
 
 step "Going leaves the network as it was"
 dw changes undo "$change" --yes >/dev/null || fail "changes undo $change failed"

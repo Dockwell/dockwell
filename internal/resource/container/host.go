@@ -266,6 +266,9 @@ func (d *Docker) CheckHost(ctx context.Context, t Target, spec *resourcev1.Conta
 	if err := d.checkExternalNetworks(ctx, t, spec); err != nil {
 		return err
 	}
+	if err := d.checkRouted(ctx, t, spec); err != nil {
+		return err
+	}
 	if err := d.checkCPUs(ctx, t, spec); err != nil {
 		return err
 	}

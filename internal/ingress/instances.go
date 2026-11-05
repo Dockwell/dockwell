@@ -618,6 +618,9 @@ func (m *Manager) attach(ctx context.Context, i Instance) error {
 	case err != nil:
 		return err
 	}
+	if c.HostConfig.NetworkMode == hostNetworkMode {
+		return serversNetwork(i.Service) // a plan refuses this, and one may be old
+	}
 	addr := m.table.Addresses[i.String()]
 	if ep, on := c.NetworkSettings.Networks[docker.IngressNetwork]; on {
 		n, err := m.Client.NetworkNamed(ctx, docker.IngressNetwork)
@@ -639,6 +642,9 @@ func (m *Manager) attach(ctx context.Context, i Instance) error {
 	}
 	return nil
 }
+
+// hostNetworkMode is how Docker says a container is on the server's own network.
+const hostNetworkMode = "host"
 
 func endpoint(addr string) docker.EndpointSettings {
 	return docker.EndpointSettings{IPAMConfig: &docker.EndpointIPAM{IPv4Address: addr}}
