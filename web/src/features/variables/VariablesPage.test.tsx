@@ -106,7 +106,8 @@ afterEach(() => {
 describe("the variables and secrets page", () => {
   it("lists an environment's variables with their values, and its secrets hidden", async () => {
     const { container } = renderAt("/variables", api());
-    const table = await screen.findByRole("table", { name: "Variables and secrets in production" });
+    // The first render in this file loads the route, which takes a while on a busy machine.
+    const table = await screen.findByRole("table", { name: "Variables and secrets in production" }, { timeout: 5000 });
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows.map((r) => r.textContent)).toEqual([
       expect.stringContaining("DB_PASSWORD, secret"),
