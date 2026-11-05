@@ -3,7 +3,8 @@
 package compose
 
 import (
-	"cmp"
+	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -20,32 +21,26 @@ import (
 // is used, is refused rather than left blank, at every level. A default
 // that isn't used needs nothing. compose-go's own substitution leaves a
 // variable blank inside a default, and after one in the same string.
-//
-// It also says where a variable's value lands that isn't hidden (Exposed).
-func interpolate(raw map[string]any, variables map[string]string) (map[string]any, []Exposed, error) {
-	in := &interpolator{variables: variables, missing: map[string]bool{}}
+func interpolate(ctx context.Context, raw map[string]any, variables map[string]string) (map[string]any, error) {
+	in := &interpolator{ctx: ctx, variables: variables, missing: map[string]bool{}}
 	out, err := in.walk(place{owner: fileOwner}, raw)
+	if ctx.Err() != nil {
+		return nil, stopped(ctx)
+	}
 	if len(in.missing) > 0 {
 		names := slices.Sorted(maps.Keys(in.missing))
-		return nil, nil, invalid("the Compose file uses %s, with no value. Give it one in variables, or a default in the file, such as ${%s:-value}",
+		return nil, invalid("the Compose file uses %s, with no value. Give it one in variables, or a default in the file, such as ${%s:-value}",
 			strings.Join(names, ", "), names[0])
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return out.(map[string]any), in.report(), nil
+	return out.(map[string]any), nil
 }
 
-// Exposed is a variable whose value a Compose file writes where anyone who
-// can read the service sees it: its command, entrypoint, labels or health
-// check. Only a spec's environment is blanked (ADR 0021), so a value that is
-// a secret belongs there, with $$NAME in the command for the shell to read.
-type Exposed struct {
-	Variable string
-	Service  string
-	// Field is the field it lands in: command, entrypoint, labels or
-	// healthcheck.
-	Field string
+// stopped says a caller left while a file was being read.
+func stopped(ctx context.Context) error {
+	return fmt.Errorf("stopped reading the Compose file: %w", ctx.Err())
 }
 
 // checkVariables refuses more variables than Dockwell takes, before they cost
@@ -80,48 +75,13 @@ const (
 )
 
 type interpolator struct {
+	ctx       context.Context //nolint:containedctx // one call's, for one walk
 	variables map[string]string
 	missing   map[string]bool
 	// expanded counts what variables have expanded to so far.
 	expanded int
 	// depth counts the variables being read inside each other.
 	depth int
-	// exposed notes where a value lands in plain sight.
-	exposed map[Exposed]bool
-}
-
-// note records that name's value lands at at, if that is in plain sight. It
-// counts a variable with no value yet, as it lands there once it has one, so
-// a form can say so before anyone types a secret into it.
-func (in *interpolator) note(at place, name string) {
-	service, ok := strings.CutPrefix(at.owner, "the service ")
-	if !ok {
-		return
-	}
-	field := ""
-	switch path := indexed.ReplaceAllString(at.path, ""); {
-	case path == "command", path == "entrypoint":
-		field = path
-	case path == "healthcheck.test":
-		field = "healthcheck"
-	case path == "labels", strings.HasPrefix(path, "labels."):
-		field = "labels"
-	default:
-		return // what it runs, which no one keeps secret, or what is blanked
-	}
-	if in.exposed == nil {
-		in.exposed = map[Exposed]bool{}
-	}
-	in.exposed[Exposed{Variable: name, Service: service, Field: field}] = true
-}
-
-// report lists what note found, in a steady order.
-func (in *interpolator) report() []Exposed {
-	out := slices.Collect(maps.Keys(in.exposed))
-	slices.SortFunc(out, func(a, b Exposed) int {
-		return cmp.Or(cmp.Compare(a.Service, b.Service), cmp.Compare(a.Field, b.Field), cmp.Compare(a.Variable, b.Variable))
-	})
-	return out
 }
 
 // spend counts n bytes against MaxExpansion.
@@ -136,15 +96,9 @@ func (in *interpolator) spend(at place, n int) error {
 func (in *interpolator) walk(at place, v any) (any, error) {
 	switch v := v.(type) {
 	case string:
-		// A list's entry can write its name from a variable, and only a value is
-		// hidden. A mapping's keys are never read for variables.
-		if in.exposure != nil && strings.HasPrefix(at.owner, "the service ") && strings.HasPrefix(at.path, "environment[") {
-			in.naming = true
-			_, err := in.substitute(at, nameOfEntry(v))
-			in.naming = false
-			if err != nil {
-				return nil, err
-			}
+		// A caller who has left isn't waiting for what is left of the file.
+		if err := in.ctx.Err(); err != nil {
+			return nil, err
 		}
 		return in.substitute(at, v)
 	case map[string]any:
@@ -216,7 +170,6 @@ func (in *interpolator) substitute(at place, s string) (string, error) {
 			for j < len(s) && nameRest(s[j]) {
 				j++
 			}
-			in.note(at, s[i+1:j])
 			v := in.value(s[i+1 : j])
 			if err := in.spend(at, len(v)); err != nil {
 				return "", err
@@ -260,11 +213,9 @@ func (in *interpolator) braced(at place, whole string) (string, error) {
 	tail := rest[len(op):]
 	switch op {
 	case "":
-		in.note(at, name)
 		return in.value(name), nil
 	case ":-", "-":
 		if nonEmpty || set && op == "-" {
-			in.note(at, name)
 			return value, nil
 		}
 		return in.substitute(at, tail)
@@ -274,8 +225,6 @@ func (in *interpolator) braced(at place, whole string) (string, error) {
 		}
 		return value, nil
 	case ":?", "?":
-		// It needs a value, so it lands here whether or not it has one yet.
-		in.note(at, name)
 		if nonEmpty || set && op == "?" {
 			return in.landed(at, name, value), nil
 		}

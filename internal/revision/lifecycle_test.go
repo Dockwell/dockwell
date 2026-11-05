@@ -1059,3 +1059,59 @@ func first(t *testing.T, e *Engine) string {
 	}
 	return out
 }
+
+// An edit made from a spec it read goes stale when that isn't the latest any
+// more, as proposing it would quietly undo what came between.
+func TestAnEditFromAnOlderRevisionIsStale(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, _ := setup(t, b, "srv_A")
+		apply(t, e, propose(t, e, "Run web", web("nginx:1.0")))
+		apply(t, e, propose(t, e, "Run web", web("nginx:1.1")))
+		from := func(base int) error {
+			ed := web("nginx:1.2")
+			ed.Base = base
+			_, err := e.Propose(t.Context(), Proposal{Summary: "Deploy", Actor: "usr_test", Via: ViaAPI, Edits: []Edit{ed}})
+			return err
+		}
+		if err := from(1); !errors.Is(err, ErrStale) || !strings.Contains(err.Error(), "Try again") {
+			t.Errorf("an edit from r1, with r2 the latest = %v, want it stale", err)
+		}
+		if err := from(2); err != nil {
+			t.Errorf("an edit from the latest = %v", err)
+		}
+		if err := from(0); err != nil {
+			t.Errorf("an edit that says the whole spec = %v", err)
+		}
+	})
+}
+
+// A plan that does nothing can be refused, unless a server that didn't answer
+// could say otherwise: what it last reported isn't what it runs now.
+func TestNothingToDoAsksTheServers(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, f, _ := setup(t, b, "srv_A")
+		apply(t, e, propose(t, e, "Run web", web("nginx:1.0")))
+		nothing := errors.New("nothing to do")
+		same := func() (*Plan, error) {
+			return e.Propose(t.Context(), Proposal{Summary: "Same", Actor: "usr_test", Via: ViaAPI, Edits: []Edit{web("nginx:1.0")}, IfNothing: nothing})
+		}
+		if _, err := same(); !errors.Is(err, nothing) {
+			t.Errorf("with the server up = %v, want the refusal", err)
+		}
+		f["srv_A"].online.Store(false)
+		if _, err := same(); !errors.Is(err, ErrOffline) || !strings.Contains(err.Error(), "can't tell what runs there") {
+			t.Errorf("with the server down = %v, want it to say it can't tell", err)
+		}
+		f["srv_A"].online.Store(true)
+
+		// Without it, a plan that does nothing is planned, as it always was.
+		if p := propose(t, e, "Nothing", web("nginx:1.0")); !p.Empty() {
+			t.Errorf("a proposal with no refusal = %+v", p)
+		}
+		// One that does something isn't refused.
+		p, err := e.Propose(t.Context(), Proposal{Summary: "New", Actor: "usr_test", Via: ViaAPI, Edits: []Edit{web("nginx:1.1")}, IfNothing: nothing})
+		if err != nil || p.Empty() {
+			t.Errorf("a proposal that changes something = %+v, %v", p, err)
+		}
+	})
+}

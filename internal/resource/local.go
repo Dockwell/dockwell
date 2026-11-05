@@ -104,6 +104,14 @@ type Checker interface {
 	Check(ctx context.Context, ref Ref, desired proto.Message) error
 }
 
+// PlanChecker is a driver that checks a resource about to start against what
+// else is on the server, and the rest of what the plan wants there, as a port
+// only one thing can hold. all holds every resource the plan wants here,
+// normalized, want among them.
+type PlanChecker interface {
+	CheckPlan(ctx context.Context, want Desired, all []Desired) error
+}
+
 // Judge is a driver whose judgement of a step needs its server, beyond the
 // specs, such as a container whose image keeps data that deleting it takes
 // out of use. The agent asks it in place of Plan; the control plane, which
@@ -137,7 +145,9 @@ func WithDesired(ctx context.Context, desired []Desired) context.Context {
 func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 	ctx = WithDesired(ctx, desired)
 	steps := make([]Step, 0, len(desired))
-	for _, want := range desired {
+	normal := make([]Desired, len(desired))
+	drivers := make([]Driver, len(desired))
+	for i, want := range desired {
 		d, err := l.Drivers.Driver(want.Ref.Kind)
 		if err != nil {
 			return nil, err
@@ -146,6 +156,10 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec}, d
+	}
+	for i, want := range normal {
+		d, spec := drivers[i], want.Spec
 		if c, ok := d.(Checker); ok && spec != nil {
 			if err := c.Check(ctx, want.Ref, spec); err != nil {
 				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
@@ -163,6 +177,13 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		}
 		if err != nil {
 			return nil, err
+		}
+		// Only what is about to start can fail to: a resource left as it is
+		// isn't refused for what is around it.
+		if c, ok := d.(PlanChecker); ok && spec != nil && (step.Action == ActionCreate || step.Action == ActionReplace) {
+			if err := c.CheckPlan(ctx, want, normal); err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
 		}
 		steps = append(steps, step)
 	}

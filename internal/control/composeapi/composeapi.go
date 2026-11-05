@@ -83,6 +83,11 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 	if err := h.useVariables(ctx, env, stack); err != nil {
 		return nil, h.internal(ctx, err)
 	}
+	running, err := h.servicesIn(ctx, env)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	var deleted []string
 	var edits []*dockwellv1.Edit
 	keep := map[string]bool{}
 	add := func(kind resource.Kind, name string, spec *resourcev1.Spec) {
@@ -119,6 +124,9 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 				return nil, h.internal(ctx, err)
 			}
 			slices.Sort(orphans)
+			if kind == service.Kind {
+				deleted = orphans
+			}
 			for _, name := range orphans {
 				edits = append(edits, &dockwellv1.Edit{
 					Resource: &dockwellv1.ResourceRef{Kind: string(kind), Scope: env, Name: name}, Delete: true,
@@ -128,9 +136,13 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 	}
 	summary := strings.TrimSpace(m.GetSummary())
 	if summary == "" {
-		summary = "Run a Compose file"
-		if place.project != scope.DefaultProject {
+		switch {
+		case len(running) > 0:
+			summary = fmt.Sprintf("Update %s from a Compose file", place.project)
+		case place.project != scope.DefaultProject:
 			summary = fmt.Sprintf("Run %s from a Compose file", place.project)
+		default:
+			summary = "Run a Compose file"
 		}
 	}
 	c, err := h.changes.Propose(ctx, summary, edits, func(choice *scope.ChoiceError, _ string) string {
@@ -138,18 +150,53 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, Notes: exposedNotes(env, stack.Exposed)})
+	}, changes.Also{Edits: place.made, Notes: slices.Concat(place.updates(running, deleted), exposedNotes(env, stack.Exposed, stack.ExposedMore))})
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&dockwellv1.ImportComposeResponse{Change: c, ExposedVariables: exposedProtos(stack.Exposed)}), nil
+	return connect.NewResponse(&dockwellv1.ImportComposeResponse{Change: c, ExposedVariables: exposedProtos(stack.Exposed), MoreExposed: stack.ExposedMore}), nil
+}
+
+// servicesIn names what an environment runs now.
+func (h *Handler) servicesIn(ctx context.Context, env string) ([]string, error) {
+	var out []string
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		list, err := tx.ListResources(ctx, env, string(service.Kind))
+		for i := range list {
+			out = append(out, list[i].Name)
+		}
+		return err
+	})
+	slices.Sort(out)
+	return out, err
 }
 
 // destination is where a Compose file goes.
 type destination struct {
-	project     string // its project's name
-	environment string // its environment's ID, which may not exist yet
-	made        []revision.Edit
+	organization string
+	project      string // its project's name
+	environment  string // its environment's ID, which may not exist yet
+	made         []revision.Edit
+}
+
+// updates is what a plan says of a file going where services run already: to
+// the API and the CLI an update otherwise reads as a new app, and a file's name:
+// can match a project by chance.
+func (d destination) updates(running, deleted []string) []revision.Note {
+	if len(running) == 0 {
+		return nil
+	}
+	message := fmt.Sprintf("%s already runs %s, so this changes what runs: a service of the same name in the file replaces it", d.project, human.List(running))
+	if len(deleted) > 0 {
+		message += fmt.Sprintf(", and %s, which the file doesn't name, would be deleted", human.List(deleted))
+	}
+	message += ". If that isn't what you meant, give the file a project of its own: pass project, or change name: in the file"
+	return []revision.Note{{
+		Reason:  "updates_project",
+		Message: message,
+		Ref:     resource.Ref{Kind: scope.ProjectKind, Scope: d.organization, Name: d.project},
+		Names:   append([]string{d.project}, running...),
+	}}
 }
 
 // destination says where a file goes (ADR 0026): an environment named by ID;
@@ -163,6 +210,7 @@ func (h *Handler) destination(ctx context.Context, project, environment, fileNam
 		if err != nil {
 			return err
 		}
+		out.organization = tree.Organization.ID
 		place := func(p scope.Project, e scope.Environment) {
 			out.project, out.environment = p.Name, e.ID
 		}
@@ -181,6 +229,14 @@ func (h *Handler) destination(ctx context.Context, project, environment, fileNam
 			p, e, ok := exportedFrom(tree, fileName)
 			if !ok {
 				return invalid(fmt.Errorf("the Compose file's name, %s, is an environment's Compose project, and no environment here has it, so it was exported from elsewhere. Change name: in the file, or pass project, to say where it goes", fileName))
+			}
+			if environment != "" {
+				// Asked for another environment of the project it came from.
+				project = p.ID
+				var err error
+				if p, e, err = tree.Resolve(p.ID, environment); err != nil {
+					return err
+				}
 			}
 			place(p, e)
 			return nil
@@ -207,7 +263,7 @@ func (h *Handler) destination(ctx context.Context, project, environment, fileNam
 		if err != nil {
 			return err
 		}
-		out = destination{project: named, environment: env, made: made}
+		out = destination{organization: tree.Organization.ID, project: named, environment: env, made: made}
 		return nil
 	})
 	var said *connect.Error
@@ -287,29 +343,64 @@ func exportedFrom(tree scope.Tree, name string) (scope.Project, scope.Environmen
 func exposedProtos(exposed []compose.Exposed) []*dockwellv1.ExposedVariable {
 	out := make([]*dockwellv1.ExposedVariable, len(exposed))
 	for i, e := range exposed {
-		out[i] = &dockwellv1.ExposedVariable{Name: e.Variable, Service: e.Service, Field: e.Field}
+		out[i] = &dockwellv1.ExposedVariable{Name: e.Variable, Resource: &dockwellv1.ResourceRef{Kind: e.Kind, Name: e.Owner}, Field: e.Field}
 	}
 	return out
 }
 
-// exposedNotes are what a plan says of them: the fact, what it means, and how
-// to keep the value hidden.
-func exposedNotes(env string, exposed []compose.Exposed) []revision.Note {
-	out := make([]revision.Note, len(exposed))
-	for i, e := range exposed {
-		field := e.Field
-		if field == "healthcheck" {
-			field = "health check"
-		}
-		out[i] = revision.Note{
-			Reason: "exposed_variable",
-			Message: fmt.Sprintf("%s's %s holds the value of %s, and anyone who can read this app can see it. To keep it hidden, pass it in environment, and use $$%s in the %s",
-				e.Service, field, e.Variable, e.Variable, field),
-			Ref:   resource.Ref{Kind: service.Kind, Scope: env, Name: e.Service},
-			Names: []string{e.Variable, e.Field},
-		}
+// exposedNotes are what a plan says of them: the fact, what it means, and what
+// to do. more says the file writes more than these.
+func exposedNotes(env string, exposed []compose.Exposed, more bool) []revision.Note {
+	out := make([]revision.Note, 0, len(exposed)+1)
+	for _, e := range exposed {
+		out = append(out, revision.Note{
+			Reason:  "exposed_variable",
+			Message: exposedMessage(e),
+			Ref:     resource.Ref{Kind: resource.Kind(e.Kind), Scope: env, Name: e.Owner},
+			Names:   []string{e.Variable, e.Field},
+		})
+	}
+	if more {
+		out = append(out, revision.Note{
+			Reason:  "exposed_more",
+			Message: fmt.Sprintf("The file writes more variables in plain sight than the %d listed here. Read it for the rest before you pass one a secret", len(exposed)),
+		})
 	}
 	return out
+}
+
+// exposedMessage says where a value lands. How to hide one depends on the
+// field: $$NAME is for a shell to read, and only some fields have one.
+func exposedMessage(e compose.Exposed) string {
+	owner := e.Owner
+	if e.Kind != string(service.Kind) {
+		owner = "the " + e.Kind + " " + e.Owner
+	}
+	field := e.Field
+	switch e.Field {
+	case "healthcheck":
+		field = "health check"
+	case "working_dir":
+		field = "working directory"
+	case "volumes":
+		field = "mounts"
+	case "driver_opts":
+		field = "driver options"
+	case "environment":
+		field = "environment variable names"
+	}
+	fact := fmt.Sprintf("The value of %s lands in %s's %s, and anyone who can read it can see it there", e.Variable, owner, field)
+	switch e.Field {
+	case "command", "entrypoint":
+		// Docker runs these as they are, so $$NAME means something only if the
+		// command itself is a shell.
+		return fmt.Sprintf("%s. To keep it hidden, pass it in environment for the app to read, or run the %s through a shell, as sh -c, with $$%s in it", fact, e.Field, e.Variable)
+	case "healthcheck":
+		return fmt.Sprintf("%s. To keep it hidden, pass it in environment, and write the test as CMD-SHELL with $$%s in it", fact, e.Variable)
+	case "environment":
+		return fmt.Sprintf("%s, as only a variable's value is hidden. Don't pass a secret in %s", fact, e.Variable)
+	}
+	return fmt.Sprintf("%s, and it can't be hidden there. Don't pass a secret in %s", fact, e.Variable)
 }
 
 // CheckCompose reads a Compose file as ImportCompose would, and says what
@@ -333,7 +424,7 @@ func (h *Handler) CheckCompose(ctx context.Context, req *connect.Request[dockwel
 	for _, v := range seen.Variables {
 		res.Variables = append(res.Variables, &dockwellv1.ComposeVariable{Name: v.Name, Required: v.Required})
 	}
-	res.ExposedVariables = exposedProtos(seen.Exposed)
+	res.ExposedVariables, res.MoreExposed = exposedProtos(seen.Exposed), seen.ExposedMore
 	name, nameErr := h.fileName(ctx, seen.Name)
 	if nameErr != nil {
 		return nil, h.internal(ctx, nameErr)

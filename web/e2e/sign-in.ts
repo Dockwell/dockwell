@@ -35,7 +35,7 @@ import { parseArgs } from "node:util";
 import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
 
 import { appsFlow } from "./apps-flow.ts";
-import { dockerProbe } from "./docker-probe.ts";
+import { dockerMade, dockerProbe, removeMade } from "./docker-probe.ts";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -100,9 +100,21 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
   const path = values["fake-docker"];
   if (!path) return {};
   docker = spawn(resolve(path), [join(data, "docker")], { stdio: ["ignore", "pipe", "inherit"] });
+  // A fake that dies, or says nothing, would otherwise hang until the job's timeout.
   const socket = await new Promise<string>((done, refused) => {
-    docker?.stdout?.once("data", (b: Buffer) => done(b.toString().trim()));
-    docker?.once("error", refused);
+    const silent = setTimeout(() => refused(new Error(`${path} said nothing for 15 s, so it isn't serving`)), 15_000);
+    docker?.stdout?.once("data", (b: Buffer) => {
+      clearTimeout(silent);
+      done(b.toString().trim());
+    });
+    docker?.once("error", (err) => {
+      clearTimeout(silent);
+      refused(err);
+    });
+    docker?.once("exit", (code, signal) => {
+      clearTimeout(silent);
+      refused(new Error(`${path} ended with ${code ?? signal} before it said where it serves`));
+    });
   });
   fakeSocket = socket;
   return { DOCKER_HOST: `unix://${socket}` };
@@ -195,6 +207,11 @@ function totp(secretBase32: string, step = Math.floor(Date.now() / 30_000)): str
   return String((sum.readUInt32BE(off) & 0x7fffffff) % 1_000_000).padStart(6, "0");
 }
 
+let pageThrew: (err: Error) => void = () => {};
+const pageError = new Promise<never>((_, threw) => {
+  pageThrew = threw;
+});
+
 async function main() {
   if (shots) await mkdir(shots, { recursive: true });
   step(`starting ${bin} on ${origin} with data in ${data}`);
@@ -206,7 +223,8 @@ async function main() {
   });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
-  page.on("pageerror", (err) => fail(`the page threw: ${err.message}`));
+  // A throw in here would end the process and skip the cleaning up.
+  page.on("pageerror", (err) => pageThrew(new Error(`the page threw: ${err.message}`)));
   const { cdp, authenticatorId } = await withAuthenticator(context, page);
 
   step("an unclaimed panel explains how to claim it");
@@ -741,7 +759,14 @@ async function main() {
     `  ${secretId} added through a plan, revealed with the passkey and on the timeline; a token, and a page's script, were refused`,
   );
   if (fakeSocket !== "") {
+    const before = await dockerMade(fakeSocket);
     await appsFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket), failing: "nginx:broken" });
+    // What make docker-panel-e2e does at its end, where only CI could see it.
+    step("Docker: what the run made comes off, networks and volumes too");
+    const made = await dockerMade(fakeSocket);
+    if (made.networks.length === 0) fail("the flow left no network, so this shows nothing about removing one");
+    const left = await removeMade(fakeSocket, before);
+    if (left.length > 0) fail(`removing what the run made left ${left.join(", ")}`);
   }
 
   step("sign out on a phone, from More");
@@ -777,7 +802,7 @@ async function main() {
 }
 
 try {
-  await main();
+  await Promise.race([main(), pageError]);
 } catch (err) {
   console.error(`e2e: failed: ${err instanceof Error ? err.message : String(err)}`);
   console.error(log.join("").split("\n").slice(-30).join("\n"));

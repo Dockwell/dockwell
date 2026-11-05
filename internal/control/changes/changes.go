@@ -94,6 +94,10 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 type Also struct {
 	Edits []revision.Edit
 	Notes []revision.Note
+	// Base is the revision the request's edits were made from (revision.Edit).
+	Base int
+	// IfNothing refuses a plan that would do nothing (revision.Proposal).
+	IfNothing error
 }
 
 // Propose plans edits as a new change, as ProposeChange does, for another
@@ -130,8 +134,11 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	if err != nil {
 		return nil, fail(err)
 	}
+	for i := range edits {
+		edits[i].Base = also.Base
+	}
 	plan, err := h.engine.Propose(ctx, revision.Proposal{
-		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes,
+		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing,
 	})
 	if err != nil {
 		return nil, fail(err)
@@ -773,6 +780,9 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 	for i := range p.Notes {
 		n := &p.Notes[i]
 		out.Notes = append(out.Notes, &dockwellv1.PlanNote{Reason: n.Reason, Message: n.Message, Resource: resourcepb.Ref(n.Ref), Names: n.Names})
+	}
+	for _, place := range p.Places {
+		out.Places = append(out.Places, &dockwellv1.PlanPlace{Project: place.Project, Environment: place.Environment})
 	}
 	ids := map[resource.Ref]string{}
 	for i := range p.Resources {

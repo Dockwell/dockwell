@@ -263,11 +263,15 @@ export function revisionName(number: bigint): string {
   return `r${number}`;
 }
 
-/** A revision worth going back to: not deleted, it didn't fail, and going back would change something. */
-export function canRollBackTo(revision: ServiceRevision): boolean {
+/**
+ * A revision worth going back to: not deleted, it didn't fail, and going back
+ * would change something. While recovering, as the latest failed, one that
+ * matches the record counts: what the record says isn't what runs.
+ */
+export function canRollBackTo(revision: ServiceRevision, recovering = false): boolean {
   return (
     !revision.deleted &&
-    !revision.matchesLatest &&
+    (recovering || !revision.matchesLatest) &&
     !revision.deployments.some((d) => d.state === DeploymentState.FAILED)
   );
 }
@@ -346,9 +350,33 @@ export function nameFromImage(image: string): string {
   return toLabel(last.split(":")[0] ?? "");
 }
 
-/** The name of a service's container's environment variables, sorted. */
-export function envNames(app: Container | undefined): string[] {
-  return Object.keys(app?.env ?? {}).sort((a, b) => a.localeCompare(b));
+/** Something a service runs with, by the name it sees. */
+export interface ServiceValue {
+  name: string;
+  /** Its environment's variable or secret, or its spec's own. */
+  kind: "variable" | "secret" | "own";
+  /** What its environment calls it: a service can see one under another name. */
+  from: string;
+}
+
+/** What a service runs with, sorted. No API response holds a secret's value. */
+export function valuesOf(service: ServiceInfo): ServiceValue[] {
+  const used = (kind: "variable" | "secret", names: { [name: string]: string } | undefined): ServiceValue[] =>
+    Object.entries(names ?? {}).map(([name, from]) => ({ name, kind, from: from || name }));
+  return [
+    ...used("variable", service.spec?.variables),
+    ...used("secret", service.spec?.secrets),
+    ...Object.keys(appOf(service)?.env ?? {}).map((name): ServiceValue => ({ name, kind: "own", from: name })),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * A plan refused for a port something else on the server holds, in the agent's
+ * words without the ones that say where it was planned.
+ */
+export function portRefusal(message: string): string | undefined {
+  const found = /\bport \d+(?:\/udp)?(?: on \S+(?: \([^)]*\))?)? is (?:in use|wanted)\b.*$/s.exec(message)?.[0];
+  return found ? found.charAt(0).toUpperCase() + found.slice(1) : undefined;
 }
 
 /** Whether anything outside its server can reach it: today, whether it publishes a port. */

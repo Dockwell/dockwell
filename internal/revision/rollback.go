@@ -20,14 +20,20 @@ import (
 // a change whole, and only its latest. A rollback of a revision a change made
 // by itself reverts that change, as undoing it would; one of a revision made
 // beside others says so only in its summary, as the rest of that change
-// stands. It refuses a revision that matches what runs, as its plan would do
-// nothing, and reverting a change with it would take away that change's undo.
-// say gives the plan its summary and notes, from the latest resource and the
-// spec it goes back to. Apply the plan to carry it out.
+// stands. What the revision uses, such as a variable or a secret, it uses at
+// its latest value, as every change does (uses.go).
+//
+// It refuses only what would do nothing: what the servers report matching, not
+// just the record. A revision that matches on the record, when a rollback
+// failed or a container was removed by hand, plans what puts it back, which is
+// how someone recovers. It reverts nothing, so the change that got here keeps
+// its undo. say gives the plan its summary and notes, from the latest resource
+// and the spec it goes back to. Apply the plan to carry it out.
 func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, say func(store.Resource, proto.Message) (string, []Note), by By) (*Plan, error) {
 	var ed Edit
 	var reverts, words string
 	var notes []Note
+	var nothing error
 	err := e.db.View(ctx, func(tx *store.Tx) error {
 		latest, err := tx.GetResourceByID(ctx, resourceID)
 		if err != nil {
@@ -51,10 +57,9 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 		}
 		ref := resource.Ref{Kind: resource.Kind(rev.Kind), Scope: rev.Scope, Name: rev.Name}
 		ed.Ref = ref
-		if ed.Spec, err = e.kinds.Decode(ref.Kind, rev.Spec); err != nil {
+		if ed.Spec, err = e.decode(ctx, tx, store.InRevision(resourceID, rev.Kind, number), rev.Spec); err != nil {
 			return err
 		}
-		ed.Spec = proto.Clone(ed.Spec)
 		if ed.Servers, err = inFleet(ctx, tx, ref, resourceID, number, latest.ChangeID); err != nil {
 			return err
 		}
@@ -66,18 +71,18 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 		if err != nil {
 			return err
 		}
-		if same, err := matches(rev, deployments); err != nil {
+		same, err := matches(ed.Spec, deployments)
+		if err != nil {
 			return err
-		} else if same {
-			return fault.New(ErrCantUndo, "%s already runs what revision %d had, so going back to it would change nothing. Choose a revision that differs", latest.Name, number)
 		}
 		revs, err := tx.RevisionsOf(ctx, latest.ChangeID)
 		if err != nil {
 			return err
 		}
-		if len(revs) == 1 {
+		if !same && len(revs) == 1 {
 			reverts = latest.ChangeID
 		}
+		nothing = fault.New(ErrCantUndo, "%s already runs what revision %d had, so going back to it would change nothing. Choose a revision that differs", latest.Name, number)
 		words, notes = say(latest, ed.Spec)
 		return nil
 	})
@@ -87,13 +92,15 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 	if err != nil {
 		return nil, err
 	}
-	return e.propose(ctx, Proposal{Summary: words, Actor: by.Actor, Via: by.Via, Edits: []Edit{ed}, Notes: notes, RollsBackTo: number}, reverts)
+	return e.propose(ctx, Proposal{Summary: words, Actor: by.Actor, Via: by.Via, Edits: []Edit{ed}, Notes: notes, RollsBackTo: number, IfNothing: nothing}, reverts, false)
 }
 
 // ResourceRevision is one revision of a resource, with the change that made
 // it, what it changed, and where it was placed.
 type ResourceRevision struct {
 	store.Revision
+	// Decoded is its spec, read: nil for a revision that deleted the resource.
+	Decoded proto.Message
 	// Record is the change that made it, with its plan in brief.
 	Record *Record
 	// Changes are the fields it changed, as its plan says.
@@ -158,9 +165,24 @@ func (e *Engine) History(ctx context.Context, resourceID string, before, limit i
 		if err != nil {
 			return err
 		}
+		specs := make([]store.StoredSpec, 0, len(revs))
+		for i := range revs {
+			if revs[i].Spec != nil {
+				specs = append(specs, store.StoredSpec{At: store.InRevision(resourceID, revs[i].Kind, revs[i].Revision), Spec: revs[i].Spec})
+			}
+		}
+		decoded, err := e.decodeAll(ctx, tx, specs)
+		if err != nil {
+			return err
+		}
+		next := 0
 		for i := range revs {
 			rev := revs[i]
 			r := ResourceRevision{Revision: rev, Record: records[at[rev.ChangeID]], Deployments: deployments[rev.Revision]}
+			if rev.Spec != nil {
+				r.Decoded = decoded[next]
+				next++
+			}
 			if p := full[rev.ChangeID]; p != nil {
 				r.RolledBackTo = p.RollsBackTo
 				for j := range p.Resources {
@@ -169,7 +191,7 @@ func (e *Engine) History(ctx context.Context, resourceID string, before, limit i
 					}
 				}
 			}
-			if r.MatchesLatest, err = matches(rev, r.Deployments); err != nil {
+			if r.MatchesLatest, err = matches(r.Decoded, r.Deployments); err != nil {
 				return err
 			}
 			out = append(out, r)
@@ -182,18 +204,20 @@ func (e *Engine) History(ctx context.Context, resourceID string, before, limit i
 	return out, err
 }
 
-// matcher reports whether a revision, with its deployments, matches the
-// latest, so going back to it would do nothing. It reads the latest once,
-// and each server once.
-func (e *Engine) matcher(ctx context.Context, tx *store.Tx, latest store.Resource) (func(store.Revision, []store.Deployment) (bool, error), error) {
+// matcher reports whether a revision's spec, with its deployments, matches the
+// latest on the record. It doesn't compare what each uses was pinned to, as a
+// change pins it again to the latest. It reads the latest once, and each server
+// once.
+func (e *Engine) matcher(ctx context.Context, tx *store.Tx, latest store.Resource) (func(proto.Message, []store.Deployment) (bool, error), error) {
 	if latest.Spec == nil {
-		return func(store.Revision, []store.Deployment) (bool, error) { return false, nil }, nil
+		return func(proto.Message, []store.Deployment) (bool, error) { return false, nil }, nil
 	}
 	kind := resource.Kind(latest.Kind)
-	current, err := e.kinds.Decode(kind, latest.Spec)
+	current, err := e.decode(ctx, tx, store.InRevision(latest.ID, latest.Kind, latest.Revision), latest.Spec)
 	if err != nil {
 		return nil, err
 	}
+	current = e.unpinned(kind, current)
 	gone := map[string]bool{}
 	kept := func(list []string) ([]string, error) {
 		out := make([]string, 0, len(list))
@@ -221,15 +245,11 @@ func (e *Engine) matcher(ctx context.Context, tx *store.Tx, latest store.Resourc
 	if err != nil {
 		return nil, err
 	}
-	return func(rev store.Revision, deployments []store.Deployment) (bool, error) {
-		if rev.Spec == nil {
+	return func(spec proto.Message, deployments []store.Deployment) (bool, error) {
+		if spec == nil {
 			return false, nil
 		}
-		spec, err := e.kinds.Decode(kind, rev.Spec)
-		if err != nil {
-			return false, err
-		}
-		if !resource.Equal(current, spec) {
+		if !resource.Equal(current, e.unpinned(kind, spec)) {
 			return false, nil
 		}
 		servers := make([]string, len(deployments))
@@ -242,4 +262,15 @@ func (e *Engine) matcher(ctx context.Context, tx *store.Tx, latest store.Resourc
 		}
 		return slices.Equal(servers, running), nil
 	}, nil
+}
+
+// unpinned is a spec without the revisions of what it uses.
+func (e *Engine) unpinned(kind resource.Kind, spec proto.Message) proto.Message {
+	b, ok := e.binder(kind)
+	if !ok {
+		return spec
+	}
+	out := proto.Clone(spec)
+	b.Pin(out, nil)
+	return out
 }

@@ -273,10 +273,7 @@ func kindCommand(env *Env, k *Kind, parent *cobra.Command, o *options) (*cobra.C
 		return nil, err
 	}
 	what := strings.ReplaceAll(string(kind), ".", " ")
-	if parent != nil {
-		parent.Short = "Create, update, delete or " + strings.ToLower(parent.Short[:1]) + parent.Short[1:]
-		parent.Long = strings.TrimSpace(parent.Long + "\n\n" + k.Long + "\n\nCreate, update and delete each propose a change, show its plan, and ask before applying it.")
-	} else {
+	if parent == nil {
 		o = &options{}
 		parent = &cobra.Command{
 			Use:     k.Noun,

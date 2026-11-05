@@ -106,6 +106,9 @@ type Sealer interface {
 	// that holds no secret comes back as it is, and one of a kind that may
 	// hold a secret must be sealed.
 	Open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored []byte) ([]byte, error)
+	// OpenAll is Open for many specs, in order, in a few reads however many
+	// there are.
+	OpenAll(ctx context.Context, tx *store.Tx, specs []store.StoredSpec) ([][]byte, error)
 	// Digest is a keyed hash of a spec's encoding for one change's
 	// fingerprint, which says nothing of it without the install's key, and
 	// differs from change to change.
@@ -199,6 +202,11 @@ type Edit struct {
 	// live in it (NewProject). Empty gets it a new one. A resource that has
 	// been made before keeps the one it has.
 	ID string
+	// Base is the revision Spec was made from, for an edit that read a spec,
+	// changed it and proposes the rest as it read it. If that is no longer the
+	// latest the edit is stale, as it would quietly undo what came between.
+	// Zero is an edit that says the whole spec itself.
+	Base int
 }
 
 // Note is something a person should know before applying a plan that no step
@@ -238,6 +246,18 @@ type Proposal struct {
 	Notes   []Note // what the plan should say beside its steps
 	// RollsBackTo is the revision it puts back, for RollBackTo to record.
 	RollsBackTo int
+	// IfNothing refuses the proposal when its plan would do nothing, on the
+	// record and on every server: for someone asking for what is already so.
+	// That takes asking the servers, as a record can match what no server runs.
+	IfNothing error
+}
+
+// Place is where a plan's resources live, as far as anyone has a choice: Project
+// is empty while there's one project, and Environment while that project has one
+// environment (ADR 0014).
+type Place struct {
+	Project     string `json:",omitempty"`
+	Environment string `json:",omitempty"`
 }
 
 // Plan is what applying a change would do.
@@ -262,6 +282,9 @@ type Plan struct {
 	// Notes are what a person should know before applying it. They aren't in
 	// the fingerprint: they say nothing about what it does.
 	Notes []Note `json:",omitempty"`
+	// Places are where its resources live, once there's a choice. They aren't
+	// in the fingerprint: its items say it already, by ID.
+	Places []Place `json:",omitempty"`
 	// RollsBackTo is the revision it puts back, for a plan RollBackTo made.
 	RollsBackTo int `json:",omitempty"`
 }
@@ -475,6 +498,12 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err != nil {
 		return nil, err
 	}
+	if p.IfNothing != nil && plan.Empty() {
+		return nil, e.nothingToDo(ctx, items, p.IfNothing)
+	}
+	if plan.Places, err = e.places(ctx, items); err != nil {
+		return nil, err
+	}
 	plan.Change, plan.Summary, plan.Reverts, plan.Notes, plan.RollsBackTo = changeID, p.Summary, reverts, p.Notes, p.RollsBackTo
 	record, err := json.Marshal(plan)
 	if err != nil {
@@ -489,6 +518,86 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		return nil, err
 	}
 	return plan, nil
+}
+
+// nothingToDo says why a plan that does nothing was refused. A server that isn't
+// connected was planned from what it last reported, so nothing says it still runs
+// that, and it takes asking it again.
+func (e *Engine) nothingToDo(ctx context.Context, items []item, refusal error) error {
+	var offline []string
+	for i := range items {
+		for _, s := range items[i].targets() {
+			if _, online := e.agents.Agent(s); !online && !slices.Contains(offline, s) {
+				offline = append(offline, s)
+			}
+		}
+	}
+	if len(offline) == 0 {
+		return refusal
+	}
+	names, err := e.serverNames(ctx, offline)
+	if err != nil {
+		return err
+	}
+	return fault.New(ErrOffline, "%s isn't connected, so Dockwell can't tell what runs there. Try again once it reconnects", names[offline[0]])
+}
+
+// places says where a plan's resources live, for each project and environment
+// that has others beside it. What the change makes counts, as it will be there.
+func (e *Engine) places(ctx context.Context, items []item) ([]Place, error) {
+	var tree scope.Tree
+	err := e.db.View(ctx, func(tx *store.Tx) (err error) {
+		tree, err = scope.Load(ctx, tx)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	type envAt struct{ project, name string }
+	projects := map[string]string{} // by ID, to its name
+	environments := map[string]envAt{}
+	inProject := map[string]int{}
+	for _, p := range tree.Projects {
+		projects[p.ID] = p.Name
+		for _, env := range p.Environments {
+			environments[env.ID] = envAt{p.ID, env.Name}
+			inProject[p.ID]++
+		}
+	}
+	for i := range items {
+		it := &items[i]
+		if it.spec == nil {
+			continue
+		}
+		switch it.ref.Kind {
+		case scope.ProjectKind:
+			projects[it.id] = it.ref.Name
+		case scope.EnvironmentKind:
+			if _, known := environments[it.id]; !known {
+				environments[it.id] = envAt{it.ref.Scope, it.ref.Name}
+				inProject[it.ref.Scope]++
+			}
+		}
+	}
+	var out []Place
+	for i := range items {
+		it := &items[i]
+		env, ok := environments[it.ref.Scope]
+		if !ok || it.level != resource.LevelEnvironment {
+			continue
+		}
+		var place Place
+		if len(projects) > 1 {
+			place.Project = projects[env.project]
+		}
+		if inProject[env.project] > 1 {
+			place.Environment = env.name
+		}
+		if place != (Place{}) && !slices.Contains(out, place) {
+			out = append(out, place)
+		}
+	}
+	return out, nil
 }
 
 // changeItems are what the change changeID asks of each item, as the store
@@ -528,6 +637,30 @@ func (e *Engine) open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored
 		return stored, nil
 	}
 	return e.sealer.Open(ctx, tx, at, stored)
+}
+
+// decodeAll reads specs as stored, in order, in a few reads however many there
+// are.
+func (e *Engine) decodeAll(ctx context.Context, tx *store.Tx, specs []store.StoredSpec) ([]proto.Message, error) {
+	plain := make([][]byte, len(specs))
+	if e.sealer == nil {
+		for i := range specs {
+			plain[i] = specs[i].Spec
+		}
+	} else {
+		var err error
+		if plain, err = e.sealer.OpenAll(ctx, tx, specs); err != nil {
+			return nil, fmt.Errorf("can't read the stored specs: %w", err)
+		}
+	}
+	out := make([]proto.Message, len(specs))
+	for i := range specs {
+		var err error
+		if out[i], err = e.kinds.Decode(resource.Kind(specs[i].At.Kind), plain[i]); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 // decode reads a spec stored at at.
@@ -570,6 +703,9 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			it, err := e.load(ctx, tx, ed.Ref)
 			if err != nil {
 				return err
+			}
+			if ed.Base != 0 && it.base != ed.Base {
+				return fault.New(ErrStale, "%s changed while this was being planned, and planning from what was read would undo that. Try again, to plan it from the latest", ed.Ref)
 			}
 			if it.id == "" {
 				it.id = cmp.Or(ed.ID, e.newID(ed.Ref.Kind))

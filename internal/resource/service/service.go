@@ -237,6 +237,26 @@ func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired pr
 	return d.Containers.JudgeAt(ctx, Target(ref), app(actual), app(desired), inner(changes))
 }
 
+// CheckPlan refuses a port something else on the server holds, or another service
+// in the plan wants, for a service about to start.
+func (d *Driver) CheckPlan(ctx context.Context, want resource.Desired, all []resource.Desired) error {
+	var planned []container.Planned
+	for _, o := range all {
+		switch o.Ref.Kind {
+		case Kind:
+			var c *resourcev1.Container
+			if s, ok := o.Spec.(*resourcev1.Service); ok {
+				c = s.GetApp()
+			}
+			planned = append(planned, container.Planned{Name: Target(o.Ref).Name, Words: "the service " + o.Ref.Name, Spec: c})
+		case container.Kind:
+			c, _ := o.Spec.(*resourcev1.Container)
+			planned = append(planned, container.Planned{Name: container.HostTarget(o.Ref).Name, Words: "the container " + o.Ref.Name, Spec: c})
+		}
+	}
+	return d.Containers.CheckPortsAt(ctx, Target(want.Ref), want.Spec.(*resourcev1.Service).GetApp(), planned)
+}
+
 // Check checks the app on its server, as the container driver does.
 func (d *Driver) Check(ctx context.Context, ref resource.Ref, desired proto.Message) error {
 	return d.Containers.CheckAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())

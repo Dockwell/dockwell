@@ -89,11 +89,11 @@ func TestAGuardStopsAFileThatCostsTooMuch(t *testing.T) {
 			c.limit()
 			// A file that costs little passes under the same limit, so the
 			// limit isn't just stopping the child from starting.
-			if err := guard(t.Context(), Input{File: []byte("services:\n  web:\n    image: nginx:1.27\n")}); err != nil {
+			if _, err := guard(t.Context(), []byte("services:\n  web:\n    image: nginx:1.27\n"), nil, false); err != nil {
 				t.Fatalf("a small file under this limit: %v", err)
 			}
 			start := time.Now()
-			err := guard(t.Context(), Input{File: file, Variables: vars})
+			_, err := guard(t.Context(), file, vars, false)
 			if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "more time or memory") {
 				t.Errorf("guard = %.300v, want it refused for what it costs", err)
 			}
@@ -123,7 +123,7 @@ func TestAGuardTakesTheLargestRealFiles(t *testing.T) {
 			func(i int) string { return "  s" + strconv.Itoa(i) + ": {image: 'nginx:1'}\n" }),
 	} {
 		t.Run(name, func(t *testing.T) {
-			if err := guard(t.Context(), Input{File: []byte(file)}); err != nil {
+			if _, err := guard(t.Context(), []byte(file), nil, false); err != nil {
 				t.Errorf("a file of %d KiB: %.300v", len(file)>>10, err)
 			}
 		})
@@ -171,12 +171,12 @@ func TestALongNameCantMultiplyItself(t *testing.T) {
 	file := func(name int) []byte {
 		return []byte("services:\n  " + strings.Repeat("a", name) + ":\n    image: nginx:1\n    ports: [" + bad + "]\n")
 	}
-	_, err := parse(Input{File: file(64 << 10)})
+	_, err := parse(t.Context(), file(64<<10), nil)
 	if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "a name of 65536 bytes") {
 		t.Errorf("a long name = %.300v, want it refused for its length", err)
 	}
 	// At the limit, what the file's mistakes come to doesn't reach the caller.
-	_, err = parse(Input{File: file(MaxName)})
+	_, err = parse(t.Context(), file(MaxName), nil)
 	if !errors.Is(err, ErrInvalid) {
 		t.Fatalf("Parse = %.300v, want it refused", err)
 	}
@@ -208,7 +208,7 @@ func TestAChildSaysWhyItFailed(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			guarded(t)
 			guardPath = script(strings.ReplaceAll(name, " ", "-"), c.body)
-			err := guard(t.Context(), Input{File: []byte("services: {}\n")})
+			_, err := guard(t.Context(), []byte("services: {}\n"), nil, false)
 			if err == nil || !strings.Contains(err.Error(), c.want) {
 				t.Fatalf("guard = %v, want it to say %q", err, c.want)
 			}
@@ -283,5 +283,120 @@ func TestCheckStopsAtTheGuard(t *testing.T) {
 	seen, _, err = Check(t.Context(), []byte("name: shop\nservices:\n  web:\n    image: a:${TAG}\n"), nil)
 	if !errors.Is(err, ErrInvalid) || errors.Is(err, ErrCostly) || seen.Name != "shop" || len(seen.Variables) != 1 {
 		t.Errorf("a file that needs a variable = %+v, %v", seen, err)
+	}
+}
+
+// costlyToInspect is refused on its top-level key, before anything reads its
+// variables, and its string names one variable about 120,000 times, under 60
+// long keys: what took 59 s here when the walk ran beside the child, not in it.
+func costlyToInspect() []byte {
+	const depth = 60
+	key := strings.Repeat("[", 255)
+	var b strings.Builder
+	b.WriteString("secrets: {}\nservices:\n  web:\n    command: ")
+	for range depth {
+		fmt.Fprintf(&b, "{%q: ", key)
+	}
+	b.WriteString(`"`)
+	for b.Len() < MaxFile-1024-2*depth-16 {
+		b.WriteString("$a")
+	}
+	b.WriteString(`"` + strings.Repeat("}", depth) + "\n")
+	return []byte(b.String())
+}
+
+// Check's reading of a file is the child's, under its limits: what the child
+// says is what Check says, and nothing here reads the file for it again.
+func TestCheckIsReadInTheChild(t *testing.T) {
+	guarded(t)
+	script := func(name, body string) string {
+		path := filepath.Join(t.TempDir(), name)
+		if err := os.WriteFile(path, []byte("#!/bin/sh\ncat >/dev/null\n"+body+"\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	file := []byte("name: from-the-file\nservices:\n  web:\n    image: nginx:1\n    command: x ${FROM_THE_FILE:-a}\n")
+
+	guardPath = script("says", `echo '{"name":"from-the-child","variables":[{"Name":"FROM_THE_CHILD","Required":true}]}'`)
+	seen, stack, err := Check(t.Context(), file, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seen.Name != "from-the-child" || len(seen.Variables) != 1 || seen.Variables[0].Name != "FROM_THE_CHILD" || !seen.Variables[0].Required {
+		t.Errorf("Check = %+v, want what the child said", seen)
+	}
+	if len(seen.Exposed) != 0 {
+		t.Errorf("Check read the file here: %+v", seen.Exposed)
+	}
+	if stack == nil || stack.Name != "from-the-file" {
+		t.Errorf("stack = %+v, want Parse's own reading of the file", stack)
+	}
+
+	// One that says more than a file could, to fill the parent's memory.
+	guardPath = script("floods", fmt.Sprintf("head -c %d /dev/zero", maxInspection+1))
+	if _, _, err := Check(t.Context(), file, nil); !errors.Is(err, ErrCostly) {
+		t.Errorf("a child that says too much = %v, want it stopped", err)
+	}
+
+	guardPath = script("garbles", "echo not-json")
+	_, _, err = Check(t.Context(), file, nil)
+	if err == nil || errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "about the server") {
+		t.Errorf("a child that makes no sense = %v, want it said to be the server's fault", err)
+	}
+
+	// Parse asks for nothing, so what a child prints goes nowhere.
+	guardPath = script("floods-anyway", "echo not-json")
+	if _, err := Parse(t.Context(), file, nil); err != nil {
+		t.Errorf("Parse = %v, want it to ignore what it didn't ask for", err)
+	}
+}
+
+// A real child says what the file says of itself, refused or not, and a file
+// made to cost a lot here costs nothing more than the child's reading of it.
+func TestCheckOfACostlyFileIsQuick(t *testing.T) {
+	guarded(t)
+	start := time.Now()
+	seen, stack, err := Check(t.Context(), costlyToInspect(), nil)
+	if took := time.Since(start); took > 10*time.Second {
+		t.Errorf("Check took %v, which holds one of two turns at reading from everyone else", took)
+	}
+	if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "secrets") {
+		t.Errorf("Check = %.200v, want it refused for its secrets", err)
+	}
+	if stack != nil || len(seen.Variables) != 1 || seen.Variables[0].Name != "a" {
+		t.Errorf("Check = %+v, %+v", seen.Variables, stack)
+	}
+	if len(seen.Exposed) != 1 || seen.Exposed[0].Variable != "a" || seen.Exposed[0].Field != "command" {
+		t.Errorf("Exposed = %+v", seen.Exposed)
+	}
+}
+
+// Someone who leaves takes the reading of their file with them.
+func TestLeavingStopsACheck(t *testing.T) {
+	guarded(t)
+	guardPath = ""
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	file := []byte("name: shop\nservices:\n  web:\n    image: nginx:1\n    command: x ${A:-b}\n")
+	if _, _, err := Check(ctx, file, nil); !errors.Is(err, context.Canceled) {
+		t.Errorf("Check = %v, want it stopped", err)
+	}
+	if seen := inspect(ctx, file, nil); len(seen.Variables) != 0 || len(seen.Exposed) != 0 {
+		t.Errorf("inspect read on for no one: %+v", seen)
+	}
+	// Each walk stops by itself too, as a walk is what takes the time.
+	if _, err := interpolate(ctx, map[string]any{"a": "$A"}, map[string]string{"A": "b"}); !errors.Is(err, context.Canceled) {
+		t.Errorf("interpolate = %v, want it stopped", err)
+	}
+	if _, err := parse(ctx, file, nil); !errors.Is(err, context.Canceled) {
+		t.Errorf("parse = %v, want it stopped", err)
+	}
+	in := &interpolator{ctx: ctx, missing: map[string]bool{}}
+	if _, err := in.walk(place{}, "$A"); !errors.Is(err, context.Canceled) || len(in.missing) != 0 {
+		t.Errorf("the walk = %v, having read %v; want it to stop before it reads anything", err, in.missing)
+	}
+	if got, _ := exposedIn(ctx, map[string]any{"services": map[string]any{"web": map[string]any{"command": "$A"}}}); len(got) != 0 {
+		t.Errorf("exposedIn read on for no one: %+v", got)
 	}
 }

@@ -134,6 +134,129 @@ describe("an app's frame", () => {
     await user.click(within(tabs).getByRole("link", { name: "Environment" }));
     expect(await screen.findByRole("cell", { name: "API_KEY" })).toBeVisible();
     expect(screen.getAllByRole("cell", { name: "Hidden" })).toHaveLength(2);
+    expect(screen.getAllByRole("cell", { name: "Set on this app" })).toHaveLength(2);
+  });
+
+  it("lists what an app really runs with, and shows only a variable's value", async () => {
+    const service = anApp("web", "nginx:1.5", { env: { OWN: "" } });
+    if (service.spec) {
+      service.spec.variables = { LOG_LEVEL: "LOG_LEVEL", TZ_NAME: "TZ" };
+      service.spec.secrets = { API_KEY: "API_KEY", DB_PASS: "DB_PASSWORD" };
+    }
+    const { container } = renderAt(
+      "/apps/svc_web/environment",
+      api([service], {
+        variables: {
+          listVariables: () => ({
+            environmentId: "env_prod",
+            variables: [
+              { id: "var_1", name: "LOG_LEVEL", value: "info" },
+              { id: "var_2", name: "TZ", value: "UTC" },
+              { id: "sec_1", name: "API_KEY", secret: true },
+              { id: "sec_2", name: "DB_PASSWORD", secret: true },
+            ],
+          }),
+        },
+      }),
+    );
+    const row = async (name: string) => {
+      const cell = await screen.findByRole("cell", { name });
+      return within(cell.closest("tr") as HTMLElement);
+    };
+    expect(await (await row("LOG_LEVEL")).findByText("info")).toBeVisible();
+    expect((await row("LOG_LEVEL")).getByRole("cell", { name: "Variable" })).toBeVisible();
+    // It sees TZ under a name of its own, so the row says which it is.
+    expect(await (await row("TZ_NAME")).findByText("UTC")).toBeVisible();
+    expect((await row("TZ_NAME")).getByRole("cell", { name: "Variable TZ" })).toBeVisible();
+    expect((await row("API_KEY")).getByRole("cell", { name: "Hidden" })).toBeVisible();
+    expect((await row("API_KEY")).getByRole("cell", { name: "Secret" })).toBeVisible();
+    expect((await row("DB_PASS")).getByRole("cell", { name: "Secret DB_PASSWORD" })).toBeVisible();
+    expect((await row("OWN")).getByRole("cell", { name: "Set on this app" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Variables and secrets" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/variables?environment=env_prod"),
+    );
+    await expectAccessible(container);
+  });
+
+  it("doesn't say an app has no variables when it uses only secrets", async () => {
+    const service = anApp("web", "nginx:1.5");
+    if (service.spec) service.spec.secrets = { API_KEY: "API_KEY" };
+    const reads = vi.fn(() => ({ environmentId: "env_prod", variables: [] }));
+    const { router } = renderAt("/apps/svc_web", api([service], { variables: { listVariables: reads } }));
+    expect(await screen.findByRole("link", { name: "1 secret" })).toBeVisible();
+    expect(screen.queryByText("None set")).not.toBeInTheDocument();
+    await router.navigate({ to: "/apps/$serviceId/environment", params: { serviceId: service.id } });
+    expect(await screen.findByRole("cell", { name: "API_KEY" })).toBeVisible();
+    expect(screen.queryByText("No environment variables")).not.toBeInTheDocument();
+    // With nothing plain to show, it asks nothing of the variables.
+    expect(reads).not.toHaveBeenCalled();
+  });
+
+  it("says when a variable's value couldn't be read, not that it's empty", async () => {
+    const service = anApp("web", "nginx:1.5");
+    if (service.spec) service.spec.variables = { LEVEL: "LEVEL" };
+    renderAt(
+      "/apps/svc_web/environment",
+      api([service], {
+        variables: {
+          listVariables: () => {
+            throw new ConnectError("your role can't read these", Code.PermissionDenied);
+          },
+        },
+      }),
+    );
+    expect(await screen.findByRole("cell", { name: "Not loaded" })).toBeVisible();
+  });
+
+  it("says what's known of an app whose servers have all left", async () => {
+    const service = anApp("web", "nginx:1.5", {}, { deployments: [] });
+    renderAt("/apps/svc_web", api([service]));
+    const alert = await screen.findByText("web has no server in the fleet");
+    expect(alert.closest(".dw-callout")).toHaveTextContent("its containers may still be running on them");
+    expect(screen.queryByText(/No server runs/)).not.toBeInTheDocument();
+  });
+
+  it("offers a failed app the way back, to a revision that matches the record too", async () => {
+    const failed = anApp(
+      "web",
+      "nginx:1.5",
+      {},
+      {
+        revision: 3n,
+        changeId: "chg_3",
+        changeState: ChangeState.FAILED,
+        deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.FAILED, error: "hz-1: it exits" }],
+      },
+    );
+    const asked: bigint[] = [];
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/svc_web",
+      api([failed], {
+        services: {
+          listServices: () => ({ services: [failed] }),
+          listServiceRevisions: () => ({
+            revisions: [
+              aRevision(3n, "nginx:1.5", {
+                change: { id: "chg_3", summary: "Roll back", state: ChangeState.FAILED, error: "it exits" },
+                deployments: [{ serverId: SERVER, state: DeploymentState.FAILED, error: "it exits" }],
+              }),
+              aRevision(2n, "nginx:broken", {
+                deployments: [{ serverId: SERVER, state: DeploymentState.FAILED, error: "it exits" }],
+              }),
+              aRevision(1n, "nginx:1.5", { matchesLatest: true }),
+            ],
+          }),
+          rollBackService: (req) => {
+            asked.push(req.revision);
+            return { change: webPlanned() };
+          },
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Roll back to r1" }));
+    await waitFor(() => expect(asked).toEqual([1n]));
   });
 
   it("keeps Deploy in reach on a phone, and tells the app's state in the header", async () => {
@@ -320,6 +443,14 @@ describe("an app's overview", () => {
           listServiceRevisions: () => ({ revisions }),
           addServicePort: (req) => {
             asked.push(req);
+            if (req.hostPort === 9000) {
+              const err = new ConnectError(
+                "hz-1: can't plan service alone in env_prod: port 9000 is in use by the service holder, in another environment, so alone can't publish it. Choose another port on the server, or free that one first",
+                Code.FailedPrecondition,
+              );
+              err.metadata.set("Dockwell-Error", "agent_failed");
+              throw err;
+            }
             if (req.hostPort === 80) {
               const err = new ConnectError(
                 "alone already publishes port 80. Choose another port",
@@ -351,6 +482,17 @@ describe("an app's overview", () => {
     await waitFor(() =>
       expect(within(sheet).getByLabelText("On the server")).toHaveAccessibleDescription(/already publishes port 80/),
     );
+
+    // Something else on the server holds this one, which only the server knows.
+    await user.clear(within(sheet).getByLabelText("On the server"));
+    await user.type(within(sheet).getByLabelText("On the server"), "9000");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() =>
+      expect(within(sheet).getByLabelText("On the server")).toHaveAccessibleDescription(
+        /^Port 9000 is in use by the service holder, in another environment/,
+      ),
+    );
+    expect(sheet).not.toHaveTextContent("env_prod");
 
     await user.clear(within(sheet).getByLabelText("On the server"));
     await user.type(within(sheet).getByLabelText("On the server"), "8080");
@@ -657,20 +799,28 @@ describe("an app's deployments", () => {
     await expectAccessible(container);
   });
 
-  it("says a revision that matches what runs already matches, with no way back to it", async () => {
+  it("says a revision matches the latest, and still lets someone put it back", async () => {
     const back = anApp("web", "nginx:1.5", {}, { revision: 5n, rolledBackChangeId: "chg_4" });
+    const asked: bigint[] = [];
+    const user = userEvent.setup();
     const { container } = renderAt(
       "/apps/svc_web/deployments?revision=3",
       api([back], {
         services: {
           listServices: () => ({ services: [back] }),
           listServiceRevisions: () => ({ revisions: afterAutoRollback }),
+          rollBackService: (req) => {
+            asked.push(req.revision);
+            throw new ConnectError("web already runs what revision 3 had");
+          },
         },
       }),
     );
-    expect(await screen.findByText("r3 already matches what runs")).toBeVisible();
-    expect(screen.queryByRole("button", { name: /Roll back to/ })).not.toBeInTheDocument();
+    expect(await screen.findByText(/^r3 matches the latest revision\./)).toBeVisible();
     await expectAccessible(container);
+    // The record can match while what runs doesn't, so only the plan can say.
+    await user.click(screen.getByRole("button", { name: "Roll back to r3" }));
+    await waitFor(() => expect(asked).toEqual([3n]));
   });
 
   it("offers the newest that differs from the one that runs", async () => {

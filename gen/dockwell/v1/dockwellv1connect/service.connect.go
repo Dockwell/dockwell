@@ -71,8 +71,11 @@ type ServiceServiceClient interface {
 	// Unlike UndoChange it takes any earlier revision, and touches this
 	// service alone, whatever else the change that made the revision did. It
 	// brings back the spec, not the data in a volume, which the plan's notes
-	// say. It refuses a revision that already matches what runs, as that plan
-	// would do nothing (matches_latest).
+	// say, nor the value of a variable or secret it uses, which stays the latest:
+	// change that value to go back on it. It refuses only what would do nothing
+	// on the record and on every server. A revision that matches the latest on
+	// the record (matches_latest) still plans what puts it back, when a rollback
+	// failed or a container was removed by hand.
 	RollBackService(context.Context, *connect.Request[v1.RollBackServiceRequest]) (*connect.Response[v1.RollBackServiceResponse], error)
 	// AddServicePort plans publishing one more port, with the rest of the
 	// service as it is: like DeployService, it needs no one to read the service's
@@ -179,8 +182,11 @@ type ServiceServiceHandler interface {
 	// Unlike UndoChange it takes any earlier revision, and touches this
 	// service alone, whatever else the change that made the revision did. It
 	// brings back the spec, not the data in a volume, which the plan's notes
-	// say. It refuses a revision that already matches what runs, as that plan
-	// would do nothing (matches_latest).
+	// say, nor the value of a variable or secret it uses, which stays the latest:
+	// change that value to go back on it. It refuses only what would do nothing
+	// on the record and on every server. A revision that matches the latest on
+	// the record (matches_latest) still plans what puts it back, when a rollback
+	// failed or a container was removed by hand.
 	RollBackService(context.Context, *connect.Request[v1.RollBackServiceRequest]) (*connect.Response[v1.RollBackServiceResponse], error)
 	// AddServicePort plans publishing one more port, with the rest of the
 	// service as it is: like DeployService, it needs no one to read the service's

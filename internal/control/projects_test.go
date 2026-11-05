@@ -257,11 +257,15 @@ func TestAComposeFileSaysWhereItExposesAVariable(t *testing.T) {
       test: ["CMD", "check", "$PROBE_TOKEN"]
 `
 		vars := map[string]string{"REDIS_PASSWORD": secret, "LABEL_SECRET": "l", "PROBE_TOKEN": "p"}
-		want := []string{"LABEL_SECRET/shop/labels", "PROBE_TOKEN/shop/healthcheck", "REDIS_PASSWORD/shop/command"}
+		// OWNER counts though it has a default: a value lands there once it's given.
+		want := []string{"LABEL_SECRET/shop/labels", "OWNER/shop/labels", "PROBE_TOKEN/shop/healthcheck", "REDIS_PASSWORD/shop/command"}
 		names := func(list []*dockwellv1.ExposedVariable) []string {
 			out := make([]string, len(list))
 			for i, e := range list {
-				out[i] = e.GetName() + "/" + e.GetService() + "/" + e.GetField()
+				if e.GetResource().GetKind() != "service" {
+					t.Errorf("%s is held by a %s", e.GetName(), e.GetResource().GetKind())
+				}
+				out[i] = e.GetName() + "/" + e.GetResource().GetName() + "/" + e.GetField()
 			}
 			slices.Sort(out)
 			return out
@@ -301,8 +305,9 @@ func TestAComposeFileSaysWhereItExposesAVariable(t *testing.T) {
 			}
 		}
 		if note == nil || note.GetReason() != "exposed_variable" ||
-			!strings.Contains(note.GetMessage(), "anyone who can read this app can see it") ||
-			!strings.Contains(note.GetMessage(), "pass it in environment, and use $$REDIS_PASSWORD") ||
+			!strings.Contains(note.GetMessage(), "anyone who can read it can see it") ||
+			!strings.Contains(note.GetMessage(), "pass it in environment for the app to read") ||
+			!strings.Contains(note.GetMessage(), "through a shell, as sh -c, with $$REDIS_PASSWORD") ||
 			note.GetResource().GetName() != "shop" {
 			t.Errorf("the note says %v", note)
 		}
@@ -330,15 +335,14 @@ func TestAComposeFileSaysWhereItExposesAVariable(t *testing.T) {
 			t.Errorf("the environment shows %q", v)
 		}
 
-		// A default written in the file, and an escaped $$, expose nothing, and
-		// neither does what goes in environment.
-		quiet := "name: quiet\nservices:\n  a:\n    image: ghcr.io/acme/shop:1.4\n    command: [\"run\", \"${LEVEL:-info}\", \"$$HOME\"]\n    environment:\n      KEY: ${KEY}\n"
+		// An escaped $$ exposes nothing, and neither does what goes in environment.
+		quiet := "name: quiet\nservices:\n  a:\n    image: ghcr.io/acme/shop:1.4\n    command: [\"run\", \"$$HOME\"]\n    environment:\n      KEY: ${KEY}\n"
 		q, err := cc.CheckCompose(t.Context(), connect.NewRequest(&dockwellv1.CheckComposeRequest{Compose: quiet, Variables: map[string]string{"KEY": "v"}}))
 		if err != nil {
 			t.Fatal(err)
 		}
 		if got := q.Msg.GetExposedVariables(); len(got) != 0 {
-			t.Errorf("a default, $$ and environment expose %v", got)
+			t.Errorf("$$ and environment expose %v", got)
 		}
 	})
 }

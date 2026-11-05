@@ -70,7 +70,8 @@ message ImportComposeRequest {
   string project = 2;
   // The environment, by name or ID. Leave it out while its project has
   // only one. A project the plan brings to life starts with this one, or
-  // with production.
+  // with production. A file exported from here goes back to the environment
+  // it came from unless this names another of its project.
   string environment = 3;
   // The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
   // up to 256 KiB. A path relative to the file needs directory, as it runs on
@@ -105,8 +106,10 @@ message ImportComposeResponse {
   // The change, planned, with its plan.
   Change change = 1;
   // Where the file writes a variable's value in plain sight, which the plan's
-  // notes say too.
+  // notes say too. It lists 100 at most.
   repeated ExposedVariable exposed_variables = 2;
+  // True when the file writes more than exposed_variables lists.
+  bool more_exposed = 3;
 }
 
 // CheckComposeRequest is a Compose file to read.
@@ -138,24 +141,28 @@ message CheckComposeResponse {
   // exported from an environment here, that environment's project. Empty when
   // it names none, or names itself with a variable that has no value yet.
   string name = 6;
-  // Where the file writes a variable's value in plain sight, as far as the
-  // values given let it read. A variable with no value yet counts, so a form
-  // can say so before anyone types a secret.
+  // Where the file writes a variable's value in plain sight, whether or not one
+  // is given, so a form can say so before anyone types a secret. It lists 100
+  // at most.
   repeated ExposedVariable exposed_variables = 7;
+  // True when the file writes more than exposed_variables lists.
+  bool more_exposed = 8;
 }
 
 // ExposedVariable is a variable whose value a Compose file writes where anyone
-// who can read the service sees it. Only a service's environment is blanked:
-// a command, entrypoint, label or health check isn't, as seeing them is useful
-// and they rarely hold a secret. One that has to stays hidden belongs in
-// environment, with $$NAME in the command for the container's shell to read.
+// who can read what it makes sees it. Only what the schema marks sensitive is
+// blanked, such as a service's environment values: a command, a label or a user
+// isn't, as seeing them is useful and they rarely hold a secret. It counts every
+// field but those docs/security/compose-variables.md lists as not recorded.
 message ExposedVariable {
   // The variable, such as "REDIS_PASSWORD".
   string name = 1;
-  // The service whose spec holds its value, such as "shop".
-  string service = 2;
-  // The field that holds it: "command", "entrypoint", "labels" or
-  // "healthcheck".
+  // The service, volume or network whose spec holds its value, by kind and
+  // name.
+  ResourceRef resource = 2;
+  // The field that holds it, as the file names it, such as "command", "labels",
+  // "user", "healthcheck" or "driver_opts". "environment" is a list entry's
+  // name, as a value there is blanked and a name isn't.
   string field = 3;
 }
 

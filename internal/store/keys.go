@@ -148,6 +148,32 @@ func (t *Tx) GetDataKey(ctx context.Context, id string) (DataKey, error) {
 	return d, nil
 }
 
+// GetDataKeys returns data keys by ID, in one read. One that doesn't exist is
+// left out.
+func (t *Tx) GetDataKeys(ctx context.Context, ids []string) (map[string]DataKey, error) {
+	out := make(map[string]DataKey, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := t.query(ctx, `SELECT id, kek_id, wrapped, created_at FROM data_keys WHERE id IN (`+marks(len(args))+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read data keys: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		d, err := scanDataKey(rows)
+		if err != nil {
+			return nil, fmt.Errorf("can't read data keys: %w", err)
+		}
+		out[d.ID] = d
+	}
+	return out, rows.Err()
+}
+
 // DataKeysUnder returns up to limit data keys wrapped under a
 // key-encryption key, by ID, after the ID given.
 func (t *Tx) DataKeysUnder(ctx context.Context, kekID, after string, limit int) ([]DataKey, error) {

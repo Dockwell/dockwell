@@ -26,13 +26,16 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/paging"
+	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
+	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -49,14 +52,16 @@ type Handler struct {
 	changes *changes.Handler
 	engine  *revision.Engine
 	db      *store.DB
+	keeper  *secrets.Keeper
 	logger  *slog.Logger
 }
 
 var _ dockwellv1connect.ServiceServiceHandler = (*Handler)(nil)
 
-// New returns a handler that plans through ch and engine, and reads db.
-func New(ch *changes.Handler, engine *revision.Engine, db *store.DB, logger *slog.Logger) *Handler {
-	return &Handler{changes: ch, engine: engine, db: db, logger: logger}
+// New returns a handler that plans through ch and engine, and reads db, opening
+// its sealed specs with keeper.
+func New(ch *changes.Handler, engine *revision.Engine, db *store.DB, keeper *secrets.Keeper, logger *slog.Logger) *Handler {
+	return &Handler{changes: ch, engine: engine, db: db, keeper: keeper, logger: logger}
 }
 
 func (h *Handler) internal(ctx context.Context, what string, err error) error {
@@ -110,6 +115,14 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 		if err != nil {
 			return err
 		}
+		specs := make([]store.StoredSpec, len(list))
+		for i := range list {
+			specs[i] = store.StoredSpec{At: store.InRevision(list[i].ID, list[i].Kind, list[i].Revision), Spec: list[i].Spec}
+		}
+		decoded, err := h.keeper.DecodeAll(ctx, tx, specs)
+		if err != nil {
+			return err
+		}
 		names := serverNames{tx: tx, known: map[string]string{}}
 		for i := range list {
 			r := &list[i]
@@ -120,7 +133,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 				UpdateTime: timestamppb.New(r.UpdatedAt),
 				ChangeId:   r.ChangeID,
 			}
-			spec, err := h.spec(r.Spec)
+			spec, err := asService(decoded[i])
 			if err != nil {
 				return err
 			}
@@ -143,12 +156,8 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 	return connect.NewResponse(res), nil
 }
 
-// spec reads a service's stored spec.
-func (h *Handler) spec(encoded []byte) (*resourcev1.Service, error) {
-	m, err := h.engine.Kinds().Decode(service.Kind, encoded)
-	if err != nil {
-		return nil, err
-	}
+// asService is a service's spec, read.
+func asService(m proto.Message) (*resourcev1.Service, error) {
 	s, ok := m.(*resourcev1.Service)
 	if !ok {
 		return nil, fmt.Errorf("a service's spec is a %T", m)
@@ -209,8 +218,8 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 				MatchesLatest: r.MatchesLatest,
 				RolledBackTo:  int64(r.RolledBackTo),
 			}
-			if r.Spec != nil {
-				spec, err := h.spec(r.Spec)
+			if r.Decoded != nil {
+				spec, err := asService(r.Decoded)
 				if err != nil {
 					return err
 				}
@@ -236,12 +245,14 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 	if m.GetImage() == "" {
 		return nil, authapi.Invalid(errors.New("the deploy names no image. Pass one in image, such as ghcr.io/acme/web:1.4.2"))
 	}
-	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), func(name string, app *resourcev1.Container) (string, error) {
-		if app.GetImage() == m.GetImage() {
-			return "", authapi.Invalid(fmt.Errorf("the service %s already runs %s. Name another image, such as a new tag", name, m.GetImage()))
-		}
+	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), func(name string, app *resourcev1.Container) (editing, error) {
 		app.Image = m.GetImage()
-		return cmp.Or(m.GetSummary(), fmt.Sprintf("Deploy %s to %s", m.GetImage(), name)), nil
+		return editing{
+			summary: cmp.Or(m.GetSummary(), fmt.Sprintf("Deploy %s to %s", m.GetImage(), name)),
+			// The record can say this image while no server runs it, and deploying
+			// it again is how someone recovers. Only what the servers say refuses it.
+			ifNothing: fault.New(revision.ErrInvalid, "the service %s already runs %s. Name another image, such as a new tag", name, m.GetImage()),
+		}, nil
 	})
 	if err != nil {
 		return nil, err
@@ -259,16 +270,16 @@ func (h *Handler) AddServicePort(ctx context.Context, req *connect.Request[dockw
 	if protocol == resourcev1.Protocol_PROTOCOL_UNSPECIFIED {
 		protocol = resourcev1.Protocol_PROTOCOL_TCP
 	}
-	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), func(name string, app *resourcev1.Container) (string, error) {
+	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), func(name string, app *resourcev1.Container) (editing, error) {
 		for _, p := range app.GetPorts() {
 			if p.GetHostPort() == m.GetHostPort() && p.GetProtocol() == protocol && p.GetHostIp() == m.GetHostIp() {
-				return "", authapi.Invalid(fmt.Errorf("the service %s already publishes port %d. Choose another port on the server", name, m.GetHostPort()))
+				return editing{}, authapi.Invalid(fmt.Errorf("the service %s already publishes port %d. Choose another port on the server", name, m.GetHostPort()))
 			}
 		}
 		app.Ports = append(app.Ports, &resourcev1.PortMapping{
 			HostPort: m.GetHostPort(), ContainerPort: m.GetContainerPort(), Protocol: protocol, HostIp: m.GetHostIp(),
 		})
-		return cmp.Or(m.GetSummary(), fmt.Sprintf("Publish port %d on %s", m.GetHostPort(), name)), nil
+		return editing{summary: cmp.Or(m.GetSummary(), fmt.Sprintf("Publish port %d on %s", m.GetHostPort(), name))}, nil
 	})
 	if err != nil {
 		return nil, err
@@ -276,17 +287,33 @@ func (h *Handler) AddServicePort(ctx context.Context, req *connect.Request[dockw
 	return connect.NewResponse(&dockwellv1.AddServicePortResponse{Change: c}), nil
 }
 
+// editing says what an edit of a service is for, and what to say if its plan
+// would do nothing.
+type editing struct {
+	summary   string
+	ifNothing error
+}
+
 // edit plans a change to one service's container, read as it stands on the
 // control plane and proposed as any edit, with the rest of its spec as it is.
 // So anyone may make it without being able to read a secret back, and what
 // the spec holds that no response carries survives. It says what the change is
-// for, and refuses what it can't do.
-func (h *Handler) edit(ctx context.Context, named, project, environment string, change func(name string, app *resourcev1.Container) (string, error)) (*dockwellv1.Change, error) {
+// for, and refuses what it can't do. A change that lands after the read makes
+// it stale, as proposing what was read would quietly undo that change.
+func (h *Handler) edit(ctx context.Context, named, project, environment string, change func(name string, app *resourcev1.Container) (editing, error)) (*dockwellv1.Change, error) {
 	r, err := h.find(ctx, named, project, environment)
 	if err != nil {
 		return nil, err
 	}
-	spec, err := h.spec(r.Spec)
+	var spec *resourcev1.Service
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		m, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return err
+		}
+		spec, err = asService(m)
+		return err
+	})
 	if err != nil {
 		return nil, h.internal(ctx, "reading a service", err)
 	}
@@ -294,14 +321,14 @@ func (h *Handler) edit(ctx context.Context, named, project, environment string, 
 	if app == nil {
 		return nil, authapi.Invalid(fmt.Errorf("%s doesn't run an image, so it has nothing to change here", r.Name))
 	}
-	summary, err := change(r.Name, app)
+	did, err := change(r.Name, app)
 	if err != nil {
 		return nil, err
 	}
-	return h.changes.Propose(ctx, summary, []*dockwellv1.Edit{{
+	return h.changes.Propose(ctx, did.summary, []*dockwellv1.Edit{{
 		Resource: resourcepb.Ref(resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}),
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},
-	}}, nil, changes.Also{})
+	}}, nil, changes.Also{Base: r.Revision, IfNothing: did.ifNothing})
 }
 
 // RollBackService plans going back to an earlier revision.
@@ -317,13 +344,37 @@ func (h *Handler) RollBackService(ctx context.Context, req *connect.Request[dock
 	c, err := h.changes.Planned(ctx, func(who revision.By) (*revision.Plan, error) {
 		return h.engine.RollBackTo(ctx, target.ID, int(m.GetRevision()), func(latest store.Resource, spec proto.Message) (string, []revision.Note) {
 			summary := cmp.Or(m.GetSummary(), fmt.Sprintf("Roll back %s to r%d", latest.Name, m.GetRevision()))
-			return summary, keptData(latest, spec)
+			return summary, slices.Concat(keptData(latest, spec), latestValues(latest, spec))
 		}, who)
 	})
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.RollBackServiceResponse{Change: c}), nil
+}
+
+// latestValues is what a plan says of a rollback of a service that uses variables
+// or secrets: it puts back which ones it uses, and each is at its latest value, as
+// every change pins them (ADR 0026).
+func latestValues(latest store.Resource, spec proto.Message) []revision.Note {
+	s, ok := spec.(*resourcev1.Service)
+	if !ok {
+		return nil
+	}
+	var names []string
+	for _, u := range binding.Uses(s) {
+		names = append(names, u.As)
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return []revision.Note{{
+		Reason: "values_latest",
+		Message: fmt.Sprintf("%s runs with the latest value of %s. A rollback puts back which variables and secrets it uses, not what they held then. To go back on a value, change it in Variables and secrets",
+			latest.Name, human.List(names)),
+		Ref:   resource.Ref{Kind: service.Kind, Scope: latest.Scope, Name: latest.Name},
+		Names: names,
+	}}
 }
 
 // keptData is what a plan says of a rollback of a service that keeps data: its

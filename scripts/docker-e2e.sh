@@ -397,9 +397,13 @@ docker network inspect "${wiki_project}_default" >/dev/null || fail "wiki has no
 listed=$(docker compose -p "$blog_project" ps --format '{{.Service}}') || fail "docker compose -p $blog_project ps failed"
 [[ "$listed" == db ]] || fail "docker compose lists '$listed' in blog's project, want db"
 # Naming one again updates it, and doesn't touch the other.
+wiki_state() { docker inspect --format '{{.Id}} {{.Config.Image}} {{.State.StartedAt}}' "${wiki_project}-db-1"; }
+wiki_before=$(wiki_state) || fail "wiki's db isn't called ${wiki_project}-db-1"
 dw compose import --compose "$(named_file blog nginx:1.28-alpine)" --yes || fail "importing blog again failed"
 again=$(docker ps --filter "label=com.docker.compose.project=$blog_project" --format '{{.Image}}') || fail "docker ps failed"
 [[ "$again" == nginx:1.28-alpine ]] || fail "after importing blog again, its db runs '$again'"
+wiki_after=$(wiki_state) || fail "after importing blog again, wiki's db is gone"
+[[ "$wiki_after" == "$wiki_before" ]] || fail "importing blog again touched wiki's db: $wiki_before, then $wiki_after"
 dw services delete db --project blog --yes || fail "deleting blog's db failed"
 dw services delete db --project wiki --yes || fail "deleting wiki's db failed"
 dw services delete keeper --project default --yes || fail "deleting keeper failed"

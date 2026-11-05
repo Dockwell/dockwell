@@ -527,6 +527,12 @@ func InChange(resourceID, kind, changeID string, position int) SpecAt {
 	return SpecAt{ResourceID: resourceID, Kind: kind, Change: changeID, Position: position}
 }
 
+// StoredSpec is a spec as the store keeps it, and where.
+type StoredSpec struct {
+	At   SpecAt
+	Spec []byte
+}
+
 // NewRevision is the next revision of a resource.
 type NewRevision struct {
 	Kind, Scope, Name string

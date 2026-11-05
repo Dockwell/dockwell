@@ -52,15 +52,16 @@ type Variable struct {
 }
 
 // Check reads a file as Parse does, and says what it says of itself too, for a
-// form to show as someone types one. Everything that reads the file here comes
-// after the guard has, so a file made to cost too much is stopped there, and
-// says nothing of itself. Its error is what Parse's is.
+// form to show as someone types one. It takes one turn at reading, and all of
+// that reading is the child's, so its limits cover it: a file made to cost too
+// much is stopped there, and says nothing of itself. Its error is what Parse's
+// is.
 func Check(ctx context.Context, file []byte, given map[string]string) (Inspection, *Stack, error) {
-	stack, err := Parse(ctx, file, given)
+	seen, stack, err := read(ctx, file, given, true)
 	if err != nil && !errors.Is(err, ErrInvalid) || errors.Is(err, ErrCostly) {
 		return Inspection{}, nil, err
 	}
-	return inspect(ctx, file, given), stack, err
+	return seen, stack, err
 }
 
 // Inspection is what a file says of itself, whether or not Parse would take
@@ -68,29 +69,23 @@ func Check(ctx context.Context, file []byte, given map[string]string) (Inspectio
 type Inspection struct {
 	// Name is what its name: calls it. Empty for a file with none, or one
 	// named by a variable that has no value yet.
-	Name string
+	Name string `json:"name,omitempty"`
 	// Variables are the variables it uses, by name.
-	Variables []Variable
-	// Exposed says where it writes a value in plain sight, from the values
-	// given, as far as they let it read.
-	Exposed []Exposed
+	Variables []Variable `json:"variables,omitempty"`
+	// Exposed says where it writes a value in plain sight, whether or not one
+	// has been given.
+	Exposed []Exposed `json:"exposed,omitempty"`
+	// ExposedMore says it writes more than Exposed lists.
+	ExposedMore bool `json:"exposed_more,omitempty"`
 }
 
 // inspect reads what a file says of itself, as Parse reads it: $NAME, ${NAME}
 // and ${NAME:?why} need a value, and ${NAME:-default} and ${NAME:+other} have
 // what they need. A $$ is a dollar sign. A file Parse wouldn't read further
 // than this says nothing: one that isn't YAML, or comes to too much once its
-// aliases are read, which reading each alias again here would pay for.
+// aliases are read, which reading each alias again here would pay for. A caller
+// takes a turn at reading first, and with a guard this is the child's to do.
 func inspect(ctx context.Context, file []byte, given map[string]string) Inspection {
-	if len(file) > MaxFile || checkVariables(given) != nil {
-		return Inspection{}
-	}
-	select {
-	case parsing <- struct{}{}:
-		defer func() { <-parsing }()
-	case <-ctx.Done():
-		return Inspection{}
-	}
 	var raw map[string]any
 	if yaml.Unmarshal(file, &raw) != nil {
 		return Inspection{}
@@ -100,12 +95,17 @@ func inspect(ctx context.Context, file []byte, given map[string]string) Inspecti
 		return Inspection{}
 	}
 	seen := map[string]bool{}
-	note := func(name string, required bool) { seen[name] = seen[name] || required }
 	var walk func(v any)
 	walk = func(v any) {
 		switch v := v.(type) {
 		case string:
-			scanVariables(v, 0, note)
+			if ctx.Err() != nil {
+				return
+			}
+			scanVariables(v, 0, func(name string, op byte) bool {
+				seen[name] = seen[name] || op == 0 || op == '?'
+				return true
+			})
 		case map[string]any:
 			for _, e := range v {
 				walk(e)
@@ -117,36 +117,36 @@ func inspect(ctx context.Context, file []byte, given map[string]string) Inspecti
 		}
 	}
 	walk(raw)
-	out := Inspection{Variables: make([]Variable, 0, len(seen))}
+	out := Inspection{Variables: make([]Variable, 0, len(seen)), Name: fileNamed(ctx, raw, given)}
 	for name, required := range seen {
 		out.Variables = append(out.Variables, Variable{Name: name, Required: required})
 	}
 	slices.SortFunc(out.Variables, func(a, b Variable) int { return cmp.Compare(a.Name, b.Name) })
-	// What it finds up to a refusal is still true, and Parse says the refusal.
-	in := &interpolator{variables: given, missing: map[string]bool{}}
-	read, _ := in.walk(place{owner: fileOwner}, raw)
-	out.Exposed = in.report()
-	if name, ok := raw["name"].(string); ok {
-		if !strings.Contains(name, "$") {
-			out.Name = name
-		} else if resolved, ok := read.(map[string]any); ok && !usesMissing(name, in.missing) {
-			out.Name, _ = resolved["name"].(string)
-		}
+	out.Exposed, out.ExposedMore = exposedIn(ctx, raw)
+	return out
+}
+
+// fileNamed is what a file's name: comes to, or empty if it uses a variable
+// with no value.
+func fileNamed(ctx context.Context, raw map[string]any, given map[string]string) string {
+	name, ok := raw["name"].(string)
+	if !ok {
+		return ""
+	}
+	in := &interpolator{ctx: ctx, variables: given, missing: map[string]bool{}}
+	out, err := in.substitute(place{owner: fileOwner, path: "name"}, name)
+	if err != nil || len(in.missing) > 0 {
+		return ""
 	}
 	return out
 }
 
-// usesMissing reports a string that uses a variable with no value.
-func usesMissing(s string, missing map[string]bool) bool {
-	found := false
-	scanVariables(s, 0, func(name string, _ bool) { found = found || missing[name] })
-	return found
-}
-
-// scanVariables notes each variable s uses, with the syntax substitute
-// reads, as far down as substitute goes: each level reads the rest of its
-// string again, so what is nested deeper isn't looked at. Parse refuses it.
-func scanVariables(s string, depth int, note func(name string, required bool)) {
+// scanVariables notes each variable s uses, with the syntax substitute reads, as
+// far down as substitute goes: each level reads the rest of its string again, so
+// what is nested deeper isn't looked at. Parse refuses it. op is what follows
+// the name, without its colon: 0 for none, or '-', '+' or '?'. note says whether
+// to read on into the words after it.
+func scanVariables(s string, depth int, note func(name string, op byte) bool) {
 	if depth >= MaxNesting {
 		return
 	}
@@ -170,8 +170,11 @@ func scanVariables(s string, depth int, note func(name string, required bool)) {
 			}
 			if n > 0 {
 				rest := strings.TrimPrefix(inner[n:], ":")
-				note(inner[:n], rest == "" || strings.HasPrefix(rest, "?"))
+				op := byte(0)
 				if rest != "" {
+					op = rest[0]
+				}
+				if note(inner[:n], op) && rest != "" {
 					scanVariables(rest[1:], depth+1, note)
 				}
 			}
@@ -181,7 +184,7 @@ func scanVariables(s string, depth int, note func(name string, required bool)) {
 			for j < len(s) && nameRest(s[j]) {
 				j++
 			}
-			note(s[i+1:j], true)
+			note(s[i+1:j], 0)
 			i = j
 		default:
 			i++

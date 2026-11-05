@@ -9,6 +9,7 @@ import {
   type CheckComposeResponse,
   ComposeService,
   Connection,
+  type ExposedVariable,
   ResourceService,
 } from "@dockwell/api";
 import {
@@ -35,6 +36,7 @@ import {
   type ChangeEvent,
   type ClipboardEvent,
   type FormEvent,
+  Fragment,
   type Ref,
   useEffect,
   useId,
@@ -47,7 +49,17 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
-import { appOf, environmentOf, imageOf, nameFromImage, nameOf, SERVICE_NAME, tidyMessage, toLabel } from "./app";
+import {
+  appOf,
+  environmentOf,
+  imageOf,
+  nameFromImage,
+  nameOf,
+  portRefusal,
+  SERVICE_NAME,
+  tidyMessage,
+  toLabel,
+} from "./app";
 import { composeRefusal, type RefusedAt, withCode } from "./composeWords";
 import {
   appEdits,
@@ -273,7 +285,7 @@ export function NewAppSheet({
         review(res.change, count === 1 ? "app" : "list");
       } catch (err) {
         if (reasonOf(err) === "needs_project") setErrors({ project: sentence(err) });
-        else setFailure(sentence(err));
+        else setFailure(portRefusal(sentence(err)) ?? sentence(err));
       } finally {
         setBusy(false);
       }
@@ -303,7 +315,7 @@ export function NewAppSheet({
       if (field) {
         setErrors({ [field]: message });
         revealError();
-      } else setFailure(message);
+      } else setFailure(portRefusal(message) ?? message);
     } finally {
       setBusy(false);
     }
@@ -1063,37 +1075,105 @@ function ComposeFields({
           </div>
         </fieldset>
       ) : null}
-      {exposed.map((e) => (
-        <ExposedNote key={`${e.service}/${e.field}/${e.name}`} variable={e.name} service={e.service} field={e.field} />
+      {groupExposed(exposed).map((group) => (
+        <ExposedNote key={`${group.kind}/${group.owner}/${group.field}`} group={group} />
       ))}
+      {check.data?.moreExposed ? (
+        <p className="app-reach-note">
+          <Icon name="shield" size={14} />
+          <span>
+            <Trans>
+              This file writes more variables in plain sight than these. Read it before you pass one a secret.
+            </Trans>
+          </span>
+        </p>
+      ) : null}
       <ComposePreview check={check.data} />
     </>
   );
 }
 
+/** The variables one field of one service, volume or network holds. */
+interface ExposedGroup {
+  kind: string;
+  owner: string;
+  field: string;
+  names: string[];
+}
+
+function groupExposed(exposed: readonly ExposedVariable[]): ExposedGroup[] {
+  const groups = new Map<string, ExposedGroup>();
+  for (const e of exposed) {
+    const kind = e.resource?.kind ?? "";
+    const owner = e.resource?.name ?? "";
+    const key = `${kind}/${owner}/${e.field}`;
+    const group = groups.get(key) ?? { kind, owner, field: e.field, names: [] };
+    group.names.push(e.name);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
 /**
- * Where a file writes a variable's value in plain sight. Only a service's
- * environment is hidden, so this is the moment to say so, before anyone types
- * a secret into the field above.
+ * Where a file writes a variable's value in plain sight, before anyone types a
+ * secret into the field above. What to do about it depends on the field: $$NAME
+ * is for a shell to read, and only some fields have one.
  */
-function ExposedNote({ variable, service, field }: { variable: string; service: string; field: string }) {
+function ExposedNote({ group }: { group: ExposedGroup }) {
   const { t } = useLingui();
-  const words: Readonly<Record<string, string>> = {
+  const { owner, field } = group;
+  const fields: Readonly<Record<string, string>> = {
     command: t`command`,
     entrypoint: t`entrypoint`,
     labels: t`labels`,
     healthcheck: t`health check`,
+    user: t`user`,
+    working_dir: t`working directory`,
+    volumes: t`mounts`,
+    driver: t`driver`,
+    driver_opts: t`driver options`,
+    environment: t`environment variable names`,
   };
-  const where = words[field] ?? field;
-  const dollar = `$$${variable}`;
+  const where = fields[field] ?? field;
+  const holder =
+    group.kind === "volume" ? t`the volume ${owner}` : group.kind === "network" ? t`the network ${owner}` : owner;
+  const names = group.names.map((name, i) => (
+    <Fragment key={name}>
+      {i > 0 ? ", " : null}
+      <code>{name}</code>
+    </Fragment>
+  ));
+  const fix = () => {
+    switch (field) {
+      case "command":
+      case "entrypoint":
+        return (
+          <Trans>
+            To keep one hidden, pass it in <code>environment</code> for the app to read, or run the {where} through a
+            shell, as <code>sh -c</code>, with <code>$$NAME</code> in it.
+          </Trans>
+        );
+      case "healthcheck":
+        return (
+          <Trans>
+            To keep one hidden, pass it in <code>environment</code>, and write the test as <code>CMD-SHELL</code> with{" "}
+            <code>$$NAME</code> in it.
+          </Trans>
+        );
+      case "environment":
+        return <Trans>Only a variable's value is hidden, so don't pass a secret there.</Trans>;
+      default:
+        return <Trans>It can't be hidden there, so don't pass a secret there.</Trans>;
+    }
+  };
   return (
     <p className="app-reach-note">
       <Icon name="shield" size={14} />
       <span>
         <Trans>
-          <code>{variable}</code> is written in {service}'s {where}, so anyone who can read this app can see its value.
-          To keep it hidden, pass it in <code>environment</code>, and use <code>{dollar}</code> there.
-        </Trans>
+          Anyone who can read {holder}'s {where} can see the value of {names}.
+        </Trans>{" "}
+        {fix()}
       </span>
     </p>
   );

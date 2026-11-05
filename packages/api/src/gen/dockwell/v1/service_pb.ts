@@ -684,10 +684,10 @@ export const DeploymentStateSchema: GenEnum<DeploymentState> = /*@__PURE__*/
  * discard, as ProposeChange makes. See docs/adr/0026-the-app-screens.md.
  *
  * It blanks a spec's sensitive values, so an environment variable shows by name
- * alone. What isn't marked sensitive it shows, as seeing a command is useful:
- * a Compose file that writes a variable's value into a command, entrypoint,
- * label or health check has it read back from there, which importing the file
- * says (ExposedVariable).
+ * alone, and what it uses of its environment's variables and secrets by name.
+ * What isn't marked sensitive it shows, as seeing a command is useful: a Compose
+ * file that writes a variable's value there has it read back from there, which
+ * importing the file says (ExposedVariable).
  *
  * @generated from service dockwell.v1.ServiceService
  */
@@ -734,8 +734,11 @@ export const ServiceService: GenService<{
    * Unlike UndoChange it takes any earlier revision, and touches this
    * service alone, whatever else the change that made the revision did. It
    * brings back the spec, not the data in a volume, which the plan's notes
-   * say. It refuses a revision that already matches what runs, as that plan
-   * would do nothing (matches_latest).
+   * say, nor the value of a variable or secret it uses, which stays the latest:
+   * change that value to go back on it. It refuses only what would do nothing
+   * on the record and on every server. A revision that matches the latest on
+   * the record (matches_latest) still plans what puts it back, when a rollback
+   * failed or a container was removed by hand.
    *
    * @generated from rpc dockwell.v1.ServiceService.RollBackService
    */

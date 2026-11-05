@@ -2,7 +2,7 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
-import { ChangeSchema, ChangeState, Connection, DeploymentState, FieldOp } from "@dockwell/api";
+import { ChangeSchema, ChangeState, Connection, DeploymentState, FieldOp, ServiceInfoSchema } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 import { anApp, aProject, aRevision, SERVER } from "../../test/apps";
 import type { ServerSummary } from "../servers/server";
@@ -11,7 +11,6 @@ import {
   canRollBackTo,
   companions,
   containerName,
-  envNames,
   fieldName,
   groupApps,
   groupState,
@@ -19,12 +18,14 @@ import {
   matches,
   nameFromImage,
   type PlaceOf,
+  portRefusal,
   shortImage,
   shortImages,
   sortGroups,
   tidyMessage,
   toLabel,
   unreached,
+  valuesOf,
 } from "./app";
 
 const online: ServerSummary = { id: SERVER, name: "hz-1", connection: Connection.CONNECTED, address: "49.12.33.7" };
@@ -221,8 +222,21 @@ describe("the words an app goes by", () => {
   });
 
   it("lists variables by name", () => {
-    expect(envNames(anApp("web", "a", { env: { Z: "", A: "" } }).spec?.runs.value)).toEqual(["A", "Z"]);
-    expect(envNames(undefined)).toEqual([]);
+    const service = anApp("web", "a", { env: { Z: "", A: "" } });
+    expect(valuesOf(service).map((v) => v.name)).toEqual(["A", "Z"]);
+    expect(valuesOf(create(ServiceInfoSchema))).toEqual([]);
+    // What it uses, by the names it sees, beside its own.
+    if (service.spec) {
+      service.spec.variables = { LEVEL: "LOG_LEVEL", TZ: "TZ" };
+      service.spec.secrets = { KEY: "API_KEY" };
+    }
+    expect(valuesOf(service)).toEqual([
+      { name: "A", kind: "own", from: "A" },
+      { name: "KEY", kind: "secret", from: "API_KEY" },
+      { name: "LEVEL", kind: "variable", from: "LOG_LEVEL" },
+      { name: "TZ", kind: "variable", from: "TZ" },
+      { name: "Z", kind: "own", from: "Z" },
+    ]);
   });
 
   it("says which new services a plan leaves out of reach", () => {
@@ -244,8 +258,35 @@ describe("the words an app goes by", () => {
     expect(canRollBackTo(aRevision(2n, "a"))).toBe(true);
     expect(canRollBackTo(aRevision(2n, "a", { deleted: true }))).toBe(false);
     expect(canRollBackTo(aRevision(2n, "a", { matchesLatest: true }))).toBe(false);
+    // While recovering, the record's word isn't enough to rule one out.
+    expect(canRollBackTo(aRevision(2n, "a", { matchesLatest: true }), true)).toBe(true);
+    expect(canRollBackTo(aRevision(2n, "a", { deleted: true, matchesLatest: true }), true)).toBe(false);
+    expect(
+      canRollBackTo(
+        aRevision(2n, "a", { matchesLatest: true, deployments: [{ serverId: SERVER, state: DeploymentState.FAILED }] }),
+        true,
+      ),
+    ).toBe(false);
     expect(
       canRollBackTo(aRevision(2n, "a", { deployments: [{ serverId: SERVER, state: DeploymentState.FAILED }] })),
     ).toBe(false);
+  });
+
+  it("reads a port another holds out of the agent's words", () => {
+    expect(
+      portRefusal(
+        "Hz-1: can't plan service web in env_01abc: port 8080 is in use by the service holder, in another environment, so web can't publish it. Choose another port on the server, or free that one first.",
+      ),
+    ).toBe(
+      "Port 8080 is in use by the service holder, in another environment, so web can't publish it. Choose another port on the server, or free that one first.",
+    );
+    expect(
+      portRefusal("can't plan c: port 53/udp on 127.0.0.1 is wanted by the service b too, in this same change"),
+    ).toBe("Port 53/udp on 127.0.0.1 is wanted by the service b too, in this same change");
+    expect(portRefusal("can't plan c: port 80 on 0.0.0.0 (every IPv4 address) is in use by x")).toBe(
+      "Port 80 on 0.0.0.0 (every IPv4 address) is in use by x",
+    );
+    expect(portRefusal("the image isn't on the registry")).toBeUndefined();
+    expect(portRefusal("use a port from 1 to 65535")).toBeUndefined();
   });
 });

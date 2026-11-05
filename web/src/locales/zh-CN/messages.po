@@ -113,10 +113,6 @@ msgstr "{count, plural, other {这里还有 # 个其他应用。否则它们保�
 msgid "{count, plural, one {# server} other {# servers}}"
 msgstr "{count, plural, other {# 台服务器}}"
 
-#: src/features/apps/AppOverview.tsx
-msgid "{count, plural, one {# variable} other {# variables}}"
-msgstr "{count, plural, other {# 个变量}}"
-
 #: src/features/apps/NewAppSheet.tsx
 msgid "{count, plural, one {Show it} other {Show them}}"
 msgstr "{count, plural, other {显示}}"
@@ -213,6 +209,10 @@ msgstr "{name} 不能用作名称。请使用小写字母、数字和连字符�
 msgid "{name} has no owner yet"
 msgstr "{name} 还没有所有者"
 
+#: src/features/apps/AppOverview.tsx
+msgid "{name} has no server in the fleet"
+msgstr "{name} 在集群中没有服务器"
+
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} is waiting for its agent"
 msgstr "{name} 正在等待代理连接"
@@ -261,10 +261,7 @@ msgstr "{out}，可绕过服务器的防火墙"
 msgid "{out}, with {detail}"
 msgstr "{out}，选项为 {detail}"
 
-#: src/features/changes/words.ts
-msgid "{path} as a proxy it believes on where a request came from"
-msgstr "{path}，作为它信任的代理，相信它所说的请求来源"
-
+#: src/features/apps/AppOverview.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "{plain, plural, one {# variable} other {# variables}}"
 msgstr "{plain, plural, other {# 个变量}}"
@@ -313,9 +310,11 @@ msgstr "{samples, plural, other {# 个样本的趋势，最新值 {latest}}}"
 msgid "{seconds} s"
 msgstr "{seconds} 秒"
 
+#: src/features/apps/AppOverview.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "{secrets, plural, one {# secret} other {# secrets}}"
 msgstr "{secrets, plural, other {# 个密钥}}"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, other {# 个变量}}"
@@ -341,8 +340,8 @@ msgid "{share} of {size} used"
 msgstr "{size} 中已用 {share}"
 
 #: src/features/apps/AppDeployments.tsx
-msgid "{shown} already matches what runs"
-msgstr "{shown} 与当前运行的内容相同"
+msgid "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
+msgstr "{shown} 与最新版本一致。如果实际运行的内容已与它不同，回滚可以恢复。"
 
 #: src/features/activity/describe.ts
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
@@ -385,10 +384,6 @@ msgstr "<0>{serviceId}</0> 可能已被删除，或链接有误。"
 msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
 msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权限等同于 root。需要你在计划中批准，API 令牌无法批准。"
 
-#: src/features/apps/NewAppSheet.tsx
-msgid "<0>{variable}</0> is written in {service}'s {where}, so anyone who can read this app can see its value. To keep it hidden, pass it in <1>environment</1>, and use <2>{dollar}</2> there."
-msgstr "<0>{variable}</0> 的值会写入 {service} 的{where}，能查看这个应用的人都能看到。要隐藏它，请通过 <1>environment</1> 传入，并在那里使用 <2>{dollar}</2>。"
-
 #: src/features/servers/ServerMetrics.tsx
 msgid "1, 5 and 15 min"
 msgstr "1、5 和 15 分钟"
@@ -417,12 +412,13 @@ msgstr "一个 {type} 挂载（{reads}）"
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "认领链接只在有人认领之前有效。请直接登录。"
 
-#: src/features/variables/VariablesPage.tsx
-msgid "A secret needs a value."
-msgstr "密钥需要一个值。"
 #: src/features/apps/ExportSheet.tsx
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "<0>docker compose</0> 无需 Dockwell 即可运行的文件，其中不含机密信息"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "A secret needs a value."
+msgstr "密钥需要一个值。"
 
 #: src/features/activity/describe.ts
 msgid "a server"
@@ -431,6 +427,10 @@ msgstr "一台服务器"
 #: src/features/changes/ChangeSheet.tsx
 msgid "A step failed, so the change stopped there"
 msgstr "有一个步骤失败，变更在那里停止了"
+
+#: src/features/apps/AppEnvironment.tsx
+msgid "A value lives in its environment, and goes only to the servers that run an app using it. Change one in <0>Variables and secrets</0>, and its plan restarts each app that uses it."
+msgstr "值保存在环境中，只会发送给运行了使用它的应用的服务器。在<0>变量和密钥</0>中修改值，其计划会重启每个使用它的应用。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "A volume such as data at /data, or a server path."
@@ -504,6 +504,10 @@ msgstr "向 {envName} 添加变量或密钥"
 msgid "Add passkey"
 msgstr "添加通行密钥"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "Add port"
+msgstr "添加端口"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "Add the secret {trimmed}"
 msgstr "添加密钥 {trimmed}"
@@ -511,9 +515,6 @@ msgstr "添加密钥 {trimmed}"
 #: src/features/variables/VariablesPage.tsx
 msgid "Add the variable {trimmed}"
 msgstr "添加变量 {trimmed}"
-#: src/features/apps/NewAppSheet.tsx
-msgid "Add port"
-msgstr "添加端口"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Add variable"
@@ -633,6 +634,10 @@ msgstr "另外 {more} 项"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Any image your server can pull, such as nginx:1.27."
 msgstr "服务器能够拉取的任意镜像，例如 nginx:1.27。"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
+msgstr "能读取 {holder} 的{where}的任何人，都能看到 {names} 的值。"
 
 #: src/features/changes/words.ts
 msgid "anyone on the internet"
@@ -800,6 +805,7 @@ msgstr "更改密钥 {trimmed}"
 #: src/features/variables/VariablesPage.tsx
 msgid "Change the variable {trimmed}"
 msgstr "更改变量 {trimmed}"
+
 #: src/features/apps/AppDeployments.tsx
 msgid "changed"
 msgstr "已更改"
@@ -992,12 +998,13 @@ msgstr "控制平面状态"
 msgid "Control server"
 msgstr "控制服务器"
 
-#: src/features/variables/VariablesPage.tsx
-msgid "Copied {name}"
-msgstr "已复制 {name}"
 #: src/features/apps/ExportSheet.tsx
 msgid "Copied"
 msgstr "已复制"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Copied {name}"
+msgstr "已复制 {name}"
 
 #: src/features/servers/CopyButton.tsx
 msgid "Copied {text}"
@@ -1292,8 +1299,8 @@ msgid "Dockwell answers on {host}. Servers appear below as they join; apps and d
 msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方；应用和部署功能即将推出。"
 
 #: src/features/apps/AppEnvironment.tsx
-msgid "Dockwell hands these to the app, and never shows their values again, as they may hold secrets."
-msgstr "Dockwell 会把它们交给应用，且不再显示其值，因为其中可能包含机密。"
+msgid "Dockwell hands what's set on this app to it, and never shows those values again, as they may hold secrets."
+msgstr "Dockwell 将此应用自身设置的内容交给它，且不再显示这些值，因为其中可能含有机密。"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Dockwell keeps trying."
@@ -1338,13 +1345,21 @@ msgstr "宕机"
 msgid "Download"
 msgstr "下载"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "driver"
+msgstr "驱动"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "driver options"
+msgstr "驱动选项"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Each code signs you in once, with your email, if you lose your authenticator app. They're shown only now. Keep them somewhere safe, apart from your phone."
 msgstr "如果你丢了身份验证器应用，每个恢复码可以配合你的邮箱登录一次。它们只在此时显示。请把它们保存在安全的地方，不要和手机放在一起。"
 
 #: src/features/apps/AppOverview.tsx
-msgid "Each server it ran on has left the fleet. Deploy it to run it again."
-msgstr "它运行过的每台服务器都已离开集群。请部署以重新运行。"
+msgid "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
+msgstr "它运行过的每台服务器都已离开集群，因此 Dockwell 无法在那里查看或更改它，它的容器可能仍在那些服务器上运行。部署它，即可在集群中的服务器上运行。"
 
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/SignInPage.tsx
@@ -1399,6 +1414,10 @@ msgstr "环境"
 #: src/features/variables/VariablesPage.tsx
 msgid "Environment"
 msgstr "环境"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "environment variable names"
+msgstr "环境变量名称"
 
 #: src/features/apps/AppEnvironment.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -1534,6 +1553,7 @@ msgstr "从"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
+#: src/features/apps/AppEnvironment.tsx
 msgid "From"
 msgstr "来源"
 
@@ -1599,6 +1619,7 @@ msgstr "健康"
 msgid "hidden"
 msgstr "已隐藏"
 
+#: src/features/apps/AppEnvironment.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Hidden"
 msgstr "已隐藏"
@@ -1606,10 +1627,6 @@ msgstr "已隐藏"
 #: src/features/variables/VariablesPage.tsx
 msgid "Hide {name}"
 msgstr "隐藏 {name}"
-
-#: src/features/apps/AppEnvironment.tsx
-msgid "Hidden"
-msgstr "已隐藏"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Hostname"
@@ -1692,17 +1709,9 @@ msgstr "不到一分钟后"
 msgid "Installed"
 msgstr "安装时间"
 
-#: src/features/changes/words.ts
-msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
-msgstr "它通过纯 HTTP 响应任何能访问 {server} 80 端口的人，绕过它前面的任何东西"
-
-#: src/features/changes/words.ts
-msgid "It answers only {list}. Anyone else gets what a name with no route gets"
-msgstr "它只响应 {list}。其他人得到的结果和访问没有路由的域名一样"
-
-#: src/features/changes/words.ts
-msgid "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
-msgstr "它只响应在 {server} 本机上运行的程序，例如使用其自身网络的隧道。其他人得到的结果和访问没有路由的域名一样"
+#: src/features/apps/NewAppSheet.tsx
+msgid "It can't be hidden there, so don't pass a secret there."
+msgstr "这里无法隐藏值，所以不要在这里传入机密。"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "It has been undone since."
@@ -1716,9 +1725,6 @@ msgstr "它已加入，但代理尚未连接，所以还没有数据。请在该
 msgid "It keeps applying if you close this."
 msgstr "关闭这里后它会继续应用。"
 
-#: src/features/variables/VariablesPage.tsx
-msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
-msgstr "它原是普通变量，能查看此环境的人仍能看到它。请为密钥输入新值，并在签发旧值的地方轮换它。"
 #: src/features/apps/AppOverview.tsx
 msgid "It keeps going whether or not you stay here. Its steps show in the plan."
 msgstr "无论你是否留在此页，部署都会继续。步骤显示在计划中。"
@@ -1730,6 +1736,10 @@ msgstr "当前运行 <0>{current}</0>。"
 #: src/features/apps/DeploySheet.tsx
 msgid "It runs the new image with the rest as it is"
 msgstr "运行新镜像，其余保持不变"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
+msgstr "它原是普通变量，能查看此环境的人仍能看到它。请为密钥输入新值，并在签发旧值的地方轮换它。"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "It's live with HTTPS"
@@ -1787,6 +1797,7 @@ msgstr "内核"
 #: src/features/variables/VariablesPage.tsx
 msgid "Key"
 msgstr "键"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "labels"
 msgstr "标签"
@@ -1882,6 +1893,7 @@ msgstr "正在加载令牌"
 #: src/features/variables/VariablesPage.tsx
 msgid "Loading variables and secrets"
 msgstr "正在加载变量和密钥"
+
 #: src/features/apps/AppLayout.tsx
 msgid "Logs"
 msgstr "日志"
@@ -1964,6 +1976,10 @@ msgstr "内存"
 msgid "More"
 msgstr "更多"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "mounts"
+msgstr "挂载"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Move to another app"
 msgstr "换到另一个应用"
@@ -1983,9 +1999,6 @@ msgstr "正在迁移"
 msgid "Name"
 msgstr "名称"
 
-#: src/features/variables/VariablesPage.tsx
-msgid "Name it, such as DATABASE_URL."
-msgstr "请为它命名，例如 DATABASE_URL。"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Name a volume, or an absolute path on the server."
 msgstr "请填写卷名称，或服务器上的绝对路径。"
@@ -1993,6 +2006,10 @@ msgstr "请填写卷名称，或服务器上的绝对路径。"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Name it to review the plan"
 msgstr "填写名称后即可查看计划"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Name it, such as DATABASE_URL."
+msgstr "请为它命名，例如 DATABASE_URL。"
 
 #: src/features/apps/DeploySheet.tsx
 msgid "Name the image to run, such as {current}."
@@ -2056,6 +2073,7 @@ msgstr "新的恢复码"
 #: src/features/variables/VariablesPage.tsx
 msgid "New value"
 msgstr "新值"
+
 #: src/features/apps/AppsPage.tsx
 msgid "No app here has <0>{query}</0> in its name or image. Try part of a name, or clear the filter."
 msgstr "此处没有名称或镜像包含 <0>{query}</0> 的应用。请试试名称的一部分，或清除筛选条件。"
@@ -2099,10 +2117,6 @@ msgstr "此后 {server} 上没有路由需要证书，因此 {proxy} 会释放�
 #: src/features/changes/ChangeSheet.tsx
 msgid "No server · nothing goes down"
 msgstr "不涉及服务器 · 不会停机"
-
-#: src/features/apps/AppOverview.tsx
-msgid "No server runs {name}"
-msgstr "没有服务器运行 {name}"
 
 #: src/features/servers/ServerOverview.tsx
 msgid "No server with this ID"
@@ -2152,12 +2166,17 @@ msgstr "此版本尚未提供"
 msgid "Not installed or not running"
 msgstr "未安装或未运行"
 
-#: src/features/variables/VariablesPage.tsx
-msgid "Not used yet"
-msgstr "尚未使用"
+#: src/features/apps/AppEnvironment.tsx
+msgid "Not loaded"
+msgstr "未加载"
+
 #: src/features/apps/words.ts
 msgid "Not placed"
 msgstr "未部署"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Not used yet"
+msgstr "尚未使用"
 
 #: src/features/apps/AppLayout.tsx
 msgid "Nothing changed on the server. Reload the page to try again."
@@ -2250,6 +2269,10 @@ msgstr "服务器上"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Only a signed-in person can apply it, as no API token may."
 msgstr "只有已登录的用户才能应用它，任何 API 令牌都不能。"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Only a variable's value is hidden, so don't pass a secret there."
+msgstr "只有变量的值会被隐藏，所以不要在这里传入机密。"
 
 #: src/features/apps/AppOverview.tsx
 msgid "only on the server"
@@ -2625,6 +2648,7 @@ msgstr "移除密钥 {name}"
 #: src/features/variables/VariablesPage.tsx
 msgid "Remove the variable {name}"
 msgstr "移除变量 {name}"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Remove this port"
 msgstr "移除此端口"
@@ -2769,6 +2793,10 @@ msgstr "回滚到 {backTo}"
 msgid "Roll back to {name}"
 msgstr "回滚到 {name}"
 
+#: src/features/apps/AppDeployments.tsx
+msgid "Roll back to {shown}"
+msgstr "回滚到 {shown}"
+
 #: src/features/activity/describe.ts
 msgid "Roll back: {reverted}"
 msgstr "回滚：{reverted}"
@@ -2802,6 +2830,7 @@ msgstr "回滚"
 #: src/features/activity/describe.ts
 msgid "Rotated the key that wraps every secret"
 msgstr "轮换了加密所有密钥的密钥"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Run {projectName} from a Compose file"
 msgstr "通过 Compose 文件运行 {projectName}"
@@ -2903,10 +2932,16 @@ msgstr "搜索或运行命令"
 msgid "secret"
 msgstr "密钥"
 
+#: src/features/apps/AppEnvironment.tsx
 #: src/features/changes/words.ts
 #: src/features/variables/VariablesPage.tsx
 msgid "Secret"
 msgstr "密钥"
+
+#: src/features/apps/AppEnvironment.tsx
+msgid "Secret {from}"
+msgstr "密钥 {from}"
+
 #: src/features/apps/AppOverview.tsx
 msgid "See why"
 msgstr "查看原因"
@@ -2958,6 +2993,10 @@ msgstr "会话"
 #: src/features/apps/ExportSheet.tsx
 msgid "Set each variable in the shell, or in an <0>.env</0> file beside the Compose file, before you run <1>docker compose up</1>."
 msgstr "运行 <1>docker compose up</1> 之前，请在 shell 中或 Compose 文件旁的 <0>.env</0> 文件中设置这些变量。"
+
+#: src/features/apps/AppEnvironment.tsx
+msgid "Set on this app"
+msgstr "在此应用上设置"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Set up"
@@ -3336,6 +3375,14 @@ msgstr "上次部署失败，Dockwell 已将其回滚"
 msgid "The last deploy of {name} failed"
 msgstr "{name} 的上次部署失败"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "the network {owner}"
+msgstr "网络 {owner}"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "The old value stays in this variable's history"
+msgstr "旧值仍保留在该变量的历史中"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "The owner account wasn't created"
 msgstr "所有者账户未创建"
@@ -3408,6 +3455,10 @@ msgstr "这个计划指纹的开头，确保你应用的正是你审查过的内
 msgid "The token wasn't created"
 msgstr "令牌未创建"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "the volume {owner}"
+msgstr "卷 {owner}"
+
 #: src/features/changes/words.ts
 msgid "the volume driver {driver}, which reaches what the plugin does ({reads})"
 msgstr "卷驱动 {driver}，可访问该插件能访问的内容（{reads}）"
@@ -3460,6 +3511,10 @@ msgstr "这个文件有 {kib} KiB，而 Dockwell 最多读取 {limit} KiB。请�
 #: src/features/apps/NewAppSheet.tsx
 msgid "This file is too large to read"
 msgstr "文件过大，无法读取"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "This file writes more variables in plain sight than these. Read it before you pass one a secret."
+msgstr "此文件明文写入的变量比这里列出的更多。向其中传入机密之前，请先阅读文件。"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "This install already has an owner"
@@ -3532,6 +3587,14 @@ msgstr "项待创建"
 #: src/app/Providers.tsx
 msgid "to destroy"
 msgstr "项待销毁"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "To keep one hidden, pass it in <0>environment</0> for the app to read, or run the {where} through a shell, as <1>sh -c</1>, with <2>$$NAME</2> in it."
+msgstr "要隐藏某个值，请通过 <0>environment</0> 传入，由应用读取；或者通过 shell 运行{where}，如 <1>sh -c</1>，并在其中使用 <2>$$NAME</2>。"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "To keep one hidden, pass it in <0>environment</0>, and write the test as <1>CMD-SHELL</1> with <2>$$NAME</2> in it."
+msgstr "要隐藏某个值，请通过 <0>environment</0> 传入，并将检查写成 <1>CMD-SHELL</1>，在其中使用 <2>$$NAME</2>。"
 
 #: src/app/Providers.tsx
 msgid "to move"
@@ -3728,12 +3791,13 @@ msgstr "请使用 1 到 65535 之间的端口。"
 msgid "Use a security key or another device"
 msgstr "使用安全密钥或其他设备"
 
-#: src/features/variables/VariablesPage.tsx
-msgid "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
-msgstr "请使用字母、数字和下划线，并以字母或下划线开头，例如 DATABASE_URL。"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Use an absolute path, such as /data."
 msgstr "请使用绝对路径，例如 /data。"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
+msgstr "请使用字母、数字和下划线，并以字母或下划线开头，例如 DATABASE_URL。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Use letters, digits and underscores, starting with a letter or underscore."
@@ -3772,10 +3836,20 @@ msgstr "{ago}从 <0>{lastAddress}</0> 使用过"
 msgid "Used by"
 msgstr "使用者"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "user"
+msgstr "用户"
+
+#: src/features/apps/AppOverview.tsx
+msgid "User"
+msgstr "用户"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "value"
 msgstr "值"
 
+#: src/features/apps/AppEnvironment.tsx
+#: src/features/apps/NewAppSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Value"
 msgstr "值"
@@ -3784,10 +3858,16 @@ msgstr "值"
 msgid "variable"
 msgstr "变量"
 
+#: src/features/apps/AppEnvironment.tsx
 #: src/features/changes/words.ts
 msgid "Variable"
 msgstr "变量"
 
+#: src/features/apps/AppEnvironment.tsx
+msgid "Variable {from}"
+msgstr "变量 {from}"
+
+#: src/features/apps/NewAppSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Variables"
 msgstr "变量"
@@ -3800,19 +3880,6 @@ msgstr "变量和密钥"
 #: src/features/variables/VariablesPage.tsx
 msgid "Variables and secrets in {envName}"
 msgstr "{envName} 中的变量和密钥"
-
-#: src/features/apps/AppOverview.tsx
-msgid "User"
-msgstr "用户"
-
-#: src/features/apps/AppEnvironment.tsx
-#: src/features/apps/NewAppSheet.tsx
-msgid "Value"
-msgstr "值"
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "Variables"
-msgstr "变量"
 
 #: src/features/servers/ServerPanels.tsx
 #: src/features/system/StatusPage.tsx
@@ -3875,16 +3942,6 @@ msgstr "变更内容"
 msgid "What happens next"
 msgstr "接下来"
 
-#: src/features/changes/words.ts
-msgid "what runs on {server} itself"
-msgstr "在 {server} 本机上运行的程序"
-
-#: src/features/variables/VariablesPage.tsx
-msgid "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
-msgstr "{envName} 中的服务按名称使用这些值。更改一个值后，应用其计划时，所有使用它的服务都会重启。"
-#: src/features/apps/NewAppSheet.tsx
-msgid "What it writes elsewhere goes when its container is replaced."
-msgstr "写入其他位置的内容会在容器被替换时丢失。"
 #: src/features/apps/AddPortSheet.tsx
 msgid "What people connect to, such as 8080."
 msgstr "外部连接使用的端口，例如 8080。"
@@ -3896,6 +3953,10 @@ msgstr "服务器上运行的内容不受影响。"
 #: src/features/apps/AddPortSheet.tsx
 msgid "What the app listens on, such as 80."
 msgstr "应用监听的端口，例如 80。"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
+msgstr "{envName} 中的服务按名称使用这些值。更改一个值后，应用其计划时，所有使用它的服务都会重启。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "What this file makes"
@@ -3952,6 +4013,10 @@ msgstr "失败原因"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "没有卷时，容器被替换后写入的内容会丢失。"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "working directory"
+msgstr "工作目录"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Works here"

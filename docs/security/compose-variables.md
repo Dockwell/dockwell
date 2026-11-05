@@ -19,13 +19,23 @@ What happens to a value passed to a Compose file, who can read it afterwards, an
 
 | Threat | Mitigation |
 | --- | --- |
-| A read-only token reads a password from a command | Only a spec's `(sensitive)` fields are blanked, and `command` isn't, on purpose: see the decision below. So this is possible, and the person importing the file is told first. The interpolator records each variable whose value lands in `command`, `entrypoint`, `labels` or `healthcheck.test`. `CheckCompose` says so while the file is being typed, before the value is, and `ImportCompose` and the plan say it again. |
-| Someone doesn't notice the warning | It says the fact, what it means, and the fix: pass the value in `environment`, which is blanked, and write `$$NAME` in the command, for the container's shell to read when it starts. The plan's note reaches the CLI too. |
+| A read-only token reads a password from a command, a label, a user or a mount | Only a spec's `(sensitive)` fields are blanked, and `command` isn't, on purpose: see the decision below. So this is possible, and the person importing the file is told first. A pass over the file's strings records each variable that can land in any field but those listed under "Not recorded", with a value or not, default or not. `CheckCompose` says so while the file is being typed, before the value is, and `ImportCompose` and the plan say it again. |
+| Someone doesn't notice the warning | It says the fact, what it means, and the fix, which depends on the field: pass the value in `environment`, which is blanked, for the app to read, or read `$$NAME` in a shell, in a `CMD-SHELL` health check or a command run as `sh -c`. A label, a user or a mount has no shell, so it says not to pass a secret. The plan's note reaches the CLI too. |
 | A plan or a timeline entry repeats a value | A plan shows a command as a field that changed, so a value written there shows in that plan, as the warning says. The warning itself names the variable and never holds its value. |
 | A value in `environment` is read back | `Container.env` is sensitive: a response carries its keys alone, a plan says it changed, an export writes `KEY: null`, and a config hash leaves it out. |
 | A value is logged | The request's variables aren't logged, and what a container prints isn't read back into an error (ADR 0017). A step's error can quote a command only as the driver wrote it, which never holds an environment value. |
-| A value in `name:`, `image` or `ports` | These say what runs and where it is reached, and no one keeps them secret. They aren't recorded, and a value there is the file's own choice. |
-| A default written in the file | It isn't recorded: the person wrote it in plain sight, in a file that is exported as it is. |
+
+### Not recorded
+
+These are what the warning leaves out, on purpose. `TestAQuietFieldCantHoldASecret` holds the second row to its word.
+
+| Where | Why |
+| --- | --- |
+| `name:`, `image` and `ports` | These say what runs and where it is reached, and no one keeps them secret. A value there is the file's own choice. |
+| `restart`, `network_mode`, a service's `networks` and `depends_on`, a health check's times and retries, a network's `internal` | Each takes only a fixed word, a number or another name in the file. A file that puts anything else there is refused, so a secret can't land there. |
+| `expose` | It changes nothing on one server, so it isn't kept. |
+| A value in `environment`, and a volume's `driver_opts` | They're sensitive, so they are blanked. A list entry's name isn't, so a variable in one does warn. |
+| A default's own words | The person wrote them in plain sight, in a file that is exported as it is. The variable beside them counts, as its value lands there once it has one. |
 
 ## What we decided not to do
 

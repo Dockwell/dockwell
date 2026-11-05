@@ -59,8 +59,10 @@ type Stack struct {
 	// Export to write for the services that use them. Never a secret's.
 	Variables map[string]string
 	// Exposed says where the file writes a variable's value that anyone who
-	// can read the service can see, for a surface to warn about.
+	// can read what it makes can see, for a surface to warn about.
 	Exposed []Exposed
+	// ExposedMore says the file writes more than Exposed lists.
+	ExposedMore bool
 }
 
 // ErrInvalid is a Compose file Dockwell can't take, with why.
@@ -383,40 +385,25 @@ const maxWaiting = 16
 // would: resolving variables, the default network, and references between
 // services, volumes and networks.
 func Parse(ctx context.Context, file []byte, variables map[string]string) (*Stack, error) {
-	return Read(ctx, Input{File: file, Variables: variables})
+	_, stack, err := read(ctx, file, variables, false)
+	return stack, err
 }
 
-// Input is a Compose file, and what it reads beside it.
-type Input struct {
-	File []byte
-	// Variables are values for what it uses, which win over Env, as a shell's
-	// win over an .env file.
-	Variables map[string]string
-	// Env is the text of the .env file beside it.
-	Env string
-	// Directory is where it is on the servers, which a path relative to it
-	// starts from.
-	Directory string
-}
-
-// Read reads a file as Parse does, with what it reads beside it.
-func Read(ctx context.Context, in Input) (*Stack, error) {
-	if len(in.File) > MaxFile {
-		return nil, invalid("the Compose file is %d KiB, and Dockwell reads files of up to %d KiB. "+
-			"Leave out what Dockwell doesn't run, or import the services in more than one file", len(in.File)>>10, MaxFile>>10)
+// read takes one turn at reading a file: the child first, which says what the
+// file says of itself when asked, as anything that reads a file does so under
+// its limits; then Parse's reading here, of a file the child read to the end of
+// what this will. So what it costs here, the child has already paid for.
+func read(ctx context.Context, file []byte, variables map[string]string, asked bool) (Inspection, *Stack, error) {
+	if len(file) > MaxFile {
+		return Inspection{}, nil, invalid("the Compose file is %d KiB, and Dockwell reads files of up to %d KiB. "+
+			"Leave out what Dockwell doesn't run, or import the services in more than one file", len(file)>>10, MaxFile>>10)
 	}
-	if len(in.Env) > MaxEnv {
-		return nil, invalid("the .env file is %d KiB, and Dockwell reads files of up to %d KiB. Leave out what the Compose file doesn't use", len(in.Env)>>10, MaxEnv>>10)
-	}
-	if err := checkVariables(in.Variables); err != nil {
-		return nil, err
-	}
-	if err := checkDirectory(in.Directory); err != nil {
-		return nil, err
+	if err := checkVariables(variables); err != nil {
+		return Inspection{}, nil, err
 	}
 	if waiting.Add(1) > maxWaiting {
 		waiting.Add(-1)
-		return nil, ErrBusy
+		return Inspection{}, nil, ErrBusy
 	}
 	select {
 	case parsing <- struct{}{}:
@@ -424,21 +411,22 @@ func Read(ctx context.Context, in Input) (*Stack, error) {
 		defer func() { <-parsing }()
 	case <-ctx.Done():
 		waiting.Add(-1)
-		return nil, fmt.Errorf("stopped waiting to read the Compose file: %w", ctx.Err())
+		return Inspection{}, nil, fmt.Errorf("stopped waiting to read the Compose file: %w", ctx.Err())
 	}
-	if err := guard(ctx, in); err != nil {
-		return nil, err
+	seen, err := guard(ctx, file, variables, asked)
+	if err != nil {
+		return Inspection{}, nil, err
 	}
-	return parse(in)
+	if asked && guardPath == "" {
+		seen = inspect(ctx, file, variables)
+	}
+	stack, err := parse(ctx, file, variables)
+	return seen, stack, err
 }
 
 // parse reads a file in this process.
-func parse(in Input) (*Stack, error) {
-	variables, err := readEnv(in.Env, in.Variables)
-	if err != nil {
-		return nil, err
-	}
-	raw, err := checkRaw(in.File)
+func parse(ctx context.Context, file []byte, variables map[string]string) (*Stack, error) {
+	raw, err := checkRaw(file)
 	if err != nil {
 		return nil, err
 	}
@@ -446,7 +434,7 @@ func parse(in Input) (*Stack, error) {
 	// matters comes back as an error.
 	quiet.Do(func() { logrus.SetOutput(io.Discard) })
 
-	dict, exposed, err := interpolate(raw, variables)
+	dict, err := interpolate(ctx, raw, variables)
 	if err != nil {
 		return nil, err
 	}
@@ -466,8 +454,10 @@ func parse(in Input) (*Stack, error) {
 	if err := decode(dict, &m); err != nil {
 		return nil, invalid("the Compose file isn't valid: %v", err)
 	}
-	m.limits, m.notices = limits, unkept
-	if err := m.resolve(variables, in.Directory); err != nil {
+	if ctx.Err() != nil {
+		return nil, stopped(ctx)
+	}
+	if err := m.resolve(variables); err != nil {
 		return nil, err
 	}
 	out, err := stack(&m)
@@ -475,7 +465,10 @@ func parse(in Input) (*Stack, error) {
 		return nil, err
 	}
 	out.Name, _ = dict["name"].(string)
-	out.Exposed = exposed
+	out.Exposed, out.ExposedMore = exposedIn(ctx, raw)
+	if ctx.Err() != nil {
+		return nil, stopped(ctx)
+	}
 	return out, nil
 }
 

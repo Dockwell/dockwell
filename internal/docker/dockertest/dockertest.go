@@ -590,8 +590,8 @@ func (e *Engine) list(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// summaryPorts are the ports a running container publishes, as a list has
-// them: a stopped one has none.
+// summaryPorts are the ports a running container publishes, as a list has them:
+// a stopped one has none, and no address means every one of each family.
 func summaryPorts(c *container) []docker.SummaryPort {
 	if !c.State.Running {
 		return nil
@@ -601,7 +601,13 @@ func summaryPorts(c *container) []docker.SummaryPort {
 		for _, b := range bs {
 			n, err := strconv.Atoi(b.HostPort)
 			if err == nil && n > 0 && n < 65536 {
-				out = append(out, docker.SummaryPort{PublicPort: uint16(n), Type: proto(port)})
+				addresses := []string{b.HostIP}
+				if b.HostIP == "" {
+					addresses = []string{"0.0.0.0", "::"}
+				}
+				for _, ip := range addresses {
+					out = append(out, docker.SummaryPort{IP: ip, PublicPort: uint16(n), Type: proto(port)})
+				}
 			}
 		}
 	}
@@ -911,6 +917,12 @@ func (e *Engine) volumeInUse(name string) string {
 
 func (e *Engine) serveVolumes(w http.ResponseWriter, r *http.Request, parts []string) {
 	switch {
+	case len(parts) == 0 && r.Method == http.MethodGet:
+		list := make([]*docker.Volume, 0, len(e.volumes))
+		for _, name := range slices.Sorted(maps.Keys(e.volumes)) {
+			list = append(list, e.volumes[name])
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"Volumes": list})
 	case r.Method == http.MethodPost && len(parts) == 1 && parts[0] == "create":
 		var req docker.VolumeCreate
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1013,6 +1025,12 @@ func (e *Engine) network(w http.ResponseWriter, ref string) *docker.Network {
 
 func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []string) {
 	switch {
+	case len(parts) == 0 && r.Method == http.MethodGet:
+		list := make([]*docker.Network, 0, len(e.networks))
+		for _, name := range slices.Sorted(maps.Keys(e.networks)) {
+			list = append(list, e.networks[name])
+		}
+		writeJSON(w, http.StatusOK, list)
 	case r.Method == http.MethodPost && len(parts) == 1 && parts[0] == "create":
 		var req docker.NetworkCreate
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

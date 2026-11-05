@@ -10,7 +10,7 @@
 //
 // Chromium is the system's: CHROMIUM_PATH, or /usr/bin/chromium.
 
-import { type ChildProcess, execFileSync, spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -18,46 +18,33 @@ import { join, resolve } from "node:path";
 import { type Browser, chromium } from "playwright-core";
 
 import { appsFlow } from "./apps-flow.ts";
-import { dockerProbe } from "./docker-probe.ts";
+import { dockerMade, dockerProbe, removeMade } from "./docker-probe.ts";
 
 const bin = resolve(process.argv[2] ?? "bin/dockwell");
 const port = 7650 + Math.floor(Math.random() * 300);
 const origin = `http://localhost:${port}`;
 const data = mkdtempSync(join(tmpdir(), "dockwell-e2e-"));
 const published = Number(process.env["E2E_WEB_PORT"] ?? 18081);
-const docker = dockerProbe(process.env["DOCKER_HOST"]?.replace(/^unix:\/\//, "") ?? "/var/run/docker.sock");
+const socket = process.env["DOCKER_HOST"]?.replace(/^unix:\/\//, "") ?? "/var/run/docker.sock";
+const docker = dockerProbe(socket);
 
 let server: ChildProcess | undefined;
 let browser: Browser | undefined;
 const log: string[] = [];
 
 /** What was there before this run, which isn't this run's to remove. */
-const before = new Set((await docker()).map((c) => c.id));
-
-function dockerQuietly(...args: string[]): string {
-  try {
-    return execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-  } catch {
-    return "";
-  }
-}
+const before = await dockerMade(socket);
 
 /**
  * Removes what this run made, whatever became of it, so a dev machine keeps
- * nothing on the published port: stopping dockwell leaves its containers
- * running, as it should anywhere else.
+ * nothing on the published port or in its address pools: stopping dockwell leaves
+ * its containers running, as it should anywhere else.
  */
 async function cleanUp() {
-  const made = (await docker().catch(() => [])).filter((c) => !before.has(c.id));
-  for (const c of made) dockerQuietly("rm", "--force", c.id);
-  for (const project of new Set(made.map((c) => c.project))) {
-    const label = `label=com.docker.compose.project=${project}`;
-    for (const net of dockerQuietly("network", "ls", "-q", "--filter", label).split("\n")) {
-      if (net) dockerQuietly("network", "rm", net);
-    }
-    for (const vol of dockerQuietly("volume", "ls", "-q", "--filter", label).split("\n")) {
-      if (vol) dockerQuietly("volume", "rm", vol);
-    }
+  const left = await removeMade(socket, before).catch((err: unknown) => [String(err)]);
+  if (left.length > 0) {
+    console.error(`e2e: failed: this run left on Docker: ${left.join(", ")}`);
+    process.exitCode = 1;
   }
 }
 
@@ -97,8 +84,9 @@ try {
   });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
-  page.on("pageerror", (err) => {
-    throw new Error(`the page threw: ${err.message}`);
+  // A throw in here would end the process and skip the cleaning up.
+  const pageThrew = new Promise<never>((_, threw) => {
+    page.on("pageerror", (err) => threw(new Error(`the page threw: ${err.message}`)));
   });
   const cdp = await context.newCDPSession(page);
   await cdp.send("WebAuthn.enable", { enableUI: false });
@@ -112,22 +100,25 @@ try {
       automaticPresenceSimulation: true,
     },
   });
-  await page.goto(claim);
-  await page.getByLabel("Your name").fill("Mira Chen");
-  await page.getByLabel("Email").fill("mira@acme.dev");
-  await page.getByRole("button", { name: "Create passkey" }).click();
-  await page.getByRole("heading", { level: 1, name: "Overview", exact: true }).waitFor({ timeout: 15_000 });
-  await page.locator(".dw-metric", { hasText: "CPU" }).waitFor({ timeout: 20_000 });
-  await appsFlow(page, {
-    origin,
-    docker,
-    port: published,
-    reachable: true,
-    // It starts and exits at once, with nothing to run.
-    failing: "busybox:1.37",
-    step: (what) => console.log(`e2e: ${what}`),
-    shoot: async () => {},
-  });
+  const flow = async () => {
+    await page.goto(claim);
+    await page.getByLabel("Your name").fill("Mira Chen");
+    await page.getByLabel("Email").fill("mira@acme.dev");
+    await page.getByRole("button", { name: "Create passkey" }).click();
+    await page.getByRole("heading", { level: 1, name: "Overview", exact: true }).waitFor({ timeout: 15_000 });
+    await page.locator(".dw-metric", { hasText: "CPU" }).waitFor({ timeout: 20_000 });
+    await appsFlow(page, {
+      origin,
+      docker,
+      port: published,
+      reachable: true,
+      // It starts and exits at once, with nothing to run.
+      failing: "busybox:1.37",
+      step: (what) => console.log(`e2e: ${what}`),
+      shoot: async () => {},
+    });
+  };
+  await Promise.race([flow(), pageThrew]);
   console.log("e2e: passed");
 } catch (err) {
   console.error(`e2e: failed: ${err instanceof Error ? err.message : String(err)}`);

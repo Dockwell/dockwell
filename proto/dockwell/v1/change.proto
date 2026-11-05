@@ -541,20 +541,38 @@ message Plan {
   // about what stays as it is or what can be read, not about what runs. A note
   // never stops anyone applying it.
   repeated PlanNote notes = 8;
+  // Which project and environment its resources land in, once there's a choice
+  // of either, so a plan can't read as another's. Empty while there's one
+  // project with one environment. A plan that spans several lists each.
+  repeated PlanPlace places = 9;
+}
+
+// PlanPlace is where a plan's resources land, naming only what offers a choice.
+message PlanPlace {
+  // The project's name. Empty while there's only one project.
+  string project = 1;
+  // The environment's name. Empty while its project has only one.
+  string environment = 2;
 }
 
 // PlanNote is one thing a person should know before applying a plan.
 message PlanNote {
   // What it is about, for a surface that says it in its own words:
-  // "exposed_variable" for a Compose variable written in plain sight, and
-  // "volumes_stay" for a rollback that leaves a service's data as it is.
+  // "exposed_variable" for a Compose variable written in plain sight,
+  // "exposed_more" for a file that writes more of them than a plan lists,
+  // "updates_project" for a Compose file that changes a project already running
+  // services, "volumes_stay" for a rollback that leaves a service's data as it
+  // is, and "values_latest" for one that keeps the latest value of what the
+  // service uses. Another reason may come: its message says what it means.
   string reason = 1;
   // What it says, for people: the fact, what it means, and what to do.
   string message = 2;
   // The resource it is about.
   ResourceRef resource = 3;
   // The names it is about: the variable, then the field that holds it, for
-  // "exposed_variable"; the volumes and server paths for "volumes_stay".
+  // "exposed_variable"; the project, then the services it runs, for
+  // "updates_project"; the volumes and server paths for "volumes_stay"; the
+  // variables and secrets, by the names the service sees, for "values_latest".
   repeated string names = 4;
 }
 

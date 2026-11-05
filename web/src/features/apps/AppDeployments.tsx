@@ -359,8 +359,9 @@ function rollBackTarget(
   revisions: readonly ServiceRevision[],
 ): ServiceRevision | undefined {
   if (revisions[0]?.deployments.some((d) => d.state === DeploymentState.PENDING)) return undefined;
-  if (rev.number === latest) return revisions.find((r) => r.number < latest && canRollBackTo(r));
-  return canRollBackTo(rev) ? rev : undefined;
+  const recovering = revisions[0]?.deployments.some((d) => d.state === DeploymentState.FAILED) ?? false;
+  if (rev.number === latest) return revisions.find((r) => r.number < latest && canRollBackTo(r, recovering));
+  return canRollBackTo(rev, recovering) ? rev : undefined;
 }
 
 /** A revision's changes in a line: the first field and how many more. */
@@ -415,10 +416,27 @@ function RollBackFoot({
   const shown = revisionName(rev.number);
   if (!target) {
     if (rev.number === latest || !rev.matchesLatest) return null;
+    // The record matches, which says nothing of a container removed by hand. The
+    // plan asks the server, and refuses if there's nothing to do.
+    const moving = revisions[0]?.deployments.some((d) => d.state === DeploymentState.PENDING);
     return (
-      <span className="deploy-matches app-muted">
-        <Trans>{shown} already matches what runs</Trans>
-      </span>
+      <>
+        <span className="deploy-matches app-muted">
+          <Trans>
+            {shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right.
+          </Trans>
+        </span>
+        {moving ? null : (
+          <Button
+            icon="undo"
+            size={wide ? "lg" : "md"}
+            onClick={() => onRollBack(rev)}
+            className={cx(wide && "deploy-wide")}
+          >
+            <Trans>Roll back to {shown}</Trans>
+          </Button>
+        )}
+      </>
     );
   }
   const name = revisionName(target.number);

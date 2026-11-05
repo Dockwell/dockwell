@@ -240,7 +240,8 @@ type ContainerSummary struct {
 	Labels map[string]string `json:"Labels"`
 	// Created is when it was made, in seconds since 1970.
 	Created int64 `json:"Created"`
-	// Ports are the ports it publishes, and those it only exposes.
+	// Ports are the ports it publishes, and those it only exposes. Only a port
+	// it has bound on the server now has a PublicPort, so a stopped one holds none.
 	Ports []SummaryPort `json:"Ports"`
 	// State is where it stands: created, running, restarting, exited…
 	State string `json:"State"`
@@ -249,6 +250,7 @@ type ContainerSummary struct {
 // SummaryPort is a container's port as the engine lists it. PublicPort is
 // zero for one that isn't published.
 type SummaryPort struct {
+	IP         string `json:"IP"` // the server address, "0.0.0.0" or "::" for every one
 	PublicPort uint16 `json:"PublicPort"`
 	Type       string `json:"Type"` // tcp or udp
 }

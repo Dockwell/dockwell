@@ -39,7 +39,8 @@ type ImportComposeRequest struct {
 	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
 	// The environment, by name or ID. Leave it out while its project has
 	// only one. A project the plan brings to life starts with this one, or
-	// with production.
+	// with production. A file exported from here goes back to the environment
+	// it came from unless this names another of its project.
 	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
 	// The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
 	// up to 256 KiB. A path relative to the file needs directory, as it runs on
@@ -170,10 +171,12 @@ type ImportComposeResponse struct {
 	// The change, planned, with its plan.
 	Change *Change `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
 	// Where the file writes a variable's value in plain sight, which the plan's
-	// notes say too.
+	// notes say too. It lists 100 at most.
 	ExposedVariables []*ExposedVariable `protobuf:"bytes,2,rep,name=exposed_variables,json=exposedVariables,proto3" json:"exposed_variables,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// True when the file writes more than exposed_variables lists.
+	MoreExposed   bool `protobuf:"varint,3,opt,name=more_exposed,json=moreExposed,proto3" json:"more_exposed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ImportComposeResponse) Reset() {
@@ -218,6 +221,13 @@ func (x *ImportComposeResponse) GetExposedVariables() []*ExposedVariable {
 		return x.ExposedVariables
 	}
 	return nil
+}
+
+func (x *ImportComposeResponse) GetMoreExposed() bool {
+	if x != nil {
+		return x.MoreExposed
+	}
+	return false
 }
 
 // CheckComposeRequest is a Compose file to read.
@@ -297,12 +307,14 @@ type CheckComposeResponse struct {
 	// exported from an environment here, that environment's project. Empty when
 	// it names none, or names itself with a variable that has no value yet.
 	Name string `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
-	// Where the file writes a variable's value in plain sight, as far as the
-	// values given let it read. A variable with no value yet counts, so a form
-	// can say so before anyone types a secret.
+	// Where the file writes a variable's value in plain sight, whether or not one
+	// is given, so a form can say so before anyone types a secret. It lists 100
+	// at most.
 	ExposedVariables []*ExposedVariable `protobuf:"bytes,7,rep,name=exposed_variables,json=exposedVariables,proto3" json:"exposed_variables,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// True when the file writes more than exposed_variables lists.
+	MoreExposed   bool `protobuf:"varint,8,opt,name=more_exposed,json=moreExposed,proto3" json:"more_exposed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CheckComposeResponse) Reset() {
@@ -384,19 +396,28 @@ func (x *CheckComposeResponse) GetExposedVariables() []*ExposedVariable {
 	return nil
 }
 
+func (x *CheckComposeResponse) GetMoreExposed() bool {
+	if x != nil {
+		return x.MoreExposed
+	}
+	return false
+}
+
 // ExposedVariable is a variable whose value a Compose file writes where anyone
-// who can read the service sees it. Only a service's environment is blanked:
-// a command, entrypoint, label or health check isn't, as seeing them is useful
-// and they rarely hold a secret. One that has to stays hidden belongs in
-// environment, with $$NAME in the command for the container's shell to read.
+// who can read what it makes sees it. Only what the schema marks sensitive is
+// blanked, such as a service's environment values: a command, a label or a user
+// isn't, as seeing them is useful and they rarely hold a secret. It counts every
+// field but those docs/security/compose-variables.md lists as not recorded.
 type ExposedVariable struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The variable, such as "REDIS_PASSWORD".
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// The service whose spec holds its value, such as "shop".
-	Service string `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
-	// The field that holds it: "command", "entrypoint", "labels" or
-	// "healthcheck".
+	// The service, volume or network whose spec holds its value, by kind and
+	// name.
+	Resource *ResourceRef `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
+	// The field that holds it, as the file names it, such as "command", "labels",
+	// "user", "healthcheck" or "driver_opts". "environment" is a list entry's
+	// name, as a value there is blanked and a name isn't.
 	Field         string `protobuf:"bytes,3,opt,name=field,proto3" json:"field,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -439,11 +460,11 @@ func (x *ExposedVariable) GetName() string {
 	return ""
 }
 
-func (x *ExposedVariable) GetService() string {
+func (x *ExposedVariable) GetResource() *ResourceRef {
 	if x != nil {
-		return x.Service
+		return x.Resource
 	}
-	return ""
+	return nil
 }
 
 func (x *ExposedVariable) GetField() string {
@@ -709,16 +730,17 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\tdirectory\x18\t \x01(\tR\tdirectory\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8f\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb2\x01\n" +
 	"\x15ImportComposeResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\x12I\n" +
-	"\x11exposed_variables\x18\x02 \x03(\v2\x1c.dockwell.v1.ExposedVariableR\x10exposedVariables\"\xbc\x01\n" +
+	"\x11exposed_variables\x18\x02 \x03(\v2\x1c.dockwell.v1.ExposedVariableR\x10exposedVariables\x12!\n" +
+	"\fmore_exposed\x18\x03 \x01(\bR\vmoreExposed\"\xbc\x01\n" +
 	"\x13CheckComposeRequest\x12\x18\n" +
 	"\acompose\x18\x01 \x01(\tR\acompose\x12M\n" +
 	"\tvariables\x18\x02 \x03(\v2/.dockwell.v1.CheckComposeRequest.VariablesEntryR\tvariables\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd4\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf7\x02\n" +
 	"\x14CheckComposeResponse\x125\n" +
 	"\arefusal\x18\x01 \x01(\v2\x1b.dockwell.v1.ComposeRefusalR\arefusal\x12:\n" +
 	"\tvariables\x18\x02 \x03(\v2\x1c.dockwell.v1.ComposeVariableR\tvariables\x124\n" +
@@ -726,10 +748,11 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\avolumes\x18\x04 \x03(\tR\avolumes\x12\x1a\n" +
 	"\bnetworks\x18\x05 \x03(\tR\bnetworks\x12\x12\n" +
 	"\x04name\x18\x06 \x01(\tR\x04name\x12I\n" +
-	"\x11exposed_variables\x18\a \x03(\v2\x1c.dockwell.v1.ExposedVariableR\x10exposedVariables\"U\n" +
+	"\x11exposed_variables\x18\a \x03(\v2\x1c.dockwell.v1.ExposedVariableR\x10exposedVariables\x12!\n" +
+	"\fmore_exposed\x18\b \x01(\bR\vmoreExposed\"q\n" +
 	"\x0fExposedVariable\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
-	"\aservice\x18\x02 \x01(\tR\aservice\x12\x14\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x124\n" +
+	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x14\n" +
 	"\x05field\x18\x03 \x01(\tR\x05field\">\n" +
 	"\x0eComposeRefusal\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12\x12\n" +
@@ -777,6 +800,7 @@ var file_dockwell_v1_compose_proto_goTypes = []any{
 	nil,                           // 10: dockwell.v1.CheckComposeRequest.VariablesEntry
 	(*Change)(nil),                // 11: dockwell.v1.Change
 	(*ServiceInfo)(nil),           // 12: dockwell.v1.ServiceInfo
+	(*ResourceRef)(nil),           // 13: dockwell.v1.ResourceRef
 }
 var file_dockwell_v1_compose_proto_depIdxs = []int32{
 	9,  // 0: dockwell.v1.ImportComposeRequest.variables:type_name -> dockwell.v1.ImportComposeRequest.VariablesEntry
@@ -787,17 +811,18 @@ var file_dockwell_v1_compose_proto_depIdxs = []int32{
 	6,  // 5: dockwell.v1.CheckComposeResponse.variables:type_name -> dockwell.v1.ComposeVariable
 	12, // 6: dockwell.v1.CheckComposeResponse.services:type_name -> dockwell.v1.ServiceInfo
 	4,  // 7: dockwell.v1.CheckComposeResponse.exposed_variables:type_name -> dockwell.v1.ExposedVariable
-	0,  // 8: dockwell.v1.ComposeService.ImportCompose:input_type -> dockwell.v1.ImportComposeRequest
-	2,  // 9: dockwell.v1.ComposeService.CheckCompose:input_type -> dockwell.v1.CheckComposeRequest
-	7,  // 10: dockwell.v1.ComposeService.ExportCompose:input_type -> dockwell.v1.ExportComposeRequest
-	1,  // 11: dockwell.v1.ComposeService.ImportCompose:output_type -> dockwell.v1.ImportComposeResponse
-	3,  // 12: dockwell.v1.ComposeService.CheckCompose:output_type -> dockwell.v1.CheckComposeResponse
-	8,  // 13: dockwell.v1.ComposeService.ExportCompose:output_type -> dockwell.v1.ExportComposeResponse
-	11, // [11:14] is the sub-list for method output_type
-	8,  // [8:11] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	13, // 8: dockwell.v1.ExposedVariable.resource:type_name -> dockwell.v1.ResourceRef
+	0,  // 9: dockwell.v1.ComposeService.ImportCompose:input_type -> dockwell.v1.ImportComposeRequest
+	2,  // 10: dockwell.v1.ComposeService.CheckCompose:input_type -> dockwell.v1.CheckComposeRequest
+	7,  // 11: dockwell.v1.ComposeService.ExportCompose:input_type -> dockwell.v1.ExportComposeRequest
+	1,  // 12: dockwell.v1.ComposeService.ImportCompose:output_type -> dockwell.v1.ImportComposeResponse
+	3,  // 13: dockwell.v1.ComposeService.CheckCompose:output_type -> dockwell.v1.CheckComposeResponse
+	8,  // 14: dockwell.v1.ComposeService.ExportCompose:output_type -> dockwell.v1.ExportComposeResponse
+	12, // [12:15] is the sub-list for method output_type
+	9,  // [9:12] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_compose_proto_init() }

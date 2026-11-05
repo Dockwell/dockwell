@@ -238,10 +238,13 @@ func TestExportRoundTrips(t *testing.T) {
 		t.Errorf("export:\n%s", text)
 	}
 
-	// A person reads this file: what Dockwell keeps for itself isn't in it, and
-	// what looks like a mistake says why it isn't.
-	if strings.Contains(text, container.LabelSet) || strings.Contains(text, "dev.dockwell") {
-		t.Errorf("the export carries Dockwell's own label:\n%s", text)
+	// What docker compose makes from this has to read back as what Dockwell
+	// made, and what looks like a mistake in it says why it isn't.
+	if !strings.Contains(text, container.LabelSet+": ") {
+		t.Errorf("the export has no %s label, so what compose makes reads as drift:\n%s", container.LabelSet, text)
+	}
+	if !strings.Contains(text, "# A "+container.LabelSet+" label is there on purpose") {
+		t.Errorf("the export doesn't say what its own label is for:\n%s", text)
 	}
 	if !strings.Contains(text, "NAME: null is there on purpose") {
 		t.Errorf("the export doesn't explain a variable with no value:\n%s", text)
@@ -274,5 +277,23 @@ func TestExportRoundTrips(t *testing.T) {
 		if !proto.Equal(back.Volumes[i].Spec, s.Volumes[i].Spec) {
 			t.Errorf("volume %s read back as %v, want %v", back.Volumes[i].Name, back.Volumes[i].Spec, s.Volumes[i].Spec)
 		}
+	}
+}
+
+// A network's options read back as Docker's own without the label, so what
+// compose makes from an export would refuse a re-import of the unchanged file.
+func TestAnExportKeepsANetworksOwnLabel(t *testing.T) {
+	out, err := compose.Export("env_x", &compose.Stack{Networks: []compose.Item[*resourcev1.Network]{{
+		Name: "back", Spec: &resourcev1.Network{Driver: "bridge", Options: map[string]string{"com.docker.network.driver.mtu": "1400"}},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(out.File)
+	if !strings.Contains(text, "option:com.docker.network.driver.mtu") {
+		t.Errorf("the export's network has no label for its option:\n%s", text)
+	}
+	if !strings.Contains(text, "# A "+container.LabelSet+" label is there on purpose") {
+		t.Errorf("the export doesn't say what the label is for:\n%s", text)
 	}
 }

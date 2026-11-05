@@ -698,7 +698,15 @@ describe("New app, from a Compose file", () => {
         checkCompose: () =>
           create(CheckComposeResponseSchema, {
             variables: [{ name: "REDIS_PASSWORD", required: true }],
-            exposedVariables: [{ name: "REDIS_PASSWORD", service: "shop", field: "command" }],
+            exposedVariables: [
+              { name: "REDIS_PASSWORD", resource: { kind: "service", name: "shop" }, field: "command" },
+              { name: "API_KEY", resource: { kind: "service", name: "shop" }, field: "command" },
+              { name: "OWNER", resource: { kind: "service", name: "shop" }, field: "labels" },
+              { name: "PROBE", resource: { kind: "service", name: "shop" }, field: "healthcheck" },
+              { name: "PREFIX", resource: { kind: "service", name: "shop" }, field: "environment" },
+              { name: "MTU", resource: { kind: "network", name: "back" }, field: "driver_opts" },
+            ],
+            moreExposed: true,
             refusal: { message: "the Compose file uses REDIS_PASSWORD, with no value" },
           }),
       }),
@@ -707,9 +715,21 @@ describe("New app, from a Compose file", () => {
     await user.click(within(sheet).getByLabelText("Compose file"));
     // biome-ignore lint/suspicious/noTemplateCurlyInString: a Compose variable, as the file has it
     await user.paste('services:\n  shop:\n    image: a\n    command: ["${REDIS_PASSWORD}"]\n');
-    const note = await within(sheet).findByText(/so anyone who can read this app can see its value/);
-    expect(note).toHaveTextContent("REDIS_PASSWORD is written in shop's command");
-    expect(note).toHaveTextContent("pass it in environment, and use $$REDIS_PASSWORD");
+    // Two in one field say so once, and how to hide one depends on the field.
+    const command = await within(sheet).findByText(/shop's command/);
+    expect(command).toHaveTextContent(
+      "Anyone who can read shop's command can see the value of REDIS_PASSWORD, API_KEY.",
+    );
+    expect(command).toHaveTextContent("pass it in environment for the app to read, or run the command through a shell");
+    expect(command).toHaveTextContent("sh -c, with $$NAME in it");
+    const labels = within(sheet).getByText(/shop's labels/);
+    expect(labels).toHaveTextContent("It can't be hidden there, so don't pass a secret there.");
+    expect(labels).not.toHaveTextContent("$$");
+    expect(within(sheet).getByText(/shop's health check/)).toHaveTextContent("write the test as CMD-SHELL with $$NAME");
+    const names = within(sheet).getByText(/shop's environment variable names/);
+    expect(names).toHaveTextContent("Only a variable's value is hidden, so don't pass a secret there.");
+    expect(within(sheet).getByText(/the network back's driver options/)).toHaveTextContent("MTU");
+    expect(within(sheet).getByText(/more variables in plain sight than these/)).toBeVisible();
     // No false promise that a value isn't saved.
     expect(sheet).not.toHaveTextContent("aren't saved");
     await expectAccessible(document.body);

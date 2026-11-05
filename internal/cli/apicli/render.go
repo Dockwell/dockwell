@@ -415,12 +415,29 @@ func sentence(s string) string {
 	return s
 }
 
+// placeWords says where a plan lands, naming what offers a choice.
+func placeWords(p *dockwellv1.PlanPlace) string {
+	switch {
+	case p.GetProject() != "" && p.GetEnvironment() != "":
+		return fmt.Sprintf("In project %s, environment %s.", p.GetProject(), p.GetEnvironment())
+	case p.GetProject() != "":
+		return fmt.Sprintf("In project %s.", p.GetProject())
+	}
+	return fmt.Sprintf("In environment %s.", p.GetEnvironment())
+}
+
 // PlanView writes a plan as the panel's plan sheet shows it: what happens
 // to each resource that runs on no server, then each server's steps with
 // their downtime, data loss and warnings, then the counts.
 func PlanView(w io.Writer, p *dockwellv1.Plan) {
 	if p == nil {
 		return
+	}
+	for _, place := range p.GetPlaces() {
+		fmt.Fprintln(w, placeWords(place))
+	}
+	if len(p.GetPlaces()) > 0 {
+		fmt.Fprintln(w)
 	}
 	onServers := map[string]bool{}
 	for _, s := range p.GetServers() {

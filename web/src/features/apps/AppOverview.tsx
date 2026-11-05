@@ -45,12 +45,12 @@ import {
   companions,
   deployedAt,
   environmentOf,
-  envNames,
   imageOf,
   isMoving,
   nameOf,
   revisionName,
   tidyMessage,
+  valuesOf,
 } from "./app";
 import { ExportSheet } from "./ExportSheet";
 import { ImageName, WholeImage } from "./ImageName";
@@ -180,8 +180,11 @@ function AppNotice() {
       );
     case "unplaced":
       return (
-        <Callout tone="warning" title={t`No server runs ${name}`}>
-          <Trans>Each server it ran on has left the fleet. Deploy it to run it again.</Trans>
+        <Callout tone="warning" title={t`${name} has no server in the fleet`}>
+          <Trans>
+            Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers
+            may still be running on them. Deploy it to run it on a server in the fleet.
+          </Trans>
         </Callout>
       );
   }
@@ -392,7 +395,7 @@ function RecentDeployments() {
   const moving = isMoving(state);
   const shown = (revisions ?? []).slice(0, RECENT);
   // The newest revision that would run, and that differs from what runs now.
-  const back = (revisions ?? []).slice(1).find(canRollBackTo);
+  const back = (revisions ?? []).slice(1).find((r) => canRollBackTo(r, state.kind === "failed"));
   const backTo = back ? revisionName(back.number) : "";
   const events: TimelineEvent[] = shown.map((rev, i) => {
     const change = rev.change;
@@ -410,8 +413,9 @@ function RecentDeployments() {
       actor: who.name(change),
       time: time.ago(when, now),
       datetime: when.toISOString(),
-      // Nothing goes back while it is still moving.
-      undoable: i === 0 && back !== undefined && !failed && !moving,
+      // Nothing goes back while it is still moving. After a failure, going back
+      // is how someone recovers.
+      undoable: i === 0 && back !== undefined && !moving,
       undoLabel: t`Roll back to ${backTo}`,
     };
   });
@@ -470,8 +474,9 @@ function ConfigurationPanel() {
   const words = useAppWords();
   const [exporting, setExporting] = useState(false);
   const app = appOf(service);
-  const names = envNames(app);
-  const count = names.length;
+  const values = valuesOf(service);
+  const secrets = values.filter((v) => v.kind === "secret").length;
+  const plain = values.length - secrets;
   const networks = app?.networks ?? [];
   const health = app?.healthcheck?.test ?? [];
   return (
@@ -528,9 +533,14 @@ function ConfigurationPanel() {
         ) : null}
         <dt>{t`Environment`}</dt>
         <dd>
-          {count > 0 ? (
+          {values.length > 0 ? (
             <Link to="/apps/$serviceId/environment" params={{ serviceId: service.id }}>
-              {plural(count, { one: "# variable", other: "# variables" })}
+              {[
+                plain > 0 ? plural(plain, { one: "# variable", other: "# variables" }) : "",
+                secrets > 0 ? plural(secrets, { one: "# secret", other: "# secrets" }) : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </Link>
           ) : (
             <span className="app-muted">{t`None set`}</span>

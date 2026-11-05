@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	if err := compose.RunGuard(os.Stdin); err != nil {
+	if err := compose.RunGuard(os.Stdin, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

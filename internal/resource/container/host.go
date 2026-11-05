@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/netip"
 	"os"
 	"path"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -425,4 +427,139 @@ func resolve(p string) (string, error) {
 		rest = append(strings.Split(to, "/"), rest...)
 	}
 	return at, nil
+}
+
+// Planned is what a plan wants of a container on this server, for checking what
+// runs beside it. A nil Spec takes it away.
+type Planned struct {
+	// Name is its container's name.
+	Name string
+	// Words name it for people, such as "the service web".
+	Words string
+	Spec  *resourcev1.Container
+}
+
+// portChecker is a Runtime that can see what its server has published.
+type portChecker interface {
+	CheckPorts(ctx context.Context, t Target, spec *resourcev1.Container, planned []Planned) error
+}
+
+// CheckPortsAt refuses a port another container on this server holds, or another
+// in the plan wants. Applying would otherwise stop what runs, fail to start it,
+// and roll back, for a plan that could have said so.
+func (d *Driver) CheckPortsAt(ctx context.Context, t Target, c *resourcev1.Container, planned []Planned) error {
+	for _, other := range planned {
+		if other.Name == t.Name || other.Spec == nil {
+			continue
+		}
+		for _, p := range c.GetPorts() {
+			if publishes(other.Spec, p) {
+				return fmt.Errorf("%s is wanted by %s too, in this same change, and only one can publish it. Choose another port on the server for one of them", portWords(p), other.Words)
+			}
+		}
+	}
+	if pc, ok := d.Runtime.(portChecker); ok {
+		return pc.CheckPorts(ctx, t, c, planned)
+	}
+	return nil
+}
+
+// CheckPlan refuses a port something else on this server holds, as a container
+// run by hand is about to start with it.
+func (d *Driver) CheckPlan(ctx context.Context, want resource.Desired, all []resource.Desired) error {
+	var planned []Planned
+	for _, o := range all {
+		if o.Ref.Kind != Kind {
+			continue
+		}
+		c, _ := o.Spec.(*resourcev1.Container)
+		planned = append(planned, Planned{Name: HostTarget(o.Ref).Name, Words: "the container " + o.Ref.Name, Spec: c})
+	}
+	return d.CheckPortsAt(ctx, HostTarget(want.Ref), want.Spec.(*resourcev1.Container), planned)
+}
+
+// publishes reports whether a container publishes something that can't share a
+// server with p.
+func publishes(c *resourcev1.Container, p *resourcev1.PortMapping) bool {
+	return slices.ContainsFunc(c.GetPorts(), func(o *resourcev1.PortMapping) bool {
+		return o.GetHostPort() == p.GetHostPort() && protocolName(o.GetProtocol()) == protocolName(p.GetProtocol()) && overlap(o.GetHostIp(), p.GetHostIp())
+	})
+}
+
+// portWords names a port on the server, with its address when it has only one.
+func portWords(p *resourcev1.PortMapping) string {
+	words := fmt.Sprintf("port %d", p.GetHostPort())
+	if p.GetProtocol() == resourcev1.Protocol_PROTOCOL_UDP {
+		words += "/udp"
+	}
+	if p.GetHostIp() != "" {
+		words += " on " + addressWords(p.GetHostIp())
+	}
+	return words
+}
+
+// CheckPorts refuses a port that something this server runs has bound, by what
+// it is called there: what Docker reports, so a container Dockwell didn't make
+// counts, and a stopped one, which holds nothing, doesn't. What the plan itself
+// takes away or moves off the port doesn't count either. A process on the server
+// that isn't a container isn't seen: starting then fails, as it always did.
+func (d *Docker) CheckPorts(ctx context.Context, t Target, spec *resourcev1.Container, planned []Planned) error {
+	if len(spec.GetPorts()) == 0 {
+		return nil
+	}
+	list, err := d.Client.ListContainers(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("can't list what this server runs, to check its ports are free: %w", err)
+	}
+	for i := range list {
+		c := &list[i]
+		name := ""
+		if len(c.Names) > 0 {
+			name = strings.TrimPrefix(c.Names[0], "/")
+		}
+		if name == t.Name || c.Labels[docker.LabelProject] == t.Project && c.Labels[docker.LabelService] == t.Service {
+			continue // what this is about to replace
+		}
+		for _, p := range spec.GetPorts() {
+			if !holds(c, p) || freedBy(planned, name, p) {
+				continue
+			}
+			return fmt.Errorf("%s is in use by %s, so %s can't publish it. Choose another port on the server, or free that one first",
+				portWords(p), holderWords(t, c, name), t.Service)
+		}
+	}
+	return nil
+}
+
+// holds reports whether a listed container has bound what p publishes.
+func holds(c *docker.ContainerSummary, p *resourcev1.PortMapping) bool {
+	return slices.ContainsFunc(c.Ports, func(held docker.SummaryPort) bool {
+		if uint32(held.PublicPort) != p.GetHostPort() || held.Type != protocolName(p.GetProtocol()) {
+			return false
+		}
+		// The engine's word for an address isn't checked as a spec's is.
+		if _, err := netip.ParseAddr(held.IP); err != nil {
+			return true
+		}
+		return overlap(p.GetHostIp(), held.IP)
+	})
+}
+
+// freedBy reports a holder the plan takes away, or moves off the port.
+func freedBy(planned []Planned, name string, p *resourcev1.PortMapping) bool {
+	i := slices.IndexFunc(planned, func(o Planned) bool { return o.Name == name })
+	return i >= 0 && (planned[i].Spec == nil || !publishes(planned[i].Spec, p))
+}
+
+// holderWords names what holds a port, as far as this server can tell: a Compose
+// project here is an environment's or a server's ID, which says nothing to people.
+func holderWords(t Target, c *docker.ContainerSummary, name string) string {
+	project, service := c.Labels[docker.LabelProject], c.Labels[docker.LabelService]
+	switch {
+	case service != "" && project == t.Project:
+		return "the service " + service
+	case service != "" && (strings.HasPrefix(project, id.Environment+"_") || strings.HasPrefix(project, id.Server+"_")):
+		return "the service " + service + ", in another environment"
+	}
+	return "the container " + name + ", which Dockwell didn't make"
 }

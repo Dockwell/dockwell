@@ -6,8 +6,7 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
-import type { Change } from "./change_pb";
+import type { Change, ResourceRef } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
 import type { ServiceInfo } from "./service_pb";
@@ -19,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/compose.proto.
  */
 export const file_dockwell_v1_compose: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9jb21wb3NlLnByb3RvEgtkb2Nrd2VsbC52MSL+AQoUSW1wb3J0Q29tcG9zZVJlcXVlc3QSDwoHc3VtbWFyeRgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEg8KB2NvbXBvc2UYBCABKAkSQwoJdmFyaWFibGVzGAUgAygLMjAuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlcXVlc3QuVmFyaWFibGVzRW50cnkSDwoHc2VydmVycxgGIAMoCRIWCg5yZW1vdmVfb3JwaGFucxgHIAEoCBowCg5WYXJpYWJsZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBInUKFUltcG9ydENvbXBvc2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USNwoRZXhwb3NlZF92YXJpYWJsZXMYAiADKAsyHC5kb2Nrd2VsbC52MS5FeHBvc2VkVmFyaWFibGUinAEKE0NoZWNrQ29tcG9zZVJlcXVlc3QSDwoHY29tcG9zZRgBIAEoCRJCCgl2YXJpYWJsZXMYAiADKAsyLy5kb2Nrd2VsbC52MS5DaGVja0NvbXBvc2VSZXF1ZXN0LlZhcmlhYmxlc0VudHJ5GjAKDlZhcmlhYmxlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiiwIKFENoZWNrQ29tcG9zZVJlc3BvbnNlEiwKB3JlZnVzYWwYASABKAsyGy5kb2Nrd2VsbC52MS5Db21wb3NlUmVmdXNhbBIvCgl2YXJpYWJsZXMYAiADKAsyHC5kb2Nrd2VsbC52MS5Db21wb3NlVmFyaWFibGUSKgoIc2VydmljZXMYAyADKAsyGC5kb2Nrd2VsbC52MS5TZXJ2aWNlSW5mbxIPCgd2b2x1bWVzGAQgAygJEhAKCG5ldHdvcmtzGAUgAygJEgwKBG5hbWUYBiABKAkSNwoRZXhwb3NlZF92YXJpYWJsZXMYByADKAsyHC5kb2Nrd2VsbC52MS5FeHBvc2VkVmFyaWFibGUiPwoPRXhwb3NlZFZhcmlhYmxlEgwKBG5hbWUYASABKAkSDwoHc2VydmljZRgCIAEoCRINCgVmaWVsZBgDIAEoCSIvCg5Db21wb3NlUmVmdXNhbBIPCgdtZXNzYWdlGAEgASgJEgwKBGxpbmUYAiABKAUiMQoPQ29tcG9zZVZhcmlhYmxlEgwKBG5hbWUYASABKAkSEAoIcmVxdWlyZWQYAiABKAgiTQoURXhwb3J0Q29tcG9zZVJlcXVlc3QSDwoHcHJvamVjdBgBIAEoCRITCgtlbnZpcm9ubWVudBgCIAEoCRIPCgdzZXJ2aWNlGAMgASgJIjkKFUV4cG9ydENvbXBvc2VSZXNwb25zZRIPCgdjb21wb3NlGAEgASgJEg8KB29taXR0ZWQYAiADKAky9gIKDkNvbXBvc2VTZXJ2aWNlEnkKDUltcG9ydENvbXBvc2USIS5kb2Nrd2VsbC52MS5JbXBvcnRDb21wb3NlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkltcG9ydENvbXBvc2VSZXNwb25zZSIhoLsYAoLT5JMCFzoBKiISL3YxL2NvbXBvc2U6aW1wb3J0EnUKDENoZWNrQ29tcG9zZRIgLmRvY2t3ZWxsLnYxLkNoZWNrQ29tcG9zZVJlcXVlc3QaIS5kb2Nrd2VsbC52MS5DaGVja0NvbXBvc2VSZXNwb25zZSIgoLsYAoLT5JMCFjoBKiIRL3YxL2NvbXBvc2U6Y2hlY2sScgoNRXhwb3J0Q29tcG9zZRIhLmRvY2t3ZWxsLnYxLkV4cG9ydENvbXBvc2VSZXF1ZXN0GiIuZG9ja3dlbGwudjEuRXhwb3J0Q29tcG9zZVJlc3BvbnNlIhqQAgGguxgBgtPkkwINEgsvdjEvY29tcG9zZUKlAQoPY29tLmRvY2t3ZWxsLnYxQgxDb21wb3NlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_options, file_dockwell_v1_service, file_google_api_annotations]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9jb21wb3NlLnByb3RvEgtkb2Nrd2VsbC52MSL+AQoUSW1wb3J0Q29tcG9zZVJlcXVlc3QSDwoHc3VtbWFyeRgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEg8KB2NvbXBvc2UYBCABKAkSQwoJdmFyaWFibGVzGAUgAygLMjAuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlcXVlc3QuVmFyaWFibGVzRW50cnkSDwoHc2VydmVycxgGIAMoCRIWCg5yZW1vdmVfb3JwaGFucxgHIAEoCBowCg5WYXJpYWJsZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIosBChVJbXBvcnRDb21wb3NlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlEjcKEWV4cG9zZWRfdmFyaWFibGVzGAIgAygLMhwuZG9ja3dlbGwudjEuRXhwb3NlZFZhcmlhYmxlEhQKDG1vcmVfZXhwb3NlZBgDIAEoCCKcAQoTQ2hlY2tDb21wb3NlUmVxdWVzdBIPCgdjb21wb3NlGAEgASgJEkIKCXZhcmlhYmxlcxgCIAMoCzIvLmRvY2t3ZWxsLnYxLkNoZWNrQ29tcG9zZVJlcXVlc3QuVmFyaWFibGVzRW50cnkaMAoOVmFyaWFibGVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKhAgoUQ2hlY2tDb21wb3NlUmVzcG9uc2USLAoHcmVmdXNhbBgBIAEoCzIbLmRvY2t3ZWxsLnYxLkNvbXBvc2VSZWZ1c2FsEi8KCXZhcmlhYmxlcxgCIAMoCzIcLmRvY2t3ZWxsLnYxLkNvbXBvc2VWYXJpYWJsZRIqCghzZXJ2aWNlcxgDIAMoCzIYLmRvY2t3ZWxsLnYxLlNlcnZpY2VJbmZvEg8KB3ZvbHVtZXMYBCADKAkSEAoIbmV0d29ya3MYBSADKAkSDAoEbmFtZRgGIAEoCRI3ChFleHBvc2VkX3ZhcmlhYmxlcxgHIAMoCzIcLmRvY2t3ZWxsLnYxLkV4cG9zZWRWYXJpYWJsZRIUCgxtb3JlX2V4cG9zZWQYCCABKAgiWgoPRXhwb3NlZFZhcmlhYmxlEgwKBG5hbWUYASABKAkSKgoIcmVzb3VyY2UYAiABKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhINCgVmaWVsZBgDIAEoCSIvCg5Db21wb3NlUmVmdXNhbBIPCgdtZXNzYWdlGAEgASgJEgwKBGxpbmUYAiABKAUiMQoPQ29tcG9zZVZhcmlhYmxlEgwKBG5hbWUYASABKAkSEAoIcmVxdWlyZWQYAiABKAgiTQoURXhwb3J0Q29tcG9zZVJlcXVlc3QSDwoHcHJvamVjdBgBIAEoCRITCgtlbnZpcm9ubWVudBgCIAEoCRIPCgdzZXJ2aWNlGAMgASgJIjkKFUV4cG9ydENvbXBvc2VSZXNwb25zZRIPCgdjb21wb3NlGAEgASgJEg8KB29taXR0ZWQYAiADKAky9gIKDkNvbXBvc2VTZXJ2aWNlEnkKDUltcG9ydENvbXBvc2USIS5kb2Nrd2VsbC52MS5JbXBvcnRDb21wb3NlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkltcG9ydENvbXBvc2VSZXNwb25zZSIhoLsYAoLT5JMCFzoBKiISL3YxL2NvbXBvc2U6aW1wb3J0EnUKDENoZWNrQ29tcG9zZRIgLmRvY2t3ZWxsLnYxLkNoZWNrQ29tcG9zZVJlcXVlc3QaIS5kb2Nrd2VsbC52MS5DaGVja0NvbXBvc2VSZXNwb25zZSIgoLsYAoLT5JMCFjoBKiIRL3YxL2NvbXBvc2U6Y2hlY2sScgoNRXhwb3J0Q29tcG9zZRIhLmRvY2t3ZWxsLnYxLkV4cG9ydENvbXBvc2VSZXF1ZXN0GiIuZG9ja3dlbGwudjEuRXhwb3J0Q29tcG9zZVJlc3BvbnNlIhqQAgGguxgBgtPkkwINEgsvdjEvY29tcG9zZUKlAQoPY29tLmRvY2t3ZWxsLnYxQgxDb21wb3NlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_options, file_dockwell_v1_service, file_google_api_annotations]);
 
 /**
  * ImportComposeRequest is a Compose file to plan into a project.
@@ -49,7 +48,8 @@ export type ImportComposeRequest = Message<"dockwell.v1.ImportComposeRequest"> &
   /**
    * The environment, by name or ID. Leave it out while its project has
    * only one. A project the plan brings to life starts with this one, or
-   * with production.
+   * with production. A file exported from here goes back to the environment
+   * it came from unless this names another of its project.
    *
    * @generated from field: string environment = 3;
    */
@@ -134,11 +134,18 @@ export type ImportComposeResponse = Message<"dockwell.v1.ImportComposeResponse">
 
   /**
    * Where the file writes a variable's value in plain sight, which the plan's
-   * notes say too.
+   * notes say too. It lists 100 at most.
    *
    * @generated from field: repeated dockwell.v1.ExposedVariable exposed_variables = 2;
    */
   exposedVariables: ExposedVariable[];
+
+  /**
+   * True when the file writes more than exposed_variables lists.
+   *
+   * @generated from field: bool more_exposed = 3;
+   */
+  moreExposed: boolean;
 };
 
 /**
@@ -232,13 +239,20 @@ export type CheckComposeResponse = Message<"dockwell.v1.CheckComposeResponse"> &
   name: string;
 
   /**
-   * Where the file writes a variable's value in plain sight, as far as the
-   * values given let it read. A variable with no value yet counts, so a form
-   * can say so before anyone types a secret.
+   * Where the file writes a variable's value in plain sight, whether or not one
+   * is given, so a form can say so before anyone types a secret. It lists 100
+   * at most.
    *
    * @generated from field: repeated dockwell.v1.ExposedVariable exposed_variables = 7;
    */
   exposedVariables: ExposedVariable[];
+
+  /**
+   * True when the file writes more than exposed_variables lists.
+   *
+   * @generated from field: bool more_exposed = 8;
+   */
+  moreExposed: boolean;
 };
 
 /**
@@ -250,10 +264,10 @@ export const CheckComposeResponseSchema: GenMessage<CheckComposeResponse> = /*@_
 
 /**
  * ExposedVariable is a variable whose value a Compose file writes where anyone
- * who can read the service sees it. Only a service's environment is blanked:
- * a command, entrypoint, label or health check isn't, as seeing them is useful
- * and they rarely hold a secret. One that has to stays hidden belongs in
- * environment, with $$NAME in the command for the container's shell to read.
+ * who can read what it makes sees it. Only what the schema marks sensitive is
+ * blanked, such as a service's environment values: a command, a label or a user
+ * isn't, as seeing them is useful and they rarely hold a secret. It counts every
+ * field but those docs/security/compose-variables.md lists as not recorded.
  *
  * @generated from message dockwell.v1.ExposedVariable
  */
@@ -266,15 +280,17 @@ export type ExposedVariable = Message<"dockwell.v1.ExposedVariable"> & {
   name: string;
 
   /**
-   * The service whose spec holds its value, such as "shop".
+   * The service, volume or network whose spec holds its value, by kind and
+   * name.
    *
-   * @generated from field: string service = 2;
+   * @generated from field: dockwell.v1.ResourceRef resource = 2;
    */
-  service: string;
+  resource?: ResourceRef | undefined;
 
   /**
-   * The field that holds it: "command", "entrypoint", "labels" or
-   * "healthcheck".
+   * The field that holds it, as the file names it, such as "command", "labels",
+   * "user", "healthcheck" or "driver_opts". "environment" is a list entry's
+   * name, as a value there is blanked and a name isn't.
    *
    * @generated from field: string field = 3;
    */

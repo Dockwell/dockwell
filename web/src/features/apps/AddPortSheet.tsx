@@ -10,7 +10,7 @@ import { type FormEvent, useMemo, useRef, useState } from "react";
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { nameOf } from "./app";
+import { nameOf, portRefusal } from "./app";
 import { validPort } from "./form";
 
 /**
@@ -59,7 +59,9 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
         })
       ).change;
     } catch (err) {
-      if (reasonOf(err) === "invalid") setHostError(sentence(err));
+      const taken = reasonOf(err) === "agent_failed" ? portRefusal(sentence(err)) : undefined;
+      if (taken) setHostError(taken);
+      else if (reasonOf(err) === "invalid") setHostError(sentence(err));
       else setFailure(sentence(err));
       setBusy(false);
       return;

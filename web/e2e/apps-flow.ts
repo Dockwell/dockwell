@@ -265,7 +265,7 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   await page.getByRole("row", { name: /r5/ }).getByText("Failed").waitFor();
   await page.getByRole("row", { name: /r6/ }).getByText("Rolled back after a failed deploy").waitFor();
   await page.getByRole("row", { name: /r4/ }).click();
-  await page.getByText("r4 already matches what runs").waitFor();
+  await page.getByText(/^r4 matches the latest revision\./).waitFor();
 
   step("apps: nothing a row says moves the list's columns");
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Apps" }).click();

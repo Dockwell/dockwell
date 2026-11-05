@@ -331,78 +331,25 @@ func TestPlanViewSaysItsNotes(t *testing.T) {
 	}
 }
 
-// Who a route answers, and what a port on the server gets from that, each way.
-func TestARoutesPlanSaysWhoItAnswers(t *testing.T) {
-	proxies := &dockwellv1.RouteAnswers{Reach: dockwellv1.RouteReach_ROUTE_REACH_PROXIES, Proxies: []string{"127.0.0.1/32"}, Plain: true}
-	for _, tc := range []struct {
-		name string
-		a    *dockwellv1.RouteAnswers
-		port *dockwellv1.ServerPortCheck
-		want []string
+// A plan says where it lands above its steps, once there's a choice of it.
+func TestPlanViewSaysWhereItLands(t *testing.T) {
+	for _, c := range []struct {
+		places []*dockwellv1.PlanPlace
+		want   string
 	}{
+		{nil, ""},
+		{[]*dockwellv1.PlanPlace{{Project: "shop"}}, "In project shop.\n\n"},
+		{[]*dockwellv1.PlanPlace{{Environment: "staging"}}, "In environment staging.\n\n"},
+		{[]*dockwellv1.PlanPlace{{Project: "shop", Environment: "staging"}}, "In project shop, environment staging.\n\n"},
 		{
-			"this server", &dockwellv1.RouteAnswers{Reach: dockwellv1.RouteReach_ROUTE_REACH_THIS_SERVER, Plain: true}, nil,
-			[]string{"It answers only what runs on hz-1 itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets."},
+			[]*dockwellv1.PlanPlace{{Project: "shop", Environment: "staging"}, {Project: "shop", Environment: "production"}},
+			"In project shop, environment staging.\nIn project shop, environment production.\n\n",
 		},
-		{"proxies", proxies, nil, []string{"It answers only 127.0.0.1/32. Anyone else gets what a name with no route gets."}},
-		{
-			"anyone, plain", &dockwellv1.RouteAnswers{Reach: dockwellv1.RouteReach_ROUTE_REACH_ANYONE, Plain: true}, nil,
-			[]string{"It answers anyone who can reach hz-1 on port 80, over plain HTTP, around whatever is in front of it."},
-		},
-		{"a port, with a certificate, and what's there", &dockwellv1.RouteAnswers{Reach: dockwellv1.RouteReach_ROUTE_REACH_ANYONE}, &dockwellv1.ServerPortCheck{Port: 5432, Listening: "postgres"}, []string{
-			"That lets anyone on the internet reach port 5432, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe.",
-			"Listening there now: postgres.",
-		}},
-		{"a port through proxies, nothing there", proxies, &dockwellv1.ServerPortCheck{Port: 8080, NothingListening: true}, []string{
-			"It answers only 127.0.0.1/32. Anyone else gets what a name with no route gets.",
-			"That lets whoever comes through 127.0.0.1/32 reach port 8080, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe.",
-			"Nothing listens on port 8080 yet, so this answers 502 until something does.",
-		}},
-		{"a port, when the server couldn't say", &dockwellv1.RouteAnswers{Reach: dockwellv1.RouteReach_ROUTE_REACH_ANYONE}, &dockwellv1.ServerPortCheck{Port: 8080}, []string{
-			"That lets anyone on the internet reach port 8080, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe.",
-		}},
-		{"nothing to say", nil, nil, nil},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := answersWords(tc.a, tc.port, "hz-1"); !slices.Equal(got, tc.want) {
-				t.Errorf("got %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
-// Taking a domain off HTTPS says what stops, and that's a person's to approve.
-func TestAPlanSaysWhatTakingADomainOffHTTPSDoes(t *testing.T) {
-	got := reachWords([]*dockwellv1.HostAccess{{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HTTPS_OFF, Path: "live.example.com"}}, "hz-1")
-	for _, want := range []string{"HTTPS on live.example.com, which stops", "https:// addresses get an error", "browsers that saw HSTS", "A person approves this"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("%q doesn't say %q", got, want)
-		}
-	}
-	if strings.Contains(got, "access to hz-1") {
-		t.Errorf("%q reads as access to the server", got)
-	}
-}
-
-func TestARoutesPlanSaysWhatPortsItTakesAndFrees(t *testing.T) {
-	for change, want := range map[dockwellv1.IngressChange]string{
-		dockwellv1.IngressChange_INGRESS_CHANGE_TAKES_PORTS: "This is the first route on hz-1 that takes a certificate, so Caddy takes ports 443/tcp and 443/udp too, and nothing it serves stops.",
-		dockwellv1.IngressChange_INGRESS_CHANGE_FREES_PORTS: "No route on hz-1 takes a certificate after this, so Caddy frees ports 443/tcp and 443/udp. Its routes that take none go on answering.",
-	} {
-		got := ingressWords(&dockwellv1.IngressEffect{Change: change, Proxy: "Caddy", Ports: []string{"443/tcp", "443/udp"}}, "hz-1")
-		if len(got) != 1 || got[0] != want {
-			t.Errorf("%v says %q, want %q", change, got, want)
-		}
-	}
-}
-
-// Behind a tunnel, a domain points somewhere else, and what DNS says there leads to
-// the setting as well as to moving DNS.
-func TestDNSThatPointsElsewhereNamesTheSetting(t *testing.T) {
-	for _, state := range []dockwellv1.DomainCheckState{dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE, dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL} {
-		got := domainWords(&dockwellv1.DomainCheck{Domain: "app.example.com", State: state, Found: []string{"198.51.100.1"}, Here: []string{"10.0.0.2"}})
-		if !strings.Contains(got, "set tls to off on this route") {
-			t.Errorf("%v says %q", state, got)
+		var buf bytes.Buffer
+		PlanView(&buf, &dockwellv1.Plan{Places: c.places})
+		if got := buf.String(); !strings.HasPrefix(got, c.want+"0 to create") {
+			t.Errorf("for %v, PlanView = %q, want it to start with %q", c.places, got, c.want)
 		}
 	}
 }

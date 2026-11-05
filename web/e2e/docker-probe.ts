@@ -20,21 +20,25 @@ export interface Running {
   running: boolean;
 }
 
-function get<T>(socket: string, path: string): Promise<T> {
+function call(socket: string, method: string, path: string): Promise<string> {
   return new Promise((done, failed) => {
-    const req = request({ socketPath: socket, path, method: "GET" }, (res) => {
+    const req = request({ socketPath: socket, path, method }, (res) => {
       let body = "";
       res.on("data", (chunk: Buffer) => {
         body += chunk.toString();
       });
       res.on("end", () => {
         if ((res.statusCode ?? 500) >= 300) failed(new Error(`Docker answered ${res.statusCode} to ${path}: ${body}`));
-        else done(JSON.parse(body) as T);
+        else done(body);
       });
     });
     req.on("error", failed);
     req.end();
   });
+}
+
+async function get<T>(socket: string, path: string): Promise<T> {
+  return JSON.parse(await call(socket, "GET", path)) as T;
 }
 
 interface Summary {
@@ -75,3 +79,53 @@ export function dockerProbe(socket: string) {
 }
 
 export type DockerProbe = ReturnType<typeof dockerProbe>;
+
+/** What a run's Dockwell makes on Docker, by the ID or name Docker removes it by. */
+export interface DockerMade {
+  containers: string[];
+  networks: string[];
+  volumes: string[];
+}
+
+interface Labelled {
+  Labels?: Record<string, string> | null;
+}
+
+/**
+ * What Docker has of an environment's Compose project. Each is labelled, so what
+ * a person runs isn't counted, and a network or volume counts by itself: a run
+ * that deleted its apps has no container left to say what they used.
+ */
+export async function dockerMade(socket: string): Promise<DockerMade> {
+  const ours = (item: Labelled) => (item.Labels?.[PROJECT] ?? "").startsWith("env_");
+  const containers = await get<(Summary & Labelled)[]>(socket, "/containers/json?all=1");
+  const networks = await get<(Labelled & { Id: string })[]>(socket, "/networks");
+  const volumes = await get<{ Volumes: (Labelled & { Name: string })[] | null }>(socket, "/volumes");
+  return {
+    containers: containers.filter(ours).map((c) => c.Id),
+    networks: networks.filter(ours).map((n) => n.Id),
+    volumes: (volumes.Volumes ?? []).filter(ours).map((v) => v.Name),
+  };
+}
+
+/**
+ * Removes what Docker has now that it didn't have at before, containers first, as
+ * they hold the rest. It says what it couldn't: a dev machine has room for about
+ * ten runs' networks before its address pools run out, so a run that leaves them
+ * has failed.
+ */
+export async function removeMade(socket: string, before: DockerMade): Promise<string[]> {
+  const now = await dockerMade(socket);
+  const remove = async (list: string[], known: string[], path: (item: string) => string) => {
+    for (const item of list.filter((i) => !known.includes(i))) await call(socket, "DELETE", path(item)).catch(() => {});
+  };
+  await remove(now.containers, before.containers, (id) => `/containers/${id}?force=1`);
+  await remove(now.networks, before.networks, (id) => `/networks/${id}`);
+  await remove(now.volumes, before.volumes, (name) => `/volumes/${name}`);
+  const left = await dockerMade(socket);
+  return [
+    ...left.containers.filter((i) => !before.containers.includes(i)).map((i) => `container ${i}`),
+    ...left.networks.filter((i) => !before.networks.includes(i)).map((i) => `network ${i}`),
+    ...left.volumes.filter((i) => !before.volumes.includes(i)).map((i) => `volume ${i}`),
+  ];
+}

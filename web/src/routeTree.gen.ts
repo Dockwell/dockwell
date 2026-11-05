@@ -20,9 +20,16 @@ import { Route as ShellActivityRouteImport } from './routes/_shell/activity'
 import { Route as ShellMoreRouteImport } from './routes/_shell/more'
 import { Route as ShellProfileRouteImport } from './routes/_shell/profile'
 import { Route as ShellVariablesRouteImport } from './routes/_shell/variables'
+import { Route as ShellAppsIndexRouteImport } from './routes/_shell/apps.index'
+import { Route as ShellAppsServiceIdRouteImport } from './routes/_shell/apps.$serviceId'
+import { Route as ShellAppsNewRouteImport } from './routes/_shell/apps.new'
 import { Route as ShellChangesChangeIdRouteImport } from './routes/_shell/changes.$changeId'
 import { Route as ShellServersIndexRouteImport } from './routes/_shell/servers.index'
 import { Route as ShellServersServerIdRouteImport } from './routes/_shell/servers.$serverId'
+import { Route as ShellAppsServiceIdIndexRouteImport } from './routes/_shell/apps.$serviceId.index'
+import { Route as ShellAppsServiceIdDeploymentsRouteImport } from './routes/_shell/apps.$serviceId.deployments'
+import { Route as ShellAppsServiceIdEnvironmentRouteImport } from './routes/_shell/apps.$serviceId.environment'
+import { Route as ShellAppsServiceIdLogsRouteImport } from './routes/_shell/apps.$serviceId.logs'
 
 const ShellRoute = ShellRouteImport.update({
   id: '/_shell',
@@ -78,6 +85,21 @@ const ShellVariablesRoute = ShellVariablesRouteImport.update({
   path: '/variables',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellAppsIndexRoute = ShellAppsIndexRouteImport.update({
+  id: '/apps/',
+  path: '/apps/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellAppsServiceIdRoute = ShellAppsServiceIdRouteImport.update({
+  id: '/apps/$serviceId',
+  path: '/apps/$serviceId',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellAppsNewRoute = ShellAppsNewRouteImport.update({
+  id: '/apps/new',
+  path: '/apps/new',
+  getParentRoute: () => ShellRoute,
+} as any)
 const ShellChangesChangeIdRoute = ShellChangesChangeIdRouteImport.update({
   id: '/changes/$changeId',
   path: '/changes/$changeId',
@@ -93,6 +115,28 @@ const ShellServersServerIdRoute = ShellServersServerIdRouteImport.update({
   path: '/servers/$serverId',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellAppsServiceIdIndexRoute = ShellAppsServiceIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ShellAppsServiceIdRoute,
+} as any)
+const ShellAppsServiceIdDeploymentsRoute =
+  ShellAppsServiceIdDeploymentsRouteImport.update({
+    id: '/deployments',
+    path: '/deployments',
+    getParentRoute: () => ShellAppsServiceIdRoute,
+  } as any)
+const ShellAppsServiceIdEnvironmentRoute =
+  ShellAppsServiceIdEnvironmentRouteImport.update({
+    id: '/environment',
+    path: '/environment',
+    getParentRoute: () => ShellAppsServiceIdRoute,
+  } as any)
+const ShellAppsServiceIdLogsRoute = ShellAppsServiceIdLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => ShellAppsServiceIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ShellIndexRoute
@@ -105,9 +149,16 @@ export interface FileRoutesByFullPath {
   '/more': typeof ShellMoreRoute
   '/profile': typeof ShellProfileRoute
   '/variables': typeof ShellVariablesRoute
+  '/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
+  '/apps/new': typeof ShellAppsNewRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/servers/$serverId': typeof ShellServersServerIdRoute
+  '/apps/': typeof ShellAppsIndexRoute
   '/servers/': typeof ShellServersIndexRoute
+  '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
+  '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
+  '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
+  '/apps/$serviceId/': typeof ShellAppsServiceIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/claim': typeof ClaimRoute
@@ -120,9 +171,15 @@ export interface FileRoutesByTo {
   '/profile': typeof ShellProfileRoute
   '/variables': typeof ShellVariablesRoute
   '/': typeof ShellIndexRoute
+  '/apps/new': typeof ShellAppsNewRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/servers/$serverId': typeof ShellServersServerIdRoute
+  '/apps': typeof ShellAppsIndexRoute
   '/servers': typeof ShellServersIndexRoute
+  '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
+  '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
+  '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
+  '/apps/$serviceId': typeof ShellAppsServiceIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -137,9 +194,16 @@ export interface FileRoutesById {
   '/_shell/profile': typeof ShellProfileRoute
   '/_shell/variables': typeof ShellVariablesRoute
   '/_shell/': typeof ShellIndexRoute
+  '/_shell/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
+  '/_shell/apps/new': typeof ShellAppsNewRoute
   '/_shell/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/_shell/servers/$serverId': typeof ShellServersServerIdRoute
+  '/_shell/apps/': typeof ShellAppsIndexRoute
   '/_shell/servers/': typeof ShellServersIndexRoute
+  '/_shell/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
+  '/_shell/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
+  '/_shell/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
+  '/_shell/apps/$serviceId/': typeof ShellAppsServiceIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -154,9 +218,16 @@ export interface FileRouteTypes {
     | '/more'
     | '/profile'
     | '/variables'
+    | '/apps/$serviceId'
+    | '/apps/new'
     | '/changes/$changeId'
     | '/servers/$serverId'
+    | '/apps/'
     | '/servers/'
+    | '/apps/$serviceId/deployments'
+    | '/apps/$serviceId/environment'
+    | '/apps/$serviceId/logs'
+    | '/apps/$serviceId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/claim'
@@ -169,9 +240,15 @@ export interface FileRouteTypes {
     | '/profile'
     | '/variables'
     | '/'
+    | '/apps/new'
     | '/changes/$changeId'
     | '/servers/$serverId'
+    | '/apps'
     | '/servers'
+    | '/apps/$serviceId/deployments'
+    | '/apps/$serviceId/environment'
+    | '/apps/$serviceId/logs'
+    | '/apps/$serviceId'
   id:
     | '__root__'
     | '/_shell'
@@ -185,9 +262,16 @@ export interface FileRouteTypes {
     | '/_shell/profile'
     | '/_shell/variables'
     | '/_shell/'
+    | '/_shell/apps/$serviceId'
+    | '/_shell/apps/new'
     | '/_shell/changes/$changeId'
     | '/_shell/servers/$serverId'
+    | '/_shell/apps/'
     | '/_shell/servers/'
+    | '/_shell/apps/$serviceId/deployments'
+    | '/_shell/apps/$serviceId/environment'
+    | '/_shell/apps/$serviceId/logs'
+    | '/_shell/apps/$serviceId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -277,6 +361,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellVariablesRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/apps/': {
+      id: '/_shell/apps/'
+      path: '/apps'
+      fullPath: '/apps/'
+      preLoaderRoute: typeof ShellAppsIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/apps/$serviceId': {
+      id: '/_shell/apps/$serviceId'
+      path: '/apps/$serviceId'
+      fullPath: '/apps/$serviceId'
+      preLoaderRoute: typeof ShellAppsServiceIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/apps/new': {
+      id: '/_shell/apps/new'
+      path: '/apps/new'
+      fullPath: '/apps/new'
+      preLoaderRoute: typeof ShellAppsNewRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/changes/$changeId': {
       id: '/_shell/changes/$changeId'
       path: '/changes/$changeId'
@@ -298,8 +403,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersServerIdRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/apps/$serviceId/': {
+      id: '/_shell/apps/$serviceId/'
+      path: '/'
+      fullPath: '/apps/$serviceId/'
+      preLoaderRoute: typeof ShellAppsServiceIdIndexRouteImport
+      parentRoute: typeof ShellAppsServiceIdRoute
+    }
+    '/_shell/apps/$serviceId/deployments': {
+      id: '/_shell/apps/$serviceId/deployments'
+      path: '/deployments'
+      fullPath: '/apps/$serviceId/deployments'
+      preLoaderRoute: typeof ShellAppsServiceIdDeploymentsRouteImport
+      parentRoute: typeof ShellAppsServiceIdRoute
+    }
+    '/_shell/apps/$serviceId/environment': {
+      id: '/_shell/apps/$serviceId/environment'
+      path: '/environment'
+      fullPath: '/apps/$serviceId/environment'
+      preLoaderRoute: typeof ShellAppsServiceIdEnvironmentRouteImport
+      parentRoute: typeof ShellAppsServiceIdRoute
+    }
+    '/_shell/apps/$serviceId/logs': {
+      id: '/_shell/apps/$serviceId/logs'
+      path: '/logs'
+      fullPath: '/apps/$serviceId/logs'
+      preLoaderRoute: typeof ShellAppsServiceIdLogsRouteImport
+      parentRoute: typeof ShellAppsServiceIdRoute
+    }
   }
 }
+
+interface ShellAppsServiceIdRouteChildren {
+  ShellAppsServiceIdDeploymentsRoute: typeof ShellAppsServiceIdDeploymentsRoute
+  ShellAppsServiceIdEnvironmentRoute: typeof ShellAppsServiceIdEnvironmentRoute
+  ShellAppsServiceIdLogsRoute: typeof ShellAppsServiceIdLogsRoute
+  ShellAppsServiceIdIndexRoute: typeof ShellAppsServiceIdIndexRoute
+}
+
+const ShellAppsServiceIdRouteChildren: ShellAppsServiceIdRouteChildren = {
+  ShellAppsServiceIdDeploymentsRoute: ShellAppsServiceIdDeploymentsRoute,
+  ShellAppsServiceIdEnvironmentRoute: ShellAppsServiceIdEnvironmentRoute,
+  ShellAppsServiceIdLogsRoute: ShellAppsServiceIdLogsRoute,
+  ShellAppsServiceIdIndexRoute: ShellAppsServiceIdIndexRoute,
+}
+
+const ShellAppsServiceIdRouteWithChildren =
+  ShellAppsServiceIdRoute._addFileChildren(ShellAppsServiceIdRouteChildren)
 
 interface ShellRouteChildren {
   ShellSectionRoute: typeof ShellSectionRoute
@@ -308,8 +458,11 @@ interface ShellRouteChildren {
   ShellProfileRoute: typeof ShellProfileRoute
   ShellVariablesRoute: typeof ShellVariablesRoute
   ShellIndexRoute: typeof ShellIndexRoute
+  ShellAppsServiceIdRoute: typeof ShellAppsServiceIdRouteWithChildren
+  ShellAppsNewRoute: typeof ShellAppsNewRoute
   ShellChangesChangeIdRoute: typeof ShellChangesChangeIdRoute
   ShellServersServerIdRoute: typeof ShellServersServerIdRoute
+  ShellAppsIndexRoute: typeof ShellAppsIndexRoute
   ShellServersIndexRoute: typeof ShellServersIndexRoute
 }
 
@@ -320,8 +473,11 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellProfileRoute: ShellProfileRoute,
   ShellVariablesRoute: ShellVariablesRoute,
   ShellIndexRoute: ShellIndexRoute,
+  ShellAppsServiceIdRoute: ShellAppsServiceIdRouteWithChildren,
+  ShellAppsNewRoute: ShellAppsNewRoute,
   ShellChangesChangeIdRoute: ShellChangesChangeIdRoute,
   ShellServersServerIdRoute: ShellServersServerIdRoute,
+  ShellAppsIndexRoute: ShellAppsIndexRoute,
   ShellServersIndexRoute: ShellServersIndexRoute,
 }
 
