@@ -200,7 +200,8 @@ export async function healthFlow(page: Page, options: HealthFlowOptions) {
 services:
   plain:
     image: nginx:\${TAG}
-    command: ["sh", "-c", "echo \${GREETING} && exec nginx -g 'daemon off;'"]
+    labels:
+      greeting: \${GREETING}
     volumes:
       - ./conf:/conf:ro
 `);
@@ -226,7 +227,7 @@ services:
   const plainPlan = page.getByRole("dialog", { name: "Review plan" });
   await plainPlan.waitFor({ timeout: 30_000 });
   // A value that lands in plain sight says so, in plain words, as what the plan is about.
-  await plainPlan.getByText(/plain's command holds the value of GREETING from your \.env/).waitFor();
+  await plainPlan.getByText(/plain's labels holds the value of GREETING from your \.env/).waitFor();
   await shoot(page, "health-env-note");
   await plainPlan.getByRole("button", { name: /Apply plan/ }).click();
   await page.getByRole("heading", { name: "plain is running" }).waitFor({ timeout: 90_000 });
