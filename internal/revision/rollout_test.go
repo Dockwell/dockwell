@@ -276,6 +276,26 @@ func TestAStopFirstDeployRollsBackWithItsData(t *testing.T) {
 	})
 }
 
+// A restart makes a new container over the same data, but it changes no spec and
+// has nothing to roll back, so a warning of what a rollback leaves would be false.
+func TestARestartSaysNothingOfWhatARollbackLeaves(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		r := setupRolling(t, b)
+		apply(t, r.engine, propose(t, r.engine, "Run db", r.edit("db:1")))
+
+		p, err := r.engine.Restart(t.Context(), r.ref, By{Actor: "user:usr_mira", Via: ViaPanel}, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if step := p.step("srv_A", r.ref); step == nil || step.Action != resource.ActionReplace {
+			t.Fatalf("its step = %+v, want it to replace the container", step)
+		}
+		if saysDataStays(p, "/data") {
+			t.Errorf("a restart's plan says data stays: %+v", p.Notes)
+		}
+	})
+}
+
 // A rollback that fails too is on record, where a person sees it, with what each
 // said. Nothing tries it again on its own, however often Resume runs, and what
 // the service runs next is what a person says.
