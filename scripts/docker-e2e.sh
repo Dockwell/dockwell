@@ -2316,7 +2316,8 @@ DOCKER_HOST=unix:///nonexistent/docker.sock "$agent" run --data-dir "$agent_data
 agent_pid=$!
 agent_id=""
 for _ in $(seq 300); do
-  agent_id=$(grep '"msg":"server connected"' "$log" | grep '"name":"e2e-agent"' | grep -o '"server":"srv_[^"]*"' | head -1 | cut -d'"' -f4)
+  # Under pipefail a grep with nothing to find yet would end the script, without a word.
+  agent_id=$(grep '"msg":"server connected"' "$log" | grep '"name":"e2e-agent"' | grep -o '"server":"srv_[^"]*"' | head -1 | cut -d'"' -f4 || true)
   [[ -n "$agent_id" ]] && break
   sleep 0.1
 done

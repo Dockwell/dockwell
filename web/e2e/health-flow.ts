@@ -423,11 +423,14 @@ services:
     step("health: a control plane that stops answering with its streams open: nothing stays green, and it comes back");
     await goToList();
     await listSays("checked", "Healthy");
+    // The second server stays down from the steps above, so the top bar says that, not all healthy, either side of this.
+    const top = page.locator(".topbar");
+    await top.getByText("1 down").waitFor({ timeout: SEEN_WITHIN });
     const thaw = freezeControlPlane();
     try {
       // Past 30 s with nothing heard, not even a heartbeat, what was last said can't stand.
-      const top = page.locator(".topbar");
       await top.getByText("Unknown", { exact: true }).waitFor({ timeout: 60_000 });
+      if ((await top.getByText("1 down").count()) > 0) fail("with the control plane frozen, the top bar still vouches");
       if ((await top.locator(".dw-tone-healthy").count()) > 0)
         fail("with the control plane frozen, the top bar is green");
       await page
@@ -441,6 +444,7 @@ services:
       thaw();
     }
     await listSays("checked", "Healthy");
-    await page.locator(".topbar .dw-tone-healthy").first().waitFor({ timeout: 60_000 });
+    await top.getByText("Unknown", { exact: true }).waitFor({ state: "detached", timeout: 60_000 });
+    await top.getByText("1 down").waitFor({ timeout: 60_000 });
   }
 }
