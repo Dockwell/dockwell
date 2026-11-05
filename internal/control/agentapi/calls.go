@@ -921,8 +921,9 @@ func (s *Session) Observe(ctx context.Context, refs []resource.Ref) ([]proto.Mes
 		if o.Spec == nil {
 			continue // the server doesn't have it
 		}
-		if out[i], err = s.agents.kinds.Decode(refs[i].Kind, o.GetSpec()); err != nil {
-			return nil, fmt.Errorf("can't read %s from %s's agent: %w", refs[i], s.name, err)
+		ref := refs[i] //nolint:gosec // got has as many as refs, as checked above
+		if out[i], err = s.agents.kinds.Decode(ref.Kind, o.GetSpec()); err != nil {
+			return nil, fmt.Errorf("can't read %s from %s's agent: %w", ref, s.name, err)
 		}
 	}
 	return out, nil

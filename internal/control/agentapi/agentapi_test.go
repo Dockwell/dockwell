@@ -504,10 +504,10 @@ func TestAnOlderAgentIsWarnedOfAsItConnects(t *testing.T) {
 		}
 		return n
 	}
-	// connect says hello, closes the stream once it is welcome, and waits for the
+	// say says hello, closes the stream once it is welcome, and waits for the
 	// control plane to log the nth disconnect, which comes after whatever it logged
 	// of that stream.
-	connect := func(hello *agentv1.Hello, nth int) {
+	say := func(hello *agentv1.Hello, nth int) {
 		client, release, err := id.Client()
 		if err != nil {
 			t.Fatal(err)
@@ -531,11 +531,11 @@ func TestAnOlderAgentIsWarnedOfAsItConnects(t *testing.T) {
 		}
 	}
 	older := buildinfo.Info{Version: "v0.2.0"}.Proto()
-	connect(&agentv1.Hello{Build: older}, 1)
+	say(&agentv1.Hello{Build: older}, 1)
 	if n := records(warning); n != 1 {
 		t.Errorf("an older agent connecting was warned of %d times, want once, with its version, as a warning:\n%s", n, logs.String())
 	}
-	connect(&agentv1.Hello{Build: older, WritesReferences: true}, 2)
+	say(&agentv1.Hello{Build: older, WritesReferences: true}, 2)
 	if n := records(warning); n != 1 || records("server connected") != 2 {
 		t.Errorf("an agent that writes references in was warned of too:\n%s", logs.String())
 	}
