@@ -353,3 +353,23 @@ func TestPlanViewSaysWhereItLands(t *testing.T) {
 		}
 	}
 }
+
+// A pull with nothing else to do doesn't say it replaces for certain.
+func TestPlanViewSaysAPullReplacesOnlyIfNewer(t *testing.T) {
+	step := func(changes ...*dockwellv1.FieldChange) *dockwellv1.Plan {
+		return &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: []*dockwellv1.PlanStep{{
+			Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "web"}, Action: dockwellv1.PlanAction_PLAN_ACTION_REPLACE,
+			Effect: dockwellv1.StepEffect_STEP_EFFECT_RECREATE, Pull: true, Changes: changes,
+		}}}}}
+	}
+	var out bytes.Buffer
+	PlanView(&out, step())
+	if !strings.Contains(out.String(), "Replace if newer") || strings.Contains(out.String(), "recreated") {
+		t.Errorf("a pull with nothing else to do reads:\n%s", out.String())
+	}
+	out.Reset()
+	PlanView(&out, step(&dockwellv1.FieldChange{Path: "app.image", From: "a@sha256:1", To: "a"}))
+	if strings.Contains(out.String(), "if newer") {
+		t.Errorf("a pull with a change to make replaces for certain, and reads:\n%s", out.String())
+	}
+}

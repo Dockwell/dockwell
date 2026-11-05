@@ -113,6 +113,13 @@ func TestDeployingTheSameTagPullsAgain(t *testing.T) {
 		if revs := b.revisions(t, web.GetId()); len(revs) != 1 || !slices.Equal(digestsOf(revs[0]), []string{digestA}) {
 			t.Errorf("with nothing newer, the revisions are %v", revs)
 		}
+		// It did nothing, so there's nothing to undo, and it doesn't say there is.
+		if applied.GetUndoDeadline() != nil {
+			t.Errorf("a change that did nothing offers to undo until %v", applied.GetUndoDeadline())
+		}
+		if got := noteOf(plan, "pulls_again").GetResource(); got.GetKind() != "service" || got.GetName() != "web" {
+			t.Errorf("the note is about %v", got)
+		}
 
 		// The tag moves: it's replaced, with a revision saying what ran each time.
 		moveLatest(b.e, digestB)
@@ -121,6 +128,10 @@ func TestDeployingTheSameTagPullsAgain(t *testing.T) {
 			t.Error("with a newer image, the container wasn't replaced")
 		}
 		revs := b.revisions(t, web.GetId())
+		pulled, err := b.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: revs[0].GetChange().GetId()}))
+		if err != nil || pulled.Msg.GetChange().GetUndoDeadline() == nil {
+			t.Errorf("a pull that replaced what ran has no undo: %v, %v", pulled, err)
+		}
 		if len(revs) != 2 || revs[0].GetImage() != latest || !slices.Equal(digestsOf(revs[0]), []string{digestB}) || !slices.Equal(digestsOf(revs[1]), []string{digestA}) {
 			t.Fatalf("the revisions are %v", revs)
 		}
@@ -255,7 +266,8 @@ func TestAPullThatFailsLeavesWhatRuns(t *testing.T) {
 	delete(b.e.Registry, latest)
 	got := applied(t, b.c, b.deploy(t, web.GetId(), latest))
 	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(got.GetError(), "can't pull "+latest+" again") ||
-		!strings.Contains(got.GetError(), "so nothing was replaced") {
+		!strings.Contains(got.GetError(), "so nothing was replaced, and what runs goes on running") ||
+		!strings.Contains(got.GetError(), "Check that its registry answers") {
 		t.Fatalf("the deploy ended %v: %s", got.GetState(), got.GetError())
 	}
 	if ctr := b.e.Container(name); ctr.ID != before || !ctr.State.Running {
@@ -263,6 +275,37 @@ func TestAPullThatFailsLeavesWhatRuns(t *testing.T) {
 	}
 	if revs := b.revisions(t, web.GetId()); len(revs) != 1 {
 		t.Errorf("the revisions are %v", revs)
+	}
+}
+
+// An app a rollback pinned, going back to its tag with the registry gone, fails
+// the same way. Going back undoes only what the record said, so what runs stays,
+// by the same digest.
+func TestAPullThatFailsLeavesAPinnedApp(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	name, web := runLatest(t, b)
+	moveLatest(b.e, digestB)
+	b.done(t, b.deploy(t, web.GetId(), latest))
+	back, err := b.s.RollBackService(t.Context(), connect.NewRequest(&dockwellv1.RollBackServiceRequest{Id: web.GetId(), Revision: 1}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.done(t, back.Msg.GetChange())
+	before := b.e.Container(name).ID
+
+	delete(b.e.Registry, latest)
+	got := applied(t, b.c, b.deploy(t, web.GetId(), latest))
+	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || got.GetRolledBackBy() == "" ||
+		!strings.Contains(got.GetError(), "can't pull "+latest+" again") {
+		t.Fatalf("the deploy ended %v, rolled back by %q: %s", got.GetState(), got.GetRolledBackBy(), got.GetError())
+	}
+	waitFor(t, "the rollback to end", func() bool {
+		c, err := b.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: got.GetRolledBackBy()}))
+		return err == nil && c.Msg.GetChange().GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED
+	})
+	ctr := b.e.Container(name)
+	if ctr.ID != before || !ctr.State.Running || ctr.Config.Image != latest+"@"+digestA {
+		t.Errorf("after a pull that failed, it's %s running %s, running %t; it was %s", ctr.ID, ctr.Config.Image, ctr.State.Running, before)
 	}
 }
 

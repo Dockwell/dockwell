@@ -257,10 +257,7 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 			pull:      again,
 		}
 		if again {
-			did.notes = []revision.Note{{
-				Reason:  "pulls_again",
-				Message: fmt.Sprintf("Pulls %s again, and replaces %s only if that's a newer image", m.GetImage(), name),
-			}}
+			did.pullNote = fmt.Sprintf("Pulls %s again, and replaces %s only if that's a newer image", m.GetImage(), name)
 		}
 		return did, nil
 	})
@@ -303,7 +300,7 @@ type editing struct {
 	summary   string
 	ifNothing error
 	pull      bool
-	notes     []revision.Note
+	pullNote  string
 }
 
 // edit plans a change to one service's container, read as it stands on the
@@ -337,10 +334,15 @@ func (h *Handler) edit(ctx context.Context, named, project, environment string, 
 	if err != nil {
 		return nil, err
 	}
+	ref := resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}
+	var notes []revision.Note
+	if did.pullNote != "" {
+		notes = []revision.Note{{Reason: "pulls_again", Message: did.pullNote, Ref: ref}}
+	}
 	return h.changes.Propose(ctx, did.summary, []*dockwellv1.Edit{{
-		Resource: resourcepb.Ref(resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}),
+		Resource: resourcepb.Ref(ref),
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},
-	}}, nil, changes.Also{Base: r.Revision, IfNothing: did.ifNothing, Pull: did.pull, Notes: did.notes})
+	}}, nil, changes.Also{Base: r.Revision, IfNothing: did.ifNothing, Pull: did.pull, Notes: notes})
 }
 
 // RollBackService plans going back to an earlier revision.

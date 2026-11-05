@@ -448,6 +448,8 @@ type Record struct {
 	// Brief is what a list shows of the plan.
 	Brief    Brief
 	Progress Progress
+	// MadeRevisions says it wrote a revision of anything.
+	MadeRevisions bool
 	// RolledBackBy is the rollback of this change, if it failed and one was
 	// made; UndoneBy the applied change that undid it.
 	RolledBackBy, UndoneBy string
@@ -501,7 +503,9 @@ func brief(b []byte) (Brief, error) {
 // UndoDeadline is until when an applied change can be undone; zero for
 // one that isn't applied.
 func (r *Record) UndoDeadline() time.Time {
-	if r.State != store.ChangeApplied || r.AppliedAt.IsZero() {
+	// A change that made no revision, as a pull that found nothing newer, has
+	// nothing to undo, and offering to would only be refused.
+	if r.State != store.ChangeApplied || r.AppliedAt.IsZero() || !r.MadeRevisions {
 		return time.Time{}
 	}
 	return r.AppliedAt.Add(UndoWindow)
@@ -580,6 +584,13 @@ func (e *Engine) complete(ctx context.Context, tx *store.Tx, records []*Record) 
 	reverting, err := tx.Reverting(ctx, ids)
 	if err != nil {
 		return err
+	}
+	made, err := tx.ChangesWithRevisions(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for id := range made {
+		byID[id].MadeRevisions = true
 	}
 	for i := range reverting {
 		rc := &reverting[i]

@@ -482,11 +482,18 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		for _, st := range s.GetSteps() {
 			a := actions[st.GetAction()]
 			details := []string{a.word}
+			// A pull with nothing else to do replaces only if it finds something newer.
+			ifNewer := st.GetPull() && len(st.GetChanges()) == 0 && st.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_REPLACE
+			if ifNewer {
+				details[0] = "Replace if newer"
+			}
 			switch st.GetEffect() {
 			case dockwellv1.StepEffect_STEP_EFFECT_RESTART:
 				details = append(details, "restarts")
 			case dockwellv1.StepEffect_STEP_EFFECT_RECREATE:
-				details = append(details, "recreated")
+				if !ifNewer {
+					details = append(details, "recreated")
+				}
 			default:
 			}
 			if d := st.GetDowntime(); d.AsDuration() > 0 {

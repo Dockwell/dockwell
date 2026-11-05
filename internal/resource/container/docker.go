@@ -647,7 +647,7 @@ func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Conta
 		if docker.IsUnavailable(err) || ctx.Err() != nil {
 			return false, err
 		}
-		return false, fmt.Errorf("can't pull %s again: %w, so nothing was replaced. Check the image's name and tag; Dockwell can't pull private images yet", ref, err)
+		return false, fmt.Errorf("can't pull %s again: %w, so nothing was replaced, and what runs goes on running. Check that its registry answers, and the image's name and tag, then deploy again. Dockwell can't pull private images yet", ref, err)
 	}
 	img, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
 	if err != nil {

@@ -532,6 +532,31 @@ func InChange(resourceID, kind, changeID string, position int) SpecAt {
 	return SpecAt{ResourceID: resourceID, Kind: kind, Change: changeID, Position: position}
 }
 
+// ChangesWithRevisions says which of these changes wrote a revision, in one read.
+func (t *Tx) ChangesWithRevisions(ctx context.Context, changeIDs []string) (map[string]bool, error) {
+	out := make(map[string]bool, len(changeIDs))
+	if len(changeIDs) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(changeIDs))
+	for i, id := range changeIDs {
+		args[i] = id
+	}
+	rows, err := t.query(ctx, `SELECT DISTINCT change_id FROM revisions WHERE change_id IN (`+marks(len(args))+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read which changes wrote revisions: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("can't read which changes wrote revisions: %w", err)
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
 // StoredSpec is a spec as the store keeps it, and where.
 type StoredSpec struct {
 	At   SpecAt

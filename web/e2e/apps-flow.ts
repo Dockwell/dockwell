@@ -174,6 +174,19 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   await expectDocker("nginx", SECOND);
   await expectServes("nginx/1.28");
 
+  step(`apps: deploying ${SECOND} again pulls it, finds nothing newer, and says so`);
+  const runningBefore = (await running("nginx")).id;
+  await page.getByRole("button", { name: "Deploy", exact: true }).click();
+  await deploy.getByText("again, and replaces nginx only if that's a newer image").waitFor();
+  await deploy.getByRole("button", { name: /Review plan/ }).click();
+  await page
+    .getByRole("dialog", { name: "Review plan" })
+    .getByRole("button", { name: /Apply plan/ })
+    .click();
+  await page.getByText(`${SECOND} is already the newest image, so nginx stays as it is`).waitFor({ timeout: 120_000 });
+  if ((await running("nginx")).id !== runningBefore) fail("with nothing newer, the container was replaced");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+
   step("apps: Deployments lists each revision, with what changed and who did it, in the past tense");
   await page.getByRole("link", { name: /Deployments/ }).click();
   const r3 = page.getByRole("row", { name: /r3/ });

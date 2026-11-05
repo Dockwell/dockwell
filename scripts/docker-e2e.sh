@@ -6,8 +6,9 @@
 # the environment exports as a Compose file that docker compose reads and
 # lists; a Compose file imports, and two with a service of one name run side
 # by side; a service using a variable and a secret runs with their values,
-# exports without the secret, and imports again with no change; and everything
-# goes again. Then the agent build joins the
+# exports without the secret, and imports again with no change; a tag that moves
+# in a local registry is pulled again, rolled back by digest, and survives that
+# registry going away; and everything goes again. Then the agent build joins the
 # full build's control plane, and runs a container on the same Docker. Before
 # that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
 # and serves a real container over HTTPS through Caddy, and routes that take no
@@ -42,6 +43,12 @@ agent_log=$(mktemp)
 project=""
 extra_projects=""
 agent_pid=""
+moving_dir=""
+moving_repo=""
+digest_first=""
+digest_second=""
+# A registry, by digest, for the images of the step about a tag that moves.
+registry_image=registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
 
 port=${addr##*:}
 cookie=$(mktemp)
@@ -74,25 +81,20 @@ start_dockwell() {
   pid=$!
 }
 start_dockwell
-# restore_daemon puts back Docker's settings, if this changed them, and restarts it.
-daemon_changed=""
-daemon_before=""
-restore_daemon() {
-  [[ -n "$daemon_changed" ]] || return 0
-  daemon_changed=""
-  if [[ -n "$daemon_before" ]]; then
-    printf '%s\n' "$daemon_before" | priv tee /etc/docker/daemon.json >/dev/null
-  else
-    priv rm -f /etc/docker/daemon.json
-  fi
-  priv systemctl restart docker
+# moving_tidy removes what the step about a tag that moves brought here.
+moving_tidy() {
+  docker rm --force --volumes e2e-registry >/dev/null 2>&1 || true
+  docker rmi e2e-moving:first e2e-moving:second "$moving_repo:latest" "$moving_repo@$digest_first" "$moving_repo@$digest_second" >/dev/null 2>&1 || true
+  [[ -z "$moving_dir" ]] || rm -rf "$moving_dir"
+  moving_dir=""
 }
 cleanup() {
   for p in $project $extra_projects; do
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
   docker rm --force e2e-agent-web e2e-holds-80 e2e-returns dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
-  docker network rm dockwell_ingress e2e-took-subnet e2e-edge >/dev/null 2>&1 || true
+  moving_tidy
+  docker network rm dockwell_ingress e2e-took-subnet >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
   priv kill "$pid" 2>/dev/null || true
   for p in "${pebble_pids[@]:-}"; do
@@ -370,6 +372,188 @@ dw volumes delete cache-data --yes >/dev/null 2>&1
 status=$?
 set -e
 [[ "$status" == 4 ]] || fail "volumes delete exited $status, want 4: a plan that destroys data waits for a person"
+
+step "A moving tag: a registry of its own, and two images under one tag"
+# The product's first user does this most: a tag that moves, redeployed. Only a
+# real engine and a real registry say what a pull really does.
+registry_port=""
+for p in $(seq 15000 15100); do
+  if [[ -z "$(ss -ltnH "sport = :$p")" ]]; then
+    registry_port=$p
+    break
+  fi
+done
+[[ -n "$registry_port" ]] || fail "no port is free for a registry between 15000 and 15100"
+docker run -d --name e2e-registry -p "127.0.0.1:$registry_port:5000" "$registry_image" >/dev/null || fail "can't run a registry"
+registry_up() {
+  for _ in $(seq 100); do
+    curl -fsS "http://127.0.0.1:$registry_port/v2/" >/dev/null 2>&1 && return 0
+    sleep 0.1
+  done
+  fail "the registry on port $registry_port didn't answer within 10 s"
+}
+registry_up
+moving_repo=127.0.0.1:$registry_port/e2e-app
+moving=$moving_repo:latest
+moving_dir=$(mktemp -d)
+# build_and_push builds an image that serves its word, pushes it under the one tag,
+# and says its digest.
+build_and_push() {
+  printf '%s\n' "$1" >"$moving_dir/index.html"
+  printf 'FROM nginx:1.27-alpine\nCOPY index.html /usr/share/nginx/html/index.html\n' >"$moving_dir/Dockerfile"
+  docker build -q -t "e2e-moving:$1" "$moving_dir" >/dev/null || fail "can't build the image $1"
+  docker tag "e2e-moving:$1" "$moving" || fail "can't tag the image $1"
+  docker push "$moving" | awk '/digest: /{ print $3 }'
+}
+moving_serves() {
+  local got=""
+  for _ in $(seq 100); do
+    got=$(curl -fsS --max-time 2 "http://127.0.0.1:$web_port/" 2>/dev/null) || got=""
+    [[ "$got" == "$1" ]] && return 0
+    sleep 0.1
+  done
+  fail "the app serves '$got' on port $web_port, want '$1'"
+}
+moving_id() {
+  local ids
+  ids=$(docker ps -a --no-trunc --filter label=com.docker.compose.service=moving --format '{{.ID}}') || fail "docker ps failed"
+  [[ "$(wc -l <<<"$ids")" == 1 && -n "$ids" ]] || fail "Docker has these containers for the app, want one: $ids"
+  echo "$ids"
+}
+moving_started() { docker inspect --format '{{.State.StartedAt}}' "$(moving_id)"; }
+moving_revisions() { dw services revisions moving --json; }
+image_id_of() { docker image inspect --format '{{.Id}}' "$1"; }
+digest_first=$(build_and_push first)
+[[ "$digest_first" == sha256:* ]] || fail "pushing the first image said its digest is '$digest_first'"
+dw services create moving --app-image "$moving" --app-ports "$ports" --yes || fail "services create moving failed"
+moving_serves first
+
+step "A moving tag: deploying it again pulls what it points at now, and replaces what runs"
+digest_second=$(build_and_push second)
+[[ "$digest_second" == sha256:* && "$digest_second" != "$digest_first" ]] ||
+  fail "pushing the second image said its digest is '$digest_second', and the first's is '$digest_first'"
+# As on any server, only the registry has the new image: the tag here still says
+# the first, so nothing but a real pull can move it.
+docker tag e2e-moving:first "$moving" || fail "can't put the tag back on the first image"
+docker rmi e2e-moving:second "$moving_repo@$digest_second" >/dev/null || fail "can't remove the second image here"
+if docker image inspect "$moving_repo@$digest_second" >/dev/null 2>&1; then fail "the second image is still here"; fi
+before=$(moving_id)
+planned=$(dw services deploy moving --image "$moving" --plan-only --json 2>/dev/null) || fail "planning the deploy failed"
+jq -e --arg want "Pulls $moving again, and replaces moving only if that's a newer image" \
+  '.change.plan.notes | any(.reason == "pulls_again" and .message == $want)' <<<"$planned" >/dev/null ||
+  fail "the plan doesn't say it pulls, and replaces only if that's newer: $planned"
+jq -e '.change.plan.servers[0].steps[0].pull == true' <<<"$planned" >/dev/null || fail "the plan's step doesn't pull: $planned"
+change=$(jq -r .change.id <<<"$planned")
+read_plan=$(dw changes get "$change") || fail "changes get $change failed"
+grep -qF "Note: Pulls $moving again, and replaces moving only if that's a newer image." <<<"$read_plan" ||
+  fail "the plan a person reads doesn't say it pulls: $read_plan"
+grep -qF "Replace if newer" <<<"$read_plan" || fail "the plan a person reads says it replaces for certain: $read_plan"
+# Planning changes nothing on the server.
+[[ "$(moving_id)" == "$before" ]] || fail "planning replaced the container"
+if docker image inspect "$moving_repo@$digest_second" >/dev/null 2>&1; then fail "planning pulled the image"; fi
+dw changes apply "$change" --yes || fail "applying the deploy failed"
+after=$(moving_id)
+[[ "$after" != "$before" ]] || fail "with a newer image, the container wasn't replaced"
+if docker inspect "$before" >/dev/null 2>&1; then fail "the old container is still there"; fi
+runs=$(docker inspect --format '{{.Image}}' "$after") || fail "docker inspect failed"
+[[ "$runs" == "$(image_id_of "$moving_repo@$digest_second")" ]] || fail "the container runs $runs, want the second image"
+moving_serves second
+revisions=$(moving_revisions) || fail "services revisions failed"
+jq -e --arg a "$digest_first" --arg b "$digest_second" --arg image "$moving" \
+  '(.revisions | length == 2) and .revisions[0].image == $image and .revisions[0].deployments[0].digest == $b and .revisions[1].deployments[0].digest == $a' \
+  <<<"$revisions" >/dev/null || fail "the revisions don't say what ran each time: $revisions"
+jq -e '(.revisions[1].matchesLatest // false) == false' <<<"$revisions" >/dev/null || fail "r1 ran another image, and reads as matching the latest: $revisions"
+
+step "A moving tag: with nothing newer, nothing happens, and it says so"
+before=$(moving_id)
+started=$(moving_started)
+said=$(dw services deploy moving --image "$moving" --yes 2>&1) || fail "deploying with nothing newer failed: $said"
+grep -qF "$moving is already the newest image, so moving stays as it is" <<<"$said" || fail "with nothing newer, it says: $said"
+if grep -qF "Undo it" <<<"$said"; then fail "it offers to undo what did nothing: $said"; fi
+[[ "$(moving_id)" == "$before" ]] || fail "with nothing newer, the container was replaced"
+[[ "$(moving_started)" == "$started" ]] || fail "with nothing newer, the container restarted"
+revisions=$(moving_revisions) || fail "services revisions failed"
+jq -e '.revisions | length == 2' <<<"$revisions" >/dev/null || fail "with nothing newer, a revision was written: $revisions"
+moving_serves second
+
+step "A moving tag: a rollback runs what that revision ran, by digest, through the registry"
+# Off this server, so only the engine's /distribution can say the registry has it,
+# and only a pull by digest can bring it back.
+docker rmi e2e-moving:first "$moving_repo@$digest_first" >/dev/null || fail "can't remove the first image here"
+if docker image inspect "$moving_repo@$digest_first" >/dev/null 2>&1; then fail "the first image is still here"; fi
+planned=$(dw services rollback moving --revision 1 --plan-only --json 2>/dev/null) || fail "planning the rollback failed"
+jq -e --arg short "sha256:${digest_first:7:12}" '.change.plan.notes | any(.reason == "digest_pinned" and (.message | contains($short)))' <<<"$planned" >/dev/null ||
+  fail "the rollback's plan doesn't say it pins what r1 ran: $planned"
+if jq -e '.change.plan.notes | any(.reason == "digest_gone")' <<<"$planned" >/dev/null; then fail "the rollback's plan says the image is gone: $planned"; fi
+dw changes apply "$(jq -r .change.id <<<"$planned")" --yes || fail "applying the rollback failed"
+runs=$(docker inspect --format '{{.Config.Image}}' "$(moving_id)") || fail "docker inspect failed"
+[[ "$runs" == "$moving@$digest_first" ]] || fail "after the rollback Docker has the image as $runs, want $moving@$digest_first"
+runs=$(docker inspect --format '{{.Image}}' "$(moving_id)") || fail "docker inspect failed"
+[[ "$runs" == "$(image_id_of "$moving_repo@$digest_first")" ]] || fail "after the rollback the container runs $runs, want the first image"
+moving_serves first
+revisions=$(moving_revisions) || fail "services revisions failed"
+jq -e --arg a "$digest_first" '.revisions[0].deployments[0].digest == $a and (.revisions[2].matchesLatest // false)' <<<"$revisions" >/dev/null ||
+  fail "after the rollback, the revisions say: $revisions"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after the rollback: $drift"
+if refused=$(dw services deploy moving --image "$moving@$digest_first" --plan-only 2>&1); then
+  fail "deploying the digest it runs planned: $refused"
+fi
+grep -qF "already runs $moving@$digest_first" <<<"$refused" || fail "deploying the digest it runs said: $refused"
+dw compose export >"$moving_dir/export.yaml" || fail "compose export failed"
+grep -qF "image: $moving@$digest_first" "$moving_dir/export.yaml" || fail "the export has $(cat "$moving_dir/export.yaml")"
+docker compose -f "$moving_dir/export.yaml" config --quiet || fail "docker compose doesn't take the export of a pinned image"
+
+# moving_settled waits for a failed change's rollback to end. That starts just after
+# the failure can be read, so it has to stay quiet for a moment to count.
+moving_settled() {
+  local quiet=0
+  for _ in $(seq 240); do
+    if [[ "$(dw changes list --json | jq '[(.changes // [])[] | select(.state == "CHANGE_STATE_APPLYING")] | length')" == 0 ]]; then
+      quiet=$((quiet + 1))
+      [[ "$quiet" -ge 4 ]] && return 0
+    else
+      quiet=0
+    fi
+    sleep 0.5
+  done
+  fail "a change is still applying after 120 s: $(dw changes list --json)"
+}
+# cant_pull deploys the tag with the registry stopped: it fails saying the fact,
+# what follows and the fix, and what runs goes on as it was.
+cant_pull() {
+  local id started said
+  id=$(moving_id)
+  started=$(moving_started)
+  if said=$(dw services deploy moving --image "$moving" --yes 2>&1); then fail "deploying with the registry stopped applied: $said"; fi
+  grep -qF "can't pull $moving again" <<<"$said" || fail "with the registry stopped, the fact isn't there: $said"
+  grep -qF "so nothing was replaced, and what runs goes on running" <<<"$said" || fail "with the registry stopped, what follows isn't there: $said"
+  grep -qF "Check that its registry answers" <<<"$said" || fail "with the registry stopped, the fix isn't there: $said"
+  moving_settled
+  [[ "$(moving_id)" == "$id" ]] || fail "a pull that failed replaced the container"
+  [[ "$(moving_started)" == "$started" ]] || fail "a pull that failed restarted the container"
+  moving_serves "$1"
+}
+
+step "A moving tag: with its registry gone, a pinned app fails before anything stops, and goes on serving"
+docker stop e2e-registry >/dev/null || fail "can't stop the registry"
+cant_pull first
+
+step "A moving tag: so does one on the tag, and that writes no revision"
+docker start e2e-registry >/dev/null || fail "can't start the registry again"
+registry_up
+dw services deploy moving --image "$moving" --yes || fail "deploying the tag again failed"
+moving_serves second
+written=$(moving_revisions | jq '.revisions | length') || fail "services revisions failed"
+docker stop e2e-registry >/dev/null || fail "can't stop the registry"
+cant_pull second
+[[ "$(moving_revisions | jq '.revisions | length')" == "$written" ]] || fail "a pull that failed wrote a revision: $(moving_revisions)"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after a pull that failed: $drift"
+
+dw services delete moving --yes || fail "services delete moving failed"
+[[ -z "$(docker ps -aq --filter label=com.docker.compose.service=moving)" ]] || fail "deleting the app left its container"
+moving_tidy
 
 step "Ingress: Pebble, Let's Encrypt's test CA, on this machine"
 in_ingress=1
