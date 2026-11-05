@@ -64,6 +64,9 @@ type Field struct {
 	Arg bool
 	// Sensitive marks a field that may hold a secret.
 	Sensitive bool
+	// FromFile is a text field's (dockwell.v1.from_file): its flag takes the
+	// text as given, or reads it from a file with @path, or standard input with -.
+	FromFile bool
 }
 
 // Kind is the commands for one kind of resource: dockwell <noun> create,

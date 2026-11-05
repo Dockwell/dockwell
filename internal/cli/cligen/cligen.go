@@ -46,6 +46,7 @@ const (
 	commandOption   = "dockwell.v1.command"
 	nounsOption     = "dockwell.v1.nouns"
 	flagOption      = "dockwell.v1.flag"
+	fromFileOption  = "dockwell.v1.from_file"
 	sensitiveOption = "dockwell.resource.v1alpha1.sensitive"
 	effectNone      = "EFFECT_UNSPECIFIED"
 	editSpecField   = "spec"
@@ -88,6 +89,9 @@ type Field struct {
 	Help      string
 	Arg       bool
 	Sensitive bool
+	// FromFile is the field's (dockwell.v1.from_file): its flag reads it from a
+	// file too.
+	FromFile bool
 }
 
 // Kind is one kind of resource's commands.
@@ -455,6 +459,7 @@ func (s *schema) describe(f *protogen.File, m *protogen.Method) (Method, error) 
 	}
 	for _, f := range m.Input.Fields {
 		sensitive, _, _ := s.option(f.Desc, sensitiveOption)
+		fromFile, _, _ := s.option(f.Desc, fromFileOption)
 		c.Fields = append(c.Fields, Field{
 			Path: string(f.Desc.Name()),
 			Flag: s.flag(f.Desc),
@@ -463,6 +468,7 @@ func (s *schema) describe(f *protogen.File, m *protogen.Method) (Method, error) 
 			Arg: f.Desc.Name() == "id" && f.Desc.Kind() == protoreflect.StringKind && !f.Desc.IsList(),
 			// What may hold a secret stays off the command line, as a file.
 			Sensitive: sensitive.IsValid() && sensitive.Bool(),
+			FromFile:  fromFile.IsValid() && fromFile.Bool(),
 		})
 	}
 	return c, nil
@@ -931,6 +937,9 @@ func writeFields(g *protogen.GeneratedFile, fields []Field) {
 		}
 		if f.Sensitive {
 			line = append(line, ", Sensitive: true")
+		}
+		if f.FromFile {
+			line = append(line, ", FromFile: true")
 		}
 		line = append(line, "},")
 		g.P(line...)

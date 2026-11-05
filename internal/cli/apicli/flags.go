@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"strconv"
@@ -13,13 +14,16 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	"go.yaml.in/yaml/v4"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/variable"
+	"github.com/dockwell/dockwell/internal/resource/volume"
 )
 
 // Names of the well-known types a flag takes as a value of its own.
@@ -47,7 +51,10 @@ type boundField struct {
 	// fromFile reads a sensitive field's value from a file, or standard
 	// input, which its flag names: never from the command line.
 	fromFile bool
-	env      *Env
+	// orFile takes a text field as given, or from a file with @path, or
+	// standard input with - (Field.FromFile).
+	orFile bool
+	env    *Env
 }
 
 // MaxSecretInput bounds a value read from a file or standard input: what
@@ -94,7 +101,8 @@ func bind(fs *pflag.FlagSet, env *Env, root protoreflect.MessageDescriptor, fiel
 		if fromFile {
 			name += "-file"
 		}
-		bf := &boundField{path: path, flag: name, sensitive: f.Sensitive, fromFile: fromFile, env: env}
+		orFile := f.FromFile && !fromFile && !leaf.IsList() && !leaf.IsMap() && leaf.Kind() == protoreflect.StringKind
+		bf := &boundField{path: path, flag: name, sensitive: f.Sensitive, fromFile: fromFile, orFile: orFile, env: env}
 		if f.Arg {
 			b.arg = bf
 			continue
@@ -161,13 +169,17 @@ func flagHelp(fd protoreflect.FieldDescriptor, f Field) string {
 	case value.Message() != nil:
 		add("As JSON, or @file to read it from a file, or - from standard input.")
 		if resource.MayHold(value.Message(), variable.SecretType{}) {
-			add("JSON that sets a secret's value comes from a file or standard input, never the command line.")
+			add("JSON that sets a secret's value, or gives a volume a password, comes from a file or standard input, never the command line.")
 		}
+	case f.FromFile:
+		add("As given, or @file to read it from a file, or - from standard input. A Compose file that gives a volume a password comes from a file or standard input, never the command line.")
 	}
 	switch {
 	case f.Sensitive && !fd.IsMap() && !fd.IsList() && (fd.Kind() == protoreflect.StringKind || fd.Kind() == protoreflect.BytesKind):
 		add("Name a file to read it from, or - for standard input, which asks for it without showing it on a terminal. " +
 			"It never comes from the command line, so it stays out of your shell's history and the process list. A newline at its end is dropped.")
+	case fd.IsMap() && f.Sensitive && isVolumeOptions(fd):
+		add("As KEY=VALUE, or KEY alone to take the value from your environment, which keeps it out of your shell's history. A value that gives a password, as a CIFS mount's o does, comes from your environment. Repeat it for each.")
 	case fd.IsMap() && f.Sensitive:
 		add("As KEY=VALUE, or KEY alone to take the value from your environment, which keeps it out of your shell's history. Repeat it for each.")
 	case fd.IsMap():
@@ -228,6 +240,9 @@ func (b *boundField) Type() string {
 	if b.fromFile {
 		return "file"
 	}
+	if b.orFile {
+		return "text"
+	}
 	if fd.IsMap() {
 		return "key=value"
 	}
@@ -274,6 +289,9 @@ func (b *boundField) check(fd protoreflect.FieldDescriptor, s string) (protorefl
 		}
 		return scalar(fd.MapValue(), value)
 	}
+	if b.orFile {
+		return protoreflect.Value{}, nil // read when applied
+	}
 	return scalar(fd, s)
 }
 
@@ -292,6 +310,12 @@ func (b *boundField) apply(msg protoreflect.Message) error {
 		m := parent.Mutable(fd).Map()
 		for _, s := range b.values {
 			key, value, ok := strings.Cut(s, "=")
+			// Here, not as the flag is parsed, which would repeat the value.
+			if ok && isVolumeOptions(fd) && volume.HoldsPassword(map[string]string{key: value}) {
+				return fmt.Errorf("--%s %s gives a password, so it would stay in your shell's history and the process list. "+
+					"Give --%s %s alone to take its value from %s in your environment, or put the volume's edit in a file and pass it to dockwell changes propose with --edits @file",
+					b.flag, key, b.flag, key, key)
+			}
 			if !ok {
 				value = b.env.Getenv(key)
 				if value == "" {
@@ -314,6 +338,19 @@ func (b *boundField) apply(msg protoreflect.Message) error {
 			}
 			l.Append(v)
 		}
+	case b.orFile:
+		from := b.values[len(b.values)-1]
+		data, err := readValue(from, b.env)
+		if err != nil {
+			return fmt.Errorf("--%s: %w", b.flag, err)
+		}
+		if inline(from) {
+			if name := composePassword(data); name != "" {
+				return fmt.Errorf("--%s: the file gives the volume %s a password in its driver_opts, so it would stay in your shell's history and the process list. "+
+					"Pass the file with --%s @compose.yaml, or pipe it in with --%s -", b.flag, name, b.flag, b.flag)
+			}
+		}
+		parent.Set(fd, protoreflect.ValueOfString(string(data)))
 	case b.fromFile:
 		text, err := b.readSecret(b.values[len(b.values)-1])
 		if err != nil {
@@ -336,7 +373,7 @@ func (b *boundField) apply(msg protoreflect.Message) error {
 
 // valueError says which flag's value is wrong, and how to give it.
 func (b *boundField) valueError(err error) error {
-	if errors.Is(err, errInlineSecret) {
+	if errors.Is(err, errInlineSecret) || errors.Is(err, errInlinePassword) {
 		return fmt.Errorf("--%s: %w. Put the JSON in a file and pass --%s @file, or pipe it in with --%s -", b.flag, err, b.flag, b.flag)
 	}
 	return fmt.Errorf("--%s: %w", b.flag, err)
@@ -404,11 +441,78 @@ func scalarOrMessage(fd protoreflect.FieldDescriptor, s string, env *Env, blank 
 	if inline(s) && resource.SetsSensitiveOf(variable.SecretType{}, v.Message().Interface()) {
 		return protoreflect.Value{}, errInlineSecret
 	}
+	if inline(s) && givesVolumePassword(v.Message()) {
+		return protoreflect.Value{}, errInlinePassword
+	}
 	return v, nil
 }
 
-// errInlineSecret refuses JSON on the command line that sets a secret.
-var errInlineSecret = errors.New("the JSON sets a secret's value, so it would stay in your shell history and the process list")
+// errInlineSecret refuses JSON on the command line that sets a secret, and
+// errInlinePassword JSON that gives a volume a password.
+var (
+	errInlineSecret   = errors.New("the JSON sets a secret's value, so it would stay in your shell history and the process list")
+	errInlinePassword = errors.New("the JSON gives a volume a password in its options, so it would stay in your shell history and the process list")
+)
+
+// volumeOptions is the field that holds a volume's options.
+var volumeOptions = (&resourcev1.Volume{}).ProtoReflect().Descriptor().Fields().ByName("options")
+
+// isVolumeOptions reports a volume's options, which a CIFS mount's password goes in.
+func isVolumeOptions(fd protoreflect.FieldDescriptor) bool {
+	return fd.FullName() == volumeOptions.FullName()
+}
+
+// givesVolumePassword reports a message that holds a volume, at any depth, whose
+// options give a password.
+func givesVolumePassword(m protoreflect.Message) bool {
+	if v, ok := m.Interface().(*resourcev1.Volume); ok {
+		return volume.HoldsPassword(v.GetOptions())
+	}
+	found := false
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		switch {
+		case fd.IsList() && fd.Message() != nil:
+			for i := range v.List().Len() {
+				if found = givesVolumePassword(v.List().Get(i).Message()); found {
+					break
+				}
+			}
+		case fd.IsMap() && fd.MapValue().Message() != nil:
+			v.Map().Range(func(_ protoreflect.MapKey, e protoreflect.Value) bool {
+				found = givesVolumePassword(e.Message())
+				return !found
+			})
+		case !fd.IsList() && !fd.IsMap() && fd.Message() != nil:
+			found = givesVolumePassword(v.Message())
+		}
+		return !found
+	})
+	return found
+}
+
+// composePassword names a volume a Compose file gives a password in its
+// driver_opts, or nothing. A file that doesn't read is the control plane's to
+// refuse, and holds none here.
+func composePassword(file []byte) string {
+	var doc struct {
+		Volumes map[string]struct {
+			DriverOpts map[string]any `yaml:"driver_opts"`
+		} `yaml:"volumes"`
+	}
+	if yaml.Unmarshal(file, &doc) != nil {
+		return ""
+	}
+	for _, name := range slices.Sorted(maps.Keys(doc.Volumes)) {
+		options := map[string]string{}
+		for k, v := range doc.Volumes[name].DriverOpts {
+			options[k] = fmt.Sprint(v)
+		}
+		if volume.HoldsPassword(options) {
+			return name
+		}
+	}
+	return ""
+}
 
 // inline reports a JSON flag's value given on the command line itself.
 func inline(s string) bool { return s != "-" && !strings.HasPrefix(s, "@") }

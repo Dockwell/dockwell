@@ -73,10 +73,12 @@ message ImportComposeRequest {
   // with production. A file exported from here goes back to the environment
   // it came from unless this names another of its project.
   string environment = 3;
-  // The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
-  // up to 256 KiB. A path relative to the file needs directory, as it runs on
-  // servers where it otherwise means nothing.
-  string compose = 4;
+  // The Compose file, as YAML, of up to 256 KiB. The CLI reads it from a file,
+  // --compose @compose.yaml, or standard input, --compose -, and refuses it on
+  // the command line when it gives a volume a password, which would stay in
+  // shell history and the process list. A path relative to the file needs
+  // directory, as it runs on servers where it otherwise means nothing.
+  string compose = 4 [(dockwell.v1.from_file) = true];
   // Values for the variables the file uses, such as ${TAG}. A variable
   // with no value here, in env or as a default in the file is refused. They
   // win over env, as a shell's win over an .env file.
@@ -115,7 +117,7 @@ message ImportComposeResponse {
 // CheckComposeRequest is a Compose file to read.
 message CheckComposeRequest {
   // The Compose file, as YAML, as ImportCompose takes it.
-  string compose = 1;
+  string compose = 1 [(dockwell.v1.from_file) = true];
   // Values for the variables the file uses, as ImportCompose takes them.
   map<string, string> variables = 2;
   // The .env file beside the Compose file, as ImportCompose takes it. A variable

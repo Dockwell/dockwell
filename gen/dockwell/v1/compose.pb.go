@@ -42,9 +42,11 @@ type ImportComposeRequest struct {
 	// with production. A file exported from here goes back to the environment
 	// it came from unless this names another of its project.
 	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
-	// The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
-	// up to 256 KiB. A path relative to the file needs directory, as it runs on
-	// servers where it otherwise means nothing.
+	// The Compose file, as YAML, of up to 256 KiB. The CLI reads it from a file,
+	// --compose @compose.yaml, or standard input, --compose -, and refuses it on
+	// the command line when it gives a volume a password, which would stay in
+	// shell history and the process list. A path relative to the file needs
+	// directory, as it runs on servers where it otherwise means nothing.
 	Compose string `protobuf:"bytes,4,opt,name=compose,proto3" json:"compose,omitempty"`
 	// Values for the variables the file uses, such as ${TAG}. A variable
 	// with no value here, in env or as a default in the file is refused. They
@@ -759,12 +761,12 @@ var File_dockwell_v1_compose_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x19dockwell/v1/service.proto\x1a\x1cgoogle/api/annotations.proto\"\x8b\x03\n" +
+	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x19dockwell/v1/service.proto\x1a\x1cgoogle/api/annotations.proto\"\x91\x03\n" +
 	"\x14ImportComposeRequest\x12\x18\n" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
-	"\venvironment\x18\x03 \x01(\tR\venvironment\x12\x18\n" +
-	"\acompose\x18\x04 \x01(\tR\acompose\x12N\n" +
+	"\venvironment\x18\x03 \x01(\tR\venvironment\x12\x1e\n" +
+	"\acompose\x18\x04 \x01(\tB\x04\xa8\xbb\x18\x01R\acompose\x12N\n" +
 	"\tvariables\x18\x05 \x03(\v20.dockwell.v1.ImportComposeRequest.VariablesEntryR\tvariables\x12\x18\n" +
 	"\aservers\x18\x06 \x03(\tR\aservers\x12%\n" +
 	"\x0eremove_orphans\x18\a \x01(\bR\rremoveOrphans\x12\x16\n" +
@@ -776,9 +778,9 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\x15ImportComposeResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\x12I\n" +
 	"\x11exposed_variables\x18\x02 \x03(\v2\x1c.dockwell.v1.ExposedVariableR\x10exposedVariables\x12!\n" +
-	"\fmore_exposed\x18\x03 \x01(\bR\vmoreExposed\"\xf2\x01\n" +
-	"\x13CheckComposeRequest\x12\x18\n" +
-	"\acompose\x18\x01 \x01(\tR\acompose\x12M\n" +
+	"\fmore_exposed\x18\x03 \x01(\bR\vmoreExposed\"\xf8\x01\n" +
+	"\x13CheckComposeRequest\x12\x1e\n" +
+	"\acompose\x18\x01 \x01(\tB\x04\xa8\xbb\x18\x01R\acompose\x12M\n" +
 	"\tvariables\x18\x02 \x03(\v2/.dockwell.v1.CheckComposeRequest.VariablesEntryR\tvariables\x12\x16\n" +
 	"\x03env\x18\x03 \x01(\tB\x04\xc8\xf3\x18\x01R\x03env\x12\x1c\n" +
 	"\tdirectory\x18\x04 \x01(\tR\tdirectory\x1a<\n" +
