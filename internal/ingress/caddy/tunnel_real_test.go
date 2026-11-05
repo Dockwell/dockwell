@@ -439,7 +439,7 @@ func TestTrustedProxiesOnRealCaddy(t *testing.T) {
 	if strings.Contains(string(b), "trusted_proxies") {
 		t.Errorf("with no route naming a proxy, a server still trusts one: %s", b)
 	}
-	if strings.Contains(string(b), "X-Forwarded-Proto") {
+	if strings.Contains(string(b), `"X-Forwarded-Proto"`) {
 		t.Errorf("with no route naming a proxy, a route still overwrites what Caddy writes: %s", b)
 	}
 	seen = c.plainGet(t, "none.example.net", "/who", forged).who(t)
@@ -800,6 +800,10 @@ func TestAPlainRouteAnswersOnlyWhoItNamesOnRealCaddy(t *testing.T) {
 	}
 	if got := c.plainGetAt(t, "127.0.0.1", "none.example.net", nil); got.status != http.StatusOK {
 		t.Errorf("a route naming no proxy answers %d over loopback", got.status)
+	}
+	// localhost may reach ::1 first, and a tunnel dialling it is this server too.
+	if got := c.plainGetAt(t, "[::1]", "none.example.net", nil); got.status != http.StatusOK {
+		t.Errorf("a route naming no proxy answers %d over IPv6's loopback", got.status)
 	}
 	stranger("a route naming no proxy", "none.example.net", own)
 
@@ -1409,6 +1413,12 @@ func TestAnOlderRouteGetsItsOwnNameAtTheNextChangeOnRealCaddy(t *testing.T) {
 		"older still":       {older: olderClientAddress, handles: 1},
 		"beside a proxy":    {older: distrustingAddress, handles: 1},
 		"believing a proxy": {older: believingAddress, trusts: true, handles: 2},
+		// What Caddy ran before Client-Ip and its like were stripped.
+		"before Client-Ip":                 {older: func() *headers { return strippingOnly(clientAddress(), strippedSecond) }, handles: 1},
+		"before Client-Ip, beside a proxy": {older: func() *headers { return strippingOnly(distrustingAddress(), strippedSecond) }, handles: 1},
+		"before Client-Ip, believing a proxy": {
+			older: func() *headers { return strippingOnly(believingAddress(), strippedSecond) }, trusts: true, handles: 2,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			c := startPlain(t)

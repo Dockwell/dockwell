@@ -137,21 +137,29 @@ func splitProxies(names []string) (named, edge []string) {
 	return named, edge
 }
 
-// proxyNames is splitProxies the other way. A list that holds every range of the
-// preset reads as its name, so it compares equal to the spec that named it, and one
-// that lacks any reads as what it holds, which is a difference, and shows as drift.
+// proxyNames is splitProxies the other way. A list that is the preset's ranges, no
+// more and no fewer, reads as its name, so it compares equal to the spec that named
+// it. Any other reads as what it holds, which is a difference, and shows as drift: a
+// range missing, as when Cloudflare adds one, a range too many, as when it gives one
+// up, and a range added by hand alike.
 func proxyNames(named, edge []string) []string {
 	if len(named)+len(edge) == 0 {
 		return nil
 	}
 	out := slices.Clone(named)
 	if len(edge) > 0 {
-		if slices.ContainsFunc(cloudflareRanges, func(r string) bool { return !slices.Contains(edge, r) }) {
-			out = append(out, edge...)
-		} else {
+		if isPreset(edge) {
 			out = append(out, PresetCloudflare)
+		} else {
+			out = append(out, edge...)
 		}
 	}
 	slices.Sort(out)
 	return out
+}
+
+// isPreset reports a list of ranges that is the preset's, in any order.
+func isPreset(edge []string) bool {
+	have := slices.Compact(slices.Sorted(slices.Values(edge)))
+	return slices.Equal(have, slices.Sorted(slices.Values(cloudflareRanges)))
 }
