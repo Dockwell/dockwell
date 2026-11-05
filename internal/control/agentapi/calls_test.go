@@ -199,6 +199,8 @@ type blockingLogs struct {
 	calls atomic.Int32
 	sent  chan struct{}
 	after chan *agentv1.LogCursor
+	// linger is how long a read takes to stop once it's told to.
+	linger time.Duration
 }
 
 func (*blockingLogs) Sources(context.Context, *dockwellv1.ResourceRef, int64) ([]*dockwellv1.LogSource, error) {
@@ -222,6 +224,7 @@ func (l *blockingLogs) Stream(ctx context.Context, call *agentv1.LogsCall, send 
 	}
 	l.sent <- struct{}{}
 	<-ctx.Done()
+	time.Sleep(l.linger)
 	return ctx.Err()
 }
 
@@ -325,6 +328,44 @@ func TestLogLinesComeOnlyFromTheServerAsked(t *testing.T) {
 		t.Errorf("lines nobody asked for = %v, want them refused", err)
 	}
 	_ = id
+}
+
+// A read that takes a moment to stop can't answer before its agent's stream ends, as
+// the agent moves as soon as the control plane has heard. It still ends as one that
+// can go on, as the agent said why it was going.
+func TestAFollowSlowToStopCanStillCarryOnAsItsAgentMoves(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	reader := &blockingLogs{sent: make(chan struct{}, 4), after: make(chan *agentv1.LogCursor, 4), linger: 500 * time.Millisecond}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = agent.Run(ctx, agent.Config{
+			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(),
+			Collector: fakeCollector(), Logs: reader,
+		})
+		close(done)
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+	waitForAgent(t, s.agents, id.ServerID, true)
+	session, ok := s.agents.Session(id.ServerID)
+	if !ok {
+		t.Fatal("no session")
+	}
+	result := make(chan error, 1)
+	go func() {
+		result <- session.Logs(t.Context(), &agentv1.LogsCall{Follow: true}, func(*agentv1.SendLogsRequest) error { return nil })
+	}()
+	<-reader.sent
+	id.Replace(id.Key(), id.Cert())
+	select {
+	case err := <-result:
+		if !errors.Is(err, resource.ErrNotConnected) {
+			t.Errorf("a follow slow to stop as its agent moved = %v, want it to say it can carry on", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("a follow slow to stop held up moving to a new stream")
+	}
 }
 
 // An agent moving to a renewed certificate lets the calls under way finish,
