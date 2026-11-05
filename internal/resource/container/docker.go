@@ -88,6 +88,11 @@ type Docker struct {
 	// share until it is on them, so two changes applying at once can't both find a
 	// name free and both take it.
 	joining sync.Mutex
+	// registries is what the agent keeps of asking registries for images as it
+	// plans (registry.go).
+	registries registries
+	// Now tells the time, for a test. Nil is time.Now.
+	Now func() time.Time
 	// Points hears each step of a rollout, for a test to stop it there. Nil
 	// hears nothing.
 	Points fault.Points
@@ -1021,6 +1026,7 @@ func (d *Docker) ensureImage(ctx context.Context, ref string) error {
 	}
 	resource.Progress(ctx, "Pulling "+ref)
 	err = d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "Pulling "+ref+": "+p) })
+	d.pulled(ref)
 	if err != nil && !docker.IsUnavailable(err) && ctx.Err() == nil {
 		return pullFailure(ref, err)
 	}
@@ -1079,6 +1085,7 @@ func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Conta
 func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container, ref string) error {
 	resource.Progress(ctx, "Pulling "+ref+" again")
 	err := d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "Pulling "+ref+" again, "+p) })
+	d.pulled(ref)
 	if err == nil || docker.IsUnavailable(err) || ctx.Err() != nil {
 		return err
 	}
@@ -1122,19 +1129,6 @@ func (d *Docker) reportRan(ctx context.Context, ref string) {
 	if img, err := d.Client.InspectImage(ctx, docker.WithTag(ref)); err == nil {
 		resource.Report(ctx, resource.Outcome{Digest: img.Digest(ref)})
 	}
-}
-
-// pullableWait bounds asking a registry for an image while planning. A plan
-// shouldn't wait on a registry, so one that doesn't answer in time says nothing,
-// and the pull finds out.
-const pullableWait = 10 * time.Second
-
-// notPullable says an image's registry won't give it to a pull. One that doesn't
-// answer in time, is down or is limiting how often it's asked says nothing of it.
-func (d *Docker) notPullable(ctx context.Context, ref string) bool {
-	ctx, cancel := context.WithTimeout(ctx, pullableWait)
-	defer cancel()
-	return docker.NotPullable(d.Client.CheckPullable(ctx, ref))
 }
 
 // checkImage refuses a plan for an image the server hasn't got and its registry
