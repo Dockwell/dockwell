@@ -763,6 +763,13 @@ after=$(priv openssl x509 -in "$certificate" -noout -serial) || fail "can't read
 [[ "$after" == "$before" ]] || fail "a new certificate was issued, $after, where the one kept was $before"
 dw routes delete www --yes || fail "routes delete www, again, failed"
 
+# The network prune above took the imported file's network, as nothing was on it by
+# then, and it rightly stays as drift. So these routes are held to what they add.
+drifted() { dw drift list --json | jq -c '[(.drift // [])[] | .resource] | sort_by(.kind, .name)'; }
+drift_before=$(drifted) || fail "drift list failed"
+[[ "$(jq -r 'map(.kind + " " + .name) | join(",")' <<<"$drift_before")" == "network back" ]] ||
+  fail "before these routes, drift should be only the network the prune took, and is: $drift_before"
+
 step "Ingress: a route that takes no certificate serves plain HTTP, on port 80 alone"
 behind=behind.e2e-dockwell.example.net
 # Each order Pebble takes, as it logs them. Nothing here may ask it for one.
@@ -843,8 +850,7 @@ sleep 0.5
 seen=$(docker logs --tail 5 "$web" 2>&1) || fail "docker logs $web failed"
 seen=${seen##*$'\n'}
 [[ "$seen" == *'"127.0.0.1"' ]] || fail "beside a route that trusts a proxy, one that doesn't reads: $seen"
-drift=$(dw drift list --json) || fail "drift list failed"
-jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after routes behind a tunnel: $drift"
+[[ "$(drifted)" == "$drift_before" ]] || fail "drift after routes behind a tunnel: $(dw drift list --json), and before them it was $drift_before"
 set +e
 own=$(dw routes create own --domain own.e2e-dockwell.example.net --host-port "$port" --tls off --yes 2>&1)
 status=$?
