@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -706,8 +707,8 @@ func TestAStopFirstWhoseRemoveFailsEndsRunning(t *testing.T) {
 		t.Fatalf("the step said %v", err)
 	}
 	s.engine.Intercept(nil)
-	if n := s.running(); n != 1 {
-		t.Errorf("after the step failed, %d run: %v", n, s.instances())
+	if n := s.running(); n != 1 || len(s.instances()) != 1 {
+		t.Errorf("after the step failed, %d run of %v, and what it made should have gone", n, s.instances())
 	}
 	a := s.comeBack(t, old)
 	s.oneHealthy(t, a, old)
@@ -859,4 +860,51 @@ func TestKillingTheAgentAtEachStepOfAPull(t *testing.T) {
 			})
 		}
 	}
+}
+
+// A marked container reads as running, as Docker may still be stopping it, however the
+// step that marked it ended. So it isn't what serves, a plan doesn't say it never
+// stopped, and going back to it finishes the stop before it starts it, or that stop
+// would take down what came back.
+func TestAMarkedContainerIsntWhatServes(t *testing.T) {
+	old, next := web("nginx:1.27"), web("nginx:1.28")
+	s := newScene(t, old)
+	s.killAt(t, container.PointMarked, next)
+	var marked *docker.Container
+	for _, name := range s.instances() {
+		if c := s.engine.Container(name); c != nil && strings.HasPrefix(c.Name, "/stopping_") {
+			marked = c
+		}
+	}
+	if marked == nil || !marked.State.Running {
+		t.Fatalf("killed as it marked it, Docker has %v, and what's marked is %+v", s.instances(), marked)
+	}
+	a := agentOn(s.engine.Client(), s.dir)
+	steps, err := a.local.Plan(t.Context(), []resource.Desired{{Ref: webRef, Spec: old}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if steps[0].Rollout.AlreadyRuns() {
+		t.Errorf("a plan reads what's marked as already running: %+v", steps[0].Rollout)
+	}
+	var mu sync.Mutex
+	var calls []string
+	s.engine.Intercept(func(r *http.Request) error {
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if id := parts[len(parts)-2]; r.Method == http.MethodPost && id == marked.ID {
+			mu.Lock()
+			defer mu.Unlock()
+			calls = append(calls, parts[len(parts)-1])
+		}
+		return nil
+	})
+	if err := a.local.Apply(t.Context(), steps[0], old); err != nil {
+		t.Fatal(err)
+	}
+	s.engine.Intercept(nil)
+	stop, start := slices.Index(calls, "stop"), slices.Index(calls, "start")
+	if stop < 0 || start < stop {
+		t.Errorf("going back to it asked Docker for %v, and should finish stopping it before it starts it", calls)
+	}
+	s.oneHealthy(t, a, old)
 }

@@ -646,7 +646,7 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 	// What was planned as nothing stopping can't turn into two writers, or
 	// into downtime nobody reviewed, because the server changed since. Where none of
 	// it runs, as when the tag of what's stopped moved, it can't be either.
-	runs := slices.ContainsFunc(others, func(o *instance) bool { return o.State.Running || o.stopping })
+	runs := slices.ContainsFunc(others, func(o *instance) bool { return o.State.Running })
 	if dec.Rollout != nil && dec.Rollout.Rolling && !plan.Rolling && runs {
 		shared := slices.Concat(plan.Ports, plan.Volumes, plan.Paths, plan.ImageData, plan.CantTell, plan.EditedRoutes)
 		if plan.HostNetwork {

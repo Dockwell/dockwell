@@ -2420,13 +2420,14 @@ func TestADrainThatCantReadWhatIsInFlightWaitsItsTime(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.proxy.inFlightErr = errors.New("can't read the server's connections")
+	begun := time.Now()
 	ctx, cancel := context.WithTimeout(t.Context(), 3*drainPoll)
 	defer cancel()
-	begun := time.Now()
 	if err := s.Drain(ctx, old); err != nil {
 		t.Errorf("Drain = %v", err)
 	}
-	if took := time.Since(begun); took < 2*drainPoll {
+	// All of its time: two clear reads would take two polls.
+	if took := time.Since(begun); took < 3*drainPoll {
 		t.Errorf("it called that clear after %s", took)
 	}
 }

@@ -387,6 +387,17 @@ func TestAHungDockerStopsNoCheck(t *testing.T) {
 	eventually(t, "what only Docker can say reads as not known", m, stateOf(plain, dockwellv1.HealthState_HEALTH_STATE_UNKNOWN))
 }
 
+// What the agent's own check last said stops standing once it's too old, as a check
+// that has stopped finishing says nothing of how the app is now.
+func TestWhatACheckSaidLongAgoReadsAsNotKnown(t *testing.T) {
+	e := dockertest.New(t)
+	add(e, "web", health.Label, `{"tcp":{"port":80},"interval":10000000}`)
+	m := start(t, e, func(context.Context, *health.Check, string) (health.Result, error) {
+		return health.Result{Passed: true, Output: "ok", At: time.Now().Add(-time.Hour)}, nil
+	})
+	eventually(t, "it stops claiming that", m, stateOf(docker.InstanceName(project, "web", 1), dockwellv1.HealthState_HEALTH_STATE_UNKNOWN))
+}
+
 // A check an interval shorter than the scan runs at its interval, not the scan's.
 func TestAnIntervalShorterThanTheScanIsKept(t *testing.T) {
 	e := dockertest.New(t)

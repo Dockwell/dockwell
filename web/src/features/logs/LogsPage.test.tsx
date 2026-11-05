@@ -154,6 +154,53 @@ describe("LogsPage", () => {
     await expectAccessible(container);
   });
 
+  it("names both containers of a rolling deploy for as long as it reads both, and where the new one begins", async () => {
+    const before = create(LogSourceSchema, { ...running, id: "dddddddddddd", containerName: "env-web-2" });
+    const after = create(LogSourceSchema, { ...running, id: "eeeeeeeeeeee", revision: 4n, containerName: "env-web-3" });
+    const { logs, stream } = api(sourcesOf(before));
+    const { container } = renderAt(URL, { logs });
+    await screen.findByRole("log");
+    await act(() =>
+      stream.send(
+        message({
+          sources: [before],
+          chunks: [{ sourceId: before.id, lines: [line("what ran says")] }],
+          caughtUp: true,
+        }),
+      ),
+    );
+    await screen.findByText("what ran says");
+    // One container, whatever number it has reached: its server says which.
+    expect(container.querySelector(".dw-log-src")).toBeNull();
+    await act(() =>
+      stream.send(
+        message({ sources: [before, after], chunks: [{ sourceId: after.id, lines: [line("the new one says", 1)] }] }),
+      ),
+    );
+    await screen.findByText("the new one says");
+    await waitFor(() => expect(container.querySelector(".dw-log-src")).not.toBeNull());
+    expect(screen.getAllByText("web-2").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("web-3").length).toBeGreaterThan(0);
+    await screen.findByText("web-3 started r4");
+    expect(screen.queryByText(/stopping_/)).toBeNull();
+  });
+
+  it("forgets a filter on a name that has gone, as a deploy moves on from it", async () => {
+    const { logs, stream } = api(sourcesOf(running));
+    renderAt(`${URL}?replica=web-9`, { logs });
+    await screen.findByRole("log");
+    await act(() =>
+      stream.send(
+        message({
+          sources: [running],
+          chunks: [{ sourceId: running.id, lines: [line("still here")] }],
+          caughtUp: true,
+        }),
+      ),
+    );
+    await screen.findByText("still here");
+  });
+
   it("has a source column once there are two sources", async () => {
     const { logs, stream } = api(sourcesOf(running, second));
     const { container } = renderAt(URL, { logs });
@@ -353,6 +400,8 @@ describe("LogsPage", () => {
     await waitFor(() => expect(requests[0]?.changeId).toBe("chg_2"));
     expect(requests[0]?.once).toBe(true);
     await screen.findByText("failed at", { exact: false });
+    // By the name it had, as Docker has forgotten it.
+    expect(screen.getByRole("alert")).toHaveTextContent("It ran as web-1.");
     await act(() =>
       stream.send(
         message({

@@ -531,6 +531,12 @@ func TestAServiceFlappingFasterThanTheDwellIsTold(t *testing.T) {
 		if len(got) > int(2*time.Hour/HoldOff)+1 {
 			t.Errorf("it told of it %d times, more than HoldOff lets", len(got))
 		}
+		// Whichever way it happens to be as it's told, what it says is what it keeps falling to.
+		for i := range got {
+			if got[i].State != unhealthy || !strings.Contains(got[i].Output, "503") {
+				t.Errorf("event %d says %+v, want what it keeps falling to", i, got[i])
+			}
+		}
 		if got[0].State != unhealthy || !strings.Contains(got[0].Output, "503") || got[0].Flips == 0 {
 			t.Errorf("the first event says %+v, want what it keeps falling to, and how often", got[0])
 		}

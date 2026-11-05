@@ -862,3 +862,22 @@ func TestAChangeSaysWhatACheckSaid(t *testing.T) {
 		t.Errorf("its rollback reads:\n%s", back.String())
 	}
 }
+
+// A plan's step says what's so of it: a restart has no rollback, and nothing goes on
+// serving from what's stopped.
+func TestAPlanSaysWhatsSoOfItsStep(t *testing.T) {
+	rollout := &dockwellv1.RolloutPlan{Rolling: true, Soak: durationpb.New(5 * time.Second), HealthyWithin: durationpb.New(time.Minute), Others: []string{"web-1"}}
+	view := func(st *dockwellv1.PlanStep) string {
+		st.Resource, st.Rollout, st.Action = &dockwellv1.ResourceRef{Kind: "service", Name: "web"}, rollout, dockwellv1.PlanAction_PLAN_ACTION_REPLACE
+		var b strings.Builder
+		PlanView(&b, &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: []*dockwellv1.PlanStep{st}}}})
+		return b.String()
+	}
+	if got := view(&dockwellv1.PlanStep{Restart: "chg_1"}); !strings.Contains(got, "the new one goes, and what runs stays") || strings.Contains(got, "rolls this back") {
+		t.Errorf("a restart's plan reads:\n%s", got)
+	}
+	stopped := &dockwellv1.PlanStep{Changes: []*dockwellv1.FieldChange{{Path: "state", From: "exited", To: "running"}}}
+	if got := view(stopped); !strings.Contains(got, "It has to stay healthy") || strings.Contains(got, "goes on serving") || strings.Contains(got, "in flight") {
+		t.Errorf("a stopped container's plan reads:\n%s", got)
+	}
+}

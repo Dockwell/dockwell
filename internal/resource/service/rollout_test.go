@@ -1546,3 +1546,135 @@ func TestPlainNameIsWhatAContainerGoesBy(t *testing.T) {
 		}
 	}
 }
+
+// A rolling step marks what it stops before it asks Docker to stop it, as Docker goes on
+// stopping it however the agent fares, and the mark is what says so.
+func TestARollingStepMarksWhatItStopsFirst(t *testing.T) {
+	s := newStack(t)
+	s.deploy(t, webRef, app("nginx:1.27"))
+	old := s.engine.Newest(docker.Project(webRef.Scope), "web").ID
+	var named atomic.Value
+	s.engine.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/"+old+"/stop") {
+			named.Store(s.engine.Container(old).Name)
+		}
+		return nil
+	})
+	defer s.engine.Intercept(nil)
+	s.deploy(t, webRef, app("nginx:1.28"))
+	if got, _ := named.Load().(string); !strings.HasPrefix(got, "/stopping_") {
+		t.Errorf("as Docker was asked to stop it, it was named %q", got)
+	}
+}
+
+// A soak of the agent's own check is at least three of them, however short the soak.
+func TestASoakTakesThreeOfTheAgentsChecks(t *testing.T) {
+	s := newStack(t)
+	s.rt.HealthWait = 2 * time.Second
+	var probes atomic.Int32
+	s.rt.Probe = func(context.Context, *health.Check, string) (health.Result, error) {
+		probes.Add(1)
+		return health.Result{Passed: true, Output: "ok"}, nil
+	}
+	check := &resourcev1.Healthcheck{Http: &resourcev1.HttpCheck{Port: 80, Path: "/healthz"}, Interval: "1s", Timeout: "1s"}
+	old, next := app("nginx:1.27"), app("nginx:1.28")
+	old.GetApp().Healthcheck, next.GetApp().Healthcheck = check, check
+	s.deploy(t, webRef, old)
+	s.rt.Soak = time.Millisecond
+	probes.Store(0)
+	var atHealthy atomic.Int32
+	s.rt.Points = func(name string) {
+		if name == container.PointHealthy {
+			atHealthy.Store(probes.Load())
+		}
+	}
+	s.deploy(t, webRef, next)
+	if n := atHealthy.Load(); n < 3 {
+		t.Errorf("it called it healthy after %d of its checks", n)
+	}
+}
+
+// A soak has to hold: a failure along the way starts it again, whichever check it is.
+func TestAFailureStartsASoakAgain(t *testing.T) {
+	const soak, partway = 400 * time.Millisecond, 100 * time.Millisecond
+	t.Run("the agent's check", func(t *testing.T) {
+		s := newStack(t)
+		s.rt.HealthWait = 5 * time.Second
+		var begun, failedAt atomic.Int64
+		s.rt.Probe = func(context.Context, *health.Check, string) (health.Result, error) {
+			if at := begun.Load(); at != 0 && time.Now().UnixNano() >= at+partway.Nanoseconds() && failedAt.CompareAndSwap(0, time.Now().UnixNano()) {
+				return health.Result{Output: "GET /healthz on port 80 answered 503"}, nil
+			}
+			return health.Result{Passed: true, Output: "ok"}, nil
+		}
+		check := &resourcev1.Healthcheck{Http: &resourcev1.HttpCheck{Port: 80, Path: "/healthz"}, Interval: "1s", Timeout: "1s", Retries: 100}
+		old, next := app("nginx:1.27"), app("nginx:1.28")
+		old.GetApp().Healthcheck, next.GetApp().Healthcheck = check, check
+		s.deploy(t, webRef, old)
+		s.rt.Soak = soak
+		begun.Store(time.Now().UnixNano())
+		s.deploy(t, webRef, next)
+		if at := failedAt.Load(); at == 0 || time.Since(time.Unix(0, at)) < soak {
+			t.Errorf("it moved on %s after a check failed, within a soak of %s", time.Since(time.Unix(0, at)), soak)
+		}
+	})
+	t.Run("Docker's check", func(t *testing.T) {
+		s := newStack(t)
+		s.rt.HealthWait = 5 * time.Second
+		s.engine.Registry["checked:1"] = dockertest.Image{Config: docker.Config{Cmd: []string{"app"}, Healthcheck: &docker.Healthcheck{Test: []string{"CMD", "true"}}}}
+		s.engine.Registry["checked:2"] = s.engine.Registry["checked:1"]
+		s.deploy(t, webRef, app("checked:1"))
+		s.rt.Soak = soak
+		project := docker.Project(webRef.Scope)
+		first := s.engine.Newest(project, "web").ID
+		var back atomic.Int64
+		timer := time.AfterFunc(partway, func() {
+			name := strings.TrimPrefix(s.engine.Newest(project, "web").Name, "/")
+			if s.engine.Newest(project, "web").ID == first {
+				return
+			}
+			s.engine.SetHealth(name, "starting", "")
+			time.Sleep(50 * time.Millisecond)
+			s.engine.SetHealth(name, "healthy", "ok")
+			back.Store(time.Now().UnixNano())
+		})
+		defer timer.Stop()
+		s.deploy(t, webRef, app("checked:2"))
+		if at := back.Load(); at == 0 || time.Since(time.Unix(0, at)) < soak-20*time.Millisecond {
+			t.Errorf("it moved on %s after Docker's check came back, within a soak of %s", time.Since(time.Unix(0, at)), soak)
+		}
+	})
+}
+
+// A check that never made it says what it last said, whichever way it ran out of time.
+func TestACheckThatTookTooLongSaysWhatItSaid(t *testing.T) {
+	s := newStack(t)
+	s.rt.HealthWait = 80 * time.Millisecond
+	s.rt.Probe = func(context.Context, *health.Check, string) (health.Result, error) {
+		return health.Result{Output: "GET /healthz on port 80 answered 503 Service Unavailable"}, nil
+	}
+	spec := app("nginx:1.28")
+	spec.GetApp().Healthcheck = &resourcev1.Healthcheck{Http: &resourcev1.HttpCheck{Port: 80, Path: "/healthz"}, Interval: "1s", Timeout: "1s", Retries: 100}
+	step := s.plan(t, webRef, spec, "")
+	plain, _ := resource.Explain(s.local.Apply(t.Context(), step, spec))
+	for _, want := range []string{"so Dockwell stopped waiting: GET /healthz on port 80 answered 503 Service Unavailable", "Fix what it answers, or the check, then try again", "start period"} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("it says %q, without %q", plain, want)
+		}
+	}
+}
+
+// What isn't running is read by the number a rollout has reached, and not the first.
+func TestWhatIsStoppedIsFoundAtItsNumber(t *testing.T) {
+	s := newStack(t)
+	s.deploy(t, webRef, app("nginx:1.27"))
+	s.deploy(t, webRef, app("nginx:1.28"))
+	now := s.engine.Newest(docker.Project(webRef.Scope), "web")
+	if strings.HasSuffix(now.Name, "-1") {
+		t.Fatalf("it should have rolled, and is %s", now.Name)
+	}
+	s.engine.Stop(strings.TrimPrefix(now.Name, "/"))
+	if got, err := s.rt.NotRunning(t.Context(), service.Target(webRef)); err != nil || got == "" {
+		t.Errorf("NotRunning = %q, %v, with %s stopped", got, err, now.Name)
+	}
+}

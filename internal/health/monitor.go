@@ -153,7 +153,7 @@ func (m *Monitor) Report() []*dockwellv1.InstanceHealth {
 	}
 	now := time.Now()
 	m.dirty, m.said = false, now
-	blind := m.isBlind(now)
+	blind := m.isBlind()
 	out := make([]*dockwellv1.InstanceHealth, 0, len(m.watched))
 	for _, w := range m.watched {
 		h := &dockwellv1.InstanceHealth{
@@ -192,11 +192,9 @@ func (m *Monitor) confirmed(w *watched) (time.Time, time.Duration) {
 	return w.last.At, max(freshFor, 2*w.check.IntervalOr()+w.check.TimeoutOr()+m.refreshEvery())
 }
 
-// isBlind reports Docker not answering: a list failed, or the last good one is too
-// old, as when one hangs and has yet to run out of time.
-func (m *Monitor) isBlind(now time.Time) bool {
-	return !m.blindSince.IsZero() || now.Sub(m.scannedAt) > staleScans*m.scanEvery(len(m.watched))+m.callTimeout()
-}
+// isBlind reports Docker not answering: a list failed, which one that hangs does when
+// it runs out of time.
+func (m *Monitor) isBlind() bool { return !m.blindSince.IsZero() }
 
 // blindFrom is since when it has been blind, for a report.
 func (m *Monitor) blindFrom(now time.Time) time.Time {
@@ -300,11 +298,6 @@ func (m *Monitor) nudge() {
 func (m *Monitor) refresh(now time.Time) {
 	m.mu.Lock()
 	due := !m.scannedAt.IsZero() && now.Sub(m.said) >= m.refreshEvery()
-	// A list that has hung says nothing of its own, so this notices.
-	if !due && !m.scannedAt.IsZero() && m.blindSince.IsZero() && m.isBlind(now) {
-		m.blindSince = now
-		due = true
-	}
 	m.mu.Unlock()
 	if due {
 		m.tell()
