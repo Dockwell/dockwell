@@ -258,8 +258,18 @@ describe("LogsPage", () => {
     await user.click(await screen.findByRole("button", { name: "Search all the servers keep" }));
     await waitFor(() => expect(readLogs).toHaveBeenCalled());
     await user.click(screen.getByRole("radio", { name: "Lines loaded" }));
-    // The search saw both running. Since, one has gone, and the other was kept.
+    await user.clear(field);
+    const head = () => container.querySelector(".dw-log-name")?.textContent ?? "";
+    // What the search saw and still runs goes on counting, as what's read live says so.
     const now = web("aaaa00000003", 3);
+    await act(() =>
+      stream.send(
+        message({ sources: [was, now], chunks: [{ sourceId: now.id, lines: [line("during")] }], caughtUp: true }),
+      ),
+    );
+    await screen.findByText("during");
+    await waitFor(() => expect(head()).toContain("2 containers"));
+    // Since, one the search saw has gone with nothing said of it, and the other was kept.
     await act(() =>
       stream.send(
         message({
@@ -269,11 +279,9 @@ describe("LogsPage", () => {
         }),
       ),
     );
-    await user.clear(field);
     await screen.findByText("after");
-    const head = () => container.querySelector(".dw-log-name")?.textContent ?? "";
     await waitFor(() => expect(head()).toContain("web · production"));
-    expect(head()).not.toMatch(/container/);
+    await waitFor(() => expect(head()).not.toMatch(/container/));
     expect(screen.queryByRole("radio", { name: "All containers" })).toBeNull();
   });
 
