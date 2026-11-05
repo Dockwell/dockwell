@@ -41,6 +41,7 @@ export declare function StatusBadge(props: StatusBadgeProps): React.ReactElement
 
 export interface GlyphProps {
   /** The status shape. Shape carries meaning with colour, so state never depends on colour alone. */
+  /** dotted-ring is a ring with a dot in it, running; dashed-ring a dashed ring with a dash across it, unknown. */
   shape?: 'circle' | 'triangle' | 'square' | 'spinner' | 'ring' | 'dotted-ring' | 'dashed-ring' | 'info';
   /** Pixel size of the square glyph. Default 10. Colour comes from `currentColor`. */
   size?: number;
@@ -258,6 +259,8 @@ export interface TimelineEvent {
   title: React.ReactNode;
   tone?: 'healthy' | 'warning' | 'critical' | 'cobalt';
   status?: Status;
+  /** The state in words of its own, such as "Unhealthy" for degraded, where the status's word isn't it. */
+  statusLabel?: string;
   revision?: string;
   actor?: string;
   meta?: React.ReactNode;

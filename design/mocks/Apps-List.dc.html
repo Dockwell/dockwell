@@ -25,7 +25,7 @@ a{color:var(--link)}a:hover{text-decoration:underline}
 <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
 <div style="display: flex; flex-direction: column; gap: 4px;">
 <h1 class="title" style="margin: 0;">Apps</h1>
-<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">8 apps in storefront / production</p>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">8 apps in storefront / production · 3 need a look · 1 deploying</p>
 </div>
 <a href="Apps-New.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>New app</span></a>
 </div>
@@ -50,25 +50,29 @@ class Component extends DCLogic {
   renderVals() {
     const h = React.createElement, DW = window.Dockwell;
     const wave = (n, base, amp, seed) => Array.from({ length: n }, (_, i) => +(base + amp * Math.sin((i + seed) / 3.1) + amp * 0.5 * Math.sin((i * 7 + seed) / 5.3)).toFixed(1));
-    const tone = { healthy: 'ink', deploying: 'cobalt', degraded: 'warning', stopped: 'idle', down: 'critical' };
+    // The sparkline is data, in ink, except where how it runs is the news.
+    const tone = { healthy: 'ink', running: 'ink', deploying: 'cobalt', degraded: 'warning', stopped: 'idle', down: 'critical', unknown: 'idle' };
     const mono = { fontFamily: 'var(--font-mono)', fontSize: 12 };
     const cell = (t, s) => h('div', { className: 'dw-cell' }, h('span', { className: 'dw-cell-title' }, t), h('span', { className: 'dw-cell-sub' }, s));
     const ramp = (a, b, n) => Array.from({ length: n }, (_, i) => +(a + (b - a) * Math.pow(i / (n - 1), 1.6) + 2 * Math.sin(i / 1.7)).toFixed(1));
+    // How each runs, from what its server says: Healthy only where a check passed, Running where nothing
+    // checks it, and Unknown where nobody can say. What was deployed and how that went sits beside the
+    // revision, apart. What needs a look comes first, then the rest, newest first.
     const apps = [
-      { id: 'web', name: 'storefront-web', image: 'ghcr.io/acme/storefront:2c71f09', status: 'deploying', rev: 'r64', replicas: '3 of 3', servers: 'fra-1-15 · fra-1-16 · ams-1-09', cpu: wave(20, 24, 5, 1), domain: 'acme.dev', at: 'now' },
-      { id: 'api', name: 'api', image: 'ghcr.io/acme/api:8be41d2', status: 'healthy', rev: 'r128', replicas: '3 of 3', servers: 'fra-1-04 · fra-1-11 · ams-1-02', cpu: wave(20, 31, 5, 2), domain: 'api.acme.dev', at: '4 min ago' },
-      { id: 'worker', name: 'worker', image: 'ghcr.io/acme/worker:9a03e1b', status: 'degraded', rev: 'r57', replicas: '4 of 4', servers: '3 servers', cpu: ramp(30, 88, 20), domain: '—', at: '24 min ago' },
-      { id: 'checkout', name: 'checkout', image: 'ghcr.io/acme/checkout:e19b2c4', status: 'healthy', rev: 'r212', replicas: '3 of 3', servers: 'fra-1-06 · fra-1-12 · ams-1-07', cpu: wave(20, 19, 4, 3), domain: 'checkout.acme.dev', at: '6 h ago' },
-      { id: 'search', name: 'search', image: 'getmeili/meilisearch:v1.11', status: 'healthy', rev: 'r9', replicas: '1 of 1', servers: 'sfo-2-08', cpu: wave(20, 12, 3, 4), domain: '—', at: '28 Oct' },
-      { id: 'images', name: 'images', image: 'darthsim/imgproxy:v3.27', status: 'healthy', rev: 'r14', replicas: '2 of 2', servers: 'fra-1-09 · ams-1-06', cpu: wave(20, 16, 4, 5), domain: 'img.acme.dev', at: '21 Oct' },
-      { id: 'plausible', name: 'plausible', image: 'ghcr.io/plausible/community-edition:v2.1.4', status: 'healthy', rev: 'r6', replicas: '1 of 1', servers: 'ams-1-10', cpu: wave(20, 8, 2, 6), domain: 'stats.acme.dev', at: '12 Oct' },
-      { id: 'kuma', name: 'uptime-kuma', image: 'louislam/uptime-kuma:1.23.16', status: 'healthy', rev: 'r3', replicas: '1 of 1', servers: 'fra-1-07', cpu: wave(20, 5, 1.5, 7), domain: 'status.acme.dev', at: '9 Oct' }
+      { id: 'worker', name: 'worker', image: 'ghcr.io/acme/worker:9a03e1b', status: 'degraded', word: 'Unhealthy', rev: 'r57', replicas: '4 of 4', servers: '3 servers', cpu: ramp(30, 88, 20), domain: '—', at: '24 min ago' },
+      { id: 'plausible', name: 'plausible', image: 'ghcr.io/plausible/community-edition:v2.1.4', status: 'down', word: 'Not running', rev: 'r6', replicas: '0 of 1', servers: 'ams-1-10', cpu: wave(20, 2, 1, 6), domain: 'stats.acme.dev', at: '12 Oct' },
+      { id: 'kuma', name: 'uptime-kuma', image: 'louislam/uptime-kuma:1.23.16', status: 'unknown', word: 'Unknown', rev: 'r3', replicas: '1 of 1', servers: 'fra-1-07', cpu: wave(20, 5, 1.5, 7), domain: 'status.acme.dev', at: '9 Oct' },
+      { id: 'web', name: 'storefront-web', image: 'ghcr.io/acme/storefront:2c71f09', status: 'healthy', word: 'Healthy', rev: 'r64', record: { status: 'deploying', word: 'Deploying' }, replicas: '3 of 3', servers: 'fra-1-15 · fra-1-16 · ams-1-09', cpu: wave(20, 24, 5, 1), domain: 'acme.dev', at: 'now' },
+      { id: 'api', name: 'api', image: 'ghcr.io/acme/api:8be41d2', status: 'healthy', word: 'Healthy', rev: 'r128', replicas: '3 of 3', servers: 'fra-1-04 · fra-1-11 · ams-1-02', cpu: wave(20, 31, 5, 2), domain: 'api.acme.dev', at: '4 min ago' },
+      { id: 'checkout', name: 'checkout', image: 'ghcr.io/acme/checkout:e19b2c4', status: 'healthy', word: 'Healthy', rev: 'r212', replicas: '3 of 3', servers: 'fra-1-06 · fra-1-12 · ams-1-07', cpu: wave(20, 19, 4, 3), domain: 'checkout.acme.dev', at: '6 h ago' },
+      { id: 'search', name: 'search', image: 'getmeili/meilisearch:v1.11', status: 'running', word: 'Running', rev: 'r9', replicas: '1 of 1', servers: 'sfo-2-08', cpu: wave(20, 12, 3, 4), domain: '—', at: '28 Oct' },
+      { id: 'images', name: 'images', image: 'darthsim/imgproxy:v3.27', status: 'running', word: 'Running', rev: 'r14', replicas: '2 of 2', servers: 'fra-1-09 · ams-1-06', cpu: wave(20, 16, 4, 5), domain: 'img.acme.dev', at: '21 Oct' }
     ];
     const cols = [
       { key: 'name', header: 'App', render: (r) => cell(r.name, r.image) },
-      { key: 'status', header: 'Status', render: (r) => h(DW.StatusBadge, { status: r.status }) },
-      { key: 'rev', header: 'Revision', mono: true },
-      { key: 'replicas', header: 'Replicas' },
+      { key: 'status', header: 'Status', render: (r) => h(DW.StatusBadge, { status: r.status, label: r.word }) },
+      { key: 'rev', header: 'Revision', mono: true, render: (r) => h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 8 } }, r.rev,
+        r.record ? h('span', { style: { fontFamily: 'var(--font-sans)' } }, h(DW.StatusBadge, { status: r.record.status, label: r.record.word })) : null) },
       { key: 'servers', header: 'Servers', muted: true, render: (r) => h('span', { style: /^\d/.test(r.servers) ? { fontSize: 13 } : mono }, r.servers) },
       { key: 'cpu', header: 'CPU, last hour', render: (r) => h(DW.Sparkline, { data: r.cpu, width: 88, height: 20, min: 0, max: 100, tone: tone[r.status] }) },
       { key: 'domain', header: 'Domain', mono: true, muted: true },

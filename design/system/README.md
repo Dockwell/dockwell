@@ -3,7 +3,7 @@ Dockwell is a control plane for servers: one VPS or a fleet of thousands, websit
 ## Principles
 
 1. **Ink for action, colour for state.** The primary action is `action` (ink). The four hues (`healthy`, `warning`, `critical`, `cobalt`) mean state and nothing else. Never use them to decorate, to brand a section, or to make something look important.
-2. **Every state is a shape, a word and a colour.** Healthy is a filled circle, degraded a triangle, down a square, deploying a spinning arc, stopped a hollow ring, running a ring with a dot in it, unknown a dashed ring. Healthy means a check passed: what runs with nothing checking it reads as running, and what nobody can say anything of as unknown, and neither is ever green. Use `StatusBadge`; never show a coloured dot alone.
+2. **Every state is a shape, a word and a colour.** Healthy is a filled circle, degraded a triangle, down a square, deploying a spinning arc, stopped a hollow ring, running a ring with a dot in it, unknown a dashed ring with a dash across it. Healthy means a check passed: what runs with nothing checking it reads as running, and what nobody can say anything of as unknown, and neither is ever green. Use `StatusBadge`; never show a coloured dot alone.
 3. **Every change shows its plan.** Deploys, config edits, firewall rules and fleet actions open a `Sheet` with a `PlanDiff` before they run, and leave an undoable entry in the `Timeline`.
 4. **Calm by default, deep on demand.** The first screen answers "is everything OK?" Healthy things stay quiet; raw config, terminals and logs are one keystroke away (`CommandBar`), never in the way.
 5. **Machine values in mono, human words in sans.** IPs, hashes, image tags, paths, commands and selectors are `code` or `code-sm`; everything a person reads as language is Host Grotesk.
@@ -32,6 +32,7 @@ Write like a senior operator explaining something to a colleague: plain, specifi
 - Fill the one primary button with `action` and its label with `on-action`. In dark mode `action` turns light and `on-action` dark; never hard-code white text on a fill.
 - Use `cobalt` for work in flight (deploying, building, applying, live streams), links, focus and selection. `cobalt-soft` is its ground.
 - Use `healthy`, `warning` and `critical` only for state, as text on any surface or on their `-soft` grounds. `critical` also fills the danger button, with `on-critical` text.
+- Use `running` for what runs with nothing checking it, `unknown` for what nobody can say anything of, and `idle` for what is stopped or paused. All three are `ink-muted`, never green and never ink, so they tell apart by their glyphs: a ring with a dot in it, a dashed ring with a dash across it, and a hollow ring, each unlike the others at 10 px.
 - Show plans and diffs with `diff-add`, `diff-change` and `diff-remove` (aliases of the status hues) on their `-soft` grounds, and strike through removed values so the diff reads in grayscale.
 - Healthy tiles in `FleetGrid` stay a light tint; only degraded, down and deploying get full colour. A calm grid means a calm fleet.
 

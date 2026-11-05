@@ -123,9 +123,11 @@
     degraded: { label: 'Degraded', tone: 'warning', shape: 'triangle' },
     down: { label: 'Down', tone: 'critical', shape: 'square' },
     deploying: { label: 'Deploying', tone: 'cobalt', shape: 'spinner' },
-    stopped: { label: 'Stopped', tone: 'idle', shape: 'ring' }
+    stopped: { label: 'Stopped', tone: 'idle', shape: 'ring' },
+    running: { label: 'Running', tone: 'running', shape: 'dotted-ring' },
+    unknown: { label: 'Unknown', tone: 'unknown', shape: 'dashed-ring' }
   };
-  var TONE_SHAPE = { healthy: 'circle', warning: 'triangle', critical: 'square', cobalt: 'spinner', idle: 'ring', info: 'info' };
+  var TONE_SHAPE = { healthy: 'circle', warning: 'triangle', critical: 'square', cobalt: 'spinner', idle: 'ring', running: 'dotted-ring', unknown: 'dashed-ring', info: 'info' };
   function Glyph(p) {
     var s = p.size || 10;
     var shape = p.shape || 'circle';
@@ -134,6 +136,12 @@
     else if (shape === 'triangle') kids = h('path', { d: 'M5 .9l4.4 7.9H.6z', fill: 'currentColor' });
     else if (shape === 'square') kids = h('rect', { x: 1.2, y: 1.2, width: 7.6, height: 7.6, rx: 1.6, fill: 'currentColor' });
     else if (shape === 'ring') kids = h('circle', { cx: 5, cy: 5, r: 3.6, fill: 'none', stroke: 'currentColor', strokeWidth: 1.6 });
+    else if (shape === 'dotted-ring') kids = h(Fragment, null,
+      h('circle', { cx: 5, cy: 5, r: 3.6, fill: 'none', stroke: 'currentColor', strokeWidth: 1.6 }),
+      h('circle', { cx: 5, cy: 5, r: 1.5, fill: 'currentColor' }));
+    else if (shape === 'dashed-ring') kids = h(Fragment, null,
+      h('circle', { cx: 5, cy: 5, r: 3.6, fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeDasharray: '1.9 1.87', transform: 'rotate(-45 5 5)' }),
+      h('rect', { x: 3.1, y: 4.3, width: 3.8, height: 1.4, rx: 0.7, fill: 'currentColor' }));
     else if (shape === 'info') kids = h('circle', { cx: 5, cy: 5, r: 4, fill: 'currentColor' });
     else kids = h(Fragment, null,
       h('circle', { cx: 5, cy: 5, r: 3.6, fill: 'none', stroke: 'currentColor', strokeOpacity: 0.28, strokeWidth: 1.6 }),
@@ -601,7 +609,7 @@
         h('div', { className: 'dw-tl-main' },
           h('div', { className: 'dw-tl-title' }, e.title),
           h('div', { className: 'dw-tl-meta' },
-            e.status ? h(StatusBadge, { status: e.status }) : null,
+            e.status ? h(StatusBadge, { status: e.status, label: e.statusLabel }) : null,
             e.revision ? h('code', { className: 'dw-tl-rev' }, e.revision) : null,
             e.actor ? h('span', null, e.actor) : null,
             e.meta ? h('span', null, e.meta) : null)),

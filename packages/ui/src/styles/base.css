@@ -96,6 +96,16 @@ p {
   --tone-soft: var(--surface-sunken);
   color: var(--tone);
 }
+.dw-tone-running {
+  --tone: var(--running);
+  --tone-soft: var(--surface-sunken);
+  color: var(--tone);
+}
+.dw-tone-unknown {
+  --tone: var(--unknown);
+  --tone-soft: var(--surface-sunken);
+  color: var(--tone);
+}
 .dw-tone-muted {
   --tone: var(--ink-muted);
   color: var(--tone);

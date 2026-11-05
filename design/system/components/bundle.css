@@ -34,6 +34,8 @@ code, kbd, pre { font-family: var(--font-mono); }
 .dw-tone-cobalt { --tone: var(--cobalt); --tone-soft: var(--cobalt-soft); color: var(--tone); }
 .dw-tone-idle { --tone: var(--idle); --tone-soft: var(--surface-sunken); color: var(--tone); }
 .dw-tone-ink { --tone: var(--ink); --tone-soft: var(--surface-sunken); color: var(--tone); }
+.dw-tone-running { --tone: var(--running); --tone-soft: var(--surface-sunken); color: var(--tone); }
+.dw-tone-unknown { --tone: var(--unknown); --tone-soft: var(--surface-sunken); color: var(--tone); }
 .dw-tone-muted { --tone: var(--ink-muted); color: var(--tone); }
 
 /* ---------- Kbd ---------- */
@@ -83,7 +85,7 @@ code, kbd, pre { font-family: var(--font-mono); }
 .dw-status-meta { color: var(--ink-muted); }
 .dw-status-pill { height: 22px; padding: 0 9px 0 8px; box-sizing: border-box; border-radius: var(--radius-full); background: var(--tone-soft); color: var(--tone); font-size: 12px; font-weight: 550; }
 .dw-status-pill .dw-status-meta { font-weight: 400; }
-.dw-status-pill.dw-tone-idle { color: var(--ink-muted); }
+.dw-status-pill.dw-tone-idle, .dw-status-pill.dw-tone-running, .dw-status-pill.dw-tone-unknown { color: var(--ink-muted); }
 
 /* ---------- Tag ---------- */
 .dw-tag {

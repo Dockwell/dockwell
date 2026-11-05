@@ -13,7 +13,7 @@ export type Tone = "healthy" | "warning" | "critical" | "info";
 /** The status shapes. Shape carries meaning with colour, so state never depends on colour alone. */
 export type GlyphShape = "circle" | "triangle" | "square" | "spinner" | "ring" | "dotted-ring" | "dashed-ring" | "info";
 
-export type ToneClass = "healthy" | "warning" | "critical" | "cobalt" | "idle" | "ink";
+export type ToneClass = "healthy" | "warning" | "critical" | "cobalt" | "idle" | "running" | "unknown" | "ink";
 
 interface StatusSpec {
   tone: ToneClass;
@@ -31,8 +31,8 @@ export const STATUS: Readonly<Record<Status, StatusSpec>> = {
   down: { tone: "critical", shape: "square" },
   deploying: { tone: "cobalt", shape: "spinner" },
   stopped: { tone: "idle", shape: "ring" },
-  running: { tone: "ink", shape: "dotted-ring" },
-  unknown: { tone: "idle", shape: "dashed-ring" },
+  running: { tone: "running", shape: "dotted-ring" },
+  unknown: { tone: "unknown", shape: "dashed-ring" },
 };
 
 /** The glyph and colour each tone uses in callouts and toasts. */

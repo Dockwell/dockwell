@@ -76,7 +76,7 @@ const STATES: readonly {
   {
     on: { state: HealthState.NO_CHECK },
     word: "Running",
-    tone: "dw-tone-ink",
+    tone: "dw-tone-running",
     says: /Nothing checks it, so this only means it started/,
   },
   {
@@ -113,7 +113,7 @@ const STATES: readonly {
   {
     on: { state: HealthState.UNKNOWN, lastSaid: HealthState.HEALTHY },
     word: "Unknown",
-    tone: "dw-tone-idle",
+    tone: "dw-tone-unknown",
     says: /The agent on hz-1 hasn't said how this runs since .* ago, when it read Healthy/,
     notice: /Nobody can say how web runs/,
   },

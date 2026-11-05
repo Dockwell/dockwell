@@ -47,8 +47,21 @@ function GlyphShapeElement({ shape }: { shape: GlyphShape }) {
         </>
       );
     case "dashed-ring":
+      // A dash across it as well as the gaps, so it can't pass for a hollow ring at 10 px.
       return (
-        <circle cx={5} cy={5} r={3.6} fill="none" stroke="currentColor" strokeWidth={1.6} strokeDasharray="2.1 1.67" />
+        <>
+          <circle
+            cx={5}
+            cy={5}
+            r={3.6}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.4}
+            strokeDasharray="1.9 1.87"
+            transform="rotate(-45 5 5)"
+          />
+          <rect x={3.1} y={4.3} width={3.8} height={1.4} rx={0.7} fill="currentColor" />
+        </>
       );
     case "spinner":
       return (

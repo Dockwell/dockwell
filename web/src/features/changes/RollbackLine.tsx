@@ -11,7 +11,7 @@ import {
   RollbackState,
   type RollbackStatus,
 } from "@dockwell/api";
-import { cx, Glyph, type GlyphShape, STATUS } from "@dockwell/ui";
+import { cx, Glyph, type GlyphShape, STATUS, type ToneClass } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
@@ -138,7 +138,7 @@ function lookOf(subject: RollbackSubject, health: AppHealth | undefined): Pick<L
 
 /** How a rollback reads: a fact that says what runs now, then what follows from it. */
 interface Line {
-  tone: "healthy" | "cobalt" | "warning" | "critical" | "idle" | "ink";
+  tone: ToneClass;
   shape: GlyphShape;
   title: ReactNode;
   text?: ReactNode;

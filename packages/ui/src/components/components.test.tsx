@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { STATUS } from "../lib/status";
 import { englishStrings, UIStringsProvider } from "../lib/strings";
 import { expectAccessible } from "../test/a11y";
 import { Button, ButtonLink } from "./Button/Button";
@@ -57,6 +58,23 @@ describe("Glyph", () => {
       expect(svg?.childElementCount, shape).toBeGreaterThan(0);
       unmount();
     }
+  });
+
+  it("tells the stopped ring from the unknown one by more than its dash", () => {
+    const parts = (shape: "ring" | "dashed-ring" | "dotted-ring") => {
+      const { container, unmount } = render(<Glyph shape={shape} />);
+      const svg = container.querySelector("svg") as SVGElement;
+      const out = {
+        filled: svg.querySelectorAll("[fill='currentColor']").length,
+        dashed: svg.querySelector("[stroke-dasharray]") !== null,
+      };
+      unmount();
+      return out;
+    };
+    expect(parts("ring")).toEqual({ filled: 0, dashed: false });
+    // A dash across it: something filled where the stopped ring has nothing.
+    expect(parts("dashed-ring")).toEqual({ filled: 1, dashed: true });
+    expect(parts("dotted-ring")).toEqual({ filled: 1, dashed: false });
   });
 
   it("animates only the deploying arc", () => {
@@ -182,6 +200,10 @@ describe("StatusBadge", () => {
       unmount();
     }
     expect(shapes.size).toBe(7);
+    // Ink is for action, so no state spends it, and each has a token of its own.
+    for (const [status, spec] of Object.entries(STATUS)) expect(spec.tone, status).not.toBe("ink");
+    expect(STATUS.running.tone).toBe("running");
+    expect(STATUS.unknown.tone).toBe("unknown");
     render(<StatusBadge status="running" />);
     expect(screen.getByText("Running")).toBeVisible();
     render(<StatusBadge status="unknown" />);
