@@ -153,7 +153,7 @@ func editionRole(dir datadir.Dir) (string, *enroll.Identity, error) {
 // runCommand makes dockwell run run this server's agent, once it has joined
 // a control plane. Without an identity, it says how to get one, and never
 // starts a control plane.
-func runCommand(cmd *cobra.Command, _ IO, _ *globalFlags) runRole {
+func runCommand(cmd *cobra.Command, stdio IO, _ *globalFlags) runRole {
 	cmd.Long = "Runs this server's agent until it is stopped with SIGINT or SIGTERM. " +
 		"The server joins a control plane first, with dockwell join.\n\n" +
 		"This is the agent build of dockwell, which never runs a control plane. The control server runs the full build."
@@ -167,6 +167,6 @@ func runCommand(cmd *cobra.Command, _ IO, _ *globalFlags) runRole {
 				"Join one with dockwell join <ticket>, with a ticket from dockwell token create on the control server. " +
 				"To make this server a control server instead, run the install script without --join, which installs the full build")
 		}
-		return runAgent(ctx, logger, dir, id, build)
+		return runAgent(ctx, stdio, logger, dir, id, build)
 	}
 }

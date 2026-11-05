@@ -145,8 +145,8 @@ export const ResourceSchema: GenMessage<Resource> = /*@__PURE__*/
 
 /**
  * ResourceService reads the resources Dockwell manages: projects,
- * environments, services, containers and firewall rules. Change them with
- * ChangeService.
+ * environments, services, volumes, networks, containers and firewall rules.
+ * Change them with ChangeService.
  *
  * It names resources and says where they live, and never carries a spec,
  * which may hold secrets. A spec's display_name, which never does, is the

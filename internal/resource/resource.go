@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -124,6 +126,170 @@ type Decision struct {
 	// back.
 	Destroys bool
 	Warnings []Warning
+	// UntilHealthy is how long until what the resource serves is healthy
+	// again, at most, counting Downtime, when its health check may take
+	// longer than Downtime; zero when Downtime says it all. Drivers must
+	// not understate it either.
+	UntilHealthy time.Duration `json:",omitempty"`
+	// Kept says where data was that the step takes out of use, which the
+	// server keeps for 7 days, such as the paths in a container where its
+	// image kept data. Undoing the step brings it back.
+	Kept []string `json:",omitempty"`
+	// Restores is true when the step brings back data the server kept, as
+	// undoing a deletion does. Applying it fails if the data is gone by
+	// then, rather than making the resource anew, empty.
+	Restores bool `json:",omitempty"`
+	// HostAccess is what the step lets the resource reach on its server
+	// that it couldn't before. The control plane sets it from the specs,
+	// whatever an agent says: a step with any needs a person to apply it.
+	HostAccess []Access `json:",omitempty"`
+	// HealthUnknown is true when the server hasn't the image yet, so its
+	// own health check isn't known, and UntilHealthy may be missing or
+	// too short.
+	HealthUnknown bool `json:",omitempty"`
+}
+
+// Access is something on a server a resource reaches beyond what Docker
+// keeps for it, such as a server path a container mounts (HostAccesser).
+// Its fields say all a person approves, and NewAccess compares them all. It
+// never holds a credential.
+type Access struct {
+	Kind AccessKind
+	// Path is the server path or socket, the volume's device, or a
+	// network's parent interface. Empty for the server's network.
+	Path string `json:",omitempty"`
+	// ReadOnly is true for what is reached read-only.
+	ReadOnly bool `json:",omitempty"`
+	// Type is a volume's mount type, such as nfs.
+	Type string `json:",omitempty"`
+	// Address is a mount's remote server, such as 10.0.0.2.
+	Address string `json:",omitempty"`
+	// Relabel is how Docker relabels a server path for SELinux: z or Z.
+	Relabel string `json:",omitempty"`
+	// Driver is the plugin a volume runs on, or a network's driver.
+	Driver string `json:",omitempty"`
+	// Detail is a network's other options, as name=value, sorted.
+	Detail string `json:",omitempty"`
+}
+
+// AccessKind is what a resource reaches on its server.
+type AccessKind int
+
+// Kinds of access.
+const (
+	// AccessPath is a server path, mounted into a container or by a
+	// volume's bind option.
+	AccessPath AccessKind = iota + 1
+	// AccessDocker is Docker's or containerd's socket, or a path that
+	// holds one: control of Docker, which is the same as root.
+	AccessDocker
+	// AccessNetwork is the server's own network.
+	AccessNetwork
+	// AccessMount is a mount Docker makes from a volume's options, such as
+	// an NFS share, or what a volume plugin reaches.
+	AccessMount
+	// AccessNetworkDriver is a network that reaches past the server's own
+	// bridge, such as a macvlan on its LAN, past its firewall.
+	AccessNetworkDriver
+)
+
+// NewAccess lists what to reaches that from doesn't: access it didn't
+// have, or has another way, as read-write where it was read-only, or
+// relabelled where it wasn't, or at another address. Access to Docker's
+// socket is the same read-only or not, as a socket mounted read-only still
+// takes connections.
+func NewAccess(from, to []Access) []Access {
+	// writable says, for each access with ReadOnly cleared, whether from
+	// has it read-write.
+	writable := make(map[Access]bool, len(from))
+	for _, b := range from {
+		ro := b.ReadOnly
+		b.ReadOnly = false
+		writable[b] = writable[b] || !ro
+	}
+	var out []Access
+	seen := make(map[Access]bool)
+	for _, a := range to {
+		key := a
+		key.ReadOnly = false
+		rw, has := writable[key]
+		if has && (a.ReadOnly || rw || a.Kind == AccessDocker) || seen[a] {
+			continue
+		}
+		seen[a] = true
+		out = append(out, a)
+	}
+	return out
+}
+
+// AccessWords says what a resource reaches, for people, such as "the
+// server path /srv/app (read-only)". It names what a person approves,
+// and never a credential.
+func AccessWords(a Access) string {
+	how := "read-write"
+	if a.ReadOnly {
+		how = "read-only"
+	}
+	switch a.Kind {
+	case AccessPath:
+		switch a.Relabel {
+		case "z":
+			how += ", relabelled for SELinux as shared"
+		case "Z":
+			how += ", relabelled for SELinux as private"
+		}
+		return "the server path " + a.Path + " (" + how + ")"
+	case AccessDocker:
+		return "Docker's socket at " + a.Path + ", which gives control of Docker on the server, the same as root"
+	case AccessNetwork:
+		return "the server's own network"
+	case AccessMount:
+		if a.Driver != "" {
+			return "the volume driver " + a.Driver + ", which reaches what the plugin does (" + how + ")"
+		}
+		at := a.Path
+		switch {
+		case strings.ContainsFunc(at, func(r rune) bool { return r <= ' ' || r > '~' }):
+			// So a device can't spell out the rest of this line, such as
+			// "//6.6.6.6/x at 10.0.0.2", with a space or anything else.
+			at = strconv.Quote(at)
+			if a.Address != "" {
+				at += " at " + a.Address
+			}
+		case strings.HasPrefix(at, ":"):
+			// NFS's :/export follows its server, as people write it.
+			at = a.Address + at
+		case a.Address != "":
+			// Run together, an address and a name could read as another
+			// address.
+			at += " at " + a.Address
+		}
+		if at == "" {
+			return "a " + a.Type + " mount (" + how + ")"
+		}
+		return "the " + a.Type + " mount " + at + " (" + how + ")"
+	case AccessNetworkDriver:
+		out := "a " + a.Driver + " network"
+		if a.Path != "" {
+			out += " on " + a.Path
+		}
+		if a.Driver != "bridge" {
+			out += ", which reaches past the server's firewall"
+		}
+		if a.Detail != "" {
+			out += ", with " + a.Detail
+		}
+		return out
+	}
+	return fmt.Sprintf("access(%d)", int(a.Kind))
+}
+
+// HostAccesser is a kind whose specs can reach their server beyond what
+// Docker keeps for them, as a container that mounts a server path does. A
+// change that adds to or changes what one reaches needs a person to apply
+// it, as one that destroys data does (ADR 0021).
+type HostAccesser interface {
+	HostAccess(spec proto.Message) []Access
 }
 
 // Step is what applying a change does to one resource.
@@ -210,6 +376,118 @@ func NewRegistry(types ...Type) *Registry {
 		r.types[t.Kind()] = t
 	}
 	return r
+}
+
+// HostAccess lists what spec reaches on its server, if its kind can reach
+// anything.
+func (r *Registry) HostAccess(kind Kind, spec proto.Message) []Access {
+	if spec == nil {
+		return nil
+	}
+	if h, ok := r.types[kind].(HostAccesser); ok {
+		return h.HostAccess(spec)
+	}
+	return nil
+}
+
+// Readier is a driver that can't always run, such as one that needs
+// Docker. An agent offers its kind only while Ready says it can.
+type Readier interface {
+	// Ready says why the driver can't run now, for people, with how to
+	// fix it, such as "Docker isn't running. Start it with …".
+	Ready(ctx context.Context) error
+}
+
+// Normalizer is a Type that can order a spec it wouldn't take, as Validate
+// does one it would. Observe uses it, so a resource that a newer rule
+// refuses reads as what it is, and not as drift as well.
+type Normalizer interface {
+	Normalize(spec proto.Message)
+}
+
+// Referrer is a kind whose specs name other resources in their scope, as
+// a service names the volumes it mounts and the networks it joins. The
+// engine refuses a change that would leave one naming what isn't there,
+// or isn't on its servers, and makes what is named first.
+type Referrer interface {
+	References(spec proto.Message) []Reference
+}
+
+// Reference is a resource a spec names, in the spec's own scope.
+type Reference struct {
+	Kind Kind
+	Name string
+	// Verb says how the spec uses it, for people: "mount", or "join".
+	Verb string
+	// ReadOnly says the spec uses it read-only, as a read-only mount of a
+	// volume does: what the volume reaches, the spec reaches read-only.
+	ReadOnly bool
+}
+
+// References lists what spec names, if its kind is a Referrer.
+func (r *Registry) References(kind Kind, spec proto.Message) []Reference {
+	if spec == nil {
+		return nil
+	}
+	if ref, ok := r.types[kind].(Referrer); ok {
+		return ref.References(spec)
+	}
+	return nil
+}
+
+// HasReferrers reports whether any kind names others.
+func (r *Registry) HasReferrers() bool {
+	for _, t := range r.types {
+		if _, ok := t.(Referrer); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// SharedReadier is a Readier whose answer others share, such as each
+// Docker driver's, which is whether one Docker Engine answers.
+type SharedReadier interface {
+	Readier
+	// ReadyKey is what the answer is about, such as the Docker client:
+	// drivers whose keys are equal share one answer.
+	ReadyKey() any
+}
+
+// Ready lists the kinds whose drivers can run now, sorted, and why each
+// other kind with a driver can't. Drivers that share an answer are asked
+// once.
+func (r *Registry) Ready(ctx context.Context) (ready []Kind, unavailable map[Kind]string) {
+	answers := map[any]error{}
+	ask := func(d Readier) error {
+		s, ok := d.(SharedReadier)
+		if !ok {
+			return d.Ready(ctx)
+		}
+		key := s.ReadyKey()
+		if err, asked := answers[key]; asked {
+			return err
+		}
+		err := d.Ready(ctx)
+		answers[key] = err
+		return err
+	}
+	for _, k := range r.Kinds() {
+		d, _ := r.types[k].(Readier)
+		if d == nil {
+			ready = append(ready, k)
+			continue
+		}
+		if err := ask(d); err != nil {
+			if unavailable == nil {
+				unavailable = map[Kind]string{}
+			}
+			unavailable[k] = err.Error()
+			continue
+		}
+		ready = append(ready, k)
+	}
+	return ready, unavailable
 }
 
 // With returns a registry with more types, which replace any of the same

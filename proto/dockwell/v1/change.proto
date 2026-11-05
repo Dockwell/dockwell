@@ -11,8 +11,8 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 // ChangeService is the one way to change managed state, for every kind of
-// resource: projects, environments, services, containers and firewall rules
-// alike. You propose edits and get a plan back; applying the plan writes
+// resource: projects, environments, services, volumes, networks, containers
+// and firewall rules alike. You propose edits and get a plan back; applying the plan writes
 // immutable revisions and runs its steps on the servers; undoing makes a new
 // plan that puts things back. See docs/adr/0009-resources-revisions-and-plans.md
 // and docs/adr/0017-the-change-api-and-the-agent-stream.md.
@@ -169,10 +169,11 @@ message Edit {
   // Deletes the resource. A project or environment goes only once what
   // lives in it has gone, in this change or an earlier one.
   bool delete = 3;
-  // Where a service runs, by server ID. Empty keeps it where it runs now;
-  // a new one runs on the only server, and must name its servers once there
-  // are several. Other kinds ignore it: a container or firewall rule lives
-  // on its server, and projects and environments run on none.
+  // Where a service, volume or network runs, by server ID. Empty keeps it
+  // where it runs now; a new one runs on the only server, and must name its
+  // servers once there are several. Other kinds ignore it: a container or
+  // firewall rule lives on its server, and projects and environments run on
+  // none.
   repeated string servers = 4;
   // The project of the environment the resource lives in, by name or ID,
   // for a kind that lives in an environment, such as a service. Leave it
@@ -185,13 +186,13 @@ message Edit {
 
 // ResourceRef names a resource.
 message ResourceRef {
-  // The kind, such as "project", "environment", "service", "container" or
-  // "firewall.rule".
+  // The kind, such as "project", "environment", "service", "volume",
+  // "network", "container" or "firewall.rule".
   string kind = 1;
   // The ID of what it lives in, which its kind says: the organization
   // ("org_…") for a project, a project ("prj_…") for an environment, an
-  // environment ("env_…") for a service, and a server ("srv_…") for a
-  // container or firewall rule.
+  // environment ("env_…") for a service, volume or network, and a server
+  // ("srv_…") for a container or firewall rule.
   string scope = 2;
   // Its name, unique among its kind in its scope, such as "web".
   string name = 3;
@@ -522,6 +523,10 @@ message Plan {
   // True when a step destroys data or may cut off access. Applying it needs
   // the fingerprint and a signed-in session.
   bool destructive = 6;
+  // True when the change adds to, or changes, what a container can reach
+  // on its server (host_access), which a person approves: applying it needs
+  // the fingerprint and a signed-in session, as a destructive plan does.
+  bool host_access = 7;
 }
 
 // PlanSummary counts the resources a plan touches by what it does to them.
@@ -557,6 +562,56 @@ message PlannedResource {
   repeated string servers = 6;
   // Where it runs now, by server ID.
   repeated string previous_servers = 7;
+  // What the change lets it reach on its servers that it couldn't before,
+  // or reach in another way, which a person approves. The control plane
+  // decides this from the specs, not from what the servers report.
+  repeated HostAccess host_access = 8;
+}
+
+// HostAccess is something on a server that a resource reaches beyond what
+// Docker keeps for it, such as a server path a container mounts.
+message HostAccess {
+  // What it is.
+  HostAccessKind kind = 1;
+  // The server path or socket, the volume's device, or the network's
+  // parent interface, such as "/srv/app/config", ":/export/media" or
+  // "eth0". Empty for the server's network.
+  string path = 2;
+  // True when it is reached read-only: mounted so, or mounted so by the
+  // service that uses it. False reads and writes.
+  bool read_only = 3;
+  // A volume's mount type, such as "nfs" or "cifs".
+  string type = 4;
+  // The remote server of a mount, such as "10.0.0.2". It never holds
+  // credentials.
+  string address = 5;
+  // How Docker relabels a server path for SELinux: "z", shared with other
+  // containers, or "Z", private to this one. Empty for none.
+  string relabel = 6;
+  // The plugin a volume runs on, or a network's driver, such as "macvlan".
+  string driver = 7;
+  // A network's options beyond the few that keep it to its own bridge, as
+  // "name=value" with commas between, sorted.
+  string detail = 8;
+}
+
+// HostAccessKind is what a resource reaches on its server.
+enum HostAccessKind {
+  HOST_ACCESS_KIND_UNSPECIFIED = 0;
+  // A server path, mounted into a container, or by a volume's bind option.
+  HOST_ACCESS_KIND_SERVER_PATH = 1;
+  // Docker's or containerd's socket, or a path that holds one: control of
+  // Docker on the server, which is the same as root.
+  HOST_ACCESS_KIND_DOCKER_SOCKET = 2;
+  // The server's own network, Docker's host network.
+  HOST_ACCESS_KIND_HOST_NETWORK = 3;
+  // A mount Docker makes from a volume's driver options, such as an NFS or
+  // CIFS share, or whatever a volume plugin reaches.
+  HOST_ACCESS_KIND_VOLUME_MOUNT = 4;
+  // A network that reaches past the server's own bridge: a driver other
+  // than bridge, such as macvlan, which puts containers on the server's
+  // LAN, past its firewall, or options that change how a bridge routes.
+  HOST_ACCESS_KIND_NETWORK_DRIVER = 5;
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -575,6 +630,11 @@ message ServerPlan {
   google.protobuf.Duration downtime = 5;
   // The steps, in the order they run.
   repeated PlanStep steps = 6;
+  // How long until everything the steps touch is healthy again, at most,
+  // when a health check may take longer than the downtime: each step's
+  // until_healthy, or its downtime, added up. Unset when the downtime says
+  // it all.
+  google.protobuf.Duration until_healthy = 7;
 }
 
 // PlanStep is what applying does to one resource on one server.
@@ -595,6 +655,27 @@ message PlanStep {
   repeated PlanWarning warnings = 7;
   // The fields that differ from what the server has now.
   repeated FieldChange changes = 8;
+  // How long until what the resource serves is healthy again, at most,
+  // counting the downtime, when its health check may take longer than the
+  // downtime, as after a container is recreated. Unset when the downtime
+  // says it all.
+  google.protobuf.Duration until_healthy = 9;
+  // Where data was that the step takes out of use, which the server keeps
+  // for 7 days: for a container, the paths in it where its image keeps
+  // data, which deleting it, or mounting something else there, leaves
+  // behind. Undoing the step mounts them again.
+  repeated string kept_paths = 10;
+  // True when the step brings back data its server kept, as undoing a
+  // deletion does. Applying it fails if the server no longer has the data,
+  // rather than making the resource anew, empty.
+  bool restores = 11;
+  // What the step lets the resource reach on its server that it couldn't
+  // before, or reach in another way, which a person approves. The control
+  // plane decides this from the specs, not from what the server reports.
+  repeated HostAccess host_access = 12;
+  // True when the server hasn't the image yet, so its own health check
+  // isn't known, and until_healthy may be missing or too short.
+  bool health_unknown = 13;
 }
 
 // PlanAction is what a plan does to a resource.

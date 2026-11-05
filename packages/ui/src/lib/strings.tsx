@@ -167,6 +167,7 @@ export const englishStrings: UIStrings = {
       database: "database",
       job: "job",
       volume: "volume",
+      network: "network",
       backup: "backup",
       package: "package",
       server: "server",

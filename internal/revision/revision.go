@@ -215,6 +215,10 @@ type ResourcePlan struct {
 	// Servers is where it runs once applied, and Previous where it runs
 	// now, by server ID.
 	Servers, Previous []string
+	// HostAccess is what the change lets it reach on its servers that it
+	// couldn't before, from its specs (resource.HostAccesser). A plan with
+	// any needs a person to apply it.
+	HostAccess []resource.Access `json:",omitempty"`
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -235,7 +239,11 @@ type ServerPlan struct {
 	Removed bool
 	// Downtime adds up the steps' downtime, as they run one at a time.
 	Downtime time.Duration
-	Steps    []resource.Step
+	// UntilHealthy adds up how long until each step's resource is healthy
+	// again, at most, where a health check may take longer than the
+	// downtime; zero when Downtime says it all.
+	UntilHealthy time.Duration `json:",omitempty"`
+	Steps        []resource.Step
 }
 
 // Empty reports whether applying would change nothing at all.
@@ -273,6 +281,12 @@ func (p *Plan) Counts() Counts {
 		}
 	}
 	return c
+}
+
+// HostAccess reports a plan that lets a resource reach more of its server
+// than it could, which a person approves (ADR 0021).
+func (p *Plan) HostAccess() bool {
+	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return len(r.HostAccess) > 0 })
 }
 
 // Destructive reports a plan with a step that destroys data or may cut
@@ -444,6 +458,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit) ([]item, error) {
 		if items, err = e.withFirstEnvironments(ctx, tx, items); err != nil {
 			return err
 		}
+		items = e.orderByReference(items)
 		return e.check(ctx, tx, items)
 	})
 	return items, err
@@ -614,7 +629,9 @@ func (e *Engine) checkName(ref resource.Ref) error {
 //   - an item placed on a server that was removed;
 //   - a project that would come to life with no environment;
 //   - deleting a scope that would still hold something, or the last
-//     environment of a project, or the organization's last project.
+//     environment of a project, or the organization's last project;
+//   - a resource naming one that isn't there, or isn't on its servers,
+//     such as a service mounting a volume (checkReferences).
 //
 // It runs when proposing, and again in the transaction that applies, so a
 // change planned before the world moved can't slip through.
@@ -690,7 +707,7 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 				it.ref.Name, it.ref.Kind, where)
 		}
 	}
-	return nil
+	return e.checkReferences(ctx, tx, items)
 }
 
 // liveIn names what lives in a scope once the change applies, of one kind
@@ -857,6 +874,13 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 		fmt.Fprintf(fp, "item %s|%s|%d|%t|%x|%s\n", stable(it.id), ref(it.ref), it.base, it.spec != nil, sum, strings.Join(it.servers, " "))
 	}
 	actions := map[string][]resource.Action{} // each item's steps, on every server
+	access := map[string][]resource.Access{}  // what each item gains on its servers
+	var before, after map[resource.Ref]proto.Message
+	if len(servers) > 0 {
+		if before, after, err = e.named(ctx, items); err != nil {
+			return nil, err
+		}
+	}
 	for _, server := range servers {
 		its := byServer[server]
 		sp := ServerPlan{Server: server, Name: names[server]}
@@ -888,8 +912,17 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 			}
 		}
 		ids := map[resource.Ref]string{}
+		// What each item reaches on this server that it couldn't, from its
+		// specs: the control plane decides it, whatever the agent says.
+		gains := map[resource.Ref][]resource.Access{}
 		for _, it := range its {
 			ids[it.ref] = it.id
+			gained := resource.NewAccess(e.reach(it.ref, it.currentOn(server), before), e.reach(it.ref, it.desiredOn(server), after))
+			if len(gained) > 0 {
+				gains[it.ref] = gained
+				access[it.id] = append(access[it.id], resource.NewAccess(access[it.id], gained)...)
+				fmt.Fprintf(fp, "access %s|%s|%v\n", server, ref(it.ref), gained)
+			}
 		}
 		steps = order(steps)
 		for i := range steps {
@@ -897,13 +930,19 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 			if s.Action == resource.ActionNone {
 				continue
 			}
+			s.HostAccess = gains[s.Ref]
 			sp.Steps = append(sp.Steps, *s)
 			sp.Downtime += s.Downtime
+			sp.UntilHealthy += max(s.Downtime, s.UntilHealthy)
 			actions[ids[s.Ref]] = append(actions[ids[s.Ref]], s.Action)
-			fmt.Fprintf(fp, "step %s|%s|%s|%d|%d|%d|%t|%v\n", server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings)
+			fmt.Fprintf(fp, "step %s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t\n", server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings,
+				s.UntilHealthy, s.Kept, s.Restores, s.HealthUnknown)
 			for _, c := range s.Changes {
 				fmt.Fprintf(fp, "  %s|%d|%s|%s|%t\n", c.Path, c.Op, c.From, c.To, c.Sensitive)
 			}
+		}
+		if sp.UntilHealthy == sp.Downtime {
+			sp.UntilHealthy = 0
 		}
 		if len(sp.Steps) > 0 {
 			plan.Servers = append(plan.Servers, sp)
@@ -914,10 +953,64 @@ func (e *Engine) plan(ctx context.Context, items []item, rollback bool) (*Plan, 
 		fmt.Fprintf(fp, "removed %s\n", s)
 	}
 	for i := range items {
-		plan.Resources = append(plan.Resources, items[i].resourcePlan(actions[items[i].id]))
+		rp := items[i].resourcePlan(actions[items[i].id])
+		rp.HostAccess = access[items[i].id]
+		plan.Resources = append(plan.Resources, rp)
 	}
 	plan.Fingerprint = hex.EncodeToString(fp.Sum(nil)[:16])
 	return plan, nil
+}
+
+// reach lists what a resource reaches on its server, from its spec: what
+// its kind says of it, and what the resources it names reach, as a volume
+// it mounts does, read-only where it uses them read-only. So mounting a
+// volume that binds a server path reaches that path. named holds the specs
+// of what it names, as they stand before or after the change.
+func (e *Engine) reach(ref resource.Ref, spec proto.Message, named map[resource.Ref]proto.Message) []resource.Access {
+	out := e.kinds.HostAccess(ref.Kind, spec)
+	for _, use := range e.kinds.References(ref.Kind, spec) {
+		for _, a := range e.kinds.HostAccess(use.Kind, named[resource.Ref{Kind: use.Kind, Scope: ref.Scope, Name: use.Name}]) {
+			a.ReadOnly = a.ReadOnly || use.ReadOnly
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// named reads what the items name (resource.Referrer), as it stands
+// before the change, and as the change leaves it.
+func (e *Engine) named(ctx context.Context, items []item) (before, after map[resource.Ref]proto.Message, err error) {
+	before, after = map[resource.Ref]proto.Message{}, map[resource.Ref]proto.Message{}
+	var wanted []resource.Ref
+	for i := range items {
+		it := &items[i]
+		for _, spec := range []proto.Message{it.current, it.spec} {
+			for _, use := range e.kinds.References(it.ref.Kind, spec) {
+				if r := (resource.Ref{Kind: use.Kind, Scope: it.ref.Scope, Name: use.Name}); !slices.Contains(wanted, r) {
+					wanted = append(wanted, r)
+				}
+			}
+		}
+	}
+	if len(wanted) == 0 {
+		return before, after, nil
+	}
+	err = e.db.View(ctx, func(tx *store.Tx) error {
+		for _, r := range wanted {
+			it, err := e.load(ctx, tx, r)
+			if err != nil {
+				return err
+			}
+			before[r], after[r] = it.current, it.current
+		}
+		return nil
+	})
+	for i := range items {
+		if _, ok := after[items[i].ref]; ok {
+			after[items[i].ref] = items[i].spec
+		}
+	}
+	return before, after, err
 }
 
 // planOn asks a server's agent what the items would take there.
@@ -1341,6 +1434,54 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 	return r, err
 }
 
+// expectRestores marks what a rollback must bring back, where its plan
+// comes from a server's last known state, which can't say. What the failed
+// change's steps took out of use and kept, the rollback restores, so when
+// Resume reaches the server, a copy that is gone fails rather than making
+// the resource empty.
+func (e *Engine) expectRestores(ctx context.Context, c store.Change, plan *Plan) error {
+	var failed store.Change
+	err := e.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		failed, err = tx.GetChange(ctx, c.Reverts)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	took, err := DecodePlan(failed.Plan)
+	if err != nil {
+		return err
+	}
+	for si := range plan.Servers {
+		s := &plan.Servers[si]
+		if !s.Offline && s.Unplanned == "" {
+			continue
+		}
+		for i := range s.Steps {
+			step := &s.Steps[i]
+			was := took.step(s.Server, step.Ref)
+			step.Restores = step.Restores || was != nil && was.Destroys && (was.Action == resource.ActionDelete || len(was.Kept) > 0)
+		}
+	}
+	return nil
+}
+
+// step finds a plan's step for a resource on a server, or nil.
+func (p *Plan) step(server string, ref resource.Ref) *resource.Step {
+	for i := range p.Servers {
+		if p.Servers[i].Server != server {
+			continue
+		}
+		for j := range p.Servers[i].Steps {
+			if p.Servers[i].Steps[j].Ref == ref {
+				return &p.Servers[i].Steps[j]
+			}
+		}
+	}
+	return nil
+}
+
 // commitOwned plans a change this process owns, with its resources
 // claimed, and commits it. A person's change must plan as it did when it
 // was reviewed; a rollback isn't, and with create it is put on record here
@@ -1350,6 +1491,11 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 	plan, err := e.plan(ctx, items, rollback)
 	if err != nil {
 		return nil, err
+	}
+	if rollback {
+		if err := e.expectRestores(ctx, c, plan); err != nil {
+			return nil, err
+		}
 	}
 	if create {
 		plan.Change, plan.Summary, plan.Reverts = c.ID, c.Summary, c.Reverts
@@ -1588,9 +1734,12 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			}
 			return stop(qi, fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run", q.name))
 		}
-		_, u := e.step(c.ID, q.index, StepRunning, message(StepRunning, q.step.Action, q.step.Ref, q.name))
+		running := message(StepRunning, q.step.Action, q.step.Ref, q.name)
+		_, u := e.step(c.ID, q.index, StepRunning, running)
 		e.announce(c.ID, u)
 		callCtx, called := e.calling(ctx)
+		index := q.index
+		callCtx = resource.WithProgress(callCtx, func(m string) { e.progressed(c.ID, index, running+": "+m) })
 		err := agent.Apply(callCtx, *q.step, it.desiredOn(q.server))
 		called()
 		switch {
@@ -1850,6 +1999,23 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 	if err != nil {
 		e.letGo(ctx, changeID)
 		return nil, err
+	}
+	// Planning again holds to no fingerprint, so what was approved as a
+	// restore stays one: if the copy is gone by now, the step fails, rather
+	// than making the resource empty with nobody reviewing that.
+	recorded, err := DecodePlan(c.Plan)
+	if err != nil {
+		e.letGo(ctx, changeID)
+		return nil, err
+	}
+	for si := range plan.Servers {
+		s := &plan.Servers[si]
+		for i := range s.Steps {
+			step := &s.Steps[i]
+			if was := recorded.step(s.Server, step.Ref); was != nil && step.Action != resource.ActionDelete {
+				step.Restores = step.Restores || was.Restores
+			}
+		}
 	}
 	before, err := decodeProgress(c.Progress)
 	if err != nil {

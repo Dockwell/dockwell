@@ -68,7 +68,8 @@ func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 }
 
 // OnConnect calls fn, in its own goroutine, each time a server's agent
-// connects, such as to resume what waits for it.
+// connects, and each time it can run a kind it couldn't, as when Docker
+// starts after it, such as to resume what waits for it.
 func (a *Agents) OnConnect(fn func(server string)) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -89,25 +90,32 @@ func (a *Agents) Agent(server string) (resource.Agent, bool) {
 
 // open starts a session for a stream that has said hello. send writes to
 // the stream; Session.close ends the session when the stream does.
-func (a *Agents) open(server, name string, kinds []string, send func(*agentv1.ConnectResponse) error) *Session {
+func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, server: server, name: name, send: send,
-		pending: map[uint64]chan *agentv1.CallResult{}, done: make(chan struct{}),
+		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, done: make(chan struct{}),
 	}
-	for _, k := range kinds {
-		s.kinds = append(s.kinds, resource.Kind(k))
-	}
-	slices.Sort(s.kinds)
+	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
 	a.mu.Lock()
 	a.sessions[server] = s
 	close(a.opened)
 	a.opened = make(chan struct{})
+	a.mu.Unlock()
+	a.connected(server)
+	return s
+}
+
+// connected runs the OnConnect hooks for server, each in its own
+// goroutine: when its agent connects, and when it can run more kinds than
+// it could, as when Docker starts after the agent, so what waited for
+// them, such as a rollback, goes on.
+func (a *Agents) connected(server string) {
+	a.mu.Lock()
 	hooks := slices.Clone(a.onConnect)
 	a.mu.Unlock()
 	for _, fn := range hooks {
 		go fn(server)
 	}
-	return s
 }
 
 // Session is one stream to a server's agent, and the calls waiting on it.
@@ -115,7 +123,12 @@ type Session struct {
 	agents *Agents
 	server string
 	name   string
-	kinds  []resource.Kind
+
+	kindsMu sync.Mutex
+	kinds   []resource.Kind
+	// unavailable says why the agent can't run a kind it has a driver
+	// for, such as Docker not running.
+	unavailable map[resource.Kind]string
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -129,8 +142,42 @@ type Session struct {
 	mu      sync.Mutex
 	next    uint64
 	pending map[uint64]chan *agentv1.CallResult
-	done    chan struct{}
-	closed  bool
+	// progress hears how each pending call is going, where its caller
+	// follows it.
+	progress map[uint64]func(string)
+	done     chan struct{}
+	closed   bool
+}
+
+// setKinds records what the agent says it can run, in its hello or
+// after.
+// setKinds takes the kinds the agent can run now, and reports whether
+// any is new: one it couldn't run before.
+func (s *Session) setKinds(kinds []string, unavailable []*agentv1.UnavailableKind) (grew bool) {
+	s.kindsMu.Lock()
+	defer s.kindsMu.Unlock()
+	before := slices.Clone(s.kinds)
+	s.kinds = s.kinds[:0]
+	for _, k := range kinds {
+		s.kinds = append(s.kinds, resource.Kind(k))
+		grew = grew || !slices.Contains(before, resource.Kind(k))
+	}
+	slices.Sort(s.kinds)
+	s.unavailable = map[resource.Kind]string{}
+	for _, u := range unavailable {
+		s.unavailable[resource.Kind(u.GetKind())] = u.GetReason()
+	}
+	return grew
+}
+
+// progressed passes on how a call is going to its caller, if it follows.
+func (s *Session) progressed(p *agentv1.CallProgress) {
+	s.mu.Lock()
+	fn := s.progress[p.GetId()]
+	s.mu.Unlock()
+	if fn != nil {
+		fn(p.GetMessage())
+	}
 }
 
 var _ resource.Agent = (*Session)(nil)
@@ -161,6 +208,13 @@ func (a *Agents) next(ctx context.Context, old *Session) (*Session, error) {
 			grace = time.NewTimer(reconnectGrace)
 			graceC = grace.C
 		case <-graceC:
+			// A stream that opened as the grace ran out still takes the call.
+			a.mu.Lock()
+			current = a.sessions[old.server]
+			a.mu.Unlock()
+			if current != nil && current != old {
+				return current, nil
+			}
 			return nil, fault.New(resource.ErrNotConnected, "%s's agent was moving to a new stream and didn't reconnect within %s, so the call didn't run",
 				old.name, human.Duration(reconnectGrace))
 		case <-ctx.Done():
@@ -196,6 +250,7 @@ func (s *Session) deliver(r *agentv1.CallResult) {
 	s.mu.Lock()
 	ch, ok := s.pending[r.GetId()]
 	delete(s.pending, r.GetId())
+	delete(s.progress, r.GetId())
 	s.mu.Unlock()
 	if ok {
 		ch <- r
@@ -292,10 +347,14 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 	c.Id = s.next
 	ch := make(chan *agentv1.CallResult, 1)
 	s.pending[c.Id] = ch
+	if fn := resource.ProgressFunc(ctx); fn != nil {
+		s.progress[c.Id] = fn
+	}
 	s.mu.Unlock()
 	forget := func() {
 		s.mu.Lock()
 		delete(s.pending, c.GetId())
+		delete(s.progress, c.GetId())
 		s.mu.Unlock()
 	}
 	deadline, _ := ctx.Deadline()
@@ -307,24 +366,43 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 		}
 		return nil, s.notConnected()
 	}
+	// The result, the stream's end and the call's own end can all be ready
+	// when the select wakes, and Go picks one of them at random. A result
+	// that is there wins, whatever else ended: the agent answered.
+	var r *agentv1.CallResult
 	select {
-	case r := <-ch:
-		switch e := r.GetError(); {
-		case e == nil:
-			return r, nil
-		case e.GetDraining():
-			return nil, errDraining
-		default:
-			return nil, &resource.ServerError{Server: s.name, Err: errors.New(e.GetMessage())}
-		}
+	case r = <-ch:
 	case <-s.done:
-		forget()
-		return nil, s.lost(c)
+		select {
+		case r = <-ch:
+		default:
+			forget()
+			return nil, s.lost(c)
+		}
 	case <-ctx.Done():
-		forget()
-		// Best effort: the agent stops the call when it can.
-		_ = s.write(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Cancel{Cancel: &agentv1.CancelCall{Id: c.GetId()}}})
+		select {
+		case r = <-ch:
+		default:
+			forget()
+			// Best effort: the agent stops the call when it can.
+			_ = s.write(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Cancel{Cancel: &agentv1.CancelCall{Id: c.GetId()}}})
+			return nil, ctx.Err()
+		}
+	}
+	switch e := r.GetError(); {
+	case e == nil:
+		// The call ran, even if its time ran out as the result came.
+		return r, nil
+	case ctx.Err() != nil:
+		// It failed as its time ran out, or as its caller gave up: most
+		// likely for that reason, as the agent stops a call at the
+		// deadline the control plane gave it. Say so, as when the result
+		// comes too late.
 		return nil, ctx.Err()
+	case e.GetDraining():
+		return nil, errDraining
+	default:
+		return nil, &resource.ServerError{Server: s.name, Err: errors.New(e.GetMessage())}
 	}
 }
 
@@ -344,10 +422,16 @@ func (s *Session) notConnected() error {
 	return fault.New(resource.ErrNotConnected, "%s's agent disconnected before the call reached it, so it didn't run", s.name)
 }
 
-// supports refuses a kind the agent has no driver for.
+// supports refuses a kind the agent has no driver for, or can't run now,
+// with the agent's reason, such as Docker not running.
 func (s *Session) supports(ref resource.Ref) error {
+	s.kindsMu.Lock()
+	defer s.kindsMu.Unlock()
 	if slices.Contains(s.kinds, ref.Kind) {
 		return nil
+	}
+	if why, ok := s.unavailable[ref.Kind]; ok {
+		return fault.New(resource.ErrNoDriver, "%s can't run %s %s now: %s", s.name, ref.Kind, ref.Name, why)
 	}
 	have := "none"
 	if len(s.kinds) > 0 {

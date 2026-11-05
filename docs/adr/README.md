@@ -24,6 +24,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0018](0018-keep-the-budgets-in-rss.md) | Keep the memory budgets in RSS, measured steadily | Accepted |
 | [0019](0019-a-cli-generated-from-the-schema.md) | A CLI generated from the schema, with local access on the control server | Accepted |
 | [0020](0020-the-event-timeline.md) | The event timeline | Accepted |
+| [0021](0021-the-docker-driver.md) | The Docker driver, with Compose's names and labels | Accepted |
 | [0023](0023-a-full-build-and-an-agent-build.md) | A full build and an agent build, from one codebase | Accepted |
 | [0029](0029-a-catalog-format-fed-from-other-catalogs.md) | A catalog format of our own, fed from other catalogs | Accepted |
 

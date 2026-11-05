@@ -33,9 +33,12 @@ func TestServiceNamesAreDNSLabels(t *testing.T) {
 // container, so neither manages the other's.
 func TestContainersCantTakeAServicesName(t *testing.T) {
 	svc := service.ContainerName(resource.Ref{Kind: service.Kind, Scope: "env_01KAT4ZR6E3V0Y5XBKZB5D9Q6M", Name: "web"})
+	if svc != "env_01kat4zr6e3v0y5xbkzb5d9q6m-web-1" {
+		t.Errorf("the service's container is %s, want it named as Compose names a service's first", svc)
+	}
 	for name, ok := range map[string]bool{
-		"web": true, "my_app.v2": true, "Web-1": true, "web.env": true,
-		svc: false, "db.env_X": false, "My App": false, "api/v2": false, "-web": false, "": false,
+		"web": true, "my_app.v2": true, "Web-1": true, "web.env": true, "db.env_X": true, "my-env_1": true,
+		svc: false, "env_X-db-1": false, "ENV_x": false, "My App": false, "api/v2": false, "-web": false, "": false,
 	} {
 		if err := (&container.Driver{}).CheckName(name); (err == nil) != ok {
 			t.Errorf("CheckName(%q) = %v", name, err)

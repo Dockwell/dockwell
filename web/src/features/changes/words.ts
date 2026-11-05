@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { ActorKind, ChangeState, PlanAction, StepEffect, StepState, Surface } from "@dockwell/api";
+import {
+  ActorKind,
+  ChangeState,
+  type HostAccess,
+  HostAccessKind,
+  PlanAction,
+  StepEffect,
+  StepState,
+  Surface,
+} from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
@@ -28,6 +37,8 @@ export interface ChangeWords {
   via(surface: Surface): string;
   /** What kind of actor someone is: "API token". Empty for a person. */
   actorKind(kind: ActorKind): string;
+  /** What a container reaches on its server: "the server path /srv/app (read-only)". */
+  access(access: HostAccess): string;
 }
 
 export function useChangeWords(): ChangeWords {
@@ -44,6 +55,10 @@ export function useChangeWords(): ChangeWords {
             return t`Service`;
           case "container":
             return t`Container`;
+          case "volume":
+            return t`Volume`;
+          case "network":
+            return t`Network`;
           case "firewall.rule":
             return t`Firewall rule`;
         }
@@ -124,6 +139,34 @@ export function useChangeWords(): ChangeWords {
             return t`Automatic`;
         }
         return "";
+      },
+      access(access) {
+        const { path, type, driver, detail } = access;
+        const reads = access.readOnly ? t`read-only` : t`read-write`;
+        switch (access.kind) {
+          case HostAccessKind.SERVER_PATH: {
+            let how = reads;
+            if (access.relabel === "z") how = t`${reads}, relabelled for SELinux as shared`;
+            if (access.relabel === "Z") how = t`${reads}, relabelled for SELinux as private`;
+            return t`the server path ${path} (${how})`;
+          }
+          case HostAccessKind.DOCKER_SOCKET:
+            return t`Docker's socket at ${path}, which gives control of Docker on the server, the same as root`;
+          case HostAccessKind.HOST_NETWORK:
+            return t`the server's own network`;
+          case HostAccessKind.VOLUME_MOUNT: {
+            if (driver !== "") return t`the volume driver ${driver}, which reaches what the plugin does (${reads})`;
+            const at = access.address + path;
+            return at === "" ? t`a ${type} mount (${reads})` : t`the ${type} mount ${at} (${reads})`;
+          }
+          case HostAccessKind.NETWORK_DRIVER: {
+            let out = path === "" ? t`a ${driver} network` : t`a ${driver} network on ${path}`;
+            if (driver !== "bridge") out = t`${out}, which reaches past the server's firewall`;
+            if (detail !== "") out = t`${out}, with ${detail}`;
+            return out;
+          }
+        }
+        return t`something else on the server`;
       },
       actorKind(kind) {
         switch (kind) {

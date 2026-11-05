@@ -42,6 +42,8 @@ That needs an API in `dockwell.v1` that the panel (#24), the CLI (#22) and REST 
 - the plan's fingerprint in the request, as the API's form of the PRD's typed confirmation: the client says which plan it reviewed;
 - a signed-in session. ADR 0016 keeps every token off destructive methods; a method's effect is fixed in the schema, so `ApplyChange` stays `EFFECT_APPLY`, and the handler refuses a token for a destructive plan with `needs_session`.
 
+A plan that gives a container more of its server, `host_access`, needs the same two things ([ADR 0021](0021-the-docker-driver.md#host-access)).
+
 Any client may send the fingerprint, and a change applies only if its plan has it.
 
 **Discarding is a state.** A planned change can be discarded, and stays on record as discarded. The check on `changes.state` gains the value; SQLite rebuilds the table to change it (migration 0008).
@@ -61,7 +63,7 @@ Any client may send the fingerprint, and a change applies only if its plan has i
 - `not_found`;
 - `plan_stale` and `plan_changed` for a plan to propose again;
 - `not_planned`, `busy`, `cant_undo`, `no_drift`;
-- `needs_confirmation` and `needs_session` for a destructive plan;
+- `needs_confirmation` and `needs_session` for a destructive plan, or one that gives host access;
 - `no_driver`, `agent_failed` and `agent_timeout` for a server's agent;
 - `server_offline`;
 - `stopping`, for an apply that arrives as the control plane stops.

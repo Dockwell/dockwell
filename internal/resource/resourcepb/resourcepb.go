@@ -101,10 +101,34 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	if s.Downtime > 0 {
 		p.Downtime = durationpb.New(s.Downtime)
 	}
+	if s.UntilHealthy > 0 {
+		p.UntilHealthy = durationpb.New(s.UntilHealthy)
+	}
 	for _, w := range s.Warnings {
 		p.Warnings = append(p.Warnings, warnings[w])
 	}
+	p.KeptPaths, p.Restores, p.HostAccess, p.HealthUnknown = s.Kept, s.Restores, HostAccess(s.HostAccess), s.HealthUnknown
 	return p
+}
+
+var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
+	resource.AccessPath:          dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH,
+	resource.AccessDocker:        dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOCKER_SOCKET,
+	resource.AccessNetwork:       dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HOST_NETWORK,
+	resource.AccessMount:         dockwellv1.HostAccessKind_HOST_ACCESS_KIND_VOLUME_MOUNT,
+	resource.AccessNetworkDriver: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_NETWORK_DRIVER,
+}
+
+// HostAccess converts what a resource reaches on its server.
+func HostAccess(list []resource.Access) []*dockwellv1.HostAccess {
+	var out []*dockwellv1.HostAccess
+	for _, a := range list {
+		out = append(out, &dockwellv1.HostAccess{
+			Kind: accessKinds[a.Kind], Path: a.Path, ReadOnly: a.ReadOnly, Type: a.Type,
+			Address: a.Address, Relabel: a.Relabel, Driver: a.Driver, Detail: a.Detail,
+		})
+	}
+	return out
 }
 
 // UnknownError is a step that says something this build doesn't know,
@@ -137,6 +161,12 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	if d := p.GetDowntime(); d != nil {
 		s.Downtime = max(d.AsDuration(), 0)
 	}
+	if d := p.GetUntilHealthy(); d != nil {
+		s.UntilHealthy = max(d.AsDuration(), 0)
+	}
+	// An agent's word on host access counts for nothing: the control plane
+	// decides it from the specs.
+	s.Kept, s.Restores, s.HealthUnknown = p.GetKeptPaths(), p.GetRestores(), p.GetHealthUnknown()
 	for _, w := range p.GetWarnings() {
 		k, ok := from(warnings, w)
 		if !ok {

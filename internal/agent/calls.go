@@ -82,7 +82,13 @@ func (c *calls) start(call *agentv1.Call) {
 	go func() {
 		defer c.wg.Done()
 		defer c.done(call.GetId())
-		c.reply(call.GetId(), c.run(ctx, call))
+		result := c.run(ctx, call)
+		// A step cut short because this stream is ending can only say it was
+		// cancelled. Sending nothing lets the control plane say what's true:
+		// the agent disconnected, and the step may or may not have run.
+		if c.ctx.Err() == nil || result.GetError() == nil {
+			c.reply(call.GetId(), result)
+		}
 	}()
 }
 
@@ -217,6 +223,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		step.Ref = ref
+		progress := c.progress(call.GetId())
+		defer progress.stop()
+		ctx = resource.WithProgress(ctx, progress.say)
 		if err := c.local.Apply(ctx, step, spec); err != nil {
 			return fail(err)
 		}
@@ -252,6 +261,76 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
 		Message: "this agent doesn't know that call; update it to the control plane's version",
 	}}}
+}
+
+// progressEvery is how often a call says how it is going, at most.
+const progressEvery = time.Second
+
+// progress returns what a call's drivers tell how it is going, which goes
+// to the control plane at most once every progressEvery. Stop it once
+// the call ends.
+func (c *calls) progress(id uint64) *throttle {
+	return newThrottle(progressEvery, func(message string) {
+		_ = c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Progress{Progress: &agentv1.CallProgress{Id: id, Message: message}}})
+	})
+}
+
+// throttle passes messages on at most once every interval. One that comes
+// sooner isn't lost: the latest waits, and goes when the interval ends, so
+// a change of phase, such as from pulling to starting, always shows.
+type throttle struct {
+	every time.Duration
+	send  func(string)
+
+	mu      sync.Mutex
+	last    time.Time   // when the last message went
+	waiting string      // the latest message to go next
+	timer   *time.Timer // set while one waits
+	stopped bool
+}
+
+func newThrottle(every time.Duration, send func(string)) *throttle {
+	return &throttle{every: every, send: send}
+}
+
+// say passes a message on now, or once the interval ends.
+func (t *throttle) say(message string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	switch wait := t.every - time.Since(t.last); {
+	case t.stopped:
+	case t.timer != nil:
+		t.waiting = message
+	case wait > 0:
+		t.waiting = message
+		t.timer = time.AfterFunc(wait, t.flush)
+	default:
+		t.last = time.Now()
+		t.send(message)
+	}
+}
+
+func (t *throttle) flush() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.timer = nil
+	if t.stopped {
+		return
+	}
+	t.last = time.Now()
+	t.send(t.waiting)
+}
+
+// stop drops what waits: the call's result says the last word, and must
+// not be followed by its progress.
+func (t *throttle) stop() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.stopped = true
+	if t.timer != nil {
+		t.timer.Stop()
+		t.timer = nil
+	}
 }
 
 // decode reads a desired resource with the agent's drivers.

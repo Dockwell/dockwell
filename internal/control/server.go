@@ -42,6 +42,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/apidoc"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/control/events"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
@@ -186,7 +187,9 @@ func apiRoutes(cfg Config, ui http.Handler) (http.Handler, error) {
 		handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet), opts...))
 	}
 	if cfg.Changes != nil {
-		handle(dockwellv1connect.NewChangeServiceHandler(changes.New(cfg.Changes, cfg.Store, cfg.Logger), opts...))
+		ch := changes.New(cfg.Changes, cfg.Store, cfg.Logger)
+		handle(dockwellv1connect.NewChangeServiceHandler(ch, opts...))
+		handle(dockwellv1connect.NewComposeServiceHandler(composeapi.New(ch, cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
 	}

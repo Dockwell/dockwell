@@ -20,6 +20,8 @@ export function diffKind(kind: string): PlanKind {
     case "environment":
     case "service":
     case "container":
+    case "volume":
+    case "network":
       return kind;
     case "firewall.rule":
       return "firewall";

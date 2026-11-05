@@ -306,6 +306,13 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		if r.code != apicli.ExitNeedsPerson || !strings.Contains(r.err, "needs a person") {
 			t.Errorf("changes apply = %d:\n%s%s", r.code, r.out, r.err)
 		}
+		// So does one that gives a container a server path.
+		r = run(t, env, "containers", "create", "logs", "--image", "nginx:1.27", "--mounts", `{"hostPath":"/srv/logs","target":"/logs"}`, "--on", "hz-2", "--yes")
+		if r.code != apicli.ExitNeedsPerson || !strings.Contains(r.out, "Gives it access to hz-2: the server path /srv/logs (read-write). A person approves this.") ||
+			!strings.Contains(r.err, "gives a container more access to its server, so it needs a person to approve it") ||
+			!strings.Contains(r.err, "the CLI uses one even after dockwell login") {
+			t.Errorf("containers create with a server path = %d:\n%s%s", r.code, r.out, r.err)
+		}
 		r = run(t, env, "api-tokens", "revoke", "tok_01JD6Z3R8M9QF2K7T4XW5BNC0V")
 		if r.code != apicli.ExitNeedsPerson || !strings.Contains(r.err, "no API token may do") {
 			t.Errorf("api-tokens revoke = %d %q", r.code, r.err)

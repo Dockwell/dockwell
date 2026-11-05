@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+
+// ComposeService turns a Docker Compose file into an environment's
+// services, volumes and networks, and any of them back into one. An
+// environment is one Compose project: its containers carry the labels
+// Docker Compose gives its own, so docker compose sees them, and an
+// exported file runs the same with docker compose alone (PRD principle 6).
+// See docs/adr/0021-the-docker-driver.md.
+service ComposeService {
+  // ImportCompose plans a Compose file into an environment as a change,
+  // ready to apply or discard, as ProposeChange does with edits. Each
+  // Compose service becomes a service, and each named volume and network
+  // one of its own. A field of the file that Dockwell can't run yet is
+  // refused, by name, rather than dropped.
+  rpc ImportCompose(ImportComposeRequest) returns (ImportComposeResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/compose:import"
+      body: "*"
+    };
+  }
+
+  // ExportCompose writes a Compose file of an environment, or of one service
+  // with the volumes and networks it uses. It never includes a secret: an
+  // environment variable whose value may hold one is listed by name, for
+  // docker compose to take from the shell it runs in. The CLI prints the
+  // file alone, so it pipes into docker compose -f -.
+  rpc ExportCompose(ExportComposeRequest) returns (ExportComposeResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/compose"};
+  }
+}
+
+// ImportComposeRequest is a Compose file to plan into an environment.
+message ImportComposeRequest {
+  // What the change is for, such as "Run the shop's stack". Empty says it
+  // came from a Compose file.
+  string summary = 1;
+  // The project of the environment, by name or ID. Leave it out while
+  // there is only one project, or when environment is an ID.
+  string project = 2;
+  // The environment, by name or ID. Leave it out while its project has
+  // only one.
+  string environment = 3;
+  // The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
+  // up to 256 KiB. Paths in it must be absolute, as it runs on servers where
+  // a path relative to the file means nothing.
+  string compose = 4;
+  // Values for the variables the file uses, such as ${TAG}. A variable
+  // with no value here and no default in the file is refused.
+  map<string, string> variables = 5;
+  // Where the services, volumes and networks run, by server ID, as an
+  // edit's servers. Empty keeps what exists where it runs, and puts what
+  // is new on the only server; once there are several, name them.
+  repeated string servers = 6;
+  // Also deletes the environment's services and networks that aren't in
+  // the file, as docker compose up --remove-orphans does. Volumes stay,
+  // with their data; delete one on its own to remove it.
+  bool remove_orphans = 7;
+}
+
+// ImportComposeResponse carries the planned change.
+message ImportComposeResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// ExportComposeRequest names what to export.
+message ExportComposeRequest {
+  // The project of the environment, by name or ID. Leave it out while
+  // there is only one project, or when environment is an ID.
+  string project = 1;
+  // The environment, by name or ID. Leave it out while its project has
+  // only one.
+  string environment = 2;
+  // One service to export, by name, with the volumes and networks it uses.
+  // Empty exports the whole environment.
+  string service = 3;
+}
+
+// ExportComposeResponse is a Compose file.
+message ExportComposeResponse {
+  // The Compose file, as YAML. Its project name is the environment's
+  // Compose project, so docker compose -f <file> ps lists what Dockwell
+  // runs.
+  string compose = 1;
+  // What was left out as it may hold secrets. An environment variable's
+  // value, as SERVICE.NAME, such as "web.API_KEY": set it in the shell, or
+  // in an .env file beside the file, before docker compose up. A volume's
+  // driver options, as "volumes.NAME.driver_opts": the file makes that
+  // volume with none, so write them in by hand if it isn't on the server.
+  repeated string omitted = 2;
+}

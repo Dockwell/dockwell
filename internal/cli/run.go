@@ -8,13 +8,21 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/dockwell/dockwell/internal/agent"
+	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/datadir"
+	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/network"
+	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/volume"
 )
 
 // runRole runs the role dockwell run takes, until ctx is done.
@@ -55,11 +63,38 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 	return cmd
 }
 
-// runAgent runs this server's agent with its identity: on its own, on a
-// server that joined a control plane, or beside the control plane, on the
-// control server. Both builds run it the same way.
-func runAgent(ctx context.Context, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info) error {
-	return agent.Run(ctx, agent.Config{Logger: logger, Dir: dir.Agent(), Identity: id, Build: build})
+// runAgent runs this server's agent with its identity and its drivers: on
+// its own, on a server that joined a control plane, or beside the control
+// plane, on the control server. Both builds run it the same way.
+func runAgent(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info) error {
+	drivers, collector := agentDrivers(ctx, stdio, logger, dir)
+	return agent.Run(ctx, agent.Config{
+		Logger: logger, Dir: dir.Agent(), Identity: id, Build: build, Drivers: drivers, Collector: collector,
+	})
+}
+
+// agentDrivers are the drivers this server's agent runs: containers,
+// services, volumes and networks on the Docker Engine, at the socket
+// DOCKER_HOST names, as the docker CLI finds it. The agent offers them
+// while Docker answers, and keeps pruning the volumes deleted 7 days ago
+// until ctx is done. The collector reads the same Docker's version.
+func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir) (*resource.Registry, *collect.Collector) {
+	collector := collect.New()
+	socket, err := docker.SocketFrom(stdio.Getenv)
+	client := docker.Unusable(err)
+	if err == nil {
+		client = docker.New(socket)
+	}
+	collector.DockerSocket = socket
+	kept := &volume.Kept{Path: filepath.Join(dir.Agent(), "deleted-volumes.json")}
+	// What no container may mount, as this server has it: its data
+	// directory, Docker's, and where symlinks lead.
+	paths := &container.Paths{Client: client, DataDir: dir.Root}
+	containers := container.Driver{Runtime: &container.Docker{Client: client, Deleted: kept, Logger: logger, Paths: paths}}
+	volumes := &volume.Docker{Client: client, Kept: kept, Paths: paths}
+	go volumes.KeepPruned(ctx, logger)
+	return resource.NewRegistry(&containers, &service.Driver{Containers: containers},
+		&volume.Driver{Runtime: volumes}, &network.Driver{Client: client}), collector
 }
 
 func exists(path string) bool {

@@ -134,8 +134,8 @@ func TestStoppingCancelsWhatStillRuns(t *testing.T) {
 	c.start(applyCall(t, 1, "slow"))
 	<-fw.started
 	c.stop()
-	if c.busy() || out.result(1).GetError() == nil || fw.Len() != 0 {
-		t.Errorf("after stopping, busy %t, result %v, %d rules; want the call cancelled", c.busy(), out.result(1), fw.Len())
+	if c.busy() || fw.Len() != 0 {
+		t.Errorf("after stopping, busy %t, %d rules; want the call cancelled", c.busy(), fw.Len())
 	}
 }
 
@@ -150,6 +150,10 @@ func TestAnApplyWithAnUnknownActionRunsNothing(t *testing.T) {
 	call := applyCall(t, 1, "http")
 	call.GetApply().GetStep().Action = 42
 	c.start(call)
+	deadline := time.Now().Add(5 * time.Second)
+	for c.busy() && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
 	c.stop()
 	msg := out.result(1).GetError().GetMessage()
 	if !strings.Contains(msg, "action, number 42") || !strings.Contains(msg, "update the agent") || fw.Len() != 0 {
@@ -218,5 +222,40 @@ func TestAStuckSendDoesntHoldTheStreamOpen(t *testing.T) {
 	out.closeRequest(50 * time.Millisecond)
 	if waited := time.Since(start); waited > 5*time.Second || stream.cut.Load() {
 		t.Errorf("the half-close waited %s for a stuck send, and cut it: %t", waited, stream.cut.Load())
+	}
+}
+
+// A step cut short because the stream is ending says nothing. "Context
+// cancelled" isn't what happened: the control plane sees the stream end and says
+// the agent disconnected, and that the step may or may not have run.
+func TestAStepCutShortByStoppingSendsNoResult(t *testing.T) {
+	fw := &slowFirewall{Fake: firewall.NewFake(), started: make(chan struct{}, 1), release: make(chan struct{})}
+	out := &sent{results: map[uint64]*agentv1.CallResult{}}
+	c := newCalls(context.Background(), Config{
+		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw}),
+	}, out.send)
+	c.start(applyCall(t, 1, "slow"))
+	<-fw.started
+	c.stop()
+	if r := out.result(1); r != nil {
+		t.Errorf("a step cut short by stopping sent %v, want nothing", r)
+	}
+
+	// One the control plane cancelled itself still answers, on a stream that carries on.
+	fw = &slowFirewall{Fake: firewall.NewFake(), started: make(chan struct{}, 1), release: make(chan struct{})}
+	out = &sent{results: map[uint64]*agentv1.CallResult{}}
+	c = newCalls(context.Background(), Config{
+		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw}),
+	}, out.send)
+	defer c.stop()
+	c.start(applyCall(t, 2, "slow"))
+	<-fw.started
+	c.cancel(2)
+	deadline := time.Now().Add(5 * time.Second)
+	for c.busy() && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if r := out.result(2); r == nil {
+		t.Error("a step the control plane cancelled sent nothing, want it to answer")
 	}
 }

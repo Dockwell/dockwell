@@ -210,12 +210,13 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 	}
 	log := h.logger.With(slog.String("server", peer.ServerID), slog.String("name", srv.Name))
 	log.InfoContext(ctx, "server connected", slog.String("agent", hello.GetBuild().GetVersion()),
-		slog.String("build", string(buildinfo.EditionOf(hello.GetBuild()))), slog.Any("kinds", hello.GetKinds()))
+		slog.String("build", string(buildinfo.EditionOf(hello.GetBuild()))), slog.Any("kinds", hello.GetKinds()),
+		slog.Int("unavailable_kinds", len(hello.GetUnavailable())))
 	// The engine reaches the agent's drivers over the stream from now on.
 	// Sends after the welcome go through the session, one at a time.
 	var session *Session
 	if h.agents != nil {
-		session = h.agents.open(peer.ServerID, srv.Name, hello.GetKinds(), stream.Send)
+		session = h.agents.open(peer.ServerID, srv.Name, hello, stream.Send)
 		defer session.close()
 	}
 
@@ -237,6 +238,18 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 				h.fleet.Record(peer.ServerID, msg.GetStats())
 			case msg.GetResult() != nil && session != nil:
 				session.deliver(msg.GetResult())
+			case msg.GetProgress() != nil && session != nil:
+				session.progressed(msg.GetProgress())
+			case msg.GetKinds() != nil && session != nil:
+				k := msg.GetKinds()
+				grew := session.setKinds(k.GetKinds(), k.GetUnavailable())
+				log.InfoContext(ctx, "server's kinds changed", slog.Any("kinds", k.GetKinds()), slog.Int("unavailable_kinds", len(k.GetUnavailable())))
+				if grew {
+					// What waited for a kind it can run now, such as a
+					// rollback waiting for Docker, goes on, as when it
+					// connects.
+					h.agents.connected(peer.ServerID)
+				}
 			case msg.GetDraining() != nil && session != nil:
 				session.drain()
 			case msg.GetDraining() != nil:

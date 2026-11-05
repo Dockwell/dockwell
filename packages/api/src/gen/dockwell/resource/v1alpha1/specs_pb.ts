@@ -18,10 +18,12 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/resource/v1alpha1/specs.proto.
  */
 export const file_dockwell_resource_v1alpha1_specs: GenFile = /*@__PURE__*/
-  fileDesc("CiZkb2Nrd2VsbC9yZXNvdXJjZS92MWFscGhhMS9zcGVjcy5wcm90bxIaZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEigAMKCUNvbnRhaW5lchINCgVpbWFnZRgBIAEoCRIPCgdjb21tYW5kGAIgAygJEkEKA2VudhgDIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5FbnZFbnRyeUIEyPMYARI2CgVwb3J0cxgEIAMoCzInLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlBvcnRNYXBwaW5nEjoKB3Jlc3RhcnQYBSABKA4yKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5SZXN0YXJ0UG9saWN5EkEKBmxhYmVscxgGIAMoCzIxLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5MYWJlbHNFbnRyeRoqCghFbnZFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi0KC0xhYmVsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEicAoLUG9ydE1hcHBpbmcSEQoJaG9zdF9wb3J0GAEgASgNEhYKDmNvbnRhaW5lcl9wb3J0GAIgASgNEjYKCHByb3RvY29sGAMgASgOMiQuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUHJvdG9jb2wisgEKDEZpcmV3YWxsUnVsZRI6CgZhY3Rpb24YASABKA4yKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbEFjdGlvbhI2Cghwcm90b2NvbBgCIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlByb3RvY29sEgwKBHBvcnQYAyABKA0SDwoHc291cmNlcxgEIAMoCRIPCgdjb21tZW50GAUgASgJIh8KB1Byb2plY3QSFAoMZGlzcGxheV9uYW1lGAEgASgJIiMKC0Vudmlyb25tZW50EhQKDGRpc3BsYXlfbmFtZRgBIAEoCSJHCgdTZXJ2aWNlEjQKA2FwcBgBIAEoCzIlLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lckgAQgYKBHJ1bnMivQIKBFNwZWMSNgoHcHJvamVjdBgBIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlByb2plY3RIABI+CgtlbnZpcm9ubWVudBgCIAEoCzInLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkVudmlyb25tZW50SAASNgoHc2VydmljZRgDIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlNlcnZpY2VIABI6Cgljb250YWluZXIYBCABKAsyJS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db250YWluZXJIABJBCg1maXJld2FsbF9ydWxlGAUgASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRmlyZXdhbGxSdWxlSABCBgoEa2luZCqjAQoNUmVzdGFydFBvbGljeRIeChpSRVNUQVJUX1BPTElDWV9VTlNQRUNJRklFRBAAEhUKEVJFU1RBUlRfUE9MSUNZX05PEAESHQoZUkVTVEFSVF9QT0xJQ1lfT05fRkFJTFVSRRACEiEKHVJFU1RBUlRfUE9MSUNZX1VOTEVTU19TVE9QUEVEEAMSGQoVUkVTVEFSVF9QT0xJQ1lfQUxXQVlTEAQqSAoIUHJvdG9jb2wSGAoUUFJPVE9DT0xfVU5TUEVDSUZJRUQQABIQCgxQUk9UT0NPTF9UQ1AQARIQCgxQUk9UT0NPTF9VRFAQAipmCg5GaXJld2FsbEFjdGlvbhIfChtGSVJFV0FMTF9BQ1RJT05fVU5TUEVDSUZJRUQQABIZChVGSVJFV0FMTF9BQ1RJT05fQUxMT1cQARIYChRGSVJFV0FMTF9BQ1RJT05fREVOWRACOj0KCXNlbnNpdGl2ZRIdLmdvb2dsZS5wcm90b2J1Zi5GaWVsZE9wdGlvbnMYuY4DIAEoCFIJc2Vuc2l0aXZlQoQCCh5jb20uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTFCClNwZWNzUHJvdG9QAVpMZ2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvcmVzb3VyY2UvdjFhbHBoYTE7cmVzb3VyY2V2MWFscGhhMaICA0RSWKoCGkRvY2t3ZWxsLlJlc291cmNlLlYxYWxwaGExygIaRG9ja3dlbGxcUmVzb3VyY2VcVjFhbHBoYTHiAiZEb2Nrd2VsbFxSZXNvdXJjZVxWMWFscGhhMVxHUEJNZXRhZGF0YeoCHERvY2t3ZWxsOjpSZXNvdXJjZTo6VjFhbHBoYTFiBnByb3RvMw", [file_google_protobuf_descriptor]);
+  fileDesc("CiZkb2Nrd2VsbC9yZXNvdXJjZS92MWFscGhhMS9zcGVjcy5wcm90bxIaZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEi0QQKCUNvbnRhaW5lchINCgVpbWFnZRgBIAEoCRIPCgdjb21tYW5kGAIgAygJEkEKA2VudhgDIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5FbnZFbnRyeUIEyPMYARI2CgVwb3J0cxgEIAMoCzInLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlBvcnRNYXBwaW5nEjoKB3Jlc3RhcnQYBSABKA4yKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5SZXN0YXJ0UG9saWN5EkEKBmxhYmVscxgGIAMoCzIxLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5MYWJlbHNFbnRyeRISCgplbnRyeXBvaW50GAcgAygJEjEKBm1vdW50cxgIIAMoCzIhLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLk1vdW50EhAKCG5ldHdvcmtzGAkgAygJEgwKBHVzZXIYCiABKAkSEwoLd29ya2luZ19kaXIYCyABKAkSPAoLaGVhbHRoY2hlY2sYDCABKAsyJy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5IZWFsdGhjaGVjaxIVCg1ub19lbnRyeXBvaW50GA0gASgIGioKCEVudkVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaLQoLTGFiZWxzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKRAQoFTW91bnQSEAoGdm9sdW1lGAEgASgJSAASEwoJaG9zdF9wYXRoGAIgASgJSAASDgoGdGFyZ2V0GAMgASgJEhEKCXJlYWRfb25seRgEIAEoCBI0CgdyZWxhYmVsGAUgASgOMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUmVsYWJlbEIICgZzb3VyY2UiZQoLSGVhbHRoY2hlY2sSDAoEdGVzdBgBIAMoCRIQCghpbnRlcnZhbBgCIAEoCRIPCgd0aW1lb3V0GAMgASgJEhQKDHN0YXJ0X3BlcmlvZBgEIAEoCRIPCgdyZXRyaWVzGAUgASgNIoEBCgtQb3J0TWFwcGluZxIRCglob3N0X3BvcnQYASABKA0SFgoOY29udGFpbmVyX3BvcnQYAiABKA0SNgoIcHJvdG9jb2wYAyABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm90b2NvbBIPCgdob3N0X2lwGAQgASgJIrIBCgxGaXJld2FsbFJ1bGUSOgoGYWN0aW9uGAEgASgOMiouZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRmlyZXdhbGxBY3Rpb24SNgoIcHJvdG9jb2wYAiABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm90b2NvbBIMCgRwb3J0GAMgASgNEg8KB3NvdXJjZXMYBCADKAkSDwoHY29tbWVudBgFIAEoCSIfCgdQcm9qZWN0EhQKDGRpc3BsYXlfbmFtZRgBIAEoCSIjCgtFbnZpcm9ubWVudBIUCgxkaXNwbGF5X25hbWUYASABKAkiRwoHU2VydmljZRI0CgNhcHAYASABKAsyJS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db250YWluZXJIAEIGCgRydW5zIv8BCgZWb2x1bWUSDgoGZHJpdmVyGAEgASgJEkYKB29wdGlvbnMYAiADKAsyLy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Wb2x1bWUuT3B0aW9uc0VudHJ5QgTI8xgBEj4KBmxhYmVscxgDIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlZvbHVtZS5MYWJlbHNFbnRyeRouCgxPcHRpb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIo4CCgdOZXR3b3JrEg4KBmRyaXZlchgBIAEoCRJBCgdvcHRpb25zGAIgAygLMjAuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTmV0d29yay5PcHRpb25zRW50cnkSEAoIaW50ZXJuYWwYAyABKAgSPwoGbGFiZWxzGAQgAygLMi8uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTmV0d29yay5MYWJlbHNFbnRyeRouCgxPcHRpb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIqsDCgRTcGVjEjYKB3Byb2plY3QYASABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm9qZWN0SAASPgoLZW52aXJvbm1lbnQYAiABKAsyJy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5FbnZpcm9ubWVudEgAEjYKB3NlcnZpY2UYAyABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5TZXJ2aWNlSAASOgoJY29udGFpbmVyGAQgASgLMiUuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQ29udGFpbmVySAASQQoNZmlyZXdhbGxfcnVsZRgFIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkZpcmV3YWxsUnVsZUgAEjQKBnZvbHVtZRgGIAEoCzIiLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlZvbHVtZUgAEjYKB25ldHdvcmsYByABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5OZXR3b3JrSABCBgoEa2luZCpLCgdSZWxhYmVsEhcKE1JFTEFCRUxfVU5TUEVDSUZJRUQQABISCg5SRUxBQkVMX1NIQVJFRBABEhMKD1JFTEFCRUxfUFJJVkFURRACKqMBCg1SZXN0YXJ0UG9saWN5Eh4KGlJFU1RBUlRfUE9MSUNZX1VOU1BFQ0lGSUVEEAASFQoRUkVTVEFSVF9QT0xJQ1lfTk8QARIdChlSRVNUQVJUX1BPTElDWV9PTl9GQUlMVVJFEAISIQodUkVTVEFSVF9QT0xJQ1lfVU5MRVNTX1NUT1BQRUQQAxIZChVSRVNUQVJUX1BPTElDWV9BTFdBWVMQBCpICghQcm90b2NvbBIYChRQUk9UT0NPTF9VTlNQRUNJRklFRBAAEhAKDFBST1RPQ09MX1RDUBABEhAKDFBST1RPQ09MX1VEUBACKmYKDkZpcmV3YWxsQWN0aW9uEh8KG0ZJUkVXQUxMX0FDVElPTl9VTlNQRUNJRklFRBAAEhkKFUZJUkVXQUxMX0FDVElPTl9BTExPVxABEhgKFEZJUkVXQUxMX0FDVElPTl9ERU5ZEAI6PQoJc2Vuc2l0aXZlEh0uZ29vZ2xlLnByb3RvYnVmLkZpZWxkT3B0aW9ucxi5jgMgASgIUglzZW5zaXRpdmVChAIKHmNvbS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMUIKU3BlY3NQcm90b1ABWkxnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9yZXNvdXJjZS92MWFscGhhMTtyZXNvdXJjZXYxYWxwaGExogIDRFJYqgIaRG9ja3dlbGwuUmVzb3VyY2UuVjFhbHBoYTHKAhpEb2Nrd2VsbFxSZXNvdXJjZVxWMWFscGhhMeICJkRvY2t3ZWxsXFJlc291cmNlXFYxYWxwaGExXEdQQk1ldGFkYXRh6gIcRG9ja3dlbGw6OlJlc291cmNlOjpWMWFscGhhMWIGcHJvdG8z", [file_google_protobuf_descriptor]);
 
 /**
- * Container is one Docker container on a server.
+ * Container is one Docker container: run by hand on a server, or a
+ * service's app. Docker fills in from the image what a container leaves
+ * out, such as its command or working directory, and that isn't drift.
  *
  * @generated from message dockwell.resource.v1alpha1.Container
  */
@@ -62,11 +64,67 @@ export type Container = Message<"dockwell.resource.v1alpha1.Container"> & {
   restart: RestartPolicy;
 
   /**
-   * Labels on the container, for tools that read them.
+   * Labels on the container, for tools that read them. Keys that start with
+   * "com.docker.compose." or "dev.dockwell." are Dockwell's own.
    *
    * @generated from field: map<string, string> labels = 6;
    */
   labels: { [key: string]: string };
+
+  /**
+   * Overrides the image's entrypoint when set. Empty takes the image's;
+   * no_entrypoint runs none.
+   *
+   * @generated from field: repeated string entrypoint = 7;
+   */
+  entrypoint: string[];
+
+  /**
+   * Volumes and server paths mounted into the container.
+   *
+   * @generated from field: repeated dockwell.resource.v1alpha1.Mount mounts = 8;
+   */
+  mounts: Mount[];
+
+  /**
+   * The networks the container joins, by name. A service's are networks in
+   * its environment; a container's on its own are Docker's. Empty joins
+   * Docker's default bridge network.
+   *
+   * @generated from field: repeated string networks = 9;
+   */
+  networks: string[];
+
+  /**
+   * The user the command runs as, such as "1000" or "node". Empty takes the
+   * image's.
+   *
+   * @generated from field: string user = 10;
+   */
+  user: string;
+
+  /**
+   * The directory the command runs in. Empty takes the image's.
+   *
+   * @generated from field: string working_dir = 11;
+   */
+  workingDir: string;
+
+  /**
+   * How Docker checks the container is healthy. Unset takes the image's
+   * check, if it has one.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.Healthcheck healthcheck = 12;
+   */
+  healthcheck?: Healthcheck | undefined;
+
+  /**
+   * Runs no entrypoint, not even the image's, as Compose's "entrypoint: []"
+   * does: the command runs on its own. Takes no entrypoint beside it.
+   *
+   * @generated from field: bool no_entrypoint = 13;
+   */
+  noEntrypoint: boolean;
 };
 
 /**
@@ -75,6 +133,120 @@ export type Container = Message<"dockwell.resource.v1alpha1.Container"> & {
  */
 export const ContainerSchema: GenMessage<Container> = /*@__PURE__*/
   messageDesc(file_dockwell_resource_v1alpha1_specs, 0);
+
+/**
+ * Mount puts a volume, or a directory on the server, into a container.
+ *
+ * @generated from message dockwell.resource.v1alpha1.Mount
+ */
+export type Mount = Message<"dockwell.resource.v1alpha1.Mount"> & {
+  /**
+   * What is mounted: one of the two.
+   *
+   * @generated from oneof dockwell.resource.v1alpha1.Mount.source
+   */
+  source: {
+    /**
+     * A volume, by name. A service's are volumes in its environment; a
+     * container's on its own are Docker's.
+     *
+     * @generated from field: string volume = 1;
+     */
+    value: string;
+    case: "volume";
+  } | {
+    /**
+     * An absolute path on the server, such as "/srv/uploads".
+     *
+     * @generated from field: string host_path = 2;
+     */
+    value: string;
+    case: "hostPath";
+  } | { case: undefined; value?: undefined };
+
+  /**
+   * Where it appears in the container, as an absolute path.
+   *
+   * @generated from field: string target = 3;
+   */
+  target: string;
+
+  /**
+   * Mounts it read-only.
+   *
+   * @generated from field: bool read_only = 4;
+   */
+  readOnly: boolean;
+
+  /**
+   * Relabels a server path for SELinux, as Docker's z and Z options do, so
+   * the container can use it on a server that enforces SELinux. Only a
+   * server path takes one; elsewhere Docker changes nothing.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.Relabel relabel = 5;
+   */
+  relabel: Relabel;
+};
+
+/**
+ * Describes the message dockwell.resource.v1alpha1.Mount.
+ * Use `create(MountSchema)` to create a new message.
+ */
+export const MountSchema: GenMessage<Mount> = /*@__PURE__*/
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 1);
+
+/**
+ * Healthcheck is a command Docker runs in the container to check it is
+ * healthy.
+ *
+ * @generated from message dockwell.resource.v1alpha1.Healthcheck
+ */
+export type Healthcheck = Message<"dockwell.resource.v1alpha1.Healthcheck"> & {
+  /**
+   * The check, as Docker takes it: ["CMD", "curl", "-f", "http://localhost"],
+   * ["CMD-SHELL", "curl -f http://localhost || exit 1"], or ["NONE"] to turn
+   * off the image's check.
+   *
+   * @generated from field: repeated string test = 1;
+   */
+  test: string[];
+
+  /**
+   * How often it runs, such as "30s". Empty takes Docker's default.
+   *
+   * @generated from field: string interval = 2;
+   */
+  interval: string;
+
+  /**
+   * How long one check may take, such as "5s". Empty takes Docker's default.
+   *
+   * @generated from field: string timeout = 3;
+   */
+  timeout: string;
+
+  /**
+   * How long the container has to start before failures count, such as
+   * "1m". Empty takes Docker's default.
+   *
+   * @generated from field: string start_period = 4;
+   */
+  startPeriod: string;
+
+  /**
+   * How many failures in a row make it unhealthy. 0 takes Docker's default.
+   *
+   * @generated from field: uint32 retries = 5;
+   */
+  retries: number;
+};
+
+/**
+ * Describes the message dockwell.resource.v1alpha1.Healthcheck.
+ * Use `create(HealthcheckSchema)` to create a new message.
+ */
+export const HealthcheckSchema: GenMessage<Healthcheck> = /*@__PURE__*/
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 2);
 
 /**
  * PortMapping publishes a container port on the server.
@@ -102,6 +274,14 @@ export type PortMapping = Message<"dockwell.resource.v1alpha1.PortMapping"> & {
    * @generated from field: dockwell.resource.v1alpha1.Protocol protocol = 3;
    */
   protocol: Protocol;
+
+  /**
+   * The server address it listens on, such as "127.0.0.1". Empty listens on
+   * every address.
+   *
+   * @generated from field: string host_ip = 4;
+   */
+  hostIp: string;
 };
 
 /**
@@ -109,7 +289,7 @@ export type PortMapping = Message<"dockwell.resource.v1alpha1.PortMapping"> & {
  * Use `create(PortMappingSchema)` to create a new message.
  */
 export const PortMappingSchema: GenMessage<PortMapping> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 1);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 3);
 
 /**
  * FirewallRule allows or blocks inbound traffic to a port on a server.
@@ -159,7 +339,7 @@ export type FirewallRule = Message<"dockwell.resource.v1alpha1.FirewallRule"> & 
  * Use `create(FirewallRuleSchema)` to create a new message.
  */
 export const FirewallRuleSchema: GenMessage<FirewallRule> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 2);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 4);
 
 /**
  * Project is a product or client in the organization. It holds
@@ -184,7 +364,7 @@ export type Project = Message<"dockwell.resource.v1alpha1.Project"> & {
  * Use `create(ProjectSchema)` to create a new message.
  */
 export const ProjectSchema: GenMessage<Project> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 3);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 5);
 
 /**
  * Environment is a stage of a project, such as production or staging, with
@@ -207,14 +387,15 @@ export type Environment = Message<"dockwell.resource.v1alpha1.Environment"> & {
  * Use `create(EnvironmentSchema)` to create a new message.
  */
 export const EnvironmentSchema: GenMessage<Environment> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 4);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 6);
 
 /**
  * Service is anything that runs in an environment, placed on servers: for
  * now an app from an image, run as one container on each server it is
- * placed on. Compose stacks, websites, databases, catalog apps and jobs
- * come later. Where it runs isn't part of the spec: each revision is
- * deployed on its servers.
+ * placed on, with the labels Docker Compose gives a service's container,
+ * so docker compose sees it. A Compose file becomes services, volumes and
+ * networks. Websites, databases, catalog apps and jobs come later. Where it
+ * runs isn't part of the spec: each revision is deployed on its servers.
  *
  * @generated from message dockwell.resource.v1alpha1.Service
  */
@@ -240,7 +421,93 @@ export type Service = Message<"dockwell.resource.v1alpha1.Service"> & {
  * Use `create(ServiceSchema)` to create a new message.
  */
 export const ServiceSchema: GenMessage<Service> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 5);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 7);
+
+/**
+ * Volume is a Docker volume in an environment, which its services mount
+ * by name, as a Compose file's volumes. Deleting one destroys its data,
+ * though Dockwell keeps it for 7 days first. Docker can't change a volume,
+ * so its spec can't change once it is made.
+ *
+ * @generated from message dockwell.resource.v1alpha1.Volume
+ */
+export type Volume = Message<"dockwell.resource.v1alpha1.Volume"> & {
+  /**
+   * The volume driver: "local" unless set.
+   *
+   * @generated from field: string driver = 1;
+   */
+  driver: string;
+
+  /**
+   * The driver's options, such as type, device and o for an NFS mount. They
+   * may hold secrets, as a CIFS mount's password goes in o. The local driver
+   * takes type none with bind, nfs, nfs4, cifs or tmpfs.
+   *
+   * @generated from field: map<string, string> options = 2;
+   */
+  options: { [key: string]: string };
+
+  /**
+   * Labels on the volume, for tools that read them.
+   *
+   * @generated from field: map<string, string> labels = 3;
+   */
+  labels: { [key: string]: string };
+};
+
+/**
+ * Describes the message dockwell.resource.v1alpha1.Volume.
+ * Use `create(VolumeSchema)` to create a new message.
+ */
+export const VolumeSchema: GenMessage<Volume> = /*@__PURE__*/
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 8);
+
+/**
+ * Network is a Docker network in an environment, which its services join
+ * by name, as a Compose file's networks. A service reaches another on a
+ * network they share by the other's name. Docker can't change a network,
+ * so its spec can't change once it is made.
+ *
+ * @generated from message dockwell.resource.v1alpha1.Network
+ */
+export type Network = Message<"dockwell.resource.v1alpha1.Network"> & {
+  /**
+   * The network driver: "bridge" unless set.
+   *
+   * @generated from field: string driver = 1;
+   */
+  driver: string;
+
+  /**
+   * The driver's options.
+   *
+   * @generated from field: map<string, string> options = 2;
+   */
+  options: { [key: string]: string };
+
+  /**
+   * Cuts the network off from outside the server: only its containers
+   * reach each other.
+   *
+   * @generated from field: bool internal = 3;
+   */
+  internal: boolean;
+
+  /**
+   * Labels on the network, for tools that read them.
+   *
+   * @generated from field: map<string, string> labels = 4;
+   */
+  labels: { [key: string]: string };
+};
+
+/**
+ * Describes the message dockwell.resource.v1alpha1.Network.
+ * Use `create(NetworkSchema)` to create a new message.
+ */
+export const NetworkSchema: GenMessage<Network> = /*@__PURE__*/
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 9);
 
 /**
  * Spec is the desired state of one resource, of any kind: the field that is
@@ -295,6 +562,22 @@ export type Spec = Message<"dockwell.resource.v1alpha1.Spec"> & {
      */
     value: FirewallRule;
     case: "firewallRule";
+  } | {
+    /**
+     * A volume in an environment, kind "volume".
+     *
+     * @generated from field: dockwell.resource.v1alpha1.Volume volume = 6;
+     */
+    value: Volume;
+    case: "volume";
+  } | {
+    /**
+     * A network in an environment, kind "network".
+     *
+     * @generated from field: dockwell.resource.v1alpha1.Network network = 7;
+     */
+    value: Network;
+    case: "network";
   } | { case: undefined; value?: undefined };
 };
 
@@ -303,7 +586,42 @@ export type Spec = Message<"dockwell.resource.v1alpha1.Spec"> & {
  * Use `create(SpecSchema)` to create a new message.
  */
 export const SpecSchema: GenMessage<Spec> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 6);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 10);
+
+/**
+ * Relabel is how Docker labels a server path for SELinux when it mounts
+ * it.
+ *
+ * @generated from enum dockwell.resource.v1alpha1.Relabel
+ */
+export enum Relabel {
+  /**
+   * Not at all: the path keeps its label.
+   *
+   * @generated from enum value: RELABEL_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Shared, Docker's z: every container may use the path.
+   *
+   * @generated from enum value: RELABEL_SHARED = 1;
+   */
+  SHARED = 1,
+
+  /**
+   * Private, Docker's Z: only this container may use it.
+   *
+   * @generated from enum value: RELABEL_PRIVATE = 2;
+   */
+  PRIVATE = 2,
+}
+
+/**
+ * Describes the enum dockwell.resource.v1alpha1.Relabel.
+ */
+export const RelabelSchema: GenEnum<Relabel> = /*@__PURE__*/
+  enumDesc(file_dockwell_resource_v1alpha1_specs, 0);
 
 /**
  * RestartPolicy says when Docker restarts a stopped container.
@@ -351,7 +669,7 @@ export enum RestartPolicy {
  * Describes the enum dockwell.resource.v1alpha1.RestartPolicy.
  */
 export const RestartPolicySchema: GenEnum<RestartPolicy> = /*@__PURE__*/
-  enumDesc(file_dockwell_resource_v1alpha1_specs, 0);
+  enumDesc(file_dockwell_resource_v1alpha1_specs, 1);
 
 /**
  * Protocol is a transport protocol.
@@ -385,7 +703,7 @@ export enum Protocol {
  * Describes the enum dockwell.resource.v1alpha1.Protocol.
  */
 export const ProtocolSchema: GenEnum<Protocol> = /*@__PURE__*/
-  enumDesc(file_dockwell_resource_v1alpha1_specs, 1);
+  enumDesc(file_dockwell_resource_v1alpha1_specs, 2);
 
 /**
  * FirewallAction is what a rule does with matching traffic.
@@ -419,7 +737,7 @@ export enum FirewallAction {
  * Describes the enum dockwell.resource.v1alpha1.FirewallAction.
  */
 export const FirewallActionSchema: GenEnum<FirewallAction> = /*@__PURE__*/
-  enumDesc(file_dockwell_resource_v1alpha1_specs, 2);
+  enumDesc(file_dockwell_resource_v1alpha1_specs, 3);
 
 /**
  * True for fields that may hold secrets. Plans, history and logs say that

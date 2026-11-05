@@ -5,8 +5,10 @@
 // servers it is placed on, and the agent on each runs it.
 //
 // For now a service is an app from an image, which the driver runs as one
-// container through the container driver's Runtime. Compose stacks and
-// the real Docker backend replace that in M3 (#26) behind the same kind.
+// container through the container driver's Runtime, named and labelled as
+// Docker Compose names and labels a service's first container. Its
+// environment is its Compose project. A Compose file becomes services,
+// with volumes and networks of their own kinds.
 package service
 
 import (
@@ -17,9 +19,12 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/network"
+	"github.com/dockwell/dockwell/internal/resource/volume"
 )
 
 // Kind is the service kind.
@@ -55,22 +60,41 @@ func (d *Driver) Validate(spec proto.Message) error {
 	if app == nil {
 		return errors.New("a service needs something to run: an app from an image, such as nginx:1.27")
 	}
-	return d.Containers.Validate(app)
+	return container.Validate(app)
 }
 
-// ContainerName is the container a service runs as on a server: its name
-// and environment, as <name>.env_<ID>, so services of one name in two
-// environments can share a server. Containers run by hand can't take names
-// of that form (container.Driver.CheckName), so neither manages the other's.
-func ContainerName(ref resource.Ref) string { return ref.Name + "." + ref.Scope }
-
-func (d *Driver) containerRef(ref resource.Ref) resource.Ref {
-	return resource.Ref{Kind: container.Kind, Scope: ref.Scope, Name: ContainerName(ref)}
+// References are the volumes the service mounts and the networks it
+// joins, in its environment.
+func (*Driver) References(spec proto.Message) []resource.Reference {
+	app := spec.(*resourcev1.Service).GetApp()
+	var out []resource.Reference
+	for _, m := range app.GetMounts() {
+		if v := m.GetVolume(); v != "" {
+			out = append(out, resource.Reference{Kind: volume.Kind, Name: v, Verb: "mount", ReadOnly: m.GetReadOnly()})
+		}
+	}
+	for _, n := range app.GetNetworks() {
+		out = append(out, resource.Reference{Kind: network.Kind, Name: n, Verb: "join"})
+	}
+	return out
 }
+
+// Target is where a service runs on a server: in its environment's
+// Compose project, as that project's service of the same name, in a
+// container named as Compose names a service's first, such as
+// env_01kat…-web-1. Containers run by hand can't take names of that form
+// (container.Driver.CheckName), so neither manages the other's.
+func Target(ref resource.Ref) container.Target {
+	p := docker.Project(ref.Scope)
+	return container.Target{Name: docker.ContainerName(p, ref.Name), Project: p, Service: ref.Name, Scoped: true}
+}
+
+// ContainerName is the name of a service's container on a server.
+func ContainerName(ref resource.Ref) string { return Target(ref).Name }
 
 // Observe reads the service's container.
 func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {
-	c, err := d.Containers.Observe(ctx, d.containerRef(ref))
+	c, err := d.Containers.ObserveAt(ctx, Target(ref))
 	if err != nil || c == nil {
 		return nil, err
 	}
@@ -79,31 +103,66 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 
 // Plan judges the step as the container driver does for the app.
 func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
-	app := func(m proto.Message) proto.Message {
-		if m == nil {
-			return nil
-		}
-		return m.(*resourcev1.Service).GetApp()
+	return d.Containers.Plan(app(actual), app(desired), inner(changes))
+}
+
+// Judge judges the step as the container driver does for the app, with
+// what its server has.
+func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
+	return d.Containers.JudgeAt(ctx, Target(ref), app(actual), app(desired), inner(changes))
+}
+
+// Check checks the app on its server, as the container driver does.
+func (d *Driver) Check(ctx context.Context, ref resource.Ref, desired proto.Message) error {
+	return d.Containers.CheckAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())
+}
+
+// HostAccess is what the app itself reaches on its server: the server
+// paths it mounts. Its networks are its environment's, never the server's
+// own. The engine adds what its volumes and networks reach (References).
+func (*Driver) HostAccess(spec proto.Message) []resource.Access {
+	return container.ServiceAccess(spec.(*resourcev1.Service).GetApp())
+}
+
+// Normalize orders the app, as Validate would.
+func (*Driver) Normalize(spec proto.Message) {
+	container.Normalize(spec.(*resourcev1.Service).GetApp())
+}
+
+// app is a service's app, or nil.
+func app(m proto.Message) proto.Message {
+	if m == nil {
+		return nil
 	}
-	inner := make([]resource.Change, len(changes))
+	return m.(*resourcev1.Service).GetApp()
+}
+
+// inner are changes to a service as changes to its app.
+func inner(changes []resource.Change) []resource.Change {
+	out := make([]resource.Change, len(changes))
 	for i, c := range changes {
 		c.Path = strings.TrimPrefix(c.Path, "app.")
-		inner[i] = c
+		out[i] = c
 	}
-	return d.Containers.Plan(app(actual), app(desired), inner)
+	return out
 }
 
 // Apply runs, updates or removes the service's container.
 func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
-	step.Ref = d.containerRef(step.Ref)
 	var app proto.Message
 	if desired != nil {
 		app = desired.(*resourcev1.Service).GetApp()
 	}
-	return d.Containers.Apply(ctx, step, app)
+	return d.Containers.ApplyAt(ctx, Target(step.Ref), step, app)
 }
 
 // Verify checks the service's container is healthy.
-func (d *Driver) Verify(ctx context.Context, ref resource.Ref, desired proto.Message) error {
-	return d.Containers.Verify(ctx, d.containerRef(ref), desired)
+func (d *Driver) Verify(ctx context.Context, ref resource.Ref, _ proto.Message) error {
+	return d.Containers.VerifyAt(ctx, Target(ref))
 }
+
+// Ready says why services can't run now, as their containers can't.
+func (d *Driver) Ready(ctx context.Context) error { return d.Containers.Ready(ctx) }
+
+// ReadyKey is the containers' runtime's.
+func (d *Driver) ReadyKey() any { return d.Containers.ReadyKey() }

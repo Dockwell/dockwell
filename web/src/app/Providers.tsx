@@ -101,6 +101,7 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
           database: t`database`,
           job: t`job`,
           volume: t`volume`,
+          network: t`network`,
           backup: t`backup`,
           package: t`package`,
           server: t`server`,

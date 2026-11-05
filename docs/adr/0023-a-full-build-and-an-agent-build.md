@@ -46,7 +46,7 @@ And for how to make two builds:
 ### Future features stay out of the agent build
 
 - A control-plane feature lives in packages the agent build doesn't import: under `internal/control`, the store, auth, the revision engine, or a package of its own. Its commands go in a file of `internal/cli` with `//go:build !agent`.
-- What the agent runs of a feature, such as a driver, goes in a package of its own, which imports nothing of the control plane's. The control plane may import it. For the Docker driver (#71), `internal/docker` and the container, volume and network drivers are the agent's, and Compose import and export (`internal/compose`) is the control plane's. For secrets (#70), decrypting a secret on the agent is the agent's, and encrypting and keeping it is the control plane's.
+- What the agent runs of a feature, such as a driver, goes in a package of its own, which imports nothing of the control plane's. The control plane may import it. For the Docker driver (#71), `internal/docker` and the container, service, volume and network drivers are the agent's, and Compose import and export (`internal/compose`) is the control plane's. For secrets (#70), decrypting a secret on the agent is the agent's, and encrypting and keeping it is the control plane's.
 - A package on `agentPackages` or a module on `agentModules` is on every server that joins. A pull request that adds one says what `make budgets` measured it costing.
 
 ### Releases

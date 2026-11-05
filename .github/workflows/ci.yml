@@ -82,6 +82,40 @@ jobs:
       - name: The agent build joins the full build
         run: scripts/smoke-agent.sh bin/dockwell-linux-amd64 bin/dockwell-agent-linux-amd64
 
+  docker:
+    name: Docker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # The drivers' tests against the runner's Docker Engine, and a service
+    # through the CLI end to end, beside docker compose (ADR 0021).
+    env:
+      DOCKWELL_TEST_DOCKER: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      # The runner image's docker compose changes under the tests, so they
+      # run with a version of our own, as docker compose's release has it.
+      - name: Docker Compose v2.38.2
+        run: |
+          mkdir -p ~/.docker/cli-plugins
+          curl -fsSL -o ~/.docker/cli-plugins/docker-compose \
+            https://github.com/docker/compose/releases/download/v2.38.2/docker-compose-linux-x86_64
+          echo "486b3ffc0f806ca2efbc430cef89955386011662f0c76bad17c103d059cfa9cf  $HOME/.docker/cli-plugins/docker-compose" | sha256sum -c -
+          chmod +x ~/.docker/cli-plugins/docker-compose
+      - name: Docker
+        run: |
+          docker version
+          docker compose version
+      - name: Tests against Docker
+        run: go test -race -run 'OnRealDocker' -v ./internal/...
+      - name: A service end to end
+        run: make docker-e2e
+
   schema:
     name: API schema
     runs-on: ubuntu-24.04

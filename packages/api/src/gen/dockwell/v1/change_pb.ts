@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/change.proto.
  */
 export const file_dockwell_v1_change: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9jaGFuZ2UucHJvdG8SC2RvY2t3ZWxsLnYxIkkKFFByb3Bvc2VDaGFuZ2VSZXF1ZXN0Eg8KB3N1bW1hcnkYASABKAkSIAoFZWRpdHMYAiADKAsyES5kb2Nrd2VsbC52MS5FZGl0IpQBCgRFZGl0EioKCHJlc291cmNlGAEgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSLgoEc3BlYxgCIAEoCzIgLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlNwZWMSDgoGZGVsZXRlGAMgASgIEg8KB3NlcnZlcnMYBCADKAkSDwoHcHJvamVjdBgFIAEoCSI4CgtSZXNvdXJjZVJlZhIMCgRraW5kGAEgASgJEg0KBXNjb3BlGAIgASgJEgwKBG5hbWUYAyABKAkiSAoGQ2hvaWNlEg0KBWxldmVsGAEgASgJEg0KBWZpZWxkGAIgASgJEg8KB29wdGlvbnMYAyADKAkSDwoHcHJvamVjdBgEIAEoCSI8ChVQcm9wb3NlQ2hhbmdlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIh4KEEdldENoYW5nZVJlcXVlc3QSCgoCaWQYASABKAkiOAoRR2V0Q2hhbmdlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIjsKEkxpc3RDaGFuZ2VzUmVxdWVzdBIRCglwYWdlX3NpemUYASABKAUSEgoKcGFnZV90b2tlbhgCIAEoCSJUChNMaXN0Q2hhbmdlc1Jlc3BvbnNlEiQKB2NoYW5nZXMYASADKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIjUKEkFwcGx5Q2hhbmdlUmVxdWVzdBIKCgJpZBgBIAEoCRITCgtmaW5nZXJwcmludBgCIAEoCSI6ChNBcHBseUNoYW5nZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSIgChJXYXRjaENoYW5nZVJlcXVlc3QSCgoCaWQYASABKAkibgoTV2F0Y2hDaGFuZ2VSZXNwb25zZRIlCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2VIABInCgRzdGVwGAIgASgLMhcuZG9ja3dlbGwudjEuU3RlcFVwZGF0ZUgAQgcKBWV2ZW50IkQKClN0ZXBVcGRhdGUSDQoFaW5kZXgYASABKAUSJwoEc3RlcBgCIAEoCzIZLmRvY2t3ZWxsLnYxLlN0ZXBQcm9ncmVzcyIfChFVbmRvQ2hhbmdlUmVxdWVzdBIKCgJpZBgBIAEoCSI5ChJVbmRvQ2hhbmdlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIiIKFERpc2NhcmRDaGFuZ2VSZXF1ZXN0EgoKAmlkGAEgASgJIjwKFURpc2NhcmRDaGFuZ2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiJQoQTGlzdERyaWZ0UmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkibwoRTGlzdERyaWZ0UmVzcG9uc2USIQoFZHJpZnQYASADKAsyEi5kb2Nrd2VsbC52MS5EcmlmdBI3ChF1bmNoZWNrZWRfc2VydmVycxgCIAMoCzIcLmRvY2t3ZWxsLnYxLlVuY2hlY2tlZFNlcnZlciJaCg9VbmNoZWNrZWRTZXJ2ZXISEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEg4KBnJlYXNvbhgDIAEoCRIPCgdtZXNzYWdlGAQgASgJIqkBCgVEcmlmdBIRCglzZXJ2ZXJfaWQYASABKAkSEwoLcmVzb3VyY2VfaWQYAiABKAkSKgoIcmVzb3VyY2UYAyABKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhIQCghyZXZpc2lvbhgEIAEoAxIPCgdtaXNzaW5nGAUgASgIEikKB2NoYW5nZXMYBiADKAsyGC5kb2Nrd2VsbC52MS5GaWVsZENoYW5nZSI8ChJSZXZlcnREcmlmdFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEhMKC3Jlc291cmNlX2lkGAIgASgJIjoKE1JldmVydERyaWZ0UmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIjsKEUFkb3B0RHJpZnRSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRITCgtyZXNvdXJjZV9pZBgCIAEoCSI5ChJBZG9wdERyaWZ0UmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIrIECgZDaGFuZ2USCgoCaWQYASABKAkSDwoHc3VtbWFyeRgCIAEoCRInCgVzdGF0ZRgDIAEoDjIYLmRvY2t3ZWxsLnYxLkNoYW5nZVN0YXRlEicKC3Byb3Bvc2VkX2J5GAQgASgLMhIuZG9ja3dlbGwudjEuQWN0b3ISKgoMcHJvcG9zZWRfdmlhGAUgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRIvCgtjcmVhdGVfdGltZRgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASHwoEcGxhbhgHIAEoCzIRLmRvY2t3ZWxsLnYxLlBsYW4SDwoHcmV2ZXJ0cxgIIAEoCRIQCghyb2xsYmFjaxgJIAEoCBImCgphcHBsaWVkX2J5GAogASgLMhIuZG9ja3dlbGwudjEuQWN0b3ISKQoLYXBwbGllZF92aWEYCyABKA4yFC5kb2Nrd2VsbC52MS5TdXJmYWNlEi4KCmFwcGx5X3RpbWUYDCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjEKDXVuZG9fZGVhZGxpbmUYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWVycm9yGA4gASgJEigKBXN0ZXBzGA8gAygLMhkuZG9ja3dlbGwudjEuU3RlcFByb2dyZXNzEhYKDnJvbGxlZF9iYWNrX2J5GBAgASgJEhEKCXVuZG9uZV9ieRgRIAEoCSJHCgVBY3RvchIkCgRraW5kGAEgASgOMhYuZG9ja3dlbGwudjEuQWN0b3JLaW5kEgoKAmlkGAIgASgJEgwKBG5hbWUYAyABKAki5gEKBFBsYW4SEwoLZmluZ2VycHJpbnQYASABKAkSKQoHc3VtbWFyeRgCIAEoCzIYLmRvY2t3ZWxsLnYxLlBsYW5TdW1tYXJ5Ei8KCXJlc291cmNlcxgDIAMoCzIcLmRvY2t3ZWxsLnYxLlBsYW5uZWRSZXNvdXJjZRIoCgdzZXJ2ZXJzGAQgAygLMhcuZG9ja3dlbGwudjEuU2VydmVyUGxhbhIuCgt1bmRvX3dpbmRvdxgFIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhITCgtkZXN0cnVjdGl2ZRgGIAEoCCJPCgtQbGFuU3VtbWFyeRIOCgZjcmVhdGUYASABKAUSDgoGY2hhbmdlGAIgASgFEg8KB3JlcGxhY2UYAyABKAUSDwoHZGVzdHJveRgEIAEoBSLfAQoPUGxhbm5lZFJlc291cmNlEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSJwoGYWN0aW9uGAMgASgOMhcuZG9ja3dlbGwudjEuUGxhbkFjdGlvbhIVCg1iYXNlX3JldmlzaW9uGAQgASgDEikKB2NoYW5nZXMYBSADKAsyGC5kb2Nrd2VsbC52MS5GaWVsZENoYW5nZRIPCgdzZXJ2ZXJzGAYgAygJEhgKEHByZXZpb3VzX3NlcnZlcnMYByADKAkiqQEKClNlcnZlclBsYW4SEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEg8KB29mZmxpbmUYAyABKAgSDwoHcmVtb3ZlZBgEIAEoCBIrCghkb3dudGltZRgFIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIkCgVzdGVwcxgGIAMoCzIVLmRvY2t3ZWxsLnYxLlBsYW5TdGVwIrgCCghQbGFuU3RlcBITCgtyZXNvdXJjZV9pZBgBIAEoCRIqCghyZXNvdXJjZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEicKBmFjdGlvbhgDIAEoDjIXLmRvY2t3ZWxsLnYxLlBsYW5BY3Rpb24SJwoGZWZmZWN0GAQgASgOMhcuZG9ja3dlbGwudjEuU3RlcEVmZmVjdBIrCghkb3dudGltZRgFIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIVCg1kZXN0cm95c19kYXRhGAYgASgIEioKCHdhcm5pbmdzGAcgAygOMhguZG9ja3dlbGwudjEuUGxhbldhcm5pbmcSKQoHY2hhbmdlcxgIIAMoCzIYLmRvY2t3ZWxsLnYxLkZpZWxkQ2hhbmdlImoKC0ZpZWxkQ2hhbmdlEgwKBHBhdGgYASABKAkSIAoCb3AYAiABKA4yFC5kb2Nrd2VsbC52MS5GaWVsZE9wEgwKBGZyb20YAyABKAkSCgoCdG8YBCABKAkSEQoJc2Vuc2l0aXZlGAUgASgIIqQCCgxTdGVwUHJvZ3Jlc3MSEQoJc2VydmVyX2lkGAEgASgJEhMKC3Jlc291cmNlX2lkGAIgASgJEioKCHJlc291cmNlGAMgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSJwoGYWN0aW9uGAQgASgOMhcuZG9ja3dlbGwudjEuUGxhbkFjdGlvbhIlCgVzdGF0ZRgFIAEoDjIWLmRvY2t3ZWxsLnYxLlN0ZXBTdGF0ZRIPCgdtZXNzYWdlGAYgASgJEi4KCnN0YXJ0X3RpbWUYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2ZpbmlzaF90aW1lGAggASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCqvAQoLQ2hhbmdlU3RhdGUSHAoYQ0hBTkdFX1NUQVRFX1VOU1BFQ0lGSUVEEAASGAoUQ0hBTkdFX1NUQVRFX1BMQU5ORUQQARIZChVDSEFOR0VfU1RBVEVfQVBQTFlJTkcQAhIYChRDSEFOR0VfU1RBVEVfQVBQTElFRBADEhcKE0NIQU5HRV9TVEFURV9GQUlMRUQQBBIaChZDSEFOR0VfU1RBVEVfRElTQ0FSREVEEAUqmAEKCUFjdG9yS2luZBIaChZBQ1RPUl9LSU5EX1VOU1BFQ0lGSUVEEAASEwoPQUNUT1JfS0lORF9VU0VSEAESFAoQQUNUT1JfS0lORF9UT0tFThACEhcKE0FDVE9SX0tJTkRfRE9DS1dFTEwQAxIVChFBQ1RPUl9LSU5EX1NFUlZFUhAEEhQKEEFDVE9SX0tJTkRfU0hFTEwQBSpuCgdTdXJmYWNlEhcKE1NVUkZBQ0VfVU5TUEVDSUZJRUQQABIRCg1TVVJGQUNFX1BBTkVMEAESDwoLU1VSRkFDRV9BUEkQAhIVChFTVVJGQUNFX0FVVE9NQVRJQxADEg8KC1NVUkZBQ0VfQ0xJEAQqoAEKClBsYW5BY3Rpb24SGwoXUExBTl9BQ1RJT05fVU5TUEVDSUZJRUQQABIUChBQTEFOX0FDVElPTl9OT05FEAESFgoSUExBTl9BQ1RJT05fQ1JFQVRFEAISFgoSUExBTl9BQ1RJT05fVVBEQVRFEAMSFwoTUExBTl9BQ1RJT05fUkVQTEFDRRAEEhYKElBMQU5fQUNUSU9OX0RFTEVURRAFKnIKClN0ZXBFZmZlY3QSGwoXU1RFUF9FRkZFQ1RfVU5TUEVDSUZJRUQQABIUChBTVEVQX0VGRkVDVF9OT05FEAESFwoTU1RFUF9FRkZFQ1RfUkVTVEFSVBACEhgKFFNURVBfRUZGRUNUX1JFQ1JFQVRFEAMqSgoLUGxhbldhcm5pbmcSHAoYUExBTl9XQVJOSU5HX1VOU1BFQ0lGSUVEEAASHQoZUExBTl9XQVJOSU5HX01BWV9MT0NLX09VVBABKmQKB0ZpZWxkT3ASGAoURklFTERfT1BfVU5TUEVDSUZJRUQQABISCg5GSUVMRF9PUF9BRERFRBABEhQKEEZJRUxEX09QX1JFTU9WRUQQAhIVChFGSUVMRF9PUF9NT0RJRklFRBADKrIBCglTdGVwU3RhdGUSGgoWU1RFUF9TVEFURV9VTlNQRUNJRklFRBAAEhUKEVNURVBfU1RBVEVfUVVFVUVEEAESFgoSU1RFUF9TVEFURV9SVU5OSU5HEAISEwoPU1RFUF9TVEFURV9ET05FEAMSFQoRU1RFUF9TVEFURV9GQUlMRUQQBBIWChJTVEVQX1NUQVRFX1NLSVBQRUQQBRIWChJTVEVQX1NUQVRFX1dBSVRJTkcQBjK6DwoNQ2hhbmdlU2VydmljZRJyCg1Qcm9wb3NlQ2hhbmdlEiEuZG9ja3dlbGwudjEuUHJvcG9zZUNoYW5nZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5Qcm9wb3NlQ2hhbmdlUmVzcG9uc2UiGqC7GAKC0+STAhA6ASoiCy92MS9jaGFuZ2VzEmsKCUdldENoYW5nZRIdLmRvY2t3ZWxsLnYxLkdldENoYW5nZVJlcXVlc3QaHi5kb2Nrd2VsbC52MS5HZXRDaGFuZ2VSZXNwb25zZSIfkAIBoLsYAYLT5JMCEhIQL3YxL2NoYW5nZXMve2lkfRJsCgtMaXN0Q2hhbmdlcxIfLmRvY2t3ZWxsLnYxLkxpc3RDaGFuZ2VzUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkxpc3RDaGFuZ2VzUmVzcG9uc2UiGpACAaC7GAGC0+STAg0SCy92MS9jaGFuZ2VzEncKC0FwcGx5Q2hhbmdlEh8uZG9ja3dlbGwudjEuQXBwbHlDaGFuZ2VSZXF1ZXN0GiAuZG9ja3dlbGwudjEuQXBwbHlDaGFuZ2VSZXNwb25zZSIloLsYA4LT5JMCGzoBKiIWL3YxL2NoYW5nZXMve2lkfTphcHBseRJYCgtXYXRjaENoYW5nZRIfLmRvY2t3ZWxsLnYxLldhdGNoQ2hhbmdlUmVxdWVzdBogLmRvY2t3ZWxsLnYxLldhdGNoQ2hhbmdlUmVzcG9uc2UiBKC7GAEwARJzCgpVbmRvQ2hhbmdlEh4uZG9ja3dlbGwudjEuVW5kb0NoYW5nZVJlcXVlc3QaHy5kb2Nrd2VsbC52MS5VbmRvQ2hhbmdlUmVzcG9uc2UiJKC7GAKC0+STAho6ASoiFS92MS9jaGFuZ2VzL3tpZH06dW5kbxJ/Cg1EaXNjYXJkQ2hhbmdlEiEuZG9ja3dlbGwudjEuRGlzY2FyZENoYW5nZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5EaXNjYXJkQ2hhbmdlUmVzcG9uc2UiJ6C7GAKC0+STAh06ASoiGC92MS9jaGFuZ2VzL3tpZH06ZGlzY2FyZBJkCglMaXN0RHJpZnQSHS5kb2Nrd2VsbC52MS5MaXN0RHJpZnRSZXF1ZXN0Gh4uZG9ja3dlbGwudjEuTGlzdERyaWZ0UmVzcG9uc2UiGJACAaC7GAGC0+STAgsSCS92MS9kcmlmdBJxCgtSZXZlcnREcmlmdBIfLmRvY2t3ZWxsLnYxLlJldmVydERyaWZ0UmVxdWVzdBogLmRvY2t3ZWxsLnYxLlJldmVydERyaWZ0UmVzcG9uc2UiH6C7GAKC0+STAhU6ASoiEC92MS9kcmlmdDpyZXZlcnQSbQoKQWRvcHREcmlmdBIeLmRvY2t3ZWxsLnYxLkFkb3B0RHJpZnRSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuQWRvcHREcmlmdFJlc3BvbnNlIh6guxgCgtPkkwIUOgEqIg8vdjEvZHJpZnQ6YWRvcHQayAaiuxjPAwoHY2hhbmdlcxLDA0EgY2hhbmdlIGlzIGEgc2V0IG9mIGVkaXRzIHRvIG1hbmFnZWQgc3RhdGUsIHdpdGggdGhlIHBsYW4gdGhhdCBjYXJyaWVzIHRoZW0gb3V0LiBZb3UgcHJvcG9zZSBlZGl0cyBhbmQgZ2V0IGEgcGxhbiBiYWNrOyBhcHBseWluZyBpdCB3cml0ZXMgaW1tdXRhYmxlIHJldmlzaW9ucyBhbmQgcnVucyBpdHMgc3RlcHMgb24gdGhlIHNlcnZlcnM7IHVuZG9pbmcgaXQgbWFrZXMgYSBuZXcgcGxhbiB0aGF0IHB1dHMgdGhpbmdzIGJhY2suIEEgY2hhbmdlIGFwcGxpZXMgb25seSBhcyBpdCB3YXMgcGxhbm5lZCwgYW5kIGEgcGxhbiBuZXZlciBzaG93cyBhIHNlY3JldCwgb25seSB0aGF0IGl0IGNoYW5nZWQuCgpTZWUgZG9jcy9hZHIvMDAwOS1yZXNvdXJjZXMtcmV2aXNpb25zLWFuZC1wbGFucy5tZCBhbmQgZG9jcy9hZHIvMDAxNy10aGUtY2hhbmdlLWFwaS1hbmQtdGhlLWFnZW50LXN0cmVhbS5tZC6iuxjvAgoFZHJpZnQS5QJEcmlmdCBpcyBhIGRpZmZlcmVuY2UgYmV0d2VlbiB3aGF0IGEgc2VydmVyIGhhcyBhbmQgdGhlIGxhdGVzdCByZXZpc2lvbiBvZiBhIHJlc291cmNlIGl0IHNob3VsZCBoYXZlLCBhcyB3aGVuIHNvbWVvbmUgY2hhbmdlZCBpdCBieSBoYW5kLiBMaXN0RHJpZnQgYXNrcyBlYWNoIGNvbm5lY3RlZCBzZXJ2ZXIncyBhZ2VudCwgYW5kIGNoYW5nZXMgbm90aGluZy4gUmV2ZXJ0RHJpZnQgcGxhbnMgcHV0dGluZyB0aGUgcmV2aXNpb24gYmFjaywgYW5kIEFkb3B0RHJpZnQgcGxhbnMga2VlcGluZyB3aGF0IHRoZSBzZXJ2ZXIgaGFzIGFzIGEgbmV3IHJldmlzaW9uOiBlYWNoIGlzIGEgY2hhbmdlLCB3aXRoIGEgcGxhbiB0byBhcHBseS5CpAEKD2NvbS5kb2Nrd2VsbC52MUILQ2hhbmdlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9jaGFuZ2UucHJvdG8SC2RvY2t3ZWxsLnYxIkkKFFByb3Bvc2VDaGFuZ2VSZXF1ZXN0Eg8KB3N1bW1hcnkYASABKAkSIAoFZWRpdHMYAiADKAsyES5kb2Nrd2VsbC52MS5FZGl0IpQBCgRFZGl0EioKCHJlc291cmNlGAEgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSLgoEc3BlYxgCIAEoCzIgLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlNwZWMSDgoGZGVsZXRlGAMgASgIEg8KB3NlcnZlcnMYBCADKAkSDwoHcHJvamVjdBgFIAEoCSI4CgtSZXNvdXJjZVJlZhIMCgRraW5kGAEgASgJEg0KBXNjb3BlGAIgASgJEgwKBG5hbWUYAyABKAkiSAoGQ2hvaWNlEg0KBWxldmVsGAEgASgJEg0KBWZpZWxkGAIgASgJEg8KB29wdGlvbnMYAyADKAkSDwoHcHJvamVjdBgEIAEoCSI8ChVQcm9wb3NlQ2hhbmdlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIh4KEEdldENoYW5nZVJlcXVlc3QSCgoCaWQYASABKAkiOAoRR2V0Q2hhbmdlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIjsKEkxpc3RDaGFuZ2VzUmVxdWVzdBIRCglwYWdlX3NpemUYASABKAUSEgoKcGFnZV90b2tlbhgCIAEoCSJUChNMaXN0Q2hhbmdlc1Jlc3BvbnNlEiQKB2NoYW5nZXMYASADKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIjUKEkFwcGx5Q2hhbmdlUmVxdWVzdBIKCgJpZBgBIAEoCRITCgtmaW5nZXJwcmludBgCIAEoCSI6ChNBcHBseUNoYW5nZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSIgChJXYXRjaENoYW5nZVJlcXVlc3QSCgoCaWQYASABKAkibgoTV2F0Y2hDaGFuZ2VSZXNwb25zZRIlCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2VIABInCgRzdGVwGAIgASgLMhcuZG9ja3dlbGwudjEuU3RlcFVwZGF0ZUgAQgcKBWV2ZW50IkQKClN0ZXBVcGRhdGUSDQoFaW5kZXgYASABKAUSJwoEc3RlcBgCIAEoCzIZLmRvY2t3ZWxsLnYxLlN0ZXBQcm9ncmVzcyIfChFVbmRvQ2hhbmdlUmVxdWVzdBIKCgJpZBgBIAEoCSI5ChJVbmRvQ2hhbmdlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIiIKFERpc2NhcmRDaGFuZ2VSZXF1ZXN0EgoKAmlkGAEgASgJIjwKFURpc2NhcmRDaGFuZ2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiJQoQTGlzdERyaWZ0UmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkibwoRTGlzdERyaWZ0UmVzcG9uc2USIQoFZHJpZnQYASADKAsyEi5kb2Nrd2VsbC52MS5EcmlmdBI3ChF1bmNoZWNrZWRfc2VydmVycxgCIAMoCzIcLmRvY2t3ZWxsLnYxLlVuY2hlY2tlZFNlcnZlciJaCg9VbmNoZWNrZWRTZXJ2ZXISEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEg4KBnJlYXNvbhgDIAEoCRIPCgdtZXNzYWdlGAQgASgJIqkBCgVEcmlmdBIRCglzZXJ2ZXJfaWQYASABKAkSEwoLcmVzb3VyY2VfaWQYAiABKAkSKgoIcmVzb3VyY2UYAyABKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhIQCghyZXZpc2lvbhgEIAEoAxIPCgdtaXNzaW5nGAUgASgIEikKB2NoYW5nZXMYBiADKAsyGC5kb2Nrd2VsbC52MS5GaWVsZENoYW5nZSI8ChJSZXZlcnREcmlmdFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEhMKC3Jlc291cmNlX2lkGAIgASgJIjoKE1JldmVydERyaWZ0UmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIjsKEUFkb3B0RHJpZnRSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRITCgtyZXNvdXJjZV9pZBgCIAEoCSI5ChJBZG9wdERyaWZ0UmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIrIECgZDaGFuZ2USCgoCaWQYASABKAkSDwoHc3VtbWFyeRgCIAEoCRInCgVzdGF0ZRgDIAEoDjIYLmRvY2t3ZWxsLnYxLkNoYW5nZVN0YXRlEicKC3Byb3Bvc2VkX2J5GAQgASgLMhIuZG9ja3dlbGwudjEuQWN0b3ISKgoMcHJvcG9zZWRfdmlhGAUgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRIvCgtjcmVhdGVfdGltZRgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASHwoEcGxhbhgHIAEoCzIRLmRvY2t3ZWxsLnYxLlBsYW4SDwoHcmV2ZXJ0cxgIIAEoCRIQCghyb2xsYmFjaxgJIAEoCBImCgphcHBsaWVkX2J5GAogASgLMhIuZG9ja3dlbGwudjEuQWN0b3ISKQoLYXBwbGllZF92aWEYCyABKA4yFC5kb2Nrd2VsbC52MS5TdXJmYWNlEi4KCmFwcGx5X3RpbWUYDCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjEKDXVuZG9fZGVhZGxpbmUYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWVycm9yGA4gASgJEigKBXN0ZXBzGA8gAygLMhkuZG9ja3dlbGwudjEuU3RlcFByb2dyZXNzEhYKDnJvbGxlZF9iYWNrX2J5GBAgASgJEhEKCXVuZG9uZV9ieRgRIAEoCSJHCgVBY3RvchIkCgRraW5kGAEgASgOMhYuZG9ja3dlbGwudjEuQWN0b3JLaW5kEgoKAmlkGAIgASgJEgwKBG5hbWUYAyABKAki+wEKBFBsYW4SEwoLZmluZ2VycHJpbnQYASABKAkSKQoHc3VtbWFyeRgCIAEoCzIYLmRvY2t3ZWxsLnYxLlBsYW5TdW1tYXJ5Ei8KCXJlc291cmNlcxgDIAMoCzIcLmRvY2t3ZWxsLnYxLlBsYW5uZWRSZXNvdXJjZRIoCgdzZXJ2ZXJzGAQgAygLMhcuZG9ja3dlbGwudjEuU2VydmVyUGxhbhIuCgt1bmRvX3dpbmRvdxgFIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhITCgtkZXN0cnVjdGl2ZRgGIAEoCBITCgtob3N0X2FjY2VzcxgHIAEoCCJPCgtQbGFuU3VtbWFyeRIOCgZjcmVhdGUYASABKAUSDgoGY2hhbmdlGAIgASgFEg8KB3JlcGxhY2UYAyABKAUSDwoHZGVzdHJveRgEIAEoBSKNAgoPUGxhbm5lZFJlc291cmNlEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSJwoGYWN0aW9uGAMgASgOMhcuZG9ja3dlbGwudjEuUGxhbkFjdGlvbhIVCg1iYXNlX3JldmlzaW9uGAQgASgDEikKB2NoYW5nZXMYBSADKAsyGC5kb2Nrd2VsbC52MS5GaWVsZENoYW5nZRIPCgdzZXJ2ZXJzGAYgAygJEhgKEHByZXZpb3VzX3NlcnZlcnMYByADKAkSLAoLaG9zdF9hY2Nlc3MYCCADKAsyFy5kb2Nrd2VsbC52MS5Ib3N0QWNjZXNzIqgBCgpIb3N0QWNjZXNzEikKBGtpbmQYASABKA4yGy5kb2Nrd2VsbC52MS5Ib3N0QWNjZXNzS2luZBIMCgRwYXRoGAIgASgJEhEKCXJlYWRfb25seRgDIAEoCBIMCgR0eXBlGAQgASgJEg8KB2FkZHJlc3MYBSABKAkSDwoHcmVsYWJlbBgGIAEoCRIOCgZkcml2ZXIYByABKAkSDgoGZGV0YWlsGAggASgJItsBCgpTZXJ2ZXJQbGFuEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRIPCgdvZmZsaW5lGAMgASgIEg8KB3JlbW92ZWQYBCABKAgSKwoIZG93bnRpbWUYBSABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24SJAoFc3RlcHMYBiADKAsyFS5kb2Nrd2VsbC52MS5QbGFuU3RlcBIwCg11bnRpbF9oZWFsdGh5GAcgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uItYDCghQbGFuU3RlcBITCgtyZXNvdXJjZV9pZBgBIAEoCRIqCghyZXNvdXJjZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEicKBmFjdGlvbhgDIAEoDjIXLmRvY2t3ZWxsLnYxLlBsYW5BY3Rpb24SJwoGZWZmZWN0GAQgASgOMhcuZG9ja3dlbGwudjEuU3RlcEVmZmVjdBIrCghkb3dudGltZRgFIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIVCg1kZXN0cm95c19kYXRhGAYgASgIEioKCHdhcm5pbmdzGAcgAygOMhguZG9ja3dlbGwudjEuUGxhbldhcm5pbmcSKQoHY2hhbmdlcxgIIAMoCzIYLmRvY2t3ZWxsLnYxLkZpZWxkQ2hhbmdlEjAKDXVudGlsX2hlYWx0aHkYCSABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24SEgoKa2VwdF9wYXRocxgKIAMoCRIQCghyZXN0b3JlcxgLIAEoCBIsCgtob3N0X2FjY2VzcxgMIAMoCzIXLmRvY2t3ZWxsLnYxLkhvc3RBY2Nlc3MSFgoOaGVhbHRoX3Vua25vd24YDSABKAgiagoLRmllbGRDaGFuZ2USDAoEcGF0aBgBIAEoCRIgCgJvcBgCIAEoDjIULmRvY2t3ZWxsLnYxLkZpZWxkT3ASDAoEZnJvbRgDIAEoCRIKCgJ0bxgEIAEoCRIRCglzZW5zaXRpdmUYBSABKAgipAIKDFN0ZXBQcm9ncmVzcxIRCglzZXJ2ZXJfaWQYASABKAkSEwoLcmVzb3VyY2VfaWQYAiABKAkSKgoIcmVzb3VyY2UYAyABKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhInCgZhY3Rpb24YBCABKA4yFy5kb2Nrd2VsbC52MS5QbGFuQWN0aW9uEiUKBXN0YXRlGAUgASgOMhYuZG9ja3dlbGwudjEuU3RlcFN0YXRlEg8KB21lc3NhZ2UYBiABKAkSLgoKc3RhcnRfdGltZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wKq8BCgtDaGFuZ2VTdGF0ZRIcChhDSEFOR0VfU1RBVEVfVU5TUEVDSUZJRUQQABIYChRDSEFOR0VfU1RBVEVfUExBTk5FRBABEhkKFUNIQU5HRV9TVEFURV9BUFBMWUlORxACEhgKFENIQU5HRV9TVEFURV9BUFBMSUVEEAMSFwoTQ0hBTkdFX1NUQVRFX0ZBSUxFRBAEEhoKFkNIQU5HRV9TVEFURV9ESVNDQVJERUQQBSqYAQoJQWN0b3JLaW5kEhoKFkFDVE9SX0tJTkRfVU5TUEVDSUZJRUQQABITCg9BQ1RPUl9LSU5EX1VTRVIQARIUChBBQ1RPUl9LSU5EX1RPS0VOEAISFwoTQUNUT1JfS0lORF9ET0NLV0VMTBADEhUKEUFDVE9SX0tJTkRfU0VSVkVSEAQSFAoQQUNUT1JfS0lORF9TSEVMTBAFKm4KB1N1cmZhY2USFwoTU1VSRkFDRV9VTlNQRUNJRklFRBAAEhEKDVNVUkZBQ0VfUEFORUwQARIPCgtTVVJGQUNFX0FQSRACEhUKEVNVUkZBQ0VfQVVUT01BVElDEAMSDwoLU1VSRkFDRV9DTEkQBCrjAQoOSG9zdEFjY2Vzc0tpbmQSIAocSE9TVF9BQ0NFU1NfS0lORF9VTlNQRUNJRklFRBAAEiAKHEhPU1RfQUNDRVNTX0tJTkRfU0VSVkVSX1BBVEgQARIiCh5IT1NUX0FDQ0VTU19LSU5EX0RPQ0tFUl9TT0NLRVQQAhIhCh1IT1NUX0FDQ0VTU19LSU5EX0hPU1RfTkVUV09SSxADEiEKHUhPU1RfQUNDRVNTX0tJTkRfVk9MVU1FX01PVU5UEAQSIwofSE9TVF9BQ0NFU1NfS0lORF9ORVRXT1JLX0RSSVZFUhAFKqABCgpQbGFuQWN0aW9uEhsKF1BMQU5fQUNUSU9OX1VOU1BFQ0lGSUVEEAASFAoQUExBTl9BQ1RJT05fTk9ORRABEhYKElBMQU5fQUNUSU9OX0NSRUFURRACEhYKElBMQU5fQUNUSU9OX1VQREFURRADEhcKE1BMQU5fQUNUSU9OX1JFUExBQ0UQBBIWChJQTEFOX0FDVElPTl9ERUxFVEUQBSpyCgpTdGVwRWZmZWN0EhsKF1NURVBfRUZGRUNUX1VOU1BFQ0lGSUVEEAASFAoQU1RFUF9FRkZFQ1RfTk9ORRABEhcKE1NURVBfRUZGRUNUX1JFU1RBUlQQAhIYChRTVEVQX0VGRkVDVF9SRUNSRUFURRADKkoKC1BsYW5XYXJuaW5nEhwKGFBMQU5fV0FSTklOR19VTlNQRUNJRklFRBAAEh0KGVBMQU5fV0FSTklOR19NQVlfTE9DS19PVVQQASpkCgdGaWVsZE9wEhgKFEZJRUxEX09QX1VOU1BFQ0lGSUVEEAASEgoORklFTERfT1BfQURERUQQARIUChBGSUVMRF9PUF9SRU1PVkVEEAISFQoRRklFTERfT1BfTU9ESUZJRUQQAyqyAQoJU3RlcFN0YXRlEhoKFlNURVBfU1RBVEVfVU5TUEVDSUZJRUQQABIVChFTVEVQX1NUQVRFX1FVRVVFRBABEhYKElNURVBfU1RBVEVfUlVOTklORxACEhMKD1NURVBfU1RBVEVfRE9ORRADEhUKEVNURVBfU1RBVEVfRkFJTEVEEAQSFgoSU1RFUF9TVEFURV9TS0lQUEVEEAUSFgoSU1RFUF9TVEFURV9XQUlUSU5HEAYyug8KDUNoYW5nZVNlcnZpY2UScgoNUHJvcG9zZUNoYW5nZRIhLmRvY2t3ZWxsLnYxLlByb3Bvc2VDaGFuZ2VSZXF1ZXN0GiIuZG9ja3dlbGwudjEuUHJvcG9zZUNoYW5nZVJlc3BvbnNlIhqguxgCgtPkkwIQOgEqIgsvdjEvY2hhbmdlcxJrCglHZXRDaGFuZ2USHS5kb2Nrd2VsbC52MS5HZXRDaGFuZ2VSZXF1ZXN0Gh4uZG9ja3dlbGwudjEuR2V0Q2hhbmdlUmVzcG9uc2UiH5ACAaC7GAGC0+STAhISEC92MS9jaGFuZ2VzL3tpZH0SbAoLTGlzdENoYW5nZXMSHy5kb2Nrd2VsbC52MS5MaXN0Q2hhbmdlc1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5MaXN0Q2hhbmdlc1Jlc3BvbnNlIhqQAgGguxgBgtPkkwINEgsvdjEvY2hhbmdlcxJ3CgtBcHBseUNoYW5nZRIfLmRvY2t3ZWxsLnYxLkFwcGx5Q2hhbmdlUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkFwcGx5Q2hhbmdlUmVzcG9uc2UiJaC7GAOC0+STAhs6ASoiFi92MS9jaGFuZ2VzL3tpZH06YXBwbHkSWAoLV2F0Y2hDaGFuZ2USHy5kb2Nrd2VsbC52MS5XYXRjaENoYW5nZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5XYXRjaENoYW5nZVJlc3BvbnNlIgSguxgBMAEScwoKVW5kb0NoYW5nZRIeLmRvY2t3ZWxsLnYxLlVuZG9DaGFuZ2VSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuVW5kb0NoYW5nZVJlc3BvbnNlIiSguxgCgtPkkwIaOgEqIhUvdjEvY2hhbmdlcy97aWR9OnVuZG8SfwoNRGlzY2FyZENoYW5nZRIhLmRvY2t3ZWxsLnYxLkRpc2NhcmRDaGFuZ2VSZXF1ZXN0GiIuZG9ja3dlbGwudjEuRGlzY2FyZENoYW5nZVJlc3BvbnNlIieguxgCgtPkkwIdOgEqIhgvdjEvY2hhbmdlcy97aWR9OmRpc2NhcmQSZAoJTGlzdERyaWZ0Eh0uZG9ja3dlbGwudjEuTGlzdERyaWZ0UmVxdWVzdBoeLmRvY2t3ZWxsLnYxLkxpc3REcmlmdFJlc3BvbnNlIhiQAgGguxgBgtPkkwILEgkvdjEvZHJpZnQScQoLUmV2ZXJ0RHJpZnQSHy5kb2Nrd2VsbC52MS5SZXZlcnREcmlmdFJlcXVlc3QaIC5kb2Nrd2VsbC52MS5SZXZlcnREcmlmdFJlc3BvbnNlIh+guxgCgtPkkwIVOgEqIhAvdjEvZHJpZnQ6cmV2ZXJ0Em0KCkFkb3B0RHJpZnQSHi5kb2Nrd2VsbC52MS5BZG9wdERyaWZ0UmVxdWVzdBofLmRvY2t3ZWxsLnYxLkFkb3B0RHJpZnRSZXNwb25zZSIeoLsYAoLT5JMCFDoBKiIPL3YxL2RyaWZ0OmFkb3B0GsgGorsYzwMKB2NoYW5nZXMSwwNBIGNoYW5nZSBpcyBhIHNldCBvZiBlZGl0cyB0byBtYW5hZ2VkIHN0YXRlLCB3aXRoIHRoZSBwbGFuIHRoYXQgY2FycmllcyB0aGVtIG91dC4gWW91IHByb3Bvc2UgZWRpdHMgYW5kIGdldCBhIHBsYW4gYmFjazsgYXBwbHlpbmcgaXQgd3JpdGVzIGltbXV0YWJsZSByZXZpc2lvbnMgYW5kIHJ1bnMgaXRzIHN0ZXBzIG9uIHRoZSBzZXJ2ZXJzOyB1bmRvaW5nIGl0IG1ha2VzIGEgbmV3IHBsYW4gdGhhdCBwdXRzIHRoaW5ncyBiYWNrLiBBIGNoYW5nZSBhcHBsaWVzIG9ubHkgYXMgaXQgd2FzIHBsYW5uZWQsIGFuZCBhIHBsYW4gbmV2ZXIgc2hvd3MgYSBzZWNyZXQsIG9ubHkgdGhhdCBpdCBjaGFuZ2VkLgoKU2VlIGRvY3MvYWRyLzAwMDktcmVzb3VyY2VzLXJldmlzaW9ucy1hbmQtcGxhbnMubWQgYW5kIGRvY3MvYWRyLzAwMTctdGhlLWNoYW5nZS1hcGktYW5kLXRoZS1hZ2VudC1zdHJlYW0ubWQuorsY7wIKBWRyaWZ0EuUCRHJpZnQgaXMgYSBkaWZmZXJlbmNlIGJldHdlZW4gd2hhdCBhIHNlcnZlciBoYXMgYW5kIHRoZSBsYXRlc3QgcmV2aXNpb24gb2YgYSByZXNvdXJjZSBpdCBzaG91bGQgaGF2ZSwgYXMgd2hlbiBzb21lb25lIGNoYW5nZWQgaXQgYnkgaGFuZC4gTGlzdERyaWZ0IGFza3MgZWFjaCBjb25uZWN0ZWQgc2VydmVyJ3MgYWdlbnQsIGFuZCBjaGFuZ2VzIG5vdGhpbmcuIFJldmVydERyaWZ0IHBsYW5zIHB1dHRpbmcgdGhlIHJldmlzaW9uIGJhY2ssIGFuZCBBZG9wdERyaWZ0IHBsYW5zIGtlZXBpbmcgd2hhdCB0aGUgc2VydmVyIGhhcyBhcyBhIG5ldyByZXZpc2lvbjogZWFjaCBpcyBhIGNoYW5nZSwgd2l0aCBhIHBsYW4gdG8gYXBwbHkuQqQBCg9jb20uZG9ja3dlbGwudjFCC0NoYW5nZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * ProposeChangeRequest is a set of edits to plan together.
@@ -84,10 +84,11 @@ export type Edit = Message<"dockwell.v1.Edit"> & {
   delete: boolean;
 
   /**
-   * Where a service runs, by server ID. Empty keeps it where it runs now;
-   * a new one runs on the only server, and must name its servers once there
-   * are several. Other kinds ignore it: a container or firewall rule lives
-   * on its server, and projects and environments run on none.
+   * Where a service, volume or network runs, by server ID. Empty keeps it
+   * where it runs now; a new one runs on the only server, and must name its
+   * servers once there are several. Other kinds ignore it: a container or
+   * firewall rule lives on its server, and projects and environments run on
+   * none.
    *
    * @generated from field: repeated string servers = 4;
    */
@@ -120,8 +121,8 @@ export const EditSchema: GenMessage<Edit> = /*@__PURE__*/
  */
 export type ResourceRef = Message<"dockwell.v1.ResourceRef"> & {
   /**
-   * The kind, such as "project", "environment", "service", "container" or
-   * "firewall.rule".
+   * The kind, such as "project", "environment", "service", "volume",
+   * "network", "container" or "firewall.rule".
    *
    * @generated from field: string kind = 1;
    */
@@ -130,8 +131,8 @@ export type ResourceRef = Message<"dockwell.v1.ResourceRef"> & {
   /**
    * The ID of what it lives in, which its kind says: the organization
    * ("org_…") for a project, a project ("prj_…") for an environment, an
-   * environment ("env_…") for a service, and a server ("srv_…") for a
-   * container or firewall rule.
+   * environment ("env_…") for a service, volume or network, and a server
+   * ("srv_…") for a container or firewall rule.
    *
    * @generated from field: string scope = 2;
    */
@@ -1021,6 +1022,15 @@ export type Plan = Message<"dockwell.v1.Plan"> & {
    * @generated from field: bool destructive = 6;
    */
   destructive: boolean;
+
+  /**
+   * True when the change adds to, or changes, what a container can reach
+   * on its server (host_access), which a person approves: applying it needs
+   * the fingerprint and a signed-in session, as a destructive plan does.
+   *
+   * @generated from field: bool host_access = 7;
+   */
+  hostAccess: boolean;
 };
 
 /**
@@ -1131,6 +1141,15 @@ export type PlannedResource = Message<"dockwell.v1.PlannedResource"> & {
    * @generated from field: repeated string previous_servers = 7;
    */
   previousServers: string[];
+
+  /**
+   * What the change lets it reach on its servers that it couldn't before,
+   * or reach in another way, which a person approves. The control plane
+   * decides this from the specs, not from what the servers report.
+   *
+   * @generated from field: repeated dockwell.v1.HostAccess host_access = 8;
+   */
+  hostAccess: HostAccess[];
 };
 
 /**
@@ -1139,6 +1158,83 @@ export type PlannedResource = Message<"dockwell.v1.PlannedResource"> & {
  */
 export const PlannedResourceSchema: GenMessage<PlannedResource> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_change, 30);
+
+/**
+ * HostAccess is something on a server that a resource reaches beyond what
+ * Docker keeps for it, such as a server path a container mounts.
+ *
+ * @generated from message dockwell.v1.HostAccess
+ */
+export type HostAccess = Message<"dockwell.v1.HostAccess"> & {
+  /**
+   * What it is.
+   *
+   * @generated from field: dockwell.v1.HostAccessKind kind = 1;
+   */
+  kind: HostAccessKind;
+
+  /**
+   * The server path or socket, the volume's device, or the network's
+   * parent interface, such as "/srv/app/config", ":/export/media" or
+   * "eth0". Empty for the server's network.
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+
+  /**
+   * True when it is reached read-only: mounted so, or mounted so by the
+   * service that uses it. False reads and writes.
+   *
+   * @generated from field: bool read_only = 3;
+   */
+  readOnly: boolean;
+
+  /**
+   * A volume's mount type, such as "nfs" or "cifs".
+   *
+   * @generated from field: string type = 4;
+   */
+  type: string;
+
+  /**
+   * The remote server of a mount, such as "10.0.0.2". It never holds
+   * credentials.
+   *
+   * @generated from field: string address = 5;
+   */
+  address: string;
+
+  /**
+   * How Docker relabels a server path for SELinux: "z", shared with other
+   * containers, or "Z", private to this one. Empty for none.
+   *
+   * @generated from field: string relabel = 6;
+   */
+  relabel: string;
+
+  /**
+   * The plugin a volume runs on, or a network's driver, such as "macvlan".
+   *
+   * @generated from field: string driver = 7;
+   */
+  driver: string;
+
+  /**
+   * A network's options beyond the few that keep it to its own bridge, as
+   * "name=value" with commas between, sorted.
+   *
+   * @generated from field: string detail = 8;
+   */
+  detail: string;
+};
+
+/**
+ * Describes the message dockwell.v1.HostAccess.
+ * Use `create(HostAccessSchema)` to create a new message.
+ */
+export const HostAccessSchema: GenMessage<HostAccess> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_change, 31);
 
 /**
  * ServerPlan is the part of a plan on one server.
@@ -1189,6 +1285,16 @@ export type ServerPlan = Message<"dockwell.v1.ServerPlan"> & {
    * @generated from field: repeated dockwell.v1.PlanStep steps = 6;
    */
   steps: PlanStep[];
+
+  /**
+   * How long until everything the steps touch is healthy again, at most,
+   * when a health check may take longer than the downtime: each step's
+   * until_healthy, or its downtime, added up. Unset when the downtime says
+   * it all.
+   *
+   * @generated from field: google.protobuf.Duration until_healthy = 7;
+   */
+  untilHealthy?: Duration | undefined;
 };
 
 /**
@@ -1196,7 +1302,7 @@ export type ServerPlan = Message<"dockwell.v1.ServerPlan"> & {
  * Use `create(ServerPlanSchema)` to create a new message.
  */
 export const ServerPlanSchema: GenMessage<ServerPlan> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_change, 31);
+  messageDesc(file_dockwell_v1_change, 32);
 
 /**
  * PlanStep is what applying does to one resource on one server.
@@ -1259,6 +1365,52 @@ export type PlanStep = Message<"dockwell.v1.PlanStep"> & {
    * @generated from field: repeated dockwell.v1.FieldChange changes = 8;
    */
   changes: FieldChange[];
+
+  /**
+   * How long until what the resource serves is healthy again, at most,
+   * counting the downtime, when its health check may take longer than the
+   * downtime, as after a container is recreated. Unset when the downtime
+   * says it all.
+   *
+   * @generated from field: google.protobuf.Duration until_healthy = 9;
+   */
+  untilHealthy?: Duration | undefined;
+
+  /**
+   * Where data was that the step takes out of use, which the server keeps
+   * for 7 days: for a container, the paths in it where its image keeps
+   * data, which deleting it, or mounting something else there, leaves
+   * behind. Undoing the step mounts them again.
+   *
+   * @generated from field: repeated string kept_paths = 10;
+   */
+  keptPaths: string[];
+
+  /**
+   * True when the step brings back data its server kept, as undoing a
+   * deletion does. Applying it fails if the server no longer has the data,
+   * rather than making the resource anew, empty.
+   *
+   * @generated from field: bool restores = 11;
+   */
+  restores: boolean;
+
+  /**
+   * What the step lets the resource reach on its server that it couldn't
+   * before, or reach in another way, which a person approves. The control
+   * plane decides this from the specs, not from what the server reports.
+   *
+   * @generated from field: repeated dockwell.v1.HostAccess host_access = 12;
+   */
+  hostAccess: HostAccess[];
+
+  /**
+   * True when the server hasn't the image yet, so its own health check
+   * isn't known, and until_healthy may be missing or too short.
+   *
+   * @generated from field: bool health_unknown = 13;
+   */
+  healthUnknown: boolean;
 };
 
 /**
@@ -1266,7 +1418,7 @@ export type PlanStep = Message<"dockwell.v1.PlanStep"> & {
  * Use `create(PlanStepSchema)` to create a new message.
  */
 export const PlanStepSchema: GenMessage<PlanStep> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_change, 32);
+  messageDesc(file_dockwell_v1_change, 33);
 
 /**
  * FieldChange is one field that differs between two specs.
@@ -1316,7 +1468,7 @@ export type FieldChange = Message<"dockwell.v1.FieldChange"> & {
  * Use `create(FieldChangeSchema)` to create a new message.
  */
 export const FieldChangeSchema: GenMessage<FieldChange> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_change, 33);
+  messageDesc(file_dockwell_v1_change, 34);
 
 /**
  * StepProgress is one step of an applying change, and how it is going.
@@ -1387,7 +1539,7 @@ export type StepProgress = Message<"dockwell.v1.StepProgress"> & {
  * Use `create(StepProgressSchema)` to create a new message.
  */
 export const StepProgressSchema: GenMessage<StepProgress> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_change, 34);
+  messageDesc(file_dockwell_v1_change, 35);
 
 /**
  * ChangeState is where a change is.
@@ -1554,6 +1706,63 @@ export const SurfaceSchema: GenEnum<Surface> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_change, 2);
 
 /**
+ * HostAccessKind is what a resource reaches on its server.
+ *
+ * @generated from enum dockwell.v1.HostAccessKind
+ */
+export enum HostAccessKind {
+  /**
+   * @generated from enum value: HOST_ACCESS_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * A server path, mounted into a container, or by a volume's bind option.
+   *
+   * @generated from enum value: HOST_ACCESS_KIND_SERVER_PATH = 1;
+   */
+  SERVER_PATH = 1,
+
+  /**
+   * Docker's or containerd's socket, or a path that holds one: control of
+   * Docker on the server, which is the same as root.
+   *
+   * @generated from enum value: HOST_ACCESS_KIND_DOCKER_SOCKET = 2;
+   */
+  DOCKER_SOCKET = 2,
+
+  /**
+   * The server's own network, Docker's host network.
+   *
+   * @generated from enum value: HOST_ACCESS_KIND_HOST_NETWORK = 3;
+   */
+  HOST_NETWORK = 3,
+
+  /**
+   * A mount Docker makes from a volume's driver options, such as an NFS or
+   * CIFS share, or whatever a volume plugin reaches.
+   *
+   * @generated from enum value: HOST_ACCESS_KIND_VOLUME_MOUNT = 4;
+   */
+  VOLUME_MOUNT = 4,
+
+  /**
+   * A network that reaches past the server's own bridge: a driver other
+   * than bridge, such as macvlan, which puts containers on the server's
+   * LAN, past its firewall, or options that change how a bridge routes.
+   *
+   * @generated from enum value: HOST_ACCESS_KIND_NETWORK_DRIVER = 5;
+   */
+  NETWORK_DRIVER = 5,
+}
+
+/**
+ * Describes the enum dockwell.v1.HostAccessKind.
+ */
+export const HostAccessKindSchema: GenEnum<HostAccessKind> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_change, 3);
+
+/**
  * PlanAction is what a plan does to a resource.
  *
  * @generated from enum dockwell.v1.PlanAction
@@ -1604,7 +1813,7 @@ export enum PlanAction {
  * Describes the enum dockwell.v1.PlanAction.
  */
 export const PlanActionSchema: GenEnum<PlanAction> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_change, 3);
+  enumDesc(file_dockwell_v1_change, 4);
 
 /**
  * StepEffect is what a step does to what the resource serves, beyond the
@@ -1644,7 +1853,7 @@ export enum StepEffect {
  * Describes the enum dockwell.v1.StepEffect.
  */
 export const StepEffectSchema: GenEnum<StepEffect> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_change, 4);
+  enumDesc(file_dockwell_v1_change, 5);
 
 /**
  * PlanWarning flags a step that may hurt in a way its action doesn't say.
@@ -1670,7 +1879,7 @@ export enum PlanWarning {
  * Describes the enum dockwell.v1.PlanWarning.
  */
 export const PlanWarningSchema: GenEnum<PlanWarning> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_change, 5);
+  enumDesc(file_dockwell_v1_change, 6);
 
 /**
  * FieldOp is how a field changed.
@@ -1709,7 +1918,7 @@ export enum FieldOp {
  * Describes the enum dockwell.v1.FieldOp.
  */
 export const FieldOpSchema: GenEnum<FieldOp> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_change, 6);
+  enumDesc(file_dockwell_v1_change, 7);
 
 /**
  * StepState is how a step is going.
@@ -1769,12 +1978,12 @@ export enum StepState {
  * Describes the enum dockwell.v1.StepState.
  */
 export const StepStateSchema: GenEnum<StepState> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_change, 7);
+  enumDesc(file_dockwell_v1_change, 8);
 
 /**
  * ChangeService is the one way to change managed state, for every kind of
- * resource: projects, environments, services, containers and firewall rules
- * alike. You propose edits and get a plan back; applying the plan writes
+ * resource: projects, environments, services, volumes, networks, containers
+ * and firewall rules alike. You propose edits and get a plan back; applying the plan writes
  * immutable revisions and runs its steps on the servers; undoing makes a new
  * plan that puts things back. See docs/adr/0009-resources-revisions-and-plans.md
  * and docs/adr/0017-the-change-api-and-the-agent-stream.md.

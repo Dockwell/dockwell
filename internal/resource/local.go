@@ -59,7 +59,27 @@ type Local struct {
 
 var _ Agent = Local{}
 
+// Checker is a driver that checks a desired spec against its server,
+// beyond what Validate can know without it, such as where a server path
+// leads through symlinks. The agent checks each desired spec as it plans
+// it; the driver checks again as it applies.
+type Checker interface {
+	Check(ctx context.Context, ref Ref, desired proto.Message) error
+}
+
+// Judge is a driver whose judgement of a step needs its server, beyond the
+// specs, such as a container whose image keeps data that deleting it takes
+// out of use. The agent asks it in place of Plan; the control plane, which
+// plans an offline server from its last known state, asks Plan.
+type Judge interface {
+	Judge(ctx context.Context, ref Ref, actual, desired proto.Message, changes []Change) (Decision, error)
+}
+
 // Plan observes each resource and judges the step from there to desired.
+// Each desired spec is checked and normalized again first, as the control
+// plane did: a spec that skipped that, or a default this agent fills in
+// that the control plane didn't, can't make a plan that applying then
+// fails to match.
 func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 	steps := make([]Step, 0, len(desired))
 	for _, want := range desired {
@@ -67,11 +87,25 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, err
 		}
+		spec, err := normalize(d, want.Spec)
+		if err != nil {
+			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+		}
+		if c, ok := d.(Checker); ok && spec != nil {
+			if err := c.Check(ctx, want.Ref, spec); err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+		}
 		actual, err := Observe(ctx, d, want.Ref)
 		if err != nil {
 			return nil, fmt.Errorf("can't read %s: %w", want.Ref, err)
 		}
-		step, err := PlanStep(d, want.Ref, actual, want.Spec)
+		var step Step
+		if j, ok := d.(Judge); ok {
+			step, err = judgeStep(ctx, j, want.Ref, actual, spec)
+		} else {
+			step, err = PlanStep(d, want.Ref, actual, spec)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -80,12 +114,43 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 	return steps, nil
 }
 
+// normalize checks a desired spec with its driver, and returns the
+// normalized copy; nil stays nil. The spec itself is left as it is, as the
+// caller may hold it.
+func normalize(d Driver, spec proto.Message) (proto.Message, error) {
+	if spec == nil {
+		return nil, nil
+	}
+	spec = proto.Clone(spec)
+	if err := d.Validate(spec); err != nil {
+		return nil, err
+	}
+	return spec, nil
+}
+
+// judgeStep is PlanStep with a Judge, which knows the server.
+func judgeStep(ctx context.Context, j Judge, ref Ref, actual, desired proto.Message) (Step, error) {
+	if Equal(actual, desired) {
+		return Step{Ref: ref}, nil
+	}
+	changes := Diff(actual, desired)
+	dec, err := j.Judge(ctx, ref, actual, desired, changes)
+	if err != nil {
+		return Step{}, fmt.Errorf("can't plan %s: %w", ref, err)
+	}
+	return Step{Ref: ref, Decision: dec, Changes: changes}, nil
+}
+
 // Apply carries out step, then checks the server has what was asked for
-// and that the driver finds it healthy.
+// and that the driver finds it healthy. The desired spec is normalized
+// again first, as Plan does.
 func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) error {
 	d, err := l.Drivers.Driver(step.Ref.Kind)
 	if err != nil {
 		return err
+	}
+	if desired, err = normalize(d, desired); err != nil {
+		return fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err)
 	}
 	if err := d.Apply(ctx, step, desired); err != nil {
 		return fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err)
@@ -143,8 +208,9 @@ func PlanStep(d Driver, ref Ref, actual, desired proto.Message) (Step, error) {
 
 // Observe reads a resource through its driver and normalizes it like a
 // desired spec, so what a server reports in its own order or with its own
-// defaults compares equal to the spec that made it. What can't be
-// normalized is returned as read, and shows as a difference.
+// defaults compares equal to the spec that made it. What Validate refuses,
+// as a newer rule may refuse what is stored, is put in order as far as its
+// kind's Normalizer can, so only what truly differs shows as a difference.
 func Observe(ctx context.Context, d Driver, ref Ref) (proto.Message, error) {
 	actual, err := d.Observe(ctx, ref)
 	if err != nil || actual == nil {
@@ -153,6 +219,9 @@ func Observe(ctx context.Context, d Driver, ref Ref) (proto.Message, error) {
 	normal := proto.Clone(actual)
 	if d.Validate(normal) == nil {
 		return normal, nil
+	}
+	if n, ok := d.(Normalizer); ok {
+		n.Normalize(actual)
 	}
 	return actual, nil
 }

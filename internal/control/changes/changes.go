@@ -29,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -80,19 +81,77 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 	if summary == "" {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("a change needs a summary that says what it is for, such as \"Add a staging environment\""), "invalid")
 	}
-	edits, err := h.edits(ctx, req.Msg.GetEdits())
-	if err != nil {
-		return nil, h.rpcError(ctx, err)
-	}
-	plan, err := h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits})
-	if err != nil {
-		return nil, h.rpcError(ctx, err)
-	}
-	c, err := h.change(ctx, plan.Change)
+	c, err := h.propose(ctx, who, summary, req.Msg.GetEdits(), nil)
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.ProposeChangeResponse{Change: c}), nil
+}
+
+// Propose plans edits as a new change, as ProposeChange does, for another
+// method that makes edits of its own, such as ImportCompose. field names
+// the request's field that takes a choice the edits leave out, from the
+// edit's field, such as "edits[0].project", which is empty for a choice
+// of servers.
+func (h *Handler) Propose(ctx context.Context, summary string, edits []*dockwellv1.Edit, field func(choice *scope.ChoiceError, edit string) string) (*dockwellv1.Change, error) {
+	who, _, err := by(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return h.propose(ctx, who, summary, edits, field)
+}
+
+func (h *Handler) propose(ctx context.Context, who revision.By, summary string, in []*dockwellv1.Edit, field func(*scope.ChoiceError, string) string) (*dockwellv1.Change, error) {
+	fail := func(err error) error {
+		var choice *scope.ChoiceError
+		if field != nil && errors.As(err, &choice) {
+			var at *choiceAt
+			edit := ""
+			if errors.As(err, &at) {
+				edit = at.field
+			}
+			err = &choiceAt{ChoiceError: choice, field: field(choice, edit)}
+		}
+		return h.rpcError(ctx, err)
+	}
+	edits, err := h.edits(ctx, in)
+	if err != nil {
+		return nil, fail(err)
+	}
+	plan, err := h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits})
+	if err != nil {
+		return nil, fail(err)
+	}
+	return h.change(ctx, plan.Change)
+}
+
+// Environment finds the environment a request names by project and
+// environment, each by name or ID, or left out where there is one. A
+// choice it leaves out names the request's fields project and
+// environment.
+func (h *Handler) Environment(ctx context.Context, project, environment string) (scope.Project, scope.Environment, error) {
+	var p scope.Project
+	var e scope.Environment
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		p, e, err = tree.Resolve(project, environment)
+		return err
+	})
+	var choice *scope.ChoiceError
+	if errors.As(err, &choice) {
+		field := "environment"
+		if choice.Level == scope.ProjectKind {
+			field = "project"
+		}
+		err = &choiceAt{ChoiceError: choice, field: field}
+	}
+	if err != nil {
+		return p, e, h.rpcError(ctx, err)
+	}
+	return p, e, nil
 }
 
 // GetChange returns one change.
@@ -149,11 +208,19 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			"plan_changed")
 	case r.State == store.ChangePlanned && r.Plan.Destructive() && p.Token != nil:
 		return nil, authapi.ReasonError(connect.CodePermissionDenied,
-			fmt.Errorf("%s destroys data or may cut off access to a server, so no API token may apply it. Sign in and apply it in the panel", r.ID),
+			fmt.Errorf("%s destroys data or may cut off access to a server, so no API token may apply it. %s", r.ID, signIn),
+			authapi.ReasonNeedsSession)
+	case r.State == store.ChangePlanned && r.Plan.HostAccess() && p.Token != nil:
+		return nil, authapi.ReasonError(connect.CodePermissionDenied,
+			fmt.Errorf("%s gives %s, which a person approves, so no API token may apply it. %s", r.ID, accessWords(r.Plan), signIn),
 			authapi.ReasonNeedsSession)
 	case r.State == store.ChangePlanned && r.Plan.Destructive() && fp == "":
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s destroys data or may cut off access to a server, and applying it can't bring everything back. Review the plan, then apply it with its fingerprint, %s, to confirm", r.ID, r.Fingerprint),
+			"needs_confirmation")
+	case r.State == store.ChangePlanned && r.Plan.HostAccess() && fp == "":
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s gives %s. Review the plan, then apply it with its fingerprint, %s, to confirm", r.ID, accessWords(r.Plan), r.Fingerprint),
 			"needs_confirmation")
 	}
 	if err := h.engine.Start(ctx, r.ID, who); err != nil {
@@ -164,6 +231,30 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.ApplyChangeResponse{Change: c}), nil
+}
+
+// signIn says where a person applies what no token may. The CLI signs in
+// with an API token, even after dockwell login, so the panel is the place.
+const signIn = "Sign in to the panel and apply it there: the CLI uses an API token, even after dockwell login, so it can't apply it either"
+
+// accessWords says what a plan gives containers on their servers, such as
+// "web access to its server: the server path /srv/app (read-only), and
+// Docker's socket at /var/run/docker.sock, which controls Docker as root
+// does".
+func accessWords(p *revision.Plan) string {
+	var parts []string
+	for i := range p.Resources {
+		r := &p.Resources[i]
+		if len(r.HostAccess) == 0 {
+			continue
+		}
+		var what []string
+		for _, a := range r.HostAccess {
+			what = append(what, resource.AccessWords(a))
+		}
+		parts = append(parts, r.Ref.Name+" access to its server: "+human.List(what))
+	}
+	return strings.Join(parts, "; ")
 }
 
 // WatchChange streams a change until it is applied, failed or discarded.
@@ -622,6 +713,7 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 		},
 		UndoWindow:  durationpb.New(revision.UndoWindow),
 		Destructive: b.Destructive,
+		HostAccess:  b.HostAccess,
 	}
 	p := r.Plan
 	if p == nil {
@@ -634,12 +726,14 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 		out.Resources = append(out.Resources, &dockwellv1.PlannedResource{
 			Id: r.ID, Resource: resourcepb.Ref(r.Ref), Action: resourcepb.Action(r.Action), BaseRevision: int64(r.Base),
 			Changes: resourcepb.Changes(r.Changes), Servers: r.Servers, PreviousServers: r.Previous,
+			HostAccess: resourcepb.HostAccess(r.HostAccess),
 		})
 	}
 	for i := range p.Servers {
 		s := &p.Servers[i]
 		sp := &dockwellv1.ServerPlan{
 			ServerId: s.Server, ServerName: s.Name, Offline: s.Offline, Removed: s.Removed, Downtime: resourcepb.Duration(s.Downtime),
+			UntilHealthy: resourcepb.Duration(s.UntilHealthy),
 		}
 		for j := range s.Steps {
 			sp.Steps = append(sp.Steps, resourcepb.Step(s.Steps[j], ids[s.Steps[j].Ref]))

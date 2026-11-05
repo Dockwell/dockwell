@@ -6,8 +6,11 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,8 +23,11 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/container/containertest"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -103,8 +109,8 @@ func waitForAgent(t *testing.T, agents *agentapi.Agents, server string, connecte
 func TestCallsReachTheAgentsDrivers(t *testing.T) {
 	s := startStack(t, 5*time.Second)
 	id := s.enrollLocal(t)
-	docker, fw := container.NewFake(), firewall.NewFake()
-	runAgent(t, s, id, resource.NewRegistry(&container.Driver{Runtime: docker, RecreateDowntime: 2 * time.Second}, &firewall.Driver{Backend: fw}))
+	rt, fw := containertest.NewFake(), firewall.NewFake()
+	runAgent(t, s, id, resource.NewRegistry(&container.Driver{Runtime: rt, RecreateDowntime: 2 * time.Second}, &firewall.Driver{Backend: fw}))
 	a := waitForAgent(t, s.agents, id.ServerID, true)
 	// The agent said in its hello which kinds it has drivers for, and its
 	// session refuses any other.
@@ -136,7 +142,7 @@ func TestCallsReachTheAgentsDrivers(t *testing.T) {
 			t.Errorf("the plan carries a secret: %+v", c)
 		}
 	}
-	if docker.Runs != 0 || fw.Len() != 0 {
+	if rt.Runs != 0 || fw.Len() != 0 {
 		t.Fatal("planning changed the server")
 	}
 	if err := a.Apply(t.Context(), steps[0], spec); err != nil {
@@ -157,7 +163,7 @@ func TestCallsReachTheAgentsDrivers(t *testing.T) {
 		t.Errorf("Plan after applying = %+v, %v, want nothing to do", steps, err)
 	}
 	// A step the driver can't carry out fails with the driver's reason.
-	docker.Broken["nginx:broken"] = true
+	rt.Broken["nginx:broken"] = true
 	broken := &resourcev1.Container{Image: "nginx:broken"}
 	if err := (&container.Driver{}).Validate(broken); err != nil {
 		t.Fatal(err)
@@ -276,8 +282,9 @@ func TestCallsAreCancelledOnTheAgent(t *testing.T) {
 	defer cancel()
 	go func() { errc <- a.Apply(ctx, slow, rule) }()
 	<-fw.started
-	if err := <-errc; !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "didn't answer within") {
-		t.Errorf("a call out of time = %v, want it to say the agent didn't answer in time", err)
+	// The agent has the same time, so either side can say so first.
+	if err := <-errc; err == nil || !strings.Contains(err.Error(), "didn't answer within") && !strings.Contains(err.Error(), "deadline exceeded") {
+		t.Errorf("a call out of time = %v, want it to say it ran out of time", err)
 	}
 	waitUntil(t, "the agent stops the call that ran out of time", func() bool { return fw.stopped() != nil })
 	if fw.Len() != 0 {
@@ -386,5 +393,141 @@ func TestAStepANewerAgentPlansFailsPlanning(t *testing.T) {
 	if err == nil || !errors.As(err, &unknown) || !strings.HasPrefix(err.Error(), "hz-1's agent planned a step for firewall.rule http") ||
 		!strings.Contains(err.Error(), "upgrade the control plane") {
 		t.Errorf("a plan with action 42 = %v, want it to fail, naming hz-1 and saying to upgrade the control plane", err)
+	}
+}
+
+// An agent offers the Docker kinds only while Docker answers. Until then,
+// planning one says why, and how to fix it; once Docker starts, the agent
+// tells the control plane, and its kinds run. What waited for them, such
+// as a rollback, goes on then, as when the agent connects.
+func TestDockerKindsWaitForDocker(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	sock := filepath.Join(t.TempDir(), "docker.sock")
+	client := docker.New(sock)
+	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond}}
+	drivers := resource.NewRegistry(&containers, &service.Driver{Containers: containers}, &firewall.Driver{Backend: firewall.NewFake()})
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = agent.Run(ctx, agent.Config{
+			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(),
+			Collector: fakeCollector(), Drivers: drivers, KindsEvery: 20 * time.Millisecond,
+		})
+		close(done)
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	connected := make(chan string, 16)
+	s.agents.OnConnect(func(server string) { connected <- server })
+
+	web := resource.Ref{Kind: service.Kind, Scope: "env_01KAT4ZR6E3V0Y5XBKZB5D9Q6M", Name: "web"}
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27"}}}
+	if err := (&service.Driver{}).Validate(spec); err != nil {
+		t.Fatal(err)
+	}
+	_, err := a.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}})
+	if !errors.Is(err, resource.ErrNoDriver) || !strings.Contains(err.Error(), "can't run service web now: Docker isn't installed, or its socket isn't at "+sock+". Install Docker Engine") {
+		t.Fatalf("planning a service without Docker = %v, want it refused, saying Docker isn't installed and how to install it", err)
+	}
+	// The firewall's driver needs no Docker, so the agent offers it all along.
+	rule := &resourcev1.FirewallRule{Port: 80}
+	_ = (&firewall.Driver{}).Validate(rule)
+	if _, err := a.Plan(t.Context(), []resource.Desired{{Ref: resource.Ref{Kind: firewall.Kind, Scope: id.ServerID, Name: "http"}, Spec: rule}}); err != nil {
+		t.Errorf("planning a firewall rule without Docker = %v", err)
+	}
+
+	// Docker starts.
+	e := dockertest.New(t)
+	e.Registry["nginx:1.27"] = dockertest.Image{Size: 8 << 20, Config: docker.Config{Cmd: []string{"nginx"}}}
+	if err := os.Symlink(e.Socket, sock); err != nil {
+		t.Fatal(err)
+	}
+	var steps []resource.Step
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if steps, err = a.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}}); err == nil || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("planning once Docker answers = %v", err)
+	}
+	select {
+	case got := <-connected:
+		if got != id.ServerID {
+			t.Errorf("OnConnect got %s once Docker started, want %s", got, id.ServerID)
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("the agent can run the Docker kinds now, and nothing that waited for them heard so")
+	}
+
+	// Pulling the image says how far it is, over the stream, to whoever
+	// follows the step.
+	var mu sync.Mutex
+	var heard []string
+	follow := resource.WithProgress(t.Context(), func(m string) {
+		mu.Lock()
+		defer mu.Unlock()
+		heard = append(heard, m)
+	})
+	if err := a.Apply(follow, steps[0], spec); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(heard) == 0 || heard[0] != "pulling nginx:1.27" {
+		t.Errorf("heard %q while the agent applied, want what it pulled", heard)
+	}
+	if c := e.Container(service.ContainerName(web)); c == nil || !c.State.Running {
+		t.Errorf("the service's container isn't running on Docker: %+v", c)
+	}
+}
+
+// alternating is a firewall driver whose every other check hangs until it
+// is given up on, as a Docker that takes the connection and says nothing:
+// the check before each hello answers, and the next, in the stream's
+// loop, hangs.
+type alternating struct {
+	firewall.Driver
+	checks atomic.Int32
+}
+
+func (a *alternating) Ready(ctx context.Context) error {
+	if a.checks.Add(1)%2 == 0 {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	return nil
+}
+
+// A check of which kinds the agent can run that hangs never holds up the
+// stream: the agent still hears it end, and reconnects within its backoff
+// rather than once the check gives up, 5 s later.
+func TestAHungCheckDoesntHoldTheStream(t *testing.T) {
+	// The control plane closes a stream silent for 300 ms, and an agent
+	// sends stats every 5 s, so each stream ends 300 ms in.
+	s := startStack(t, 300*time.Millisecond)
+	connected := make(chan string, 16)
+	s.agents.OnConnect(func(server string) { connected <- server })
+	id := s.enrollLocal(t)
+	drivers := resource.NewRegistry(&alternating{Driver: firewall.Driver{Backend: firewall.NewFake()}})
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = agent.Run(ctx, agent.Config{
+			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(),
+			Collector: fakeCollector(), Drivers: drivers, KindsEvery: 20 * time.Millisecond,
+		})
+		close(done)
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+	for i, within := range []time.Duration{5 * time.Second, 3 * time.Second} {
+		select {
+		case <-connected:
+		case <-time.After(within):
+			t.Fatalf("connection %d didn't come within %s: a check that hung held up the stream", i+1, within)
+		}
 	}
 }

@@ -21,6 +21,7 @@ export type PlanKind =
   | "database"
   | "job"
   | "volume"
+  | "network"
   | "backup"
   | "package"
   | "server"
@@ -79,6 +80,7 @@ const KIND_ICON: Readonly<Record<PlanKind, IconName>> = {
   database: "database",
   job: "clock",
   volume: "archive",
+  network: "network",
   backup: "archive",
   package: "layers",
   server: "server",
