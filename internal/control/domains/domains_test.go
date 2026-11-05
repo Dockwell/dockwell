@@ -19,6 +19,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -76,7 +77,7 @@ func TestDomainsSayWhatEachSendsWhereAndWhereItsCertificateStands(t *testing.T) 
 			t.Fatal(err)
 		}
 		kinds := resource.NewRegistry(&service.Driver{}, &route.Driver{})
-		e := revision.New(db, kinds, agents{}, logger)
+		e := revision.New(db, kinds, agents{}, secretstest.Keeper(db, kinds), logger)
 		var env, staging string
 		var project string
 		tree := func() scope.Tree {

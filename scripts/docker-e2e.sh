@@ -6,17 +6,18 @@
 # the environment exports as a Compose file that docker compose reads and
 # lists; a Compose file imports; a service using a variable and a secret
 # runs with their values, exports without the secret, and imports again
-# with no change; and everything goes again. Then the agent build joins the full build's control plane, and runs a container on the
-# same Docker. Before that, a route gets a real certificate from Pebble, Let's
-# Encrypt's test CA, and serves a real container over HTTPS through Caddy. It
-# uses throwaway data directories and removes what it made, so it never touches
-# a real install. It needs Docker with the compose plugin, Go, curl, jq, openssl
-# and iproute2's ss, a free port (E2E_WEB_PORT, 18080 by default), and ports 80
-# and 443 free, for the ingress's own part. With E2E_PANEL set, as in CI, it also
-# moves the panel's own domain behind Caddy and back, which needs sudo to let
-# this user bind ports 80 and 443. With E2E_ROOT set, as in CI, Dockwell runs as
-# root through sudo, as it does on a server, so Caddy runs as its own user and its
-# directories are given to it, and it restarts Docker itself along the way.
+# with no change; and everything goes again. Then the agent build joins the
+# full build's control plane, and runs a container on the same Docker. Before
+# that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
+# and serves a real container over HTTPS through Caddy. It uses throwaway data
+# directories and removes what it made, so it never touches a real install. It
+# needs Docker with the compose plugin, Go, curl, jq, openssl and iproute2's ss,
+# a free port (E2E_WEB_PORT, 18080 by default), and ports 80 and 443 free, for
+# the ingress's own part. With E2E_PANEL set, as in CI, it also moves the panel's
+# own domain behind Caddy and back, which needs sudo to let this user bind ports
+# 80 and 443. With E2E_ROOT set, as in CI, Dockwell runs as root through sudo, as
+# it does on a server, so Caddy runs as its own user and its directories are given
+# to it, and it restarts Docker itself along the way.
 #
 #   scripts/docker-e2e.sh bin/dockwell bin/dockwell-agent
 set -euo pipefail

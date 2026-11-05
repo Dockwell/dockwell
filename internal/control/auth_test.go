@@ -148,8 +148,6 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	ls := Listeners{API: listen(), Agents: listen(), Ingress: ingress}
 	f := &fullServer{
 		auth: people, engine: engine, agents: agents, keeper: keeper, ident: ident, store: db, db: path,
-		api: ls.API.Addr().String(), agentAddr: ls.Agents.Addr().String(),
-		auth: people, engine: engine, agents: agents, ident: ident, store: db, db: path,
 		api: ls.API.Addr().String(), agentAddr: ls.Agents.Addr().String(), server: srv,
 	}
 	if public != nil {

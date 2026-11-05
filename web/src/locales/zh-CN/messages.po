@@ -1924,6 +1924,7 @@ msgstr "回滚"
 #: src/features/activity/describe.ts
 msgid "Rotated the key that wraps every secret"
 msgstr "轮换了加密所有密钥的密钥"
+
 #: src/features/changes/words.ts
 msgid "Route"
 msgstr "路由"
@@ -2321,12 +2322,13 @@ msgstr "控制平面拒绝了这个请求，因为它不是从面板自己的地
 msgid "the control plane runs {controlPlane}"
 msgstr "控制平面为 {controlPlane}"
 
-#: src/features/variables/VariablesPage.tsx
-msgid "The old value stays in this variable's history"
-msgstr "旧值仍保留在该变量的历史中"
 #: src/features/changes/words.ts
 msgid "the domain {path}, which the environment {detail} held within the last 7 days"
 msgstr "域名 {path}，环境 {detail} 在过去 7 天内曾持有它"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "The old value stays in this variable's history"
+msgstr "旧值仍保留在该变量的历史中"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "The owner account wasn't created"

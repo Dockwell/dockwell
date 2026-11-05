@@ -234,6 +234,9 @@ func (*Driver) References(spec proto.Message) []resource.Reference {
 	return []resource.Reference{{Kind: service.Kind, Name: s, Verb: "serve", Apart: true}}
 }
 
+// ReferenceKinds is services, the one kind a route names.
+func (*Driver) ReferenceKinds() []resource.Kind { return []resource.Kind{service.Kind} }
+
 // Claims are the route's domain and path, which one route alone may hold, and
 // its domain, which one environment alone may.
 func (*Driver) Claims(spec proto.Message) []resource.Claim {

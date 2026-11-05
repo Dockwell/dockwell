@@ -23,6 +23,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -131,7 +132,8 @@ func TestRunRefusesADomainARouteHolds(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	e := revision.New(db, resource.NewRegistry(&service.Driver{}, &route.Driver{}), anyAgent{}, logger)
+	kinds := resource.NewRegistry(&service.Driver{}, &route.Driver{})
+	e := revision.New(db, kinds, anyAgent{}, secretstest.Keeper(db, kinds), logger)
 	var tr scope.Tree
 	if err := db.View(ctx, func(tx *store.Tx) (err error) {
 		tr, err = scope.Load(ctx, tx)

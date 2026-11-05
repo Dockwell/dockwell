@@ -1924,6 +1924,7 @@ msgstr "Rolls back"
 #: src/features/activity/describe.ts
 msgid "Rotated the key that wraps every secret"
 msgstr "Rotated the key that wraps every secret"
+
 #: src/features/changes/words.ts
 msgid "Route"
 msgstr "Route"
@@ -2321,12 +2322,13 @@ msgstr "The control plane refused this because it didn't come from the panel's o
 msgid "the control plane runs {controlPlane}"
 msgstr "the control plane runs {controlPlane}"
 
-#: src/features/variables/VariablesPage.tsx
-msgid "The old value stays in this variable's history"
-msgstr "The old value stays in this variable's history"
 #: src/features/changes/words.ts
 msgid "the domain {path}, which the environment {detail} held within the last 7 days"
 msgstr "the domain {path}, which the environment {detail} held within the last 7 days"
+
+#: src/features/variables/VariablesPage.tsx
+msgid "The old value stays in this variable's history"
+msgstr "The old value stays in this variable's history"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "The owner account wasn't created"

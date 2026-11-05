@@ -435,6 +435,7 @@ func (t *Tx) ListKind(ctx context.Context, kind string) ([]Resource, error) {
 // deleted it.
 type Superseded struct {
 	ResourceID, Scope, Name string
+	Revision                int // the revision that held Spec
 	Spec                    []byte
 	At                      time.Time // when the later revision was made
 }
@@ -443,7 +444,7 @@ type Superseded struct {
 // made at since or later, oldest first: what they held, and gave up, that
 // recently.
 func (t *Tx) SupersededSince(ctx context.Context, kind string, since time.Time) ([]Superseded, error) {
-	rows, err := t.query(ctx, `SELECT r.id, r.scope, r.name, prev.spec, v.created_at
+	rows, err := t.query(ctx, `SELECT r.id, r.scope, r.name, prev.number, prev.spec, v.created_at
 		FROM revisions v
 		JOIN resources r ON r.id = v.resource_id
 		JOIN revisions prev ON prev.resource_id = v.resource_id AND prev.number = v.number - 1
@@ -457,7 +458,7 @@ func (t *Tx) SupersededSince(ctx context.Context, kind string, since time.Time) 
 	for rows.Next() {
 		var s Superseded
 		var at int64
-		if err := rows.Scan(&s.ResourceID, &s.Scope, &s.Name, &s.Spec, &at); err != nil {
+		if err := rows.Scan(&s.ResourceID, &s.Scope, &s.Name, &s.Revision, &s.Spec, &at); err != nil {
 			return nil, fmt.Errorf("can't read what %s resources held: %w", kind, err)
 		}
 		s.At = fromMillis(at)

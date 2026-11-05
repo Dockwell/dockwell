@@ -46,7 +46,7 @@ func (e *Engine) checkClaims(ctx context.Context, tx *store.Tx, items []item) er
 			if inChange[ref] {
 				continue
 			}
-			spec, err := e.kinds.Decode(ref.Kind, r.Spec)
+			spec, err := e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
 			if err != nil {
 				return err
 			}
@@ -166,7 +166,7 @@ func (e *Engine) takeovers(ctx context.Context, items []item) (map[resource.Ref]
 				}
 			}
 			for _, p := range past {
-				spec, err := e.kinds.Decode(kind, p.Spec)
+				spec, err := e.decode(ctx, tx, store.InRevision(p.ResourceID, string(kind), p.Revision), p.Spec)
 				if err != nil {
 					return err
 				}
@@ -239,7 +239,7 @@ func (e *Engine) scopeHolds(ctx context.Context, tx *store.Tx, it *item, group s
 		if r.Name == it.ref.Name {
 			continue
 		}
-		spec, err := e.kinds.Decode(it.ref.Kind, r.Spec)
+		spec, err := e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
 		if err != nil {
 			return false, err
 		}

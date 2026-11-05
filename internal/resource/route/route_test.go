@@ -161,3 +161,13 @@ func TestARoutesStepsStopNothing(t *testing.T) {
 		}
 	}
 }
+
+// A route holds nothing secret, so its stored spec isn't sealed, and what reads
+// routes directly doesn't need the keeper: ListDomains, and dockwell run's refusal
+// of a domain a route claims. If a field here is ever marked sensitive, those must
+// open it as resource.Sealed then asks.
+func TestARouteIsntSealed(t *testing.T) {
+	if resource.Sealed(&Driver{}) {
+		t.Error("a route's spec is marked as holding something sensitive, so ListDomains and refuseClaimedDomain need to open it through the keeper")
+	}
+}
