@@ -12,6 +12,7 @@ import {
   IngressChange,
   IngressEffectSchema,
   PlanAction,
+  PlanNoteSchema,
   StepProgressSchema,
   StepState,
   type WatchChangeResponse,
@@ -194,6 +195,17 @@ describe("the plan sheet", () => {
     step.hostAccess = [
       create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/app/config", readOnly: true }),
       create(HostAccessSchema, { kind: HostAccessKind.DOCKER_SOCKET, path: "/var/run/docker.sock" }),
+      create(HostAccessSchema, { kind: HostAccessKind.EXTERNAL_NETWORK, path: "edge", detail: "db" }),
+      create(HostAccessSchema, { kind: HostAccessKind.CAPABILITY, path: "SYS_ADMIN", sameAsRoot: true }),
+      create(HostAccessSchema, { kind: HostAccessKind.CAPABILITY, path: "NET_RAW" }),
+      create(HostAccessSchema, { kind: HostAccessKind.GROUP, path: "999" }),
+      create(HostAccessSchema, { kind: HostAccessKind.PRIVILEGED, sameAsRoot: true }),
+    ];
+    plan.notes = [
+      create(PlanNoteSchema, {
+        reason: "no_build",
+        message: "web has build beside image, and Dockwell builds nothing, so it runs nginx:1.27 as named",
+      }),
     ];
     step.untilHealthy = { $typeName: "google.protobuf.Duration", seconds: 110n, nanos: 0 };
     step.keptPaths = ["/var/lib/postgresql/data"];
@@ -212,12 +224,26 @@ describe("the plan sheet", () => {
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     expect(sheet).toHaveTextContent("This plan gives more access to a server");
     expect(sheet).toHaveTextContent(
-      "Reaches the server path /srv/app/config (read-only); Docker's socket at /var/run/docker.sock, which gives control of Docker on the server, the same as root on hz-1",
+      "Reaches the server path /srv/app/config (read-only); Docker's socket at /var/run/docker.sock, which gives control of Docker on the server, the same as root",
     );
     // At the plan's level too, as a plan with no steps has nowhere else.
     expect(sheet).toHaveTextContent("web reaches the nfs mount 10.0.0.2:/media (read-write).");
     expect(sheet).toHaveTextContent("Its image isn't on the server yet, so its own health check isn't known");
     expect(sheet).toHaveTextContent("Up to 1 min 50 s until healthy");
+    // What it joins and runs with, named, and what is the same as root says so.
+    expect(sheet).toHaveTextContent(
+      "the network edge, which is on the server already, where it answers to its name and to db: whatever else is on that network, other projects' services too, can reach it, and it can reach them",
+    );
+    expect(sheet).toHaveTextContent("the Linux capability SYS_ADMIN, which is the same as root");
+    expect(sheet).toHaveTextContent("the Linux capability NET_RAW;");
+    expect(sheet).toHaveTextContent(
+      "the group 999, which is the same as root if it is the group that owns Docker's socket on the server",
+    );
+    expect(sheet).toHaveTextContent(
+      "privileged mode, which gives it every device and capability on the server, the same as root",
+    );
+    // What no step says, the plan says beside them.
+    expect(sheet).toHaveTextContent("web has build beside image, and Dockwell builds nothing");
     expect(sheet).toHaveTextContent(
       "Takes out of use what its image keeps at /var/lib/postgresql/data, which the server keeps for 7 days",
     );

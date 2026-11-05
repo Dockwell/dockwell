@@ -237,8 +237,12 @@ type Access struct {
 	Relabel string `json:",omitempty"`
 	// Driver is the plugin a volume runs on, or a network's driver.
 	Driver string `json:",omitempty"`
-	// Detail is a network's other options, as name=value, sorted.
+	// Detail is a network's other options, as name=value, sorted, or for a
+	// network the server has, the other names the resource answers to there.
 	Detail string `json:",omitempty"`
+	// SameAsRoot says this is the same as root on the server, whatever else it
+	// says, such as the capability SYS_ADMIN.
+	SameAsRoot bool `json:",omitempty"`
 }
 
 // AccessKind is what a resource reaches on its server.
@@ -269,6 +273,17 @@ const (
 	// server's proxy, named in Detail. Access to the panel depends on it, and a
 	// token mustn't be able to cut off what it can't approve (ADR 0016).
 	AccessPanelDomain
+	// AccessExternalNetwork is a network on the server that Dockwell didn't
+	// make, by its name in Docker: Path. Whatever else is on it can reach the
+	// resource, and it them. Detail is the other names it answers to there.
+	AccessExternalNetwork
+	// AccessCapability is a Linux capability, by name: Path.
+	AccessCapability
+	// AccessGroup is a group its command joins, by name or number: Path.
+	AccessGroup
+	// AccessPrivileged is Docker's privileged mode: every device and capability
+	// on the server.
+	AccessPrivileged
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -362,8 +377,38 @@ func AccessWords(a Access) string {
 		return "the domain " + a.Path + ", which the environment " + a.Detail + " held within the last 7 days"
 	case AccessPanelDomain:
 		return "the panel's domain, " + a.Path + ", which moves behind " + a.Detail
+	case AccessExternalNetwork:
+		out := "the network " + plain(a.Path) + ", which is on the server already, where it answers to its name"
+		if a.Detail != "" {
+			out += " and to " + plain(a.Detail)
+		}
+		return out + ": whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+	case AccessCapability:
+		if a.SameAsRoot {
+			return "the Linux capability " + plain(a.Path) + ", which is the same as root"
+		}
+		return "the Linux capability " + plain(a.Path)
+	case AccessGroup:
+		if a.SameAsRoot {
+			return "the group " + plain(a.Path) + ", which is the same as root"
+		}
+		return "the group " + plain(a.Path) + ", which is the same as root if it is the group that owns Docker's socket on the server"
+	case AccessPrivileged:
+		return "privileged mode, which gives it every device and capability on the server, the same as root"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
+}
+
+// plain quotes a name in a plan that holds anything but what a name holds, so it
+// can't spell out the rest of the line, whatever let it through.
+func plain(s string) string {
+	inName := func(r rune) bool {
+		return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '.' || r == '-' || r == ','
+	}
+	if strings.IndexFunc(s, func(r rune) bool { return !inName(r) }) >= 0 {
+		return strconv.Quote(s)
+	}
+	return s
 }
 
 // HostAccesser is a kind whose specs can reach their server beyond what
@@ -591,6 +636,35 @@ type TakesOver interface {
 // answer says why, for people.
 type SingleServer interface {
 	OneServer() string
+}
+
+// Answerer is a kind whose specs answer to names on networks, as a service does.
+// The engine refuses a change that leaves two of them answering to one name on a
+// network in their scope, as each could get the other's traffic. It isn't a Claimer,
+// which holds something across an install: this is about one network on one server,
+// and reading every stored spec in the install for it would open every sealed one.
+type Answerer interface {
+	Answers(ref Ref, spec proto.Message) []Answer
+}
+
+// Answer is a name a resource answers to on a network.
+type Answer struct {
+	// Network is the network's name: in its scope, or in Docker when External.
+	Network string
+	// External says the network is one the server has.
+	External bool
+	Name     string
+}
+
+// Answers lists the names spec answers to, if its kind is an Answerer.
+func (r *Registry) Answers(ref Ref, spec proto.Message) []Answer {
+	if spec == nil {
+		return nil
+	}
+	if c, ok := r.types[ref.Kind].(Answerer); ok {
+		return c.Answers(ref, spec)
+	}
+	return nil
 }
 
 // References lists what spec names, if its kind is a Referrer.

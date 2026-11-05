@@ -197,12 +197,27 @@ type Edit struct {
 	Servers []string
 }
 
+// Note is something a person should know before applying a plan that no step
+// says, as it is about what stays as it is or what can be read. It never stops
+// anyone applying it.
+type Note struct {
+	// Reason says what it is about, for a surface with words of its own.
+	Reason string
+	// Message says it, for people.
+	Message string
+	// Ref is the resource it is about.
+	Ref resource.Ref
+	// Names are what it is about, as the API's PlanNote says.
+	Names []string `json:",omitempty"`
+}
+
 // Proposal is a set of edits someone wants to make.
 type Proposal struct {
 	Summary string // what it is for, in the actor's words
 	Actor   string
 	Via     string // where it comes from, such as ViaPanel
 	Edits   []Edit
+	Notes   []Note // what the plan should say beside its steps
 }
 
 // Plan is what applying a change would do.
@@ -224,6 +239,9 @@ type Plan struct {
 	// plain is the fingerprint as an earlier version made it, hashing
 	// every spec as it is, for a change it planned (fingerprintPlain).
 	plain string
+	// Notes are what a person should know before applying it. They aren't in
+	// the fingerprint: they say nothing about what it does.
+	Notes []Note `json:",omitempty"`
 }
 
 // How a change's fingerprint is made, as its record says (ADR 0022).
@@ -435,7 +453,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err != nil {
 		return nil, err
 	}
-	plan.Change, plan.Summary, plan.Reverts = changeID, p.Summary, reverts
+	plan.Change, plan.Summary, plan.Reverts, plan.Notes = changeID, p.Summary, reverts, p.Notes
 	record, err := json.Marshal(plan)
 	if err != nil {
 		return nil, err
@@ -826,7 +844,10 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 	if err := e.checkClaims(ctx, tx, items); err != nil {
 		return err
 	}
-	return e.checkReferences(ctx, tx, items)
+	if err := e.checkReferences(ctx, tx, items); err != nil {
+		return err
+	}
+	return e.checkAnswers(ctx, tx, items)
 }
 
 // liveIn names what lives in a scope once the change applies, of one kind

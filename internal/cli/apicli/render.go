@@ -536,6 +536,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			}
 		}
 	}
+	for _, n := range p.GetNotes() {
+		fmt.Fprintf(w, "Note: %s.\n", strings.TrimSuffix(n.GetMessage(), "."))
+	}
 }
 
 // ingressWords says what a step does to its server's ingress.
@@ -623,7 +626,7 @@ func accessWords(list []*dockwellv1.HostAccess) []string {
 	for _, a := range list {
 		out = append(out, resource.AccessWords(resource.Access{
 			Kind: accessKinds[a.GetKind()], Path: a.GetPath(), ReadOnly: a.GetReadOnly(), Type: a.GetType(),
-			Address: a.GetAddress(), Relabel: a.GetRelabel(), Driver: a.GetDriver(), Detail: a.GetDetail(),
+			Address: a.GetAddress(), Relabel: a.GetRelabel(), Driver: a.GetDriver(), Detail: a.GetDetail(), SameAsRoot: a.GetSameAsRoot(),
 		}))
 	}
 	return out
@@ -637,6 +640,11 @@ var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_NETWORK_DRIVER: resource.AccessNetworkDriver,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN:         resource.AccessDomain,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN:   resource.AccessPanelDomain,
+
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_NETWORK: resource.AccessExternalNetwork,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY:       resource.AccessCapability,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GROUP:            resource.AccessGroup,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PRIVILEGED:       resource.AccessPrivileged,
 }
 
 // upTo writes a bound to the second, rounding up, as "1 min 50 s", so it

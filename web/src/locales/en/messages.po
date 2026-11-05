@@ -1693,6 +1693,10 @@ msgstr "Platform"
 msgid "Private addresses"
 msgstr "Private addresses"
 
+#: src/features/changes/words.ts
+msgid "privileged mode, which gives it every device and capability on the server, the same as root"
+msgstr "privileged mode, which gives it every device and capability on the server, the same as root"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Processor"
 msgstr "Processor"
@@ -2325,6 +2329,30 @@ msgstr "the control plane runs {controlPlane}"
 #: src/features/changes/words.ts
 msgid "the domain {path}, which the environment {detail} held within the last 7 days"
 msgstr "the domain {path}, which the environment {detail} held within the last 7 days"
+
+#: src/features/changes/words.ts
+msgid "the group {path}, which is the same as root"
+msgstr "the group {path}, which is the same as root"
+
+#: src/features/changes/words.ts
+msgid "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
+msgstr "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
+
+#: src/features/changes/words.ts
+msgid "the Linux capability {path}"
+msgstr "the Linux capability {path}"
+
+#: src/features/changes/words.ts
+msgid "the Linux capability {path}, which is the same as root"
+msgstr "the Linux capability {path}, which is the same as root"
+
+#: src/features/changes/words.ts
+msgid "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+msgstr "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+
+#: src/features/changes/words.ts
+msgid "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+msgstr "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "The old value stays in this variable's history"

@@ -1693,6 +1693,10 @@ msgstr "平台"
 msgid "Private addresses"
 msgstr "私有地址"
 
+#: src/features/changes/words.ts
+msgid "privileged mode, which gives it every device and capability on the server, the same as root"
+msgstr "特权模式，可使用服务器上的所有设备和能力，等同于 root"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Processor"
 msgstr "处理器"
@@ -2325,6 +2329,30 @@ msgstr "控制平面为 {controlPlane}"
 #: src/features/changes/words.ts
 msgid "the domain {path}, which the environment {detail} held within the last 7 days"
 msgstr "域名 {path}，环境 {detail} 在过去 7 天内曾持有它"
+
+#: src/features/changes/words.ts
+msgid "the group {path}, which is the same as root"
+msgstr "用户组 {path}，等同于 root"
+
+#: src/features/changes/words.ts
+msgid "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
+msgstr "用户组 {path}，如果它是服务器上拥有 Docker 套接字的用户组，则等同于 root"
+
+#: src/features/changes/words.ts
+msgid "the Linux capability {path}"
+msgstr "Linux 能力 {path}"
+
+#: src/features/changes/words.ts
+msgid "the Linux capability {path}, which is the same as root"
+msgstr "Linux 能力 {path}，等同于 root"
+
+#: src/features/changes/words.ts
+msgid "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称和 {detail} 响应：该网络上的其他任何内容，包括其他项目的服务，都能访问它，它也能访问它们"
+
+#: src/features/changes/words.ts
+msgid "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称响应：该网络上的其他任何内容，包括其他项目的服务，都能访问它，它也能访问它们"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "The old value stays in this variable's history"

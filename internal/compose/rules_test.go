@@ -112,8 +112,6 @@ func TestComposeRefusals(t *testing.T) {
 	svc := func(extra string) string { return "services:\n  s:\n    image: alpine:3\n" + extra }
 	vars := map[string]string{"M": "host", "T": "bind", "S": "/", "K": "privileged"}
 	for name, file := range map[string]string{
-		"privileged":     svc("    privileged: true\n"),
-		"cap_add":        svc("    cap_add: [SYS_ADMIN]\n"),
 		"devices":        svc("    devices: [/dev/sda]\n"),
 		"pid":            svc("    pid: host\n"),
 		"ipc":            svc("    ipc: host\n"),
@@ -124,8 +122,6 @@ func TestComposeRefusals(t *testing.T) {
 		"cgroup":         svc("    cgroup: host\n"),
 		"volumes_from":   svc("    volumes_from: [other]\n"),
 		"extends":        svc("    extends: {service: x}\n"),
-		"network host":   svc("    network_mode: host\n"),
-		"network var":    svc("    network_mode: ${M}\n"),
 		"network cont":   svc("    network_mode: \"container:x\"\n"),
 		"network svc":    svc("    network_mode: \"service:x\"\n"),
 		"network none":   svc("    network_mode: none\n"),
@@ -149,7 +145,7 @@ func TestComposeRefusals(t *testing.T) {
 		"proc":           svc("    volumes: [\"/proc/1/root:/x\"]\n"),
 		"data":           svc("    volumes: [\"/var/lib/dockwell/control:/x:ro\"]\n"),
 		"docker":         svc("    volumes: [\"/var/lib/docker/:/x:ro\"]\n"),
-		"merge key":      "x-a: &a\n  privileged: true\nservices:\n  s:\n    <<: *a\n    image: alpine:3\n",
+		"merge key":      "x-a: &a\n  pid: host\nservices:\n  s:\n    <<: *a\n    image: alpine:3\n",
 		"external":       svc("    volumes: [\"v:/x\"]\n") + "volumes:\n  v:\n    external: true\n",
 		"named":          svc("    volumes: [\"v:/x\"]\n") + "volumes:\n  v:\n    name: other\n",
 		"variable key":   svc("    ${K}: true\n"),
@@ -158,7 +154,6 @@ func TestComposeRefusals(t *testing.T) {
 		"device":         svc("    device_cgroup_rules: [a]\n"),
 		"init":           svc("    init: true\n"),
 		"runtime":        svc("    runtime: runc\n"),
-		"group_add":      svc("    group_add: [docker]\n"),
 		"gpus":           svc("    gpus: all\n"),
 		"tmpfs in long":  svc("    volumes:\n      - {type: bind, source: /srv, target: /x, tmpfs: {size: 1}}\n"),
 		"volume subpath": svc("    volumes:\n      - {type: volume, source: v, target: /x, volume: {subpath: ../..}}\n") + "volumes:\n  v: {}\n",

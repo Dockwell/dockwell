@@ -205,6 +205,8 @@ func (c *Client) Ping(ctx context.Context) error {
 type Info struct {
 	// DockerRootDir is where it keeps its data, such as /var/lib/docker.
 	DockerRootDir string
+	// NCPU is how many CPUs the server has.
+	NCPU int
 	// SecurityOptions lists how it runs, such as name=rootless.
 	SecurityOptions []string
 }

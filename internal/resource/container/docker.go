@@ -195,6 +195,11 @@ func restartPolicy(name string) resourcev1.RestartPolicy {
 	return resourcev1.RestartPolicy_RESTART_POLICY_UNSPECIFIED
 }
 
+// restartOf is a spec's restart policy as Docker takes it.
+func restartOf(spec *resourcev1.Container) docker.RestartPolicy {
+	return docker.RestartPolicy{Name: restartNames[spec.GetRestart()], MaximumRetryCount: int(spec.GetRestartRetries())}
+}
+
 func protocolName(p resourcev1.Protocol) string {
 	if p == resourcev1.Protocol_PROTOCOL_UDP {
 		return "udp"
@@ -247,7 +252,12 @@ func (d *Docker) createRequest(t Target, spec *resourcev1.Container, old *docker
 		req.Entrypoint = []string{}
 	}
 	req.Env = environment(spec)
-	req.HostConfig.RestartPolicy = docker.RestartPolicy{Name: restartNames[spec.GetRestart()]}
+	req.HostConfig.RestartPolicy = restartOf(spec)
+	req.HostConfig.Privileged, req.HostConfig.CapAdd, req.HostConfig.CapDrop, req.HostConfig.GroupAdd =
+		spec.GetPrivileged(), spec.GetCapAdd(), spec.GetCapDrop(), spec.GetGroupAdd()
+	req.HostConfig.NanoCPUs = cpuNanos(spec.GetResources().GetCpus())
+	req.HostConfig.Memory = memoryBytes(spec.GetResources().GetMemory())
+	req.HostConfig.MemoryReservation = memoryBytes(spec.GetResources().GetMemoryReservation())
 	for _, p := range spec.GetPorts() {
 		key := fmt.Sprintf("%d/%s", p.GetContainerPort(), protocolName(p.GetProtocol()))
 		if req.HostConfig.PortBindings == nil {
@@ -282,13 +292,13 @@ func (d *Docker) createRequest(t Target, spec *resourcev1.Container, old *docker
 			req.HostConfig.Mounts = append(req.HostConfig.Mounts, docker.Mount{Type: "volume", Source: from[p], Target: p})
 		}
 	}
-	var aliases []string
-	if t.Scoped {
-		aliases = []string{t.Service}
+	if spec.GetHostNetwork() {
+		req.HostConfig.NetworkMode = "host"
+		return req, nil, restored
 	}
+	aliases := endpointAliases(t, spec)
 	var later []string
-	for i, n := range spec.GetNetworks() {
-		name := t.DockerName(n)
+	for i, name := range dockerNetworks(t, spec) {
 		if i == 0 {
 			req.HostConfig.NetworkMode = name
 		} else if !d.Client.AtLeast("1.44") {
@@ -413,6 +423,13 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 	out := &resourcev1.Container{
 		Image:   c.Config.Image,
 		Restart: restartPolicy(c.HostConfig.RestartPolicy.Name),
+		//nolint:gosec // a count of restarts is small, and Docker keeps it as an int
+		RestartRetries: uint32(max(c.HostConfig.RestartPolicy.MaximumRetryCount, 0)),
+		Privileged:     c.HostConfig.Privileged,
+		CapAdd:         c.HostConfig.CapAdd,
+		CapDrop:        c.HostConfig.CapDrop,
+		GroupAdd:       c.HostConfig.GroupAdd,
+		Resources:      projectResources(&c.HostConfig),
 	}
 	if set["command"] || !slices.Equal(c.Config.Cmd, img.Cmd) {
 		out.Command = c.Config.Cmd
@@ -522,14 +539,7 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		}
 		out.Mounts = append(out.Mounts, m)
 	}
-	// The ingress network is the ingress's to give and take, and no spec names
-	// it, so being on it isn't drift (ADR 0024).
-	networks := slices.DeleteFunc(slices.Sorted(maps.Keys(c.NetworkSettings.Networks)), func(n string) bool { return n == docker.IngressNetwork })
-	if !slices.Equal(networks, []string{"bridge"}) {
-		for _, n := range networks {
-			out.Networks = append(out.Networks, unscope(n))
-		}
-	}
+	projectNetworks(c, t, out)
 	return out
 }
 
@@ -611,6 +621,32 @@ func (d *Docker) ensureImage(ctx context.Context, ref string) error {
 		return fmt.Errorf("can't pull %s: %w. Check the image's name and tag; Dockwell can't pull private images yet", ref, err)
 	}
 	return err
+}
+
+// pullableWait bounds asking a registry for an image while planning. A plan
+// shouldn't wait on a registry, so one that doesn't answer in time says nothing,
+// and the pull finds out.
+const pullableWait = 10 * time.Second
+
+// checkImage refuses a plan for an image the server hasn't got and its registry
+// won't give it, which would otherwise fail only once the change was applied. A
+// file with build beside image often names one only the server it was built on
+// has. One the server has runs as it is, wherever it came from.
+func (d *Docker) checkImage(ctx context.Context, t Target, ref string) error {
+	_, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
+	switch {
+	case err == nil:
+		return nil
+	case !docker.IsNotFound(err):
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, pullableWait)
+	defer cancel()
+	if err := d.Client.CheckPullable(ctx, ref); docker.NotPullable(err) {
+		return fmt.Errorf("the image %s isn't on this server, and its registry won't give it to a pull, so %s can't run: it has no such image, or wants credentials, which Dockwell can't send yet. "+
+			"Build or load the image on this server, or push it where a pull can get it, then plan again", ref, t.Service)
+	}
+	return nil
 }
 
 // checkRefs refuses a container whose networks aren't on the server, as
@@ -737,12 +773,8 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 		undo()
 		return err
 	}
-	var aliases []string
-	if t.Scoped {
-		aliases = []string{t.Service}
-	}
 	for _, n := range later {
-		if err := d.Client.ConnectNetwork(ctx, n, id, aliases); err != nil {
+		if err := d.Client.ConnectNetwork(ctx, n, id, endpointAliases(t, spec)); err != nil {
 			return discard(fmt.Errorf("can't put %s on the network %s: %w", t.Name, n, err))
 		}
 	}
@@ -840,6 +872,9 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 	case resource.ActionDelete:
 		out = imageVolumes(c)
 	case resource.ActionCreate, resource.ActionReplace:
+		if err := d.checkImage(ctx, t, desired.GetImage()); err != nil {
+			return err
+		}
 		out = covered(c, desired)
 		kept, err := d.keptVolumes(ctx, t)
 		if err != nil {
@@ -956,8 +991,8 @@ func (d *Docker) unfinished(ctx context.Context, t Target) (*docker.Container, e
 	return c, err
 }
 
-// SetRestart changes the restart policy in place.
-func (d *Docker) SetRestart(ctx context.Context, t Target, policy resourcev1.RestartPolicy) error {
+// Update changes the restart policy and the limits in place.
+func (d *Docker) Update(ctx context.Context, t Target, spec *resourcev1.Container) error {
 	c, err := d.find(ctx, t.Name)
 	switch {
 	case err != nil:
@@ -968,7 +1003,15 @@ func (d *Docker) SetRestart(ctx context.Context, t Target, policy resourcev1.Res
 	if err := owned(t, c); err != nil {
 		return err
 	}
-	return d.Client.UpdateRestartPolicy(ctx, c.ID, docker.RestartPolicy{Name: restartNames[policy]})
+	if err := d.checkCPUs(ctx, t, spec); err != nil {
+		return err
+	}
+	return d.Client.UpdateContainer(ctx, c.ID, docker.ContainerUpdate{
+		RestartPolicy:     restartOf(spec),
+		NanoCPUs:          cpuNanos(spec.GetResources().GetCpus()),
+		Memory:            memoryBytes(spec.GetResources().GetMemory()),
+		MemoryReservation: memoryBytes(spec.GetResources().GetMemoryReservation()),
+	})
 }
 
 // Remove stops the container, giving it StopTimeout, and removes it, if

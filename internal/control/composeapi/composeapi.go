@@ -29,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/resource/volume"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/store"
@@ -65,7 +66,7 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 	if err != nil {
 		return nil, err
 	}
-	stack, err := compose.Parse(ctx, []byte(m.GetCompose()), m.GetVariables())
+	stack, err := compose.Read(ctx, compose.Input{File: []byte(m.GetCompose()), Variables: m.GetVariables(), Env: m.GetEnv(), Directory: m.GetDirectory()})
 	if err != nil {
 		switch {
 		case errors.Is(err, compose.ErrInvalid):
@@ -133,11 +134,23 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 			return "servers"
 		}
 		return ""
-	})
+	}, changes.Also{Notes: planNotes(env.ID, stack.Notices)})
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.ImportComposeResponse{Change: c}), nil
+}
+
+// planNotes are what a plan says of a file beside its steps.
+func planNotes(env string, notices []compose.Notice) []revision.Note {
+	out := make([]revision.Note, len(notices))
+	for i, n := range notices {
+		out[i] = revision.Note{
+			Reason: n.Reason, Message: n.Message, Names: n.Names,
+			Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: n.Service},
+		}
+	}
+	return out
 }
 
 // ExportCompose writes an environment, or one service, as a Compose file.

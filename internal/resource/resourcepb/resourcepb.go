@@ -146,6 +146,11 @@ var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
 	resource.AccessNetworkDriver: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_NETWORK_DRIVER,
 	resource.AccessDomain:        dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN,
 	resource.AccessPanelDomain:   dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN,
+
+	resource.AccessExternalNetwork: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_NETWORK,
+	resource.AccessCapability:      dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY,
+	resource.AccessGroup:           dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GROUP,
+	resource.AccessPrivileged:      dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PRIVILEGED,
 }
 
 // HostAccess converts what a resource reaches on its server.
@@ -154,7 +159,7 @@ func HostAccess(list []resource.Access) []*dockwellv1.HostAccess {
 	for _, a := range list {
 		out = append(out, &dockwellv1.HostAccess{
 			Kind: accessKinds[a.Kind], Path: a.Path, ReadOnly: a.ReadOnly, Type: a.Type,
-			Address: a.Address, Relabel: a.Relabel, Driver: a.Driver, Detail: a.Detail,
+			Address: a.Address, Relabel: a.Relabel, Driver: a.Driver, Detail: a.Detail, SameAsRoot: a.SameAsRoot,
 		})
 	}
 	return out

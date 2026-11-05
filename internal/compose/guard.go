@@ -43,22 +43,23 @@ var guardPath string
 // the binary.
 func UseGuard() { guardPath = "/proc/self/exe" }
 
+// guardRequest is what a child reads, all of what Parse reads, so nothing the
+// parent goes on to read gets there without the child having read it first.
 type guardRequest struct {
-	File      []byte            `json:"file"`
-	Variables map[string]string `json:"variables"`
-	CPU       uint64            `json:"cpu"`
-	Memory    uint64            `json:"memory"`
+	Input
+	CPU    uint64 `json:"cpu"`
+	Memory uint64 `json:"memory"`
 }
 
 // guard reads the file in a child, and says only whether it finished within
 // its limits. Parse then reads it again here for the result, whatever it is:
 // a file that finishes in the child costs the same here, and there's no second
 // form of a Stack or an error to carry across.
-func guard(ctx context.Context, file []byte, variables map[string]string) error {
+func guard(ctx context.Context, in Input) error {
 	if guardPath == "" {
 		return nil
 	}
-	body, err := json.Marshal(guardRequest{file, variables, guardCPU, guardMemory})
+	body, err := json.Marshal(guardRequest{in, guardCPU, guardMemory})
 	if err != nil {
 		return fmt.Errorf("can't pass the Compose file to be read: %w", err)
 	}
@@ -133,7 +134,7 @@ func RunGuard(in io.Reader) error {
 	if err := limit(syscall.RLIMIT_DATA, req.Memory); err != nil {
 		return fmt.Errorf("can't limit its memory to %d MiB: %w", req.Memory>>20, err)
 	}
-	_, _ = parse(req.File, req.Variables)
+	_, _ = parse(req.Input)
 	return nil
 }
 

@@ -236,9 +236,12 @@ func TestNetworkSpellings(t *testing.T) {
 			t.Errorf("network %q passes", n)
 		}
 	}
+	// A container on its own has only Docker's networks, none of which Dockwell
+	// made, so each is access, and the server's own is its own kind of it.
 	c := &resourcev1.Container{Image: "nginx:1.27", Networks: []string{"a", "host"}}
-	if err := d.Validate(c); err != nil || len(d.HostAccess(c)) != 1 {
-		t.Errorf("host beside another network = %v, %v", err, d.HostAccess(c))
+	want := []resource.Access{{Kind: resource.AccessExternalNetwork, Path: "a"}, {Kind: resource.AccessNetwork}}
+	if err := d.Validate(c); err != nil || !slices.Equal(d.HostAccess(c), want) {
+		t.Errorf("host beside another network = %v, %v, want %v", err, d.HostAccess(c), want)
 	}
 	e := dockertest.New(t)
 	images(e)

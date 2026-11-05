@@ -582,6 +582,25 @@ func TestEveryMethodHasACommand(t *testing.T) {
 	}
 }
 
+// An .env may hold secrets, so it reaches the CLI as a secret's value does: its
+// flag names a file, and its text never goes on a command line.
+func TestAnEnvFileNeverComesFromAFlagsText(t *testing.T) {
+	root, err := newRootCmd(IO{Out: io.Discard, Err: io.Discard, Getenv: func(string) string { return "" }, In: strings.NewReader("")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd, _, err := root.Find([]string{"compose", "import"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd.Flags().Lookup("env") != nil || cmd.Flags().Lookup("env-file") == nil {
+		t.Error("dockwell compose import should take --env-file, and no --env")
+	}
+	if cmd.Flags().Lookup("directory") == nil {
+		t.Error("dockwell compose import should take --directory")
+	}
+}
+
 // A secret's value reaches the CLI only from a file or standard input: its
 // kind's commands have no flag that takes its text, and the one flag that
 // takes JSON that may hold one refuses it inline. A new flag that may hold

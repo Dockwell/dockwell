@@ -6,7 +6,9 @@
 # the environment exports as a Compose file that docker compose reads and
 # lists; a Compose file imports; a service using a variable and a secret
 # runs with their values, exports without the secret, and imports again
-# with no change; and everything goes again. Then the agent build joins the
+# with no change; and everything goes again. A file in the shapes real ones
+# have runs on a network the server has, with what it asks for really applied,
+# and reaches another project on it by name. Then the agent build joins the
 # full build's control plane, and runs a container on the same Docker. Before
 # that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
 # and serves a real container over HTTPS through Caddy. It uses throwaway data
@@ -38,10 +40,14 @@ agent_data=$(mktemp -d)
 log=$(mktemp)
 agent_log=$(mktemp)
 project=""
+real_projects=()
 agent_pid=""
 
 port=${addr##*:}
 cookie=$(mktemp)
+# What a file's relative paths start from. Not the data directory, which no
+# container may mount, and Docker makes what's in it as root.
+real_dir=$(mktemp -d)
 
 pebble_dir=$(mktemp -d)
 tools=${E2E_INGRESS_TOOLS:-$(mktemp -d)}
@@ -72,15 +78,19 @@ cleanup() {
   if [[ -n "$project" ]]; then
     docker compose -p "$project" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   fi
+  for p in "${real_projects[@]}"; do
+    docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
+  done
+  docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
   docker rm --force e2e-agent-web e2e-holds-80 e2e-returns dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
-  docker network rm dockwell_ingress e2e-took-subnet >/dev/null 2>&1 || true
+  docker network rm dockwell_ingress e2e-took-subnet e2e-edge >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
   priv kill "$pid" 2>/dev/null || true
   for p in "${pebble_pids[@]:-}"; do
     [[ -z "$p" ]] || kill "$p" 2>/dev/null || true
   done
   wait 2>/dev/null || true
-  priv rm -rf "$log" "$agent_log" "$cookie" "$data" "$agent_data" "$pebble_dir"
+  priv rm -rf "$log" "$agent_log" "$cookie" "$data" "$agent_data" "$pebble_dir" "$real_dir"
 }
 trap cleanup EXIT
 
@@ -843,6 +853,140 @@ dw environments delete staging --yes || fail "environments delete staging failed
 
 dw services delete web --yes || fail "services delete web failed"
 in_ingress=""
+
+step "A file in the shapes real ones have runs, as a person approves it"
+real_port=$((web_port + 1))
+docker network create e2e-edge >/dev/null || fail "docker network create e2e-edge failed"
+dw environments create real --yes >/dev/null || fail "environments create real failed"
+dw environments create other --yes >/dev/null || fail "environments create other failed"
+cat >"$data/real.yaml" <<'EOF'
+services:
+  shop:
+    container_name: e2e-storefront
+    image: nginx:1.27-alpine
+    build: ./not-read
+    deploy:
+      resources:
+        limits:
+          cpus: ${CPUS}
+          memory: ${MEMORY_LIMIT}
+        reservations:
+          cpus: "0.25"
+          memory: 16M
+    cap_add: [NET_ADMIN]
+    cap_drop: [MKNOD]
+    group_add: ["12345"]
+    labels:
+      createdBy: Apps
+    networks: [e2e-edge]
+    ports:
+      - ${HOST_IP}:${PANEL_APP_PORT_HTTP}:80
+    restart: on-failure:5
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    volumes:
+      - ./data:/data
+networks:
+  e2e-edge:
+    external: true
+EOF
+printf 'CPUS=0.50\nMEMORY_LIMIT=64M\nHOST_IP=\nPANEL_APP_PORT_HTTP=%s\n' "$real_port" >"$data/real.env"
+import_real() { dw compose import --compose "$(cat "$data/real.yaml")" --env-file "$data/real.env" --directory "$real_dir" --environment real "$@"; }
+
+planned=$(import_real --plan-only --json) || fail "importing the file failed"
+change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import printed what isn't JSON: $planned"
+[[ "$change" == chg_* ]] || fail "compose import planned no change: $planned"
+jq -e '.change.plan.hostAccess == true' <<<"$planned" >/dev/null || fail "the file plans no host access: $planned"
+for says in 'e2e-edge' 'NET_ADMIN' '12345' "$real_dir/data"; do
+  [[ "$planned" == *"$says"* ]] || fail "the plan doesn't name $says: $planned"
+done
+for reason in container_name no_build cpu_reservation; do
+  jq -e --arg r "$reason" 'any(.change.plan.notes[]; .reason == $r)' <<<"$planned" >/dev/null || fail "the plan doesn't say $reason: $planned"
+done
+token_refused "$change"
+person_apply "$change"
+
+shop=$(docker ps --filter label=com.docker.compose.service=shop --format '{{.Names}}') || fail "docker ps failed"
+[[ "$shop" == env_*-shop-1 ]] || fail "Docker runs '$shop' for shop, want env_…-shop-1, not the file's container_name"
+inspected=$(docker inspect "$shop") || fail "docker inspect $shop failed"
+real_projects+=("$(jq -r '.[0].Config.Labels["com.docker.compose.project"]' <<<"$inspected")")
+has() { jq -e "$1" <<<"$inspected" >/dev/null || fail "$shop isn't as asked: $1 is $(jq -c "$1" <<<"$inspected"), in $(jq -c '.[0].HostConfig' <<<"$inspected")"; }
+has '.[0].HostConfig.NanoCpus == 500000000'
+has '.[0].HostConfig.Memory == 67108864'
+has '.[0].HostConfig.MemoryReservation == 16777216'
+has '.[0].HostConfig.CapAdd | any(endswith("NET_ADMIN"))'
+has '.[0].HostConfig.CapDrop | any(endswith("MKNOD"))'
+has '.[0].HostConfig.GroupAdd | index("12345") != null'
+has '.[0].HostConfig.RestartPolicy.Name == "on-failure" and .[0].HostConfig.RestartPolicy.MaximumRetryCount == 5'
+has '.[0].NetworkSettings.Networks["e2e-edge"].Aliases | (index("e2e-storefront") != null and index("shop") != null)'
+has '.[0].NetworkSettings.Networks | keys == ["e2e-edge"]'
+has '.[0].HostConfig.Binds | length == 1'
+bind=$(jq -r '.[0].HostConfig.Binds[0]' <<<"$inspected")
+[[ "$bind" == "$real_dir/data:/data" ]] || fail "./data mounts as '$bind', want $real_dir/data:/data"
+page=$(curl -fsS "http://127.0.0.1:$real_port/") || fail "shop doesn't serve on port $real_port, on the empty HOST_IP's every address"
+[[ "$page" == *nginx* ]] || fail "shop serves something other than nginx on port $real_port: ${page:0:300}"
+drift=$(dw drift list --json) || fail "drift list failed"
+# Another environment has drift of its own by now, as an ingress step above prunes
+# a network it left unused, so this asks about shop alone.
+jq -e 'any((.drift // [])[]; .resource.name == "shop") | not' <<<"$drift" >/dev/null || fail "drift with shop running as asked: $drift"
+
+step "A limit changes in place, on a token, and the file's container stays"
+before=$(jq -r '.[0].Id' <<<"$inspected")
+import_real --variables MEMORY_LIMIT=128M --yes >/dev/null || fail "changing the limit failed"
+inspected=$(docker inspect "$shop") || fail "docker inspect $shop failed"
+[[ "$(jq -r '.[0].Id' <<<"$inspected")" == "$before" ]] || fail "changing a limit recreated $shop"
+has '.[0].HostConfig.Memory == 134217728'
+
+step "It exports as a file docker compose reads, naming the network as external"
+dw compose export --environment real >"$data/real-export.yaml" || fail "compose export failed"
+grep -q 'external: true' "$data/real-export.yaml" || fail "the export doesn't name its network as external:
+$(cat "$data/real-export.yaml")"
+docker compose -f "$data/real-export.yaml" config --quiet || fail "docker compose doesn't take the export:
+$(cat "$data/real-export.yaml")"
+listed=$(docker compose -f "$data/real-export.yaml" ps --format '{{.Service}}') || fail "docker compose -f <export> ps failed"
+[[ "$listed" == shop ]] || fail "docker compose -f <export> ps lists '$listed', want shop"
+
+step "Another project on the network reaches it by name, and can't take that name"
+docker tag nginx:1.27-alpine e2e-local-only:1 || fail "docker tag failed"
+other_file=$(printf 'services:\n  client:\n    image: e2e-local-only:1\n    build: .\n    networks: [e2e-edge]\nnetworks:\n  e2e-edge:\n    external: true\n')
+planned=$(dw compose import --compose "$other_file" --environment other --plan-only --json) || fail "importing a local-only image failed"
+change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import printed what isn't JSON: $planned"
+token_refused "$change"
+person_apply "$change"
+client=$(docker ps --filter label=com.docker.compose.service=client --format '{{.Names}}') || fail "docker ps failed"
+[[ -n "$client" ]] || fail "Docker runs nothing for client"
+real_projects+=("$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$client")")
+page=$(docker exec "$client" wget -q -O - -T 5 http://e2e-storefront/) || fail "client can't reach shop by its container_name on e2e-edge"
+[[ "$page" == *nginx* ]] || fail "client reached something other than shop: ${page:0:300}"
+page=$(docker exec "$shop" wget -q -O - -T 5 http://client/) || fail "shop can't reach client by its name on e2e-edge"
+[[ "$page" == *nginx* ]] || fail "shop reached something other than client: ${page:0:300}"
+clash=$(printf 'services:\n  clash:\n    image: nginx:1.27-alpine\n    container_name: e2e-storefront\n    networks: [e2e-edge]\nnetworks:\n  e2e-edge:\n    external: true\n')
+if out=$(dw compose import --compose "$clash" --environment other --plan-only 2>&1); then
+  fail "a second container answering to e2e-storefront on e2e-edge was planned: ${out:0:300}"
+fi
+[[ "$out" == *"already does"* ]] || fail "a name another has failed some other way: ${out:0:300}"
+
+step "What isn't on the server is refused as it plans, by name"
+missing=$(printf 'services:\n  gone:\n    image: nginx:1.27-alpine\n    networks: [e2e-missing]\nnetworks:\n  e2e-missing:\n    external: true\n')
+if out=$(dw compose import --compose "$missing" --environment other --plan-only 2>&1); then
+  fail "a network the server hasn't got was planned: ${out:0:300}"
+fi
+[[ "$out" == *"the network e2e-missing isn't on this server"* ]] || fail "a missing network failed some other way: ${out:0:300}"
+nothing=$(printf 'services:\n  gone:\n    image: dockwell-e2e-no-such-image:1\n    build: .\n')
+if out=$(dw compose import --compose "$nothing" --environment other --plan-only 2>&1); then
+  fail "an image no one has was planned: ${out:0:300}"
+fi
+[[ "$out" == *"won't give it to a pull"* ]] || fail "an image no one has failed some other way: ${out:0:300}"
+
+step "Going leaves the network as it was"
+dw changes undo "$change" --yes >/dev/null || fail "changes undo $change failed"
+if docker inspect "$client" >/dev/null 2>&1; then fail "the undo left $client"; fi
+dw services delete shop --environment real --yes >/dev/null || fail "services delete shop failed"
+if docker inspect "$shop" >/dev/null 2>&1; then fail "deleting shop left $shop"; fi
+docker network inspect e2e-edge >/dev/null || fail "the undo or the deletion took the network e2e-edge, which Dockwell didn't make"
 
 step "The agent build joins, and runs a container"
 made=$(dw token create 2>>"$log") || fail "dockwell token create failed"

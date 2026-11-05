@@ -33,6 +33,36 @@ func (c *Client) InspectImage(ctx context.Context, ref string) (*Image, error) {
 	return &out, nil
 }
 
+// CheckPullable asks the image's registry for it, through the engine, without
+// pulling it or sending any credentials, as a pull doesn't either. It is an
+// error that NotPullable reports when the registry won't give it to a pull.
+func (c *Client) CheckPullable(ctx context.Context, ref string) error {
+	return c.do(ctx, http.MethodGet, "/distribution/"+escRef(WithTag(ref))+"/json", nil, nil, &struct{}{})
+}
+
+// NotPullable reports what CheckPullable returned for an image a pull can't
+// get: its registry doesn't have it, or wants credentials for it, which the
+// agent doesn't send, and a registry won't say which. The engine reports some of
+// these as a server error, so its words count too. A registry that is down, slow
+// or limiting how often it's asked says nothing about the image, so none of
+// those count.
+func NotPullable(err error) bool {
+	if err == nil || IsUnavailable(err) {
+		return false
+	}
+	switch status(err) {
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
+		return true
+	}
+	text := strings.ToLower(err.Error())
+	for _, says := range []string{"manifest unknown", "repository does not exist", "pull access denied", "requested access to the resource is denied", "authentication required"} {
+		if strings.Contains(text, says) {
+			return true
+		}
+	}
+	return false
+}
+
 // escRef escapes an image reference for a path, part by part: the engine
 // takes the slashes between a reference's parts as they are.
 func escRef(ref string) string {

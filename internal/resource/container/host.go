@@ -154,21 +154,34 @@ func controlsDocker(p string) bool {
 }
 
 // HostAccess lists what a container reaches on its server: each server
-// path it mounts, Docker's socket among them, and the server's network.
-// A service's networks are its environment's, so its "host" is one of
-// those (ServiceAccess).
+// path it mounts, Docker's socket among them, the networks it joins, and what
+// it runs with beyond what Docker gives a container. A service's networks are
+// its environment's, so its "host" is one of those (ServiceAccess). A container
+// on its own has only Docker's, none of which Dockwell made, so each is access
+// beyond itself, the server's own network most of all.
 func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 	c := spec.(*resourcev1.Container)
-	out := mountAccess(c)
-	if slices.Contains(c.GetNetworks(), "host") {
-		out = append(out, resource.Access{Kind: resource.AccessNetwork})
+	out := append(mountAccess(c), privilegeAccess(c)...)
+	for _, n := range c.GetNetworks() {
+		switch n {
+		case "host":
+			out = append(out, resource.Access{Kind: resource.AccessNetwork})
+		case bridge:
+			// Docker's default, where a container with no network goes.
+		default:
+			out = append(out, resource.Access{Kind: resource.AccessExternalNetwork, Path: n})
+		}
 	}
 	return out
 }
 
-// ServiceAccess lists what a service's app reaches on its server: each
-// server path it mounts. Its networks are its environment's.
-func ServiceAccess(c *resourcev1.Container) []resource.Access { return mountAccess(c) }
+// ServiceAccess lists what a service's app reaches on its server: each server
+// path it mounts, each network it joins that isn't its environment's, the
+// server's own network, and what it runs with beyond what Docker gives a
+// container.
+func ServiceAccess(c *resourcev1.Container) []resource.Access {
+	return slices.Concat(mountAccess(c), networkAccess(c), privilegeAccess(c))
+}
 
 func mountAccess(c *resourcev1.Container) []resource.Access {
 	var out []resource.Access
@@ -248,6 +261,12 @@ func BindDevice(driver string, options map[string]string) (string, bool) {
 // narrows the window, and can't close it (docs/security/sign-in.md).
 func (d *Docker) CheckHost(ctx context.Context, t Target, spec *resourcev1.Container) error {
 	if err := d.checkPublicPorts(ctx, spec); err != nil {
+		return err
+	}
+	if err := d.checkExternalNetworks(ctx, t, spec); err != nil {
+		return err
+	}
+	if err := d.checkCPUs(ctx, t, spec); err != nil {
 		return err
 	}
 	if d.Paths == nil || len(spec.GetMounts()) == 0 {

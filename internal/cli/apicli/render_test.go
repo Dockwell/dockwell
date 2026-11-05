@@ -320,3 +320,27 @@ func TestARoutesPlanSaysWhatComesBackAfterAReboot(t *testing.T) {
 		}
 	}
 }
+
+// Every kind of access the API can name has words in the CLI, or a person would
+// approve what it can't say.
+func TestEveryAccessKindHasWords(t *testing.T) {
+	values := dockwellv1.HostAccessKind(0).Descriptor().Values()
+	for i := range values.Len() {
+		kind := dockwellv1.HostAccessKind(values.Get(i).Number())
+		if kind == dockwellv1.HostAccessKind_HOST_ACCESS_KIND_UNSPECIFIED {
+			continue
+		}
+		if got := accessWords([]*dockwellv1.HostAccess{{Kind: kind, Path: "x"}})[0]; strings.HasPrefix(got, "access(") {
+			t.Errorf("%s has no words in the CLI: %s", kind, got)
+		}
+	}
+}
+
+// What a plan says beside its steps, the CLI says too.
+func TestPlanViewSaysNotes(t *testing.T) {
+	var buf bytes.Buffer
+	PlanView(&buf, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{{Reason: "no_build", Message: "web has build beside image, and Dockwell builds nothing."}}})
+	if !strings.Contains(buf.String(), "Note: web has build beside image, and Dockwell builds nothing.\n") {
+		t.Errorf("PlanView =\n%s", buf.String())
+	}
+}

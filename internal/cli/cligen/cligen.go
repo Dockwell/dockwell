@@ -454,12 +454,15 @@ func (s *schema) describe(f *protogen.File, m *protogen.Method) (Method, error) 
 		c.HTTP = method + " " + path
 	}
 	for _, f := range m.Input.Fields {
+		sensitive, _, _ := s.option(f.Desc, sensitiveOption)
 		c.Fields = append(c.Fields, Field{
 			Path: string(f.Desc.Name()),
 			Flag: s.flag(f.Desc),
 			Help: oneLine(comment(f.Comments.Leading)),
 			// A request's id names what it acts on, as REST paths bind it.
 			Arg: f.Desc.Name() == "id" && f.Desc.Kind() == protoreflect.StringKind && !f.Desc.IsList(),
+			// What may hold a secret stays off the command line, as a file.
+			Sensitive: sensitive.IsValid() && sensitive.Bool(),
 		})
 	}
 	return c, nil

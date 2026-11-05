@@ -626,6 +626,9 @@ function Effects({ reach, change, plan, confirmWith, typed, onType }: EffectsPro
       ),
     });
   }
+  (plan?.notes ?? []).forEach((note, i) => {
+    rows.push({ key: `note-${i}`, icon: "activity", title: note.message });
+  });
   return (
     <>
       {offline.length > 0 && change.state === ChangeState.PLANNED ? (

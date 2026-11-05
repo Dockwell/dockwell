@@ -6,6 +6,7 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
 import type { Change } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
@@ -16,7 +17,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/compose.proto.
  */
 export const file_dockwell_v1_compose: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9jb21wb3NlLnByb3RvEgtkb2Nrd2VsbC52MSL+AQoUSW1wb3J0Q29tcG9zZVJlcXVlc3QSDwoHc3VtbWFyeRgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEg8KB2NvbXBvc2UYBCABKAkSQwoJdmFyaWFibGVzGAUgAygLMjAuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlcXVlc3QuVmFyaWFibGVzRW50cnkSDwoHc2VydmVycxgGIAMoCRIWCg5yZW1vdmVfb3JwaGFucxgHIAEoCBowCg5WYXJpYWJsZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIjwKFUltcG9ydENvbXBvc2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiTQoURXhwb3J0Q29tcG9zZVJlcXVlc3QSDwoHcHJvamVjdBgBIAEoCRITCgtlbnZpcm9ubWVudBgCIAEoCRIPCgdzZXJ2aWNlGAMgASgJIjkKFUV4cG9ydENvbXBvc2VSZXNwb25zZRIPCgdjb21wb3NlGAEgASgJEg8KB29taXR0ZWQYAiADKAky/wEKDkNvbXBvc2VTZXJ2aWNlEnkKDUltcG9ydENvbXBvc2USIS5kb2Nrd2VsbC52MS5JbXBvcnRDb21wb3NlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkltcG9ydENvbXBvc2VSZXNwb25zZSIhoLsYAoLT5JMCFzoBKiISL3YxL2NvbXBvc2U6aW1wb3J0EnIKDUV4cG9ydENvbXBvc2USIS5kb2Nrd2VsbC52MS5FeHBvcnRDb21wb3NlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkV4cG9ydENvbXBvc2VSZXNwb25zZSIakAIBoLsYAYLT5JMCDRILL3YxL2NvbXBvc2VCpQEKD2NvbS5kb2Nrd2VsbC52MUIMQ29tcG9zZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9jb21wb3NlLnByb3RvEgtkb2Nrd2VsbC52MSKkAgoUSW1wb3J0Q29tcG9zZVJlcXVlc3QSDwoHc3VtbWFyeRgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEg8KB2NvbXBvc2UYBCABKAkSQwoJdmFyaWFibGVzGAUgAygLMjAuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlcXVlc3QuVmFyaWFibGVzRW50cnkSDwoHc2VydmVycxgGIAMoCRIWCg5yZW1vdmVfb3JwaGFucxgHIAEoCBIRCgNlbnYYCCABKAlCBMjzGAESEQoJZGlyZWN0b3J5GAkgASgJGjAKDlZhcmlhYmxlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiPAoVSW1wb3J0Q29tcG9zZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJNChRFeHBvcnRDb21wb3NlUmVxdWVzdBIPCgdwcm9qZWN0GAEgASgJEhMKC2Vudmlyb25tZW50GAIgASgJEg8KB3NlcnZpY2UYAyABKAkiOQoVRXhwb3J0Q29tcG9zZVJlc3BvbnNlEg8KB2NvbXBvc2UYASABKAkSDwoHb21pdHRlZBgCIAMoCTL/AQoOQ29tcG9zZVNlcnZpY2USeQoNSW1wb3J0Q29tcG9zZRIhLmRvY2t3ZWxsLnYxLkltcG9ydENvbXBvc2VSZXF1ZXN0GiIuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlc3BvbnNlIiGguxgCgtPkkwIXOgEqIhIvdjEvY29tcG9zZTppbXBvcnQScgoNRXhwb3J0Q29tcG9zZRIhLmRvY2t3ZWxsLnYxLkV4cG9ydENvbXBvc2VSZXF1ZXN0GiIuZG9ja3dlbGwudjEuRXhwb3J0Q29tcG9zZVJlc3BvbnNlIhqQAgGguxgBgtPkkwINEgsvdjEvY29tcG9zZUKlAQoPY29tLmRvY2t3ZWxsLnYxQgxDb21wb3NlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations]);
 
 /**
  * ImportComposeRequest is a Compose file to plan into an environment.
@@ -50,8 +51,8 @@ export type ImportComposeRequest = Message<"dockwell.v1.ImportComposeRequest"> &
 
   /**
    * The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
-   * up to 256 KiB. Paths in it must be absolute, as it runs on servers where
-   * a path relative to the file means nothing.
+   * up to 256 KiB. A path relative to the file needs directory, as it runs on
+   * servers where it otherwise means nothing.
    *
    * @generated from field: string compose = 4;
    */
@@ -59,7 +60,8 @@ export type ImportComposeRequest = Message<"dockwell.v1.ImportComposeRequest"> &
 
   /**
    * Values for the variables the file uses, such as ${TAG}. A variable
-   * with no value here and no default in the file is refused.
+   * with no value here, in env or as a default in the file is refused. They
+   * win over env, as a shell's win over an .env file.
    *
    * @generated from field: map<string, string> variables = 5;
    */
@@ -82,6 +84,26 @@ export type ImportComposeRequest = Message<"dockwell.v1.ImportComposeRequest"> &
    * @generated from field: bool remove_orphans = 7;
    */
   removeOrphans: boolean;
+
+  /**
+   * The .env file beside the Compose file, as its text, of up to 64 KiB, for
+   * the variables the file uses. The CLI takes it as a file, --env-file .env,
+   * as it may hold secrets. It reads as docker compose reads one, except that a
+   * value naming a variable with no value is refused, rather than left blank. A
+   * value for a secret the file's services use is refused, as any is.
+   *
+   * @generated from field: string env = 8;
+   */
+  env: string;
+
+  /**
+   * The directory the file is in on the servers, as an absolute path, such as
+   * /opt/1panel/apps/postgresql/pg. A path relative to the file, such as
+   * ./data, starts there. Each is a server path, which a person approves.
+   *
+   * @generated from field: string directory = 9;
+   */
+  directory: string;
 };
 
 /**

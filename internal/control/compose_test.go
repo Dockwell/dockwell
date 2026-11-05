@@ -48,6 +48,7 @@ func (f *fullServer) addDockerServer(t *testing.T) *dockertest.Engine {
 	e.Registry["ghcr.io/acme/shop:1.5"] = dockertest.Image{Size: 30 << 20, Config: docker.Config{Cmd: []string{"shop"}, Env: []string{"PATH=/bin"}}}
 	e.Registry["postgres:17"] = dockertest.Image{Volumes: []string{"/var/lib/postgresql/data"}, Config: docker.Config{Cmd: []string{"postgres"}}}
 	e.Registry["ghcr.io/acme/worker:1.0"] = dockertest.Image{Config: docker.Config{Cmd: []string{"work"}}}
+	e.Registry["alpine:latest"] = dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}}
 	client := e.Client()
 	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond}}
 	s := &testServer{

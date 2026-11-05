@@ -68,8 +68,9 @@ type Runtime interface {
 	// kept, which the server keeps for 7 days after a deletion: if that is
 	// gone, Run fails rather than make the container with it empty.
 	Run(ctx context.Context, t Target, spec *resourcev1.Container, restore bool) error
-	// SetRestart changes the restart policy of a running container.
-	SetRestart(ctx context.Context, t Target, policy resourcev1.RestartPolicy) error
+	// Update changes what Docker can change on a running container: its restart
+	// policy, and its limits.
+	Update(ctx context.Context, t Target, spec *resourcev1.Container) error
 	// Remove stops and removes the container.
 	Remove(ctx context.Context, t Target) error
 	// Healthy reports whether the container is running and passes its
@@ -143,6 +144,9 @@ func (*Driver) Validate(spec proto.Message) error {
 	if slices.Equal(c.Networks, []string{bridge}) {
 		c.Networks = nil
 	}
+	if err := checkOnItsOwn(c); err != nil {
+		return err
+	}
 	return checkOwnNames(c)
 }
 
@@ -163,6 +167,11 @@ func Normalize(c *resourcev1.Container) {
 	sortPorts(c)
 	sortMounts(c)
 	slices.Sort(c.Networks)
+	slices.Sort(c.ExternalNetworks)
+	slices.Sort(c.Aliases)
+	slices.Sort(c.CapAdd)
+	slices.Sort(c.CapDrop)
+	slices.Sort(c.GroupAdd)
 }
 
 // checkOwnNames keeps a container on its own out of what isn't its own.
@@ -228,6 +237,9 @@ func Validate(c *resourcev1.Container) error {
 	if err := validateMounts(c); err != nil {
 		return err
 	}
+	if n := len(c.GetNetworks()); n > maxNames {
+		return fmt.Errorf("the container joins %d networks, and Dockwell takes up to %d. Join fewer", n, maxNames)
+	}
 	seen := map[string]bool{}
 	for _, n := range c.GetNetworks() {
 		switch {
@@ -245,7 +257,28 @@ func Validate(c *resourcev1.Container) error {
 		}
 		c.WorkingDir = path.Clean(wd)
 	}
+	if err := validateRestart(c); err != nil {
+		return err
+	}
+	if err := validateNetworking(c); err != nil {
+		return err
+	}
+	if err := validateResources(c); err != nil {
+		return err
+	}
+	if err := validatePrivileges(c); err != nil {
+		return err
+	}
 	return validateHealthcheck(c)
+}
+
+// validateRestart refuses a count of restarts on a policy with none, which
+// Docker refuses as it makes the container, so only once the change is applied.
+func validateRestart(c *resourcev1.Container) error {
+	if c.GetRestartRetries() > 0 && c.GetRestart() != resourcev1.RestartPolicy_RESTART_POLICY_ON_FAILURE {
+		return fmt.Errorf("only on-failure restarts a set number of times, and this container's policy is %s. Use on-failure, or leave restart_retries out", restartNames[c.GetRestart()])
+	}
+	return nil
 }
 
 // What one container may ask for, far past what anything needs. Checks and
@@ -453,9 +486,9 @@ func (d *Driver) ObserveAt(ctx context.Context, t Target) (proto.Message, error)
 }
 
 // Plan recreates the container for any change Docker can't make in place,
-// which is all of them except the restart policy. A recreated container
-// with a health check is down for the recreate, and may take until its
-// check passes to be healthy again (UntilHealthy).
+// which is all of them except the restart policy and its limits (inPlace). A
+// recreated container with a health check is down for the recreate, and may
+// take until its check passes to be healthy again (UntilHealthy).
 func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
 	switch {
 	case actual == nil:
@@ -463,15 +496,7 @@ func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) 
 	case desired == nil:
 		return resource.Decision{Action: resource.ActionDelete}, nil
 	}
-	// Only a change that is nothing but the restart policy happens in place.
-	inPlace := len(changes) > 0
-	for _, c := range changes {
-		if c.Path != "restart" {
-			inPlace = false
-			break
-		}
-	}
-	if inPlace {
+	if inPlace(changes) {
 		return resource.Decision{Action: resource.ActionUpdate}, nil
 	}
 	downtime := d.RecreateDowntime
@@ -483,6 +508,24 @@ func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) 
 		dec.UntilHealthy = downtime + b
 	}
 	return dec, nil
+}
+
+// inPlace reports a change that is nothing but what Docker changes on a running
+// container: the restart policy, and its limits. It reads a limit of zero as
+// leaving it as it is, so lifting one takes a new container.
+func inPlace(changes []resource.Change) bool {
+	for _, c := range changes {
+		switch c.Path {
+		case "restart", "restart_retries":
+		case "resources.cpus", "resources.memory", "resources.memory_reservation":
+			if c.Op == resource.OpRemoved {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return len(changes) > 0
 }
 
 // Docker's defaults for a health check's interval, timeout and retries.
@@ -576,7 +619,7 @@ func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desi
 	case resource.ActionCreate, resource.ActionReplace:
 		return d.Runtime.Run(ctx, t, desired.(*resourcev1.Container), step.Restores)
 	case resource.ActionUpdate:
-		return d.Runtime.SetRestart(ctx, t, desired.(*resourcev1.Container).GetRestart())
+		return d.Runtime.Update(ctx, t, desired.(*resourcev1.Container))
 	case resource.ActionDelete:
 		return d.Runtime.Remove(ctx, t)
 	default:

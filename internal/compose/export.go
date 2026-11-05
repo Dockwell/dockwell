@@ -40,11 +40,31 @@ type (
 		Environment map[string]*string `yaml:"environment,omitempty"`
 		Ports       []quoted           `yaml:"ports,omitempty"`
 		Volumes     []string           `yaml:"volumes,omitempty"`
-		Networks    []string           `yaml:"networks,omitempty"`
-		NetworkMode string             `yaml:"network_mode,omitempty"`
-		Restart     string             `yaml:"restart"`
-		Healthcheck *healthEntry       `yaml:"healthcheck,omitempty"`
-		Labels      map[string]string  `yaml:"labels,omitempty"`
+		// Networks is a list of names, or a mapping that gives each its aliases.
+		Networks    any               `yaml:"networks,omitempty"`
+		NetworkMode string            `yaml:"network_mode,omitempty"`
+		Restart     string            `yaml:"restart"`
+		Healthcheck *healthEntry      `yaml:"healthcheck,omitempty"`
+		Labels      map[string]string `yaml:"labels,omitempty"`
+		Deploy      *deployEntry      `yaml:"deploy,omitempty"`
+		CapAdd      []string          `yaml:"cap_add,omitempty"`
+		CapDrop     []string          `yaml:"cap_drop,omitempty"`
+		GroupAdd    []string          `yaml:"group_add,omitempty"`
+		Privileged  bool              `yaml:"privileged,omitempty"`
+	}
+	joinEntry struct {
+		Aliases []string `yaml:"aliases,omitempty"`
+	}
+	deployEntry struct {
+		Resources limitsEntry `yaml:"resources"`
+	}
+	limitsEntry struct {
+		Limits       *amountEntry `yaml:"limits,omitempty"`
+		Reservations *amountEntry `yaml:"reservations,omitempty"`
+	}
+	amountEntry struct {
+		CPUs   string `yaml:"cpus,omitempty"`
+		Memory string `yaml:"memory,omitempty"`
 	}
 	healthEntry struct {
 		Test        []string `yaml:"test,omitempty"`
@@ -59,6 +79,7 @@ type (
 		DriverOpts map[string]string `yaml:"driver_opts,omitempty"`
 		Internal   bool              `yaml:"internal,omitempty"`
 		Labels     map[string]string `yaml:"labels,omitempty"`
+		External   bool              `yaml:"external,omitempty"`
 	}
 	volumeEntry struct {
 		Driver     string            `yaml:"driver,omitempty"`
@@ -99,7 +120,17 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		}
 		entry := serviceEntry{
 			Image: escape(c.GetImage()), Command: escapeAll(c.GetCommand()),
-			User: escape(c.GetUser()), WorkingDir: escape(c.GetWorkingDir()), Networks: c.GetNetworks(),
+			User: escape(c.GetUser()), WorkingDir: escape(c.GetWorkingDir()),
+			CapAdd: c.GetCapAdd(), CapDrop: c.GetCapDrop(), GroupAdd: c.GetGroupAdd(), Privileged: c.GetPrivileged(),
+			Networks: exportNetworks(c), Deploy: exportResources(c.GetResources()),
+		}
+		// A network the server has is listed as external, by its name in Docker, so
+		// docker compose joins it and never makes it.
+		for _, n := range c.GetExternalNetworks() {
+			if f.Networks == nil {
+				f.Networks = map[string]networkEntry{}
+			}
+			f.Networks[n] = networkEntry{External: true}
 		}
 		switch {
 		case c.GetNoEntrypoint():
@@ -149,7 +180,10 @@ func Export(project string, stack *Stack) (*Exported, error) {
 			}
 			entry.Volumes = append(entry.Volumes, escape(v))
 		}
-		if len(entry.Networks) == 0 {
+		switch {
+		case c.GetHostNetwork():
+			entry.NetworkMode = "host"
+		case entry.Networks == nil:
 			// Not Compose's default network, which it would make: Docker's
 			// bridge, which Dockwell ran it on.
 			entry.NetworkMode = "bridge"
@@ -158,6 +192,9 @@ func Export(project string, stack *Stack) (*Exported, error) {
 			if name != "" && policy == c.GetRestart() {
 				entry.Restart = name
 			}
+		}
+		if n := c.GetRestartRetries(); n > 0 {
+			entry.Restart += ":" + strconv.FormatUint(uint64(n), 10)
 		}
 		if hc := c.GetHealthcheck(); hc != nil {
 			if slices.Equal(hc.GetTest(), []string{"NONE"}) {
@@ -242,6 +279,39 @@ func Export(project string, stack *Stack) (*Exported, error) {
 	}
 	slices.Sort(omitted)
 	return &Exported{File: buf.Bytes(), Omitted: omitted}, nil
+}
+
+// exportNetworks are the networks a service's entry lists, as a list, or as a
+// mapping when it answers to other names on them, as Compose has them for each
+// network. Nil is none.
+func exportNetworks(c *resourcev1.Container) any {
+	names := slices.Concat(c.GetNetworks(), c.GetExternalNetworks())
+	if len(names) == 0 {
+		return nil
+	}
+	if len(c.GetAliases()) == 0 {
+		return names
+	}
+	out := make(map[string]joinEntry, len(names))
+	for _, n := range names {
+		out[n] = joinEntry{Aliases: c.GetAliases()}
+	}
+	return out
+}
+
+// exportResources are a service's limits as Compose has them, or nil for none.
+func exportResources(r *resourcev1.Resources) *deployEntry {
+	if r == nil {
+		return nil
+	}
+	var out deployEntry
+	if r.GetCpus() != "" || r.GetMemory() != "" {
+		out.Resources.Limits = &amountEntry{CPUs: r.GetCpus(), Memory: r.GetMemory()}
+	}
+	if r.GetMemoryReservation() != "" {
+		out.Resources.Reservations = &amountEntry{Memory: r.GetMemoryReservation()}
+	}
+	return &out
 }
 
 // environment is a container's own environment for a Compose file, and

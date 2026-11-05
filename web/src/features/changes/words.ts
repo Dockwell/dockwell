@@ -185,6 +185,20 @@ export function useChangeWords(): ChangeWords {
             return t`the domain ${path}, which the environment ${detail} held within the last 7 days`;
           case HostAccessKind.PANEL_DOMAIN:
             return t`the panel's domain, ${path}, which moves behind ${detail}`;
+          case HostAccessKind.EXTERNAL_NETWORK:
+            return detail === ""
+              ? t`the network ${path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them`
+              : t`the network ${path}, which is on the server already, where it answers to its name and to ${detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them`;
+          case HostAccessKind.CAPABILITY:
+            return access.sameAsRoot
+              ? t`the Linux capability ${path}, which is the same as root`
+              : t`the Linux capability ${path}`;
+          case HostAccessKind.GROUP:
+            return access.sameAsRoot
+              ? t`the group ${path}, which is the same as root`
+              : t`the group ${path}, which is the same as root if it is the group that owns Docker's socket on the server`;
+          case HostAccessKind.PRIVILEGED:
+            return t`privileged mode, which gives it every device and capability on the server, the same as root`;
         }
         return t`something else on the server`;
       },

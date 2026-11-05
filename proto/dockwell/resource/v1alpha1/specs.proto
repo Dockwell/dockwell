@@ -54,6 +54,51 @@ message Container {
   // Runs no entrypoint, not even the image's, as Compose's "entrypoint: []"
   // does: the command runs on its own. Takes no entrypoint beside it.
   bool no_entrypoint = 13;
+  // Networks a service joins that Dockwell didn't make, by their names in
+  // Docker, such as "1panel-network". Each must be on the server already:
+  // Dockwell never makes, changes or deletes one. Whatever else is on it can
+  // reach the service, so joining one is host access, which a person approves.
+  // A container on its own names Docker's networks in networks.
+  repeated string external_networks = 20;
+  // Runs a service on the server's own network, with none of its own, as
+  // Compose's "network_mode: host" does. It is host access, and takes no
+  // networks, ports or aliases. A container on its own names "host" in networks.
+  bool host_network = 21;
+  // Other names containers on a service's networks reach it by, beside its
+  // service's name, such as a Compose file's container_name. No two services
+  // on a network can answer to one name.
+  repeated string aliases = 22;
+  // What it may use of the server's CPU and memory. Unset has no limits.
+  Resources resources = 23;
+  // Linux capabilities it gets beyond Docker's default ones, such as
+  // "NET_ADMIN", or "ALL". It is host access.
+  repeated string cap_add = 24;
+  // Linux capabilities it gives up, such as "NET_RAW", or "ALL".
+  repeated string cap_drop = 25;
+  // Groups its command joins beside its user's, by name or number, such as
+  // "audio" or "999". It is host access: joining the group that owns Docker's
+  // socket is the same as root.
+  repeated string group_add = 26;
+  // Runs it with every device and capability on the server, the same as root.
+  // It is host access.
+  bool privileged = 27;
+  // How many times on-failure restarts it before giving up. 0 has no limit.
+  // Only on-failure takes one.
+  uint32 restart_retries = 28;
+}
+
+// Resources is what a container may use of its server. Docker changes these on
+// a running container, except to lift one: that recreates it.
+message Resources {
+  // The most CPUs it may use, such as "0.5" or "2", to three decimal places.
+  // Empty has no limit.
+  string cpus = 1;
+  // The most memory it may use, such as "512M" or "2G", from 6M, in units of
+  // 1024. Empty has no limit.
+  string memory = 2;
+  // The memory Docker tries to leave it when the server runs short, such as
+  // "256M", from 6M and no more than memory. Empty reserves none.
+  string memory_reservation = 3;
 }
 
 // Mount puts a volume, or a directory on the server, into a container.

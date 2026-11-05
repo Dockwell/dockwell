@@ -76,7 +76,12 @@ type Engine struct {
 	mu        sync.Mutex
 	intercept func(*http.Request) error
 	// Registry has the images a pull can find, by reference.
-	Registry   map[string]Image
+	Registry map[string]Image
+	// RegistryDown has the registry not answer, so the engine can't say what it
+	// has.
+	RegistryDown bool
+	// NCPU is how many CPUs the fake server has. Zero means 8.
+	NCPU       int
 	images     map[string]*image // pulled, by reference and by ID
 	containers map[string]*container
 	volumes    map[string]*docker.Volume
@@ -97,6 +102,9 @@ type container struct {
 	docker.Container
 	img     *image
 	created int64 // when it was made, in a count that only goes up
+	// memorySwap is the swap Docker holds for it: twice a memory limit it was
+	// made with, and none without one.
+	memorySwap int64
 }
 
 // New starts a fake engine on a socket in a test's temporary directory,
@@ -214,7 +222,9 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		if e.UsernsRemap {
 			options = append(options, "name=userns")
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options})
+		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu()})
+	case parts[0] == "distribution":
+		e.serveDistribution(w, path)
 	case parts[0] == "containers":
 		e.serveContainers(w, r, parts[1:])
 	case parts[0] == "images":
@@ -226,6 +236,39 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		fail(w, http.StatusNotFound, "page not found")
 	}
+}
+
+// ncpu is how many CPUs the fake server has.
+func (e *Engine) ncpu() int {
+	if e.NCPU > 0 {
+		return e.NCPU
+	}
+	return 8
+}
+
+// serveDistribution answers as the engine does when asked what a registry has:
+// a reference the registry has, or an error as it reports one, for each thing
+// Unreachable and the Registry say.
+func (e *Engine) serveDistribution(w http.ResponseWriter, path string) {
+	if e.RegistryDown {
+		fail(w, http.StatusInternalServerError, "Get \"https://registry-1.docker.io/v2/\": net/http: request canceled while waiting for connection")
+		return
+	}
+	ref := strings.TrimSuffix(strings.TrimPrefix(path, "/distribution/"), "/json")
+	if _, ok := e.Registry[ref]; !ok {
+		fail(w, http.StatusNotFound, "manifest unknown: manifest unknown for %s", ref)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"Descriptor": map[string]string{"digest": "sha256:" + newID()}})
+}
+
+// AddLocalImage puts an image on the fake server that no registry has, as one
+// built there is.
+func (e *Engine) AddLocalImage(ref string, img Image) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	i := &image{id: "sha256:" + newID(), Image: img}
+	e.images[docker.WithTag(ref)], e.images[i.id] = i, i
 }
 
 // image finds a pulled image as the engine takes a reference: by its name
@@ -374,7 +417,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			return
 		}
 		for name, ep := range c.NetworkSettings.Networks {
-			if e.networks[name] == nil {
+			if e.networks[name] == nil && name != "host" {
 				fail(w, http.StatusNotFound, "network %s not found", name)
 				return
 			}
@@ -425,12 +468,34 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		c.Name = "/" + name
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && action == "update":
-		var body struct{ RestartPolicy docker.RestartPolicy }
+		var body struct {
+			docker.ContainerUpdate
+			MemorySwap int64 `json:"MemorySwap"`
+		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			fail(w, http.StatusBadRequest, "%v", err)
 			return
 		}
-		c.HostConfig.RestartPolicy = body.RestartPolicy
+		// As the engine has it: a memory limit past the swap it holds needs a new
+		// swap, and a limit of zero leaves it as it is.
+		h := &c.HostConfig
+		if body.Memory != 0 && body.Memory > c.memorySwap && body.MemorySwap == 0 {
+			fail(w, http.StatusConflict, "Conflicting options: Memory limit should be smaller than already set memoryswap limit, update the memoryswap at the same time")
+			return
+		}
+		if body.NanoCPUs != 0 {
+			h.NanoCPUs = body.NanoCPUs
+		}
+		if body.Memory != 0 {
+			h.Memory = body.Memory
+		}
+		if body.MemorySwap != 0 {
+			c.memorySwap = body.MemorySwap
+		}
+		if body.MemoryReservation != 0 {
+			h.MemoryReservation = body.MemoryReservation
+		}
+		h.RestartPolicy = body.RestartPolicy
 		writeJSON(w, http.StatusOK, map[string]any{"Warnings": []string{}})
 	case r.Method == http.MethodDelete && action == "":
 		if c.State.Running && r.URL.Query().Get("force") != "true" {
@@ -489,6 +554,9 @@ func (c *container) matches(f map[string][]string) bool {
 		return err == nil && (re.MatchString(c.Name) || re.MatchString(strings.TrimPrefix(c.Name, "/")))
 	}) && passes("volume", func(v string) bool {
 		return slices.ContainsFunc(c.Mounts, func(m docker.MountPoint) bool { return m.Name == v || m.Source == v || m.Destination == v })
+	}) && passes("network", func(v string) bool {
+		_, on := c.NetworkSettings.Networks[v]
+		return on
 	})
 }
 
@@ -499,6 +567,14 @@ func (e *Engine) list(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fail(w, http.StatusBadRequest, "%v", err)
 		return
+	}
+	// The engine takes a network by its name or a prefix of its ID.
+	for i, v := range f["network"] {
+		for _, n := range e.networks {
+			if strings.HasPrefix(n.ID, v) {
+				f["network"][i] = n.Name
+			}
+		}
 	}
 	all := r.URL.Query().Get("all")
 	out := []docker.ContainerSummary{}
@@ -648,6 +724,7 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 	c.Image = img.id
 	c.Config = merge(req.Config, img.Config)
 	c.HostConfig = req.HostConfig
+	c.memorySwap = 2 * req.HostConfig.Memory
 	c.State = docker.State{Status: "created"}
 	if e.UsernsRemap && req.HostConfig.NetworkMode == "host" && req.HostConfig.UsernsMode != "host" {
 		fail(w, http.StatusBadRequest, "cannot share the host's network namespace when user namespaces are enabled")
@@ -658,7 +735,17 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 		mode = "bridge"
 		c.HostConfig.NetworkMode = "bridge"
 	}
-	// The engine takes networks as references, and reports them by name.
+	if h := req.HostConfig; h.NanoCPUs > int64(e.ncpu())*1e9 {
+		fail(w, http.StatusBadRequest, "Range of CPUs is from 0.01 to %d.00, as there are only %d CPUs available", e.ncpu(), e.ncpu())
+		return
+	}
+	// The engine takes networks as references, and reports them by name. The
+	// server's own network is one it has from the start.
+	if mode == "host" {
+		c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{"host": {}}
+		e.finishCreate(w, c, &req)
+		return
+	}
 	n := e.network(w, mode)
 	if n == nil {
 		return
@@ -669,9 +756,19 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 		if n == nil {
 			return
 		}
+		if n.Name == "bridge" && s != nil && len(s.Aliases) > 0 {
+			fail(w, http.StatusBadRequest, "network-scoped alias is supported only for containers in user defined networks")
+			return
+		}
 		s.NetworkID = n.ID
 		c.NetworkSettings.Networks[n.Name] = s
 	}
+	e.finishCreate(w, c, &req)
+}
+
+// finishCreate mounts what the new container mounts, and records it.
+func (e *Engine) finishCreate(w http.ResponseWriter, c *container, req *docker.CreateRequest) {
+	img := c.img
 	covered := map[string]bool{}
 	for _, m := range req.HostConfig.Mounts {
 		covered[m.Target] = true

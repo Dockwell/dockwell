@@ -5,6 +5,7 @@ package revision
 import (
 	"context"
 	"slices"
+	"strings"
 
 	"google.golang.org/protobuf/proto"
 
@@ -57,7 +58,7 @@ func (e *Engine) checkReferences(ctx context.Context, tx *store.Tx, items []item
 		return s.Name, nil
 	}
 	for _, scopeID := range scopes {
-		all, err := e.standing(ctx, tx, items, scopeID)
+		all, err := e.standing(ctx, tx, items, scopeID, false)
 		if err != nil {
 			return err
 		}
@@ -103,10 +104,85 @@ func (e *Engine) checkReferences(ctx context.Context, tx *store.Tx, items []item
 	return nil
 }
 
+// checkAnswers refuses a change that leaves two resources in a scope answering
+// to one name on a network, on a server they share, as each could get the other's
+// traffic: such as a service whose container_name is another's name. A name is
+// looked up without regard to case, as DNS names are. What other scopes run on a
+// network the server has is on the server, where the agent checks it (the
+// container driver's checkExternalNetworks).
+//
+// It looks only at what the change makes answer to something new, or moves: so a
+// clash stored before it holds up only a change to one of the two, and a new image
+// or a rotation opens no other service's spec, as they leave every name where it
+// was (ADR 0022).
+func (e *Engine) checkAnswers(ctx context.Context, tx *store.Tx, items []item) error {
+	moved := map[resource.Ref]bool{}
+	var scopes []string
+	for i := range items {
+		it := &items[i]
+		if it.spec == nil {
+			continue
+		}
+		answers := e.kinds.Answers(it.ref, it.spec)
+		if len(answers) == 0 || sameAnswers(answers, e.kinds.Answers(it.ref, it.current)) && slices.Equal(it.servers, it.placed) {
+			continue
+		}
+		moved[it.ref] = true
+		if !slices.Contains(scopes, it.ref.Scope) {
+			scopes = append(scopes, it.ref.Scope)
+		}
+	}
+	for _, scopeID := range scopes {
+		all, err := e.standing(ctx, tx, items, scopeID, true)
+		if err != nil {
+			return err
+		}
+		answering := map[resource.Answer][]*live{}
+		for i := range all {
+			r := &all[i]
+			for _, c := range e.kinds.Answers(r.ref, r.spec) {
+				key := c
+				key.Name = strings.ToLower(c.Name)
+				for _, other := range answering[key] {
+					if other.ref == r.ref || !moved[r.ref] && !moved[other.ref] || !shareServer(r, other) {
+						continue
+					}
+					first, second := other.ref, r.ref
+					if moved[first] && !moved[second] {
+						first, second = second, first
+					}
+					return fault.New(ErrInvalid, "%s %s and %s %s would both answer to %s on the network %s, so each could get the other's traffic. "+
+						"Rename one, or change its container_name, or take one off the network", first.Kind, first.Name, second.Kind, second.Name, c.Name, c.Network)
+				}
+				answering[key] = append(answering[key], r)
+			}
+		}
+	}
+	return nil
+}
+
+// sameAnswers reports two lists that hold the same names on the same networks.
+func sameAnswers(a, b []resource.Answer) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	have := make(map[resource.Answer]bool, len(b))
+	for _, c := range b {
+		have[c] = true
+	}
+	return !slices.ContainsFunc(a, func(c resource.Answer) bool { return !have[c] })
+}
+
+// shareServer reports two resources placed on a server in common.
+func shareServer(a, b *live) bool {
+	return slices.ContainsFunc(a.servers, func(s string) bool { return slices.Contains(b.servers, s) })
+}
+
 // standing lists what lives in a scope once the change applies, with
 // where each runs: what is stored there, less what the change deletes,
-// with what it makes and changes.
-func (e *Engine) standing(ctx context.Context, tx *store.Tx, items []item, scopeID string) ([]live, error) {
+// with what it makes and changes. open says the caller reads what is stored
+// whatever the change touches.
+func (e *Engine) standing(ctx context.Context, tx *store.Tx, items []item, scopeID string, open bool) ([]live, error) {
 	stored, err := tx.ListResources(ctx, scopeID, "")
 	if err != nil {
 		return nil, err
@@ -121,7 +197,7 @@ func (e *Engine) standing(ctx context.Context, tx *store.Tx, items []item, scope
 	// and only if the change touches a kind it can name. Otherwise its spec
 	// stays sealed: a rotation opens the services it pins again, and no
 	// others (ADR 0022).
-	named := false
+	named := open
 	for ref := range inChange {
 		named = named || e.kinds.Named(ref.Kind)
 	}
