@@ -388,9 +388,14 @@ msgstr "{name} 使用的是 <0>{image}</0>，与那次部署之前相同。请�
 msgid "{name} is still deploying. You can review this plan once that ends."
 msgstr "{name} 仍在部署中。部署结束后即可审阅这个计划。"
 
+
 #: src/features/logs/LogsPage.tsx
 msgid "{name} hasn't written anything. Its first lines show here as it writes them."
 msgstr "{name} 还没有写入任何内容。它一写入，第一批日志就会显示在这里。"
+
+#: src/features/apps/AddPortSheet.tsx
+msgid "{name} is still deploying. You can review this plan once that ends."
+msgstr "{name} 仍在部署中。部署结束后即可审阅这个计划。"
 
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} is waiting for its agent"
@@ -511,10 +516,6 @@ msgstr "{path}，作为它信任的代理，相信它所说的请求来源"
 msgid "{plain, plural, one {# variable} other {# variables}}"
 msgstr "{plain, plural, other {# 个变量}}"
 
-#: src/features/logs/LogFoot.tsx
-msgid "{rangeLabel}, to {to}. Refresh for newer lines."
-msgstr "{rangeLabel}，截至 {to}。刷新可查看更新的日志。"
-
 #: src/features/changes/words.ts
 msgid "{proxy} isn't running on {server}, so this route starts it, and it takes ports {ports}"
 msgstr "{proxy} 未在 {server} 上运行，因此此路由将启动它，并由它占用端口 {ports}"
@@ -522,6 +523,10 @@ msgstr "{proxy} 未在 {server} 上运行，因此此路由将启动它，并由
 #: src/features/changes/words.ts
 msgid "{proxy} restarts on {server}, for a newer version, so everything it serves is down for that long"
 msgstr "{proxy} 将在 {server} 上重启以更新版本，重启期间它提供的所有服务都不可用"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{rangeLabel}, to {to}. Refresh for newer lines."
+msgstr "{rangeLabel}，截至 {to}。刷新可查看更新的日志。"
 
 #: src/features/changes/words.ts
 msgid "{reads}, relabelled for SELinux as private"
@@ -2758,7 +2763,7 @@ msgstr "服务器上还没有它的镜像，因此其自带的健康检查未知
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
-msgstr ""
+msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Its logs show here once they can be read."
@@ -4514,13 +4519,13 @@ msgstr "显示 {name} 的动态"
 msgid "Show the apps"
 msgstr "查看应用"
 
-#: src/features/apps/NewAppSheet.tsx
-msgid "Show the value"
-msgstr "显示值"
-
 #: src/features/logs/LogsPage.tsx
 msgid "Show the current logs"
 msgstr "显示当前日志"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Show the value"
+msgstr "显示值"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Show what happened on {name}"
