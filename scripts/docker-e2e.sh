@@ -170,18 +170,21 @@ person_apply() {
   fail "$1 is $state after 120 s, want applied"
 }
 # token_refused checks that the server itself refuses a token applying a change,
-# through its API, rather than the CLI's own check that stops short of asking.
+# through its API, rather than the CLI's own check that stops short of asking. The
+# token is the one that check protects: the read-write token dockwell login --local
+# keeps, an API token like any other to the server. Each dw --yes before this has
+# applied a plan with it, so a refusal is about this plan, and not the token.
 token_refused() {
-  local fingerprint answer
+  local token fingerprint answer
+  token=$(priv cat "$data/control/local-token.json" | jq -r .token) || fail "can't read the token dockwell login --local keeps"
+  [[ "$token" == dwt_* ]] || fail "the token dockwell login --local keeps isn't an API token: ${token:0:8}"
   fingerprint=$(change_field "$1" plan.fingerprint) || fail "can't read the plan of $1"
-  answer=$(curl -sS --max-time 30 -i -w '\n%{http_code}' -H "Authorization: Bearer $api_token" -H 'Content-Type: application/json' \
+  answer=$(curl -sS --max-time 30 -i -w '\n%{http_code}' -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
     -d "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\"}" "http://$addr/dockwell.v1.ChangeService/ApplyChange") || fail "the API didn't answer a token applying $1"
   [[ "${answer##*$'\n'}" == 403 ]] || fail "the server let a token apply $1: $answer"
   grep -qi '^dockwell-error: needs_session' <<<"$answer" || fail "the server refused a token applying $1 for another reason: $answer"
   [[ "$(change_field "$1" state)" == CHANGE_STATE_PLANNED ]] || fail "$1 isn't planned after the token was refused"
 }
-api_token=$(person_call TokenService/CreateToken '{"name":"e2e","scope":"TOKEN_SCOPE_READ_WRITE"}' | jq -r .secret) || fail "can't make an API token"
-[[ "$api_token" == dwt_* ]] || fail "making an API token gave '$api_token'"
 
 ports="{\"hostPort\":$web_port,\"containerPort\":80,\"hostIp\":\"127.0.0.1\"}"
 
