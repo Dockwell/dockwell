@@ -444,8 +444,10 @@ func (m *Manager) routesOf(ctx context.Context, s Service) ([]Route, uint32, err
 
 // Endpoint says how a new container of an instance joins the ingress network.
 func (m *Manager) Endpoint(ctx context.Context, i Instance) (string, docker.EndpointSettings, bool, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	if err := m.mu.lock(ctx); err != nil {
+		return "", docker.EndpointSettings{}, false, err
+	}
+	defer m.mu.unlock()
 	if err := m.table.load(m.Dir); err != nil {
 		return "", docker.EndpointSettings{}, false, err
 	}
@@ -465,8 +467,10 @@ func (m *Manager) Endpoint(ctx context.Context, i Instance) (string, docker.Endp
 // AddUpstream sends new requests to the instance too, on every route that
 // serves its service.
 func (m *Manager) AddUpstream(ctx context.Context, i Instance) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	if err := m.mu.lock(ctx); err != nil {
+		return err
+	}
+	defer m.mu.unlock()
 	if err := m.table.load(m.Dir); err != nil {
 		return err
 	}
@@ -511,14 +515,16 @@ const drainPoll = 250 * time.Millisecond
 // Drain stops sending new requests to the instance, and waits until those in
 // flight finish.
 func (m *Manager) Drain(ctx context.Context, i Instance) error {
-	m.mu.Lock()
+	if err := m.mu.lock(ctx); err != nil {
+		return err
+	}
 	if err := m.table.load(m.Dir); err != nil {
-		m.mu.Unlock()
+		m.mu.unlock()
 		return err
 	}
 	a, ok := m.table.Addresses[i.String()]
 	if !ok {
-		m.mu.Unlock()
+		m.mu.unlock()
 		return nil
 	}
 	var ups []string
@@ -530,7 +536,7 @@ func (m *Manager) Drain(ctx context.Context, i Instance) error {
 		}
 		r.Upstreams = slices.DeleteFunc(r.Upstreams, func(u string) bool { return u == up })
 	})
-	m.mu.Unlock()
+	m.mu.unlock()
 	if err != nil {
 		return err
 	}
@@ -563,8 +569,10 @@ func (m *Manager) Drain(ctx context.Context, i Instance) error {
 // RemoveUpstream forgets the instance and frees its address. Its service keeps
 // at least one: a route needs an upstream.
 func (m *Manager) RemoveUpstream(ctx context.Context, i Instance) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	if err := m.mu.lock(ctx); err != nil {
+		return err
+	}
+	defer m.mu.unlock()
 	if err := m.table.load(m.Dir); err != nil {
 		return err
 	}

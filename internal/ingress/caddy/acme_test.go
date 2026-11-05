@@ -173,7 +173,7 @@ func startCaddyWithCA(t *testing.T, p *pebble, panel *ingress.PanelSite, only st
 		challenges[off] = map[string]any{"disabled": true}
 		c.issuerForTest = map[string]any{
 			"module": "acme", "ca": p.directory, "challenges": challenges,
-			"trusted_roots_pem_files": []string{filepath.Join(proc.Paths().Config, acmeRootsName)},
+			"trusted_roots_pem_files": []string{filepath.Join(proc.Paths().Boot, acmeRootsName)},
 		}
 	}
 	t.Cleanup(func() { proc.stop(syscall.SIGKILL) })
@@ -275,14 +275,14 @@ func TestTheBootstrapNamesItsCA(t *testing.T) {
 	if err := c.prepare(nil); err != nil {
 		t.Fatal(err)
 	}
-	b, err := os.ReadFile(filepath.Join(dir, "config", bootstrapName))
+	b, err := os.ReadFile(filepath.Join(dir, bootDirName, bootstrapName))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(b), "https://ca.example/dir") || !strings.Contains(string(b), acmeRootsName) {
 		t.Errorf("the bootstrap names no CA: %s", b)
 	}
-	if got, _ := os.ReadFile(filepath.Join(dir, "config", acmeRootsName)); string(got) != "not a root yet" {
+	if got, _ := os.ReadFile(filepath.Join(dir, bootDirName, acmeRootsName)); string(got) != "not a root yet" {
 		t.Errorf("the roots weren't copied where Caddy reads them: %q", got)
 	}
 }

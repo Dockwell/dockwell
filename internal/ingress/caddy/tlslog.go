@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/dockwell/dockwell/internal/ingress"
@@ -25,8 +26,28 @@ type logReader struct {
 	last   map[string]ingress.CertState
 }
 
+// Bounds on what the log costs to read, as it is in Caddy's directory, and a
+// compromised Caddy can write anything there: what one read takes, and how many
+// names it remembers. Caddy rolls the log at 1 MB, and a server has at most
+// ingress.MaxRoutes of them.
+const (
+	logReadLimit = 4 << 20
+	logNames     = 4096
+)
+
+// read takes what is new in the log at path. It reads a regular file only,
+// never through a link, and at most logReadLimit each time, leaving the rest
+// for next time.
 func (l *logReader) read(path string) error {
-	f, err := os.Open(path) //nolint:gosec // under the ingress's own directory
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("can't read what Caddy says of its certificates: %w", err)
+	}
+	defer root.Close()
+	f, err := openRegular(root, filepath.Base(path))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
@@ -44,12 +65,16 @@ func (l *logReader) read(path string) error {
 	if _, err := f.Seek(l.offset, io.SeekStart); err != nil {
 		return fmt.Errorf("can't read what Caddy says of its certificates: %w", err)
 	}
-	r := bufio.NewReader(f)
+	r := bufio.NewReader(io.LimitReader(f, logReadLimit))
 	for {
 		line, err := r.ReadBytes('\n')
 		if err != nil {
 			// A line without its end is one Caddy is writing: it is read whole
-			// next time.
+			// next time. One longer than a whole read is no line of Caddy's,
+			// and would hold up the log for ever.
+			if len(line) >= logReadLimit {
+				l.offset += int64(len(line))
+			}
 			return nil
 		}
 		l.offset += int64(len(line))
@@ -67,7 +92,7 @@ func (l *logReader) take(line []byte) {
 	if json.Unmarshal(line, &e) != nil || e.Identifier == "" {
 		return
 	}
-	if l.last == nil {
+	if l.last == nil || len(l.last) >= logNames {
 		l.last = map[string]ingress.CertState{}
 	}
 	switch {

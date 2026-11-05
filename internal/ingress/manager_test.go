@@ -38,6 +38,9 @@ type fakeProxy struct {
 	certs    map[string]CertState
 	inFlight map[string]int
 	retries  int
+	// recovered and recoverErr are what Recover says.
+	recovered  bool
+	recoverErr error
 }
 
 func (p *fakeProxy) Name() string { return "Caddy" }
@@ -103,15 +106,19 @@ func (p *fakeProxy) PutRoute(_ context.Context, r Route) error {
 	return nil
 }
 
+// DeleteRoute works with the proxy down, as a real one edits its last config.
 func (p *fakeProxy) DeleteRoute(_ context.Context, id string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if !p.status.Running {
-		return errors.New("caddy isn't running")
-	}
 	p.log = append(p.log, "delete "+id)
 	p.routes = slices.DeleteFunc(p.routes, func(r Route) bool { return r.ID == id })
 	return nil
+}
+
+func (p *fakeProxy) Recover(context.Context) (bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.recovered, p.recoverErr
 }
 
 func (p *fakeProxy) SetPanel(_ context.Context, panel *PanelSite) error {
@@ -598,18 +605,202 @@ func TestAFirstRouteThatCantStartLeavesNoTrace(t *testing.T) {
 	}
 }
 
-// A route in a stopped proxy's last config still goes, through the proxy.
-func TestRemovingARouteStartsAProxySomeoneStopped(t *testing.T) {
+// Removing a route must always work, so it doesn't start a proxy someone
+// stopped, or one that can't start. The route comes out of its last config, and
+// the agent's reconcile starts it when it can.
+func TestRemovingARouteLeavesAStoppedProxyStopped(t *testing.T) {
 	s := newSetup(t)
 	s.apply(t, "a", spec("a.example.com", "", "web", 80))
 	s.apply(t, "b", spec("b.example.com", "", "web", 80))
 	s.proxy.status = Status{Exists: true}
+	s.proxy.log = nil
 	if err := s.Apply(t.Context(), routeRef("a"), nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	routes, _ := s.proxy.Routes(t.Context())
-	if len(routes) != 1 || !s.proxy.status.Running {
+	if len(routes) != 1 || routes[0].Domain != "b.example.com" || s.proxy.status.Running {
 		t.Errorf("routes %+v, status %+v", routes, s.proxy.status)
+	}
+	if slices.Contains(s.proxy.log, "start") {
+		t.Errorf("the proxy did %v", s.proxy.log)
+	}
+}
+
+// The owner stopped Caddy and another proxy took the ports back. A route still
+// goes, and so does the last, which stops what is left of Caddy.
+func TestARouteCanBeRemovedWithAnotherProxyOnThePorts(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "www", spec("a.example.com", "", "web", 80))
+	if err := s.Proxy.Stop(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	s.proxy.status = Status{Exists: true}
+	s.proxy.startErr = errors.New("address already in use")
+	s.proc.listen("tcp", 80, "0A", "9001")
+	s.proc.process(1234, "nginx", "0::/", "9001")
+	ref := routeRef("www")
+	desired := []resource.Desired{{Ref: ref}}
+	effect, _, err := s.Judge(t.Context(), ref, nil, desired)
+	if err != nil {
+		t.Fatalf("Judge: %v", err)
+	}
+	if effect == nil || effect.Change != resource.IngressStops {
+		t.Errorf("effect = %+v, want the proxy stopping", effect)
+	}
+	if err := s.Apply(t.Context(), ref, nil, effect); err != nil {
+		t.Errorf("removing the route fails until the other proxy stops: %v", err)
+	}
+	if routes, _ := s.proxy.Routes(t.Context()); len(routes) != 0 {
+		t.Errorf("routes %+v", routes)
+	}
+	if Active(s.Dir) {
+		t.Error("the marker stayed, so the panel would stay off the ports")
+	}
+}
+
+// docker pause is one way to get here: an admin API that accepts a connection
+// and never answers, while Reconcile holds the lock with no deadline of its own.
+type hungProxy struct{ fakeProxy }
+
+func (*hungProxy) Routes(ctx context.Context) ([]Route, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func TestAHungProxyDoesntHoldUpPlans(t *testing.T) {
+	s := newSetup(t)
+	s.Proxy = &hungProxy{}
+	if err := os.WriteFile(filepath.Join(s.Dir, activeFile), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	agent, stop := context.WithCancel(t.Context())
+	reconciled := make(chan struct{})
+	go func() {
+		defer close(reconciled)
+		_ = s.Reconcile(agent)
+	}()
+	defer func() {
+		stop()
+		<-reconciled
+	}()
+	// Reconcile holds the lock once it is waiting on the proxy.
+	time.Sleep(100 * time.Millisecond)
+
+	plan, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- s.Check(plan, routeRef("www"), nil) }()
+	select {
+	case err := <-done:
+		if err == nil || !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "docker logs dockwell-ingress") {
+			t.Errorf("Check = %v, want it to say it stopped waiting, and how to look", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("a plan with a 200 ms deadline is still waiting after 5 s, on a lock Reconcile holds")
+	}
+	for name, call := range map[string]func(context.Context) error{
+		"Apply":     func(ctx context.Context) error { return s.Apply(ctx, routeRef("www"), nil, nil) },
+		"Verify":    func(ctx context.Context) error { return s.Verify(ctx, routeRef("www")) },
+		"Reconcile": s.Reconcile,
+		"Observe":   func(ctx context.Context) error { _, err := s.Observe(ctx, routeRef("www")); return err },
+		"Judge": func(ctx context.Context) error {
+			_, _, err := s.Judge(ctx, routeRef("www"), nil, nil)
+			return err
+		},
+		"Endpoint": func(ctx context.Context) error {
+			_, _, _, err := s.Endpoint(ctx, Instance{Project: "p", Service: "s", Number: 1})
+			return err
+		},
+		"AddUpstream":    func(ctx context.Context) error { return s.AddUpstream(ctx, Instance{Project: "p", Service: "s", Number: 1}) },
+		"Drain":          func(ctx context.Context) error { return s.Drain(ctx, Instance{Project: "p", Service: "s", Number: 1}) },
+		"RemoveUpstream": func(ctx context.Context) error { return s.RemoveUpstream(ctx, Instance{Project: "p", Service: "s", Number: 1}) },
+	} {
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+		if err := call(ctx); !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("%s = %v, want it to give up at its deadline", name, err)
+		}
+		cancel()
+	}
+}
+
+// A Release that ends early has stopped the listeners all the same, so the panel
+// must get its ports back, or nothing would until Dockwell restarts.
+func TestAReleaseThatEndsEarlyGivesThePortsBack(t *testing.T) {
+	s := newSetup(t)
+	retakes, failFirst := 0, true
+	s.Panel = &Panel{
+		Domain:  "panel.example.com",
+		Release: func(context.Context) error { return context.Canceled },
+		Retake: func(ctx context.Context) error {
+			if err := ctx.Err(); err != nil {
+				t.Errorf("Retake ran under an ended context: %v", err)
+			}
+			retakes++
+			if failFirst {
+				failFirst = false
+				return errors.New("address already in use")
+			}
+			return nil
+		},
+	}
+	if err := s.Apply(t.Context(), routeRef("www"), spec("a.example.com", "", "web", 80), nil); err == nil {
+		t.Fatal("Apply worked, with a release that failed")
+	}
+	if retakes != 1 {
+		t.Errorf("the panel was asked to retake its ports %d times, want at once", retakes)
+	}
+	if Active(s.Dir) {
+		t.Error("the marker stayed, so a restart of Dockwell would leave the panel off the ports")
+	}
+	// The old listeners may take a moment to let go, and the next reconcile
+	// tries again.
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if retakes != 2 {
+		t.Errorf("after a reconcile, %d retakes, want the failed one tried again", retakes)
+	}
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if retakes != 2 {
+		t.Errorf("after the retake worked, %d retakes", retakes)
+	}
+}
+
+// A first-come route must not read as serving while another serves its domain.
+func TestAShadowedRouteDoesntVerify(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "www", spec("a.example.com", "", "web", 80))
+	s.proxy.routes = append([]Route{{ID: "dockwell.env_old.www", Domain: "a.example.com"}}, s.proxy.routes...)
+	err := s.Verify(t.Context(), routeRef("www"))
+	if err == nil || !strings.Contains(err.Error(), "dockwell.env_old.www") {
+		t.Errorf("Verify = %v, want it to name the route ahead of it", err)
+	}
+}
+
+// A last config that was damaged is put right before anything reads it, and is
+// said once, with what it means.
+func TestReconcileRecoversFirstAndSaysSo(t *testing.T) {
+	s := newSetup(t)
+	var logs bytes.Buffer
+	s.Logger = slog.New(slog.NewTextHandler(&logs, nil))
+	s.apply(t, "www", spec("a.example.com", "", "web", 80))
+	s.proxy.recovered = true
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(logs.String(), "put back its own copy") {
+		t.Errorf("the log says: %s", logs.String())
+	}
+	// Failing to keep a copy doesn't stop the rest.
+	s.proxy.recovered, s.proxy.recoverErr = false, errors.New("disk full")
+	s.proxy.status = Status{Exists: true}
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if !s.proxy.status.Running {
+		t.Error("a failure to keep a copy of the config kept the proxy from starting")
 	}
 }
 

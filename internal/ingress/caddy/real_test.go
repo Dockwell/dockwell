@@ -56,7 +56,7 @@ type process struct {
 }
 
 func (p *process) Paths() Paths {
-	return Paths{Data: filepath.Join(p.dir, "data"), Config: filepath.Join(p.dir, "config"), Run: filepath.Join(p.dir, "run")}
+	return Paths{Data: filepath.Join(p.dir, "data"), Config: filepath.Join(p.dir, "config"), Run: filepath.Join(p.dir, "run"), Boot: filepath.Join(p.dir, bootDirName)}
 }
 
 func (p *process) Status(context.Context) (ingress.Status, error) {
@@ -83,7 +83,7 @@ func (p *process) Run(_ context.Context, config string) error {
 		return err
 	}
 	cmd := exec.Command(p.bin, "run", "--config", config, "--resume")
-	cmd.Env = append(os.Environ(), "XDG_DATA_HOME="+filepath.Join(p.dir, "data"), "XDG_CONFIG_HOME="+filepath.Join(p.dir, "config"))
+	cmd.Env = append(os.Environ(), "XDG_DATA_HOME="+filepath.Join(p.dir, "data"), "XDG_CONFIG_HOME="+filepath.Join(p.dir, "config"), AdminEnv(p.Paths()))
 	cmd.Stdout, cmd.Stderr = log, log
 	if err := cmd.Start(); err != nil {
 		return err
@@ -752,7 +752,7 @@ func TestCaddyResumesItsLastConfigOnRealCaddy(t *testing.T) {
 	}
 
 	// As Docker does after a reboot: the same command, and no agent in it.
-	if err := c.proc.Run(t.Context(), filepath.Join(c.proc.Paths().Config, bootstrapName)); err != nil {
+	if err := c.proc.Run(t.Context(), filepath.Join(c.proc.Paths().Boot, bootstrapName)); err != nil {
 		t.Fatal(err)
 	}
 	again := c.waitServing(t, "app.example.net", "/api/who")

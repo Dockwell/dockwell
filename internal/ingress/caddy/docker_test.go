@@ -72,6 +72,14 @@ func TestCaddysContainerIsAsTheADRSays(t *testing.T) {
 			t.Errorf("Binds = %v, want %s from the data directory, relabelled for SELinux", got.HostConfig.Binds, name)
 		}
 	}
+	// What Caddy reads as it starts is root's, and it can't change it.
+	if boot := filepath.Join(c.Dir, bootDirName) + ":" + containerBoot + ":ro,Z"; !slices.Contains(got.HostConfig.Binds, boot) {
+		t.Errorf("Binds = %v, want %s", got.HostConfig.Binds, boot)
+	}
+	// With no config to read, Caddy's default admin address is TCP.
+	if want := "CADDY_ADMIN=unix//run/dockwell/admin.sock|0600"; !slices.Contains(got.Config.Env, want) {
+		t.Errorf("Env = %v, want %s", got.Config.Env, want)
+	}
 	if l := got.HostConfig.LogConfig; l == nil || l.Config["max-size"] == "" {
 		t.Errorf("LogConfig = %+v, want its logs bounded", l)
 	}

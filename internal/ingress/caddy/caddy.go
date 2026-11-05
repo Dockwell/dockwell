@@ -53,12 +53,30 @@ const (
 	// a container's replacement starts, before it answers 502.
 	tryDuration = "3s"
 	tryInterval = "250ms"
+	// adminWait bounds one call of the admin API. A Caddy that hangs, as under
+	// docker pause, accepts a connection and never answers, and the agent holds
+	// up every plan on this server while it waits. A reload of the most routes a
+	// server may have takes under a second.
+	adminWait = 15 * time.Second
 )
 
 // Paths are where the proxy finds its directories, on its side of the mounts.
+// Boot is read-only to it, and the rest are its own.
 type Paths struct {
-	Data, Config, Run string
+	Data, Config, Run, Boot string
 }
+
+// adminListen is the admin API's address, on its socket. Caddy's default is TCP
+// on the server's loopback, where any process on the server could load a config
+// that serves every key it holds.
+func adminListen(p Paths) string {
+	return "unix/" + filepath.Join(p.Run, adminSocketName) + "|0600"
+}
+
+// AdminEnv tells Caddy the admin API's address in its environment, as well as in
+// its config. A config that names no address, which an empty last config is,
+// would otherwise put the admin API on Caddy's default.
+func AdminEnv(p Paths) string { return "CADDY_ADMIN=" + adminListen(p) }
 
 // Runtime is what runs the proxy process. Docker is the one the product uses;
 // tests run the binary.
@@ -92,6 +110,9 @@ type Caddy struct {
 	// HTTPPort and HTTPSPort are the public ports. Zero means 80 and 443.
 	HTTPPort, HTTPSPort int
 
+	// AdminWait bounds one call of the admin API. Zero means adminWait.
+	AdminWait time.Duration
+
 	// issuerForTest replaces the issuer in tests that need a certificate and
 	// no certificate authority.
 	issuerForTest map[string]any
@@ -101,6 +122,11 @@ type Caddy struct {
 
 	logMu sync.Mutex
 	log   logReader
+
+	// good is the config last written to goodFile, so a config that hasn't
+	// changed isn't written again each minute.
+	goodMu sync.Mutex
+	good   []byte
 }
 
 var _ ingress.Proxy = (*Caddy)(nil)
@@ -111,6 +137,7 @@ func (*Caddy) Name() string { return Name }
 func (c *Caddy) dataDir() string   { return filepath.Join(c.Dir, "data") }
 func (c *Caddy) configDir() string { return filepath.Join(c.Dir, "config") }
 func (c *Caddy) runDir() string    { return filepath.Join(c.Dir, "run") }
+func (c *Caddy) bootDir() string   { return filepath.Join(c.Dir, bootDirName) }
 
 // PanelSocket is where the panel listens for what Caddy sends it, on the
 // server's side, under dir.
@@ -119,6 +146,9 @@ func PanelSocket(dir string) string { return filepath.Join(dir, "run", panelSock
 const (
 	adminSocketName = "admin.sock"
 	panelSocketName = "panel.sock"
+	// bootDirName is what Caddy reads as it starts, which is root's: its
+	// container mounts it read-only (ADR 0024).
+	bootDirName = "boot"
 )
 
 func (c *Caddy) client() *http.Client {
@@ -140,7 +170,13 @@ var errDown = errors.New("caddy isn't answering")
 
 // call makes a request of Caddy's admin API, and returns its body and ETag.
 func (c *Caddy) call(ctx context.Context, method, path string, body []byte, header http.Header) ([]byte, string, error) {
-	req, err := http.NewRequestWithContext(ctx, method, "http://dockwell"+path, bytes.NewReader(body))
+	wait := c.AdminWait
+	if wait == 0 {
+		wait = adminWait
+	}
+	bounded, cancel := context.WithTimeout(ctx, wait)
+	defer cancel()
+	req, err := http.NewRequestWithContext(bounded, method, "http://dockwell"+path, bytes.NewReader(body))
 	if err != nil {
 		return nil, "", err
 	}
@@ -158,9 +194,12 @@ func (c *Caddy) call(ctx context.Context, method, path string, body []byte, head
 		return nil, "", fmt.Errorf("%w: %w", errDown, err)
 	}
 	defer res.Body.Close()
-	b, err := io.ReadAll(io.LimitReader(res.Body, 64<<20))
+	b, err := io.ReadAll(io.LimitReader(res.Body, maxConfigFile))
 	if err != nil {
-		return nil, "", err
+		if ctx.Err() != nil {
+			return nil, "", ctx.Err()
+		}
+		return nil, "", fmt.Errorf("%w: %w", errDown, err)
 	}
 	if res.StatusCode >= 300 {
 		return nil, "", &adminError{Status: res.StatusCode, Message: errorOf(b)}
@@ -311,8 +350,8 @@ func plainHTTPRules(p *ingress.PanelSite) []map[string]any {
 }
 
 // bootstrap is the config Caddy starts with when it has no last config of its
-// own. It always names the admin socket: Caddy's default is TCP on the
-// server's loopback.
+// own. It names the admin socket, as AdminEnv does: Caddy's default is TCP on
+// the server's loopback.
 func (c *Caddy) bootstrap(panel *ingress.PanelSite) ([]byte, error) {
 	paths := c.Runtime.Paths()
 	httpPort, httpsPort := c.ports()
@@ -331,7 +370,7 @@ func (c *Caddy) bootstrap(panel *ingress.PanelSite) ([]byte, error) {
 	}
 	config := map[string]any{
 		"admin": map[string]any{
-			"listen": "unix/" + filepath.Join(paths.Run, adminSocketName) + "|0600",
+			"listen": adminListen(paths),
 			"config": map[string]any{"persist": true},
 		},
 		"logging": map[string]any{"logs": map[string]any{
@@ -366,7 +405,7 @@ func (c *Caddy) ports() (httpPort, httpsPort int) {
 	return httpPort, httpsPort
 }
 
-// acmeRootsName is where the CA's roots are, in the proxy's config directory.
+// acmeRootsName is where the CA's roots are, in the boot directory.
 const acmeRootsName = "acme-roots.pem"
 
 // issuer is the certificates' issuer, when it isn't Caddy's default of Let's
@@ -384,7 +423,7 @@ func (c *Caddy) issuer(paths Paths) map[string]any {
 		issuer["ca"] = c.ACMEDirectory
 	}
 	if c.ACMERoots != "" {
-		issuer["trusted_roots_pem_files"] = []string{filepath.Join(paths.Config, acmeRootsName)}
+		issuer["trusted_roots_pem_files"] = []string{filepath.Join(paths.Boot, acmeRootsName)}
 	}
 	if httpPort != 80 || httpsPort != 443 {
 		issuer["challenges"] = map[string]any{
@@ -411,7 +450,11 @@ func (c *Caddy) Start(ctx context.Context, panel *ingress.PanelSite) error {
 	if err := c.prepare(panel); err != nil {
 		return err
 	}
-	if err := c.Runtime.Run(ctx, filepath.Join(c.Runtime.Paths().Config, bootstrapName)); err != nil {
+	// A damaged last config would start it with nothing, or not at all.
+	if _, err := c.repairFile(); err != nil {
+		return err
+	}
+	if err := c.Runtime.Run(ctx, filepath.Join(c.Runtime.Paths().Boot, bootstrapName)); err != nil {
 		return err
 	}
 	wait, cancel := context.WithTimeout(ctx, startWait)
@@ -419,6 +462,7 @@ func (c *Caddy) Start(ctx context.Context, panel *ingress.PanelSite) error {
 	for {
 		_, _, err := c.call(wait, http.MethodGet, routesPath, nil, nil)
 		if err == nil {
+			c.keepRunning(wait)
 			return nil
 		}
 		if !errors.Is(err, errDown) {
@@ -450,6 +494,9 @@ func (c *Caddy) failedToStart(ctx context.Context, what string) error {
 const bootstrapName = "bootstrap.json"
 
 // prepare makes Caddy's directories, and writes what it reads as it starts.
+// That goes in the boot directory, which is root's and read-only to Caddy, so
+// nothing Caddy does can change where a write of root's lands, or what it reads
+// when it next starts.
 func (c *Caddy) prepare(panel *ingress.PanelSite) error {
 	if err := EnsureDirs(c.Dir); err != nil {
 		return err
@@ -458,16 +505,16 @@ func (c *Caddy) prepare(panel *ingress.PanelSite) error {
 	if err != nil {
 		return err
 	}
-	if err := writeOwned(filepath.Join(c.configDir(), bootstrapName), b); err != nil {
-		return err
+	if err := writeIn(c.bootDir(), bootstrapName, b, 0o644, agentOwns); err != nil {
+		return fmt.Errorf("can't write Caddy's bootstrap config: %w", err)
 	}
 	if c.ACMERoots != "" {
 		roots, err := os.ReadFile(c.ACMERoots)
 		if err != nil {
 			return fmt.Errorf("can't read the ACME CA's roots from %s: %w", c.ACMERoots, err)
 		}
-		if err := writeOwned(filepath.Join(c.configDir(), acmeRootsName), roots); err != nil {
-			return err
+		if err := writeIn(c.bootDir(), acmeRootsName, roots, 0o644, agentOwns); err != nil {
+			return fmt.Errorf("can't write the ACME CA's roots: %w", err)
 		}
 	}
 	return nil
@@ -504,50 +551,64 @@ func EnsureDirs(dir string) error {
 			}
 		}
 	}
+	// What Caddy reads as it starts stays root's, and needs its directory open
+	// to read, as Caddy isn't root. Its container mounts it read-only, and the
+	// ingress's own directory keeps everyone else out on the server.
+	boot := filepath.Join(dir, bootDirName)
+	if err := os.MkdirAll(boot, 0o755); err != nil { //nolint:gosec // read by Caddy's user; nothing in it is secret
+		return fmt.Errorf("can't create %s: %w", boot, err)
+	}
+	if err := os.Chmod(boot, 0o755); err != nil { //nolint:gosec // as above
+		return fmt.Errorf("can't open %s to Caddy's user: %w", boot, err)
+	}
 	return nil
 }
 
-// OwnSocket gives the panel's socket to Caddy's user, and nobody else.
+// OwnSocket gives the panel's socket to Caddy's user, and nobody else. Its
+// directory is Caddy's, so what stands at the name by now may not be the socket:
+// the owner goes on whatever is there, never through a link, and the mode stays
+// in that directory.
 func OwnSocket(path string) error {
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return fmt.Errorf("can't reach the panel's socket: %w", err)
+	}
+	defer root.Close()
+	name := filepath.Base(path)
 	uid, gid, chown := proxyUser()
 	if chown {
-		if err := os.Chown(path, uid, gid); err != nil {
+		if err := root.Lchown(name, uid, gid); err != nil {
 			return fmt.Errorf("can't give the panel's socket to Caddy's user: %w", err)
 		}
 	}
-	if err := os.Chmod(path, 0o600); err != nil {
+	if err := root.Chmod(name, 0o600); err != nil {
 		return fmt.Errorf("can't keep the panel's socket owner-only: %w", err)
 	}
 	return nil
 }
 
-func writeOwned(path string, b []byte) error {
-	if err := os.WriteFile(path, b, 0o600); err != nil { //nolint:gosec // a path under the ingress's own directory
-		return fmt.Errorf("can't write %s: %w", path, err)
-	}
-	uid, gid, chown := proxyUser()
-	if chown {
-		if err := os.Chown(path, uid, gid); err != nil {
-			return fmt.Errorf("can't give %s to Caddy's user: %w", path, err)
-		}
-	}
-	return nil
-}
-
-// autosaveFile is Caddy's last config.
-func (c *Caddy) autosaveFile() string { return filepath.Join(c.configDir(), "caddy", "autosave.json") }
+// autosaveFile is Caddy's last config, for messages.
+func (c *Caddy) autosaveFile() string { return filepath.Join(c.configDir(), autosaveRel) }
 
 // Stop stops Caddy and frees its ports, keeping its certificates. Its last
-// config is set aside, not left to resume: a server's next first route starts
-// from the bootstrap, with what this build sets.
+// config is set aside, not left to resume, and the agent's copy goes: a server's
+// next first route starts from the bootstrap, with what this build sets.
 func (c *Caddy) Stop(ctx context.Context) error {
 	if err := c.Runtime.Remove(ctx); err != nil {
 		return err
 	}
-	if err := os.Rename(c.autosaveFile(), c.autosaveFile()+".last"); err != nil && !errors.Is(err, os.ErrNotExist) {
+	root, err := os.OpenRoot(c.configDir())
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+	case err != nil:
 		return fmt.Errorf("can't set aside Caddy's last config: %w", err)
+	default:
+		defer root.Close()
+		if err := root.Rename(autosaveRel, autosaveRel+".last"); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("can't set aside Caddy's last config: %w", err)
+		}
 	}
-	return nil
+	return c.forgetGood()
 }
 
 // rawRoutes reads the routes with Caddy's own ETag, or from its last config
@@ -559,18 +620,22 @@ func (c *Caddy) rawRoutes(ctx context.Context) ([]json.RawMessage, string, bool,
 		return routes, etag, true, err
 	}
 	if !errors.Is(err, errDown) {
+		// A Caddy with no config at all says the path to the routes is invalid.
 		var ae *adminError
-		if errors.As(err, &ae) && ae.Status == http.StatusNotFound {
+		if errors.As(err, &ae) && (ae.Status == http.StatusNotFound || strings.Contains(ae.Message, "invalid traversal path")) {
 			return nil, etag, true, nil
 		}
 		return nil, "", false, err
 	}
-	saved, err := os.ReadFile(c.autosaveFile())
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, "", false, nil
-	}
+	saved, missing, err := c.lastConfig()
 	if err != nil {
 		return nil, "", false, fmt.Errorf("can't read Caddy's last config: %w", err)
+	}
+	if missing {
+		return nil, "", false, nil
+	}
+	if damaged(saved) {
+		return nil, "", false, fmt.Errorf("caddy isn't answering, and its last config in %s is damaged, as a full disk or a power cut can leave it. The agent puts back its own copy within a minute", c.autosaveFile())
 	}
 	var config struct {
 		Apps struct {
@@ -732,6 +797,9 @@ func (c *Caddy) mutate(ctx context.Context, edit func([]json.RawMessage) ([]json
 		if errors.As(err, &ae) && ae.Status == http.StatusPreconditionFailed && try < 3 {
 			continue
 		}
+		if err == nil {
+			c.keepRunning(ctx)
+		}
 		return err
 	}
 }
@@ -755,8 +823,17 @@ func sortRoutes(routes []json.RawMessage) {
 		r, _ := readRoute(raw)
 		return key{rank: 2, domain: r.Domain, path: r.Path}
 	}
-	slices.SortStableFunc(routes, func(a, b json.RawMessage) int {
-		ka, kb := keyOf(a), keyOf(b)
+	type keyed struct {
+		raw json.RawMessage
+		key key
+	}
+	// Reading a route is the most of this, so each is read once.
+	list := make([]keyed, len(routes))
+	for i, raw := range routes {
+		list[i] = keyed{raw, keyOf(raw)}
+	}
+	slices.SortStableFunc(list, func(a, b keyed) int {
+		ka, kb := a.key, b.key
 		switch {
 		case ka.rank != kb.rank:
 			return ka.rank - kb.rank
@@ -769,15 +846,43 @@ func sortRoutes(routes []json.RawMessage) {
 		}
 		return strings.Compare(ka.path, kb.path)
 	})
+	for i := range list {
+		routes[i] = list[i].raw
+	}
 }
 
-// PutRoute adds a route, or changes the one with its ID.
+// projectOf is the environment in a route's ID, ingress.RouteID.
+func projectOf(id string) string {
+	parts := strings.SplitN(id, ".", 3)
+	if len(parts) != 3 {
+		return ""
+	}
+	return parts[1]
+}
+
+// replacedBy reports a route of Dockwell's that can't stand beside r, and is left
+// from before: the engine lets one route hold a domain and path, and one
+// environment hold a domain, across an install. So another route for r's domain
+// and path, or for its domain from another environment, is what another control
+// plane or an older database left. It would otherwise stay ahead of r and go on
+// serving, while r's plan applied and verified.
+func replacedBy(raw json.RawMessage, r ingress.Route) bool {
+	old, ok := readRoute(raw)
+	if !ok || old.ID == r.ID || old.Domain != r.Domain {
+		return false
+	}
+	return old.Path == r.Path || projectOf(old.ID) != projectOf(r.ID)
+}
+
+// PutRoute adds a route, or changes the one with its ID, in one reload, and
+// takes out any left from before that it can't stand beside.
 func (c *Caddy) PutRoute(ctx context.Context, r ingress.Route) error {
 	body, err := json.Marshal(routeJSON(r))
 	if err != nil {
 		return err
 	}
 	return c.mutate(ctx, func(routes []json.RawMessage) ([]json.RawMessage, error) {
+		routes = slices.DeleteFunc(routes, func(raw json.RawMessage) bool { return replacedBy(raw, r) })
 		for i := range routes {
 			if routeID(routes[i]) == r.ID {
 				routes[i] = body
@@ -788,11 +893,27 @@ func (c *Caddy) PutRoute(ctx context.Context, r ingress.Route) error {
 	})
 }
 
-// DeleteRoute removes a route, if Caddy has it. With Caddy down it can't; the
-// last config still has it, so a step that needs Caddy says so.
+// DeleteRoute removes a route, if Caddy has it. With Caddy down it comes out of
+// the last config, which is what Caddy serves when it starts again, so a route
+// can always be removed: starting Caddy for it may be just what another proxy on
+// the ports stops. A Caddy that runs and doesn't answer, as under docker pause,
+// would write its own config back over that, so that says what to do instead.
 func (c *Caddy) DeleteRoute(ctx context.Context, id string) error {
-	return c.mutate(ctx, func(routes []json.RawMessage) ([]json.RawMessage, error) {
+	err := c.mutate(ctx, func(routes []json.RawMessage) ([]json.RawMessage, error) {
 		return slices.DeleteFunc(routes, func(raw json.RawMessage) bool { return routeID(raw) == id }), nil
+	})
+	if !errors.Is(err, errDown) {
+		return err
+	}
+	st, serr := c.Runtime.Status(ctx)
+	if serr != nil {
+		return serr
+	}
+	if st.Running {
+		return fmt.Errorf("caddy is running and isn't answering, so it can't remove the route: it would write its config back when it wakes. If it is paused, run docker unpause %s; otherwise run docker restart %s, and remove the route again", ingress.ContainerName, ingress.ContainerName)
+	}
+	return c.editLastConfig(func(routes []json.RawMessage) []json.RawMessage {
+		return slices.DeleteFunc(routes, func(raw json.RawMessage) bool { return routeID(raw) == id })
 	})
 }
 
@@ -854,6 +975,9 @@ func (c *Caddy) setPlainHTTP(ctx context.Context, panel *ingress.PanelSite) erro
 	var ae *adminError
 	if errors.As(err, &ae) && ae.Status == http.StatusNotFound {
 		_, _, err = c.call(ctx, http.MethodPut, path, body, nil)
+	}
+	if err == nil {
+		c.keepRunning(ctx)
 	}
 	return err
 }
@@ -920,13 +1044,39 @@ func (c *Caddy) Certificates(_ context.Context, domains []string) (map[string]in
 	return out, nil
 }
 
+// issuerDirs bounds how many certificate authorities' directories are looked in.
+// A server has used one or two, and these are Caddy's to fill.
+const issuerDirs = 64
+
 // issued finds a domain's certificate in Caddy's storage, one directory for
-// each CA it has used, and the latest that hasn't expired.
+// each CA it has used, and the latest that hasn't expired. It reads through
+// nothing Caddy could have left there: only regular files, of a bounded size,
+// inside its data directory.
 func (c *Caddy) issued(domain string) (time.Time, bool) {
 	var best time.Time
-	files, _ := filepath.Glob(filepath.Join(c.dataDir(), "caddy", "certificates", "*", domain, domain+".crt"))
-	for _, f := range files {
-		b, err := os.ReadFile(f) //nolint:gosec // under the ingress's own directory, with a domain Validate checked
+	root, err := os.OpenRoot(c.dataDir())
+	if err != nil {
+		return best, false
+	}
+	defer root.Close()
+	const certificates = "caddy/certificates"
+	dir, err := root.Open(certificates)
+	if err != nil {
+		return best, false
+	}
+	defer dir.Close()
+	issuers, err := dir.ReadDir(issuerDirs)
+	if err != nil {
+		return best, false
+	}
+	for _, issuer := range issuers {
+		name := filepath.Join(certificates, issuer.Name(), domain, domain+".crt")
+		f, err := openRegular(root, name)
+		if err != nil {
+			continue
+		}
+		b, err := io.ReadAll(io.LimitReader(f, maxCertFile))
+		_ = f.Close()
 		if err != nil {
 			continue
 		}

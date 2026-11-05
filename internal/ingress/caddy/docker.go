@@ -35,6 +35,7 @@ const (
 	containerData   = "/data"
 	containerConfig = "/config"
 	containerRun    = "/run/dockwell"
+	containerBoot   = "/etc/dockwell"
 )
 
 // stopWait is how long Caddy gets to finish what it is doing as it stops,
@@ -58,7 +59,7 @@ var _ Runtime = (*Container)(nil)
 
 // Paths are Caddy's directories in its container.
 func (*Container) Paths() Paths {
-	return Paths{Data: containerData, Config: containerConfig, Run: containerRun}
+	return Paths{Data: containerData, Config: containerConfig, Run: containerRun, Boot: containerBoot}
 }
 
 // reference is what to run.
@@ -153,18 +154,23 @@ func (c *Container) request(ref, config string) *docker.CreateRequest {
 	if err != nil {
 		dir = c.Dir
 	}
-	bind := func(name, target string) string { return filepath.Join(dir, name) + ":" + target + ":Z" }
+	bind := func(name, target, options string) string {
+		return filepath.Join(dir, name) + ":" + target + ":" + options
+	}
 	req := &docker.CreateRequest{Config: docker.Config{
 		Image:  ref,
 		Cmd:    []string{"caddy", "run", "--config", config, "--resume"},
 		User:   strconv.Itoa(uid) + ":" + strconv.Itoa(gid),
 		Labels: map[string]string{ownLabel: "caddy"},
-		Env:    []string{"XDG_DATA_HOME=" + containerData, "XDG_CONFIG_HOME=" + containerConfig},
+		Env:    []string{"XDG_DATA_HOME=" + containerData, "XDG_CONFIG_HOME=" + containerConfig, AdminEnv(c.Paths())},
 	}}
 	req.HostConfig = docker.HostConfig{
-		NetworkMode:    "host",
-		RestartPolicy:  docker.RestartPolicy{Name: "unless-stopped"},
-		Binds:          []string{bind("data", containerData), bind("config", containerConfig), bind("run", containerRun)},
+		NetworkMode:   "host",
+		RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},
+		Binds: []string{
+			bind("data", containerData, "Z"), bind("config", containerConfig, "Z"), bind("run", containerRun, "Z"),
+			bind(bootDirName, containerBoot, "ro,Z"),
+		},
 		CapDrop:        []string{"ALL"},
 		CapAdd:         []string{"NET_BIND_SERVICE"},
 		ReadonlyRootfs: true,
