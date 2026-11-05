@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -124,6 +125,27 @@ type Judge interface {
 	Judge(ctx context.Context, ref Ref, actual, desired proto.Message, changes []Change) (Decision, error)
 }
 
+// Runner is a driver whose resources run, and so can be there without running.
+type Runner interface {
+	// NotRunning says in a word how a resource that's there isn't running, such
+	// as "exited". It's empty for one that runs, or isn't there.
+	NotRunning(ctx context.Context, ref Ref) (string, error)
+}
+
+// StatePath names what differs, in a plan's changes, when a resource is there and
+// isn't running.
+const StatePath = "state"
+
+// notRunningWords are the words Docker has for a container that isn't running.
+var notRunningWords = []string{"created", "exited", "dead", "paused", "removing", "restarting", "stopped"}
+
+// IsStateChange says c is a resource starting that's there and isn't running. It
+// names no field of a spec, and its words are a known few, so it can't hold a
+// value someone should not see.
+func IsStateChange(c Change) bool {
+	return c.Path == StatePath && c.To == "running" && slices.Contains(notRunningWords, c.From)
+}
+
 // desiredKey is where a plan's context holds all it touches on the server.
 type desiredKey struct{}
 
@@ -182,14 +204,32 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, err
 		}
-		if want.Pull && spec != nil {
-			// Nothing differs as far as the specs say, but what its tag points at
-			// may. What that would take is what another image takes, as far as
-			// anyone can tell before it pulls.
-			if j, ok := d.(Judge); ok && step.Action == ActionNone {
-				dec, err := j.Judge(ctx, want.Ref, actual, spec, []Change{{Path: "image"}})
+		// A spec can't say it should be running, so nothing differs. What's there
+		// and isn't running has to be started again, which is what a replace does,
+		// and nothing is up for that to take down.
+		if r, ok := d.(Runner); ok && spec != nil && actual != nil {
+			state, err := r.NotRunning(ctx, want.Ref)
+			if err != nil {
+				return nil, fmt.Errorf("can't read %s: %w", want.Ref, err)
+			}
+			if state != "" {
+				changes := append(slices.Clone(step.Changes), Change{Path: StatePath, Op: OpModified, From: state, To: "running"})
+				dec, err := decide(ctx, d, want.Ref, actual, spec, changes)
 				if err != nil {
-					return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+					return nil, err
+				}
+				dec.Downtime = 0
+				step.Decision, step.Changes = dec, changes
+			}
+		}
+		if want.Pull && spec != nil {
+			// As far as the specs say, nothing differs or only its restart policy
+			// does, but what its tag points at may. What that would take is what
+			// another image takes, as far as anyone can tell before it pulls.
+			if step.Action == ActionNone || step.Action == ActionUpdate {
+				dec, err := decide(ctx, d, want.Ref, actual, spec, append(slices.Clone(step.Changes), Change{Path: "image"}))
+				if err != nil {
+					return nil, err
 				}
 				step.Decision = dec
 			}
@@ -219,6 +259,21 @@ func normalize(d Driver, spec proto.Message) (proto.Message, error) {
 		return nil, err
 	}
 	return spec, nil
+}
+
+// decide is what d says of changes, with what the server has if it can read it.
+func decide(ctx context.Context, d Driver, ref Ref, actual, desired proto.Message, changes []Change) (Decision, error) {
+	var dec Decision
+	var err error
+	if j, ok := d.(Judge); ok {
+		dec, err = j.Judge(ctx, ref, actual, desired, changes)
+	} else {
+		dec, err = d.Plan(actual, desired, changes)
+	}
+	if err != nil {
+		return Decision{}, fmt.Errorf("can't plan %s: %w", ref, err)
+	}
+	return dec, nil
 }
 
 // judgeStep is PlanStep with a Judge, which knows the server.
@@ -253,6 +308,10 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		ctx = WithValues(ctx, values)
 	}
 	if err := d.Apply(ctx, step, desired); errors.Is(err, ErrAlreadySo) {
+		// Nothing changed, and a step that reads done still says it's running.
+		if err := d.Verify(ctx, step.Ref, desired); err != nil {
+			return fmt.Errorf("%s is as asked, but it isn't healthy: %w", step.Ref, err)
+		}
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err)

@@ -2785,7 +2785,8 @@ type PlanNote struct {
 	// "updates_project" for a Compose file that changes a project already running
 	// services, "volumes_stay" for a rollback that leaves a service's data as it
 	// is, "values_latest" for one that keeps the latest value of what the service
-	// uses, "pulls_again" for a deploy of the tag it already names, and
+	// uses, "pulls_again" for a deploy of the tag it already names, "leaves_pin" for
+	// one of the tag a rollback pinned, which replaces it whatever the pull finds, and
 	// "digest_pinned" and "digest_gone" for a rollback that does, or can't, run
 	// exactly the image a revision ran. Another reason may come: its message says
 	// what it means.
@@ -3336,7 +3337,8 @@ type PlanStep struct {
 	ReturningContainers []string `protobuf:"bytes,16,rep,name=returning_containers,json=returningContainers,proto3" json:"returning_containers,omitempty"`
 	// True when the step asks the server for its image again first. With no
 	// changes, it replaces what runs only if that finds a newer image, and does
-	// nothing otherwise, which its progress says.
+	// nothing otherwise, which its progress says. With nothing but a restart policy
+	// to change, it changes that in place otherwise.
 	Pull bool `protobuf:"varint,17,opt,name=pull,proto3" json:"pull,omitempty"`
 	// True when the digest its spec pins is neither on the server nor in its
 	// registry, so applying it could only fail.
@@ -3754,7 +3756,13 @@ type StepProgress struct {
 	// When it started running. Unset until then.
 	StartTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 	// When it finished. Unset until then.
-	FinishTime    *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=finish_time,json=finishTime,proto3" json:"finish_time,omitempty"`
+	FinishTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=finish_time,json=finishTime,proto3" json:"finish_time,omitempty"`
+	// What the step did in the end, on this server, once it's done: action says
+	// what was planned, and only the step can say this, as a pull finds out as it
+	// goes. PLAN_ACTION_NONE left what runs exactly as it was. Unspecified until
+	// it's done, for a step that failed, and for one a run that stopped partway had
+	// done already.
+	Did           PlanAction `protobuf:"varint,14,opt,name=did,proto3,enum=dockwell.v1.PlanAction" json:"did,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3843,6 +3851,13 @@ func (x *StepProgress) GetFinishTime() *timestamppb.Timestamp {
 		return x.FinishTime
 	}
 	return nil
+}
+
+func (x *StepProgress) GetDid() PlanAction {
+	if x != nil {
+		return x.Did
+	}
+	return PlanAction_PLAN_ACTION_UNSPECIFIED
 }
 
 var File_dockwell_v1_change_proto protoreflect.FileDescriptor
@@ -4059,7 +4074,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x02op\x18\x02 \x01(\x0e2\x14.dockwell.v1.FieldOpR\x02op\x12\x12\n" +
 	"\x04from\x18\x03 \x01(\tR\x04from\x12\x0e\n" +
 	"\x02to\x18\x04 \x01(\tR\x02to\x12\x1c\n" +
-	"\tsensitive\x18\x05 \x01(\bR\tsensitive\"\xf3\x02\n" +
+	"\tsensitive\x18\x05 \x01(\bR\tsensitive\"\x9e\x03\n" +
 	"\fStepProgress\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
@@ -4071,7 +4086,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\n" +
 	"start_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x12;\n" +
 	"\vfinish_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"finishTime*\xaf\x01\n" +
+	"finishTime\x12)\n" +
+	"\x03did\x18\x0e \x01(\x0e2\x17.dockwell.v1.PlanActionR\x03did*\xaf\x01\n" +
 	"\vChangeState\x12\x1c\n" +
 	"\x18CHANGE_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14CHANGE_STATE_PLANNED\x10\x01\x12\x19\n" +
@@ -4311,31 +4327,32 @@ var file_dockwell_v1_change_proto_depIdxs = []int32{
 	10, // 59: dockwell.v1.StepProgress.state:type_name -> dockwell.v1.StepState
 	52, // 60: dockwell.v1.StepProgress.start_time:type_name -> google.protobuf.Timestamp
 	52, // 61: dockwell.v1.StepProgress.finish_time:type_name -> google.protobuf.Timestamp
-	11, // 62: dockwell.v1.ChangeService.ProposeChange:input_type -> dockwell.v1.ProposeChangeRequest
-	16, // 63: dockwell.v1.ChangeService.GetChange:input_type -> dockwell.v1.GetChangeRequest
-	18, // 64: dockwell.v1.ChangeService.ListChanges:input_type -> dockwell.v1.ListChangesRequest
-	20, // 65: dockwell.v1.ChangeService.ApplyChange:input_type -> dockwell.v1.ApplyChangeRequest
-	22, // 66: dockwell.v1.ChangeService.WatchChange:input_type -> dockwell.v1.WatchChangeRequest
-	25, // 67: dockwell.v1.ChangeService.UndoChange:input_type -> dockwell.v1.UndoChangeRequest
-	27, // 68: dockwell.v1.ChangeService.DiscardChange:input_type -> dockwell.v1.DiscardChangeRequest
-	29, // 69: dockwell.v1.ChangeService.ListDrift:input_type -> dockwell.v1.ListDriftRequest
-	33, // 70: dockwell.v1.ChangeService.RevertDrift:input_type -> dockwell.v1.RevertDriftRequest
-	35, // 71: dockwell.v1.ChangeService.AdoptDrift:input_type -> dockwell.v1.AdoptDriftRequest
-	15, // 72: dockwell.v1.ChangeService.ProposeChange:output_type -> dockwell.v1.ProposeChangeResponse
-	17, // 73: dockwell.v1.ChangeService.GetChange:output_type -> dockwell.v1.GetChangeResponse
-	19, // 74: dockwell.v1.ChangeService.ListChanges:output_type -> dockwell.v1.ListChangesResponse
-	21, // 75: dockwell.v1.ChangeService.ApplyChange:output_type -> dockwell.v1.ApplyChangeResponse
-	23, // 76: dockwell.v1.ChangeService.WatchChange:output_type -> dockwell.v1.WatchChangeResponse
-	26, // 77: dockwell.v1.ChangeService.UndoChange:output_type -> dockwell.v1.UndoChangeResponse
-	28, // 78: dockwell.v1.ChangeService.DiscardChange:output_type -> dockwell.v1.DiscardChangeResponse
-	30, // 79: dockwell.v1.ChangeService.ListDrift:output_type -> dockwell.v1.ListDriftResponse
-	34, // 80: dockwell.v1.ChangeService.RevertDrift:output_type -> dockwell.v1.RevertDriftResponse
-	36, // 81: dockwell.v1.ChangeService.AdoptDrift:output_type -> dockwell.v1.AdoptDriftResponse
-	72, // [72:82] is the sub-list for method output_type
-	62, // [62:72] is the sub-list for method input_type
-	62, // [62:62] is the sub-list for extension type_name
-	62, // [62:62] is the sub-list for extension extendee
-	0,  // [0:62] is the sub-list for field type_name
+	6,  // 62: dockwell.v1.StepProgress.did:type_name -> dockwell.v1.PlanAction
+	11, // 63: dockwell.v1.ChangeService.ProposeChange:input_type -> dockwell.v1.ProposeChangeRequest
+	16, // 64: dockwell.v1.ChangeService.GetChange:input_type -> dockwell.v1.GetChangeRequest
+	18, // 65: dockwell.v1.ChangeService.ListChanges:input_type -> dockwell.v1.ListChangesRequest
+	20, // 66: dockwell.v1.ChangeService.ApplyChange:input_type -> dockwell.v1.ApplyChangeRequest
+	22, // 67: dockwell.v1.ChangeService.WatchChange:input_type -> dockwell.v1.WatchChangeRequest
+	25, // 68: dockwell.v1.ChangeService.UndoChange:input_type -> dockwell.v1.UndoChangeRequest
+	27, // 69: dockwell.v1.ChangeService.DiscardChange:input_type -> dockwell.v1.DiscardChangeRequest
+	29, // 70: dockwell.v1.ChangeService.ListDrift:input_type -> dockwell.v1.ListDriftRequest
+	33, // 71: dockwell.v1.ChangeService.RevertDrift:input_type -> dockwell.v1.RevertDriftRequest
+	35, // 72: dockwell.v1.ChangeService.AdoptDrift:input_type -> dockwell.v1.AdoptDriftRequest
+	15, // 73: dockwell.v1.ChangeService.ProposeChange:output_type -> dockwell.v1.ProposeChangeResponse
+	17, // 74: dockwell.v1.ChangeService.GetChange:output_type -> dockwell.v1.GetChangeResponse
+	19, // 75: dockwell.v1.ChangeService.ListChanges:output_type -> dockwell.v1.ListChangesResponse
+	21, // 76: dockwell.v1.ChangeService.ApplyChange:output_type -> dockwell.v1.ApplyChangeResponse
+	23, // 77: dockwell.v1.ChangeService.WatchChange:output_type -> dockwell.v1.WatchChangeResponse
+	26, // 78: dockwell.v1.ChangeService.UndoChange:output_type -> dockwell.v1.UndoChangeResponse
+	28, // 79: dockwell.v1.ChangeService.DiscardChange:output_type -> dockwell.v1.DiscardChangeResponse
+	30, // 80: dockwell.v1.ChangeService.ListDrift:output_type -> dockwell.v1.ListDriftResponse
+	34, // 81: dockwell.v1.ChangeService.RevertDrift:output_type -> dockwell.v1.RevertDriftResponse
+	36, // 82: dockwell.v1.ChangeService.AdoptDrift:output_type -> dockwell.v1.AdoptDriftResponse
+	73, // [73:83] is the sub-list for method output_type
+	63, // [63:73] is the sub-list for method input_type
+	63, // [63:63] is the sub-list for extension type_name
+	63, // [63:63] is the sub-list for extension extendee
+	0,  // [0:63] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_change_proto_init() }

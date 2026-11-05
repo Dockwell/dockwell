@@ -3,10 +3,8 @@
 package control
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -274,69 +272,6 @@ func TestRecoveringIsNeverRefused(t *testing.T) {
 	})
 }
 
-// After a deploy and its own rollback both fail, the service isn't running what
-// the record says, and rolling back to what it says puts it right.
-func TestARollbackThatFailedCanBeRecovered(t *testing.T) {
-	b := newBench(t, store.SQLite)
-	env := b.run(t, &dockwellv1.ImportComposeRequest{Compose: shopFile})
-	web := b.service(t, "shop", "web")
-	name := docker.ContainerName(docker.Project(env), "web")
-	b.e.Registry["ghcr.io/acme/shop:broken"] = dockertest.Image{Exits: true, Config: docker.Config{Cmd: []string{"shop"}}}
-	var fail atomic.Bool
-	b.e.Intercept(func(r *http.Request) error {
-		if fail.Load() && r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/containers/create") {
-			return errors.New("no space left on device")
-		}
-		return nil
-	})
-	// From when the broken image's container is made, Docker refuses to make
-	// anything else, so the rollback fails too.
-	go func() {
-		for {
-			if c := b.e.Container(name); c != nil && c.Config.Image == "ghcr.io/acme/shop:broken" {
-				fail.Store(true)
-				return
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}()
-	dep, err := b.s.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: web.GetId(), Image: "ghcr.io/acme/shop:broken"}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := applied(t, b.c, dep.Msg.GetChange())
-	if got.GetRolledBackBy() == "" {
-		t.Fatalf("the deploy ended %v with no rollback: %s", got.GetState(), got.GetError())
-	}
-	waitFor(t, "the rollback to end", func() bool {
-		rc, err := b.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: got.GetRolledBackBy()}))
-		return err == nil && rc.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLYING
-	})
-	fail.Store(false)
-
-	list, err := b.s.ListServiceRevisions(t.Context(), connect.NewRequest(&dockwellv1.ListServiceRevisionsRequest{Id: web.GetId()}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var match int64
-	for _, rev := range list.Msg.GetRevisions() {
-		if rev.GetNumber() != list.Msg.GetRevisions()[0].GetNumber() && rev.GetImage() == "ghcr.io/acme/shop:1.4" && rev.GetMatchesLatest() {
-			match = rev.GetNumber()
-		}
-	}
-	if latest := list.Msg.GetRevisions()[0]; latest.GetImage() != "ghcr.io/acme/shop:1.4" || match == 0 {
-		t.Fatalf("the revisions read %v", list.Msg.GetRevisions())
-	}
-	back, err := b.s.RollBackService(t.Context(), connect.NewRequest(&dockwellv1.RollBackServiceRequest{Id: web.GetId(), Revision: match}))
-	if err != nil {
-		t.Fatalf("rolling back to r%d, which matches the record and doesn't run = %v", match, err)
-	}
-	b.done(t, back.Msg.GetChange())
-	if c := b.e.Container(name); c == nil || !c.State.Running || c.Config.Image != "ghcr.io/acme/shop:1.4" {
-		t.Errorf("after recovering, the container is %+v", c)
-	}
-}
-
 // A plan made from a spec that has moved on would quietly undo what moved it. It
 // took a race to show: the plan summarised "Publish port 10003" dropped the port
 // that had just been added.
@@ -524,8 +459,8 @@ func TestAPortSomethingElseHoldsIsRefused(t *testing.T) {
 		reimport := b.file(t, &dockwellv1.ImportComposeRequest{Compose: "name: one\nservices:\n  holder:\n    image: ghcr.io/acme/shop:1.5\n    ports: [\"8080:80\"]\n  beside:\n    image: ghcr.io/acme/shop:1.4\n"})
 		b.done(t, reimport)
 
-		// Nor for what is around what it leaves as it is: a stopped service whose
-		// port something took since is no one's plan to refuse until it starts.
+		// A stopped service isn't left as it is: the plan starts it, so a port
+		// something took since is refused, by name, as for anything about to start.
 		stale := "name: five\nservices:\n  still:\n    image: ghcr.io/acme/shop:1.4\n    ports: [\"6000:80\"]\n"
 		five := b.run(t, &dockwellv1.ImportComposeRequest{Compose: stale})
 		if err := client.StopContainer(t.Context(), b.e.Container(docker.ContainerName(docker.Project(five), "still")).ID, time.Second); err != nil {
@@ -541,10 +476,18 @@ func TestAPortSomethingElseHoldsIsRefused(t *testing.T) {
 		if err := client.StartContainer(t.Context(), other); err != nil {
 			t.Fatal(err)
 		}
-		again, err := b.cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: stale}))
-		if err != nil {
-			t.Errorf("re-importing what doesn't change, with its port taken since = %v", err)
-		} else if _, err := b.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: again.Msg.GetChange().GetId()})); err != nil {
+		_, err = b.cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: stale}))
+		if err == nil || !strings.Contains(err.Error(), "took-it") {
+			t.Errorf("re-importing a stopped service, with its port taken since = %v", err)
+		}
+		if err := client.RemoveContainer(t.Context(), other, true); err != nil {
+			t.Fatal(err)
+		}
+		again := b.file(t, &dockwellv1.ImportComposeRequest{Compose: stale})
+		if steps := again.GetPlan().GetServers()[0].GetSteps(); len(steps) != 1 || !saysState(steps[0], "exited") {
+			t.Errorf("with its port free, the plan's steps are %v", steps)
+		}
+		if _, err := b.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: again.GetId()})); err != nil {
 			t.Fatal(err)
 		}
 

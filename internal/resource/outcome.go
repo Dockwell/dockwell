@@ -11,8 +11,9 @@ import (
 )
 
 // ErrAlreadySo is what a driver's Apply returns when it found nothing to do,
-// which only it could find out, as a pull that finds nothing newer does. The step
-// succeeded, and left what runs alone, so it isn't verified.
+// which only it could find out, as a pull that finds nothing newer does. It
+// changed nothing, and what runs is still verified, as a step that reads done
+// says it runs, and is healthy.
 var ErrAlreadySo = errors.New("already as asked")
 
 // Outcome is what a step found out on its server, for the record.
@@ -26,9 +27,18 @@ type Outcome struct {
 	// Replacing says a pull found a newer image, and the step is about to replace
 	// what runs with it.
 	Replacing bool
-	// Note says, for people, why the step did nothing.
+	// Note says, for people, what the step did where its usual words wouldn't be
+	// true, as when it did nothing.
 	Note string
+	// Untouched says the step failed before it changed anything on the server,
+	// as a pull that can't reach its registry does, so what ran there still runs.
+	Untouched bool
+	// Did is what the step did in the end, where that isn't what its plan says.
+	Did *Action
 }
+
+// Did is what Outcome.Did holds.
+func Did(a Action) *Action { return &a }
 
 type outcomeKey struct{}
 

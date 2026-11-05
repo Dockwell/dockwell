@@ -821,6 +821,7 @@ func stepProto(s *revision.StepProgress) *dockwellv1.StepProgress {
 	if !s.Finished.IsZero() {
 		p.FinishTime = timestamppb.New(s.Finished)
 	}
+	p.Did = resourcepb.Did(s.Did)
 	return p
 }
 

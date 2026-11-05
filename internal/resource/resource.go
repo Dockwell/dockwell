@@ -149,8 +149,13 @@ type Decision struct {
 	// too short.
 	HealthUnknown bool `json:",omitempty"`
 	// Pull is true when the step asks the server for its image again first. With
-	// no Changes, it replaces what runs only if that finds a newer image.
+	// no Changes, it replaces what runs only if that finds a newer image. With
+	// nothing but a restart policy to change, it changes that in place otherwise.
 	Pull bool `json:",omitempty"`
+	// Pulled is true when a run stopped partway had already pulled on this server,
+	// as the record says. Resuming needs no registry, so it compares what the
+	// server has with what runs, and goes on from there.
+	Pulled bool `json:",omitempty"`
 	// ImageGone is true when the digest its spec pins is neither on the server nor
 	// in its registry, so applying it could only fail.
 	ImageGone bool `json:",omitempty"`

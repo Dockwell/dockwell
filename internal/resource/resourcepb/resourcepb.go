@@ -36,6 +36,26 @@ var actions = map[resource.Action]dockwellv1.PlanAction{
 // Action converts what a step does.
 func Action(a resource.Action) dockwellv1.PlanAction { return actions[a] }
 
+// ActionFrom reads an action of the schema as the model's, if this build knows it.
+func ActionFrom(p dockwellv1.PlanAction) (resource.Action, bool) { return from(actions, p) }
+
+// Did is what a step did in the end, as the schema has it: unspecified when it
+// hasn't said.
+func Did(a *resource.Action) dockwellv1.PlanAction {
+	if a == nil {
+		return dockwellv1.PlanAction_PLAN_ACTION_UNSPECIFIED
+	}
+	return actions[*a]
+}
+
+// DidFrom reads what a step did in the end, as the schema has it.
+func DidFrom(p dockwellv1.PlanAction) *resource.Action {
+	if a, ok := from(actions, p); ok {
+		return &a
+	}
+	return nil
+}
+
 // from reads an enum value of the schema as the model's, and reports
 // whether this build knows it.
 func from[M comparable, P comparable](m map[M]P, v P) (M, bool) {

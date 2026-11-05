@@ -273,8 +273,14 @@ func TestAPullThatFailsLeavesWhatRuns(t *testing.T) {
 	if ctr := b.e.Container(name); ctr.ID != before || !ctr.State.Running {
 		t.Error("a failed pull touched what runs")
 	}
-	if revs := b.revisions(t, web.GetId()); len(revs) != 1 {
-		t.Errorf("the revisions are %v", revs)
+	// What runs is untouched, so the revision it runs doesn't read as failed. The
+	// change says what happened.
+	revs := b.revisions(t, web.GetId())
+	if len(revs) != 1 {
+		t.Fatalf("the revisions are %v", revs)
+	}
+	if d := revs[0].GetDeployments()[0]; d.GetState() != dockwellv1.DeploymentState_DEPLOYMENT_STATE_LIVE || d.GetError() != "" {
+		t.Errorf("r1, which still runs, reads %v: %s", d.GetState(), d.GetError())
 	}
 }
 
@@ -306,6 +312,14 @@ func TestAPullThatFailsLeavesAPinnedApp(t *testing.T) {
 	ctr := b.e.Container(name)
 	if ctr.ID != before || !ctr.State.Running || ctr.Config.Image != latest+"@"+digestA {
 		t.Errorf("after a pull that failed, it's %s running %s, running %t; it was %s", ctr.ID, ctr.Config.Image, ctr.State.Running, before)
+	}
+	// The revision this change made never got there, whatever runs.
+	for _, rev := range b.revisions(t, web.GetId()) {
+		if rev.GetChange().GetId() == got.GetId() {
+			if d := rev.GetDeployments()[0]; d.GetState() != dockwellv1.DeploymentState_DEPLOYMENT_STATE_FAILED {
+				t.Errorf("the revision the failed pull made reads %v", d.GetState())
+			}
+		}
 	}
 }
 

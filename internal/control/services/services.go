@@ -249,15 +249,21 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 		// A tag can move, so naming the one it has means "whatever that is now". Only
 		// a digest can't, and the record can name one no server runs, which deploying
 		// again puts right, so only what the servers say refuses it.
-		again := resource.BareImage(app.GetImage()) == m.GetImage() && resource.BareImage(m.GetImage()) == m.GetImage()
+		running := app.GetImage()
+		again := resource.BareImage(running) == m.GetImage() && resource.BareImage(m.GetImage()) == m.GetImage()
 		app.Image = m.GetImage()
 		did := editing{
 			summary:   cmp.Or(m.GetSummary(), fmt.Sprintf("Deploy %s to %s", m.GetImage(), name)),
 			ifNothing: fault.New(revision.ErrInvalid, "%s already runs %s, which can't change, as a digest names one image. Name another image, such as a new tag", name, m.GetImage()),
 			pull:      again,
 		}
-		if again {
-			did.pullNote = fmt.Sprintf("Pulls %s again, and replaces %s only if that's a newer image", m.GetImage(), name)
+		switch {
+		case again && running == m.GetImage():
+			did.note = revision.Note{Reason: "pulls_again", Message: fmt.Sprintf("Pulls %s again, and replaces %s only if that's a newer image", m.GetImage(), name)}
+		case again:
+			// The container names the digest, and Docker can't change that in place,
+			// so this replaces it whatever the pull finds.
+			did.note = revision.Note{Reason: "leaves_pin", Message: fmt.Sprintf("Pulls %s again, and replaces %s with what that names now, in place of the digest it's pinned to", m.GetImage(), name)}
 		}
 		return did, nil
 	})
@@ -300,7 +306,7 @@ type editing struct {
 	summary   string
 	ifNothing error
 	pull      bool
-	pullNote  string
+	note      revision.Note
 }
 
 // edit plans a change to one service's container, read as it stands on the
@@ -336,8 +342,9 @@ func (h *Handler) edit(ctx context.Context, named, project, environment string, 
 	}
 	ref := resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}
 	var notes []revision.Note
-	if did.pullNote != "" {
-		notes = []revision.Note{{Reason: "pulls_again", Message: did.pullNote, Ref: ref}}
+	if did.note.Reason != "" {
+		did.note.Ref = ref
+		notes = []revision.Note{did.note}
 	}
 	return h.changes.Propose(ctx, did.summary, []*dockwellv1.Edit{{
 		Resource: resourcepb.Ref(ref),

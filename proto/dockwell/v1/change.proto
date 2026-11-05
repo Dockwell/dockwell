@@ -563,7 +563,8 @@ message PlanNote {
   // "updates_project" for a Compose file that changes a project already running
   // services, "volumes_stay" for a rollback that leaves a service's data as it
   // is, "values_latest" for one that keeps the latest value of what the service
-  // uses, "pulls_again" for a deploy of the tag it already names, and
+  // uses, "pulls_again" for a deploy of the tag it already names, "leaves_pin" for
+  // one of the tag a rollback pinned, which replaces it whatever the pull finds, and
   // "digest_pinned" and "digest_gone" for a rollback that does, or can't, run
   // exactly the image a revision ran. Another reason may come: its message says
   // what it means.
@@ -776,7 +777,8 @@ message PlanStep {
   repeated string returning_containers = 16;
   // True when the step asks the server for its image again first. With no
   // changes, it replaces what runs only if that finds a newer image, and does
-  // nothing otherwise, which its progress says.
+  // nothing otherwise, which its progress says. With nothing but a restart policy
+  // to change, it changes that in place otherwise.
   bool pull = 17;
   // True when the digest its spec pins is neither on the server nor in its
   // registry, so applying it could only fail.
@@ -928,6 +930,12 @@ message StepProgress {
   google.protobuf.Timestamp start_time = 7;
   // When it finished. Unset until then.
   google.protobuf.Timestamp finish_time = 8;
+  // What the step did in the end, on this server, once it's done: action says
+  // what was planned, and only the step can say this, as a pull finds out as it
+  // goes. PLAN_ACTION_NONE left what runs exactly as it was. Unspecified until
+  // it's done, for a step that failed, and for one a run that stopped partway had
+  // done already.
+  PlanAction did = 14;
 }
 
 // StepState is how a step is going.

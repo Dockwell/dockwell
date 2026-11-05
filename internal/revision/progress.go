@@ -52,6 +52,10 @@ type StepProgress struct {
 	Message  string    `json:"message,omitempty"`
 	Started  time.Time `json:"started,omitzero"`
 	Finished time.Time `json:"finished,omitzero"`
+	// Did is what the step did in the end, once it's done: Action says what was
+	// planned, and a pull finds out as it goes. Nil until then, for a step that
+	// failed, and for one a run that stopped partway had done already.
+	Did *resource.Action `json:"did,omitempty"`
 }
 
 // Progress is how each step of an applying change is going: the plan's
@@ -309,6 +313,21 @@ func (e *Engine) step(changeID string, i int, state StepState, message string) (
 	step := *s
 	c := p.clone()
 	return &c, &Update{Index: i, Step: &step}
+}
+
+// finished ends a step that ran, saying what it did in the end.
+func (e *Engine) finished(changeID string, i int, said string, did resource.Action) (*Progress, *Update) {
+	p, u := e.step(changeID, i, StepDone, said)
+	if p == nil {
+		return nil, nil
+	}
+	e.pmu.Lock()
+	defer e.pmu.Unlock()
+	if live, ok := e.live[changeID]; ok {
+		live.Steps[i].Did = &did
+	}
+	p.Steps[i].Did, u.Step.Did = &did, &did
+	return p, u
 }
 
 // progressed updates the message of a step that is running, as its

@@ -226,6 +226,11 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 	return binding.Restore(c.(*resourcev1.Container))
 }
 
+// NotRunning says how the service's container isn't running, in a word.
+func (d *Driver) NotRunning(ctx context.Context, ref resource.Ref) (string, error) {
+	return d.Containers.NotRunningAt(ctx, Target(ref))
+}
+
 // Plan judges the step as the container driver does for the app.
 func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
 	return d.Containers.Plan(app(actual), app(desired), inner(changes))
@@ -309,6 +314,7 @@ func inner(changes []resource.Change) []resource.Change {
 // environment holds the values of what the service uses, which the call
 // brought (resource.WithValues), and a label records what they came from.
 func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
+	step.Changes = inner(step.Changes)
 	if desired == nil {
 		return d.Containers.ApplyAt(ctx, Target(step.Ref), step, nil)
 	}

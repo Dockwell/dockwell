@@ -510,18 +510,11 @@ func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) 
 	return dec, nil
 }
 
-// inPlace reports a change that is nothing but what Docker changes on a running
-// container: the restart policy, and its limits. It reads a limit of zero as
-// leaving it as it is, so lifting one takes a new container.
+// inPlace says Docker can make changes without recreating the container, as it
+// can only for a change that is nothing but the restart policy.
 func inPlace(changes []resource.Change) bool {
 	for _, c := range changes {
-		switch c.Path {
-		case "restart", "restart_retries":
-		case "resources.cpus", "resources.memory", "resources.memory_reservation":
-			if c.Op == resource.OpRemoved {
-				return false
-			}
-		default:
+		if c.Path != "restart" {
 			return false
 		}
 	}
@@ -619,13 +612,30 @@ func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desi
 	case resource.ActionCreate, resource.ActionReplace:
 		spec := desired.(*resourcev1.Container)
 		if p, ok := d.Runtime.(puller); ok && step.Pull {
-			same, err := p.PullAgain(ctx, t, spec)
+			same, err := p.PullAgain(ctx, t, spec, step.Pulled)
 			if err != nil {
 				return err
 			}
-			// Only a step with nothing else to do stays as it is.
-			if same && step.Action == resource.ActionReplace && len(step.Changes) == 0 {
+			// With nothing newer, a step changes what it has to, which may be
+			// nothing, and only it can say so.
+			switch {
+			case !same || step.Action != resource.ActionReplace:
+			case len(step.Changes) == 0:
+				// One that resumes what it had pulled and replaced says so as any
+				// replace does.
+				if !step.Pulled {
+					resource.Report(ctx, resource.Outcome{
+						Did:  resource.Did(resource.ActionNone),
+						Note: fmt.Sprintf("%s is already the newest image, so %s stays as it is", spec.GetImage(), t.Service),
+					})
+				}
 				return resource.ErrAlreadySo
+			case inPlace(step.Changes):
+				resource.Report(ctx, resource.Outcome{
+					Did:  resource.Did(resource.ActionUpdate),
+					Note: fmt.Sprintf("%s is already the newest image, so only %s's restart policy changed", spec.GetImage(), t.Service),
+				})
+				return d.Runtime.SetRestart(ctx, t, spec.GetRestart())
 			}
 		}
 		return d.Runtime.Run(ctx, t, spec, step.Restores)
@@ -639,9 +649,27 @@ func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desi
 }
 
 // puller is a Runtime that can ask for an image again, and tell whether what it
-// gets is what runs.
+// gets is what runs, and is running. With pulled, it has that already.
 type puller interface {
-	PullAgain(ctx context.Context, t Target, spec *resourcev1.Container) (same bool, err error)
+	PullAgain(ctx context.Context, t Target, spec *resourcev1.Container, pulled bool) (same bool, err error)
+}
+
+// runner is a Runtime that can say how a container that's there isn't running.
+type runner interface {
+	NotRunning(ctx context.Context, t Target) (string, error)
+}
+
+// NotRunning says how a container that's there isn't running, in a word.
+func (d *Driver) NotRunning(ctx context.Context, ref resource.Ref) (string, error) {
+	return d.NotRunningAt(ctx, HostTarget(ref))
+}
+
+// NotRunningAt says how the container at t isn't running, in a word.
+func (d *Driver) NotRunningAt(ctx context.Context, t Target) (string, error) {
+	if r, ok := d.Runtime.(runner); ok {
+		return r.NotRunning(ctx, t)
+	}
+	return "", nil
 }
 
 // ImageOf is the image a container runs, as it is written.

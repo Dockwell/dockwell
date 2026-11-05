@@ -349,6 +349,7 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 		}
 		digest := digestOf(ref, src)
 		if have := e.images[ref]; have != nil && have.digest == digest {
+			have.Image = src
 			_ = enc.Encode(map[string]string{"status": "Status: Image is up to date for " + ref})
 			return
 		}

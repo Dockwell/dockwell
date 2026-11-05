@@ -3647,7 +3647,8 @@ components:
                          "updates_project" for a Compose file that changes a project already running
                          services, "volumes_stay" for a rollback that leaves a service's data as it
                          is, "values_latest" for one that keeps the latest value of what the service
-                         uses, "pulls_again" for a deploy of the tag it already names, and
+                         uses, "pulls_again" for a deploy of the tag it already names, "leaves_pin" for
+                         one of the tag a rollback pinned, which replaces it whatever the pull finds, and
                          "digest_pinned" and "digest_gone" for a rollback that does, or can't, run
                          exactly the image a revision ran. Another reason may come: its message says
                          what it means.
@@ -3791,7 +3792,8 @@ components:
                     description: |-
                         True when the step asks the server for its image again first. With no
                          changes, it replaces what runs only if that finds a newer image, and does
-                         nothing otherwise, which its progress says.
+                         nothing otherwise, which its progress says. With nothing but a restart policy
+                         to change, it changes that in place otherwise.
                 imageGone:
                     type: boolean
                     description: |-
@@ -4848,6 +4850,22 @@ components:
                     type: string
                     description: When it finished. Unset until then.
                     format: date-time
+                did:
+                    enum:
+                        - PLAN_ACTION_UNSPECIFIED
+                        - PLAN_ACTION_NONE
+                        - PLAN_ACTION_CREATE
+                        - PLAN_ACTION_UPDATE
+                        - PLAN_ACTION_REPLACE
+                        - PLAN_ACTION_DELETE
+                    type: string
+                    description: |-
+                        What the step did in the end, on this server, once it's done: action says
+                         what was planned, and only the step can say this, as a pull finds out as it
+                         goes. PLAN_ACTION_NONE left what runs exactly as it was. Unspecified until
+                         it's done, for a step that failed, and for one a run that stopped partway had
+                         done already.
+                    format: enum
             description: StepProgress is one step of an applying change, and how it is going.
         Token:
             type: object

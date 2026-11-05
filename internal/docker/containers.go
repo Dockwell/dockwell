@@ -164,6 +164,7 @@ type State struct {
 	Status     string  `json:"Status"` // created, running, restarting, exited…
 	Running    bool    `json:"Running"`
 	Restarting bool    `json:"Restarting"`
+	Paused     bool    `json:"Paused"`
 	ExitCode   int     `json:"ExitCode"`
 	Error      string  `json:"Error"`
 	Health     *Health `json:"Health,omitempty"`

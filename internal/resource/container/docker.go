@@ -627,42 +627,84 @@ func (d *Docker) ensureImage(ctx context.Context, ref string) error {
 }
 
 // PullAgain asks for a container's image again, as a deploy of the tag it already
-// names does, and says whether what it got is what runs. What it finds goes on
-// record, before anything is replaced. See "What pull means" in ADR 0021.
-func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Container) (same bool, err error) {
+// names does, and says whether what it got is what runs, and is running. What it
+// finds goes on record, before anything is replaced. With pulled, a run stopped
+// partway has done the pull, so it needs no registry. See "What pull means" in ADR
+// 0021.
+func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Container, pulled bool) (same bool, err error) {
 	ref := spec.GetImage()
 	old, err := d.current(ctx, t)
 	if err != nil {
 		return false, err
 	}
+	// Only a container of this tag can say what it pointed at. Another image is
+	// there after a failure, and what replaces that isn't a tag that moved.
+	moving := old != nil && resource.BareImage(old.Config.Image) == resource.BareImage(ref)
 	previous := ""
-	if old != nil {
+	if moving {
 		if img, err := d.Client.InspectImage(ctx, old.Image); err == nil {
 			previous = img.Digest(ref)
 		}
 	}
-	resource.Progress(ctx, "pulling "+ref+" again")
-	err = d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "pulling "+ref+" again, "+p) })
-	if err != nil {
-		if docker.IsUnavailable(err) || ctx.Err() != nil {
+	if !pulled {
+		if err := d.pullAgain(ctx, t, old, ref); err != nil {
 			return false, err
 		}
-		return false, fmt.Errorf("can't pull %s again: %w, so nothing was replaced, and what runs goes on running. Check that its registry answers, and the image's name and tag, then deploy again. Dockwell can't pull private images yet", ref, err)
 	}
 	img, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
 	if err != nil {
 		return false, fmt.Errorf("pulled %s, but can't read it back: %w", ref, err)
 	}
 	digest := img.Digest(ref)
-	if old != nil && old.Image == img.ID {
-		resource.Report(ctx, resource.Outcome{
-			Digest: digest,
-			Note:   fmt.Sprintf("%s is already the newest image, so %s stays as it is", ref, t.Service),
-		})
+	if old != nil && old.Image == img.ID && notRunning(old) == "" {
+		resource.Report(ctx, resource.Outcome{Digest: digest})
 		return true, nil
 	}
-	resource.Report(ctx, resource.Outcome{Digest: digest, Previous: previous, Replacing: old != nil})
+	resource.Report(ctx, resource.Outcome{Digest: digest, Previous: previous, Replacing: moving && old.Image != img.ID})
 	return false, nil
+}
+
+// pullAgain pulls ref. One that fails leaves what runs running, and fails the
+// step. Where nothing is running there's nothing to keep safe, so the image the
+// server has will do, which is how someone gets a service back while its registry
+// is down.
+func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container, ref string) error {
+	resource.Progress(ctx, "pulling "+ref+" again")
+	err := d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "pulling "+ref+" again, "+p) })
+	if err == nil || docker.IsUnavailable(err) || ctx.Err() != nil {
+		return err
+	}
+	if old != nil && notRunning(old) == "" {
+		resource.Report(ctx, resource.Outcome{Untouched: true})
+		return fmt.Errorf("can't pull %s again: %w, so nothing was replaced, and what runs goes on running. Check that its registry answers, and the image's name and tag, then deploy again. Dockwell can't pull private images yet", ref, err)
+	}
+	switch _, have := d.Client.InspectImage(ctx, docker.WithTag(ref)); {
+	case have == nil:
+		resource.Report(ctx, resource.Outcome{Note: fmt.Sprintf("Can't pull %s again: %s, so %s runs the image this server has. Deploy again once its registry answers, to get anything newer", ref, err, t.Service)})
+		return nil
+	case docker.IsNotFound(have):
+		return fmt.Errorf("can't pull %s: %w. %s isn't running, and this server doesn't have that image, so it can't start. Check that its registry answers, and the image's name and tag, then deploy again. Dockwell can't pull private images yet", ref, err, t.Service)
+	default:
+		return have
+	}
+}
+
+// NotRunning says how the container at t isn't running, in a word.
+func (d *Docker) NotRunning(ctx context.Context, t Target) (string, error) {
+	c, err := d.find(ctx, t.Name)
+	if err != nil || c == nil {
+		return "", err
+	}
+	return notRunning(c), nil
+}
+
+// notRunning says how a container isn't running, in a word, or nothing if it is.
+// Docker counts one that's restarting or paused as running, and neither serves.
+func notRunning(c *docker.Container) string {
+	if c.State.Running && !c.State.Restarting && !c.State.Paused {
+		return ""
+	}
+	return cmp.Or(c.State.Status, "stopped")
 }
 
 // reportRan puts the image a container now runs on record, by digest. Not

@@ -429,6 +429,9 @@ type item struct {
 	rotates bool
 	// pull says the change asks the server for its image again (Edit.Pull).
 	pull bool
+	// pulled are the servers a run of the change stopped partway had already
+	// pulled on, as its revision's deployments say.
+	pulled []string
 	// id names the resource. A new one gets its ID when the change is
 	// planned, so another item in the change can live in it.
 	id      string
@@ -1273,6 +1276,17 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				if err != nil {
 					return nil, err
 				}
+				// Only the server can say what its tag names now, so a pull is a
+				// step there whatever the specs say, and the change waits for it
+				// as it does for any step there.
+				if it.pull && it.desiredOn(server) != nil {
+					if step.Action == resource.ActionNone {
+						if step.Decision, err = d.Plan(it.currentOn(server), it.desiredOn(server), []resource.Change{{Path: "image"}}); err != nil {
+							return nil, err
+						}
+					}
+					step.Pull = step.Action != resource.ActionNone
+				}
 				steps = append(steps, step)
 			}
 		}
@@ -2096,10 +2110,20 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	// stop records a failed step and skips the steps after it, then rolls
 	// the change back. The skipped steps are recorded as the change fails,
 	// and its event carries them.
-	stop := func(qi int, err error) error {
+	//
+	// A step that failed leaving the server untouched leaves the revision it runs
+	// reading as it did, unless this change made one it should be on by now.
+	stop := func(qi int, err error, untouched bool) error {
 		q := queue[qi]
+		it := byRef[q.step.Ref]
 		p, u := e.step(c.ID, q.index, StepFailed, err.Error())
-		if e.deployed(ctx, c.ID, byRef[q.step.Ref], q.server, err, p) {
+		var recorded bool
+		if untouched && it.rev == it.base {
+			recorded = e.recordProgress(ctx, c.ID)
+		} else {
+			recorded = e.deployed(ctx, c.ID, it, q.server, err, p)
+		}
+		if recorded {
 			e.announce(c.ID, u)
 		}
 		for _, rest := range queue[qi+1:] {
@@ -2163,7 +2187,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			if e.isStopping() {
 				return interrupt(qi)
 			}
-			return stop(qi, fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run", q.name))
+			return stop(qi, fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run", q.name), false)
 		}
 		running := message(StepRunning, q.step.Action, q.step.Ref, q.name)
 		_, u := e.step(c.ID, q.index, StepRunning, running)
@@ -2173,7 +2197,8 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		callCtx = resource.WithProgress(callCtx, func(m string) { e.progressed(c.ID, index, running+": "+m) })
 		var told resource.Outcome
 		callCtx = resource.WithOutcome(callCtx, func(o resource.Outcome) {
-			told.Digest, told.Note = cmp.Or(o.Digest, told.Digest), cmp.Or(o.Note, told.Note)
+			told.Digest, told.Note, told.Untouched = cmp.Or(o.Digest, told.Digest), cmp.Or(o.Note, told.Note), told.Untouched || o.Untouched
+			told.Did = cmp.Or(o.Did, told.Did)
 			if o.Replacing {
 				e.pulledNewer(ctx, c.ID, items, it, q.server, o)
 			}
@@ -2192,9 +2217,13 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			wait(q, "")
 			continue
 		default:
-			return stop(qi, err)
+			return stop(qi, err, told.Untouched)
 		}
-		p, u := e.step(c.ID, q.index, StepDone, cmp.Or(told.Note, message(StepDone, q.step.Action, q.step.Ref, q.name)))
+		did := q.step.Action
+		if told.Did != nil {
+			did = *told.Did
+		}
+		p, u := e.finished(c.ID, q.index, cmp.Or(told.Note, message(StepDone, q.step.Action, q.step.Ref, q.name)), did)
 		digests[at{q.server, it.ref}] = told.Digest
 		if e.deployedImage(ctx, c.ID, it, q.server, nil, p, told.Digest) {
 			e.announce(c.ID, u)
@@ -2451,6 +2480,15 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if !bytes.Equal(it.encoded, asked) || it.base == 0 {
 				continue // a later change moved it on
 			}
+			if ci.Pull {
+				moved, err := resumingPull(ctx, tx, c.ID, ci, &it)
+				if err != nil {
+					return err
+				}
+				if moved {
+					continue
+				}
+			}
 			// It goes where the latest revision is placed, from wherever
 			// the revision the change started from was, so the steps
 			// that remain on servers it left still run.
@@ -2514,6 +2552,9 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if was := recorded.step(s.Server, step.Ref); was != nil && step.Action != resource.ActionDelete {
 				step.Restores = step.Restores || was.Restores
 			}
+			for j := range items {
+				step.Pulled = step.Pulled || step.Pull && items[j].ref == step.Ref && slices.Contains(items[j].pulled, s.Server)
+			}
 		}
 	}
 	before, err := decodeProgress(c.Progress)
@@ -2524,6 +2565,33 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 	e.track(changeID, resumed(before, plan, items))
 	e.published(changeID, store.ChangeApplying)
 	return &committed{c: c, items: items, plan: plan, resumed: true}, nil
+}
+
+// resumingPull carries a change's pull over to the run that resumes it, as the
+// specs alone say nothing is left to do. It reports a resource a later change has
+// moved on since, which needs nothing more from this one. A revision this change
+// made already is the one it goes on with, so going on makes no other, and where
+// it records a digest, the server has pulled.
+func resumingPull(ctx context.Context, tx *store.Tx, changeID string, ci *store.ChangeItem, it *item) (moved bool, err error) {
+	r, err := tx.GetResource(ctx, ci.Kind, ci.Scope, ci.Name)
+	if err != nil {
+		return false, err
+	}
+	if r.ChangeID != changeID {
+		it.pull = it.base == ci.BaseRevision
+		return !it.pull, nil
+	}
+	it.pull, it.base = true, ci.BaseRevision
+	deployments, err := tx.Deployments(ctx, it.id, it.rev)
+	if err != nil {
+		return false, err
+	}
+	for i := range deployments {
+		if deployments[i].Digest != "" {
+			it.pulled = append(it.pulled, deployments[i].Server)
+		}
+	}
+	return false, nil
 }
 
 // current checks that every item still starts from the latest revision,

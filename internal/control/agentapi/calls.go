@@ -235,7 +235,7 @@ func (s *Session) progressed(p *agentv1.CallProgress) {
 	s.mu.Unlock()
 	if o := p.GetOutcome(); o != nil {
 		if told != nil {
-			told(resource.Outcome{Digest: o.GetDigest(), Previous: o.GetPrevious(), Replacing: o.GetReplacing(), Note: o.GetNote()})
+			told(resource.Outcome{Digest: o.GetDigest(), Previous: o.GetPrevious(), Replacing: o.GetReplacing(), Note: o.GetNote(), Untouched: o.GetUntouched(), Did: resourcepb.DidFrom(o.GetDid())})
 		}
 		return
 	}
@@ -561,7 +561,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 			md := t.New().ProtoReflect().Descriptor()
 			for j := range steps[i].Changes {
 				c := &steps[i].Changes[j]
-				if c.Sensitive || resource.SensitivePath(md, c.Path) {
+				if !resource.IsStateChange(*c) && (c.Sensitive || resource.SensitivePath(md, c.Path)) {
 					c.Sensitive, c.From, c.To = true, "", ""
 				}
 			}
@@ -588,7 +588,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 		return err
 	}
 	defer clear(values)
-	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr}
+	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled}
 	var seal func(*Session) error
 	if uses {
 		seal = func(on *Session) error {

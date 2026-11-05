@@ -255,6 +255,66 @@ func Counts(s *dockwellv1.PlanSummary) string {
 	return strings.Join(parts, " · ")
 }
 
+// planCounts is Counts of a plan, saying what it replaces only if a pull finds a
+// newer image.
+func planCounts(p *dockwellv1.Plan) string {
+	s := p.GetSummary()
+	maybe := len(ifNewerIn(p))
+	if maybe == 0 {
+		return Counts(s)
+	}
+	parts := []string{fmt.Sprintf("%d to create", s.GetCreate()), fmt.Sprintf("%d to change", s.GetChange())}
+	if certain := int(s.GetReplace()) - maybe; certain > 0 {
+		parts = append(parts, fmt.Sprintf("%d to replace", certain))
+	}
+	parts = append(parts, fmt.Sprintf("%d to replace if newer", maybe), fmt.Sprintf("%d to destroy", s.GetDestroy()))
+	return strings.Join(parts, " · ")
+}
+
+// onlyIfNewer says all a plan changes depends on its pull finding a newer image,
+// so it may change nothing.
+func onlyIfNewer(p *dockwellv1.Plan) bool {
+	s := p.GetSummary()
+	maybe := int32(len(ifNewerIn(p))) //nolint:gosec // as many as a plan's resources
+	return maybe > 0 && s.GetCreate() == 0 && s.GetChange() == 0 && s.GetDestroy() == 0 && s.GetReplace() == maybe
+}
+
+// ifNewerIn are the resources a plan replaces only if a pull finds a newer image,
+// on every server it replaces them.
+func ifNewerIn(p *dockwellv1.Plan) []string {
+	maybe, certain := map[string]bool{}, map[string]bool{}
+	for _, srv := range p.GetServers() {
+		for _, st := range srv.GetSteps() {
+			if replacesIfNewer(st) {
+				maybe[ref(st.GetResource())] = true
+			} else if st.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_REPLACE {
+				certain[ref(st.GetResource())] = true
+			}
+		}
+	}
+	var out []string
+	for r := range maybe {
+		if !certain[r] {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// replacesIfNewer says a step replaces what runs only if its pull finds a newer
+// image: it has nothing to change that a container can't change in place.
+func replacesIfNewer(st *dockwellv1.PlanStep) bool {
+	if !st.GetPull() || st.GetAction() != dockwellv1.PlanAction_PLAN_ACTION_REPLACE {
+		return false
+	}
+	for _, c := range st.GetChanges() {
+		if strings.TrimPrefix(c.GetPath(), "app.") != "restart" {
+			return false
+		}
+	}
+	return true
+}
+
 // shortCounts is a plan's summary in a table: "+1 ~0 -0".
 func shortCounts(s *dockwellv1.PlanSummary) string {
 	out := fmt.Sprintf("+%d ~%d", s.GetCreate(), s.GetChange())
@@ -379,7 +439,11 @@ func ChangeView(w io.Writer, c *dockwellv1.Change, now time.Time) {
 	case c.GetUndoDeadline() != nil && c.GetUndoneBy() == "" && c.GetUndoDeadline().AsTime().After(now):
 		fmt.Fprintf(w, "\nUndo it %s with dockwell changes undo %s.\n", untilWord(c.GetUndoDeadline().AsTime(), now), c.GetId())
 	case c.GetState() == dockwellv1.ChangeState_CHANGE_STATE_PLANNED && c.GetPlan().GetUndoWindow() != nil && !c.GetPlan().GetDestructive():
-		fmt.Fprintf(w, "\nUndo for %s once applied.\n", Span(c.GetPlan().GetUndoWindow().AsDuration()))
+		when := "once applied"
+		if onlyIfNewer(c.GetPlan()) {
+			when = "if this replaces anything"
+		}
+		fmt.Fprintf(w, "\nUndo for %s %s.\n", Span(c.GetPlan().GetUndoWindow().AsDuration()), when)
 	}
 }
 
@@ -482,10 +546,12 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		for _, st := range s.GetSteps() {
 			a := actions[st.GetAction()]
 			details := []string{a.word}
-			// A pull with nothing else to do replaces only if it finds something newer.
-			ifNewer := st.GetPull() && len(st.GetChanges()) == 0 && st.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_REPLACE
-			if ifNewer {
+			ifNewer := replacesIfNewer(st)
+			switch {
+			case ifNewer && len(st.GetChanges()) == 0:
 				details[0] = "Replace if newer"
+			case ifNewer:
+				details[0] = "Update, and replace if newer"
 			}
 			switch st.GetEffect() {
 			case dockwellv1.StepEffect_STEP_EFFECT_RESTART:
@@ -552,7 +618,7 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 	if wrote {
 		fmt.Fprintln(w)
 	}
-	fmt.Fprintln(w, Counts(p.GetSummary()))
+	fmt.Fprintln(w, planCounts(p))
 	if p.GetDestructive() {
 		fmt.Fprintln(w, "It destroys data or may cut off access, which undo may not bring back.")
 	}
