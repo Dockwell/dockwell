@@ -403,6 +403,11 @@
   margin-block: var(--space-1);
 }
 
+.logs.is-phone .logs-scope .dw-seg-item {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
 .logs.is-phone .logs-stream {
   border-radius: var(--radius-sm);
 }
