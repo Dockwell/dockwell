@@ -32,8 +32,9 @@ const redisFile = "services:\n  redis:\n    image: redis:8\n" +
 	"    healthcheck:\n      test: [\"CMD\", \"redis-cli\", \"-a\", \"${REDIS_PASSWORD}\", \"ping\"]\n"
 
 // everyReadSays asks everything a read-only token can read of an environment, and gives
-// back all of it as text: what a change planned and what became of it, each service and
-// its revisions, an export, the timeline and what servers say of health.
+// back all of it as text: what a change planned and what became of it, each as a watch
+// tells it too, each service and its revisions, every resource, an export, the
+// timeline, servers, and what they say of health.
 func everyReadSays(t *testing.T, ro connect.HTTPClient, origin string, changeIDs ...string) string {
 	t.Helper()
 	var all strings.Builder
@@ -52,6 +53,29 @@ func everyReadSays(t *testing.T, ro connect.HTTPClient, origin string, changeIDs
 			t.Fatal(err)
 		}
 		say(got.Msg)
+		// A watch of a change that is over says it as it stands, and ends.
+		for _, m := range waitWatch(t, watch(t, c, id)).msgs {
+			say(m)
+		}
+	}
+	resources, err := dockwellv1connect.NewResourceServiceClient(ro, origin, connect.WithProtoJSON()).ListResources(t.Context(), connect.NewRequest(&dockwellv1.ListResourcesRequest{PageSize: 1000}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	say(resources.Msg)
+	health, err := dockwellv1connect.NewHealthServiceClient(ro, origin, connect.WithProtoJSON()).ListHealth(t.Context(), connect.NewRequest(&dockwellv1.ListHealthRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	say(health.Msg)
+	servers, err := dockwellv1connect.NewServerServiceClient(ro, origin, connect.WithProtoJSON()).ListServers(t.Context(), connect.NewRequest(&dockwellv1.ListServersRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	say(servers.Msg)
+	// A read that saw nothing would hold no value, and prove nothing.
+	if len(resources.Msg.GetResources()) == 0 || len(health.Msg.GetServices()) == 0 || len(servers.Msg.GetServers()) == 0 {
+		t.Fatalf("the reads saw %d resources, %d services' health and %d servers", len(resources.Msg.GetResources()), len(health.Msg.GetServices()), len(servers.Msg.GetServers()))
 	}
 	listed, err := c.ListChanges(t.Context(), connect.NewRequest(&dockwellv1.ListChangesRequest{}))
 	if err != nil {

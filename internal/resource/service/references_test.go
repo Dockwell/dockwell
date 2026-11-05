@@ -537,3 +537,23 @@ func TestPuttingBackWhatRanDoesntGiveTheValueAway(t *testing.T) {
 		}
 	}
 }
+
+// An entrypoint whose value comes to nothing runs none, as an entrypoint of "" does
+// in a spec and in Compose, and reads back as its name, with nothing to drift.
+func TestAnEntrypointThatComesToNothingRunsNone(t *testing.T) {
+	s := newStack(t)
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+		Image: "nginx:1.27", Restart: resourcev1.RestartPolicy_RESTART_POLICY_UNLESS_STOPPED,
+		Entrypoint: []string{"${E}"}, Command: []string{"run", "--k=${PW}"},
+		Env:        map[string]string{"E": "", "PW": refValue},
+		References: []string{"command", "entrypoint"},
+	}}}
+	s.deploy(t, webRef, proto.Clone(spec).(*resourcev1.Service))
+	c := s.engine.Newest(project, "web")
+	if len(c.Config.Entrypoint) != 0 {
+		t.Errorf("Docker runs the entrypoint %q, want none", c.Config.Entrypoint)
+	}
+	if step := s.plan(t, webRef, proto.Clone(spec).(*resourcev1.Service), ""); step.Action != resource.ActionNone {
+		t.Errorf("planning what runs takes %s, changing %+v", step.Action, step.Changes)
+	}
+}

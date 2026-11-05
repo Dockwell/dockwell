@@ -281,7 +281,7 @@ func rendered(req *docker.CreateRequest, spec *resourcev1.Container) error {
 		case binding.FieldCommand:
 			req.Cmd = words
 		case binding.FieldEntrypoint:
-			req.Entrypoint = words
+			req.Entrypoint = noEntrypoint(words)
 		case binding.FieldTest:
 			if req.Healthcheck == nil {
 				return fmt.Errorf("can't write the %s: the container has no health check. Plan the change again", field)
@@ -313,7 +313,11 @@ func readWords(c *docker.Container, out *resourcev1.Container) {
 			return nil
 		}
 		out.References = append(out.References, field)
-		if got, err := binding.Render(want, env); !unreadable && err == nil && slices.Equal(got, have) {
+		got, err := binding.Render(want, env)
+		if field == binding.FieldEntrypoint {
+			got = noEntrypoint(got)
+		}
+		if !unreadable && err == nil && slices.Equal(got, have) {
 			return want
 		}
 		return []string{binding.Unread}
@@ -334,6 +338,16 @@ func readWords(c *docker.Container, out *resourcev1.Container) {
 		}
 		out.Healthcheck.Test = w
 	}
+}
+
+// noEntrypoint is an entrypoint that comes to "" as Docker is asked for none, empty and
+// not left out, as Validate reads a spec's entrypoint of "" and Compose's entrypoint: ""
+// is: what runs is the command alone, and not even the image's entrypoint.
+func noEntrypoint(words []string) []string {
+	if len(words) == 1 && words[0] == "" {
+		return []string{}
+	}
+	return words
 }
 
 // hideIn masks values in what Docker said, where a person may read it. Docker quotes

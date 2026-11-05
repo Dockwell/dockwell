@@ -601,3 +601,25 @@ func TestManyNamesCostWhatAFileCosts(t *testing.T) {
 		t.Errorf("it warns: %d", len(s.Exposed))
 	}
 }
+
+// A name an image relies on in its environment, which a command naming it would
+// replace there, is refused rather than taken, unless the file's environment sets it
+// itself, which it means.
+func TestACommandCantReplaceWhatAnImageNeeds(t *testing.T) {
+	for _, name := range []string{"PATH", "HOME", "HOSTNAME", "LD_PRELOAD", "LD_LIBRARY_PATH"} {
+		_, err := parse(t.Context(), Input{File: []byte(refWeb + "    command: [run, \"--dir=${" + name + "}\"]\n"), Variables: map[string]string{name: "/srv/data-7Hq2"}})
+		if err == nil || !strings.Contains(Message(err), "the service web names "+name+" in its command") || !strings.Contains(Message(err), "Rename the variable in the file") {
+			t.Errorf("%s: %v", name, err)
+		}
+		if err != nil && strings.Contains(Message(err), "/srv/data-7Hq2") {
+			t.Errorf("%s: the refusal repeats the value: %v", name, err)
+		}
+		spec, _ := oneApp(t, Input{File: []byte(refWeb + "    command: [run, \"--dir=${" + name + "}\"]\n    environment: {" + name + ": \"${" + name + "}\"}\n"), Variables: map[string]string{name: "/srv/data"}})
+		if spec.GetApp().GetEnv()[name] != "/srv/data" || !slices.Equal(spec.GetApp().GetReferences(), []string{"command"}) {
+			t.Errorf("%s set in environment too: env %v, references %v", name, spec.GetApp().GetEnv(), spec.GetApp().GetReferences())
+		}
+	}
+	if _, err := parse(t.Context(), Input{File: []byte(refWeb + "    command: [run, \"--x=${PATHS}\", \"--y=${MY_HOME}\"]\n"), Variables: map[string]string{"PATHS": "a", "MY_HOME": "b"}}); err != nil {
+		t.Errorf("names that only begin or end alike: %v", Message(err))
+	}
+}

@@ -1016,8 +1016,12 @@ func takeReferences(what string, c *resourcev1.Container, kept *keptReferences) 
 			if !given {
 				continue
 			}
-			if have, ok := c.Env[name]; ok && have != value {
+			have, set := c.Env[name]
+			if set && have != value {
 				return invalidAt(place{what, "environment." + name}, "%s has %s in its environment, and a variable of that name in its %s, with another value. A container has one value for a name, so Dockwell can't keep both. Rename one of them in the file", what, name, field)
+			}
+			if !set && imageNeeds(name) {
+				return invalidAt(place{what, field}, "%s names %s in its %s, and Dockwell would give it that name in its environment to read the value from, which replaces what the image sets there and what runs needs. Rename the variable in the file", what, name, field)
 			}
 			if c.Env == nil {
 				c.Env = map[string]string{}
@@ -1026,6 +1030,14 @@ func takeReferences(what string, c *resourcev1.Container, kept *keptReferences) 
 		}
 	}
 	return nil
+}
+
+// imageNeeds reports a name an image and what runs in it rely on in their
+// environment, which a variable named so in a command would replace, as a typo or
+// an .env meant for a shell does. Nothing needs a command to name one, and a file
+// that sets one in environment means it, so that stands.
+func imageNeeds(name string) bool {
+	return name == "PATH" || name == "HOME" || name == "HOSTNAME" || strings.HasPrefix(name, "LD_")
 }
 
 // readRestart reads a service's restart, with the count on-failure may take, as
