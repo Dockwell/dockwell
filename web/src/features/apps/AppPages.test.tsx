@@ -21,7 +21,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { anApp, aProject, aRevision, places, projectPlaces, SERVER } from "../../test/apps";
-import { webPlanned } from "../../test/changes";
+import { moved, watched, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -445,7 +445,7 @@ describe("an app's overview", () => {
             asked.push(req);
             if (req.hostPort === 9000) {
               const err = new ConnectError(
-                "hz-1: can't plan service alone in env_prod: port 9000 is in use by the service holder, in another environment, so alone can't publish it. Choose another port on the server, or free that one first",
+                "hz-1: can't plan service alone in env_prod: holder, in another environment, publishes port 9000, so alone can't. Choose another port on the server, or free that one first",
                 Code.FailedPrecondition,
               );
               err.metadata.set("Dockwell-Error", "agent_failed");
@@ -489,7 +489,7 @@ describe("an app's overview", () => {
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     await waitFor(() =>
       expect(within(sheet).getByLabelText("On the server")).toHaveAccessibleDescription(
-        /^Port 9000 is in use by the service holder, in another environment/,
+        /^Holder, in another environment, publishes port 9000, so alone can't/,
       ),
     );
     expect(sheet).not.toHaveTextContent("env_prod");
@@ -499,6 +499,181 @@ describe("an app's overview", () => {
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     expect(await screen.findByRole("dialog", { name: "Review plan" })).toBeVisible();
     expect(asked.at(-1)).toMatchObject({ id: "svc_alone", hostPort: 8080, containerPort: 80, protocol: Protocol.TCP });
+  });
+
+  it("says what a port added did, not which fields moved", async () => {
+    const service = anApp("web", "nginx:1.5", {}, { revision: 2n });
+    const port = (field: string, to: string) => ({ path: `app.ports[0].${field}`, op: FieldOp.ADDED, to });
+    renderAt(
+      "/apps/svc_web",
+      api([service], {
+        services: {
+          listServices: () => ({ services: [service] }),
+          listServiceRevisions: () => ({
+            revisions: [
+              aRevision(2n, "nginx:1.5", {
+                changes: [port("host_port", "8080"), port("container_port", "80"), port("protocol", "tcp")],
+              }),
+              aRevision(1n, "nginx:1.5"),
+            ],
+          }),
+        },
+      }),
+    );
+    expect(await screen.findByText("Published port 8080")).toBeVisible();
+    expect(screen.queryByText(/and 2 more/)).not.toBeInTheDocument();
+  });
+
+  it("says a newer image a pull found, and what a tag really was", async () => {
+    const service = anApp("web", "nginx:latest", {}, { revision: 2n });
+    const digest = `sha256:${"ab".repeat(32)}`;
+    renderAt(
+      "/apps/svc_web/deployments?revision=2",
+      api([service], {
+        services: {
+          listServices: () => ({ services: [service] }),
+          listServiceRevisions: () => ({
+            revisions: [
+              aRevision(2n, "nginx:latest", {
+                changes: [],
+                deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.LIVE, digest }],
+              }),
+              aRevision(1n, "nginx:latest"),
+            ],
+          }),
+        },
+      }),
+    );
+    expect((await screen.findAllByText("Pulled nginx:latest again")).length).toBeGreaterThan(0);
+    expect(screen.getByTitle(digest)).toHaveTextContent("sha256:abababababab");
+  });
+
+  it("shows an image a rollback pinned without its digest, and deploys its tag", async () => {
+    const service = anApp("web", `nginx:latest@sha256:${"ab".repeat(32)}`);
+    const asked: string[] = [];
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/svc_web",
+      api([service], {
+        services: {
+          listServices: () => ({ services: [service] }),
+          listServiceRevisions: () => ({ revisions }),
+          deployService: (req) => {
+            asked.push(req.image);
+            return { change: webPlanned() };
+          },
+        },
+      }),
+    );
+    expect((await screen.findAllByText("nginx:latest")).length).toBeGreaterThan(0);
+    expect(document.body).not.toHaveTextContent("sha256:abab");
+    await user.click(screen.getByRole("button", { name: "Deploy" }));
+    const sheet = await screen.findByRole("dialog", { name: "Deploy web" });
+    expect(within(sheet).getByLabelText("Image")).toHaveValue("nginx:latest");
+    expect(within(sheet).getByLabelText("Image")).toHaveAccessibleDescription(
+      "Pulls nginx:latest again, and replaces web only if that's a newer image.",
+    );
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toEqual(["nginx:latest"]));
+  });
+
+  it("comes back to a form that failed saying why at its field, ready to change", async () => {
+    const user = userEvent.setup();
+    const watch = feed<WatchChangeResponse>();
+    const service = anApp("web", "nginx:1.5", { ports: [{ hostPort: 80, containerPort: 80 }] });
+    renderAt(
+      "/apps/svc_web",
+      api([service], {
+        services: {
+          listServices: () => ({ services: [service] }),
+          listServiceRevisions: () => ({ revisions }),
+          deployService: () => ({ change: webPlanned() }),
+          addServicePort: () => ({ change: webPlanned() }),
+        },
+        changes: {
+          watchChange: watch.stream,
+          applyChange: () => ({ change: webPlanned() }),
+          discardChange: () => ({}),
+        },
+      }),
+    );
+    const fail = async (message: string) => {
+      await user.click(await screen.findByRole("button", { name: /Apply plan/ }));
+      watch.push(watched(moved(webPlanned(), { state: ChangeState.FAILED, error: message })));
+      const failed = await screen.findByRole("dialog", { name: "The change failed" });
+      await user.click(within(failed).getByRole("button", { name: "Done" }));
+    };
+    await user.click(await screen.findByRole("button", { name: "Deploy" }));
+    const deploy = await screen.findByRole("dialog", { name: "Deploy web" });
+    await user.clear(within(deploy).getByLabelText("Image"));
+    await user.type(within(deploy).getByLabelText("Image"), "nginx:nope");
+    await user.click(within(deploy).getByRole("button", { name: /Review plan/ }));
+    await fail("hz-1: pull access denied for nginx");
+    const back = await screen.findByRole("dialog", { name: "Deploy web" });
+    const image = within(back).getByLabelText<HTMLInputElement>("Image");
+    expect(image).toHaveAccessibleDescription(/pull access denied for nginx/);
+    await waitFor(() => expect(image).toHaveFocus());
+    expect(image.value.slice(image.selectionStart ?? 0, image.selectionEnd ?? 0)).toBe("nginx:nope");
+    await user.click(within(back).getByRole("button", { name: "Cancel" }));
+
+    await user.click(await screen.findByRole("button", { name: "Add a port" }));
+    const port = await screen.findByRole("dialog", { name: "Add a port to web" });
+    await user.type(within(port).getByLabelText("On the server"), "81");
+    await user.type(within(port).getByLabelText("In the app"), "80");
+    await user.click(within(port).getByRole("button", { name: /Review plan/ }));
+    await fail("hz-1: address already in use");
+    const portBack = await screen.findByRole("dialog", { name: "Add a port to web" });
+    const host = within(portBack).getByLabelText<HTMLInputElement>("On the server");
+    expect(host).toHaveAccessibleDescription(/address already in use/);
+    await waitFor(() => expect(host).toHaveFocus());
+  });
+
+  it("names a field in the language it reads in", async () => {
+    await activateLocale("zh-CN");
+    try {
+      const service = anApp("web", "nginx:1.5", {}, { revision: 2n });
+      renderAt(
+        "/apps/svc_web",
+        api([service], {
+          services: {
+            listServices: () => ({ services: [service] }),
+            listServiceRevisions: () => ({
+              revisions: [
+                aRevision(2n, "nginx:1.5", {
+                  changes: [{ path: "app.ports[0].host_port", op: FieldOp.MODIFIED, from: "80", to: "81" }],
+                }),
+                aRevision(1n, "nginx:1.5"),
+              ],
+            }),
+          },
+        }),
+      );
+      expect(await screen.findByText("已更改 端口")).toBeVisible();
+      expect(document.body).not.toHaveTextContent(/\bports\b/);
+    } finally {
+      await activateLocale("en");
+    }
+  });
+
+  it("says so when a deploy is under way, and takes another once it ends", async () => {
+    const moving = anApp(
+      "web",
+      "nginx:1.32",
+      {},
+      {
+        deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.PENDING }],
+        changeState: ChangeState.APPLYING,
+      },
+    );
+    const user = userEvent.setup();
+    renderAt("/apps/svc_web", api([moving]));
+    await user.click(await screen.findByRole("button", { name: "Deploy" }));
+    const sheet = await screen.findByRole("dialog", { name: "Deploy web" });
+    expect(within(sheet).getByLabelText("Image")).toHaveAccessibleDescription(
+      "nginx:1.32 is still deploying. You can review this plan once that ends.",
+    );
+    expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    expect(sheet).not.toHaveTextContent("It runs nginx:1.32 now");
   });
 
   it("offers another port once it has one", async () => {
@@ -789,7 +964,7 @@ describe("an app's deployments", () => {
     expect(r3).toHaveAttribute("aria-current", "true");
     // Only that a secret changed.
     const r2 = within(table).getByRole("row", { name: /r2/ });
-    expect(r2).toHaveTextContent("env[API_KEY]");
+    expect(r2).toHaveTextContent("API_KEY");
     expect(r2).toHaveTextContent("changed");
     expect(r2).toHaveTextContent("Replaced");
     // The way back from what is live is the one before.
@@ -817,6 +992,9 @@ describe("an app's deployments", () => {
       }),
     );
     expect(await screen.findByText(/^r3 matches the latest revision\./)).toBeVisible();
+    // The row that is open says so to whoever can't see its colour.
+    expect(screen.getByRole("row", { name: /^r3/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("row", { name: /^r2/ })).toHaveAttribute("aria-selected", "false");
     await expectAccessible(container);
     // The record can match while what runs doesn't, so only the plan can say.
     await user.click(screen.getByRole("button", { name: "Roll back to r3" }));

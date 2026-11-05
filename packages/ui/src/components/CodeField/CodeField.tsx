@@ -27,6 +27,8 @@ export interface CodeFieldProps extends Omit<TextareaHTMLAttributes<HTMLTextArea
   error?: ReactNode;
   /** The line the error is about, from 1, which the field marks and brings into view. */
   markedLine?: number | undefined;
+  /** The last line it is about, where that's more than one, as a parser can't always say which. */
+  markedTo?: number | undefined;
   /** How many lines show before it scrolls. */
   lines?: number;
   value: string;
@@ -47,6 +49,7 @@ export function CodeField({
   hint,
   error,
   markedLine,
+  markedTo,
   lines = 12,
   value,
   className,
@@ -101,7 +104,15 @@ export function CodeField({
         <div className="dw-code-body">
           <div ref={marks} className="dw-code-marks" aria-hidden="true">
             {markedLine && markedLine > 0 ? (
-              <div className="dw-code-mark" style={{ "--dw-code-line": markedLine - 1 } as CSSProperties} />
+              <div
+                className="dw-code-mark"
+                style={
+                  {
+                    "--dw-code-line": markedLine - 1,
+                    "--dw-code-span": Math.max((markedTo ?? markedLine) - markedLine + 1, 1),
+                  } as CSSProperties
+                }
+              />
             ) : null}
           </div>
           <textarea

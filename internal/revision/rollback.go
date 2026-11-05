@@ -5,7 +5,9 @@ package revision
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
+	"strings"
 
 	"google.golang.org/protobuf/proto"
 
@@ -27,13 +29,17 @@ import (
 // just the record. A revision that matches on the record, when a rollback
 // failed or a container was removed by hand, plans what puts it back, which is
 // how someone recovers. It reverts nothing, so the change that got here keeps
-// its undo. say gives the plan its summary and notes, from the latest resource
+// its undo. An image is put back by the digest that revision ran, where that's
+// known and a server can still get it, as a tag can have moved since, and the plan
+// says which. say gives the plan its summary and notes, from the latest resource
 // and the spec it goes back to. Apply the plan to carry it out.
 func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, say func(store.Resource, proto.Message) (string, []Note), by By) (*Plan, error) {
 	var ed Edit
 	var reverts, words string
 	var notes []Note
 	var nothing error
+	var pinned proto.Message
+	var pinWords, goneWords, goneFirst, imageWord string
 	err := e.db.View(ctx, func(tx *store.Tx) error {
 		latest, err := tx.GetResourceByID(ctx, resourceID)
 		if err != nil {
@@ -82,6 +88,27 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 		if !same && len(revs) == 1 {
 			reverts = latest.ChangeID
 		}
+		if same {
+			// What it had is what the latest says, however each writes its image, so
+			// only what runs can differ.
+			if ed.Spec, err = e.decode(ctx, tx, store.InRevision(latest.ID, latest.Kind, latest.Revision), latest.Spec); err != nil {
+				return err
+			}
+		} else if namer, ok := e.imageNamer(ref.Kind); ok {
+			image := namer.ImageOf(ed.Spec)
+			digest := oneDigest(deployments)
+			switch {
+			case digest != "" && image == resource.BareImage(image):
+				pinned = proto.Clone(ed.Spec)
+				namer.SetImage(pinned, resource.PinnedImage(image, digest))
+				pinWords = fmt.Sprintf("%s runs %s as revision %d ran it, %s, even if the tag has moved since", latest.Name, image, number, shortDigest(digest))
+				goneWords = fmt.Sprintf("The %s that revision %d ran, %s, is neither on the server nor in its registry, so %s runs what %s is now", image, number, shortDigest(digest), latest.Name, image)
+				goneFirst = fmt.Sprintf("the %s that revision %d ran, %s, is neither on the server nor in its registry", image, number, shortDigest(digest))
+				imageWord = image
+			case digest == "" && image == resource.BareImage(image) && moved(deployments):
+				goneWords = fmt.Sprintf("Revision %d ran different images of %s on each server, so %s runs what %s is now", number, image, latest.Name, image)
+			}
+		}
 		nothing = fault.New(ErrCantUndo, "%s already runs what revision %d had, so going back to it would change nothing. Choose a revision that differs", latest.Name, number)
 		words, notes = say(latest, ed.Spec)
 		return nil
@@ -92,7 +119,22 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 	if err != nil {
 		return nil, err
 	}
-	return e.propose(ctx, Proposal{Summary: words, Actor: by.Actor, Via: by.Via, Edits: []Edit{ed}, Notes: notes, RollsBackTo: number, IfNothing: nothing}, reverts, false)
+	plain := Proposal{Summary: words, Actor: by.Actor, Via: by.Via, Edits: []Edit{ed}, Notes: notes, RollsBackTo: number, IfNothing: nothing}
+	gone := Note{Reason: "digest_gone", Message: goneWords, Ref: ed.Ref}
+	if pinned == nil {
+		if goneWords != "" {
+			plain.Notes = append(slices.Clone(notes), gone)
+		}
+		return e.propose(ctx, plain, reverts, false)
+	}
+	exact := plain
+	exact.Edits = []Edit{{Ref: ed.Ref, Spec: pinned, Servers: ed.Servers}}
+	exact.Notes = append(slices.Clone(notes), Note{Reason: "digest_pinned", Message: pinWords, Ref: ed.Ref})
+	plain.Notes = append(slices.Clone(notes), gone)
+	plain.IfNothing = fault.New(ErrCantUndo, "%s, and it already runs what %s is now, so going back to it would change nothing. Choose a revision that differs",
+		goneFirst, imageWord)
+	exact.Unpinned = &plain
+	return e.propose(ctx, exact, reverts, false)
 }
 
 // ResourceRevision is one revision of a resource, with the change that made
@@ -245,12 +287,26 @@ func (e *Engine) matcher(ctx context.Context, tx *store.Tx, latest store.Resourc
 	if err != nil {
 		return nil, err
 	}
+	ranNow, err := tx.Deployments(ctx, latest.ID, latest.Revision)
+	if err != nil {
+		return nil, err
+	}
+	ran := make(map[string]string, len(ranNow))
+	for i := range ranNow {
+		ran[ranNow[i].Server] = ranNow[i].Digest
+	}
 	return func(spec proto.Message, deployments []store.Deployment) (bool, error) {
 		if spec == nil {
 			return false, nil
 		}
 		if !resource.Equal(current, e.unpinned(kind, spec)) {
 			return false, nil
+		}
+		// A moving tag reads the same and isn't: what ran says.
+		for i := range deployments {
+			if d, now := deployments[i].Digest, ran[deployments[i].Server]; d != "" && now != "" && d != now {
+				return false, nil
+			}
 		}
 		servers := make([]string, len(deployments))
 		for i := range deployments {
@@ -264,13 +320,39 @@ func (e *Engine) matcher(ctx context.Context, tx *store.Tx, latest store.Resourc
 	}, nil
 }
 
-// unpinned is a spec without the revisions of what it uses.
+// unpinned is a spec without the revisions of what it uses, or the digest of its
+// image: a change pins the first to the latest again, and the second is only how
+// exactly it says the image, which the deployments' digests compare.
 func (e *Engine) unpinned(kind resource.Kind, spec proto.Message) proto.Message {
-	b, ok := e.binder(kind)
-	if !ok {
-		return spec
-	}
 	out := proto.Clone(spec)
-	b.Pin(out, nil)
+	if b, ok := e.binder(kind); ok {
+		b.Pin(out, nil)
+	}
+	if n, ok := e.imageNamer(kind); ok {
+		n.SetImage(out, resource.BareImage(n.ImageOf(out)))
+	}
 	return out
+}
+
+// shortDigest is a digest in few enough characters to read.
+func shortDigest(digest string) string {
+	if _, hex, ok := strings.Cut(digest, ":"); ok && len(hex) > 12 {
+		return "sha256:" + hex[:12]
+	}
+	return digest
+}
+
+// moved reports deployments that ran images of more than one digest.
+func moved(deployments []store.Deployment) bool {
+	seen := ""
+	for i := range deployments {
+		switch d := deployments[i].Digest; {
+		case d == "":
+		case seen == "":
+			seen = d
+		case d != seen:
+			return true
+		}
+	}
+	return false
 }

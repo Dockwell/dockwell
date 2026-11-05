@@ -7,7 +7,9 @@ import { describe, expect, it } from "vitest";
 import { anApp, aProject, aRevision, SERVER } from "../../test/apps";
 import type { ServerSummary } from "../servers/server";
 import {
+  type AppGroup,
   appState,
+  bareImage,
   canRollBackTo,
   companions,
   containerName,
@@ -15,10 +17,13 @@ import {
   groupApps,
   groupState,
   imageChange,
+  imageOf,
+  keepOrder,
   matches,
   nameFromImage,
   type PlaceOf,
   portRefusal,
+  shortDigest,
   shortImage,
   shortImages,
   sortGroups,
@@ -275,18 +280,39 @@ describe("the words an app goes by", () => {
   it("reads a port another holds out of the agent's words", () => {
     expect(
       portRefusal(
-        "Hz-1: can't plan service web in env_01abc: port 8080 is in use by the service holder, in another environment, so web can't publish it. Choose another port on the server, or free that one first.",
+        "Hz-1: can't plan service web in env_01abc: holder, in another environment, publishes port 8080, so web can't. Choose another port on the server, or free that one first.",
       ),
     ).toBe(
-      "Port 8080 is in use by the service holder, in another environment, so web can't publish it. Choose another port on the server, or free that one first.",
+      "Holder, in another environment, publishes port 8080, so web can't. Choose another port on the server, or free that one first.",
     );
-    expect(
-      portRefusal("can't plan c: port 53/udp on 127.0.0.1 is wanted by the service b too, in this same change"),
-    ).toBe("Port 53/udp on 127.0.0.1 is wanted by the service b too, in this same change");
-    expect(portRefusal("can't plan c: port 80 on 0.0.0.0 (every IPv4 address) is in use by x")).toBe(
-      "Port 80 on 0.0.0.0 (every IPv4 address) is in use by x",
+    expect(portRefusal("can't plan c: b also publishes port 53/udp in this same change, and only one can")).toBe(
+      "B also publishes port 53/udp in this same change, and only one can",
+    );
+    expect(portRefusal("can't plan c: nginx publishes port 80 on :: (every IPv6 address), so c can't")).toBe(
+      "Nginx publishes port 80 on :: (every IPv6 address), so c can't",
     );
     expect(portRefusal("the image isn't on the registry")).toBeUndefined();
     expect(portRefusal("use a port from 1 to 65535")).toBeUndefined();
+  });
+
+  it("keeps a list's order until the page is next opened", () => {
+    const group = (key: string): AppGroup => ({ key, environment: key, name: key, services: [], stack: false });
+    const first = keepOrder([], [group("a"), group("b"), group("c")]);
+    expect(first.groups.map((g) => g.key)).toEqual(["a", "b", "c"]);
+    // A deploy would pull c to the top of what is sorted, and it stays where it is.
+    const next = keepOrder(first.order, [group("c"), group("a"), group("b")]);
+    expect(next.groups.map((g) => g.key)).toEqual(["a", "b", "c"]);
+    // One that is new comes first, and one a filter hides keeps its place.
+    const fresh = keepOrder(next.order, [group("d"), group("c"), group("a")]);
+    expect(fresh.groups.map((g) => g.key)).toEqual(["d", "a", "c"]);
+    expect(keepOrder(fresh.order, [group("b"), group("a")]).groups.map((g) => g.key)).toEqual(["a", "b"]);
+  });
+
+  it("reads an image without the digest a rollback pinned it to", () => {
+    const digest = `sha256:${"ab".repeat(32)}`;
+    expect(bareImage(`nginx:1.27@${digest}`)).toBe("nginx:1.27");
+    expect(bareImage("nginx:1.27")).toBe("nginx:1.27");
+    expect(imageOf(anApp("web", `nginx:1.27@${digest}`))).toBe("nginx:1.27");
+    expect(shortDigest(digest)).toBe("sha256:abababababab");
   });
 });

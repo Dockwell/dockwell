@@ -211,7 +211,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if err != nil {
 				return fail(err)
 			}
-			desired = append(desired, resource.Desired{Ref: ref, Spec: spec})
+			desired = append(desired, resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull()})
 		}
 		steps, err := c.local.Plan(ctx, desired)
 		if err != nil {
@@ -236,6 +236,11 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		progress := c.progress(call.GetId())
 		defer progress.stop()
 		ctx = resource.WithProgress(ctx, progress.say)
+		ctx = resource.WithOutcome(ctx, func(o resource.Outcome) {
+			_ = c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Progress{Progress: &agentv1.CallProgress{
+				Id: call.GetId(), Outcome: &agentv1.StepOutcome{Digest: o.Digest, Previous: o.Previous, Replacing: o.Replacing, Note: o.Note},
+			}}})
+		})
 		// The values of what the spec uses, opened in memory for this
 		// step alone; they never reach a log, the disk or Desired, which
 		// hears of the step with the call's own context.

@@ -81,6 +81,22 @@ message CallProgress {
   // What is happening, for people, such as "Pulling nginx:1.27: 12 of 48
   // MB".
   string message = 2;
+  // What the step found out on its server, which goes on record, sent as soon
+  // as it is known, and always before the call's result.
+  StepOutcome outcome = 3;
+}
+
+// StepOutcome is what a step found out on its server.
+message StepOutcome {
+  // The image it leaves running, as its registry knows it.
+  string digest = 1;
+  // The digest of the image it replaces, where a pull found a newer one.
+  string previous = 2;
+  // True when a pull found a newer image, and the step is about to replace what
+  // runs with it.
+  bool replacing = 3;
+  // Why the step did nothing, for people.
+  string note = 4;
 }
 
 // Kinds lists the kinds of resource an agent can run now, and why it
@@ -275,6 +291,8 @@ message DesiredResource {
   // Its spec, encoded as its kind's message. Unset deletes it; an empty
   // spec is set, with no bytes.
   optional bytes spec = 2;
+  // Asks the server for its image again as the step applies.
+  bool pull = 3;
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.

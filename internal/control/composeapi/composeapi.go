@@ -431,7 +431,14 @@ func (h *Handler) CheckCompose(ctx context.Context, req *connect.Request[dockwel
 	}
 	res.Name = name
 	refuse := func(err error) (*connect.Response[dockwellv1.CheckComposeResponse], error) {
-		res.Refusal = &dockwellv1.ComposeRefusal{Message: compose.Message(err), Line: int32(compose.Line(ctx, file, err))} //nolint:gosec // a line of a file under compose.MaxFile
+		from, to := compose.Lines(ctx, file, err)
+		res.Refusal = &dockwellv1.ComposeRefusal{Message: compose.Message(err), Line: int32(from), EndLine: int32(to)} //nolint:gosec // lines of a file under compose.MaxFile
+		return connect.NewResponse(res), nil
+	}
+	if r := seen.Refused; r != nil {
+		// What it would refuse whatever its variables hold comes before asking
+		// for them, as one may be a secret.
+		res.Refusal = &dockwellv1.ComposeRefusal{Message: r.Message, Line: int32(r.From), EndLine: int32(r.To)} //nolint:gosec // lines of a file under compose.MaxFile
 		return connect.NewResponse(res), nil
 	}
 	if err != nil {

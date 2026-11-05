@@ -108,6 +108,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 		p.Warnings = append(p.Warnings, warnings[w])
 	}
 	p.KeptPaths, p.Restores, p.HostAccess, p.HealthUnknown = s.Kept, s.Restores, HostAccess(s.HostAccess), s.HealthUnknown
+	p.Pull, p.ImageGone = s.Pull, s.ImageGone
 	if i := s.Ingress; i != nil {
 		p.Ingress = &dockwellv1.IngressEffect{Change: ingressChanges[i.Change], Proxy: i.Proxy, Ports: i.Ports, PanelDomain: i.PanelDomain}
 	}
@@ -221,6 +222,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	// An agent's word on host access counts for nothing: the control plane
 	// decides it from the specs.
 	s.Kept, s.Restores, s.HealthUnknown = p.GetKeptPaths(), p.GetRestores(), p.GetHealthUnknown()
+	s.Pull, s.ImageGone = p.GetPull(), p.GetImageGone()
 	for _, w := range p.GetWarnings() {
 		k, ok := from(warnings, w)
 		if !ok {

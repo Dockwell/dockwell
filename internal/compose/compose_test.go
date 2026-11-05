@@ -165,7 +165,7 @@ func TestParseRefuses(t *testing.T) {
 		"no value":       {"services: {web: {image: a, environment: [SECRET]}}", "the service web's variable SECRET has no value"},
 		"restart count":  {"services: {web: {image: a, restart: 'on-failure:3'}}", `the service web restarts "on-failure:3"`},
 		"no services":    {"volumes: {data: {}}", "the Compose file has no services"},
-		"not yaml":       {"services: [", "check the indentation, and that quotes and brackets close"},
+		"not yaml":       {"services: [", "line 1: a bracket doesn't close"},
 		"no volume":      {"services: {web: {image: a, volumes: ['data:/data']}}", "the service web mounts the volume data, which the file doesn't list under volumes"},
 		"no network":     {"services: {web: {image: a, networks: [back]}}", "the service web joins the network back, which the file doesn't list under networks"},
 		"no dependency":  {"services: {web: {image: a, depends_on: [db]}}", "the service web depends on db, which isn't a service in the file"},

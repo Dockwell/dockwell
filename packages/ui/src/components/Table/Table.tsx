@@ -132,6 +132,7 @@ export function Table<Row extends object = Record<string, unknown>>({
                   key={key}
                   className={cx(clickable && "is-clickable", selected && "is-selected", rowClassName?.(row))}
                   aria-current={selected ? "true" : undefined}
+                  aria-selected={clickable ? selected : undefined}
                   tabIndex={clickable ? 0 : undefined}
                   onClick={
                     clickable

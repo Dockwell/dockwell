@@ -626,30 +626,52 @@ func (d *Docker) ensureImage(ctx context.Context, ref string) error {
 	return err
 }
 
-// pullableWait bounds asking a registry for an image while planning. A plan
-// shouldn't wait on a registry, so one that doesn't answer in time says nothing,
-// and the pull finds out.
-const pullableWait = 10 * time.Second
+// PullAgain asks for a container's image again, as a deploy of the tag it already
+// names does, and says whether what it got is what runs. What it finds goes on
+// record, before anything is replaced. See "What pull means" in ADR 0021.
+func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Container) (same bool, err error) {
+	ref := spec.GetImage()
+	old, err := d.current(ctx, t)
+	if err != nil {
+		return false, err
+	}
+	previous := ""
+	if old != nil {
+		if img, err := d.Client.InspectImage(ctx, old.Image); err == nil {
+			previous = img.Digest(ref)
+		}
+	}
+	resource.Progress(ctx, "pulling "+ref+" again")
+	err = d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "pulling "+ref+" again, "+p) })
+	if err != nil {
+		if docker.IsUnavailable(err) || ctx.Err() != nil {
+			return false, err
+		}
+		return false, fmt.Errorf("can't pull %s again: %w, so nothing was replaced. Check the image's name and tag; Dockwell can't pull private images yet", ref, err)
+	}
+	img, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
+	if err != nil {
+		return false, fmt.Errorf("pulled %s, but can't read it back: %w", ref, err)
+	}
+	digest := img.Digest(ref)
+	if old != nil && old.Image == img.ID {
+		resource.Report(ctx, resource.Outcome{
+			Digest: digest,
+			Note:   fmt.Sprintf("%s is already the newest image, so %s stays as it is", ref, t.Service),
+		})
+		return true, nil
+	}
+	resource.Report(ctx, resource.Outcome{Digest: digest, Previous: previous, Replacing: old != nil})
+	return false, nil
+}
 
-// checkImage refuses a plan for an image the server hasn't got and its registry
-// won't give it, which would otherwise fail only once the change was applied. A
-// file with build beside image often names one only the server it was built on
-// has. One the server has runs as it is, wherever it came from.
-func (d *Docker) checkImage(ctx context.Context, t Target, ref string) error {
-	_, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
-	switch {
-	case err == nil:
-		return nil
-	case !docker.IsNotFound(err):
-		return err
+// reportRan puts the image a container now runs on record, by digest. Not
+// knowing it costs a moving tag its rollback, not the deploy, so a failure to
+// read it doesn't fail anything.
+func (d *Docker) reportRan(ctx context.Context, ref string) {
+	if img, err := d.Client.InspectImage(ctx, docker.WithTag(ref)); err == nil {
+		resource.Report(ctx, resource.Outcome{Digest: img.Digest(ref)})
 	}
-	ctx, cancel := context.WithTimeout(ctx, pullableWait)
-	defer cancel()
-	if err := d.Client.CheckPullable(ctx, ref); docker.NotPullable(err) {
-		return fmt.Errorf("the image %s isn't on this server, and its registry won't give it to a pull, so %s can't run: it has no such image, or wants credentials, which Dockwell can't send yet. "+
-			"Build or load the image on this server, or push it where a pull can get it, then plan again", ref, t.Service)
-	}
-	return nil
 }
 
 // checkRefs refuses a container whose networks aren't on the server, as
@@ -808,6 +830,7 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 	if err := d.Client.StartContainer(ctx, id); err != nil {
 		return fmt.Errorf("docker can't start %s: %w", t.Name, err)
 	}
+	d.reportRan(ctx, spec.GetImage())
 	return nil
 }
 
@@ -895,6 +918,13 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 	}
 	if len(out) > 0 {
 		dec.Destroys, dec.Kept = true, slices.Sorted(maps.Keys(out))
+	}
+	// A pinned image that is gone can't run: where a rollback pins one, it says so
+	// and goes back to its tag.
+	if ref := desired.GetImage(); strings.Contains(ref, "@") && (dec.Action == resource.ActionCreate || dec.Action == resource.ActionReplace) {
+		if _, err := d.Client.InspectImage(ctx, ref); docker.IsNotFound(err) && !d.Client.RegistryHas(ctx, ref) {
+			dec.ImageGone = true
+		}
 	}
 	if hc := desired.GetHealthcheck(); dec.Action == resource.ActionReplace && !complete(hc) {
 		img, err := d.Client.InspectImage(ctx, docker.WithTag(desired.GetImage()))

@@ -617,7 +617,18 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desired proto.Message) error {
 	switch step.Action {
 	case resource.ActionCreate, resource.ActionReplace:
-		return d.Runtime.Run(ctx, t, desired.(*resourcev1.Container), step.Restores)
+		spec := desired.(*resourcev1.Container)
+		if p, ok := d.Runtime.(puller); ok && step.Pull {
+			same, err := p.PullAgain(ctx, t, spec)
+			if err != nil {
+				return err
+			}
+			// Only a step with nothing else to do stays as it is.
+			if same && step.Action == resource.ActionReplace && len(step.Changes) == 0 {
+				return resource.ErrAlreadySo
+			}
+		}
+		return d.Runtime.Run(ctx, t, spec, step.Restores)
 	case resource.ActionUpdate:
 		return d.Runtime.Update(ctx, t, desired.(*resourcev1.Container))
 	case resource.ActionDelete:
@@ -626,6 +637,18 @@ func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desi
 		return nil
 	}
 }
+
+// puller is a Runtime that can ask for an image again, and tell whether what it
+// gets is what runs.
+type puller interface {
+	PullAgain(ctx context.Context, t Target, spec *resourcev1.Container) (same bool, err error)
+}
+
+// ImageOf is the image a container runs, as it is written.
+func (*Driver) ImageOf(spec proto.Message) string { return spec.(*resourcev1.Container).GetImage() }
+
+// SetImage changes the image a container runs.
+func (*Driver) SetImage(spec proto.Message, image string) { spec.(*resourcev1.Container).Image = image }
 
 // Verify checks the container is running and passes its health check.
 func (d *Driver) Verify(ctx context.Context, ref resource.Ref, _ proto.Message) error {

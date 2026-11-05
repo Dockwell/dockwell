@@ -67,7 +67,7 @@
   left: 0;
   right: 0;
   top: calc(var(--dw-code-pad) + var(--dw-code-line) * var(--dw-code-line-height));
-  height: var(--dw-code-line-height);
+  height: calc(var(--dw-code-span, 1) * var(--dw-code-line-height));
   background: var(--critical-soft);
   pointer-events: none;
 }
@@ -90,4 +90,12 @@
 .dw-code-el::placeholder {
   color: var(--ink-muted);
   opacity: 1;
+}
+
+/* iOS zooms the page into any field under 16 px. */
+@media (pointer: coarse) {
+  .dw-code-input {
+    --dw-code-line-height: 24px;
+    font-size: 16px;
+  }
 }

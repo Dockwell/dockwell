@@ -5,12 +5,13 @@ import { useTransport } from "@connectrpc/connect-query";
 import { type Change, ChangeState, type ServiceInfo, ServiceService } from "@dockwell/api";
 import { Button, Callout, cx, Icon, PHONE_QUERY, Sheet, TextField, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type FormEvent, useMemo, useRef, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { imageOf, nameOf } from "./app";
+import { useApp } from "./AppContext";
+import { imageOf, isMoving, nameOf, tidyMessage } from "./app";
 
 /**
  * Deploys another image: one field, then the plan. Everything else about the
@@ -32,10 +33,23 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
   const [failure, setFailure] = useState<string>();
   const [hidden, setHidden] = useState(false);
   const field = useRef<HTMLInputElement>(null);
+  const { state } = useApp();
+  // One change at a time: this one's plan couldn't apply until that one ends.
+  const moving = isMoving(state);
+  const again = image.trim() === current;
+
+  // Back from a plan that failed, what it said is at the field, ready to change.
+  const reveal = useRef(false);
+  useEffect(() => {
+    if (hidden || !reveal.current) return;
+    reveal.current = false;
+    field.current?.focus();
+    field.current?.select();
+  }, [hidden]);
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
-    if (busy) return;
+    if (busy || moving) return;
     const wanted = image.trim();
     if (wanted === "") {
       setFieldError(t`Name the image to run, such as ${current}.`);
@@ -60,8 +74,13 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
       kind: "plan",
       make: () => Promise.resolve({ change }),
       onClose: (after) => {
-        // Cancelling comes back here, with what you typed; anything else is under way or over.
-        if (after && after.state === ChangeState.PLANNED) setHidden(false);
+        // Cancelling comes back here, with what you typed, as failing does, saying why
+        // at the field. Anything else is under way or over.
+        if (after?.state === ChangeState.FAILED) {
+          setFieldError(tidyMessage(after.error));
+          reveal.current = true;
+          setHidden(false);
+        } else if (after && after.state === ChangeState.PLANNED) setHidden(false);
         else onClose();
       },
     });
@@ -88,6 +107,7 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
             variant="primary"
             size={phone ? "lg" : "md"}
             loading={busy}
+            disabled={moving}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void submit()}
           >
@@ -111,9 +131,19 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
           value={image}
           error={fieldError}
           hint={
-            <Trans>
-              It runs <code>{current}</code> now.
-            </Trans>
+            moving ? (
+              <Trans>
+                <code>{current}</code> is still deploying. You can review this plan once that ends.
+              </Trans>
+            ) : again ? (
+              <Trans>
+                Pulls <code>{current}</code> again, and replaces {name} only if that's a newer image.
+              </Trans>
+            ) : (
+              <Trans>
+                It runs <code>{current}</code> now.
+              </Trans>
+            )
           }
           onChange={(event) => {
             setImage(event.target.value);

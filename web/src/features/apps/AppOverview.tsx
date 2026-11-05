@@ -29,7 +29,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { type CSSProperties, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
@@ -41,6 +41,7 @@ import { useApp, useRevisions } from "./AppContext";
 import {
   appOf,
   appState,
+  bareImage,
   canRollBackTo,
   companions,
   deployedAt,
@@ -218,7 +219,7 @@ function RunningPanel() {
   const before = moving
     ? revisions?.find((r) => r.number < service.revision && !r.deleted && r.image !== "")
     : undefined;
-  const running = moving ? (before?.image ?? "") : image;
+  const running = moving ? bareImage(before?.image ?? "") : image;
   const columns: TableColumn<ServiceInfo["deployments"][number] & { id: string }>[] = [
     {
       key: "server",
@@ -441,7 +442,12 @@ function RecentDeployments() {
           {sentence(error)}
         </Callout>
       ) : isPending ? (
-        <p className="app-note" aria-busy="true">
+        // Holds the room what's coming will take, so nothing under it moves.
+        <p
+          className="app-note app-timeline-loading"
+          aria-busy="true"
+          style={{ "--app-timeline-rows": Math.min(Number(service.revision), RECENT) } as CSSProperties}
+        >
           <Trans>Loading deployments</Trans>
         </p>
       ) : (

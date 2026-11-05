@@ -169,6 +169,7 @@ msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指�
 #: src/features/changes/words.ts
 msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
 msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指向此服务器的 A 或 AAAA 记录，添加后即可获取证书"
+
 #: src/features/apps/AppsPage.tsx
 msgid "{elsewhere, plural, one {# more app lives outside this view} other {# more apps live outside this view}}"
 msgstr "{elsewhere, plural, other {此视图之外还有 # 个应用}}"
@@ -212,6 +213,10 @@ msgstr "{name} 还没有所有者"
 #: src/features/apps/AppOverview.tsx
 msgid "{name} has no server in the fleet"
 msgstr "{name} 在集群中没有服务器"
+
+#: src/features/apps/AddPortSheet.tsx
+msgid "{name} is still deploying. You can review this plan once that ends."
+msgstr "{name} 仍在部署中。部署结束后即可审阅这个计划。"
 
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} is waiting for its agent"
@@ -367,6 +372,10 @@ msgstr "{waiting} 台等待代理连接"
 #: src/features/auth/SignInPage.tsx
 msgid "<0>{0}</0> · the panel for {name}"
 msgstr "<0>{0}</0> · {name} 的面板"
+
+#: src/features/apps/DeploySheet.tsx
+msgid "<0>{current}</0> is still deploying. You can review this plan once that ends."
+msgstr "<0>{current}</0> 仍在部署中。部署结束后即可审阅这个计划。"
 
 #: src/features/servers/ServerOverview.tsx
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
@@ -916,6 +925,7 @@ msgid "Codes copied"
 msgstr "恢复码已复制"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "command"
 msgstr "命令"
 
@@ -1065,6 +1075,14 @@ msgstr "未能创建自"
 #: src/features/apps/revision.ts
 msgid "Couldn't deploy"
 msgstr "未能部署"
+
+#: src/features/apps/revision.ts
+msgid "Couldn't publish port {number}"
+msgstr "无法发布端口 {number}"
+
+#: src/features/apps/revision.ts
+msgid "Couldn't pull {pulled}"
+msgstr "无法拉取 {pulled}"
 
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
@@ -1395,6 +1413,7 @@ msgid "Enter your name."
 msgstr "请输入你的姓名。"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "entrypoint"
 msgstr "入口点"
 
@@ -1403,6 +1422,7 @@ msgid "Entrypoint"
 msgstr "入口点"
 
 #: src/app/Providers.tsx
+#: src/features/apps/words.ts
 msgid "environment"
 msgstr "环境"
 
@@ -1508,6 +1528,10 @@ msgid "Fix line {line} to review the plan"
 msgstr "修复第 {line} 行后即可查看计划"
 
 #: src/features/apps/NewAppSheet.tsx
+msgid "Fix lines {line}–{end} to review the plan"
+msgstr "修复第 {line}–{end} 行后即可审阅计划"
+
+#: src/features/apps/NewAppSheet.tsx
 msgid "Fix the file to review the plan"
 msgstr "修复文件后即可查看计划"
 
@@ -1604,6 +1628,7 @@ msgid "Go to the overview"
 msgstr "前往概览"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "health check"
 msgstr "健康检查"
 
@@ -1627,6 +1652,10 @@ msgstr "已隐藏"
 #: src/features/variables/VariablesPage.tsx
 msgid "Hide {name}"
 msgstr "隐藏 {name}"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Hide the value"
+msgstr "隐藏值"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Hostname"
@@ -1655,6 +1684,10 @@ msgstr "如果你丢了保存唯一通行密钥的设备，就需要在服务器
 #: src/features/auth/ProfilePage.tsx
 msgid "If you lost a passkey, add a new one now, then remove the lost one below."
 msgstr "如果你丢了通行密钥，请现在添加一个新的，然后在下方移除丢失的那个。"
+
+#: src/features/apps/words.ts
+msgid "image"
+msgstr "镜像"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppOverview.tsx
@@ -1799,6 +1832,7 @@ msgid "Key"
 msgstr "键"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "labels"
 msgstr "标签"
 
@@ -1977,20 +2011,13 @@ msgid "More"
 msgstr "更多"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "mounts"
 msgstr "挂载"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Move to another app"
 msgstr "换到另一个应用"
-
-#: src/features/apps/revision.ts
-msgid "Moved"
-msgstr "已迁移"
-
-#: src/features/apps/revision.ts
-msgid "Moving"
-msgstr "正在迁移"
 
 #: src/features/apps/AppEnvironment.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -2031,6 +2058,13 @@ msgstr "为新项目命名，例如 shop"
 msgid "Name the token after what will use it, such as GitHub Actions deploy."
 msgstr "用将要使用它的程序为令牌命名，例如 GitHub Actions deploy。"
 
+#. placeholder {0}: refused.line
+#. placeholder {1}: refused.to
+#. placeholder {2}: refused.text
+#: src/features/apps/NewAppSheet.tsx
+msgid "Near lines {0}–{1}: {2}"
+msgstr "第 {0}–{1} 行附近：{2}"
+
 #: src/app/Providers.tsx
 msgid "network"
 msgstr "网络"
@@ -2039,6 +2073,10 @@ msgstr "网络"
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Network"
+msgstr "网络"
+
+#: src/features/apps/words.ts
+msgid "networks"
 msgstr "网络"
 
 #: src/features/apps/AppOverview.tsx
@@ -2486,6 +2524,10 @@ msgstr "端口 {target}"
 msgid "port {target}, UDP"
 msgstr "端口 {target}，UDP"
 
+#: src/features/apps/words.ts
+msgid "ports"
+msgstr "端口"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Ports"
 msgstr "端口"
@@ -2515,6 +2557,10 @@ msgstr "项目"
 #: src/features/changes/words.ts
 msgid "Project"
 msgstr "项目"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Project name"
+msgstr "项目名称"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Projects"
@@ -2549,6 +2595,26 @@ msgstr "公网 IPv6"
 #: src/features/apps/AddPortSheet.tsx
 msgid "Publish port {hostPort} on {name}"
 msgstr "在 {name} 上发布端口 {hostPort}"
+
+#: src/features/apps/revision.ts
+msgid "Published port {number}"
+msgstr "已发布端口 {number}"
+
+#: src/features/apps/revision.ts
+msgid "Publishing port {number}"
+msgstr "正在发布端口 {number}"
+
+#: src/features/apps/revision.ts
+msgid "Pulled {pulled} again"
+msgstr "已重新拉取 {pulled}"
+
+#: src/features/apps/revision.ts
+msgid "Pulling {pulled} again"
+msgstr "正在重新拉取 {pulled}"
+
+#: src/features/apps/DeploySheet.tsx
+msgid "Pulls <0>{current}</0> again, and replaces {name} only if that's a newer image."
+msgstr "重新拉取 <0>{current}</0>，只有镜像更新时才替换 {name}。"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "QR code for your authenticator app"
@@ -2707,6 +2773,10 @@ msgstr "资源"
 msgid "Resources"
 msgstr "资源"
 
+#: src/features/apps/words.ts
+msgid "restart policy"
+msgstr "重启策略"
+
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/words.ts
 msgid "Restarts"
@@ -2831,6 +2901,10 @@ msgstr "回滚"
 msgid "Rotated the key that wraps every secret"
 msgstr "轮换了加密所有密钥的密钥"
 
+#: src/features/changes/words.ts
+msgid "Route"
+msgstr "路由"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Run {projectName} from a Compose file"
 msgstr "通过 Compose 文件运行 {projectName}"
@@ -2838,10 +2912,6 @@ msgstr "通过 Compose 文件运行 {projectName}"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Run {wanted} as {name}"
 msgstr "以 {name} 运行 {wanted}"
-
-#: src/features/changes/words.ts
-msgid "Route"
-msgstr "路由"
 
 #: src/features/overview/Overview.tsx
 msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
@@ -2942,6 +3012,10 @@ msgstr "密钥"
 msgid "Secret {from}"
 msgstr "密钥 {from}"
 
+#: src/features/apps/words.ts
+msgid "secrets"
+msgstr "密钥"
+
 #: src/features/apps/AppOverview.tsx
 msgid "See why"
 msgstr "查看原因"
@@ -3029,6 +3103,10 @@ msgstr "显示 {name} 的动态"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show the apps"
 msgstr "查看应用"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Show the value"
+msgstr "显示值"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Show what happened on {name}"
@@ -3324,44 +3402,21 @@ msgstr "控制平面拒绝了这个请求，因为它不是从面板自己的地
 msgid "the control plane runs {controlPlane}"
 msgstr "控制平面为 {controlPlane}"
 
-#: src/features/changes/words.ts
-msgid "the domain {path}, which the environment {detail} held within the last 7 days"
-msgstr "域名 {path}，环境 {detail} 在过去 7 天内曾持有它"
-
-#: src/features/changes/words.ts
-msgid "the group {path}, which is the same as root"
-msgstr "用户组 {path}，等同于 root"
-
-#: src/features/changes/words.ts
-msgid "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
-msgstr "用户组 {path}，如果它是服务器上拥有 Docker 套接字的用户组，则等同于 root"
-
-#: src/features/changes/words.ts
-msgid "the Linux capability {path}"
-msgstr "Linux 能力 {path}"
-
-#: src/features/changes/words.ts
-msgid "the Linux capability {path}, which is the same as root"
-msgstr "Linux 能力 {path}，等同于 root"
-
-#: src/features/changes/words.ts
-msgid "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
-msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称和 {detail} 响应：该网络上的其他任何内容，包括其他项目的服务，都能访问它，它也能访问它们"
-
-#: src/features/changes/words.ts
-msgid "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
-msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称响应：该网络上的其他任何内容，包括其他项目的服务，都能访问它，它也能访问它们"
-
-#: src/features/variables/VariablesPage.tsx
-msgid "The old value stays in this variable's history"
-msgstr "旧值仍保留在该变量的历史中"
 #: src/features/apps/AppOverview.tsx
 msgid "The deploy waits for its agent, and carries on once it reconnects. Check that <0>dockwell run</0> is still running on the server."
 msgstr "部署正在等待其代理，重新连接后会继续。请检查服务器上的 <0>dockwell run</0> 是否仍在运行。"
 
+#: src/features/changes/words.ts
+msgid "the domain {path}, which the environment {detail} held within the last 7 days"
+msgstr "域名 {path}，环境 {detail} 在过去 7 天内曾持有它"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "The file uses these, and has no default for them."
 msgstr "文件用到了这些变量，且没有默认值。"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "The file uses these. Leave one with a default empty to use its default."
+msgstr "文件使用这些变量。有默认值的留空即使用默认值。"
 
 #: src/features/apps/AppOverview.tsx
 msgid "The image's own"
@@ -3837,6 +3892,7 @@ msgid "Used by"
 msgstr "使用者"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "user"
 msgstr "用户"
 
@@ -3866,6 +3922,10 @@ msgstr "变量"
 #: src/features/apps/AppEnvironment.tsx
 msgid "Variable {from}"
 msgstr "变量 {from}"
+
+#: src/features/apps/words.ts
+msgid "variables"
+msgstr "变量"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -3913,13 +3973,13 @@ msgstr "卷"
 msgid "Waiting"
 msgstr "等待中"
 
-#: src/features/apps/words.ts
-msgid "Waiting for {servers}"
-msgstr "等待 {servers}"
-
 #: src/features/servers/ServersPanel.tsx
 msgid "Waiting for its agent"
 msgstr "等待代理连接"
+
+#: src/features/apps/words.ts
+msgid "Waiting for server"
+msgstr "正在等待服务器"
 
 #: src/app/Providers.tsx
 msgid "Warning"
@@ -4015,6 +4075,7 @@ msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "没有卷时，容器被替换后写入的内容会丢失。"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "working directory"
 msgstr "工作目录"
 

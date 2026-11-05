@@ -27,6 +27,7 @@ import {
   Switch,
   Tag,
   TextField,
+  type TextFieldProps,
   useMediaQuery,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
@@ -60,7 +61,7 @@ import {
   tidyMessage,
   toLabel,
 } from "./app";
-import { composeRefusal, type RefusedAt, withCode } from "./composeWords";
+import { composeRefusal, type RefusedAt, waitsForValues, withCode } from "./composeWords";
 import {
   appEdits,
   type EnvRow,
@@ -90,7 +91,6 @@ const MAX_FILE = 256 << 10;
 
 /** How many lines the Compose field starts with, and the most it grows to before it scrolls. */
 const FILE_LINES = 12;
-const MAX_FILE_LINES = 28;
 
 /**
  * New app (Apps-New): one sheet that takes an image or a Compose file and
@@ -228,11 +228,22 @@ export function NewAppSheet({
     return out;
   };
 
-  /** Takes you to the first field that was refused, which may have scrolled away. */
+  /** Takes you to the first field that was refused, which may have scrolled away, ready to change. */
   const revealError = () =>
     requestAnimationFrame(() => {
-      form.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      const refused = form.current?.querySelector<HTMLInputElement>('[aria-invalid="true"]');
+      refused?.focus();
+      refused?.select();
     });
+
+  // Back from a plan that failed, what it said is at the field.
+  const revealAfter = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: it runs when the form comes back, and revealError reads only what's on screen
+  useEffect(() => {
+    if (planning || !revealAfter.current) return;
+    revealAfter.current = false;
+    revealError();
+  }, [planning]);
 
   const review = (change: Change | undefined, open: "app" | "list") => {
     const service = change?.plan?.resources.find((r) => r.resource?.kind === "service");
@@ -251,6 +262,14 @@ export function NewAppSheet({
           after.state === ChangeState.DISCARDED ||
           after.state === ChangeState.FAILED
         ) {
+          if (after?.state === ChangeState.FAILED) {
+            const message = tidyMessage(after.error);
+            if (source === "image") {
+              // What ran is what to change, unless it says what else was wrong.
+              setErrors({ [fieldOf(message, image, name) || "image"]: message });
+              revealAfter.current = true;
+            } else setFailure(message);
+          }
           setPlanning(false);
           return;
         }
@@ -334,7 +353,8 @@ export function NewAppSheet({
     else onClose();
   };
   const onlyName = only?.name ?? "";
-  const subtitle = only && !choosesEnvironment ? t`Runs on ${onlyName}` : undefined;
+  // The same for an image and a file, so the header stays where it is between them.
+  const subtitle = only ? t`Runs on ${onlyName}` : undefined;
 
   // Why Review plan can't be pressed yet, where it can't.
   const whyNot: string | undefined = (() => {
@@ -343,19 +363,38 @@ export function NewAppSheet({
     if (fileTooBig) return t`This file is too large to read`;
     if (check.isPending) return t`Reading the file`;
     const refused = check.data?.refusal;
+    // What it would refuse whatever its variables hold comes first: no one should
+    // type a secret for a file it then refuses.
+    if (refused && !waitsForValues(refused.message)) {
+      const line = refused.line;
+      const end = refused.endLine;
+      if (end > line) return t`Fix lines ${line}–${end} to review the plan`;
+      return line > 0 ? t`Fix line ${line} to review the plan` : t`Fix the file to review the plan`;
+    }
     if (missingVariables.length > 0) {
       const [first] = missingVariables;
       return missingVariables.length === 1
         ? t`Give ${first} a value to review the plan`
         : t`Give each variable a value to review the plan`;
     }
-    if (refused) {
-      const line = refused.line;
-      return line > 0 ? t`Fix line ${line} to review the plan` : t`Fix the file to review the plan`;
-    }
     if (projectMissing || projectInvalid) return t`Name it to review the plan`;
     return undefined;
   })();
+  // Where what it needs is, which may be out of sight below a long file.
+  const whyNotAt = (() => {
+    if (!whyNot || file.trim() === "" || fileTooBig || check.isPending) return undefined;
+    const refused = check.data?.refusal;
+    if (refused && !waitsForValues(refused.message)) return "textarea";
+    const [first] = missingVariables;
+    if (first) return `[data-variable="${first}"]`;
+    return '[data-field="project"]';
+  })();
+  const goToWhyNot = () => {
+    if (!whyNotAt) return;
+    const target = form.current?.querySelector<HTMLElement>(whyNotAt);
+    target?.scrollIntoView({ block: "center" });
+    target?.focus();
+  };
 
   const hostReach = source === "image" && image.mounts.some((m) => pathReach(m.source));
   const fileReach =
@@ -387,7 +426,11 @@ export function NewAppSheet({
           <>
             <span className="dw-sheet-note">
               <Icon name={hostReach || fileReach ? "shield" : "commit"} size={14} />
-              {whyNot ? (
+              {whyNot && whyNotAt ? (
+                <button type="button" className="app-why-not" onClick={goToWhyNot}>
+                  {whyNot}
+                </button>
+              ) : whyNot ? (
                 whyNot
               ) : hostReach || fileReach ? (
                 <Trans>You approve what it reaches in the plan</Trans>
@@ -464,7 +507,6 @@ export function NewAppSheet({
             variables={variables}
             onVariables={setVariables}
             check={check}
-            missing={missingVariables}
             fieldRef={firstField}
             project={project}
             onProject={(next) => {
@@ -749,10 +791,8 @@ function EnvSection({ form, errors, update, clear }: SectionProps) {
                 clear(`env.${row.key}.name`);
               }}
             />
-            <TextField
+            <ValueField
               {...rowLabel(i, t`Value`)}
-              mono
-              autoComplete="off"
               value={row.value}
               onChange={(event) => change(row, { value: event.target.value })}
             />
@@ -906,7 +946,6 @@ function ComposeFields({
   variables,
   onVariables,
   check,
-  missing,
   fieldRef,
   project,
   onProject,
@@ -922,7 +961,6 @@ function ComposeFields({
   variables: Readonly<Record<string, string>>;
   onVariables: (variables: Readonly<Record<string, string>>) => void;
   check: ReturnType<typeof useComposeCheck>;
-  missing: readonly string[];
   project: string;
   onProject: (name: string) => void;
   projectError: string | undefined;
@@ -939,11 +977,10 @@ function ComposeFields({
   const exposed = check.data?.exposedVariables ?? [];
   // A refusal of a variable that has no value yet is what the fields below already ask for.
   const refused: RefusedAt | undefined =
-    refusal && !missing.some((name) => refusal.message.includes(name)) ? composeRefusal(refusal) : undefined;
+    refusal && !waitsForValues(refusal.message) ? composeRefusal(refusal) : undefined;
   const readFile = async (chosen: File | undefined) => {
     if (chosen) onFile(await chosen.text());
   };
-  const lineCount = file.split("\n").length;
   const kib = tooBig === undefined ? 0 : Math.ceil(tooBig / 1024);
   const limit = MAX_FILE >> 10;
   const fileError =
@@ -951,7 +988,9 @@ function ComposeFields({
       ? t`This file is ${kib} KiB, and Dockwell reads files of up to ${limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file.`
       : refused
         ? refused.line > 0
-          ? t`Line ${refused.line}: ${refused.text}`
+          ? refused.to > refused.line
+            ? t`Near lines ${refused.line}–${refused.to}: ${refused.text}`
+            : t`Line ${refused.line}: ${refused.text}`
           : refused.text
         : undefined;
   return (
@@ -968,12 +1007,13 @@ function ComposeFields({
         <CodeField
           ref={fieldRef}
           label={t`Compose file`}
-          lines={Math.min(Math.max(FILE_LINES, lineCount + 1), MAX_FILE_LINES)}
+          lines={FILE_LINES}
           value={file}
           onChange={(event) => onFile(event.target.value)}
           placeholder={'services:\n  web:\n    image: nginx:1.27\n    ports:\n      - "8080:80"'}
           error={fileError ? withCode(fileError) : undefined}
           markedLine={refused?.line}
+          markedTo={refused?.to}
           hint={t`Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan.`}
           actions={
             <>
@@ -1002,7 +1042,8 @@ function ComposeFields({
         </Callout>
       ) : null}
       <TextField
-        label={t`Name`}
+        data-field="project"
+        label={t`Project name`}
         mono
         optional={!projectRequired && project === ""}
         value={project}
@@ -1033,7 +1074,11 @@ function ComposeFields({
               <span className="dw-field-label">
                 <Trans>Variables</Trans>
               </span>
-              {required.length > 0 ? (
+              {showOptional && optional.length > 0 ? (
+                <span className="dw-field-hint">
+                  <Trans>The file uses these. Leave one with a default empty to use its default.</Trans>
+                </span>
+              ) : required.length > 0 ? (
                 <span className="dw-field-hint">
                   <Trans>The file uses these, and has no default for them.</Trans>
                 </span>
@@ -1053,8 +1098,9 @@ function ComposeFields({
           </div>
           <div className="app-vars">
             {[...required, ...(showOptional ? optional : [])].map((v) => (
-              <TextField
+              <ValueField
                 key={v.name}
+                data-variable={v.name}
                 label={
                   <span className="app-var-label">
                     <code className="app-var-name">{v.name}</code>
@@ -1066,8 +1112,6 @@ function ComposeFields({
                   </span>
                 }
                 optional={!v.required}
-                mono
-                autoComplete="off"
                 value={variables[v.name] ?? ""}
                 onChange={(event) => onVariables({ ...variables, [v.name]: event.target.value })}
               />
@@ -1090,6 +1134,35 @@ function ComposeFields({
       ) : null}
       <ComposePreview check={check.data} />
     </>
+  );
+}
+
+/**
+ * A value that may be a secret, which the screen behind someone needn't read as
+ * it is typed. It stays theirs to check, with the control beside it.
+ */
+function ValueField(props: TextFieldProps & { "data-variable"?: string }) {
+  const { t } = useLingui();
+  const [shown, setShown] = useState(false);
+  return (
+    <TextField
+      {...props}
+      mono
+      type={shown ? "text" : "password"}
+      autoComplete="off"
+      action={
+        <button
+          type="button"
+          className="app-reveal"
+          aria-pressed={shown}
+          aria-label={t`Show the value`}
+          title={shown ? t`Hide the value` : t`Show the value`}
+          onClick={() => setShown((was) => !was)}
+        >
+          <Icon name="eye" size={16} />
+        </button>
+      }
+    />
   );
 }
 

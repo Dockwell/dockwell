@@ -12,6 +12,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -45,6 +46,9 @@ type Image struct {
 	Unhealthy, Starting bool
 	// Size is what pulling it downloads, in bytes.
 	Size int64
+	// Digest is what its registry calls it. Without one it has one of its own, so
+	// a tag moves when a test gives it an image with another.
+	Digest string
 }
 
 // Engine is a fake Docker Engine.
@@ -73,7 +77,10 @@ type Engine struct {
 
 	srv *httptest.Server
 
-	mu        sync.Mutex
+	mu sync.Mutex
+	// published is every image a pull has seen, by digest: a registry keeps old
+	// ones until they are forgotten.
+	published map[string]Image
 	intercept func(*http.Request) error
 	// Registry has the images a pull can find, by reference.
 	Registry map[string]Image
@@ -91,7 +98,9 @@ type Engine struct {
 }
 
 type image struct {
-	id string
+	id     string
+	digest string
+	repo   string
 	Image
 }
 
@@ -120,6 +129,7 @@ func New(t testing.TB) *Engine {
 		Socket:     filepath.Join(dir, "docker.sock"),
 		APIVersion: "1.47", MinAPIVersion: "1.24",
 		Registry:   map[string]Image{},
+		published:  map[string]Image{},
 		images:     map[string]*image{},
 		containers: map[string]*container{},
 		volumes:    map[string]*docker.Volume{},
@@ -226,6 +236,8 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		e.serveContainers(w, r, parts[1:])
 	case parts[0] == "images":
 		e.serveImages(w, r, path)
+	case parts[0] == "distribution" && len(parts) > 2 && parts[len(parts)-1] == "json":
+		e.serveDistribution(w, strings.Join(parts[1:len(parts)-1], "/"))
 	case parts[0] == "volumes":
 		e.serveVolumes(w, r, parts[1:])
 	case parts[0] == "networks":
@@ -273,6 +285,13 @@ func (e *Engine) AddLocalImage(ref string, img Image) {
 // one ID alone. So an image named by hex digits alone, such as cafe, can
 // find an image whose ID starts with them when cafe:latest isn't pulled.
 func (e *Engine) image(ref string) *image {
+	// A digest names what it names, whatever tag is written with it.
+	if name, digest, ok := strings.Cut(ref, "@"); ok {
+		if img, known := e.images[repoOf(name)+"@"+digest]; known {
+			return img
+		}
+		return nil
+	}
 	if img, ok := e.images[docker.WithTag(ref)]; ok {
 		return img
 	}
@@ -308,6 +327,9 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 		w.Header().Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
 		src, ok := e.Registry[ref]
+		if _, digest, pinned := strings.Cut(ref, "@"); pinned && !ok {
+			src, ok = e.published[digest]
+		}
 		if !ok && e.Find != nil {
 			src, ok = e.Find(ref)
 		}
@@ -325,8 +347,15 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 			}
 			_ = enc.Encode(map[string]any{"status": "Pull complete", "id": "layer1"})
 		}
-		img := &image{id: "sha256:" + newID(), Image: src}
-		e.images[ref], e.images[img.id] = img, img
+		digest := digestOf(ref, src)
+		if have := e.images[ref]; have != nil && have.digest == digest {
+			_ = enc.Encode(map[string]string{"status": "Status: Image is up to date for " + ref})
+			return
+		}
+		repo, _, _ := strings.Cut(ref, "@")
+		img := &image{id: "sha256:" + newID(), digest: digest, repo: repoOf(repo), Image: src}
+		e.images[ref], e.images[img.id], e.images[img.repo+"@"+digest] = img, img, img
+		e.published[digest] = src
 		_ = enc.Encode(map[string]string{"status": "Status: Downloaded newer image for " + ref})
 	case r.Method == http.MethodGet && strings.HasSuffix(path, "/json"):
 		ref := strings.TrimSuffix(strings.TrimPrefix(path, "/images/"), "/json")
@@ -336,10 +365,66 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 			return
 		}
 		cfg := img.Config
-		writeJSON(w, http.StatusOK, docker.Image{ID: img.id, Config: &cfg})
+		writeJSON(w, http.StatusOK, docker.Image{ID: img.id, Config: &cfg, RepoDigests: []string{img.repo + "@" + img.digest}})
 	default:
 		fail(w, http.StatusNotFound, "page not found")
 	}
+}
+
+// digestOf is what a registry calls an image.
+func digestOf(ref string, src Image) string {
+	if _, digest, pinned := strings.Cut(ref, "@"); pinned {
+		return digest
+	}
+	if src.Digest != "" {
+		return src.Digest
+	}
+	sum := sha256.Sum256([]byte(ref))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+// repoOf is a reference's name, without its tag.
+func repoOf(ref string) string {
+	if i := strings.LastIndex(ref, ":"); i > strings.LastIndex(ref, "/") {
+		return ref[:i]
+	}
+	return ref
+}
+
+// Forget takes an image out of the registry and off the server, as a registry's
+// retention and an image prune do.
+func (e *Engine) Forget(digest string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	delete(e.published, digest)
+	for ref, img := range e.images {
+		if img.digest == digest {
+			delete(e.images, ref)
+		}
+	}
+	for ref := range e.Registry {
+		if digestOf(ref, e.Registry[ref]) == digest {
+			delete(e.Registry, ref)
+		}
+	}
+}
+
+// serveDistribution says what a registry has of a reference, with nothing pulled.
+func (e *Engine) serveDistribution(w http.ResponseWriter, ref string) {
+	digest := ""
+	if _, pinned, ok := strings.Cut(ref, "@"); ok {
+		if _, known := e.published[pinned]; known {
+			digest = pinned
+		}
+	}
+	if src, ok := e.Registry[ref]; ok {
+		digest = digestOf(ref, src)
+	}
+	if digest == "" {
+		fail(w, http.StatusNotFound, "manifest unknown: %s", ref)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"Descriptor": map[string]any{"digest": digest}})
 }
 
 // named finds a container by its exact name, as the engine checks a name
@@ -1025,12 +1110,6 @@ func (e *Engine) network(w http.ResponseWriter, ref string) *docker.Network {
 
 func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []string) {
 	switch {
-	case len(parts) == 0 && r.Method == http.MethodGet:
-		list := make([]*docker.Network, 0, len(e.networks))
-		for _, name := range slices.Sorted(maps.Keys(e.networks)) {
-			list = append(list, e.networks[name])
-		}
-		writeJSON(w, http.StatusOK, list)
 	case r.Method == http.MethodPost && len(parts) == 1 && parts[0] == "create":
 		var req docker.NetworkCreate
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

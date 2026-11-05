@@ -5,6 +5,8 @@ import { Fragment, type ReactNode } from "react";
 /** A Compose refusal, ready to show: the line it is about, and what to say, as a sentence. */
 export interface RefusedAt {
   line: number;
+  /** The last line it is about: the same, unless a parser can only say near which. */
+  to: number;
   text: string;
 }
 
@@ -18,10 +20,21 @@ function sentenceOf(text: string): string {
  * itself, as a file that isn't YAML does, the field says that once. A word of
  * the file's own comes in backticks, for withCode to set in mono.
  */
-export function composeRefusal(refusal: { message: string; line: number }): RefusedAt {
+export function composeRefusal(refusal: { message: string; line: number; endLine?: number }): RefusedAt {
+  const near = /^near lines (\d+)\u2013(\d+): (.*)$/is.exec(refusal.message);
+  if (near) return { line: Number(near[1]), to: Number(near[2]), text: lineText(near[3] ?? "") };
   const own = /^line (\d+): (.*)$/is.exec(refusal.message);
-  if (own) return { line: Number(own[1]), text: lineText(own[2] ?? "") };
-  return { line: refusal.line, text: refusal.line > 0 ? lineText(refusal.message) : sentenceOf(refusal.message) };
+  if (own) return { line: Number(own[1]), to: Number(own[1]), text: lineText(own[2] ?? "") };
+  const text = refusal.line > 0 ? lineText(refusal.message) : sentenceOf(refusal.message);
+  return { line: refusal.line, to: Math.max(refusal.endLine ?? 0, refusal.line), text };
+}
+
+/**
+ * A refusal that only asks for a variable's value, which the form asks for itself,
+ * and which is out of date the moment someone types one.
+ */
+export function waitsForValues(message: string): boolean {
+  return /\bwith no value\b|\bwhich has no value\b/.test(message) && !/^the service .*'s variable /.test(message);
 }
 
 /** What follows "Line 6:", which is still the sentence's start, so it stays as the API wrote it. */

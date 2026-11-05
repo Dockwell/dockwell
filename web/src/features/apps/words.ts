@@ -8,7 +8,9 @@ import type { AppState } from "./app";
 
 /** The words the app screens share, in the active locale. */
 export interface AppWords {
-  /** Where an app stands, in a word or two: "Live", "Waiting for hz-1", or "Deployed" where that's all it knows. */
+  /** A field of a service, as a change names it, in words. */
+  field(name: string): string;
+  /** Where an app stands, in a word or two: "Live", "Waiting for server", or "Deployed" where that's all it knows. */
   state(state: AppState): string;
   /** How a deployment went: "Live", "Failed". */
   deployment(state: DeploymentState): string;
@@ -28,7 +30,7 @@ export function useAppWords(): AppWords {
           case "deploying":
             return t`Deploying`;
           case "waiting":
-            return t`Waiting for ${servers}`;
+            return t`Waiting for server`;
           case "failed":
             return t`Failed`;
           case "offline":
@@ -40,6 +42,27 @@ export function useAppWords(): AppWords {
           case "unknown":
             return t({ message: "Deployed", context: "An app whose servers the fleet hasn't said anything about yet" });
         }
+      },
+      /** A field of a service, as a change names it, in words. */
+      field(name: string): string {
+        const fields: Readonly<Record<string, string>> = {
+          image: t`image`,
+          command: t`command`,
+          entrypoint: t`entrypoint`,
+          no_entrypoint: t`entrypoint`,
+          env: t`environment`,
+          variables: t`variables`,
+          secrets: t`secrets`,
+          ports: t`ports`,
+          mounts: t`mounts`,
+          networks: t`networks`,
+          labels: t`labels`,
+          restart: t`restart policy`,
+          user: t`user`,
+          working_dir: t`working directory`,
+          healthcheck: t`health check`,
+        };
+        return fields[name] ?? name;
       },
       deployment(state) {
         switch (state) {

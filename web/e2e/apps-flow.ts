@@ -63,7 +63,8 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   /** Docker runs image for service, and it is running. */
   const expectDocker = async (service: string, image: string) => {
     const seen = await running(service);
-    if (seen.image !== image || !seen.running) {
+    // A rollback pins the digest it goes back to, beside the tag.
+    if (seen.image.split("@")[0] !== image || !seen.running) {
       fail(`Docker runs ${seen.image}, running ${seen.running}, for ${service}; want ${image} running`);
     }
   };
@@ -110,6 +111,13 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   await refused.getByRole("button", { name: "Done", exact: true }).click();
   await sheet.waitFor();
   if ((await sheet.getByLabel("Image", { exact: true }).inputValue()) !== failing) fail("the form lost what you typed");
+  // What went wrong is at the field, and what to change is ready to change.
+  const refusedField = sheet.getByLabel("Image", { exact: true });
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-invalid") === "true");
+  const selected = await refusedField.evaluate((el: HTMLInputElement) =>
+    el.value.slice(el.selectionStart ?? 0, el.selectionEnd ?? 0),
+  );
+  if (selected !== failing) fail(`back on the form, "${selected}" is selected, want the whole image`);
   for (let i = 0; i < 100 && (await docker()).some((c) => c.running); i++) await page.waitForTimeout(100);
   if ((await docker()).some((c) => c.running)) fail(`Docker still runs what failed: ${JSON.stringify(await docker())}`);
 
@@ -201,6 +209,11 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   await broke.waitFor({ timeout: 120_000 });
   await shoot(page, "apps-deploy-failed");
   await broke.getByRole("button", { name: "Done", exact: true }).click();
+  // Back on the form, what went wrong is at the field, ready to change.
+  const again = page.getByRole("dialog", { name: "Deploy nginx" });
+  await again.waitFor();
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-invalid") === "true");
+  await again.getByRole("button", { name: "Cancel" }).click();
   await page.getByText("The last deploy failed, so Dockwell rolled it back").waitFor({ timeout: 120_000 });
   await panel.getByText(FIRST).waitFor();
   await expectDocker("nginx", FIRST);
@@ -266,6 +279,30 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   await page.getByRole("row", { name: /r6/ }).getByText("Rolled back after a failed deploy").waitFor();
   await page.getByRole("row", { name: /r4/ }).click();
   await page.getByText(/^r4 matches the latest revision\./).waitFor();
+
+  step("apps: on a touch screen, a field takes a finger and iOS has no reason to zoom");
+  const touch = await page
+    .context()
+    .browser()
+    ?.newContext({
+      hasTouch: true,
+      isMobile: true,
+      viewport: { width: 390, height: 844 },
+      storageState: await page.context().storageState(),
+    });
+  if (touch) {
+    const finger = await touch.newPage();
+    await finger.goto(`${origin}/apps/new`);
+    const image = finger.getByRole("dialog", { name: "New app" }).getByLabel("Image", { exact: true });
+    await image.waitFor();
+    const fieldSize = await image.evaluate((el) => ({
+      height: (el.closest(".dw-input") as HTMLElement).getBoundingClientRect().height,
+      font: Number.parseFloat(getComputedStyle(el).fontSize),
+    }));
+    if (fieldSize.height < 44 || fieldSize.font < 16)
+      fail(`on a touch screen, a field is ${JSON.stringify(fieldSize)}`);
+    await touch.close();
+  }
 
   step("apps: nothing a row says moves the list's columns");
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Apps" }).click();

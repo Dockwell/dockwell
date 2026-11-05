@@ -24,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/services"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -244,11 +245,6 @@ func TestRecoveringIsNeverRefused(t *testing.T) {
 		if reasonOf(err) != "cant_undo" || !strings.Contains(err.Error(), "already runs what revision 1 had") {
 			t.Errorf("rolling back to what runs = %v", err)
 		}
-		_, err = b.s.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: web.GetId(), Image: "ghcr.io/acme/shop:1.4"}))
-		if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "already runs") {
-			t.Errorf("deploying what runs = %v", err)
-		}
-
 		// Someone removes the container by hand.
 		if err := b.e.Client().RemoveContainer(t.Context(), b.e.Container(name).ID, true); err != nil {
 			t.Fatal(err)
@@ -468,21 +464,21 @@ func TestAPortSomethingElseHoldsIsRefused(t *testing.T) {
 		}
 
 		// By name, in another environment and in its own.
-		refused(t, add(asker.GetId(), 8080), "port 8080 is in use by the service holder, in another environment", "asker can't publish it", "Choose another port")
-		refused(t, add(b.service(t, "one", "beside").GetId(), 8080), "the service holder,", "beside can't publish it")
+		refused(t, add(asker.GetId(), 8080), "holder, in another environment, publishes port 8080, so asker can't", "Choose another port")
+		refused(t, add(b.service(t, "one", "beside").GetId(), 8080), "holder publishes port 8080, so beside can't")
 		if err := add(b.service(t, "one", "beside").GetId(), 8080); strings.Contains(err.Error(), "another environment") {
 			t.Errorf("in its own environment, it says %q", err.Error())
 		}
 		// A Compose file, and a new app, alike.
 		_, err := b.cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: "name: three\nservices:\n  c:\n    image: ghcr.io/acme/shop:1.4\n    ports: [\"8080:80\"]\n"}))
-		refused(t, err, "the service holder, in another environment")
+		refused(t, err, "holder, in another environment, publishes port 8080")
 		_, err = b.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "New", Edits: []*dockwellv1.Edit{{
 			Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: two, Name: "fresh"},
 			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
 				Image: "ghcr.io/acme/shop:1.4", Ports: []*resourcev1.PortMapping{{HostPort: 8080, ContainerPort: 80}},
 			}}}}},
 		}}}))
-		refused(t, err, "the service holder, in another environment", "fresh can't publish it")
+		refused(t, err, "holder, in another environment, publishes port 8080, so fresh can't")
 
 		// A container Dockwell didn't make.
 		client := b.e.Client()
@@ -496,7 +492,7 @@ func TestAPortSomethingElseHoldsIsRefused(t *testing.T) {
 		if err := client.StartContainer(t.Context(), id); err != nil {
 			t.Fatal(err)
 		}
-		refused(t, add(asker.GetId(), 9090), "the container by-hand, which Dockwell didn't make")
+		refused(t, add(asker.GetId(), 9090), "The container by-hand, which Dockwell didn't make, publishes port 9090")
 
 		// Addresses that can't clash, and another protocol, aren't refused.
 		free := func(t *testing.T, req *dockwellv1.AddServicePortRequest) {
@@ -559,7 +555,7 @@ func TestAPortSomethingElseHoldsIsRefused(t *testing.T) {
 			t.Fatal(err)
 		}
 		_, err = b.cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: "name: four\nservices:\n  a:\n    image: ghcr.io/acme/shop:1.4\n    ports: [\"7000:80\"]\n  b:\n    image: ghcr.io/acme/shop:1.4\n    ports: [\"7000:80\"]\n"}))
-		refused(t, err, "port 7000 is wanted by the service", "in this same change")
+		refused(t, err, "also publishes port 7000 in this same change")
 		if b.e.Container(docker.ContainerName(docker.Project(one), "holder")) == nil {
 			t.Error("the holder is gone")
 		}
@@ -663,7 +659,7 @@ func TestARollbackKeepsWhatAServiceUsesAtItsLatestValue(t *testing.T) {
 		}
 		b.done(t, back.Msg.GetChange())
 		web = b.service(t, "", "web")
-		if got := web.GetSpec().GetApp().GetImage(); got != "ghcr.io/acme/shop:1.4" {
+		if got := resource.BareImage(web.GetSpec().GetApp().GetImage()); got != "ghcr.io/acme/shop:1.4" {
 			t.Errorf("it runs %s", got)
 		}
 		secret := listed(t, variablesClient(b.b, b.b.origin), "API_KEY")

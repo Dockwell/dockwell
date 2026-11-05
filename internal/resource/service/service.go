@@ -248,13 +248,25 @@ func (d *Driver) CheckPlan(ctx context.Context, want resource.Desired, all []res
 			if s, ok := o.Spec.(*resourcev1.Service); ok {
 				c = s.GetApp()
 			}
-			planned = append(planned, container.Planned{Name: Target(o.Ref).Name, Words: "the service " + o.Ref.Name, Spec: c})
+			planned = append(planned, container.Planned{Name: Target(o.Ref).Name, Words: o.Ref.Name, Spec: c})
 		case container.Kind:
 			c, _ := o.Spec.(*resourcev1.Container)
-			planned = append(planned, container.Planned{Name: container.HostTarget(o.Ref).Name, Words: "the container " + o.Ref.Name, Spec: c})
+			planned = append(planned, container.Planned{Name: container.HostTarget(o.Ref).Name, Words: o.Ref.Name, Spec: c})
 		}
 	}
 	return d.Containers.CheckPortsAt(ctx, Target(want.Ref), want.Spec.(*resourcev1.Service).GetApp(), planned)
+}
+
+// ImageOf is the image a service's app runs, as it is written.
+func (*Driver) ImageOf(spec proto.Message) string {
+	return spec.(*resourcev1.Service).GetApp().GetImage()
+}
+
+// SetImage changes the image a service's app runs.
+func (*Driver) SetImage(spec proto.Message, image string) {
+	if app := spec.(*resourcev1.Service).GetApp(); app != nil {
+		app.Image = image
+	}
 }
 
 // Check checks the app on its server, as the container driver does.

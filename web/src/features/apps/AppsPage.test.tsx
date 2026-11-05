@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import {
   ChangeState,
@@ -409,6 +410,58 @@ describe("the apps list", () => {
       },
     });
     expect(await screen.findByRole("alert")).toHaveTextContent("Your role can't read services. Ask an owner.");
+  });
+
+  it("keeps each row where it is as a deploy starts, until the page is next opened", async () => {
+    const hourAgo = timestampFromDate(new Date(Date.now() - 3_600_000));
+    const dayAgo = timestampFromDate(new Date(Date.now() - 86_400_000));
+    const older = (deployments = [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.LIVE }]) =>
+      anApp("older", "nginx", {}, { updateTime: dayAgo, deployments });
+    const newer = anApp("newer", "redis", {}, { updateTime: hourAgo });
+    let services = [older(), newer];
+    const watch = feed<WatchEventsResponse>();
+    const planned = shopPlanned();
+    watch.push(snapshot([]));
+    const seen = () =>
+      screen
+        .getAllByRole("link")
+        .map((l) => l.textContent)
+        .filter((name) => name === "older" || name === "newer");
+    const view = renderAt("/apps", {
+      ...api([]),
+      services: { listServices: () => ({ services }) },
+      events: { watchEvents: watch.stream, listEvents: () => ({}) },
+    });
+    await screen.findByRole("link", { name: "older" });
+    expect(seen()).toEqual(["newer", "older"]);
+
+    // A deploy of the older one starts, which sorts above all the calm ones.
+    services = [older([{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.PENDING }]), newer];
+    watch.push(since([changeEvent(moved(planned, { state: ChangeState.APPLYING }))]));
+    await screen.findByText("Deploying");
+    expect(seen()).toEqual(["newer", "older"]);
+
+    // Opening the page again sorts it.
+    view.unmount();
+    renderAt("/apps", { ...api(services) });
+    await screen.findByRole("link", { name: "older" });
+    expect(seen()).toEqual(["older", "newer"]);
+  });
+
+  it("says it waits for a server in as many words as its column has", async () => {
+    const waiting = anApp(
+      "web",
+      "nginx",
+      {},
+      {
+        deployments: [{ serverId: "srv_edge", serverName: "edge", state: DeploymentState.PENDING }],
+        changeState: ChangeState.APPLYING,
+      },
+    );
+    const edge = aServer({ id: "srv_edge", name: "edge", connection: Connection.UNREACHABLE });
+    renderAt("/apps", api([waiting], edge));
+    expect(await screen.findByText("Waiting for server")).toBeVisible();
+    expect(screen.queryByText(/Waiting for edge/)).not.toBeInTheDocument();
   });
 
   it("stays live, reading again only when a change moves on", async () => {

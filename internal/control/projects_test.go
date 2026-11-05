@@ -477,10 +477,10 @@ func TestARollbackThatWouldDoNothingIsRefused(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		notes := back.Msg.GetChange().GetPlan().GetNotes()
-		if len(notes) != 1 || notes[0].GetReason() != "volumes_stay" || !slices.Equal(notes[0].GetNames(), []string{"/srv/uploads", "data"}) ||
-			!strings.Contains(notes[0].GetMessage(), "A rollback puts back its spec, not its data") {
-			t.Errorf("the rollback's notes = %v", notes)
+		kept := noteOf(back.Msg.GetChange(), "volumes_stay")
+		if kept == nil || !slices.Equal(kept.GetNames(), []string{"/srv/uploads", "data"}) ||
+			!strings.Contains(kept.GetMessage(), "A rollback puts back its spec, not its data") {
+			t.Errorf("the rollback's notes = %v", back.Msg.GetChange().GetPlan().GetNotes())
 		}
 		if got := applied(t, c, back.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 			t.Fatalf("the rollback ended %v: %s", got.GetState(), got.GetError())

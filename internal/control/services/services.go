@@ -246,13 +246,23 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.Invalid(errors.New("the deploy names no image. Pass one in image, such as ghcr.io/acme/web:1.4.2"))
 	}
 	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), func(name string, app *resourcev1.Container) (editing, error) {
+		// A tag can move, so naming the one it has means "whatever that is now". Only
+		// a digest can't, and the record can name one no server runs, which deploying
+		// again puts right, so only what the servers say refuses it.
+		again := resource.BareImage(app.GetImage()) == m.GetImage() && resource.BareImage(m.GetImage()) == m.GetImage()
 		app.Image = m.GetImage()
-		return editing{
-			summary: cmp.Or(m.GetSummary(), fmt.Sprintf("Deploy %s to %s", m.GetImage(), name)),
-			// The record can say this image while no server runs it, and deploying
-			// it again is how someone recovers. Only what the servers say refuses it.
-			ifNothing: fault.New(revision.ErrInvalid, "the service %s already runs %s. Name another image, such as a new tag", name, m.GetImage()),
-		}, nil
+		did := editing{
+			summary:   cmp.Or(m.GetSummary(), fmt.Sprintf("Deploy %s to %s", m.GetImage(), name)),
+			ifNothing: fault.New(revision.ErrInvalid, "%s already runs %s, which can't change, as a digest names one image. Name another image, such as a new tag", name, m.GetImage()),
+			pull:      again,
+		}
+		if again {
+			did.notes = []revision.Note{{
+				Reason:  "pulls_again",
+				Message: fmt.Sprintf("Pulls %s again, and replaces %s only if that's a newer image", m.GetImage(), name),
+			}}
+		}
+		return did, nil
 	})
 	if err != nil {
 		return nil, err
@@ -273,7 +283,7 @@ func (h *Handler) AddServicePort(ctx context.Context, req *connect.Request[dockw
 	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), func(name string, app *resourcev1.Container) (editing, error) {
 		for _, p := range app.GetPorts() {
 			if p.GetHostPort() == m.GetHostPort() && p.GetProtocol() == protocol && p.GetHostIp() == m.GetHostIp() {
-				return editing{}, authapi.Invalid(fmt.Errorf("the service %s already publishes port %d. Choose another port on the server", name, m.GetHostPort()))
+				return editing{}, authapi.Invalid(fmt.Errorf("%s already publishes port %d. Choose another port on the server", name, m.GetHostPort()))
 			}
 		}
 		app.Ports = append(app.Ports, &resourcev1.PortMapping{
@@ -292,6 +302,8 @@ func (h *Handler) AddServicePort(ctx context.Context, req *connect.Request[dockw
 type editing struct {
 	summary   string
 	ifNothing error
+	pull      bool
+	notes     []revision.Note
 }
 
 // edit plans a change to one service's container, read as it stands on the
@@ -328,7 +340,7 @@ func (h *Handler) edit(ctx context.Context, named, project, environment string, 
 	return h.changes.Propose(ctx, did.summary, []*dockwellv1.Edit{{
 		Resource: resourcepb.Ref(resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}),
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},
-	}}, nil, changes.Also{Base: r.Revision, IfNothing: did.ifNothing})
+	}}, nil, changes.Also{Base: r.Revision, IfNothing: did.ifNothing, Pull: did.pull, Notes: did.notes})
 }
 
 // RollBackService plans going back to an earlier revision.
@@ -525,7 +537,7 @@ func (n *serverNames) deployments(ctx context.Context, list []store.Deployment) 
 		}
 		out[i] = &dockwellv1.ServiceDeployment{
 			ServerId: d.Server, ServerName: name, State: deploymentStates[d.State], Error: d.Error,
-			UpdateTime: timestamppb.New(d.UpdatedAt),
+			UpdateTime: timestamppb.New(d.UpdatedAt), Digest: d.Digest,
 		}
 	}
 	return out, nil

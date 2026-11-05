@@ -147,6 +147,10 @@ message ServiceDeployment {
   string error = 4;
   // When its state last moved on.
   google.protobuf.Timestamp update_time = 5;
+  // The image it ran there, as its registry knows it, such as "sha256:ab12…", so
+  // what a moving tag such as :latest really was stays known. Empty until it has
+  // run, and for an image no registry knows.
+  string digest = 6;
 }
 
 // DeploymentState is where one revision is on one server.

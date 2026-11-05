@@ -21,7 +21,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
@@ -40,6 +40,7 @@ import {
   groupDeployedAt,
   groupState,
   imageOf,
+  keepOrder,
   matches,
   nameOf,
   needsALook,
@@ -176,7 +177,15 @@ export function AppsPage({
       ),
     [all, environment, search.server],
   );
-  const groups = useMemo(() => sortGroups(groupApps(shown, places.place), servers), [shown, places.place, servers]);
+  const sorted = useMemo(() => sortGroups(groupApps(shown, places.place), servers), [shown, places.place, servers]);
+  // Sorted when the page opens, then each keeps its place, so nothing moves under
+  // the cursor as a deploy starts or ends.
+  const order = useRef<string[]>([]);
+  const groups = useMemo(() => {
+    const kept = keepOrder(order.current, sorted);
+    order.current = kept.order;
+    return kept.groups;
+  }, [sorted]);
   const filtering = query.trim() !== "";
   const rows = useMemo(() => {
     const out: Row[] = [];

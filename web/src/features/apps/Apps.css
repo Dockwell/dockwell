@@ -155,6 +155,15 @@
   gap: var(--space-3);
 }
 
+/* About a row of the timeline for each row it will have. */
+.app-timeline-loading {
+  min-height: calc(var(--app-timeline-rows, 1) * 52px);
+}
+
+.app-note a {
+  color: var(--cobalt);
+}
+
 .app-env-value,
 .app-env-name {
   overflow-wrap: anywhere;
@@ -1011,6 +1020,50 @@
 
 .new-app.is-phone .dw-code-input {
   max-height: 40dvh;
+}
+
+/* Why Review plan can't be pressed yet, and a way to what it needs. */
+.app-why-not {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--cobalt);
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .app-why-not {
+    min-height: 44px;
+  }
+}
+
+.app-reveal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.app-reveal:hover {
+  color: var(--ink);
+}
+
+.app-reveal[aria-pressed="true"] {
+  color: var(--cobalt);
+}
+
+@media (pointer: coarse) {
+  .app-reveal {
+    width: 44px;
+  }
 }
 
 .app-var-label {

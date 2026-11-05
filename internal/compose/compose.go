@@ -161,7 +161,7 @@ func check(what string, m map[string]any, allowed map[string]bool) error {
 func checkRaw(file []byte) (map[string]any, error) {
 	var raw map[string]any
 	if err := yaml.Unmarshal(file, &raw); err != nil {
-		return nil, notYAML(err)
+		return nil, notYAML(err, file)
 	}
 	if len(raw) == 0 {
 		return nil, invalid("the Compose file is empty. Give it services, such as web with image: nginx:1.27")
@@ -710,9 +710,9 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 	if s.Entrypoint != nil && len(s.Entrypoint) == 0 {
 		c.NoEntrypoint = true
 	}
-	var err error
-	if c.Restart, c.RestartRetries, err = readRestart(what, s.Restart); err != nil {
-		return nil, err
+	restart, ok := restarts[s.Restart]
+	if !ok {
+		return nil, invalidAt(place{what, "restart"}, "%s restarts %q, which Dockwell can't run yet. Use no, always, unless-stopped or on-failure, without a count", what, s.Restart)
 	}
 	c.CapAdd, c.CapDrop, c.GroupAdd, c.Privileged, c.Resources = s.CapAdd, s.CapDrop, s.GroupAdd, s.Privileged, p.limits[name]
 	for _, k := range slices.Sorted(maps.Keys(s.Environment)) {
@@ -721,42 +721,45 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 			continue // the value is the environment's, and the service uses it by reference
 		}
 		if v == nil {
-			return nil, invalid("%s's variable %s has no value. Give it one in the file, such as %s: value, or pass it in variables", what, k, k)
+			return nil, invalidAt(place{what, "environment." + k}, "%s's variable %s has no value. Give it one in the file, such as %s: value, or pass it in variables", what, k, k)
 		}
 		if c.Env == nil {
 			c.Env = map[string]string{}
 		}
 		c.Env[k] = *v
 	}
-	for _, p := range s.Ports {
+	for i, p := range s.Ports {
 		m, err := port(what, p)
 		if err != nil {
-			return nil, err
+			return nil, refusedAt(place{what, "ports"}.index(i), err)
 		}
 		c.Ports = append(c.Ports, m)
 	}
-	for _, v := range s.Volumes {
+	for i, v := range s.Volumes {
+		at := place{what, "volumes"}.index(i)
 		m := &resourcev1.Mount{Target: v.Target, ReadOnly: v.ReadOnly}
 		if err := mountBind(what, &v, m); err != nil {
-			return nil, err
+			return nil, refusedAt(at, err)
 		}
 		switch {
 		case v.Type == types.VolumeTypeVolume && v.Source == "":
-			return nil, invalid("%s mounts an unnamed volume at %s. Name it, and list it under volumes, so Dockwell can keep its data", what, v.Target)
+			return nil, invalidAt(at, "%s mounts an unnamed volume at %s. Name it, and list it under volumes, so Dockwell can keep its data", what, v.Target)
 		case v.Type == types.VolumeTypeVolume:
 			m.Source = &resourcev1.Mount_Volume{Volume: v.Source}
 		case v.Type == types.VolumeTypeBind && !path.IsAbs(v.Source):
-			return nil, invalid("%s mounts %s, a path relative to the Compose file, and Dockwell doesn't know where the file is on the server. "+
-				"Pass the directory it is in, as directory (--directory on the CLI), or use an absolute path, such as /srv/%s/data, or a named volume", what, v.Source, name)
+			return nil, invalidAt(at, "%s mounts %s, a path relative to the Compose file, which means nothing on a server. Use an absolute path, such as /srv/%s/data, or a named volume",
+				what, v.Source, name)
 		case v.Type == types.VolumeTypeBind:
 			m.Source = &resourcev1.Mount_HostPath{HostPath: v.Source}
 		default:
-			return nil, invalid("%s mounts a %s at %s, which Dockwell can't run yet. Use a named volume or a server path", what, v.Type, v.Target)
+			return nil, invalidAt(at, "%s mounts a %s at %s, which Dockwell can't run yet. Use a named volume or a server path", what, v.Type, v.Target)
 		}
 		c.Mounts = append(c.Mounts, m)
 	}
-	if err := joinNetworks(name, s, c, p); err != nil {
-		return nil, err
+	switch s.NetworkMode {
+	case "", "bridge":
+	default:
+		return nil, invalidAt(place{what, "network_mode"}, "%s has network_mode %s, which Dockwell can't run yet. Put it on networks instead", what, s.NetworkMode)
 	}
 	if hc := s.HealthCheck; hc != nil {
 		if hc.Disable {

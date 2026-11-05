@@ -169,6 +169,7 @@ msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an 
 #: src/features/changes/words.ts
 msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
 msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
+
 #: src/features/apps/AppsPage.tsx
 msgid "{elsewhere, plural, one {# more app lives outside this view} other {# more apps live outside this view}}"
 msgstr "{elsewhere, plural, one {# more app lives outside this view} other {# more apps live outside this view}}"
@@ -212,6 +213,10 @@ msgstr "{name} has no owner yet"
 #: src/features/apps/AppOverview.tsx
 msgid "{name} has no server in the fleet"
 msgstr "{name} has no server in the fleet"
+
+#: src/features/apps/AddPortSheet.tsx
+msgid "{name} is still deploying. You can review this plan once that ends."
+msgstr "{name} is still deploying. You can review this plan once that ends."
 
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} is waiting for its agent"
@@ -367,6 +372,10 @@ msgstr "{waiting} waiting for an agent"
 #: src/features/auth/SignInPage.tsx
 msgid "<0>{0}</0> · the panel for {name}"
 msgstr "<0>{0}</0> · the panel for {name}"
+
+#: src/features/apps/DeploySheet.tsx
+msgid "<0>{current}</0> is still deploying. You can review this plan once that ends."
+msgstr "<0>{current}</0> is still deploying. You can review this plan once that ends."
 
 #: src/features/servers/ServerOverview.tsx
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
@@ -916,6 +925,7 @@ msgid "Codes copied"
 msgstr "Codes copied"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "command"
 msgstr "command"
 
@@ -1065,6 +1075,14 @@ msgstr "Couldn't create from"
 #: src/features/apps/revision.ts
 msgid "Couldn't deploy"
 msgstr "Couldn't deploy"
+
+#: src/features/apps/revision.ts
+msgid "Couldn't publish port {number}"
+msgstr "Couldn't publish port {number}"
+
+#: src/features/apps/revision.ts
+msgid "Couldn't pull {pulled}"
+msgstr "Couldn't pull {pulled}"
 
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
@@ -1395,6 +1413,7 @@ msgid "Enter your name."
 msgstr "Enter your name."
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "entrypoint"
 msgstr "entrypoint"
 
@@ -1403,6 +1422,7 @@ msgid "Entrypoint"
 msgstr "Entrypoint"
 
 #: src/app/Providers.tsx
+#: src/features/apps/words.ts
 msgid "environment"
 msgstr "environment"
 
@@ -1508,6 +1528,10 @@ msgid "Fix line {line} to review the plan"
 msgstr "Fix line {line} to review the plan"
 
 #: src/features/apps/NewAppSheet.tsx
+msgid "Fix lines {line}–{end} to review the plan"
+msgstr "Fix lines {line}–{end} to review the plan"
+
+#: src/features/apps/NewAppSheet.tsx
 msgid "Fix the file to review the plan"
 msgstr "Fix the file to review the plan"
 
@@ -1604,6 +1628,7 @@ msgid "Go to the overview"
 msgstr "Go to the overview"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "health check"
 msgstr "health check"
 
@@ -1627,6 +1652,10 @@ msgstr "Hidden"
 #: src/features/variables/VariablesPage.tsx
 msgid "Hide {name}"
 msgstr "Hide {name}"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Hide the value"
+msgstr "Hide the value"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Hostname"
@@ -1655,6 +1684,10 @@ msgstr "If you lose the device with your only passkey, you'd need <0>dockwell re
 #: src/features/auth/ProfilePage.tsx
 msgid "If you lost a passkey, add a new one now, then remove the lost one below."
 msgstr "If you lost a passkey, add a new one now, then remove the lost one below."
+
+#: src/features/apps/words.ts
+msgid "image"
+msgstr "image"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppOverview.tsx
@@ -1799,6 +1832,7 @@ msgid "Key"
 msgstr "Key"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "labels"
 msgstr "labels"
 
@@ -1977,20 +2011,13 @@ msgid "More"
 msgstr "More"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "mounts"
 msgstr "mounts"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Move to another app"
 msgstr "Move to another app"
-
-#: src/features/apps/revision.ts
-msgid "Moved"
-msgstr "Moved"
-
-#: src/features/apps/revision.ts
-msgid "Moving"
-msgstr "Moving"
 
 #: src/features/apps/AppEnvironment.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -2031,6 +2058,13 @@ msgstr "Name the new project, such as shop"
 msgid "Name the token after what will use it, such as GitHub Actions deploy."
 msgstr "Name the token after what will use it, such as GitHub Actions deploy."
 
+#. placeholder {0}: refused.line
+#. placeholder {1}: refused.to
+#. placeholder {2}: refused.text
+#: src/features/apps/NewAppSheet.tsx
+msgid "Near lines {0}–{1}: {2}"
+msgstr "Near lines {0}–{1}: {2}"
+
 #: src/app/Providers.tsx
 msgid "network"
 msgstr "network"
@@ -2040,6 +2074,10 @@ msgstr "network"
 #: src/features/servers/ServerPanels.tsx
 msgid "Network"
 msgstr "Network"
+
+#: src/features/apps/words.ts
+msgid "networks"
+msgstr "networks"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Networks"
@@ -2486,6 +2524,10 @@ msgstr "port {target}"
 msgid "port {target}, UDP"
 msgstr "port {target}, UDP"
 
+#: src/features/apps/words.ts
+msgid "ports"
+msgstr "ports"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Ports"
 msgstr "Ports"
@@ -2515,6 +2557,10 @@ msgstr "project"
 #: src/features/changes/words.ts
 msgid "Project"
 msgstr "Project"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Project name"
+msgstr "Project name"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Projects"
@@ -2549,6 +2595,26 @@ msgstr "Public IPv6"
 #: src/features/apps/AddPortSheet.tsx
 msgid "Publish port {hostPort} on {name}"
 msgstr "Publish port {hostPort} on {name}"
+
+#: src/features/apps/revision.ts
+msgid "Published port {number}"
+msgstr "Published port {number}"
+
+#: src/features/apps/revision.ts
+msgid "Publishing port {number}"
+msgstr "Publishing port {number}"
+
+#: src/features/apps/revision.ts
+msgid "Pulled {pulled} again"
+msgstr "Pulled {pulled} again"
+
+#: src/features/apps/revision.ts
+msgid "Pulling {pulled} again"
+msgstr "Pulling {pulled} again"
+
+#: src/features/apps/DeploySheet.tsx
+msgid "Pulls <0>{current}</0> again, and replaces {name} only if that's a newer image."
+msgstr "Pulls <0>{current}</0> again, and replaces {name} only if that's a newer image."
 
 #: src/features/auth/TotpPanel.tsx
 msgid "QR code for your authenticator app"
@@ -2707,6 +2773,10 @@ msgstr "resource"
 msgid "Resources"
 msgstr "Resources"
 
+#: src/features/apps/words.ts
+msgid "restart policy"
+msgstr "restart policy"
+
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/words.ts
 msgid "Restarts"
@@ -2831,6 +2901,10 @@ msgstr "Rolls back"
 msgid "Rotated the key that wraps every secret"
 msgstr "Rotated the key that wraps every secret"
 
+#: src/features/changes/words.ts
+msgid "Route"
+msgstr "Route"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Run {projectName} from a Compose file"
 msgstr "Run {projectName} from a Compose file"
@@ -2838,10 +2912,6 @@ msgstr "Run {projectName} from a Compose file"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Run {wanted} as {name}"
 msgstr "Run {wanted} as {name}"
-
-#: src/features/changes/words.ts
-msgid "Route"
-msgstr "Route"
 
 #: src/features/overview/Overview.tsx
 msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
@@ -2942,6 +3012,10 @@ msgstr "Secret"
 msgid "Secret {from}"
 msgstr "Secret {from}"
 
+#: src/features/apps/words.ts
+msgid "secrets"
+msgstr "secrets"
+
 #: src/features/apps/AppOverview.tsx
 msgid "See why"
 msgstr "See why"
@@ -3029,6 +3103,10 @@ msgstr "Show the activity of {name}"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show the apps"
 msgstr "Show the apps"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Show the value"
+msgstr "Show the value"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Show what happened on {name}"
@@ -3324,44 +3402,21 @@ msgstr "The control plane refused this because it didn't come from the panel's o
 msgid "the control plane runs {controlPlane}"
 msgstr "the control plane runs {controlPlane}"
 
-#: src/features/changes/words.ts
-msgid "the domain {path}, which the environment {detail} held within the last 7 days"
-msgstr "the domain {path}, which the environment {detail} held within the last 7 days"
-
-#: src/features/changes/words.ts
-msgid "the group {path}, which is the same as root"
-msgstr "the group {path}, which is the same as root"
-
-#: src/features/changes/words.ts
-msgid "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
-msgstr "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
-
-#: src/features/changes/words.ts
-msgid "the Linux capability {path}"
-msgstr "the Linux capability {path}"
-
-#: src/features/changes/words.ts
-msgid "the Linux capability {path}, which is the same as root"
-msgstr "the Linux capability {path}, which is the same as root"
-
-#: src/features/changes/words.ts
-msgid "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
-msgstr "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
-
-#: src/features/changes/words.ts
-msgid "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
-msgstr "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
-
-#: src/features/variables/VariablesPage.tsx
-msgid "The old value stays in this variable's history"
-msgstr "The old value stays in this variable's history"
 #: src/features/apps/AppOverview.tsx
 msgid "The deploy waits for its agent, and carries on once it reconnects. Check that <0>dockwell run</0> is still running on the server."
 msgstr "The deploy waits for its agent, and carries on once it reconnects. Check that <0>dockwell run</0> is still running on the server."
 
+#: src/features/changes/words.ts
+msgid "the domain {path}, which the environment {detail} held within the last 7 days"
+msgstr "the domain {path}, which the environment {detail} held within the last 7 days"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "The file uses these, and has no default for them."
 msgstr "The file uses these, and has no default for them."
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "The file uses these. Leave one with a default empty to use its default."
+msgstr "The file uses these. Leave one with a default empty to use its default."
 
 #: src/features/apps/AppOverview.tsx
 msgid "The image's own"
@@ -3837,6 +3892,7 @@ msgid "Used by"
 msgstr "Used by"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "user"
 msgstr "user"
 
@@ -3866,6 +3922,10 @@ msgstr "Variable"
 #: src/features/apps/AppEnvironment.tsx
 msgid "Variable {from}"
 msgstr "Variable {from}"
+
+#: src/features/apps/words.ts
+msgid "variables"
+msgstr "variables"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -3913,13 +3973,13 @@ msgstr "Volumes"
 msgid "Waiting"
 msgstr "Waiting"
 
-#: src/features/apps/words.ts
-msgid "Waiting for {servers}"
-msgstr "Waiting for {servers}"
-
 #: src/features/servers/ServersPanel.tsx
 msgid "Waiting for its agent"
 msgstr "Waiting for its agent"
+
+#: src/features/apps/words.ts
+msgid "Waiting for server"
+msgstr "Waiting for server"
 
 #: src/app/Providers.tsx
 msgid "Warning"
@@ -4015,6 +4075,7 @@ msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "Without a volume, what it writes is lost when its container is replaced."
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/apps/words.ts
 msgid "working directory"
 msgstr "working directory"
 

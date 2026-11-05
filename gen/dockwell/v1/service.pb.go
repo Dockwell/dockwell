@@ -356,7 +356,11 @@ type ServiceDeployment struct {
 	// Why it failed, when it did.
 	Error string `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
 	// When its state last moved on.
-	UpdateTime    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
+	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
+	// The image it ran there, as its registry knows it, such as "sha256:ab12…", so
+	// what a moving tag such as :latest really was stays known. Empty until it has
+	// run, and for an image no registry knows.
+	Digest        string `protobuf:"bytes,6,opt,name=digest,proto3" json:"digest,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -424,6 +428,13 @@ func (x *ServiceDeployment) GetUpdateTime() *timestamppb.Timestamp {
 		return x.UpdateTime
 	}
 	return nil
+}
+
+func (x *ServiceDeployment) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
 }
 
 // ListServiceRevisionsRequest asks for a page of a service's revisions.
@@ -1132,7 +1143,7 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\vdeployments\x18\x06 \x03(\v2\x1e.dockwell.v1.ServiceDeploymentR\vdeployments\x12\x1b\n" +
 	"\tchange_id\x18\a \x01(\tR\bchangeId\x121\n" +
 	"\x15rolled_back_change_id\x18\b \x01(\tR\x12rolledBackChangeId\x12;\n" +
-	"\fchange_state\x18\t \x01(\x0e2\x18.dockwell.v1.ChangeStateR\vchangeState\"\xd8\x01\n" +
+	"\fchange_state\x18\t \x01(\x0e2\x18.dockwell.v1.ChangeStateR\vchangeState\"\xf0\x01\n" +
 	"\x11ServiceDeployment\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -1140,7 +1151,8 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\x05state\x18\x03 \x01(\x0e2\x1c.dockwell.v1.DeploymentStateR\x05state\x12\x14\n" +
 	"\x05error\x18\x04 \x01(\tR\x05error\x12;\n" +
 	"\vupdate_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"updateTime\"\xa5\x01\n" +
+	"updateTime\x12\x16\n" +
+	"\x06digest\x18\x06 \x01(\tR\x06digest\"\xa5\x01\n" +
 	"\x1bListServiceRevisionsRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +

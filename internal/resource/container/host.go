@@ -434,7 +434,7 @@ func resolve(p string) (string, error) {
 type Planned struct {
 	// Name is its container's name.
 	Name string
-	// Words name it for people, such as "the service web".
+	// Words name it for people, such as "web".
 	Words string
 	Spec  *resourcev1.Container
 }
@@ -454,7 +454,7 @@ func (d *Driver) CheckPortsAt(ctx context.Context, t Target, c *resourcev1.Conta
 		}
 		for _, p := range c.GetPorts() {
 			if publishes(other.Spec, p) {
-				return fmt.Errorf("%s is wanted by %s too, in this same change, and only one can publish it. Choose another port on the server for one of them", portWords(p), other.Words)
+				return fmt.Errorf("%s also publishes %s in this same change, and only one can. Choose another port on the server for one of them", other.Words, portWords(p))
 			}
 		}
 	}
@@ -473,7 +473,7 @@ func (d *Driver) CheckPlan(ctx context.Context, want resource.Desired, all []res
 			continue
 		}
 		c, _ := o.Spec.(*resourcev1.Container)
-		planned = append(planned, Planned{Name: HostTarget(o.Ref).Name, Words: "the container " + o.Ref.Name, Spec: c})
+		planned = append(planned, Planned{Name: HostTarget(o.Ref).Name, Words: o.Ref.Name, Spec: c})
 	}
 	return d.CheckPortsAt(ctx, HostTarget(want.Ref), want.Spec.(*resourcev1.Container), planned)
 }
@@ -524,8 +524,8 @@ func (d *Docker) CheckPorts(ctx context.Context, t Target, spec *resourcev1.Cont
 			if !holds(c, p) || freedBy(planned, name, p) {
 				continue
 			}
-			return fmt.Errorf("%s is in use by %s, so %s can't publish it. Choose another port on the server, or free that one first",
-				portWords(p), holderWords(t, c, name), t.Service)
+			return fmt.Errorf("%s publishes %s, so %s can't. Choose another port on the server, or free that one first",
+				holderWords(t, c, name), portWords(p), t.Service)
 		}
 	}
 	return nil
@@ -557,9 +557,9 @@ func holderWords(t Target, c *docker.ContainerSummary, name string) string {
 	project, service := c.Labels[docker.LabelProject], c.Labels[docker.LabelService]
 	switch {
 	case service != "" && project == t.Project:
-		return "the service " + service
+		return service
 	case service != "" && (strings.HasPrefix(project, id.Environment+"_") || strings.HasPrefix(project, id.Server+"_")):
-		return "the service " + service + ", in another environment"
+		return service + ", in another environment,"
 	}
-	return "the container " + name + ", which Dockwell didn't make"
+	return "The container " + name + ", which Dockwell didn't make,"
 }

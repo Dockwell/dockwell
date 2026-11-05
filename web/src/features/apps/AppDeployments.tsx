@@ -40,7 +40,18 @@ import { useChangeWords } from "../changes/words";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { useApp, useRevisions } from "./AppContext";
 import { ListSkeleton } from "./AppsPage";
-import { canRollBackTo, fieldName, imageChange, nameOf, revisionName, shortImages, tidyMessage } from "./app";
+import {
+  bareImage,
+  canRollBackTo,
+  fieldName,
+  fieldOfChange,
+  imageChange,
+  nameOf,
+  revisionName,
+  shortDigest,
+  shortImages,
+  tidyMessage,
+} from "./app";
 import { ImageName, WholeImage } from "./ImageName";
 import { type Look, useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { useAppWords } from "./words";
@@ -367,12 +378,18 @@ function rollBackTarget(
 /** A revision's changes in a line: the first field and how many more. */
 function ChangedLine({ rev }: { rev: ServiceRevision }) {
   const { t } = useLingui();
+  const words = useAppWords();
   const changes = rev.changes;
   const [first] = changes;
   if (rev.deleted) return <span>{t`Deleted`}</span>;
-  if (!first || rev.number === 1n) return <ImageName image={rev.image} className="deploy-image-name" />;
-  const more = changes.length - 1;
-  const name = fieldName(first.path);
+  if (!first || rev.number === 1n) return <ImageName image={bareImage(rev.image)} className="deploy-image-name" />;
+  // A variable goes by its own name, and a port's three fields are one change.
+  const groupOf = (path: string) => (fieldOfChange(path) === "env" ? path : fieldOfChange(path));
+  const more = new Set(changes.map((c) => groupOf(c.path))).size - 1;
+  const name =
+    fieldOfChange(first.path) === "env"
+      ? (/\[(.*)\]/.exec(first.path)?.[1] ?? words.field("env"))
+      : words.field(fieldOfChange(first.path));
   const secret = first.sensitive;
   return (
     <>
@@ -552,6 +569,8 @@ function RevisionDiff({ rev }: { rev: ServiceRevision }) {
 function RevisionBody({ rev }: { rev: ServiceRevision }) {
   const { t, i18n } = useLingui();
   const appWords = useAppWords();
+  // What a moving tag really was, so it can be told apart from the same tag later.
+  const digest = rev.deployments.find((d) => d.digest !== "")?.digest ?? "";
   const { fleet } = useFleetView();
   const change = rev.change;
   const words = useChangeWords();
@@ -625,7 +644,13 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
           <>
             <dt>{t`Image`}</dt>
             <dd className="deploy-image">
-              <WholeImage image={rev.image} />
+              <WholeImage image={bareImage(rev.image)} />
+              {digest ? (
+                <span className="deploy-digest app-muted" title={digest}>
+                  {" "}
+                  {shortDigest(digest)}
+                </span>
+              ) : null}
             </dd>
           </>
         ) : null}

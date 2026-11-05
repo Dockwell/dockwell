@@ -562,8 +562,11 @@ message PlanNote {
   // "exposed_more" for a file that writes more of them than a plan lists,
   // "updates_project" for a Compose file that changes a project already running
   // services, "volumes_stay" for a rollback that leaves a service's data as it
-  // is, and "values_latest" for one that keeps the latest value of what the
-  // service uses. Another reason may come: its message says what it means.
+  // is, "values_latest" for one that keeps the latest value of what the service
+  // uses, "pulls_again" for a deploy of the tag it already names, and
+  // "digest_pinned" and "digest_gone" for a rollback that does, or can't, run
+  // exactly the image a revision ran. Another reason may come: its message says
+  // what it means.
   string reason = 1;
   // What it says, for people: the fact, what it means, and what to do.
   string message = 2;
@@ -771,50 +774,13 @@ message PlanStep {
   // its routes stop answering. It never stops a plan, and the fingerprint leaves
   // it out. Keep one stopped with docker update --restart=no.
   repeated string returning_containers = 16;
-  // True when the step has a route serve plain HTTP that didn't, as TLS ends
-  // before this server, so its traffic reaches the server unencrypted. That is
-  // fine on a tunnel or a private network, and not on the open internet. It
-  // never stops a plan, and needs no person.
-  bool unencrypted = 20;
-  // Who a route with tls off, or to a port on the server, answers. Unset for what
-  // answers over HTTPS and sends to a service, as every other route does.
-  RouteAnswers answers = 21;
-  // The port on the server a route sends to, and what listens there as this was
-  // planned. It never stops a plan, and the fingerprint leaves what listens out.
-  ServerPortCheck server_port = 22;
-}
-
-// RouteAnswers is who a route answers, as its plan says.
-message RouteAnswers {
-  // Who.
-  RouteReach reach = 1;
-  // The proxies it answers, for ROUTE_REACH_PROXIES.
-  repeated string proxies = 2;
-  // True when it answers over plain HTTP, as tls off says.
-  bool plain = 3;
-}
-
-// RouteReach is who a route answers.
-enum RouteReach {
-  ROUTE_REACH_UNSPECIFIED = 0;
-  // This server's own loopback alone, as for a tunnel on the server's network.
-  ROUTE_REACH_THIS_SERVER = 1;
-  // The proxies the route names, and whoever comes through them.
-  ROUTE_REACH_PROXIES = 2;
-  // Anyone who can reach the server's port.
-  ROUTE_REACH_ANYONE = 3;
-}
-
-// ServerPortCheck is a port on the server that a route sends to.
-message ServerPortCheck {
-  // The port.
-  uint32 port = 1;
-  // What listens there, as the server said when this was planned, such as
-  // "nginx, in the container web-1". Empty when nothing does, or it couldn't say.
-  string listening = 2;
-  // True when the server said nothing listens there yet, so the route answers 502
-  // until something does. False, with listening empty, when it couldn't say.
-  bool nothing_listening = 3;
+  // True when the step asks the server for its image again first. With no
+  // changes, it replaces what runs only if that finds a newer image, and does
+  // nothing otherwise, which its progress says.
+  bool pull = 17;
+  // True when the digest its spec pins is neither on the server nor in its
+  // registry, so applying it could only fail.
+  bool image_gone = 18;
 }
 
 // IngressEffect is what a step does to the proxy that holds a server's public

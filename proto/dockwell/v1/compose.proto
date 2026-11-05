@@ -124,7 +124,8 @@ message CheckComposeRequest {
 message CheckComposeResponse {
   // Why ImportCompose would refuse the file, when it would: the first thing
   // in the way. Fix it and check again for the next. Unset when it would take
-  // it.
+  // it. What it would refuse whatever its variables hold comes before a variable
+  // with no value, so no one types a secret for a file it then refuses.
   ComposeRefusal refusal = 1;
   // The variables the file uses, whether or not the file can be read
   // further than that.
@@ -173,6 +174,9 @@ message ComposeRefusal {
   // The line of the file it is about, from 1. 0 when it is about the file
   // as a whole.
   int32 line = 2;
+  // The last line it is about, where it is about more than one, as a YAML parser
+  // can't always tell which. Otherwise the same as line.
+  int32 end_line = 3;
 }
 
 // ComposeVariable is a variable a Compose file uses, such as ${TAG}.

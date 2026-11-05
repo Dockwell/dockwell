@@ -207,6 +207,10 @@ type Edit struct {
 	// latest the edit is stale, as it would quietly undo what came between.
 	// Zero is an edit that says the whole spec itself.
 	Base int
+	// Pull asks the server for the resource's image again as this applies, as a
+	// deploy of the tag it already names does: the plan can't know what the tag
+	// points at now, so a revision comes only if it finds a newer image.
+	Pull bool
 }
 
 // Note is something a person should know before applying a plan that no step
@@ -250,6 +254,9 @@ type Proposal struct {
 	// record and on every server: for someone asking for what is already so.
 	// That takes asking the servers, as a record can match what no server runs.
 	IfNothing error
+	// Unpinned is this proposal without the image digest it pins, to plan instead
+	// if a server has no way to get that image.
+	Unpinned *Proposal
 }
 
 // Place is where a plan's resources live, as far as anyone has a choice: Project
@@ -420,6 +427,8 @@ type item struct {
 	// any field does: edits carry whole specs, so applying the same thing
 	// twice must change nothing (ADR 0022).
 	rotates bool
+	// pull says the change asks the server for its image again (Edit.Pull).
+	pull bool
 	// id names the resource. A new one gets its ID when the change is
 	// planned, so another item in the change can live in it.
 	id      string
@@ -498,6 +507,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err != nil {
 		return nil, err
 	}
+	if p.Unpinned != nil && plan.imageGone() {
+		return e.propose(ctx, *p.Unpinned, reverts, rotate)
+	}
 	if p.IfNothing != nil && plan.Empty() {
 		return nil, e.nothingToDo(ctx, items, p.IfNothing)
 	}
@@ -518,6 +530,13 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		return nil, err
 	}
 	return plan, nil
+}
+
+// imageGone reports a step whose pinned image a server has no way to get.
+func (p *Plan) imageGone() bool {
+	return slices.ContainsFunc(p.Servers, func(s ServerPlan) bool {
+		return slices.ContainsFunc(s.Steps, func(st resource.Step) bool { return st.ImageGone })
+	})
 }
 
 // nothingToDo says why a plan that does nothing was refused. A server that isn't
@@ -613,7 +632,7 @@ func (e *Engine) changeItems(ctx context.Context, tx *store.Tx, changeID string,
 		}
 		out[i] = store.ChangeItem{
 			ResourceID: it.id, Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, BaseRevision: it.base, Spec: spec,
-			Servers: it.servers, Rotates: it.rotates,
+			Servers: it.servers, Rotates: it.rotates, Pull: it.pull,
 		}
 	}
 	return out, nil
@@ -704,6 +723,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			if err != nil {
 				return err
 			}
+			it.pull = ed.Pull
 			if ed.Base != 0 && it.base != ed.Base {
 				return fault.New(ErrStale, "%s changed while this was being planned, and planning from what was read would undo that. Try again, to plan it from the latest", ed.Ref)
 			}
@@ -1292,7 +1312,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			sp.Downtime += s.Downtime
 			sp.UntilHealthy += max(s.Downtime, s.UntilHealthy)
 			actions[ids[s.Ref]] = append(actions[ids[s.Ref]], s.Action)
-			fmt.Fprintf(fp, "step %s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t\n", server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings,
+			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings,
 				s.UntilHealthy, s.Kept, s.Restores, s.HealthUnknown)
 			for _, c := range s.Changes {
 				fmt.Fprintf(fp, "  %s|%d|%s|%s|%t\n", c.Path, c.Op, c.From, c.To, c.Sensitive)
@@ -1409,7 +1429,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server)}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -2055,6 +2075,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		return slices.Index(serversOf(plan), b.server) - slices.Index(serversOf(plan), a.server)
 	})
 	queue := slices.Concat(builds, deletes)
+	digests := map[at]string{}
 
 	// A removed server takes no steps. What the change took off it is
 	// superseded there at once; what it was to run there never got there.
@@ -2150,6 +2171,13 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		callCtx, called := e.calling(ctx)
 		index := q.index
 		callCtx = resource.WithProgress(callCtx, func(m string) { e.progressed(c.ID, index, running+": "+m) })
+		var told resource.Outcome
+		callCtx = resource.WithOutcome(callCtx, func(o resource.Outcome) {
+			told.Digest, told.Note = cmp.Or(o.Digest, told.Digest), cmp.Or(o.Note, told.Note)
+			if o.Replacing {
+				e.pulledNewer(ctx, c.ID, items, it, q.server, o)
+			}
+		})
 		err := agent.Apply(callCtx, *q.step, it.desiredOn(q.server))
 		called()
 		switch {
@@ -2166,18 +2194,25 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		default:
 			return stop(qi, err)
 		}
-		p, u := e.step(c.ID, q.index, StepDone, message(StepDone, q.step.Action, q.step.Ref, q.name))
-		if e.deployed(ctx, c.ID, it, q.server, nil, p) {
+		p, u := e.step(c.ID, q.index, StepDone, cmp.Or(told.Note, message(StepDone, q.step.Action, q.step.Ref, q.name)))
+		digests[at{q.server, it.ref}] = told.Digest
+		if e.deployedImage(ctx, c.ID, it, q.server, nil, p, told.Digest) {
 			e.announce(c.ID, u)
 		}
 		done[at{q.server, it.ref}] = true
 	}
-	// Where a revision needed no step, the server already has it.
+	// Where a revision needed no step, the server already has it. So does one a
+	// pull found nothing newer on, where another server's pull made a revision
+	// after that step had gone on record under the one before.
 	for i := range items {
 		it := &items[i]
 		for _, s := range it.servers {
-			if _, waits := pending[s]; !done[at{s, it.ref}] && !waits && !slices.Contains(it.gone, s) {
-				e.deployed(ctx, c.ID, it, s, nil, nil)
+			_, waits := pending[s]
+			if waits || slices.Contains(it.gone, s) {
+				continue
+			}
+			if !done[at{s, it.ref}] || it.pull && it.rev != it.base {
+				e.deployedImage(ctx, c.ID, it, s, nil, nil, digests[at{s, it.ref}])
 			}
 		}
 	}
@@ -2215,6 +2250,50 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	return nil
 }
 
+// pulledNewer puts a newer image a pull found on record, before anything is
+// replaced with it: a revision of the same spec, with its digest, so what ran
+// before stays what a rollback can go back to, a failed replace included. A pull
+// that finds nothing newer never comes here, so it makes no revision. A record
+// that can't be written is logged, not fatal: the step goes on either way.
+func (e *Engine) pulledNewer(ctx context.Context, changeID string, items []item, it *item, server string, o resource.Outcome) {
+	now := e.now()
+	rev := it.rev
+	e.mu.Lock()
+	err := e.db.Revise(ctx, func(tx *store.RevisionTx) error {
+		if o.Previous != "" {
+			if err := tx.SetDeploymentDigest(ctx, it.id, it.base, server, o.Previous, true); err != nil {
+				return err
+			}
+		}
+		if rev == it.base {
+			number := it.base + 1
+			spec, err := e.stored(ctx, tx.Tx, it, store.InRevision(it.id, string(it.ref.Kind), number))
+			if err != nil {
+				return err
+			}
+			made, err := tx.AddRevision(ctx, store.NewRevision{
+				Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, ID: it.id, Number: number,
+				Spec: spec, Change: changeID, Position: slices.IndexFunc(items, func(o item) bool { return o.id == it.id }), At: now, Uses: storeUses(e.usesOf(it, it.spec)),
+			})
+			if err != nil {
+				return err
+			}
+			if err := tx.PlaceRevision(ctx, made.ID, made.Revision, it.servers, now); err != nil {
+				return err
+			}
+			rev = made.Revision
+		}
+		return tx.SetDeploymentDigest(ctx, it.id, rev, server, o.Digest, false)
+	})
+	e.mu.Unlock()
+	if err != nil {
+		e.logger.WarnContext(ctx, "can't record the newer image a pull found", slog.String("resource", it.ref.String()), slog.String("server", server),
+			slog.String("error", err.Error()))
+		return
+	}
+	it.rev = rev
+}
+
 // deployed records how a step went on a server: the revision is live
 // there, or failed; or, where the step took it off the server, what it
 // had there is superseded. It records the change's progress with it. A
@@ -2222,6 +2301,11 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 // happened, and Drift reads the servers, not this. It reports whether the
 // record was written.
 func (e *Engine) deployed(ctx context.Context, changeID string, it *item, server string, failed error, progress *Progress) bool {
+	return e.deployedImage(ctx, changeID, it, server, failed, progress, "")
+}
+
+// deployedImage is deployed, with what image it ran, as its registry knows it.
+func (e *Engine) deployedImage(ctx context.Context, changeID string, it *item, server string, failed error, progress *Progress, digest string) bool {
 	now := e.now()
 	err := e.db.Revise(ctx, func(tx *store.RevisionTx) error {
 		if err := writeProgress(ctx, tx, changeID, progress); err != nil {
@@ -2235,7 +2319,7 @@ func (e *Engine) deployed(ctx context.Context, changeID string, it *item, server
 		case failed != nil:
 			return nil //nolint:nilerr // a failed step off a server leaves its deployment as it was
 		case slices.Contains(it.servers, server):
-			return tx.SetDeploymentState(ctx, store.Deployment{ResourceID: it.id, Revision: it.rev, Server: server, State: store.DeploymentLive, UpdatedAt: now})
+			return tx.SetDeploymentState(ctx, store.Deployment{ResourceID: it.id, Revision: it.rev, Server: server, State: store.DeploymentLive, Digest: digest, UpdatedAt: now})
 		default:
 			return tx.Supersede(ctx, it.id, server, it.rev+1, now)
 		}
@@ -2467,7 +2551,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 				it.id = e.newID(ref.Kind)
 			}
 		}
-		it.servers, it.rotates = ci.Servers, ci.Rotates
+		it.servers, it.rotates, it.pull = ci.Servers, ci.Rotates, ci.Pull
 		// Opened as the item of the change it was sealed for, of the
 		// resource the base check above makes the one there now.
 		if it.encoded, err = e.open(ctx, tx, store.InChange(cmp.Or(ci.ResourceID, it.id), ci.Kind, c.ID, i), ci.Spec); err != nil {
@@ -2628,6 +2712,9 @@ func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 					if ed.Spec, err = e.decode(ctx, tx, store.InRevision(rev.ID, rev.Kind, prev.Revision), prev.Spec); err != nil {
 						return err
 					}
+					if ed.Spec, err = e.pinIfMoved(ctx, tx, rev, prev.Revision, ed.Spec); err != nil {
+						return err
+					}
 					if ed.Servers, err = inFleet(ctx, tx, ref, rev.ID, prev.Revision, changeID); err != nil {
 						return err
 					}
@@ -2638,6 +2725,64 @@ func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 		return nil
 	})
 	return edits, err
+}
+
+// pinIfMoved is spec, of an earlier revision, pinned to what that revision ran if
+// its tag is the one rev names and rev ran something else: going back to the tag
+// alone would run the image it's going back from.
+func (e *Engine) pinIfMoved(ctx context.Context, tx *store.Tx, rev *store.Revision, earlier int, spec proto.Message) (proto.Message, error) {
+	namer, ok := e.imageNamer(resource.Kind(rev.Kind))
+	if !ok || rev.Spec == nil {
+		return spec, nil
+	}
+	now, err := e.decode(ctx, tx, store.InRevision(rev.ID, rev.Kind, rev.Revision), rev.Spec)
+	if err != nil {
+		return nil, err
+	}
+	if resource.BareImage(namer.ImageOf(now)) != resource.BareImage(namer.ImageOf(spec)) {
+		return spec, nil
+	}
+	ran, err := tx.Deployments(ctx, rev.ID, earlier)
+	if err != nil {
+		return nil, err
+	}
+	last, err := tx.Deployments(ctx, rev.ID, rev.Revision)
+	if err != nil {
+		return nil, err
+	}
+	digest, moved := oneDigest(ran), oneDigest(last)
+	if digest == "" || moved == "" || digest == moved {
+		return spec, nil
+	}
+	out := proto.Clone(spec)
+	namer.SetImage(out, resource.PinnedImage(namer.ImageOf(spec), digest))
+	return out, nil
+}
+
+// imageNamer returns a kind as an ImageNamer, if it is one.
+func (e *Engine) imageNamer(kind resource.Kind) (resource.ImageNamer, bool) {
+	t, err := e.kinds.Type(kind)
+	if err != nil {
+		return nil, false
+	}
+	n, ok := t.(resource.ImageNamer)
+	return n, ok
+}
+
+// oneDigest is the digest every deployment that knows one ran, or nothing if they
+// differ or none knows.
+func oneDigest(deployments []store.Deployment) string {
+	out := ""
+	for i := range deployments {
+		switch d := deployments[i].Digest; {
+		case d == "":
+		case out == "":
+			out = d
+		case d != out:
+			return ""
+		}
+	}
+	return out
 }
 
 // inFleet returns where a revision ran, on the servers still in the fleet:

@@ -275,8 +275,8 @@ func TestCheckStopsAtTheGuard(t *testing.T) {
 	if stack != nil || seen.Name != "" || len(seen.Variables) != 0 || len(seen.Exposed) != 0 {
 		t.Errorf("the file was read past the guard: %+v, %+v", seen, stack)
 	}
-	if got := Line(t.Context(), named, err); got != 0 {
-		t.Errorf("Line = %d, want 0: it isn't about a line, and reading it again costs what the guard stopped", got)
+	if got, _ := Lines(t.Context(), named, err); got != 0 {
+		t.Errorf("Lines = %d, want 0: it isn't about a line, and reading it again costs what the guard stopped", got)
 	}
 
 	// One it can read says what it says of itself, refused or not.

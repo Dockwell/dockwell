@@ -22,7 +22,18 @@ export function appOf(service: ServiceInfo): Container | undefined {
 
 /** The image a service runs, or empty for a kind that has none. */
 export function imageOf(service: ServiceInfo): string {
-  return appOf(service)?.image ?? "";
+  return bareImage(appOf(service)?.image ?? "");
+}
+
+/** An image without the digest a rollback may have pinned it to. */
+export function bareImage(image: string): string {
+  const at = image.indexOf("@");
+  return at < 0 ? image : image.slice(0, at);
+}
+
+/** A digest in few enough characters to read. */
+export function shortDigest(digest: string): string {
+  return digest.slice(0, "sha256:".length + 12);
 }
 
 export function nameOf(service: ServiceInfo): string {
@@ -239,6 +250,26 @@ export function groupDeployedAt(group: AppGroup): Date {
   return group.services.map(deployedAt).reduce((a, b) => (b > a ? b : a));
 }
 
+/**
+ * Groups in the order they already have, so a row doesn't move under someone's
+ * cursor as a deploy starts or ends: sorting waits until the page is next opened.
+ * One that is new comes first, as it is the newest. It returns the order to keep.
+ */
+export function keepOrder(
+  known: readonly string[],
+  sorted: readonly AppGroup[],
+): { order: string[]; groups: AppGroup[] } {
+  const at = new Map(known.map((key, i) => [key, i]));
+  const fresh = sorted.filter((g) => !at.has(g.key));
+  const kept = sorted.filter((g) => at.has(g.key)).sort((a, b) => (at.get(a.key) ?? 0) - (at.get(b.key) ?? 0));
+  const seen = new Set(sorted.map((g) => g.key));
+  return {
+    groups: [...fresh, ...kept],
+    // What a filter hides keeps its place for when it comes back.
+    order: [...fresh.map((g) => g.key), ...known.filter((key) => seen.has(key) || at.has(key))],
+  };
+}
+
 /** Newest first, with what needs you above it all, so a row never hides what is wrong. */
 export function sortGroups(groups: readonly AppGroup[], servers: readonly ServerSummary[] | undefined): AppGroup[] {
   const looks = new Map(groups.map((g) => [g.key, CONCERN[groupState(g, servers).kind]]));
@@ -320,6 +351,11 @@ export function fieldName(path: string): string {
   return path.replace(/^app\./, "");
 }
 
+/** The field of a service a change's path is in: "app.ports[0].host_port" is in ports. */
+export function fieldOfChange(path: string): string {
+  return fieldName(path).replace(/[.[].*$/, "");
+}
+
 /** A name Dockwell takes for a service or a project: a DNS label, such as "api-v2". */
 export const SERVICE_NAME = /^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$/;
 
@@ -375,7 +411,7 @@ export function valuesOf(service: ServiceInfo): ServiceValue[] {
  * words without the ones that say where it was planned.
  */
 export function portRefusal(message: string): string | undefined {
-  const found = /\bport \d+(?:\/udp)?(?: on \S+(?: \([^)]*\))?)? is (?:in use|wanted)\b.*$/s.exec(message)?.[0];
+  const found = /(?:^|: )([^:]*? publishes port .*)$/s.exec(message)?.[1];
   return found ? found.charAt(0).toUpperCase() + found.slice(1) : undefined;
 }
 

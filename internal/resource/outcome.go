@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package resource
+
+import (
+	"context"
+	"errors"
+	"strings"
+
+	"google.golang.org/protobuf/proto"
+)
+
+// ErrAlreadySo is what a driver's Apply returns when it found nothing to do,
+// which only it could find out, as a pull that finds nothing newer does. The step
+// succeeded, and left what runs alone, so it isn't verified.
+var ErrAlreadySo = errors.New("already as asked")
+
+// Outcome is what a step found out on its server, for the record.
+type Outcome struct {
+	// Digest is the image the step leaves running, as its registry knows it.
+	// Empty for one no registry knows.
+	Digest string
+	// Previous is the digest of the image it replaces, where a pull found a newer
+	// one.
+	Previous string
+	// Replacing says a pull found a newer image, and the step is about to replace
+	// what runs with it.
+	Replacing bool
+	// Note says, for people, why the step did nothing.
+	Note string
+}
+
+type outcomeKey struct{}
+
+// WithOutcome returns a context whose step reports what it finds out to fn, in
+// order, before the step ends.
+func WithOutcome(ctx context.Context, fn func(Outcome)) context.Context {
+	return context.WithValue(ctx, outcomeKey{}, fn)
+}
+
+// OutcomeFunc returns what ctx reports outcomes to, or nil.
+func OutcomeFunc(ctx context.Context) func(Outcome) {
+	fn, _ := ctx.Value(outcomeKey{}).(func(Outcome))
+	return fn
+}
+
+// Report tells whoever applies the step what it found out.
+func Report(ctx context.Context, o Outcome) {
+	if fn := OutcomeFunc(ctx); fn != nil {
+		fn(o)
+	}
+}
+
+// ImageNamer is a Type whose spec names an image, so a rollback can say which
+// image it means by digest.
+type ImageNamer interface {
+	// ImageOf is the image a spec runs, as it is written.
+	ImageOf(spec proto.Message) string
+	// SetImage changes the image a spec runs.
+	SetImage(spec proto.Message, image string)
+}
+
+// BareImage is an image without the digest it may be pinned to.
+func BareImage(image string) string {
+	bare, _, _ := strings.Cut(image, "@")
+	return bare
+}
+
+// PinnedImage is an image pinned to a digest, keeping its tag to say what it was.
+func PinnedImage(image, digest string) string {
+	return BareImage(image) + "@" + digest
+}

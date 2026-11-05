@@ -51,6 +51,13 @@
   cursor: pointer;
   transition: color var(--motion-fast) var(--ease-out);
 }
+@media (pointer: coarse) {
+  .dw-tab {
+    height: 44px;
+    min-width: 44px;
+    justify-content: center;
+  }
+}
 .dw-tab:hover {
   color: var(--ink);
 }

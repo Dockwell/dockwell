@@ -5,7 +5,7 @@ import type { Status } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { createElement, type ReactNode, useCallback, useMemo } from "react";
 
-import { type AppState, fieldName, shortImage } from "./app";
+import { type AppState, bareImage, fieldName, fieldOfChange, shortImage } from "./app";
 import { useAppWords } from "./words";
 
 /** A revision's place in an app's history, as a status and a word. */
@@ -59,6 +59,7 @@ export interface RevisionTitle {
  */
 export function useRevisionTitle() {
   const { t } = useLingui();
+  const words = useAppWords();
   return useCallback(
     (rev: ServiceRevision): RevisionTitle => {
       const plain = (text: string): RevisionTitle => ({ node: text, text });
@@ -74,10 +75,11 @@ export function useRevisionTitle() {
       const moving =
         !failed &&
         (change?.state === ChangeState.APPLYING || rev.deployments.some((d) => d.state === DeploymentState.PENDING));
+      const pulled = shortImage(bareImage(rev.image));
       const imageField = rev.changes.find((c) => fieldName(c.path) === "image");
       const created = rev.number === 1n || imageField?.op === FieldOp.ADDED;
       if (created || imageField) {
-        const image = shortImage(rev.image);
+        const image = shortImage(bareImage(rev.image));
         const parts = created
           ? { past: t`Created from`, now: t`Creating from`, tried: t`Couldn't create from` }
           : {
@@ -91,15 +93,28 @@ export function useRevisionTitle() {
           text: `${words} ${image}`,
         };
       }
-      const [first] = rev.changes;
-      if (!first) return plain(moving ? t`Moving` : t`Moved`);
-      const field = fieldName(first.path).replace(/\[.*$/, "");
-      const more = rev.changes.length - 1;
+      // A port added says which: three fields of one port aren't three changes.
+      const fields = [...new Set(rev.changes.map((c) => fieldOfChange(c.path)))];
+      const published = rev.changes.filter((c) => /\.host_port$/.test(c.path) && c.op === FieldOp.ADDED);
+      const [port] = published;
+      if (port && fields.length === 1 && published.length === 1) {
+        const number = port.to;
+        if (failed) return plain(t`Couldn't publish port ${number}`);
+        return plain(moving ? t`Publishing port ${number}` : t`Published port ${number}`);
+      }
+      const [first] = fields;
+      if (first === undefined) {
+        // Nothing but the image its tag names moved, which a pull found.
+        if (failed) return plain(t`Couldn't pull ${pulled}`);
+        return plain(moving ? t`Pulling ${pulled} again` : t`Pulled ${pulled} again`);
+      }
+      const field = words.field(first);
+      const more = fields.length - 1;
       if (failed) return plain(more > 0 ? t`Couldn't change ${field} and ${more} more` : t`Couldn't change ${field}`);
       if (moving) return plain(more > 0 ? t`Changing ${field} and ${more} more` : t`Changing ${field}`);
       return plain(more > 0 ? t`Changed ${field} and ${more} more` : t`Changed ${field}`);
     },
-    [t],
+    [t, words],
   );
 }
 

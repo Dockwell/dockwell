@@ -23,7 +23,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/agent/v1/agent.proto.
  */
 export const file_dockwell_agent_v1_agent: GenFile = /*@__PURE__*/
-  fileDesc("Ch1kb2Nrd2VsbC9hZ2VudC92MS9hZ2VudC5wcm90bxIRZG9ja3dlbGwuYWdlbnQudjEi4gIKDkNvbm5lY3RSZXF1ZXN0EikKBWhlbGxvGAEgASgLMhguZG9ja3dlbGwuYWdlbnQudjEuSGVsbG9IABIpCgVzdGF0cxgCIAEoCzIYLmRvY2t3ZWxsLnYxLlNlcnZlclN0YXRzSAASLwoGcmVzdWx0GAMgASgLMh0uZG9ja3dlbGwuYWdlbnQudjEuQ2FsbFJlc3VsdEgAEi8KCGRyYWluaW5nGAQgASgLMhsuZG9ja3dlbGwuYWdlbnQudjEuRHJhaW5pbmdIABIzCghwcm9ncmVzcxgFIAEoCzIfLmRvY2t3ZWxsLmFnZW50LnYxLkNhbGxQcm9ncmVzc0gAEikKBWtpbmRzGAYgASgLMhguZG9ja3dlbGwuYWdlbnQudjEuS2luZHNIABItCgdkb21haW5zGAcgASgLMhouZG9ja3dlbGwuYWdlbnQudjEuRG9tYWluc0gAQgkKB21lc3NhZ2UiYgoHRG9tYWlucxIqCgdkb21haW5zGAEgAygLMhkuZG9ja3dlbGwudjEuRG9tYWluU3RhdHVzEisKB2luZ3Jlc3MYAiABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzIisKDENhbGxQcm9ncmVzcxIKCgJpZBgBIAEoBBIPCgdtZXNzYWdlGAIgASgJIk8KBUtpbmRzEg0KBWtpbmRzGAEgAygJEjcKC3VuYXZhaWxhYmxlGAIgAygLMiIuZG9ja3dlbGwuYWdlbnQudjEuVW5hdmFpbGFibGVLaW5kIi8KD1VuYXZhaWxhYmxlS2luZBIMCgRraW5kGAEgASgJEg4KBnJlYXNvbhgCIAEoCSIKCghEcmFpbmluZyK9AQoFSGVsbG8SJQoFYnVpbGQYASABKAsyFi5kb2Nrd2VsbC52MS5CdWlsZEluZm8SLwoJaW52ZW50b3J5GAIgASgLMhwuZG9ja3dlbGwudjEuU2VydmVySW52ZW50b3J5Eg0KBWtpbmRzGAMgAygJEjcKC3VuYXZhaWxhYmxlGAQgAygLMiIuZG9ja3dlbGwuYWdlbnQudjEuVW5hdmFpbGFibGVLaW5kEhQKDGRlbGl2ZXJ5X2tleRgFIAEoDCLUAQoPQ29ubmVjdFJlc3BvbnNlEi0KB3dlbGNvbWUYASABKAsyGi5kb2Nrd2VsbC5hZ2VudC52MS5XZWxjb21lSAASJwoEY2FsbBgCIAEoCzIXLmRvY2t3ZWxsLmFnZW50LnYxLkNhbGxIABIvCgZjYW5jZWwYAyABKAsyHS5kb2Nrd2VsbC5hZ2VudC52MS5DYW5jZWxDYWxsSAASLQoHZHJhaW5lZBgEIAEoCzIaLmRvY2t3ZWxsLmFnZW50LnYxLkRyYWluZWRIAEIJCgdtZXNzYWdlIgkKB0RyYWluZWQiUQoHV2VsY29tZRITCgtzZXJ2ZXJfbmFtZRgBIAEoCRIxCg5zdGF0c19pbnRlcnZhbBgCIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbiJTCgpKb2luVGlja2V0EhMKC2NvbnRyb2xfdXJsGAEgASgJEg4KBmNhX3BpbhgCIAEoCRIQCgh0b2tlbl9pZBgDIAEoCRIOCgZzZWNyZXQYBCABKAwidQoLSm9pblJlcXVlc3QSEAoIdG9rZW5faWQYASABKAkSDgoGc2VjcmV0GAIgASgMEgsKA2NzchgDIAEoDBIQCghob3N0bmFtZRgEIAEoCRIlCgVidWlsZBgFIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbyJjCgxKb2luUmVzcG9uc2USEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEhMKC2NlcnRpZmljYXRlGAMgASgMEhYKDmNhX2NlcnRpZmljYXRlGAQgASgMIiYKF1JlbmV3Q2VydGlmaWNhdGVSZXF1ZXN0EgsKA2NzchgBIAEoDCIvChhSZW5ld0NlcnRpZmljYXRlUmVzcG9uc2USEwoLY2VydGlmaWNhdGUYASABKAwi1QEKBENhbGwSCgoCaWQYASABKAQSKgoHdGltZW91dBgCIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIrCgRwbGFuGAMgASgLMhsuZG9ja3dlbGwuYWdlbnQudjEuUGxhbkNhbGxIABItCgVhcHBseRgEIAEoCzIcLmRvY2t3ZWxsLmFnZW50LnYxLkFwcGx5Q2FsbEgAEjEKB29ic2VydmUYBSABKAsyHi5kb2Nrd2VsbC5hZ2VudC52MS5PYnNlcnZlQ2FsbEgAQgYKBGNhbGwiPwoIUGxhbkNhbGwSMwoHZGVzaXJlZBgBIAMoCzIiLmRvY2t3ZWxsLmFnZW50LnYxLkRlc2lyZWRSZXNvdXJjZSJ1CglBcHBseUNhbGwSIwoEc3RlcBgBIAEoCzIVLmRvY2t3ZWxsLnYxLlBsYW5TdGVwEjMKB2Rlc2lyZWQYAiABKAsyIi5kb2Nrd2VsbC5hZ2VudC52MS5EZXNpcmVkUmVzb3VyY2USDgoGdmFsdWVzGAMgASgMIm4KBlZhbHVlcxI1CgZ2YWx1ZXMYASADKAsyJS5kb2Nrd2VsbC5hZ2VudC52MS5WYWx1ZXMuVmFsdWVzRW50cnkaLQoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASI6CgtPYnNlcnZlQ2FsbBIrCglyZXNvdXJjZXMYASADKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZiJZCg9EZXNpcmVkUmVzb3VyY2USKgoIcmVzb3VyY2UYASABKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhIRCgRzcGVjGAIgASgMSACIAQFCBwoFX3NwZWMiGAoKQ2FuY2VsQ2FsbBIKCgJpZBgBIAEoBCLmAQoKQ2FsbFJlc3VsdBIKCgJpZBgBIAEoBBItCgVlcnJvchgCIAEoCzIcLmRvY2t3ZWxsLmFnZW50LnYxLkNhbGxFcnJvckgAEi0KBHBsYW4YAyABKAsyHS5kb2Nrd2VsbC5hZ2VudC52MS5QbGFuUmVzdWx0SAASLwoFYXBwbHkYBCABKAsyHi5kb2Nrd2VsbC5hZ2VudC52MS5BcHBseVJlc3VsdEgAEjMKB29ic2VydmUYBSABKAsyIC5kb2Nrd2VsbC5hZ2VudC52MS5PYnNlcnZlUmVzdWx0SABCCAoGcmVzdWx0Ii4KCUNhbGxFcnJvchIPCgdtZXNzYWdlGAEgASgJEhAKCGRyYWluaW5nGAIgASgIIjIKClBsYW5SZXN1bHQSJAoFc3RlcHMYASADKAsyFS5kb2Nrd2VsbC52MS5QbGFuU3RlcCINCgtBcHBseVJlc3VsdCJHCg1PYnNlcnZlUmVzdWx0EjYKCXJlc291cmNlcxgBIAMoCzIjLmRvY2t3ZWxsLmFnZW50LnYxLk9ic2VydmVkUmVzb3VyY2UiLgoQT2JzZXJ2ZWRSZXNvdXJjZRIRCgRzcGVjGAEgASgMSACIAQFCBwoFX3NwZWMyrAIKDEFnZW50U2VydmljZRJNCgRKb2luEh4uZG9ja3dlbGwuYWdlbnQudjEuSm9pblJlcXVlc3QaHy5kb2Nrd2VsbC5hZ2VudC52MS5Kb2luUmVzcG9uc2UiBKC7GAMScQoQUmVuZXdDZXJ0aWZpY2F0ZRIqLmRvY2t3ZWxsLmFnZW50LnYxLlJlbmV3Q2VydGlmaWNhdGVSZXF1ZXN0GisuZG9ja3dlbGwuYWdlbnQudjEuUmVuZXdDZXJ0aWZpY2F0ZVJlc3BvbnNlIgSguxgDEloKB0Nvbm5lY3QSIS5kb2Nrd2VsbC5hZ2VudC52MS5Db25uZWN0UmVxdWVzdBoiLmRvY2t3ZWxsLmFnZW50LnYxLkNvbm5lY3RSZXNwb25zZSIEoLsYAygBMAFCxQEKFWNvbS5kb2Nrd2VsbC5hZ2VudC52MUIKQWdlbnRQcm90b1ABWjpnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9hZ2VudC92MTthZ2VudHYxogIDREFYqgIRRG9ja3dlbGwuQWdlbnQuVjHKAhFEb2Nrd2VsbFxBZ2VudFxWMeICHURvY2t3ZWxsXEFnZW50XFYxXEdQQk1ldGFkYXRh6gITRG9ja3dlbGw6OkFnZW50OjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_domain, file_dockwell_v1_options, file_dockwell_v1_server, file_dockwell_v1_system, file_google_protobuf_duration]);
+  fileDesc("Ch1kb2Nrd2VsbC9hZ2VudC92MS9hZ2VudC5wcm90bxIRZG9ja3dlbGwuYWdlbnQudjEi4gIKDkNvbm5lY3RSZXF1ZXN0EikKBWhlbGxvGAEgASgLMhguZG9ja3dlbGwuYWdlbnQudjEuSGVsbG9IABIpCgVzdGF0cxgCIAEoCzIYLmRvY2t3ZWxsLnYxLlNlcnZlclN0YXRzSAASLwoGcmVzdWx0GAMgASgLMh0uZG9ja3dlbGwuYWdlbnQudjEuQ2FsbFJlc3VsdEgAEi8KCGRyYWluaW5nGAQgASgLMhsuZG9ja3dlbGwuYWdlbnQudjEuRHJhaW5pbmdIABIzCghwcm9ncmVzcxgFIAEoCzIfLmRvY2t3ZWxsLmFnZW50LnYxLkNhbGxQcm9ncmVzc0gAEikKBWtpbmRzGAYgASgLMhguZG9ja3dlbGwuYWdlbnQudjEuS2luZHNIABItCgdkb21haW5zGAcgASgLMhouZG9ja3dlbGwuYWdlbnQudjEuRG9tYWluc0gAQgkKB21lc3NhZ2UiYgoHRG9tYWlucxIqCgdkb21haW5zGAEgAygLMhkuZG9ja3dlbGwudjEuRG9tYWluU3RhdHVzEisKB2luZ3Jlc3MYAiABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzIlwKDENhbGxQcm9ncmVzcxIKCgJpZBgBIAEoBBIPCgdtZXNzYWdlGAIgASgJEi8KB291dGNvbWUYAyABKAsyHi5kb2Nrd2VsbC5hZ2VudC52MS5TdGVwT3V0Y29tZSJQCgtTdGVwT3V0Y29tZRIOCgZkaWdlc3QYASABKAkSEAoIcHJldmlvdXMYAiABKAkSEQoJcmVwbGFjaW5nGAMgASgIEgwKBG5vdGUYBCABKAkiTwoFS2luZHMSDQoFa2luZHMYASADKAkSNwoLdW5hdmFpbGFibGUYAiADKAsyIi5kb2Nrd2VsbC5hZ2VudC52MS5VbmF2YWlsYWJsZUtpbmQiLwoPVW5hdmFpbGFibGVLaW5kEgwKBGtpbmQYASABKAkSDgoGcmVhc29uGAIgASgJIgoKCERyYWluaW5nIr0BCgVIZWxsbxIlCgVidWlsZBgBIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbxIvCglpbnZlbnRvcnkYAiABKAsyHC5kb2Nrd2VsbC52MS5TZXJ2ZXJJbnZlbnRvcnkSDQoFa2luZHMYAyADKAkSNwoLdW5hdmFpbGFibGUYBCADKAsyIi5kb2Nrd2VsbC5hZ2VudC52MS5VbmF2YWlsYWJsZUtpbmQSFAoMZGVsaXZlcnlfa2V5GAUgASgMItQBCg9Db25uZWN0UmVzcG9uc2USLQoHd2VsY29tZRgBIAEoCzIaLmRvY2t3ZWxsLmFnZW50LnYxLldlbGNvbWVIABInCgRjYWxsGAIgASgLMhcuZG9ja3dlbGwuYWdlbnQudjEuQ2FsbEgAEi8KBmNhbmNlbBgDIAEoCzIdLmRvY2t3ZWxsLmFnZW50LnYxLkNhbmNlbENhbGxIABItCgdkcmFpbmVkGAQgASgLMhouZG9ja3dlbGwuYWdlbnQudjEuRHJhaW5lZEgAQgkKB21lc3NhZ2UiCQoHRHJhaW5lZCJRCgdXZWxjb21lEhMKC3NlcnZlcl9uYW1lGAEgASgJEjEKDnN0YXRzX2ludGVydmFsGAIgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uIlMKCkpvaW5UaWNrZXQSEwoLY29udHJvbF91cmwYASABKAkSDgoGY2FfcGluGAIgASgJEhAKCHRva2VuX2lkGAMgASgJEg4KBnNlY3JldBgEIAEoDCJ1CgtKb2luUmVxdWVzdBIQCgh0b2tlbl9pZBgBIAEoCRIOCgZzZWNyZXQYAiABKAwSCwoDY3NyGAMgASgMEhAKCGhvc3RuYW1lGAQgASgJEiUKBWJ1aWxkGAUgASgLMhYuZG9ja3dlbGwudjEuQnVpbGRJbmZvImMKDEpvaW5SZXNwb25zZRIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSEwoLY2VydGlmaWNhdGUYAyABKAwSFgoOY2FfY2VydGlmaWNhdGUYBCABKAwiJgoXUmVuZXdDZXJ0aWZpY2F0ZVJlcXVlc3QSCwoDY3NyGAEgASgMIi8KGFJlbmV3Q2VydGlmaWNhdGVSZXNwb25zZRITCgtjZXJ0aWZpY2F0ZRgBIAEoDCLVAQoEQ2FsbBIKCgJpZBgBIAEoBBIqCgd0aW1lb3V0GAIgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uEisKBHBsYW4YAyABKAsyGy5kb2Nrd2VsbC5hZ2VudC52MS5QbGFuQ2FsbEgAEi0KBWFwcGx5GAQgASgLMhwuZG9ja3dlbGwuYWdlbnQudjEuQXBwbHlDYWxsSAASMQoHb2JzZXJ2ZRgFIAEoCzIeLmRvY2t3ZWxsLmFnZW50LnYxLk9ic2VydmVDYWxsSABCBgoEY2FsbCI/CghQbGFuQ2FsbBIzCgdkZXNpcmVkGAEgAygLMiIuZG9ja3dlbGwuYWdlbnQudjEuRGVzaXJlZFJlc291cmNlInUKCUFwcGx5Q2FsbBIjCgRzdGVwGAEgASgLMhUuZG9ja3dlbGwudjEuUGxhblN0ZXASMwoHZGVzaXJlZBgCIAEoCzIiLmRvY2t3ZWxsLmFnZW50LnYxLkRlc2lyZWRSZXNvdXJjZRIOCgZ2YWx1ZXMYAyABKAwibgoGVmFsdWVzEjUKBnZhbHVlcxgBIAMoCzIlLmRvY2t3ZWxsLmFnZW50LnYxLlZhbHVlcy5WYWx1ZXNFbnRyeRotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIjoKC09ic2VydmVDYWxsEisKCXJlc291cmNlcxgBIAMoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmImcKD0Rlc2lyZWRSZXNvdXJjZRIqCghyZXNvdXJjZRgBIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEhEKBHNwZWMYAiABKAxIAIgBARIMCgRwdWxsGAMgASgIQgcKBV9zcGVjIhgKCkNhbmNlbENhbGwSCgoCaWQYASABKAQi5gEKCkNhbGxSZXN1bHQSCgoCaWQYASABKAQSLQoFZXJyb3IYAiABKAsyHC5kb2Nrd2VsbC5hZ2VudC52MS5DYWxsRXJyb3JIABItCgRwbGFuGAMgASgLMh0uZG9ja3dlbGwuYWdlbnQudjEuUGxhblJlc3VsdEgAEi8KBWFwcGx5GAQgASgLMh4uZG9ja3dlbGwuYWdlbnQudjEuQXBwbHlSZXN1bHRIABIzCgdvYnNlcnZlGAUgASgLMiAuZG9ja3dlbGwuYWdlbnQudjEuT2JzZXJ2ZVJlc3VsdEgAQggKBnJlc3VsdCIuCglDYWxsRXJyb3ISDwoHbWVzc2FnZRgBIAEoCRIQCghkcmFpbmluZxgCIAEoCCIyCgpQbGFuUmVzdWx0EiQKBXN0ZXBzGAEgAygLMhUuZG9ja3dlbGwudjEuUGxhblN0ZXAiDQoLQXBwbHlSZXN1bHQiRwoNT2JzZXJ2ZVJlc3VsdBI2CglyZXNvdXJjZXMYASADKAsyIy5kb2Nrd2VsbC5hZ2VudC52MS5PYnNlcnZlZFJlc291cmNlIi4KEE9ic2VydmVkUmVzb3VyY2USEQoEc3BlYxgBIAEoDEgAiAEBQgcKBV9zcGVjMqwCCgxBZ2VudFNlcnZpY2USTQoESm9pbhIeLmRvY2t3ZWxsLmFnZW50LnYxLkpvaW5SZXF1ZXN0Gh8uZG9ja3dlbGwuYWdlbnQudjEuSm9pblJlc3BvbnNlIgSguxgDEnEKEFJlbmV3Q2VydGlmaWNhdGUSKi5kb2Nrd2VsbC5hZ2VudC52MS5SZW5ld0NlcnRpZmljYXRlUmVxdWVzdBorLmRvY2t3ZWxsLmFnZW50LnYxLlJlbmV3Q2VydGlmaWNhdGVSZXNwb25zZSIEoLsYAxJaCgdDb25uZWN0EiEuZG9ja3dlbGwuYWdlbnQudjEuQ29ubmVjdFJlcXVlc3QaIi5kb2Nrd2VsbC5hZ2VudC52MS5Db25uZWN0UmVzcG9uc2UiBKC7GAMoATABQsUBChVjb20uZG9ja3dlbGwuYWdlbnQudjFCCkFnZW50UHJvdG9QAVo6Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvYWdlbnQvdjE7YWdlbnR2MaICA0RBWKoCEURvY2t3ZWxsLkFnZW50LlYxygIRRG9ja3dlbGxcQWdlbnRcVjHiAh1Eb2Nrd2VsbFxBZ2VudFxWMVxHUEJNZXRhZGF0YeoCE0RvY2t3ZWxsOjpBZ2VudDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_domain, file_dockwell_v1_options, file_dockwell_v1_server, file_dockwell_v1_system, file_google_protobuf_duration]);
 
 /**
  * ConnectRequest is one message from the agent.
@@ -156,6 +156,14 @@ export type CallProgress = Message<"dockwell.agent.v1.CallProgress"> & {
    * @generated from field: string message = 2;
    */
   message: string;
+
+  /**
+   * What the step found out on its server, which goes on record, sent as soon
+   * as it is known, and always before the call's result.
+   *
+   * @generated from field: dockwell.agent.v1.StepOutcome outcome = 3;
+   */
+  outcome?: StepOutcome | undefined;
 };
 
 /**
@@ -164,6 +172,49 @@ export type CallProgress = Message<"dockwell.agent.v1.CallProgress"> & {
  */
 export const CallProgressSchema: GenMessage<CallProgress> = /*@__PURE__*/
   messageDesc(file_dockwell_agent_v1_agent, 2);
+
+/**
+ * StepOutcome is what a step found out on its server.
+ *
+ * @generated from message dockwell.agent.v1.StepOutcome
+ */
+export type StepOutcome = Message<"dockwell.agent.v1.StepOutcome"> & {
+  /**
+   * The image it leaves running, as its registry knows it.
+   *
+   * @generated from field: string digest = 1;
+   */
+  digest: string;
+
+  /**
+   * The digest of the image it replaces, where a pull found a newer one.
+   *
+   * @generated from field: string previous = 2;
+   */
+  previous: string;
+
+  /**
+   * True when a pull found a newer image, and the step is about to replace what
+   * runs with it.
+   *
+   * @generated from field: bool replacing = 3;
+   */
+  replacing: boolean;
+
+  /**
+   * Why the step did nothing, for people.
+   *
+   * @generated from field: string note = 4;
+   */
+  note: string;
+};
+
+/**
+ * Describes the message dockwell.agent.v1.StepOutcome.
+ * Use `create(StepOutcomeSchema)` to create a new message.
+ */
+export const StepOutcomeSchema: GenMessage<StepOutcome> = /*@__PURE__*/
+  messageDesc(file_dockwell_agent_v1_agent, 3);
 
 /**
  * Kinds lists the kinds of resource an agent can run now, and why it
@@ -193,7 +244,7 @@ export type Kinds = Message<"dockwell.agent.v1.Kinds"> & {
  * Use `create(KindsSchema)` to create a new message.
  */
 export const KindsSchema: GenMessage<Kinds> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 3);
+  messageDesc(file_dockwell_agent_v1_agent, 4);
 
 /**
  * UnavailableKind is a kind an agent has a driver for, but can't run now.
@@ -222,7 +273,7 @@ export type UnavailableKind = Message<"dockwell.agent.v1.UnavailableKind"> & {
  * Use `create(UnavailableKindSchema)` to create a new message.
  */
 export const UnavailableKindSchema: GenMessage<UnavailableKind> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 4);
+  messageDesc(file_dockwell_agent_v1_agent, 5);
 
 /**
  * Draining says the agent takes no more calls on this stream.
@@ -237,7 +288,7 @@ export type Draining = Message<"dockwell.agent.v1.Draining"> & {
  * Use `create(DrainingSchema)` to create a new message.
  */
 export const DrainingSchema: GenMessage<Draining> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 5);
+  messageDesc(file_dockwell_agent_v1_agent, 6);
 
 /**
  * Hello introduces the agent at the start of a stream.
@@ -292,7 +343,7 @@ export type Hello = Message<"dockwell.agent.v1.Hello"> & {
  * Use `create(HelloSchema)` to create a new message.
  */
 export const HelloSchema: GenMessage<Hello> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 6);
+  messageDesc(file_dockwell_agent_v1_agent, 7);
 
 /**
  * ConnectResponse is one message from the control plane.
@@ -348,7 +399,7 @@ export type ConnectResponse = Message<"dockwell.agent.v1.ConnectResponse"> & {
  * Use `create(ConnectResponseSchema)` to create a new message.
  */
 export const ConnectResponseSchema: GenMessage<ConnectResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 7);
+  messageDesc(file_dockwell_agent_v1_agent, 8);
 
 /**
  * Drained says the control plane sends no more calls on this stream.
@@ -363,7 +414,7 @@ export type Drained = Message<"dockwell.agent.v1.Drained"> & {
  * Use `create(DrainedSchema)` to create a new message.
  */
 export const DrainedSchema: GenMessage<Drained> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 8);
+  messageDesc(file_dockwell_agent_v1_agent, 9);
 
 /**
  * Welcome accepts an agent's stream.
@@ -391,7 +442,7 @@ export type Welcome = Message<"dockwell.agent.v1.Welcome"> & {
  * Use `create(WelcomeSchema)` to create a new message.
  */
 export const WelcomeSchema: GenMessage<Welcome> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 9);
+  messageDesc(file_dockwell_agent_v1_agent, 10);
 
 /**
  * JoinTicket is what `dockwell join` takes, encoded as "dwj1." followed by
@@ -436,7 +487,7 @@ export type JoinTicket = Message<"dockwell.agent.v1.JoinTicket"> & {
  * Use `create(JoinTicketSchema)` to create a new message.
  */
 export const JoinTicketSchema: GenMessage<JoinTicket> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 10);
+  messageDesc(file_dockwell_agent_v1_agent, 11);
 
 /**
  * JoinRequest asks to join with a join token.
@@ -487,7 +538,7 @@ export type JoinRequest = Message<"dockwell.agent.v1.JoinRequest"> & {
  * Use `create(JoinRequestSchema)` to create a new message.
  */
 export const JoinRequestSchema: GenMessage<JoinRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 11);
+  messageDesc(file_dockwell_agent_v1_agent, 12);
 
 /**
  * JoinResponse gives a server its identity.
@@ -531,7 +582,7 @@ export type JoinResponse = Message<"dockwell.agent.v1.JoinResponse"> & {
  * Use `create(JoinResponseSchema)` to create a new message.
  */
 export const JoinResponseSchema: GenMessage<JoinResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 12);
+  messageDesc(file_dockwell_agent_v1_agent, 13);
 
 /**
  * RenewCertificateRequest asks for a fresh certificate.
@@ -553,7 +604,7 @@ export type RenewCertificateRequest = Message<"dockwell.agent.v1.RenewCertificat
  * Use `create(RenewCertificateRequestSchema)` to create a new message.
  */
 export const RenewCertificateRequestSchema: GenMessage<RenewCertificateRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 13);
+  messageDesc(file_dockwell_agent_v1_agent, 14);
 
 /**
  * RenewCertificateResponse carries the fresh certificate.
@@ -574,7 +625,7 @@ export type RenewCertificateResponse = Message<"dockwell.agent.v1.RenewCertifica
  * Use `create(RenewCertificateResponseSchema)` to create a new message.
  */
 export const RenewCertificateResponseSchema: GenMessage<RenewCertificateResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 14);
+  messageDesc(file_dockwell_agent_v1_agent, 15);
 
 /**
  * Call asks the agent to plan, apply or observe with its drivers. The agent
@@ -637,7 +688,7 @@ export type Call = Message<"dockwell.agent.v1.Call"> & {
  * Use `create(CallSchema)` to create a new message.
  */
 export const CallSchema: GenMessage<Call> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 15);
+  messageDesc(file_dockwell_agent_v1_agent, 16);
 
 /**
  * PlanCall asks what moving each resource to its desired spec would take.
@@ -659,7 +710,7 @@ export type PlanCall = Message<"dockwell.agent.v1.PlanCall"> & {
  * Use `create(PlanCallSchema)` to create a new message.
  */
 export const PlanCallSchema: GenMessage<PlanCall> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 16);
+  messageDesc(file_dockwell_agent_v1_agent, 17);
 
 /**
  * ApplyCall asks the agent to carry out one step.
@@ -699,7 +750,7 @@ export type ApplyCall = Message<"dockwell.agent.v1.ApplyCall"> & {
  * Use `create(ApplyCallSchema)` to create a new message.
  */
 export const ApplyCallSchema: GenMessage<ApplyCall> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 17);
+  messageDesc(file_dockwell_agent_v1_agent, 18);
 
 /**
  * Values are what a service's variables and secrets resolve to on the
@@ -721,7 +772,7 @@ export type Values = Message<"dockwell.agent.v1.Values"> & {
  * Use `create(ValuesSchema)` to create a new message.
  */
 export const ValuesSchema: GenMessage<Values> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 18);
+  messageDesc(file_dockwell_agent_v1_agent, 19);
 
 /**
  * ObserveCall asks for resources as the server has them.
@@ -742,7 +793,7 @@ export type ObserveCall = Message<"dockwell.agent.v1.ObserveCall"> & {
  * Use `create(ObserveCallSchema)` to create a new message.
  */
 export const ObserveCallSchema: GenMessage<ObserveCall> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 19);
+  messageDesc(file_dockwell_agent_v1_agent, 20);
 
 /**
  * DesiredResource is one resource as a change wants it.
@@ -764,6 +815,13 @@ export type DesiredResource = Message<"dockwell.agent.v1.DesiredResource"> & {
    * @generated from field: optional bytes spec = 2;
    */
   spec?: Uint8Array | undefined;
+
+  /**
+   * Asks the server for its image again as the step applies.
+   *
+   * @generated from field: bool pull = 3;
+   */
+  pull: boolean;
 };
 
 /**
@@ -771,7 +829,7 @@ export type DesiredResource = Message<"dockwell.agent.v1.DesiredResource"> & {
  * Use `create(DesiredResourceSchema)` to create a new message.
  */
 export const DesiredResourceSchema: GenMessage<DesiredResource> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 20);
+  messageDesc(file_dockwell_agent_v1_agent, 21);
 
 /**
  * CancelCall stops a call: its caller went away, or its time ran out.
@@ -792,7 +850,7 @@ export type CancelCall = Message<"dockwell.agent.v1.CancelCall"> & {
  * Use `create(CancelCallSchema)` to create a new message.
  */
 export const CancelCallSchema: GenMessage<CancelCall> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 21);
+  messageDesc(file_dockwell_agent_v1_agent, 22);
 
 /**
  * CallResult is the agent's answer to one call.
@@ -852,7 +910,7 @@ export type CallResult = Message<"dockwell.agent.v1.CallResult"> & {
  * Use `create(CallResultSchema)` to create a new message.
  */
 export const CallResultSchema: GenMessage<CallResult> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 22);
+  messageDesc(file_dockwell_agent_v1_agent, 23);
 
 /**
  * CallError says why a call failed.
@@ -883,7 +941,7 @@ export type CallError = Message<"dockwell.agent.v1.CallError"> & {
  * Use `create(CallErrorSchema)` to create a new message.
  */
 export const CallErrorSchema: GenMessage<CallError> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 23);
+  messageDesc(file_dockwell_agent_v1_agent, 24);
 
 /**
  * PlanResult carries a plan call's steps.
@@ -905,7 +963,7 @@ export type PlanResult = Message<"dockwell.agent.v1.PlanResult"> & {
  * Use `create(PlanResultSchema)` to create a new message.
  */
 export const PlanResultSchema: GenMessage<PlanResult> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 24);
+  messageDesc(file_dockwell_agent_v1_agent, 25);
 
 /**
  * ApplyResult says a step was carried out and verified.
@@ -920,7 +978,7 @@ export type ApplyResult = Message<"dockwell.agent.v1.ApplyResult"> & {
  * Use `create(ApplyResultSchema)` to create a new message.
  */
 export const ApplyResultSchema: GenMessage<ApplyResult> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 25);
+  messageDesc(file_dockwell_agent_v1_agent, 26);
 
 /**
  * ObserveResult carries an observe call's resources.
@@ -941,7 +999,7 @@ export type ObserveResult = Message<"dockwell.agent.v1.ObserveResult"> & {
  * Use `create(ObserveResultSchema)` to create a new message.
  */
 export const ObserveResultSchema: GenMessage<ObserveResult> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 26);
+  messageDesc(file_dockwell_agent_v1_agent, 27);
 
 /**
  * ObservedResource is a resource as the server has it.
@@ -963,7 +1021,7 @@ export type ObservedResource = Message<"dockwell.agent.v1.ObservedResource"> & {
  * Use `create(ObservedResourceSchema)` to create a new message.
  */
 export const ObservedResourceSchema: GenMessage<ObservedResource> = /*@__PURE__*/
-  messageDesc(file_dockwell_agent_v1_agent, 27);
+  messageDesc(file_dockwell_agent_v1_agent, 28);
 
 /**
  * AgentService is how a server's agent talks to the control plane, over

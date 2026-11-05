@@ -116,3 +116,16 @@
 .dw-field.is-invalid .dw-input:focus-within {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 22%, transparent);
 }
+
+/* A finger needs 44 px, and iOS zooms the page into any field under 16 px. */
+@media (pointer: coarse) {
+  .dw-input,
+  .dw-input-sm,
+  .dw-input-lg {
+    height: auto;
+    min-height: 44px;
+  }
+  .dw-input .dw-input-el {
+    font-size: 16px;
+  }
+}

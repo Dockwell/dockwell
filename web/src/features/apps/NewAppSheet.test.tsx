@@ -154,7 +154,14 @@ describe("New app, from an image", () => {
     expect(failed).toHaveTextContent("pull access denied");
     await user.click(within(failed).getByRole("button", { name: "Done" }));
     const back = await screen.findByRole("dialog", { name: "New app" });
-    expect(within(back).getByLabelText("Image")).toHaveValue("nginx:doesnotexist");
+    const field = within(back).getByLabelText<HTMLInputElement>("Image");
+    expect(field).toHaveValue("nginx:doesnotexist");
+    // What went wrong is at the field, ready to change, not on a button.
+    expect(field).toHaveAccessibleDescription("Pull access denied");
+    await waitFor(() => {
+      expect(field).toHaveFocus();
+      expect(field.value.slice(field.selectionStart ?? 0, field.selectionEnd ?? 0)).toBe("nginx:doesnotexist");
+    });
   });
 
   it("comes back to the form as you left it when you cancel the plan, and discards the plan", async () => {
@@ -324,7 +331,7 @@ describe("New app, from an image", () => {
     await user.paste("A=1\nB=2");
     // Its fields are named once over the first row, and read out on every row.
     expect(sheet.querySelectorAll(".app-env label")).toHaveLength(2);
-    expect(within(sheet).getAllByRole("textbox", { name: "Value" })).toHaveLength(2);
+    expect(within(sheet).getAllByLabelText("Value")).toHaveLength(2);
     expect(
       within(sheet)
         .getAllByLabelText("Value")
@@ -567,7 +574,7 @@ describe("New app, from a Compose file", () => {
     expect(check).not.toHaveBeenCalled();
   });
 
-  it("grows the field with the file, up to a point", async () => {
+  it("keeps the field to twelve lines, however long the file, so what comes next stays near", async () => {
     const user = userEvent.setup();
     const { container } = renderAt(
       "/apps/new?source=compose",
@@ -576,12 +583,87 @@ describe("New app, from a Compose file", () => {
     const sheet = await screen.findByRole("dialog", { name: "New app" });
     const input = () => container.ownerDocument.querySelector<HTMLElement>(".dw-code-input");
     expect(input()).toHaveStyle({ "--dw-code-lines": "12" });
-    const field = within(sheet).getByLabelText("Compose file");
-    await user.click(field);
-    await user.paste("x\n".repeat(20));
-    expect(input()).toHaveStyle({ "--dw-code-lines": "22" });
+    await user.click(within(sheet).getByLabelText("Compose file"));
     await user.paste("x\n".repeat(200));
-    expect(input()).toHaveStyle({ "--dw-code-lines": "28" });
+    expect(input()).toHaveStyle({ "--dw-code-lines": "12" });
+  });
+
+  it("takes you to the variable it's waiting for, and hides what you type there until you ask", async () => {
+    const user = userEvent.setup();
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    renderAt(
+      "/apps/new?source=compose",
+      compose({
+        checkCompose: () =>
+          create(CheckComposeResponseSchema, {
+            variables: [{ name: "DB_PASSWORD", required: true }],
+            refusal: { message: "the Compose file uses DB_PASSWORD, with no value" },
+          }),
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(within(sheet).getByLabelText("Compose file"));
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a Compose variable, as the file has it
+    await user.paste("services:\n  a:\n    image: a:${DB_PASSWORD}\n");
+    const go = await within(sheet).findByRole("button", { name: "Give DB_PASSWORD a value to review the plan" });
+    await user.click(go);
+    const field = within(sheet).getByLabelText(/DB_PASSWORD/);
+    expect(scrolled).toHaveBeenCalled();
+    expect(field).toHaveFocus();
+    expect(field).toHaveAttribute("type", "password");
+    const reveal = within(sheet).getByRole("button", { name: "Show the value" });
+    expect(reveal).toHaveAttribute("aria-pressed", "false");
+    await user.click(reveal);
+    expect(field).toHaveAttribute("type", "text");
+    expect(reveal).toHaveAttribute("aria-pressed", "true");
+    await expectAccessible(document.body);
+  });
+
+  it("says what it would refuse before it asks for a secret", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/new?source=compose",
+      compose({
+        checkCompose: () =>
+          create(CheckComposeResponseSchema, {
+            variables: [{ name: "DB_PASSWORD", required: true }],
+            refusal: {
+              message: "the service a has network_mode host, which Dockwell can't run yet",
+              line: 4,
+              endLine: 4,
+            },
+          }),
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(within(sheet).getByLabelText("Compose file"));
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a Compose variable, as the file has it
+    await user.paste("services:\n  a:\n    image: a:${DB_PASSWORD}\n    network_mode: host\n");
+    expect(await within(sheet).findByText(/Line 4: the service a has network_mode host/)).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Fix line 4 to review the plan" })).toBeVisible();
+    expect(within(sheet).queryByRole("button", { name: /Give DB_PASSWORD/ })).not.toBeInTheDocument();
+  });
+
+  it("marks both lines when a parser can only say near which", async () => {
+    const user = userEvent.setup();
+    const { container } = renderAt(
+      "/apps/new?source=compose",
+      compose({
+        checkCompose: () =>
+          create(CheckComposeResponseSchema, {
+            refusal: { message: "near lines 3\u20134: check for a missing colon on the first", line: 3, endLine: 4 },
+          }),
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(within(sheet).getByLabelText("Compose file"));
+    await user.paste("services:\n  a:\n    image a\n    user: x\n");
+    expect(await within(sheet).findByText(/Near lines 3\u20134: check for a missing colon on the first/)).toBeVisible();
+    expect(container.ownerDocument.querySelector(".dw-code-mark")).toHaveStyle({
+      "--dw-code-line": "2",
+      "--dw-code-span": "2",
+    });
   });
 
   it("names the project from the file, which you can change, and sends it", async () => {
@@ -600,7 +682,7 @@ describe("New app, from a Compose file", () => {
     const sheet = await screen.findByRole("dialog", { name: "New app" });
     await user.click(within(sheet).getByLabelText("Compose file"));
     await user.paste("name: my_shop\nservices:\n  web:\n    image: a\n");
-    const name = within(sheet).getByLabelText(/^Name/);
+    const name = within(sheet).getByLabelText(/^Project name/);
     // A name that wouldn't do is made into one that does.
     await waitFor(() => expect(name).toHaveValue("my-shop"));
     await waitFor(() => expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled());
@@ -625,11 +707,11 @@ describe("New app, from a Compose file", () => {
     await within(sheet).findByRole("region", { name: "What this file makes" });
     await within(sheet).findByText("Name it to review the plan");
     expect(review).toBeDisabled();
-    await user.type(within(sheet).getByLabelText(/^Name/), "Not A Label");
-    expect(within(sheet).getByLabelText(/^Name/)).toHaveAccessibleDescription(/Use lowercase letters/);
+    await user.type(within(sheet).getByLabelText(/^Project name/), "Not A Label");
+    expect(within(sheet).getByLabelText(/^Project name/)).toHaveAccessibleDescription(/Use lowercase letters/);
     expect(review).toBeDisabled();
-    await user.clear(within(sheet).getByLabelText(/^Name/));
-    await user.type(within(sheet).getByLabelText(/^Name/), "shop");
+    await user.clear(within(sheet).getByLabelText(/^Project name/));
+    await user.type(within(sheet).getByLabelText(/^Project name/), "shop");
     await waitFor(() => expect(review).toBeEnabled());
   });
 
@@ -673,7 +755,9 @@ describe("New app, from a Compose file", () => {
     await waitFor(() => expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled());
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     await waitFor(() =>
-      expect(within(sheet).getByLabelText(/^Name/)).toHaveAccessibleDescription(/The Compose file names no project/),
+      expect(within(sheet).getByLabelText(/^Project name/)).toHaveAccessibleDescription(
+        /The Compose file names no project/,
+      ),
     );
   });
 
@@ -687,7 +771,7 @@ describe("New app, from a Compose file", () => {
     await user.click(within(sheet).getByLabelText("Compose file"));
     await user.paste("name: shop\nservices:\n  web:\n    image: a\n");
     await waitFor(() =>
-      expect(within(sheet).getByLabelText(/^Name/)).toHaveAccessibleDescription(/shop is here already/),
+      expect(within(sheet).getByLabelText(/^Project name/)).toHaveAccessibleDescription(/shop is here already/),
     );
   });
 
@@ -794,7 +878,7 @@ describe("New app, from a Compose file", () => {
     await user.click(within(sheet).getByLabelText("Compose file"));
     await user.paste("services:\n  web:\n    image: a\n");
     // Into the project it would change, on purpose.
-    await user.type(within(sheet).getByLabelText(/^Name/), "default");
+    await user.type(within(sheet).getByLabelText(/^Project name/), "default");
     const remove = await within(sheet).findByRole("switch", { name: /Remove what isn't in this file/ });
     // How many, and the names only when asked: there may be seventy.
     expect(sheet).toHaveTextContent("1 other app is here.");

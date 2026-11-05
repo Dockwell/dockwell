@@ -14,6 +14,10 @@ import (
 type Desired struct {
 	Ref  Ref
 	Spec proto.Message
+	// Pull asks the server for the resource's image again as the step applies,
+	// and to replace what runs only if that's newer. It says what a request asks
+	// for, not what the spec is, so it isn't kept.
+	Pull bool
 }
 
 // Agent plans and applies on one server, with that server's drivers. In
@@ -156,7 +160,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull}, d
 	}
 	for i, want := range normal {
 		d, spec := drivers[i], want.Spec
@@ -177,6 +181,19 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		}
 		if err != nil {
 			return nil, err
+		}
+		if want.Pull && spec != nil {
+			// Nothing differs as far as the specs say, but what its tag points at
+			// may. What that would take is what another image takes, as far as
+			// anyone can tell before it pulls.
+			if j, ok := d.(Judge); ok && step.Action == ActionNone {
+				dec, err := j.Judge(ctx, want.Ref, actual, spec, []Change{{Path: "image"}})
+				if err != nil {
+					return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+				}
+				step.Decision = dec
+			}
+			step.Pull = step.Action != ActionNone
 		}
 		// Only what is about to start can fail to: a resource left as it is
 		// isn't refused for what is around it.
@@ -235,7 +252,9 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		}
 		ctx = WithValues(ctx, values)
 	}
-	if err := d.Apply(ctx, step, desired); err != nil {
+	if err := d.Apply(ctx, step, desired); errors.Is(err, ErrAlreadySo) {
+		return nil
+	} else if err != nil {
 		return fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err)
 	}
 	actual, err := Observe(ctx, d, step.Ref)

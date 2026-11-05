@@ -290,7 +290,8 @@ type CheckComposeResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Why ImportCompose would refuse the file, when it would: the first thing
 	// in the way. Fix it and check again for the next. Unset when it would take
-	// it.
+	// it. What it would refuse whatever its variables hold comes before a variable
+	// with no value, so no one types a secret for a file it then refuses.
 	Refusal *ComposeRefusal `protobuf:"bytes,1,opt,name=refusal,proto3" json:"refusal,omitempty"`
 	// The variables the file uses, whether or not the file can be read
 	// further than that.
@@ -481,7 +482,10 @@ type ComposeRefusal struct {
 	Message string `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
 	// The line of the file it is about, from 1. 0 when it is about the file
 	// as a whole.
-	Line          int32 `protobuf:"varint,2,opt,name=line,proto3" json:"line,omitempty"`
+	Line int32 `protobuf:"varint,2,opt,name=line,proto3" json:"line,omitempty"`
+	// The last line it is about, where it is about more than one, as a YAML parser
+	// can't always tell which. Otherwise the same as line.
+	EndLine       int32 `protobuf:"varint,3,opt,name=end_line,json=endLine,proto3" json:"end_line,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -526,6 +530,13 @@ func (x *ComposeRefusal) GetMessage() string {
 func (x *ComposeRefusal) GetLine() int32 {
 	if x != nil {
 		return x.Line
+	}
+	return 0
+}
+
+func (x *ComposeRefusal) GetEndLine() int32 {
+	if x != nil {
+		return x.EndLine
 	}
 	return 0
 }
@@ -753,10 +764,11 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\x0fExposedVariable\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x14\n" +
-	"\x05field\x18\x03 \x01(\tR\x05field\">\n" +
+	"\x05field\x18\x03 \x01(\tR\x05field\"Y\n" +
 	"\x0eComposeRefusal\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12\x12\n" +
-	"\x04line\x18\x02 \x01(\x05R\x04line\"A\n" +
+	"\x04line\x18\x02 \x01(\x05R\x04line\x12\x19\n" +
+	"\bend_line\x18\x03 \x01(\x05R\aendLine\"A\n" +
 	"\x0fComposeVariable\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
 	"\brequired\x18\x02 \x01(\bR\brequired\"l\n" +

@@ -15,6 +15,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -91,9 +92,6 @@ func testServicesThroughTheAPI(t *testing.T, backend store.Backend) {
 
 	// Deploying another image keeps the rest, secrets included, though no
 	// response ever shows them.
-	if _, err := s.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: info.GetId(), Image: "ghcr.io/acme/shop:1.4"})); reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "already runs") {
-		t.Errorf("deploying the image it runs = %v", err)
-	}
 	if _, err := s.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: "svc_nope", Image: "a"})); reasonOf(err) != "not_found" {
 		t.Errorf("deploying no service = %v", err)
 	}
@@ -167,10 +165,10 @@ func testServicesThroughTheAPI(t *testing.T, backend store.Backend) {
 		t.Fatalf("the rollback ended %v: %s", got.GetState(), got.GetError())
 	}
 	ct = e.Container(docker.Project(info.GetResource().GetScope()) + "-shop-1")
-	if ct.Config.Image != "ghcr.io/acme/shop:1.4" || !hasEnv(ct.Config.Env, "API_KEY="+secret) {
+	if resource.BareImage(ct.Config.Image) != "ghcr.io/acme/shop:1.4" || !hasEnv(ct.Config.Env, "API_KEY="+secret) {
 		t.Errorf("after the rollback Docker runs %v with %v", ct.Config.Image, ct.Config.Env)
 	}
-	if got := onlyService(t, s); got.GetRevision() != 3 || got.GetSpec().GetApp().GetImage() != "ghcr.io/acme/shop:1.4" {
+	if got := onlyService(t, s); got.GetRevision() != 3 || resource.BareImage(got.GetSpec().GetApp().GetImage()) != "ghcr.io/acme/shop:1.4" {
 		t.Errorf("after the rollback the service is %v", got)
 	}
 }

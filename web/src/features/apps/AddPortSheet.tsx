@@ -5,12 +5,13 @@ import { useTransport } from "@connectrpc/connect-query";
 import { type Change, ChangeState, Protocol, type ServiceInfo, ServiceService } from "@dockwell/api";
 import { Button, Callout, cx, Icon, PHONE_QUERY, SelectField, Sheet, TextField, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type FormEvent, useMemo, useRef, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { nameOf, portRefusal } from "./app";
+import { useApp } from "./AppContext";
+import { isMoving, nameOf, portRefusal, tidyMessage } from "./app";
 import { validPort } from "./form";
 
 /**
@@ -35,10 +36,22 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
   const [failure, setFailure] = useState<string>();
   const [hidden, setHidden] = useState(false);
   const field = useRef<HTMLInputElement>(null);
+  const { state } = useApp();
+  // One change at a time: this one's plan couldn't apply until that one ends.
+  const moving = isMoving(state);
+
+  // Back from a plan that failed, what it said is at the field, ready to change.
+  const reveal = useRef(false);
+  useEffect(() => {
+    if (hidden || !reveal.current) return;
+    reveal.current = false;
+    field.current?.focus();
+    field.current?.select();
+  }, [hidden]);
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
-    if (busy) return;
+    if (busy || moving) return;
     const hostOk = validPort(host);
     const appOk = validPort(inApp);
     setHostError(hostOk ? undefined : t`Use a port from 1 to 65535.`);
@@ -72,8 +85,13 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
       kind: "plan",
       make: () => Promise.resolve({ change }),
       onClose: (after) => {
-        // Cancelling comes back here, with what you typed; anything else is under way or over.
-        if (after && after.state === ChangeState.PLANNED) setHidden(false);
+        // Cancelling comes back here, with what you typed, as failing does, saying why
+        // at the field. Anything else is under way or over.
+        if (after?.state === ChangeState.FAILED) {
+          setHostError(tidyMessage(after.error));
+          reveal.current = true;
+          setHidden(false);
+        } else if (after && after.state === ChangeState.PLANNED) setHidden(false);
         else onClose();
       },
     });
@@ -100,6 +118,7 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
             variant="primary"
             size={phone ? "lg" : "md"}
             loading={busy}
+            disabled={moving}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void submit()}
           >
@@ -118,6 +137,11 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
         {/* Lets Enter in a field do what the button in the sheet's footer does. */}
         <button type="submit" hidden />
         {failure ? <Callout tone="critical">{failure}</Callout> : null}
+        {moving ? (
+          <Callout tone="info">
+            <Trans>{name} is still deploying. You can review this plan once that ends.</Trans>
+          </Callout>
+        ) : null}
         <TextField
           ref={field}
           label={t`On the server`}
