@@ -152,7 +152,7 @@ func (h *Holders) sockets() (map[Port][]string, error) {
 		state string
 	}{{"tcp", false, "0A"}, {"tcp6", false, "0A"}, {"udp", true, "07"}, {"udp6", true, "07"}} {
 		path := filepath.Join(h.proc(), "net", f.name)
-		file, err := os.Open(path)
+		file, err := os.Open(path) //nolint:gosec // the kernel's table, under /proc
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue // no IPv6 here

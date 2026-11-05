@@ -83,9 +83,48 @@ func TestCaddysContainerIsAsTheADRSays(t *testing.T) {
 	if l := got.HostConfig.LogConfig; l == nil || l.Config["max-size"] == "" {
 		t.Errorf("LogConfig = %+v, want its logs bounded", l)
 	}
+	if got.HostConfig.Memory != 1<<30 || got.HostConfig.MemorySwap != 1<<30 {
+		t.Errorf("memory %d, with swap %d, want 1 GiB and no swap", got.HostConfig.Memory, got.HostConfig.MemorySwap)
+	}
+	if got.Config.Labels[versionLabel] != Tag {
+		t.Errorf("Labels = %v, want the version it runs", got.Config.Labels)
+	}
 	st, err := c.Status(t.Context())
 	if err != nil || !st.Running || !st.Exists || st.Outdated {
 		t.Errorf("Status = %+v, %v", st, err)
+	}
+}
+
+// An engine with userns-remap refuses the host network to a container in a user
+// namespace (Moby's daemon_unix.go), so Caddy says it stays in the server's.
+func TestCaddyRunsOnAnEngineWithUsernsRemap(t *testing.T) {
+	c, e := onEngine(t)
+	e.UsernsRemap = true
+	if err := c.Run(t.Context(), "/etc/dockwell/bootstrap.json"); err != nil {
+		t.Fatalf("Run = %v", err)
+	}
+	if got := e.Container(ingress.ContainerName); got == nil || got.HostConfig.UsernsMode != "host" {
+		t.Errorf("the container is %+v", got)
+	}
+}
+
+// What a person sees of the version it runs, and #78 starts from.
+func TestStatusSaysWhichVersionItRuns(t *testing.T) {
+	c, e := onEngine(t)
+	if err := c.Run(t.Context(), "/etc/dockwell/bootstrap.json"); err != nil {
+		t.Fatal(err)
+	}
+	st, err := c.Status(t.Context())
+	if err != nil || st.Version != Tag || st.Pinned != Tag || st.Image != Image || st.Outdated {
+		t.Errorf("Status = %+v, %v", st, err)
+	}
+	e.Edit(ingress.ContainerName, func(got *docker.Container) {
+		got.Config.Image = "caddy@sha256:0000"
+		got.Config.Labels[versionLabel] = "2.11.6-alpine"
+	})
+	st, err = c.Status(t.Context())
+	if err != nil || st.Version != "2.11.6-alpine" || st.Pinned != Tag || !st.Outdated {
+		t.Errorf("Status of an older one = %+v, %v", st, err)
 	}
 }
 

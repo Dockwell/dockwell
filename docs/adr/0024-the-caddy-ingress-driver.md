@@ -35,9 +35,11 @@ Five things were decided before this record:
 **A container on the host network.** Apps already need Docker, so a route has no use without it. Host networking gives the real client address on both families and direct HTTP/3 with nothing in between, which a bridged container gets only on some daemon setups. A digest pull is verified by Docker and works through a mirror with no code of ours. A unit's only gain, surviving a restart of Docker, is worth little: the apps behind it stop too.
 
 - **Image:** `caddy@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5`, the digest of the multi-platform index of `caddy:2.11.7-alpine`, in the agent's source (`caddy.Image`). 2.11.7 is the newest release older than the 14 days `CLAUDE.md` asks for. A new pin ships with the agent.
-- **A newer pin is a plan.** An agent with a newer pin keeps the Caddy it has until a route step applies on that server. The plan says Caddy restarts, with its downtime, then replaces the container. An upgrade of Dockwell never restarts public traffic on its own.
-- **It runs with as little as it can.** All capabilities dropped but `NET_BIND_SERVICE`, a read-only root filesystem with a tmpfs at `/tmp`, and uid 65532 when the agent is root. It doesn't run as root because a process with uid 0 on the host's network namespace can reach abstract unix sockets on the host, which CVE-2020-15257 made a way out through containerd's shim. The official image gives its binary the capability as a file capability, which `no-new-privileges` would ignore, so that option stays off. An agent that isn't root, as in CI, runs Caddy as its own uid.
+- **A newer pin is a plan.** An agent with a newer pin keeps the Caddy it has until a route step applies on that server. The plan says Caddy restarts, with its downtime, then replaces the container. An upgrade of Dockwell never restarts public traffic on its own. So a server knows when it's behind: the agent logs it once, and `Server.ingress` and `DomainServer.ingress` say `outdated`, with the version it runs and the one it pins. Moving a server without a route change is [#78](https://github.com/Dockwell/dockwell/issues/78), which starts from that, and from the image Caddy's status reports.
+- **It runs with as little as it can.** All capabilities dropped but `NET_BIND_SERVICE`, a read-only root filesystem with a tmpfs at `/tmp`, a memory limit of 1 GiB with no swap, and uid 65532 when the agent is root. It doesn't run as root because a process with uid 0 on the host's network namespace can reach abstract unix sockets on the host, which CVE-2020-15257 made a way out through containerd's shim. The official image gives its binary the capability as a file capability, which `no-new-privileges` would ignore, so that option stays off. An agent that isn't root, as on a developer's machine, runs Caddy as its own uid; CI runs the agent as root.
 - **Rootless Docker is refused by name.** Its host network isn't the server's, so Caddy couldn't bind the server's ports, and the agent's `route` kind is unavailable with that reason.
+- **A daemon with `no-new-privileges` is refused at plan time, by name,** with the fix, as it ignores that file capability. It's refused before the panel lets go of anything, and only when Caddy would have to start, so a route can still be removed.
+- **A daemon with `userns-remap` works.** It refuses the host network to a container in a user namespace, so Caddy's has `UsernsMode: host`, which changes nothing on any other daemon.
 - **Its logs are bounded**, at 3 files of 10 MB, as Docker's default keeps them forever.
 
 ### Where Caddy keeps its data
@@ -47,19 +49,38 @@ Under `/var/lib/dockwell/ingress`, owner-only, beside `agent` and `control`, not
 | Host path | In the container | Holds |
 | --- | --- | --- |
 | `ingress/data` | `/data` | Certificates and ACME account keys |
-| `ingress/config` | `/config` | The bootstrap config, and Caddy's last config, `autosave.json` |
+| `ingress/config` | `/config` | Caddy's last config, `autosave.json` |
 | `ingress/run` | `/run/dockwell` | The admin socket, and the panel's socket |
+| `ingress/boot` | `/etc/dockwell`, read-only | The bootstrap config, and the ACME CA's roots |
+| `ingress` itself | Not mounted | The agent's own: `active`, `addresses.json`, `domains.json` and `last-good.json` |
 
 - `docker volume prune -a` removes any volume no container uses, and Caddy's container is gone while a server has no routes. A bind can't be pruned.
 - `--uninstall`, upgrades and reinstalls leave `/var/lib/dockwell` alone. The install guide tells someone moving a server to another control plane to remove `agent`, so what lives there would be lost with it.
 - No container may mount Dockwell's data directory or anything under it ([ADR 0021](0021-the-docker-driver.md#host-access)), so no workload reaches any of this.
 - Each bind carries `:Z`, so it works where SELinux is enforced, as on AlmaLinux. Elsewhere Docker ignores it.
+- **Caddy owns `data`, `config` and `run`, and the agent is root, so what's in them isn't to be trusted.** A compromised Caddy could leave a link to `/etc/shadow` where root writes, or to `/dev/zero` where it reads, in the control plane's process. So what Caddy reads as it starts is in `boot`, which is root's and mounted read-only. What the agent must read or write in Caddy's directories goes through `os.Root`, takes regular files alone, never through a link or a FIFO, and bounds each read: 64 MB for a config, 1 MB for a certificate, and 4 MB for each read of the TLS log, whose names it remembers up to 4,096 of.
 
 ### The admin API is on a unix socket, and Caddy resumes its last config
 
-- The socket is `unix//run/dockwell/admin.sock|0600` in a directory of mode 0700. Only root and Caddy's own uid reach it. The container is given the socket's directory, and the bootstrap config, which is all Caddy reads if it has no last config, names the socket. Without that Caddy's default admin address is `localhost:2019` on the host's network, so the bootstrap is always written first.
-- Caddy runs `caddy run --config /config/bootstrap.json --resume`. A last config wins over the bootstrap. Caddy writes one on every change, so a reboot brings back the last config with no agent and no control plane.
-- The restart policy is `unless-stopped`. The agent starts a Caddy someone stopped by hand once it next reconciles.
+- The socket is `unix//run/dockwell/admin.sock|0600` in a directory of mode 0700. Only root and Caddy's own uid reach it. The container is given the socket's directory, and the bootstrap config names the socket. Without that Caddy's default admin address is `localhost:2019` on the host's network, where any process on the server could load a config that serves `/data`.
+- **`CADDY_ADMIN` names the socket too, in the container's environment.** A config says where the admin API goes, and a config that says nothing leaves it on Caddy's default. An empty last config is one of those: `--resume` takes it over the bootstrap, as it should take any last config. A test holds this on real Caddy.
+- Caddy runs `caddy run --config /etc/dockwell/bootstrap.json --resume`. A last config wins over the bootstrap. Caddy writes one on every change, so a reboot brings back the last config with no agent and no control plane.
+- The restart policy is `unless-stopped`. The agent starts a Caddy someone stopped by hand once it next reconciles, unless something else now holds its ports.
+
+### A damaged last config
+
+Caddy saves its config with a truncating write, so a full disk or a power cut can leave it empty, cut short, or as a block of zeros. An empty one starts Caddy with no routes. One cut short makes it exit, and Docker start it again, for good. Nothing else on the server knows what it served, so the agent keeps a copy of its own, `ingress/last-good.json`, root's alone and written so it survives a power cut, after each change and each minute. It won't keep a config whose admin API isn't on the socket, so a copy can't be what puts it back on TCP.
+
+Each reconcile puts things right before it reads anything, as a Caddy that started with nothing would otherwise read as a server with no routes, and be stopped:
+
+| | What the agent does |
+| --- | --- |
+| Caddy runs a config, and its file is damaged | What it runs is the truth, and it goes back in the file, as only Caddy's next start is at risk. A file that looks damaged is read again a second later, as Caddy truncates before it writes |
+| Caddy runs nothing, and came up from an empty file | The copy is loaded through the admin API |
+| Caddy isn't answering | The copy goes in the file, for its next start, which Docker or the agent makes |
+| No copy either | The file is set aside as `autosave.json.damaged`, so Caddy starts from its bootstrap rather than exit for ever. The routes read as drift, for a person to revert |
+
+The copy can be a moment behind, so a change made just before the damage may be missing. It reads as drift.
 
 ### Routes
 
@@ -102,6 +123,10 @@ A host-networked Caddy can't use Docker's DNS, which answers only inside contain
 - **It has a subnet of its own.** Docker assigns a static address only on a network with a configured subnet, and doesn't check a configured subnet against the server's routes. So the agent makes a throwaway network, reads the free subnet Docker picked, removes it, and makes `dockwell_ingress` with that subnet.
 - **`internal: true`** gives it no gateway and no outbound path. A service on an `internal` environment network stays cut off, and no container's default route moves.
 - **`com.docker.network.bridge.enable_icc: false`** stops containers on it reaching each other. Only the server, which is where Caddy is, reaches them. A service on it reaches no other environment through it.
+- **A container keeps it from being pruned.** `docker network prune`, which `docker system prune` runs, removes a network with no running container on it, and every routed service can be stopped at once. So `dockwell-ingress-keep` sleeps on it: Caddy's image, which the server has already, as uid 65532, with no capabilities, no mounts, a read-only root, 16 MB and no way out of a network that has none. It costs the server that sleeping process and its containerd shim, which is outside the agent's budget, as Caddy is. The agent starts it again if it stops, and the last route removes it.
+- **If the network goes all the same, it comes back on its recorded subnet, with the table kept.** Someone can remove the keeper. Caddy's routes still dial those addresses, and a stopped container still asks for its own, so the agent makes the network again, puts each instance back, as a stopped container names the old network's ID and can't start until it comes off it, and gives out nothing new. Without this a new table would give one service an address another's route still dials.
+- **If another network has that subnet now, the routes close.** Docker gives out the first free subnet, so a network made next can take it, and Caddy dials those addresses whichever network has them. It isn't made anywhere else, and no address is reused. Every route answers 503, from a route with no matcher ahead of them, so what they dial is never dialled. The panel's site stays up, as it isn't a route, and certificates go on renewing. The error and `ingress.problem` say `SUBNET_TAKEN`, name the network, and give the fix: remove it, or delete this server's routes and add them again, which starts on another subnet. Until a reconcile sees this, within a minute, the routes dial what they did, which the keeper exists to make rare.
+- **No address Caddy dials is given out,** whatever the table says, and none at all if what it dials can't be read.
 
 **An instance is one container of a service,** named `<project>/<service>/<number>`, with Compose's container number: today `env_01kat…/web/1`. The agent gives each instance a static address on `dockwell_ingress`, and keeps the table in `ingress/addresses.json`, written before it counts, as deleted volumes are.
 
@@ -161,8 +186,9 @@ Caddy keeps `X-Forwarded-For` for itself: with no `trusted_proxies`, it overwrit
   - `starts`, on a server with no routes yet, with the ports it takes;
   - `stops`, on the last route's removal, with the ports it frees;
   - `restarts`, on a newer pin;
-  - `panel_domain`, when the panel's domain moves behind Caddy or back.
+  - `panel_domain`, when the panel's domain moves behind Caddy or back. Moving behind Caddy is `host_access`, of the new kind `panel_domain`, so only a person can apply it (below).
 - **What DNS says,** `PlanStep.domain_check`: whether the domain points here, has no record, or points elsewhere, with the addresses. It never refuses, as people often set DNS afterwards, and the fingerprint leaves it out, so a record that changes between planning and applying doesn't stale a plan. A server with private addresses alone can't tell whether a public record is its own, and says so.
+- **What may come back is said by name.** `PlanStep.returning_containers` lists stopped containers that Docker starts again when it next restarts, and that publish 80 or 443 or are on the server's own network, which can't be asked what they bind while stopped. Moby starts `always`, and `on-failure` with a failing exit, which `docker stop` is, whatever stopped them; it leaves `unless-stopped` stopped by hand. It never refuses, and the fingerprint leaves it out.
 - **Taken ports are refused at plan time, by name,** with the consequence and the fix, and checked again on apply. The agent reads who holds 80 and 443 over TCP, and 443 over UDP, from `/proc`, and asks Docker what publishes them, since a published port with the userland proxy off has no listening socket. It names the process and, through its cgroup, its container:
 
   > Port 80 is held by nginx, in the container 1Panel-openresty-abc12, and port 443 by the same, so Caddy can't start on this server and this route can't serve traffic. What runs there keeps running. Stop that proxy, or publish the service's port and point that proxy at it.
@@ -170,6 +196,25 @@ Caddy keeps `X-Forwarded-For` for itself: with no `trusted_proxies`, it overwrit
   When it can't tell, as an agent that isn't root can't read other users' processes, it says which port, and how to find out: `ss -ltnp 'sport = :80'`.
 - **A service can't publish 80 or 443 while the ingress holds them.** The container driver refuses it at plan time: otherwise the new container would fail to start only once the old one was gone.
 - **Downtime is honest.** A new route has none. A route's update has none. A step that restarts Caddy says so, with 35 s at most: the 30 s it gets to stop before Docker kills it, for what is in flight, and 5 s to start again. Removing a route ends what it serves on purpose, which the plan says by being a removal; nothing else stops.
+
+### A proxy back on the ports
+
+A manual stop of a container with `restart: always` lasts until Docker next restarts, so a reboot can bring back the proxy Caddy replaced, and if it binds first, Caddy can't. 1Panel's OpenResty is that: `restart: always` and `network_mode: host`.
+
+- **Reconcile says who.** It names what holds each port, its container, and the fix, with `docker update --restart=no`. The log says it when it changes, and again each hour.
+- **It doesn't fight.** With the ports taken it leaves Caddy's container as it is, rather than make it again each minute. Docker's restart policy has Caddy take them if they come free first, and reconcile starts it within a minute otherwise.
+- **The API says it.** `Server.ingress` and `DomainServer.ingress` have `problem: PORTS_TAKEN`, the message, and `holders`, so the panel can say why a domain whose certificate reads as issued doesn't answer.
+- **A route can always go.** Removing one never starts Caddy: with it down, the route comes out of its last config and the agent's copy, and Caddy serves neither when it next starts.
+
+### What a server's routes can ask for
+
+A write token can add any route, so what routes cost is limited per server, past what any server needs.
+
+- **1,000 routes.** Caddy's memory grows with them, 140 MB at 1,000, and each change rewrites them all. A plan that takes a server past that is refused, with what to do. Editing or removing is never refused.
+- **50 domains waiting for a certificate, as they come.** Let's Encrypt allows 300 new orders per account per 3 hours, and that's the one account the panel's domain needs too. A route for a domain the server hasn't got, which would take it past 50, is refused, naming some of them, with what to do: point their DNS here, or delete those you don't need.
+- **What pending counts:** a domain with no certificate, for 3 hours from when it was added, whether it's on its way or has failed. A domain that stays failed must not block others for ever, and 3 hours is that limit's own window, by which its first order has dropped out of the count, and Caddy retries on the staging directory, backing off. `ingress/domains.json` keeps when each was added, across restarts.
+- **What that doesn't stop.** Caddy's reload starts a pending name's attempt again on the production directory, so many route changes with many names pending can still use up the limit. As measured against Pebble, 5 reloads in 5 s with 30 names pending made 1 new order, and a minute with no changes made 29.
+- **1 GiB of memory.** Caddy runs at 63 MB with no routes. If it goes past this Docker starts it again, and it resumes.
 
 ### The last route
 
@@ -219,7 +264,8 @@ If Caddy can't start, the marker goes, the panel takes the ports back, and the s
 **Nothing about signing in changes.**
 - **The RP ID stays the domain,** so passkeys keep working. A passkey is bound to the name, never to a certificate.
 - **Sessions stay.** The cookie stays `__Host-dockwell_session`.
-- **The certificate.** The existing one stays in `control/acme` and is used again if the panel takes the ports back. Caddy issues its own for the same name, which takes seconds, and during which the domain doesn't answer over HTTPS. The plan says so. Copying autocert's into Caddy's storage format isn't worth tying together two internal formats to save those seconds, and a certificate is cheap: the same name can have 5 a week.
+- **The certificate goes with it.** The existing one stays in `control/acme`, and is used again if the panel takes the ports back. Caddy serves it too, through `tls.certificates.load_pem`, as soon as it starts, and asks for its own, as `automatic_https.ignore_loaded_certificates` lets it. Within a minute of its own coming, the agent drops the panel's, key and all, from Caddy's config, its last config and the agent's copy. So moving behind Caddy can't take a working panel dark, even if Caddy can't get a certificate, until the panel's expires: HTTPS on it is down only for the moment the ports change hands. It goes in the config rather than a file, as a file gone missing would stop Caddy starting. Tying together autocert's and Caddy's storage formats isn't needed. A real test holds this against Pebble.
+- **Only a person can do this.** [ADR 0016](0016-scoped-api-tokens.md) says a token can't cut off access, and this moves what the panel's domain depends on, so a token gets `needs_session`. Taking the ports back isn't: a token can remove a route, and the panel still has its certificate. A step applied on a plan that didn't say so, as one made while its server wasn't reachable, refuses rather than move the panel.
 
 **The panel's proxied listener is a unix socket, and that is the whole of why it is trusted.**
 
@@ -242,11 +288,12 @@ So no header decides anything:
 - **Control plane down:** nothing changes. Certificates renew: Caddy does that itself.
 - **Agent down:** nothing changes, as above. Reloads stop until it's back.
 - **Reboot, with or without the agent:** Docker starts Caddy, Caddy resumes its last config, and instances come back on their static addresses.
-- **The agent comes back:** it starts Caddy if it was stopped, connects any instance not on the network, and takes the ports back for the panel if there are no routes. It doesn't touch a route's config: a hand edit reads as drift, for a person to revert or adopt (ADR 0009). When Caddy is down, `Observe` reads its last config from `autosave.json`.
+- **The agent comes back:** it puts right a damaged last config, starts Caddy if it was stopped and its ports are free, makes the network again if it has gone, connects any instance not on the network, and takes the ports back for the panel if there are no routes. It doesn't touch a route's config: a hand edit reads as drift, for a person to revert or adopt (ADR 0009). When Caddy is down, `Observe` reads its last config from `autosave.json`.
+- **A Caddy that hangs,** as under `docker pause`, accepts a connection and never answers. Each admin call has a bound of 15 s, after which the agent reads its last config, as for a Caddy that's down. A change refuses, with what to do, as it would write its config back when it wakes. What waits for the manager's lock gives up at its own deadline, so a plan isn't held up.
 
 ### The interface
 
-`internal/ingress` is what stays when OpenResty arrives: the routes and instances table, port checks, DNS checks, the network, the handover, and `Upstreams`. `ingress.Proxy` is all it knows of a proxy: get ready, start and stop, read routes, put and delete a route, set the panel's site, how many requests an upstream has in flight, certificates, and retrying them. `internal/ingress/caddy` implements it, with its JSON and its Docker container. `internal/resource/route` is the kind, and names no proxy. OpenResty is a second `Proxy`, and a choice on the server.
+`internal/ingress` is what stays when OpenResty arrives: the routes and instances table, port checks, DNS checks, limits, the network and its keeper, the handover, and `Upstreams`. `ingress.Proxy` is all it knows of a proxy: get ready, start and stop, read routes, put and delete a route, close the routes, recover a damaged config, set the panel's site, how many requests an upstream has in flight, certificates, and retrying them. `internal/ingress/caddy` implements it, with its JSON and its Docker container. `internal/resource/route` is the kind, and names no proxy. OpenResty is a second `Proxy`, and a choice on the server.
 
 ### Mirrors
 
@@ -261,9 +308,10 @@ Docker verifies a digest pull whatever serves it, so a mirror can't change what 
 - **A route's first request can't beat its certificate.** Until it's issued the domain doesn't answer over HTTPS, and `http://` redirects to it. That is why the state is on the API.
 - **What's not here:** wildcards and DNS-01, path stripping, per-route settings such as headers or auth, TCP and UDP routes, several servers behind one name, an email for the CA, and hand-editing a site. Each can be a new field or a new kind.
 - **Replacing a service without #28 still has the downtime ADR 0021 states,** though Caddy now holds requests for 3 s while the upstream refuses connections, and answers 502 after.
-- **A daemon with `no-new-privileges: true` in its `daemon.json` can't run Caddy this way.** It ignores the file capability the image relies on, so Caddy can't bind 80 and 443, and the step fails with what Caddy says. Such a server needs that setting off for this one container, which Docker doesn't offer, or the setting off.
+- **A daemon with `no-new-privileges: true` in its `daemon.json` can't run Caddy this way.** It ignores the file capability the image relies on, so Caddy can't bind 80 and 443. The plan refuses, and says so. Such a server needs that setting off for this one container, which Docker doesn't offer, or the setting off.
 - **Docker's `iptables: false`** leaves the ingress network's rules out, so `internal` and `enable_icc` don't hold, and containers on it can reach each other. Someone who turned that off has taken on the server's rules themselves.
-- **An upgrade of Dockwell doesn't move a server to a newer Caddy on its own,** so a security release of Caddy reaches a server on its next route change. Applying it without one needs a way to ask, which is a follow-up.
+- **An upgrade of Dockwell doesn't move a server to a newer Caddy on its own,** so a security release of Caddy reaches a server on its next route change. It shows in the log and on the API until then. Applying it without one needs a way to ask, which is [#78](https://github.com/Dockwell/dockwell/issues/78).
+- **A stale route from another control plane goes when a route takes its domain.** The engine lets one route hold a domain and path, and one environment a domain, across an install, so what can't stand beside the new route is what was left. `PutRoute` takes it out in the same reload, and logs it, and `Verify` fails if another route still comes first. Stale routes for other domains go on serving until someone deletes them, as nothing here knows of them.
 - **The threat model** is in [docs/security/ingress.md](../security/ingress.md).
 
 ## Tests
@@ -272,5 +320,6 @@ Docker verifies a digest pull whatever serves it, so a mirror can't change what 
 - **The manager,** on a fake Docker Engine and a fake proxy (`internal/ingress`): ports, the network, the handover and its failures, drift, reconciling, the rollout seam and certificate state.
 - **`DOCKWELL_TEST_CADDY`** names a Caddy binary, and tests whose names end `OnRealCaddy` run it on high ports with its admin API on a unix socket, and the same bootstrap config, to prove the JSON and the reloads are real. `TestARouteFromPlanToRequestAndBackOnRealCaddy` runs the route kind, the manager and real Caddy with a fake Docker Engine alone left out, whose subnet is on loopback, so a test server stands where a container would.
 - **`DOCKWELL_TEST_PEBBLE`** names Pebble's binaries, and those tests get real certificates over HTTP-01 and TLS-ALPN-01, and real failures, on high ports.
-- **`make docker-e2e`** runs it all on real Docker, with Caddy in its container on 80 and 443: taken ports refused by name, the hardening of the container, the network kept to itself, a real certificate from Pebble, a request over HTTPS to a real container, the client's address on both families, a replace, traffic with Dockwell down and through a restart of Caddy, a hand edit reading as drift, the last route freeing the ports, the certificate reused, a token refused a domain another environment held, and with `E2E_PANEL` set, the panel's own domain moving behind Caddy and back, with its RP ID, the refusals of plain HTTP and forwarded headers on loopback, and the tunnel with Caddy down. `scripts/ingress-tools.sh` fetches the binaries, each checked by SHA-256. CI's Docker job runs all of these.
-- **What only CI can show:** the container's capabilities and user on real Docker, `internal` and `enable_icc` as Docker enforces them, and host networking. No machine this was written on has Docker or root.
+- **`make docker-e2e`** runs it all on real Docker, with Caddy in its container on 80 and 443, and with `E2E_ROOT` set, Dockwell as root, as on a server, so Caddy runs as uid 65532 and its directories are given to it: taken ports refused by name, a plan naming a stopped container that comes back, the hardening of the container, the network kept to itself, a real certificate from Pebble, a request over HTTPS to a real container, the client's address on both families, a replace, traffic with Dockwell down and through a restart of Caddy and of Docker itself, a last config left empty and cut short, the keeper holding off `docker network prune`, the network lost and made again, another network on its subnet, a proxy back on the ports and a route removed while it's there, a hand edit reading as drift, the last route freeing the ports, the certificate reused, the server refusing a token a domain another environment held, and with `E2E_PANEL` set, the panel's own domain moving behind Caddy and back, with a person applying it and the server refusing a token, its RP ID, the refusals of plain HTTP and forwarded headers on loopback, and the tunnel with Caddy down. `scripts/ingress-tools.sh` fetches the binaries, each checked by SHA-256. CI's Docker job runs all of these.
+- **What only CI can show:** the container's capabilities and user on real Docker, `internal` and `enable_icc` as Docker enforces them, host networking, the read-only mount, `docker network prune` and a stopped container on a network made again, and Docker's restart policies. No machine this was written on has Docker or root.
+- **What nothing here shows:** a daemon with `userns-remap`, which `UsernsMode: host` is for, and a real one with `no-new-privileges`. The fake engine refuses as Moby's source says it does (`daemon_unix.go`), and the Docker job checks the setting reaches the container, but CI doesn't run such a daemon.

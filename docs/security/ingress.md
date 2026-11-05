@@ -36,8 +36,9 @@ Every request a server takes from the internet goes through its ingress, so this
 - **Reach Caddy's admin API, or the panel's socket.** Neither is on TCP. Both are in `ingress/run`, which no container may mount, as it is under Dockwell's data directory ([ADR 0021](../adr/0021-the-docker-driver.md#host-access)).
 - **Reach the panel over loopback.** A bridged container has no route to the server's loopback.
 - **Reach Caddy.** It can, on the bridge's gateway, ports 80 and 443, as anyone can. It gets what anyone gets.
-- **Take another service's address.** A container on its own can't name `dockwell_ingress`, and a service's networks are its environment's. A person with root could; see below.
+- **Take another service's address.** A container on its own can't name `dockwell_ingress`, by its name or by an ID: Docker takes either, so the agent looks each network up exactly, and refuses one that answers to another name. A service's networks are its environment's. A person with root could; see below.
 - **Keep serving after a reboot, as something else.** Addresses are static, so Docker gives a container its own address or fails to start it. Caddy never sends one service's traffic to another because they started in another order.
+- **Get another's traffic by the network going.** `docker network prune` can't take the network, as a container sleeps on it. If someone removes both, the network comes back on its own subnet with the same addresses. If another network has that subnet, every route answers 503, and no address is reused ([ADR 0024](../adr/0024-the-caddy-ingress-driver.md#how-caddy-reaches-containers-and-how-upstreams-are-named)). There's a window of up to a minute before the agent sees that, as there's no event for it, in which Caddy dials whatever now has those addresses. With the agent down it's as long as the agent is.
 
 ### A write token
 
@@ -54,8 +55,9 @@ A leaked read-write token can already deploy any image to any service, and so re
 | Put a wildcard, a placeholder, a `..` or anything else into Caddy's config | Refused: domains and paths take a short list of characters, and JSON is built from typed values |
 | Claim a name that points at this server but isn't Dockwell's yet | Allowed, and Caddy gets a certificate for it. Anyone who can point a route here can do this with HTTP-01; a name someone left pointing at this server is theirs to clean up. It shows in the plan and the timeline |
 | Take ports 80 and 443 from another proxy | Refused at plan time, by name |
+| Move the panel's domain behind Caddy, off a certificate that works | `host_access` of kind `panel_domain`: the token gets `needs_session`, and only a person can apply it. The panel's certificate moves with it, so it can't go dark |
 | Stop the proxy by removing the last route | Allowed, as removing any route is. Undo brings it back, with its certificate |
-| Burn the CA's rate limit with many routes | Possible: 50 certificates per registered domain each week at Let's Encrypt, and each failure is one more attempt. Revoke the token and delete the routes; existing certificates keep serving |
+| Burn the CA's rate limit with many routes | Limited: 1,000 routes on a server, and no new domain while 50 wait for a certificate, each counting for 3 hours from when it was added. So a token gets about 50 new names per 3 hours on a server, against Let's Encrypt's 300 new orders per account. Route changes while they wait can ask again; revoke the token and delete the routes. Existing certificates keep serving |
 
 The time limit on a takeover is the undo window: after 7 days without a route, a domain is anyone's to claim, as a site down for a week has been noticed. A finer scope for tokens, per project or environment, is what would close this further ([ADR 0016](../adr/0016-scoped-api-tokens.md)).
 
@@ -65,10 +67,15 @@ The time limit on a takeover is the undo window: after 7 days without a route, a
 - **Read a certificate's key or the ACME account key.** It can't: `ingress` is 0700.
 - **Pretend to be HTTPS to the panel over loopback.** It can't. A public `Host` from loopback gets 421, whatever `X-Forwarded-Proto` says, and on `localhost` the panel gives a plain cookie, which is what it always gave anyone on loopback. A process on the server that can reach loopback can try to sign in like anyone through a tunnel, and needs a passkey or a code to get anywhere.
 - **Take a port as Caddy stops.** It can, in the moment a last route's removal frees them, if it can bind them, which takes root or `CAP_NET_BIND_SERVICE`. The next route's plan then refuses, by name.
+- **Reach the admin API if Caddy's last config is damaged.** It can't. `CADDY_ADMIN` keeps it on the socket with no config to read, so an empty file, which a full disk or a power cut can leave, doesn't open it on TCP.
 
 ### If Caddy itself is compromised
 
-Its process runs as uid 65532 with `NET_BIND_SERVICE` alone, on a read-only root filesystem, and sees only `ingress/data`, `ingress/config` and `ingress/run`. It is on the server's network, as host networking needs, so it can reach loopback, and so the panel's API, where a person's session or a token is still needed. It holds every site's traffic and certificates, which no sandbox changes. It isn't uid 0, because uid 0 on the host's network namespace can reach abstract unix sockets, as CVE-2020-15257 did through containerd's shim.
+Its process runs as uid 65532 with `NET_BIND_SERVICE` alone, on a read-only root filesystem, with 1 GiB of memory, and sees only `ingress/data`, `ingress/config`, `ingress/run`, and `ingress/boot` read-only. It is on the server's network, as host networking needs, so it can reach loopback, and so the panel's API, where a person's session or a token is still needed. It holds every site's traffic and certificates, which no sandbox changes, and the panel's certificate while that serves, until its own comes. It isn't uid 0, because uid 0 on the host's network namespace can reach abstract unix sockets, as CVE-2020-15257 did through containerd's shim.
+
+- **Trip up the root agent with what it leaves in its directories.** It can't. Root reads and writes there only through `os.Root`, takes regular files alone, never through a link or a FIFO, and bounds each read, so a link to `/etc/shadow` isn't written through or given to Caddy's user, and a link to `/dev/zero` doesn't fill the control plane's memory. What Caddy reads as it starts is root's, in a read-only mount.
+- **Give the agent a config that opens the admin API.** The agent's copy of what Caddy runs is what it puts back after damage, and it doesn't keep one whose admin API isn't on the socket.
+- **Hold up the agent.** A Caddy that hangs holds up an admin call for 15 s at most, and a plan no longer than its own deadline.
 
 ## What comes down when
 
@@ -78,6 +85,9 @@ Its process runs as uid 65532 with `NET_BIND_SERVICE` alone, on a read-only root
 | Agent | Keeps flowing | Keeps flowing, on the control server only if its process is up | As the control plane |
 | Caddy, or Docker | Down | Down | Works: it needs neither |
 | Reboot, with the agent down | Back as Docker starts Caddy | As the control plane | As the control plane |
+| Another proxy on the ports, as after a reboot | Down, and the API and the log name it | Down | Works |
+| Caddy's last config damaged | Down until the agent puts it back, within a minute of its being up | As public traffic | Works |
+| The ingress network gone, with its subnet taken | 503 for every route | Works | Works |
 
 The tunnel, `ssh -L 7600:127.0.0.1:7600 you@server`, depends on nothing here. A passkey for the domain doesn't work on `localhost`, so you sign in with a code, a recovery code, or `dockwell recover`.
 

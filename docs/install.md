@@ -73,7 +73,7 @@ It changes only these files:
 | `/etc/systemd/system/dockwell.service` | The service, on systemd |
 | `/etc/init.d/dockwell` | The service, on Alpine's OpenRC, which logs to `/var/log/dockwell.log` |
 
-Dockwell itself keeps its state in `/var/lib/dockwell`. A server's ingress keeps its certificates and ACME account keys in `/var/lib/dockwell/ingress`, which upgrades and reinstalls leave alone, and so does moving the server to another control plane.
+Dockwell itself keeps its state in `/var/lib/dockwell`. A server's ingress keeps its certificates and ACME account keys in `/var/lib/dockwell/ingress`, which upgrades and reinstalls leave alone, and so does moving the server to another control plane. A route the new control plane makes for a domain replaces the one the old control plane left, and so does one for the same domain from another environment. Other routes it left go on serving until you delete them through Caddy's admin API, as nothing else knows of them.
 
 On a control server, `/var/lib/dockwell/control/key` is the install's key. It opens every secret the database keeps, the control plane's certificate authority and the authenticator-app secrets, and the database holds them only encrypted ([ADR 0022](adr/0022-secrets-encrypted-at-rest.md)). Back it up, apart from the database: a backup of the database without the key opens none of them, and the key lost is all of them lost. `dockwell rotate-key` rotates the key that wraps every secret's own key, and the control plane can keep running while it does.
 
@@ -83,7 +83,41 @@ The service sets `GOMEMLIMIT=200MiB`, a soft limit on the memory the Go runtime 
 
 Dockwell binds nothing on ports 80 and 443 until a server gets its first route, so it can run beside another proxy, such as 1Panel's OpenResty. To reach a service through that proxy, publish its port on loopback and point the proxy at it. A route on such a server is refused when it is planned, naming what holds the ports, and nothing changes.
 
-When you are ready, stop the other proxy and add a route. Caddy starts as a container, on the server's own network, and takes the ports. Removing the last route stops it and frees them, and its certificates stay on the server for when a route comes back. [ADR 0024](adr/0024-the-caddy-ingress-driver.md) has the details.
+## Move a server onto Dockwell's ingress
+
+When you are ready to stop the other proxy, what it serves stops answering until you add a route for each site, so do this when you can afford that, and start with one that matters least.
+
+**1. Find what holds the ports.** Dockwell names it when you plan a route. You can also ask:
+
+```sh
+ss -ltnp 'sport = :80 or sport = :443'
+docker ps --format '{{.Names}}  {{.Ports}}'
+docker ps --filter network=host --format '{{.Names}}'
+```
+
+1Panel's OpenResty is a container named like `1Panel-openresty-abc12`, on the server's own network, so it shows in the first and the last of these.
+
+**2. Stop it, and keep it stopped.** `docker stop` isn't enough. A container with `restart: always`, as 1Panel's OpenResty has, lasts until Docker next restarts, which a reboot does, and then it can take the ports back. So change its restart policy first:
+
+```sh
+docker update --restart=no 1Panel-openresty-abc12
+docker stop 1Panel-openresty-abc12
+```
+
+If something manages that container, stop it there too, as it can start it again or make it anew: for 1Panel, stop OpenResty under its installed apps, or a later upgrade there may bring it back. A proxy that isn't in a container is your init system's to stop, such as `systemctl disable --now nginx`.
+
+**3. Add a route.** Caddy starts as a container, on the server's own network, and takes the ports. The plan names any stopped container that Docker would start again and that may take them, so you can run the same two commands on it. On a server with its panel on a domain, the first route moves that domain behind Caddy, which only a person can approve, in the panel. Its address, passkeys and sessions stay, and it keeps its certificate until Caddy has its own.
+
+**4. If the other proxy comes back,** Caddy can't start, and your routes, and the panel's domain, stop answering. The panel still answers through an SSH tunnel. Dockwell's log names what holds the ports, with the commands above, and `dockwell servers list --json` shows it under `ingress`. Dockwell doesn't fight it for them: run those commands, and Caddy takes the ports within a minute. You can still remove a route in the meantime.
+
+Removing the last route stops Caddy and frees the ports, and its certificates stay on the server for when a route comes back, so you can go back the way you came: set the other proxy's restart policy back, and start it. [ADR 0024](adr/0024-the-caddy-ingress-driver.md) has the details.
+
+### What you'll see, and what to leave alone
+
+- **`dockwell-ingress`** is Caddy. **`dockwell-ingress-keep`** only sleeps on the ingress network, so `docker network prune` and `docker system prune` can't remove it while your services are stopped. If you remove both it and the network, the agent makes them again within a minute, with each service's address as it was. If another network has taken that subnet by then, every route answers 503 until you remove that network, as the alternative is sending your users to whatever is on it. The log and `dockwell servers list --json` name it.
+- **Limits:** a server takes 1,000 routes, and no new domains while 50 of its domains wait for a certificate, which keeps a burst of names that don't resolve from using up Let's Encrypt's limit for your whole server. A domain stops counting 3 hours after you add it. Point its DNS here, or delete its route, to make room sooner.
+- **Hardened Docker:** a daemon with `no-new-privileges` can't run Caddy, as it ignores the file capability Caddy binds 80 and 443 with. The plan refuses, and says so: remove that setting from `/etc/docker/daemon.json` and restart Docker, or don't use routes on that server. Rootless Docker can't either, as its host network isn't the server's.
+- **An older Caddy:** a new release of Dockwell can pin a newer Caddy, which a server moves to on its next route change. Until then the log says so once, and `dockwell servers list --json` shows `outdated` under `ingress`.
 
 ## Upgrade
 
