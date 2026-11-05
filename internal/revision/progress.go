@@ -52,6 +52,10 @@ type StepProgress struct {
 	Message  string    `json:"message,omitempty"`
 	Started  time.Time `json:"started,omitzero"`
 	Finished time.Time `json:"finished,omitzero"`
+	// Did is what the step did in the end, once it's done: Action says what was
+	// planned, and a pull finds out as it goes. Nil until then, for a step that
+	// failed, and for one a run that stopped partway had done already.
+	Did *resource.Action `json:"did,omitempty"`
 }
 
 // Progress is how each step of an applying change is going: the plan's
@@ -311,6 +315,21 @@ func (e *Engine) step(changeID string, i int, state StepState, message string) (
 	return &c, &Update{Index: i, Step: &step}
 }
 
+// finished ends a step that ran, saying what it did in the end.
+func (e *Engine) finished(changeID string, i int, said string, did resource.Action) (*Progress, *Update) {
+	p, u := e.step(changeID, i, StepDone, said)
+	if p == nil {
+		return nil, nil
+	}
+	e.pmu.Lock()
+	defer e.pmu.Unlock()
+	if live, ok := e.live[changeID]; ok {
+		live.Steps[i].Did = &did
+	}
+	p.Steps[i].Did, u.Step.Did = &did, &did
+	return p, u
+}
+
 // progressed updates the message of a step that is running, as its
 // driver says how it is going, such as how much of an image it has
 // pulled, and tells the change's watchers. It isn't recorded: the step's
@@ -448,6 +467,8 @@ type Record struct {
 	// Brief is what a list shows of the plan.
 	Brief    Brief
 	Progress Progress
+	// MadeRevisions says it wrote a revision of anything.
+	MadeRevisions bool
 	// RolledBackBy is the rollback of this change, if it failed and one was
 	// made; UndoneBy the applied change that undid it.
 	RolledBackBy, UndoneBy string
@@ -501,7 +522,9 @@ func brief(b []byte) (Brief, error) {
 // UndoDeadline is until when an applied change can be undone; zero for
 // one that isn't applied.
 func (r *Record) UndoDeadline() time.Time {
-	if r.State != store.ChangeApplied || r.AppliedAt.IsZero() {
+	// A change that made no revision, as a pull that found nothing newer, has
+	// nothing to undo, and offering to would only be refused.
+	if r.State != store.ChangeApplied || r.AppliedAt.IsZero() || !r.MadeRevisions {
 		return time.Time{}
 	}
 	return r.AppliedAt.Add(UndoWindow)
@@ -580,6 +603,13 @@ func (e *Engine) complete(ctx context.Context, tx *store.Tx, records []*Record) 
 	reverting, err := tx.Reverting(ctx, ids)
 	if err != nil {
 		return err
+	}
+	made, err := tx.ChangesWithRevisions(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for id := range made {
+		byID[id].MadeRevisions = true
 	}
 	for i := range reverting {
 		rc := &reverting[i]

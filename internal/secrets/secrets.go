@@ -224,15 +224,10 @@ func (k *Keeper) Open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored
 		}
 		return stored, nil
 	}
-	ad, err := specAD(at)
+	dekID, sealed, err := sealedParts(stored)
 	if err != nil {
 		return nil, err
 	}
-	rest := stored[len(magic):]
-	if len(rest) < 1 || len(rest) < 1+int(rest[0]) {
-		return nil, ErrOpen
-	}
-	dekID, sealed := string(rest[1:1+int(rest[0])]), rest[1+int(rest[0]):]
 	d, err := tx.GetDataKey(ctx, dekID)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, fmt.Errorf("data key %s is gone: %w", dekID, ErrOpen)
@@ -244,9 +239,28 @@ func (k *Keeper) Open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored
 	if err != nil {
 		return nil, err
 	}
-	raw, err := openWith(kek, d.Wrapped, dataKeyAD(dekID, d.KEKID))
+	return openUnder(at, sealed, d, kek)
+}
+
+// sealedParts splits what Seal made into its data key's ID and what that key
+// sealed.
+func sealedParts(stored []byte) (dekID string, sealed []byte, err error) {
+	rest := stored[len(magic):]
+	if len(rest) < 1 || len(rest) < 1+int(rest[0]) {
+		return "", nil, ErrOpen
+	}
+	return string(rest[1 : 1+int(rest[0])]), rest[1+int(rest[0]):], nil
+}
+
+// openUnder opens a spec sealed for at with its data key, unwrapped with kek.
+func openUnder(at store.SpecAt, sealed []byte, d store.DataKey, kek cipher.AEAD) ([]byte, error) {
+	ad, err := specAD(at)
 	if err != nil {
-		return nil, fmt.Errorf("data key %s: %w", dekID, err)
+		return nil, err
+	}
+	raw, err := openWith(kek, d.Wrapped, dataKeyAD(d.ID, d.KEKID))
+	if err != nil {
+		return nil, fmt.Errorf("data key %s: %w", d.ID, err)
 	}
 	defer clear(raw)
 	dek, err := newAEAD(raw)
@@ -258,6 +272,54 @@ func (k *Keeper) Open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored
 		return nil, fmt.Errorf("the spec of %s: %w", at.ResourceID, err)
 	}
 	return plain, nil
+}
+
+// OpenAll is Open for many specs, in order, as a list reads them: one read of
+// their data keys, and one of each key-encryption key, however many there are.
+func (k *Keeper) OpenAll(ctx context.Context, tx *store.Tx, specs []store.StoredSpec) ([][]byte, error) {
+	out := make([][]byte, len(specs))
+	dekIDs := make([]string, len(specs))
+	sealed := make([][]byte, len(specs))
+	ids := make([]string, 0, len(specs))
+	for i, s := range specs {
+		if !Sealed(s.Spec) {
+			if k.sealedKind(resource.Kind(s.At.Kind)) {
+				return nil, fmt.Errorf("%s %s: %w, so it was written outside Dockwell or by a version before it sealed them", s.At.Kind, s.At.ResourceID, ErrUnsealed)
+			}
+			out[i] = s.Spec
+			continue
+		}
+		var err error
+		if dekIDs[i], sealed[i], err = sealedParts(s.Spec); err != nil {
+			return nil, err
+		}
+		ids = append(ids, dekIDs[i])
+	}
+	keys, err := tx.GetDataKeys(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	keks := map[string]cipher.AEAD{}
+	for i, s := range specs {
+		if sealed[i] == nil {
+			continue
+		}
+		d, ok := keys[dekIDs[i]]
+		if !ok {
+			return nil, fmt.Errorf("data key %s is gone: %w", dekIDs[i], ErrOpen)
+		}
+		kek, ok := keks[d.KEKID]
+		if !ok {
+			if kek, err = k.kek(ctx, tx, d.KEKID); err != nil {
+				return nil, err
+			}
+			keks[d.KEKID] = kek
+		}
+		if out[i], err = openUnder(s.At, sealed[i], d, kek); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 // sealedKind reports a kind whose specs are kept sealed. One this keeper
@@ -274,6 +336,21 @@ func (k *Keeper) Decode(ctx context.Context, tx *store.Tx, at store.SpecAt, stor
 		return nil, err
 	}
 	return k.kinds.Decode(resource.Kind(at.Kind), plain)
+}
+
+// DecodeAll is Decode for many specs, in order, as a list reads them.
+func (k *Keeper) DecodeAll(ctx context.Context, tx *store.Tx, specs []store.StoredSpec) ([]proto.Message, error) {
+	plain, err := k.OpenAll(ctx, tx, specs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]proto.Message, len(specs))
+	for i := range specs {
+		if out[i], err = k.kinds.Decode(resource.Kind(specs[i].At.Kind), plain[i]); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 // Digest is a keyed hash of a spec's encoding, for the fingerprint of the

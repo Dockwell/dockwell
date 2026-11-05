@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -14,6 +15,15 @@ import (
 type Desired struct {
 	Ref  Ref
 	Spec proto.Message
+	// Pull asks the server for the resource's image again as the step applies,
+	// and to replace what runs only if that's newer. It says what a request asks
+	// for, not what the spec is, so it isn't kept.
+	Pull bool
+	// Run says the change asks this resource to run, so one that's there and isn't
+	// running is started: a person's own request, as a deploy or a rollback is. A
+	// stop by hand isn't drift (ADR 0021), so nothing else starts it, but for a
+	// change that replaces it anyway.
+	Run bool
 }
 
 // Agent plans and applies on one server, with that server's drivers. In
@@ -104,12 +114,41 @@ type Checker interface {
 	Check(ctx context.Context, ref Ref, desired proto.Message) error
 }
 
+// PlanChecker is a driver that checks a resource about to start against what
+// else is on the server, and the rest of what the plan wants there, as a port
+// only one thing can hold. all holds every resource the plan wants here,
+// normalized, want among them.
+type PlanChecker interface {
+	CheckPlan(ctx context.Context, want Desired, all []Desired) error
+}
+
 // Judge is a driver whose judgement of a step needs its server, beyond the
 // specs, such as a container whose image keeps data that deleting it takes
 // out of use. The agent asks it in place of Plan; the control plane, which
 // plans an offline server from its last known state, asks Plan.
 type Judge interface {
 	Judge(ctx context.Context, ref Ref, actual, desired proto.Message, changes []Change) (Decision, error)
+}
+
+// Runner is a driver whose resources run, and so can be there without running.
+type Runner interface {
+	// NotRunning says in a word how a resource that's there isn't running, such
+	// as "exited". It's empty for one that runs, or isn't there.
+	NotRunning(ctx context.Context, ref Ref) (string, error)
+}
+
+// StatePath names what differs, in a plan's changes, when a resource is there and
+// isn't running.
+const StatePath = "state"
+
+// notRunningWords are the words Docker has for a container that isn't running.
+var notRunningWords = []string{"created", "exited", "dead", "paused", "removing", "restarting", "stopped"}
+
+// IsStateChange says c is a resource starting that's there and isn't running. It
+// names no field of a spec, and its words are a known few, so it can't hold a
+// value someone should not see.
+func IsStateChange(c Change) bool {
+	return c.Path == StatePath && c.To == "running" && slices.Contains(notRunningWords, c.From)
 }
 
 // desiredKey is where a plan's context holds all it touches on the server.
@@ -137,7 +176,9 @@ func WithDesired(ctx context.Context, desired []Desired) context.Context {
 func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 	ctx = WithDesired(ctx, desired)
 	steps := make([]Step, 0, len(desired))
-	for _, want := range desired {
+	normal := make([]Desired, len(desired))
+	drivers := make([]Driver, len(desired))
+	for i, want := range desired {
 		d, err := l.Drivers.Driver(want.Ref.Kind)
 		if err != nil {
 			return nil, err
@@ -146,6 +187,10 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run}, d
+	}
+	for i, want := range normal {
+		d, spec := drivers[i], want.Spec
 		if c, ok := d.(Checker); ok && spec != nil {
 			if err := c.Check(ctx, want.Ref, spec); err != nil {
 				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
@@ -164,6 +209,45 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, err
 		}
+		// A spec can't say it should be running, so nothing differs. What's there and
+		// isn't running stays so, unless this change asks it to run, which a replace
+		// does, or is replacing it anyway. The plan says which, and nothing is up for
+		// that to take down.
+		if r, ok := d.(Runner); ok && spec != nil && actual != nil && (want.Run || step.Action == ActionReplace) {
+			state, err := r.NotRunning(ctx, want.Ref)
+			if err != nil {
+				return nil, fmt.Errorf("can't read %s: %w", want.Ref, err)
+			}
+			if state != "" {
+				changes := append(slices.Clone(step.Changes), Change{Path: StatePath, Op: OpModified, From: state, To: "running"})
+				dec, err := decide(ctx, d, want.Ref, actual, spec, changes)
+				if err != nil {
+					return nil, err
+				}
+				dec.Downtime = 0
+				step.Decision, step.Changes = dec, changes
+			}
+		}
+		if want.Pull && spec != nil {
+			// As far as the specs say, nothing differs or only its restart policy
+			// does, but what its tag points at may. What that would take is what
+			// another image takes, as far as anyone can tell before it pulls.
+			if step.Action == ActionNone || step.Action == ActionUpdate {
+				dec, err := decide(ctx, d, want.Ref, actual, spec, append(slices.Clone(step.Changes), Change{Path: "image"}))
+				if err != nil {
+					return nil, err
+				}
+				step.Decision = dec
+			}
+			step.Pull = step.Action != ActionNone
+		}
+		// Only what is about to start can fail to: a resource left as it is
+		// isn't refused for what is around it.
+		if c, ok := d.(PlanChecker); ok && spec != nil && (step.Action == ActionCreate || step.Action == ActionReplace) {
+			if err := c.CheckPlan(ctx, want, normal); err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+		}
 		steps = append(steps, step)
 	}
 	return steps, nil
@@ -181,6 +265,21 @@ func normalize(d Driver, spec proto.Message) (proto.Message, error) {
 		return nil, err
 	}
 	return spec, nil
+}
+
+// decide is what d says of changes, with what the server has if it can read it.
+func decide(ctx context.Context, d Driver, ref Ref, actual, desired proto.Message, changes []Change) (Decision, error) {
+	var dec Decision
+	var err error
+	if j, ok := d.(Judge); ok {
+		dec, err = j.Judge(ctx, ref, actual, desired, changes)
+	} else {
+		dec, err = d.Plan(actual, desired, changes)
+	}
+	if err != nil {
+		return Decision{}, fmt.Errorf("can't plan %s: %w", ref, err)
+	}
+	return dec, nil
 }
 
 // judgeStep is PlanStep with a Judge, which knows the server.
@@ -214,7 +313,13 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		}
 		ctx = WithValues(ctx, values)
 	}
-	if err := d.Apply(ctx, step, desired); err != nil {
+	if err := d.Apply(ctx, step, desired); errors.Is(err, ErrAlreadySo) {
+		// Nothing changed, and a step that reads done still says it's running.
+		if err := d.Verify(ctx, step.Ref, desired); err != nil {
+			return fmt.Errorf("%s is as asked, but it isn't healthy: %w", step.Ref, err)
+		}
+		return nil
+	} else if err != nil {
 		return fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err)
 	}
 	actual, err := Observe(ctx, d, step.Ref)
@@ -230,6 +335,13 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 	}
 	if desired == nil {
 		return nil
+	}
+	// A change in place leaves what someone stopped stopped, so nothing is running
+	// to verify.
+	if r, ok := d.(Runner); ok && step.Action == ActionUpdate {
+		if state, err := r.NotRunning(ctx, step.Ref); err == nil && state != "" {
+			return nil
+		}
 	}
 	if err := d.Verify(ctx, step.Ref, desired); err != nil {
 		return fmt.Errorf("applied %s, but it isn't healthy: %w", step.Ref, err)

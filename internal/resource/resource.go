@@ -148,6 +148,18 @@ type Decision struct {
 	// own health check isn't known, and UntilHealthy may be missing or
 	// too short.
 	HealthUnknown bool `json:",omitempty"`
+	// Pull is true when the step asks the server for its image again first. With
+	// no Changes, it replaces what runs only if that finds a newer image. With
+	// nothing but a restart policy to change, it changes that in place otherwise.
+	Pull bool `json:",omitempty"`
+	// Pulled is true when a run stopped partway had already pulled on this server,
+	// as the record says. Resuming needs no registry, so it compares what the
+	// server has with what runs, and goes on from there.
+	Pulled bool `json:",omitempty"`
+	// ImageGone is true when the digest its spec pins isn't on the server, and its
+	// registry won't give it, so applying it could only fail. A registry that doesn't
+	// answer says nothing of it.
+	ImageGone bool `json:",omitempty"`
 	// Ingress is what the step does to its server's ingress, beside the
 	// route itself: starting it takes the server's public ports. A plan's
 	// fingerprint covers it.

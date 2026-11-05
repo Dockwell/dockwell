@@ -4,6 +4,7 @@ package compose
 
 import (
 	"cmp"
+	"context"
 	"maps"
 	"slices"
 	"strings"
@@ -124,6 +125,117 @@ func (x *exposure) report() ([]Exposed, bool) {
 		return cmp.Or(cmp.Compare(a.Kind, b.Kind), cmp.Compare(a.Owner, b.Owner), cmp.Compare(a.Field, b.Field), cmp.Compare(a.Variable, b.Variable))
 	})
 	return out, x.more
+}
+
+// exposedIn says where raw, a file before its variables are read, could write a
+// value in free text, whatever values there are or aren't, for a form to say so
+// before anyone types a secret. A plan goes by the values it was given (exposure),
+// so what a form says is what a plan would say if each had one. It asks the same
+// quiet fields, and costs one pass over the file's strings, stopping at maxExposed
+// and saying there was more.
+func exposedIn(ctx context.Context, raw map[string]any) (found []Exposed, more bool) {
+	x := rawExposure{ctx: ctx, seen: map[Exposed]bool{}}
+	for _, section := range []struct {
+		key, kind string
+		quiet     map[string]bool
+	}{
+		{"services", "service", quietServiceFields},
+		{"volumes", "volume", quietVolumeFields},
+		{"networks", "network", quietNetworkFields},
+	} {
+		owners, _ := raw[section.key].(map[string]any)
+		for _, name := range slices.Sorted(maps.Keys(owners)) {
+			fields, _ := owners[name].(map[string]any)
+			for _, field := range slices.Sorted(maps.Keys(fields)) {
+				at := Exposed{Kind: section.kind, Owner: name, Field: field}
+				value := fields[field]
+				// A value here is blanked, and a name isn't. A map's keys are never
+				// read for variables, so only a list can do this.
+				if section.kind == "service" && field == "environment" {
+					x.keysOf(at, value)
+					continue
+				}
+				if _, quiet := quietField(section.quiet, field); quiet {
+					continue
+				}
+				// Part of a field can be quiet where the field isn't, as a health
+				// check's timings are. Only its first key can say so.
+				within, isMap := value.(map[string]any)
+				if !isMap {
+					x.value(at, value)
+					continue
+				}
+				for _, key := range slices.Sorted(maps.Keys(within)) {
+					if _, quiet := quietField(section.quiet, field+"."+key); !quiet {
+						x.value(at, within[key])
+					}
+				}
+			}
+		}
+	}
+	out := slices.Collect(maps.Keys(x.seen))
+	slices.SortFunc(out, func(a, b Exposed) int {
+		return cmp.Or(cmp.Compare(a.Kind, b.Kind), cmp.Compare(a.Owner, b.Owner), cmp.Compare(a.Field, b.Field), cmp.Compare(a.Variable, b.Variable))
+	})
+	return out, x.more
+}
+
+// rawExposure is what exposedIn has found.
+type rawExposure struct {
+	ctx  context.Context //nolint:containedctx // one call's, for one walk
+	seen map[Exposed]bool
+	more bool
+}
+
+// value notes what the strings in v could write.
+func (x *rawExposure) value(at Exposed, v any) {
+	if x.more || x.ctx.Err() != nil {
+		return
+	}
+	switch v := v.(type) {
+	case string:
+		x.text(at, v)
+	case []any:
+		for _, e := range v {
+			x.value(at, e)
+		}
+	case map[string]any:
+		for _, k := range slices.Sorted(maps.Keys(v)) {
+			x.value(at, v[k])
+		}
+	}
+}
+
+// keysOf notes what a list-form environment's names could write: the part of each
+// entry before its first =, outside any ${…}.
+func (x *rawExposure) keysOf(at Exposed, v any) {
+	list, _ := v.([]any)
+	for _, e := range list {
+		if s, ok := e.(string); ok && !x.more && x.ctx.Err() == nil {
+			x.text(at, nameOfEntry(s))
+		}
+	}
+}
+
+// text notes the variables whose value s can come to: ${NAME:-default} is NAME's
+// or the default's, ${NAME:+other} only other's, and ${NAME:?why}'s why goes in a
+// refusal. A default's own words aren't anyone's secret.
+func (x *rawExposure) text(at Exposed, s string) {
+	scanVariables(s, 0, func(name string, op byte) bool {
+		if op != '+' {
+			x.note(at, name)
+		}
+		return op != '?'
+	})
+}
+
+func (x *rawExposure) note(at Exposed, name string) {
+	at.Variable = name
+	if !x.seen[at] && len(x.seen) == maxExposed {
+		x.more = true
+		return
+	}
+	x.seen[at] = true
 }
 
 // nameOfEntry is the part of a list entry, such as API_KEY=x, that names it.

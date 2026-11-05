@@ -28,6 +28,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" driver for Postgres
@@ -274,11 +275,27 @@ func (t *Tx) exec(ctx context.Context, query string, args ...any) (sql.Result, e
 }
 
 func (t *Tx) query(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	counted(ctx)
 	return t.tx.QueryContext(ctx, t.dialect.rebind(query), args...)
 }
 
 func (t *Tx) queryRow(ctx context.Context, query string, args ...any) *sql.Row {
+	counted(ctx)
 	return t.tx.QueryRowContext(ctx, t.dialect.rebind(query), args...)
+}
+
+type queryCounter struct{}
+
+// CountingQueries returns a context whose reads count their queries in n, for
+// a test that holds down what a screen reads each time a change moves.
+func CountingQueries(ctx context.Context, n *atomic.Int64) context.Context {
+	return context.WithValue(ctx, queryCounter{}, n)
+}
+
+func counted(ctx context.Context) {
+	if n, ok := ctx.Value(queryCounter{}).(*atomic.Int64); ok {
+		n.Add(1)
+	}
 }
 
 // unique reports a UNIQUE or PRIMARY KEY constraint failure.

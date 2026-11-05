@@ -7,7 +7,8 @@
   line-height: 18px;
   white-space: nowrap;
 }
-.dw-status-dot {
+/* Doubled, so it wins over .dw-tone-*, which sets the colour of the whole badge. */
+.dw-status.dw-status-dot {
   color: var(--ink);
 }
 .dw-status-dot .dw-glyph {

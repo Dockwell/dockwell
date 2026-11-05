@@ -12,14 +12,15 @@
 // creates a project from the command bar, reviews its plan in the plan sheet,
 // applies it, and undoes it from Activity. The CLI plans a project with local
 // access, and the panel applies it at the address the CLI sends a person to,
-// /changes/<id>. It adds a secret in the panel, reveals it with the
-// passkey, and checks an API token can't. Everything
+// /changes/<id>. It adds a secret in the panel, reveals it with the passkey, and
+// checks an API token can't. Then it runs the app screens from apps-flow.ts, on
+// the fake Docker Engine of scripts/fakedocker. Everything
 // after the claim goes through the panel shell: the rail's link to your
 // profile on wide screens, More on phones. With --shots <dir> it also saves
 // screenshots of every screen at 1440, 800, 390 and 360 px, light and dark.
 //
 //   make e2e
-//   node web/e2e/sign-in.ts bin/dockwell --shots /tmp/shots
+//   node web/e2e/sign-in.ts bin/dockwell --fake-docker bin/fakedocker --shots /tmp/shots
 //
 // Chromium is the system's: CHROMIUM_PATH, or /usr/bin/chromium.
 
@@ -33,7 +34,13 @@ import { parseArgs } from "node:util";
 
 import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
 
-const { values, positionals } = parseArgs({ allowPositionals: true, options: { shots: { type: "string" } } });
+import { appsFlow } from "./apps-flow.ts";
+import { dockerMade, dockerProbe, removeMade } from "./docker-probe.ts";
+
+const { values, positionals } = parseArgs({
+  allowPositionals: true,
+  options: { shots: { type: "string" }, "fake-docker": { type: "string" } },
+});
 const bin = resolve(positionals[0] ?? "bin/dockwell");
 const shots = values.shots ? resolve(values.shots) : undefined;
 const port = 7650 + Math.floor(Math.random() * 300);
@@ -41,6 +48,7 @@ const origin = `http://localhost:${port}`;
 const data = mkdtempSync(join(tmpdir(), "dockwell-e2e-"));
 
 let server: ChildProcess | undefined;
+let docker: ChildProcess | undefined;
 let browser: Browser | undefined;
 const log: string[] = [];
 
@@ -84,8 +92,37 @@ function nav(page: Page) {
   return page.getByRole("navigation", { name: "Main" });
 }
 
+/** Where the fake Docker Engine's socket is, once it has started. */
+let fakeSocket = "";
+
+/** Starts the fake Docker Engine and says where its socket is, for dockwell to reach it. */
+async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
+  const path = values["fake-docker"];
+  if (!path) return {};
+  docker = spawn(resolve(path), [join(data, "docker")], { stdio: ["ignore", "pipe", "inherit"] });
+  // A fake that dies, or says nothing, would otherwise hang until the job's timeout.
+  const socket = await new Promise<string>((done, refused) => {
+    const silent = setTimeout(() => refused(new Error(`${path} said nothing for 15 s, so it isn't serving`)), 15_000);
+    docker?.stdout?.once("data", (b: Buffer) => {
+      clearTimeout(silent);
+      done(b.toString().trim());
+    });
+    docker?.once("error", (err) => {
+      clearTimeout(silent);
+      refused(err);
+    });
+    docker?.once("exit", (code, signal) => {
+      clearTimeout(silent);
+      refused(new Error(`${path} ended with ${code ?? signal} before it said where it serves`));
+    });
+  });
+  fakeSocket = socket;
+  return { DOCKER_HOST: `unix://${socket}` };
+}
+
 /** Starts dockwell run and waits for the claim link it prints. */
 async function start(): Promise<string> {
+  const engine = await fakeDocker();
   server = spawn(
     bin,
     [
@@ -101,7 +138,7 @@ async function start(): Promise<string> {
     ],
     {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, USER: "mira" },
+      env: { ...process.env, ...engine, USER: "mira" },
     },
   );
   let out = "";
@@ -170,6 +207,11 @@ function totp(secretBase32: string, step = Math.floor(Date.now() / 30_000)): str
   return String((sum.readUInt32BE(off) & 0x7fffffff) % 1_000_000).padStart(6, "0");
 }
 
+let pageThrew: (err: Error) => void = () => {};
+const pageError = new Promise<never>((_, threw) => {
+  pageThrew = threw;
+});
+
 async function main() {
   if (shots) await mkdir(shots, { recursive: true });
   step(`starting ${bin} on ${origin} with data in ${data}`);
@@ -181,7 +223,8 @@ async function main() {
   });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
-  page.on("pageerror", (err) => fail(`the page threw: ${err.message}`));
+  // A throw in here would end the process and skip the cleaning up.
+  page.on("pageerror", (err) => pageThrew(new Error(`the page threw: ${err.message}`)));
   const { cdp, authenticatorId } = await withAuthenticator(context, page);
 
   step("an unclaimed panel explains how to claim it");
@@ -715,6 +758,16 @@ async function main() {
   step(
     `  ${secretId} added through a plan, revealed with the passkey and on the timeline; a token, and a page's script, were refused`,
   );
+  if (fakeSocket !== "") {
+    const before = await dockerMade(fakeSocket);
+    await appsFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket), failing: "nginx:broken" });
+    // What make docker-panel-e2e does at its end, where only CI could see it.
+    step("Docker: what the run made comes off, networks and volumes too");
+    const made = await dockerMade(fakeSocket);
+    if (made.networks.length === 0) fail("the flow left no network, so this shows nothing about removing one");
+    const left = await removeMade(fakeSocket, before);
+    if (left.length > 0) fail(`removing what the run made left ${left.join(", ")}`);
+  }
 
   step("sign out on a phone, from More");
   await page.setViewportSize({ width: 390, height: 844 });
@@ -749,7 +802,7 @@ async function main() {
 }
 
 try {
-  await main();
+  await Promise.race([main(), pageError]);
 } catch (err) {
   console.error(`e2e: failed: ${err instanceof Error ? err.message : String(err)}`);
   console.error(log.join("").split("\n").slice(-30).join("\n"));
@@ -757,5 +810,6 @@ try {
 } finally {
   await browser?.close();
   server?.kill("SIGTERM");
+  docker?.kill("SIGTERM");
   rmSync(data, { recursive: true, force: true });
 }

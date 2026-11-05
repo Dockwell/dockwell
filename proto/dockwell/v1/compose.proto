@@ -7,24 +7,40 @@ package dockwell.v1;
 import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
+import "dockwell/v1/service.proto";
 import "google/api/annotations.proto";
 
-// ComposeService turns a Docker Compose file into an environment's
-// services, volumes and networks, and any of them back into one. An
-// environment is one Compose project: its containers carry the labels
-// Docker Compose gives its own, so docker compose sees them, and an
-// exported file runs the same with docker compose alone (PRD principle 6).
-// See docs/adr/0021-the-docker-driver.md.
+// ComposeService turns a Docker Compose file into a project's services,
+// volumes and networks, and any of them back into one. Each file gets a
+// project of its own, so two files with a service of one name run side by
+// side, on networks of their own, as they do under docker compose. An
+// environment is one Compose project: its containers carry the labels Docker
+// Compose gives its own, so docker compose sees them, and an exported file
+// runs the same with docker compose alone (PRD principle 6). See
+// docs/adr/0021-the-docker-driver.md and docs/adr/0026-the-app-screens.md.
 service ComposeService {
-  // ImportCompose plans a Compose file into an environment as a change,
-  // ready to apply or discard, as ProposeChange does with edits. Each
-  // Compose service becomes a service, and each named volume and network
-  // one of its own. A field of the file that Dockwell can't run yet is
-  // refused, by name, rather than dropped.
+  // ImportCompose plans a Compose file into a project as a change, ready to
+  // apply or discard, as ProposeChange does with edits. Each Compose service
+  // becomes a service, and each named volume and network one of its own. A
+  // field of the file that Dockwell can't run yet is refused, by name, rather
+  // than dropped. The plan brings the project to life if it doesn't exist yet,
+  // and importing into one that does shows as updates.
   rpc ImportCompose(ImportComposeRequest) returns (ImportComposeResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (google.api.http) = {
       post: "/v1/compose:import"
+      body: "*"
+    };
+  }
+
+  // CheckCompose reads a Compose file as ImportCompose would and says what
+  // it would make, or why it can't, without planning anything or recording a
+  // change, so a form can check a file as someone types it. It is a POST, as
+  // a file doesn't fit in a URL.
+  rpc CheckCompose(CheckComposeRequest) returns (CheckComposeResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/compose:check"
       body: "*"
     };
   }
@@ -41,16 +57,21 @@ service ComposeService {
   }
 }
 
-// ImportComposeRequest is a Compose file to plan into an environment.
+// ImportComposeRequest is a Compose file to plan into a project.
 message ImportComposeRequest {
   // What the change is for, such as "Run the shop's stack". Empty says it
   // came from a Compose file.
   string summary = 1;
-  // The project of the environment, by name or ID. Leave it out while
-  // there is only one project, or when environment is an ID.
+  // The project it belongs to, by name or ID, such as "shop". One that doesn't
+  // exist yet comes to life with the plan. Left out, the file's name: names
+  // it. With neither, the file goes in the default project, only while that
+  // has no apps: otherwise it is refused, as a service of the same name would
+  // change the one that is there.
   string project = 2;
   // The environment, by name or ID. Leave it out while its project has
-  // only one.
+  // only one. A project the plan brings to life starts with this one, or
+  // with production. A file exported from here goes back to the environment
+  // it came from unless this names another of its project.
   string environment = 3;
   // The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
   // up to 256 KiB. A path relative to the file needs directory, as it runs on
@@ -84,6 +105,91 @@ message ImportComposeRequest {
 message ImportComposeResponse {
   // The change, planned, with its plan.
   Change change = 1;
+  // Where the file writes a variable's value in plain sight, which the plan's
+  // notes say too. It lists 100 at most.
+  repeated ExposedVariable exposed_variables = 2;
+  // True when the file writes more than exposed_variables lists.
+  bool more_exposed = 3;
+}
+
+// CheckComposeRequest is a Compose file to read.
+message CheckComposeRequest {
+  // The Compose file, as YAML, as ImportCompose takes it.
+  string compose = 1;
+  // Values for the variables the file uses, as ImportCompose takes them.
+  map<string, string> variables = 2;
+  // The .env file beside the Compose file, as ImportCompose takes it. A variable
+  // it gives needs no other value.
+  string env = 3 [(dockwell.resource.v1alpha1.sensitive) = true];
+  // The directory the file is in on the servers, as ImportCompose takes it.
+  string directory = 4;
+}
+
+// CheckComposeResponse says what a Compose file would make, or why it can't.
+message CheckComposeResponse {
+  // Why ImportCompose would refuse the file, when it would: the first thing
+  // in the way. Fix it and check again for the next. Unset when it would take
+  // it. What it would refuse whatever its variables hold comes before a variable
+  // with no value, so no one types a secret for a file it then refuses.
+  ComposeRefusal refusal = 1;
+  // The variables the file uses, whether or not the file can be read
+  // further than that.
+  repeated ComposeVariable variables = 2;
+  // The services it would make, in the order it would make them, with
+  // sensitive values blanked. Empty when it is refused.
+  repeated ServiceInfo services = 3;
+  // The volumes it would make, by name. Empty when it is refused.
+  repeated string volumes = 4;
+  // The networks it would make, by name. Empty when it is refused.
+  repeated string networks = 5;
+  // The project the file names for itself, for a form to fill in, whether or
+  // not the file can be read further than that: its name:, or, for a file
+  // exported from an environment here, that environment's project. Empty when
+  // it names none, or names itself with a variable that has no value yet.
+  string name = 6;
+  // Where the file writes a variable's value in plain sight, whether or not one
+  // is given, so a form can say so before anyone types a secret. It lists 100
+  // at most.
+  repeated ExposedVariable exposed_variables = 7;
+  // True when the file writes more than exposed_variables lists.
+  bool more_exposed = 8;
+}
+
+// ExposedVariable is a variable whose value a Compose file writes in free text,
+// where anyone who can read what it makes sees it. Only what the schema marks
+// sensitive is blanked, such as a service's environment values: a command or a
+// label isn't, as seeing them is useful and they rarely hold a secret. A name, a
+// number or a path doesn't count, as docs/security/compose-variables.md lists.
+message ExposedVariable {
+  // The variable, such as "REDIS_PASSWORD".
+  string name = 1;
+  // The service, volume or network whose spec holds its value, by kind and
+  // name.
+  ResourceRef resource = 2;
+  // The field that holds it, as the file names it, such as "command",
+  // "entrypoint", "labels", "healthcheck" or "driver_opts". "environment" is a
+  // list entry's name, as a value there is blanked and a name isn't.
+  string field = 3;
+}
+
+// ComposeRefusal is why a Compose file can't be imported.
+message ComposeRefusal {
+  // What is wrong and how to fix it, for people.
+  string message = 1;
+  // The line of the file it is about, from 1. 0 when it is about the file
+  // as a whole.
+  int32 line = 2;
+  // The last line it is about, where it is about more than one, as a YAML parser
+  // can't always tell which. Otherwise the same as line.
+  int32 end_line = 3;
+}
+
+// ComposeVariable is a variable a Compose file uses, such as ${TAG}.
+message ComposeVariable {
+  // Its name, such as "TAG".
+  string name = 1;
+  // True when it needs a value, as the file gives it no default.
+  bool required = 2;
 }
 
 // ExportComposeRequest names what to export.

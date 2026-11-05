@@ -15,6 +15,7 @@ import {
   PlanWarning,
   ResourceService,
   type ServerPlan,
+  ServiceService,
   type StepProgress,
   VariableService,
 } from "@dockwell/api";
@@ -46,15 +47,30 @@ import { canUndo, diffResources, isFinal, longestDowntime, shortFingerprint } fr
 import { type ChangeWords, useChangeWords } from "./words";
 import "./ChangeSheet.css";
 
+/** What every opening may say about what comes next. */
+interface Then {
+  /**
+   * What to do once the sheet closes, with the change as it stood, such as
+   * leave the page that opened it. Undefined when no plan came of it.
+   */
+  onClose?: (change: Change | undefined) => void;
+  /** What the button at the end of a change that applied says, in place of "Done", such as "Open web". */
+  doneLabel?: string;
+}
+
 /**
- * What the plan sheet opens on: edits to plan, a change on record, or the
- * undo of one. A change's sheet may say what to do once you close it, such
- * as leave the page that opened it.
+ * What the plan sheet opens on: edits to plan, a change on record, the undo
+ * of one, or a plan that make makes its own way, such as a rollback, or a
+ * form that has it already. A plan the sheet opened on with make is its to
+ * discard, as one it proposed itself is.
  */
-export type Opening =
-  | { kind: "propose"; summary: string; edits: MessageInitShape<typeof EditSchema>[] }
-  | { kind: "change"; id: string; onClose?: () => void }
-  | { kind: "undo"; id: string };
+export type Opening = Then &
+  (
+    | { kind: "propose"; summary: string; edits: MessageInitShape<typeof EditSchema>[] }
+    | { kind: "change"; id: string }
+    | { kind: "undo"; id: string }
+    | { kind: "plan"; make: () => Promise<{ change?: Change | undefined }> }
+  );
 
 interface ChangeSheetApi {
   /** Opens the plan sheet, in place of any open already. */
@@ -77,10 +93,13 @@ export function ChangeSheetProvider({ children }: { children: ReactNode }) {
   const [shown, setShown] = useState<{ opening: Opening; key: number }>();
   const open = useCallback((opening: Opening) => setShown((was) => ({ opening, key: (was?.key ?? 0) + 1 })), []);
   const api = useMemo(() => ({ open }), [open]);
-  const close = useCallback(() => {
-    setShown(undefined);
-    if (shown?.opening.kind === "change") shown.opening.onClose?.();
-  }, [shown]);
+  const close = useCallback(
+    (change: Change | undefined) => {
+      setShown(undefined);
+      shown?.opening.onClose?.(change);
+    },
+    [shown],
+  );
   return (
     <SheetContext value={api}>
       {children}
@@ -119,7 +138,9 @@ function hold(
     const made =
       opening.kind === "propose"
         ? client.proposeChange({ summary: opening.summary, edits: opening.edits })
-        : client.undoChange({ id: opening.id });
+        : opening.kind === "undo"
+          ? client.undoChange({ id: opening.id })
+          : opening.make();
     proposal = { change: made.then((res) => res.change), holders: 0, keep: false };
     proposals.set(showing, proposal);
   }
@@ -141,9 +162,9 @@ function letGo(client: Client<typeof ChangeService>, proposal: Proposal): void {
   }, 0);
 }
 
-/** Reads what a change applied or undone may have changed again: the resources, the timeline's pages and the changes. */
+/** Reads what a change applied or undone may have changed again: the resources, the services, the timeline's pages and the changes. */
 function refreshAfter(queryClient: QueryClient): void {
-  for (const schema of [ResourceService, EventService, ChangeService, VariableService]) {
+  for (const schema of [ResourceService, ServiceService, EventService, ChangeService, VariableService]) {
     void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
   }
 }
@@ -182,7 +203,7 @@ function ChangeSheet({
   /** This time the sheet opened, which its plan, if it makes one, is kept by. */
   showing: object;
   opening: Opening;
-  onClose: () => void;
+  onClose: (change: Change | undefined) => void;
 }) {
   const { t, i18n } = useLingui();
   const words = useChangeWords();
@@ -264,7 +285,7 @@ function ChangeSheet({
   }, [change, confirmed, busy, client]);
 
   // Closing lets go of the plan this sheet made, which discards it unless it applied.
-  const close = onClose;
+  const close = useCallback(() => onClose(change), [onClose, change]);
 
   // ⌘↵ (Ctrl+Enter elsewhere) applies, as the button says.
   useEffect(() => {
@@ -297,7 +318,7 @@ function ChangeSheet({
   let footer: ReactNode;
   if (!change) {
     footer = (
-      <Button variant="ghost" onClick={onClose}>
+      <Button variant="ghost" onClick={close}>
         <Trans>Close</Trans>
       </Button>
     );
@@ -331,7 +352,7 @@ function ChangeSheet({
         <span className="dw-sheet-note">
           <Trans>It keeps applying if you close this.</Trans>
         </span>
-        <Button variant="ghost" size={phone ? "lg" : "md"} onClick={onClose}>
+        <Button variant="ghost" size={phone ? "lg" : "md"} onClick={close}>
           <Trans>Close</Trans>
         </Button>
       </>
@@ -349,9 +370,15 @@ function ChangeSheet({
             <Trans>Undo</Trans>
           </Button>
         ) : null}
-        <Button size={phone ? "lg" : "md"} onClick={onClose}>
-          <Trans>Done</Trans>
-        </Button>
+        {opening.doneLabel && change.state === ChangeState.APPLIED ? (
+          <Button variant="primary" size={phone ? "lg" : "md"} onClick={close}>
+            {opening.doneLabel}
+          </Button>
+        ) : (
+          <Button size={phone ? "lg" : "md"} onClick={close}>
+            <Trans>Done</Trans>
+          </Button>
+        )}
       </>
     );
   }

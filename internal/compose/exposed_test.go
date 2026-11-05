@@ -3,6 +3,8 @@
 package compose
 
 import (
+	"errors"
+	"fmt"
 	"maps"
 	"regexp"
 	"slices"
@@ -151,7 +153,7 @@ func TestEveryFieldAVariableReaches(t *testing.T) {
 				} else {
 					in.Variables = map[string]string{"V": r.value}
 				}
-				s, err := parse(in)
+				s, err := parse(t.Context(), in)
 				if err != nil {
 					t.Fatal(Message(err))
 				}
@@ -234,7 +236,7 @@ func TestAValueTheFileGaveItselfDoesntWarn(t *testing.T) {
 		"naming a list's entry": {body: "    environment: [\"${V}=x\"]\n", vars: map[string]string{"V": "set"}, want: []string{"V"}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			s, err := parse(Input{File: []byte(web + c.body), Variables: c.vars})
+			s, err := parse(t.Context(), Input{File: []byte(web + c.body), Variables: c.vars})
 			if err != nil {
 				t.Fatal(Message(err))
 			}
@@ -265,17 +267,17 @@ func TestAFileCantFillAPlanWithNotes(t *testing.T) {
 	if len(vars) <= maxExposed {
 		t.Fatalf("only %d variables, so this tests nothing", len(vars))
 	}
-	if err := guard(t.Context(), Input{File: []byte(file), Variables: vars}); err != nil {
+	if _, err := guard(t.Context(), Input{File: []byte(file), Variables: vars}, false); err != nil {
 		t.Errorf("reading %d of them in the child: %.200v", len(vars), err)
 	}
-	s, err := parse(Input{File: []byte(file), Variables: vars})
+	s, err := parse(t.Context(), Input{File: []byte(file), Variables: vars})
 	if err != nil {
 		t.Fatal(Message(err))
 	}
 	if len(s.Exposed) != maxExposed || !s.ExposedMore {
 		t.Errorf("it lists %d of %d, more is %v, want %d and more", len(s.Exposed), len(vars), s.ExposedMore, maxExposed)
 	}
-	again, err := parse(Input{File: []byte(file), Variables: vars})
+	again, err := parse(t.Context(), Input{File: []byte(file), Variables: vars})
 	if err != nil {
 		t.Fatal(Message(err))
 	}
@@ -333,12 +335,220 @@ func TestReadingAFileAsksWhatAPlanCanSay(t *testing.T) {
 		"a notice":    {body: "    network_mode: host\n    container_name: db\n"},
 		"an exposure": {body: "    command: run ${V}\n", vars: map[string]string{"V": "x"}},
 	} {
-		_, err := parse(Input{File: []byte(web + c.body), Variables: c.vars})
+		_, err := parse(t.Context(), Input{File: []byte(web + c.body), Variables: c.vars})
 		if err == nil || !strings.Contains(Message(err), "names something a plan can't say") {
 			t.Errorf("%s: %v", name, err)
 		}
 	}
-	if _, err := parse(Input{File: []byte(web)}); err != nil {
+	if _, err := parse(t.Context(), Input{File: []byte(web)}); err != nil {
 		t.Error(Message(err))
+	}
+}
+
+// A form says where a variable's value could land in free text before anyone gives
+// it one, in every form a file can write that.
+func TestExposedSaysWhereAValueLands(t *testing.T) {
+	const head = "services:\n  w:\n    image: nginx:1\n"
+	const s = "S"
+	field := func(kind, owner, name string, variables ...string) []Exposed {
+		out := make([]Exposed, len(variables))
+		for i, v := range variables {
+			out[i] = Exposed{Variable: v, Kind: kind, Owner: owner, Field: name}
+		}
+		return out
+	}
+	w := func(name string, variables ...string) []Exposed { return field("service", "w", name, variables...) }
+	for name, c := range map[string]struct {
+		file string
+		want []Exposed
+	}{
+		"command":            {head + "    command: [--pw, \"${S}\"]\n", w("command", s)},
+		"command as a line":  {head + "    command: run --pw $S\n", w("command", s)},
+		"entrypoint":         {head + "    entrypoint: [x, \"$S\"]\n", w("entrypoint", s)},
+		"health check":       {head + "    healthcheck: {test: [CMD, x, \"${S}\"]}\n", w("healthcheck", s)},
+		"health as a line":   {head + "    healthcheck: {test: \"x ${S}\"}\n", w("healthcheck", s)},
+		"label in a list":    {head + "    labels: [\"a=${S}\"]\n", w("labels", s)},
+		"label in a map":     {head + "    labels: {a: \"${S}\"}\n", w("labels", s)},
+		"name in a list":     {head + "    environment: [\"${S}=x\"]\n", w("environment", s)},
+		"name, no equals":    {head + "    environment: [\"$S\"]\n", w("environment", s)},
+		"volume label":       {"volumes:\n  v:\n    labels: {a: \"${S}\"}\n" + head, field("volume", "v", "labels", s)},
+		"network label":      {"networks:\n  n:\n    labels: {a: \"${S}\"}\n" + head, field("network", "n", "labels", s)},
+		"network option":     {"networks:\n  n:\n    driver_opts: {a: \"${S}\"}\n" + head, field("network", "n", "driver_opts", s)},
+		"through an alias":   {"x-c: &c [--pw, \"${S}\"]\n" + head + "    command: *c\n", w("command", s)},
+		"through a merge":    {"x-c: &c\n  command: [--pw, \"${S}\"]\n" + head + "    <<: *c\n", w("command", s)},
+		"a default":          {head + "    command: \"${S:-x}\"\n", w("command", s)},
+		"unset's default":    {head + "    command: \"${S-x}\"\n", w("command", s)},
+		"needed":             {head + "    command: \"${S:?why}\"\n", w("command", s)},
+		"unset's needed":     {head + "    command: \"${S?why}\"\n", w("command", s)},
+		"inside a default":   {head + "    command: \"${A:-$S}\"\n", w("command", "A", s)},
+		"inside an other":    {head + "    command: \"${A:+--pw=$S}\"\n", w("command", s)},
+		"its own other":      {head + "    command: \"run ${S:+--pw=$S}\"\n", w("command", s)},
+		"unset's other":      {head + "    command: \"${A+$S}\"\n", w("command", s)},
+		"only whether it is": {head + "    command: \"${S:+--flag}\"\n", nil},
+		"a reason's":         {head + "    command: \"${A:?why $S}\"\n", w("command", "A")},
+		"a dollar":           {head + "    command: \"$$S ${A:-$$S}\"\n", w("command", "A")},
+
+		"what runs":             {"name: \"a$S\"\nservices:\n  w:\n    image: \"nginx:$S\"\n", nil},
+		"a user":                {head + "    user: \"${S}\"\n", nil},
+		"a working directory":   {head + "    working_dir: \"/${S}\"\n", nil},
+		"a mount":               {head + "    volumes: [\"/srv/${S}:/x\", {type: bind, source: \"/srv/$S\", target: /y}]\n", nil},
+		"a driver":              {"volumes:\n  v:\n    driver: \"${S}\"\nnetworks:\n  n:\n    driver: \"${S}\"\n" + head, nil},
+		"what's never read":     {head + "    build: {context: \"$S\"}\n", nil},
+		"where it's reached":    {head + "    ports: [\"$S:80\"]\n", nil},
+		"a value in a map":      {head + "    environment: {A: \"$S\"}\n", nil},
+		"a value in a list":     {head + "    environment: [\"A=$S\"]\n", nil},
+		"a value with a brace":  {head + "    environment: [\"${A:-a=b}=$S\"]\n", w("environment", "A")},
+		"a volume's options":    {"volumes:\n  v:\n    driver_opts: {o: \"$S\"}\n" + head, nil},
+		"restart":               {head + "    restart: \"${S:-no}\"\n", nil},
+		"a health check's time": {head + "    healthcheck: {test: x, interval: \"$S\", retries: \"$S\"}\n", nil},
+		"expose":                {head + "    expose: [\"$S\"]\n", nil},
+		"an extension":          {"x-a: \"$S\"\n" + head + "    x-b: \"$S\"\n", nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := inspect(t.Context(), Input{File: []byte(c.file)})
+			if !slices.Equal(got.Exposed, c.want) {
+				t.Errorf("with no value, Exposed = %+v, want %+v", got.Exposed, c.want)
+			}
+			if got.ExposedMore {
+				t.Error("ExposedMore on a short file")
+			}
+		})
+	}
+}
+
+// A form asks the same quiet fields as a plan, so what it warns of before there's a
+// value is what a plan warns of once there is one, on every row. It goes by what a
+// value could be, so no value at all still warns.
+func TestAFormWarnsWhereAPlanWould(t *testing.T) {
+	for _, r := range fieldRows() {
+		t.Run(r.kind+"/"+r.field, func(t *testing.T) {
+			got := inspect(t.Context(), Input{File: []byte(r.file)}).Exposed
+			owner := map[string]string{"service": "web", "network": "back", "volume": "data"}[r.kind]
+			key, _, _ := strings.Cut(r.field, ".")
+			if r.warns && !slices.Contains(got, Exposed{Variable: "V", Kind: r.kind, Owner: owner, Field: key}) {
+				t.Errorf("the form doesn't name V in %s: %+v", r.field, got)
+			}
+			if !r.warns && len(got) > 0 {
+				t.Errorf("the form warns of a field that decides it needn't: %+v", got)
+			}
+		})
+	}
+}
+
+// They differ only in what a value is: a plan goes by those it has, and a form by
+// what could come, so a default's words warn a form and not a plan, as someone may
+// yet give that variable a value.
+func TestAPlanGoesByTheValuesItHasAndAFormByWhatCouldCome(t *testing.T) {
+	file := []byte("services:\n  w:\n    image: nginx:1\n    command: x $S ${T:-a}\n")
+	stack, err := Parse(t.Context(), file, map[string]string{"S": "a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := Exposed{Variable: "S", Kind: "service", Owner: "w", Field: "command"}
+	if !slices.Equal(stack.Exposed, []Exposed{s}) {
+		t.Errorf("Parse said %+v", stack.Exposed)
+	}
+	if got := inspect(t.Context(), Input{File: file}).Exposed; !slices.Equal(got, []Exposed{s, {Variable: "T", Kind: "service", Owner: "w", Field: "command"}}) {
+		t.Errorf("inspect said %+v", got)
+	}
+}
+
+// What a file reads beside it counts as Parse counts it: a variable an .env gives
+// needs no other value, and a relative path has somewhere to start.
+func TestCheckReadsWhatIsBesideTheFile(t *testing.T) {
+	file := []byte("services:\n  w:\n    image: nginx:1\n    volumes: [\"./data:/data\"]\n    command: x ${S} ${T}\n")
+	seen, stack, err := Check(t.Context(), Input{File: file, Env: "S=a\nT=b\n", Directory: "/srv/app"})
+	if err != nil {
+		t.Fatal(Message(err))
+	}
+	if stack == nil || !strings.Contains(stack.Services[0].Spec.GetApp().GetMounts()[0].String(), "/srv/app/data") {
+		t.Errorf("the mount is %+v", stack)
+	}
+	for _, v := range seen.Variables {
+		if v.Required {
+			t.Errorf("%s needs a value, and the .env gives it", v.Name)
+		}
+	}
+	if len(seen.Variables) != 2 {
+		t.Errorf("Variables = %+v", seen.Variables)
+	}
+	// With T left out, it's still asked for, and the refusal is about T.
+	seen, _, err = Check(t.Context(), Input{File: file, Env: "S=a\n", Directory: "/srv/app"})
+	if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "T") {
+		t.Errorf("with T left out = %v", err)
+	}
+	for _, v := range seen.Variables {
+		if want := v.Name == "T"; v.Required != want {
+			t.Errorf("%s required = %t, want %t", v.Name, v.Required, want)
+		}
+	}
+	// Asked for values it doesn't have yet, what it refuses whatever they hold is
+	// worked out with what's beside it too: this path has somewhere to start.
+	seen, _, _ = Check(t.Context(), Input{File: file, Directory: "/srv/app"})
+	if seen.Refused != nil {
+		t.Errorf("before it has values, a path that has somewhere to start is refused: %+v", seen.Refused)
+	}
+	// And an .env can name it.
+	if seen, _, _ := Check(t.Context(), Input{File: []byte("name: \"$N\"\nservices:\n  w:\n    image: nginx:1\n"), Env: "N=shop\n"}); seen.Name != "shop" {
+		t.Errorf("an .env that names the file gives %q", seen.Name)
+	}
+	// With no directory, it says what's missing.
+	if _, _, err := Check(t.Context(), Input{File: file, Env: "S=a\nT=b\n"}); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "directory") {
+		t.Errorf("with no directory = %v", err)
+	}
+}
+
+// A plan keeps what it says for good, so a file can't make it say much.
+func TestExposedStopsAtItsLimit(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("services:\n  w:\n    image: nginx:1\n    command: \"")
+	for i := range maxExposed + 50 {
+		fmt.Fprintf(&b, "$V%03d", i)
+	}
+	b.WriteString("\"\n")
+	first := inspect(t.Context(), Input{File: []byte(b.String())})
+	if len(first.Exposed) != maxExposed || !first.ExposedMore {
+		t.Fatalf("Exposed = %d, more = %t, want %d and more", len(first.Exposed), first.ExposedMore, maxExposed)
+	}
+	if first.Exposed[0].Variable != "V000" || first.Exposed[maxExposed-1].Variable != fmt.Sprintf("V%03d", maxExposed-1) {
+		t.Errorf("the list isn't the first %d in order: %+v ... %+v", maxExposed, first.Exposed[0], first.Exposed[maxExposed-1])
+	}
+	if got := inspect(t.Context(), Input{File: []byte(b.String())}); !slices.Equal(got.Exposed, first.Exposed) {
+		t.Error("it lists others each time")
+	}
+	// Exactly at the limit is everything, and says so.
+	b.Reset()
+	b.WriteString("services:\n  w:\n    image: nginx:1\n    command: \"")
+	for i := range maxExposed {
+		fmt.Fprintf(&b, "$V%03d", i)
+	}
+	b.WriteString("\"\n")
+	if got := inspect(t.Context(), Input{File: []byte(b.String())}); len(got.Exposed) != maxExposed || got.ExposedMore {
+		t.Errorf("at the limit: %d, more = %t", len(got.Exposed), got.ExposedMore)
+	}
+}
+
+// name: is read by itself, whatever else the file gets wrong.
+func TestAFileIsNamedByItsOwnVariables(t *testing.T) {
+	for name, c := range map[string]struct {
+		file  string
+		given map[string]string
+		want  string
+	}{
+		"plain":                    {"name: shop\n", nil, "shop"},
+		"by a variable":            {"name: \"$N\"\n", map[string]string{"N": "shop"}, "shop"},
+		"by a default":             {"name: \"${N:-shop}\"\n", nil, "shop"},
+		"part of it with no value": {"name: \"a-$N\"\n", nil, ""},
+		"by one with no value":     {"name: \"$N\"\n", nil, ""},
+		"with others missing":      {"name: \"$N\"\nservices:\n  w:\n    image: \"$MISSING\"\n", map[string]string{"N": "shop"}, "shop"},
+		"with others unreadable":   {"name: \"$N\"\nservices:\n  w:\n    image: \"${!}\"\n", map[string]string{"N": "shop"}, "shop"},
+		"unreadable itself":        {"name: \"${!}\"\n", nil, ""},
+		"not a string":             {"name: 7\n", nil, ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := inspect(t.Context(), Input{File: []byte(c.file), Variables: c.given}).Name; got != c.want {
+				t.Errorf("Name = %q, want %q", got, c.want)
+			}
+		})
 	}
 }

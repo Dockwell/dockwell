@@ -88,6 +88,22 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 	return connect.NewResponse(&dockwellv1.ProposeChangeResponse{Change: c}), nil
 }
 
+// Also is what another method adds to the edits it plans: edits the API has no
+// words for, as a project it brings to life with an ID its services take, and
+// what the plan should say beside its steps.
+type Also struct {
+	Edits []revision.Edit
+	Notes []revision.Note
+	// Base is the revision the request's edits were made from (revision.Edit).
+	Base int
+	// IfNothing refuses a plan that would do nothing (revision.Proposal).
+	IfNothing error
+	// Pull asks the server for the image of what's edited again (revision.Edit).
+	Pull bool
+	// Run says this asks what's edited to run (revision.Edit).
+	Run bool
+}
+
 // Propose plans edits as a new change, as ProposeChange does, for another
 // method that makes edits of its own, such as ImportCompose. field names
 // the request's field that takes a choice the edits leave out, from the
@@ -99,12 +115,6 @@ func (h *Handler) Propose(ctx context.Context, summary string, edits []*dockwell
 		return nil, err
 	}
 	return h.proposeAlso(ctx, who, summary, edits, field, also)
-}
-
-// Also is what another method adds to the edits it plans: what the plan should
-// say beside its steps.
-type Also struct {
-	Notes []revision.Note
 }
 
 func (h *Handler) propose(ctx context.Context, who revision.By, summary string, in []*dockwellv1.Edit, field func(*scope.ChoiceError, string) string) (*dockwellv1.Change, error) {
@@ -128,11 +138,38 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	if err != nil {
 		return nil, fail(err)
 	}
-	plan, err := h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits, Notes: also.Notes})
+	for i := range edits {
+		edits[i].Base, edits[i].Pull, edits[i].Run = also.Base, also.Pull, also.Run
+	}
+	plan, err := h.engine.Propose(ctx, revision.Proposal{
+		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing,
+	})
 	if err != nil {
 		return nil, fail(err)
 	}
 	return h.change(ctx, plan.Change)
+}
+
+// Planned plans a change with plan, for another method that plans one its
+// own way, such as RollBackService, and returns it for the schema.
+func (h *Handler) Planned(ctx context.Context, plan func(who revision.By) (*revision.Plan, error)) (*dockwellv1.Change, error) {
+	who, _, err := by(ctx)
+	if err != nil {
+		return nil, err
+	}
+	p, err := plan(who)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return h.change(ctx, p.Change)
+}
+
+// Error is err as the API says it, as ChangeService's own methods do.
+func (h *Handler) Error(ctx context.Context, err error) error { return h.rpcError(ctx, err) }
+
+// Protos are records for the schema, with their actors named in one read.
+func (h *Handler) Protos(ctx context.Context, records ...*revision.Record) ([]*dockwellv1.Change, error) {
+	return h.protos(ctx, records...)
 }
 
 // Environment finds the environment a request names by project and
@@ -694,6 +731,9 @@ var states = map[string]dockwellv1.ChangeState{
 	store.ChangeDiscarded: dockwellv1.ChangeState_CHANGE_STATE_DISCARDED,
 }
 
+// State is a change's state, as the store records it, for the schema.
+func State(state string) dockwellv1.ChangeState { return states[state] }
+
 var stepStates = map[revision.StepState]dockwellv1.StepState{
 	revision.StepQueued:  dockwellv1.StepState_STEP_STATE_QUEUED,
 	revision.StepRunning: dockwellv1.StepState_STEP_STATE_RUNNING,
@@ -745,6 +785,9 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 		n := &p.Notes[i]
 		out.Notes = append(out.Notes, &dockwellv1.PlanNote{Reason: n.Reason, Message: n.Message, Resource: resourcepb.Ref(n.Ref), Names: n.Names})
 	}
+	for _, place := range p.Places {
+		out.Places = append(out.Places, &dockwellv1.PlanPlace{Project: place.Project, Environment: place.Environment})
+	}
 	ids := map[resource.Ref]string{}
 	for i := range p.Resources {
 		r := &p.Resources[i]
@@ -780,6 +823,7 @@ func stepProto(s *revision.StepProgress) *dockwellv1.StepProgress {
 	if !s.Finished.IsZero() {
 		p.FinishTime = timestamppb.New(s.Finished)
 	}
+	p.Did = resourcepb.Did(s.Did)
 	return p
 }
 

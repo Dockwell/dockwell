@@ -8,7 +8,7 @@ import { createContext, createElement, type ReactNode, useContext, useEffect, us
 
 import { isSessionEnded } from "../../lib/errors";
 import { keepTrying } from "../../lib/retry";
-import { useNow } from "../../lib/time";
+import { useNow, useTickingNow } from "../../lib/time";
 import { appendSample } from "./history";
 import { type FleetView, fleetView } from "./server";
 
@@ -56,6 +56,16 @@ export function FleetProvider({ children }: { children: ReactNode }) {
  */
 export function useControlPlaneNow(interval?: number): number {
   return useNow(interval) - useContext(SkewContext);
+}
+
+/**
+ * The time on the control plane's clock, for a screen that shows how long ago
+ * things were, the newest of them being newest. It ticks by the second only
+ * while that is under a minute old (useTickingNow).
+ */
+export function useAgoNow(newest: Date | undefined): number {
+  const skew = useContext(SkewContext);
+  return useTickingNow(newest === undefined ? undefined : newest.getTime() + skew) - skew;
 }
 
 /**

@@ -5,11 +5,13 @@ import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@c
 import {
   AuthService,
   ChangeService,
+  ComposeService,
   DomainService,
   EventService,
   GetVersionResponseSchema,
   ResourceService,
   ServerService,
+  ServiceService,
   SystemService,
   TokenService,
   VariableService,
@@ -37,6 +39,8 @@ export type Api = {
   resources?: Partial<ServiceImpl<typeof ResourceService>>;
   variables?: Partial<ServiceImpl<typeof VariableService>>;
   domains?: Partial<ServiceImpl<typeof DomainService>>;
+  services?: Partial<ServiceImpl<typeof ServiceService>>;
+  compose?: Partial<ServiceImpl<typeof ComposeService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -76,6 +80,8 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(ResourceService, { listResources: () => ({}), ...api.resources });
       service(VariableService, api.variables ?? {});
       service(DomainService, { listDomains: () => ({}), ...api.domains });
+      service(ServiceService, { listServices: () => ({}), ...api.services });
+      service(ComposeService, api.compose ?? {});
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );
@@ -118,6 +124,16 @@ export function renderAt(path: string, api: Api = {}, cache?: CacheOptions) {
 export function onPhone() {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query === PHONE_QUERY,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
+/** A wide screen where only this media query matches. */
+export function onScreen(matching: string) {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === matching,
     media: query,
     addEventListener: () => {},
     removeEventListener: () => {},

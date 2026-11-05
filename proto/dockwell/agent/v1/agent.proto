@@ -81,6 +81,29 @@ message CallProgress {
   // What is happening, for people, such as "Pulling nginx:1.27: 12 of 48
   // MB".
   string message = 2;
+  // What the step found out on its server, which goes on record, sent as soon
+  // as it is known, and always before the call's result.
+  StepOutcome outcome = 3;
+}
+
+// StepOutcome is what a step found out on its server.
+message StepOutcome {
+  // The image it leaves running, as its registry knows it.
+  string digest = 1;
+  // The digest of the image it replaces, where a pull found a newer one.
+  string previous = 2;
+  // True when a pull found a newer image, and the step is about to replace what
+  // runs with it.
+  bool replacing = 3;
+  // What the step did, for people, where its usual words wouldn't be true, as
+  // when it did nothing.
+  string note = 4;
+  // True when the step failed before it changed anything on the server, as a
+  // pull that can't reach its registry does, so what ran there still runs.
+  bool untouched = 5;
+  // What the step did in the end, where that isn't what its plan says, as a pull
+  // that found nothing newer did nothing.
+  dockwell.v1.PlanAction did = 6;
 }
 
 // Kinds lists the kinds of resource an agent can run now, and why it
@@ -253,6 +276,9 @@ message ApplyCall {
   // name, each after a zero byte. Unset when it uses none. The agent opens
   // it in memory for this step alone, and never writes it anywhere.
   bytes values = 3;
+  // True when a run stopped partway had already pulled the step's image on this
+  // server, so it compares what the server has, and needs no registry.
+  bool pulled = 4;
 }
 
 // Values are what a service's variables and secrets resolve to on the
@@ -275,6 +301,11 @@ message DesiredResource {
   // Its spec, encoded as its kind's message. Unset deletes it; an empty
   // spec is set, with no bytes.
   optional bytes spec = 2;
+  // Asks the server for its image again as the step applies.
+  bool pull = 3;
+  // Says the change asks it to run, so one that's there and isn't running is
+  // started. A stop by hand stays otherwise, unless the change replaces it anyway.
+  bool run = 4;
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.

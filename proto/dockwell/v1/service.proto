@@ -1,0 +1,294 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/resource/v1alpha1/specs.proto";
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// ServiceService says what each service runs, where, and how its latest
+// deploy went, and plans what is done to one service as a whole: another
+// image, or an earlier revision. Each plan is a change, ready to apply or
+// discard, as ProposeChange makes. See docs/adr/0026-the-app-screens.md.
+//
+// It blanks a spec's sensitive values, so an environment variable shows by name
+// alone, and what it uses of its environment's variables and secrets by name.
+// What isn't marked sensitive it shows, as seeing a command is useful: a Compose
+// file that writes a variable's value there has it read back from there, which
+// importing the file says (ExposedVariable).
+service ServiceService {
+  // ListServices returns the services that exist now, in every environment
+  // or one, oldest first, a page at a time.
+  rpc ListServices(ListServicesRequest) returns (ListServicesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/services"};
+  }
+
+  // ListServiceRevisions returns a service's revisions, newest first, a page
+  // at a time: what each changed, who made it and from where, and how each
+  // deployed. A service goes by its ID, or by its name where that is enough
+  // to say which.
+  rpc ListServiceRevisions(ListServiceRevisionsRequest) returns (ListServiceRevisionsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.command) = {verb: "revisions"};
+    option (google.api.http) = {get: "/v1/services/{id}/revisions"};
+  }
+
+  // DeployService plans running another image, with the rest of the service
+  // as it is: its environment, ports and mounts need no one to read them
+  // back, so anyone may deploy without being able to see a secret.
+  rpc DeployService(DeployServiceRequest) returns (DeployServiceResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/services/{id}:deploy"
+      body: "*"
+    };
+  }
+
+  // RollBackService plans putting a service back as an earlier revision had
+  // it, on the servers that revision ran on that are still in the fleet.
+  // Unlike UndoChange it takes any earlier revision, and touches this
+  // service alone, whatever else the change that made the revision did. It
+  // brings back the spec, not the data in a volume, which the plan's notes
+  // say, nor the value of a variable or secret it uses, which stays the latest:
+  // change that value to go back on it. It refuses only what would do nothing
+  // on the record and on every server. A revision that matches the latest on
+  // the record (matches_latest) still plans what puts it back, when a rollback
+  // failed or a container was removed by hand.
+  rpc RollBackService(RollBackServiceRequest) returns (RollBackServiceResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/services/{id}:rollback"
+      body: "*"
+    };
+  }
+
+  // AddServicePort plans publishing one more port, with the rest of the
+  // service as it is: like DeployService, it needs no one to read the service's
+  // environment back.
+  rpc AddServicePort(AddServicePortRequest) returns (AddServicePortResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.command) = {verb: "add-port"};
+    option (google.api.http) = {
+      post: "/v1/services/{id}/ports"
+      body: "*"
+    };
+  }
+}
+
+// ListServicesRequest asks for a page of services.
+message ListServicesRequest {
+  // The project of the environment, by name or ID, when environment is a
+  // name and there are several projects.
+  string project = 1;
+  // Only the services of this environment, by name or ID. Empty means every
+  // environment.
+  string environment = 2;
+  // How many services to return: 200 when unset, and at most 1000.
+  int32 page_size = 3;
+  // Where to start: the next_page_token of the page before. Pass the same
+  // filters with it.
+  string page_token = 4;
+}
+
+// ListServicesResponse is a page of services.
+message ListServicesResponse {
+  // The services, oldest first.
+  repeated ServiceInfo services = 1;
+  // Pass it as page_token for the next page. Empty on the last page.
+  string next_page_token = 2;
+}
+
+// ServiceInfo is what a service runs now and how that went, as its latest
+// revision has it.
+message ServiceInfo {
+  // Its ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V". Empty for a service a
+  // Compose file would make, which has none yet.
+  string id = 1;
+  // Its kind, its environment's ID, and its name.
+  ResourceRef resource = 2;
+  // Its latest revision.
+  int64 revision = 3;
+  // When its latest revision was made.
+  google.protobuf.Timestamp update_time = 4;
+  // What it runs, as its latest revision's spec has it, with sensitive values
+  // blanked: an environment variable has its name and no value.
+  dockwell.resource.v1alpha1.Service spec = 5;
+  // The latest revision on each server it is placed on, even a server that
+  // has since left the fleet, which is how a surface tells that no server
+  // runs it any more. Empty only on a revision that placed it nowhere.
+  repeated ServiceDeployment deployments = 6;
+  // The change that made its latest revision.
+  string change_id = 7;
+  // The failed change that Dockwell rolled back with its latest revision,
+  // when it did: the service runs what it ran before, and the deploy it
+  // was asked for didn't happen.
+  string rolled_back_change_id = 8;
+  // How the change that made its latest revision stands. A deployment still
+  // pending under a change that has failed will not move again.
+  ChangeState change_state = 9;
+}
+
+// ServiceDeployment is one revision of a service placed on one server.
+message ServiceDeployment {
+  // The server's ID.
+  string server_id = 1;
+  // The server's name, such as "hz-1", even once it has left the fleet.
+  string server_name = 2;
+  // How the rollout went.
+  DeploymentState state = 3;
+  // Why it failed, when it did.
+  string error = 4;
+  // When its state last moved on.
+  google.protobuf.Timestamp update_time = 5;
+  // The image it ran there, as its registry knows it, such as "sha256:ab12…", so
+  // what a moving tag such as :latest really was stays known. Empty until it has
+  // run, and for an image no registry knows.
+  string digest = 6;
+}
+
+// DeploymentState is where one revision is on one server.
+enum DeploymentState {
+  DEPLOYMENT_STATE_UNSPECIFIED = 0;
+  // The change is applying, and the server doesn't have it yet.
+  DEPLOYMENT_STATE_PENDING = 1;
+  // The server has it, and it passed the check its step made. It says
+  // nothing about the service's health since.
+  DEPLOYMENT_STATE_LIVE = 2;
+  // Its step failed.
+  DEPLOYMENT_STATE_FAILED = 3;
+  // A later revision, or a deletion, took its place on the server.
+  DEPLOYMENT_STATE_SUPERSEDED = 4;
+}
+
+// ListServiceRevisionsRequest asks for a page of a service's revisions.
+message ListServiceRevisionsRequest {
+  // The service, by ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or by name.
+  string id = 1;
+  // How many revisions to return: 20 when unset, and at most 100.
+  int32 page_size = 2;
+  // Where to start: the next_page_token of the page before. Empty starts
+  // with the latest.
+  string page_token = 3;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 4;
+  // The environment of a service named by name, by name or ID, when its
+  // project has more than one.
+  string environment = 5;
+}
+
+// ListServiceRevisionsResponse is a page of a service's revisions.
+message ListServiceRevisionsResponse {
+  // The revisions, newest first.
+  repeated ServiceRevision revisions = 1;
+  // Pass it as page_token for the next page. Empty on the last page.
+  string next_page_token = 2;
+}
+
+// ServiceRevision is one immutable revision of a service.
+message ServiceRevision {
+  // Its number, from 1.
+  int64 number = 1;
+  // When it was made: when its change started applying.
+  google.protobuf.Timestamp create_time = 2;
+  // The image it runs. Empty on a revision that deleted the service.
+  string image = 3;
+  // True for a revision that deleted the service, which it may come back
+  // from later.
+  bool deleted = 4;
+  // The change that made it, with who proposed and applied it, from where,
+  // and its plan in brief. GetChange has the plan in full.
+  Change change = 5;
+  // What it changed from the revision before, as its plan says. A sensitive
+  // field says that it changed, never what it holds.
+  repeated FieldChange changes = 6;
+  // Where it was placed, and how that went.
+  repeated ServiceDeployment deployments = 7;
+  // True when going back to it would do nothing: it has the spec of the latest
+  // revision, on the same servers.
+  bool matches_latest = 8;
+  // The revision it put back, for a revision made by RollBackService. 0 for
+  // any other.
+  int64 rolled_back_to = 9;
+}
+
+// DeployServiceRequest names a service and the image to run.
+message DeployServiceRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The image to run, such as "ghcr.io/acme/web:1.4.2".
+  string image = 2;
+  // What the change is for, for the timeline. Empty says what it deploys.
+  string summary = 3;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 4;
+  // The environment of a service named by name, by name or ID, when its
+  // project has more than one.
+  string environment = 5;
+}
+
+// DeployServiceResponse carries the planned deploy.
+message DeployServiceResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// RollBackServiceRequest names a service and the revision to go back to.
+message RollBackServiceRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The revision to go back to.
+  int64 revision = 2;
+  // What the change is for, for the timeline. Empty says which revision it
+  // goes back to.
+  string summary = 3;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 4;
+  // The environment of a service named by name, by name or ID, when its
+  // project has more than one.
+  string environment = 5;
+}
+
+// RollBackServiceResponse carries the planned rollback.
+message RollBackServiceResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// AddServicePortRequest names a service and the port to publish.
+message AddServicePortRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The port on the server, such as 8080.
+  uint32 host_port = 2;
+  // The port in the app, such as 80.
+  uint32 container_port = 3;
+  // TCP when unset.
+  dockwell.resource.v1alpha1.Protocol protocol = 4;
+  // The server's address to publish on, such as "127.0.0.1". Empty publishes
+  // on every address.
+  string host_ip = 5;
+  // What the change is for, for the timeline. Empty says which port it adds.
+  string summary = 6;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 7;
+  // The environment of a service named by name, by name or ID, when its
+  // project has more than one.
+  string environment = 8;
+}
+
+// AddServicePortResponse carries the planned change.
+message AddServicePortResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}

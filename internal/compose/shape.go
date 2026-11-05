@@ -264,7 +264,7 @@ func wrongKind(at place, v any, s *shape) error {
 	case s.example != "":
 		fix = "Write it as Compose does, such as " + s.example
 	}
-	return invalid("%s is %s, where Compose takes %s. %s", at, is, kindWords(s.kinds), fix)
+	return invalidAt(at, "%s is %s, where Compose takes %s. %s", at, is, kindWords(s.kinds), fix)
 }
 
 func scalar(v any) string {

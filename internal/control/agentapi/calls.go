@@ -146,7 +146,7 @@ func (a *Agents) Agent(server string) (resource.Agent, bool) {
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()),
-		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, done: make(chan struct{}),
+		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
 	a.mu.Lock()
@@ -201,6 +201,8 @@ type Session struct {
 	// progress hears how each pending call is going, where its caller
 	// follows it.
 	progress map[uint64]func(string)
+	// outcomes hears what each pending call found out.
+	outcomes map[uint64]func(resource.Outcome)
 	done     chan struct{}
 	closed   bool
 }
@@ -229,8 +231,14 @@ func (s *Session) setKinds(kinds []string, unavailable []*agentv1.UnavailableKin
 // progressed passes on how a call is going to its caller, if it follows.
 func (s *Session) progressed(p *agentv1.CallProgress) {
 	s.mu.Lock()
-	fn := s.progress[p.GetId()]
+	fn, told := s.progress[p.GetId()], s.outcomes[p.GetId()]
 	s.mu.Unlock()
+	if o := p.GetOutcome(); o != nil {
+		if told != nil {
+			told(resource.Outcome{Digest: o.GetDigest(), Previous: o.GetPrevious(), Replacing: o.GetReplacing(), Note: o.GetNote(), Untouched: o.GetUntouched(), Did: resourcepb.DidFrom(o.GetDid())})
+		}
+		return
+	}
 	if fn != nil {
 		fn(p.GetMessage())
 	}
@@ -307,6 +315,7 @@ func (s *Session) deliver(r *agentv1.CallResult) {
 	ch, ok := s.pending[r.GetId()]
 	delete(s.pending, r.GetId())
 	delete(s.progress, r.GetId())
+	delete(s.outcomes, r.GetId())
 	s.mu.Unlock()
 	if ok {
 		ch <- r
@@ -413,11 +422,15 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 	if fn := resource.ProgressFunc(ctx); fn != nil {
 		s.progress[c.Id] = fn
 	}
+	if fn := resource.OutcomeFunc(ctx); fn != nil {
+		s.outcomes[c.Id] = fn
+	}
 	s.mu.Unlock()
 	forget := func() {
 		s.mu.Lock()
 		delete(s.pending, c.GetId())
 		delete(s.progress, c.GetId())
+		delete(s.outcomes, c.GetId())
 		s.mu.Unlock()
 	}
 	deadline, _ := ctx.Deadline()
@@ -520,6 +533,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		if err != nil {
 			return nil, err
 		}
+		dr.Pull, dr.Run = d.Pull, d.Run
 		call.Desired = append(call.Desired, dr)
 	}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: call}}, PlanTimeout, nil)
@@ -547,7 +561,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 			md := t.New().ProtoReflect().Descriptor()
 			for j := range steps[i].Changes {
 				c := &steps[i].Changes[j]
-				if c.Sensitive || resource.SensitivePath(md, c.Path) {
+				if !resource.IsStateChange(*c) && (c.Sensitive || resource.SensitivePath(md, c.Path)) {
 					c.Sensitive, c.From, c.To = true, "", ""
 				}
 			}
@@ -574,7 +588,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 		return err
 	}
 	defer clear(values)
-	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr}
+	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled}
 	var seal func(*Session) error
 	if uses {
 		seal = func(on *Session) error {

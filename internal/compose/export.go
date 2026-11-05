@@ -98,8 +98,9 @@ type Exported struct {
 
 // Export writes services, volumes and networks as a Compose file for the
 // Compose project project, which docker compose then runs as Dockwell
-// does: the same names, and the labels Dockwell gives them, so docker
-// compose finds what Dockwell runs. Specs must be valid.
+// does: the same names, and the labels Dockwell gives its own, so docker compose
+// finds what Dockwell runs and what compose makes from it reads back the same.
+// Specs must be valid.
 //
 // It never writes a secret. An environment variable whose value may hold
 // one, as its field's sensitive option says, is listed by name alone, for
@@ -112,7 +113,7 @@ type Exported struct {
 func Export(project string, stack *Stack) (*Exported, error) {
 	f := file{Name: project, Services: map[string]serviceEntry{}}
 	var omitted []string
-	volumesLeft := false
+	volumesLeft, ownLabel := false, false
 	for _, s := range stack.Services {
 		c := s.Spec.GetApp()
 		if c == nil {
@@ -222,6 +223,7 @@ func Export(project string, stack *Stack) (*Exported, error) {
 				entry.Labels = map[string]string{}
 			}
 			maps.Copy(entry.Labels, own)
+			ownLabel = true
 		}
 		entry.Labels = escapeValues(entry.Labels)
 		f.Services[s.Name] = entry
@@ -236,6 +238,7 @@ func Export(project string, stack *Stack) (*Exported, error) {
 				labels = map[string]string{}
 			}
 			maps.Copy(labels, own)
+			ownLabel = true
 		}
 		f.Networks[n.Name] = networkEntry{
 			Driver: escape(n.Spec.GetDriver()), DriverOpts: escapeValues(n.Spec.GetOptions()), Internal: n.Spec.GetInternal(), Labels: escapeValues(labels),
@@ -260,10 +263,15 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		f.Volumes[v.Name] = entry
 	}
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "# Written by Dockwell. Its project, %s, is the\n# environment's, so docker compose sees what Dockwell runs.\n", project)
+	buf.WriteString("# Written by Dockwell. Its name is the Compose project Dockwell runs it in, so\n" +
+		"# docker compose sees what Dockwell runs.\n")
+	if ownLabel {
+		buf.WriteString("# A " + container.LabelSet + " label is there on purpose: it says what the spec set, so what compose makes reads back the same.\n")
+	}
 	if len(omitted) > 0 {
-		buf.WriteString("# Variables listed without a value may hold secrets, so they are left out: set\n" +
-			"# them in your shell, or in an .env file beside this one, before docker compose up.\n")
+		buf.WriteString("# A variable written as NAME: null is there on purpose. Its value may be a secret,\n" +
+			"# so it is left out: set it in your shell, or in an .env file beside this one,\n" +
+			"# before docker compose up.\n")
 	}
 	if volumesLeft {
 		buf.WriteString("# A volume's driver options may hold secrets, so they are left out too. Docker\n" +

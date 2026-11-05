@@ -25,17 +25,22 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ImportComposeRequest is a Compose file to plan into an environment.
+// ImportComposeRequest is a Compose file to plan into a project.
 type ImportComposeRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What the change is for, such as "Run the shop's stack". Empty says it
 	// came from a Compose file.
 	Summary string `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
-	// The project of the environment, by name or ID. Leave it out while
-	// there is only one project, or when environment is an ID.
+	// The project it belongs to, by name or ID, such as "shop". One that doesn't
+	// exist yet comes to life with the plan. Left out, the file's name: names
+	// it. With neither, the file goes in the default project, only while that
+	// has no apps: otherwise it is refused, as a service of the same name would
+	// change the one that is there.
 	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
 	// The environment, by name or ID. Leave it out while its project has
-	// only one.
+	// only one. A project the plan brings to life starts with this one, or
+	// with production. A file exported from here goes back to the environment
+	// it came from unless this names another of its project.
 	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
 	// The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
 	// up to 256 KiB. A path relative to the file needs directory, as it runs on
@@ -164,7 +169,12 @@ func (x *ImportComposeRequest) GetDirectory() string {
 type ImportComposeResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The change, planned, with its plan.
-	Change        *Change `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	Change *Change `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	// Where the file writes a variable's value in plain sight, which the plan's
+	// notes say too. It lists 100 at most.
+	ExposedVariables []*ExposedVariable `protobuf:"bytes,2,rep,name=exposed_variables,json=exposedVariables,proto3" json:"exposed_variables,omitempty"`
+	// True when the file writes more than exposed_variables lists.
+	MoreExposed   bool `protobuf:"varint,3,opt,name=more_exposed,json=moreExposed,proto3" json:"more_exposed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -206,6 +216,405 @@ func (x *ImportComposeResponse) GetChange() *Change {
 	return nil
 }
 
+func (x *ImportComposeResponse) GetExposedVariables() []*ExposedVariable {
+	if x != nil {
+		return x.ExposedVariables
+	}
+	return nil
+}
+
+func (x *ImportComposeResponse) GetMoreExposed() bool {
+	if x != nil {
+		return x.MoreExposed
+	}
+	return false
+}
+
+// CheckComposeRequest is a Compose file to read.
+type CheckComposeRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The Compose file, as YAML, as ImportCompose takes it.
+	Compose string `protobuf:"bytes,1,opt,name=compose,proto3" json:"compose,omitempty"`
+	// Values for the variables the file uses, as ImportCompose takes them.
+	Variables map[string]string `protobuf:"bytes,2,rep,name=variables,proto3" json:"variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// The .env file beside the Compose file, as ImportCompose takes it. A variable
+	// it gives needs no other value.
+	Env string `protobuf:"bytes,3,opt,name=env,proto3" json:"env,omitempty"`
+	// The directory the file is in on the servers, as ImportCompose takes it.
+	Directory     string `protobuf:"bytes,4,opt,name=directory,proto3" json:"directory,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckComposeRequest) Reset() {
+	*x = CheckComposeRequest{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckComposeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckComposeRequest) ProtoMessage() {}
+
+func (x *CheckComposeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckComposeRequest.ProtoReflect.Descriptor instead.
+func (*CheckComposeRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *CheckComposeRequest) GetCompose() string {
+	if x != nil {
+		return x.Compose
+	}
+	return ""
+}
+
+func (x *CheckComposeRequest) GetVariables() map[string]string {
+	if x != nil {
+		return x.Variables
+	}
+	return nil
+}
+
+func (x *CheckComposeRequest) GetEnv() string {
+	if x != nil {
+		return x.Env
+	}
+	return ""
+}
+
+func (x *CheckComposeRequest) GetDirectory() string {
+	if x != nil {
+		return x.Directory
+	}
+	return ""
+}
+
+// CheckComposeResponse says what a Compose file would make, or why it can't.
+type CheckComposeResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Why ImportCompose would refuse the file, when it would: the first thing
+	// in the way. Fix it and check again for the next. Unset when it would take
+	// it. What it would refuse whatever its variables hold comes before a variable
+	// with no value, so no one types a secret for a file it then refuses.
+	Refusal *ComposeRefusal `protobuf:"bytes,1,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	// The variables the file uses, whether or not the file can be read
+	// further than that.
+	Variables []*ComposeVariable `protobuf:"bytes,2,rep,name=variables,proto3" json:"variables,omitempty"`
+	// The services it would make, in the order it would make them, with
+	// sensitive values blanked. Empty when it is refused.
+	Services []*ServiceInfo `protobuf:"bytes,3,rep,name=services,proto3" json:"services,omitempty"`
+	// The volumes it would make, by name. Empty when it is refused.
+	Volumes []string `protobuf:"bytes,4,rep,name=volumes,proto3" json:"volumes,omitempty"`
+	// The networks it would make, by name. Empty when it is refused.
+	Networks []string `protobuf:"bytes,5,rep,name=networks,proto3" json:"networks,omitempty"`
+	// The project the file names for itself, for a form to fill in, whether or
+	// not the file can be read further than that: its name:, or, for a file
+	// exported from an environment here, that environment's project. Empty when
+	// it names none, or names itself with a variable that has no value yet.
+	Name string `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
+	// Where the file writes a variable's value in plain sight, whether or not one
+	// is given, so a form can say so before anyone types a secret. It lists 100
+	// at most.
+	ExposedVariables []*ExposedVariable `protobuf:"bytes,7,rep,name=exposed_variables,json=exposedVariables,proto3" json:"exposed_variables,omitempty"`
+	// True when the file writes more than exposed_variables lists.
+	MoreExposed   bool `protobuf:"varint,8,opt,name=more_exposed,json=moreExposed,proto3" json:"more_exposed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckComposeResponse) Reset() {
+	*x = CheckComposeResponse{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckComposeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckComposeResponse) ProtoMessage() {}
+
+func (x *CheckComposeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckComposeResponse.ProtoReflect.Descriptor instead.
+func (*CheckComposeResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CheckComposeResponse) GetRefusal() *ComposeRefusal {
+	if x != nil {
+		return x.Refusal
+	}
+	return nil
+}
+
+func (x *CheckComposeResponse) GetVariables() []*ComposeVariable {
+	if x != nil {
+		return x.Variables
+	}
+	return nil
+}
+
+func (x *CheckComposeResponse) GetServices() []*ServiceInfo {
+	if x != nil {
+		return x.Services
+	}
+	return nil
+}
+
+func (x *CheckComposeResponse) GetVolumes() []string {
+	if x != nil {
+		return x.Volumes
+	}
+	return nil
+}
+
+func (x *CheckComposeResponse) GetNetworks() []string {
+	if x != nil {
+		return x.Networks
+	}
+	return nil
+}
+
+func (x *CheckComposeResponse) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CheckComposeResponse) GetExposedVariables() []*ExposedVariable {
+	if x != nil {
+		return x.ExposedVariables
+	}
+	return nil
+}
+
+func (x *CheckComposeResponse) GetMoreExposed() bool {
+	if x != nil {
+		return x.MoreExposed
+	}
+	return false
+}
+
+// ExposedVariable is a variable whose value a Compose file writes in free text,
+// where anyone who can read what it makes sees it. Only what the schema marks
+// sensitive is blanked, such as a service's environment values: a command or a
+// label isn't, as seeing them is useful and they rarely hold a secret. A name, a
+// number or a path doesn't count, as docs/security/compose-variables.md lists.
+type ExposedVariable struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The variable, such as "REDIS_PASSWORD".
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The service, volume or network whose spec holds its value, by kind and
+	// name.
+	Resource *ResourceRef `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
+	// The field that holds it, as the file names it, such as "command",
+	// "entrypoint", "labels", "healthcheck" or "driver_opts". "environment" is a
+	// list entry's name, as a value there is blanked and a name isn't.
+	Field         string `protobuf:"bytes,3,opt,name=field,proto3" json:"field,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExposedVariable) Reset() {
+	*x = ExposedVariable{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExposedVariable) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExposedVariable) ProtoMessage() {}
+
+func (x *ExposedVariable) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExposedVariable.ProtoReflect.Descriptor instead.
+func (*ExposedVariable) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ExposedVariable) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ExposedVariable) GetResource() *ResourceRef {
+	if x != nil {
+		return x.Resource
+	}
+	return nil
+}
+
+func (x *ExposedVariable) GetField() string {
+	if x != nil {
+		return x.Field
+	}
+	return ""
+}
+
+// ComposeRefusal is why a Compose file can't be imported.
+type ComposeRefusal struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What is wrong and how to fix it, for people.
+	Message string `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	// The line of the file it is about, from 1. 0 when it is about the file
+	// as a whole.
+	Line int32 `protobuf:"varint,2,opt,name=line,proto3" json:"line,omitempty"`
+	// The last line it is about, where it is about more than one, as a YAML parser
+	// can't always tell which. Otherwise the same as line.
+	EndLine       int32 `protobuf:"varint,3,opt,name=end_line,json=endLine,proto3" json:"end_line,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComposeRefusal) Reset() {
+	*x = ComposeRefusal{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeRefusal) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeRefusal) ProtoMessage() {}
+
+func (x *ComposeRefusal) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeRefusal.ProtoReflect.Descriptor instead.
+func (*ComposeRefusal) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ComposeRefusal) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *ComposeRefusal) GetLine() int32 {
+	if x != nil {
+		return x.Line
+	}
+	return 0
+}
+
+func (x *ComposeRefusal) GetEndLine() int32 {
+	if x != nil {
+		return x.EndLine
+	}
+	return 0
+}
+
+// ComposeVariable is a variable a Compose file uses, such as ${TAG}.
+type ComposeVariable struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Its name, such as "TAG".
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// True when it needs a value, as the file gives it no default.
+	Required      bool `protobuf:"varint,2,opt,name=required,proto3" json:"required,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComposeVariable) Reset() {
+	*x = ComposeVariable{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeVariable) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeVariable) ProtoMessage() {}
+
+func (x *ComposeVariable) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeVariable.ProtoReflect.Descriptor instead.
+func (*ComposeVariable) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ComposeVariable) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ComposeVariable) GetRequired() bool {
+	if x != nil {
+		return x.Required
+	}
+	return false
+}
+
 // ExportComposeRequest names what to export.
 type ExportComposeRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -224,7 +633,7 @@ type ExportComposeRequest struct {
 
 func (x *ExportComposeRequest) Reset() {
 	*x = ExportComposeRequest{}
-	mi := &file_dockwell_v1_compose_proto_msgTypes[2]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -236,7 +645,7 @@ func (x *ExportComposeRequest) String() string {
 func (*ExportComposeRequest) ProtoMessage() {}
 
 func (x *ExportComposeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_compose_proto_msgTypes[2]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -249,7 +658,7 @@ func (x *ExportComposeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportComposeRequest.ProtoReflect.Descriptor instead.
 func (*ExportComposeRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ExportComposeRequest) GetProject() string {
@@ -292,7 +701,7 @@ type ExportComposeResponse struct {
 
 func (x *ExportComposeResponse) Reset() {
 	*x = ExportComposeResponse{}
-	mi := &file_dockwell_v1_compose_proto_msgTypes[3]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -304,7 +713,7 @@ func (x *ExportComposeResponse) String() string {
 func (*ExportComposeResponse) ProtoMessage() {}
 
 func (x *ExportComposeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_compose_proto_msgTypes[3]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -317,7 +726,7 @@ func (x *ExportComposeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportComposeResponse.ProtoReflect.Descriptor instead.
 func (*ExportComposeResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ExportComposeResponse) GetCompose() string {
@@ -338,7 +747,7 @@ var File_dockwell_v1_compose_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\"\x8b\x03\n" +
+	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x19dockwell/v1/service.proto\x1a\x1cgoogle/api/annotations.proto\"\x8b\x03\n" +
 	"\x14ImportComposeRequest\x12\x18\n" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
@@ -351,18 +760,49 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\tdirectory\x18\t \x01(\tR\tdirectory\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"D\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb2\x01\n" +
 	"\x15ImportComposeResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"l\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\x12I\n" +
+	"\x11exposed_variables\x18\x02 \x03(\v2\x1c.dockwell.v1.ExposedVariableR\x10exposedVariables\x12!\n" +
+	"\fmore_exposed\x18\x03 \x01(\bR\vmoreExposed\"\xf2\x01\n" +
+	"\x13CheckComposeRequest\x12\x18\n" +
+	"\acompose\x18\x01 \x01(\tR\acompose\x12M\n" +
+	"\tvariables\x18\x02 \x03(\v2/.dockwell.v1.CheckComposeRequest.VariablesEntryR\tvariables\x12\x16\n" +
+	"\x03env\x18\x03 \x01(\tB\x04\xc8\xf3\x18\x01R\x03env\x12\x1c\n" +
+	"\tdirectory\x18\x04 \x01(\tR\tdirectory\x1a<\n" +
+	"\x0eVariablesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf7\x02\n" +
+	"\x14CheckComposeResponse\x125\n" +
+	"\arefusal\x18\x01 \x01(\v2\x1b.dockwell.v1.ComposeRefusalR\arefusal\x12:\n" +
+	"\tvariables\x18\x02 \x03(\v2\x1c.dockwell.v1.ComposeVariableR\tvariables\x124\n" +
+	"\bservices\x18\x03 \x03(\v2\x18.dockwell.v1.ServiceInfoR\bservices\x12\x18\n" +
+	"\avolumes\x18\x04 \x03(\tR\avolumes\x12\x1a\n" +
+	"\bnetworks\x18\x05 \x03(\tR\bnetworks\x12\x12\n" +
+	"\x04name\x18\x06 \x01(\tR\x04name\x12I\n" +
+	"\x11exposed_variables\x18\a \x03(\v2\x1c.dockwell.v1.ExposedVariableR\x10exposedVariables\x12!\n" +
+	"\fmore_exposed\x18\b \x01(\bR\vmoreExposed\"q\n" +
+	"\x0fExposedVariable\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x124\n" +
+	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x14\n" +
+	"\x05field\x18\x03 \x01(\tR\x05field\"Y\n" +
+	"\x0eComposeRefusal\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\x12\x12\n" +
+	"\x04line\x18\x02 \x01(\x05R\x04line\x12\x19\n" +
+	"\bend_line\x18\x03 \x01(\x05R\aendLine\"A\n" +
+	"\x0fComposeVariable\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
+	"\brequired\x18\x02 \x01(\bR\brequired\"l\n" +
 	"\x14ExportComposeRequest\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\x12\x18\n" +
 	"\aservice\x18\x03 \x01(\tR\aservice\"K\n" +
 	"\x15ExportComposeResponse\x12\x18\n" +
 	"\acompose\x18\x01 \x01(\tR\acompose\x12\x18\n" +
-	"\aomitted\x18\x02 \x03(\tR\aomitted2\xff\x01\n" +
+	"\aomitted\x18\x02 \x03(\tR\aomitted2\xf6\x02\n" +
 	"\x0eComposeService\x12y\n" +
-	"\rImportCompose\x12!.dockwell.v1.ImportComposeRequest\x1a\".dockwell.v1.ImportComposeResponse\"!\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/compose:import\x12r\n" +
+	"\rImportCompose\x12!.dockwell.v1.ImportComposeRequest\x1a\".dockwell.v1.ImportComposeResponse\"!\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/compose:import\x12u\n" +
+	"\fCheckCompose\x12 .dockwell.v1.CheckComposeRequest\x1a!.dockwell.v1.CheckComposeResponse\" \xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:check\x12r\n" +
 	"\rExportCompose\x12!.dockwell.v1.ExportComposeRequest\x1a\".dockwell.v1.ExportComposeResponse\"\x1a\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/compose\x90\x02\x01B\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fComposeProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
@@ -378,27 +818,44 @@ func file_dockwell_v1_compose_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_compose_proto_rawDescData
 }
 
-var file_dockwell_v1_compose_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_dockwell_v1_compose_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_dockwell_v1_compose_proto_goTypes = []any{
 	(*ImportComposeRequest)(nil),  // 0: dockwell.v1.ImportComposeRequest
 	(*ImportComposeResponse)(nil), // 1: dockwell.v1.ImportComposeResponse
-	(*ExportComposeRequest)(nil),  // 2: dockwell.v1.ExportComposeRequest
-	(*ExportComposeResponse)(nil), // 3: dockwell.v1.ExportComposeResponse
-	nil,                           // 4: dockwell.v1.ImportComposeRequest.VariablesEntry
-	(*Change)(nil),                // 5: dockwell.v1.Change
+	(*CheckComposeRequest)(nil),   // 2: dockwell.v1.CheckComposeRequest
+	(*CheckComposeResponse)(nil),  // 3: dockwell.v1.CheckComposeResponse
+	(*ExposedVariable)(nil),       // 4: dockwell.v1.ExposedVariable
+	(*ComposeRefusal)(nil),        // 5: dockwell.v1.ComposeRefusal
+	(*ComposeVariable)(nil),       // 6: dockwell.v1.ComposeVariable
+	(*ExportComposeRequest)(nil),  // 7: dockwell.v1.ExportComposeRequest
+	(*ExportComposeResponse)(nil), // 8: dockwell.v1.ExportComposeResponse
+	nil,                           // 9: dockwell.v1.ImportComposeRequest.VariablesEntry
+	nil,                           // 10: dockwell.v1.CheckComposeRequest.VariablesEntry
+	(*Change)(nil),                // 11: dockwell.v1.Change
+	(*ServiceInfo)(nil),           // 12: dockwell.v1.ServiceInfo
+	(*ResourceRef)(nil),           // 13: dockwell.v1.ResourceRef
 }
 var file_dockwell_v1_compose_proto_depIdxs = []int32{
-	4, // 0: dockwell.v1.ImportComposeRequest.variables:type_name -> dockwell.v1.ImportComposeRequest.VariablesEntry
-	5, // 1: dockwell.v1.ImportComposeResponse.change:type_name -> dockwell.v1.Change
-	0, // 2: dockwell.v1.ComposeService.ImportCompose:input_type -> dockwell.v1.ImportComposeRequest
-	2, // 3: dockwell.v1.ComposeService.ExportCompose:input_type -> dockwell.v1.ExportComposeRequest
-	1, // 4: dockwell.v1.ComposeService.ImportCompose:output_type -> dockwell.v1.ImportComposeResponse
-	3, // 5: dockwell.v1.ComposeService.ExportCompose:output_type -> dockwell.v1.ExportComposeResponse
-	4, // [4:6] is the sub-list for method output_type
-	2, // [2:4] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	9,  // 0: dockwell.v1.ImportComposeRequest.variables:type_name -> dockwell.v1.ImportComposeRequest.VariablesEntry
+	11, // 1: dockwell.v1.ImportComposeResponse.change:type_name -> dockwell.v1.Change
+	4,  // 2: dockwell.v1.ImportComposeResponse.exposed_variables:type_name -> dockwell.v1.ExposedVariable
+	10, // 3: dockwell.v1.CheckComposeRequest.variables:type_name -> dockwell.v1.CheckComposeRequest.VariablesEntry
+	5,  // 4: dockwell.v1.CheckComposeResponse.refusal:type_name -> dockwell.v1.ComposeRefusal
+	6,  // 5: dockwell.v1.CheckComposeResponse.variables:type_name -> dockwell.v1.ComposeVariable
+	12, // 6: dockwell.v1.CheckComposeResponse.services:type_name -> dockwell.v1.ServiceInfo
+	4,  // 7: dockwell.v1.CheckComposeResponse.exposed_variables:type_name -> dockwell.v1.ExposedVariable
+	13, // 8: dockwell.v1.ExposedVariable.resource:type_name -> dockwell.v1.ResourceRef
+	0,  // 9: dockwell.v1.ComposeService.ImportCompose:input_type -> dockwell.v1.ImportComposeRequest
+	2,  // 10: dockwell.v1.ComposeService.CheckCompose:input_type -> dockwell.v1.CheckComposeRequest
+	7,  // 11: dockwell.v1.ComposeService.ExportCompose:input_type -> dockwell.v1.ExportComposeRequest
+	1,  // 12: dockwell.v1.ComposeService.ImportCompose:output_type -> dockwell.v1.ImportComposeResponse
+	3,  // 13: dockwell.v1.ComposeService.CheckCompose:output_type -> dockwell.v1.CheckComposeResponse
+	8,  // 14: dockwell.v1.ComposeService.ExportCompose:output_type -> dockwell.v1.ExportComposeResponse
+	12, // [12:15] is the sub-list for method output_type
+	9,  // [9:12] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_compose_proto_init() }
@@ -408,13 +865,14 @@ func file_dockwell_v1_compose_proto_init() {
 	}
 	file_dockwell_v1_change_proto_init()
 	file_dockwell_v1_options_proto_init()
+	file_dockwell_v1_service_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_compose_proto_rawDesc), len(file_dockwell_v1_compose_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

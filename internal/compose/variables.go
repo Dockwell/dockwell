@@ -3,6 +3,8 @@
 package compose
 
 import (
+	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -21,9 +23,12 @@ import (
 // variable blank inside a default, and after one in the same string.
 //
 // It also says where a variable's value lands in plain sight (Exposed).
-func interpolate(raw map[string]any, variables map[string]string) (map[string]any, *exposure, error) {
-	in := &interpolator{variables: variables, missing: map[string]bool{}, exposure: &exposure{}}
+func interpolate(ctx context.Context, raw map[string]any, variables map[string]string) (map[string]any, *exposure, error) {
+	in := &interpolator{ctx: ctx, variables: variables, missing: map[string]bool{}, exposure: &exposure{}}
 	out, err := in.walk(place{owner: fileOwner}, raw)
+	if ctx.Err() != nil {
+		return nil, nil, stopped(ctx)
+	}
 	if len(in.missing) > 0 {
 		names := slices.Sorted(maps.Keys(in.missing))
 		return nil, nil, invalid("the Compose file uses %s, with no value. Give it one in variables, or a default in the file, such as ${%s:-value}",
@@ -33,6 +38,11 @@ func interpolate(raw map[string]any, variables map[string]string) (map[string]an
 		return nil, nil, err
 	}
 	return out.(map[string]any), in.exposure, nil
+}
+
+// stopped says a caller left while a file was being read.
+func stopped(ctx context.Context) error {
+	return fmt.Errorf("stopped reading the Compose file: %w", ctx.Err())
 }
 
 // checkVariables refuses more variables than Dockwell takes, before they cost
@@ -67,6 +77,7 @@ const (
 )
 
 type interpolator struct {
+	ctx       context.Context //nolint:containedctx // one call's, for one walk
 	variables map[string]string
 	missing   map[string]bool
 	// expanded counts what variables have expanded to so far.
@@ -100,6 +111,10 @@ func (in *interpolator) spend(at place, n int) error {
 func (in *interpolator) walk(at place, v any) (any, error) {
 	switch v := v.(type) {
 	case string:
+		// A caller who has left isn't waiting for what is left of the file.
+		if err := in.ctx.Err(); err != nil {
+			return nil, err
+		}
 		// A list's entry can write its name from a variable, and only a value is
 		// hidden. A mapping's keys are never read for variables.
 		if in.exposure != nil && strings.HasPrefix(at.owner, "the service ") && strings.HasPrefix(at.path, "environment[") {
@@ -260,7 +275,7 @@ func (in *interpolator) value(name string) string {
 }
 
 func unreadable(at place, variable string) error {
-	return invalid("%s has a variable Dockwell can't read, %s. Write one as ${NAME} or ${NAME:-default}, and a $ of its own as $$", at, variable)
+	return invalidAt(at, "%s has a variable Dockwell can't read, %s. Write one as ${NAME} or ${NAME:-default}, and a $ of its own as $$", at, variable)
 }
 
 // closing finds the } that closes the { at open, counting the braces

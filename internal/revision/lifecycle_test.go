@@ -1017,3 +1017,101 @@ func testARollbackDoesntWriteOverANewerRevision(t *testing.T, backend store.Back
 		t.Errorf("http's latest revision is %d, from %s; want 3, the newer one, kept", latest.Revision, latest.ChangeID)
 	}
 }
+
+// History reads a page of revisions in a few queries, however many it holds,
+// as a screen reads it again each time a change moves.
+func TestHistoryReadsInFewQueries(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, _ := setup(t, b, "srv_A")
+		read := func() int64 {
+			t.Helper()
+			var n atomic.Int64
+			list, err := e.History(store.CountingQueries(t.Context(), &n), first(t, e), 0, 20)
+			if err != nil || len(list) == 0 {
+				t.Fatalf("History = %v, %v", list, err)
+			}
+			return n.Load()
+		}
+		apply(t, e, propose(t, e, "Run web", web("nginx:1.0")))
+		few := read()
+		for i := 1; i <= 8; i++ {
+			apply(t, e, propose(t, e, "Run web", web(fmt.Sprintf("nginx:1.%d", i))))
+		}
+		if many := read(); many != few {
+			t.Errorf("History takes %d queries for 9 revisions, and %d for one; want the same", many, few)
+		}
+	})
+}
+
+func first(t *testing.T, e *Engine) string {
+	t.Helper()
+	var out string
+	err := e.db.View(t.Context(), func(tx *store.Tx) error {
+		list, err := tx.ListResources(t.Context(), web("x").Ref.Scope, "")
+		if err != nil {
+			return err
+		}
+		out = list[0].ID
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// An edit made from a spec it read goes stale when that isn't the latest any
+// more, as proposing it would quietly undo what came between.
+func TestAnEditFromAnOlderRevisionIsStale(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, _ := setup(t, b, "srv_A")
+		apply(t, e, propose(t, e, "Run web", web("nginx:1.0")))
+		apply(t, e, propose(t, e, "Run web", web("nginx:1.1")))
+		from := func(base int) error {
+			ed := web("nginx:1.2")
+			ed.Base = base
+			_, err := e.Propose(t.Context(), Proposal{Summary: "Deploy", Actor: "usr_test", Via: ViaAPI, Edits: []Edit{ed}})
+			return err
+		}
+		if err := from(1); !errors.Is(err, ErrStale) || !strings.Contains(err.Error(), "Try again") {
+			t.Errorf("an edit from r1, with r2 the latest = %v, want it stale", err)
+		}
+		if err := from(2); err != nil {
+			t.Errorf("an edit from the latest = %v", err)
+		}
+		if err := from(0); err != nil {
+			t.Errorf("an edit that says the whole spec = %v", err)
+		}
+	})
+}
+
+// A plan that does nothing can be refused, unless a server that didn't answer
+// could say otherwise: what it last reported isn't what it runs now.
+func TestNothingToDoAsksTheServers(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, f, _ := setup(t, b, "srv_A")
+		apply(t, e, propose(t, e, "Run web", web("nginx:1.0")))
+		nothing := errors.New("nothing to do")
+		same := func() (*Plan, error) {
+			return e.Propose(t.Context(), Proposal{Summary: "Same", Actor: "usr_test", Via: ViaAPI, Edits: []Edit{web("nginx:1.0")}, IfNothing: nothing})
+		}
+		if _, err := same(); !errors.Is(err, nothing) {
+			t.Errorf("with the server up = %v, want the refusal", err)
+		}
+		f["srv_A"].online.Store(false)
+		if _, err := same(); !errors.Is(err, ErrOffline) || !strings.Contains(err.Error(), "can't tell what runs there") {
+			t.Errorf("with the server down = %v, want it to say it can't tell", err)
+		}
+		f["srv_A"].online.Store(true)
+
+		// Without it, a plan that does nothing is planned, as it always was.
+		if p := propose(t, e, "Nothing", web("nginx:1.0")); !p.Empty() {
+			t.Errorf("a proposal with no refusal = %+v", p)
+		}
+		// One that does something isn't refused.
+		p, err := e.Propose(t.Context(), Proposal{Summary: "New", Actor: "usr_test", Via: ViaAPI, Edits: []Edit{web("nginx:1.1")}, IfNothing: nothing})
+		if err != nil || p.Empty() {
+			t.Errorf("a proposal that changes something = %+v, %v", p, err)
+		}
+	})
+}

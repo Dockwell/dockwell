@@ -68,7 +68,8 @@ func deployments(t *testing.T, db *store.DB, ref resource.Ref) []string {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, d := range deps {
+		for i := range deps {
+			d := &deps[i]
 			out = append(out, d.Server+"@"+string(rune('0'+d.Revision))+"="+d.State)
 		}
 		return nil

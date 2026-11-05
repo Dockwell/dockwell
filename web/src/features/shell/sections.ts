@@ -18,7 +18,6 @@ interface Section {
  * section with a screen gets its own route, which takes over its path.
  */
 export const UPCOMING = {
-  apps: { label: msg`Apps`, icon: "service", inMore: false },
   websites: { label: msg`Websites`, icon: "browser", inMore: true },
   databases: { label: msg`Databases`, icon: "database", inMore: true },
   connections: { label: msg`Connections`, icon: "key", inMore: true },
@@ -33,9 +32,8 @@ export const UPCOMING = {
 
 export type UpcomingSection = keyof typeof UPCOMING;
 
-/** The rail's resource sections, in its order. */
+/** The rail's resource sections after Apps, which has its screens, in its order. */
 export const RESOURCES = [
-  "apps",
   "websites",
   "databases",
   "connections",

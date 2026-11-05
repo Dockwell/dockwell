@@ -541,6 +541,18 @@ message Plan {
   // about what stays as it is or what can be read, not about what runs. A note
   // never stops anyone applying it.
   repeated PlanNote notes = 8;
+  // Which project and environment its resources land in, once there's a choice
+  // of either, so a plan can't read as another's. Empty while there's one
+  // project with one environment. A plan that spans several lists each.
+  repeated PlanPlace places = 9;
+}
+
+// PlanPlace is where a plan's resources land, naming only what offers a choice.
+message PlanPlace {
+  // The project's name. Empty while there's only one project.
+  string project = 1;
+  // The environment's name. Empty while its project has only one.
+  string environment = 2;
 }
 
 // PlanNote is one thing a person should know before applying a plan.
@@ -551,17 +563,26 @@ message PlanNote {
   // reads it, "exposed_more" for a file that writes more of them than a plan
   // lists, "container_name" for a name a service now answers to as an alias,
   // "no_build" for an image a Compose file builds and Dockwell doesn't,
-  // "cpu_reservation" for a CPU reservation Docker has no way to keep, and
-  // "host_network_ports" for ports the server's own network doesn't publish.
-  // Another reason may come: its message says what it means.
+  // "cpu_reservation" for a CPU reservation Docker has no way to keep,
+  // "host_network_ports" for ports the server's own network doesn't publish,
+  // "updates_project" for a Compose file that changes a project already running
+  // services, "volumes_stay" for a rollback that leaves a service's data as it
+  // is, "values_latest" for one that keeps the latest value of what the service
+  // uses, "pulls_again" for a deploy of the tag it already names, "leaves_pin" for
+  // one of the tag a rollback pinned, which replaces it whatever the pull finds,
+  // "starts_stopped" for what isn't running and this plan starts, and "digest_pinned" and "digest_gone" for a rollback that does, or can't, run
+  // exactly the image a revision ran. Another reason may come: its message says
+  // what it means.
   string reason = 1;
   // What it says, for people: the fact, what it means, and what to do.
   string message = 2;
   // The resource it is about.
   ResourceRef resource = 3;
   // The names it is about: the variable, then the field that holds it, for
-  // "exposed_variable"; the container_name, or the image, or the ports. Never a
-  // variable's value.
+  // "exposed_variable"; the project, then the services it runs, for
+  // "updates_project"; the volumes and server paths for "volumes_stay"; the
+  // variables and secrets, by the names the service sees, for "values_latest";
+  // the container_name, or the image, or the ports. Never a variable's value.
   repeated string names = 4;
 }
 
@@ -760,6 +781,15 @@ message PlanStep {
   // its routes stop answering. It never stops a plan, and the fingerprint leaves
   // it out. Keep one stopped with docker update --restart=no.
   repeated string returning_containers = 16;
+  // True when the step asks the server for its image again first. With no
+  // changes, it replaces what runs only if that finds a newer image, and does
+  // nothing otherwise, which its progress says. With nothing but a restart policy
+  // to change, it changes that in place otherwise.
+  bool pull = 17;
+  // True when the digest its spec pins isn't on the server, and its registry
+  // won't give it, so applying it could only fail. A registry that doesn't answer
+  // says nothing of it, so this stays false.
+  bool image_gone = 18;
   // True when the step has a route serve plain HTTP that didn't, as TLS ends
   // before this server, so its traffic reaches the server unencrypted. That is
   // fine on a tunnel or a private network, and not on the open internet. It
@@ -951,6 +981,12 @@ message StepProgress {
   google.protobuf.Timestamp start_time = 7;
   // When it finished. Unset until then.
   google.protobuf.Timestamp finish_time = 8;
+  // What the step did in the end, on this server, once it's done: action says
+  // what was planned, and only the step can say this, as a pull finds out as it
+  // goes. PLAN_ACTION_NONE left what runs exactly as it was. Unspecified until
+  // it's done, for a step that failed, and for one a run that stopped partway had
+  // done already.
+  PlanAction did = 14;
 }
 
 // StepState is how a step is going.

@@ -152,6 +152,8 @@
 
 /* On a phone the sheet is the screen: edge to edge, with the actions in reach of a thumb. */
 .dw-sheet.plan-sheet.is-phone {
+  --control-sm: 44px;
+  --control-md: 44px;
   inset: 0;
   width: 100%;
   max-width: none;

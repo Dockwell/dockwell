@@ -109,4 +109,16 @@ describe("TextField", () => {
     expect(onChange).toHaveBeenCalledWith("apiX");
     expect(controlled).toHaveValue("apix");
   });
+
+  it("can be invalid elsewhere, with its message under a row of fields", () => {
+    render(
+      <>
+        <TextField label="Port" invalid aria-describedby="why" />
+        <span id="why">Use a port from 1 to 65535</span>
+      </>,
+    );
+    const field = screen.getByLabelText("Port");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription("Use a port from 1 to 65535");
+  });
 });

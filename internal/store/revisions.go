@@ -108,6 +108,11 @@ type ChangeItem struct {
 	// Rotates is true when the edit sets a secret's value, which plans as
 	// changed whatever it holds (ADR 0022).
 	Rotates bool
+	// Pull is true when applying it asks the server for its image again first.
+	Pull bool
+	// Run is true when the change asks it to run, so one that's there and isn't
+	// running is started.
+	Run bool
 }
 
 // Resource is a managed resource with its latest revision.
@@ -144,8 +149,11 @@ type Deployment struct {
 	Server     string
 	State      string
 	Error      string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	// Digest is the image it ran there, as its registry knows it, where it runs
+	// one and that's known. Setting a state leaves it as it was if this is empty.
+	Digest    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // CreateChange records a planned change and its items.
@@ -162,9 +170,9 @@ func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
 	}
 	for i := range c.Items {
 		it := &c.Items[i]
-		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers, rotates)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
-			strings.Join(it.Servers, " "), boolInt(it.Rotates)); err != nil {
+		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers, rotates, pull, run)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
+			strings.Join(it.Servers, " "), boolInt(it.Rotates), boolInt(it.Pull), boolInt(it.Run)); err != nil {
 			return fmt.Errorf("can't record change %s: %w", c.ID, err)
 		}
 	}
@@ -203,7 +211,7 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
 	}
-	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers, rotates
+	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers, rotates, pull, run
 		FROM change_items WHERE change_id = ? ORDER BY position`, changeID)
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
@@ -213,11 +221,11 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 		var it ChangeItem
 		var servers string
 		var deleted bool
-		var rotates int64
-		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers, &rotates); err != nil {
+		var rotates, pull, run int64
+		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers, &rotates, &pull, &run); err != nil {
 			return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
 		}
-		it.Rotates = rotates != 0
+		it.Rotates, it.Pull, it.Run = rotates != 0, pull != 0, run != 0
 		it.Spec = spec(it.Spec, deleted)
 		if servers != "" {
 			it.Servers = strings.Fields(servers)
@@ -225,6 +233,32 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 		c.Items = append(c.Items, it)
 	}
 	return c, rows.Err()
+}
+
+// GetChanges reads the changes named, by ID, in one query, without their
+// items. A change that isn't there isn't in the map.
+func (t *Tx) GetChanges(ctx context.Context, changeIDs []string) (map[string]Change, error) {
+	out := make(map[string]Change, len(changeIDs))
+	if len(changeIDs) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(changeIDs))
+	for i, id := range changeIDs {
+		args[i] = id
+	}
+	rows, err := t.query(ctx, `SELECT `+changeColumns+` FROM changes WHERE id IN (`+marks(len(args))+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read changes: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		c, err := scanChange(rows)
+		if err != nil {
+			return nil, fmt.Errorf("can't read changes: %w", err)
+		}
+		out[c.ID] = c
+	}
+	return out, rows.Err()
 }
 
 // ChangePage names where a page of changes starts: after the change with
@@ -501,6 +535,37 @@ func InChange(resourceID, kind, changeID string, position int) SpecAt {
 	return SpecAt{ResourceID: resourceID, Kind: kind, Change: changeID, Position: position}
 }
 
+// ChangesWithRevisions says which of these changes wrote a revision, in one read.
+func (t *Tx) ChangesWithRevisions(ctx context.Context, changeIDs []string) (map[string]bool, error) {
+	out := make(map[string]bool, len(changeIDs))
+	if len(changeIDs) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(changeIDs))
+	for i, id := range changeIDs {
+		args[i] = id
+	}
+	rows, err := t.query(ctx, `SELECT DISTINCT change_id FROM revisions WHERE change_id IN (`+marks(len(args))+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read which changes wrote revisions: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("can't read which changes wrote revisions: %w", err)
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+// StoredSpec is a spec as the store keeps it, and where.
+type StoredSpec struct {
+	At   SpecAt
+	Spec []byte
+}
+
 // NewRevision is the next revision of a resource.
 type NewRevision struct {
 	Kind, Scope, Name string
@@ -660,9 +725,9 @@ func (t *RevisionTx) PlaceRevision(ctx context.Context, resourceID string, revis
 // live, the earlier revisions it replaces on that server are superseded.
 // ErrNotFound means the revision was never placed on the server.
 func (t *RevisionTx) SetDeploymentState(ctx context.Context, d Deployment) error {
-	res, err := t.exec(ctx, `UPDATE deployments SET state = ?, error = ?, updated_at = ?
+	res, err := t.exec(ctx, `UPDATE deployments SET state = ?, error = ?, updated_at = ?, digest = CASE WHEN ? = '' THEN digest ELSE ? END
 		WHERE resource_id = ? AND revision = ? AND server_id = ?`,
-		d.State, nullString(d.Error), millis(d.UpdatedAt), d.ResourceID, d.Revision, d.Server)
+		d.State, nullString(d.Error), millis(d.UpdatedAt), d.Digest, d.Digest, d.ResourceID, d.Revision, d.Server)
 	if err != nil {
 		return fmt.Errorf("can't update the deployment of %s on %s: %w", d.ResourceID, d.Server, err)
 	}
@@ -671,6 +736,18 @@ func (t *RevisionTx) SetDeploymentState(ctx context.Context, d Deployment) error
 	}
 	if d.State == DeploymentLive {
 		return t.Supersede(ctx, d.ResourceID, d.Server, d.Revision, d.UpdatedAt)
+	}
+	return nil
+}
+
+// SetDeploymentDigest records what image a deployment ran. With onlyIfUnknown it
+// leaves a digest that is there already.
+func (t *RevisionTx) SetDeploymentDigest(ctx context.Context, resourceID string, revision int, server, digest string, onlyIfUnknown bool) error {
+	_, err := t.exec(ctx, `UPDATE deployments SET digest = ?
+		WHERE resource_id = ? AND revision = ? AND server_id = ? AND (digest = '' OR ?)`,
+		digest, resourceID, revision, server, !onlyIfUnknown)
+	if err != nil {
+		return fmt.Errorf("can't record the image of %s on %s: %w", resourceID, server, err)
 	}
 	return nil
 }
@@ -694,8 +771,8 @@ func (t *Tx) Placement(ctx context.Context, resourceID string, revision int) ([]
 		return nil, err
 	}
 	out := make([]string, len(deps))
-	for i, d := range deps {
-		out[i] = d.Server
+	for i := range deps {
+		out[i] = deps[i].Server
 	}
 	return out, nil
 }
@@ -703,7 +780,7 @@ func (t *Tx) Placement(ctx context.Context, resourceID string, revision int) ([]
 // Deployments returns where a revision of a resource was placed, by
 // server ID, or every revision's when revision is 0, newest first.
 func (t *Tx) Deployments(ctx context.Context, resourceID string, revision int) ([]Deployment, error) {
-	rows, err := t.query(ctx, `SELECT resource_id, revision, server_id, state, error, created_at, updated_at
+	rows, err := t.query(ctx, `SELECT resource_id, revision, server_id, state, error, digest, created_at, updated_at
 		FROM deployments WHERE resource_id = ? AND (revision = ? OR ? = 0) ORDER BY revision DESC, server_id`,
 		resourceID, revision, revision)
 	if err != nil {
@@ -715,11 +792,122 @@ func (t *Tx) Deployments(ctx context.Context, resourceID string, revision int) (
 		var d Deployment
 		var errText sql.NullString
 		var created, updated int64
-		if err := rows.Scan(&d.ResourceID, &d.Revision, &d.Server, &d.State, &errText, &created, &updated); err != nil {
+		if err := rows.Scan(&d.ResourceID, &d.Revision, &d.Server, &d.State, &errText, &d.Digest, &created, &updated); err != nil {
 			return nil, fmt.Errorf("can't read the deployments of %s: %w", resourceID, err)
 		}
 		d.Error, d.CreatedAt, d.UpdatedAt = errText.String, fromMillis(created), fromMillis(updated)
 		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+// DeploymentsOf returns where each of a resource's revisions named was placed,
+// by revision and then server, in one query.
+func (t *Tx) DeploymentsOf(ctx context.Context, resourceID string, revisions []int) (map[int][]Deployment, error) {
+	out := make(map[int][]Deployment, len(revisions))
+	if len(revisions) == 0 {
+		return out, nil
+	}
+	args := make([]any, 0, len(revisions)+1)
+	args = append(args, resourceID)
+	for _, n := range revisions {
+		args = append(args, n)
+	}
+	rows, err := t.query(ctx, `SELECT resource_id, revision, server_id, state, error, digest, created_at, updated_at
+		FROM deployments WHERE resource_id = ? AND revision IN (`+marks(len(revisions))+`) ORDER BY revision, server_id`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the deployments of %s: %w", resourceID, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var d Deployment
+		var errText sql.NullString
+		var created, updated int64
+		if err := rows.Scan(&d.ResourceID, &d.Revision, &d.Server, &d.State, &errText, &d.Digest, &created, &updated); err != nil {
+			return nil, fmt.Errorf("can't read the deployments of %s: %w", resourceID, err)
+		}
+		d.Error, d.CreatedAt, d.UpdatedAt = errText.String, fromMillis(created), fromMillis(updated)
+		out[d.Revision] = append(out[d.Revision], d)
+	}
+	return out, rows.Err()
+}
+
+// LatestDeployments returns where the latest revision of each of
+// resourceIDs is placed, by resource ID, in one query.
+func (t *Tx) LatestDeployments(ctx context.Context, resourceIDs []string) (map[string][]Deployment, error) {
+	out := make(map[string][]Deployment, len(resourceIDs))
+	if len(resourceIDs) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(resourceIDs))
+	for i, id := range resourceIDs {
+		args[i] = id
+	}
+	rows, err := t.query(ctx, `SELECT d.resource_id, d.revision, d.server_id, d.state, d.error, d.digest, d.created_at, d.updated_at
+		FROM deployments d JOIN resources r ON r.id = d.resource_id AND r.revision = d.revision
+		WHERE d.resource_id IN (`+marks(len(args))+`) ORDER BY d.resource_id, d.server_id`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the deployments of services: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var d Deployment
+		var errText sql.NullString
+		var created, updated int64
+		if err := rows.Scan(&d.ResourceID, &d.Revision, &d.Server, &d.State, &errText, &d.Digest, &created, &updated); err != nil {
+			return nil, fmt.Errorf("can't read the deployments of services: %w", err)
+		}
+		d.Error, d.CreatedAt, d.UpdatedAt = errText.String, fromMillis(created), fromMillis(updated)
+		out[d.ResourceID] = append(out[d.ResourceID], d)
+	}
+	return out, rows.Err()
+}
+
+// ChangeOrigins reads the changes named, in one query. Each has only its
+// ID, actor, state and what it reverts.
+func (t *Tx) ChangeOrigins(ctx context.Context, changeIDs []string) (map[string]Change, error) {
+	out := make(map[string]Change, len(changeIDs))
+	if len(changeIDs) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(changeIDs))
+	for i, id := range changeIDs {
+		args[i] = id
+	}
+	rows, err := t.query(ctx, `SELECT id, actor, state, reverts FROM changes WHERE id IN (`+marks(len(args))+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read changes: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var c Change
+		var reverts sql.NullString
+		if err := rows.Scan(&c.ID, &c.Actor, &c.State, &reverts); err != nil {
+			return nil, fmt.Errorf("can't read changes: %w", err)
+		}
+		c.Reverts = reverts.String
+		out[c.ID] = c
+	}
+	return out, rows.Err()
+}
+
+// PageRevisions returns at most limit of a resource's revisions, newest
+// first, from before revision before, or from its latest when before is 0.
+func (t *Tx) PageRevisions(ctx context.Context, resourceID string, before, limit int) ([]Revision, error) {
+	rows, err := t.query(ctx, `SELECT `+revisionColumns+`
+		FROM revisions v JOIN resources r ON r.id = v.resource_id
+		WHERE v.resource_id = ? AND (v.number < ? OR ? = 0) ORDER BY v.number DESC LIMIT ?`, resourceID, before, before, limit)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the revisions of %s: %w", resourceID, err)
+	}
+	defer rows.Close()
+	var out []Revision
+	for rows.Next() {
+		rev, err := scanRevision(rows)
+		if err != nil {
+			return nil, fmt.Errorf("can't read the revisions of %s: %w", resourceID, err)
+		}
+		out = append(out, rev)
 	}
 	return out, rows.Err()
 }

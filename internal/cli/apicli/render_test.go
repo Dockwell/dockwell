@@ -322,6 +322,38 @@ func TestARoutesPlanSaysWhatComesBackAfterAReboot(t *testing.T) {
 	}
 }
 
+// What a plan's notes say reaches the terminal as it does the panel.
+func TestPlanViewSaysItsNotes(t *testing.T) {
+	var b strings.Builder
+	PlanView(&b, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{{Reason: "volumes_stay", Message: "web keeps what is in data as it is"}}})
+	if !strings.Contains(b.String(), "Note: web keeps what is in data as it is.\n") {
+		t.Errorf("the plan reads:\n%s", b.String())
+	}
+}
+
+// A plan says where it lands above its steps, once there's a choice of it.
+func TestPlanViewSaysWhereItLands(t *testing.T) {
+	for _, c := range []struct {
+		places []*dockwellv1.PlanPlace
+		want   string
+	}{
+		{nil, ""},
+		{[]*dockwellv1.PlanPlace{{Project: "shop"}}, "In project shop.\n\n"},
+		{[]*dockwellv1.PlanPlace{{Environment: "staging"}}, "In environment staging.\n\n"},
+		{[]*dockwellv1.PlanPlace{{Project: "shop", Environment: "staging"}}, "In project shop, environment staging.\n\n"},
+		{
+			[]*dockwellv1.PlanPlace{{Project: "shop", Environment: "staging"}, {Project: "shop", Environment: "production"}},
+			"In project shop, environment staging.\nIn project shop, environment production.\n\n",
+		},
+	} {
+		var buf bytes.Buffer
+		PlanView(&buf, &dockwellv1.Plan{Places: c.places})
+		if got := buf.String(); !strings.HasPrefix(got, c.want+"0 to create") {
+			t.Errorf("for %v, PlanView = %q, want it to start with %q", c.places, got, c.want)
+		}
+	}
+}
+
 // Every kind of access the API can name has words in the CLI, or a person would
 // approve what it can't say.
 func TestEveryAccessKindHasWords(t *testing.T) {
@@ -334,6 +366,106 @@ func TestEveryAccessKindHasWords(t *testing.T) {
 		if got := accessWords([]*dockwellv1.HostAccess{{Kind: kind, Path: "x"}})[0]; strings.HasPrefix(got, "access(") {
 			t.Errorf("%s has no words in the CLI: %s", kind, got)
 		}
+	}
+}
+
+// A pull with nothing else to do doesn't say it replaces for certain.
+func TestPlanViewSaysAPullReplacesOnlyIfNewer(t *testing.T) {
+	step := func(changes ...*dockwellv1.FieldChange) *dockwellv1.Plan {
+		return &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: []*dockwellv1.PlanStep{{
+			Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "web"}, Action: dockwellv1.PlanAction_PLAN_ACTION_REPLACE,
+			Effect: dockwellv1.StepEffect_STEP_EFFECT_RECREATE, Pull: true, Changes: changes,
+		}}}}}
+	}
+	var out bytes.Buffer
+	PlanView(&out, step())
+	if !strings.Contains(out.String(), "Replace if newer") || strings.Contains(out.String(), "recreated") {
+		t.Errorf("a pull with nothing else to do reads:\n%s", out.String())
+	}
+	out.Reset()
+	PlanView(&out, step(&dockwellv1.FieldChange{Path: "app.image", From: "a@sha256:1", To: "a"}))
+	if strings.Contains(out.String(), "if newer") {
+		t.Errorf("a pull with a change to make replaces for certain, and reads:\n%s", out.String())
+	}
+}
+
+// What a pull may not do isn't counted as done, or offered back.
+func TestAPlanSaysWhatAPullOnlyMayDo(t *testing.T) {
+	now := time.Now()
+	planOf := func(replace int32, st ...*dockwellv1.PlanStep) *dockwellv1.Change {
+		return &dockwellv1.Change{
+			Id: "chg_1", State: dockwellv1.ChangeState_CHANGE_STATE_PLANNED,
+			Plan: &dockwellv1.Plan{
+				Summary:    &dockwellv1.PlanSummary{Replace: replace},
+				UndoWindow: durationpb.New(7 * 24 * time.Hour),
+				Servers:    []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: st}},
+			},
+		}
+	}
+	web := &dockwellv1.ResourceRef{Kind: "service", Name: "web"}
+	replace := dockwellv1.PlanAction_PLAN_ACTION_REPLACE
+	restart := &dockwellv1.FieldChange{Path: "app.restart", From: "always", To: ""}
+	for _, tc := range []struct {
+		name          string
+		change        *dockwellv1.Change
+		want, wantNot []string
+	}{
+		{
+			name:    "a pull with nothing else to do",
+			change:  planOf(1, &dockwellv1.PlanStep{Resource: web, Action: replace, Pull: true}),
+			want:    []string{"1 to replace if newer", "Undo for 7 days if this replaces anything.", "Replace if newer"},
+			wantNot: []string{"once applied"},
+		},
+		{
+			name:   "a pull with a restart policy to put right",
+			change: planOf(1, &dockwellv1.PlanStep{Resource: web, Action: replace, Pull: true, Changes: []*dockwellv1.FieldChange{restart}}),
+			want:   []string{"1 to replace if newer", "Update, and replace if newer", "Undo for 7 days if this replaces anything."},
+		},
+		{
+			name:   "a pull with a limit to put right",
+			change: planOf(1, &dockwellv1.PlanStep{Resource: web, Action: replace, Pull: true, Changes: []*dockwellv1.FieldChange{{Path: "app.resources.memory", Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, From: "1", To: "2"}}}),
+			want:   []string{"1 to replace if newer", "Update, and replace if newer"},
+		},
+		{
+			name:    "a pull with a limit to lift, which takes a new container",
+			change:  planOf(1, &dockwellv1.PlanStep{Resource: web, Action: replace, Pull: true, Changes: []*dockwellv1.FieldChange{{Path: "app.resources.memory", Op: dockwellv1.FieldOp_FIELD_OP_REMOVED, From: "1"}}}),
+			want:    []string{"1 to replace ·"},
+			wantNot: []string{"if newer"},
+		},
+		{
+			name:    "a pull with its image to change as well",
+			change:  planOf(1, &dockwellv1.PlanStep{Resource: web, Action: replace, Pull: true, Changes: []*dockwellv1.FieldChange{{Path: "app.image", From: "a@sha256:1", To: "a"}}}),
+			want:    []string{"1 to replace ·", "Undo for 7 days once applied."},
+			wantNot: []string{"if newer", "if this replaces"},
+		},
+		{
+			name:    "a replace with no pull",
+			change:  planOf(1, &dockwellv1.PlanStep{Resource: web, Action: replace}),
+			want:    []string{"1 to replace ·", "Undo for 7 days once applied."},
+			wantNot: []string{"if newer"},
+		},
+		{
+			name: "on two servers, where one has to replace",
+			change: planOf(1, &dockwellv1.PlanStep{Resource: web, Action: replace, Pull: true},
+				&dockwellv1.PlanStep{Resource: web, Action: replace, Pull: true, Changes: []*dockwellv1.FieldChange{{Path: "app.env[A]"}}}),
+			want:    []string{"1 to replace ·", "Undo for 7 days once applied."},
+			wantNot: []string{"1 to replace if newer"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var out bytes.Buffer
+			ChangeView(&out, tc.change, now)
+			for _, w := range tc.want {
+				if !strings.Contains(out.String(), w) {
+					t.Errorf("it doesn't say %q:\n%s", w, out.String())
+				}
+			}
+			for _, w := range tc.wantNot {
+				if strings.Contains(out.String(), w) {
+					t.Errorf("it says %q:\n%s", w, out.String())
+				}
+			}
+		})
 	}
 }
 

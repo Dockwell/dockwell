@@ -617,7 +617,35 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desired proto.Message) error {
 	switch step.Action {
 	case resource.ActionCreate, resource.ActionReplace:
-		return d.Runtime.Run(ctx, t, desired.(*resourcev1.Container), step.Restores)
+		spec := desired.(*resourcev1.Container)
+		if p, ok := d.Runtime.(puller); ok && step.Pull {
+			same, err := p.PullAgain(ctx, t, spec, step.Pulled)
+			if err != nil {
+				return err
+			}
+			// With nothing newer, a step changes what it has to, which may be
+			// nothing, and only it can say so.
+			switch {
+			case !same || step.Action != resource.ActionReplace:
+			case len(step.Changes) == 0:
+				// One that resumes what it had pulled and replaced says so as any
+				// replace does.
+				if !step.Pulled {
+					resource.Report(ctx, resource.Outcome{
+						Did:  resource.Did(resource.ActionNone),
+						Note: fmt.Sprintf("%s is already the newest image, so %s stays as it is", spec.GetImage(), t.Service),
+					})
+				}
+				return resource.ErrAlreadySo
+			case inPlace(step.Changes):
+				resource.Report(ctx, resource.Outcome{
+					Did:  resource.Did(resource.ActionUpdate),
+					Note: fmt.Sprintf("%s is already the newest image, so only %s's restart policy or limits changed", spec.GetImage(), t.Service),
+				})
+				return d.Runtime.Update(ctx, t, spec)
+			}
+		}
+		return d.Runtime.Run(ctx, t, spec, step.Restores)
 	case resource.ActionUpdate:
 		return d.Runtime.Update(ctx, t, desired.(*resourcev1.Container))
 	case resource.ActionDelete:
@@ -626,6 +654,36 @@ func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desi
 		return nil
 	}
 }
+
+// puller is a Runtime that can ask for an image again, and tell whether what it
+// gets is what runs, and is running. With pulled, it has that already.
+type puller interface {
+	PullAgain(ctx context.Context, t Target, spec *resourcev1.Container, pulled bool) (same bool, err error)
+}
+
+// runner is a Runtime that can say how a container that's there isn't running.
+type runner interface {
+	NotRunning(ctx context.Context, t Target) (string, error)
+}
+
+// NotRunning says how a container that's there isn't running, in a word.
+func (d *Driver) NotRunning(ctx context.Context, ref resource.Ref) (string, error) {
+	return d.NotRunningAt(ctx, HostTarget(ref))
+}
+
+// NotRunningAt says how the container at t isn't running, in a word.
+func (d *Driver) NotRunningAt(ctx context.Context, t Target) (string, error) {
+	if r, ok := d.Runtime.(runner); ok {
+		return r.NotRunning(ctx, t)
+	}
+	return "", nil
+}
+
+// ImageOf is the image a container runs, as it is written.
+func (*Driver) ImageOf(spec proto.Message) string { return spec.(*resourcev1.Container).GetImage() }
+
+// SetImage changes the image a container runs.
+func (*Driver) SetImage(spec proto.Message, image string) { spec.(*resourcev1.Container).Image = image }
 
 // Verify checks the container is running and passes its health check.
 func (d *Driver) Verify(ctx context.Context, ref resource.Ref, _ proto.Message) error {

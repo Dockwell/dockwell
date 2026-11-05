@@ -48,6 +48,10 @@ type Item[T any] struct {
 // make it: networks and volumes first, then services, each after those it
 // depends on.
 type Stack struct {
+	// Name is what the file's name: calls it, as written once its variables
+	// are read: the project it belongs to, unless a request names another.
+	// Empty for a file with none.
+	Name     string
 	Networks []Item[*resourcev1.Network]
 	Volumes  []Item[*resourcev1.Volume]
 	Services []Item[*resourcev1.Service]
@@ -78,6 +82,11 @@ type Notice struct {
 
 // ErrInvalid is a Compose file Dockwell can't take, with why.
 var ErrInvalid = errors.New("invalid Compose file")
+
+// ErrCostly is a file the guard stopped, as reading it took more time or memory
+// than Dockwell allows. Nothing should read it again.
+var ErrCostly = invalid("reading the Compose file took more time or memory than Dockwell allows, so it stopped. " +
+	"A real file doesn't: look for one very long word in a command, thousands of names in one place, or aliases repeated many times")
 
 // ErrBusy is too many files waiting to be read to wait with them.
 var ErrBusy = errors.New("too many Compose files are waiting to be read, so this one wasn't. Try again in a moment")
@@ -124,19 +133,19 @@ var (
 	// why says why a key Dockwell can't run is refused, and what to do,
 	// where that is more than removing it.
 	why = map[string]string{ //nolint:gosec // reasons for refusing keys such as secrets, not credentials
-		"build":      "builds an image, which Dockwell can't do yet. Build and push the image, then name it with image",
-		"env_file":   "reads env_file, a file beside the Compose file, which Dockwell doesn't have. Put the variables in environment",
-		"label_file": "reads label_file, a file beside the Compose file, which Dockwell doesn't have. Put the labels in labels",
+		"build":      "builds an image, which Dockwell can't do yet. Build and push the image, then name it with `image`",
+		"env_file":   "reads `env_file`, a file beside the Compose file, which Dockwell doesn't have. Put the variables in `environment`",
+		"label_file": "reads `label_file`, a file beside the Compose file, which Dockwell doesn't have. Put the labels in `labels`",
 		"extends":    "extends another service, which Dockwell can't follow yet. Write the service out in full",
-		"profiles":   "is in profiles, which Dockwell doesn't select. Remove profiles to run it, or the service to leave it out",
-		"secrets":    "uses Compose secrets, which Dockwell can't run yet. Pass the values as environment variables",
-		"configs":    "uses Compose configs, which Dockwell can't run yet. Mount the files from the server instead",
+		"profiles":   "is in `profiles`, which Dockwell doesn't select. Remove `profiles` to run it, or the service to leave it out",
+		"secrets":    "uses Compose `secrets`, which Dockwell can't run yet. Pass the values as environment variables",
+		"configs":    "uses Compose `configs`, which Dockwell can't run yet. Mount the files from the server instead",
 		"include":    "includes other files, which Dockwell doesn't have. Put everything in one file",
-		"external":   "is external, made outside the file, and a service can only join a network that is, for now. Let the file make the volume, or mount its path on the server",
-		"pid":        "shares a process namespace, which Dockwell can't run yet: with the server's, it sees and signals every process there. Remove pid",
-		"ipc":        "shares an IPC namespace, which Dockwell can't run yet. Remove ipc",
-		"devices":    "uses the server's devices, which Dockwell can't run yet. Remove devices, or run it with docker run for now",
-		"name":       "names itself in Docker, which Dockwell names as Compose does, <project>_<name>. Remove name",
+		"external":   "is `external`, made outside the file, and a service can only join a network that is, for now. Let the file make the volume, or mount its path on the server",
+		"pid":        "shares a process namespace, which Dockwell can't run yet: with the server's, it sees and signals every process there. Remove `pid`",
+		"ipc":        "shares an IPC namespace, which Dockwell can't run yet. Remove `ipc`",
+		"devices":    "uses the server's devices, which Dockwell can't run yet. Remove `devices`, or run it with docker run for now",
+		"name":       "names itself in Docker, which Dockwell names as Compose does, `<project>_<name>`. Remove `name`",
 	}
 )
 
@@ -156,9 +165,9 @@ func check(what string, m map[string]any, allowed map[string]bool) error {
 			continue
 		}
 		if reason, ok := why[k]; ok {
-			return invalid("%s %s", what, reason)
+			return invalidAt(place{what, k}, "%s %s", what, reason)
 		}
-		return invalid("%s uses %s, which Dockwell can't run yet. Remove it from the Compose file to import it", what, k)
+		return invalidAt(place{what, k}, "%s uses `%s`, which Dockwell can't run yet. Remove it from the Compose file to import it", what, k)
 	}
 	return nil
 }
@@ -169,7 +178,7 @@ func check(what string, m map[string]any, allowed map[string]bool) error {
 func checkRaw(file []byte) (map[string]any, error) {
 	var raw map[string]any
 	if err := yaml.Unmarshal(file, &raw); err != nil {
-		return nil, invalid("the Compose file isn't valid YAML: %v", err)
+		return nil, notYAML(err, file)
 	}
 	if len(raw) == 0 {
 		return nil, invalid("the Compose file is empty. Give it services, such as web with image: nginx:1.27")
@@ -411,22 +420,31 @@ type Input struct {
 
 // Read reads a file as Parse does, with what it reads beside it.
 func Read(ctx context.Context, in Input) (*Stack, error) {
+	_, stack, err := read(ctx, in, false)
+	return stack, err
+}
+
+// read takes one turn at reading a file: the child first, which says what the
+// file says of itself when asked, as anything that reads a file does so under
+// its limits; then Parse's reading here, of a file the child read to the end of
+// what this will. So what it costs here, the child has already paid for.
+func read(ctx context.Context, in Input, asked bool) (Inspection, *Stack, error) {
 	if len(in.File) > MaxFile {
-		return nil, invalid("the Compose file is %d KiB, and Dockwell reads files of up to %d KiB. "+
+		return Inspection{}, nil, invalid("the Compose file is %d KiB, and Dockwell reads files of up to %d KiB. "+
 			"Leave out what Dockwell doesn't run, or import the services in more than one file", len(in.File)>>10, MaxFile>>10)
 	}
 	if len(in.Env) > MaxEnv {
-		return nil, invalid("the .env file is %d KiB, and Dockwell reads files of up to %d KiB. Leave out what the Compose file doesn't use", len(in.Env)>>10, MaxEnv>>10)
+		return Inspection{}, nil, invalid("the .env file is %d KiB, and Dockwell reads files of up to %d KiB. Leave out what the Compose file doesn't use", len(in.Env)>>10, MaxEnv>>10)
 	}
 	if err := checkVariables(in.Variables); err != nil {
-		return nil, err
+		return Inspection{}, nil, err
 	}
 	if err := checkDirectory(in.Directory); err != nil {
-		return nil, err
+		return Inspection{}, nil, err
 	}
 	if waiting.Add(1) > maxWaiting {
 		waiting.Add(-1)
-		return nil, ErrBusy
+		return Inspection{}, nil, ErrBusy
 	}
 	select {
 	case parsing <- struct{}{}:
@@ -434,16 +452,21 @@ func Read(ctx context.Context, in Input) (*Stack, error) {
 		defer func() { <-parsing }()
 	case <-ctx.Done():
 		waiting.Add(-1)
-		return nil, fmt.Errorf("stopped waiting to read the Compose file: %w", ctx.Err())
+		return Inspection{}, nil, fmt.Errorf("stopped waiting to read the Compose file: %w", ctx.Err())
 	}
-	if err := guard(ctx, in); err != nil {
-		return nil, err
+	seen, err := guard(ctx, in, asked)
+	if err != nil {
+		return Inspection{}, nil, err
 	}
-	return parse(in)
+	if asked && guardPath == "" {
+		seen = inspect(ctx, in)
+	}
+	stack, err := parse(ctx, in)
+	return seen, stack, err
 }
 
 // parse reads a file in this process.
-func parse(in Input) (*Stack, error) {
+func parse(ctx context.Context, in Input) (*Stack, error) {
 	variables, err := readEnv(in.Env, in.Variables)
 	if err != nil {
 		return nil, err
@@ -460,7 +483,7 @@ func parse(in Input) (*Stack, error) {
 	if err != nil {
 		return nil, err
 	}
-	dict, exposed, err := interpolate(raw, variables)
+	dict, exposed, err := interpolate(ctx, raw, variables)
 	if err != nil {
 		return nil, err
 	}
@@ -484,6 +507,9 @@ func parse(in Input) (*Stack, error) {
 	if err := decode(dict, &m); err != nil {
 		return nil, invalid("the Compose file isn't valid: %v", err)
 	}
+	if ctx.Err() != nil {
+		return nil, stopped(ctx)
+	}
 	m.limits, m.notices = limits, unkept
 	if err := m.resolve(variables, in.Directory); err != nil {
 		return nil, err
@@ -502,7 +528,11 @@ func parse(in Input) (*Stack, error) {
 	if err != nil {
 		return nil, err
 	}
+	out.Name, _ = dict["name"].(string)
 	out.Exposed, out.ExposedMore = exposed.report()
+	if ctx.Err() != nil {
+		return nil, stopped(ctx)
+	}
 	if err := checkPlanWords(out); err != nil {
 		return nil, err
 	}
@@ -788,37 +818,38 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 			continue // the value is the environment's, and the service uses it by reference
 		}
 		if v == nil {
-			return nil, invalid("%s's variable %s has no value. Give it one in the file, such as %s: value, or pass it in variables", what, k, k)
+			return nil, invalidAt(place{what, "environment." + k}, "%s's variable %s has no value. Give it one in the file, such as %s: value, or pass it in variables", what, k, k)
 		}
 		if c.Env == nil {
 			c.Env = map[string]string{}
 		}
 		c.Env[k] = *v
 	}
-	for _, p := range s.Ports {
+	for i, p := range s.Ports {
 		m, err := port(what, p)
 		if err != nil {
-			return nil, err
+			return nil, refusedAt(place{what, "ports"}.index(i), err)
 		}
 		c.Ports = append(c.Ports, m)
 	}
-	for _, v := range s.Volumes {
+	for i, v := range s.Volumes {
+		at := place{what, "volumes"}.index(i)
 		m := &resourcev1.Mount{Target: v.Target, ReadOnly: v.ReadOnly}
 		if err := mountBind(what, &v, m); err != nil {
-			return nil, err
+			return nil, refusedAt(at, err)
 		}
 		switch {
 		case v.Type == types.VolumeTypeVolume && v.Source == "":
-			return nil, invalid("%s mounts an unnamed volume at %s. Name it, and list it under volumes, so Dockwell can keep its data", what, v.Target)
+			return nil, invalidAt(at, "%s mounts an unnamed volume at %s. Name it, and list it under volumes, so Dockwell can keep its data", what, v.Target)
 		case v.Type == types.VolumeTypeVolume:
 			m.Source = &resourcev1.Mount_Volume{Volume: v.Source}
 		case v.Type == types.VolumeTypeBind && !path.IsAbs(v.Source):
-			return nil, invalid("%s mounts %s, a path relative to the Compose file, and Dockwell doesn't know where the file is on the server. "+
+			return nil, invalidAt(at, "%s mounts %s, a path relative to the Compose file, and Dockwell doesn't know where the file is on the server. "+
 				"Pass the directory it is in, as directory (--directory on the CLI), or use an absolute path, such as /srv/%s/data, or a named volume", what, v.Source, name)
 		case v.Type == types.VolumeTypeBind:
 			m.Source = &resourcev1.Mount_HostPath{HostPath: v.Source}
 		default:
-			return nil, invalid("%s mounts a %s at %s, which Dockwell can't run yet. Use a named volume or a server path", what, v.Type, v.Target)
+			return nil, invalidAt(at, "%s mounts a %s at %s, which Dockwell can't run yet. Use a named volume or a server path", what, v.Type, v.Target)
 		}
 		c.Mounts = append(c.Mounts, m)
 	}
@@ -851,17 +882,17 @@ func readRestart(what, restart string) (resourcev1.RestartPolicy, uint32, error)
 	name, count, counted := strings.Cut(restart, ":")
 	policy, known := restarts[name]
 	if !known {
-		return 0, 0, invalid("%s restarts %q, which Docker doesn't take. Use no, always, unless-stopped or on-failure", what, restart)
+		return 0, 0, invalidAt(place{what, "restart"}, "%s restarts %q, which Docker doesn't take. Use no, always, unless-stopped or on-failure", what, restart)
 	}
 	if !counted {
 		return policy, 0, nil
 	}
 	if name != "on-failure" {
-		return 0, 0, invalid("%s restarts %q, and only on-failure takes a count. Use on-failure:%s, or leave the count out", what, restart, count)
+		return 0, 0, invalidAt(place{what, "restart"}, "%s restarts %q, and only on-failure takes a count. Use on-failure:%s, or leave the count out", what, restart, count)
 	}
 	n, err := strconv.ParseUint(count, 10, 31)
 	if err != nil {
-		return 0, 0, invalid("%s restarts %q, and on-failure's count is a number of times, such as on-failure:5", what, restart)
+		return 0, 0, invalidAt(place{what, "restart"}, "%s restarts %q, and on-failure's count is a number of times, such as on-failure:5", what, restart)
 	}
 	return policy, uint32(n), nil
 }

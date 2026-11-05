@@ -6,9 +6,11 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"google.golang.org/protobuf/proto"
@@ -344,5 +346,52 @@ func testValuesGoOnlyWhereTheServiceRuns(t *testing.T, backend store.Backend) {
 	other := &resourcev1.Service{Runs: api.Runs, Secrets: map[string]string{"STOLEN": "DB_URL"}}
 	if _, err := k.Values(t.Context(), "srv_A", ref, other); !errors.Is(err, secrets.ErrNotPlaced) || !strings.Contains(err.Error(), "isn't the latest revision") {
 		t.Errorf("values for a spec that isn't api's: %v, want it refused", err)
+	}
+}
+
+// A list opens many specs, so it can't read a key for each.
+func TestOpenAllReadsEachKeyOnce(t *testing.T) { storetest.Each(t, testOpenAllReadsEachKeyOnce) }
+
+func testOpenAllReadsEachKeyOnce(t *testing.T, backend store.Backend) {
+	db, _ := storetest.Open(t, backend)
+	k := secretstest.Keeper(db, kinds())
+	read := func(specs []store.StoredSpec) ([][]byte, int64, error) {
+		t.Helper()
+		var n atomic.Int64
+		ctx := store.CountingQueries(t.Context(), &n)
+		var out [][]byte
+		err := db.View(ctx, func(tx *store.Tx) (err error) {
+			out, err = k.OpenAll(ctx, tx, specs)
+			return err
+		})
+		return out, n.Load(), err
+	}
+	var specs []store.StoredSpec
+	for i := range 12 {
+		name := fmt.Sprintf("sec_%d", i)
+		specs = append(specs, store.StoredSpec{At: secretAt(name), Spec: sealIn(t, db, k, name, []byte("value "+name))})
+	}
+	got, many, err := read(specs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range specs {
+		if want := fmt.Sprintf("value sec_%d", i); string(got[i]) != want {
+			t.Errorf("spec %d opened as %q, want %q", i, got[i], want)
+		}
+	}
+	if _, one, err := read(specs[:1]); err != nil || many != one {
+		t.Errorf("OpenAll takes %d queries for 12 specs and %d for one, %v; want the same", many, one, err)
+	}
+	// None is a no-op, and a spec's seal still binds it to its place.
+	if got, _, err := read(nil); err != nil || len(got) != 0 {
+		t.Errorf("OpenAll of nothing = %v, %v", got, err)
+	}
+	wrong := []store.StoredSpec{{At: secretAt("sec_0"), Spec: specs[1].Spec}}
+	if _, _, err := read(wrong); !errors.Is(err, secrets.ErrOpen) {
+		t.Errorf("a spec sealed for another = %v, want ErrOpen", err)
+	}
+	if _, _, err := read([]store.StoredSpec{{At: secretAt("sec_0"), Spec: []byte("plain")}}); !errors.Is(err, secrets.ErrUnsealed) {
+		t.Errorf("a spec that should be sealed and isn't = %v, want ErrUnsealed", err)
 	}
 }

@@ -26,9 +26,26 @@
 .dw-callout-text {
   color: var(--ink);
 }
+/* A long image name wraps rather than widen the page. */
+.dw-callout code {
+  overflow-wrap: anywhere;
+}
 .dw-callout-actions {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   align-self: center;
+}
+/* Below 640px the actions sit under the text, level with it, so the text keeps the width. */
+@media (max-width: 639.98px) {
+  .dw-callout {
+    flex-wrap: wrap;
+  }
+  .dw-callout-body {
+    flex: 1 1 0;
+  }
+  .dw-callout-actions {
+    flex: 1 0 100%;
+    padding-left: calc(10px + var(--space-3));
+  }
 }

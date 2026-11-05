@@ -13,6 +13,27 @@
   background-origin: content-box;
   background-clip: content-box;
 }
+/* Where more of the list is out of sight, its edge fades, so it reads as one that scrolls. */
+.dw-tabs[data-more="end"] {
+  mask-image: linear-gradient(to left, transparent, #000 var(--space-8));
+}
+.dw-tabs[data-more="start"] {
+  mask-image: linear-gradient(to right, transparent, #000 var(--space-8));
+}
+.dw-tabs[data-more="both"] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--space-8),
+    #000 calc(100% - var(--space-8)),
+    transparent
+  );
+}
+@media (max-width: 639.98px) {
+  .dw-tabs {
+    gap: var(--space-4);
+  }
+}
 .dw-tab {
   position: relative;
   display: inline-flex;
@@ -30,13 +51,23 @@
   cursor: pointer;
   transition: color var(--motion-fast) var(--ease-out);
 }
+@media (pointer: coarse) {
+  .dw-tab {
+    height: 44px;
+    min-width: 44px;
+    justify-content: center;
+  }
+}
 .dw-tab:hover {
   color: var(--ink);
 }
-.dw-tab[aria-selected="true"] {
+.dw-tab:is(a) {
+  text-decoration: none;
+}
+.dw-tab:is([aria-selected="true"], [aria-current="page"]) {
   color: var(--ink);
 }
-.dw-tab[aria-selected="true"]::after {
+.dw-tab:is([aria-selected="true"], [aria-current="page"])::after {
   content: "";
   position: absolute;
   left: 0;

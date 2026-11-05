@@ -12,6 +12,11 @@ export interface StatusBadgeProps {
   status: Status;
   /** Defaults to the status word ("Healthy"). Pass a server or app name to label the subject instead. */
   label?: ReactNode;
+  /**
+   * The label says the state in other words, such as "Live", so screen readers
+   * hear that alone, and not the status's own word before it.
+   */
+  labelIsState?: boolean;
   /** Muted trailing text, such as "for 6 min". */
   meta?: ReactNode;
   /** dot in tables, lists and timelines; pill in headers and cards where the status is the headline. */
@@ -24,12 +29,20 @@ export interface StatusBadgeProps {
  * The state of a server, app, deploy or job as a shape, a word and a colour
  * together, so it reads without colour and in grayscale.
  */
-export function StatusBadge({ status, label, meta, variant = "dot", title, className }: StatusBadgeProps) {
+export function StatusBadge({
+  status,
+  label,
+  labelIsState = false,
+  meta,
+  variant = "dot",
+  title,
+  className,
+}: StatusBadgeProps) {
   const spec = STATUS[status];
   const word = useUIStrings().status[status];
   const shown = label === undefined ? word : label;
   // When the label names the subject, screen readers still hear the state.
-  const announceWord = shown !== word;
+  const announceWord = shown !== word && !labelIsState;
   return (
     <span className={cx("dw-status", `dw-status-${variant}`, `dw-tone-${spec.tone}`, className)} title={title}>
       <Glyph shape={spec.shape} size={variant === "pill" ? 8 : 10} />

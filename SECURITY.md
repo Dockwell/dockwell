@@ -25,7 +25,7 @@ Dockwell has not had a release yet. Once it has, security fixes go to the latest
 - Remote access through the agent: the terminal, files and commands
 - The supply chain: release signing, agent self-updates and catalog images
 
-How servers prove their identity, and what that protects against, is in [docs/security/server-identity.md](docs/security/server-identity.md). How people claim an install and sign in is in [docs/security/sign-in.md](docs/security/sign-in.md).
+How servers prove their identity, and what that protects against, is in [docs/security/server-identity.md](docs/security/server-identity.md). How people claim an install and sign in is in [docs/security/sign-in.md](docs/security/sign-in.md). What a Compose file's variables can expose, and who can read them, is in [docs/security/compose-variables.md](docs/security/compose-variables.md).
 
 Every release is signed, attested and reproducible; [docs/releasing.md](docs/releasing.md#verify-a-release) shows how to verify one.
 

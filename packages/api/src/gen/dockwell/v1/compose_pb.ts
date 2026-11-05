@@ -7,9 +7,11 @@
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
-import type { Change } from "./change_pb";
+import type { Change, ResourceRef } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
+import type { ServiceInfo } from "./service_pb";
+import { file_dockwell_v1_service } from "./service_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -17,10 +19,10 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/compose.proto.
  */
 export const file_dockwell_v1_compose: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9jb21wb3NlLnByb3RvEgtkb2Nrd2VsbC52MSKkAgoUSW1wb3J0Q29tcG9zZVJlcXVlc3QSDwoHc3VtbWFyeRgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEg8KB2NvbXBvc2UYBCABKAkSQwoJdmFyaWFibGVzGAUgAygLMjAuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlcXVlc3QuVmFyaWFibGVzRW50cnkSDwoHc2VydmVycxgGIAMoCRIWCg5yZW1vdmVfb3JwaGFucxgHIAEoCBIRCgNlbnYYCCABKAlCBMjzGAESEQoJZGlyZWN0b3J5GAkgASgJGjAKDlZhcmlhYmxlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiPAoVSW1wb3J0Q29tcG9zZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJNChRFeHBvcnRDb21wb3NlUmVxdWVzdBIPCgdwcm9qZWN0GAEgASgJEhMKC2Vudmlyb25tZW50GAIgASgJEg8KB3NlcnZpY2UYAyABKAkiOQoVRXhwb3J0Q29tcG9zZVJlc3BvbnNlEg8KB2NvbXBvc2UYASABKAkSDwoHb21pdHRlZBgCIAMoCTL/AQoOQ29tcG9zZVNlcnZpY2USeQoNSW1wb3J0Q29tcG9zZRIhLmRvY2t3ZWxsLnYxLkltcG9ydENvbXBvc2VSZXF1ZXN0GiIuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlc3BvbnNlIiGguxgCgtPkkwIXOgEqIhIvdjEvY29tcG9zZTppbXBvcnQScgoNRXhwb3J0Q29tcG9zZRIhLmRvY2t3ZWxsLnYxLkV4cG9ydENvbXBvc2VSZXF1ZXN0GiIuZG9ja3dlbGwudjEuRXhwb3J0Q29tcG9zZVJlc3BvbnNlIhqQAgGguxgBgtPkkwINEgsvdjEvY29tcG9zZUKlAQoPY29tLmRvY2t3ZWxsLnYxQgxDb21wb3NlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9jb21wb3NlLnByb3RvEgtkb2Nrd2VsbC52MSKkAgoUSW1wb3J0Q29tcG9zZVJlcXVlc3QSDwoHc3VtbWFyeRgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEg8KB2NvbXBvc2UYBCABKAkSQwoJdmFyaWFibGVzGAUgAygLMjAuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlcXVlc3QuVmFyaWFibGVzRW50cnkSDwoHc2VydmVycxgGIAMoCRIWCg5yZW1vdmVfb3JwaGFucxgHIAEoCBIRCgNlbnYYCCABKAlCBMjzGAESEQoJZGlyZWN0b3J5GAkgASgJGjAKDlZhcmlhYmxlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiiwEKFUltcG9ydENvbXBvc2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USNwoRZXhwb3NlZF92YXJpYWJsZXMYAiADKAsyHC5kb2Nrd2VsbC52MS5FeHBvc2VkVmFyaWFibGUSFAoMbW9yZV9leHBvc2VkGAMgASgIIsIBChNDaGVja0NvbXBvc2VSZXF1ZXN0Eg8KB2NvbXBvc2UYASABKAkSQgoJdmFyaWFibGVzGAIgAygLMi8uZG9ja3dlbGwudjEuQ2hlY2tDb21wb3NlUmVxdWVzdC5WYXJpYWJsZXNFbnRyeRIRCgNlbnYYAyABKAlCBMjzGAESEQoJZGlyZWN0b3J5GAQgASgJGjAKDlZhcmlhYmxlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEioQIKFENoZWNrQ29tcG9zZVJlc3BvbnNlEiwKB3JlZnVzYWwYASABKAsyGy5kb2Nrd2VsbC52MS5Db21wb3NlUmVmdXNhbBIvCgl2YXJpYWJsZXMYAiADKAsyHC5kb2Nrd2VsbC52MS5Db21wb3NlVmFyaWFibGUSKgoIc2VydmljZXMYAyADKAsyGC5kb2Nrd2VsbC52MS5TZXJ2aWNlSW5mbxIPCgd2b2x1bWVzGAQgAygJEhAKCG5ldHdvcmtzGAUgAygJEgwKBG5hbWUYBiABKAkSNwoRZXhwb3NlZF92YXJpYWJsZXMYByADKAsyHC5kb2Nrd2VsbC52MS5FeHBvc2VkVmFyaWFibGUSFAoMbW9yZV9leHBvc2VkGAggASgIIloKD0V4cG9zZWRWYXJpYWJsZRIMCgRuYW1lGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSDQoFZmllbGQYAyABKAkiQQoOQ29tcG9zZVJlZnVzYWwSDwoHbWVzc2FnZRgBIAEoCRIMCgRsaW5lGAIgASgFEhAKCGVuZF9saW5lGAMgASgFIjEKD0NvbXBvc2VWYXJpYWJsZRIMCgRuYW1lGAEgASgJEhAKCHJlcXVpcmVkGAIgASgIIk0KFEV4cG9ydENvbXBvc2VSZXF1ZXN0Eg8KB3Byb2plY3QYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkSDwoHc2VydmljZRgDIAEoCSI5ChVFeHBvcnRDb21wb3NlUmVzcG9uc2USDwoHY29tcG9zZRgBIAEoCRIPCgdvbWl0dGVkGAIgAygJMvYCCg5Db21wb3NlU2VydmljZRJ5Cg1JbXBvcnRDb21wb3NlEiEuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5JbXBvcnRDb21wb3NlUmVzcG9uc2UiIaC7GAKC0+STAhc6ASoiEi92MS9jb21wb3NlOmltcG9ydBJ1CgxDaGVja0NvbXBvc2USIC5kb2Nrd2VsbC52MS5DaGVja0NvbXBvc2VSZXF1ZXN0GiEuZG9ja3dlbGwudjEuQ2hlY2tDb21wb3NlUmVzcG9uc2UiIKC7GAKC0+STAhY6ASoiES92MS9jb21wb3NlOmNoZWNrEnIKDUV4cG9ydENvbXBvc2USIS5kb2Nrd2VsbC52MS5FeHBvcnRDb21wb3NlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkV4cG9ydENvbXBvc2VSZXNwb25zZSIakAIBoLsYAYLT5JMCDRILL3YxL2NvbXBvc2VCpQEKD2NvbS5kb2Nrd2VsbC52MUIMQ29tcG9zZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_dockwell_v1_service, file_google_api_annotations]);
 
 /**
- * ImportComposeRequest is a Compose file to plan into an environment.
+ * ImportComposeRequest is a Compose file to plan into a project.
  *
  * @generated from message dockwell.v1.ImportComposeRequest
  */
@@ -34,8 +36,11 @@ export type ImportComposeRequest = Message<"dockwell.v1.ImportComposeRequest"> &
   summary: string;
 
   /**
-   * The project of the environment, by name or ID. Leave it out while
-   * there is only one project, or when environment is an ID.
+   * The project it belongs to, by name or ID, such as "shop". One that doesn't
+   * exist yet comes to life with the plan. Left out, the file's name: names
+   * it. With neither, the file goes in the default project, only while that
+   * has no apps: otherwise it is refused, as a service of the same name would
+   * change the one that is there.
    *
    * @generated from field: string project = 2;
    */
@@ -43,7 +48,9 @@ export type ImportComposeRequest = Message<"dockwell.v1.ImportComposeRequest"> &
 
   /**
    * The environment, by name or ID. Leave it out while its project has
-   * only one.
+   * only one. A project the plan brings to life starts with this one, or
+   * with production. A file exported from here goes back to the environment
+   * it came from unless this names another of its project.
    *
    * @generated from field: string environment = 3;
    */
@@ -125,6 +132,21 @@ export type ImportComposeResponse = Message<"dockwell.v1.ImportComposeResponse">
    * @generated from field: dockwell.v1.Change change = 1;
    */
   change?: Change | undefined;
+
+  /**
+   * Where the file writes a variable's value in plain sight, which the plan's
+   * notes say too. It lists 100 at most.
+   *
+   * @generated from field: repeated dockwell.v1.ExposedVariable exposed_variables = 2;
+   */
+  exposedVariables: ExposedVariable[];
+
+  /**
+   * True when the file writes more than exposed_variables lists.
+   *
+   * @generated from field: bool more_exposed = 3;
+   */
+  moreExposed: boolean;
 };
 
 /**
@@ -133,6 +155,236 @@ export type ImportComposeResponse = Message<"dockwell.v1.ImportComposeResponse">
  */
 export const ImportComposeResponseSchema: GenMessage<ImportComposeResponse> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_compose, 1);
+
+/**
+ * CheckComposeRequest is a Compose file to read.
+ *
+ * @generated from message dockwell.v1.CheckComposeRequest
+ */
+export type CheckComposeRequest = Message<"dockwell.v1.CheckComposeRequest"> & {
+  /**
+   * The Compose file, as YAML, as ImportCompose takes it.
+   *
+   * @generated from field: string compose = 1;
+   */
+  compose: string;
+
+  /**
+   * Values for the variables the file uses, as ImportCompose takes them.
+   *
+   * @generated from field: map<string, string> variables = 2;
+   */
+  variables: { [key: string]: string };
+
+  /**
+   * The .env file beside the Compose file, as ImportCompose takes it. A variable
+   * it gives needs no other value.
+   *
+   * @generated from field: string env = 3;
+   */
+  env: string;
+
+  /**
+   * The directory the file is in on the servers, as ImportCompose takes it.
+   *
+   * @generated from field: string directory = 4;
+   */
+  directory: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckComposeRequest.
+ * Use `create(CheckComposeRequestSchema)` to create a new message.
+ */
+export const CheckComposeRequestSchema: GenMessage<CheckComposeRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 2);
+
+/**
+ * CheckComposeResponse says what a Compose file would make, or why it can't.
+ *
+ * @generated from message dockwell.v1.CheckComposeResponse
+ */
+export type CheckComposeResponse = Message<"dockwell.v1.CheckComposeResponse"> & {
+  /**
+   * Why ImportCompose would refuse the file, when it would: the first thing
+   * in the way. Fix it and check again for the next. Unset when it would take
+   * it. What it would refuse whatever its variables hold comes before a variable
+   * with no value, so no one types a secret for a file it then refuses.
+   *
+   * @generated from field: dockwell.v1.ComposeRefusal refusal = 1;
+   */
+  refusal?: ComposeRefusal | undefined;
+
+  /**
+   * The variables the file uses, whether or not the file can be read
+   * further than that.
+   *
+   * @generated from field: repeated dockwell.v1.ComposeVariable variables = 2;
+   */
+  variables: ComposeVariable[];
+
+  /**
+   * The services it would make, in the order it would make them, with
+   * sensitive values blanked. Empty when it is refused.
+   *
+   * @generated from field: repeated dockwell.v1.ServiceInfo services = 3;
+   */
+  services: ServiceInfo[];
+
+  /**
+   * The volumes it would make, by name. Empty when it is refused.
+   *
+   * @generated from field: repeated string volumes = 4;
+   */
+  volumes: string[];
+
+  /**
+   * The networks it would make, by name. Empty when it is refused.
+   *
+   * @generated from field: repeated string networks = 5;
+   */
+  networks: string[];
+
+  /**
+   * The project the file names for itself, for a form to fill in, whether or
+   * not the file can be read further than that: its name:, or, for a file
+   * exported from an environment here, that environment's project. Empty when
+   * it names none, or names itself with a variable that has no value yet.
+   *
+   * @generated from field: string name = 6;
+   */
+  name: string;
+
+  /**
+   * Where the file writes a variable's value in plain sight, whether or not one
+   * is given, so a form can say so before anyone types a secret. It lists 100
+   * at most.
+   *
+   * @generated from field: repeated dockwell.v1.ExposedVariable exposed_variables = 7;
+   */
+  exposedVariables: ExposedVariable[];
+
+  /**
+   * True when the file writes more than exposed_variables lists.
+   *
+   * @generated from field: bool more_exposed = 8;
+   */
+  moreExposed: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckComposeResponse.
+ * Use `create(CheckComposeResponseSchema)` to create a new message.
+ */
+export const CheckComposeResponseSchema: GenMessage<CheckComposeResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 3);
+
+/**
+ * ExposedVariable is a variable whose value a Compose file writes in free text,
+ * where anyone who can read what it makes sees it. Only what the schema marks
+ * sensitive is blanked, such as a service's environment values: a command or a
+ * label isn't, as seeing them is useful and they rarely hold a secret. A name, a
+ * number or a path doesn't count, as docs/security/compose-variables.md lists.
+ *
+ * @generated from message dockwell.v1.ExposedVariable
+ */
+export type ExposedVariable = Message<"dockwell.v1.ExposedVariable"> & {
+  /**
+   * The variable, such as "REDIS_PASSWORD".
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * The service, volume or network whose spec holds its value, by kind and
+   * name.
+   *
+   * @generated from field: dockwell.v1.ResourceRef resource = 2;
+   */
+  resource?: ResourceRef | undefined;
+
+  /**
+   * The field that holds it, as the file names it, such as "command",
+   * "entrypoint", "labels", "healthcheck" or "driver_opts". "environment" is a
+   * list entry's name, as a value there is blanked and a name isn't.
+   *
+   * @generated from field: string field = 3;
+   */
+  field: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ExposedVariable.
+ * Use `create(ExposedVariableSchema)` to create a new message.
+ */
+export const ExposedVariableSchema: GenMessage<ExposedVariable> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 4);
+
+/**
+ * ComposeRefusal is why a Compose file can't be imported.
+ *
+ * @generated from message dockwell.v1.ComposeRefusal
+ */
+export type ComposeRefusal = Message<"dockwell.v1.ComposeRefusal"> & {
+  /**
+   * What is wrong and how to fix it, for people.
+   *
+   * @generated from field: string message = 1;
+   */
+  message: string;
+
+  /**
+   * The line of the file it is about, from 1. 0 when it is about the file
+   * as a whole.
+   *
+   * @generated from field: int32 line = 2;
+   */
+  line: number;
+
+  /**
+   * The last line it is about, where it is about more than one, as a YAML parser
+   * can't always tell which. Otherwise the same as line.
+   *
+   * @generated from field: int32 end_line = 3;
+   */
+  endLine: number;
+};
+
+/**
+ * Describes the message dockwell.v1.ComposeRefusal.
+ * Use `create(ComposeRefusalSchema)` to create a new message.
+ */
+export const ComposeRefusalSchema: GenMessage<ComposeRefusal> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 5);
+
+/**
+ * ComposeVariable is a variable a Compose file uses, such as ${TAG}.
+ *
+ * @generated from message dockwell.v1.ComposeVariable
+ */
+export type ComposeVariable = Message<"dockwell.v1.ComposeVariable"> & {
+  /**
+   * Its name, such as "TAG".
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * True when it needs a value, as the file gives it no default.
+   *
+   * @generated from field: bool required = 2;
+   */
+  required: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.ComposeVariable.
+ * Use `create(ComposeVariableSchema)` to create a new message.
+ */
+export const ComposeVariableSchema: GenMessage<ComposeVariable> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 6);
 
 /**
  * ExportComposeRequest names what to export.
@@ -170,7 +422,7 @@ export type ExportComposeRequest = Message<"dockwell.v1.ExportComposeRequest"> &
  * Use `create(ExportComposeRequestSchema)` to create a new message.
  */
 export const ExportComposeRequestSchema: GenMessage<ExportComposeRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_compose, 2);
+  messageDesc(file_dockwell_v1_compose, 7);
 
 /**
  * ExportComposeResponse is a Compose file.
@@ -204,25 +456,28 @@ export type ExportComposeResponse = Message<"dockwell.v1.ExportComposeResponse">
  * Use `create(ExportComposeResponseSchema)` to create a new message.
  */
 export const ExportComposeResponseSchema: GenMessage<ExportComposeResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_compose, 3);
+  messageDesc(file_dockwell_v1_compose, 8);
 
 /**
- * ComposeService turns a Docker Compose file into an environment's
- * services, volumes and networks, and any of them back into one. An
- * environment is one Compose project: its containers carry the labels
- * Docker Compose gives its own, so docker compose sees them, and an
- * exported file runs the same with docker compose alone (PRD principle 6).
- * See docs/adr/0021-the-docker-driver.md.
+ * ComposeService turns a Docker Compose file into a project's services,
+ * volumes and networks, and any of them back into one. Each file gets a
+ * project of its own, so two files with a service of one name run side by
+ * side, on networks of their own, as they do under docker compose. An
+ * environment is one Compose project: its containers carry the labels Docker
+ * Compose gives its own, so docker compose sees them, and an exported file
+ * runs the same with docker compose alone (PRD principle 6). See
+ * docs/adr/0021-the-docker-driver.md and docs/adr/0026-the-app-screens.md.
  *
  * @generated from service dockwell.v1.ComposeService
  */
 export const ComposeService: GenService<{
   /**
-   * ImportCompose plans a Compose file into an environment as a change,
-   * ready to apply or discard, as ProposeChange does with edits. Each
-   * Compose service becomes a service, and each named volume and network
-   * one of its own. A field of the file that Dockwell can't run yet is
-   * refused, by name, rather than dropped.
+   * ImportCompose plans a Compose file into a project as a change, ready to
+   * apply or discard, as ProposeChange does with edits. Each Compose service
+   * becomes a service, and each named volume and network one of its own. A
+   * field of the file that Dockwell can't run yet is refused, by name, rather
+   * than dropped. The plan brings the project to life if it doesn't exist yet,
+   * and importing into one that does shows as updates.
    *
    * @generated from rpc dockwell.v1.ComposeService.ImportCompose
    */
@@ -230,6 +485,19 @@ export const ComposeService: GenService<{
     methodKind: "unary";
     input: typeof ImportComposeRequestSchema;
     output: typeof ImportComposeResponseSchema;
+  },
+  /**
+   * CheckCompose reads a Compose file as ImportCompose would and says what
+   * it would make, or why it can't, without planning anything or recording a
+   * change, so a form can check a file as someone types it. It is a POST, as
+   * a file doesn't fit in a URL.
+   *
+   * @generated from rpc dockwell.v1.ComposeService.CheckCompose
+   */
+  checkCompose: {
+    methodKind: "unary";
+    input: typeof CheckComposeRequestSchema;
+    output: typeof CheckComposeResponseSchema;
   },
   /**
    * ExportCompose writes a Compose file of an environment, or of one service

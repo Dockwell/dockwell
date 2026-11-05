@@ -65,7 +65,7 @@ const PAGE_SIZE = 1000;
  * kept as one list, under ListVariables' own query key, so a change applied
  * in the plan sheet reads it again.
  */
-function useAllVariables(environment: string | undefined) {
+export function useAllVariables(environment: string | undefined) {
   const transport = useTransport();
   const input = { environment: environment ?? "" };
   return useTanstackQuery({

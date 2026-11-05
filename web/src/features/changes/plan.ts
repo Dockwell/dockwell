@@ -44,7 +44,8 @@ export function diffResources(plan: Plan | undefined): PlanResource[] {
   const changing = (plan?.resources ?? []).filter((r) => r.action !== PlanAction.NONE);
   return changing.map((resource) => {
     const changes: PlanChange[] = resource.changes.map((change) => {
-      const out: { path: string; from?: PlanValue; to?: PlanValue } = { path: change.path };
+      // A service's fields are its app's, which goes without saying.
+      const out: { path: string; from?: PlanValue; to?: PlanValue } = { path: change.path.replace(/^app\./, "") };
       if (change.op !== FieldOp.ADDED) out.from = change.sensitive ? SECRET : change.from;
       if (change.op !== FieldOp.REMOVED) out.to = change.sensitive ? SECRET : change.to;
       return out;

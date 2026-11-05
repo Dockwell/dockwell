@@ -226,6 +226,11 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 	return binding.Restore(c.(*resourcev1.Container))
 }
 
+// NotRunning says how the service's container isn't running, in a word.
+func (d *Driver) NotRunning(ctx context.Context, ref resource.Ref) (string, error) {
+	return d.Containers.NotRunningAt(ctx, Target(ref))
+}
+
 // Plan judges the step as the container driver does for the app.
 func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
 	return d.Containers.Plan(app(actual), app(desired), inner(changes))
@@ -235,6 +240,38 @@ func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) 
 // what its server has.
 func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
 	return d.Containers.JudgeAt(ctx, Target(ref), app(actual), app(desired), inner(changes))
+}
+
+// CheckPlan refuses a port something else on the server holds, or another service
+// in the plan wants, for a service about to start.
+func (d *Driver) CheckPlan(ctx context.Context, want resource.Desired, all []resource.Desired) error {
+	var planned []container.Planned
+	for _, o := range all {
+		switch o.Ref.Kind {
+		case Kind:
+			var c *resourcev1.Container
+			if s, ok := o.Spec.(*resourcev1.Service); ok {
+				c = s.GetApp()
+			}
+			planned = append(planned, container.Planned{Name: Target(o.Ref).Name, Words: o.Ref.Name, Spec: c})
+		case container.Kind:
+			c, _ := o.Spec.(*resourcev1.Container)
+			planned = append(planned, container.Planned{Name: container.HostTarget(o.Ref).Name, Words: o.Ref.Name, Spec: c})
+		}
+	}
+	return d.Containers.CheckPortsAt(ctx, Target(want.Ref), want.Spec.(*resourcev1.Service).GetApp(), planned)
+}
+
+// ImageOf is the image a service's app runs, as it is written.
+func (*Driver) ImageOf(spec proto.Message) string {
+	return spec.(*resourcev1.Service).GetApp().GetImage()
+}
+
+// SetImage changes the image a service's app runs.
+func (*Driver) SetImage(spec proto.Message, image string) {
+	if app := spec.(*resourcev1.Service).GetApp(); app != nil {
+		app.Image = image
+	}
 }
 
 // Check checks the app on its server, as the container driver does.
@@ -277,6 +314,7 @@ func inner(changes []resource.Change) []resource.Change {
 // environment holds the values of what the service uses, which the call
 // brought (resource.WithValues), and a label records what they came from.
 func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
+	step.Changes = inner(step.Changes)
 	if desired == nil {
 		return d.Containers.ApplyAt(ctx, Target(step.Ref), step, nil)
 	}

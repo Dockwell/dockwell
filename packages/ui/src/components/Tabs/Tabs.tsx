@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ReactNode } from "react";
+import { type AnchorHTMLAttributes, type ReactNode, type Ref, useEffect, useRef, useState } from "react";
 
 import { cx } from "../../lib/cx";
 import { handleRovingKeyDown, tabStop } from "../../lib/roving";
@@ -8,6 +8,33 @@ import { useControlled } from "../../lib/useControlled";
 import { Icon } from "../Icon/Icon";
 import type { IconName } from "../Icon/icons";
 import "./Tabs.css";
+
+/**
+ * Says which edges of a list that scrolls sideways have more past them, for
+ * its fade. Nothing at all when it all fits.
+ */
+function useMoreEdges<E extends HTMLElement>() {
+  const ref = useRef<E>(null);
+  const [more, setMore] = useState<"start" | "end" | "both" | undefined>();
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const start = el.scrollLeft > 1;
+      const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setMore(start && end ? "both" : start ? "start" : end ? "end" : undefined);
+    };
+    measure();
+    el.addEventListener("scroll", measure, { passive: true });
+    const seen = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measure);
+    seen?.observe(el);
+    return () => {
+      el.removeEventListener("scroll", measure);
+      seen?.disconnect();
+    };
+  }, []);
+  return { ref, more };
+}
 
 export interface TabItem<Id extends string = string> {
   id: Id;
@@ -51,8 +78,11 @@ export function Tabs<Id extends string = string>({
   // Uncontrolled, the first tab stands in while the stored one isn't among the tabs, as when they load after mount.
   const current = value !== undefined ? value : tabStop(ids, stored);
   const stop = tabStop(ids, current);
+  const { ref, more } = useMoreEdges<HTMLDivElement>();
   return (
     <div
+      ref={ref}
+      data-more={more}
       className={cx("dw-tabs", className)}
       role="tablist"
       aria-label={label}
@@ -83,5 +113,57 @@ export function Tabs<Id extends string = string>({
         );
       })}
     </div>
+  );
+}
+
+export interface TabNavProps {
+  /** Names the navigation for assistive technology. */
+  label: string;
+  /** TabLinks. */
+  children: ReactNode;
+  className?: string;
+}
+
+/**
+ * Tabs that are places: each one is a page with its own URL, so they are
+ * links in a navigation landmark rather than a tab list. It looks the same
+ * as Tabs. For a view inside one page, use Tabs.
+ */
+export function TabNav({ label, children, className }: TabNavProps) {
+  const { ref, more } = useMoreEdges<HTMLElement>();
+  return (
+    <nav ref={ref} data-more={more} className={cx("dw-tabs", className)} aria-label={label}>
+      {children}
+    </nav>
+  );
+}
+
+export interface TabLinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "children"> {
+  /** One or two words. */
+  children: ReactNode;
+  /** A number only. */
+  count?: number | undefined;
+  /** Only when the count is a problem, such as open alerts; never for totals. */
+  countTone?: "warning" | "critical" | "cobalt" | undefined;
+  ref?: Ref<HTMLAnchorElement>;
+}
+
+/**
+ * One tab of a TabNav. Inside the panel, wrap it with the router's link
+ * factory, such as TanStack Router's createLink, so it navigates without a
+ * reload and sets aria-current on the page it names.
+ */
+export function TabLink({ children, count, countTone, className, ...rest }: TabLinkProps) {
+  return (
+    <a {...rest} className={cx("dw-tab", className)}>
+      <span>{children}</span>
+      {/* The space keeps the name "Deployments 128" where styles don't separate the two. */}
+      {count != null ? (
+        <>
+          {" "}
+          <span className={cx("dw-tab-count", countTone && `dw-tone-${countTone}`)}>{count}</span>
+        </>
+      ) : null}
+    </a>
   );
 }

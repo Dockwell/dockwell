@@ -49,19 +49,27 @@ type guardRequest struct {
 	Input
 	CPU    uint64 `json:"cpu"`
 	Memory uint64 `json:"memory"`
+	// Inspect asks it to say what the file says of itself, on its stdout.
+	Inspect bool `json:"inspect,omitempty"`
 }
 
-// guard reads the file in a child, and says only whether it finished within
-// its limits. Parse then reads it again here for the result, whatever it is:
-// a file that finishes in the child costs the same here, and there's no second
-// form of a Stack or an error to carry across.
-func guard(ctx context.Context, in Input) error {
+// maxInspection is the most a child may say of a file. Every variable in a
+// file of MaxFile comes to under 3 MiB.
+const maxInspection = 8 << 20
+
+// guard reads the file in a child, and says whether it finished within its
+// limits and, when asked, what the file says of itself. Parse then reads it
+// again here for the result, whatever it is: a file that finishes in the child
+// costs the same here, and there's no second form of a Stack or an error to
+// carry across. What the child says is its own reading of the file, which
+// nothing here repeats, so only the child pays for it.
+func guard(ctx context.Context, in Input, asked bool) (Inspection, error) {
 	if guardPath == "" {
-		return nil
+		return Inspection{}, nil
 	}
-	body, err := json.Marshal(guardRequest{in, guardCPU, guardMemory})
+	body, err := json.Marshal(guardRequest{in, guardCPU, guardMemory, asked})
 	if err != nil {
-		return fmt.Errorf("can't pass the Compose file to be read: %w", err)
+		return Inspection{}, fmt.Errorf("can't pass the Compose file to be read: %w", err)
 	}
 	ctx, cancel := context.WithTimeout(ctx, guardTimeout)
 	defer cancel()
@@ -71,14 +79,18 @@ func guard(ctx context.Context, in Input) error {
 	cmd.Env = []string{"GOMAXPROCS=2", fmt.Sprintf("GOMEMLIMIT=%d", guardMemory-guardMemory/4)}
 	// Its first words say how it ended. Nothing else of what it writes is kept,
 	// as a crash's traces can hold what it read.
-	var said head
+	said := head{room: 256}
 	cmd.Stderr = &said
+	told := head{room: maxInspection}
+	if asked {
+		cmd.Stdout = &told
+	}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return fmt.Errorf("can't start reading the Compose file: %w. This is about the server, not the file", err)
+		return Inspection{}, fmt.Errorf("can't start reading the Compose file: %w. This is about the server, not the file", err)
 	}
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("can't start reading the Compose file: %w. This is about the server, not the file: dockwell needs /proc, and to run its own binary", err)
+		return Inspection{}, fmt.Errorf("can't start reading the Compose file: %w. This is about the server, not the file: dockwell needs /proc, and to run its own binary", err)
 	}
 	go func() {
 		_, _ = stdin.Write(body)
@@ -88,41 +100,53 @@ func guard(ctx context.Context, in Input) error {
 	var exit *exec.ExitError
 	failed := errors.As(err, &exit)
 	switch {
+	case err == nil && !asked:
+		return Inspection{}, nil
+	case err == nil && told.over:
+		return Inspection{}, ErrCostly
 	case err == nil:
-		return nil
+		var seen Inspection
+		if err := json.Unmarshal(told.b, &seen); err != nil {
+			return Inspection{}, fmt.Errorf("can't read what the Compose file's reader said: %w. This is about the server, not the file", err)
+		}
+		return seen, nil
 	case ctx.Err() != nil && !errors.Is(ctx.Err(), context.DeadlineExceeded):
-		return fmt.Errorf("stopped reading the Compose file: %w", ctx.Err())
+		return Inspection{}, stopped(ctx)
 	case failed && exit.ExitCode() == 1:
 		// RunGuard's own error, which holds nothing it read.
-		return fmt.Errorf("can't read the Compose file: %s. This is about the server, not the file", strings.TrimSpace(said.String()))
+		return Inspection{}, fmt.Errorf("can't read the Compose file: %s. This is about the server, not the file", strings.TrimSpace(said.String()))
 	case failed && strings.Contains(said.String(), "new OS thread"):
-		return errors.New("can't read the Compose file, as the server can't start another thread. This is about the server, not the file: check its limit on processes")
+		return Inspection{}, errors.New("can't read the Compose file, as the server can't start another thread. This is about the server, not the file: check its limit on processes")
 	case failed || errors.Is(ctx.Err(), context.DeadlineExceeded):
 		// A signal is the CPU limit, and any other exit a crash, as Go ends when
 		// it runs out of memory, on what the file made it do.
-		return invalid("reading the Compose file took more time or memory than Dockwell allows, so it stopped. " +
-			"A real file doesn't: look for one very long word in a command, thousands of names in one place, or aliases repeated many times")
+		return Inspection{}, ErrCostly
 	}
-	return fmt.Errorf("can't read the Compose file: %w", err)
+	return Inspection{}, fmt.Errorf("can't read the Compose file: %w", err)
 }
 
-// head keeps the first 256 bytes written to it.
-type head struct{ b []byte }
+// head keeps the first room bytes written to it, and notes any it doesn't.
+type head struct {
+	b    []byte
+	room int
+	over bool
+}
 
 func (h *head) Write(p []byte) (int, error) {
-	if room := 256 - len(h.b); room > 0 {
-		h.b = append(h.b, p[:min(room, len(p))]...)
-	}
+	take := min(h.room-len(h.b), len(p))
+	h.b = append(h.b, p[:take]...)
+	h.over = h.over || take < len(p)
 	return len(p), nil
 }
 
 func (h *head) String() string { return string(h.b) }
 
 // RunGuard is the child: it takes a request from in, sets its limits, then
-// reads the file. A refusal is a finished read. Only running out of what it's
-// allowed ends it any other way. It asks the kernel to take it first when
-// memory runs short, rather than anything else on the server.
-func RunGuard(in io.Reader) error {
+// reads the file, saying on out what the file says of itself when asked. A
+// refusal is a finished read. Only running out of what it's allowed ends it any
+// other way. It asks the kernel to take it first when memory runs short, rather
+// than anything else on the server.
+func RunGuard(in io.Reader, out io.Writer) error {
 	var req guardRequest
 	if err := json.NewDecoder(in).Decode(&req); err != nil {
 		return fmt.Errorf("can't read the request: %w", err)
@@ -134,7 +158,13 @@ func RunGuard(in io.Reader) error {
 	if err := limit(syscall.RLIMIT_DATA, req.Memory); err != nil {
 		return fmt.Errorf("can't limit its memory to %d MiB: %w", req.Memory>>20, err)
 	}
-	_, _ = parse(req.Input)
+	ctx := context.Background()
+	if req.Inspect {
+		if err := json.NewEncoder(out).Encode(inspect(ctx, req.Input)); err != nil {
+			return fmt.Errorf("can't say what it read: %w", err)
+		}
+	}
+	_, _ = parse(ctx, req.Input)
 	return nil
 }
 

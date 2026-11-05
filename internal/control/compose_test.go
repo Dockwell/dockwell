@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -91,7 +92,7 @@ volumes:
 
 func importCompose(t *testing.T, c dockwellv1connect.ComposeServiceClient, file string, vars map[string]string, orphans bool) *dockwellv1.Change {
 	t.Helper()
-	res, err := c.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: file, Variables: vars, RemoveOrphans: orphans}))
+	res, err := c.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Project: scope.DefaultProject, Compose: file, Variables: vars, RemoveOrphans: orphans}))
 	if err != nil {
 		t.Fatalf("ImportCompose: %v", err)
 	}

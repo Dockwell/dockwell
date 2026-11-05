@@ -166,4 +166,19 @@ describe("Table", () => {
     expect(screen.getAllByRole("row")[2]).toHaveAttribute("aria-current", "true");
     await expectAccessible(container);
   });
+
+  it("gives a row its own class, for rows that differ", () => {
+    render(
+      <Table
+        columns={[{ key: "name", header: "Name" }]}
+        rows={[
+          { id: 1, name: "web" },
+          { id: 2, name: "api" },
+        ]}
+        rowClassName={(row) => (row.id === 1 ? "is-head" : undefined)}
+      />,
+    );
+    expect(screen.getByRole("row", { name: "web" })).toHaveClass("is-head");
+    expect(screen.getByRole("row", { name: "api" })).not.toHaveClass("is-head");
+  });
 });

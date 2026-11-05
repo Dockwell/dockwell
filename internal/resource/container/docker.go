@@ -626,10 +626,108 @@ func (d *Docker) ensureImage(ctx context.Context, ref string) error {
 	return err
 }
 
+// PullAgain asks for a container's image again, as a deploy of the tag it already
+// names does, and says whether what it got is what runs, and is running. What it
+// finds goes on record, before anything is replaced. With pulled, a run stopped
+// partway has done the pull, so it needs no registry. See "What pull means" in ADR
+// 0021.
+func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Container, pulled bool) (same bool, err error) {
+	ref := spec.GetImage()
+	old, err := d.current(ctx, t)
+	if err != nil {
+		return false, err
+	}
+	// Only a container of this tag can say what it pointed at. Another image is
+	// there after a failure, and what replaces that isn't a tag that moved.
+	moving := old != nil && resource.BareImage(old.Config.Image) == resource.BareImage(ref)
+	previous := ""
+	if moving {
+		if img, err := d.Client.InspectImage(ctx, old.Image); err == nil {
+			previous = img.Digest(ref)
+		}
+	}
+	if !pulled {
+		if err := d.pullAgain(ctx, t, old, ref); err != nil {
+			return false, err
+		}
+	}
+	img, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
+	if err != nil {
+		return false, fmt.Errorf("pulled %s, but can't read it back: %w", ref, err)
+	}
+	digest := img.Digest(ref)
+	if old != nil && old.Image == img.ID && notRunning(old) == "" {
+		resource.Report(ctx, resource.Outcome{Digest: digest})
+		return true, nil
+	}
+	resource.Report(ctx, resource.Outcome{Digest: digest, Previous: previous, Replacing: moving && old.Image != img.ID})
+	return false, nil
+}
+
+// pullAgain pulls ref. One that fails leaves what runs running, and fails the
+// step. Where nothing is running there's nothing to keep safe, so the image the
+// server has will do, which is how someone gets a service back while its registry
+// is down.
+func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container, ref string) error {
+	resource.Progress(ctx, "pulling "+ref+" again")
+	err := d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "pulling "+ref+" again, "+p) })
+	if err == nil || docker.IsUnavailable(err) || ctx.Err() != nil {
+		return err
+	}
+	if old != nil && notRunning(old) == "" {
+		resource.Report(ctx, resource.Outcome{Untouched: true})
+		return fmt.Errorf("can't pull %s again: %w, so nothing was replaced, and what runs goes on running. Check that its registry answers, and the image's name and tag, then deploy again. Dockwell can't pull private images yet", ref, err)
+	}
+	switch _, have := d.Client.InspectImage(ctx, docker.WithTag(ref)); {
+	case have == nil:
+		resource.Report(ctx, resource.Outcome{Note: fmt.Sprintf("Can't pull %s again: %s, so %s runs the image this server has. Deploy again once its registry answers, to get anything newer", ref, err, t.Service)})
+		return nil
+	case docker.IsNotFound(have):
+		return fmt.Errorf("can't pull %s: %w. %s isn't running, and this server doesn't have that image, so it can't start. Check that its registry answers, and the image's name and tag, then deploy again. Dockwell can't pull private images yet", ref, err, t.Service)
+	default:
+		return have
+	}
+}
+
+// NotRunning says how the container at t isn't running, in a word.
+func (d *Docker) NotRunning(ctx context.Context, t Target) (string, error) {
+	c, err := d.find(ctx, t.Name)
+	if err != nil || c == nil {
+		return "", err
+	}
+	return notRunning(c), nil
+}
+
+// notRunning says how a container isn't running, in a word, or nothing if it is.
+// Docker counts one that's restarting or paused as running, and neither serves.
+func notRunning(c *docker.Container) string {
+	if c.State.Running && !c.State.Restarting && !c.State.Paused {
+		return ""
+	}
+	return cmp.Or(c.State.Status, "stopped")
+}
+
+// reportRan puts the image a container now runs on record, by digest. Not
+// knowing it costs a moving tag its rollback, not the deploy, so a failure to
+// read it doesn't fail anything.
+func (d *Docker) reportRan(ctx context.Context, ref string) {
+	if img, err := d.Client.InspectImage(ctx, docker.WithTag(ref)); err == nil {
+		resource.Report(ctx, resource.Outcome{Digest: img.Digest(ref)})
+	}
+}
+
 // pullableWait bounds asking a registry for an image while planning. A plan
 // shouldn't wait on a registry, so one that doesn't answer in time says nothing,
 // and the pull finds out.
 const pullableWait = 10 * time.Second
+
+// notPullable says an image's registry won't give it to a pull. One that doesn't
+// answer in time, is down or is limiting how often it's asked says nothing of it.
+func (d *Docker) notPullable(ctx context.Context, ref string) bool {
+	ctx, cancel := context.WithTimeout(ctx, pullableWait)
+	defer cancel()
+	return docker.NotPullable(d.Client.CheckPullable(ctx, ref))
+}
 
 // checkImage refuses a plan for an image the server hasn't got and its registry
 // won't give it, which would otherwise fail only once the change was applied. A
@@ -643,9 +741,7 @@ func (d *Docker) checkImage(ctx context.Context, t Target, ref string) error {
 	case !docker.IsNotFound(err):
 		return err
 	}
-	ctx, cancel := context.WithTimeout(ctx, pullableWait)
-	defer cancel()
-	if err := d.Client.CheckPullable(ctx, ref); docker.NotPullable(err) {
+	if d.notPullable(ctx, ref) {
 		return fmt.Errorf("the image %s isn't on this server, and its registry won't give it to a pull, so %s can't run: it has no such image, or wants credentials, which Dockwell can't send yet. "+
 			"Build or load the image on this server, or push it where a pull can get it, then plan again", ref, t.Service)
 	}
@@ -808,6 +904,7 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 	if err := d.Client.StartContainer(ctx, id); err != nil {
 		return fmt.Errorf("docker can't start %s: %w", t.Name, err)
 	}
+	d.reportRan(ctx, spec.GetImage())
 	return nil
 }
 
@@ -878,8 +975,12 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 	case resource.ActionDelete:
 		out = imageVolumes(c)
 	case resource.ActionCreate, resource.ActionReplace:
-		if err := d.checkImage(ctx, t, desired.GetImage()); err != nil {
-			return err
+		// A pinned image that is gone says so below, as a rollback has somewhere
+		// else to go.
+		if !strings.Contains(desired.GetImage(), "@") {
+			if err := d.checkImage(ctx, t, desired.GetImage()); err != nil {
+				return err
+			}
 		}
 		out = covered(c, desired)
 		kept, err := d.keptVolumes(ctx, t)
@@ -895,6 +996,13 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 	}
 	if len(out) > 0 {
 		dec.Destroys, dec.Kept = true, slices.Sorted(maps.Keys(out))
+	}
+	// A pinned image that is gone can't run: where a rollback pins one, it says so
+	// and goes back to its tag.
+	if ref := desired.GetImage(); strings.Contains(ref, "@") && (dec.Action == resource.ActionCreate || dec.Action == resource.ActionReplace) {
+		if _, err := d.Client.InspectImage(ctx, ref); docker.IsNotFound(err) && d.notPullable(ctx, ref) {
+			dec.ImageGone = true
+		}
 	}
 	if hc := desired.GetHealthcheck(); dec.Action == resource.ActionReplace && !complete(hc) {
 		img, err := d.Client.InspectImage(ctx, docker.WithTag(desired.GetImage()))

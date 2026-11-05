@@ -150,22 +150,22 @@ func TestParse(t *testing.T) {
 func TestParseRefuses(t *testing.T) {
 	for name, tc := range map[string]struct{ file, want string }{
 		"build":           {"services: {web: {build: .}}", "the service web builds an image, which Dockwell can't do yet"},
-		"env_file":        {"services: {web: {image: a, env_file: /etc/shadow}}", "the service web reads env_file"},
+		"env_file":        {"services: {web: {image: a, env_file: /etc/shadow}}", "the service web reads `env_file`"},
 		"extends":         {"services: {web: {image: a, extends: {file: /etc/passwd, service: x}}}", "the service web extends another service"},
 		"include":         {"include: [/etc/passwd]\nservices: {web: {image: a}}", "the Compose file includes other files"},
-		"unknown":         {"services: {web: {image: a, sysctls: [a=b]}}", "the service web uses sysctls, which Dockwell can't run yet. Remove it from the Compose file to import it"},
+		"unknown":         {"services: {web: {image: a, sysctls: [a=b]}}", "the service web uses `sysctls`, which Dockwell can't run yet. Remove it from the Compose file to import it"},
 		"relative bind":   {"services: {web: {image: a, volumes: ['./data:/data']}}", "the service web mounts ./data, a path relative to the Compose file"},
 		"anonymous":       {"services: {web: {image: a, volumes: ['/data']}}", "the service web mounts an unnamed volume at /data"},
 		"random port":     {"services: {web: {image: a, ports: ['80']}}", "the service web publishes port 80 on a server port Docker would pick"},
 		"unset":           {"services: {web: {image: 'a:${TAG}'}}", "the Compose file uses TAG, with no value"},
 		"bad name":        {"services: {my_app: {image: a}}", `"my_app" isn't a valid service name`},
-		"external":        {"services: {web: {image: a}}\nvolumes: {data: {external: true}}", "the volume data is external"},
-		"network options": {"services: {web: {image: a, networks: {n: {ipv4_address: 10.0.0.2}}}}\nnetworks: {n: {}}", "the service web's network n uses ipv4_address, which Dockwell can't run yet"},
+		"external":        {"services: {web: {image: a}}\nvolumes: {data: {external: true}}", "the volume data is `external`"},
+		"network options": {"services: {web: {image: a, networks: {n: {ipv4_address: 10.0.0.2}}}}\nnetworks: {n: {}}", "the service web's network n uses `ipv4_address`, which Dockwell can't run yet"},
 		"no network":      {"services: {web: {image: a, network_mode: none}}", "the service web has network_mode none, no network at all"},
 		"no value":        {"services: {web: {image: a, environment: [SECRET]}}", "the service web's variable SECRET has no value"},
 		"restart count":   {"services: {web: {image: a, restart: 'always:3'}}", `the service web restarts "always:3", and only on-failure takes a count`},
 		"no services":     {"volumes: {data: {}}", "the Compose file has no services"},
-		"not yaml":        {"services: [", "the Compose file isn't valid YAML"},
+		"not yaml":        {"services: [", "line 1: a bracket doesn't close"},
 		"no volume":       {"services: {web: {image: a, volumes: ['data:/data']}}", "the service web mounts the volume data, which the file doesn't list under volumes"},
 		"no such network": {"services: {web: {image: a, networks: [back]}}", "the service web joins the network back, which the file doesn't list under networks"},
 		"no dependency":   {"services: {web: {image: a, depends_on: [db]}}", "the service web depends on db, which isn't a service in the file"},
@@ -176,11 +176,11 @@ func TestParseRefuses(t *testing.T) {
 		"no such option":  {"services: {web: {image: a, volumes: ['/srv:/data:rx']}}", `the service web mounts /srv at /data with the option "rx", which Docker doesn't take`},
 		"long propagation": {
 			"services: {web: {image: a, volumes: [{type: bind, source: /srv, target: /data, bind: {propagation: rshared}}]}}",
-			"the service web's volume's bind uses propagation, which Dockwell can't run yet",
+			"the service web's volume's bind uses `propagation`, which Dockwell can't run yet",
 		},
 		"long nocopy": {
 			"services: {web: {image: a, volumes: [{type: volume, source: data, target: /data, volume: {nocopy: true}}]}}\nvolumes: {data: {}}",
-			"the service web's volume uses volume, which Dockwell can't run yet",
+			"the service web's volume uses `volume`, which Dockwell can't run yet",
 		},
 		"relabelled volume": {"services: {web: {image: a, volumes: ['data:/data:z']}}\nvolumes: {data: {}}", "the service web mounts the volume data at /data with :z, which Dockwell can do for a server path alone"},
 		"no such relabel": {
@@ -234,8 +234,20 @@ func TestExportRoundTrips(t *testing.T) {
 	if want := []string{"db.POSTGRES_DB", "web.API_KEY", "web.DATABASE_URL"}; !slices.Equal(out.Omitted, want) {
 		t.Errorf("omitted %v, want %v", out.Omitted, want)
 	}
-	if !strings.Contains(text, "name: "+project) || !strings.Contains(text, "network_mode: bridge") || !strings.Contains(text, container.LabelSet) {
+	if !strings.Contains(text, "name: "+project) || !strings.Contains(text, "network_mode: bridge") {
 		t.Errorf("export:\n%s", text)
+	}
+
+	// What docker compose makes from this has to read back as what Dockwell
+	// made, and what looks like a mistake in it says why it isn't.
+	if !strings.Contains(text, container.LabelSet+": ") {
+		t.Errorf("the export has no %s label, so what compose makes reads as drift:\n%s", container.LabelSet, text)
+	}
+	if !strings.Contains(text, "# A "+container.LabelSet+" label is there on purpose") {
+		t.Errorf("the export doesn't say what its own label is for:\n%s", text)
+	}
+	if !strings.Contains(text, "NAME: null is there on purpose") {
+		t.Errorf("the export doesn't explain a variable with no value:\n%s", text)
 	}
 
 	// Set the variables it left out, as the shell would, and read it back.
@@ -265,5 +277,23 @@ func TestExportRoundTrips(t *testing.T) {
 		if !proto.Equal(back.Volumes[i].Spec, s.Volumes[i].Spec) {
 			t.Errorf("volume %s read back as %v, want %v", back.Volumes[i].Name, back.Volumes[i].Spec, s.Volumes[i].Spec)
 		}
+	}
+}
+
+// A network's options read back as Docker's own without the label, so what
+// compose makes from an export would refuse a re-import of the unchanged file.
+func TestAnExportKeepsANetworksOwnLabel(t *testing.T) {
+	out, err := compose.Export("env_x", &compose.Stack{Networks: []compose.Item[*resourcev1.Network]{{
+		Name: "back", Spec: &resourcev1.Network{Driver: "bridge", Options: map[string]string{"com.docker.network.driver.mtu": "1400"}},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(out.File)
+	if !strings.Contains(text, "option:com.docker.network.driver.mtu") {
+		t.Errorf("the export's network has no label for its option:\n%s", text)
+	}
+	if !strings.Contains(text, "# A "+container.LabelSet+" label is there on purpose") {
+		t.Errorf("the export doesn't say what the label is for:\n%s", text)
 	}
 }

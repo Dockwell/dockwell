@@ -4,9 +4,11 @@
 # Runs built dockwell binaries against this machine's Docker Engine, end to
 # end through the CLI: a service from an image runs, changes and is undone;
 # the environment exports as a Compose file that docker compose reads and
-# lists; a Compose file imports; a service using a variable and a secret
-# runs with their values, exports without the secret, and imports again
-# with no change; and everything goes again. A file in the shapes real ones
+# lists; a Compose file imports, and two with a service of one name run side
+# by side; a service using a variable and a secret runs with their values,
+# exports without the secret, and imports again with no change; a tag that moves
+# in a local registry is pulled again, rolled back by digest, and survives that
+# registry going away; and everything goes again. A file in the shapes real ones
 # have runs on a network the server has, with what it asks for really applied,
 # and reaches another project on it by name, and a route with no certificate
 # reaches it there, as it does a service on the server's own network, by its port
@@ -43,8 +45,16 @@ agent_data=$(mktemp -d)
 log=$(mktemp)
 agent_log=$(mktemp)
 project=""
+extra_projects=""
 real_projects=()
 agent_pid=""
+moving_dir=""
+moving_repo=""
+digest_first=""
+digest_second=""
+digest_third=""
+# A registry, by digest, for the images of the step about a tag that moves.
+registry_image=registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
 
 port=${addr##*:}
 cookie=$(mktemp)
@@ -77,6 +87,13 @@ start_dockwell() {
   pid=$!
 }
 start_dockwell
+# moving_tidy removes what the step about a tag that moves brought here.
+moving_tidy() {
+  docker rm --force --volumes e2e-registry >/dev/null 2>&1 || true
+  docker rmi e2e-moving:first e2e-moving:second e2e-moving:third "$moving_repo:latest" "$moving_repo@$digest_first" "$moving_repo@$digest_second" "$moving_repo@$digest_third" >/dev/null 2>&1 || true
+  [[ -z "$moving_dir" ]] || rm -rf "$moving_dir"
+  moving_dir=""
+}
 # restore_daemon puts back Docker's settings, if this changed them, and restarts it.
 daemon_changed=""
 daemon_before=""
@@ -92,14 +109,15 @@ restore_daemon() {
 }
 cleanup() {
   restore_daemon || true
-  if [[ -n "$project" ]]; then
-    docker compose -p "$project" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
-  fi
+  for p in $project $extra_projects; do
+    docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
+  done
   for p in "${real_projects[@]}"; do
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
   docker rm --force e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  moving_tidy
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
   priv kill "$pid" 2>/dev/null || true
@@ -284,7 +302,7 @@ fi
 [[ "$costly" == *"more time or memory"* ]] || fail "a file made to cost too much failed some other way: ${costly:0:300}"
 dw changes list --json >/dev/null || fail "the control plane didn't carry on after a file that cost too much"
 
-dw compose import --compose "$(cat "$data/stack.yaml")" --yes || fail "compose import failed"
+dw compose import --project default --compose "$(cat "$data/stack.yaml")" --yes || fail "compose import failed"
 services=$(docker compose -p "$project" ps --format '{{.Service}}' | sort | tr '\n' ' ') || fail "docker compose -p $project ps failed"
 [[ "$services" == "cache web " ]] || fail "after the import, docker compose lists '$services', want cache and web"
 docker volume inspect "${project}_cache-data" >/dev/null || fail "the import made no volume ${project}_cache-data"
@@ -379,6 +397,342 @@ status=$?
 set -e
 [[ "$status" == 4 ]] || fail "volumes delete exited $status, want 4: a plan that destroys data waits for a person"
 
+stop_dockwell() {
+  priv kill "$pid"
+  wait "$pid" 2>/dev/null || true
+  # Everything that says "with Dockwell down" depends on this.
+  if curl -fsS --max-time 2 "http://$addr/healthz" >/dev/null 2>&1; then fail "Dockwell still answers after it was stopped"; fi
+  connected=$(grep -c 'connected to the control plane' "$log" || true)
+}
+# wait_for_dockwell waits for what stop_dockwell stopped to answer, and for its
+# agent to connect, which every plan needs.
+wait_for_dockwell() {
+  for _ in $(seq 300); do
+    curl -fsS "http://$addr/healthz" >/dev/null 2>&1 &&
+      [[ "$(grep -c 'connected to the control plane' "$log")" -gt "$connected" ]] && return 0
+    sleep 0.1
+  done
+  fail "Dockwell didn't come back within 30 s"
+}
+# kill_dockwell stops it with no warning, in the middle of whatever it's doing, as a
+# power cut or the OOM killer would. A clean stop lets a step finish first. As root
+# $pid is sudo's, and sudo can't pass on a SIGKILL, so this kills the processes
+# themselves, asked for apart from killing, as sudo's own command line would match.
+kill_dockwell() {
+  local victims
+  victims=$(pgrep -f "$bin run --listen $addr") || fail "nothing to kill: Dockwell isn't running"
+  # shellcheck disable=SC2086 # one word for each process
+  priv kill -KILL $victims || fail "can't kill Dockwell, $victims"
+  wait "$pid" 2>/dev/null || true
+  if curl -fsS --max-time 2 "http://$addr/healthz" >/dev/null 2>&1; then fail "Dockwell still answers after it was killed"; fi
+  connected=$(grep -c 'connected to the control plane' "$log" || true)
+}
+
+step "A moving tag: a registry of its own, and two images under one tag"
+# The product's first user does this most: a tag that moves, redeployed. Only a
+# real engine and a real registry say what a pull really does.
+registry_port=""
+for p in $(seq 15000 15100); do
+  if [[ -z "$(ss -ltnH "sport = :$p")" ]]; then
+    registry_port=$p
+    break
+  fi
+done
+[[ -n "$registry_port" ]] || fail "no port is free for a registry between 15000 and 15100"
+docker run -d --name e2e-registry -p "127.0.0.1:$registry_port:5000" "$registry_image" >/dev/null || fail "can't run a registry"
+registry_up() {
+  for _ in $(seq 100); do
+    curl -fsS "http://127.0.0.1:$registry_port/v2/" >/dev/null 2>&1 && return 0
+    sleep 0.1
+  done
+  fail "the registry on port $registry_port didn't answer within 10 s"
+}
+registry_up
+moving_repo=127.0.0.1:$registry_port/e2e-app
+moving=$moving_repo:latest
+moving_dir=$(mktemp -d)
+# build_and_push builds an image that serves its word, pushes it under the one tag,
+# and says its digest.
+build_and_push() {
+  printf '%s\n' "$1" >"$moving_dir/index.html"
+  printf 'FROM nginx:1.27-alpine\nCOPY index.html /usr/share/nginx/html/index.html\n' >"$moving_dir/Dockerfile"
+  docker build -q -t "e2e-moving:$1" "$moving_dir" >/dev/null || fail "can't build the image $1"
+  docker tag "e2e-moving:$1" "$moving" || fail "can't tag the image $1"
+  docker push "$moving" | awk '/digest: /{ print $3 }'
+}
+moving_serves() {
+  local got=""
+  for _ in $(seq 100); do
+    got=$(curl -fsS --max-time 2 "http://127.0.0.1:$web_port/" 2>/dev/null) || got=""
+    [[ "$got" == "$1" ]] && return 0
+    sleep 0.1
+  done
+  fail "the app serves '$got' on port $web_port, want '$1'"
+}
+moving_id() {
+  local ids
+  ids=$(docker ps -a --no-trunc --filter label=com.docker.compose.service=moving --format '{{.ID}}') || fail "docker ps failed"
+  [[ "$(wc -l <<<"$ids")" == 1 && -n "$ids" ]] || fail "Docker has these containers for the app, want one: $ids"
+  echo "$ids"
+}
+moving_started() { docker inspect --format '{{.State.StartedAt}}' "$(moving_id)"; }
+moving_revisions() { dw services revisions moving --json; }
+image_id_of() { docker image inspect --format '{{.Id}}' "$1"; }
+digest_first=$(build_and_push first)
+[[ "$digest_first" == sha256:* ]] || fail "pushing the first image said its digest is '$digest_first'"
+dw services create moving --app-image "$moving" --app-ports "$ports" --yes || fail "services create moving failed"
+moving_serves first
+
+step "A moving tag: deploying it again pulls what it points at now, and replaces what runs"
+digest_second=$(build_and_push second)
+[[ "$digest_second" == sha256:* && "$digest_second" != "$digest_first" ]] ||
+  fail "pushing the second image said its digest is '$digest_second', and the first's is '$digest_first'"
+# As on any server, only the registry has the new image: the tag here still says
+# the first, so nothing but a real pull can move it.
+docker tag e2e-moving:first "$moving" || fail "can't put the tag back on the first image"
+docker rmi e2e-moving:second "$moving_repo@$digest_second" >/dev/null || fail "can't remove the second image here"
+if docker image inspect "$moving_repo@$digest_second" >/dev/null 2>&1; then fail "the second image is still here"; fi
+before=$(moving_id)
+planned=$(dw services deploy moving --image "$moving" --plan-only --json 2>/dev/null) || fail "planning the deploy failed"
+jq -e --arg want "Pulls $moving again, and replaces moving only if that's a newer image" \
+  '.change.plan.notes | any(.reason == "pulls_again" and .message == $want)' <<<"$planned" >/dev/null ||
+  fail "the plan doesn't say it pulls, and replaces only if that's newer: $planned"
+jq -e '.change.plan.servers[0].steps[0].pull == true' <<<"$planned" >/dev/null || fail "the plan's step doesn't pull: $planned"
+change=$(jq -r .change.id <<<"$planned")
+read_plan=$(dw changes get "$change") || fail "changes get $change failed"
+grep -qF "Note: Pulls $moving again, and replaces moving only if that's a newer image." <<<"$read_plan" ||
+  fail "the plan a person reads doesn't say it pulls: $read_plan"
+grep -qF "Replace if newer" <<<"$read_plan" || fail "the plan a person reads says it replaces for certain: $read_plan"
+# Planning changes nothing on the server.
+[[ "$(moving_id)" == "$before" ]] || fail "planning replaced the container"
+if docker image inspect "$moving_repo@$digest_second" >/dev/null 2>&1; then fail "planning pulled the image"; fi
+dw changes apply "$change" --yes || fail "applying the deploy failed"
+moving_did() {
+  local did
+  did=$(dw changes get "$1" --json | jq -r '.change.steps[0].did') || fail "changes get failed"
+  [[ "$did" == "$2" ]] || fail "the step says it did $did, want $2: $(dw changes get "$1" --json)"
+}
+moving_did "$change" PLAN_ACTION_REPLACE
+after=$(moving_id)
+[[ "$after" != "$before" ]] || fail "with a newer image, the container wasn't replaced"
+if docker inspect "$before" >/dev/null 2>&1; then fail "the old container is still there"; fi
+runs=$(docker inspect --format '{{.Image}}' "$after") || fail "docker inspect failed"
+[[ "$runs" == "$(image_id_of "$moving_repo@$digest_second")" ]] || fail "the container runs $runs, want the second image"
+moving_serves second
+revisions=$(moving_revisions) || fail "services revisions failed"
+jq -e --arg a "$digest_first" --arg b "$digest_second" --arg image "$moving" \
+  '(.revisions | length == 2) and .revisions[0].image == $image and .revisions[0].deployments[0].digest == $b and .revisions[1].deployments[0].digest == $a' \
+  <<<"$revisions" >/dev/null || fail "the revisions don't say what ran each time: $revisions"
+jq -e '(.revisions[1].matchesLatest // false) == false' <<<"$revisions" >/dev/null || fail "r1 ran another image, and reads as matching the latest: $revisions"
+
+step "A moving tag: with nothing newer, nothing happens, and it says so"
+before=$(moving_id)
+started=$(moving_started)
+planned=$(dw services deploy moving --image "$moving" --plan-only --json 2>/dev/null) || fail "planning the deploy failed"
+change=$(jq -r .change.id <<<"$planned")
+said=$(dw changes apply "$change" --yes 2>&1) || fail "deploying with nothing newer failed: $said"
+moving_did "$change" PLAN_ACTION_NONE
+grep -qF "$moving is already the newest image, so moving stays as it is" <<<"$said" || fail "with nothing newer, it says: $said"
+if grep -qF "Undo it" <<<"$said"; then fail "it offers to undo what did nothing: $said"; fi
+[[ "$(moving_id)" == "$before" ]] || fail "with nothing newer, the container was replaced"
+[[ "$(moving_started)" == "$started" ]] || fail "with nothing newer, the container restarted"
+revisions=$(moving_revisions) || fail "services revisions failed"
+jq -e '.revisions | length == 2' <<<"$revisions" >/dev/null || fail "with nothing newer, a revision was written: $revisions"
+moving_serves second
+
+step "A moving tag: a rollback runs what that revision ran, by digest, through the registry"
+# Off this server, so only the engine's /distribution can say the registry has it,
+# and only a pull by digest can bring it back.
+docker rmi e2e-moving:first "$moving_repo@$digest_first" >/dev/null || fail "can't remove the first image here"
+if docker image inspect "$moving_repo@$digest_first" >/dev/null 2>&1; then fail "the first image is still here"; fi
+planned=$(dw services rollback moving --revision 1 --plan-only --json 2>/dev/null) || fail "planning the rollback failed"
+jq -e --arg short "sha256:${digest_first:7:12}" '.change.plan.notes | any(.reason == "digest_pinned" and (.message | contains($short)))' <<<"$planned" >/dev/null ||
+  fail "the rollback's plan doesn't say it pins what r1 ran: $planned"
+if jq -e '.change.plan.notes | any(.reason == "digest_gone")' <<<"$planned" >/dev/null; then fail "the rollback's plan says the image is gone: $planned"; fi
+dw changes apply "$(jq -r .change.id <<<"$planned")" --yes || fail "applying the rollback failed"
+runs=$(docker inspect --format '{{.Config.Image}}' "$(moving_id)") || fail "docker inspect failed"
+[[ "$runs" == "$moving@$digest_first" ]] || fail "after the rollback Docker has the image as $runs, want $moving@$digest_first"
+runs=$(docker inspect --format '{{.Image}}' "$(moving_id)") || fail "docker inspect failed"
+[[ "$runs" == "$(image_id_of "$moving_repo@$digest_first")" ]] || fail "after the rollback the container runs $runs, want the first image"
+moving_serves first
+revisions=$(moving_revisions) || fail "services revisions failed"
+jq -e --arg a "$digest_first" '.revisions[0].deployments[0].digest == $a and (.revisions[2].matchesLatest // false)' <<<"$revisions" >/dev/null ||
+  fail "after the rollback, the revisions say: $revisions"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after the rollback: $drift"
+if refused=$(dw services deploy moving --image "$moving@$digest_first" --plan-only 2>&1); then
+  fail "deploying the digest it runs planned: $refused"
+fi
+grep -qF "already runs $moving@$digest_first" <<<"$refused" || fail "deploying the digest it runs said: $refused"
+dw compose export >"$moving_dir/export.yaml" || fail "compose export failed"
+grep -qF "image: $moving@$digest_first" "$moving_dir/export.yaml" || fail "the export has $(cat "$moving_dir/export.yaml")"
+docker compose -f "$moving_dir/export.yaml" config --quiet || fail "docker compose doesn't take the export of a pinned image"
+
+# moving_settled waits for a failed change's rollback to end. That starts just after
+# the failure can be read, so it has to stay quiet for a moment to count.
+moving_settled() {
+  local quiet=0
+  for _ in $(seq 240); do
+    if [[ "$(dw changes list --json | jq '[(.changes // [])[] | select(.state == "CHANGE_STATE_APPLYING")] | length')" == 0 ]]; then
+      quiet=$((quiet + 1))
+      [[ "$quiet" -ge 4 ]] && return 0
+    else
+      quiet=0
+    fi
+    sleep 0.5
+  done
+  fail "a change is still applying after 120 s: $(dw changes list --json)"
+}
+# cant_pull deploys the tag with the registry stopped: it fails saying the fact,
+# what follows and the fix, and what runs goes on as it was.
+cant_pull() {
+  local id started said
+  id=$(moving_id)
+  started=$(moving_started)
+  if said=$(dw services deploy moving --image "$moving" --yes 2>&1); then fail "deploying with the registry stopped applied: $said"; fi
+  grep -qF "can't pull $moving again" <<<"$said" || fail "with the registry stopped, the fact isn't there: $said"
+  grep -qF "so nothing was replaced, and what runs goes on running" <<<"$said" || fail "with the registry stopped, what follows isn't there: $said"
+  grep -qF "Check that its registry answers" <<<"$said" || fail "with the registry stopped, the fix isn't there: $said"
+  moving_settled
+  [[ "$(moving_id)" == "$id" ]] || fail "a pull that failed replaced the container"
+  [[ "$(moving_started)" == "$started" ]] || fail "a pull that failed restarted the container"
+  moving_serves "$1"
+}
+
+step "A moving tag: with its registry gone, a pinned app fails before anything stops, and goes on serving"
+docker stop e2e-registry >/dev/null || fail "can't stop the registry"
+cant_pull first
+
+step "A moving tag: so does one on the tag, and that writes no revision"
+docker start e2e-registry >/dev/null || fail "can't start the registry again"
+registry_up
+dw services deploy moving --image "$moving" --yes || fail "deploying the tag again failed"
+moving_serves second
+written=$(moving_revisions | jq '.revisions | length') || fail "services revisions failed"
+docker stop e2e-registry >/dev/null || fail "can't stop the registry"
+cant_pull second
+[[ "$(moving_revisions | jq '.revisions | length')" == "$written" ]] || fail "a pull that failed wrote a revision: $(moving_revisions)"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after a pull that failed: $drift"
+
+step "A moving tag: with its registry still gone, what isn't running comes back, from what the server has"
+written=$(moving_revisions | jq '.revisions | length') || fail "services revisions failed"
+moving_comes_back() {
+  local said
+  said=$(dw services deploy moving --image "$moving" --yes 2>&1) || fail "bringing back what $1 failed: $said"
+  grep -qF "Can't pull $moving again" <<<"$said" || fail "it doesn't say it couldn't pull: $said"
+  grep -qF "so moving runs the image this server has" <<<"$said" || fail "it doesn't say what it ran: $said"
+  if grep -qF "stays as it is" <<<"$said"; then fail "it says it stays as it is, and it wasn't running: $said"; fi
+  moving_running
+  moving_serves second
+}
+moving_running() {
+  [[ "$(docker inspect --format '{{.State.Running}}' "$(moving_id)")" == true ]] || fail "the app's container isn't running: $(docker ps -a)"
+}
+docker stop --time 1 "$(moving_id)" >/dev/null || fail "can't stop the app's container"
+stopped_id=$(moving_id)
+# A stop by hand isn't drift, so re-importing what's unchanged leaves it stopped. The
+# CLI discards a plan with nothing in it, and says so on standard error.
+exported=$(dw compose export) || fail "compose export failed"
+planned=$(dw compose import --compose "$exported" --plan-only --json 2>"$moving_dir/import.err") ||
+  fail "re-importing the export failed: $(cat "$moving_dir/import.err")"
+grep -q 'Nothing to change' "$moving_dir/import.err" || fail "re-importing what's unchanged didn't say so: $(cat "$moving_dir/import.err")"
+jq -e '[(.change.plan.servers // [])[].steps[]?] | length == 0' <<<"$planned" >/dev/null || fail "re-importing what's unchanged plans steps: $planned"
+[[ "$(moving_id)" == "$stopped_id" && "$(docker inspect --format '{{.State.Running}}' "$stopped_id")" == false ]] || fail "re-importing what's unchanged started what's stopped"
+# Asked to run it, the plan says it starts it, and nothing of a newer image.
+planned=$(dw services deploy moving --image "$moving" --plan-only --json 2>/dev/null) || fail "planning the deploy of a stopped container failed"
+jq -e '.change.plan.servers[0].steps[0].changes | any(.path == "state" and .from == "exited" and .to == "running")' <<<"$planned" >/dev/null ||
+  fail "the plan's step doesn't start what's stopped: $planned"
+jq -e '.change.plan.notes | any(.reason == "starts_stopped" and .message == "moving is stopped, so this starts it") and all(.reason != "pulls_again")' <<<"$planned" >/dev/null ||
+  fail "the plan doesn't say it starts what's stopped: $planned"
+dw changes discard "$(jq -r .change.id <<<"$planned")" >/dev/null || fail "changes discard failed"
+moving_comes_back "was stopped"
+docker rm --force "$(moving_id)" >/dev/null || fail "can't remove the app's container"
+moving_comes_back "was removed"
+[[ "$(moving_revisions | jq '.revisions | length')" == "$written" ]] || fail "bringing back the same image wrote a revision: $(moving_revisions)"
+
+step "A moving tag: with its registry back, a deploy and a rollback each replace what's stopped, and it runs"
+docker start e2e-registry >/dev/null || fail "can't start the registry again"
+registry_up
+docker stop --time 1 "$(moving_id)" >/dev/null || fail "can't stop the app's container"
+before=$(moving_id)
+said=$(dw services deploy moving --image "$moving" --yes 2>&1) || fail "deploying what's stopped failed: $said"
+if grep -qF "stays as it is" <<<"$said"; then fail "it says it stays as it is, and it wasn't running: $said"; fi
+[[ "$(moving_id)" != "$before" ]] || fail "what's stopped wasn't replaced"
+moving_running
+moving_serves second
+docker stop --time 1 "$(moving_id)" >/dev/null || fail "can't stop the app's container"
+same=$(moving_revisions | jq -r '[.revisions[1:][] | select(.matchesLatest)][0].number') || fail "services revisions failed"
+[[ "$same" != null ]] || fail "no revision matches the latest: $(moving_revisions)"
+said=$(dw services rollback moving --revision "$same" --yes 2>&1) || fail "rolling back what's stopped was refused: $said"
+moving_running
+moving_serves second
+[[ "$(moving_revisions | jq '.revisions | length')" == "$written" ]] || fail "starting it again wrote a revision: $(moving_revisions)"
+
+step "A moving tag: killed in the middle of a pull, the deploy finishes when Dockwell starts again"
+digest_third=$(build_and_push third)
+[[ "$digest_third" == sha256:* && "$digest_third" != "$digest_second" ]] || fail "pushing the third image said its digest is '$digest_third'"
+docker tag "$moving_repo@$digest_second" "$moving" || fail "can't put the tag back on the second image"
+docker rmi e2e-moving:third "$moving_repo@$digest_third" >/dev/null || fail "can't remove the third image here"
+before=$(moving_id)
+planned=$(dw services deploy moving --image "$moving" --plan-only --json 2>/dev/null) || fail "planning the deploy failed"
+change=$(jq -r .change.id <<<"$planned")
+# A paused registry holds the pull where it is, for Docker's 15 s or so.
+docker pause e2e-registry >/dev/null || fail "can't pause the registry"
+dw changes apply "$change" --yes >/dev/null 2>&1 &
+applying=$!
+for _ in $(seq 100); do
+  [[ "$(dw changes get "$change" --json 2>/dev/null | jq -r '.change.steps[0].state // empty')" == STEP_STATE_RUNNING ]] && break
+  sleep 0.1
+done
+[[ "$(dw changes get "$change" --json | jq -r '.change.steps[0].state // empty')" == STEP_STATE_RUNNING ]] ||
+  fail "the deploy never reached its pull: $(dw changes get "$change" --json)"
+kill_dockwell
+wait "$applying" 2>/dev/null || true
+docker unpause e2e-registry >/dev/null || fail "can't unpause the registry"
+[[ "$(moving_id)" == "$before" ]] || fail "with Dockwell killed in the pull, the container was replaced"
+moving_serves second
+start_dockwell
+wait_for_dockwell
+for _ in $(seq 240); do
+  state=$(dw changes get "$change" --json | jq -r .change.state) || fail "changes get failed"
+  [[ "$state" != CHANGE_STATE_APPLYING ]] && break
+  sleep 0.5
+done
+[[ "$state" == CHANGE_STATE_APPLIED ]] || fail "after starting again, the deploy is $state: $(dw changes get "$change" --json)"
+[[ "$(moving_id)" != "$before" ]] || fail "the deploy reads applied, and the old container still runs"
+moving_running
+moving_serves third
+runs=$(docker inspect --format '{{.Image}}' "$(moving_id)") || fail "docker inspect failed"
+[[ "$runs" == "$(image_id_of "$moving_repo@$digest_third")" ]] || fail "the container runs $runs, want the third image"
+revisions=$(moving_revisions) || fail "services revisions failed"
+jq -e --arg written "$written" --arg third "$digest_third" --arg second "$digest_second" \
+  '(.revisions | length) == (($written | tonumber) + 1) and .revisions[0].deployments[0].digest == $third and .revisions[0].deployments[0].state == "DEPLOYMENT_STATE_LIVE" and .revisions[1].deployments[0].digest == $second' \
+  <<<"$revisions" >/dev/null || fail "the revisions don't say what happened, once: $revisions"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after starting again: $drift"
+
+step "A moving tag: leaving a pin with nothing newer replaces the container, and says it will"
+dw services deploy moving --image "$moving@$digest_third" --yes >/dev/null || fail "pinning the third image failed"
+[[ "$(docker inspect --format '{{.Config.Image}}' "$(moving_id)")" == "$moving@$digest_third" ]] || fail "the app isn't pinned: $(docker ps -a)"
+before=$(moving_id)
+planned=$(dw services deploy moving --image "$moving" --plan-only --json 2>/dev/null) || fail "planning the deploy failed"
+jq -e '.change.plan.notes | any(.reason == "leaves_pin") and all(.reason != "pulls_again")' <<<"$planned" >/dev/null || fail "the plan claims what it can't: $planned"
+change=$(jq -r .change.id <<<"$planned")
+read_plan=$(dw changes get "$change") || fail "changes get failed"
+grep -qF "in place of the digest it's pinned to" <<<"$read_plan" || fail "the plan doesn't say it leaves the pin: $read_plan"
+if grep -qE "if newer|only if" <<<"$read_plan"; then fail "the plan says it may not replace: $read_plan"; fi
+said=$(dw changes apply "$change" --yes 2>&1) || fail "leaving the pin failed: $said"
+if grep -qE "stays as it is|already the newest" <<<"$said"; then fail "it was replaced, and it says: $said"; fi
+moving_did "$change" PLAN_ACTION_REPLACE
+[[ "$(moving_id)" != "$before" ]] || fail "the container still names the pin"
+moving_running
+moving_serves third
+
+dw services delete moving --yes || fail "services delete moving failed"
+[[ -z "$(docker ps -aq --filter label=com.docker.compose.service=moving)" ]] || fail "deleting the app left its container"
+moving_tidy
+
 step "Ingress: Pebble, Let's Encrypt's test CA, on this machine"
 in_ingress=1
 tools=$("$(dirname "$0")/ingress-tools.sh" "$tools") || fail "can't get Caddy and Pebble"
@@ -400,23 +754,6 @@ done
 curl -fsS --cacert "$pebble_dir/cert.pem" https://localhost:14000/dir >/dev/null || fail "Pebble didn't answer within 10 s"
 
 listening() { [[ -n "$(ss -H -ltn "sport = :$1")" ]]; }
-stop_dockwell() {
-  priv kill "$pid"
-  wait "$pid" 2>/dev/null || true
-  # Everything that says "with Dockwell down" depends on this.
-  if curl -fsS --max-time 2 "http://$addr/healthz" >/dev/null 2>&1; then fail "Dockwell still answers after it was stopped"; fi
-  connected=$(grep -c 'connected to the control plane' "$log" || true)
-}
-# wait_for_dockwell waits for what stop_dockwell stopped to answer, and for its
-# agent to connect, which every plan needs.
-wait_for_dockwell() {
-  for _ in $(seq 300); do
-    curl -fsS "http://$addr/healthz" >/dev/null 2>&1 &&
-      [[ "$(grep -c 'connected to the control plane' "$log")" -gt "$connected" ]] && return 0
-    sleep 0.1
-  done
-  fail "Dockwell didn't come back within 30 s"
-}
 if listening 80 || listening 443; then
   fail "something on this machine already holds port 80 or 443, so the ingress's part can't run. Stop it, and run this again"
 fi
@@ -1185,7 +1522,7 @@ networks:
     external: true
 EOF
 printf 'CPUS=0.50\nMEMORY_LIMIT=64M\nHOST_IP=\nPANEL_APP_PORT_HTTP=%s\n' "$real_port" >"$data/real.env"
-import_real() { dw compose import --compose "$(cat "$data/real.yaml")" --env-file "$data/real.env" --directory "$real_dir" --environment real "$@"; }
+import_real() { dw compose import --compose "$(cat "$data/real.yaml")" --env-file "$data/real.env" --directory "$real_dir" --project default --environment real "$@"; }
 
 planned=$(import_real --plan-only --json) || fail "importing the file failed"
 change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import printed what isn't JSON: $planned"
@@ -1243,7 +1580,7 @@ listed=$(docker compose -f "$data/real-export.yaml" ps --format '{{.Service}}') 
 step "Another project on the network reaches it by name, and can't take that name"
 docker tag nginx:1.27-alpine e2e-local-only:1 || fail "docker tag failed"
 other_file=$(printf 'services:\n  client:\n    image: e2e-local-only:1\n    build: .\n    networks: [e2e-edge]\nnetworks:\n  e2e-edge:\n    external: true\n')
-planned=$(dw compose import --compose "$other_file" --environment other --plan-only --json) || fail "importing a local-only image failed"
+planned=$(dw compose import --compose "$other_file" --project default --environment other --plan-only --json) || fail "importing a local-only image failed"
 change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import printed what isn't JSON: $planned"
 token_refused "$change"
 person_apply "$change"
@@ -1255,19 +1592,19 @@ page=$(docker exec "$client" wget -q -O - -T 5 http://e2e-storefront/) || fail "
 page=$(docker exec "$shop" wget -q -O - -T 5 http://client/) || fail "shop can't reach client by its name on e2e-edge"
 [[ "$page" == *nginx* ]] || fail "shop reached something other than client: ${page:0:300}"
 clash=$(printf 'services:\n  clash:\n    image: nginx:1.27-alpine\n    container_name: e2e-storefront\n    networks: [e2e-edge]\nnetworks:\n  e2e-edge:\n    external: true\n')
-if out=$(dw compose import --compose "$clash" --environment other --plan-only 2>&1); then
+if out=$(dw compose import --compose "$clash" --project default --environment other --plan-only 2>&1); then
   fail "a second container answering to e2e-storefront on e2e-edge was planned: ${out:0:300}"
 fi
 [[ "$out" == *"already does"* ]] || fail "a name another has failed some other way: ${out:0:300}"
 
 step "What isn't on the server is refused as it plans, by name"
 missing=$(printf 'services:\n  gone:\n    image: nginx:1.27-alpine\n    networks: [e2e-missing]\nnetworks:\n  e2e-missing:\n    external: true\n')
-if out=$(dw compose import --compose "$missing" --environment other --plan-only 2>&1); then
+if out=$(dw compose import --compose "$missing" --project default --environment other --plan-only 2>&1); then
   fail "a network the server hasn't got was planned: ${out:0:300}"
 fi
 [[ "$out" == *"the network e2e-missing isn't on this server"* ]] || fail "a missing network failed some other way: ${out:0:300}"
 nothing=$(printf 'services:\n  gone:\n    image: dockwell-e2e-no-such-image:1\n    build: .\n')
-if out=$(dw compose import --compose "$nothing" --environment other --plan-only 2>&1); then
+if out=$(dw compose import --compose "$nothing" --project default --environment other --plan-only 2>&1); then
   fail "an image no one has was planned: ${out:0:300}"
 fi
 [[ "$out" == *"won't give it to a pull"* ]] || fail "an image no one has failed some other way: ${out:0:300}"
@@ -1300,7 +1637,7 @@ services:
         sed -i -E '/\[::\]:80;/d; s/listen +80;/listen 127.0.0.1:$on_host_port;/' /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'
 EOF
 )
-planned=$(dw compose import --compose "$on_host_file" --environment real --plan-only --json) || fail "importing a service on the server's own network failed"
+planned=$(dw compose import --compose "$on_host_file" --project default --environment real --plan-only --json) || fail "importing a service on the server's own network failed"
 on_host_change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import printed what isn't JSON: $planned"
 [[ "$on_host_change" == chg_* ]] || fail "compose import planned no change: $planned"
 person_apply "$on_host_change"
@@ -1349,6 +1686,45 @@ if docker inspect "$client" >/dev/null 2>&1; then fail "the undo left $client"; 
 dw services delete shop --environment real --yes >/dev/null || fail "services delete shop failed"
 if docker inspect "$shop" >/dev/null 2>&1; then fail "deleting shop left $shop"; fi
 docker network inspect e2e-edge >/dev/null || fail "the undo or the deletion took the network e2e-edge, which Dockwell didn't make"
+
+# Last of what names a project: its projects stay, as nothing deletes one, and
+# with more than one, everything that names none is refused for not saying which.
+step "Two Compose files with a service of one name run side by side"
+# With nothing to say where it goes, a file is refused now the default project
+# has what it would change.
+dw services create keeper --environment production --app-image nginx:1.27-alpine --yes || fail "services create keeper failed"
+if out=$(dw compose import --compose "services: {keeper: {image: nginx:1.28-alpine}}" --environment production --yes 2>&1); then
+  fail "a file with no name was imported into a project with apps: $out"
+fi
+grep -q "names no project" <<<"$out" || fail "a file with no name was refused saying: $out"
+named_file() { printf 'name: %s\nservices:\n  db:\n    image: %s\n' "$1" "$2"; }
+dw compose import --compose "$(named_file blog nginx:1.27-alpine)" --yes || fail "importing blog failed"
+dw compose import --compose "$(named_file wiki nginx:1.28-alpine)" --yes || fail "importing wiki failed"
+dbs=$(docker ps --filter label=com.docker.compose.service=db --format '{{.Names}} {{.Image}} {{.Networks}}') || fail "docker ps failed"
+[[ "$(wc -l <<<"$dbs")" == 2 ]] || fail "Docker runs these dbs, want two: $dbs"
+project_of() { docker ps --filter label=com.docker.compose.service=db --filter "ancestor=$1" --format '{{.Label "com.docker.compose.project"}}'; }
+blog_project=$(project_of nginx:1.27-alpine) || fail "docker ps failed"
+wiki_project=$(project_of nginx:1.28-alpine) || fail "docker ps failed"
+extra_projects="$blog_project $wiki_project"
+[[ -n "$blog_project" && -n "$wiki_project" && "$blog_project" != "$wiki_project" ]] ||
+  fail "the two files' dbs are in projects '$blog_project' and '$wiki_project', want one each"
+members=$(docker network inspect --format '{{range .Containers}}{{.Name}} {{end}}' "${blog_project}_default") ||
+  fail "blog has no network of its own"
+[[ "$members" != *"$wiki_project"* ]] || fail "wiki's db is on blog's network: $members"
+docker network inspect "${wiki_project}_default" >/dev/null || fail "wiki has no network of its own"
+listed=$(docker compose -p "$blog_project" ps --format '{{.Service}}') || fail "docker compose -p $blog_project ps failed"
+[[ "$listed" == db ]] || fail "docker compose lists '$listed' in blog's project, want db"
+# Naming one again updates it, and doesn't touch the other.
+wiki_state() { docker inspect --format '{{.Id}} {{.Config.Image}} {{.State.StartedAt}}' "${wiki_project}-db-1"; }
+wiki_before=$(wiki_state) || fail "wiki's db isn't called ${wiki_project}-db-1"
+dw compose import --compose "$(named_file blog nginx:1.28-alpine)" --yes || fail "importing blog again failed"
+again=$(docker ps --filter "label=com.docker.compose.project=$blog_project" --format '{{.Image}}') || fail "docker ps failed"
+[[ "$again" == nginx:1.28-alpine ]] || fail "after importing blog again, its db runs '$again'"
+wiki_after=$(wiki_state) || fail "after importing blog again, wiki's db is gone"
+[[ "$wiki_after" == "$wiki_before" ]] || fail "importing blog again touched wiki's db: $wiki_before, then $wiki_after"
+dw services delete db --project blog --yes || fail "deleting blog's db failed"
+dw services delete db --project wiki --yes || fail "deleting wiki's db failed"
+dw services delete keeper --project default --environment production --yes || fail "deleting keeper failed"
 
 step "The agent build joins, and runs a container"
 made=$(dw token create 2>>"$log") || fail "dockwell token create failed"

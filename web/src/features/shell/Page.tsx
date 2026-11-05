@@ -9,11 +9,13 @@ import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import { useOpenCommandBar } from "./CommandMenu";
 import "./Page.css";
 
-type Back = "/" | "/more" | "/servers";
+type Back = "/" | "/more" | "/servers" | "/apps";
 
 export interface PageProps {
   /** The page's name: its heading, and the start of the document title. */
   title: string;
+  /** Above the title on wide screens: where the page sits, such as "Apps / api". */
+  breadcrumb?: ReactNode;
   /** Sets the title in mono, for machine names such as a server's. */
   machineTitle?: boolean;
   /** Next to the title on wide screens, such as a role tag. */
@@ -43,6 +45,7 @@ export interface PageProps {
  */
 export function Page({
   title,
+  breadcrumb,
   machineTitle = false,
   badge,
   lead,
@@ -77,6 +80,7 @@ export function Page({
         ) : (
           <div className="page-head">
             <div className="page-heading">
+              {breadcrumb}
               <div className="page-title-row">
                 <h1 className={cx("dw-text-title", "page-title", machineTitle && "is-machine")}>{title}</h1>
                 {badge}
