@@ -615,11 +615,13 @@ moving_running() {
 }
 docker stop --time 1 "$(moving_id)" >/dev/null || fail "can't stop the app's container"
 stopped_id=$(moving_id)
-# A stop by hand isn't drift, so re-importing what's unchanged leaves it stopped.
+# A stop by hand isn't drift, so re-importing what's unchanged leaves it stopped. The
+# CLI discards a plan with nothing in it, and says so on standard error.
 exported=$(dw compose export) || fail "compose export failed"
-planned=$(dw compose import --compose "$exported" --plan-only --json 2>/dev/null) || fail "re-importing the export failed"
+planned=$(dw compose import --compose "$exported" --plan-only --json 2>"$moving_dir/import.err") ||
+  fail "re-importing the export failed: $(cat "$moving_dir/import.err")"
+grep -q 'Nothing to change' "$moving_dir/import.err" || fail "re-importing what's unchanged didn't say so: $(cat "$moving_dir/import.err")"
 jq -e '[(.change.plan.servers // [])[].steps[]?] | length == 0' <<<"$planned" >/dev/null || fail "re-importing what's unchanged plans steps: $planned"
-dw changes discard "$(jq -r .change.id <<<"$planned")" >/dev/null || fail "changes discard failed"
 [[ "$(moving_id)" == "$stopped_id" && "$(docker inspect --format '{{.State.Running}}' "$stopped_id")" == false ]] || fail "re-importing what's unchanged started what's stopped"
 # Asked to run it, the plan says it starts it, and nothing of a newer image.
 planned=$(dw services deploy moving --image "$moving" --plan-only --json 2>/dev/null) || fail "planning the deploy of a stopped container failed"
