@@ -251,10 +251,12 @@ export function LogStream({
   const rows = useRef(new Map<number, HTMLDivElement>());
   const [expanded, setExpanded] = useState<ReadonlySet<string | number>>(new Set());
   // The line tapped or clicked, for a finger, which has nothing to hover with, and
-  // the one pointed at. A line's actions are drawn only for these and the current
-  // line, as a flood draws every row anew many times a second.
+  // the one pointed at. A line's actions are drawn only for these, the current
+  // line and the one holding the keyboard's focus, as a flood draws every row anew
+  // many times a second.
   const [activeLine, setActiveLine] = useState<string | number | undefined>(undefined);
   const [pointedLine, setPointedLine] = useState<string | number | undefined>(undefined);
+  const [focusedLine, setFocusedLine] = useState<string | number | undefined>(undefined);
   const rowsBox = useRef<HTMLDivElement>(null);
   // A position to bring into view, which holds until its row has been measured.
   const wanted = useRef<number | undefined>(undefined);
@@ -445,6 +447,14 @@ export function LogStream({
     if (line?.id !== undefined) anchor.current = { id: line.id, into: now - index.current.offset(atTop) };
   };
   useEffect(() => () => cancelAnimationFrame(scrolling.current), []);
+  // A line the keyboard is on can leave the view or the store, and its buttons with
+  // it. The reader's place then stays with the log, not at the top of the page.
+  useLayoutEffect(() => {
+    if (focusedLine !== undefined && document.activeElement === document.body) {
+      setFocusedLine(undefined);
+      body.current?.focus({ preventScroll: true });
+    }
+  });
 
   // Going up by wheel, key or touch stops following before the next line can pull
   // the reader back down.
@@ -572,7 +582,7 @@ export function LogStream({
           actions={
             actions &&
             line.id !== undefined &&
-            (line.id === current || line.id === activeLine || line.id === pointedLine)
+            (line.id === current || line.id === activeLine || line.id === pointedLine || line.id === focusedLine)
               ? actions
               : undefined
           }
@@ -662,6 +672,13 @@ export function LogStream({
             setActiveLine(line?.id);
           }}
           onCopy={onCopy}
+          onFocus={(e) => {
+            const row = (e.target as Element).closest<HTMLElement>(".dw-log-row");
+            setFocusedLine(row ? lines.at(Number(row.dataset["position"]))?.id : undefined);
+          }}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) setFocusedLine(undefined);
+          }}
           onPointerOver={(e) => {
             if (!actions || e.pointerType === "touch") return;
             const row = (e.target as Element).closest<HTMLElement>(".dw-log-row");

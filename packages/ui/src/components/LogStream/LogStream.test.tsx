@@ -408,6 +408,24 @@ describe("LogStream", () => {
     expect(container.querySelector("mark.is-current")).toHaveTextContent("slow");
   });
 
+  it("keeps a line's actions under the keyboard, and the focus in the log when the line goes", () => {
+    const actions = () => <button type="button">Copy this line</button>;
+    const log = (shown: LogLine[], current?: number) => (
+      <LogStream title="Logs" lines={shown} current={current} actions={actions} />
+    );
+    const { rerender } = render(log(lines, 3));
+    const button = screen.getByRole("button", { name: "Copy this line" });
+    act(() => button.focus());
+
+    // It is no longer the line being read, but the keyboard is still on it.
+    rerender(log(lines));
+    expect(screen.getByRole("button", { name: "Copy this line" })).toHaveFocus();
+
+    rerender(log(lines.slice(0, 2)));
+    expect(screen.queryByRole("button", { name: "Copy this line" })).toBeNull();
+    expect(screen.getByRole("log")).toHaveFocus();
+  });
+
   it("brings a line into view, and stops following", () => {
     const onFollowChange = vi.fn();
     const handle = createRef<LogStreamHandle>();

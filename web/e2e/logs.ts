@@ -512,6 +512,9 @@ async function main() {
 
   step("the keyboard scrolls, stops following and goes back to it");
   await page.goto(url);
+  // Off the log, as a line under the pointer draws its actions, and they take a Tab of their own.
+  await page.mouse.move(0, 0);
+  await logBody(page).locator(".dw-log-row").first().waitFor({ timeout: 10_000 });
   await logBody(page).focus();
   const ring = await logBody(page).evaluate((el) => getComputedStyle(el).boxShadow);
   await page.keyboard.press("Tab");
@@ -641,7 +644,11 @@ async function main() {
   const typed = Date.now();
   await search.fill("products/4242 ");
   // It really is at the limit: the figures above are worth nothing otherwise.
-  await page.getByText(/of the 100,000 lines loaded match/).waitFor({ timeout: 10_000 });
+  // Whichever it says, by how far back the newest 100,000 reach: of them, or none in them.
+  await page
+    .getByText(/(of|in) the 100,000 lines loaded/)
+    .first()
+    .waitFor({ timeout: 10_000 });
   step(
     `  a search over all of them, from typing to the answer (120 ms of that waits for the next key): ${Date.now() - typed} ms`,
   );
