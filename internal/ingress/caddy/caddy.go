@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/ingress"
@@ -139,6 +140,9 @@ type Caddy struct {
 	// procNetTCP is where the server's connections are read. Empty means
 	// /proc/net/tcp.
 	procNetTCP string
+	// adminUIDForTest replaces the user the admin socket must answer as, in
+	// tests, which run Caddy as their own user.
+	adminUIDForTest *int
 
 	once  sync.Once
 	admin *http.Client
@@ -180,12 +184,56 @@ func (c *Caddy) client() *http.Client {
 		c.admin = &http.Client{Transport: &http.Transport{
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 				var d net.Dialer
-				return d.DialContext(ctx, "unix", socket)
+				conn, err := d.DialContext(ctx, "unix", socket)
+				if err != nil {
+					return nil, err
+				}
+				if err := c.answersAsProxy(conn, socket); err != nil {
+					_ = conn.Close()
+					return nil, err
+				}
+				return conn, nil
 			},
 			MaxIdleConns: 1, IdleConnTimeout: 5 * time.Second,
 		}}
 	})
 	return c.admin
+}
+
+// answersAsProxy checks that what answers on the admin socket is a process of
+// Caddy's user. The socket is in Caddy's run directory, which is Caddy's to
+// write, and connect follows a link, so a compromised Caddy could leave one there
+// to any unix socket on the server, such as Docker's, and have root send it
+// requests. The kernel's word on who is at the other end of the connection is
+// what no link changes.
+func (c *Caddy) answersAsProxy(conn net.Conn, socket string) error {
+	want, _, _ := proxyUser()
+	if c.adminUIDForTest != nil {
+		want = *c.adminUIDForTest
+	}
+	unix, ok := conn.(*net.UnixConn)
+	if !ok {
+		return fmt.Errorf("the admin socket at %s isn't a unix socket", socket)
+	}
+	raw, err := unix.SyscallConn()
+	if err != nil {
+		return fmt.Errorf("can't tell who answers on the admin socket at %s: %w", socket, err)
+	}
+	var cred *syscall.Ucred
+	var credErr error
+	if err := raw.Control(func(fd uintptr) {
+		cred, credErr = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+	}); err != nil {
+		return fmt.Errorf("can't tell who answers on the admin socket at %s: %w", socket, err)
+	}
+	if credErr != nil {
+		return fmt.Errorf("can't tell who answers on the admin socket at %s: %w", socket, credErr)
+	}
+	if int(cred.Uid) != want {
+		return fmt.Errorf("the admin socket at %s answers as uid %d, not as Caddy's user, %d, so the agent doesn't use it, and treats Caddy as down: something other than Caddy left what stands there, such as a link to another socket. Remove it, restart Caddy with docker restart %s, and look at what else is in that directory",
+			socket, cred.Uid, want, ingress.ContainerName)
+	}
+	return nil
 }
 
 // errDown is Caddy's admin API not answering, as it isn't running.
@@ -811,6 +859,24 @@ func EnsureDirs(dir string) error {
 	}
 	if err := os.Chmod(boot, 0o755); err != nil { //nolint:gosec // as above
 		return fmt.Errorf("can't open %s to Caddy's user: %w", boot, err)
+	}
+	return nil
+}
+
+// ClearSocket removes whatever stands where the panel's socket goes, so the panel
+// can listen there. Its directory is Caddy's, so that may be anything: a socket
+// left from the last start, a link, or a directory with something in it, which
+// would otherwise stop the control plane starting, and with it the SSH tunnel
+// that reaches the panel when the ingress is down. Nothing is followed out of the
+// directory.
+func ClearSocket(path string) error {
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return fmt.Errorf("can't reach the panel's socket: %w", err)
+	}
+	defer root.Close()
+	if err := root.RemoveAll(filepath.Base(path)); err != nil {
+		return fmt.Errorf("can't replace the panel's socket at %s: %w. Remove what stands there, and start Dockwell again", path, err)
 	}
 	return nil
 }
@@ -2068,7 +2134,9 @@ func (c *Caddy) issued(domain string) (time.Time, bool) {
 	}
 	defer root.Close()
 	const certificates = "caddy/certificates"
-	dir, err := root.Open(certificates)
+	// Never waiting on a FIFO Caddy left there, which would hold up the agent with
+	// its lock held, and again after every restart.
+	dir, err := root.OpenFile(certificates, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_DIRECTORY, 0)
 	if err != nil {
 		return best, false
 	}

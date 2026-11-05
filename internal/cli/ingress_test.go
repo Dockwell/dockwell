@@ -97,6 +97,52 @@ func TestRunLeavesThePortsToItsProxy(t *testing.T) {
 	}
 }
 
+// The panel's socket is in a directory Caddy owns, so a compromised Caddy can
+// leave anything at its name. None of it may stop the control plane starting, as
+// that takes the SSH tunnel to the panel with it, and none of it is followed.
+func TestWhatStandsAtThePanelsSocketDoesntStopTheControlPlane(t *testing.T) {
+	dir, err := os.MkdirTemp("", "dws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	d := datadir.Dir{Root: dir}
+	if err := caddy.EnsureDirs(d.Ingress()); err != nil {
+		t.Fatal(err)
+	}
+	path := caddy.PanelSocket(d.Ingress())
+	outside := t.TempDir()
+	kept := filepath.Join(outside, "kept")
+	if err := os.WriteFile(kept, []byte("root's"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for name, leave := range map[string]func() error{
+		"a directory with something in it": func() error {
+			if err := os.MkdirAll(filepath.Join(path, "deeper"), 0o700); err != nil {
+				return err
+			}
+			return os.WriteFile(filepath.Join(path, "deeper", "file"), nil, 0o600)
+		},
+		"a link to a directory outside": func() error { return os.Symlink(outside, path) },
+		"a file":                        func() error { return os.WriteFile(path, nil, 0o600) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := leave(); err != nil {
+				t.Fatal(err)
+			}
+			ln, err := listenForIngress(t.Context(), d)
+			if err != nil {
+				t.Fatalf("with %s at the panel's socket, the control plane can't start: %v", name, err)
+			}
+			_ = ln.Close()
+			if _, err := os.Stat(kept); err != nil {
+				t.Errorf("what a link led to went: %v", err)
+			}
+			_ = os.RemoveAll(path)
+		})
+	}
+}
+
 // anAgent applies anything, as what is read is the store.
 type anAgent struct{}
 

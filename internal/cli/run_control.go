@@ -391,8 +391,8 @@ func listenForIngress(ctx context.Context, dir datadir.Dir) (net.Listener, error
 		return nil, err
 	}
 	path := caddy.PanelSocket(dir.Ingress())
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("can't replace the panel's socket at %s: %w", path, err)
+	if err := caddy.ClearSocket(path); err != nil {
+		return nil, err
 	}
 	var lc net.ListenConfig
 	ln, err := lc.Listen(ctx, "unix", path)

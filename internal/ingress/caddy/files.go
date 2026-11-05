@@ -191,7 +191,7 @@ func writeIn(dir, name string, b []byte, mode os.FileMode, who owner) error {
 		_ = root.Remove(tmp)
 		return err
 	}
-	if d, err := root.Open(parent); err == nil {
+	if d, err := root.OpenFile(parent, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_DIRECTORY, 0); err == nil {
 		_ = d.Sync()
 		_ = d.Close()
 	}

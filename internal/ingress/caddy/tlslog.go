@@ -27,12 +27,14 @@ type logReader struct {
 }
 
 // Bounds on what the log costs to read, as it is in Caddy's directory, and a
-// compromised Caddy can write anything there: what one read takes, and how many
-// names it remembers. Caddy rolls the log at 1 MB, and a server has at most
-// ingress.MaxRoutes of them.
+// compromised Caddy can write anything there: what one read takes, how many
+// names it remembers, and how long a name can be. Caddy rolls the log at 1 MB, a
+// server has at most ingress.MaxRoutes of them, and none is longer than DNS
+// allows, so what it remembers stays under 1 MB.
 const (
 	logReadLimit = 4 << 20
 	logNames     = 4096
+	logNameBytes = 253
 )
 
 // read takes what is new in the log at path. It reads a regular file only,
@@ -89,7 +91,7 @@ func (l *logReader) take(line []byte) {
 		Identifier string `json:"identifier"`
 		Error      string `json:"error"`
 	}
-	if json.Unmarshal(line, &e) != nil || e.Identifier == "" {
+	if json.Unmarshal(line, &e) != nil || e.Identifier == "" || len(e.Identifier) > logNameBytes {
 		return
 	}
 	if l.last == nil || len(l.last) >= logNames {
