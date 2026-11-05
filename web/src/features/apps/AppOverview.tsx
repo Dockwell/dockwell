@@ -134,7 +134,10 @@ function HealthNotice({
           title={fleet ? t`${name} isn't running on ${where}` : t`${name} isn't running`}
           actions={logs}
         >
-          {restart === RestartPolicy.ALWAYS || restart === RestartPolicy.UNLESS_STOPPED ? (
+          {/* What says none gets unless-stopped, as its Restarts row says. */}
+          {restart === RestartPolicy.ALWAYS ||
+          restart === RestartPolicy.UNLESS_STOPPED ||
+          restart === RestartPolicy.UNSPECIFIED ? (
             <Trans>
               Docker restarts it only when it stops on its own, so someone stopped it. Restart it, or deploy.
             </Trans>

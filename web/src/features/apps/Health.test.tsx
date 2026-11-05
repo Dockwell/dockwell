@@ -13,6 +13,7 @@ import {
   HealthState,
   type ListEventsRequest,
   PlanAction,
+  RestartPolicy,
   type RestartServiceRequest,
   type WatchChangeResponse,
   type WatchEventsResponse,
@@ -196,6 +197,32 @@ describe("the list's order", () => {
     const apps = ["svc-10", "svc-2", "svc-1"].map((n) => anApp(n, "nginx:1.27", {}, at));
     renderAt("/apps", api(apps, running(...apps)));
     await waitFor(() => expect(rowNames()).toEqual(["svc-1", "svc-2", "svc-10"]));
+  });
+});
+
+describe("an app that isn't running", () => {
+  it.each([
+    [RestartPolicy.UNLESS_STOPPED, "Docker restarts it only when it stops on its own, so someone stopped it."],
+    [RestartPolicy.UNSPECIFIED, "Docker restarts it only when it stops on its own, so someone stopped it."],
+    [RestartPolicy.ALWAYS, "Docker restarts it only when it stops on its own, so someone stopped it."],
+    [RestartPolicy.ON_FAILURE, "Docker restarts it only when it exits with an error, and doesn't now."],
+    [RestartPolicy.NO, "Nothing starts it again on its own."],
+  ])("says what follows from its restart policy, %s, beside what its Restarts row says", async (restart, says) => {
+    const app = anApp("web", "ghcr.io/acme/web:1.5", { restart });
+    const { container } = renderAt("/apps/svc_web", api([app], reading({ state: HealthState.NOT_RUNNING })));
+    await waitFor(() => expect(container.querySelector(".dw-callout")).toHaveTextContent("web isn't running"));
+    expect(container.querySelector(".dw-callout")).toHaveTextContent(says);
+    expect(container.querySelector(".dw-callout")).toHaveTextContent("Restart it, or deploy.");
+  });
+
+  it("doesn't say there's no check, as nothing runs to say", async () => {
+    renderAt(
+      "/apps/svc_web",
+      api([web], reading({ state: HealthState.NOT_RUNNING, check: HealthCheckKind.UNSPECIFIED })),
+    );
+    const config = await screen.findByRole("region", { name: "Configuration" });
+    await waitFor(() => expect(config).toHaveTextContent("None set here. The image may have one."));
+    expect(config).not.toHaveTextContent("Running only means it started");
   });
 });
 

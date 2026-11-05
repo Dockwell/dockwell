@@ -28,6 +28,8 @@ export interface HealthFlowOptions {
   env: NodeJS.ProcessEnv;
   browser: Browser;
   context: BrowserContext;
+  /** Makes Docker stop answering, as a hung daemon does, and returns what makes it answer again. Only a fake can. */
+  hangDocker?: () => () => void;
 }
 
 function fail(message: string): never {
@@ -57,7 +59,7 @@ async function apply(page: Page) {
 }
 
 export async function healthFlow(page: Page, options: HealthFlowOptions) {
-  const { origin, step, shoot, docker, socket, fake, bin, data, env, browser, context } = options;
+  const { origin, step, shoot, docker, socket, fake, bin, data, env, browser, context, hangDocker } = options;
   const cleanUp: (() => void)[] = [];
   const only = async (service: string) => {
     const all = (await docker()).filter((c) => c.service === service);
@@ -149,6 +151,9 @@ export async function healthFlow(page: Page, options: HealthFlowOptions) {
   const restart = page.getByRole("dialog", { name: "Review plan" });
   await restart.waitFor({ timeout: 30_000 });
   await restart.getByText("A restart has no undo, as it changes nothing to go back to.").waitFor();
+  // What it restarts counts as that, not as a replace.
+  await restart.locator(".dw-plan-counts").getByText("to restart").waitFor();
+  if ((await restart.innerText()).includes("to replace")) fail("a restart's plan counts it as a replace");
   await shoot(page, "health-restart-plan");
   await restart.getByRole("button", { name: /Apply plan/ }).click();
   await page.getByRole("button", { name: /^Done/ }).click({ timeout: 90_000 });
@@ -229,6 +234,8 @@ services:
     .getByRole("region", { name: "What runs" })
     .getByText(/exit code 137/)
     .waitFor();
+  // What follows is the restart policy's: plain has none, so nothing starts it again.
+  await page.locator(".dw-callout").getByText("Nothing starts it again on its own. Restart it, or deploy.").waitFor();
 
   step("health: it reads in Chinese too");
   const zh = await browser.newContext({
@@ -306,6 +313,10 @@ services:
     const reads = await page.getByRole("region", { name: "What runs" }).locator(".dw-status-label").allInnerTexts();
     if (reads.join() !== "Unknown") fail(`with its agent gone, the page reads: ${reads.join()}`);
     await page
+      .getByRole("region", { name: "What runs" })
+      .getByText(/The agent on second isn't connected, so it can't say how this runs now\. It last read Running/)
+      .waitFor({ timeout: SEEN_WITHIN });
+    await page
       .locator(".dw-callout")
       .getByText(/It may well be running/)
       .waitFor({ timeout: SEEN_WITHIN });
@@ -322,5 +333,42 @@ services:
   } finally {
     agent.kill("SIGKILL");
     for (const undo of cleanUp) undo();
+  }
+
+  step("health: a change of health that lasted is on Activity, dated when it happened");
+  await page.goto(`${origin}/activity?kind=health`);
+  await page
+    .getByRole("row", { name: /plain stopped running on/ })
+    .first()
+    .waitFor({ timeout: SEEN_WITHIN });
+  await shoot(page, "health-activity");
+
+  if (hangDocker) {
+    step(
+      "health: Docker stops answering with its agent connected: it says so, how to check, and the top bar isn't green",
+    );
+    await goToApp("checked");
+    await pageSays("Healthy");
+    const answer = hangDocker();
+    try {
+      // A check the agent makes needs nothing of Docker, so what only Docker can say is what goes.
+      await page
+        .getByRole("region", { name: "What runs" })
+        .getByText(/can't read Docker/)
+        .first()
+        .waitFor({ timeout: 60_000 });
+      const top = page.locator(".topbar");
+      await top.getByText(/can't read Docker/i).waitFor({ timeout: SEEN_WITHIN });
+      if ((await top.innerText()).includes("All healthy"))
+        fail("with Docker not answering, the top bar says all is healthy");
+      if ((await top.locator(".dw-tone-healthy").count()) > 0) fail("with Docker not answering, the top bar is green");
+      await shoot(page, "health-docker-gone");
+    } finally {
+      answer();
+    }
+    await page
+      .locator(".topbar")
+      .getByText(/can't read Docker/i)
+      .waitFor({ state: "detached", timeout: 60_000 });
   }
 }

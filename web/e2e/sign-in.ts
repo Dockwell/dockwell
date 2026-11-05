@@ -785,6 +785,11 @@ async function main() {
       env: { DOCKER_HOST: `unix://${fakeSocket}` },
       browser,
       context,
+      // A daemon that hangs, as a stuck storage driver makes Docker: it takes calls and answers none.
+      hangDocker: () => {
+        docker?.kill("SIGSTOP");
+        return () => docker?.kill("SIGCONT");
+      },
     });
     // What make docker-panel-e2e does at its end, where only CI could see it.
     step("Docker: what the run made comes off, networks and volumes too");
