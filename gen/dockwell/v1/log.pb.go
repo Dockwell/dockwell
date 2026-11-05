@@ -1145,9 +1145,12 @@ type LogSource struct {
 	// The server's name, such as "hz-1".
 	ServerName string `protobuf:"bytes,3,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
 	// The replica it is, from 1, within the service on that server. A service has
-	// one for now: the containers a rollout moves between take turns as it.
+	// one for now: the containers a rollout moves between take turns as it, and
+	// container_name says which of them this is.
 	Replica int32 `protobuf:"varint,4,opt,name=replica,proto3" json:"replica,omitempty"`
-	// The container's name in Docker, such as "env_01kat…-web-1".
+	// The name a person knows the container by, such as "env_01kat…-web-3". It goes up
+	// with each rolling deploy. Docker has another for a moment as a rollout stops it,
+	// which this leaves out.
 	ContainerName string `protobuf:"bytes,5,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
 	// The revision that made this container: 0 when nothing says, as for one
 	// made with docker compose. A later revision that didn't recreate it,

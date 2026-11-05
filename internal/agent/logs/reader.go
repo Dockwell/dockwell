@@ -838,7 +838,8 @@ func (s *stream) readFailed(st *sourceState, src *source, err error) {
 		return
 	}
 	s.r.logger().Warn("can't read a container's log", slog.String("container", src.proto.GetContainerName()), slog.String("error", err.Error()))
-	why := fmt.Sprintf("Docker can't read this container's log: %v. Check its logging driver with docker inspect %s", err, src.proto.GetContainerName())
+	// By its ID, as Docker may have it under another name for now, as a rollout stops it.
+	why := fmt.Sprintf("Docker can't read this container's log: %v. Check its logging driver with docker inspect %s", err, src.proto.GetId())
 	st.problem.Store(&why)
 }
 

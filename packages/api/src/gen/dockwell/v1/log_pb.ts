@@ -533,14 +533,17 @@ export type LogSource = Message<"dockwell.v1.LogSource"> & {
 
   /**
    * The replica it is, from 1, within the service on that server. A service has
-   * one for now: the containers a rollout moves between take turns as it.
+   * one for now: the containers a rollout moves between take turns as it, and
+   * container_name says which of them this is.
    *
    * @generated from field: int32 replica = 4;
    */
   replica: number;
 
   /**
-   * The container's name in Docker, such as "env_01kat…-web-1".
+   * The name a person knows the container by, such as "env_01kat…-web-3". It goes up
+   * with each rolling deploy. Docker has another for a moment as a rollout stops it,
+   * which this leaves out.
    *
    * @generated from field: string container_name = 5;
    */

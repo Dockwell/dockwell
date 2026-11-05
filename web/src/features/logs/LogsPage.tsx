@@ -59,6 +59,7 @@ import {
   replicaLabel,
   selectionText,
   textOf,
+  withLabels,
   zoneName,
   zoneOffset,
 } from "./words";
@@ -206,11 +207,14 @@ export function LogsPage({
     for (const s of allSources ?? []) merged.set(s.id, s);
     for (const [id, s] of stream.sources) merged.set(id, s);
     for (const s of deep.sources) merged.set(s.id, s);
-    for (const [id, s] of merged) {
+    const read = new Map(stream.sources);
+    for (const s of deep.sources) read.set(s.id, s);
+    const labelled = withLabels(merged, read);
+    for (const [id, s] of labelled) {
       store.setSource(id, replicaLabel(s), `${s.serverId}/${s.replica}`);
       deepStore.setSource(id, replicaLabel(s), `${s.serverId}/${s.replica}`);
     }
-    setSourceMap(merged);
+    setSourceMap(labelled);
   }, [allSources, stream.sources, deep.sources, store, deepStore]);
 
   useEffect(() => {
@@ -221,7 +225,8 @@ export function LogsPage({
 
   // Filters, from the URL. Typing in the search waits a moment for the next key,
   // and the URL follows. A search of all the servers keep waits for Enter.
-  const label = search.replica ?? "";
+  // A name is only so for as long as what it picks out is here: a deploy moves on from it.
+  const label = [...sourceMap.values()].some((s) => replicaLabel(s) === search.replica) ? (search.replica ?? "") : "";
   const [typed, setTyped] = useState(search.q ?? "");
   useEffect(() => setTyped(search.q ?? ""), [search.q]);
   const query = search.deep ? "" : (search.q ?? "");

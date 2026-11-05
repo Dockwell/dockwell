@@ -7,7 +7,7 @@ import { msg, plural } from "@lingui/core/macro";
 import { formatBytes } from "../../lib/format";
 
 import type { Entry } from "./store";
-import { clock, dayNoteOf, dayOf, gapWords, replicaLabel } from "./words";
+import { clock, dayNoteOf, dayOf, gapWords, instanceName, replicaLabel } from "./words";
 
 /** How an entry shows: a line of what a container printed, or a note about a place in the log. */
 export function drawEntry(e: Entry, sources: ReadonlyMap<string, LogSource>, i18n: I18n): LogLine {
@@ -32,12 +32,15 @@ export function drawEntry(e: Entry, sources: ReadonlyMap<string, LogSource>, i18
   }
   if (e.started) {
     const revision = s && s.revision > 0n ? `r${s.revision}` : e.source;
-    const container = e.source;
+    const container = (s && instanceName(s)) || e.source;
     return {
       id: e.id,
       time: "",
       source,
-      text: i18n._(msg`${source} started ${revision}, in container ${container}`),
+      text:
+        source === container
+          ? i18n._(msg`${source} started ${revision}`)
+          : i18n._(msg`${source} started ${revision}, in container ${container}`),
       notice: "info",
       day,
     };

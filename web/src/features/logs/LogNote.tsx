@@ -9,7 +9,7 @@ import { type ReactNode, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { formatClock, formatDay } from "../../lib/format";
 import type { StreamState } from "./useLogStream";
-import { clockMinutes, type Deploy, deployRevision } from "./words";
+import { clockMinutes, type Deploy, deployRevision, instanceName } from "./words";
 
 /**
  * A note on how the logs stand. A phone has little room for it, and what matters
@@ -169,6 +169,7 @@ function KeptNote({
   const image = source?.image ?? "";
   const code = source?.exitCode ?? 0;
   const cut = chosen.sources.some((s) => s.cutShort);
+  const ranAs = source ? instanceName(source) : "";
   const body = (
     <>
       {image ? (
@@ -181,6 +182,14 @@ function KeptNote({
             <code>{image}</code> exited with no error.
           </Trans>
         )
+      ) : null}
+      {ranAs ? (
+        <>
+          {" "}
+          <Trans>
+            It ran as <code>{ranAs}</code>.
+          </Trans>
+        </>
       ) : null}
       {noCurrent ? (
         <p>

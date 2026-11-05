@@ -35,7 +35,29 @@ func runReal(t *testing.T, client *docker.Client, rt *container.Docker, project,
 	if err := rt.Run(ctx, target, spec, resource.Decision{}); err != nil {
 		t.Fatal(err)
 	}
-	c, err := client.ContainerNamed(t.Context(), target.Name)
+	return newestReal(t, client, project, service)
+}
+
+// newestReal is a service's newest container on a real engine, by its labels, as a
+// rolling deploy gives each new one the next number.
+func newestReal(t *testing.T, client *docker.Client, project, service string) *docker.Container {
+	t.Helper()
+	list, err := client.ListContainers(t.Context(), map[string][]string{
+		"label": {docker.LabelProject + "=" + project, docker.LabelService + "=" + service},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) == 0 {
+		t.Fatalf("Docker has no container of %s", service)
+	}
+	newest := list[0]
+	for _, s := range list {
+		if s.Number() > newest.Number() {
+			newest = s
+		}
+	}
+	c, err := client.InspectContainer(t.Context(), newest.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,8 +187,65 @@ func TestLogsOnRealDocker(t *testing.T) {
 	}
 	cancel2()
 
+	// A rolling deploy has both running at once: what follows reads both, each by the
+	// name a person knows it by, and each line once, what the old one says as it stops
+	// included, though Docker has it under another name by then.
+	moving := newCollector()
+	ctx4, cancel4 := context.WithCancel(t.Context())
+	defer cancel4()
+	go func() {
+		_ = reader.Stream(ctx4, &agentv1.LogsCall{Resource: ref, Follow: true, Tail: 1}, moving.send)
+	}()
+	waitFor(t, "the follower to be reading", func() bool { return moving.count() > 0 })
+	moving.mu.Lock()
+	place := moving.lastTime()
+	moving.mu.Unlock()
+
 	// A replace keeps the log, which reads back when the container has gone.
-	runReal(t, client, rt, project, "web", `echo second; sleep 60`, 2)
+	next := runReal(t, client, rt, project, "web", `echo second; sleep 60`, 2)
+	if want := docker.InstanceName(project, "web", 2); strings.TrimPrefix(next.Name, "/") != want {
+		t.Errorf("the new one is %s, want %s: it should have rolled", next.Name, want)
+	}
+	waitFor(t, "the follower to read both", func() bool {
+		moving.mu.Lock()
+		defer moving.mu.Unlock()
+		return moving.byLine["second"] != nil && moving.byLine["last-words"] != nil
+	})
+	moving.mu.Lock()
+	if second, last := moving.byLine["second"].GetTime().AsTime(), moving.byLine["last-words"].GetTime().AsTime(); !second.Before(last) {
+		t.Errorf("the new one said %s, and the old one %s as it stopped: they should overlap", second, last)
+	}
+	for id, want := range map[string]string{ctr.ID[:12]: docker.ContainerName(project, "web"), next.ID[:12]: docker.InstanceName(project, "web", 2)} {
+		if s := moving.sources[id]; s.GetContainerName() != want || s.GetReplica() != 1 {
+			t.Errorf("source %s reads %q, replica %d, want %q, replica 1", id, s.GetContainerName(), s.GetReplica(), want)
+		}
+	}
+	moving.mu.Unlock()
+	cancel4()
+
+	// One who comes back once the old one has gone reads what it missed of both, from
+	// what was kept and from Docker, and what it had already, not again.
+	returned := newCollector()
+	ctx5, cancel5 := context.WithCancel(t.Context())
+	defer cancel5()
+	go func() {
+		_ = reader.Stream(ctx5, &agentv1.LogsCall{
+			Resource: ref, Follow: true,
+			After: []*agentv1.LogCursor{{SourceId: ctr.ID[:12], Time: place, Count: 1}}, ResumeFrom: place,
+		}, returned.send)
+	}()
+	waitFor(t, "what it missed of both", func() bool {
+		returned.mu.Lock()
+		defer returned.mu.Unlock()
+		return returned.byLine["second"] != nil && returned.byLine["last-words"] != nil
+	})
+	for _, text := range returned.got() {
+		if text == "out" || text == "err" {
+			t.Errorf("it read %q again, from before it left", text)
+		}
+	}
+	cancel5()
+
 	found, err := reader.Sources(t.Context(), ref, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -179,6 +258,9 @@ func TestLogsOnRealDocker(t *testing.T) {
 	}
 	if kept == nil || kept.GetId() != ctr.ID[:12] || kept.GetRevision() != 1 {
 		t.Fatalf("sources = %v, want the first container's log kept", found)
+	}
+	if want := docker.ContainerName(project, "web"); kept.GetContainerName() != want {
+		t.Errorf("what was kept reads as %q, want %q, and not what a rollout had it under", kept.GetContainerName(), want)
 	}
 	back := newCollector()
 	if err := reader.Stream(t.Context(), &agentv1.LogsCall{Resource: ref, Revision: 1}, back.send); err != nil {

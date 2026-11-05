@@ -73,6 +73,17 @@ type collector struct {
 	bytes   uint64
 }
 
+// lastTime is when the newest line it has was written, for carrying on from.
+func (c *collector) lastTime() *timestamppb.Timestamp {
+	var last *timestamppb.Timestamp
+	for _, l := range c.byLine {
+		if last == nil || l.GetTime().AsTime().After(last.AsTime()) {
+			last = l.GetTime()
+		}
+	}
+	return last
+}
+
 func newCollector() *collector {
 	return &collector{sources: map[string]*dockwellv1.LogSource{}, byLine: map[string]*dockwellv1.LogLine{}}
 }

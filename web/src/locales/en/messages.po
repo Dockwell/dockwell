@@ -630,6 +630,10 @@ msgid "{size} more not kept"
 msgstr "{size} more not kept"
 
 #: src/features/logs/draw.ts
+msgid "{source} started {revision}"
+msgstr "{source} started {revision}"
+
+#: src/features/logs/draw.ts
 msgid "{source} started {revision}, in container {container}"
 msgstr "{source} started {revision}, in container {container}"
 
@@ -2859,6 +2863,10 @@ msgstr "It may have been deleted. Dockwell has no logs under this address."
 #: src/features/changes/RollbackLine.tsx
 msgid "It never stopped. Dockwell removed what this made after it failed."
 msgstr "It never stopped. Dockwell removed what this made after it failed."
+
+#: src/features/logs/LogNote.tsx
+msgid "It ran as <0>{ranAs}</0>."
+msgstr "It ran as <0>{ranAs}</0>."
 
 #: src/features/changes/notices.tsx
 msgid "It reaches what the server reaches, past Docker's network and the firewall."

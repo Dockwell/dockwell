@@ -4182,11 +4182,15 @@ components:
                     type: integer
                     description: |-
                         The replica it is, from 1, within the service on that server. A service has
-                         one for now: the containers a rollout moves between take turns as it.
+                         one for now: the containers a rollout moves between take turns as it, and
+                         container_name says which of them this is.
                     format: int32
                 containerName:
                     type: string
-                    description: The container's name in Docker, such as "env_01kat…-web-1".
+                    description: |-
+                        The name a person knows the container by, such as "env_01kat…-web-3". It goes up
+                         with each rolling deploy. Docker has another for a moment as a rollout stops it,
+                         which this leaves out.
                 revision:
                     type: string
                     description: |-

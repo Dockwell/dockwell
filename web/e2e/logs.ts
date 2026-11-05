@@ -500,6 +500,28 @@ async function main() {
   const saved = readFileSync((await download.path()) ?? fail("no download"), "utf8");
   if (!saved.includes("connection reset by peer") || saved.includes("\u001b")) fail("the download isn't what shows");
 
+  step("a rolling deploy shows both containers, by their names, for the seconds both run");
+  const rolled = new Promise<void>((resolve, reject) => {
+    spawn(bin, ["services", "update", "web", "--app-image", "ghcr.io/acme/shop:next", "--yes"], {
+      env: env(),
+      stdio: "ignore",
+    }).on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`the deploy exited ${code}`))));
+  });
+  await until("lines from what ran and from the new one, side by side", async () => {
+    await post("/print", "2026-11-04 14:21:01 INFO both of them say so");
+    const names = await page.locator(".dw-log-src").allInnerTexts();
+    return names.some((n) => n === "web-3") && names.some((n) => n === "web-1" || n === "web-2");
+  });
+  await shoot(page, "rolling-two-sources");
+  const named = await page.locator(".dw-log-src").allInnerTexts();
+  if (named.some((n) => n.includes("stopping_"))) fail(`a source reads ${named.join(", ")}`);
+  await rolled;
+  // Where the new one began, by the name it goes by.
+  await page
+    .getByText(/started r\d+, in container web-3/)
+    .first()
+    .waitFor();
+
   step("a failed deploy leaves its logs, and Activity links to them");
   try {
     dockwell("services", "update", "web", "--app-image", "ghcr.io/acme/shop:broken", "--yes");

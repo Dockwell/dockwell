@@ -165,8 +165,14 @@ func (p *logPrinter) label(id string) string {
 	if s.GetReplica() > 1 {
 		label += "-" + strconv.Itoa(int(s.GetReplica()))
 	}
-	if same > 1 && s.GetRevision() > 0 {
-		label += " r" + strconv.FormatInt(s.GetRevision(), 10)
+	if same > 1 {
+		// By its own name, as a restart's has the same revision as what it replaces.
+		if _, name, ok := strings.Cut(s.GetContainerName(), "-"); ok {
+			return label + " " + name
+		}
+		if s.GetRevision() > 0 {
+			label += " r" + strconv.FormatInt(s.GetRevision(), 10)
+		}
 	}
 	return label
 }
@@ -370,13 +376,13 @@ func sourcesTable(w io.Writer, m *dockwellv1.ListLogSourcesResponse, now time.Ti
 		fmt.Fprintln(w, "No logs yet: this service has no containers, and its servers kept none.")
 	} else {
 		tw := newTable(w)
-		row(tw, "ID", "Server", "Replica", "Revision", "State", "Started", "Kept")
+		row(tw, "ID", "Server", "Container", "Revision", "State", "Started", "Kept")
 		for _, s := range m.GetSources() {
 			revision := "-"
 			if s.GetRevision() > 0 {
 				revision = "r" + strconv.FormatInt(s.GetRevision(), 10)
 			}
-			row(tw, s.GetId(), s.GetServerName(), strconv.Itoa(int(s.GetReplica())), revision, word(s.GetState()), when(s.GetStartTime(), now), orDash(word(s.GetKept())))
+			row(tw, s.GetId(), s.GetServerName(), orDash(s.GetContainerName()), revision, word(s.GetState()), when(s.GetStartTime(), now), orDash(word(s.GetKept())))
 		}
 		_ = tw.Flush()
 	}

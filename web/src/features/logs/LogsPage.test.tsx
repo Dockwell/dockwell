@@ -8,6 +8,7 @@ import {
   LogGapReason,
   LogKept,
   LogLevel,
+  type LogSource,
   LogSourceSchema,
   LogSourceState,
   ServerLogState,
@@ -23,6 +24,7 @@ import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { type Api, onPhone, renderAt, untilAborted } from "../../test/render";
 import { deploysOf, replicaLabel } from "./LogsPage";
+import { instanceName, withLabels } from "./words";
 
 const SERVICE = "svc_01TEST";
 const URL = `/apps/${SERVICE}/logs`;
@@ -874,7 +876,39 @@ describe("deploysOf", () => {
   });
 });
 
+describe("withLabels", () => {
+  const web = (id: string, n: number, state = LogSourceState.RUNNING, serverId = "srv_1", serverName = "hz-1") =>
+    create(LogSourceSchema, { id, serverId, serverName, replica: 1, state, containerName: `env_01kat-web-${n}` });
+  const of = (...sources: LogSource[]) => new Map(sources.map((s) => [s.id, s]));
+  const named = (all: Map<string, LogSource>, read = all) =>
+    [...withLabels(all, read).values()].map((s) => replicaLabel(s));
+
+  it("names the server at rest, whatever number a deploy has reached", () => {
+    expect(named(of(web("a", 7)))).toEqual(["hz-1"]);
+  });
+  it("names each container while more than one on a server is read, as through a rolling deploy", () => {
+    expect(named(of(web("a", 2), web("b", 3)))).toEqual(["web-2", "web-3"]);
+  });
+  it("goes on naming what this view read of one that has gone, as it wrote those lines", () => {
+    const all = of(web("a", 2, LogSourceState.KEPT), web("b", 3));
+    expect(named(all)).toEqual(["web-2", "web-3"]);
+  });
+  it("leaves out what was only kept, and isn't being read", () => {
+    const all = of(web("a", 2, LogSourceState.KEPT), web("b", 3));
+    expect(named(all, of(web("b", 3)))).toEqual(["hz-1", "hz-1"]);
+  });
+  it("says the server too where there are several, and only of the one that has two", () => {
+    const all = of(web("a", 2), web("b", 3), web("c", 1, LogSourceState.RUNNING, "srv_2", "hz-2"));
+    expect(named(all)).toEqual(["hz-1/web-2", "hz-1/web-3", "hz-2"]);
+  });
+});
+
 describe("replicaLabel", () => {
+  it("goes by the name a person knows a container by", () => {
+    expect(instanceName({ containerName: "env_01kat-web-3" })).toBe("web-3");
+    expect(instanceName({ containerName: "env_01kat-my-api-12" })).toBe("my-api-12");
+    expect(instanceName({ containerName: "" })).toBe("");
+  });
   it("names a server, and which of its replicas past the first", () => {
     expect(replicaLabel({ serverName: "hz-1", replica: 1 })).toBe("hz-1");
     expect(replicaLabel({ serverName: "hz-1", replica: 2 })).toBe("hz-1-2");

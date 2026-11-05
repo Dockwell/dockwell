@@ -630,6 +630,10 @@ msgid "{size} more not kept"
 msgstr "另有 {size} 未保留"
 
 #: src/features/logs/draw.ts
+msgid "{source} started {revision}"
+msgstr "{source} 启动了 {revision}"
+
+#: src/features/logs/draw.ts
 msgid "{source} started {revision}, in container {container}"
 msgstr "{source} 启动了 {revision}，容器为 {container}"
 
@@ -2859,6 +2863,10 @@ msgstr "它可能已被删除。Dockwell 在此地址下没有日志。"
 #: src/features/changes/RollbackLine.tsx
 msgid "It never stopped. Dockwell removed what this made after it failed."
 msgstr "它从未停止。这次变更失败后,Dockwell 移除了它创建的内容。"
+
+#: src/features/logs/LogNote.tsx
+msgid "It ran as <0>{ranAs}</0>."
+msgstr "它曾以 <0>{ranAs}</0> 运行。"
 
 #: src/features/changes/notices.tsx
 msgid "It reaches what the server reaches, past Docker's network and the firewall."

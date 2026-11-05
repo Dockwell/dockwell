@@ -243,9 +243,12 @@ message LogSource {
   // The server's name, such as "hz-1".
   string server_name = 3;
   // The replica it is, from 1, within the service on that server. A service has
-  // one for now: the containers a rollout moves between take turns as it.
+  // one for now: the containers a rollout moves between take turns as it, and
+  // container_name says which of them this is.
   int32 replica = 4;
-  // The container's name in Docker, such as "env_01kat…-web-1".
+  // The name a person knows the container by, such as "env_01kat…-web-3". It goes up
+  // with each rolling deploy. Docker has another for a moment as a rollout stops it,
+  // which this leaves out.
   string container_name = 5;
   // The revision that made this container: 0 when nothing says, as for one
   // made with docker compose. A later revision that didn't recreate it,

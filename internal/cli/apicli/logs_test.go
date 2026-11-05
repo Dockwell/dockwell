@@ -275,3 +275,27 @@ func TestATokenWithoutTheGrantIsToldWhatToDo(t *testing.T) {
 		t.Errorf("refused for want of the grant = %v", got)
 	}
 }
+
+// While two containers of a server are read, as through a rolling deploy, each goes by
+// its own name, and what's listed says that name, as what a kept log ran as.
+func TestALogSaysWhichContainerWroteIt(t *testing.T) {
+	var out bytes.Buffer
+	p := &logPrinter{out: &out, err: &bytes.Buffer{}, sources: map[string]*dockwellv1.LogSource{}, servers: map[string]dockwellv1.ServerLogState{}}
+	old := &dockwellv1.LogSource{Id: "aaaaaaaaaaaa", ServerId: "srv_1", ServerName: "hz-1", Replica: 1, Revision: 3, ContainerName: "env_01kat-web-2"}
+	p.sources[old.GetId()] = old
+	if got := p.label(old.GetId()); got != "hz-1" {
+		t.Errorf("with one, it reads %q", got)
+	}
+	next := &dockwellv1.LogSource{Id: "bbbbbbbbbbbb", ServerId: "srv_1", ServerName: "hz-1", Replica: 1, Revision: 3, ContainerName: "env_01kat-web-3"}
+	p.sources[next.GetId()] = next
+	if a, b := p.label(old.GetId()), p.label(next.GetId()); a != "hz-1 web-2" || b != "hz-1 web-3" {
+		t.Errorf("with two, they read %q and %q", a, b)
+	}
+	var table bytes.Buffer
+	sourcesTable(&table, &dockwellv1.ListLogSourcesResponse{Sources: []*dockwellv1.LogSource{
+		{Id: "aaaaaaaaaaaa", ServerName: "hz-1", Replica: 1, Revision: 3, ContainerName: "env_01kat-web-2", State: dockwellv1.LogSourceState_LOG_SOURCE_STATE_KEPT, Kept: dockwellv1.LogKept_LOG_KEPT_REPLACED},
+	}}, time.Now())
+	if !strings.Contains(table.String(), "env_01kat-web-2") || strings.Contains(table.String(), "stopping_") {
+		t.Errorf("the list reads:\n%s", table.String())
+	}
+}
