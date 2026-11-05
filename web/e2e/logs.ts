@@ -893,6 +893,16 @@ main().then(
   async (err: unknown) => {
     console.error(err);
     console.error(serverLog.join("").split("\n").slice(-30).join("\n"));
+    // What the page says of itself, as a step can fail for want of a button that a state took away.
+    const said = await lastPage
+      ?.evaluate(() => ({
+        url: location.href,
+        head: document.querySelector(".dw-log-head")?.textContent,
+        foot: document.querySelector(".dw-log-foot")?.textContent,
+        notes: [...document.querySelectorAll(".logs-note, [role=alert]")].map((el) => el.textContent),
+      }))
+      .catch(() => undefined);
+    console.error("the page said:", said);
     if (shots && lastPage) {
       mkdirSync(shots, { recursive: true });
       await lastPage.screenshot({ path: join(shots, "failure.png") }).catch(() => {});
