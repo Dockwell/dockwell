@@ -20,15 +20,50 @@ msgstr "（有未提交的修改）"
 msgid "{0, plural, one {{servers} isn't connected} other {{servers} aren't connected}}"
 msgstr "{0, plural, other {{servers} 未连接}}"
 
+#. placeholder {0}: live.length
+#: src/features/changes/ChangeSheet.tsx
+msgid "{0, plural, one {# app is live} other {# apps are live}}"
+msgstr "{0, plural, other {# 个应用已上线}}"
+
+#. placeholder {0}: away.length
+#: src/features/changes/ChangeSheet.tsx
+msgid "{0, plural, one {# app stops, and you can undo this until {deadline}.} other {# apps stop, and you can undo this until {deadline}.}}"
+msgstr "{0, plural, other {# 个应用将停止，你可以在 {deadline} 之前撤销。}}"
+
+#. placeholder {0}: away.length
+#: src/features/changes/ChangeSheet.tsx
+msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
+msgstr "{0, plural, other {# 个应用将停止。}}"
+
+#. placeholder {0}: all.length
+#: src/features/changes/ChangeSheet.tsx
+msgid "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
+msgstr "{0, plural, other {已删除 # 项资源}}"
+
+#. placeholder {0}: all.length
+#: src/features/changes/notices.tsx
+msgid "{0, plural, one {# resource} other {# resources}}"
+msgstr "{0, plural, other {# 项资源}}"
+
 #. placeholder {0}: Number(latest)
 #: src/features/apps/AppDeployments.tsx
 msgid "{0, plural, one {# revision · newest first} other {# revisions · newest first}}"
 msgstr "{0, plural, other {# 个修订版本 · 最新在前}}"
 
+#. placeholder {0}: servers.length
+#: src/features/changes/ChangeSheet.tsx
+msgid "{0, plural, one {# server} other {# servers}}"
+msgstr "{0, plural, other {# 台服务器}}"
+
 #. placeholder {0}: optional.length
 #: src/features/apps/NewAppSheet.tsx
 msgid "{0, plural, one {# with a default} other {# with a default}}"
 msgstr "{0, plural, other {# 个有默认值}}"
+
+#. placeholder {0}: changing(plan).length
+#: src/features/changes/ChangeSheet.tsx
+msgid "{0, plural, one {Delete # resource} other {Delete # resources}}"
+msgstr "{0, plural, other {删除 # 项资源}}"
 
 #. placeholder {0}: networks.length
 #: src/features/apps/NewAppSheet.tsx
@@ -55,10 +90,10 @@ msgstr "{0} 的代理重新连接之前无法执行其步骤，所以在此之�
 msgid "{0} disk"
 msgstr "{0} 磁盘"
 
-#. placeholder {0}: s.change
-#: src/features/activity/describe.ts
-msgid "{0} to change"
-msgstr "{0} 项更改"
+#. placeholder {0}: offline.join(", ")
+#: src/features/changes/ChangeSheet.tsx
+msgid "{0} has to reconnect first"
+msgstr "{0} 需要先重新连接"
 
 #. placeholder {0}: s.create
 #: src/features/activity/describe.ts
@@ -67,13 +102,18 @@ msgstr "{0} 项创建"
 
 #. placeholder {0}: s.destroy
 #: src/features/activity/describe.ts
-msgid "{0} to destroy"
-msgstr "{0} 项销毁"
+msgid "{0} to delete"
+msgstr "{0} 项删除"
 
 #. placeholder {0}: s.replace
 #: src/features/activity/describe.ts
 msgid "{0} to replace"
 msgstr "{0} 项替换"
+
+#. placeholder {0}: s.change
+#: src/features/activity/describe.ts
+msgid "{0} to update"
+msgstr "{0} 项待更新"
 
 #. placeholder {0}: inv.cpuCount
 #: src/features/auth/ClaimPage.tsx
@@ -182,6 +222,10 @@ msgstr "可用 {free}"
 msgid "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
 msgstr "还剩 {left} 个（共 10 个），每个只能用一次。如果你丢了身份验证器应用，请在下方重新设置，这也会生成新的恢复码。"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "{made} is live"
+msgstr "{made} 已上线"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "{memShare} in use"
 msgstr "已使用 {memShare}"
@@ -202,9 +246,25 @@ msgstr "{mount}：共 {size}，已用 {used}，可用 {free}"
 msgid "{moving} deploying"
 msgstr "{moving} 个正在部署"
 
+#: src/features/changes/notices.tsx
+msgid "{name} answers plain HTTP on {path} on {server}"
+msgstr "{name} 在 {server} 上以明文 HTTP 响应 {path}"
+
+#: src/features/changes/notices.tsx
+msgid "{name} believes the proxy {path} on {server}"
+msgstr "{name} 在 {server} 上信任代理 {path}"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 msgstr "{name} 不能用作名称。请使用小写字母、数字和连字符，并以字母开头"
+
+#: src/features/changes/notices.tsx
+msgid "{name} gets back the data the server kept."
+msgstr "{name} 将取回服务器保留的数据。"
+
+#: src/features/changes/notices.tsx
+msgid "{name} gets root on {server}"
+msgstr "{name} 将获得 {server} 的 root 权限"
 
 #: src/features/auth/Unclaimed.tsx
 msgid "{name} has no owner yet"
@@ -213,6 +273,18 @@ msgstr "{name} 还没有所有者"
 #: src/features/apps/AppOverview.tsx
 msgid "{name} has no server in the fleet"
 msgstr "{name} 在集群中没有服务器"
+
+#: src/features/changes/notices.tsx
+msgid "{name} has the Linux capability {path} on {server}"
+msgstr "{name} 在 {server} 上拥有 Linux 能力 {path}"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{name} is live"
+msgstr "{name} 已上线"
+
+#: src/features/apps/AppOverview.tsx
+msgid "{name} is on <0>{image}</0>, as it was before that deploy. Fix what stopped the deploy, then deploy again."
+msgstr "{name} 使用的是 <0>{image}</0>，与那次部署之前相同。请修复导致部署中止的问题，然后重新部署。"
 
 #: src/features/apps/AddPortSheet.tsx
 msgid "{name} is still deploying. You can review this plan once that ends."
@@ -226,17 +298,62 @@ msgstr "{name} 正在等待代理连接"
 msgid "{name} isn't reporting"
 msgstr "{name} 没有上报数据"
 
+#: src/features/changes/notices.tsx
+msgid "{name} joins the group {path} on {server}"
+msgstr "{name} 在 {server} 上加入用户组 {path}"
+
+#: src/features/changes/notices.tsx
+msgid "{name} joins the network {path} on {server}"
+msgstr "{name} 在 {server} 上加入网络 {path}"
+
 #: src/features/apps/AppOverview.tsx
 msgid "{name} keeps running there, but Dockwell can't see it or change it until its agent reconnects. Check that <0>dockwell run</0> is still running on the server."
 msgstr "{name} 仍在那里运行，但在其代理重新连接之前，Dockwell 无法查看或更改它。请检查服务器上的 <0>dockwell run</0> 是否仍在运行。"
 
-#: src/features/changes/ChangeSheet.tsx
-msgid "{name} reaches {reaches}."
-msgstr "{name} 可访问 {reaches}。"
+#: src/features/changes/notices.tsx
+msgid "{name} keeps what is in {names} as it is"
+msgstr "{name} 保留 {names} 中的内容不变"
+
+#. placeholder {0}: server.serverName
+#: src/features/changes/notices.tsx
+msgid "{name} loses its data on {0}"
+msgstr "{name} 将丢失它在 {0} 上的数据"
+
+#: src/features/changes/notices.tsx
+msgid "{name} loses what its image keeps at {paths}"
+msgstr "{name} 将失去其镜像保存在 {paths} 的内容"
 
 #: src/features/apps/AppOverview.tsx
-msgid "{name} runs <0>{image}</0> again, as it did before. Fix what stopped the deploy, then deploy again."
-msgstr "{name} 已恢复运行之前的 <0>{image}</0>。请修复导致部署失败的问题，然后重新部署。"
+msgid "{name} may not be running, or may be running the new version. Check it, then deploy what should run, or fix it on the server."
+msgstr "{name} 可能没有运行，也可能正在运行新版本。请检查后部署应运行的版本，或在服务器上修复。"
+
+#: src/features/changes/notices.tsx
+msgid "{name} may take longer to be healthy, as its image isn't on the server yet."
+msgstr "{name} 可能需要更久才能恢复健康，因为它的镜像还不在服务器上。"
+
+#: src/features/changes/notices.tsx
+msgid "{name} reaches {path} on {server}"
+msgstr "{name} 可访问 {server} 上的 {path}"
+
+#: src/features/changes/notices.tsx
+msgid "{name} reaches {reach} on {server}"
+msgstr "{name} 可访问 {server} 上的 {reach}"
+
+#: src/features/changes/notices.tsx
+msgid "{name} reaches the port {path} on {server}"
+msgstr "{name} 在 {server} 上可访问端口 {path}"
+
+#: src/features/changes/notices.tsx
+msgid "{name} runs with the latest value of {names}"
+msgstr "{name} 使用 {names} 的最新值运行"
+
+#: src/features/changes/notices.tsx
+msgid "{name} shares {server}'s own network"
+msgstr "{name} 与 {server} 共用其自身的网络"
+
+#: src/features/changes/notices.tsx
+msgid "{name} stops HTTPS on {path} on {server}"
+msgstr "{name} 在 {server} 上停止 {path} 的 HTTPS"
 
 #: src/app/Providers.tsx
 msgid "{name}, {status}"
@@ -246,13 +363,13 @@ msgstr "{name}，{status}"
 msgid "{name}, {status}, CPU {cpu}%"
 msgstr "{name}，{status}，CPU {cpu}%"
 
-#: src/features/changes/ChangeSheet.tsx
-msgid "{names} · about {span} down"
-msgstr "{names} · 约 {span} 不可用"
+#: src/features/changes/notices.tsx
+msgid "{name}'s {where} holds the value of {variable}"
+msgstr "{name} 的 {where} 中含有 {variable} 的值"
 
-#: src/features/changes/ChangeSheet.tsx
-msgid "{names} · no downtime expected"
-msgstr "{names} · 预计不会停机"
+#: src/features/changes/words.ts
+msgid "{networks, plural, one {a network} other {# networks}}"
+msgstr "{networks, plural, other {# 个网络}}"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "{now} now"
@@ -304,12 +421,20 @@ msgid "{revision} deployed {when} from the CLI on {local}"
 msgstr "{revision} 于 {when}通过 {local} 上的命令行部署"
 
 #: src/features/apps/AppOverview.tsx
+msgid "{revision} rolled back by Dockwell {when}"
+msgstr "{revision} 由 Dockwell 回滚于 {when}"
+
+#: src/features/apps/AppOverview.tsx
 msgid "{revision} started deploying {when}"
 msgstr "{revision} 开始部署于 {when}"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "{rx} in · {tx} out"
 msgstr "接收 {rx} · 发送 {tx}"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{same} stays as it is"
+msgstr "{same} 保持不变"
 
 #: src/app/Providers.tsx
 msgid "{samples, plural, one {Trend over # sample, latest {latest}} other {Trend over # samples, latest {latest}}}"
@@ -340,6 +465,18 @@ msgstr "{server} 加入了集群"
 msgid "{server} renewed its certificate"
 msgstr "{server} 更新了证书"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "{server} went offline during this change"
+msgstr "{server} 在此次变更期间离线"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{server} went offline during this deploy"
+msgstr "{server} 在此次部署期间离线"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{server} went offline during this rollback"
+msgstr "{server} 在此次回滚期间离线"
+
 #: src/features/apps/words.ts
 msgid "{servers} offline"
 msgstr "{servers} 离线"
@@ -351,6 +488,27 @@ msgstr "{size} 中已用 {share}"
 #: src/features/apps/AppDeployments.tsx
 msgid "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
 msgstr "{shown} 与最新版本一致。如果实际运行的内容已与它不同，回滚可以恢复。"
+
+#. placeholder {0}: steps.length
+#: src/features/changes/ChangeSheet.tsx
+msgid "{stepsDone} of {0} done"
+msgstr "已完成 {stepsDone} / {0}"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{subject} is changed"
+msgstr "{subject} 已更改"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{subject} is created"
+msgstr "{subject} 已创建"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{subject} is deleted"
+msgstr "{subject} 已删除"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{subject} is replaced"
+msgstr "{subject} 已替换"
 
 #: src/features/activity/describe.ts
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
@@ -367,6 +525,14 @@ msgstr "{unknown} 台状态未知"
 #: src/features/servers/ServersPanel.tsx
 msgid "{used} of {total}"
 msgstr "{used} / {total}"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{verb} {name}"
+msgstr "{verb} {name}"
+
+#: src/features/changes/words.ts
+msgid "{volumes, plural, one {a volume} other {# volumes}}"
+msgstr "{volumes, plural, other {# 个卷}}"
 
 #: src/features/shell/Topbar.tsx
 msgid "{waiting} waiting for an agent"
@@ -385,6 +551,66 @@ msgstr "<0>{current}</0> 仍在部署中。部署结束后即可审阅这个计�
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> 可能已被移除，或者链接有误。"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "<0>{name}</0> has stopped on <1>{names}</1>"
+msgstr "<0>{name}</0> 已在 <1>{names}</1> 上停止"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "<0>{name}</0> is back as it was"
+msgstr "<0>{name}</0> 已恢复原样"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "<0>{name}</0> may be down until that finishes."
+msgstr "在此完成之前，<0>{name}</0> 可能处于中断状态。"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "<0>{name}</0> may not be running, or may be running the new version. Check it, then deploy what should run, or fix it on the server."
+msgstr "<0>{name}</0> 可能没有运行，也可能正在运行新版本。请检查后部署应运行的版本，或在服务器上修复。"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "<0>{name}</0> runs <1>{previous}</1> again"
+msgstr "<0>{name}</0> 已重新运行 <1>{previous}</1>"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "<0>{name}</0> runs as it did before"
+msgstr "<0>{name}</0> 已恢复之前的运行状态"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "<0>{name}</0> stayed as it was"
+msgstr "<0>{name}</0> 保持了原样"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "<0>{name}</0> stayed on <1>{previous}</1>"
+msgstr "<0>{name}</0> 仍保持为 <1>{previous}</1>"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "<0>{name}</0> stays as it was"
+msgstr "<0>{name}</0> 保持原样"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "<0>{name}</0> stays on <1>{previous}</1>"
+msgstr "<0>{name}</0> 保持为 <1>{previous}</1>"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "<0>{name}</0> stops, and you can undo this until {deadline}."
+msgstr "<0>{name}</0> 将停止，你可以在 {deadline} 之前撤销。"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "<0>{name}</0> stops."
+msgstr "<0>{name}</0> 将停止。"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "<0>{name}</0> stops. <1>{stays}</1> stays, and you can undo this until {deadline}."
+msgstr "<0>{name}</0> 将停止。<1>{stays}</1> 会保留，你可以在 {deadline} 之前撤销。"
+
+#: src/features/changes/notices.tsx
+msgid "<0>{path}</0> gives it control of Docker on the server, the same as root."
+msgstr "<0>{path}</0> 让它能控制服务器上的 Docker，相当于 root。"
+
+#: src/features/changes/notices.tsx
+msgid "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives it control of Docker on the server, the same as root."
+msgstr "<0>{path}</0> 通过符号链接指向 <1>{leadsTo}</1>，这让它能控制服务器上的 Docker，相当于 root。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "<0>{project}</0> is here already, so the plan updates what's in it."
 msgstr "<0>{project}</0> 已存在，因此计划会更新其中的内容。"
@@ -393,9 +619,21 @@ msgstr "<0>{project}</0> 已存在，因此计划会更新其中的内容。"
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 msgstr "<0>{serviceId}</0> 可能已被删除，或链接有误。"
 
+#: src/features/changes/fields.tsx
+msgid "<0>{source}</0> at <1>{target}</1>"
+msgstr "<0>{source}</0> 挂载到 <1>{target}</1>"
+
+#: src/features/changes/fields.tsx
+msgid "<0>{source}</0> at <1>{target}</1>, read-only"
+msgstr "<0>{source}</0> 挂载到 <1>{target}</1>，只读"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
 msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权限等同于 root。需要你在计划中批准，API 令牌无法批准。"
+
+#: src/features/changes/fields.tsx
+msgid "<0>{source}</0>, read-only"
+msgstr "<0>{source}</0>，只读"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "1, 5 and 15 min"
@@ -429,6 +667,18 @@ msgstr "认领链接只在有人认领之前有效。请直接登录。"
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "<0>docker compose</0> 无需 Dockwell 即可运行的文件，其中不含机密信息"
 
+#: src/features/changes/notices.tsx
+msgid "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check before you apply, and restore a backup if it won't."
+msgstr "回滚只恢复配置，不恢复数据。如果新版本改动过这些数据（例如迁移），旧版本可能无法读取。请在应用前检查，如无法读取，请恢复备份。"
+
+#: src/features/changes/notices.tsx
+msgid "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check that it does, and restore a backup if it won't."
+msgstr "回滚只恢复配置，不恢复数据。如果新版本改动过这些数据（例如迁移），旧版本可能无法读取。请检查能否读取，如无法读取，请恢复备份。"
+
+#: src/features/changes/notices.tsx
+msgid "A rollback puts back which variables and secrets it uses, not what they held then. To go back on a value, change it in Variables and secrets."
+msgstr "回滚只恢复它使用哪些变量和密钥，不恢复当时的值。要改回某个值，请在“变量和密钥”中修改。"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "A secret needs a value."
 msgstr "密钥需要一个值。"
@@ -438,8 +688,8 @@ msgid "a server"
 msgstr "一台服务器"
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "A step failed, so the change stopped there"
-msgstr "有一个步骤失败，变更在那里停止了"
+msgid "A step failed, so the change stopped there."
+msgstr "有一个步骤失败，更改就此停止。"
 
 #: src/features/apps/AppEnvironment.tsx
 msgid "A value lives in its environment, and goes only to the servers that run an app using it. Change one in <0>Variables and secrets</0>, and its plan restarts each app that uses it."
@@ -454,14 +704,26 @@ msgid "About"
 msgstr "关于"
 
 #: src/features/changes/ChangeSheet.tsx
+msgid "about {span} down"
+msgstr "约停机 {span}"
+
+#: src/features/changes/PlanSteps.tsx
 msgid "About {span} down"
 msgstr "约 {span} 不可用"
 
 #: src/features/changes/ChangeSheet.tsx
+msgid "about {span} down, and up to {bound} until healthy"
+msgstr "约停机 {span}，最多 {bound} 后恢复健康"
+
+#: src/features/changes/PlanSteps.tsx
 msgid "About {span} down, and up to {bound} until healthy"
 msgstr "约 {span} 不可用，最多 {bound} 后恢复健康"
 
 #: src/features/changes/ChangeSheet.tsx
+msgid "about {span} down, if there is a newer image"
+msgstr "如有更新的镜像，约中断 {span}"
+
+#: src/features/changes/PlanSteps.tsx
 msgid "About {stepSpan} down"
 msgstr "约 {stepSpan} 不可用"
 
@@ -472,6 +734,10 @@ msgstr "访问"
 #: src/features/servers/ServerMetrics.tsx
 msgid "Across {cpus} vCPU"
 msgstr "{cpus} 个 vCPU 合计"
+
+#: src/features/changes/fields.tsx
+msgid "action"
+msgstr "动作"
 
 #: src/features/shell/CommandMenu.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -620,9 +886,25 @@ msgstr "全部健康"
 msgid "All servers"
 msgstr "所有服务器"
 
+#: src/features/changes/fields.tsx
+msgid "allow <0>{port}</0>, {proto}, from <1>{from}</1>"
+msgstr "允许 <0>{port}</0>，{proto}，来源 <1>{from}</1>"
+
+#: src/features/changes/fields.tsx
+msgid "allow <0>{port}</0>, {proto}, from anywhere"
+msgstr "允许 <0>{port}</0>，{proto}，来源不限"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Already claimed"
 msgstr "已被认领"
+
+#: src/features/changes/words.ts
+msgid "Also created {list}"
+msgstr "还创建了{list}"
+
+#: src/features/changes/words.ts
+msgid "Also creates {list}"
+msgstr "还会创建{list}"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Also plans and applies changes that can be undone. Never removes data or cuts off access."
@@ -656,9 +938,17 @@ msgstr "互联网上的任何人"
 msgid "anyone who can reach {server}"
 msgstr "任何能访问 {server} 的人"
 
+#: src/features/changes/notices.tsx
+msgid "Anyone who can reach this server gets it, around whatever is in front of it."
+msgstr "任何能访问此服务器的人都能访问它，并绕过它前面的任何内容。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
 msgstr "能读取 {holder} 的{where}的任何人，都能看到 {names} 的值。"
+
+#: src/features/changes/notices.tsx
+msgid "Anyone who can read this app can see it. To keep it hidden, pass it in environment, and use $${variable} in the {where}."
+msgstr "能读取此应用的任何人都能看到它。要隐藏它，请通过 environment 传入，并在 {where} 中使用 $${variable}。"
 
 #: src/features/changes/words.ts
 msgid "API token"
@@ -673,6 +963,8 @@ msgid "API tokens can't remove data, cut off access, reveal a secret, or change 
 msgstr "API 令牌不能删除数据、切断访问、显示密钥，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
 
 #: src/app/Providers.tsx
+#: src/features/changes/fields.tsx
+#: src/features/changes/words.ts
 msgid "app"
 msgstr "应用"
 
@@ -691,8 +983,20 @@ msgid "Applied"
 msgstr "已应用"
 
 #: src/features/changes/ChangeSheet.tsx
+msgid "Applied {when} by {by}, and undone since."
+msgstr "由 {by} 于 {when} 应用，之后已撤销。"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Applied {when} by {by}."
+msgstr "由 {by} 于 {when} 应用。"
+
+#: src/features/changes/ChangeSheet.tsx
 msgid "Apply plan"
 msgstr "应用计划"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Apply this only if you trust what it runs."
+msgstr "只有信任它运行的内容时才应用。"
 
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/changes/words.ts
@@ -732,11 +1036,19 @@ msgstr "备份"
 msgid "Backups"
 msgstr "备份"
 
+#: src/features/changes/fields.tsx
+msgid "block <0>{port}</0>, {proto}, from <1>{from}</1>"
+msgstr "阻止 <0>{port}</0>，{proto}，来源 <1>{from}</1>"
+
+#: src/features/changes/fields.tsx
+msgid "block <0>{port}</0>, {proto}, from anywhere"
+msgstr "阻止 <0>{port}</0>，{proto}，来源不限"
+
 #: src/features/apps/AppLayout.tsx
 msgid "Breadcrumb"
 msgstr "面包屑导航"
 
-#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/PlanSteps.tsx
 msgid "Brings back the data the server kept"
 msgstr "恢复服务器保留的数据"
 
@@ -851,15 +1163,48 @@ msgstr "正在更改 {field}"
 msgid "Changing {field} and {more} more"
 msgstr "正在更改 {field} 等 {more} 项"
 
+#: src/features/changes/words.ts
+msgid "Check"
+msgstr "检查"
+
 #: src/features/system/StatusPage.tsx
 msgid "Check it from a terminal"
 msgstr "在终端中检查"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Check that the server and its agent are up."
+msgstr "请检查服务器及其代理是否正常运行。"
+
+#: src/features/changes/notices.tsx
+msgid "Check that you have another way in, such as your provider's console, before you apply it."
+msgstr "应用前，请确认你还有其他登录途径，例如服务商的控制台。"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Check the control plane's status"
 msgstr "查看控制平面状态"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "Check the image and its variables, then try again."
+msgstr "请检查镜像及其变量，然后重试。"
+
+#: src/features/apps/DeploySheet.tsx
+msgid "Check the image and tag, then deploy again."
+msgstr "请检查镜像和标签，然后重新部署。"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Check the image and tag, then try again."
+msgstr "请检查镜像和标签，然后重试。"
+
+#: src/features/apps/AddPortSheet.tsx
+msgid "Check the port in the app, then try again."
+msgstr "请检查应用内的端口，然后重试。"
+
+#: src/features/changes/words.ts
+msgid "Checked"
+msgstr "已检查"
+
 #: src/features/auth/AuthGate.tsx
+#: src/features/changes/words.ts
 msgid "Checking"
 msgstr "正在检查"
 
@@ -899,6 +1244,10 @@ msgstr "认领这台服务器"
 msgid "Claimed this install"
 msgstr "认领了这个安装"
 
+#: src/features/changes/RollbackLine.tsx
+msgid "Clearing this away failed too"
+msgstr "清理此次变更也失败了"
+
 #: src/app/Providers.tsx
 #: src/features/changes/ChangeSheet.tsx
 msgid "Close"
@@ -930,6 +1279,7 @@ msgstr "恢复码已复制"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/apps/words.ts
+#: src/features/changes/fields.tsx
 msgid "command"
 msgstr "命令"
 
@@ -944,6 +1294,10 @@ msgstr "命令栏"
 #: src/features/system/CopyCommand.tsx
 msgid "Command copied"
 msgstr "命令已复制"
+
+#: src/features/changes/fields.tsx
+msgid "comment"
+msgstr "备注"
 
 #: src/features/system/StatusPage.tsx
 msgid "Commit"
@@ -992,11 +1346,8 @@ msgid "Connections"
 msgstr "连接"
 
 #: src/app/Providers.tsx
-msgid "container"
-msgstr "容器"
-
 #: src/features/changes/words.ts
-msgid "Container"
+msgid "container"
 msgstr "容器"
 
 #: src/features/servers/ServerPanels.tsx
@@ -1031,6 +1382,10 @@ msgstr "已复制 Compose 文件"
 #: src/features/apps/ExportSheet.tsx
 msgid "Copy"
 msgstr "复制"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Copy {at}"
+msgstr "复制 {at}"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Copy {ip}"
@@ -1072,21 +1427,61 @@ msgstr "无法更改 {field}"
 msgid "Couldn't change {field} and {more} more"
 msgstr "无法更改 {field} 等 {more} 项"
 
+#: src/features/changes/words.ts
+msgid "Couldn't check"
+msgstr "无法检查"
+
+#: src/features/changes/words.ts
+msgid "Couldn't create"
+msgstr "无法创建"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Couldn't create {made}"
+msgstr "无法创建 {made}"
+
 #: src/features/apps/revision.ts
 msgid "Couldn't create from"
 msgstr "未能创建自"
+
+#: src/features/changes/words.ts
+msgid "Couldn't delete"
+msgstr "无法删除"
 
 #: src/features/apps/revision.ts
 msgid "Couldn't deploy"
 msgstr "未能部署"
 
+#: src/features/changes/words.ts
+msgid "Couldn't deploy {image}"
+msgstr "无法部署 {image}"
+
 #: src/features/apps/revision.ts
 msgid "Couldn't publish port {number}"
 msgstr "无法发布端口 {number}"
 
+#: src/features/changes/words.ts
+msgid "Couldn't publish port {port}"
+msgstr "无法发布端口 {port}"
+
+#: src/features/changes/words.ts
+msgid "Couldn't pull {image}"
+msgstr "无法拉取 {image}"
+
 #: src/features/apps/revision.ts
 msgid "Couldn't pull {pulled}"
 msgstr "无法拉取 {pulled}"
+
+#: src/features/changes/words.ts
+msgid "Couldn't replace"
+msgstr "无法替换"
+
+#: src/features/changes/words.ts
+msgid "Couldn't roll back to {revision}"
+msgstr "无法回滚到 {revision}"
+
+#: src/features/changes/words.ts
+msgid "Couldn't update"
+msgstr "无法更新"
 
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
@@ -1131,6 +1526,15 @@ msgstr "创建项目 {name}"
 msgid "Create token"
 msgstr "创建令牌"
 
+#: src/app/Providers.tsx
+msgid "created"
+msgstr "已创建"
+
+#: src/app/Providers.tsx
+#: src/features/changes/words.ts
+msgid "Created"
+msgstr "已创建"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It doesn't expire."
 msgstr "已创建 <0>{name}</0>。请在 Authorization 标头中发送 <1>Bearer</1> 加上令牌。它不会过期。"
@@ -1151,6 +1555,10 @@ msgstr "创建自"
 msgid "Created the API token {name}"
 msgstr "创建了 API 令牌 {name}"
 
+#: src/features/changes/words.ts
+msgid "Creating"
+msgstr "正在创建"
+
 #: src/features/apps/revision.ts
 msgid "Creating from"
 msgstr "正在创建自"
@@ -1168,6 +1576,14 @@ msgstr "当前"
 msgid "Dark"
 msgstr "深色"
 
+#: src/features/changes/fields.tsx
+msgid "data"
+msgstr "数据"
+
+#: src/features/changes/fields.tsx
+msgid "data taken out of use"
+msgstr "不再使用的数据"
+
 #: src/app/Providers.tsx
 msgid "database"
 msgstr "数据库"
@@ -1180,26 +1596,50 @@ msgstr "数据库"
 msgid "Degraded"
 msgstr "降级"
 
+#: src/app/Providers.tsx
+#: src/features/changes/words.ts
+msgid "Delete"
+msgstr "删除"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Delete {name}"
 msgstr "删除 {name}"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Delete {subject}"
+msgstr "删除 {subject}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Delete this app"
 msgstr "删除此应用"
 
+#: src/app/Providers.tsx
+msgid "deleted"
+msgstr "已删除"
+
+#: src/app/Providers.tsx
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/revision.ts
+#: src/features/changes/words.ts
 msgid "Deleted"
 msgstr "已删除"
+
+#: src/features/changes/words.ts
+msgid "Deleting"
+msgstr "正在删除"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Deleting {name} stops it and removes its container. Its volumes stay, and you review a plan first."
 msgstr "删除 {name} 会停止它并移除其容器。它的卷会保留，且你会先审查计划。"
 
 #: src/features/apps/AppLayout.tsx
+#: src/features/changes/words.ts
 msgid "Deploy"
 msgstr "部署"
+
+#: src/features/changes/words.ts
+msgid "Deploy {image}"
+msgstr "部署 {image}"
 
 #: src/features/apps/DeploySheet.tsx
 msgid "Deploy {name}"
@@ -1215,6 +1655,7 @@ msgstr "部署你的第一个应用"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/changes/words.ts
 msgid "Deployed"
 msgstr "部署时间"
 
@@ -1240,11 +1681,19 @@ msgstr "{ago}由 {name} 部署"
 msgid "deployed {ago} from the CLI on {local}"
 msgstr "{ago}通过 {local} 上的命令行部署"
 
+#: src/features/changes/words.ts
+msgid "Deployed {image}"
+msgstr "已部署 {image}"
+
 #: src/app/Providers.tsx
 #: src/features/apps/revision.ts
 #: src/features/apps/words.ts
 msgid "Deploying"
 msgstr "正在部署"
+
+#: src/features/changes/words.ts
+msgid "Deploying {image}"
+msgstr "正在部署 {image}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Deploying {revision} of {name}"
@@ -1258,14 +1707,14 @@ msgstr "正在部署 <0>{image}</0>，开始于 {ago}"
 msgid "Deployments"
 msgstr "部署"
 
-#: src/app/Providers.tsx
-#: src/features/changes/words.ts
-msgid "Destroy"
-msgstr "销毁"
-
-#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/PlanSteps.tsx
 msgid "Destroys data"
 msgstr "会销毁数据"
+
+#: src/features/changes/FailureNotice.tsx
+#: src/features/changes/RollbackLine.tsx
+msgid "Details"
+msgstr "详细信息"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Directory"
@@ -1292,6 +1741,10 @@ msgstr "磁盘"
 msgid "Dismiss"
 msgstr "关闭"
 
+#: src/features/changes/fields.tsx
+msgid "display name"
+msgstr "显示名称"
+
 #: src/features/changes/words.ts
 msgid "DNS for {domain} points at {found}, not this server ({here}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
 msgstr "{domain} 的 DNS 指向 {found}，而不是此服务器（{here}），因此暂时无法获取证书。请将其指向此服务器，之后即可获取证书。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
@@ -1308,6 +1761,11 @@ msgstr "Docker"
 msgid "Docker starts {list} again when {server} next restarts, which may take port 80 or 443 from the proxy, and stop this route answering. Keep it stopped with docker update --restart=no {command}"
 msgstr "{server} 下次重启时，Docker 会再次启动 {list}，它可能从代理手中夺走 80 或 443 端口，使此路由无法响应。请用 docker update --restart=no {command} 让它保持停止"
 
+#: src/features/apps/AppOverview.tsx
+#: src/features/changes/fields.tsx
+msgid "Docker's socket"
+msgstr "Docker 套接字"
+
 #: src/features/changes/words.ts
 msgid "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
 msgstr "位于 {path} 的 Docker 套接字，可控制服务器上的 Docker，等同于 root 权限"
@@ -1320,32 +1778,101 @@ msgstr "Dockwell {short}：控制平面状态"
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方；应用和部署功能即将推出。"
 
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell can't tell whether <0>{next}</0> started"
+msgstr "Dockwell 无法确定 <0>{next}</0> 是否已启动"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell can't tell whether this ran"
+msgstr "Dockwell 无法确定此步骤是否已运行"
+
+#: src/features/changes/notices.tsx
+msgid "Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach {name}, and it them."
+msgstr "该网络不是 Dockwell 创建的。网络上的其他内容（包括其他项目的服务）都能访问 {name}，它也能访问它们。"
+
 #: src/features/apps/AppEnvironment.tsx
 msgid "Dockwell hands what's set on this app to it, and never shows those values again, as they may hold secrets."
 msgstr "Dockwell 将此应用自身设置的内容交给它，且不再显示这些值，因为其中可能含有机密。"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell is clearing this away"
+msgstr "Dockwell 正在清理此次变更"
+
+#: src/features/apps/AppLayout.tsx
+msgid "Dockwell is putting <0>{image}</0> back, started {ago}"
+msgstr "Dockwell 正在恢复 <0>{image}</0>，开始于 {ago}"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell is putting <0>{name}</0> back as it was"
+msgstr "Dockwell 正在将 <0>{name}</0> 恢复原样"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell is putting <0>{previous}</0> back"
+msgstr "Dockwell 正在恢复 <0>{previous}</0>"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell is putting things back as they were"
+msgstr "Dockwell 正在恢复原样"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Dockwell keeps trying."
 msgstr "Dockwell 会继续尝试。"
 
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell made a rollback of this, and can't say yet how it went."
+msgstr "Dockwell 已为此创建回滚，但暂时无法确定结果。"
+
 #: src/features/changes/ChangeSheet.tsx
-msgid "Dockwell made this change to roll back a failed one"
-msgstr "Dockwell 发起这个变更来回滚一个失败的变更"
+msgid "Dockwell made this change to roll back a failed one."
+msgstr "Dockwell 进行此更改以回滚一次失败的更改。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 msgstr "如果卷 <0>{source}</0> 还不存在，Dockwell 会创建它。"
 
-#: src/features/apps/AppDeployments.tsx
-#: src/features/changes/ChangeSheet.tsx
-msgid "Dockwell rolled back the steps already done."
-msgstr "Dockwell 已回滚已完成的步骤。"
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell put <0>{name}</0> back as it was"
+msgstr "Dockwell 已将 <0>{name}</0> 恢复原样"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell put <0>{previous}</0> back on <1>{name}</1>"
+msgstr "Dockwell 已在 <1>{name}</1> 上恢复 <0>{previous}</0>"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell put it back after this failed, so it was down while that happened."
+msgstr "此次变更失败后，Dockwell 已将其恢复，恢复期间它曾中断。"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell put it back after this failed, so some of it was down while that happened."
+msgstr "此次变更失败后，Dockwell 已将其恢复，恢复期间部分内容曾中断。"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell put it back after this failed."
+msgstr "此次变更失败后，Dockwell 已将其恢复。"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell put it back once it could reach the server."
+msgstr "Dockwell 在能连接到服务器后已将其恢复。"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Dockwell put things back as they were"
+msgstr "Dockwell 已恢复原样"
+
+#. placeholder {0}: state.servers.join(", ")
+#: src/features/apps/AppLayout.tsx
+msgid "Dockwell puts <0>{image}</0> back once {0} reconnects"
+msgstr "{0} 重新连接后，Dockwell 会恢复 <0>{image}</0>"
+
+#: src/features/changes/fields.tsx
+msgid "doesn't come back"
+msgstr "不再恢复"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "doesn't expire"
 msgstr "不会过期"
 
 #: src/app/Providers.tsx
+#: src/features/changes/fields.tsx
 msgid "domain"
 msgstr "域名"
 
@@ -1367,9 +1894,17 @@ msgstr "宕机"
 msgid "Download"
 msgstr "下载"
 
+#: src/features/changes/fields.tsx
+msgid "driver"
+msgstr "驱动"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "driver options"
 msgstr "驱动选项"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Each app rolls back to what it runs now if this fails"
+msgstr "如果失败，每个应用都会回滚到当前运行的版本"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Each code signs you in once, with your email, if you lose your authenticator app. They're shown only now. Keep them somewhere safe, apart from your phone."
@@ -1378,6 +1913,12 @@ msgstr "如果你丢了身份验证器应用，每个恢复码可以配合你的
 #: src/features/apps/AppOverview.tsx
 msgid "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
 msgstr "它运行过的每台服务器都已离开集群，因此 Dockwell 无法在那里查看或更改它，它的容器可能仍在那些服务器上运行。部署它，即可在集群中的服务器上运行。"
+
+#: src/features/apps/AddPortSheet.tsx
+#: src/features/apps/DeploySheet.tsx
+#: src/features/apps/NewAppSheet.tsx
+msgid "Edit and try again"
+msgstr "修改后重试"
 
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/SignInPage.tsx
@@ -1414,6 +1955,7 @@ msgstr "请输入你的姓名。"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/apps/words.ts
+#: src/features/changes/fields.tsx
 msgid "entrypoint"
 msgstr "入口点"
 
@@ -1423,6 +1965,7 @@ msgstr "入口点"
 
 #: src/app/Providers.tsx
 #: src/features/apps/words.ts
+#: src/features/changes/words.ts
 msgid "environment"
 msgstr "环境"
 
@@ -1430,10 +1973,13 @@ msgstr "环境"
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
-#: src/features/changes/words.ts
 #: src/features/variables/VariablesPage.tsx
 msgid "Environment"
 msgstr "环境"
+
+#: src/features/changes/words.ts
+msgid "environment {environment}"
+msgstr "环境 {environment}"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "environment variable names"
@@ -1468,9 +2014,21 @@ msgstr "事件：{caption}"
 msgid "Every change, server event and access grant, newest first"
 msgstr "所有变更、服务器事件和访问授权，最新的在前"
 
+#: src/features/changes/RollbackLine.tsx
+msgid "Everything is back as it was"
+msgstr "一切已恢复原样"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Everything stayed as it was"
+msgstr "一切保持了原样"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Everything stays as it was"
+msgstr "一切保持原样"
+
 #: src/features/changes/ChangeSheet.tsx
-msgid "Every step ran"
-msgstr "所有步骤都已运行"
+msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
+msgstr "此计划要求的一切都已就绪，没有需要应用的内容。"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Expired"
@@ -1520,7 +2078,7 @@ msgid "firewall"
 msgstr "防火墙"
 
 #: src/features/changes/words.ts
-msgid "Firewall rule"
+msgid "firewall rule"
 msgstr "防火墙规则"
 
 #: src/features/apps/NewAppSheet.tsx
@@ -1534,10 +2092,6 @@ msgstr "修复第 {line}–{end} 行后即可审阅计划"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Fix the file to review the plan"
 msgstr "修复文件后即可查看计划"
-
-#: src/features/apps/AppOverview.tsx
-msgid "Fix what it says, then deploy again."
-msgstr "请按提示修复，然后重新部署。"
 
 #: src/features/shell/Rail.tsx
 msgid "Fleet"
@@ -1629,12 +2183,30 @@ msgstr "前往概览"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/apps/words.ts
+#: src/features/changes/fields.tsx
+#: src/features/changes/notices.tsx
 msgid "health check"
 msgstr "健康检查"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Health check"
 msgstr "健康检查"
+
+#: src/features/changes/fields.tsx
+msgid "health check interval"
+msgstr "健康检查间隔"
+
+#: src/features/changes/fields.tsx
+msgid "health check retries"
+msgstr "健康检查重试次数"
+
+#: src/features/changes/fields.tsx
+msgid "health check start period"
+msgstr "健康检查启动期"
+
+#: src/features/changes/fields.tsx
+msgid "health check timeout"
+msgstr "健康检查超时"
 
 #: src/app/Providers.tsx
 msgid "Healthy"
@@ -1673,6 +2245,10 @@ msgstr "HTTPS 自动配置。你的通行密钥在这个地址可用。"
 msgid "HTTPS on {path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
 msgstr "{path} 上的 HTTPS，它将停止：https:// 地址会报错，见过其 HSTS 的浏览器在该设置到期前也会拒绝纯 HTTP"
 
+#: src/features/changes/notices.tsx
+msgid "https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out."
+msgstr "https:// 地址将报错，已看到其 HSTS 的浏览器在 HSTS 过期前会拒绝明文 HTTP。"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "I saved them"
 msgstr "我已保存"
@@ -1686,6 +2262,7 @@ msgid "If you lost a passkey, add a new one now, then remove the lost one below.
 msgstr "如果你丢了通行密钥，请现在添加一个新的，然后在下方移除丢失的那个。"
 
 #: src/features/apps/words.ts
+#: src/features/changes/fields.tsx
 msgid "image"
 msgstr "镜像"
 
@@ -1729,6 +2306,18 @@ msgstr "90 天后"
 msgid "In a shell on the control server"
 msgstr "在控制服务器的 shell 中"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "In environment <0>{environment}</0>"
+msgstr "位于环境 <0>{environment}</0>"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "In project <0>{project}</0>"
+msgstr "位于项目 <0>{project}</0>"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "In project <0>{project}</0>, environment <1>{environment}</1>"
+msgstr "位于项目 <0>{project}</0>，环境 <1>{environment}</1>"
+
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "In the app"
@@ -1742,6 +2331,10 @@ msgstr "不到一分钟后"
 msgid "Installed"
 msgstr "安装时间"
 
+#: src/features/changes/fields.tsx
+msgid "internal"
+msgstr "内部"
+
 #: src/features/changes/words.ts
 msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
 msgstr "它通过纯 HTTP 响应任何能访问 {server} 80 端口的人，绕过它前面的任何东西"
@@ -1754,17 +2347,33 @@ msgstr "它只响应 {list}。其他人得到的结果和访问没有路由的�
 msgid "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
 msgstr "它只响应在 {server} 本机上运行的程序，例如使用其自身网络的隧道。其他人得到的结果和访问没有路由的域名一样"
 
+#: src/features/changes/notices.tsx
+msgid "It can read and write that path on the server."
+msgstr "它可以读写服务器上的该路径。"
+
+#: src/features/changes/notices.tsx
+msgid "It can read that path on the server."
+msgstr "它可以读取服务器上的该路径。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "It can't be hidden there, so don't pass a secret there."
 msgstr "这里无法隐藏值，所以不要在这里传入机密。"
 
-#: src/features/changes/ChangeSheet.tsx
-msgid "It has been undone since."
-msgstr "它之后已被撤销。"
+#: src/features/changes/RollbackLine.tsx
+msgid "It can't tell what is running there until then. Check that the server and its agent are up."
+msgstr "在此之前，无法确定那里正在运行什么。请检查服务器及其代理是否正常运行。"
+
+#: src/features/changes/notices.tsx
+msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
+msgstr "它拥有 Linux 能力 <0>{path}</0>，相当于 root。"
 
 #: src/features/servers/ServerCallout.tsx
 msgid "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
 msgstr "它已加入，但代理尚未连接，所以还没有数据。请在该服务器上运行 <0>dockwell run</0> 启动代理。"
+
+#: src/features/changes/notices.tsx
+msgid "It joins the group <0>{path}</0>, which is the same as root."
+msgstr "它加入用户组 <0>{path}</0>，相当于 root。"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "It keeps applying if you close this."
@@ -1774,13 +2383,37 @@ msgstr "关闭这里后它会继续应用。"
 msgid "It keeps going whether or not you stay here. Its steps show in the plan."
 msgstr "无论你是否留在此页，部署都会继续。步骤显示在计划中。"
 
+#: src/features/changes/notices.tsx
+msgid "It leads to <0>{leadsTo}</0> through a symlink, and it can read and write what is there."
+msgstr "它通过符号链接指向 <0>{leadsTo}</0>，并可以读写那里的内容。"
+
+#: src/features/changes/notices.tsx
+msgid "It leads to <0>{leadsTo}</0> through a symlink, and it can read what is there."
+msgstr "它通过符号链接指向 <0>{leadsTo}</0>，并可以读取那里的内容。"
+
+#: src/features/changes/notices.tsx
+msgid "It leads to <0>{leadsTo}</0> through a symlink, and the server's security rests on what is there, so reaching it is as good as root."
+msgstr "它通过符号链接指向 <0>{leadsTo}</0>，而服务器的安全取决于那里的内容，所以能访问它就相当于拥有 root。"
+
+#: src/features/changes/notices.tsx
+msgid "It reaches what the server reaches, past Docker's network and the firewall."
+msgstr "它能访问服务器能访问的一切，绕过 Docker 网络和防火墙。"
+
 #: src/features/apps/DeploySheet.tsx
 msgid "It runs <0>{current}</0> now."
 msgstr "当前运行 <0>{current}</0>。"
 
+#: src/features/changes/notices.tsx
+msgid "It runs in privileged mode, which gives it every device and capability on the server."
+msgstr "它以特权模式运行，可使用服务器上的所有设备和能力。"
+
 #: src/features/apps/DeploySheet.tsx
 msgid "It runs the new image with the rest as it is"
 msgstr "运行新镜像，其余保持不变"
+
+#: src/features/changes/notices.tsx
+msgid "It takes that proxy's word for where a request came from."
+msgstr "它会相信该代理所说的请求来源。"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
@@ -1802,9 +2435,9 @@ msgstr "它的代理最后一次上报于 {seen}，此处显示的是当时的�
 msgid "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
 msgstr "其中的应用会以这个名称显示为一行，并使用独立的网络。再次以此名称导入会更新它们。"
 
-#: src/features/changes/ChangeSheet.tsx
-msgid "Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy"
-msgstr "服务器上还没有它的镜像，因此其自带的健康检查未知，恢复健康可能需要更久"
+#: src/features/changes/notices.tsx
+msgid "its server"
+msgstr "它的服务器"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Its whole project"
@@ -1835,6 +2468,10 @@ msgstr "继续编辑"
 msgid "Keep it on"
 msgstr "保持开启"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Keep this only if you trust what it runs."
+msgstr "请仅在信任其运行内容时保留。"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Kernel"
 msgstr "内核"
@@ -1842,6 +2479,10 @@ msgstr "内核"
 #: src/features/variables/VariablesPage.tsx
 msgid "Key"
 msgstr "键"
+
+#: src/features/changes/fields.tsx
+msgid "label"
+msgstr "标签"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/apps/words.ts
@@ -2001,10 +2642,9 @@ msgstr "生成新的恢复码"
 msgid "Match the system theme"
 msgstr "跟随系统主题"
 
-#. placeholder {0}: server.serverName
-#: src/features/changes/ChangeSheet.tsx
-msgid "May cut off access to {0}"
-msgstr "可能会切断对 {0} 的访问"
+#: src/features/changes/PlanSteps.tsx
+msgid "May cut off access to {server}"
+msgstr "可能切断对 {server} 的访问"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "May have been copied; it no longer signs in"
@@ -2021,6 +2661,10 @@ msgstr "内存"
 #: src/features/shell/TabBar.tsx
 msgid "More"
 msgstr "更多"
+
+#: src/features/changes/fields.tsx
+msgid "mounted at"
+msgstr "挂载位置"
 
 #: src/features/apps/words.ts
 msgid "mounts"
@@ -2077,16 +2721,17 @@ msgid "Near lines {0}–{1}: {2}"
 msgstr "第 {0}–{1} 行附近：{2}"
 
 #: src/app/Providers.tsx
+#: src/features/changes/words.ts
 msgid "network"
 msgstr "网络"
 
-#: src/features/changes/words.ts
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Network"
 msgstr "网络"
 
 #: src/features/apps/words.ts
+#: src/features/changes/fields.tsx
 msgid "networks"
 msgstr "网络"
 
@@ -2123,6 +2768,10 @@ msgstr "新的恢复码"
 msgid "New value"
 msgstr "新值"
 
+#: src/features/changes/fields.tsx
+msgid "no"
+msgstr "否"
+
 #: src/features/apps/AppsPage.tsx
 msgid "No app here has <0>{query}</0> in its name or image. Try part of a name, or clear the filter."
 msgstr "此处没有名称或镜像包含 <0>{query}</0> 的应用。请试试名称的一部分，或清除筛选条件。"
@@ -2135,9 +2784,13 @@ msgstr "没有此 ID 的应用"
 msgid "No apps yet"
 msgstr "还没有应用"
 
-#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/PlanSteps.tsx
 msgid "No downtime"
 msgstr "不会停机"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "no downtime expected"
+msgstr "预计不会停机"
 
 #: src/features/apps/AppEnvironment.tsx
 msgid "No environment variables"
@@ -2179,7 +2832,7 @@ msgstr "还没有服务器"
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "还没有服务器。在这台服务器上运行 <0>dockwell token create</0> 来添加一台。"
 
-#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/PlanSteps.tsx
 msgid "No steps: it left the fleet"
 msgstr "没有步骤：它已离开集群"
 
@@ -2263,6 +2916,10 @@ msgstr "没有与“{query}”匹配的结果。试试服务器、应用或操�
 msgid "Nothing matches these filters. Clear them to see everything."
 msgstr "没有符合这些筛选条件的内容。清除筛选即可查看全部。"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Nothing outside <0>{server}</0> reaches <1>{name}</1> yet. Add a port on its page."
+msgstr "<0>{server}</0> 之外还无法访问 <1>{name}</1>。请在其页面添加端口。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Nothing outside the server reaches it until you publish a port."
 msgstr "在发布端口之前，服务器外部无法访问它。"
@@ -2276,17 +2933,17 @@ msgid "Nothing outside the server reaches it yet. Other apps on its network do."
 msgstr "服务器外部暂时无法访问它。同一网络中的其他应用可以访问。"
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "Nothing runs on a server: Dockwell records it and it applies at once."
-msgstr "不会在服务器上运行任何内容：Dockwell 记录后立即应用。"
+msgid "Nothing outside the server reaches these yet. Add a port on an app's page."
+msgstr "服务器之外还无法访问这些应用。请在应用页面添加端口。"
 
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "Nothing runs until you apply the plan"
 msgstr "应用计划之前不会运行任何内容"
 
-#: src/features/changes/words.ts
-msgid "Nothing to do"
-msgstr "无需操作"
+#: src/features/changes/ChangeSheet.tsx
+msgid "Nothing to change"
+msgstr "没有需要更改的内容"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Nothing yet. It runs once the deploy finishes."
@@ -2306,7 +2963,7 @@ msgstr "关闭"
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/NewAppSheet.tsx
-#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/PlanSteps.tsx
 msgid "Offline"
 msgstr "离线"
 
@@ -2319,15 +2976,36 @@ msgstr "开启"
 msgid "On the server"
 msgstr "服务器上"
 
-#: src/features/changes/ChangeSheet.tsx
-msgid "Only a signed-in person can apply it, as no API token may."
-msgstr "只有已登录的用户才能应用它，任何 API 令牌都不能。"
+#: src/features/changes/RollbackLine.tsx
+msgid "Once <0>{servers}</0> reconnect, Dockwell puts things back as they were"
+msgstr "<0>{servers}</0> 重新连接后，Dockwell 会恢复原样"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Once <0>{servers}</0> reconnects, Dockwell clears this away"
+msgstr "<0>{servers}</0> 重新连接后，Dockwell 会清理此次变更"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Once <0>{servers}</0> reconnects, Dockwell puts <1>{name}</1> back as it was"
+msgstr "<0>{servers}</0> 重新连接后，Dockwell 会将 <1>{name}</1> 恢复原样"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Once <0>{servers}</0> reconnects, Dockwell puts <1>{previous}</1> back"
+msgstr "<0>{servers}</0> 重新连接后，Dockwell 会恢复 <1>{previous}</1>"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Once <0>{servers}</0> reconnects, Dockwell puts things back as they were"
+msgstr "<0>{servers}</0> 重新连接后，Dockwell 会恢复原样"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
+msgstr "部署失败后，服务器重新连接时，Dockwell 会恢复 <0>{image}</0>。在此之前，无法确定那里正在运行什么。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Only a variable's value is hidden, so don't pass a secret there."
 msgstr "只有变量的值会被隐藏，所以不要在这里传入机密。"
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "only on the server"
 msgstr "仅限服务器本机"
 
@@ -2417,6 +3095,10 @@ msgstr "运维"
 msgid "Operating system"
 msgstr "操作系统"
 
+#: src/features/changes/fields.tsx
+msgid "option"
+msgstr "选项"
+
 #: src/app/Providers.tsx
 msgid "Optional"
 msgstr "可选"
@@ -2456,6 +3138,10 @@ msgstr "页面"
 msgid "Panel address"
 msgstr "面板地址"
 
+#: src/features/changes/RollbackLine.tsx
+msgid "Parts of it may still be on the server. Check what is there, then try again, or remove them by hand."
+msgstr "其中部分内容可能仍在服务器上。请检查那里的内容，然后重试，或手动移除。"
+
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Passkey"
 msgstr "通行密钥"
@@ -2488,6 +3174,10 @@ msgstr "粘贴内容，或将文件拖到这里。Dockwell 会在你输入时读
 #: src/features/auth/ClaimPage.tsx
 msgid "Paste the claim link or code that dockwell run printed."
 msgstr "请粘贴 dockwell run 打印的认领链接或认领码。"
+
+#: src/features/changes/fields.tsx
+msgid "path"
+msgstr "路径"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Path in the app"
@@ -2535,13 +3225,30 @@ msgstr "计划只说明值已更改，绝不显示内容。"
 msgid "Platform"
 msgstr "平台"
 
+#: src/features/changes/fields.tsx
+msgid "port"
+msgstr "端口"
+
 #: src/features/apps/AppOverview.tsx
 msgid "port {target}"
 msgstr "端口 {target}"
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/changes/ChangeSheet.tsx
 msgid "port {target}, UDP"
 msgstr "端口 {target}，UDP"
+
+#: src/features/changes/fields.tsx
+msgid "port in the app"
+msgstr "应用内端口"
+
+#: src/features/changes/fields.tsx
+msgid "port on the server"
+msgstr "服务器端口"
+
+#: src/features/changes/fields.tsx
+msgid "port's address"
+msgstr "端口地址"
 
 #: src/features/apps/words.ts
 msgid "ports"
@@ -2569,13 +3276,17 @@ msgid "Profile and security"
 msgstr "个人资料和安全"
 
 #: src/app/Providers.tsx
+#: src/features/changes/words.ts
 msgid "project"
 msgstr "项目"
 
 #: src/features/apps/NewAppSheet.tsx
-#: src/features/changes/words.ts
 msgid "Project"
 msgstr "项目"
+
+#: src/features/changes/words.ts
+msgid "project {project}"
+msgstr "项目 {project}"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Project name"
@@ -2594,6 +3305,10 @@ msgstr "提议者"
 msgid "Protected environment"
 msgstr "受保护的环境"
 
+#: src/features/changes/fields.tsx
+msgid "protocol"
+msgstr "协议"
+
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "Protocol"
@@ -2611,29 +3326,97 @@ msgstr "公网 IPv4"
 msgid "Public IPv6"
 msgstr "公网 IPv6"
 
+#: src/features/changes/words.ts
+msgid "Publish port"
+msgstr "发布端口"
+
 #: src/features/apps/AddPortSheet.tsx
 msgid "Publish port {hostPort} on {name}"
 msgstr "在 {name} 上发布端口 {hostPort}"
+
+#: src/features/changes/words.ts
+msgid "Publish port {port}"
+msgstr "发布端口 {port}"
+
+#: src/features/changes/words.ts
+msgid "Published port"
+msgstr "已发布端口"
 
 #: src/features/apps/revision.ts
 msgid "Published port {number}"
 msgstr "已发布端口 {number}"
 
+#: src/features/changes/words.ts
+msgid "Published port {port}"
+msgstr "已发布端口 {port}"
+
 #: src/features/apps/revision.ts
 msgid "Publishing port {number}"
 msgstr "正在发布端口 {number}"
+
+#: src/features/changes/words.ts
+msgid "Publishing port {port}"
+msgstr "正在发布端口 {port}"
+
+#: src/features/changes/words.ts
+msgid "Pull {image} again"
+msgstr "重新拉取 {image}"
+
+#: src/features/changes/words.ts
+msgid "Pull again"
+msgstr "重新拉取"
+
+#: src/features/changes/words.ts
+msgid "Pulled {image} again"
+msgstr "已重新拉取 {image}"
 
 #: src/features/apps/revision.ts
 msgid "Pulled {pulled} again"
 msgstr "已重新拉取 {pulled}"
 
+#: src/features/changes/words.ts
+msgid "Pulled again"
+msgstr "已重新拉取"
+
+#: src/features/changes/words.ts
+msgid "Pulling {image} again"
+msgstr "正在重新拉取 {image}"
+
 #: src/features/apps/revision.ts
 msgid "Pulling {pulled} again"
 msgstr "正在重新拉取 {pulled}"
 
+#: src/features/changes/notices.tsx
+msgid "Pulls {image} again, and replaces {name} only if that's a newer image."
+msgstr "将重新拉取 {image}，只有镜像更新时才会替换 {name}。"
+
+#: src/features/changes/notices.tsx
+msgid "Pulls {image} again, and replaces {name} whatever that finds, as more than its image differs."
+msgstr "重新拉取 {image}，并且无论结果如何都会替换 {name}，因为不只是镜像有差异。"
+
+#: src/features/changes/notices.tsx
+msgid "Pulls {image} again, and replaces {name} with what that names now, in place of the digest it's pinned to."
+msgstr "重新拉取 {image}，并用它现在指向的内容替换 {name}，不再固定于原来的摘要。"
+
 #: src/features/apps/DeploySheet.tsx
 msgid "Pulls <0>{current}</0> again, and replaces {name} only if that's a newer image."
 msgstr "重新拉取 <0>{current}</0>，只有镜像更新时才替换 {name}。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Putting {name} back failed too"
+msgstr "恢复 {name} 也失败了"
+
+#: src/features/apps/AppLayout.tsx
+msgid "Putting <0>{image}</0> back failed, {ago}"
+msgstr "恢复 <0>{image}</0> 失败，{ago}"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Putting <0>{name}</0> back failed too"
+msgstr "恢复 <0>{name}</0> 也失败了"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Putting things back failed too"
+msgstr "恢复原样也失败了"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "QR code for your authenticator app"
@@ -2647,19 +3430,23 @@ msgstr "排队中"
 msgid "Reaches {path}"
 msgstr "可访问 {path}"
 
-#. placeholder {0}: server.serverName
-#: src/features/changes/ChangeSheet.tsx
-msgid "Reaches {reach} on {0}"
-msgstr "可访问 {0} 上的 {reach}"
+#: src/features/changes/PlanSteps.tsx
+msgid "Reaches {reach} on {server}"
+msgstr "可访问 {server} 上的 {reach}"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Read and write"
 msgstr "读写"
 
+#: src/features/changes/notices.tsx
+msgid "Read it for the rest before you pass one a secret."
+msgstr "在向其中传入密钥之前，请先阅读文件中的其余部分。"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Read only"
 msgstr "只读"
 
+#: src/features/changes/fields.tsx
 #: src/features/changes/words.ts
 msgid "read-only"
 msgstr "只读"
@@ -2698,16 +3485,16 @@ msgid "Reconnecting"
 msgstr "正在重新连接"
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "Recorded and applied"
-msgstr "已记录并应用"
+msgid "Recorded and applied. Nothing had to run on a server."
+msgstr "已记录并应用。无需在服务器上运行任何内容。"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Recovery codes"
 msgstr "恢复码"
 
 #: src/features/changes/words.ts
-msgid "Recreated"
-msgstr "重新创建"
+msgid "Recreates its container"
+msgstr "重建它的容器"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Refused"
@@ -2750,7 +3537,7 @@ msgstr "移除此卷"
 msgid "Remove what isn't in this file"
 msgstr "移除不在此文件中的内容"
 
-#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/PlanSteps.tsx
 msgid "Removed"
 msgstr "已移除"
 
@@ -2775,15 +3562,26 @@ msgstr "替换"
 msgid "Replace codes"
 msgstr "替换恢复码"
 
+#: src/app/Providers.tsx
+msgid "replaced"
+msgstr "已替换"
+
+#: src/app/Providers.tsx
 #: src/features/apps/revision.ts
 #: src/features/apps/words.ts
+#: src/features/changes/words.ts
 msgid "Replaced"
 msgstr "已替换"
+
+#: src/features/changes/words.ts
+msgid "Replacing"
+msgstr "正在替换"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Required"
 msgstr "必填"
 
+#: src/app/Providers.tsx
 #: src/features/activity/ActivityPage.tsx
 msgid "resource"
 msgstr "资源"
@@ -2791,6 +3589,10 @@ msgstr "资源"
 #: src/features/shell/MorePage.tsx
 msgid "Resources"
 msgstr "资源"
+
+#: src/features/changes/fields.tsx
+msgid "restart"
+msgstr "重启"
 
 #: src/features/apps/words.ts
 msgid "restart policy"
@@ -2869,6 +3671,10 @@ msgstr "撤销了 API 令牌"
 msgid "Revoked the API token {name}"
 msgstr "撤销了 API 令牌 {name}"
 
+#: src/features/changes/words.ts
+msgid "Roll back"
+msgstr "回滚"
+
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppOverview.tsx
 msgid "Roll back {name} to {target}"
@@ -2882,6 +3688,10 @@ msgstr "回滚到 {backTo}"
 msgid "Roll back to {name}"
 msgstr "回滚到 {name}"
 
+#: src/features/changes/words.ts
+msgid "Roll back to {revision}"
+msgstr "回滚到 {revision}"
+
 #: src/features/apps/AppDeployments.tsx
 msgid "Roll back to {shown}"
 msgstr "回滚到 {shown}"
@@ -2891,8 +3701,26 @@ msgid "Roll back: {reverted}"
 msgstr "回滚：{reverted}"
 
 #: src/features/activity/ActivityPage.tsx
+msgid "Rollback"
+msgstr "回滚"
+
+#: src/features/apps/words.ts
+#: src/features/changes/RollbackLine.tsx
+msgid "Rollback failed"
+msgstr "回滚失败"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Rollback made"
+msgstr "已创建回滚"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Rollback waits"
+msgstr "回滚等待中"
+
 #: src/features/apps/revision.ts
 #: src/features/apps/words.ts
+#: src/features/changes/RollbackLine.tsx
+#: src/features/changes/words.ts
 msgid "Rolled back"
 msgstr "已回滚"
 
@@ -2900,13 +3728,42 @@ msgstr "已回滚"
 msgid "Rolled back after a failed deploy"
 msgstr "部署失败后已回滚"
 
-#: src/features/activity/ActivityPage.tsx
-msgid "Rolled back by"
-msgstr "回滚者"
+#: src/features/apps/AppLayout.tsx
+msgid "rolled back by Dockwell {ago}"
+msgstr "由 Dockwell 回滚于 {ago}"
+
+#: src/features/changes/words.ts
+msgid "Rolled back to {revision}"
+msgstr "已回滚到 {revision}"
 
 #: src/features/apps/revision.ts
 msgid "Rolled back to {target}"
 msgstr "已回滚到 {target}"
+
+#: src/features/apps/revision.ts
+#: src/features/changes/RollbackLine.tsx
+msgid "Rolling back"
+msgstr "正在回滚"
+
+#: src/features/apps/revision.ts
+msgid "Rolling back after a failed deploy"
+msgstr "部署失败后正在回滚"
+
+#: src/features/apps/revision.ts
+msgid "Rolling back after a failed deploy failed too"
+msgstr "部署失败后的回滚也失败了"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Rolling back failed"
+msgstr "回滚失败"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Rolling back failed {when}"
+msgstr "回滚失败于 {when}"
+
+#: src/features/changes/words.ts
+msgid "Rolling back to {revision}"
+msgstr "正在回滚到 {revision}"
 
 #: src/features/apps/AppDeployments.tsx
 msgid "Rollout"
@@ -2916,13 +3773,23 @@ msgstr "发布"
 msgid "Rolls back"
 msgstr "回滚"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Rolls back to <0>{back}</0> if it fails"
+msgstr "如果失败，将回滚到 <0>{back}</0>"
+
 #: src/features/activity/describe.ts
 msgid "Rotated the key that wraps every secret"
 msgstr "轮换了加密所有密钥的密钥"
 
+#: src/app/Providers.tsx
+#: src/features/changes/fields.tsx
 #: src/features/changes/words.ts
-msgid "Route"
+msgid "route"
 msgstr "路由"
+
+#: src/features/changes/fields.tsx
+msgid "rule"
+msgstr "规则"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Run {projectName} from a Compose file"
@@ -2960,6 +3827,10 @@ msgstr "请通过 SSH 在服务器上运行这条命令。它会打印一个只�
 #: src/features/changes/words.ts
 msgid "Running"
 msgstr "正在运行"
+
+#: src/features/changes/fields.tsx
+msgid "runs no entrypoint"
+msgstr "不运行入口点"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -3018,11 +3889,11 @@ msgid "Search or run a command"
 msgstr "搜索或运行命令"
 
 #: src/app/Providers.tsx
+#: src/features/changes/words.ts
 msgid "secret"
 msgstr "密钥"
 
 #: src/features/apps/AppEnvironment.tsx
-#: src/features/changes/words.ts
 #: src/features/variables/VariablesPage.tsx
 msgid "Secret"
 msgstr "密钥"
@@ -3038,6 +3909,10 @@ msgstr "密钥"
 #: src/features/apps/AppOverview.tsx
 msgid "See why"
 msgstr "查看原因"
+
+#: src/features/changes/fields.tsx
+msgid "SELinux label"
+msgstr "SELinux 标签"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Sending"
@@ -3057,6 +3932,10 @@ msgstr "服务器"
 msgid "Server"
 msgstr "服务器"
 
+#: src/features/changes/fields.tsx
+msgid "server path"
+msgstr "服务器路径"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Server path"
 msgstr "服务器路径"
@@ -3073,10 +3952,6 @@ msgstr "服务器"
 
 #: src/app/Providers.tsx
 msgid "service"
-msgstr "服务"
-
-#: src/features/changes/words.ts
-msgid "Service"
 msgstr "服务"
 
 #: src/features/auth/SessionsPanel.tsx
@@ -3232,6 +4107,10 @@ msgstr "跳到主要内容"
 msgid "Skipped"
 msgstr "已跳过"
 
+#: src/features/changes/RollbackLine.tsx
+msgid "Some of this may be down until that finishes."
+msgstr "在此完成之前，部分内容可能处于中断状态。"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
 msgid "Someone"
@@ -3253,6 +4132,10 @@ msgstr "出了点问题。请重试。"
 msgid "Source"
 msgstr "来源"
 
+#: src/features/changes/fields.tsx
+msgid "sources"
+msgstr "来源"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Start with read only, and allow writes only when the job needs them."
 msgstr "先从只读开始，只在任务需要时才允许写入。"
@@ -3267,13 +4150,21 @@ msgstr "状态"
 msgid "Status"
 msgstr "状态"
 
-#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/PlanSteps.tsx
+msgid "Steps"
+msgstr "步骤"
+
+#: src/features/changes/PlanSteps.tsx
 msgid "Steps by server"
 msgstr "各服务器的步骤"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Steps run one at a time on each server, servers side by side."
 msgstr "每台服务器上的步骤依次运行，各服务器同时进行。"
+
+#: src/features/apps/DeploySheet.tsx
+msgid "Stop what uses it on this server, then deploy again."
+msgstr "请停止此服务器上占用它的程序，然后重新部署。"
 
 #: src/app/Providers.tsx
 msgid "Stopped"
@@ -3301,11 +4192,11 @@ msgctxt "theme"
 msgid "System"
 msgstr "跟随系统"
 
-#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/PlanSteps.tsx
 msgid "Takes away {stopping}"
 msgstr "将取消{stopping}"
 
-#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/PlanSteps.tsx
 msgid "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 msgstr "停用其镜像在 {kept} 保存的数据，服务器会保留 7 天"
 
@@ -3334,8 +4225,28 @@ msgid "That code was already used. Wait for the next one in your authenticator a
 msgstr "这个验证码已经用过了。请等待身份验证器应用中的下一个。"
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "That didn't work"
-msgstr "操作没有成功"
+msgid "That didn't apply"
+msgstr "未能应用"
+
+#: src/features/changes/notices.tsx
+msgid "That goes beyond what Docker gives a container by default."
+msgstr "这超出了 Docker 默认给容器的权限。"
+
+#: src/features/changes/notices.tsx
+msgid "That goes beyond what Docker keeps for it."
+msgstr "这超出了 Docker 为它保留的范围。"
+
+#: src/features/changes/notices.tsx
+msgid "That is the same as root if it is the group that owns Docker's socket on the server."
+msgstr "如果它是服务器上拥有 Docker 套接字的用户组，就相当于 root。"
+
+#: src/features/changes/notices.tsx
+msgid "That is the server itself, past its containers, at {at} over plain HTTP."
+msgstr "这是服务器本身，绕过其容器，通过明文 HTTP 位于 {at}。"
+
+#: src/features/changes/notices.tsx
+msgid "That is the server itself, past its containers, at {at}."
+msgstr "这是服务器本身，绕过其容器，位于 {at}。"
 
 #: src/features/changes/words.ts
 msgid "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
@@ -3437,6 +4348,10 @@ msgstr "文件用到了这些变量，且没有默认值。"
 msgid "The file uses these. Leave one with a default empty to use its default."
 msgstr "文件使用这些变量。有默认值的留空即使用默认值。"
 
+#: src/features/changes/notices.tsx
+msgid "The file writes more variables in plain sight than these"
+msgstr "该文件以明文写出的变量比这里列出的更多"
+
 #: src/features/changes/words.ts
 msgid "the group {path}, which is the same as root"
 msgstr "用户组 {path}，等同于 root"
@@ -3533,21 +4448,41 @@ msgstr "资源筛选"
 msgid "the server filter"
 msgstr "服务器筛选"
 
+#: src/features/changes/notices.tsx
+msgid "The server keeps that data for 7 days, and undoing this brings it back. After that it is gone."
+msgstr "服务器会将这些数据保留 7 天，撤销可以恢复。此后数据将被删除。"
+
 #: src/features/servers/FleetNotes.tsx
 msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "服务器列表未能加载。Dockwell 会继续重试。"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "The server may be left between the two. Check it, then apply what should be there, or fix it by hand."
+msgstr "服务器可能处于两者之间的状态。请检查后应用应有的内容，或手动修复。"
 
 #: src/features/changes/words.ts
 msgid "the server path {path} ({how})"
 msgstr "服务器路径 {path}（{how}）"
 
 #: src/features/changes/words.ts
+msgid "the server path {path}, which leads to {leadsTo} ({how})"
+msgstr "服务器路径 {path}，它指向 {leadsTo}（{how}）"
+
+#: src/features/changes/words.ts
+msgid "the server path {path}, which leads to Docker's socket at {leadsTo}, which gives control of Docker on the server, the same as root"
+msgstr "服务器路径 {path}，它指向位于 {leadsTo} 的 Docker 套接字，这能控制服务器上的 Docker，相当于 root"
+
+#: src/features/changes/words.ts
 msgid "the server's own network"
 msgstr "服务器自身的网络"
 
-#: src/features/changes/ChangeSheet.tsx
-msgid "The start of this plan's fingerprint, so you apply exactly what you reviewed."
-msgstr "这个计划指纹的开头，确保你应用的正是你审查过的内容。"
+#: src/features/changes/notices.tsx
+msgid "The server's security rests on what is there, so reaching it is as good as root."
+msgstr "服务器的安全取决于那里的内容，所以能访问它就相当于拥有 root。"
+
+#: src/features/changes/notices.tsx
+msgid "The server's security rests on what that reaches, so it is as good as root."
+msgstr "服务器的安全取决于它能访问的内容，所以这相当于拥有 root。"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "The token wasn't created"
@@ -3556,6 +4491,10 @@ msgstr "令牌未创建"
 #: src/features/apps/NewAppSheet.tsx
 msgid "the volume {owner}"
 msgstr "卷 {owner}"
+
+#: src/features/changes/words.ts
+msgid "the volume driver {driver} at {path}, which reaches what the plugin does ({reads})"
+msgstr "位于 {path} 的卷驱动 {driver}，可访问该插件能访问的内容（{reads}）"
 
 #: src/features/changes/words.ts
 msgid "the volume driver {driver}, which reaches what the plugin does ({reads})"
@@ -3630,6 +4569,11 @@ msgstr "这是 {server} 上第一条需要证书的路由，因此 {proxy} 还�
 msgid "This is the last route on {server}, so {proxy} stops, and ports {ports} are free. Its certificates stay on the server for when a route comes back"
 msgstr "这是 {server} 上的最后一条路由，因此 {proxy} 将停止并释放端口 {ports}。证书会保留在服务器上，以便日后再次添加路由时使用"
 
+#. placeholder {0}: server.serverName
+#: src/features/changes/notices.tsx
+msgid "This may cut off access to {0}"
+msgstr "这可能切断对 {0} 的访问"
+
 #: src/features/auth/RecoverPage.tsx
 msgid "This page needs the whole link that dockwell recover printed, including the part after “#”."
 msgstr "这个页面需要 dockwell recover 打印的完整链接，包括“#”之后的部分。"
@@ -3642,13 +4586,9 @@ msgstr "这个面板控制 {name}。请用通行密钥创建所有者账户。"
 msgid "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
 msgstr "Dockwell 的这一部分尚未完成，会在之后的版本中推出。在此之前，可以在概览中查看服务器的运行情况。"
 
-#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/notices.tsx
 msgid "This plan destroys data or may cut off access"
 msgstr "这个计划会销毁数据，或可能切断访问"
-
-#: src/features/changes/ChangeSheet.tsx
-msgid "This plan gives more access to a server"
-msgstr "这个计划会增加对服务器的访问"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."
@@ -3670,21 +4610,25 @@ msgstr "这个登录链接无效"
 msgid "This sign-in link is invalid, already used, replaced by a newer one, or expired. Run dockwell recover on the server for a new link."
 msgstr "这个登录链接无效、已使用、已被新链接取代或已过期。请在服务器上运行 dockwell recover 获取新链接。"
 
+#: src/features/changes/RollbackLine.tsx
+msgid "This stopped before it changed anything on the server."
+msgstr "此次变更在改动服务器上的任何内容之前就已停止。"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "This stopped before it reached that, and Dockwell put back the rest."
+msgstr "此次变更在涉及它之前就已停止，Dockwell 已恢复其余部分。"
+
 #: src/app/Providers.tsx
 msgid "to"
 msgstr "改为"
-
-#: src/app/Providers.tsx
-msgid "to change"
-msgstr "项待更改"
 
 #: src/app/Providers.tsx
 msgid "to create"
 msgstr "项待创建"
 
 #: src/app/Providers.tsx
-msgid "to destroy"
-msgstr "项待销毁"
+msgid "to delete"
+msgstr "项待删除"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "To keep one hidden, pass it in <0>environment</0> for the app to read, or run the {where} through a shell, as <1>sh -c</1>, with <2>$$NAME</2> in it."
@@ -3705,6 +4649,14 @@ msgstr "项待替换"
 #: src/app/Providers.tsx
 msgid "to run"
 msgstr "运行"
+
+#: src/app/Providers.tsx
+msgid "to update"
+msgstr "待更新"
+
+#: src/app/Providers.tsx
+msgid "to update if newer"
+msgstr "如有新版本则更新"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Today"
@@ -3734,6 +4686,14 @@ msgstr "验证码错误次数过多。请稍候再试。"
 #: src/features/apps/AppDeployments.tsx
 msgid "Took"
 msgstr "耗时"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Took {took}"
+msgstr "用时 {took}"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Took {took} on <0>{names}</0>"
+msgstr "在 <0>{names}</0> 上用时 {took}"
 
 #: src/features/changes/words.ts
 msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
@@ -3776,7 +4736,6 @@ msgstr "输入 <0>{confirmWith}</0> 以应用"
 
 #: src/app/Providers.tsx
 #: src/features/activity/ActivityPage.tsx
-#: src/features/changes/ChangeSheet.tsx
 msgid "Undo"
 msgstr "撤销"
 
@@ -3785,16 +4744,24 @@ msgid "Undo for {undoDays} days"
 msgstr "{undoDays} 天内可撤销"
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "Undo is a plan too"
-msgstr "撤销也是一个计划"
+msgid "Undo for {undoDays} days if this replaces anything"
+msgstr "如果发生替换，{undoDays} 天内可撤销"
 
-#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/notices.tsx
 msgid "Undo may not bring everything back."
 msgstr "撤销可能无法恢复所有内容。"
+
+#: src/features/changes/notices.tsx
+msgid "Undo may not bring it back. Back it up first if you need it."
+msgstr "撤销可能无法恢复。如有需要，请先备份。"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Undo this change"
 msgstr "撤销这个变更"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Undo until {deadline}"
+msgstr "可撤销至 {deadline}"
 
 #: src/features/activity/describe.ts
 msgid "Undo: {reverted}"
@@ -3803,10 +4770,6 @@ msgstr "撤销：{reverted}"
 #: src/features/activity/ActivityPage.tsx
 msgid "Undoes"
 msgstr "撤销"
-
-#: src/features/changes/ChangeSheet.tsx
-msgid "Undoing makes a plan of its own, for you to review."
-msgstr "撤销会生成单独的计划，供你审查。"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -3834,6 +4797,18 @@ msgstr "未知浏览器"
 #: src/features/servers/ServersPanel.tsx
 msgid "Unknown system"
 msgstr "未知系统"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Unknown until {away} reconnects"
+msgstr "{away} 重新连接前无法确定"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Unknown until this is put back"
+msgstr "恢复完成前无法确定"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Unknown, as putting it back failed"
+msgstr "未知，因为恢复失败了"
 
 #: src/features/apps/words.ts
 msgid "Unless someone stops it"
@@ -3863,18 +4838,34 @@ msgstr "运行时间"
 msgid "up {uptime}"
 msgstr "已运行 {uptime}"
 
-#: src/features/changes/ChangeSheet.tsx
+#: src/features/changes/PlanSteps.tsx
 msgid "Up to {stepBound} until healthy"
 msgstr "最多 {stepBound} 后恢复健康"
 
-#: src/app/Providers.tsx
 #: src/features/changes/words.ts
+msgid "Update"
+msgstr "更新"
+
+#: src/app/Providers.tsx
 msgid "Update in place"
 msgstr "原地更新"
 
+#: src/app/Providers.tsx
+msgid "updated"
+msgstr "已更新"
+
+#: src/features/changes/words.ts
 #: src/features/variables/VariablesPage.tsx
 msgid "Updated"
 msgstr "更新"
+
+#: src/app/Providers.tsx
+msgid "Updated in place"
+msgstr "已原地更新"
+
+#: src/features/changes/words.ts
+msgid "Updating"
+msgstr "正在更新"
 
 #: src/features/auth/SignInPage.tsx
 msgid "Use a code from your authenticator app"
@@ -3939,6 +4930,7 @@ msgid "Used by"
 msgstr "使用者"
 
 #: src/features/apps/words.ts
+#: src/features/changes/fields.tsx
 msgid "user"
 msgstr "用户"
 
@@ -3957,11 +4949,12 @@ msgid "Value"
 msgstr "值"
 
 #: src/app/Providers.tsx
+#: src/features/changes/fields.tsx
+#: src/features/changes/words.ts
 msgid "variable"
 msgstr "变量"
 
 #: src/features/apps/AppEnvironment.tsx
-#: src/features/changes/words.ts
 msgid "Variable"
 msgstr "变量"
 
@@ -3998,11 +4991,9 @@ msgid "Version <0>{0}</0>"
 msgstr "版本 <0>{0}</0>"
 
 #: src/app/Providers.tsx
-msgid "volume"
-msgstr "卷"
-
+#: src/features/changes/fields.tsx
 #: src/features/changes/words.ts
-msgid "Volume"
+msgid "volume"
 msgstr "卷"
 
 #: src/features/apps/NewAppSheet.tsx
@@ -4048,9 +5039,25 @@ msgstr "变更内容"
 msgid "What happens next"
 msgstr "接下来"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "What it set out to do"
+msgstr "原定计划"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "What it would have done"
+msgstr "计划内容"
+
 #: src/features/apps/AddPortSheet.tsx
 msgid "What people connect to, such as 8080."
 msgstr "外部连接使用的端口，例如 8080。"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "What ran before runs again"
+msgstr "之前运行的内容已重新运行"
+
+#: src/features/apps/AppOverview.tsx
+msgid "What runs"
+msgstr "运行内容"
 
 #: src/features/changes/words.ts
 msgid "what runs on {server} itself"
@@ -4115,16 +5122,12 @@ msgstr "执行者"
 msgid "whoever comes through {list}"
 msgstr "经由 {list} 而来的任何人"
 
-#: src/features/activity/ActivityPage.tsx
-#: src/features/apps/AppDeployments.tsx
-msgid "Why it failed"
-msgstr "失败原因"
-
 #: src/features/apps/NewAppSheet.tsx
 msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "没有卷时，容器被替换后写入的内容会丢失。"
 
 #: src/features/apps/words.ts
+#: src/features/changes/fields.tsx
 msgid "working directory"
 msgstr "工作目录"
 
@@ -4135,6 +5138,10 @@ msgstr "在此处可用"
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Works on {where}"
 msgstr "在 {where} 上可用"
+
+#: src/features/changes/fields.tsx
+msgid "yes"
+msgstr "是"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Yesterday"
@@ -4147,11 +5154,6 @@ msgstr "你将在计划中批准它可访问的内容"
 #: src/features/auth/ClaimPage.tsx
 msgid "You become the owner. Nobody else can sign in."
 msgstr "你将成为所有者。其他人无法登录。"
-
-#. placeholder {0}: formatDateTime(timestampDate(change.undoDeadline), i18n.locale)
-#: src/features/changes/ChangeSheet.tsx
-msgid "You can undo it until {0}."
-msgstr "你可以在 {0} 之前撤销它。"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "You see the token once, right after you create it."

@@ -4,6 +4,7 @@ package resourcepb
 
 import (
 	"errors"
+	"maps"
 	"reflect"
 	"testing"
 
@@ -83,5 +84,30 @@ func TestEveryAccessKindHasAName(t *testing.T) {
 	}
 	if got := HostAccess([]resource.Access{{Kind: resource.AccessPrivileged, SameAsRoot: true}}); !got[0].GetSameAsRoot() {
 		t.Error("what is the same as root doesn't say so in the API")
+	}
+}
+
+// All a step takes from an agent's word on host access is where a path leads: what
+// it reaches, and how far that goes, is the control plane's to decide.
+func TestAStepTakesOnlyWhereAPathLeadsFromAnAgent(t *testing.T) {
+	sent := resource.Step{
+		Ref:      resource.Ref{Kind: "container", Scope: "srv_A", Name: "web"},
+		Decision: resource.Decision{Action: resource.ActionCreate, Leads: map[string]string{"/srv/link": "/etc", "/srv/a": "/srv/b"}},
+	}
+	p := Step(sent, "res_1")
+	p.HostAccess = append(p.HostAccess, &dockwellv1.HostAccess{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOCKER_SOCKET, Path: "/lie", SameAsRoot: false})
+	got, err := FromStep(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !maps.Equal(got.Leads, sent.Leads) {
+		t.Errorf("leads = %v, want %v", got.Leads, sent.Leads)
+	}
+	if len(got.HostAccess) != 0 {
+		t.Errorf("an agent's word on access came through: %v", got.HostAccess)
+	}
+	// The order on the wire doesn't move, as a plan's fingerprint reads what comes of it.
+	if first := Step(sent, "res_1").GetHostAccess()[0].GetPath(); first != "/srv/a" {
+		t.Errorf("the first lead on the wire is %s", first)
 	}
 }

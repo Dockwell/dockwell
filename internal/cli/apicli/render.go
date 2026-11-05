@@ -244,14 +244,14 @@ func serverEvent(w io.Writer, e *dockwellv1.WatchServersResponse, now time.Time)
 }
 
 // Counts writes a plan's summary as the panel does: "1 to create · 0 to
-// change · 0 to destroy", with replacements apart, only when there are
+// change · 0 to delete", with replacements apart, only when there are
 // some.
 func Counts(s *dockwellv1.PlanSummary) string {
 	parts := []string{fmt.Sprintf("%d to create", s.GetCreate()), fmt.Sprintf("%d to change", s.GetChange())}
 	if s.GetReplace() > 0 {
 		parts = append(parts, fmt.Sprintf("%d to replace", s.GetReplace()))
 	}
-	parts = append(parts, fmt.Sprintf("%d to destroy", s.GetDestroy()))
+	parts = append(parts, fmt.Sprintf("%d to delete", s.GetDestroy()))
 	return strings.Join(parts, " · ")
 }
 
@@ -389,7 +389,7 @@ var actions = map[dockwellv1.PlanAction]struct{ symbol, word string }{
 	dockwellv1.PlanAction_PLAN_ACTION_CREATE:  {"+", "Create"},
 	dockwellv1.PlanAction_PLAN_ACTION_UPDATE:  {"~", "Update in place"},
 	dockwellv1.PlanAction_PLAN_ACTION_REPLACE: {"±", "Replace"},
-	dockwellv1.PlanAction_PLAN_ACTION_DELETE:  {"-", "Destroy"},
+	dockwellv1.PlanAction_PLAN_ACTION_DELETE:  {"-", "Delete"},
 }
 
 var surfaces = map[dockwellv1.Surface]string{
@@ -427,8 +427,8 @@ func ChangeView(w io.Writer, c *dockwellv1.Change, now time.Time) {
 	if c.GetError() != "" {
 		fmt.Fprintf(w, "It failed: %s\n", sentence(c.GetError()))
 	}
-	if c.GetRolledBackBy() != "" {
-		fmt.Fprintf(w, "Dockwell rolled back what it had done in %s.\n", c.GetRolledBackBy())
+	if words := rollbackWords(c); words != "" {
+		fmt.Fprintln(w, words)
 	}
 	if c.GetUndoneBy() != "" {
 		fmt.Fprintf(w, "%s undid it.\n", c.GetUndoneBy())
@@ -442,6 +442,11 @@ func ChangeView(w io.Writer, c *dockwellv1.Change, now time.Time) {
 			row(tw, "  "+word(s.GetState()), stepText(s))
 		}
 		_ = tw.Flush()
+		for _, s := range c.GetSteps() {
+			if s.GetDetail() != "" {
+				fmt.Fprintf(w, "\nWhat the server said: %s\n", sentence(s.GetDetail()))
+			}
+		}
 	}
 	switch {
 	case c.GetUndoDeadline() != nil && c.GetUndoneBy() == "" && c.GetUndoDeadline().AsTime().After(now):
@@ -453,6 +458,76 @@ func ChangeView(w io.Writer, c *dockwellv1.Change, now time.Time) {
 		}
 		fmt.Fprintf(w, "\nUndo for %s %s.\n", Span(c.GetPlan().GetUndoWindow().AsDuration()), when)
 	}
+}
+
+// rollbackWords says how a failed change's rollback went, from what the API
+// says of it. It runs on after the change has failed, so it may not be over,
+// and may have failed too: it never says what ran before is back unless it is,
+// or that anything ran before a first deploy.
+func rollbackWords(c *dockwellv1.Change) string {
+	s := c.GetRollbackStatus()
+	id := c.GetRolledBackBy()
+	first := onlyCreates(c.GetPlan())
+	follow := fmt.Sprintf("Follow it with dockwell changes watch %s.", id)
+	switch s.GetState() {
+	case dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED:
+		switch {
+		case s.GetSteps() == 0 && first:
+			return fmt.Sprintf("It stopped before it changed anything on the servers (%s).", id)
+		case s.GetSteps() == 0:
+			return fmt.Sprintf("It stopped before it changed anything on the servers, so what was there before still is (%s).", id)
+		case first:
+			return fmt.Sprintf("Dockwell cleared away what it had made, in %s.", id)
+		case restoresWhatRuns(c.GetPlan(), s.GetRestored()):
+			return fmt.Sprintf("Dockwell put back what ran before, in %s, and it runs again. It was down while that happened.", id)
+		}
+		return fmt.Sprintf("Dockwell put back what was there before, in %s.", id)
+	case dockwellv1.RollbackState_ROLLBACK_STATE_APPLYING:
+		if first {
+			return fmt.Sprintf("Dockwell is clearing away what it made, in %s. %s", id, follow)
+		}
+		return fmt.Sprintf("Dockwell is putting back what was there before, in %s. %s", id, follow)
+	case dockwellv1.RollbackState_ROLLBACK_STATE_WAITING:
+		servers := strings.Join(s.GetWaitingFor(), ", ")
+		if first {
+			return fmt.Sprintf("Dockwell clears away what it made, in %s, when it can reach %s. It can't tell what is there until then. %s", id, servers, follow)
+		}
+		return fmt.Sprintf("Dockwell puts back what was there before, in %s, when it can reach %s. It can't tell what is running there until then. %s", id, servers, follow)
+	case dockwellv1.RollbackState_ROLLBACK_STATE_FAILED:
+		what, left := "Putting back what was there before", "The servers may be left between the two, so check what runs, then deploy what should, or fix it by hand."
+		if first {
+			what, left = "Clearing away what it made", "Parts of it may still be on the servers, so check what is there, then try again, or remove them by hand."
+		}
+		out := fmt.Sprintf("%s failed too, in %s: %s", what, id, sentence(s.GetError()))
+		if d := s.GetDetail(); d != "" {
+			out += " What the server said: " + sentence(d)
+		}
+		return out + " " + left
+	case dockwellv1.RollbackState_ROLLBACK_STATE_UNSPECIFIED:
+	}
+	if id != "" {
+		return fmt.Sprintf("Dockwell made %s to roll it back. See how that went with dockwell changes get %s.", id, id)
+	}
+	return ""
+}
+
+// onlyCreates reports whether a plan only makes what wasn't there, so a
+// rollback of it has nothing to put back.
+func onlyCreates(p *dockwellv1.Plan) bool {
+	s := p.GetSummary()
+	return s.GetCreate() > 0 && s.GetChange() == 0 && s.GetReplace() == 0 && s.GetDestroy() == 0
+}
+
+// restoresWhatRuns reports whether a rollback put back something that serves,
+// which stopped if it did, rather than something like a firewall rule.
+func restoresWhatRuns(p *dockwellv1.Plan, restored []string) bool {
+	for _, r := range p.GetResources() {
+		kind := r.GetResource().GetKind()
+		if (kind == "service" || kind == "container") && slices.Contains(restored, r.GetResource().GetName()) {
+			return true
+		}
+	}
+	return false
 }
 
 // untilWord says how long is left: "within 7 days", "within 3 hours",
@@ -787,7 +862,7 @@ func accessWords(list []*dockwellv1.HostAccess) []string {
 	for _, a := range list {
 		out = append(out, resource.AccessWords(resource.Access{
 			Kind: accessKinds[a.GetKind()], Path: a.GetPath(), ReadOnly: a.GetReadOnly(), Type: a.GetType(),
-			Address: a.GetAddress(), Relabel: a.GetRelabel(), Driver: a.GetDriver(), Detail: a.GetDetail(), SameAsRoot: a.GetSameAsRoot(),
+			Address: a.GetAddress(), Relabel: a.GetRelabel(), Driver: a.GetDriver(), Detail: a.GetDetail(), SameAsRoot: a.GetSameAsRoot(), LeadsTo: a.GetLeadsTo(),
 		}))
 	}
 	return out

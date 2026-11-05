@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -157,7 +159,7 @@ func TestServerPathsNoContainerMayMount(t *testing.T) {
 				{Source: &resourcev1.Mount_HostPath{HostPath: "/run/user/1000"}, Target: "/b"},
 				{Source: &resourcev1.Mount_HostPath{HostPath: "/run/user/1000/app"}, Target: "/c"},
 			}},
-			[]resource.Access{{Kind: resource.AccessDocker, Path: "/run/user"}, {Kind: resource.AccessDocker, Path: "/run/user/1000"}, {Kind: resource.AccessPath, Path: "/run/user/1000/app"}},
+			[]resource.Access{{Kind: resource.AccessDocker, Path: "/run/user"}, {Kind: resource.AccessDocker, Path: "/run/user/1000"}, {Kind: resource.AccessPath, Path: "/run/user/1000/app", SameAsRoot: true}},
 		},
 		"host network": {&resourcev1.Container{Image: "alpine", Networks: []string{"host"}}, []resource.Access{{Kind: resource.AccessNetwork}}},
 		"volume":       {&resourcev1.Container{Image: "alpine", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data"}}}, nil},
@@ -310,5 +312,154 @@ func TestABindVolumesSymlinksAreCheckedWhenMounted(t *testing.T) {
 	step := resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionCreate}}
 	if err := l.Apply(t.Context(), step, spec); err == nil || !strings.Contains(err.Error(), "that the volume nas binds") {
 		t.Errorf("applying it = %v, want it refused", err)
+	}
+}
+
+// Only what is as good as root asks for more than a click, so the warning means
+// something when it comes: an app's own folder doesn't, and what holds the
+// system or Docker does, read-only or not. A time zone read from the server
+// says nothing worth having.
+func TestWhatIsAsGoodAsRoot(t *testing.T) {
+	for _, tt := range []struct {
+		path     string
+		readOnly bool
+		want     bool
+	}{
+		{path: "/var/run/docker.sock", want: true},
+		{path: "/var/run/docker.sock", readOnly: true, want: true},
+		{path: "/run/containerd/containerd.sock", want: true},
+		{path: "/", want: true},
+		{path: "/", readOnly: true, want: true},
+		{path: "/etc", want: true},
+		{path: "/etc", readOnly: true, want: true},
+		{path: "/etc/ssh", readOnly: true, want: true},
+		{path: "/root/.ssh", readOnly: true, want: true},
+		{path: "/usr/local/bin", want: true},
+		{path: "/proc", readOnly: true, want: true},
+		{path: "/sys/fs/cgroup", readOnly: true, want: true},
+		{path: "/boot", want: true},
+		{path: "/dev/mem", want: true},
+		{path: "/var/lib/docker/volumes", want: true},
+		// What holds one holds that too.
+		{path: "/var", want: true},
+		{path: "/var/lib", readOnly: true, want: true},
+		{path: "/srv/site/html", readOnly: true},
+		{path: "/srv/site/html"},
+		{path: "/var/www/html"},
+		{path: "/var/log", readOnly: true},
+		{path: "/home/mira/site"},
+		{path: "/mnt/media"},
+		{path: "/opt/app/config", readOnly: true},
+		{path: "/etc/localtime", readOnly: true},
+		{path: "/etc/timezone", readOnly: true},
+		{path: "/usr/share/zoneinfo", readOnly: true},
+		{path: "/usr/share/zoneinfo/Asia/Tokyo", readOnly: true},
+		// Written to, they are the system's again.
+		{path: "/etc/localtime", want: true},
+		{path: "/usr/share/zoneinfo", want: true},
+		// A name that only starts like one is no such thing.
+		{path: "/etcetera"},
+		{path: "/usrdata"},
+	} {
+		if got := container.PathAccess(tt.path, tt.readOnly).AsGoodAsRoot(); got != tt.want {
+			t.Errorf("%s (read-only %v): same as root = %v, want %v", tt.path, tt.readOnly, got, tt.want)
+		}
+	}
+	if !(resource.Access{Kind: resource.AccessNetwork}).AsGoodAsRoot() {
+		t.Error("the server's own network doesn't count as root")
+	}
+	for _, a := range []resource.Access{
+		{Kind: resource.AccessMount, Type: "nfs", Address: "10.0.0.2", Path: ":/export"},
+		{Kind: resource.AccessNetworkDriver, Driver: "macvlan", Path: "eth0"},
+	} {
+		if a.AsGoodAsRoot() {
+			t.Errorf("%+v counts as root", a)
+		}
+	}
+}
+
+// A symlink reaches what it leads to, so the agent says where each server path
+// leads, from the server as it is, for a bind and for a volume that binds. A path
+// that leads nowhere else isn't mentioned.
+func TestTheAgentSaysWhereAPathLeads(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	dir := t.TempDir()
+	dirs := map[string]string{"site": filepath.Join(dir, "site")}
+	if err := os.MkdirAll(dirs["site"], 0o700); err != nil {
+		t.Fatal(err)
+	}
+	links := map[string]string{"to-etc": "/etc", "to-socket": "/run/docker.sock", "to-site": dirs["site"]}
+	for link, to := range links {
+		if err := os.Symlink(to, filepath.Join(dir, link)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	paths := &container.Paths{Client: e.Client(), DataDir: filepath.Join(dir, "dockwell")}
+	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Paths: paths}
+	c := container.Driver{Runtime: rt}
+	l := resource.Local{Drivers: resource.NewRegistry(&c, &service.Driver{Containers: c})}
+	plan := func(t *testing.T, ref resource.Ref, host string) map[string]string {
+		t.Helper()
+		app := &resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: host}, Target: "/x"}}}
+		var spec proto.Message = app
+		if ref.Kind == service.Kind {
+			spec = &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}}
+		}
+		steps, err := l.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: spec}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return steps[0].Leads
+	}
+	web := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}
+	svc := resource.Ref{Kind: service.Kind, Scope: "env_01M6MCCCXQW6G67PMQDK7PVYAY", Name: "web"}
+	for link, to := range links {
+		host := filepath.Join(dir, link)
+		for _, ref := range []resource.Ref{web, svc} {
+			if got := plan(t, ref, host); got[host] != to || len(got) != 1 {
+				t.Errorf("%s of %s: leads = %v, want it to lead to %s", ref.Kind, link, got, to)
+			}
+		}
+	}
+	if got := plan(t, web, dirs["site"]); len(got) != 0 {
+		t.Errorf("a folder that is what it says leads to %v", got)
+	}
+
+	// A volume that binds a link: its own step says, and so does a service that
+	// mounts one already there.
+	volumes := &volume.Docker{Client: e.Client(), Kept: &volume.Kept{}, Paths: paths}
+	vol := &resourcev1.Volume{Driver: "local", Options: map[string]string{"type": "none", "o": "bind", "device": filepath.Join(dir, "to-etc")}}
+	vl := resource.Local{Drivers: resource.NewRegistry(&volume.Driver{Runtime: volumes})}
+	vref := resource.Ref{Kind: volume.Kind, Scope: svc.Scope, Name: "data"}
+	steps, err := vl.Plan(t.Context(), []resource.Desired{{Ref: vref, Spec: vol}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := steps[0].Leads[filepath.Join(dir, "to-etc")]; got != "/etc" {
+		t.Errorf("a volume that binds a link: leads = %v", steps[0].Leads)
+	}
+	apply(t, vl, vref, vol)
+	mounted := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+		Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/x"}},
+	}}}
+	steps, err = l.Plan(t.Context(), []resource.Desired{{Ref: svc, Spec: mounted}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := steps[0].Leads[filepath.Join(dir, "to-etc")]; got != "/etc" {
+		t.Errorf("a service that mounts a volume that binds a link: leads = %v", steps[0].Leads)
+	}
+}
+
+// A symlink read by name alone reads as what it is called: the spec can't say
+// more, which is why an agent has to.
+func TestAPathReadsAsWrittenWithoutAnAgent(t *testing.T) {
+	a := container.PathAccess("/srv/app/link", false)
+	if a.AsGoodAsRoot() {
+		t.Errorf("%+v counts as root, from its name alone", a)
+	}
+	if !a.Leading("/etc").AsGoodAsRoot() {
+		t.Error("told it leads to /etc, it doesn't count as root")
 	}
 }

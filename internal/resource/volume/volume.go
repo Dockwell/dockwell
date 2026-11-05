@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/netip"
 	"path"
 	"slices"
@@ -333,7 +334,17 @@ func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 	options := v.GetOptions()
 	o := container.ReadMountOptions(options["o"])
 	if v.GetDriver() != "local" && v.GetDriver() != "" {
-		return []resource.Access{{Kind: resource.AccessMount, Driver: v.GetDriver(), ReadOnly: o.ReadOnly}}
+		a := resource.Access{Kind: resource.AccessMount, Driver: v.GetDriver(), ReadOnly: o.ReadOnly}
+		// A plugin's options are its own, and what one mounts is often among them,
+		// such as local-persist's mountpoint. A system path is no secret, so it can
+		// be said. Any other value stays out, as it may be one.
+		for _, key := range slices.Sorted(maps.Keys(options)) {
+			if p := path.Clean(options[key]); path.IsAbs(p) && (resource.SystemPath(p, o.ReadOnly) || resource.ControlsDocker(p)) {
+				a.SameAsRoot, a.Path = true, p
+				break
+			}
+		}
+		return []resource.Access{a}
 	}
 	if dev, ok := container.BindDevice(v.GetDriver(), options); ok {
 		return []resource.Access{container.PathAccess(path.Clean(dev), o.ReadOnly)}
@@ -346,6 +357,20 @@ func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 		a.Path = options["device"]
 	}
 	return []resource.Access{a}
+}
+
+// Leads says where the server path a volume binds leads on this server.
+func (d *Driver) Leads(_ context.Context, _ resource.Ref, desired proto.Message) (map[string]string, error) {
+	if l, ok := d.Runtime.(pathLeader); ok {
+		return l.Leads(desired.(*resourcev1.Volume))
+	}
+	return nil, nil
+}
+
+// pathLeader is a Runtime that can say where a volume's server path leads, as
+// Docker can.
+type pathLeader interface {
+	Leads(spec *resourcev1.Volume) (map[string]string, error)
 }
 
 // checker is a Runtime that checks a spec on its server, as Docker does.

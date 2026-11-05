@@ -358,6 +358,16 @@ func (d *Docker) CheckHost(ctx context.Context, spec *resourcev1.Volume) error {
 	return h.CheckPath(dev, "the server path "+dev+" that the volume binds")
 }
 
+// Leads says where the server path a volume binds leads through symlinks, when
+// that is elsewhere.
+func (d *Docker) Leads(spec *resourcev1.Volume) (map[string]string, error) {
+	dev, ok := container.BindDevice(spec.GetDriver(), spec.GetOptions())
+	if !ok || d.Paths == nil {
+		return nil, nil
+	}
+	return container.Host{Resolve: container.Resolve}.Leads(dev)
+}
+
 func normal(v *resourcev1.Volume) *resourcev1.Volume {
 	if v.Driver == "" {
 		v.Driver = "local"

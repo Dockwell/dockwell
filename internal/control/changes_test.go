@@ -676,8 +676,13 @@ func testADroppedStreamResumesOnReconnect(t *testing.T, backend store.Backend) {
 	<-hz1.fw.started // the slow rule's step is running
 	hz1.stop()
 	failed := waitWatch(t, w).last()
-	if failed.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(failed.GetError(), "disconnected") || failed.GetRolledBackBy() == "" {
+	if failed.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(failed.GetError(), "went offline") || failed.GetRolledBackBy() == "" {
 		t.Fatalf("a change whose stream dropped = %v, want it failed, with a rollback", failed)
+	}
+	if !slices.ContainsFunc(failed.GetSteps(), func(s *dockwellv1.StepProgress) bool {
+		return s.GetState() == dockwellv1.StepState_STEP_STATE_FAILED && s.GetLost()
+	}) {
+		t.Errorf("a change whose stream dropped has steps %v, want the one it was on marked lost", failed.GetSteps())
 	}
 	rb := waitChange(t, c, failed.GetRolledBackBy(), "the rollback waits for hz-1", func(c *dockwellv1.Change) bool {
 		return c.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLYING && len(c.GetSteps()) > 0 &&

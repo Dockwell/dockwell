@@ -57,7 +57,7 @@ func (f *fullServer) addServerWith(t *testing.T, more func() []resource.Type) *d
 	e.Registry["ghcr.io/acme/worker:1.0"] = dockertest.Image{Config: docker.Config{Cmd: []string{"work"}}}
 	e.Registry["alpine:latest"] = dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}}
 	client := e.Client()
-	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond}}
+	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Paths: &container.Paths{Client: client, DataDir: t.TempDir()}}}
 	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}}, &network.Driver{Client: client}}
 	if more != nil {
 		drivers = append(drivers, more()...)
@@ -164,7 +164,7 @@ func testComposeThroughTheAPI(t *testing.T, backend store.Backend) {
 	}
 	pulled := false
 	for _, m := range watched.msgs {
-		if s := m.GetStep(); s != nil && strings.HasPrefix(s.GetStep().GetMessage(), "Creating service db on hz-1: pulling postgres:17") {
+		if s := m.GetStep(); s != nil && strings.HasPrefix(s.GetStep().GetActivity(), "Pulling postgres:17") {
 			pulled = true
 		}
 	}

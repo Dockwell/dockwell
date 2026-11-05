@@ -295,7 +295,7 @@ func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 	// Filters.
 	onlyChanges := listEvents(t, ev, &dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_CHANGE}})
 	if got := actions(onlyChanges); !slices.Equal(got, []string{
-		"change.planned Open http", "change.applied Roll back Break web", "change.failed Break web", "change.applied Undo Run web",
+		"change.planned Open http", "change.applied Roll back Break web", "change.failed Break web", "change.applied Undo: Run web",
 		"change.applied Run web",
 	}) {
 		t.Errorf("the changes are %v", got)
@@ -306,7 +306,7 @@ func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 	}
 	web := run.GetPlan().GetResources()[0].GetId()
 	if got := actions(listEvents(t, ev, &dockwellv1.ListEventsRequest{ResourceId: web})); !slices.Equal(got, []string{
-		"change.applied Roll back Break web", "change.failed Break web", "change.applied Undo Run web", "change.applied Run web",
+		"change.applied Roll back Break web", "change.failed Break web", "change.applied Undo: Run web", "change.applied Run web",
 	}) {
 		t.Errorf("web's events are %v", got)
 	}

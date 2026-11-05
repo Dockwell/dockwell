@@ -44,6 +44,8 @@ That needs an API in `dockwell.v1` that the panel (#24), the CLI (#22) and REST 
 
 A plan that gives a container more of its server, `host_access`, needs the same two things ([ADR 0021](0021-the-docker-driver.md#host-access)).
 
+The fingerprint is what the API needs. A person types it only for a destructive plan, or one that reaches what is as good as root (`same_as_root`); for an ordinary path the panel sends it with Apply, under a warning ([ADR 0028](0028-the-plan-sheet.md)).
+
 Any client may send the fingerprint, and a change applies only if its plan has it.
 
 **Discarding is a state.** A planned change can be discarded, and stays on record as discarded. The check on `changes.state` gains the value; SQLite rebuilds the table to change it (migration 0008).

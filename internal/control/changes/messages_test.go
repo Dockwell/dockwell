@@ -196,7 +196,7 @@ func testErrorMessagesStateTheFactFirst(t *testing.T, backend store.Backend) {
 		t.Fatal(err)
 	}
 	expect("applying a plan made before another applied", "plan_stale",
-		"firewall.rule http in srv_1 changed in "+first+" after "+second+" was planned, so its plan is out of date. Propose the change again",
+		"http changed after this plan was made (in "+first+"), so the plan is out of date. Plan the change again",
 		e.Apply(ctx, second))
 	expect("applying a change twice", "not_planned",
 		first+" is applied already, so it can't be applied again. Undo it, or propose a new change", e.Apply(ctx, first))
@@ -214,14 +214,14 @@ func testErrorMessagesStateTheFactFirst(t *testing.T, backend store.Backend) {
 	changed := proposed(t, e, rule("srv_1", "http", 8081))
 	_ = f["srv_1"].fw.Put(ctx, "http", &resourcev1.FirewallRule{Port: 9})
 	expect("applying once the server changed", "plan_changed",
-		"the servers changed since "+changed+" was planned, so its plan no longer matches them. Propose the change again and review what changed",
+		"the servers changed since this plan was made, so it no longer matches them. Plan the change again and review what changed",
 		e.Apply(ctx, changed))
 
 	// hz-2 is away.
 	f["srv_2"].online.Store(false)
 	away := proposed(t, e, rule("srv_2", "http", 80))
 	expect("applying with a server away", "server_offline",
-		"hz-2 isn't connected, so "+away+" can't apply. Apply it again once hz-2's agent reconnects", e.Apply(ctx, away))
+		"hz-2 isn't connected, so this change can't apply. Apply it again once its agent reconnects", e.Apply(ctx, away))
 	_, err = e.Drift(ctx, "srv_2")
 	expect("drift on a server that is away", "server_offline",
 		"hz-2 isn't connected, so its drift can't be checked. Check it again once its agent reconnects", err)
@@ -251,7 +251,7 @@ func testErrorMessagesStateTheFactFirst(t *testing.T, backend store.Backend) {
 	expect("applying a change that is being applied", "busy", slow+" is being applied already. Watch it to follow its steps", e.Apply(ctx, slow))
 	again := proposed(t, e, rule("srv_2", "slow", 8080)) // the same spec again: only the claim stops it
 	expect("applying while another change applies the resource", "busy",
-		slow+" is applying firewall.rule slow in srv_2 now, so this change can't start yet. Apply it once "+slow+" ends", e.Apply(ctx, again))
+		"another change is applying slow now, so this one can't start yet. Apply it again once that one ends ("+slow+")", e.Apply(ctx, again))
 	close(release)
 	e.Wait()
 

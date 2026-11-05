@@ -111,6 +111,17 @@ p {
     opacity: 0;
   }
 }
+@keyframes dw-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes dw-slide-out {
+  to {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
 @keyframes dw-pop {
   from {
     opacity: 0;
@@ -163,4 +174,9 @@ p {
   .dw-toast-timer {
     display: none;
   }
+}
+
+/* A heading takes focus when what opened a sheet has gone, for a keyboard to carry on from, and needs no ring to say so. */
+h1[tabindex="-1"]:focus {
+  outline: none;
 }

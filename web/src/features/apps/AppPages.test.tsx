@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ActorKind,
@@ -8,8 +9,12 @@ import {
   Connection,
   DeploymentState,
   FieldOp,
+  IntentKind,
   Protocol,
   type RollBackServiceRequest,
+  RollbackState,
+  StepProgressSchema,
+  StepState,
   Surface,
   type WatchChangeResponse,
   type WatchServersResponse,
@@ -600,8 +605,8 @@ describe("an app's overview", () => {
     const fail = async (message: string) => {
       await user.click(await screen.findByRole("button", { name: /Apply plan/ }));
       watch.push(watched(moved(webPlanned(), { state: ChangeState.FAILED, error: message })));
-      const failed = await screen.findByRole("dialog", { name: "The change failed" });
-      await user.click(within(failed).getByRole("button", { name: "Done" }));
+      const failed = await screen.findByRole("dialog", { name: "Couldn't replace web" });
+      await user.click(within(failed).getByRole("button", { name: /Edit and try again/ }));
     };
     await user.click(await screen.findByRole("button", { name: "Deploy" }));
     const deploy = await screen.findByRole("dialog", { name: "Deploy web" });
@@ -726,6 +731,254 @@ describe("an app's overview", () => {
     await expectAccessible(container);
   });
 
+  it("says a server lost during a deploy one way: what waits is the rollback, and nobody can say what runs", async () => {
+    const waiting = anApp(
+      "web",
+      "nginx:1.27",
+      {},
+      {
+        revision: 3n,
+        rolledBackChangeId: "chg_2",
+        changeId: "chg_3",
+        changeState: ChangeState.APPLYING,
+        deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.PENDING }],
+      },
+    );
+    const list = [
+      aRevision(3n, "nginx:1.27", {
+        change: { id: "chg_3", summary: "Roll back", rollback: true, reverts: "chg_2", state: ChangeState.APPLYING },
+        deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.PENDING }],
+      }),
+      aRevision(2n, "nginx:1.28", { change: { id: "chg_2", summary: "Deploy", state: ChangeState.FAILED } }),
+      aRevision(1n, "nginx:1.27"),
+    ];
+    const away = aServer({ id: SERVER, name: "hz-1", connection: Connection.UNREACHABLE });
+    const { container } = renderAt(
+      "/apps/svc_web",
+      api(
+        [waiting],
+        {
+          services: {
+            listServices: () => ({ services: [waiting] }),
+            listServiceRevisions: () => ({ revisions: list }),
+          },
+        },
+        away,
+      ),
+    );
+    const note = await screen.findByRole("status");
+    await within(note).findByText(/hz-1 isn't connected/);
+    expect(note).toHaveTextContent("Once it reconnects, Dockwell puts nginx:1.27 back");
+    expect(note).toHaveTextContent("Until then it can't tell what is running there.");
+    expect(note).not.toHaveTextContent("The deploy waits");
+    expect(within(note).getByRole("button", { name: "See why" })).toBeVisible();
+    expect(container.querySelector(".page-lead")).toHaveTextContent(
+      "Dockwell puts nginx:1.27 back once hz-1 reconnects",
+    );
+    expect(container.querySelector(".page-lead")).not.toHaveTextContent("Deploying");
+    const running = screen.getByRole("region", { name: "What runs" });
+    expect(running).toHaveTextContent("Unknown until hz-1 reconnects");
+    expect(running).not.toHaveTextContent("nginx:1.28");
+    const recent = await screen.findByRole("region", { name: "Recent deployments" });
+    expect(await within(recent).findByText("Rolling back after a failed deploy")).toBeVisible();
+    expect(recent).not.toHaveTextContent("Rolled back after a failed deploy");
+    expect(recent).not.toHaveTextContent("Deploying");
+    await expectAccessible(container);
+  });
+
+  it("agrees with the sheet when a rollback failed, on a fresh read, saying nobody knows what runs", async () => {
+    const user = userEvent.setup();
+    const stuck = anApp(
+      "web",
+      "nginx:slow",
+      {},
+      {
+        rolledBackChangeId: "chg_failed",
+        changeState: ChangeState.FAILED,
+        deployments: [
+          {
+            serverId: SERVER,
+            serverName: "hz-1",
+            state: DeploymentState.FAILED,
+            error: "hz-1: Cannot connect to the Docker daemon. Is it running?",
+          },
+        ],
+      },
+    );
+    const asked: string[] = [];
+    const { container } = renderAt(
+      "/apps/svc_web",
+      api([stuck], {
+        services: { listServices: () => ({ services: [stuck] }), listServiceRevisions: () => ({ revisions: [] }) },
+        changes: {
+          getChange: (req) => {
+            asked.push(req.id);
+            return { change: webPlanned() };
+          },
+          watchChange: feed<WatchChangeResponse>().stream,
+        },
+      }),
+    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Putting web back failed too");
+    expect(alert).toHaveTextContent("hz-1: Cannot connect to the Docker daemon. Is it running?");
+    expect(alert).toHaveTextContent(
+      "web may not be running, or may be running the new version. Check it, then deploy what should run, or fix it on the server.",
+    );
+    // Not as a deploy that failed, and not as though it runs what its spec says.
+    expect(alert).not.toHaveTextContent("The last deploy of web failed");
+    const panel = await screen.findByRole("region", { name: "What runs" });
+    expect(panel).toHaveTextContent("Unknown, as putting it back failed");
+    expect(panel).not.toHaveTextContent("nginx:slow");
+    expect(screen.queryByRole("region", { name: "Running" })).toBeNull();
+    const lead = container.querySelector(".page-lead");
+    expect(lead).toHaveTextContent("Putting nginx:slow back failed");
+    expect(lead).not.toHaveTextContent("deployed");
+    expect(screen.getAllByText("Rollback failed").length).toBeGreaterThan(0);
+    await expectAccessible(container);
+    await user.click(within(alert).getByRole("button", { name: "See why" }));
+    await waitFor(() => expect(asked).toContain("chg_failed"));
+  });
+
+  it("says a failed deploy as that, with no word of a rollback, until there is a rollback that failed", async () => {
+    const failed = anApp(
+      "web",
+      "nginx:slow",
+      {},
+      {
+        changeState: ChangeState.FAILED,
+        deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.FAILED, error: "it exits" }],
+      },
+    );
+    renderAt("/apps/svc_web", api([failed]));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The last deploy of web failed");
+    expect(alert).not.toHaveTextContent("Putting web back");
+    expect(await screen.findByRole("region", { name: "Running" })).toBeVisible();
+    expect(screen.queryByText("Rollback failed")).toBeNull();
+  });
+
+  it("says a rollback is what happened last in the lead, not that Dockwell deployed", async () => {
+    const back = anApp("web", "nginx:1.4", {}, { rolledBackChangeId: "chg_failed" });
+    const { container } = renderAt("/apps/svc_web", api([back]));
+    await screen.findByRole("status");
+    const lead = container.querySelector(".page-lead");
+    expect(lead).toHaveTextContent("rolled back by Dockwell");
+    expect(lead).not.toHaveTextContent("deployed");
+  });
+
+  it("says on a phone that a rollback is what happened last, or that it failed, not that Dockwell deployed", async () => {
+    onPhone();
+    const back = anApp("web", "nginx:1.4", {}, { rolledBackChangeId: "chg_failed" });
+    const first = renderAt("/apps/svc_web", api([back]));
+    await first.findByRole("status");
+    expect(first.container.querySelector(".app-running-now")).toHaveTextContent("r3 rolled back by Dockwell");
+    expect(first.container.querySelector(".app-running-now")).not.toHaveTextContent("deployed");
+    first.unmount();
+
+    const stuck = anApp("web", "nginx:slow", {}, { rolledBackChangeId: "chg_failed", changeState: ChangeState.FAILED });
+    const second = renderAt("/apps/svc_web", api([stuck]));
+    await second.findByRole("alert");
+    expect(second.container.querySelector(".app-running-now")).toHaveTextContent("Rolling back failed");
+    expect(second.container.querySelector(".app-running-now")).not.toHaveTextContent("deployed");
+  });
+
+  it("says Docker's socket for what it is on the page, as the plan did", async () => {
+    const withSocket = anApp("agent", "portainer/agent:2", {
+      mounts: [
+        { source: { case: "hostPath", value: "/var/run/docker.sock" }, target: "/var/run/docker.sock" },
+        { source: { case: "hostPath", value: "/srv/site" }, target: "/site", readOnly: true },
+      ],
+    });
+    renderAt("/apps/svc_agent", api([withSocket]));
+    const volumes = await screen.findByRole("region", { name: "Volumes" });
+    const rows = within(volumes).getAllByRole("listitem");
+    expect(rows[0]).toHaveTextContent("Docker's socket");
+    expect(rows[0]).not.toHaveTextContent("Server path");
+    expect(rows[1]).toHaveTextContent("Server path");
+  });
+
+  it("says what to check in what the Deploy form has, and lets you leave from there", async () => {
+    const user = userEvent.setup();
+    const failed = moved(webPlanned(), {
+      state: ChangeState.FAILED,
+      error: "web stopped right after it started, with exit code 1. Check its command and variables, then try again.",
+      steps: [
+        create(StepProgressSchema, {
+          serverId: "srv_1",
+          resourceId: "res_web",
+          state: StepState.FAILED,
+          message: "x",
+          reason: "exits",
+        }),
+      ],
+    });
+    renderAt(
+      "/apps/svc_web",
+      api([web], {
+        services: {
+          listServices: () => ({ services: [web] }),
+          listServiceRevisions: () => ({ revisions }),
+          deployService: () => ({ change: failed }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Deploy" }));
+    const form = await screen.findByRole("dialog", { name: "Deploy web" });
+    const field = within(form).getByLabelText("Image");
+    await user.clear(field);
+    await user.type(field, "ghcr.io/acme/web:broken");
+    await user.click(within(form).getByRole("button", { name: "Review plan" }));
+    const sheet = await screen.findByRole("dialog", { name: "Couldn't replace web" });
+    const notice = within(sheet).getByRole("alert");
+    expect(notice).toHaveTextContent("Check the image and tag, then deploy again.");
+    expect(notice).not.toHaveTextContent("Check its command and variables");
+    await user.click(within(sheet).getByRole("button", { name: /Edit and try again/ }));
+    const back = await screen.findByRole("dialog", { name: "Deploy web" });
+    expect(within(back).getByLabelText("Image")).toHaveValue("ghcr.io/acme/web:broken");
+    await user.click(within(back).getByRole("button", { name: "Review plan" }));
+    const again = await screen.findByRole("dialog", { name: "Couldn't replace web" });
+    await user.click(within(again).getByRole("button", { name: /^Done/ }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("says what to check in what the Add a port form has", async () => {
+    const user = userEvent.setup();
+    const failed = moved(webPlanned(), {
+      state: ChangeState.FAILED,
+      error: "web runs, but fails its health check. Check what the check runs, then try again.",
+      steps: [
+        create(StepProgressSchema, {
+          serverId: "srv_1",
+          resourceId: "res_web",
+          state: StepState.FAILED,
+          message: "x",
+          reason: "unhealthy",
+        }),
+      ],
+    });
+    const alone = anApp("alone", "nginx:1.27", { ports: [] });
+    renderAt(
+      "/apps/svc_alone",
+      api([alone], {
+        services: {
+          listServices: () => ({ services: [alone] }),
+          listServiceRevisions: () => ({ revisions }),
+          addServicePort: () => ({ change: failed }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a port" }));
+    const form = await screen.findByRole("dialog", { name: "Add a port to alone" });
+    await user.type(within(form).getByLabelText(/On the server/), "8080");
+    await user.type(within(form).getByLabelText(/In the app/), "80");
+    await user.click(within(form).getByRole("button", { name: "Review plan" }));
+    const sheet = await screen.findByRole("dialog", { name: "Couldn't replace web" });
+    expect(within(sheet).getByRole("alert")).toHaveTextContent("Check the port in the app, then try again.");
+    await user.click(within(sheet).getByRole("button", { name: /^Done/ }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
   it("says what is going on first, with the way out", async () => {
     const user = userEvent.setup();
     const pending = anApp(
@@ -772,7 +1025,10 @@ describe("an app's overview", () => {
     renderAt("/apps/svc_web", api([back]));
     const said = await screen.findByRole("status");
     expect(said).toHaveTextContent("The last deploy failed, so Dockwell rolled it back");
-    expect(said).toHaveTextContent("web runs nginx:1.4 again");
+    expect(said).toHaveTextContent("web is on nginx:1.4, as it was before that deploy.");
+    // Nothing read what runs, which may have stopped or crashed long before.
+    expect(said).not.toHaveTextContent("runs");
+    expect(said).not.toHaveTextContent("again, as");
     expect(within(said).getByRole("button", { name: "See why" })).toBeVisible();
   });
 
@@ -1082,6 +1338,51 @@ describe("an app's deployments", () => {
     expect(container.querySelector(".deploy-image")).toHaveTextContent("getmeili/meilisearch:broken");
   });
 
+  it("reads what a revision changed in the plan's words, each value whole with the old above the new", async () => {
+    const list = [
+      aRevision(2n, "nginx:1.5", {
+        changes: [
+          { path: "app.image", op: FieldOp.MODIFIED, from: "nginx:1.4", to: "nginx:1.5" },
+          { path: "app.ports[0].host_port", op: FieldOp.ADDED, to: "8080" },
+          { path: "app.ports[0].container_port", op: FieldOp.ADDED, to: "80" },
+          { path: "app.ports[0].protocol", op: FieldOp.ADDED, to: "tcp" },
+          { path: "app.mounts[0].volume", op: FieldOp.ADDED, to: "web-data" },
+          { path: "app.mounts[0].target", op: FieldOp.ADDED, to: "/data" },
+          { path: "app.env[API_KEY]", op: FieldOp.MODIFIED, sensitive: true },
+        ],
+      }),
+      aRevision(1n, "nginx:1.4"),
+    ];
+    const { container } = renderAt(
+      "/apps/svc_web/deployments",
+      api([web], {
+        services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: list }) },
+      }),
+    );
+    await screen.findByRole("table", { name: "Revisions of web" });
+    const diff = await waitFor(() => {
+      const found = container.querySelector(".deploy-diff");
+      if (!found) throw new Error("no diff yet");
+      return found as HTMLElement;
+    });
+    const row = (label: string) => within(diff).getByText(label).closest("li") as HTMLElement;
+    expect(diff).not.toHaveTextContent("ports[0]");
+    expect(diff).not.toHaveTextContent("mounts[0]");
+    expect(row("port").querySelector("ins")).toHaveTextContent("8080 → 80, TCP");
+    expect(row("volume").querySelector("ins")).toHaveTextContent("web-data at /data");
+    expect(row("volume").querySelector("ins")).toHaveClass("is-words");
+    // The old value above the new, as whole values.
+    const image = row("image");
+    expect(image.querySelector("del")).toHaveTextContent("1.4");
+    expect(image.querySelector("ins")).toHaveTextContent("1.5");
+    const order = image.querySelector("del")?.compareDocumentPosition(image.querySelector("ins") as Element) ?? 0;
+    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // A variable says it changed, and never what it holds.
+    expect(row("variable")).toHaveTextContent("API_KEY");
+    expect(row("variable")).toHaveTextContent("Changed, and hidden");
+    await expectAccessible(container);
+  });
+
   it("opens the one you choose, in its address, with the way back to it", async () => {
     const user = userEvent.setup();
     const asked: bigint[] = [];
@@ -1113,8 +1414,10 @@ describe("an app's deployments", () => {
         state: ChangeState.FAILED,
         error: "it exits",
         rolledBackBy: "chg_5",
+        rollbackStatus: { id: "chg_5", state: RollbackState.APPLIED, steps: 1, restored: ["web"] },
         proposedVia: Surface.PANEL,
       },
+      changes: [{ path: "image", op: FieldOp.MODIFIED, from: "nginx:1.5", to: "nginx:broken" }],
       deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.FAILED, error: "hz-1: it exits" }],
     });
     const list = [
@@ -1136,12 +1439,84 @@ describe("an app's deployments", () => {
       }),
     );
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Why it failed");
+    // A machine value keeps its case, and what happened leads.
     expect(alert).toHaveTextContent("hz-1: it exits");
-    expect(alert).toHaveTextContent("Dockwell rolled back the steps already done.");
+    // It says what runs now, from how the rollback went, in the app's own words.
+    expect(screen.getByRole("status")).toHaveTextContent("Dockwell put nginx:1.5 back on web");
+    expect(screen.getByRole("status")).toHaveTextContent("so it was down while that happened");
     expect(screen.queryByRole("button", { name: /Roll back to/ })).not.toBeInTheDocument();
     expect(screen.getByRole("row", { name: /r5/ })).toHaveTextContent("Rolled back after a failed deploy");
     await expectAccessible(container);
+  });
+
+  it("titles a revision from what its plan says it was for, when it says", async () => {
+    const list = [
+      aRevision(6n, "nginx:latest", {
+        change: {
+          id: "chg_6",
+          summary: "Pull again",
+          state: ChangeState.APPLIED,
+          plan: { intent: { kind: IntentKind.REPULL, resourceId: "svc_web", image: "docker.io/library/nginx:latest" } },
+        },
+      }),
+      aRevision(5n, "nginx:1.5", {
+        change: {
+          id: "chg_5",
+          summary: "A port",
+          state: ChangeState.APPLIED,
+          plan: { intent: { kind: IntentKind.PUBLISH_PORT, resourceId: "svc_web", port: 9411 } },
+        },
+        // What it changed reads otherwise, and what the plan says wins.
+        changes: [{ path: "app.restart_policy", op: FieldOp.MODIFIED, from: "no", to: "always" }],
+      }),
+      aRevision(4n, "nginx:broken", {
+        change: {
+          id: "chg_4",
+          summary: "A deploy",
+          state: ChangeState.FAILED,
+          plan: { intent: { kind: IntentKind.DEPLOY, resourceId: "svc_web", image: "nginx:broken" } },
+        },
+      }),
+    ];
+    renderAt(
+      "/apps/svc_web/deployments",
+      api([web], {
+        services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: list }) },
+      }),
+    );
+    expect(await screen.findByRole("row", { name: /r6/ })).toHaveTextContent("Pulled nginx:latest again");
+    expect(screen.getByRole("row", { name: /r5/ })).toHaveTextContent("Published port 9411");
+    const failed = screen.getByRole("row", { name: /r4/ });
+    expect(failed).toHaveTextContent("Couldn't deploy nginx:broken");
+    expect(within(failed).getByText("nginx:broken").tagName).toBe("CODE");
+  });
+
+  it("doesn't say a rollback happened until it did", async () => {
+    const rollingBack = (state: ChangeState) =>
+      aRevision(5n, "nginx:1.5", {
+        change: { id: "chg_5", summary: "Roll back Deploy", rollback: true, reverts: "chg_4", state },
+      });
+    for (const [state, words] of [
+      [ChangeState.APPLYING, "Rolling back after a failed deploy"],
+      [ChangeState.FAILED, "Rolling back after a failed deploy failed too"],
+    ] as const) {
+      const { unmount } = renderAt(
+        "/apps/svc_web/deployments",
+        api([web], {
+          services: {
+            listServices: () => ({ services: [web] }),
+            listServiceRevisions: () => ({ revisions: [rollingBack(state)] }),
+          },
+        }),
+      );
+      const row = await screen.findByRole("row", { name: /r5/ });
+      expect(row).toHaveTextContent(words);
+      if (state === ChangeState.APPLYING) {
+        expect(row).toHaveTextContent("Rolling back");
+        expect(row).not.toHaveTextContent("Deploying");
+      }
+      unmount();
+    }
   });
 
   it("reads older revisions a page at a time", async () => {

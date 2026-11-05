@@ -99,6 +99,10 @@ func TestDeployingTheSameTagPullsAgain(t *testing.T) {
 			t.Errorf("the plan's step = %v, want a pull that says what it may take", steps)
 		}
 
+		if kind := plan.GetPlan().GetIntent().GetKind(); kind != dockwellv1.IntentKind_INTENT_KIND_REPULL {
+			t.Errorf("the plan is for %v", kind)
+		}
+
 		// Nothing newer: nothing happens, and it says so.
 		applied := b.done(t, plan)
 		if b.e.Pulls != pulls+1 {
@@ -106,6 +110,9 @@ func TestDeployingTheSameTagPullsAgain(t *testing.T) {
 		}
 		if got := b.e.Container(name); got.ID != before || !got.State.Running {
 			t.Error("with nothing newer, the container was replaced")
+		}
+		if got := applied.GetSteps(); len(got) != 1 || got[0].GetDid() != dockwellv1.PlanAction_PLAN_ACTION_NONE {
+			t.Errorf("with nothing newer, the steps say they did %v", got)
 		}
 		if got := applied.GetSteps(); len(got) != 1 || !strings.Contains(got[0].GetMessage(), latest+" is already the newest image, so web stays as it is") {
 			t.Errorf("the steps say %v", got)

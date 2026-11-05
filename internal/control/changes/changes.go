@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -102,6 +103,8 @@ type Also struct {
 	Pull bool
 	// Run says this asks what's edited to run (revision.Edit).
 	Run bool
+	// Intent is what the plan is for, when the method proposing it knows.
+	Intent *revision.Intent
 }
 
 // Propose plans edits as a new change, as ProposeChange does, for another
@@ -142,7 +145,7 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 		edits[i].Base, edits[i].Pull, edits[i].Run = also.Base, also.Pull, also.Run
 	}
 	plan, err := h.engine.Propose(ctx, revision.Proposal{
-		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing,
+		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing, Intent: also.Intent,
 	})
 	if err != nil {
 		return nil, fail(err)
@@ -293,7 +296,8 @@ func accessWords(p *revision.Plan) string {
 	for i := range p.Resources {
 		r := &p.Resources[i]
 		var reach []string
-		for _, a := range r.HostAccess {
+		for j := range r.HostAccess {
+			a := r.HostAccess[j]
 			switch a.Kind {
 			case resource.AccessDomain:
 				parts = append(parts, "claims "+resource.AccessWords(a))
@@ -743,6 +747,23 @@ var stepStates = map[revision.StepState]dockwellv1.StepState{
 	revision.StepWaiting: dockwellv1.StepState_STEP_STATE_WAITING,
 }
 
+var rollbackStates = map[string]dockwellv1.RollbackState{
+	revision.RollbackApplying: dockwellv1.RollbackState_ROLLBACK_STATE_APPLYING,
+	revision.RollbackWaiting:  dockwellv1.RollbackState_ROLLBACK_STATE_WAITING,
+	revision.RollbackApplied:  dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED,
+	revision.RollbackFailed:   dockwellv1.RollbackState_ROLLBACK_STATE_FAILED,
+}
+
+func rollbackProto(r *revision.Rollback) *dockwellv1.RollbackStatus {
+	if r == nil {
+		return nil
+	}
+	return &dockwellv1.RollbackStatus{
+		Id: r.ID, State: rollbackStates[r.State], Steps: int32(min(r.Steps, math.MaxInt32)), //nolint:gosec // bounded just here
+		WaitingFor: r.WaitingFor, Restored: r.Restored, Error: r.Error, Detail: r.Detail,
+	}
+}
+
 // Proto is a change for the schema: its plan in full when the record has
 // it, and in brief otherwise. actor names each actor.
 func Proto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dockwellv1.Change {
@@ -750,7 +771,7 @@ func Proto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dockwellv1
 		Id: r.ID, Summary: r.Summary, State: states[r.State], ProposedBy: actor(r.Actor), ProposedVia: Surfaces[r.ProposedVia],
 		CreateTime: timestamppb.New(r.CreatedAt), Plan: planProto(r), Reverts: r.Reverts,
 		Rollback: revision.IsRollback(r.Change), AppliedBy: actor(r.AppliedBy), AppliedVia: Surfaces[r.AppliedVia],
-		Error: r.Error, RolledBackBy: r.RolledBackBy, UndoneBy: r.UndoneBy,
+		Error: r.Error, RolledBackBy: r.RolledBackBy, UndoneBy: r.UndoneBy, RollbackStatus: rollbackProto(r.Rollback),
 	}
 	if !r.AppliedAt.IsZero() {
 		c.ApplyTime = timestamppb.New(r.AppliedAt)
@@ -776,6 +797,7 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 		UndoWindow:  durationpb.New(revision.UndoWindow),
 		Destructive: b.Destructive,
 		HostAccess:  b.HostAccess,
+		Intent:      intentProto(b.Intent),
 	}
 	p := r.Plan
 	if p == nil {
@@ -812,10 +834,27 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 	return out
 }
 
+var intentKinds = map[string]dockwellv1.IntentKind{
+	revision.IntentDeploy:      dockwellv1.IntentKind_INTENT_KIND_DEPLOY,
+	revision.IntentPublishPort: dockwellv1.IntentKind_INTENT_KIND_PUBLISH_PORT,
+	revision.IntentRollBack:    dockwellv1.IntentKind_INTENT_KIND_ROLL_BACK,
+	revision.IntentRepull:      dockwellv1.IntentKind_INTENT_KIND_REPULL,
+}
+
+func intentProto(i *revision.Intent) *dockwellv1.Intent {
+	if i == nil {
+		return nil
+	}
+	return &dockwellv1.Intent{
+		Kind: intentKinds[i.Kind], ResourceId: i.Resource, Image: i.Image,
+		Port: int32(min(i.Port, math.MaxInt32)), Revision: int64(i.Revision), //nolint:gosec // bounded just here
+	}
+}
+
 func stepProto(s *revision.StepProgress) *dockwellv1.StepProgress {
 	p := &dockwellv1.StepProgress{
 		ServerId: s.Server, ResourceId: s.ResourceID, Resource: resourcepb.Ref(s.Ref), Action: resourcepb.Action(s.Action),
-		State: stepStates[s.State], Message: s.Message,
+		State: stepStates[s.State], Message: s.Message, Activity: s.Activity, Detail: s.Detail, Reason: s.Reason, Lost: s.Lost,
 	}
 	if !s.Started.IsZero() {
 		p.StartTime = timestamppb.New(s.Started)

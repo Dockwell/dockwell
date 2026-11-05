@@ -118,7 +118,7 @@ function describeChange(change: Change, summaries: ReadonlyMap<string, string>, 
   return change.rollback ? { title, icon, tone: "warning" } : { title, icon };
 }
 
-/** A change's plan in brief: "2 to create · 1 to destroy". Empty when it changes nothing. */
+/** A change's plan in brief: "2 to create · 1 to delete". Empty when it changes nothing. */
 export function useCounts(): (change: Change) => string {
   const { t } = useLingui();
   return useMemo(
@@ -127,9 +127,9 @@ export function useCounts(): (change: Change) => string {
       if (!s) return "";
       const parts: string[] = [];
       if (s.create) parts.push(t`${s.create} to create`);
-      if (s.change) parts.push(t`${s.change} to change`);
+      if (s.change) parts.push(t`${s.change} to update`);
       if (s.replace) parts.push(t`${s.replace} to replace`);
-      if (s.destroy) parts.push(t`${s.destroy} to destroy`);
+      if (s.destroy) parts.push(t`${s.destroy} to delete`);
       return parts.join(" · ");
     },
     [t],

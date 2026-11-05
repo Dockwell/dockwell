@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
 )
@@ -49,6 +50,10 @@ type Image struct {
 	// Digest is what its registry calls it. Without one it has one of its own, so
 	// a tag moves when a test gives it an image with another.
 	Digest string
+	// PullError fails a pull of it, with what a registry would say.
+	PullError string
+	// PullTime is how long a pull of it takes, reporting along the way.
+	PullTime time.Duration
 }
 
 // Engine is a fake Docker Engine.
@@ -90,7 +95,10 @@ type Engine struct {
 	// has.
 	RegistryDown bool
 	// NCPU is how many CPUs the fake server has. Zero means 8.
-	NCPU       int
+	NCPU int
+	// BindError, when set, says why a server path can't be mounted as a
+	// container starts, or nothing when it can.
+	BindError  func(source string) string
 	images     map[string]*image // pulled, by reference and by ID
 	containers map[string]*container
 	volumes    map[string]*docker.Volume
@@ -327,10 +335,23 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 			})
 			return
 		}
+		if src.PullError != "" {
+			_ = enc.Encode(map[string]any{"error": src.PullError, "errorDetail": map[string]string{"message": src.PullError}})
+			return
+		}
 		_ = enc.Encode(map[string]string{"status": "Pulling from " + ref})
 		if src.Size > 0 {
 			for _, part := range []int64{src.Size / 4, src.Size / 2, src.Size} {
 				_ = enc.Encode(map[string]any{"status": "Downloading", "id": "layer1", "progressDetail": map[string]int64{"current": part, "total": src.Size}})
+				if src.PullTime > 0 {
+					// The lock stays free meanwhile, as a slow pull holds up nothing else.
+					if f, ok := w.(http.Flusher); ok {
+						f.Flush()
+					}
+					e.mu.Unlock()
+					time.Sleep(src.PullTime / 3)
+					e.mu.Lock()
+				}
 			}
 			_ = enc.Encode(map[string]any{"status": "Pull complete", "id": "layer1"})
 		}
@@ -516,6 +537,14 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		if err := e.addressesFree(c); err != nil {
 			fail(w, http.StatusInternalServerError, "%v", err)
 			return
+		}
+		if e.BindError != nil {
+			for _, m := range c.Mounts {
+				if said := e.BindError(m.Source); m.Type == "bind" && said != "" {
+					fail(w, http.StatusBadRequest, "error while creating mount source path '%s': %s", m.Source, said)
+					return
+				}
+			}
 		}
 		c.State = docker.State{Status: "running", Running: true}
 		if c.img.Exits {

@@ -142,12 +142,17 @@ type Decision struct {
 	Restores bool `json:",omitempty"`
 	// HostAccess is what the step lets the resource reach on its server
 	// that it couldn't before. The control plane sets it from the specs,
-	// whatever an agent says: a step with any needs a person to apply it.
+	// whatever an agent says: a step with any needs a person to apply it. All
+	// an agent adds is Leads, which can make it read louder and nothing else.
 	HostAccess []Access `json:",omitempty"`
 	// HealthUnknown is true when the server hasn't the image yet, so its
 	// own health check isn't known, and UntilHealthy may be missing or
 	// too short.
 	HealthUnknown bool `json:",omitempty"`
+	// Leads says where the server paths the resource mounts lead through symlinks,
+	// by path, for those that lead elsewhere. An agent reads it; the control plane
+	// puts it on HostAccess (Access.Leading), and it goes no further.
+	Leads map[string]string `json:",omitempty"`
 	// Pull is true when the step asks the server for its image again first. With
 	// no Changes, it replaces what runs only if that finds a newer image. With
 	// nothing but a restart policy to change, it changes that in place otherwise.
@@ -302,9 +307,41 @@ type Access struct {
 	// Detail is a network's other options, as name=value, sorted, or for a
 	// network the server has, the other names the resource answers to there.
 	Detail string `json:",omitempty"`
-	// SameAsRoot says this is the same as root on the server, whatever else it
-	// says, such as the capability SYS_ADMIN.
+	// SameAsRoot says this is the same as root on the server because of what it
+	// is, whatever else it says: the capability SYS_ADMIN, or a path such as /etc,
+	// or a plugin that mounts there (SystemPath). AsGoodAsRoot says it for every
+	// kind.
 	SameAsRoot bool `json:",omitempty"`
+	// LeadsTo is where Path leads through symlinks, as the server's agent reads
+	// it, when that is somewhere else.
+	LeadsTo string `json:",omitempty"`
+}
+
+// Leading is a with where its path leads on the server, as an agent says. An
+// agent can only make a plan louder this way: what the path reads as written
+// still counts, and the gate for a person is the control plane's own. So an agent
+// that lies, or is too old to say, leaves the plan reading what the spec says.
+func (a Access) Leading(to string) Access {
+	if to == "" || to == a.Path || a.Kind != AccessPath && a.Kind != AccessDocker {
+		return a
+	}
+	a.LeadsTo = to
+	switch {
+	case a.Kind == AccessDocker:
+	case ControlsDocker(to):
+		a.Kind, a.ReadOnly = AccessDocker, false // a socket mounted read-only still takes connections
+	case SystemPath(to, a.ReadOnly):
+		a.SameAsRoot = true
+	}
+	return a
+}
+
+// AsGoodAsRoot reports what is as good as root on the server. All host access
+// needs a signed-in person; only this asks them for more than a click, as a
+// warning that comes with every folder is a warning nobody reads (ADR 0028).
+func (a Access) AsGoodAsRoot() bool {
+	return a.SameAsRoot || a.Kind == AccessDocker || a.Kind == AccessNetwork ||
+		a.Kind == AccessNetworkDriver && a.Driver == "host"
 }
 
 // AccessKind is what a resource reaches on its server.
@@ -374,22 +411,24 @@ func NewAccess(from, to []Access) []Access {
 	// writable says, for each access with ReadOnly cleared, whether from
 	// has it read-write.
 	writable := make(map[Access]bool, len(from))
-	for _, b := range from {
+	for i := range from {
+		b := from[i]
 		ro := b.ReadOnly
 		b.ReadOnly = false
 		writable[b] = writable[b] || !ro
 	}
 	var out []Access
 	seen := make(map[Access]bool)
-	for _, a := range to {
-		key := a
+	for i := range to {
+		a := &to[i]
+		key := *a
 		key.ReadOnly = false
 		rw, has := writable[key]
-		if has && (a.ReadOnly || rw || a.Kind == AccessDocker) || seen[a] {
+		if has && (a.ReadOnly || rw || a.Kind == AccessDocker) || seen[*a] {
 			continue
 		}
-		seen[a] = true
-		out = append(out, a)
+		seen[*a] = true
+		out = append(out, *a)
 	}
 	return out
 }
@@ -410,12 +449,25 @@ func AccessWords(a Access) string {
 		case "Z":
 			how += ", relabelled for SELinux as private"
 		}
-		return "the server path " + plain(a.Path) + " (" + how + ")"
+		root := ""
+		if a.SameAsRoot {
+			root = ", which is as good as root"
+		}
+		if a.LeadsTo != "" {
+			return "the server path " + plain(a.Path) + ", which leads to " + plain(a.LeadsTo) + " (" + how + ")" + root
+		}
+		return "the server path " + plain(a.Path) + " (" + how + ")" + root
 	case AccessDocker:
+		if a.LeadsTo != "" {
+			return "the server path " + plain(a.Path) + ", which leads to Docker's socket at " + plain(a.LeadsTo) + ", which gives control of Docker on the server, the same as root"
+		}
 		return "Docker's socket at " + plain(a.Path) + ", which gives control of Docker on the server, the same as root"
 	case AccessNetwork:
 		return "the server's own network"
 	case AccessMount:
+		if a.Driver != "" && a.Path != "" {
+			return "the volume driver " + plain(a.Driver) + " at " + plain(a.Path) + ", which reaches what the plugin does (" + how + ")"
+		}
 		if a.Driver != "" {
 			return "the volume driver " + plain(a.Driver) + ", which reaches what the plugin does (" + how + ")"
 		}

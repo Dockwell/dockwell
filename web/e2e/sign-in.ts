@@ -13,8 +13,9 @@
 // applies it, and undoes it from Activity. The CLI plans a project with local
 // access, and the panel applies it at the address the CLI sends a person to,
 // /changes/<id>. It adds a secret in the panel, reveals it with the passkey, and
-// checks an API token can't. Then it runs the app screens from apps-flow.ts, on
-// the fake Docker Engine of scripts/fakedocker. Everything
+// checks an API token can't. Then it runs the app screens from apps-flow.ts, and
+// the plan sheet's every state from plan-flow.ts, on the fake Docker Engine of
+// scripts/fakedocker. Everything
 // after the claim goes through the panel shell: the rail's link to your
 // profile on wide screens, More on phones. With --shots <dir> it also saves
 // screenshots of every screen at 1440, 800, 390 and 360 px, light and dark.
@@ -36,6 +37,7 @@ import { type Browser, type BrowserContext, chromium, type Page } from "playwrig
 
 import { appsFlow } from "./apps-flow.ts";
 import { dockerMade, dockerProbe, removeMade } from "./docker-probe.ts";
+import { planFlow } from "./plan-flow.ts";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -605,12 +607,12 @@ async function main() {
   await detail.getByRole("button", { name: "Undo this change" }).click();
   const undoReview = page.getByRole("dialog", { name: "Review plan" });
   await undoReview.waitFor();
-  if (!/2\s*to destroy/.test(await undoReview.innerText())) {
+  if (!/2\s*to delete/.test(await undoReview.innerText())) {
     fail(`the undo's plan shows ${JSON.stringify(await undoReview.innerText())}`);
   }
   await shoot(page, "plan-undo");
-  await undoReview.getByRole("button", { name: /^Apply plan/ }).click();
-  await page.getByRole("dialog", { name: "Applied" }).getByRole("button", { name: "Done" }).click();
+  await undoReview.getByRole("button", { name: /^Delete 2 resources/ }).click();
+  await page.getByRole("dialog", { name: "2 resources are deleted" }).getByRole("button", { name: "Done" }).click();
   await page.getByRole("row", { name: /Undo: Create the project garden/ }).waitFor();
   await detail.getByText("Undone by").waitFor();
   if ((await detail.getByRole("button", { name: "Undo this change" }).count()) !== 0) {
@@ -681,7 +683,7 @@ async function main() {
   if ((await secretPlan.innerText()).includes(secretValue)) fail("the plan sheet shows the secret's value");
   await shoot(page, "plan-secret");
   await secretPlan.getByRole("button", { name: /^Apply plan/ }).click();
-  const secretDone = page.getByRole("dialog", { name: "Applied" });
+  const secretDone = page.getByRole("dialog", { name: /is created$/ });
   await secretDone.waitFor();
   await secretDone.getByRole("button", { name: "Done" }).click();
   const revealButton = page.getByRole("button", { name: "Reveal DB_PASSWORD" });
@@ -761,6 +763,7 @@ async function main() {
   if (fakeSocket !== "") {
     const before = await dockerMade(fakeSocket);
     await appsFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket), failing: "nginx:broken" });
+    await planFlow(page, { origin, browser, context, step, shoot, docker: dockerProbe(fakeSocket) });
     // What make docker-panel-e2e does at its end, where only CI could see it.
     step("Docker: what the run made comes off, networks and volumes too");
     const made = await dockerMade(fakeSocket);

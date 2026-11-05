@@ -688,7 +688,7 @@ func TestAPullIsRefusedForAServerThatIsntConnected(t *testing.T) {
 		}
 
 		err := s.e.ApplyBy(t.Context(), plan.Change, By{Actor: "person", Via: ViaPanel})
-		if !errors.Is(err, ErrOffline) || !strings.Contains(err.Error(), "srv_B isn't connected") || !strings.Contains(err.Error(), "once srv_B's agent reconnects") {
+		if !errors.Is(err, ErrOffline) || !strings.Contains(err.Error(), "srv_B isn't connected") || !strings.Contains(err.Error(), "once its agent reconnects") {
 			t.Fatalf("applying = %v", err)
 		}
 		if c := stored(t, s.db, plan.Change); c.State != store.ChangePlanned {

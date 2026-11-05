@@ -387,23 +387,32 @@ func (s *Session) call(ctx context.Context, c *agentv1.Call, fallback time.Durat
 		}
 		r, err := s.callOnce(ctx, c)
 		if !errors.Is(err, errDraining) {
-			return r, s.timedOut(ctx, err, timeout)
+			return r, s.timedOut(err, timeout)
 		}
 		next, err := s.agents.next(ctx, s)
 		if err != nil {
-			return nil, s.timedOut(ctx, err, timeout)
+			return nil, s.timedOut(err, timeout)
 		}
 		s = next
 	}
 }
 
-// timedOut says, of a call that ran out of time, how long it had.
-func (s *Session) timedOut(ctx context.Context, err error, timeout time.Duration) error {
-	if err != nil && errors.Is(err, context.DeadlineExceeded) && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+// timedOut says, of a call that ran out of time, how long it had. Its time
+// may run out on the agent first, as the agent's clock started later or ran
+// faster, so what the agent said counts as well as the call's own deadline.
+func (s *Session) timedOut(err error, timeout time.Duration) error {
+	if err != nil && errors.Is(err, context.DeadlineExceeded) {
 		return fmt.Errorf("%s's agent didn't answer within %s: %w", s.name, human.Duration(timeout.Round(time.Second)), err)
 	}
 	return err
 }
+
+// outOfTime is what an agent said of a call whose time ran out there.
+type outOfTime struct{ message string }
+
+func (e outOfTime) Error() string { return e.message }
+
+func (outOfTime) Unwrap() error { return context.DeadlineExceeded }
 
 // callOnce sends c on this stream and waits for its result.
 func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallResult, error) {
@@ -478,7 +487,14 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 	case e.GetDraining():
 		return nil, errDraining
 	default:
-		return nil, &resource.ServerError{Server: s.name, Err: errors.New(e.GetMessage())}
+		reason := errors.New(e.GetMessage())
+		if e.GetOutOfTime() {
+			reason = outOfTime{e.GetMessage()}
+		}
+		if plain := e.GetPlain(); plain != "" {
+			reason = resource.PlainlyBecause(e.GetReason(), plain, reason)
+		}
+		return nil, &resource.ServerError{Server: s.name, Err: reason}
 	}
 }
 
@@ -486,8 +502,8 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 // have run; a plan or a read changed nothing.
 func (s *Session) lost(c *agentv1.Call) error {
 	if c.GetApply() != nil {
-		return fault.New(ErrLost, "%s's agent disconnected before it answered, so the step may or may not have run. "+
-			"Dockwell checks it again when the agent reconnects", s.name)
+		return resource.Plainly(fmt.Sprintf("%s went offline during this step, so Dockwell can't tell whether it ran. Check that %s is up.", s.name, s.name),
+			fault.New(ErrLost, "%s's agent disconnected during this step", s.name))
 	}
 	return fault.New(ErrLost, "%s's agent disconnected before it answered. Try again once it reconnects", s.name)
 }

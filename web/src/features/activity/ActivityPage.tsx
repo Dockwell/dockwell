@@ -10,6 +10,7 @@ import {
   ChangeState,
   type Event,
   EventKind,
+  type Plan,
   ResourceService,
 } from "@dockwell/api";
 import {
@@ -41,8 +42,11 @@ import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { initials } from "../auth/user";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { canUndo, diffResources, shortFingerprint } from "../changes/plan";
-import { type StepLook, useChangeWords } from "../changes/words";
+import { FailureNotice } from "../changes/FailureNotice";
+import { useFieldRows } from "../changes/fields";
+import { canUndo, diffResources, failedStep, foldPlumbing, shortFingerprint, wentOffline } from "../changes/plan";
+import { RollbackLine, rollbackSubject, useRollbackWord } from "../changes/RollbackLine";
+import { type StepLook, useAlsoWords, useChangeWords } from "../changes/words";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
@@ -297,12 +301,38 @@ function Mark({ icon, tone }: { icon: IconName; tone?: Described["tone"] | undef
   );
 }
 
+/** What a change on record did, as the plan sheet reads it: what it was for, and what matters first. */
+function RecordedPlan({
+  plan,
+  applied,
+  rows,
+}: {
+  plan: Plan | undefined;
+  applied: boolean;
+  rows: ReturnType<typeof useFieldRows>;
+}) {
+  const words = useChangeWords();
+  const alsoWords = useAlsoWords();
+  const fold = foldPlumbing(plan, diffResources(plan, rows, { tag: (intent) => words.intentTag(intent, applied) }));
+  return (
+    <PlanDiff
+      resources={fold.shown}
+      also={
+        fold.folded.length > 0
+          ? { label: alsoWords(fold, applied), action: "create", resources: fold.folded }
+          : undefined
+      }
+    />
+  );
+}
+
 /** The line under an event's title: its state, the plan in brief or its progress, and what reverted it. */
 function useMeta() {
   const { t } = useLingui();
   const words = useChangeWords();
   const counts = useCounts();
   const progress = useProgress();
+  const rollbackWord = useRollbackWord();
   return useCallback(
     (event: Event): { look: StepLook | undefined; parts: string[] } => {
       const change = event.change;
@@ -312,10 +342,11 @@ function useMeta() {
       const brief = steps || counts(change);
       if (brief) parts.push(brief);
       if (change.undoneBy) parts.push(t`Undone`);
-      if (change.rolledBackBy) parts.push(t`Rolled back`);
+      const rollback = rollbackWord(change);
+      if (rollback) parts.push(rollback);
       return { look: words.state(change.state), parts };
     },
-    [t, words, counts, progress],
+    [t, words, counts, progress, rollbackWord],
   );
 }
 
@@ -590,6 +621,7 @@ interface DetailProps {
 function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo }: DetailProps) {
   const { t, i18n } = useLingui();
   const words = useChangeWords();
+  const rows = useFieldRows();
   const change = event.change;
   const full = useQuery(ChangeService.method.getChange, { id: event.id }, { enabled: change !== undefined });
   const date = event.time ? timestampDate(event.time) : new Date(0);
@@ -666,7 +698,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
                 ) : null}
                 {change.undoneBy || change.rolledBackBy ? (
                   <>
-                    <dt>{change.undoneBy ? t`Undone by` : t`Rolled back by`}</dt>
+                    <dt>{change.undoneBy ? t`Undone by` : t`Rollback`}</dt>
                     <dd>
                       <button
                         type="button"
@@ -687,10 +719,11 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
               </>
             ) : null}
           </dl>
-          {change?.state === ChangeState.FAILED && change.error ? (
-            <Callout tone="critical" title={t`Why it failed`}>
-              {change.error}
-            </Callout>
+          {change?.state === ChangeState.FAILED ? (
+            <RollbackLine change={change} subject={rollbackSubject(full.data?.change?.plan ?? change.plan)} />
+          ) : null}
+          {change?.state === ChangeState.FAILED && change.error && !wentOffline(change) ? (
+            <FailureNotice message={change.error} detail={failedStep(change)?.detail} />
           ) : null}
           {change ? (
             <div className="activity-detail-section">
@@ -698,7 +731,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
                 <Trans>What changed</Trans>
               </h3>
               {full.data?.change ? (
-                <PlanDiff resources={diffResources(full.data.change.plan)} />
+                <RecordedPlan plan={full.data.change.plan} applied={change.state === ChangeState.APPLIED} rows={rows} />
               ) : full.error ? (
                 <p className="activity-note" role="alert">
                   {sentence(full.error)}

@@ -240,9 +240,10 @@ type ServiceInfo struct {
 	Deployments []*ServiceDeployment `protobuf:"bytes,6,rep,name=deployments,proto3" json:"deployments,omitempty"`
 	// The change that made its latest revision.
 	ChangeId string `protobuf:"bytes,7,opt,name=change_id,json=changeId,proto3" json:"change_id,omitempty"`
-	// The failed change that Dockwell rolled back with its latest revision,
-	// when it did: the service runs what it ran before, and the deploy it
-	// was asked for didn't happen.
+	// The failed change that Dockwell made its latest revision to roll back, when
+	// it did. That rollback may still be running, may be waiting for a server, or
+	// may have failed too: change_state says how it stands, and the deployments
+	// where. Only once it has applied does the service have what it had before.
 	RolledBackChangeId string `protobuf:"bytes,8,opt,name=rolled_back_change_id,json=rolledBackChangeId,proto3" json:"rolled_back_change_id,omitempty"`
 	// How the change that made its latest revision stands. A deployment still
 	// pending under a change that has failed will not move again.

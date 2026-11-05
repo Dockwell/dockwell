@@ -274,6 +274,11 @@ func (*Driver) SetImage(spec proto.Message, image string) {
 	}
 }
 
+// Leads says where the server paths the app mounts lead on its server.
+func (d *Driver) Leads(ctx context.Context, ref resource.Ref, desired proto.Message) (map[string]string, error) {
+	return d.Containers.LeadsAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())
+}
+
 // Check checks the app on its server, as the container driver does.
 func (d *Driver) Check(ctx context.Context, ref resource.Ref, desired proto.Message) error {
 	return d.Containers.CheckAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())

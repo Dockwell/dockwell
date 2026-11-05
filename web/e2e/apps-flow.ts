@@ -41,7 +41,7 @@ function fail(message: string): never {
 async function applyPlan(page: Page, done: string) {
   const plan = page.getByRole("dialog", { name: "Review plan" });
   await plan.waitFor({ timeout: 30_000 });
-  await plan.getByRole("button", { name: /Apply plan/ }).click();
+  await plan.getByRole("button", { name: /Apply plan|^Delete / }).click();
   const finish = page.getByRole("button", { name: done, exact: true });
   await finish.waitFor({ timeout: 120_000 });
   await finish.click();
@@ -105,10 +105,10 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
     .getByRole("dialog", { name: "Review plan" })
     .getByRole("button", { name: /Apply plan/ })
     .click();
-  const refused = page.getByRole("dialog", { name: "The change failed" });
+  const refused = page.getByRole("dialog", { name: "Couldn't create doomed" });
   await refused.waitFor({ timeout: 120_000 });
   await shoot(page, "apps-first-failed");
-  await refused.getByRole("button", { name: "Done", exact: true }).click();
+  await refused.getByRole("button", { name: /Edit and try again/ }).click();
   await sheet.waitFor();
   if ((await sheet.getByLabel("Image", { exact: true }).inputValue()) !== failing) fail("the form lost what you typed");
   // What went wrong is at the field, and what to change is ready to change.
@@ -133,7 +133,7 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
     .waitFor();
   await shoot(page, "apps-plan");
   await plan.getByRole("button", { name: /Apply plan/ }).click();
-  await page.getByRole("dialog", { name: /Applying|Applied/ }).waitFor();
+  await page.getByRole("dialog", { name: /Applying|nginx is live/ }).waitFor();
   await page.getByRole("button", { name: "Open nginx" }).click({ timeout: 120_000 });
   await page.getByRole("heading", { level: 1, name: "nginx", exact: true }).waitFor();
   const panel = page.getByRole("region", { name: "Running" });
@@ -183,9 +183,13 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
     .getByRole("dialog", { name: "Review plan" })
     .getByRole("button", { name: /Apply plan/ })
     .click();
-  await page.getByText(`${SECOND} is already the newest image, so nginx stays as it is`).waitFor({ timeout: 120_000 });
+  // It doesn't read as a deploy: it says nothing changed, and why, with nothing to undo.
+  await page.getByRole("heading", { name: "nginx stays as it is" }).waitFor({ timeout: 120_000 });
+  await page.getByText(`${SECOND} is already the newest image, so nginx stays as it is`).waitFor();
+  if ((await page.getByRole("button", { name: /Undo until/ }).count()) !== 0)
+    fail("it offers to undo what didn't happen");
   if ((await running("nginx")).id !== runningBefore) fail("with nothing newer, the container was replaced");
-  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.getByRole("button", { name: /^Done/ }).click();
 
   step("apps: Deployments lists each revision, with what changed and who did it, in the past tense");
   await page.getByRole("link", { name: /Deployments/ }).click();
@@ -218,11 +222,11 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
     .getByRole("dialog", { name: "Review plan" })
     .getByRole("button", { name: /Apply plan/ })
     .click();
-  const broke = page.getByRole("dialog", { name: "The change failed" });
+  const broke = page.getByRole("dialog", { name: `Couldn't deploy ${failing}` });
   await broke.waitFor({ timeout: 120_000 });
   await shoot(page, "apps-deploy-failed");
-  await broke.getByRole("button", { name: "Done", exact: true }).click();
-  // Back on the form, what went wrong is at the field, ready to change.
+  // The way back goes to the form it came from, with what went wrong at the field, ready to change.
+  await broke.getByRole("button", { name: /Edit and try again/ }).click();
   const again = page.getByRole("dialog", { name: "Deploy nginx" });
   await again.waitFor();
   await page.waitForFunction(() => document.activeElement?.getAttribute("aria-invalid") === "true");

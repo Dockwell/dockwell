@@ -3,6 +3,9 @@
 package control
 
 import (
+	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -256,6 +259,12 @@ func TestAFailedDeployShowsAsRolledBack(t *testing.T) {
 		if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || got.GetRolledBackBy() == "" {
 			t.Fatalf("the deploy ended %v, rolled back by %q", got.GetState(), got.GetRolledBackBy())
 		}
+		failedStep := got.GetSteps()[slices.IndexFunc(got.GetSteps(), func(s *dockwellv1.StepProgress) bool {
+			return s.GetState() == dockwellv1.StepState_STEP_STATE_FAILED
+		})]
+		if failedStep.GetReason() != resource.ReasonExits || failedStep.GetLost() {
+			t.Errorf("the step that failed comes down to %q, lost %v", failedStep.GetReason(), failedStep.GetLost())
+		}
 		waitFor(t, "the rollback to finish", func() bool {
 			after := onlyService(t, s)
 			return after.GetRevision() == 3 && len(after.GetDeployments()) == 1 && after.GetDeployments()[0].GetState() == dockwellv1.DeploymentState_DEPLOYMENT_STATE_LIVE
@@ -263,9 +272,22 @@ func TestAFailedDeployShowsAsRolledBack(t *testing.T) {
 		if after := onlyService(t, s); after.GetRolledBackChangeId() != deployed.Msg.GetChange().GetId() || after.GetSpec().GetApp().GetImage() != "ghcr.io/acme/shop:1.4" {
 			t.Errorf("after the rollback the service is %v", after)
 		}
+		// The API says how it went, and what it put back, for a panel and a CLI that won't guess.
+		read, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: deployed.Msg.GetChange().GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		status := read.Msg.GetChange().GetRollbackStatus()
+		if status.GetId() != got.GetRolledBackBy() || status.GetState() != dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED || !slices.Contains(status.GetRestored(), "shop") {
+			t.Errorf("the rollback's status is %v", status)
+		}
 		list, err := s.ListServiceRevisions(t.Context(), connect.NewRequest(&dockwellv1.ListServiceRevisionsRequest{Id: info.GetId()}))
 		if err != nil {
 			t.Fatal(err)
+		}
+		// A list has a plan in brief, which still says what it is for.
+		if got := list.Msg.GetRevisions()[1].GetChange().GetPlan().GetIntent(); got.GetKind() != dockwellv1.IntentKind_INTENT_KIND_DEPLOY {
+			t.Errorf("in a list, the deploy is for %v", got)
 		}
 		failed := list.Msg.GetRevisions()[1]
 		if failed.GetNumber() != 2 || failed.GetDeployments()[0].GetState() != dockwellv1.DeploymentState_DEPLOYMENT_STATE_FAILED || failed.GetDeployments()[0].GetError() == "" {
@@ -341,6 +363,159 @@ func TestCheckCompose(t *testing.T) {
 			if strings.Contains(ch.GetSummary(), "Compose") {
 				t.Errorf("checking recorded a change: %v", ch)
 			}
+		}
+	})
+}
+
+// A change says what it is for when the method that proposed it knows, and that
+// stays on its record. A plan of plain edits says nothing of the kind.
+func TestAChangeSaysWhatItIsFor(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		f.addDockerServer(t)
+		c := changeClient(b, b.origin)
+		s := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+		made, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Run the shop", Edits: []*dockwellv1.Edit{serviceEdit("shop", "ghcr.io/acme/shop:1.4", nil)},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := made.Msg.GetChange().GetPlan().GetIntent(); got != nil {
+			t.Errorf("a plan of plain edits is for %v", got)
+		}
+		applied(t, c, made.Msg.GetChange())
+		info := onlyService(t, s)
+
+		deployed, err := s.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: info.GetId(), Image: "ghcr.io/acme/shop:1.5"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := deployed.Msg.GetChange().GetPlan().GetIntent()
+		if got.GetKind() != dockwellv1.IntentKind_INTENT_KIND_DEPLOY || got.GetImage() != "ghcr.io/acme/shop:1.5" || got.GetResourceId() != info.GetId() {
+			t.Errorf("a deploy is for %v", got)
+		}
+		// It says so whoever reads it, and it comes through to applying it.
+		read, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: deployed.Msg.GetChange().GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if read.Msg.GetChange().GetPlan().GetIntent().GetKind() != dockwellv1.IntentKind_INTENT_KIND_DEPLOY {
+			t.Errorf("read back, a deploy is for %v", read.Msg.GetChange().GetPlan().GetIntent())
+		}
+		if done := applied(t, c, deployed.Msg.GetChange()); done.GetPlan().GetIntent().GetKind() != dockwellv1.IntentKind_INTENT_KIND_DEPLOY {
+			t.Errorf("applied, a deploy is for %v", done.GetPlan().GetIntent())
+		}
+
+		// The same tag again is a pull, and may come to nothing.
+		repull, err := s.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: info.GetId(), Image: "ghcr.io/acme/shop:1.5"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := repull.Msg.GetChange().GetPlan().GetIntent(); got.GetKind() != dockwellv1.IntentKind_INTENT_KIND_REPULL || got.GetImage() != "ghcr.io/acme/shop:1.5" {
+			t.Errorf("deploying the same tag again is for %v", got)
+		}
+		if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: repull.Msg.GetChange().GetId()})); err != nil {
+			t.Fatal(err)
+		}
+
+		port, err := s.AddServicePort(t.Context(), connect.NewRequest(&dockwellv1.AddServicePortRequest{Id: info.GetId(), HostPort: 8080, ContainerPort: 80}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = port.Msg.GetChange().GetPlan().GetIntent()
+		if got.GetKind() != dockwellv1.IntentKind_INTENT_KIND_PUBLISH_PORT || got.GetPort() != 8080 || got.GetResourceId() != info.GetId() {
+			t.Errorf("adding a port is for %v", got)
+		}
+		if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: port.Msg.GetChange().GetId()})); err != nil {
+			t.Fatal(err)
+		}
+
+		back, err := s.RollBackService(t.Context(), connect.NewRequest(&dockwellv1.RollBackServiceRequest{Id: info.GetId(), Revision: 1}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = back.Msg.GetChange().GetPlan().GetIntent()
+		if got.GetKind() != dockwellv1.IntentKind_INTENT_KIND_ROLL_BACK || got.GetRevision() != 1 || got.GetResourceId() != info.GetId() {
+			t.Errorf("a rollback is for %v", got)
+		}
+	})
+}
+
+// A plan says which of what a change reaches is as good as root: all of it needs
+// a signed-in person, and only that asks them for more than a click.
+func TestAPlanSaysWhatIsAsGoodAsRoot(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		e := f.addDockerServer(t)
+		e.Registry["nginx:1.27"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx"}}}
+		c := changeClient(b, b.origin)
+		edit := serviceEdit("site", "nginx:1.27", nil)
+		edit.GetSpec().GetService().GetApp().Mounts = []*resourcev1.Mount{
+			{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/site/html"}, Target: "/usr/share/nginx/html", ReadOnly: true},
+			{Source: &resourcev1.Mount_HostPath{HostPath: "/var/run/docker.sock"}, Target: "/var/run/docker.sock"},
+			{Source: &resourcev1.Mount_HostPath{HostPath: "/etc"}, Target: "/host-etc", ReadOnly: true},
+		}
+		made, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Run the site", Edits: []*dockwellv1.Edit{edit}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan := made.Msg.GetChange().GetPlan()
+		if !plan.GetHostAccess() {
+			t.Error("the plan doesn't say it reaches the server")
+		}
+		roots := map[string]bool{}
+		for _, r := range plan.GetResources() {
+			for _, a := range r.GetHostAccess() {
+				roots[a.GetPath()] = a.GetSameAsRoot()
+			}
+		}
+		if want := map[string]bool{"/srv/site/html": false, "/var/run/docker.sock": true, "/etc": true}; !maps.Equal(roots, want) {
+			t.Errorf("what it reaches is %v, want %v", roots, want)
+		}
+	})
+}
+
+// A symlink on the server reads as what it leads to, from the agent, over its
+// stream, in the plan the API gives: a person sees the alarm /etc would raise.
+func TestAPlanReadsWhereASymlinkLeads(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		f.addDockerServer(t)
+		c := changeClient(b, b.origin)
+		dir := t.TempDir()
+		link, site := filepath.Join(dir, "link"), filepath.Join(dir, "site")
+		if err := os.Symlink("/etc", link); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink("/run/docker.sock", site); err != nil {
+			t.Fatal(err)
+		}
+		edit := serviceEdit("site", "ghcr.io/acme/shop:1.4", nil)
+		edit.GetSpec().GetService().GetApp().Mounts = []*resourcev1.Mount{
+			{Source: &resourcev1.Mount_HostPath{HostPath: link}, Target: "/a", ReadOnly: true},
+			{Source: &resourcev1.Mount_HostPath{HostPath: site}, Target: "/b", ReadOnly: true},
+		}
+		made, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Run the site", Edits: []*dockwellv1.Edit{edit}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]*dockwellv1.HostAccess{}
+		for _, s := range made.Msg.GetChange().GetPlan().GetServers() {
+			for _, st := range s.GetSteps() {
+				for _, a := range st.GetHostAccess() {
+					got[a.GetPath()] = a
+				}
+			}
+		}
+		if a := got[link]; a == nil || !a.GetSameAsRoot() || a.GetLeadsTo() != "/etc" || a.GetKind() != dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH {
+			t.Errorf("a symlink to /etc reads %v", a)
+		}
+		if a := got[site]; a == nil || !a.GetSameAsRoot() || a.GetLeadsTo() != "/run/docker.sock" || a.GetKind() != dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOCKER_SOCKET {
+			t.Errorf("a symlink to Docker's socket reads %v", a)
 		}
 	})
 }

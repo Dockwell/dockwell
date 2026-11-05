@@ -23,7 +23,11 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
    * aria-keyshortcuts to say it another way, such as "Control+Enter" off macOS.
    */
   kbd?: string;
-  /** Replaces the icon with a spinner and disables the button. Keep the label and change its verb ("Deploying"). */
+  /**
+   * Replaces the icon with a spinner and stops the button working, while it
+   * keeps its focus, so whoever pressed it is still there when it is done.
+   * Keep the label and change its verb ("Deploying").
+   */
   loading?: boolean;
   ref?: Ref<HTMLButtonElement>;
 }
@@ -40,6 +44,7 @@ export function Button({
   children,
   type = "button",
   disabled,
+  onClick,
   ...rest
 }: ButtonProps) {
   const iconOnly = !hasContent(children);
@@ -56,8 +61,11 @@ export function Button({
         loading && "is-loading",
         className,
       )}
-      disabled={disabled || loading}
+      disabled={disabled}
+      aria-disabled={loading || undefined}
       aria-busy={loading || undefined}
+      // A submit button that is loading mustn't submit its form again.
+      onClick={loading ? (event) => event.preventDefault() : onClick}
     >
       {loading ? (
         <Glyph shape="spinner" size={size === "sm" ? 12 : 14} className="dw-btn-spinner" />

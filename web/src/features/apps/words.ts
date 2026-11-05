@@ -33,6 +33,8 @@ export function useAppWords(): AppWords {
             return t`Waiting for server`;
           case "failed":
             return t`Failed`;
+          case "rollback-failed":
+            return t`Rollback failed`;
           case "offline":
             return t`${servers} offline`;
           case "rolled-back":

@@ -2,9 +2,16 @@
 
 // Command fakedocker serves the fake Docker Engine the tests use on a unix
 // socket, for the panel's end-to-end test on a machine without Docker: point
-// dockwell at it with DOCKER_HOST=unix://<socket>. It pulls any image. An
-// image whose tag is "broken" exits as soon as it starts, for a deploy that
-// fails, and one with a name it can't find, "doesnotexist", can't be pulled.
+// dockwell at it with DOCKER_HOST=unix://<socket>. It pulls any image. So a
+// test can see each way a deploy goes wrong:
+//
+//   - a name it can't find, "doesnotexist", can't be pulled;
+//   - the tag "nosuchtag" isn't on its registry;
+//   - the tag "broken" exits as soon as it starts;
+//   - the tag "unhealthy" runs, and fails its health check;
+//   - the tag "slow" takes 3 s to pull, for a deploy seen in flight;
+//   - a server path under /readonly can't be mounted.
+//
 // It is never part of a release. CI's Docker job runs the same flows on real
 // Docker.
 //
@@ -20,6 +27,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -59,14 +67,30 @@ func main() {
 		if strings.HasSuffix(name, "doesnotexist") {
 			return dockertest.Image{}, false
 		}
-		return dockertest.Image{
+		img := dockertest.Image{
 			Exits: strings.HasSuffix(ref, ":broken"),
 			Size:  48 << 20,
 			Config: docker.Config{
 				Cmd: []string{"serve"},
 				Env: []string{"PATH=/usr/local/bin:/usr/bin:/bin"},
 			},
-		}, true
+		}
+		switch {
+		case strings.HasSuffix(ref, ":nosuchtag"):
+			img.PullError = "manifest for " + ref + " not found: manifest unknown: manifest unknown"
+		case strings.HasSuffix(ref, ":slow"):
+			img.PullTime = 3 * time.Second
+		case strings.HasSuffix(ref, ":unhealthy"):
+			img.Unhealthy = true
+			img.Config.Healthcheck = &docker.Healthcheck{Test: []string{"CMD", "false"}}
+		}
+		return img, true
+	}
+	e.BindError = func(source string) string {
+		if strings.HasPrefix(source, "/readonly") {
+			return "mkdir " + source + ": read-only file system"
+		}
+		return ""
 	}
 	fmt.Println(e.Socket)
 	stop := make(chan os.Signal, 1)

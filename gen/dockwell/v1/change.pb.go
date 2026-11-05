@@ -27,6 +27,66 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// RollbackState is where the rollback of a failed change is.
+type RollbackState int32
+
+const (
+	RollbackState_ROLLBACK_STATE_UNSPECIFIED RollbackState = 0
+	// Its steps are running.
+	RollbackState_ROLLBACK_STATE_APPLYING RollbackState = 1
+	// A step waits for its server to reconnect, or for its agent to plan it.
+	RollbackState_ROLLBACK_STATE_WAITING RollbackState = 2
+	// Every step ran, so what was there before is back.
+	RollbackState_ROLLBACK_STATE_APPLIED RollbackState = 3
+	// A step failed, so what was there before may not be back.
+	RollbackState_ROLLBACK_STATE_FAILED RollbackState = 4
+)
+
+// Enum value maps for RollbackState.
+var (
+	RollbackState_name = map[int32]string{
+		0: "ROLLBACK_STATE_UNSPECIFIED",
+		1: "ROLLBACK_STATE_APPLYING",
+		2: "ROLLBACK_STATE_WAITING",
+		3: "ROLLBACK_STATE_APPLIED",
+		4: "ROLLBACK_STATE_FAILED",
+	}
+	RollbackState_value = map[string]int32{
+		"ROLLBACK_STATE_UNSPECIFIED": 0,
+		"ROLLBACK_STATE_APPLYING":    1,
+		"ROLLBACK_STATE_WAITING":     2,
+		"ROLLBACK_STATE_APPLIED":     3,
+		"ROLLBACK_STATE_FAILED":      4,
+	}
+)
+
+func (x RollbackState) Enum() *RollbackState {
+	p := new(RollbackState)
+	*p = x
+	return p
+}
+
+func (x RollbackState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RollbackState) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_change_proto_enumTypes[0].Descriptor()
+}
+
+func (RollbackState) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_change_proto_enumTypes[0]
+}
+
+func (x RollbackState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RollbackState.Descriptor instead.
+func (RollbackState) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{0}
+}
+
 // ChangeState is where a change is.
 type ChangeState int32
 
@@ -76,11 +136,11 @@ func (x ChangeState) String() string {
 }
 
 func (ChangeState) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_change_proto_enumTypes[0].Descriptor()
+	return file_dockwell_v1_change_proto_enumTypes[1].Descriptor()
 }
 
 func (ChangeState) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_change_proto_enumTypes[0]
+	return &file_dockwell_v1_change_proto_enumTypes[1]
 }
 
 func (x ChangeState) Number() protoreflect.EnumNumber {
@@ -89,7 +149,7 @@ func (x ChangeState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ChangeState.Descriptor instead.
 func (ChangeState) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{1}
 }
 
 // ActorKind says what kind of actor made a change, or did what an event
@@ -146,11 +206,11 @@ func (x ActorKind) String() string {
 }
 
 func (ActorKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_change_proto_enumTypes[1].Descriptor()
+	return file_dockwell_v1_change_proto_enumTypes[2].Descriptor()
 }
 
 func (ActorKind) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_change_proto_enumTypes[1]
+	return &file_dockwell_v1_change_proto_enumTypes[2]
 }
 
 func (x ActorKind) Number() protoreflect.EnumNumber {
@@ -159,7 +219,7 @@ func (x ActorKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ActorKind.Descriptor instead.
 func (ActorKind) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{2}
 }
 
 // Surface is where a change, or what an event records, came from. A call
@@ -211,11 +271,11 @@ func (x Surface) String() string {
 }
 
 func (Surface) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_change_proto_enumTypes[2].Descriptor()
+	return file_dockwell_v1_change_proto_enumTypes[3].Descriptor()
 }
 
 func (Surface) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_change_proto_enumTypes[2]
+	return &file_dockwell_v1_change_proto_enumTypes[3]
 }
 
 func (x Surface) Number() protoreflect.EnumNumber {
@@ -224,7 +284,68 @@ func (x Surface) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Surface.Descriptor instead.
 func (Surface) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{3}
+}
+
+// IntentKind is what a change is for.
+type IntentKind int32
+
+const (
+	IntentKind_INTENT_KIND_UNSPECIFIED IntentKind = 0
+	// It runs another image.
+	IntentKind_INTENT_KIND_DEPLOY IntentKind = 1
+	// It publishes one more port.
+	IntentKind_INTENT_KIND_PUBLISH_PORT IntentKind = 2
+	// A person takes it back to an earlier revision.
+	IntentKind_INTENT_KIND_ROLL_BACK IntentKind = 3
+	// It pulls the image it runs again, as its tag may have moved, and replaces it
+	// only if that is a newer image.
+	IntentKind_INTENT_KIND_REPULL IntentKind = 4
+)
+
+// Enum value maps for IntentKind.
+var (
+	IntentKind_name = map[int32]string{
+		0: "INTENT_KIND_UNSPECIFIED",
+		1: "INTENT_KIND_DEPLOY",
+		2: "INTENT_KIND_PUBLISH_PORT",
+		3: "INTENT_KIND_ROLL_BACK",
+		4: "INTENT_KIND_REPULL",
+	}
+	IntentKind_value = map[string]int32{
+		"INTENT_KIND_UNSPECIFIED":  0,
+		"INTENT_KIND_DEPLOY":       1,
+		"INTENT_KIND_PUBLISH_PORT": 2,
+		"INTENT_KIND_ROLL_BACK":    3,
+		"INTENT_KIND_REPULL":       4,
+	}
+)
+
+func (x IntentKind) Enum() *IntentKind {
+	p := new(IntentKind)
+	*p = x
+	return p
+}
+
+func (x IntentKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (IntentKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_change_proto_enumTypes[4].Descriptor()
+}
+
+func (IntentKind) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_change_proto_enumTypes[4]
+}
+
+func (x IntentKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use IntentKind.Descriptor instead.
+func (IntentKind) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{4}
 }
 
 // HostAccessKind is what a resource reaches on its server.
@@ -331,11 +452,11 @@ func (x HostAccessKind) String() string {
 }
 
 func (HostAccessKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_change_proto_enumTypes[3].Descriptor()
+	return file_dockwell_v1_change_proto_enumTypes[5].Descriptor()
 }
 
 func (HostAccessKind) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_change_proto_enumTypes[3]
+	return &file_dockwell_v1_change_proto_enumTypes[5]
 }
 
 func (x HostAccessKind) Number() protoreflect.EnumNumber {
@@ -344,7 +465,7 @@ func (x HostAccessKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HostAccessKind.Descriptor instead.
 func (HostAccessKind) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{5}
 }
 
 // RouteReach is who a route answers.
@@ -387,11 +508,11 @@ func (x RouteReach) String() string {
 }
 
 func (RouteReach) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_change_proto_enumTypes[4].Descriptor()
+	return file_dockwell_v1_change_proto_enumTypes[6].Descriptor()
 }
 
 func (RouteReach) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_change_proto_enumTypes[4]
+	return &file_dockwell_v1_change_proto_enumTypes[6]
 }
 
 func (x RouteReach) Number() protoreflect.EnumNumber {
@@ -400,7 +521,7 @@ func (x RouteReach) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RouteReach.Descriptor instead.
 func (RouteReach) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{6}
 }
 
 // IngressChange is what happens to the proxy that holds a server's public
@@ -457,11 +578,11 @@ func (x IngressChange) String() string {
 }
 
 func (IngressChange) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_change_proto_enumTypes[5].Descriptor()
+	return file_dockwell_v1_change_proto_enumTypes[7].Descriptor()
 }
 
 func (IngressChange) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_change_proto_enumTypes[5]
+	return &file_dockwell_v1_change_proto_enumTypes[7]
 }
 
 func (x IngressChange) Number() protoreflect.EnumNumber {
@@ -470,7 +591,7 @@ func (x IngressChange) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use IngressChange.Descriptor instead.
 func (IngressChange) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{7}
 }
 
 // DomainCheckState is whether a domain's DNS points at a server.
@@ -519,11 +640,11 @@ func (x DomainCheckState) String() string {
 }
 
 func (DomainCheckState) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_change_proto_enumTypes[6].Descriptor()
+	return file_dockwell_v1_change_proto_enumTypes[8].Descriptor()
 }
 
 func (DomainCheckState) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_change_proto_enumTypes[6]
+	return &file_dockwell_v1_change_proto_enumTypes[8]
 }
 
 func (x DomainCheckState) Number() protoreflect.EnumNumber {
@@ -532,7 +653,7 @@ func (x DomainCheckState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DomainCheckState.Descriptor instead.
 func (DomainCheckState) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{8}
 }
 
 // PlanAction is what a plan does to a resource.
@@ -583,11 +704,11 @@ func (x PlanAction) String() string {
 }
 
 func (PlanAction) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_change_proto_enumTypes[7].Descriptor()
+	return file_dockwell_v1_change_proto_enumTypes[9].Descriptor()
 }
 
 func (PlanAction) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_change_proto_enumTypes[7]
+	return &file_dockwell_v1_change_proto_enumTypes[9]
 }
 
 func (x PlanAction) Number() protoreflect.EnumNumber {
@@ -596,7 +717,7 @@ func (x PlanAction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PlanAction.Descriptor instead.
 func (PlanAction) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{9}
 }
 
 // StepEffect is what a step does to what the resource serves, beyond the
@@ -640,11 +761,11 @@ func (x StepEffect) String() string {
 }
 
 func (StepEffect) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_change_proto_enumTypes[8].Descriptor()
+	return file_dockwell_v1_change_proto_enumTypes[10].Descriptor()
 }
 
 func (StepEffect) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_change_proto_enumTypes[8]
+	return &file_dockwell_v1_change_proto_enumTypes[10]
 }
 
 func (x StepEffect) Number() protoreflect.EnumNumber {
@@ -653,7 +774,7 @@ func (x StepEffect) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use StepEffect.Descriptor instead.
 func (StepEffect) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{10}
 }
 
 // PlanWarning flags a step that may hurt in a way its action doesn't say.
@@ -689,11 +810,11 @@ func (x PlanWarning) String() string {
 }
 
 func (PlanWarning) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_change_proto_enumTypes[9].Descriptor()
+	return file_dockwell_v1_change_proto_enumTypes[11].Descriptor()
 }
 
 func (PlanWarning) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_change_proto_enumTypes[9]
+	return &file_dockwell_v1_change_proto_enumTypes[11]
 }
 
 func (x PlanWarning) Number() protoreflect.EnumNumber {
@@ -702,7 +823,7 @@ func (x PlanWarning) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PlanWarning.Descriptor instead.
 func (PlanWarning) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{11}
 }
 
 // FieldOp is how a field changed.
@@ -745,11 +866,11 @@ func (x FieldOp) String() string {
 }
 
 func (FieldOp) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_change_proto_enumTypes[10].Descriptor()
+	return file_dockwell_v1_change_proto_enumTypes[12].Descriptor()
 }
 
 func (FieldOp) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_change_proto_enumTypes[10]
+	return &file_dockwell_v1_change_proto_enumTypes[12]
 }
 
 func (x FieldOp) Number() protoreflect.EnumNumber {
@@ -758,7 +879,7 @@ func (x FieldOp) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FieldOp.Descriptor instead.
 func (FieldOp) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{12}
 }
 
 // StepState is how a step is going.
@@ -813,11 +934,11 @@ func (x StepState) String() string {
 }
 
 func (StepState) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_change_proto_enumTypes[11].Descriptor()
+	return file_dockwell_v1_change_proto_enumTypes[13].Descriptor()
 }
 
 func (StepState) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_change_proto_enumTypes[11]
+	return &file_dockwell_v1_change_proto_enumTypes[13]
 }
 
 func (x StepState) Number() protoreflect.EnumNumber {
@@ -826,7 +947,7 @@ func (x StepState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use StepState.Descriptor instead.
 func (StepState) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{11}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{13}
 }
 
 // ProposeChangeRequest is a set of edits to plan together.
@@ -2361,18 +2482,26 @@ type Change struct {
 	ApplyTime *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=apply_time,json=applyTime,proto3" json:"apply_time,omitempty"`
 	// Until when UndoChange works, once it is applied. Unset otherwise.
 	UndoDeadline *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=undo_deadline,json=undoDeadline,proto3" json:"undo_deadline,omitempty"`
-	// Why it failed, when it did.
+	// Why it failed, when it did, in plain words: the fact, then the
+	// consequence, then the fix. The step that failed has what the server said
+	// in its detail.
 	Error string `protobuf:"bytes,14,opt,name=error,proto3" json:"error,omitempty"`
 	// Each step of the plan with its progress, once it is applying: servers
 	// in plan order, and on each the steps in the order they run.
 	Steps []*StepProgress `protobuf:"bytes,15,rep,name=steps,proto3" json:"steps,omitempty"`
 	// The change that rolled this one back after it failed, if any. It may
-	// still be applying, as when it waits for a server to reconnect.
+	// still be applying, as when it waits for a server to reconnect, or have
+	// failed: rollback_status says how it went.
 	RolledBackBy string `protobuf:"bytes,16,opt,name=rolled_back_by,json=rolledBackBy,proto3" json:"rolled_back_by,omitempty"`
 	// The applied change that undid this one, if any.
-	UndoneBy      string `protobuf:"bytes,17,opt,name=undone_by,json=undoneBy,proto3" json:"undone_by,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	UndoneBy string `protobuf:"bytes,17,opt,name=undone_by,json=undoneBy,proto3" json:"undone_by,omitempty"`
+	// How the rollback in rolled_back_by is going, which is what says whether
+	// what ran before is back. It moves on after this change has failed, so
+	// read it afresh, or follow the rollback with WatchChange. Unset when there
+	// is no rollback.
+	RollbackStatus *RollbackStatus `protobuf:"bytes,18,opt,name=rollback_status,json=rollbackStatus,proto3" json:"rollback_status,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Change) Reset() {
@@ -2524,6 +2653,116 @@ func (x *Change) GetUndoneBy() string {
 	return ""
 }
 
+func (x *Change) GetRollbackStatus() *RollbackStatus {
+	if x != nil {
+		return x.RollbackStatus
+	}
+	return nil
+}
+
+// RollbackStatus is how the rollback of a failed change is going, for
+// whoever has to say what runs now.
+type RollbackStatus struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The rollback's change, as rolled_back_by says.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Where it is.
+	State RollbackState `protobuf:"varint,2,opt,name=state,proto3,enum=dockwell.v1.RollbackState" json:"state,omitempty"`
+	// How many steps it takes. None means the servers still had what was there
+	// before, as the failed change stopped before it changed them.
+	Steps int32 `protobuf:"varint,3,opt,name=steps,proto3" json:"steps,omitempty"`
+	// The servers it waits for, by name, while it waits.
+	WaitingFor []string `protobuf:"bytes,4,rep,name=waiting_for,json=waitingFor,proto3" json:"waiting_for,omitempty"`
+	// Why it failed, in plain words, when it did.
+	Error string `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	// What the server said, when it failed and error puts that in plain words.
+	Detail string `protobuf:"bytes,6,opt,name=detail,proto3" json:"detail,omitempty"`
+	// The resources its steps put back, by name. What isn't here didn't change,
+	// so it never stopped.
+	Restored      []string `protobuf:"bytes,7,rep,name=restored,proto3" json:"restored,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RollbackStatus) Reset() {
+	*x = RollbackStatus{}
+	mi := &file_dockwell_v1_change_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RollbackStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RollbackStatus) ProtoMessage() {}
+
+func (x *RollbackStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_change_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RollbackStatus.ProtoReflect.Descriptor instead.
+func (*RollbackStatus) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *RollbackStatus) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RollbackStatus) GetState() RollbackState {
+	if x != nil {
+		return x.State
+	}
+	return RollbackState_ROLLBACK_STATE_UNSPECIFIED
+}
+
+func (x *RollbackStatus) GetSteps() int32 {
+	if x != nil {
+		return x.Steps
+	}
+	return 0
+}
+
+func (x *RollbackStatus) GetWaitingFor() []string {
+	if x != nil {
+		return x.WaitingFor
+	}
+	return nil
+}
+
+func (x *RollbackStatus) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *RollbackStatus) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+func (x *RollbackStatus) GetRestored() []string {
+	if x != nil {
+		return x.Restored
+	}
+	return nil
+}
+
 // Actor is who made a change, or applied it, or did what an event records.
 type Actor struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2541,7 +2780,7 @@ type Actor struct {
 
 func (x *Actor) Reset() {
 	*x = Actor{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[27]
+	mi := &file_dockwell_v1_change_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2553,7 +2792,7 @@ func (x *Actor) String() string {
 func (*Actor) ProtoMessage() {}
 
 func (x *Actor) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[27]
+	mi := &file_dockwell_v1_change_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2566,7 +2805,7 @@ func (x *Actor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Actor.ProtoReflect.Descriptor instead.
 func (*Actor) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{27}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *Actor) GetKind() ActorKind {
@@ -2620,6 +2859,9 @@ type Plan struct {
 	// about what stays as it is or what can be read, not about what runs. A note
 	// never stops anyone applying it.
 	Notes []*PlanNote `protobuf:"bytes,8,rep,name=notes,proto3" json:"notes,omitempty"`
+	// What the change is for, in a person's terms, when the method that proposed
+	// it knows. Unset for a change proposed as plain edits.
+	Intent *Intent `protobuf:"bytes,10,opt,name=intent,proto3" json:"intent,omitempty"`
 	// Which project and environment its resources land in, once there's a choice
 	// of either, so a plan can't read as another's. Empty while there's one
 	// project with one environment. A plan that spans several lists each.
@@ -2630,7 +2872,7 @@ type Plan struct {
 
 func (x *Plan) Reset() {
 	*x = Plan{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[28]
+	mi := &file_dockwell_v1_change_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2642,7 +2884,7 @@ func (x *Plan) String() string {
 func (*Plan) ProtoMessage() {}
 
 func (x *Plan) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[28]
+	mi := &file_dockwell_v1_change_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2655,7 +2897,7 @@ func (x *Plan) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Plan.ProtoReflect.Descriptor instead.
 func (*Plan) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{28}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *Plan) GetFingerprint() string {
@@ -2714,6 +2956,13 @@ func (x *Plan) GetNotes() []*PlanNote {
 	return nil
 }
 
+func (x *Plan) GetIntent() *Intent {
+	if x != nil {
+		return x.Intent
+	}
+	return nil
+}
+
 func (x *Plan) GetPlaces() []*PlanPlace {
 	if x != nil {
 		return x.Places
@@ -2734,7 +2983,7 @@ type PlanPlace struct {
 
 func (x *PlanPlace) Reset() {
 	*x = PlanPlace{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[29]
+	mi := &file_dockwell_v1_change_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2746,7 +2995,7 @@ func (x *PlanPlace) String() string {
 func (*PlanPlace) ProtoMessage() {}
 
 func (x *PlanPlace) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[29]
+	mi := &file_dockwell_v1_change_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2759,7 +3008,7 @@ func (x *PlanPlace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanPlace.ProtoReflect.Descriptor instead.
 func (*PlanPlace) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{29}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *PlanPlace) GetProject() string {
@@ -2812,7 +3061,7 @@ type PlanNote struct {
 
 func (x *PlanNote) Reset() {
 	*x = PlanNote{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[30]
+	mi := &file_dockwell_v1_change_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2824,7 +3073,7 @@ func (x *PlanNote) String() string {
 func (*PlanNote) ProtoMessage() {}
 
 func (x *PlanNote) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[30]
+	mi := &file_dockwell_v1_change_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2837,7 +3086,7 @@ func (x *PlanNote) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanNote.ProtoReflect.Descriptor instead.
 func (*PlanNote) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{30}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *PlanNote) GetReason() string {
@@ -2886,7 +3135,7 @@ type PlanSummary struct {
 
 func (x *PlanSummary) Reset() {
 	*x = PlanSummary{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[31]
+	mi := &file_dockwell_v1_change_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2898,7 +3147,7 @@ func (x *PlanSummary) String() string {
 func (*PlanSummary) ProtoMessage() {}
 
 func (x *PlanSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[31]
+	mi := &file_dockwell_v1_change_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2911,7 +3160,7 @@ func (x *PlanSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanSummary.ProtoReflect.Descriptor instead.
 func (*PlanSummary) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{31}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *PlanSummary) GetCreate() int32 {
@@ -2938,6 +3187,91 @@ func (x *PlanSummary) GetReplace() int32 {
 func (x *PlanSummary) GetDestroy() int32 {
 	if x != nil {
 		return x.Destroy
+	}
+	return 0
+}
+
+// Intent is what a change is for, in a person's terms. A plan says what happens
+// to resources, which for a deploy or a new port is that a container is made
+// again: this says what that comes to. It isn't in the fingerprint, as it says
+// nothing about what the plan does.
+type Intent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What it is.
+	Kind IntentKind `protobuf:"varint,1,opt,name=kind,proto3,enum=dockwell.v1.IntentKind" json:"kind,omitempty"`
+	// The ID of the resource it is about.
+	ResourceId string `protobuf:"bytes,2,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
+	// The image a deploy runs.
+	Image string `protobuf:"bytes,3,opt,name=image,proto3" json:"image,omitempty"`
+	// The port on the server that publishing a port opens.
+	Port int32 `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	// The revision a rollback puts back.
+	Revision      int64 `protobuf:"varint,5,opt,name=revision,proto3" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Intent) Reset() {
+	*x = Intent{}
+	mi := &file_dockwell_v1_change_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Intent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Intent) ProtoMessage() {}
+
+func (x *Intent) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_change_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Intent.ProtoReflect.Descriptor instead.
+func (*Intent) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *Intent) GetKind() IntentKind {
+	if x != nil {
+		return x.Kind
+	}
+	return IntentKind_INTENT_KIND_UNSPECIFIED
+}
+
+func (x *Intent) GetResourceId() string {
+	if x != nil {
+		return x.ResourceId
+	}
+	return ""
+}
+
+func (x *Intent) GetImage() string {
+	if x != nil {
+		return x.Image
+	}
+	return ""
+}
+
+func (x *Intent) GetPort() int32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *Intent) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
 	}
 	return 0
 }
@@ -2973,7 +3307,7 @@ type PlannedResource struct {
 
 func (x *PlannedResource) Reset() {
 	*x = PlannedResource{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[32]
+	mi := &file_dockwell_v1_change_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2985,7 +3319,7 @@ func (x *PlannedResource) String() string {
 func (*PlannedResource) ProtoMessage() {}
 
 func (x *PlannedResource) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[32]
+	mi := &file_dockwell_v1_change_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2998,7 +3332,7 @@ func (x *PlannedResource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlannedResource.ProtoReflect.Descriptor instead.
 func (*PlannedResource) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{32}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *PlannedResource) GetId() string {
@@ -3085,16 +3419,23 @@ type HostAccess struct {
 	// "name=value" with commas between, sorted. For a network the server has,
 	// the other names a service answers to on it, with commas between, sorted.
 	Detail string `protobuf:"bytes,8,opt,name=detail,proto3" json:"detail,omitempty"`
-	// True for what is the same as root on the server, whatever else it says,
-	// such as privileged mode or the capability SYS_ADMIN.
-	SameAsRoot    bool `protobuf:"varint,9,opt,name=same_as_root,json=sameAsRoot,proto3" json:"same_as_root,omitempty"`
+	// True for what is as good as root on the server, whatever else it says:
+	// Docker's socket, the server's own network, a system path such as /etc,
+	// privileged mode or the capability SYS_ADMIN. All host access needs a
+	// signed-in person; a client should ask for more than a click only for this,
+	// so that the warning means something when it comes.
+	SameAsRoot bool `protobuf:"varint,9,opt,name=same_as_root,json=sameAsRoot,proto3" json:"same_as_root,omitempty"`
+	// Where the server path leads through symlinks, as its server's agent reads it,
+	// when that is somewhere else. Empty when it isn't, or when no agent has said,
+	// as for a server that wasn't connected when it was planned.
+	LeadsTo       string `protobuf:"bytes,10,opt,name=leads_to,json=leadsTo,proto3" json:"leads_to,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *HostAccess) Reset() {
 	*x = HostAccess{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[33]
+	mi := &file_dockwell_v1_change_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3106,7 +3447,7 @@ func (x *HostAccess) String() string {
 func (*HostAccess) ProtoMessage() {}
 
 func (x *HostAccess) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[33]
+	mi := &file_dockwell_v1_change_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3119,7 +3460,7 @@ func (x *HostAccess) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HostAccess.ProtoReflect.Descriptor instead.
 func (*HostAccess) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{33}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *HostAccess) GetKind() HostAccessKind {
@@ -3185,6 +3526,13 @@ func (x *HostAccess) GetSameAsRoot() bool {
 	return false
 }
 
+func (x *HostAccess) GetLeadsTo() string {
+	if x != nil {
+		return x.LeadsTo
+	}
+	return ""
+}
+
 // ServerPlan is the part of a plan on one server.
 type ServerPlan struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -3213,7 +3561,7 @@ type ServerPlan struct {
 
 func (x *ServerPlan) Reset() {
 	*x = ServerPlan{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[34]
+	mi := &file_dockwell_v1_change_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3225,7 +3573,7 @@ func (x *ServerPlan) String() string {
 func (*ServerPlan) ProtoMessage() {}
 
 func (x *ServerPlan) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[34]
+	mi := &file_dockwell_v1_change_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3238,7 +3586,7 @@ func (x *ServerPlan) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerPlan.ProtoReflect.Descriptor instead.
 func (*ServerPlan) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{34}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ServerPlan) GetServerId() string {
@@ -3367,7 +3715,7 @@ type PlanStep struct {
 
 func (x *PlanStep) Reset() {
 	*x = PlanStep{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[35]
+	mi := &file_dockwell_v1_change_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3379,7 +3727,7 @@ func (x *PlanStep) String() string {
 func (*PlanStep) ProtoMessage() {}
 
 func (x *PlanStep) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[35]
+	mi := &file_dockwell_v1_change_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3392,7 +3740,7 @@ func (x *PlanStep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanStep.ProtoReflect.Descriptor instead.
 func (*PlanStep) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{35}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *PlanStep) GetResourceId() string {
@@ -3557,7 +3905,7 @@ type RouteAnswers struct {
 
 func (x *RouteAnswers) Reset() {
 	*x = RouteAnswers{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[36]
+	mi := &file_dockwell_v1_change_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3569,7 +3917,7 @@ func (x *RouteAnswers) String() string {
 func (*RouteAnswers) ProtoMessage() {}
 
 func (x *RouteAnswers) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[36]
+	mi := &file_dockwell_v1_change_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3582,7 +3930,7 @@ func (x *RouteAnswers) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RouteAnswers.ProtoReflect.Descriptor instead.
 func (*RouteAnswers) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{36}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *RouteAnswers) GetReach() RouteReach {
@@ -3623,7 +3971,7 @@ type ServerPortCheck struct {
 
 func (x *ServerPortCheck) Reset() {
 	*x = ServerPortCheck{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[37]
+	mi := &file_dockwell_v1_change_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3635,7 +3983,7 @@ func (x *ServerPortCheck) String() string {
 func (*ServerPortCheck) ProtoMessage() {}
 
 func (x *ServerPortCheck) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[37]
+	mi := &file_dockwell_v1_change_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3648,7 +3996,7 @@ func (x *ServerPortCheck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerPortCheck.ProtoReflect.Descriptor instead.
 func (*ServerPortCheck) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{37}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ServerPortCheck) GetPort() uint32 {
@@ -3694,7 +4042,7 @@ type IngressEffect struct {
 
 func (x *IngressEffect) Reset() {
 	*x = IngressEffect{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[38]
+	mi := &file_dockwell_v1_change_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3706,7 +4054,7 @@ func (x *IngressEffect) String() string {
 func (*IngressEffect) ProtoMessage() {}
 
 func (x *IngressEffect) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[38]
+	mi := &file_dockwell_v1_change_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3719,7 +4067,7 @@ func (x *IngressEffect) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IngressEffect.ProtoReflect.Descriptor instead.
 func (*IngressEffect) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{38}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *IngressEffect) GetChange() IngressChange {
@@ -3767,7 +4115,7 @@ type DomainCheck struct {
 
 func (x *DomainCheck) Reset() {
 	*x = DomainCheck{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[39]
+	mi := &file_dockwell_v1_change_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3779,7 +4127,7 @@ func (x *DomainCheck) String() string {
 func (*DomainCheck) ProtoMessage() {}
 
 func (x *DomainCheck) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[39]
+	mi := &file_dockwell_v1_change_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3792,7 +4140,7 @@ func (x *DomainCheck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DomainCheck.ProtoReflect.Descriptor instead.
 func (*DomainCheck) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{39}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *DomainCheck) GetDomain() string {
@@ -3843,7 +4191,7 @@ type FieldChange struct {
 
 func (x *FieldChange) Reset() {
 	*x = FieldChange{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[40]
+	mi := &file_dockwell_v1_change_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3855,7 +4203,7 @@ func (x *FieldChange) String() string {
 func (*FieldChange) ProtoMessage() {}
 
 func (x *FieldChange) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[40]
+	mi := &file_dockwell_v1_change_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3868,7 +4216,7 @@ func (x *FieldChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FieldChange.ProtoReflect.Descriptor instead.
 func (*FieldChange) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{40}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *FieldChange) GetPath() string {
@@ -3920,12 +4268,26 @@ type StepProgress struct {
 	// How it is going.
 	State StepState `protobuf:"varint,5,opt,name=state,proto3,enum=dockwell.v1.StepState" json:"state,omitempty"`
 	// What is happening, for people, such as "Replacing web on hz-1", or why
-	// the step failed.
+	// the step failed, in plain words.
 	Message string `protobuf:"bytes,6,opt,name=message,proto3" json:"message,omitempty"`
 	// When it started running. Unset until then.
 	StartTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 	// When it finished. Unset until then.
 	FinishTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=finish_time,json=finishTime,proto3" json:"finish_time,omitempty"`
+	// What the step's driver says it is doing right now, such as "Pulling
+	// nginx:1.27: 12 of 48 MB". Empty until it says, and once the step ends.
+	Activity string `protobuf:"bytes,9,opt,name=activity,proto3" json:"activity,omitempty"`
+	// What the server said, when a step failed and message puts it in plain
+	// words: the whole chain of errors, IDs included. It never holds a secret,
+	// as drivers keep them out of their errors.
+	Detail string `protobuf:"bytes,10,opt,name=detail,proto3" json:"detail,omitempty"`
+	// What a failure comes down to, when the driver knows, so a client can say
+	// what to do about it where it is: "image", "command", "exits", "unhealthy",
+	// "port" or "mount". Empty when it doesn't, and it may gain others.
+	Reason string `protobuf:"bytes,11,opt,name=reason,proto3" json:"reason,omitempty"`
+	// True when the server went away during the step, so nothing can say whether
+	// it ran until the server is back.
+	Lost bool `protobuf:"varint,12,opt,name=lost,proto3" json:"lost,omitempty"`
 	// What the step did in the end, on this server, once it's done: action says
 	// what was planned, and only the step can say this, as a pull finds out as it
 	// goes. PLAN_ACTION_NONE left what runs exactly as it was. Unspecified until
@@ -3938,7 +4300,7 @@ type StepProgress struct {
 
 func (x *StepProgress) Reset() {
 	*x = StepProgress{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[41]
+	mi := &file_dockwell_v1_change_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3950,7 +4312,7 @@ func (x *StepProgress) String() string {
 func (*StepProgress) ProtoMessage() {}
 
 func (x *StepProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[41]
+	mi := &file_dockwell_v1_change_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3963,7 +4325,7 @@ func (x *StepProgress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StepProgress.ProtoReflect.Descriptor instead.
 func (*StepProgress) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{41}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *StepProgress) GetServerId() string {
@@ -4020,6 +4382,34 @@ func (x *StepProgress) GetFinishTime() *timestamppb.Timestamp {
 		return x.FinishTime
 	}
 	return nil
+}
+
+func (x *StepProgress) GetActivity() string {
+	if x != nil {
+		return x.Activity
+	}
+	return ""
+}
+
+func (x *StepProgress) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+func (x *StepProgress) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *StepProgress) GetLost() bool {
+	if x != nil {
+		return x.Lost
+	}
+	return false
 }
 
 func (x *StepProgress) GetDid() PlanAction {
@@ -4118,7 +4508,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
 	"resourceId\"A\n" +
 	"\x12AdoptDriftResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xda\x05\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xa0\x06\n" +
 	"\x06Change\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\asummary\x18\x02 \x01(\tR\asummary\x12.\n" +
@@ -4142,11 +4532,21 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x05error\x18\x0e \x01(\tR\x05error\x12/\n" +
 	"\x05steps\x18\x0f \x03(\v2\x19.dockwell.v1.StepProgressR\x05steps\x12$\n" +
 	"\x0erolled_back_by\x18\x10 \x01(\tR\frolledBackBy\x12\x1b\n" +
-	"\tundone_by\x18\x11 \x01(\tR\bundoneBy\"W\n" +
+	"\tundone_by\x18\x11 \x01(\tR\bundoneBy\x12D\n" +
+	"\x0frollback_status\x18\x12 \x01(\v2\x1b.dockwell.v1.RollbackStatusR\x0erollbackStatus\"\xd3\x01\n" +
+	"\x0eRollbackStatus\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x120\n" +
+	"\x05state\x18\x02 \x01(\x0e2\x1a.dockwell.v1.RollbackStateR\x05state\x12\x14\n" +
+	"\x05steps\x18\x03 \x01(\x05R\x05steps\x12\x1f\n" +
+	"\vwaiting_for\x18\x04 \x03(\tR\n" +
+	"waitingFor\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\x12\x16\n" +
+	"\x06detail\x18\x06 \x01(\tR\x06detail\x12\x1a\n" +
+	"\brestored\x18\a \x03(\tR\brestored\"W\n" +
 	"\x05Actor\x12*\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x16.dockwell.v1.ActorKindR\x04kind\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\"\xa7\x03\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\"\xd4\x03\n" +
 	"\x04Plan\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x122\n" +
 	"\asummary\x18\x02 \x01(\v2\x18.dockwell.v1.PlanSummaryR\asummary\x12:\n" +
@@ -4157,7 +4557,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\vdestructive\x18\x06 \x01(\bR\vdestructive\x12\x1f\n" +
 	"\vhost_access\x18\a \x01(\bR\n" +
 	"hostAccess\x12+\n" +
-	"\x05notes\x18\b \x03(\v2\x15.dockwell.v1.PlanNoteR\x05notes\x12.\n" +
+	"\x05notes\x18\b \x03(\v2\x15.dockwell.v1.PlanNoteR\x05notes\x12+\n" +
+	"\x06intent\x18\n" +
+	" \x01(\v2\x13.dockwell.v1.IntentR\x06intent\x12.\n" +
 	"\x06places\x18\t \x03(\v2\x16.dockwell.v1.PlanPlaceR\x06places\"G\n" +
 	"\tPlanPlace\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
@@ -4171,7 +4573,14 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x06create\x18\x01 \x01(\x05R\x06create\x12\x16\n" +
 	"\x06change\x18\x02 \x01(\x05R\x06change\x12\x18\n" +
 	"\areplace\x18\x03 \x01(\x05R\areplace\x12\x18\n" +
-	"\adestroy\x18\x04 \x01(\x05R\adestroy\"\xe0\x02\n" +
+	"\adestroy\x18\x04 \x01(\x05R\adestroy\"\x9c\x01\n" +
+	"\x06Intent\x12+\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x17.dockwell.v1.IntentKindR\x04kind\x12\x1f\n" +
+	"\vresource_id\x18\x02 \x01(\tR\n" +
+	"resourceId\x12\x14\n" +
+	"\x05image\x18\x03 \x01(\tR\x05image\x12\x12\n" +
+	"\x04port\x18\x04 \x01(\x05R\x04port\x12\x1a\n" +
+	"\brevision\x18\x05 \x01(\x03R\brevision\"\xe0\x02\n" +
 	"\x0fPlannedResource\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12/\n" +
@@ -4181,7 +4590,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aservers\x18\x06 \x03(\tR\aservers\x12)\n" +
 	"\x10previous_servers\x18\a \x03(\tR\x0fpreviousServers\x128\n" +
 	"\vhost_access\x18\b \x03(\v2\x17.dockwell.v1.HostAccessR\n" +
-	"hostAccess\"\x88\x02\n" +
+	"hostAccess\"\xa3\x02\n" +
 	"\n" +
 	"HostAccess\x12/\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1b.dockwell.v1.HostAccessKindR\x04kind\x12\x12\n" +
@@ -4193,7 +4602,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x06driver\x18\a \x01(\tR\x06driver\x12\x16\n" +
 	"\x06detail\x18\b \x01(\tR\x06detail\x12 \n" +
 	"\fsame_as_root\x18\t \x01(\bR\n" +
-	"sameAsRoot\"\xa2\x02\n" +
+	"sameAsRoot\x12\x19\n" +
+	"\bleads_to\x18\n" +
+	" \x01(\tR\aleadsTo\"\xa2\x02\n" +
 	"\n" +
 	"ServerPlan\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
@@ -4255,7 +4666,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x02op\x18\x02 \x01(\x0e2\x14.dockwell.v1.FieldOpR\x02op\x12\x12\n" +
 	"\x04from\x18\x03 \x01(\tR\x04from\x12\x0e\n" +
 	"\x02to\x18\x04 \x01(\tR\x02to\x12\x1c\n" +
-	"\tsensitive\x18\x05 \x01(\bR\tsensitive\"\x9e\x03\n" +
+	"\tsensitive\x18\x05 \x01(\bR\tsensitive\"\xfe\x03\n" +
 	"\fStepProgress\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
@@ -4267,8 +4678,19 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\n" +
 	"start_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x12;\n" +
 	"\vfinish_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"finishTime\x12)\n" +
-	"\x03did\x18\x0e \x01(\x0e2\x17.dockwell.v1.PlanActionR\x03did*\xaf\x01\n" +
+	"finishTime\x12\x1a\n" +
+	"\bactivity\x18\t \x01(\tR\bactivity\x12\x16\n" +
+	"\x06detail\x18\n" +
+	" \x01(\tR\x06detail\x12\x16\n" +
+	"\x06reason\x18\v \x01(\tR\x06reason\x12\x12\n" +
+	"\x04lost\x18\f \x01(\bR\x04lost\x12)\n" +
+	"\x03did\x18\x0e \x01(\x0e2\x17.dockwell.v1.PlanActionR\x03did*\x9f\x01\n" +
+	"\rRollbackState\x12\x1e\n" +
+	"\x1aROLLBACK_STATE_UNSPECIFIED\x10\x00\x12\x1b\n" +
+	"\x17ROLLBACK_STATE_APPLYING\x10\x01\x12\x1a\n" +
+	"\x16ROLLBACK_STATE_WAITING\x10\x02\x12\x1a\n" +
+	"\x16ROLLBACK_STATE_APPLIED\x10\x03\x12\x19\n" +
+	"\x15ROLLBACK_STATE_FAILED\x10\x04*\xaf\x01\n" +
 	"\vChangeState\x12\x1c\n" +
 	"\x18CHANGE_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14CHANGE_STATE_PLANNED\x10\x01\x12\x19\n" +
@@ -4288,7 +4710,14 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\rSURFACE_PANEL\x10\x01\x12\x0f\n" +
 	"\vSURFACE_API\x10\x02\x12\x15\n" +
 	"\x11SURFACE_AUTOMATIC\x10\x03\x12\x0f\n" +
-	"\vSURFACE_CLI\x10\x04*\xb5\x04\n" +
+	"\vSURFACE_CLI\x10\x04*\x92\x01\n" +
+	"\n" +
+	"IntentKind\x12\x1b\n" +
+	"\x17INTENT_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12INTENT_KIND_DEPLOY\x10\x01\x12\x1c\n" +
+	"\x18INTENT_KIND_PUBLISH_PORT\x10\x02\x12\x19\n" +
+	"\x15INTENT_KIND_ROLL_BACK\x10\x03\x12\x16\n" +
+	"\x12INTENT_KIND_REPULL\x10\x04*\xb5\x04\n" +
 	"\x0eHostAccessKind\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_SERVER_PATH\x10\x01\x12\"\n" +
@@ -4387,159 +4816,167 @@ func file_dockwell_v1_change_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_change_proto_rawDescData
 }
 
-var file_dockwell_v1_change_proto_enumTypes = make([]protoimpl.EnumInfo, 12)
-var file_dockwell_v1_change_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
+var file_dockwell_v1_change_proto_enumTypes = make([]protoimpl.EnumInfo, 14)
+var file_dockwell_v1_change_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
 var file_dockwell_v1_change_proto_goTypes = []any{
-	(ChangeState)(0),              // 0: dockwell.v1.ChangeState
-	(ActorKind)(0),                // 1: dockwell.v1.ActorKind
-	(Surface)(0),                  // 2: dockwell.v1.Surface
-	(HostAccessKind)(0),           // 3: dockwell.v1.HostAccessKind
-	(RouteReach)(0),               // 4: dockwell.v1.RouteReach
-	(IngressChange)(0),            // 5: dockwell.v1.IngressChange
-	(DomainCheckState)(0),         // 6: dockwell.v1.DomainCheckState
-	(PlanAction)(0),               // 7: dockwell.v1.PlanAction
-	(StepEffect)(0),               // 8: dockwell.v1.StepEffect
-	(PlanWarning)(0),              // 9: dockwell.v1.PlanWarning
-	(FieldOp)(0),                  // 10: dockwell.v1.FieldOp
-	(StepState)(0),                // 11: dockwell.v1.StepState
-	(*ProposeChangeRequest)(nil),  // 12: dockwell.v1.ProposeChangeRequest
-	(*Edit)(nil),                  // 13: dockwell.v1.Edit
-	(*ResourceRef)(nil),           // 14: dockwell.v1.ResourceRef
-	(*Choice)(nil),                // 15: dockwell.v1.Choice
-	(*ProposeChangeResponse)(nil), // 16: dockwell.v1.ProposeChangeResponse
-	(*GetChangeRequest)(nil),      // 17: dockwell.v1.GetChangeRequest
-	(*GetChangeResponse)(nil),     // 18: dockwell.v1.GetChangeResponse
-	(*ListChangesRequest)(nil),    // 19: dockwell.v1.ListChangesRequest
-	(*ListChangesResponse)(nil),   // 20: dockwell.v1.ListChangesResponse
-	(*ApplyChangeRequest)(nil),    // 21: dockwell.v1.ApplyChangeRequest
-	(*ApplyChangeResponse)(nil),   // 22: dockwell.v1.ApplyChangeResponse
-	(*WatchChangeRequest)(nil),    // 23: dockwell.v1.WatchChangeRequest
-	(*WatchChangeResponse)(nil),   // 24: dockwell.v1.WatchChangeResponse
-	(*StepUpdate)(nil),            // 25: dockwell.v1.StepUpdate
-	(*UndoChangeRequest)(nil),     // 26: dockwell.v1.UndoChangeRequest
-	(*UndoChangeResponse)(nil),    // 27: dockwell.v1.UndoChangeResponse
-	(*DiscardChangeRequest)(nil),  // 28: dockwell.v1.DiscardChangeRequest
-	(*DiscardChangeResponse)(nil), // 29: dockwell.v1.DiscardChangeResponse
-	(*ListDriftRequest)(nil),      // 30: dockwell.v1.ListDriftRequest
-	(*ListDriftResponse)(nil),     // 31: dockwell.v1.ListDriftResponse
-	(*UncheckedServer)(nil),       // 32: dockwell.v1.UncheckedServer
-	(*Drift)(nil),                 // 33: dockwell.v1.Drift
-	(*RevertDriftRequest)(nil),    // 34: dockwell.v1.RevertDriftRequest
-	(*RevertDriftResponse)(nil),   // 35: dockwell.v1.RevertDriftResponse
-	(*AdoptDriftRequest)(nil),     // 36: dockwell.v1.AdoptDriftRequest
-	(*AdoptDriftResponse)(nil),    // 37: dockwell.v1.AdoptDriftResponse
-	(*Change)(nil),                // 38: dockwell.v1.Change
-	(*Actor)(nil),                 // 39: dockwell.v1.Actor
-	(*Plan)(nil),                  // 40: dockwell.v1.Plan
-	(*PlanPlace)(nil),             // 41: dockwell.v1.PlanPlace
-	(*PlanNote)(nil),              // 42: dockwell.v1.PlanNote
-	(*PlanSummary)(nil),           // 43: dockwell.v1.PlanSummary
-	(*PlannedResource)(nil),       // 44: dockwell.v1.PlannedResource
-	(*HostAccess)(nil),            // 45: dockwell.v1.HostAccess
-	(*ServerPlan)(nil),            // 46: dockwell.v1.ServerPlan
-	(*PlanStep)(nil),              // 47: dockwell.v1.PlanStep
-	(*RouteAnswers)(nil),          // 48: dockwell.v1.RouteAnswers
-	(*ServerPortCheck)(nil),       // 49: dockwell.v1.ServerPortCheck
-	(*IngressEffect)(nil),         // 50: dockwell.v1.IngressEffect
-	(*DomainCheck)(nil),           // 51: dockwell.v1.DomainCheck
-	(*FieldChange)(nil),           // 52: dockwell.v1.FieldChange
-	(*StepProgress)(nil),          // 53: dockwell.v1.StepProgress
-	(*v1alpha1.Spec)(nil),         // 54: dockwell.resource.v1alpha1.Spec
-	(*timestamppb.Timestamp)(nil), // 55: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),   // 56: google.protobuf.Duration
+	(RollbackState)(0),            // 0: dockwell.v1.RollbackState
+	(ChangeState)(0),              // 1: dockwell.v1.ChangeState
+	(ActorKind)(0),                // 2: dockwell.v1.ActorKind
+	(Surface)(0),                  // 3: dockwell.v1.Surface
+	(IntentKind)(0),               // 4: dockwell.v1.IntentKind
+	(HostAccessKind)(0),           // 5: dockwell.v1.HostAccessKind
+	(RouteReach)(0),               // 6: dockwell.v1.RouteReach
+	(IngressChange)(0),            // 7: dockwell.v1.IngressChange
+	(DomainCheckState)(0),         // 8: dockwell.v1.DomainCheckState
+	(PlanAction)(0),               // 9: dockwell.v1.PlanAction
+	(StepEffect)(0),               // 10: dockwell.v1.StepEffect
+	(PlanWarning)(0),              // 11: dockwell.v1.PlanWarning
+	(FieldOp)(0),                  // 12: dockwell.v1.FieldOp
+	(StepState)(0),                // 13: dockwell.v1.StepState
+	(*ProposeChangeRequest)(nil),  // 14: dockwell.v1.ProposeChangeRequest
+	(*Edit)(nil),                  // 15: dockwell.v1.Edit
+	(*ResourceRef)(nil),           // 16: dockwell.v1.ResourceRef
+	(*Choice)(nil),                // 17: dockwell.v1.Choice
+	(*ProposeChangeResponse)(nil), // 18: dockwell.v1.ProposeChangeResponse
+	(*GetChangeRequest)(nil),      // 19: dockwell.v1.GetChangeRequest
+	(*GetChangeResponse)(nil),     // 20: dockwell.v1.GetChangeResponse
+	(*ListChangesRequest)(nil),    // 21: dockwell.v1.ListChangesRequest
+	(*ListChangesResponse)(nil),   // 22: dockwell.v1.ListChangesResponse
+	(*ApplyChangeRequest)(nil),    // 23: dockwell.v1.ApplyChangeRequest
+	(*ApplyChangeResponse)(nil),   // 24: dockwell.v1.ApplyChangeResponse
+	(*WatchChangeRequest)(nil),    // 25: dockwell.v1.WatchChangeRequest
+	(*WatchChangeResponse)(nil),   // 26: dockwell.v1.WatchChangeResponse
+	(*StepUpdate)(nil),            // 27: dockwell.v1.StepUpdate
+	(*UndoChangeRequest)(nil),     // 28: dockwell.v1.UndoChangeRequest
+	(*UndoChangeResponse)(nil),    // 29: dockwell.v1.UndoChangeResponse
+	(*DiscardChangeRequest)(nil),  // 30: dockwell.v1.DiscardChangeRequest
+	(*DiscardChangeResponse)(nil), // 31: dockwell.v1.DiscardChangeResponse
+	(*ListDriftRequest)(nil),      // 32: dockwell.v1.ListDriftRequest
+	(*ListDriftResponse)(nil),     // 33: dockwell.v1.ListDriftResponse
+	(*UncheckedServer)(nil),       // 34: dockwell.v1.UncheckedServer
+	(*Drift)(nil),                 // 35: dockwell.v1.Drift
+	(*RevertDriftRequest)(nil),    // 36: dockwell.v1.RevertDriftRequest
+	(*RevertDriftResponse)(nil),   // 37: dockwell.v1.RevertDriftResponse
+	(*AdoptDriftRequest)(nil),     // 38: dockwell.v1.AdoptDriftRequest
+	(*AdoptDriftResponse)(nil),    // 39: dockwell.v1.AdoptDriftResponse
+	(*Change)(nil),                // 40: dockwell.v1.Change
+	(*RollbackStatus)(nil),        // 41: dockwell.v1.RollbackStatus
+	(*Actor)(nil),                 // 42: dockwell.v1.Actor
+	(*Plan)(nil),                  // 43: dockwell.v1.Plan
+	(*PlanPlace)(nil),             // 44: dockwell.v1.PlanPlace
+	(*PlanNote)(nil),              // 45: dockwell.v1.PlanNote
+	(*PlanSummary)(nil),           // 46: dockwell.v1.PlanSummary
+	(*Intent)(nil),                // 47: dockwell.v1.Intent
+	(*PlannedResource)(nil),       // 48: dockwell.v1.PlannedResource
+	(*HostAccess)(nil),            // 49: dockwell.v1.HostAccess
+	(*ServerPlan)(nil),            // 50: dockwell.v1.ServerPlan
+	(*PlanStep)(nil),              // 51: dockwell.v1.PlanStep
+	(*RouteAnswers)(nil),          // 52: dockwell.v1.RouteAnswers
+	(*ServerPortCheck)(nil),       // 53: dockwell.v1.ServerPortCheck
+	(*IngressEffect)(nil),         // 54: dockwell.v1.IngressEffect
+	(*DomainCheck)(nil),           // 55: dockwell.v1.DomainCheck
+	(*FieldChange)(nil),           // 56: dockwell.v1.FieldChange
+	(*StepProgress)(nil),          // 57: dockwell.v1.StepProgress
+	(*v1alpha1.Spec)(nil),         // 58: dockwell.resource.v1alpha1.Spec
+	(*timestamppb.Timestamp)(nil), // 59: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),   // 60: google.protobuf.Duration
 }
 var file_dockwell_v1_change_proto_depIdxs = []int32{
-	13, // 0: dockwell.v1.ProposeChangeRequest.edits:type_name -> dockwell.v1.Edit
-	14, // 1: dockwell.v1.Edit.resource:type_name -> dockwell.v1.ResourceRef
-	54, // 2: dockwell.v1.Edit.spec:type_name -> dockwell.resource.v1alpha1.Spec
-	38, // 3: dockwell.v1.ProposeChangeResponse.change:type_name -> dockwell.v1.Change
-	38, // 4: dockwell.v1.GetChangeResponse.change:type_name -> dockwell.v1.Change
-	38, // 5: dockwell.v1.ListChangesResponse.changes:type_name -> dockwell.v1.Change
-	38, // 6: dockwell.v1.ApplyChangeResponse.change:type_name -> dockwell.v1.Change
-	38, // 7: dockwell.v1.WatchChangeResponse.change:type_name -> dockwell.v1.Change
-	25, // 8: dockwell.v1.WatchChangeResponse.step:type_name -> dockwell.v1.StepUpdate
-	53, // 9: dockwell.v1.StepUpdate.step:type_name -> dockwell.v1.StepProgress
-	38, // 10: dockwell.v1.UndoChangeResponse.change:type_name -> dockwell.v1.Change
-	38, // 11: dockwell.v1.DiscardChangeResponse.change:type_name -> dockwell.v1.Change
-	33, // 12: dockwell.v1.ListDriftResponse.drift:type_name -> dockwell.v1.Drift
-	32, // 13: dockwell.v1.ListDriftResponse.unchecked_servers:type_name -> dockwell.v1.UncheckedServer
-	14, // 14: dockwell.v1.Drift.resource:type_name -> dockwell.v1.ResourceRef
-	52, // 15: dockwell.v1.Drift.changes:type_name -> dockwell.v1.FieldChange
-	38, // 16: dockwell.v1.RevertDriftResponse.change:type_name -> dockwell.v1.Change
-	38, // 17: dockwell.v1.AdoptDriftResponse.change:type_name -> dockwell.v1.Change
-	0,  // 18: dockwell.v1.Change.state:type_name -> dockwell.v1.ChangeState
-	39, // 19: dockwell.v1.Change.proposed_by:type_name -> dockwell.v1.Actor
-	2,  // 20: dockwell.v1.Change.proposed_via:type_name -> dockwell.v1.Surface
-	55, // 21: dockwell.v1.Change.create_time:type_name -> google.protobuf.Timestamp
-	40, // 22: dockwell.v1.Change.plan:type_name -> dockwell.v1.Plan
-	39, // 23: dockwell.v1.Change.applied_by:type_name -> dockwell.v1.Actor
-	2,  // 24: dockwell.v1.Change.applied_via:type_name -> dockwell.v1.Surface
-	55, // 25: dockwell.v1.Change.apply_time:type_name -> google.protobuf.Timestamp
-	55, // 26: dockwell.v1.Change.undo_deadline:type_name -> google.protobuf.Timestamp
-	53, // 27: dockwell.v1.Change.steps:type_name -> dockwell.v1.StepProgress
-	1,  // 28: dockwell.v1.Actor.kind:type_name -> dockwell.v1.ActorKind
-	43, // 29: dockwell.v1.Plan.summary:type_name -> dockwell.v1.PlanSummary
-	44, // 30: dockwell.v1.Plan.resources:type_name -> dockwell.v1.PlannedResource
-	46, // 31: dockwell.v1.Plan.servers:type_name -> dockwell.v1.ServerPlan
-	56, // 32: dockwell.v1.Plan.undo_window:type_name -> google.protobuf.Duration
-	42, // 33: dockwell.v1.Plan.notes:type_name -> dockwell.v1.PlanNote
-	41, // 34: dockwell.v1.Plan.places:type_name -> dockwell.v1.PlanPlace
-	14, // 35: dockwell.v1.PlanNote.resource:type_name -> dockwell.v1.ResourceRef
-	14, // 36: dockwell.v1.PlannedResource.resource:type_name -> dockwell.v1.ResourceRef
-	7,  // 37: dockwell.v1.PlannedResource.action:type_name -> dockwell.v1.PlanAction
-	52, // 38: dockwell.v1.PlannedResource.changes:type_name -> dockwell.v1.FieldChange
-	45, // 39: dockwell.v1.PlannedResource.host_access:type_name -> dockwell.v1.HostAccess
-	3,  // 40: dockwell.v1.HostAccess.kind:type_name -> dockwell.v1.HostAccessKind
-	56, // 41: dockwell.v1.ServerPlan.downtime:type_name -> google.protobuf.Duration
-	47, // 42: dockwell.v1.ServerPlan.steps:type_name -> dockwell.v1.PlanStep
-	56, // 43: dockwell.v1.ServerPlan.until_healthy:type_name -> google.protobuf.Duration
-	14, // 44: dockwell.v1.PlanStep.resource:type_name -> dockwell.v1.ResourceRef
-	7,  // 45: dockwell.v1.PlanStep.action:type_name -> dockwell.v1.PlanAction
-	8,  // 46: dockwell.v1.PlanStep.effect:type_name -> dockwell.v1.StepEffect
-	56, // 47: dockwell.v1.PlanStep.downtime:type_name -> google.protobuf.Duration
-	9,  // 48: dockwell.v1.PlanStep.warnings:type_name -> dockwell.v1.PlanWarning
-	52, // 49: dockwell.v1.PlanStep.changes:type_name -> dockwell.v1.FieldChange
-	56, // 50: dockwell.v1.PlanStep.until_healthy:type_name -> google.protobuf.Duration
-	45, // 51: dockwell.v1.PlanStep.host_access:type_name -> dockwell.v1.HostAccess
-	50, // 52: dockwell.v1.PlanStep.ingress:type_name -> dockwell.v1.IngressEffect
-	51, // 53: dockwell.v1.PlanStep.domain_check:type_name -> dockwell.v1.DomainCheck
-	48, // 54: dockwell.v1.PlanStep.answers:type_name -> dockwell.v1.RouteAnswers
-	49, // 55: dockwell.v1.PlanStep.server_port:type_name -> dockwell.v1.ServerPortCheck
-	4,  // 56: dockwell.v1.RouteAnswers.reach:type_name -> dockwell.v1.RouteReach
-	5,  // 57: dockwell.v1.IngressEffect.change:type_name -> dockwell.v1.IngressChange
-	6,  // 58: dockwell.v1.DomainCheck.state:type_name -> dockwell.v1.DomainCheckState
-	10, // 59: dockwell.v1.FieldChange.op:type_name -> dockwell.v1.FieldOp
-	14, // 60: dockwell.v1.StepProgress.resource:type_name -> dockwell.v1.ResourceRef
-	7,  // 61: dockwell.v1.StepProgress.action:type_name -> dockwell.v1.PlanAction
-	11, // 62: dockwell.v1.StepProgress.state:type_name -> dockwell.v1.StepState
-	55, // 63: dockwell.v1.StepProgress.start_time:type_name -> google.protobuf.Timestamp
-	55, // 64: dockwell.v1.StepProgress.finish_time:type_name -> google.protobuf.Timestamp
-	7,  // 65: dockwell.v1.StepProgress.did:type_name -> dockwell.v1.PlanAction
-	12, // 66: dockwell.v1.ChangeService.ProposeChange:input_type -> dockwell.v1.ProposeChangeRequest
-	17, // 67: dockwell.v1.ChangeService.GetChange:input_type -> dockwell.v1.GetChangeRequest
-	19, // 68: dockwell.v1.ChangeService.ListChanges:input_type -> dockwell.v1.ListChangesRequest
-	21, // 69: dockwell.v1.ChangeService.ApplyChange:input_type -> dockwell.v1.ApplyChangeRequest
-	23, // 70: dockwell.v1.ChangeService.WatchChange:input_type -> dockwell.v1.WatchChangeRequest
-	26, // 71: dockwell.v1.ChangeService.UndoChange:input_type -> dockwell.v1.UndoChangeRequest
-	28, // 72: dockwell.v1.ChangeService.DiscardChange:input_type -> dockwell.v1.DiscardChangeRequest
-	30, // 73: dockwell.v1.ChangeService.ListDrift:input_type -> dockwell.v1.ListDriftRequest
-	34, // 74: dockwell.v1.ChangeService.RevertDrift:input_type -> dockwell.v1.RevertDriftRequest
-	36, // 75: dockwell.v1.ChangeService.AdoptDrift:input_type -> dockwell.v1.AdoptDriftRequest
-	16, // 76: dockwell.v1.ChangeService.ProposeChange:output_type -> dockwell.v1.ProposeChangeResponse
-	18, // 77: dockwell.v1.ChangeService.GetChange:output_type -> dockwell.v1.GetChangeResponse
-	20, // 78: dockwell.v1.ChangeService.ListChanges:output_type -> dockwell.v1.ListChangesResponse
-	22, // 79: dockwell.v1.ChangeService.ApplyChange:output_type -> dockwell.v1.ApplyChangeResponse
-	24, // 80: dockwell.v1.ChangeService.WatchChange:output_type -> dockwell.v1.WatchChangeResponse
-	27, // 81: dockwell.v1.ChangeService.UndoChange:output_type -> dockwell.v1.UndoChangeResponse
-	29, // 82: dockwell.v1.ChangeService.DiscardChange:output_type -> dockwell.v1.DiscardChangeResponse
-	31, // 83: dockwell.v1.ChangeService.ListDrift:output_type -> dockwell.v1.ListDriftResponse
-	35, // 84: dockwell.v1.ChangeService.RevertDrift:output_type -> dockwell.v1.RevertDriftResponse
-	37, // 85: dockwell.v1.ChangeService.AdoptDrift:output_type -> dockwell.v1.AdoptDriftResponse
-	76, // [76:86] is the sub-list for method output_type
-	66, // [66:76] is the sub-list for method input_type
-	66, // [66:66] is the sub-list for extension type_name
-	66, // [66:66] is the sub-list for extension extendee
-	0,  // [0:66] is the sub-list for field type_name
+	15, // 0: dockwell.v1.ProposeChangeRequest.edits:type_name -> dockwell.v1.Edit
+	16, // 1: dockwell.v1.Edit.resource:type_name -> dockwell.v1.ResourceRef
+	58, // 2: dockwell.v1.Edit.spec:type_name -> dockwell.resource.v1alpha1.Spec
+	40, // 3: dockwell.v1.ProposeChangeResponse.change:type_name -> dockwell.v1.Change
+	40, // 4: dockwell.v1.GetChangeResponse.change:type_name -> dockwell.v1.Change
+	40, // 5: dockwell.v1.ListChangesResponse.changes:type_name -> dockwell.v1.Change
+	40, // 6: dockwell.v1.ApplyChangeResponse.change:type_name -> dockwell.v1.Change
+	40, // 7: dockwell.v1.WatchChangeResponse.change:type_name -> dockwell.v1.Change
+	27, // 8: dockwell.v1.WatchChangeResponse.step:type_name -> dockwell.v1.StepUpdate
+	57, // 9: dockwell.v1.StepUpdate.step:type_name -> dockwell.v1.StepProgress
+	40, // 10: dockwell.v1.UndoChangeResponse.change:type_name -> dockwell.v1.Change
+	40, // 11: dockwell.v1.DiscardChangeResponse.change:type_name -> dockwell.v1.Change
+	35, // 12: dockwell.v1.ListDriftResponse.drift:type_name -> dockwell.v1.Drift
+	34, // 13: dockwell.v1.ListDriftResponse.unchecked_servers:type_name -> dockwell.v1.UncheckedServer
+	16, // 14: dockwell.v1.Drift.resource:type_name -> dockwell.v1.ResourceRef
+	56, // 15: dockwell.v1.Drift.changes:type_name -> dockwell.v1.FieldChange
+	40, // 16: dockwell.v1.RevertDriftResponse.change:type_name -> dockwell.v1.Change
+	40, // 17: dockwell.v1.AdoptDriftResponse.change:type_name -> dockwell.v1.Change
+	1,  // 18: dockwell.v1.Change.state:type_name -> dockwell.v1.ChangeState
+	42, // 19: dockwell.v1.Change.proposed_by:type_name -> dockwell.v1.Actor
+	3,  // 20: dockwell.v1.Change.proposed_via:type_name -> dockwell.v1.Surface
+	59, // 21: dockwell.v1.Change.create_time:type_name -> google.protobuf.Timestamp
+	43, // 22: dockwell.v1.Change.plan:type_name -> dockwell.v1.Plan
+	42, // 23: dockwell.v1.Change.applied_by:type_name -> dockwell.v1.Actor
+	3,  // 24: dockwell.v1.Change.applied_via:type_name -> dockwell.v1.Surface
+	59, // 25: dockwell.v1.Change.apply_time:type_name -> google.protobuf.Timestamp
+	59, // 26: dockwell.v1.Change.undo_deadline:type_name -> google.protobuf.Timestamp
+	57, // 27: dockwell.v1.Change.steps:type_name -> dockwell.v1.StepProgress
+	41, // 28: dockwell.v1.Change.rollback_status:type_name -> dockwell.v1.RollbackStatus
+	0,  // 29: dockwell.v1.RollbackStatus.state:type_name -> dockwell.v1.RollbackState
+	2,  // 30: dockwell.v1.Actor.kind:type_name -> dockwell.v1.ActorKind
+	46, // 31: dockwell.v1.Plan.summary:type_name -> dockwell.v1.PlanSummary
+	48, // 32: dockwell.v1.Plan.resources:type_name -> dockwell.v1.PlannedResource
+	50, // 33: dockwell.v1.Plan.servers:type_name -> dockwell.v1.ServerPlan
+	60, // 34: dockwell.v1.Plan.undo_window:type_name -> google.protobuf.Duration
+	45, // 35: dockwell.v1.Plan.notes:type_name -> dockwell.v1.PlanNote
+	47, // 36: dockwell.v1.Plan.intent:type_name -> dockwell.v1.Intent
+	44, // 37: dockwell.v1.Plan.places:type_name -> dockwell.v1.PlanPlace
+	16, // 38: dockwell.v1.PlanNote.resource:type_name -> dockwell.v1.ResourceRef
+	4,  // 39: dockwell.v1.Intent.kind:type_name -> dockwell.v1.IntentKind
+	16, // 40: dockwell.v1.PlannedResource.resource:type_name -> dockwell.v1.ResourceRef
+	9,  // 41: dockwell.v1.PlannedResource.action:type_name -> dockwell.v1.PlanAction
+	56, // 42: dockwell.v1.PlannedResource.changes:type_name -> dockwell.v1.FieldChange
+	49, // 43: dockwell.v1.PlannedResource.host_access:type_name -> dockwell.v1.HostAccess
+	5,  // 44: dockwell.v1.HostAccess.kind:type_name -> dockwell.v1.HostAccessKind
+	60, // 45: dockwell.v1.ServerPlan.downtime:type_name -> google.protobuf.Duration
+	51, // 46: dockwell.v1.ServerPlan.steps:type_name -> dockwell.v1.PlanStep
+	60, // 47: dockwell.v1.ServerPlan.until_healthy:type_name -> google.protobuf.Duration
+	16, // 48: dockwell.v1.PlanStep.resource:type_name -> dockwell.v1.ResourceRef
+	9,  // 49: dockwell.v1.PlanStep.action:type_name -> dockwell.v1.PlanAction
+	10, // 50: dockwell.v1.PlanStep.effect:type_name -> dockwell.v1.StepEffect
+	60, // 51: dockwell.v1.PlanStep.downtime:type_name -> google.protobuf.Duration
+	11, // 52: dockwell.v1.PlanStep.warnings:type_name -> dockwell.v1.PlanWarning
+	56, // 53: dockwell.v1.PlanStep.changes:type_name -> dockwell.v1.FieldChange
+	60, // 54: dockwell.v1.PlanStep.until_healthy:type_name -> google.protobuf.Duration
+	49, // 55: dockwell.v1.PlanStep.host_access:type_name -> dockwell.v1.HostAccess
+	54, // 56: dockwell.v1.PlanStep.ingress:type_name -> dockwell.v1.IngressEffect
+	55, // 57: dockwell.v1.PlanStep.domain_check:type_name -> dockwell.v1.DomainCheck
+	52, // 58: dockwell.v1.PlanStep.answers:type_name -> dockwell.v1.RouteAnswers
+	53, // 59: dockwell.v1.PlanStep.server_port:type_name -> dockwell.v1.ServerPortCheck
+	6,  // 60: dockwell.v1.RouteAnswers.reach:type_name -> dockwell.v1.RouteReach
+	7,  // 61: dockwell.v1.IngressEffect.change:type_name -> dockwell.v1.IngressChange
+	8,  // 62: dockwell.v1.DomainCheck.state:type_name -> dockwell.v1.DomainCheckState
+	12, // 63: dockwell.v1.FieldChange.op:type_name -> dockwell.v1.FieldOp
+	16, // 64: dockwell.v1.StepProgress.resource:type_name -> dockwell.v1.ResourceRef
+	9,  // 65: dockwell.v1.StepProgress.action:type_name -> dockwell.v1.PlanAction
+	13, // 66: dockwell.v1.StepProgress.state:type_name -> dockwell.v1.StepState
+	59, // 67: dockwell.v1.StepProgress.start_time:type_name -> google.protobuf.Timestamp
+	59, // 68: dockwell.v1.StepProgress.finish_time:type_name -> google.protobuf.Timestamp
+	9,  // 69: dockwell.v1.StepProgress.did:type_name -> dockwell.v1.PlanAction
+	14, // 70: dockwell.v1.ChangeService.ProposeChange:input_type -> dockwell.v1.ProposeChangeRequest
+	19, // 71: dockwell.v1.ChangeService.GetChange:input_type -> dockwell.v1.GetChangeRequest
+	21, // 72: dockwell.v1.ChangeService.ListChanges:input_type -> dockwell.v1.ListChangesRequest
+	23, // 73: dockwell.v1.ChangeService.ApplyChange:input_type -> dockwell.v1.ApplyChangeRequest
+	25, // 74: dockwell.v1.ChangeService.WatchChange:input_type -> dockwell.v1.WatchChangeRequest
+	28, // 75: dockwell.v1.ChangeService.UndoChange:input_type -> dockwell.v1.UndoChangeRequest
+	30, // 76: dockwell.v1.ChangeService.DiscardChange:input_type -> dockwell.v1.DiscardChangeRequest
+	32, // 77: dockwell.v1.ChangeService.ListDrift:input_type -> dockwell.v1.ListDriftRequest
+	36, // 78: dockwell.v1.ChangeService.RevertDrift:input_type -> dockwell.v1.RevertDriftRequest
+	38, // 79: dockwell.v1.ChangeService.AdoptDrift:input_type -> dockwell.v1.AdoptDriftRequest
+	18, // 80: dockwell.v1.ChangeService.ProposeChange:output_type -> dockwell.v1.ProposeChangeResponse
+	20, // 81: dockwell.v1.ChangeService.GetChange:output_type -> dockwell.v1.GetChangeResponse
+	22, // 82: dockwell.v1.ChangeService.ListChanges:output_type -> dockwell.v1.ListChangesResponse
+	24, // 83: dockwell.v1.ChangeService.ApplyChange:output_type -> dockwell.v1.ApplyChangeResponse
+	26, // 84: dockwell.v1.ChangeService.WatchChange:output_type -> dockwell.v1.WatchChangeResponse
+	29, // 85: dockwell.v1.ChangeService.UndoChange:output_type -> dockwell.v1.UndoChangeResponse
+	31, // 86: dockwell.v1.ChangeService.DiscardChange:output_type -> dockwell.v1.DiscardChangeResponse
+	33, // 87: dockwell.v1.ChangeService.ListDrift:output_type -> dockwell.v1.ListDriftResponse
+	37, // 88: dockwell.v1.ChangeService.RevertDrift:output_type -> dockwell.v1.RevertDriftResponse
+	39, // 89: dockwell.v1.ChangeService.AdoptDrift:output_type -> dockwell.v1.AdoptDriftResponse
+	80, // [80:90] is the sub-list for method output_type
+	70, // [70:80] is the sub-list for method input_type
+	70, // [70:70] is the sub-list for extension type_name
+	70, // [70:70] is the sub-list for extension extendee
+	0,  // [0:70] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_change_proto_init() }
@@ -4557,8 +4994,8 @@ func file_dockwell_v1_change_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_change_proto_rawDesc), len(file_dockwell_v1_change_proto_rawDesc)),
-			NumEnums:      12,
-			NumMessages:   42,
+			NumEnums:      14,
+			NumMessages:   44,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -618,10 +618,10 @@ func (d *Docker) ensureImage(ctx context.Context, ref string) error {
 	if !docker.IsNotFound(err) {
 		return err
 	}
-	resource.Progress(ctx, "pulling "+ref)
-	err = d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "pulling "+ref+", "+p) })
+	resource.Progress(ctx, "Pulling "+ref)
+	err = d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "Pulling "+ref+": "+p) })
 	if err != nil && !docker.IsUnavailable(err) && ctx.Err() == nil {
-		return fmt.Errorf("can't pull %s: %w. Check the image's name and tag; Dockwell can't pull private images yet", ref, err)
+		return pullFailure(ref, err)
 	}
 	return err
 }
@@ -809,8 +809,13 @@ func (d *Docker) checkRefs(ctx context.Context, t Target, spec *resourcev1.Conta
 // before the old one stops, so only stopping one and starting the other is
 // downtime. The volumes Docker made for the old one's image move to the
 // new one, and those a mount now covers are kept for 7 days, as a deleted
-// container's are; a container made again mounts those kept for it.
+// container's are; a container made again mounts those kept for it. What it
+// fails with is in plain words.
 func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, restore bool) error {
+	return explained(t, d.run(ctx, t, spec, restore))
+}
+
+func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, restore bool) error {
 	if err := d.ensureImage(ctx, spec.GetImage()); err != nil {
 		return err
 	}
@@ -881,7 +886,7 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 		return discard(err)
 	}
 	if old != nil {
-		resource.Progress(ctx, "stopping the old container")
+		resource.Progress(ctx, "Stopping the old container")
 		if err := d.Client.StopContainer(ctx, old.ID, StopTimeout); err != nil && !docker.IsNotFound(err) {
 			return discard(fmt.Errorf("can't stop the old %s: %w", t.Name, err))
 		}
@@ -900,7 +905,7 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 			return fmt.Errorf("removed the old %s, but can't give the new one its name: %w. The next change to it finishes the swap, as the rollback that follows does", t.Name, err)
 		}
 	}
-	resource.Progress(ctx, "starting")
+	resource.Progress(ctx, "Starting "+t.Service)
 	if err := d.Client.StartContainer(ctx, id); err != nil {
 		return fmt.Errorf("docker can't start %s: %w", t.Name, err)
 	}
@@ -1174,7 +1179,8 @@ func or(d, def time.Duration) time.Duration {
 // Healthy waits for the container to pass its health check, or, without
 // one, to keep running for Settle. One that exits, keeps restarting or
 // fails its check isn't healthy. Messages name the container and how to
-// see why, never what it printed, which may hold secrets.
+// see why, never what it printed, which may hold secrets; the plain words
+// name what it runs as, and what to look at.
 func (d *Docker) Healthy(ctx context.Context, t Target) error {
 	wait := or(d.HealthWait, DefaultHealthWait)
 	ctx, cancel := context.WithTimeoutCause(ctx, wait, errWaited)
@@ -1190,7 +1196,8 @@ func (d *Docker) Healthy(ctx context.Context, t Target) error {
 	case err != nil && ctx.Err() == nil:
 		return err
 	case err == nil && found == nil:
-		return fmt.Errorf("%s isn't on this server, though it was just started. See if someone removed it with docker ps -a", t.Name)
+		return resource.Plainly(t.Service+" isn't on this server, though it was just started. See if someone removed it with docker ps -a, then try again.",
+			fmt.Errorf("%s isn't on this server, though it was just started. See if someone removed it with docker ps -a", t.Name))
 	}
 	for found != nil {
 		c, err := d.Client.InspectContainer(ctx, found.ID)
@@ -1199,23 +1206,33 @@ func (d *Docker) Healthy(ctx context.Context, t Target) error {
 				break
 			}
 			if docker.IsNotFound(err) {
-				return fmt.Errorf("%s was removed while Dockwell waited for it to start. See who removed it with docker events", t.Name)
+				return resource.Plainly(t.Service+" was removed while Dockwell waited for it to start. See who removed it with docker events, then try again.",
+					fmt.Errorf("%s was removed while Dockwell waited for it to start. See who removed it with docker events", t.Name))
 			}
 			return err
 		}
+		s := c.State
 		if restarts < 0 {
 			restarts = c.RestartCount
+			if s.Health != nil {
+				resource.Progress(ctx, "Waiting for "+t.Service+" to pass its health check")
+			} else {
+				resource.Progress(ctx, "Checking that "+t.Service+" stays up")
+			}
 		}
-		s := c.State
 		switch {
 		case s.Restarting || c.RestartCount > restarts:
-			return fmt.Errorf("%s keeps restarting: it exited with code %d. See why with docker logs %s", t.Name, s.ExitCode, t.Name)
+			// No word of docker logs: a rollback takes this container away.
+			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s keeps restarting: it exited with code %d. Check its command and variables, then try again.", t.Service, s.ExitCode),
+				fmt.Errorf("%s keeps restarting: it exited with code %d", t.Name, s.ExitCode))
 		case !s.Running:
-			return fmt.Errorf("%s stopped right after it started, with exit code %d. See why with docker logs %s", t.Name, s.ExitCode, t.Name)
+			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s stopped right after it started, with exit code %d. Check its command and variables, then try again.", t.Service, s.ExitCode),
+				fmt.Errorf("%s stopped right after it started, with exit code %d", t.Name, s.ExitCode))
 		case s.Health != nil && s.Health.Status == "healthy":
 			return nil
 		case s.Health != nil && s.Health.Status == "unhealthy":
-			return fmt.Errorf("%s runs, but fails its health check. See why with docker inspect --format '{{json .State.Health}}' %s", t.Name, t.Name)
+			return resource.PlainlyBecause(resource.ReasonUnhealthy, t.Service+" runs, but fails its health check. Check the command its health check runs, then try again.",
+				fmt.Errorf("%s runs, but fails its health check", t.Name))
 		case s.Health == nil && time.Since(start) >= settle:
 			return nil
 		}
@@ -1230,11 +1247,12 @@ func (d *Docker) Healthy(ctx context.Context, t Target) error {
 	// running out after a long pull: that isn't the health check's doing.
 	switch cause := context.Cause(ctx); {
 	case errors.Is(cause, errWaited):
-		return fmt.Errorf("%s didn't pass its health check within %s. See why with docker inspect --format '{{json .State.Health}}' %s",
-			t.Name, human.Duration(wait), t.Name)
+		return resource.PlainlyBecause(resource.ReasonUnhealthy, fmt.Sprintf("%s didn't pass its health check within %s, so Dockwell stopped waiting. Check the command its health check runs and how long the app takes to start, then try again.", t.Service, human.Duration(wait)),
+			fmt.Errorf("%s didn't pass its health check within %s", t.Name, human.Duration(wait)))
 	case errors.Is(cause, context.DeadlineExceeded):
-		return fmt.Errorf("the step's time ran out before %s passed its health check, so Dockwell stopped waiting: %w. "+
-			"See how it is with docker inspect --format '{{json .State.Health}}' %s", t.Name, cause, t.Name)
+		return resource.Plainly(fmt.Sprintf("The step's time ran out before %s passed its health check, so Dockwell stopped waiting. A long pull may have used it up, so try again.", t.Service),
+			fmt.Errorf("the step's time ran out before %s passed its health check, so Dockwell stopped waiting: %w. "+
+				"See how it is with docker inspect --format '{{json .State.Health}}' %s", t.Name, cause, t.Name))
 	default:
 		return cause
 	}

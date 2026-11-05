@@ -201,7 +201,13 @@ func (c *calls) drain(ctx context.Context, recvErr <-chan error, tick <-chan tim
 // run carries out one call with the agent's drivers.
 func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult {
 	fail := func(err error) *agentv1.CallResult {
-		return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error()}}}
+		plain, detail := resource.Explain(err)
+		if detail == "" {
+			plain = ""
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
+			Message: err.Error(), Plain: plain, OutOfTime: errors.Is(err, context.DeadlineExceeded), Reason: resource.ReasonOf(err),
+		}}}
 	}
 	switch {
 	case call.GetPlan() != nil:

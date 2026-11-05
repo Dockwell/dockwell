@@ -7,6 +7,8 @@ package resourcepb
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -128,6 +130,9 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 		p.Warnings = append(p.Warnings, warnings[w])
 	}
 	p.KeptPaths, p.Restores, p.HostAccess, p.HealthUnknown = s.Kept, s.Restores, HostAccess(s.HostAccess), s.HealthUnknown
+	for _, at := range slices.Sorted(maps.Keys(s.Leads)) {
+		p.HostAccess = append(p.HostAccess, &dockwellv1.HostAccess{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: at, LeadsTo: s.Leads[at]})
+	}
 	p.Pull, p.ImageGone = s.Pull, s.ImageGone
 	if i := s.Ingress; i != nil {
 		p.Ingress = &dockwellv1.IngressEffect{Change: ingressChanges[i.Change], Proxy: i.Proxy, Ports: i.Ports, PanelDomain: i.PanelDomain}
@@ -197,10 +202,11 @@ var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
 // HostAccess converts what a resource reaches on its server.
 func HostAccess(list []resource.Access) []*dockwellv1.HostAccess {
 	var out []*dockwellv1.HostAccess
-	for _, a := range list {
+	for i := range list {
+		a := &list[i]
 		out = append(out, &dockwellv1.HostAccess{
 			Kind: accessKinds[a.Kind], Path: a.Path, ReadOnly: a.ReadOnly, Type: a.Type,
-			Address: a.Address, Relabel: a.Relabel, Driver: a.Driver, Detail: a.Detail, SameAsRoot: a.SameAsRoot,
+			Address: a.Address, Relabel: a.Relabel, Driver: a.Driver, Detail: a.Detail, SameAsRoot: a.AsGoodAsRoot(), LeadsTo: a.LeadsTo,
 		})
 	}
 	return out
@@ -240,7 +246,16 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		s.UntilHealthy = max(d.AsDuration(), 0)
 	}
 	// An agent's word on host access counts for nothing: the control plane
-	// decides it from the specs.
+	// decides it from the specs. All it takes from one is where a path leads,
+	// which only an agent can read, and which can only make a plan louder.
+	for _, a := range p.GetHostAccess() {
+		if a.GetLeadsTo() != "" {
+			if s.Leads == nil {
+				s.Leads = map[string]string{}
+			}
+			s.Leads[a.GetPath()] = a.GetLeadsTo()
+		}
+	}
 	s.Kept, s.Restores, s.HealthUnknown = p.GetKeptPaths(), p.GetRestores(), p.GetHealthUnknown()
 	s.Pull, s.ImageGone = p.GetPull(), p.GetImageGone()
 	for _, w := range p.GetWarnings() {
