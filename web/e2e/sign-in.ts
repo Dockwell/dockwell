@@ -790,6 +790,12 @@ async function main() {
         docker?.kill("SIGSTOP");
         return () => docker?.kill("SIGCONT");
       },
+      // A control plane that stops answering and keeps its connections, as a frozen
+      // process or a proxy holding them open does.
+      freezeControlPlane: () => {
+        server?.kill("SIGSTOP");
+        return () => server?.kill("SIGCONT");
+      },
     });
     // What make docker-panel-e2e does at its end, where only CI could see it.
     step("Docker: what the run made comes off, networks and volumes too");

@@ -5712,6 +5712,10 @@ msgstr "面板无法连接控制平面，因此无法确定它的运行情况。
 msgid "The panel can't reach the control plane, so it can't say how this runs. It last heard {ago}, and keeps trying."
 msgstr "面板无法连接控制平面，因此无法确定它的运行情况。上次收到消息是在{ago}，面板会继续尝试。"
 
+#: src/features/servers/FleetNotes.tsx
+msgid "The panel can't reach the control plane, so it can't say how this server is. It last heard {ago}, and keeps trying."
+msgstr "面板无法连接控制平面，因此无法确定这台服务器的情况。上次收到消息是在{ago}，面板会继续尝试。"
+
 #: src/features/apps/Health.tsx
 msgid "The panel can't reach the control plane, so it can't say how your apps run, and they read Unknown. It keeps trying."
 msgstr "面板无法连接控制平面，因此无法确定你的应用的运行情况，它们显示为未知。面板会继续尝试。"
@@ -5719,6 +5723,10 @@ msgstr "面板无法连接控制平面，因此无法确定你的应用的运行
 #: src/features/apps/Health.tsx
 msgid "The panel can't reach the control plane, so it can't say how your apps run, and they read Unknown. It last heard {ago}, and keeps trying."
 msgstr "面板无法连接控制平面，因此无法确定你的应用的运行情况，它们显示为未知。上次收到消息是在{ago}，面板会继续尝试。"
+
+#: src/features/servers/FleetNotes.tsx
+msgid "The panel can't reach the control plane, so it can't say how your servers are. It last heard {ago}, and keeps trying."
+msgstr "面板无法连接控制平面，因此无法确定你的服务器的情况。上次收到消息是在{ago}，面板会继续尝试。"
 
 #: src/features/system/Unreachable.tsx
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
@@ -5889,6 +5897,10 @@ msgstr "此浏览器已离线，因此面板无法确定它的运行情况。请
 msgid "This browser is offline, so the panel can't say how this runs. It last heard {ago}. Check your connection."
 msgstr "此浏览器已离线，因此面板无法确定它的运行情况。上次收到消息是在{ago}。请检查你的网络连接。"
 
+#: src/features/servers/FleetNotes.tsx
+msgid "This browser is offline, so the panel can't say how this server is. It last heard {ago}. Check your connection."
+msgstr "此浏览器已离线，因此面板无法确定这台服务器的情况。上次收到消息是在{ago}。请检查你的网络连接。"
+
 #: src/features/apps/Health.tsx
 msgid "This browser is offline, so the panel can't say how your apps run, and they read Unknown. Check your connection."
 msgstr "此浏览器已离线，因此面板无法确定你的应用的运行情况，它们显示为未知。请检查你的网络连接。"
@@ -5896,6 +5908,10 @@ msgstr "此浏览器已离线，因此面板无法确定你的应用的运行情
 #: src/features/apps/Health.tsx
 msgid "This browser is offline, so the panel can't say how your apps run, and they read Unknown. It last heard {ago}. Check your connection."
 msgstr "此浏览器已离线，因此面板无法确定你的应用的运行情况，它们显示为未知。上次收到消息是在{ago}。请检查你的网络连接。"
+
+#: src/features/servers/FleetNotes.tsx
+msgid "This browser is offline, so the panel can't say how your servers are. It last heard {ago}. Check your connection."
+msgstr "此浏览器已离线，因此面板无法确定你的服务器的情况。上次收到消息是在{ago}。请检查你的网络连接。"
 
 #: src/features/auth/messages.ts
 msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
@@ -6228,6 +6244,7 @@ msgstr "不健康"
 #: src/features/apps/Health.tsx
 #: src/features/apps/words.ts
 #: src/features/changes/words.ts
+#: src/features/servers/FleetNotes.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Unknown"
 msgstr "未知"

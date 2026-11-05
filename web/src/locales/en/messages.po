@@ -5712,6 +5712,10 @@ msgstr "The panel can't reach the control plane, so it can't say how this runs. 
 msgid "The panel can't reach the control plane, so it can't say how this runs. It last heard {ago}, and keeps trying."
 msgstr "The panel can't reach the control plane, so it can't say how this runs. It last heard {ago}, and keeps trying."
 
+#: src/features/servers/FleetNotes.tsx
+msgid "The panel can't reach the control plane, so it can't say how this server is. It last heard {ago}, and keeps trying."
+msgstr "The panel can't reach the control plane, so it can't say how this server is. It last heard {ago}, and keeps trying."
+
 #: src/features/apps/Health.tsx
 msgid "The panel can't reach the control plane, so it can't say how your apps run, and they read Unknown. It keeps trying."
 msgstr "The panel can't reach the control plane, so it can't say how your apps run, and they read Unknown. It keeps trying."
@@ -5719,6 +5723,10 @@ msgstr "The panel can't reach the control plane, so it can't say how your apps r
 #: src/features/apps/Health.tsx
 msgid "The panel can't reach the control plane, so it can't say how your apps run, and they read Unknown. It last heard {ago}, and keeps trying."
 msgstr "The panel can't reach the control plane, so it can't say how your apps run, and they read Unknown. It last heard {ago}, and keeps trying."
+
+#: src/features/servers/FleetNotes.tsx
+msgid "The panel can't reach the control plane, so it can't say how your servers are. It last heard {ago}, and keeps trying."
+msgstr "The panel can't reach the control plane, so it can't say how your servers are. It last heard {ago}, and keeps trying."
 
 #: src/features/system/Unreachable.tsx
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
@@ -5889,6 +5897,10 @@ msgstr "This browser is offline, so the panel can't say how this runs. Check you
 msgid "This browser is offline, so the panel can't say how this runs. It last heard {ago}. Check your connection."
 msgstr "This browser is offline, so the panel can't say how this runs. It last heard {ago}. Check your connection."
 
+#: src/features/servers/FleetNotes.tsx
+msgid "This browser is offline, so the panel can't say how this server is. It last heard {ago}. Check your connection."
+msgstr "This browser is offline, so the panel can't say how this server is. It last heard {ago}. Check your connection."
+
 #: src/features/apps/Health.tsx
 msgid "This browser is offline, so the panel can't say how your apps run, and they read Unknown. Check your connection."
 msgstr "This browser is offline, so the panel can't say how your apps run, and they read Unknown. Check your connection."
@@ -5896,6 +5908,10 @@ msgstr "This browser is offline, so the panel can't say how your apps run, and t
 #: src/features/apps/Health.tsx
 msgid "This browser is offline, so the panel can't say how your apps run, and they read Unknown. It last heard {ago}. Check your connection."
 msgstr "This browser is offline, so the panel can't say how your apps run, and they read Unknown. It last heard {ago}. Check your connection."
+
+#: src/features/servers/FleetNotes.tsx
+msgid "This browser is offline, so the panel can't say how your servers are. It last heard {ago}. Check your connection."
+msgstr "This browser is offline, so the panel can't say how your servers are. It last heard {ago}. Check your connection."
 
 #: src/features/auth/messages.ts
 msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
@@ -6228,6 +6244,7 @@ msgstr "Unhealthy"
 #: src/features/apps/Health.tsx
 #: src/features/apps/words.ts
 #: src/features/changes/words.ts
+#: src/features/servers/FleetNotes.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Unknown"
 msgstr "Unknown"

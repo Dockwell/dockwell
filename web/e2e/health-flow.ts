@@ -30,6 +30,8 @@ export interface HealthFlowOptions {
   context: BrowserContext;
   /** Makes Docker stop answering, as a hung daemon does, and returns what makes it answer again. Only a fake can. */
   hangDocker?: () => () => void;
+  /** Freezes the control plane with its connections open, and returns what thaws it. */
+  freezeControlPlane?: () => () => void;
 }
 
 function fail(message: string): never {
@@ -59,7 +61,21 @@ async function apply(page: Page) {
 }
 
 export async function healthFlow(page: Page, options: HealthFlowOptions) {
-  const { origin, step, shoot, docker, socket, fake, bin, data, env, browser, context, hangDocker } = options;
+  const {
+    origin,
+    step,
+    shoot,
+    docker,
+    socket,
+    fake,
+    bin,
+    data,
+    env,
+    browser,
+    context,
+    hangDocker,
+    freezeControlPlane,
+  } = options;
   const cleanUp: (() => void)[] = [];
   const only = async (service: string) => {
     const all = (await docker()).filter((c) => c.service === service);
@@ -353,8 +369,12 @@ services:
     const agentPanel = page.getByRole("region", { name: "Agent" });
     await agentPanel.getByText("Can't read Docker").first().waitFor({ timeout: SEEN_WITHIN });
     await agentPanel.getByText("systemctl status docker").waitFor();
-    if ((await agentPanel.locator(".dw-tone-healthy").count()) > 0) fail("an agent started with Docker down reads green");
-    await page.locator(".topbar").getByText(/can't read Docker/i).waitFor({ timeout: SEEN_WITHIN });
+    if ((await agentPanel.locator(".dw-tone-healthy").count()) > 0)
+      fail("an agent started with Docker down reads green");
+    await page
+      .locator(".topbar")
+      .getByText(/can't read Docker/i)
+      .waitFor({ timeout: SEEN_WITHIN });
     await shoot(page, "health-docker-down-at-start");
   } finally {
     agent.kill("SIGKILL");
@@ -396,5 +416,30 @@ services:
       .locator(".topbar")
       .getByText(/can't read Docker/i)
       .waitFor({ state: "detached", timeout: 60_000 });
+  }
+
+  if (freezeControlPlane) {
+    step("health: a control plane that stops answering with its streams open: nothing stays green, and it comes back");
+    await goToList();
+    await listSays("checked", "Healthy");
+    const thaw = freezeControlPlane();
+    try {
+      // Past 30 s with nothing heard, not even a heartbeat, what was last said can't stand.
+      const top = page.locator(".topbar");
+      await top.getByText("Unknown", { exact: true }).waitFor({ timeout: 60_000 });
+      if ((await top.locator(".dw-tone-healthy").count()) > 0)
+        fail("with the control plane frozen, the top bar is green");
+      await page
+        .locator(".apps-unread")
+        .getByText(/The panel can't reach the control plane, so it can't say how your apps run/)
+        .waitFor({ timeout: 30_000 });
+      if ((await row("checked").locator(".dw-tone-healthy").count()) > 0)
+        fail("with the control plane frozen, a row is green");
+      await shoot(page, "health-control-plane-frozen");
+    } finally {
+      thaw();
+    }
+    await listSays("checked", "Healthy");
+    await page.locator(".topbar .dw-tone-healthy").first().waitFor({ timeout: 60_000 });
   }
 }

@@ -3,8 +3,9 @@
 import { Button, Icon, StatusBadge, useUIStrings } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 
-import { Reconnecting } from "../servers/FleetNotes";
+import { FleetUnknown, Reconnecting } from "../servers/FleetNotes";
 import { type FleetView, serverStatus } from "../servers/server";
+import { useFleetUnread } from "../servers/useFleet";
 import { useCommandShortcut, useOpenCommandBar } from "./CommandMenu";
 
 /**
@@ -31,8 +32,14 @@ function Scope({ view }: { view: FleetView }) {
   const strings = useUIStrings();
   const { servers, only, fleet, counts } = view;
   // While the watch reconnects, the states are the last ones known, so the bar says that instead of vouching for
-  // them. It says it for the page below too, which keeps its own note for phones.
-  const reconnecting = view.status === "reconnecting" ? <Reconnecting /> : null;
+  // them. It says it for the page below too, which keeps its own note for phones. Once what it last heard is too
+  // old to stand, nobody can say how they are.
+  const unread = useFleetUnread();
+  const reconnecting = unread ? (
+    <FleetUnknown why={unread.why} heard={unread.heard} />
+  ) : view.status === "reconnecting" ? (
+    <Reconnecting />
+  ) : null;
   if (only) {
     return (
       <div className="topbar-scope">

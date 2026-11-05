@@ -3,6 +3,14 @@
 import { useEffect, useRef } from "react";
 
 /**
+ * How old what the panel last heard of how things are may be and still stand,
+ * however reads and streams are going: one that fails, one that hangs, a stream
+ * that stalls, a browser gone offline. Past it, nobody here can say. It is three of
+ * health's reads, and three of the fleet's heartbeats.
+ */
+export const TRUST_FOR_MS = 30_000;
+
+/**
  * How old something heard at wallAt, and at monoAt by a clock that only moves
  * forward, is now. A wall clock stepped back would make it younger for as long as
  * the step, so the forward clock counts; one that doesn't count sleep, as most

@@ -8,12 +8,12 @@ import { Fragment, type ReactNode } from "react";
 
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
-import { Connecting, usePageReconnecting } from "./FleetNotes";
+import { Connecting, FleetUnreadNote, usePageReconnecting } from "./FleetNotes";
 import { ServerCallout } from "./ServerCallout";
 import { ServerMetrics } from "./ServerMetrics";
 import { AgentPanel, DisksPanel, NetworkPanel, SystemPanel } from "./ServerPanels";
 import { primaryAddress, useServerWords } from "./server";
-import { useFleet } from "./useFleet";
+import { useFleet, useFleetUnread } from "./useFleet";
 import "./ServerOverview.css";
 
 /**
@@ -58,6 +58,7 @@ export function ServerOverview({ id }: { id: string }) {
 
 function ServerPage({ server, fleet, status }: { server: Server; fleet: boolean; status: ReactNode }) {
   const { t } = useLingui();
+  const unread = useFleetUnread();
   const { up, phoneSub } = useServerWords(server);
   const phone = useMediaQuery(PHONE_QUERY);
   const inv = server.inventory;
@@ -88,13 +89,14 @@ function ServerPage({ server, fleet, status }: { server: Server; fleet: boolean;
       back={fleet ? "/servers" : undefined}
       status={status}
     >
-      <ServerCallout server={server} />
+      {/* What it last said of itself can't stand, so that is what it says, and nothing it last said instead. */}
+      {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : <ServerCallout server={server} />}
       <ServerMetrics server={server} fourth="load" compact={phone} />
       <DisksPanel server={server} />
       <div className="server-panels">
         <SystemPanel server={server} />
         <NetworkPanel server={server} />
-        <AgentPanel server={server} />
+        <AgentPanel server={server} unknown={unread !== undefined} />
       </div>
     </Page>
   );

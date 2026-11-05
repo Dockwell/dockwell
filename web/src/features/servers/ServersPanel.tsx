@@ -6,9 +6,9 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 
 import { formatBytesOf, formatPercent } from "../../lib/format";
-import { Connecting, Reconnecting } from "./FleetNotes";
+import { Connecting, FleetUnknown, Reconnecting } from "./FleetNotes";
 import { serverStatus, useServerWords } from "./server";
-import { useFleet } from "./useFleet";
+import { useFleet, useFleetUnread } from "./useFleet";
 import "./ServersPanel.css";
 
 export interface ServersPanelProps {
@@ -25,10 +25,17 @@ export interface ServersPanelProps {
 export function ServersPanel({ linked = false, reconnectingNote = true }: ServersPanelProps) {
   const { t } = useLingui();
   const fleet = useFleet();
+  const unread = useFleetUnread();
   return (
     <Panel
       title={t`Servers`}
-      actions={reconnectingNote && fleet.status === "reconnecting" ? <Reconnecting /> : null}
+      actions={
+        unread ? (
+          <FleetUnknown why={unread.why} heard={unread.heard} />
+        ) : reconnectingNote && fleet.status === "reconnecting" ? (
+          <Reconnecting />
+        ) : null
+      }
       flush
     >
       {fleet.status === "connecting" ? (
@@ -44,7 +51,7 @@ export function ServersPanel({ linked = false, reconnectingNote = true }: Server
       ) : (
         <ul className="servers-list">
           {fleet.servers.map((s) => (
-            <ServerRow key={s.id} server={s} linked={linked} />
+            <ServerRow key={s.id} server={s} linked={linked} unknown={unread !== undefined} />
           ))}
         </ul>
       )}
@@ -52,7 +59,7 @@ export function ServersPanel({ linked = false, reconnectingNote = true }: Server
   );
 }
 
-function ServerRow({ server, linked }: { server: Server; linked: boolean }) {
+function ServerRow({ server, linked, unknown }: { server: Server; linked: boolean; unknown: boolean }) {
   const { t, i18n } = useLingui();
   const stats = server.stats;
   const [used, total] = stats ? formatBytesOf(stats.memoryUsedBytes, stats.memoryTotalBytes, i18n.locale) : ["", ""];
@@ -70,7 +77,7 @@ function ServerRow({ server, linked }: { server: Server; linked: boolean }) {
     <li className="servers-row">
       <div className="servers-name">
         <StatusBadge
-          status={serverStatus(server)}
+          status={unknown ? "unknown" : serverStatus(server)}
           label={
             linked ? (
               <Link to="/servers/$serverId" params={{ serverId: server.id }} className="servers-link">

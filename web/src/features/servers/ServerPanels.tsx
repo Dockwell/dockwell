@@ -148,7 +148,7 @@ export function NetworkPanel({ server }: { server: Server }) {
 }
 
 /** The agent on the server: its build, its connection and when it last reported. */
-export function AgentPanel({ server }: { server: Server }) {
+export function AgentPanel({ server, unknown = false }: { server: Server; unknown?: boolean }) {
   const { t, i18n } = useLingui();
   const words = useTimeWords();
   // The control plane's clock, which its timestamps are on, so a browser whose clock is off doesn't skew them.
@@ -167,7 +167,16 @@ export function AgentPanel({ server }: { server: Server }) {
   const connected = server.connectTime ? words.span(now - timestampDate(server.connectTime).getTime()) : undefined;
   const joined = server.createTime ? timestampDate(server.createTime) : undefined;
   return (
-    <Panel title={t`Agent`} actions={<StatusBadge status={serverStatus(server)} label={badge} />}>
+    <Panel
+      title={t`Agent`}
+      actions={
+        unknown ? (
+          <StatusBadge status="unknown" label={t`Unknown`} labelIsState />
+        ) : (
+          <StatusBadge status={serverStatus(server)} label={badge} />
+        )
+      }
+    >
       <dl className="facts">
         {version ? (
           <Fact term={t`Version`}>

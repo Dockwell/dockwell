@@ -16,8 +16,8 @@ import type { Status } from "@dockwell/ui";
 import { type QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useReducer } from "react";
 
-import { useOnline } from "../../lib/online";
-import { ageOf, useWake } from "../../lib/wake";
+import { type Unread, useOnline } from "../../lib/online";
+import { ageOf, TRUST_FOR_MS, useWake } from "../../lib/wake";
 
 /** The most ListHealth returns at once. */
 const PAGE_SIZE = 1000;
@@ -29,12 +29,7 @@ const READ_EVERY_MS = 10_000;
 const READ_SOON_MS = 2_000;
 const SOON_FOR_MS = 30_000;
 
-/**
- * How old what was last read may be and still stand, however reads are going: one
- * that fails, one that hangs, a browser gone offline. Past it, nobody here can say,
- * and a list that was green says so rather than stay green. It is three reads' worth.
- */
-export const TRUST_FOR_MS = 30_000;
+export { TRUST_FOR_MS } from "../../lib/wake";
 
 /** How long one page of a read may take, so a read nobody answers gives way to the next. */
 export const READ_TIMEOUT_MS = 8_000;
@@ -121,8 +116,7 @@ export interface AppHealth {
   heard?: Date;
 }
 
-/** Why the panel can't read how things run. */
-export type Unread = "offline" | "unreachable";
+export type { Unread } from "../../lib/online";
 
 const date = (at: Parameters<typeof timestampDate>[0] | undefined): Date | undefined =>
   at ? timestampDate(at) : undefined;

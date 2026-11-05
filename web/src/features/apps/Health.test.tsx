@@ -18,6 +18,7 @@ import {
   type WatchChangeResponse,
   type WatchEventsResponse,
   type WatchServersResponse,
+  WatchServersResponseSchema,
 } from "@dockwell/api";
 import { focusManager, onlineManager } from "@tanstack/react-query";
 import { screen, waitFor, within } from "@testing-library/react";
@@ -28,7 +29,7 @@ import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { aHealth, anApp, aRevision, type HealthOn, places, running, SERVER } from "../../test/apps";
 import { changeEvent, moved, since, snapshot, webPlanned } from "../../test/changes";
-import { type Api, feed, onPhone, renderAt } from "../../test/render";
+import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
 const hz1 = aServer({ id: SERVER, name: "hz-1", inventory: { addresses: ["49.12.33.7"] } });
@@ -296,6 +297,90 @@ describe("an agent that can't read Docker", () => {
     panel = await screen.findByRole("region", { name: "What runs" });
     await waitFor(() => expect(panel).toHaveTextContent("The agent on hz-1 hasn't read how this runs yet."));
     expect(document.querySelector(".dw-callout")).toHaveTextContent("journalctl -u dockwell");
+  });
+});
+
+describe("what the fleet last said stands by its age too", () => {
+  /** A watch of the fleet that says how hz-1 is, then, while answering is false, nothing at all, as a frozen control plane. */
+  const quietFleet = (heartbeats: boolean) => {
+    const state = { answering: true, watches: 0 };
+    async function* watchServers(_req: unknown, ctx: { signal: AbortSignal }) {
+      state.watches += 1;
+      if (!state.answering) {
+        await untilAborted(ctx.signal);
+        return;
+      }
+      yield changed(hz1);
+      yield snapshotComplete;
+      while (!ctx.signal.aborted) {
+        await Promise.race([new Promise((r) => setTimeout(r, 10_000)), untilAborted(ctx.signal)]);
+        if (heartbeats && state.answering && !ctx.signal.aborted)
+          yield create(WatchServersResponseSchema, { heartbeat: true });
+        if (!state.answering) await untilAborted(ctx.signal);
+      }
+    }
+    return { state, watchServers };
+  };
+
+  it("reads Unknown in the top bar, on the server's page and in its list, once the watch has heard nothing for 30 s", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fleet = quietFleet(true);
+    const page = renderAt("/servers/srv_1", {
+      ...api([web], running(web)),
+      servers: { watchServers: fleet.watchServers },
+    });
+    const top = await waitFor(() => {
+      const bar = page.container.querySelector(".topbar") as HTMLElement;
+      expect(bar).toHaveTextContent("Healthy");
+      return bar;
+    });
+    // Heartbeats alone keep it standing, with nothing else to say.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(top).toHaveTextContent("Healthy");
+    // The control plane freezes: nothing comes, not even a heartbeat.
+    fleet.state.answering = false;
+    await vi.advanceTimersByTimeAsync(25_000);
+    expect(top).toHaveTextContent("Healthy");
+    await vi.advanceTimersByTimeAsync(10_000);
+    await waitFor(() => expect(top).toHaveTextContent("Unknown"));
+    expect(top.querySelector(".dw-tone-healthy")).toBeNull();
+    expect(top.querySelector(".dw-status")).toHaveAttribute(
+      "title",
+      expect.stringMatching(
+        /^The panel can't reach the control plane, so it can't say how your servers are\. It last heard .* ago, and keeps trying\.$/,
+      ),
+    );
+    const agent = screen.getByRole("region", { name: "Agent" });
+    expect(agent).toHaveTextContent("Unknown");
+    expect(agent.querySelector(".dw-tone-healthy")).toBeNull();
+    expect(page.container.querySelector(".fleet-unread")).toHaveTextContent(
+      /The panel can't reach the control plane, so it can't say how this server is\. It last heard .* ago, and keeps trying\./,
+    );
+    // The watch that heard nothing made way for others, which wait as it did, and it says so all the while.
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(fleet.state.watches).toBeGreaterThan(1);
+    expect(top).toHaveTextContent("Unknown");
+    // Back: the next watch says how it is, and it stands again.
+    fleet.state.answering = true;
+    await vi.advanceTimersByTimeAsync(50_000);
+    await waitFor(() => expect(top).toHaveTextContent("Healthy"));
+    expect(page.container.querySelector(".fleet-unread")).toBeNull();
+  });
+
+  it("says so in the browser's words when it's the browser that went offline", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fleet = quietFleet(true);
+    const page = renderAt("/apps", { ...api([web], running(web)), servers: { watchServers: fleet.watchServers } });
+    await waitFor(() => expect(page.container.querySelector(".topbar")).toHaveTextContent("Healthy"));
+    fleet.state.answering = false;
+    onlineManager.setOnline(false);
+    await vi.advanceTimersByTimeAsync(35_000);
+    const top = page.container.querySelector(".topbar") as HTMLElement;
+    await waitFor(() => expect(top).toHaveTextContent("Unknown"));
+    expect(top.querySelector(".dw-status")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/^This browser is offline, so the panel can't say how your servers are\./),
+    );
   });
 });
 

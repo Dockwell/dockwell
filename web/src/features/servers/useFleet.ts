@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { type Timestamp, timestampMs } from "@bufbuild/protobuf/wkt";
-import { ConnectError, createClient, type Transport } from "@connectrpc/connect";
+import { Code, ConnectError, createClient, type Transport } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { Connection, type Server, ServerService } from "@dockwell/api";
-import { createContext, createElement, type ReactNode, useContext, useEffect, useState } from "react";
+import { createContext, createElement, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 
 import { isSessionEnded } from "../../lib/errors";
+import { type Unread, useOnline } from "../../lib/online";
 import { keepTrying } from "../../lib/retry";
 import { useNow, useTickingNow } from "../../lib/time";
+import { ageOf, TRUST_FOR_MS, useWake } from "../../lib/wake";
 import { appendSample } from "./history";
 import { type FleetView, fleetView } from "./server";
 
@@ -19,6 +21,22 @@ export type FleetState =
 
 const BACKOFF = { minMs: 1_000, maxMs: 15_000 };
 
+/** How often a watch looks for having heard nothing for too long. */
+const STALL_LOOK_MS = 5_000;
+
+/** What a watch that heard nothing for TRUST_FOR_MS ends with: the control plane sends a heartbeat every 10 s. */
+export const STALLED = new ConnectError("the control plane has said nothing for 30 s", Code.DeadlineExceeded);
+
+/**
+ * When the watch last heard anything, a heartbeat or a change, by the wall clock and
+ * one that only moves forward. It is kept outside React, so a sample renders nothing
+ * more, and read by what says whether what the fleet last said still stands.
+ */
+interface Heard {
+  wall: number;
+  mono: number | undefined;
+}
+
 /**
  * A watch's state; the shell's view of it, which keeps its identity while
  * only the numbers change; and how far the browser's clock runs ahead of
@@ -28,24 +46,66 @@ interface Watched {
   state: FleetState;
   view: FleetView;
   skewMs: number;
+  heard: Heard;
 }
 
 // Separate contexts, so what reads only the view isn't woken by each sample.
 const StateContext = createContext<FleetState | undefined>(undefined);
 const ViewContext = createContext<FleetView | undefined>(undefined);
 const SkewContext = createContext(0);
+const HeardContext = createContext<Heard | undefined>(undefined);
 
 /**
  * Watches the fleet once for everything inside it, so the shell and the
  * screen it holds share one stream.
  */
 export function FleetProvider({ children }: { children: ReactNode }) {
-  const { state, view, skewMs } = useWatch(true);
+  const { state, view, skewMs, heard } = useWatch(true);
   return createElement(
     StateContext,
     { value: state },
-    createElement(ViewContext, { value: view }, createElement(SkewContext, { value: skewMs }, children)),
+    createElement(
+      ViewContext,
+      { value: view },
+      createElement(SkewContext, { value: skewMs }, createElement(HeardContext, { value: heard }, children)),
+    ),
   );
+}
+
+/**
+ * Why what the fleet last said can't stand, and when it was last heard, once the
+ * watch has heard nothing, not even a heartbeat, for TRUST_FOR_MS: as a frozen
+ * control plane, a proxy that holds the stream open, or a browser gone offline leaves
+ * it. Until then, nothing. It looks again on its own, and as the page comes back or
+ * the machine wakes, and renders only when that changes.
+ */
+export function useFleetUnread(): { why: Unread; heard: Date } | undefined {
+  const heard = useContext(HeardContext);
+  const online = useOnline();
+  const [unread, setUnread] = useState(false);
+  const look = useRef<() => number>(() => Number.POSITIVE_INFINITY);
+  look.current = () => {
+    if (heard?.mono === undefined) {
+      setUnread(false);
+      return Number.POSITIVE_INFINITY;
+    }
+    const age = ageOf(heard.wall, heard.mono);
+    setUnread(age > TRUST_FOR_MS);
+    return TRUST_FOR_MS - age;
+  };
+  useWake(() => look.current());
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const again = () => {
+      const left = look.current();
+      // While it can't stand, or nothing has come yet, it looks each second.
+      timer = setTimeout(again, (Number.isFinite(left) ? Math.max(left, 1_000) : 1_000) + 50);
+    };
+    again();
+    return () => clearTimeout(timer);
+  }, []);
+  if (!unread || heard === undefined) return undefined;
+  return { why: online ? "unreachable" : "offline", heard: new Date(heard.wall) };
 }
 
 /**
@@ -97,20 +157,22 @@ const CONNECTING: FleetState = { status: "connecting" };
 
 function useWatch(enabled: boolean): Watched {
   const transport = useTransport();
+  const heard = useRef<Heard>({ wall: 0, mono: undefined }).current;
   const [watched, setWatched] = useState<Watched>(() => ({
     state: CONNECTING,
     view: fleetView(CONNECTING),
     skewMs: 0,
+    heard,
   }));
 
   useEffect(() => {
     if (!enabled) return;
     const abort = new AbortController();
-    void watch(transport, abort.signal, (state, skewMs) =>
-      setWatched((prev) => ({ state, view: fleetView(state, prev.view), skewMs })),
+    void watch(transport, abort.signal, heard, (state, skewMs) =>
+      setWatched((prev) => ({ state, view: fleetView(state, prev.view), skewMs, heard })),
     );
     return () => abort.abort();
-  }, [transport, enabled]);
+  }, [transport, enabled, heard]);
 
   return watched;
 }
@@ -118,6 +180,7 @@ function useWatch(enabled: boolean): Watched {
 async function watch(
   transport: Transport,
   signal: AbortSignal,
+  heard: Heard,
   publish: (s: FleetState, skewMs: number) => void,
 ): Promise<void> {
   const client = createClient(ServerService, transport);
@@ -129,20 +192,41 @@ async function watch(
     async (connected, attempt) => {
       const servers = new Map<string, Server>();
       let synced = false;
-      for await (const msg of client.watchServers({}, { signal: attempt })) {
-        const next = msg.server;
-        if (next && msg.removed) {
-          servers.delete(next.id);
-        } else if (next) {
-          const prev = servers.get(next.id);
-          if (synced) clock.observe(prev, next);
-          servers.set(next.id, merge(prev, next));
+      // A try that hears nothing for TRUST_FOR_MS, since it began or since it last
+      // heard, has stalled, and makes way for the next.
+      const stalled = new AbortController();
+      const stop = () => stalled.abort(attempt.reason);
+      attempt.addEventListener("abort", stop, { once: true });
+      const began = { wall: Date.now(), mono: performance.now() };
+      const looking = setInterval(() => {
+        const last =
+          heard.mono !== undefined && heard.mono > began.mono ? { wall: heard.wall, mono: heard.mono } : began;
+        if (ageOf(last.wall, last.mono) > TRUST_FOR_MS) stalled.abort(STALLED);
+      }, STALL_LOOK_MS);
+      try {
+        for await (const msg of client.watchServers({}, { signal: stalled.signal })) {
+          heard.wall = Date.now();
+          heard.mono = performance.now();
+          if (msg.heartbeat) continue;
+          const next = msg.server;
+          if (next && msg.removed) {
+            servers.delete(next.id);
+          } else if (next) {
+            const prev = servers.get(next.id);
+            if (synced) clock.observe(prev, next);
+            servers.set(next.id, merge(prev, next));
+          }
+          synced ||= msg.snapshotComplete;
+          if (!synced) continue;
+          known = [...servers.values()];
+          publish({ status: "live", servers: known }, clock.skewMs);
+          connected();
         }
-        synced ||= msg.snapshotComplete;
-        if (!synced) continue;
-        known = [...servers.values()];
-        publish({ status: "live", servers: known }, clock.skewMs);
-        connected();
+      } catch (err) {
+        throw stalled.signal.reason === STALLED ? STALLED : err;
+      } finally {
+        clearInterval(looking);
+        attempt.removeEventListener("abort", stop);
       }
       throw new ConnectError("the watch ended");
     },
