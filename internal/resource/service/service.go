@@ -130,6 +130,9 @@ func (*Driver) References(spec proto.Message) []resource.Reference {
 	return out
 }
 
+// ReferenceKinds are volumes and networks.
+func (*Driver) ReferenceKinds() []resource.Kind { return []resource.Kind{volume.Kind, network.Kind} }
+
 // Target is where a service runs on a server: in its environment's
 // Compose project, as that project's service of the same name, in a
 // container named as Compose names a service's first, such as
@@ -271,18 +274,11 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 		return d.Containers.ApplyAt(ctx, Target(step.Ref), step, nil)
 	}
 	svc := desired.(*resourcev1.Service)
-	app := proto.Clone(svc.GetApp()).(*resourcev1.Container)
 	env, err := binding.Environment(ctx, svc)
 	if err != nil {
 		return err
 	}
-	app.Env = env
-	if label := binding.Label(svc); label != "" {
-		if app.Labels == nil {
-			app.Labels = map[string]string{}
-		}
-		app.Labels[binding.LabelKey] = label
-	}
+	app := binding.App(svc, env)
 	return d.Containers.ApplyAt(ctx, Target(step.Ref), step, app)
 }
 

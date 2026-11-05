@@ -258,11 +258,12 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 			t.Errorf("a secret in inline JSON = %d %q, want it refused", r.code, r.err)
 		}
 		// A container's environment is configuration, and may go inline,
-		// as with --env KEY=VALUE. This agent has no driver to plan it.
-		r = run(t, env, "changes", "propose", "--summary", "Inline", "--yes",
+		// as with --env KEY=VALUE. Without --yes it is only planned, so
+		// nothing runs, or says Docker isn't here on a machine without it.
+		r = run(t, env, "changes", "propose", "--summary", "Inline",
 			"--edits", `{"resource":{"name":"web"},"spec":{"container":{"image":"nginx","env":{"TOKEN":"x"}}}}`)
-		if strings.Contains(r.err, "the JSON sets") || !strings.Contains(r.err, "has no driver for container resources") {
-			t.Errorf("a container's environment in inline JSON = %d %q, want it read, and refused for the driver alone", r.code, r.err)
+		if strings.Contains(r.err, "the JSON sets") || r.code != exitOK && !strings.Contains(r.err, "can't run container web now") {
+			t.Errorf("a container's environment in inline JSON = %d %q, want it read", r.code, r.err)
 		}
 		piped := `{"resource":{"name":"PIPED_TOKEN"},"project":"default","spec":{"secret":{"value":"s3cret-piped"}}}`
 		r = runIn(t, env, piped, false, "changes", "propose", "--summary", "From standard input", "--edits", "-", "--yes")

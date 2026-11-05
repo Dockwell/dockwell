@@ -52,3 +52,63 @@ func TestEnvironmentAndLabelRoundTrip(t *testing.T) {
 		t.Error("Restore read a label Dockwell didn't write")
 	}
 }
+
+// A container reads back as using only what its environment has. One made
+// by docker compose up from an export, with no value in its shell, carries
+// the label without the variable, so it reads back as not using it, and
+// shows as drift rather than as if it ran with the value.
+func TestRestoreUsesOnlyWhatTheEnvironmentHas(t *testing.T) {
+	c := &resourcev1.Container{
+		Image:  "acme/api:1",
+		Env:    map[string]string{"LOG_LEVEL": "info"},
+		Labels: map[string]string{LabelKey: "DATABASE_URL=secret:DB_URL@4,LOG_LEVEL=variable:LOG_LEVEL@2"},
+	}
+	back, err := Restore(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.GetSecrets() != nil || back.GetVariables()["LOG_LEVEL"] != "LOG_LEVEL" || back.GetRevisions()["LOG_LEVEL"] != 2 || len(back.GetRevisions()) != 1 {
+		t.Errorf("Restore = %v, want the variable alone", back)
+	}
+	if c.GetEnv() != nil || c.GetLabels() != nil {
+		t.Errorf("Restore left %v and %v on the app", c.GetEnv(), c.GetLabels())
+	}
+}
+
+// App gives the container what the service runs with, and leaves the
+// service's own spec without it, so a value goes no further than the call.
+func TestAppLeavesTheSpecAsItIs(t *testing.T) {
+	svc := &resourcev1.Service{
+		Runs:      &resourcev1.Service_App{App: &resourcev1.Container{Image: "acme/api:1", Labels: map[string]string{"team": "shop"}}},
+		Secrets:   map[string]string{"TOKEN": "API_TOKEN"},
+		Revisions: map[string]int64{"TOKEN": 3},
+	}
+	before := proto.Clone(svc)
+	app := App(svc, map[string]string{"TOKEN": "hunter2"})
+	if app.GetEnv()["TOKEN"] != "hunter2" || app.GetLabels()[LabelKey] != "TOKEN=secret:API_TOKEN@3" || app.GetLabels()["team"] != "shop" {
+		t.Errorf("App = %v", app)
+	}
+	if !proto.Equal(svc, before) {
+		t.Errorf("App changed the service: %v", svc)
+	}
+	if plain := App(&resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "a"}}}, nil); plain.GetLabels() != nil {
+		t.Errorf("a service that uses nothing has the labels %v", plain.GetLabels())
+	}
+}
+
+// A label is what Dockwell wrote, or it is refused: another kind, or a
+// part that doesn't read, isn't a use.
+func TestParseLabelRefusesWhatDockwellDidntWrite(t *testing.T) {
+	if uses, err := ParseLabel(""); err != nil || uses != nil {
+		t.Errorf("an empty label = %v, %v", uses, err)
+	}
+	uses, err := ParseLabel("A=secret:B@4,C=variable:D@0")
+	if err != nil || len(uses) != 2 || uses[0] != (resource.Use{As: "A", Kind: "secret", Name: "B", Revision: 4}) {
+		t.Errorf("ParseLabel = %+v, %v", uses, err)
+	}
+	for _, label := range []string{"nonsense", "A=secret", "A=secret:B", "A=volume:B@1", "=secret:B@1", "A=secret:@1", "A=secret:B@x"} {
+		if _, err := ParseLabel(label); err == nil {
+			t.Errorf("ParseLabel(%q) took it", label)
+		}
+	}
+}

@@ -33,6 +33,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 )
 
 // Item is one resource a Compose file makes: its name and spec.
@@ -48,6 +49,9 @@ type Stack struct {
 	Networks []Item[*resourcev1.Network]
 	Volumes  []Item[*resourcev1.Volume]
 	Services []Item[*resourcev1.Service]
+	// Variables are the values of the environment's variables, by name, for
+	// Export to write for the services that use them. Never a secret's.
+	Variables map[string]string
 }
 
 // ErrInvalid is a Compose file Dockwell can't take, with why.
@@ -511,11 +515,18 @@ func stack(p *model) (*Stack, error) {
 	specs := map[string]*resourcev1.Service{}
 	for _, name := range slices.Sorted(maps.Keys(p.Services)) {
 		s := p.Services[name]
-		c, err := app(name, &s)
+		uses, err := usesOf(name, &s)
+		if err != nil {
+			return nil, err
+		}
+		c, err := app(name, &s, uses)
 		if err != nil {
 			return nil, err
 		}
 		specs[name] = &resourcev1.Service{Runs: &resourcev1.Service_App{App: c}}
+		for _, u := range uses {
+			binding.Use(specs[name], u)
+		}
 	}
 	order, err := ordered(p.Services)
 	if err != nil {
@@ -525,6 +536,23 @@ func stack(p *model) (*Stack, error) {
 		out.Services = append(out.Services, Item[*resourcev1.Service]{Name: name, Spec: specs[name]})
 	}
 	return out, nil
+}
+
+// usesOf reads what a service uses from the label an export writes, of
+// the names its environment still has, so taking one out of the file stops
+// using it. The revisions it records are the store's to set again.
+func usesOf(name string, s *types.ServiceConfig) ([]resource.Use, error) {
+	all, err := binding.ParseLabel(s.Labels[binding.LabelKey])
+	if err != nil {
+		return nil, invalid("the service %s has a label it can't use: %v. Remove the label, or export the file again", name, err)
+	}
+	var uses []resource.Use
+	for _, u := range all {
+		if _, ok := s.Environment[u.As]; ok {
+			uses = append(uses, u)
+		}
+	}
+	return uses, nil
 }
 
 // ordered lists services so each comes after those it depends on, by name
@@ -568,11 +596,12 @@ func nonEmpty[M ~map[string]string](m M) map[string]string {
 }
 
 // userLabels are a file's labels without Dockwell's and Compose's own,
-// which an exported file carries and Dockwell sets again.
+// which an exported file carries and Dockwell sets again. What a service
+// uses comes back as references (usesOf).
 func userLabels(l types.Labels) map[string]string {
 	out := map[string]string{}
 	for k, v := range l {
-		if !docker.IsOwnLabel(k) {
+		if !docker.IsOwnLabel(k) && k != binding.LabelKey {
 			out[k] = v
 		}
 	}
@@ -588,7 +617,7 @@ var restarts = map[string]resourcev1.RestartPolicy{
 }
 
 // app turns one Compose service into the container it runs.
-func app(name string, s *types.ServiceConfig) (*resourcev1.Container, error) {
+func app(name string, s *types.ServiceConfig, uses []resource.Use) (*resourcev1.Container, error) {
 	if err := resource.CheckLabel("service", name, "api-v2"); err != nil {
 		return nil, invalid("%v. Rename the service in the Compose file", err)
 	}
@@ -612,6 +641,9 @@ func app(name string, s *types.ServiceConfig) (*resourcev1.Container, error) {
 	c.Restart = restart
 	for _, k := range slices.Sorted(maps.Keys(s.Environment)) {
 		v := s.Environment[k]
+		if v == nil && slices.ContainsFunc(uses, func(u resource.Use) bool { return u.As == k }) {
+			continue // the value is the environment's, and the service uses it by reference
+		}
 		if v == nil {
 			return nil, invalid("%s's variable %s has no value. Give it one in the file, such as %s: value, or pass it in variables", what, k, k)
 		}

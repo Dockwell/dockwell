@@ -457,6 +457,11 @@ type Normalizer interface {
 // or isn't on its servers, and makes what is named first.
 type Referrer interface {
 	References(spec proto.Message) []Reference
+	// ReferenceKinds are the kinds its specs can name. So a change to no
+	// resource of those kinds leaves what is stored naming what it did, and
+	// nothing need open a stored spec to find out, as a sealed one takes
+	// its key to.
+	ReferenceKinds() []Kind
 }
 
 // Reference is a resource a spec names, in the spec's own scope.
@@ -479,6 +484,16 @@ func (r *Registry) References(kind Kind, spec proto.Message) []Reference {
 		return ref.References(spec)
 	}
 	return nil
+}
+
+// Named reports whether any kind's specs can name a resource of kind.
+func (r *Registry) Named(kind Kind) bool {
+	for _, t := range r.types {
+		if ref, ok := t.(Referrer); ok && slices.Contains(ref.ReferenceKinds(), kind) {
+			return true
+		}
+	}
+	return false
 }
 
 // HasReferrers reports whether any kind names others.

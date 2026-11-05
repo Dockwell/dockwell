@@ -12,8 +12,9 @@
 // secrets it used, never their values (Label), so it can read the service
 // back as its spec (Restore).
 //
-// The Docker driver (#26) calls Environment when it creates a service's
-// container, and gets everything else from the service driver here.
+// The service driver does all of that as it runs a service's container
+// (service.Driver.Apply). The container runtime gets the result as any
+// container's spec, and environment() there turns it into Docker's.
 package binding
 
 import (
@@ -23,6 +24,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -88,52 +91,89 @@ func Label(svc *resourcev1.Service) string {
 	return strings.Join(parts, ",")
 }
 
-// Restore reads a service back from its container, as Observe returns it:
-// it takes the LabelKey label off, and with it the variables it names from
-// the environment, and puts them back as what the service uses. A
-// container without the label used nothing.
-func Restore(c *resourcev1.Container) (*resourcev1.Service, error) {
-	svc := &resourcev1.Service{Runs: &resourcev1.Service_App{App: c}}
-	label, ok := c.GetLabels()[LabelKey]
-	if !ok {
-		return svc, nil
+// App is the container a service runs as: its app, with env as its
+// environment, and the LabelKey label when it uses anything. The service's
+// own spec stays as it is, so the values in env go no further than the
+// call that holds them.
+func App(svc *resourcev1.Service, env map[string]string) *resourcev1.Container {
+	app := proto.CloneOf(svc.GetApp())
+	app.Env = env
+	if label := Label(svc); label != "" {
+		if app.Labels == nil {
+			app.Labels = map[string]string{}
+		}
+		app.Labels[LabelKey] = label
 	}
-	delete(c.Labels, LabelKey)
-	if len(c.Labels) == 0 {
-		c.Labels = nil
-	}
+	return app
+}
+
+// ParseLabel reads a LabelKey label back into what it records.
+func ParseLabel(label string) ([]resource.Use, error) {
 	if label == "" {
-		return svc, nil
+		return nil, nil
 	}
+	var uses []resource.Use
 	for _, part := range strings.Split(label, ",") {
 		as, rest, ok1 := strings.Cut(part, "=")
 		kind, rest, ok2 := strings.Cut(rest, ":")
 		name, rev, ok3 := strings.Cut(rest, "@")
 		n, err := strconv.Atoi(rev)
 		if !ok1 || !ok2 || !ok3 || err != nil || as == "" || name == "" {
-			return nil, fmt.Errorf("the container's %s label, %q, isn't one Dockwell wrote", LabelKey, label)
+			return nil, fmt.Errorf("the %s label, %q, isn't one Dockwell wrote", LabelKey, label)
 		}
-		switch resource.Kind(kind) {
-		case variable.VariableKind:
-			if svc.Variables == nil {
-				svc.Variables = map[string]string{}
-			}
-			svc.Variables[as] = name
-		case variable.SecretKind:
-			if svc.Secrets == nil {
-				svc.Secrets = map[string]string{}
-			}
-			svc.Secrets[as] = name
-		default:
-			return nil, fmt.Errorf("the container's %s label uses a %q, which isn't a kind a service uses", LabelKey, kind)
+		if k := resource.Kind(kind); k != variable.VariableKind && k != variable.SecretKind {
+			return nil, fmt.Errorf("the %s label uses a %q, which isn't a kind a service uses", LabelKey, kind)
 		}
-		if n > 0 {
+		uses = append(uses, resource.Use{As: as, Kind: resource.Kind(kind), Name: name, Revision: n})
+	}
+	return uses, nil
+}
+
+// Use records that svc uses what u names, under the name it sees it as.
+func Use(svc *resourcev1.Service, u resource.Use) {
+	uses := &svc.Variables
+	if u.Kind == variable.SecretKind {
+		uses = &svc.Secrets
+	}
+	if *uses == nil {
+		*uses = map[string]string{}
+	}
+	(*uses)[u.As] = u.Name
+}
+
+// Restore reads a service back from its container, as Observe returns it:
+// it takes the LabelKey label off, and with it the variables it names from
+// the environment, and puts them back as what the service uses. A
+// container without the label used nothing. Nor does one use what the
+// label names and its environment doesn't have, as when docker compose up
+// ran an export without the value in its shell: that reads as drift, as
+// the container isn't running with it.
+func Restore(c *resourcev1.Container) (*resourcev1.Service, error) {
+	svc := &resourcev1.Service{Runs: &resourcev1.Service_App{App: c}}
+	label, ok := c.GetLabels()[LabelKey]
+	if !ok {
+		return svc, nil
+	}
+	uses, err := ParseLabel(label)
+	if err != nil {
+		return nil, fmt.Errorf("the container can't be read back: %w", err)
+	}
+	delete(c.Labels, LabelKey)
+	if len(c.Labels) == 0 {
+		c.Labels = nil
+	}
+	for _, u := range uses {
+		if _, ok := c.Env[u.As]; !ok {
+			continue
+		}
+		Use(svc, u)
+		if u.Revision > 0 {
 			if svc.Revisions == nil {
 				svc.Revisions = map[string]int64{}
 			}
-			svc.Revisions[as] = int64(n)
+			svc.Revisions[u.As] = int64(u.Revision)
 		}
-		delete(c.Env, as)
+		delete(c.Env, u.As)
 	}
 	if len(c.Env) == 0 {
 		c.Env = nil

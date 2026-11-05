@@ -491,7 +491,7 @@ func testAChangeLeftApplyingFinishesAfterTheUpgrade(t *testing.T, backend store.
 	if c := stored(t, db, other); c.State != store.ChangeApplied {
 		t.Errorf("the change beside it is %s, want applied", c.State)
 	}
-	if got, _ := f["srv_A"].docker.Inspect(t.Context(), "web"); got != nil {
+	if got, _ := f["srv_A"].docker.Inspect(t.Context(), container.HostTarget(resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"})); got != nil {
 		t.Errorf("a spec stored in the clear ran: %v", got)
 	}
 }

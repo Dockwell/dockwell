@@ -4,6 +4,7 @@ package control
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
@@ -20,6 +22,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -329,5 +332,330 @@ volumes:
 	}
 	if !strings.Contains(text, "permission denied") {
 		t.Errorf("the change doesn't say why the mount failed: %s", text)
+	}
+}
+
+// valuesStack runs web on the one server, using a variable and a secret
+// from its environment, with what its own environment holds.
+func valuesStack(image string, env map[string]string) []*dockwellv1.Edit {
+	return []*dockwellv1.Edit{
+		variableSpec("LOG_LEVEL", "debug"),
+		secretSpec("DB_PASSWORD", "s3cret-pw-1"),
+		{
+			Resource: &dockwellv1.ResourceRef{Name: "web"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+				Runs:      &resourcev1.Service_App{App: &resourcev1.Container{Image: image, Env: env}},
+				Variables: map[string]string{"LOG_LEVEL": ""},
+				Secrets:   map[string]string{"DATABASE_PASSWORD": "DB_PASSWORD"},
+			}}},
+		},
+	}
+}
+
+// An environment with variables and secrets exports with no secret in the
+// file, as what it uses, and importing that file plans no change: nothing
+// restarts, nothing is lost, and the service still uses the environment's
+// values, so a later rotation still reaches it. What it can't keep it
+// refuses, by name, and never by comparing a secret's value.
+func TestAnExportImportsAgainKeepingVariablesAndSecrets(t *testing.T) {
+	storetest.Each(t, testAnExportImportsAgainKeepingVariablesAndSecrets)
+}
+
+func testAnExportImportsAgainKeepingVariablesAndSecrets(t *testing.T, backend store.Backend) {
+	logs := &syncBuffer{}
+	f := startFullLogging(t, backend, nil, slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	cc := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+
+	made := apply(t, c, propose(t, c, "Run web", valuesStack("ghcr.io/acme/shop:1.4", nil)...))
+	project := docker.Project(listedEnv(t, b))
+	web := e.Container(project + "-web-1")
+	if web == nil {
+		t.Fatalf("Docker has %v, want web", e.Containers())
+	}
+	if !slices.Contains(web.Config.Env, "DATABASE_PASSWORD=s3cret-pw-1") || !slices.Contains(web.Config.Env, "LOG_LEVEL=debug") {
+		t.Fatalf("web runs with %v; the test didn't run what it meant to", web.Config.Env)
+	}
+	if got := web.Config.Labels[binding.LabelKey]; got != "DATABASE_PASSWORD=secret:DB_PASSWORD@1,LOG_LEVEL=variable:LOG_LEVEL@1" {
+		t.Errorf("web's label says it uses %q", got)
+	}
+	for k, v := range web.Config.Labels {
+		if strings.Contains(v, "s3cret") {
+			t.Errorf("web's label %s holds the secret: %s", k, v)
+		}
+	}
+	drift, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil || len(drift.Msg.GetDrift()) != 0 {
+		t.Fatalf("drift right after the change = %v, %v", drift.Msg.GetDrift(), err)
+	}
+
+	export := func() *dockwellv1.ExportComposeResponse {
+		t.Helper()
+		ex, err := cc.ExportCompose(t.Context(), connect.NewRequest(&dockwellv1.ExportComposeRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ex.Msg
+	}
+	first := export()
+	file := first.GetCompose()
+	if strings.Contains(file, "s3cret") {
+		t.Errorf("the export holds the secret:\n%s", file)
+	}
+	for _, want := range []string{"DATABASE_PASSWORD: null", "LOG_LEVEL: debug", binding.LabelKey + ": DATABASE_PASSWORD=secret:DB_PASSWORD@1,LOG_LEVEL=variable:LOG_LEVEL@1"} {
+		if !strings.Contains(file, want) {
+			t.Errorf("the export doesn't say %q:\n%s", want, file)
+		}
+	}
+	if want := []string{"web.DATABASE_PASSWORD"}; !slices.Equal(first.GetOmitted(), want) {
+		t.Errorf("omitted %v, want %v", first.GetOmitted(), want)
+	}
+
+	// Importing it changes nothing: it plans nothing, and removing orphans
+	// leaves the environment's variables and secrets alone.
+	again := importCompose(t, cc, file, nil, true)
+	if !plansNothing(again.GetPlan()) {
+		t.Errorf("importing the export plans %v:\n%v", again.GetPlan().GetSummary(), again.GetPlan().GetResources())
+	}
+	apply(t, c, again)
+	if got := e.Container(project + "-web-1"); got.ID != web.ID {
+		t.Error("importing the export recreated web")
+	}
+	if got := export().GetCompose(); got != file {
+		t.Errorf("after importing it, the export is:\n%s\nwant:\n%s", got, file)
+	}
+
+	// An edit to the file changes what it edits alone, and web goes on
+	// using the values, with the secret delivered again.
+	bumped := strings.ReplaceAll(file, "ghcr.io/acme/shop:1.4", "ghcr.io/acme/shop:1.5")
+	bump := importCompose(t, cc, bumped, nil, false)
+	if rs := bump.GetPlan().GetResources(); len(rs) != 1 || len(rs[0].GetChanges()) != 1 || rs[0].GetChanges()[0].GetPath() != "app.image" {
+		t.Errorf("a new image plans %v, want the image alone", rs)
+	}
+	apply(t, c, bump)
+	web = e.Container(project + "-web-1")
+	if web.Config.Image != "ghcr.io/acme/shop:1.5" || !slices.Contains(web.Config.Env, "DATABASE_PASSWORD=s3cret-pw-1") {
+		t.Errorf("after the bump, web runs %s with %v", web.Config.Image, web.Config.Env)
+	}
+
+	// So a rotation still reaches it, and the next export says so.
+	rotated := apply(t, c, propose(t, c, "Rotate the password", secretSpec("DB_PASSWORD", "s3cret-pw-2")))
+	if web = e.Container(project + "-web-1"); !slices.Contains(web.Config.Env, "DATABASE_PASSWORD=s3cret-pw-2") {
+		t.Errorf("after the rotation, web runs with %v", web.Config.Env)
+	}
+	file = export().GetCompose()
+	if !strings.Contains(file, "DATABASE_PASSWORD=secret:DB_PASSWORD@2") || strings.Contains(file, "s3cret") {
+		t.Errorf("the export after the rotation:\n%s", file)
+	}
+	if got := importCompose(t, cc, file, nil, false).GetPlan(); !plansNothing(got) {
+		t.Errorf("importing it again plans %v", got.GetResources())
+	}
+
+	refused := []struct {
+		name, want string
+		edit       func(string) string
+		variables  map[string]string
+	}{
+		{
+			name: "a secret given a value in the file", want: "DATABASE_PASSWORD is set in the app's environment and from a secret too",
+			edit: func(s string) string {
+				return strings.Replace(s, "DATABASE_PASSWORD: null", "DATABASE_PASSWORD: s3cret-pw-2", 1)
+			},
+		},
+		{
+			name: "a secret given another value in the file", want: "DATABASE_PASSWORD is set in the app's environment and from a secret too",
+			edit: func(s string) string {
+				return strings.Replace(s, "DATABASE_PASSWORD: null", "DATABASE_PASSWORD: a-guess", 1)
+			},
+		},
+		{
+			name: "a secret given a value in the request", want: "DATABASE_PASSWORD is set in the app's environment and from a secret too",
+			edit: func(s string) string { return s }, variables: map[string]string{"DATABASE_PASSWORD": "a-guess"},
+		},
+		{
+			name: "a variable given another value in the file", want: "LOG_LEVEL is set in the app's environment and from a variable too",
+			edit: func(s string) string { return strings.Replace(s, "LOG_LEVEL: debug", "LOG_LEVEL: info", 1) },
+		},
+		{
+			name: "a name with no value, and no label to say what it uses", want: "the service web's variable DATABASE_PASSWORD has no value",
+			edit: func(s string) string {
+				var kept []string
+				for line := range strings.Lines(s) {
+					if !strings.Contains(line, binding.LabelKey+":") {
+						kept = append(kept, line)
+					}
+				}
+				return strings.Join(kept, "")
+			},
+		},
+		{
+			name: "a label Dockwell didn't write", want: "has a label it can't use",
+			edit: func(s string) string {
+				return strings.ReplaceAll(s, "DATABASE_PASSWORD=secret:DB_PASSWORD@2,", "DATABASE_PASSWORD=volume:DB_PASSWORD@2,")
+			},
+		},
+		{
+			name: "a secret that isn't in the environment", want: "ANOTHER",
+			edit: func(s string) string {
+				return strings.ReplaceAll(s, "DATABASE_PASSWORD=secret:DB_PASSWORD@2,", "DATABASE_PASSWORD=secret:ANOTHER@2,")
+			},
+		},
+	}
+	for _, r := range refused {
+		_, err := cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: r.edit(file), Variables: r.variables}))
+		if err == nil {
+			t.Errorf("importing %s planned a change", r.name)
+			continue
+		}
+		if strings.Contains(err.Error(), "s3cret") || strings.Contains(err.Error(), "a-guess") {
+			t.Errorf("importing %s says a value: %v", r.name, err)
+		}
+		if !strings.Contains(err.Error(), r.want) {
+			t.Errorf("importing %s = %v, want it to say %q", r.name, err, r.want)
+		}
+	}
+
+	// Taking a name out of the file stops using it, which is an edit, and
+	// the plan says so.
+	stopped := strings.Replace(file, "      LOG_LEVEL: debug\n", "", 1)
+	drop := importCompose(t, cc, stopped, nil, false)
+	if rs := drop.GetPlan().GetResources(); len(rs) != 1 {
+		t.Errorf("taking LOG_LEVEL out plans %v", rs)
+	} else if !slices.ContainsFunc(rs[0].GetChanges(), func(ch *dockwellv1.FieldChange) bool { return ch.GetPath() == "variables[LOG_LEVEL]" }) {
+		t.Errorf("taking LOG_LEVEL out plans %v, want it to stop using the variable", rs[0].GetChanges())
+	}
+
+	// Nothing above put a value of the secret anywhere anyone reads: not
+	// the changes, the timeline's logs, or the store.
+	for _, id := range []string{made.GetId(), rotated.GetId(), again.GetId(), bump.GetId(), drop.GetId()} {
+		got, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: id}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(got.Msg.String(), "s3cret") {
+			t.Errorf("change %s holds the secret: %s", id, got.Msg)
+		}
+	}
+	if strings.Contains(logs.String(), "s3cret") {
+		t.Error("the logs hold the secret")
+	}
+	for table, rows := range storetest.Dump(t, f.db) {
+		for _, row := range rows {
+			if strings.Contains(row, "s3cret") {
+				t.Errorf("%s holds the secret: %q", table, row)
+			}
+		}
+	}
+}
+
+// A volume's options are sensitive, so its spec is sealed like a secret's:
+// a CIFS password is in no table, in any encoding, on either store, and a
+// plan says the options changed and never what they hold. Reading it back
+// to apply it still gives Docker the password.
+func TestAVolumesPasswordIsSealed(t *testing.T) { storetest.Each(t, testAVolumesPasswordIsSealed) }
+
+func testAVolumesPasswordIsSealed(t *testing.T, backend store.Backend) {
+	const password = "cifs-pw-7Hq2mXv9Lr4Kd8Zs"
+	file := "services:\n  app:\n    image: ghcr.io/acme/shop:1.4\n    volumes: [\"share:/x\"]\nvolumes:\n  share:\n" +
+		"    driver_opts: {type: cifs, device: //nas/share, o: \"addr=10.0.0.2,username=svc,password=" + password + "\"}\n"
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	cc := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+
+	planned := importCompose(t, cc, file, nil, false)
+	if strings.Contains(planned.String(), password) {
+		t.Errorf("the plan holds the password: %s", planned)
+	}
+	assertNoPassword := func(when string) {
+		t.Helper()
+		dump := storetest.Dump(t, f.db)
+		for _, table := range []string{"change_items", "data_keys"} {
+			if len(dump[table]) == 0 {
+				t.Errorf("the dump has no %s; the test reads the wrong database", table)
+			}
+		}
+		for table, rows := range dump {
+			for _, row := range rows {
+				for _, enc := range encodings(password) {
+					if strings.Contains(row, enc) {
+						t.Errorf("%s, %s holds the password, as %q: %q", when, table, enc, row)
+					}
+				}
+			}
+		}
+	}
+	assertNoPassword("once it is planned")
+	applyConfirmed(t, c, planned)
+	assertNoPassword("once it is applied")
+
+	project := docker.Project(listedEnv(t, b))
+	v := e.Volume(project + "_share")
+	if v == nil || !strings.Contains(v.Options["o"], password) {
+		t.Fatalf("Docker has the volume %+v; the test didn't run what it meant to", v)
+	}
+
+	// An export leaves the options out, and what they hold stays out of
+	// each change that reads the volume, undo's included.
+	ex, err := cc.ExportCompose(t.Context(), connect.NewRequest(&dockwellv1.ExportComposeRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(ex.Msg.GetCompose(), password) || !slices.Contains(ex.Msg.GetOmitted(), "volumes.share.driver_opts") {
+		t.Errorf("the export omits %v:\n%s", ex.Msg.GetOmitted(), ex.Msg.GetCompose())
+	}
+	// Docker can't change a volume, so importing the file without its
+	// options is refused, and takes nothing away.
+	_, err = cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: ex.Msg.GetCompose()}))
+	if err == nil || strings.Contains(err.Error(), password) || !strings.Contains(err.Error(), "share") {
+		t.Errorf("importing the export without the options = %v, want it refused, naming the volume and no password", err)
+	}
+	if got := e.Volume(project + "_share"); got == nil || !strings.Contains(got.Options["o"], password) {
+		t.Errorf("after refusing the import, Docker has %+v", got)
+	}
+	got, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: planned.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got.Msg.String(), password) {
+		t.Errorf("the change holds the password: %s", got.Msg)
+	}
+	assertNoPassword("at the end")
+}
+
+// plansNothing reports a plan that changes no resource and runs no step.
+func plansNothing(p *dockwellv1.Plan) bool {
+	s := p.GetSummary()
+	if s.GetCreate()+s.GetChange()+s.GetReplace()+s.GetDestroy() != 0 {
+		return false
+	}
+	for _, r := range p.GetResources() {
+		if r.GetAction() != dockwellv1.PlanAction_PLAN_ACTION_NONE || len(r.GetChanges()) != 0 {
+			return false
+		}
+	}
+	for _, server := range p.GetServers() {
+		for _, step := range server.GetSteps() {
+			if step.GetAction() != dockwellv1.PlanAction_PLAN_ACTION_NONE {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// applyConfirmed applies a change that takes a person who names its plan,
+// and waits for it to apply.
+func applyConfirmed(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch *dockwellv1.Change) {
+	t.Helper()
+	w := watch(t, c, ch.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint()})); err != nil {
+		t.Fatal(err)
+	}
+	if got := waitWatch(t, w).last(); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the change ended %v: %s", got.GetState(), got.GetError())
 	}
 }

@@ -254,9 +254,9 @@ func (v fixedValues) Values(context.Context, string, resource.Ref, proto.Message
 func TestValuesAreSealedAgainForTheStreamACallMovesTo(t *testing.T) {
 	s := startStack(t, 5*time.Second)
 	id := s.enrollLocal(t)
-	fw, docker := newGate(), containertest.NewFake()
+	fw, engine := newGate(), containertest.NewFake()
 	s.agents.SendValues(fixedValues{"TOKEN": "s3cret-on-the-next-stream"})
-	runAgent(t, s, id, resource.NewRegistry(&firewall.Driver{Backend: fw}, &service.Driver{Containers: container.Driver{Runtime: docker}}))
+	runAgent(t, s, id, resource.NewRegistry(&firewall.Driver{Backend: fw}, &service.Driver{Containers: container.Driver{Runtime: engine}}))
 	a := waitForAgent(t, s.agents, id.ServerID, true)
 	slow := resource.Step{Ref: resource.Ref{Kind: firewall.Kind, Scope: id.ServerID, Name: "slow"}, Decision: resource.Decision{Action: resource.ActionCreate}}
 	rule := &resourcev1.FirewallRule{Port: 8080}
@@ -300,7 +300,7 @@ func TestValuesAreSealedAgainForTheStreamACallMovesTo(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("the refused step wasn't sent again on the agent's next stream")
 	}
-	got, err := docker.Inspect(t.Context(), service.Target(web))
+	got, err := engine.Inspect(t.Context(), service.Target(web))
 	if err != nil || got.GetEnv()["TOKEN"] != "s3cret-on-the-next-stream" {
 		t.Errorf("the service's container runs with %v, %v; want the secret it uses", got.GetEnv(), err)
 	}

@@ -40,7 +40,7 @@ var agentPackages = []string{
 	"internal/cli/apinames", // the API commands' names, to say they're in the full build
 	"internal/datadir",
 	"internal/delivery", // opens the values of a step's variables and secrets, sealed to the stream
-	"internal/docker", // the Docker Engine's API, for the Docker driver (ADR 0021)
+	"internal/docker",   // the Docker Engine's API, for the Docker driver (ADR 0021)
 	"internal/human",
 	"internal/id",
 	"internal/logging",
