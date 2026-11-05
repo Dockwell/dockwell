@@ -415,7 +415,10 @@ func testReadingLogsNeedsTheGrantAndIsAudited(t *testing.T, backend store.Backen
 	tokens := dockwellv1connect.NewTokenServiceClient(b, b.origin, connect.WithProtoJSON())
 
 	made := func(scope dockwellv1.TokenScope, grants ...dockwellv1.TokenGrant) dockwellv1connect.LogServiceClient {
-		res, err := tokens.CreateToken(t.Context(), connect.NewRequest(&dockwellv1.CreateTokenRequest{Name: "CI " + scope.String(), Scope: scope, Grants: grants}))
+		res, err := tokens.CreateToken(t.Context(), connect.NewRequest(&dockwellv1.CreateTokenRequest{
+			Proof: stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
+			Name:  "CI " + scope.String(), Scope: scope, Grants: grants,
+		}))
 		if err != nil {
 			t.Fatalf("CreateToken: %v", err)
 		}
