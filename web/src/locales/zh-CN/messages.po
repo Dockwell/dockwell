@@ -266,6 +266,10 @@ msgstr "{out}，可绕过服务器的防火墙"
 msgid "{out}, with {detail}"
 msgstr "{out}，选项为 {detail}"
 
+#: src/features/changes/words.ts
+msgid "{path} as a proxy it believes on where a request came from"
+msgstr "{path}，作为它信任的代理，相信它所说的请求来源"
+
 #: src/features/apps/AppOverview.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "{plain, plural, one {# variable} other {# variables}}"
@@ -644,10 +648,6 @@ msgstr "另外 {more} 项"
 msgid "Any image your server can pull, such as nginx:1.27."
 msgstr "服务器能够拉取的任意镜像，例如 nginx:1.27。"
 
-#: src/features/apps/NewAppSheet.tsx
-msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
-msgstr "能读取 {holder} 的{where}的任何人，都能看到 {names} 的值。"
-
 #: src/features/changes/words.ts
 msgid "anyone on the internet"
 msgstr "互联网上的任何人"
@@ -655,6 +655,10 @@ msgstr "互联网上的任何人"
 #: src/features/changes/words.ts
 msgid "anyone who can reach {server}"
 msgstr "任何能访问 {server} 的人"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
+msgstr "能读取 {holder} 的{where}的任何人，都能看到 {names} 的值。"
 
 #: src/features/changes/words.ts
 msgid "API token"
@@ -1738,6 +1742,18 @@ msgstr "不到一分钟后"
 msgid "Installed"
 msgstr "安装时间"
 
+#: src/features/changes/words.ts
+msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
+msgstr "它通过纯 HTTP 响应任何能访问 {server} 80 端口的人，绕过它前面的任何东西"
+
+#: src/features/changes/words.ts
+msgid "It answers only {list}. Anyone else gets what a name with no route gets"
+msgstr "它只响应 {list}。其他人得到的结果和访问没有路由的域名一样"
+
+#: src/features/changes/words.ts
+msgid "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
+msgstr "它只响应在 {server} 本机上运行的程序，例如使用其自身网络的隧道。其他人得到的结果和访问没有路由的域名一样"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "It can't be hidden there, so don't pass a secret there."
 msgstr "这里无法隐藏值，所以不要在这里传入机密。"
@@ -2231,6 +2247,10 @@ msgstr "这里还没有内容。"
 msgid "Nothing in its spec changed. It moved, or came back as it was."
 msgstr "规格没有变化。它只是被移动，或恢复原样。"
 
+#: src/features/changes/words.ts
+msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
+msgstr "端口 {number} 上还没有任何程序在监听，所以在有程序监听之前它会返回 502"
+
 #: src/features/apps/AppsPage.tsx
 msgid "Nothing matches"
 msgstr "没有匹配项"
@@ -2484,6 +2504,10 @@ msgstr "已暂停"
 #: src/features/apps/AddPortSheet.tsx
 msgid "People outside the server reach the app through this port"
 msgstr "服务器外部的用户通过这个端口访问应用"
+
+#: src/features/changes/words.ts
+msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
+msgstr "{path} 上面向任何能访问此服务器的人的纯 HTTP，绕过它前面的任何东西"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
@@ -3711,6 +3735,10 @@ msgstr "验证码错误次数过多。请稍候再试。"
 msgid "Took"
 msgstr "耗时"
 
+#: src/features/changes/words.ts
+msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
+msgstr "此路由的流量以未加密的方式到达 {server}，因为 TLS 在到达它之前就已终止。在隧道或私有网络上这没有问题；在开放的互联网上则不行，沿途的任何人都能读取这些流量"
+
 #. Read after a metric's name to name its chart, as in “CPU trend”.
 #: src/app/Providers.tsx
 msgid "trend"
@@ -4023,6 +4051,10 @@ msgstr "接下来"
 #: src/features/apps/AddPortSheet.tsx
 msgid "What people connect to, such as 8080."
 msgstr "外部连接使用的端口，例如 8080。"
+
+#: src/features/changes/words.ts
+msgid "what runs on {server} itself"
+msgstr "在 {server} 本机上运行的程序"
 
 #: src/features/apps/AppsPage.tsx
 msgid "What runs on your servers isn't affected."

@@ -266,6 +266,10 @@ msgstr "{out}, which reaches past the server's firewall"
 msgid "{out}, with {detail}"
 msgstr "{out}, with {detail}"
 
+#: src/features/changes/words.ts
+msgid "{path} as a proxy it believes on where a request came from"
+msgstr "{path} as a proxy it believes on where a request came from"
+
 #: src/features/apps/AppOverview.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "{plain, plural, one {# variable} other {# variables}}"
@@ -644,10 +648,6 @@ msgstr "and {more} more"
 msgid "Any image your server can pull, such as nginx:1.27."
 msgstr "Any image your server can pull, such as nginx:1.27."
 
-#: src/features/apps/NewAppSheet.tsx
-msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
-msgstr "Anyone who can read {holder}'s {where} can see the value of {names}."
-
 #: src/features/changes/words.ts
 msgid "anyone on the internet"
 msgstr "anyone on the internet"
@@ -655,6 +655,10 @@ msgstr "anyone on the internet"
 #: src/features/changes/words.ts
 msgid "anyone who can reach {server}"
 msgstr "anyone who can reach {server}"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
+msgstr "Anyone who can read {holder}'s {where} can see the value of {names}."
 
 #: src/features/changes/words.ts
 msgid "API token"
@@ -1738,6 +1742,18 @@ msgstr "in under a minute"
 msgid "Installed"
 msgstr "Installed"
 
+#: src/features/changes/words.ts
+msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
+msgstr "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
+
+#: src/features/changes/words.ts
+msgid "It answers only {list}. Anyone else gets what a name with no route gets"
+msgstr "It answers only {list}. Anyone else gets what a name with no route gets"
+
+#: src/features/changes/words.ts
+msgid "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
+msgstr "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "It can't be hidden there, so don't pass a secret there."
 msgstr "It can't be hidden there, so don't pass a secret there."
@@ -2231,6 +2247,10 @@ msgstr "Nothing here yet."
 msgid "Nothing in its spec changed. It moved, or came back as it was."
 msgstr "Nothing in its spec changed. It moved, or came back as it was."
 
+#: src/features/changes/words.ts
+msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
+msgstr "Nothing listens on port {number} yet, so this answers 502 until something does"
+
 #: src/features/apps/AppsPage.tsx
 msgid "Nothing matches"
 msgstr "Nothing matches"
@@ -2484,6 +2504,10 @@ msgstr "Paused"
 #: src/features/apps/AddPortSheet.tsx
 msgid "People outside the server reach the app through this port"
 msgstr "People outside the server reach the app through this port"
+
+#: src/features/changes/words.ts
+msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
+msgstr "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
@@ -3711,6 +3735,10 @@ msgstr "Too many wrong codes. Wait a moment, then try again."
 msgid "Took"
 msgstr "Took"
 
+#: src/features/changes/words.ts
+msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
+msgstr "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
+
 #. Read after a metric's name to name its chart, as in “CPU trend”.
 #: src/app/Providers.tsx
 msgid "trend"
@@ -4023,6 +4051,10 @@ msgstr "What happens next"
 #: src/features/apps/AddPortSheet.tsx
 msgid "What people connect to, such as 8080."
 msgstr "What people connect to, such as 8080."
+
+#: src/features/changes/words.ts
+msgid "what runs on {server} itself"
+msgstr "what runs on {server} itself"
 
 #: src/features/apps/AppsPage.tsx
 msgid "What runs on your servers isn't affected."

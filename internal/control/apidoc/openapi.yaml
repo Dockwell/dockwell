@@ -3828,6 +3828,25 @@ components:
                         True when the digest its spec pins isn't on the server, and its registry
                          won't give it, so applying it could only fail. A registry that doesn't answer
                          says nothing of it, so this stays false.
+                unencrypted:
+                    type: boolean
+                    description: |-
+                        True when the step has a route serve plain HTTP that didn't, as TLS ends
+                         before this server, so its traffic reaches the server unencrypted. That is
+                         fine on a tunnel or a private network, and not on the open internet. It
+                         never stops a plan, and needs no person.
+                answers:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteAnswers'
+                    description: |-
+                        Who a route with tls off, or to a port on the server, answers. Unset for what
+                         answers over HTTPS and sends to a service, as every other route does.
+                serverPort:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerPortCheck'
+                    description: |-
+                        The port on the server a route sends to, and what listens there as this was
+                         planned. It never stops a plan, and the fingerprint leaves what listens out.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
