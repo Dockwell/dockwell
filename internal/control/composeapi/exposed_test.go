@@ -19,24 +19,42 @@ func TestExposedMessage(t *testing.T) {
 		e    compose.Exposed
 		want string
 	}{
-		{compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "command"},
-			"V from your .env is in web's command" + anyone + ". " + shell + "command read it there, with sh -c, if the image has a shell"},
-		{compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "entrypoint"},
-			"V from your .env is in web's entrypoint" + anyone + ". " + shell + "entrypoint read it there, with sh -c, if the image has a shell"},
-		{compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "healthcheck"},
-			"V from your .env is in web's health check" + anyone + ". " + shell + "health check read it there, with CMD-SHELL, if the image has a shell"},
-		{compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "labels"},
-			"V from your .env is in web's labels" + anyone + ". " + notThere},
-		{compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "environment"},
-			"V from your .env is in web's environment variable names" + anyone + ", as only a variable's value is hidden. Don't write a secret in a variable's name"},
-		{compose.Exposed{Variable: "V", Kind: "network", Owner: "back", Field: "labels"},
-			"V from your .env is in the network back's labels" + anyone + ". " + notThere},
-		{compose.Exposed{Variable: "V", Kind: "network", Owner: "back", Field: "driver_opts"},
-			"V from your .env is in the network back's driver options" + anyone + ". " + notThere},
-		{compose.Exposed{Variable: "V", Kind: "volume", Owner: "data", Field: "labels"},
-			"V from your .env is in the volume data's labels" + anyone + ". " + notThere},
-		{compose.Exposed{Variable: "GIVEN", Kind: "service", Owner: "web", Field: "labels"},
-			"GIVEN from the request's variables is in web's labels" + anyone + ". " + notThere},
+		{
+			compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "command"},
+			"V from your .env is in web's command" + anyone + ". " + shell + "command read it there, with sh -c, if the image has a shell",
+		},
+		{
+			compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "entrypoint"},
+			"V from your .env is in web's entrypoint" + anyone + ". " + shell + "entrypoint read it there, with sh -c, if the image has a shell",
+		},
+		{
+			compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "healthcheck"},
+			"V from your .env is in web's health check" + anyone + ". " + shell + "health check read it there, with CMD-SHELL, if the image has a shell",
+		},
+		{
+			compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "labels"},
+			"V from your .env is in web's labels" + anyone + ". " + notThere,
+		},
+		{
+			compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "environment"},
+			"V from your .env is in web's environment variable names" + anyone + ", as only a variable's value is hidden. Don't write a secret in a variable's name",
+		},
+		{
+			compose.Exposed{Variable: "V", Kind: "network", Owner: "back", Field: "labels"},
+			"V from your .env is in the network back's labels" + anyone + ". " + notThere,
+		},
+		{
+			compose.Exposed{Variable: "V", Kind: "network", Owner: "back", Field: "driver_opts"},
+			"V from your .env is in the network back's driver options" + anyone + ". " + notThere,
+		},
+		{
+			compose.Exposed{Variable: "V", Kind: "volume", Owner: "data", Field: "labels"},
+			"V from your .env is in the volume data's labels" + anyone + ". " + notThere,
+		},
+		{
+			compose.Exposed{Variable: "GIVEN", Kind: "service", Owner: "web", Field: "labels"},
+			"GIVEN from the request's variables is in web's labels" + anyone + ". " + notThere,
+		},
 	} {
 		if got := exposedMessage(c.e, map[string]string{"GIVEN": "x"}); got != c.want {
 			t.Errorf("%+v:\n got %s\nwant %s", c.e, got, c.want)

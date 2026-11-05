@@ -423,7 +423,7 @@ func storeVariables(t *testing.T, dir, app string) map[string]string {
 var (
 	storeVariable  = regexp.MustCompile(`\$\{?([A-Za-z_][A-Za-z0-9_]*)`)
 	credentialName = regexp.MustCompile(`(?i)password|passwd|pwd|secret|token|credential|api_?key|access_?key|private_?key|(^|_)pass(_|$)|(^|_)auth(_|$)`)
-	storeURL       = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^\s]*\$`)
+	storeURL       = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://\S*\$`)
 
 	noValue      = regexp.MustCompile(`uses (.*), with no value`)
 	missingNames = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
