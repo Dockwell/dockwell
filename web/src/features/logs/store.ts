@@ -126,6 +126,13 @@ export class LogStore implements LogLines {
   private sources = new Map<string, string>();
   private seen = new Set<string>();
   private replicas = new Map<string, string>();
+  /**
+   * Sources whose first lines came before it was known which replica they or those
+   * before them are: when those lines began, and which sources had lines then. The
+   * page says which replica a source is once it has drawn it, which can be after
+   * its first lines are here, so whether a new container starts there waits for it.
+   */
+  private undecided = new Map<string, { time: ApiLine["time"]; before: string[] }>();
   private listeners = new Set<() => void>();
   private drawLine: (entry: Entry) => LogLine = (e) => ({ id: e.id, time: "", source: e.source, text: e.text });
   private words = 0;
@@ -141,6 +148,39 @@ export class LogStore implements LogLines {
   setSource(id: string, label: string, replica: string): void {
     this.sources.set(id, label);
     this.replicas.set(id, replica);
+    if (this.undecided.size > 0) this.decide();
+  }
+
+  /**
+   * Says where a new container starts, for each source that waited to know, at the
+   * first line it waited with, as soon as the replicas involved are known.
+   */
+  private decide(): void {
+    const batch: Entry[] = [];
+    for (const [source, first] of this.undecided) {
+      const starts = this.startsAnother(source, first.before);
+      if (starts === undefined) continue;
+      this.undecided.delete(source);
+      if (!starts) continue;
+      // Just before that line, which has been here since and came first.
+      const marker = this.entry(source, first.time, { started: true });
+      marker.nanos -= 1;
+      batch.push(marker);
+    }
+    if (batch.length === 0) return;
+    if (this.holding) this.setAside(batch);
+    else this.insert(batch);
+  }
+
+  /**
+   * Whether a source's first lines are another container of a replica that had lines
+   * here before, as a deploy makes: undefined until the replicas it takes are known.
+   */
+  private startsAnother(source: string, before: readonly string[]): boolean | undefined {
+    const replica = this.replicas.get(source);
+    if (replica === undefined) return undefined;
+    if (before.some((id) => this.replicas.get(id) === replica)) return true;
+    return before.every((id) => this.replicas.has(id)) ? false : undefined;
   }
 
   labelOf(id: string): string {
@@ -178,6 +218,7 @@ export class LogStore implements LogLines {
     this.errorsHead = 0;
     this.notesKept = 0;
     this.seen.clear();
+    this.undecided.clear();
     this.kept = this.pattern || this.filter.levels.size > 0 || this.filter.label ? [] : undefined;
     this.keptHead = 0;
     this.keptBase = 0;
@@ -374,11 +415,12 @@ export class LogStore implements LogLines {
     if (firstOfSource) {
       // Another container of this replica has written here: a deploy. Say where
       // the new one starts, as the source column can't: it is one source.
-      const replica = this.replicas.get(source);
-      if (replica && [...this.seen].some((id) => this.replicas.get(id) === replica)) {
-        batch.push(this.entry(source, chunk.lines[0]?.time, { started: true }));
-      }
+      const before = [...this.seen];
       this.seen.add(source);
+      const time = chunk.lines[0]?.time;
+      const starts = this.startsAnother(source, before);
+      if (starts) batch.push(this.entry(source, time, { started: true }));
+      else if (starts === undefined) this.undecided.set(source, { time, before });
     }
     this.received += chunk.lines.length;
     for (const line of chunk.lines) batch.push(this.lineEntry(source, line));
