@@ -1,6 +1,6 @@
 # Installing Dockwell
 
-One command installs Dockwell on a Linux server. Running it again upgrades in place, and `--uninstall` removes it without touching your workloads.
+One command installs Dockwell on a Linux server. Running it again upgrades in place, and `--uninstall` removes it without touching your workloads, and tells you what stays.
 
 > `get.dockwell.dev` isn't set up yet. Until it is, use the script's address in this repository instead: `https://raw.githubusercontent.com/Dockwell/dockwell/main/scripts/install.sh`. The commands below work the same with either.
 
@@ -81,13 +81,24 @@ The service sets `GOMEMLIMIT=200MiB`, a soft limit on the memory the Go runtime 
 
 ## Beside another proxy
 
-Dockwell binds nothing on ports 80 and 443 until a server gets its first route, so it can run beside another proxy, such as 1Panel's OpenResty. To reach a service through that proxy, publish its port on loopback and point the proxy at it. A route on such a server is refused when it is planned, naming what holds the ports, and nothing changes.
+Dockwell binds nothing on ports 80 and 443 until a server gets its first route, so it can run beside another proxy, such as 1Panel's OpenResty. To reach a service through that proxy, publish its port on loopback and point the proxy at it. A route on such a server is refused when it is planned, naming what holds the ports, and nothing changes. A server whose routes all [take no certificate](#behind-cloudflare-tunnel-or-another-proxy) holds port 80 alone, so it runs beside whatever holds 443.
 
 ## Move a server onto Dockwell's ingress
 
 When you are ready to stop the other proxy, what it serves stops answering until you add a route for each site, so do this when you can afford that, and start with one that matters least.
 
-**1. Find what holds the ports.** Dockwell names it when you plan a route. You can also ask:
+**1. Give each site something a route can send to.** A route sends to a Dockwell service, or a port on the server itself. A container someone else made, such as one of 1Panel's, isn't a service, so there are two ways, for each site:
+
+- **Run it as a service.** Create it with `dockwell services create`, or from its Compose file with `dockwell compose import`, which is what you'll want in the end, with plans, undo and rollback. `dockwell compose import` takes no external network, `container_name` or `deploy.resources` yet, so a file from 1Panel's app store may need those taken out first ([#84](https://github.com/Dockwell/dockwell/issues/84)). Dockwell keeps its own names and its own volumes, so stop the old container before you start one on the same data, as two databases on one directory corrupt it, and copy what's in its volumes across if they're named ones.
+
+  ```sh
+  docker stop 1Panel-myapp-abc12
+  dockwell services create myapp --app-image ghcr.io/acme/myapp:1.4 --yes
+  ```
+
+- **Leave it as it is, for now, and send to the port it publishes.** Publish its port on loopback if it doesn't already, then name that port on its route in step 4 with `--host-port`. It reaches past containers, so a person approves it, in the panel. Dockwell doesn't see or restart such a container ([#86](https://github.com/Dockwell/dockwell/issues/86)). The same goes for a process on the server that isn't a container.
+
+**2. Find what holds the ports.** Dockwell names it when you plan a route. You can also ask:
 
 ```sh
 ss -ltnp 'sport = :80 or sport = :443'
@@ -97,7 +108,7 @@ docker ps --filter network=host --format '{{.Names}}'
 
 1Panel's OpenResty is a container named like `1Panel-openresty-abc12`, on the server's own network, so it shows in the first and the last of these.
 
-**2. Stop it, and keep it stopped.** `docker stop` isn't enough. A container with `restart: always`, as 1Panel's OpenResty has, lasts until Docker next restarts, which a reboot does, and then it can take the ports back. So change its restart policy first:
+**3. Stop it, and keep it stopped.** `docker stop` isn't enough. A container with `restart: always`, as 1Panel's OpenResty has, lasts until Docker next restarts, which a reboot does, and then it can take the ports back. So change its restart policy first:
 
 ```sh
 docker update --restart=no 1Panel-openresty-abc12
@@ -106,18 +117,71 @@ docker stop 1Panel-openresty-abc12
 
 If something manages that container, stop it there too, as it can start it again or make it anew: for 1Panel, stop OpenResty under its installed apps, or a later upgrade there may bring it back. A proxy that isn't in a container is your init system's to stop, such as `systemctl disable --now nginx`.
 
-**3. Add a route.** Caddy starts as a container, on the server's own network, and takes the ports. The plan names any stopped container that Docker would start again and that may take them, so you can run the same two commands on it. On a server with its panel on a domain, the first route moves that domain behind Caddy, which only a person can approve, in the panel. Its address, passkeys and sessions stay, and it keeps its certificate until Caddy has its own.
+**4. Add a route for each site.** Point the domain's DNS record at this server first, or just after, as the certificate comes once it does. A server the internet can't reach on 80 or 443 needs [the section below](#behind-cloudflare-tunnel-or-another-proxy) instead.
 
-**4. If the other proxy comes back,** Caddy can't start, and your routes, and the panel's domain, stop answering. The panel still answers through an SSH tunnel. Dockwell's log names what holds the ports, with the commands above, and `dockwell servers list --json` shows it under `ingress`. Dockwell doesn't fight it for them: run those commands, and Caddy takes the ports within a minute. You can still remove a route in the meantime.
+```sh
+dockwell routes create www --domain app.example.com --service myapp --port 8080 --yes
+# Or to what you left as it is, which stops at the plan for a person to apply in the panel:
+dockwell routes create shop --domain shop.example.com --host-port 8081 --yes
+```
 
-Removing the last route stops Caddy and frees the ports, and its certificates stay on the server for when a route comes back, so you can go back the way you came: set the other proxy's restart policy back, and start it. [ADR 0024](adr/0024-the-caddy-ingress-driver.md) has the details.
+Caddy starts as a container, on the server's own network, and takes the ports. The plan names any stopped container that Docker would start again and that may take them, so you can run the same two commands on it. On a server with its panel on a domain, the first route moves that domain behind Caddy, which only a person can approve, in the panel. Its address, passkeys and sessions stay, and it keeps its certificate until Caddy has its own.
+
+**5. If the other proxy comes back,** Caddy can't start, and your routes, and the panel's domain, stop answering. The panel still answers through an SSH tunnel. Dockwell's log names what holds the ports, with the commands above, and `dockwell servers list --json` shows it under `ingress`. Dockwell doesn't fight it for them: run those commands, and Caddy takes the ports within a minute. You can still remove a route in the meantime.
+
+Removing the last route stops Caddy and frees the ports, and its certificates stay on the server for when a route comes back, so you can go back the way you came: set the other proxy's restart policy back, with `docker update --restart=always`, and start it. [ADR 0024](adr/0024-the-caddy-ingress-driver.md) has the details.
 
 ### What you'll see, and what to leave alone
 
 - **`dockwell-ingress`** is Caddy. **`dockwell-ingress-keep`** only sleeps on the ingress network, so `docker network prune` and `docker system prune` can't remove it while your services are stopped. If you remove both it and the network, the agent makes them again within a minute, with each service's address as it was. If another network has taken that subnet by then, every route answers 503 until you remove that network, as the alternative is sending your users to whatever is on it. The log and `dockwell servers list --json` name it.
-- **Limits:** a server takes 1,000 routes, and no new domains while 50 of its domains wait for a certificate, which keeps a burst of names that don't resolve from using up Let's Encrypt's limit for your whole server. A domain stops counting 3 hours after you add it. Point its DNS here, or delete its route, to make room sooner.
-- **Hardened Docker:** a daemon with `no-new-privileges` can't run Caddy, as it ignores the file capability Caddy binds 80 and 443 with. The plan refuses, and says so: remove that setting from `/etc/docker/daemon.json` and restart Docker, or don't use routes on that server. Rootless Docker can't either, as its host network isn't the server's.
+- **Limits:** a server takes 1,000 routes, and no new domains while 50 of its domains wait for a certificate, which keeps a burst of names that don't resolve from using up Let's Encrypt's limit for your whole server. A domain stops counting 3 hours after you add it. Point its DNS here, or delete its route, to make room sooner. To add more than 50 at once, split them into changes of up to 50. A domain that takes no certificate doesn't count.
+- **Hardened Docker:** a daemon with `no-new-privileges` keeps it for everything but Caddy's container, which needs it off for the file capability it binds ports with, and says so for itself. Rootless Docker can't run Caddy, as its host network isn't the server's.
 - **An older Caddy:** a new release of Dockwell can pin a newer Caddy, which a server moves to on its next route change. Until then the log says so once, and `dockwell servers list --json` shows `outdated` under `ingress`.
+
+## Behind Cloudflare Tunnel or another proxy
+
+A route's certificate needs the internet to reach the server on 80 or 443. A server at home or in an office, on a private address with no ports open, can't be reached that way, so its certificate stays failed. If something in front of it ends TLS, as Cloudflare Tunnel and Cloudflare's proxy do, it needs no certificate. Set `tls` to `off` on its routes:
+
+```sh
+dockwell routes create www --domain app.example.com --service myapp --port 8080 --tls off --yes
+```
+
+Caddy then serves that domain over plain HTTP on port 80, asks for no certificate, and doesn't redirect it to HTTPS, which would loop behind a tunnel. The plan says its traffic reaches this server unencrypted, which is fine on a tunnel or a private network, and not on the open internet. Its certificate reads "none". While no route on the server takes a certificate, Caddy holds port 80 and nothing else. All of a domain's routes take the same setting, so to change one, change them together in one change. The panel's own domain can't be served this way, as its passkeys and cookies need HTTPS: reach it through the SSH tunnel.
+
+A real certificate with no open port, over DNS-01, is [#94](https://github.com/Dockwell/dockwell/issues/94).
+
+### Run Cloudflare Tunnel
+
+This follows [Cloudflare's guide](https://developers.cloudflare.com/tunnel/get-started/), which covers making the tunnel and its token. `cloudflared` connects out to Cloudflare on port 7844, so nothing on the server needs opening.
+
+**1. Run `cloudflared` on the server's own network,** where it reaches Caddy on `localhost`. Through Dockwell, that's a container a person approves in the panel, as it isn't kept to a bridge. `--env TUNNEL_TOKEN` alone takes the value from your shell, which keeps it out of your history:
+
+```sh
+read -rs TUNNEL_TOKEN; export TUNNEL_TOKEN
+dockwell containers create cloudflared --image cloudflare/cloudflared:latest --networks host \
+  --restart unless-stopped --env TUNNEL_TOKEN \
+  --command tunnel --command=--no-autoupdate --command run --yes
+```
+
+**2. In Cloudflare, add a published application to the tunnel,** with your domain as its hostname and `http://localhost:80` as its service. Dockwell's routes go by the hostname, which Cloudflare passes on.
+
+**3. Say which proxy to believe.** Caddy's peer is now `cloudflared`, so every visitor reads as `127.0.0.1`, and your app reads `X-Forwarded-Proto: http`, which can have an app that insists on HTTPS redirect for ever. Naming the tunnel fixes both, and a person approves it, as whoever it names can say any visitor is anyone:
+
+```sh
+dockwell routes update www --domain app.example.com --service myapp --port 8080 --tls off --trusted-proxies 127.0.0.1 --yes
+```
+
+Your app then reads the visitor's address in `X-Real-IP` and `X-Forwarded-For`, and `https` in `X-Forwarded-Proto`. It's read from the right, so what a visitor sends in that header themselves doesn't count. `CF-Connecting-IP` is stripped, whoever sends it: read `X-Real-IP` instead. With `127.0.0.1` named, anything else on the server can say the same over loopback.
+
+**If it runs on a bridge instead,** started with `docker run --add-host host.docker.internal:host-gateway`, its service is `http://host.docker.internal:80`. A firewall such as ufw treats that as incoming, so allow it: `ufw allow in on docker0 to any port 80`. Name the bridge's subnet as the proxy, such as `172.17.0.0/16`, and keep other containers off that network, as they could say the same. A service on a network of its environment can do this too, by the address of that network's gateway, if the network isn't `internal`.
+
+### Cloudflare's proxy, or another in front
+
+Cloudflare's proxy needs its SSL/TLS encryption mode set to Flexible, as this server answers only over HTTP, and any other would fail. [Cloudflare says](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/flexible/) not to use that mode for anything with logins or personal data, and the plan's warning is about this: between Cloudflare and your server is the open internet, unencrypted. Prefer a tunnel. Or, with port 80 or 443 reachable, use an ordinary route with a certificate and Full (strict).
+
+Name its ranges with `--trusted-proxies cloudflare`, which is [the list Cloudflare publishes](https://www.cloudflare.com/ips/) as a release of Dockwell has it. Port 80 answers on every address, so have your firewall let only those in, or anyone can go around Cloudflare to your server. Those ranges are shared by all of Cloudflare's customers, so this believes anything sent through its network.
+
+Any other proxy that ends TLS works the same way: `--tls off`, and its address in `--trusted-proxies`. A range wider than `/8` isn't taken, as it wouldn't be naming a proxy.
 
 ## Upgrade
 
@@ -131,7 +195,17 @@ Pass `--version 0.2.0` to install a particular release instead of the latest.
 curl -fsSL https://get.dockwell.dev | sh -s -- --uninstall
 ```
 
-This stops the service and removes the binary and the service file. Your workloads keep running: Dockwell runs apps as Docker containers and its ingress as a container of its own ([ADR 0024](adr/0024-the-caddy-ingress-driver.md)), so stopping Dockwell's service stops neither: public traffic keeps flowing, and Caddy keeps its last config across a reboot. Your data stays in `/var/lib/dockwell`, so installing again picks up where you left off. To delete it too, run `rm -rf /var/lib/dockwell`. That removes the server's identity, and on a control server, the record of every server that joined it.
+This stops the service and removes the binary and the service file. Your workloads keep running: Dockwell runs apps as Docker containers and its ingress as a container of its own ([ADR 0024](adr/0024-the-caddy-ingress-driver.md)), so stopping Dockwell's service stops neither: public traffic keeps flowing, and Caddy keeps its last config across a reboot. Your data stays in `/var/lib/dockwell`, so installing again picks up where you left off.
+
+**On a server with routes, that leaves the ingress.** Caddy goes on holding ports 80 and 443, beside the container `dockwell-ingress-keep` and the network `dockwell_ingress`, and the script says so. To get your ports back, as when you tried this beside another proxy, run it with `--remove-ingress` as well, now or later:
+
+```sh
+curl -fsSL https://get.dockwell.dev | sh -s -- --uninstall --remove-ingress
+```
+
+That removes those two containers and the network, by Dockwell's label, and takes what else is on the network off it, so your services keep running on their other networks. Your routes stop answering. Then start the other proxy again: set its restart policy back with `docker update --restart=always`, and start it. Removing your last route before you uninstall does the same, if Dockwell is still there.
+
+To delete your data too, run `rm -rf /var/lib/dockwell`. Do it after removing the ingress: Caddy's container mounts directories under it, which Docker would make again as root the next time it restarts, and Caddy couldn't read them, so it would restart for ever. Deleting it removes the server's identity, and on a control server, the record of every server that joined it. Your services' containers and volumes stay until you remove them with `docker`.
 
 ## Options
 
@@ -142,6 +216,7 @@ This stops the service and removes the binary and the service file. Your workloa
 | `--mirror <url>` | `DOCKWELL_MIRROR` | Download Dockwell from a [mirror](#install-through-a-mirror) of its GitHub releases, and check it without reaching Sigstore |
 | `--cosign-mirror <url>` | `DOCKWELL_COSIGN_MIRROR` | Download cosign from a mirror of its GitHub releases |
 | `--uninstall` | | Remove Dockwell, and keep your workloads and data |
+| `--remove-ingress` | | With `--uninstall`, also remove Dockwell's ingress, which frees the ports it holds |
 | `--help` | | Show the options |
 
 These settings are for air-gapped servers, mirrors that re-sign releases, and tests:
@@ -275,7 +350,7 @@ Everything runs from one function call on its last line, so a download that is c
 
 The Install workflow ([`.github/workflows/install.yml`](../.github/workflows/install.yml)) runs on every pull request against a release snapshot built from that commit. The snapshot is laid out as releases and signed with a throwaway key, so no published release is needed.
 
-- **Containers**: stock Debian 13, Ubuntu 26.04, AlmaLinux 9 and Alpine 3.24 images, on amd64 and arm64. Each one installs an older build, refuses a tampered archive and a bad signature, upgrades in place to the full build, runs again with nothing to do, and uninstalls. Then it joins a control plane, beside the key a failed first start as a control server leaves, gets the agent build and runs only the agent. Last, it joins with the older build, which stands in for a release from before the agent build and has only the full build, and upgrades: the server switches to the agent build, its agent connects again, and running the script again keeps it. systemd isn't running in these containers, so the unit is checked with `systemd-analyze verify` and the binary started the way the unit says. Alpine runs the OpenRC service for real, and uses busybox `wget` instead of curl.
+- **Containers**: stock Debian 13, Ubuntu 26.04, AlmaLinux 9 and Alpine 3.24 images, on amd64 and arm64. Each one installs an older build, refuses a tampered archive and a bad signature, upgrades in place to the full build, runs again with nothing to do, and uninstalls, saying what an ingress leaves and removing it when asked, on a stand-in for Docker. The Docker job does that on real Docker. Then it joins a control plane, beside the key a failed first start as a control server leaves, gets the agent build and runs only the agent. Last, it joins with the older build, which stands in for a release from before the agent build and has only the full build, and upgrades: the server switches to the agent build, its agent connects again, and running the script again keeps it. systemd isn't running in these containers, so the unit is checked with `systemd-analyze verify` and the binary started the way the unit says. Alpine runs the OpenRC service for real, and uses busybox `wget` instead of curl.
 - **Mirror**: in the same containers, the install and upgrade run again through a mirror on a second URL, with GitHub and Sigstore cut off. A cosign, archive or signature changed on the mirror is refused, and so is a version the mirror lacks. The test releases are signed with a key, which needs no trust root, so the upgrade comes from a mirror that carries none. The script's own steps that find the trust root on a mirror are tested on their own, through a mirror that answers 404 for a missing file, one that answers 403 as storage buckets do, and a `file://` path: a release without its own copy takes the latest release's, a changed copy is refused, and the latest release's copy is fetched once. A keyless signature from Sigstore's public instance verifies offline against the pinned trust root.
 - **systemd**: the same steps on the runner's own Ubuntu 24.04, where systemd is running, so the service really starts, restarts and stops.
 - **Install time**: every night, an install to a running panel with the install and the service held to one CPU, which fails at 60 s. It runs once with main's snapshot, and once with the latest published release, checked as a server would check it.
