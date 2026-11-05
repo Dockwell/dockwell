@@ -49,7 +49,7 @@ Log lines never go in the control plane's store.
 
 ## Known gaps
 
-- **Nothing is redacted, and nothing here promises to.** Dockwell can't tell what in a line is a secret. An app that prints one has leaked it to everyone who can read its logs.
+- **Nothing is redacted, and nothing here promises to.** Dockwell can't tell what in a line is a secret. An app that prints one has leaked it to everyone who can read its logs, and that includes an app that prints its own command line, where a value it names has been written in ([ADR 0022](../adr/0022-secrets-encrypted-at-rest.md#a-command-an-entrypoint-and-a-health-check-name-values-too)).
 - **Docker's own log files** are readable by root on the server, as they always were. So is the archive, which isn't encrypted at rest.
 - **Roles.** Until members arrive, whoever has a session can read every service's logs. Roles will narrow this, as they narrow everything else.
 - **A session has no grant to withhold.** A person signed in can read logs, so a stolen session can too, for as long as it lasts.

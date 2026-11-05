@@ -22,9 +22,14 @@ import (
 // that isn't used needs nothing. compose-go's own substitution leaves a
 // variable blank inside a default, and after one in the same string.
 //
-// It also says where a variable's value lands in plain sight (Exposed).
-func interpolate(ctx context.Context, raw map[string]any, variables map[string]string) (map[string]any, *exposure, error) {
-	in := &interpolator{ctx: ctx, variables: variables, missing: map[string]bool{}, exposure: &exposure{}}
+// A command, an entrypoint and a health check's test keep what variables give them by
+// name, rather than as text (referencing). It also says where a variable's value
+// lands in plain sight (Exposed).
+func interpolate(ctx context.Context, raw map[string]any, variables map[string]string) (map[string]any, *interpolated, error) {
+	in := &interpolator{
+		ctx: ctx, variables: variables, missing: map[string]bool{}, exposure: &exposure{},
+		kept: map[string]*keptReferences{}, listed: listedUses(raw),
+	}
 	out, err := in.walk(place{owner: fileOwner}, raw)
 	if ctx.Err() != nil {
 		return nil, nil, stopped(ctx)
@@ -37,7 +42,7 @@ func interpolate(ctx context.Context, raw map[string]any, variables map[string]s
 	if err != nil {
 		return nil, nil, err
 	}
-	return out.(map[string]any), in.exposure, nil
+	return out.(map[string]any), &interpolated{exposure: in.exposure, references: in.kept}, nil
 }
 
 // stopped says a caller left while a file was being read.
@@ -86,21 +91,49 @@ type interpolator struct {
 	depth int
 	// exposure notes where a value lands in plain sight, or nil not to.
 	exposure *exposure
-	// naming says what is being read is the name of an entry.
+	// entryName says what is being read is the name of an entry.
+	entryName bool
+	// naming says a variable's value lands as ${NAME}, and a $ of its own as $$, as
+	// in a field that keeps what it is given by name.
 	naming bool
+	// kept is what fields keep by name, by the service.
+	kept map[string]*keptReferences
+	// listed is what each service's label says it uses, and listing that of the
+	// service whose field is being read: a name there needs no value.
+	listed  map[string]map[string]bool
+	listing map[string]bool
 }
 
-// landed notes that name's value, which is value, lands at at. Nothing lands of a
-// variable with nothing in it.
+// landed notes that name's value, which is value, lands at at, and says what it
+// comes to there. Nothing lands of a variable with nothing in it, unless the
+// environment holds its value.
 func (in *interpolator) landed(at place, name, value string) string {
+	if in.naming {
+		if value == "" && !in.listing[name] {
+			return ""
+		}
+		return "${" + name + "}"
+	}
 	if in.exposure != nil && value != "" {
-		in.exposure.note(at, name, in.naming)
+		in.exposure.note(at, name, in.entryName)
 	}
 	return value
 }
 
-// spend counts n bytes against MaxExpansion.
+// dollar is a $ of its own, as what is being read writes one.
+func (in *interpolator) dollar() string {
+	if in.naming {
+		return "$$"
+	}
+	return "$"
+}
+
+// spend counts n bytes against MaxExpansion. Reading a field again for its names
+// expands to less than the first read did, which counted it.
 func (in *interpolator) spend(at place, n int) error {
+	if in.naming {
+		return nil
+	}
 	if in.expanded += n; in.expanded > MaxExpansion {
 		return invalid("%s takes the variables past %d MiB once they are expanded, which Dockwell doesn't read. Use each long value less often, or shorten it", at, MaxExpansion>>20)
 	}
@@ -118,9 +151,9 @@ func (in *interpolator) walk(at place, v any) (any, error) {
 		// A list's entry can write its name from a variable, and only a value is
 		// hidden. A mapping's keys are never read for variables.
 		if in.exposure != nil && strings.HasPrefix(at.owner, "the service ") && strings.HasPrefix(at.path, "environment[") {
-			in.naming = true
+			in.entryName = true
 			_, err := in.substitute(at, nameOfEntry(v))
-			in.naming = false
+			in.entryName = false
 			if err != nil {
 				return nil, err
 			}
@@ -140,7 +173,13 @@ func (in *interpolator) walk(at place, v any) (any, error) {
 					next = place{owner: "the network " + k}
 				}
 			}
-			e, err := in.walk(next, v[k])
+			var e any
+			var err error
+			if service, ok := referencing(next); ok {
+				e, err = in.referenceField(service, next, v[k])
+			} else {
+				e, err = in.walk(next, v[k])
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -167,14 +206,19 @@ func (in *interpolator) substitute(at place, s string) (string, error) {
 	}
 	var b strings.Builder
 	for i := 0; i < len(s); {
-		if s[i] != '$' || i+1 == len(s) {
+		if s[i] != '$' {
 			b.WriteByte(s[i])
+			i++
+			continue
+		}
+		if i+1 == len(s) {
+			b.WriteString(in.dollar())
 			i++
 			continue
 		}
 		switch next := s[i+1]; {
 		case next == '$':
-			b.WriteByte('$')
+			b.WriteString(in.dollar())
 			i += 2
 		case next == '{':
 			end := closing(s, i+1)
@@ -203,7 +247,7 @@ func (in *interpolator) substitute(at place, s string) (string, error) {
 			i = j
 		default:
 			// A $ before anything else is a $, as docker compose has it.
-			b.WriteByte('$')
+			b.WriteString(in.dollar())
 			i++
 		}
 	}
@@ -227,7 +271,8 @@ func (in *interpolator) braced(at place, whole string) (string, error) {
 	}
 	name, rest := inner[:n], inner[n:]
 	value, set := in.variables[name]
-	nonEmpty := set && value != ""
+	nonEmpty := set && value != "" || in.listing[name]
+	set = set || in.listing[name]
 	op := rest
 	if len(rest) > 2 {
 		op = rest[:2]
@@ -268,7 +313,7 @@ func (in *interpolator) braced(at place, whole string) (string, error) {
 // value is a variable's value, noting it missing if it has none.
 func (in *interpolator) value(name string) string {
 	v, ok := in.variables[name]
-	if !ok {
+	if !ok && !in.listing[name] {
 		in.missing[name] = true
 	}
 	return v

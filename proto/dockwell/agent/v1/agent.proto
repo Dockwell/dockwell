@@ -177,6 +177,10 @@ message Hello {
   // keeps the private key in memory only. An agent that sends none can't
   // run a service that uses a variable or a secret.
   bytes delivery_key = 5;
+  // Says the agent writes a container's references (Container.references) in
+  // as it makes the container. The control plane sends none to one that
+  // doesn't say so, which would run ${NAME} as the words it is.
+  bool writes_references = 6;
 }
 
 // ConnectResponse is one message from the control plane.

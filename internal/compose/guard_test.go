@@ -367,8 +367,8 @@ func TestCheckOfACostlyFileIsQuick(t *testing.T) {
 	if stack != nil || len(seen.Variables) != 1 || seen.Variables[0].Name != "a" {
 		t.Errorf("Check = %+v, %+v", seen.Variables, stack)
 	}
-	if len(seen.Exposed) != 1 || seen.Exposed[0].Variable != "a" || seen.Exposed[0].Field != "command" {
-		t.Errorf("Exposed = %+v", seen.Exposed)
+	if len(seen.Exposed) != 0 {
+		t.Errorf("a command keeps what it names by name, so Exposed = %+v", seen.Exposed)
 	}
 }
 

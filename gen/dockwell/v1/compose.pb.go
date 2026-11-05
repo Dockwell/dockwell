@@ -436,9 +436,10 @@ func (x *CheckComposeResponse) GetNotes() []string {
 
 // ExposedVariable is a variable whose value a Compose file writes in free text,
 // where anyone who can read what it makes sees it. Only what the schema marks
-// sensitive is blanked, such as a service's environment values: a command or a
-// label isn't, as seeing them is useful and they rarely hold a secret. A name, a
-// number or a path doesn't count, as docs/security/compose-variables.md lists.
+// sensitive is blanked, such as a service's environment values: a label isn't,
+// as seeing it is useful and it rarely holds a secret. What runs keeps a value by
+// name, but for one of several words in a command written as one string. A name,
+// a number or a path doesn't count, as docs/security/compose-variables.md lists.
 type ExposedVariable struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The variable, such as "REDIS_PASSWORD".

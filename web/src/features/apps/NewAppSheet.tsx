@@ -1200,8 +1200,8 @@ function groupExposed(exposed: readonly ExposedVariable[]): ExposedGroup[] {
 
 /**
  * Where a file writes a variable's value in plain sight, before anyone types a
- * secret into the field above. What to do about it depends on the field: $$NAME
- * is for a shell to read, and only some fields have one.
+ * secret into the field above. What to do about it depends on the field: what
+ * runs keeps a value by name, as long as it is one word.
  */
 function ExposedNote({ group }: { group: ExposedGroup }) {
   const { t } = useLingui();
@@ -1210,7 +1210,6 @@ function ExposedNote({ group }: { group: ExposedGroup }) {
     command: t`command`,
     entrypoint: t`entrypoint`,
     labels: t`labels`,
-    healthcheck: t`health check`,
     driver_opts: t`driver options`,
     environment: t`environment variable names`,
   };
@@ -1229,15 +1228,8 @@ function ExposedNote({ group }: { group: ExposedGroup }) {
       case "entrypoint":
         return (
           <Trans>
-            To keep one hidden, pass it in <code>environment</code> for the app to read, or run the {where} through a
-            shell, as <code>sh -c</code>, with <code>$$NAME</code> in it.
-          </Trans>
-        );
-      case "healthcheck":
-        return (
-          <Trans>
-            To keep one hidden, pass it in <code>environment</code>, and write the test as <code>CMD-SHELL</code> with{" "}
-            <code>$$NAME</code> in it.
+            It is more than one word there, and one name can't stand for that. To keep it hidden, write the {where} as a
+            list, with each word its own variable.
           </Trans>
         );
       case "environment":

@@ -112,7 +112,15 @@ func (d *Driver) Validate(spec proto.Message) error {
 	if len(svc.Revisions) == 0 {
 		svc.Revisions = nil
 	}
-	return container.Validate(app)
+	if err := container.Validate(app); err != nil {
+		return err
+	}
+	return binding.CheckWords(app, func(name string) bool {
+		_, inEnv := app.GetEnv()[name]
+		_, v := svc.GetVariables()[name]
+		_, s := svc.GetSecrets()[name]
+		return inEnv || v || s
+	})
 }
 
 // References are the volumes the service mounts and the networks it

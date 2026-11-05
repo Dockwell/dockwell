@@ -26,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 )
 
 // Kind is the container kind.
@@ -157,6 +158,9 @@ func (*Driver) Validate(spec proto.Message) error {
 	if c.GetRollout() != nil {
 		return errors.New("a container on its own has one name, so it is stopped and made again, and rollout settings mean nothing for it. Leave rollout out, or run it as a service")
 	}
+	if err := binding.CheckWords(c, func(name string) bool { _, ok := c.GetEnv()[name]; return ok }); err != nil {
+		return err
+	}
 	return checkOwnNames(c)
 }
 
@@ -166,6 +170,7 @@ func (*Driver) Normalize(spec proto.Message) { Normalize(spec.(*resourcev1.Conta
 
 // Normalize fills in c's defaults and orders it, and refuses nothing.
 func Normalize(c *resourcev1.Container) {
+	slices.Sort(c.References)
 	if c.Restart == resourcev1.RestartPolicy_RESTART_POLICY_UNSPECIFIED {
 		c.Restart = resourcev1.RestartPolicy_RESTART_POLICY_UNLESS_STOPPED
 	}
@@ -241,6 +246,9 @@ func Validate(c *resourcev1.Container) error {
 			return fmt.Errorf("the label %s is Dockwell's own, and Docker Compose's; choose a key that doesn't start with %s or %s", k, docker.ComposePrefix, docker.OwnPrefix)
 		}
 	}
+	if err := validateWords(c); err != nil {
+		return err
+	}
 	if err := validatePorts(c); err != nil {
 		return err
 	}
@@ -286,6 +294,14 @@ func Validate(c *resourcev1.Container) error {
 		return err
 	}
 	return validateHealthcheck(c)
+}
+
+// validateWords checks the fields that name values, as far as a container alone can
+// say: what they name, a service's Validate checks against what it uses. Their label
+// is Dockwell's own, so a spec can't set it (IsOwnLabel), and what its fields come
+// to goes by this field alone.
+func validateWords(c *resourcev1.Container) error {
+	return binding.CheckWords(c, func(string) bool { return true })
 }
 
 // validateRestart refuses a count of restarts on a policy with none, which

@@ -563,17 +563,15 @@ func testAnEnvRefusalStaysOutOfTheLog(t *testing.T, backend store.Backend) {
 	}
 }
 
-// A file that writes a value outside environment has it shown: in the plan, in the
-// changes table, and to a read-only token, through the change and through an export.
-// That is the gap #96 tracks, and this holds what's true until it is closed: the
-// plan says so, per variable and field, for a value from an .env or from variables,
-// and it says how to keep the value hidden, and never holds the value itself. When
-// #96 keeps these out, the checks that find the value here go.
-func TestAValueOutsideEnvironmentShowsAndThePlanSaysSo(t *testing.T) {
-	storetest.Each(t, testAValueOutsideEnvironmentShowsAndThePlanSaysSo)
+// A value that lands as text in a field that can't keep it by name is in the plan, as a
+// label is shown on purpose, so the plan says so, naming the variable and the field, and
+// how to keep the value hidden, and never holds the value itself. What runs keeps a value
+// by name (ADR 0022), which references_test.go holds to everything that reads one.
+func TestAValueInALabelShowsAndThePlanSaysSo(t *testing.T) {
+	storetest.Each(t, testAValueInALabelShowsAndThePlanSaysSo)
 }
 
-func testAValueOutsideEnvironmentShowsAndThePlanSaysSo(t *testing.T, backend store.Backend) {
+func testAValueInALabelShowsAndThePlanSaysSo(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -581,9 +579,7 @@ func testAValueOutsideEnvironmentShowsAndThePlanSaysSo(t *testing.T, backend sto
 	const value = "s3cr3t7Hq2mXv9Lr4Kd8Zs"
 	cc := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
 	c := changeClient(b, b.origin)
-	file := "services:\n  redis:\n    image: redis:8\n    command: redis-server --requirepass ${PANEL_REDIS_ROOT_PASSWORD}\n" +
-		"    healthcheck:\n      test: [\"CMD\", \"redis-cli\", \"-a\", \"${PANEL_REDIS_ROOT_PASSWORD}\", \"ping\"]\n" +
-		"    labels: {auth: \"${PANEL_REDIS_ROOT_PASSWORD}\"}\n"
+	file := "services:\n  redis:\n    image: redis:8\n    labels: {auth: \"${PANEL_REDIS_ROOT_PASSWORD}\"}\n"
 	const name = "PANEL_REDIS_ROOT_PASSWORD"
 	notes := func(ch *dockwellv1.Change) map[string]string {
 		t.Helper()
@@ -607,32 +603,27 @@ func testAValueOutsideEnvironmentShowsAndThePlanSaysSo(t *testing.T, backend sto
 		return out
 	}
 	fromEnv := importIn(t, cc, &dockwellv1.ImportComposeRequest{Compose: file, Env: name + "=" + value + "\n"})
-	said := notes(fromEnv)
-	for field, want := range map[string]string{
-		"command": name + " from your .env is in redis's command, so anyone who can read this change or export this environment can read it. " +
-			"To keep it hidden, set it in environment and have the command read it there, with sh -c, if the image has a shell",
-		"healthcheck": name + " from your .env is in redis's health check, so anyone who can read this change or export this environment can read it. " +
-			"To keep it hidden, set it in environment and have the health check read it there, with CMD-SHELL, if the image has a shell",
-		"labels": name + " from your .env is in redis's labels, so anyone who can read this change or export this environment can read it. " +
-			"It can't be hidden there, so if it is a secret, set it in environment for the app to read instead",
-	} {
-		if said[field] != want {
-			t.Errorf("for %s the plan says %q, want %q", field, said[field], want)
-		}
+	want := name + " from your .env is in redis's labels, so anyone who can read this change or export this environment can read it. " +
+		"It can't be hidden there, so if it is a secret, set it in environment for the app to read instead"
+	if got := notes(fromEnv)["labels"]; got != want {
+		t.Errorf("for a label the plan says %q, want %q", got, want)
 	}
 	discard(t, c, fromEnv)
 
 	fromRequest := importIn(t, cc, &dockwellv1.ImportComposeRequest{Compose: file, Variables: map[string]string{name: value}})
-	if got := notes(fromRequest)["command"]; !strings.HasPrefix(got, name+" from the request's variables is in redis's command") {
+	if got := notes(fromRequest)["labels"]; !strings.HasPrefix(got, name+" from the request's variables is in redis's labels") {
 		t.Errorf("for a value in variables the plan says %q", got)
 	}
 	discard(t, c, fromRequest)
 
-	// A value only the file gave, or that only environment holds, needs no note.
+	// A value only the file gave, that only environment holds, or that a command keeps by
+	// name, needs no note.
 	for what, req := range map[string]*dockwellv1.ImportComposeRequest{
-		"a default":      {Compose: "services:\n  redis:\n    image: redis:8\n    command: redis-server --port ${PORT:-6379}\n"},
-		"nothing in it":  {Compose: "services:\n  redis:\n    image: redis:8\n    command: redis-server ${EXTRA}\n", Env: "EXTRA=\n"},
+		"a default":      {Compose: "services:\n  redis:\n    image: redis:8\n    labels: {a: \"${PORT:-6379}\"}\n"},
+		"nothing in it":  {Compose: "services:\n  redis:\n    image: redis:8\n    labels: {a: \"${EXTRA}\"}\n", Env: "EXTRA=\n"},
 		"in environment": {Compose: "services:\n  redis:\n    image: redis:8\n    environment: {K: \"${K}\"}\n", Env: "K=" + value + "\n"},
+		"in a command":   {Compose: "services:\n  redis:\n    image: redis:8\n    command: redis-server --requirepass ${K}\n", Env: "K=" + value + "\n"},
+		"in a check":     {Compose: "services:\n  redis:\n    image: redis:8\n    healthcheck: {test: [CMD, redis-cli, -a, \"${K}\", ping]}\n", Env: "K=" + value + "\n"},
 		// As nearly every real file has: a warning on these would be on every plan.
 		"a name, a number and a path": {
 			Compose: "services:\n  redis:\n    image: ${IMAGE}\n    container_name: ${CONTAINER_NAME}\n    restart: ${RESTART}\n    ports: [\"${PORT}:6379\"]\n    user: ${USERNAME}\n    working_dir: /srv/${DIR}\n    volumes: [\"/srv/${DIR}:/data\"]\n    healthcheck: {test: [CMD, redis-cli, ping], interval: \"${EVERY}\"}\n",
@@ -646,7 +637,7 @@ func testAValueOutsideEnvironmentShowsAndThePlanSaysSo(t *testing.T, backend sto
 		discard(t, c, ch)
 	}
 
-	// What the notes say is true: this is who reads it.
+	// What the note says is true: this is who reads it.
 	ch := importIn(t, cc, &dockwellv1.ImportComposeRequest{Compose: file, Env: name + "=" + value + "\n"})
 	applyConfirmed(t, c, ch)
 	ro := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY), rt: b.client.Transport}
@@ -655,18 +646,18 @@ func testAValueOutsideEnvironmentShowsAndThePlanSaysSo(t *testing.T, backend sto
 		t.Fatal(err)
 	}
 	if !strings.Contains(got.Msg.String(), value) {
-		t.Error("a read-only token doesn't read the value in the change, so the note isn't true: see #96")
+		t.Error("a read-only token doesn't read the value in the change, so the note isn't true")
 	}
 	exp, err := dockwellv1connect.NewComposeServiceClient(ro, b.origin, connect.WithProtoJSON()).ExportCompose(t.Context(), connect.NewRequest(&dockwellv1.ExportComposeRequest{}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(exp.Msg.GetCompose(), value) {
-		t.Error("a read-only token doesn't read the value in an export, so the note isn't true: see #96")
+		t.Error("a read-only token doesn't read the value in an export, so the note isn't true")
 	}
 	dump := storetest.Dump(t, f.db)
 	if !slices.ContainsFunc(dump["changes"], func(row string) bool { return strings.Contains(row, value) }) {
-		t.Error("the changes table doesn't hold the value, so the note isn't true: see #96")
+		t.Error("the changes table doesn't hold the value, so the note isn't true")
 	}
 	// A stored spec is sealed all the same, as the plan is what shows it.
 	for _, table := range []string{"revisions", "change_items"} {
@@ -732,7 +723,7 @@ func testAFileCantWriteAPlansWords(t *testing.T, backend store.Backend) {
 		{name: "a bind device", file: vol + "    driver_opts: {type: none, device: \"/srv/a. " + spoof + "\", o: bind}\n", kept: "quoted"},
 		{name: "a mount's device", file: vol + "    driver_opts: {type: nfs, device: \":/a. " + spoof + "\", o: \"addr=10.0.0.2\"}\n", kept: "quoted"},
 		{name: "a label's key", file: web + "    labels: {\"a. " + spoof + "\": b}\n", kept: "unsaid"},
-		{name: "a value in a command", file: web + "    command: run ${V}\n", variables: map[string]string{"V": "a. " + spoof}, kept: "unsaid"},
+		{name: "a value in a command", file: web + "    command: [run, \"${V}\"]\n", variables: map[string]string{"V": "a. " + spoof}, kept: "unsaid"},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			res, err := d.cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: row.file, Directory: row.directory, Variables: row.variables}))

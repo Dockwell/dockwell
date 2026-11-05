@@ -746,7 +746,7 @@ func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Cont
 	if !keep.State.Running {
 		resource.Progress(ctx, "Starting "+t.Service)
 		if err := d.Client.StartContainer(ctx, keep.ID); err != nil {
-			err = fmt.Errorf("docker can't start %s: %w", keep.name(), err)
+			err = fmt.Errorf("docker can't start %s: %w", keep.name(), hideIn(err, valuesInContainer(keep.Container)))
 			if made && dec.Restart != "" {
 				d.discard(ctx, keep.ID, keep.name())
 			}
@@ -861,7 +861,7 @@ func (d *Docker) bringBack(ctx context.Context, t Target, keep *instance) error 
 		return fmt.Errorf("can't finish stopping the old %s, so it can't start again: %w", t.Service, err)
 	}
 	if err := d.Client.StartContainer(ctx, keep.ID); err != nil {
-		return fmt.Errorf("docker can't start the old %s: %w", t.Service, err)
+		return fmt.Errorf("docker can't start the old %s: %w", t.Service, hideIn(err, valuesInContainer(keep.Container)))
 	}
 	final := instanceName(t, keep.number)
 	if err := d.Client.RenameContainer(ctx, keep.ID, final); err != nil {
@@ -1013,7 +1013,7 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 	if keep == nil || !keep.State.Running {
 		resource.Progress(ctx, "Starting "+t.Service)
 		if err := d.Client.StartContainer(ctx, id); err != nil {
-			return fmt.Errorf("docker can't start %s: %w", t.Name, err)
+			return fmt.Errorf("docker can't start %s: %w", t.Name, hideIn(err, valuesInSpec(spec)))
 		}
 	}
 	d.Points.Reach(PointStarted)
@@ -1043,6 +1043,9 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 		return "", nil, err
 	}
 	req, later, restored := d.createRequest(ctx, t, spec, old, kept)
+	if err := rendered(req, spec); err != nil {
+		return "", nil, err
+	}
 	if dec.Restores && len(restored) == 0 {
 		return "", nil, fmt.Errorf("the data %s's image kept, which this change was to mount again, is gone: the server keeps it for 7 days after a change takes it out of use, then removes it. "+
 			"Plan the change again: it makes %s with its image's volumes empty", t.Name, t.Name)
@@ -1059,7 +1062,7 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 	id, err := d.Client.CreateContainer(ctx, name, req)
 	if err != nil {
 		undo()
-		return "", nil, fmt.Errorf("docker can't create %s: %w", t.Name, err)
+		return "", nil, fmt.Errorf("docker can't create %s: %w", t.Name, hideIn(err, valuesInSpec(spec)))
 	}
 	discard := func(err error) error {
 		d.discard(ctx, id, name)

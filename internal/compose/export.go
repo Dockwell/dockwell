@@ -149,7 +149,7 @@ type Exported struct {
 func Export(project string, stack *Stack) (*Exported, error) {
 	f := file{Name: project, Services: map[string]serviceEntry{}}
 	var omitted []string
-	volumesLeft, ownLabel := false, false
+	volumesLeft, ownLabel, namesValues := false, false, false
 	for _, s := range stack.Services {
 		c := s.Spec.GetApp()
 		if c == nil {
@@ -157,7 +157,7 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		}
 		rotation := docker.Rotation()
 		entry := serviceEntry{
-			Image: escape(c.GetImage()), Command: escapeAll(c.GetCommand()),
+			Image: escape(c.GetImage()), Command: exportWords(c, binding.FieldCommand),
 			User: escape(c.GetUser()), WorkingDir: escape(c.GetWorkingDir()),
 			CapAdd: c.GetCapAdd(), CapDrop: c.GetCapDrop(), GroupAdd: c.GetGroupAdd(), Privileged: c.GetPrivileged(),
 			Networks: exportNetworks(c), Deploy: exportResources(c.GetResources()),
@@ -177,10 +177,12 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		case c.GetNoEntrypoint():
 			entry.Entrypoint = []string{}
 		case len(c.GetEntrypoint()) > 0:
-			entry.Entrypoint = escapeAll(c.GetEntrypoint())
+			entry.Entrypoint = exportWords(c, binding.FieldEntrypoint)
 		}
 		var left []string
 		entry.Environment, left = environment(c)
+		named := binding.ReferencedNames(c)
+		namesValues = namesValues || len(named) > 0
 		for _, u := range binding.Uses(s.Spec) {
 			if entry.Environment == nil {
 				entry.Environment = map[string]*string{}
@@ -188,6 +190,10 @@ func Export(project string, stack *Stack) (*Exported, error) {
 			if v, ok := stack.Variables[u.Name]; ok && u.Kind == variable.VariableKind {
 				v = escape(v)
 				entry.Environment[u.As] = &v
+				// A file's ${NAME} reads from its shell, and not from its environment.
+				if slices.Contains(named, u.As) {
+					left = append(left, u.As)
+				}
 				continue
 			}
 			entry.Environment[u.As] = nil
@@ -275,7 +281,7 @@ func Export(project string, stack *Stack) (*Exported, error) {
 				entry.Healthcheck = &healthEntry{Disable: true}
 			default:
 				entry.Healthcheck = &healthEntry{
-					Test: escapeAll(hc.GetTest()), Interval: hc.GetInterval(), Timeout: hc.GetTimeout(),
+					Test: exportWords(c, binding.FieldTest), Interval: hc.GetInterval(), Timeout: hc.GetTimeout(),
 					StartPeriod: hc.GetStartPeriod(), Retries: hc.GetRetries(),
 				}
 			}
@@ -345,6 +351,11 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		buf.WriteString("# A variable written as NAME: null is there on purpose. Its value may be a secret,\n" +
 			"# so it is left out: set it in your shell, or in an .env file beside this one,\n" +
 			"# before docker compose up.\n")
+	}
+	if namesValues {
+		buf.WriteString("# A ${NAME} in a command, an entrypoint or a health check is there on purpose too.\n" +
+			"# Dockwell keeps the value out of what it shows, and docker compose reads it from\n" +
+			"# your shell, or an .env file beside this one, so set it before docker compose up.\n")
 	}
 	if volumesLeft {
 		buf.WriteString("# A volume's driver options may hold secrets, so they are left out too. Docker\n" +
@@ -418,6 +429,15 @@ func environment(c *resourcev1.Container) (map[string]*string, []string) {
 		out[k] = &v
 	}
 	return out, left
+}
+
+// exportWords is a field of a container that may name values, as a Compose file
+// writes it: one that does is written that way already.
+func exportWords(c *resourcev1.Container, field string) []string {
+	if slices.Contains(c.GetReferences(), field) {
+		return binding.WordsOf(c, field)
+	}
+	return escapeAll(binding.WordsOf(c, field))
 }
 
 // escape writes a $ as $$, which Compose reads as a $ of its own, not the

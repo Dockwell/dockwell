@@ -474,6 +474,134 @@ dw variables delete LOG_LEVEL --yes || fail "variables delete failed"
 # Nothing above left a value where anyone reads it.
 if grep -q -e "$secret_value" -e "$secret_next" "$log"; then fail "the control plane's log holds the secret's value"; fi
 
+step "A password in a command runs and works, and nothing that reads it shows it"
+redis_password=e2e-redis-pass-7Hq2mXv9
+redis_given=e2e-redis-given-5Lt1oGy7
+redis_secret=e2e-redis-secret-9Rk4eSa8
+redis_rotated=e2e-redis-rotated-2Dp8iJr6
+# Of the shape 1Panel's store gives Redis, with a $ for the check's own shell beside the name.
+cat >"$data/redis.yaml" <<'EOF'
+services:
+  secured:
+    image: redis:7.4-alpine
+    command: redis-server ${REDIS_PASSWORD:+--requirepass "${REDIS_PASSWORD}"}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"${REDIS_PASSWORD}\" --no-auth-warning -p $${REDIS_CHECK_PORT:-6379} ping | grep -q PONG"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+EOF
+printf 'REDIS_PASSWORD=%s\n' "$redis_password" >"$data/redis.env"
+# named_container says what Docker runs for a service, and there is one.
+named_container() {
+  local out
+  out=$(docker ps --filter "label=com.docker.compose.project=$project" --filter "label=com.docker.compose.service=$1" --format '{{.Names}}') ||
+    fail "docker ps failed"
+  [[ -n "$out" && "$out" != *$'\n'* ]] || fail "Docker runs '$out' for $1, want one container"
+  echo "$out"
+}
+# answers says whether a container's Redis takes a password: the real proof that
+# what the command names reached what runs, and that what it no longer names doesn't.
+answers() { [[ "$(docker exec "$1" redis-cli -a "$2" --no-auth-warning ping 2>&1)" == PONG ]]; }
+# nothing_shows reads all the CLI can of the install, its logs and the database's own
+# files, and fails on any of the values. Docker has them: that is the point, and root
+# on this server reads them there.
+nothing_shows() {
+  local reads value
+  reads=$({
+    dw changes list --page-size 200 --json
+    dw services list --json
+    dw compose export
+    dw drift list --json
+    dw events list --page-size 200 --json
+  }) || fail "reading what the install says failed"
+  for id in $(dw changes list --page-size 200 --json | jq -r '.changes[].id'); do
+    reads+=$(dw changes get "$id" --json) || fail "changes get $id failed"
+  done
+  for value in "$@"; do
+    if [[ "$reads" == *"$value"* ]]; then fail "what the install says holds $value: $(grep -F -- "$value" <<<"$reads" | head -3)"; fi
+    if grep -q -F -- "$value" "$log"; then fail "the control plane's log holds $value"; fi
+    # shellcheck disable=SC2086 # the database's files, however many there are
+    if priv grep -a -q -F -- "$value" "$data"/control/state.db*; then fail "the database's own files hold $value"; fi
+  done
+}
+dw compose import --project default --compose "$(cat "$data/redis.yaml")" --env-file "$data/redis.env" --yes ||
+  fail "importing a password in a command failed"
+secured=$(named_container secured)
+secured_id=$(docker inspect --format '{{.Id}}' "$secured") || fail "docker inspect $secured failed"
+answers "$secured" "$redis_password" || fail "$secured doesn't take the password it was given"
+if answers "$secured" not-the-password; then fail "$secured takes any password, so no password reached it"; fi
+[[ "$(docker inspect --format '{{.State.Health.Status}}' "$secured")" == healthy ]] || fail "$secured isn't healthy: its check's name, or the \$ beside it, didn't reach its shell"
+docker inspect --format '{{json .Config.Cmd}}' "$secured" | grep -q -F -- "$redis_password" ||
+  fail "$secured doesn't run with the password in its command: $(docker inspect --format '{{json .Config.Cmd}}' "$secured")"
+if docker inspect --format '{{json .Config.Labels}}' "$secured" | grep -q -F -- "$redis_password"; then fail "$secured's labels hold the password"; fi
+nothing_shows "$redis_password"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift with a password in a command: $drift"
+
+step "The same file with the same value changes nothing"
+imported=$(dw compose import --project default --compose "$(cat "$data/redis.yaml")" --env-file "$data/redis.env" --json 2>"$data/import.err") ||
+  fail "importing it again failed: $(cat "$data/import.err")"
+grep -q 'Nothing to change' "$data/import.err" || fail "importing it again didn't say there was nothing to change: $(cat "$data/import.err")"
+if [[ "$imported" == *"$redis_password"* ]]; then fail "the plan holds the password"; fi
+[[ "$(docker inspect --format '{{.Id}}' "$secured")" == "$secured_id" ]] || fail "importing it again recreated $secured"
+
+step "An export names it, and what docker compose makes of that reads back the same"
+dw compose export >"$data/redis-export.yaml" || fail "compose export failed"
+if grep -q -F -- "$redis_password" "$data/redis-export.yaml"; then fail "the export holds the password"; fi
+# shellcheck disable=SC2016 # Compose's, for docker compose to read.
+grep -q -F -- '${REDIS_PASSWORD}' "$data/redis-export.yaml" || fail "the export doesn't name it: $(cat "$data/redis-export.yaml")"
+grep -Eq '^ +REDIS_PASSWORD: null$' "$data/redis-export.yaml" || fail "the export doesn't list it to set: $(cat "$data/redis-export.yaml")"
+# shellcheck disable=SC2016 # Compose's, for docker compose to read.
+grep -q -F -- '$${REDIS_CHECK_PORT:-6379}' "$data/redis-export.yaml" || fail "the export lost the check's own \$: $(cat "$data/redis-export.yaml")"
+REDIS_PASSWORD=$redis_password docker compose -f "$data/redis-export.yaml" up --detach --no-deps --wait secured || fail "docker compose up secured failed"
+secured=$(named_container secured)
+[[ "$(docker inspect --format '{{.Id}}' "$secured")" != "$secured_id" ]] || fail "docker compose up didn't recreate $secured, so this reads back nothing new"
+answers "$secured" "$redis_password" || fail "what docker compose made doesn't take the password"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after docker compose up from the export: $drift"
+
+step "A new value is a change that reaches what runs, and says so without it"
+printf 'REDIS_PASSWORD=%s\n' "$redis_given" >"$data/redis.env"
+rotated=$(dw compose import --project default --compose "$(cat "$data/redis.yaml")" --env-file "$data/redis.env" --plan-only --json) || fail "planning a new value failed"
+jq -e '[.change.plan.resources[].changes[]? | select(.path == "app.env[REDIS_PASSWORD]" and .sensitive == true)] | length == 1' <<<"$rotated" >/dev/null ||
+  fail "a new value doesn't plan as a masked change: $rotated"
+if [[ "$rotated" == *"$redis_given"* || "$rotated" == *"$redis_password"* ]]; then fail "the plan holds a value"; fi
+rotated_id=$(jq -r '.change.id' <<<"$rotated")
+dw changes apply "$rotated_id" --yes || fail "applying a new value failed"
+secured=$(named_container secured)
+answers "$secured" "$redis_given" || fail "$secured doesn't take the new password"
+if answers "$secured" "$redis_password"; then fail "$secured still takes the old password"; fi
+nothing_shows "$redis_password" "$redis_given"
+dw services delete secured --yes || fail "services delete secured failed"
+
+step "A secret in a command needs no value in a file, can't be given one, and rotates"
+printf '%s' "$redis_secret" >"$data/secret-value"
+dw secrets create REDIS_SECRET --value-file "$data/secret-value" --yes || fail "secrets create failed"
+# shellcheck disable=SC2016 # ${PW} is for Dockwell to read.
+dw services create named --app-image redis:7.4-alpine --app-command redis-server --app-command=--requirepass --app-command '${PW}' --app-references command --secrets PW=REDIS_SECRET --yes ||
+  fail "services create named failed"
+named=$(named_container named)
+answers "$named" "$redis_secret" || fail "$named doesn't take the secret's value"
+if answers "$named" not-the-password; then fail "$named takes any password"; fi
+dw compose export >"$data/named.yaml" || fail "compose export failed"
+if grep -q -F -- "$redis_secret" "$data/named.yaml"; then fail "the export holds the secret's value"; fi
+imported=$(dw compose import --project default --compose "$(cat "$data/named.yaml")" --json 2>"$data/import.err") || fail "importing the export failed: $(cat "$data/import.err")"
+grep -q 'Nothing to change' "$data/import.err" || fail "importing the export didn't say there was nothing to change: $(cat "$data/import.err")"
+for guess in "$redis_secret" not-the-password; do
+  if said=$(dw compose import --project default --compose "$(cat "$data/named.yaml")" --variables "PW=$guess" --plan-only 2>&1); then fail "a file gave the secret a value: $said"; fi
+  [[ "$said" == *"from a secret too"* ]] || fail "a value for the secret failed some other way: $said"
+  if [[ "$said" == *"$redis_secret"* ]]; then fail "the refusal repeats the value: $said"; fi
+done
+printf '%s' "$redis_rotated" >"$data/secret-value"
+dw secrets update REDIS_SECRET --value-file "$data/secret-value" --yes || fail "secrets update failed"
+named=$(named_container named)
+answers "$named" "$redis_rotated" || fail "the rotation didn't reach $named"
+if answers "$named" "$redis_secret"; then fail "$named still takes the old value"; fi
+nothing_shows "$redis_secret" "$redis_rotated"
+dw services delete named --yes || fail "services delete named failed"
+dw secrets delete REDIS_SECRET --yes || fail "secrets delete failed"
+
 step "Services go"
 dw services delete cache --yes || fail "services delete cache failed"
 dw services delete web --yes || fail "services delete web failed"

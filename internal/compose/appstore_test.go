@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
@@ -79,9 +80,12 @@ type storeReport struct {
 	// What a plan warns of, with a value for every variable. An empty form default
 	// has none to warn of, where a real install has one, so these give it one.
 	filled, warned, mostWarnings, keptDefaults int
-	warnings, warnedFiles                      map[string]int
-	warnedCredentials                          map[string]int
-	warnedVariables, perFile                   map[string]int
+	// What runs keeps by name: the files that do, the credentials among what they name,
+	// and the files where a credential there still lands as text.
+	namingFiles, namedCredentials, credentialAsText int
+	warnings, warnedFiles                           map[string]int
+	warnedCredentials                               map[string]int
+	warnedVariables, perFile                        map[string]int
 	// What might say a field that doesn't warn should, from each file as it stands:
 	// a credential, by what its name says or its app's form does, and a variable in
 	// a URL.
@@ -194,6 +198,28 @@ func (r *storeReport) count(stack *Stack) {
 	}
 }
 
+// noteNames counts what a command, an entrypoint and a health check keep by name, of a
+// file with a value for every variable it names, and what they leave as text.
+func (r *storeReport) noteNames(stack *Stack, passwords map[string]bool) {
+	naming := false
+	for _, s := range stack.Services {
+		for _, name := range binding.ReferencedNames(s.Spec.GetApp()) {
+			naming = true
+			if passwords[name] || credentialName.MatchString(name) {
+				r.namedCredentials++
+			}
+		}
+	}
+	if naming {
+		r.namingFiles++
+	}
+	for _, e := range stack.Exposed {
+		if (e.Field == binding.FieldCommand || e.Field == binding.FieldEntrypoint) && (passwords[e.Variable] || credentialName.MatchString(e.Variable)) {
+			r.credentialAsText++
+		}
+	}
+}
+
 // noteWarnings counts what a plan warns of with a value for every variable the file
 // names, even one its own default would do for, so it is the most an .env could get.
 // HOST_IP stays empty, as 1Panel passes it, and is in a field that doesn't warn. A
@@ -212,6 +238,9 @@ func (r *storeReport) noteWarnings(text []byte, variables map[string]string, pas
 		}
 	}
 	stack, err := readStore(text, every, directory)
+	if err == nil {
+		r.noteNames(stack, passwords)
+	}
 	if err != nil {
 		if stack, err = readStore(text, filled, directory); err != nil {
 			return
@@ -483,6 +512,7 @@ func (r *storeReport) String() string {
 	table("What the plan says of the files that read", r.noticed)
 	table("Variables with no value in the store", r.missing)
 	fmt.Fprintf(&b, "With a value for every variable a file names, %d files read, %d of them with their own defaults, as a value was refused. A plan warns on %d of them, with %d warnings at most in one file.\n\n", r.filled, r.keptDefaults, r.warned, r.mostWarnings)
+	fmt.Fprintf(&b, "A command, an entrypoint or a health check keeps a value by name in %d of them, %d of what they name a credential by its name or its app's form, and %d such credentials stay as text.\n\n", r.namingFiles, r.namedCredentials, r.credentialAsText)
 	fmt.Fprintf(&b, "| What a plan warns of | Warnings | Files | Of a credential, by its name or its app's form |\n| --- | ---: | ---: | ---: |\n")
 	for _, k := range byCount(r.warnings) {
 		fmt.Fprintf(&b, "| %s | %d | %d | %d |\n", k, r.warnings[k], r.warnedFiles[k], r.warnedCredentials[k])

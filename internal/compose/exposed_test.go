@@ -22,9 +22,11 @@ import (
 // with it. warns says a plan warns of a value there. shows is what a plan and an
 // export then show of it, or empty for what they don't: a sensitive field, or one
 // that isn't kept.
+//
+// onceGiven says only a plan warns, as only the value says it lands as text there.
 type fieldRow struct {
 	kind, field, file, value, shows string
-	warns                           bool
+	warns, onceGiven                bool
 }
 
 func serviceRow(field, body, value, shows string) fieldRow {
@@ -44,14 +46,28 @@ func warns(r fieldRow) fieldRow {
 	return r
 }
 
+func warnsOnceGiven(r fieldRow) fieldRow {
+	r.warns, r.onceGiven = true, true
+	return r
+}
+
 const marker = "s3cr3tMarker7Hq"
 
 func fieldRows() []fieldRow {
 	return []fieldRow{
+		// What runs keeps a value by name, so a plan shows the name (ADR 0022).
+		serviceRow("command", "    command: run ${V}\n", marker, ""),
+		serviceRow("entrypoint", "    entrypoint: [run, \"${V}\"]\n", marker, ""),
+		serviceRow("healthcheck.test", "    healthcheck: {test: [CMD, run, \"${V}\"]}\n", marker, ""),
+		// But for several words in one string, which Compose splits, and one name can't
+		// stand for. A list, or a test, which a shell splits, keeps them as one.
+		warnsOnceGiven(serviceRow("command", "    command: run ${V}\n", "two words", "two")),
+		warnsOnceGiven(serviceRow("entrypoint", "    entrypoint: run ${V}\n", "two words", "two")),
+		serviceRow("command", "    command: [run, \"${V}\"]\n", "two words", ""),
+		serviceRow("entrypoint", "    entrypoint: [run, \"${V}\"]\n", "two words", ""),
+		serviceRow("healthcheck.test", "    healthcheck: {test: \"run ${V}\"}\n", "two words", ""),
+
 		// Free text, where a secret can really land.
-		warns(serviceRow("command", "    command: run ${V}\n", marker, marker)),
-		warns(serviceRow("entrypoint", "    entrypoint: [run, \"${V}\"]\n", marker, marker)),
-		warns(serviceRow("healthcheck.test", "    healthcheck: {test: [CMD, run, \"${V}\"]}\n", marker, marker)),
 		warns(serviceRow("labels", "    labels: {k: \"${V}\"}\n", marker, marker)),
 		warns(networkRow("labels", "    labels: {k: \"${V}\"}\n", marker, marker)),
 		warns(networkRow("driver_opts", "    driver_opts: {opt: \"${V}\"}\n", marker, marker)),
@@ -219,22 +235,22 @@ func TestAValueTheFileGaveItselfDoesntWarn(t *testing.T) {
 		vars map[string]string
 		want []string
 	}{
-		"a default, used":            {body: "    command: run ${V:-x}\n"},
-		"a default without a colon":  {body: "    command: run ${V-x}\n"},
-		"a default for an empty one": {body: "    command: run ${V:-x}\n", vars: map[string]string{"V": ""}},
-		"nothing in it":              {body: "    command: run ${V}\n", vars: map[string]string{"V": ""}},
-		"nothing in it, braces off":  {body: "    command: run $V\n", vars: map[string]string{"V": ""}},
-		"nothing in it, a default":   {body: "    command: run ${V-x}\n", vars: map[string]string{"V": ""}},
-		"another word for it":        {body: "    command: run ${V:+other}\n", vars: map[string]string{"V": "set"}},
-		"a $ of its own":             {body: "    command: run $$V\n", vars: map[string]string{"V": "set"}},
+		"a default, used":            {body: "    labels: {a: \"run ${V:-x}\"}\n"},
+		"a default without a colon":  {body: "    labels: {a: \"run ${V-x}\"}\n"},
+		"a default for an empty one": {body: "    labels: {a: \"run ${V:-x}\"}\n", vars: map[string]string{"V": ""}},
+		"nothing in it":              {body: "    labels: {a: \"run ${V}\"}\n", vars: map[string]string{"V": ""}},
+		"nothing in it, braces off":  {body: "    labels: {a: \"run $V\"}\n", vars: map[string]string{"V": ""}},
+		"nothing in it, a default":   {body: "    labels: {a: \"run ${V-x}\"}\n", vars: map[string]string{"V": ""}},
+		"another word for it":        {body: "    labels: {a: \"run ${V:+other}\"}\n", vars: map[string]string{"V": "set"}},
+		"a $ of its own":             {body: "    labels: {a: \"run $$V\"}\n", vars: map[string]string{"V": "set"}},
 		"an extension":               {body: "    x-note: ${V}\n", vars: map[string]string{"V": "set"}},
 		"in environment, a mapping":  {body: "    environment: {K: \"${V}\"}\n", vars: map[string]string{"V": "set"}},
 		"in environment, a list":     {body: "    environment: [\"K=${V}\"]\n", vars: map[string]string{"V": "set"}},
-		"given, over a default":      {body: "    command: run ${V:-x}\n", vars: map[string]string{"V": "set"}, want: []string{"V"}},
-		"given, without braces":      {body: "    command: run $V\n", vars: map[string]string{"V": "set"}, want: []string{"V"}},
-		"given, needing a value":     {body: "    command: run ${V:?needs it}\n", vars: map[string]string{"V": "set"}, want: []string{"V"}},
-		"given, within a default":    {body: "    command: run ${W:-${V}}\n", vars: map[string]string{"V": "set"}, want: []string{"V"}},
-		"given, within another word": {body: "    command: run ${W:+${V}}\n", vars: map[string]string{"V": "set", "W": "on"}, want: []string{"V"}},
+		"given, over a default":      {body: "    labels: {a: \"run ${V:-x}\"}\n", vars: map[string]string{"V": "set"}, want: []string{"V"}},
+		"given, without braces":      {body: "    labels: {a: \"run $V\"}\n", vars: map[string]string{"V": "set"}, want: []string{"V"}},
+		"given, needing a value":     {body: "    labels: {a: \"run ${V:?needs it}\"}\n", vars: map[string]string{"V": "set"}, want: []string{"V"}},
+		"given, within a default":    {body: "    labels: {a: \"run ${W:-${V}}\"}\n", vars: map[string]string{"V": "set"}, want: []string{"V"}},
+		"given, within another word": {body: "    labels: {a: \"run ${W:+${V}}\"}\n", vars: map[string]string{"V": "set", "W": "on"}, want: []string{"V"}},
 		// An entry's name isn't hidden, as the plan and an export show it.
 		"naming a list's entry": {body: "    environment: [\"${V}=x\"]\n", vars: map[string]string{"V": "set"}, want: []string{"V"}},
 	} {
@@ -260,13 +276,13 @@ func TestAFileCantFillAPlanWithNotes(t *testing.T) {
 	guarded(t)
 	vars := map[string]string{}
 	var b strings.Builder
-	b.WriteString("services:\n  web:\n    image: nginx:1.27\n    command: run")
+	b.WriteString("services:\n  web:\n    image: nginx:1.27\n    labels: {a: \"run")
 	for i := 0; b.Len() < MaxFile-64; i++ {
 		name := "v" + strconv.Itoa(i)
 		vars[name] = "1"
 		b.WriteString(" $" + name)
 	}
-	file := b.String() + "\n"
+	file := b.String() + "\"}\n"
 	if len(vars) <= maxExposed {
 		t.Fatalf("only %d variables, so this tests nothing", len(vars))
 	}
@@ -336,7 +352,7 @@ func TestReadingAFileAsksWhatAPlanCanSay(t *testing.T) {
 		vars map[string]string
 	}{
 		"a notice":    {body: "    network_mode: host\n    container_name: db\n"},
-		"an exposure": {body: "    command: run ${V}\n", vars: map[string]string{"V": "x"}},
+		"an exposure": {body: "    labels: {a: \"${V}\"}\n", vars: map[string]string{"V": "x"}},
 	} {
 		_, err := parse(t.Context(), Input{File: []byte(web + c.body), Variables: c.vars})
 		if err == nil || !strings.Contains(Message(err), "names something a plan can't say") {
@@ -365,11 +381,11 @@ func TestExposedSaysWhereAValueLands(t *testing.T) {
 		file string
 		want []Exposed
 	}{
-		"command":            {head + "    command: [--pw, \"${S}\"]\n", w("command", s)},
-		"command as a line":  {head + "    command: run --pw $S\n", w("command", s)},
-		"entrypoint":         {head + "    entrypoint: [x, \"$S\"]\n", w("entrypoint", s)},
-		"health check":       {head + "    healthcheck: {test: [CMD, x, \"${S}\"]}\n", w("healthcheck", s)},
-		"health as a line":   {head + "    healthcheck: {test: \"x ${S}\"}\n", w("healthcheck", s)},
+		"command":            {head + "    command: [--pw, \"${S}\"]\n", nil},
+		"command as a line":  {head + "    command: run --pw $S\n", nil},
+		"entrypoint":         {head + "    entrypoint: [x, \"$S\"]\n", nil},
+		"health check":       {head + "    healthcheck: {test: [CMD, x, \"${S}\"]}\n", nil},
+		"health as a line":   {head + "    healthcheck: {test: \"x ${S}\"}\n", nil},
 		"label in a list":    {head + "    labels: [\"a=${S}\"]\n", w("labels", s)},
 		"label in a map":     {head + "    labels: {a: \"${S}\"}\n", w("labels", s)},
 		"name in a list":     {head + "    environment: [\"${S}=x\"]\n", w("environment", s)},
@@ -377,19 +393,19 @@ func TestExposedSaysWhereAValueLands(t *testing.T) {
 		"volume label":       {"volumes:\n  v:\n    labels: {a: \"${S}\"}\n" + head, field("volume", "v", "labels", s)},
 		"network label":      {"networks:\n  n:\n    labels: {a: \"${S}\"}\n" + head, field("network", "n", "labels", s)},
 		"network option":     {"networks:\n  n:\n    driver_opts: {a: \"${S}\"}\n" + head, field("network", "n", "driver_opts", s)},
-		"through an alias":   {"x-c: &c [--pw, \"${S}\"]\n" + head + "    command: *c\n", w("command", s)},
-		"through a merge":    {"x-c: &c\n  command: [--pw, \"${S}\"]\n" + head + "    <<: *c\n", w("command", s)},
-		"a default":          {head + "    command: \"${S:-x}\"\n", w("command", s)},
-		"unset's default":    {head + "    command: \"${S-x}\"\n", w("command", s)},
-		"needed":             {head + "    command: \"${S:?why}\"\n", w("command", s)},
-		"unset's needed":     {head + "    command: \"${S?why}\"\n", w("command", s)},
-		"inside a default":   {head + "    command: \"${A:-$S}\"\n", w("command", "A", s)},
-		"inside an other":    {head + "    command: \"${A:+--pw=$S}\"\n", w("command", s)},
-		"its own other":      {head + "    command: \"run ${S:+--pw=$S}\"\n", w("command", s)},
-		"unset's other":      {head + "    command: \"${A+$S}\"\n", w("command", s)},
-		"only whether it is": {head + "    command: \"${S:+--flag}\"\n", nil},
-		"a reason's":         {head + "    command: \"${A:?why $S}\"\n", w("command", "A")},
-		"a dollar":           {head + "    command: \"$$S ${A:-$$S}\"\n", w("command", "A")},
+		"through an alias":   {"x-c: &c {a: \"${S}\"}\n" + head + "    labels: *c\n", w("labels", s)},
+		"through a merge":    {"x-c: &c\n  labels: {a: \"${S}\"}\n" + head + "    <<: *c\n", w("labels", s)},
+		"a default":          {head + "    labels: {a: \"${S:-x}\"}\n", w("labels", s)},
+		"unset's default":    {head + "    labels: {a: \"${S-x}\"}\n", w("labels", s)},
+		"needed":             {head + "    labels: {a: \"${S:?why}\"}\n", w("labels", s)},
+		"unset's needed":     {head + "    labels: {a: \"${S?why}\"}\n", w("labels", s)},
+		"inside a default":   {head + "    labels: {a: \"${A:-$S}\"}\n", w("labels", "A", s)},
+		"inside an other":    {head + "    labels: {a: \"${A:+--pw=$S}\"}\n", w("labels", s)},
+		"its own other":      {head + "    labels: {a: \"run ${S:+--pw=$S}\"}\n", w("labels", s)},
+		"unset's other":      {head + "    labels: {a: \"${A+$S}\"}\n", w("labels", s)},
+		"only whether it is": {head + "    labels: {a: \"${S:+--flag}\"}\n", nil},
+		"a reason's":         {head + "    labels: {a: \"${A:?why $S}\"}\n", w("labels", "A")},
+		"a dollar":           {head + "    labels: {a: \"$$S ${A:-$$S}\"}\n", w("labels", "A")},
 
 		"what runs":             {"name: \"a$S\"\nservices:\n  w:\n    image: \"nginx:$S\"\n", nil},
 		"a user":                {head + "    user: \"${S}\"\n", nil},
@@ -428,10 +444,10 @@ func TestAFormWarnsWhereAPlanWould(t *testing.T) {
 			got := inspect(t.Context(), Input{File: []byte(r.file)}).Exposed
 			owner := map[string]string{"service": "web", "network": "back", "volume": "data"}[r.kind]
 			key, _, _ := strings.Cut(r.field, ".")
-			if r.warns && !slices.Contains(got, Exposed{Variable: "V", Kind: r.kind, Owner: owner, Field: key}) {
+			if r.warns && !r.onceGiven && !slices.Contains(got, Exposed{Variable: "V", Kind: r.kind, Owner: owner, Field: key}) {
 				t.Errorf("the form doesn't name V in %s: %+v", r.field, got)
 			}
-			if !r.warns && len(got) > 0 {
+			if (!r.warns || r.onceGiven) && len(got) > 0 {
 				t.Errorf("the form warns of a field that decides it needn't: %+v", got)
 			}
 		})
@@ -442,16 +458,16 @@ func TestAFormWarnsWhereAPlanWould(t *testing.T) {
 // what could come, so a default's words warn a form and not a plan, as someone may
 // yet give that variable a value.
 func TestAPlanGoesByTheValuesItHasAndAFormByWhatCouldCome(t *testing.T) {
-	file := []byte("services:\n  w:\n    image: nginx:1\n    command: x $S ${T:-a}\n")
+	file := []byte("services:\n  w:\n    image: nginx:1\n    labels: {a: \"x $S ${T:-a}\"}\n")
 	stack, err := Parse(t.Context(), file, map[string]string{"S": "a"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := Exposed{Variable: "S", Kind: "service", Owner: "w", Field: "command"}
+	s := Exposed{Variable: "S", Kind: "service", Owner: "w", Field: "labels"}
 	if !slices.Equal(stack.Exposed, []Exposed{s}) {
 		t.Errorf("Parse said %+v", stack.Exposed)
 	}
-	if got := inspect(t.Context(), Input{File: file}).Exposed; !slices.Equal(got, []Exposed{s, {Variable: "T", Kind: "service", Owner: "w", Field: "command"}}) {
+	if got := inspect(t.Context(), Input{File: file}).Exposed; !slices.Equal(got, []Exposed{s, {Variable: "T", Kind: "service", Owner: "w", Field: "labels"}}) {
 		t.Errorf("inspect said %+v", got)
 	}
 }
@@ -504,11 +520,11 @@ func TestCheckReadsWhatIsBesideTheFile(t *testing.T) {
 // A plan keeps what it says for good, so a file can't make it say much.
 func TestExposedStopsAtItsLimit(t *testing.T) {
 	var b strings.Builder
-	b.WriteString("services:\n  w:\n    image: nginx:1\n    command: \"")
+	b.WriteString("services:\n  w:\n    image: nginx:1\n    labels: {a: \"")
 	for i := range maxExposed + 50 {
 		fmt.Fprintf(&b, "$V%03d", i)
 	}
-	b.WriteString("\"\n")
+	b.WriteString("\"}\n")
 	first := inspect(t.Context(), Input{File: []byte(b.String())})
 	if len(first.Exposed) != maxExposed || !first.ExposedMore {
 		t.Fatalf("Exposed = %d, more = %t, want %d and more", len(first.Exposed), first.ExposedMore, maxExposed)
@@ -521,11 +537,11 @@ func TestExposedStopsAtItsLimit(t *testing.T) {
 	}
 	// Exactly at the limit is everything, and says so.
 	b.Reset()
-	b.WriteString("services:\n  w:\n    image: nginx:1\n    command: \"")
+	b.WriteString("services:\n  w:\n    image: nginx:1\n    labels: {a: \"")
 	for i := range maxExposed {
 		fmt.Fprintf(&b, "$V%03d", i)
 	}
-	b.WriteString("\"\n")
+	b.WriteString("\"}\n")
 	if got := inspect(t.Context(), Input{File: []byte(b.String())}); len(got.Exposed) != maxExposed || got.ExposedMore {
 		t.Errorf("at the limit: %d, more = %t", len(got.Exposed), got.ExposedMore)
 	}

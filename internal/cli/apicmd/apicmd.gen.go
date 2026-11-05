@@ -1029,6 +1029,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "app.group_add", Help: "Groups its command joins beside its user's, by name or number, such as \"audio\" or \"999\". It is host access: joining the group that owns Docker's socket is the same as root."},
 				{Path: "app.privileged", Help: "Runs it with every device and capability on the server, the same as root. It is host access."},
 				{Path: "app.restart_retries", Help: "How many times on-failure restarts it before giving up. 0 has no limit. Only on-failure takes one."},
+				{Path: "app.references", Help: "Which of \"command\", \"entrypoint\" and \"healthcheck.test\" name values rather than hold them. In a field listed here, ${NAME} is the value of NAME in the container's environment, or of what its service uses under that name, and $$ is a $ of its own, as in a Compose file. So a plan, an export and what an agent reports show the name, a rotation reaches it, and the value is written in only as the container is made. In any other field, a $ is a $."},
 				{Path: "variables", Help: "The environment's variables the service uses, each under the name the service sees it as: DATABASE_HOST=DB_HOST gives the service the variable DB_HOST as DATABASE_HOST. An empty value means the variable of the same name."},
 				{Path: "secrets", Help: "The environment's secrets the service uses, named as for variables. Using a secret doesn't let anyone read it: its value goes only to the servers the service runs on, and only their agents decrypt it."},
 			},
@@ -1074,6 +1075,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "group_add", Help: "Groups its command joins beside its user's, by name or number, such as \"audio\" or \"999\". It is host access: joining the group that owns Docker's socket is the same as root."},
 				{Path: "privileged", Help: "Runs it with every device and capability on the server, the same as root. It is host access."},
 				{Path: "restart_retries", Help: "How many times on-failure restarts it before giving up. 0 has no limit. Only on-failure takes one."},
+				{Path: "references", Help: "Which of \"command\", \"entrypoint\" and \"healthcheck.test\" name values rather than hold them. In a field listed here, ${NAME} is the value of NAME in the container's environment, or of what its service uses under that name, and $$ is a $ of its own, as in a Compose file. So a plan, an export and what an agent reports show the name, a rotation reaches it, and the value is written in only as the container is made. In any other field, a $ is a $."},
 			},
 		},
 		{

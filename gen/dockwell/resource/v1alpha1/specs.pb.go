@@ -383,8 +383,15 @@ type Container struct {
 	// How many times on-failure restarts it before giving up. 0 has no limit.
 	// Only on-failure takes one.
 	RestartRetries uint32 `protobuf:"varint,28,opt,name=restart_retries,json=restartRetries,proto3" json:"restart_retries,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Which of "command", "entrypoint" and "healthcheck.test" name values rather
+	// than hold them. In a field listed here, ${NAME} is the value of NAME in the
+	// container's environment, or of what its service uses under that name, and
+	// $$ is a $ of its own, as in a Compose file. So a plan, an export and what
+	// an agent reports show the name, a rotation reaches it, and the value is
+	// written in only as the container is made. In any other field, a $ is a $.
+	References    []string `protobuf:"bytes,29,rep,name=references,proto3" json:"references,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Container) Reset() {
@@ -583,6 +590,13 @@ func (x *Container) GetRestartRetries() uint32 {
 		return x.RestartRetries
 	}
 	return 0
+}
+
+func (x *Container) GetReferences() []string {
+	if x != nil {
+		return x.References
+	}
+	return nil
 }
 
 // Resources is what a container may use of its server. Docker changes these on
@@ -2064,7 +2078,7 @@ var File_dockwell_resource_v1alpha1_specs_proto protoreflect.FileDescriptor
 
 const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\n" +
-	"&dockwell/resource/v1alpha1/specs.proto\x12\x1adockwell.resource.v1alpha1\x1a\x1fgoogle/api/field_behavior.proto\x1a google/protobuf/descriptor.proto\"\x95\t\n" +
+	"&dockwell/resource/v1alpha1/specs.proto\x12\x1adockwell.resource.v1alpha1\x1a\x1fgoogle/api/field_behavior.proto\x1a google/protobuf/descriptor.proto\"\xb5\t\n" +
 	"\tContainer\x12\x14\n" +
 	"\x05image\x18\x01 \x01(\tR\x05image\x12\x18\n" +
 	"\acommand\x18\x02 \x03(\tR\acommand\x12F\n" +
@@ -2095,7 +2109,10 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\n" +
 	"privileged\x18\x1b \x01(\bR\n" +
 	"privileged\x12'\n" +
-	"\x0frestart_retries\x18\x1c \x01(\rR\x0erestartRetries\x1a6\n" +
+	"\x0frestart_retries\x18\x1c \x01(\rR\x0erestartRetries\x12\x1e\n" +
+	"\n" +
+	"references\x18\x1d \x03(\tR\n" +
+	"references\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +

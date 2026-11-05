@@ -24,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/secrets"
 )
@@ -284,7 +285,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()),
+		agents: a, server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
@@ -325,6 +326,8 @@ type Session struct {
 	// deliveryKey is the stream's own public key, which the values of
 	// variables and secrets are sealed to.
 	deliveryKey []byte
+	// writesReferences says the agent writes a container's references in.
+	writesReferences bool
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -684,6 +687,9 @@ func (s *Session) supports(ref resource.Ref) error {
 // Plan asks the agent what moving each resource to its desired spec would
 // take. It reads the server and changes nothing there.
 func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resource.Step, error) {
+	if err := s.checkAllWrites(desired); err != nil {
+		return nil, err
+	}
 	call := &agentv1.PlanCall{}
 	for _, d := range desired {
 		if err := s.supports(d.Ref); err != nil {
@@ -708,18 +714,19 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 	}
 	steps := make([]resource.Step, len(got))
 	for i, p := range got {
+		want := desired[i].Ref //nolint:gosec // got has as many as desired, as checked above
 		if steps[i], err = resourcepb.FromStep(p); err != nil {
 			// Read as anything else, the step would be skipped or
 			// misstated, so the plan fails.
 			return nil, fmt.Errorf("%s's agent planned a step for %s that this control plane can't read: %w. "+
-				"The agent is newer than the control plane, so upgrade the control plane to the agent's version", s.name, desired[i].Ref, err)
+				"The agent is newer than the control plane, so upgrade the control plane to the agent's version", s.name, want, err)
 		}
 		// The step is about the resource asked for, whatever the agent says.
-		steps[i].Ref = desired[i].Ref
+		steps[i].Ref = want
 		// A field the schema marks sensitive never shows its value, whatever
 		// the agent says of it: plans are kept, and an agent that got it
 		// wrong mustn't put a secret in one.
-		if t, err := s.agents.kinds.Type(desired[i].Ref.Kind); err == nil {
+		if t, err := s.agents.kinds.Type(want.Kind); err == nil {
 			md := t.New().ProtoReflect().Descriptor()
 			for j := range steps[i].Changes {
 				c := &steps[i].Changes[j]
@@ -739,6 +746,9 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 // when it moves to a renewed certificate, is sealed again for that one.
 func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
 	if err := s.supports(step.Ref); err != nil {
+		return err
+	}
+	if err := s.checkWrites(step.Ref, desired); err != nil {
 		return err
 	}
 	dr, err := desiredProto(step.Ref, desired)
@@ -801,6 +811,26 @@ func (s *Session) seal(ref resource.Ref, values map[string]string) ([]byte, erro
 		return nil, fmt.Errorf("can't seal the values %s uses for %s: %w", ref.Name, s.name, err)
 	}
 	return sealed, nil
+}
+
+// checkWrites refuses a spec whose fields name values for an agent that doesn't say
+// it writes them in, which would run ${NAME} as the words it is: a password anyone who
+// can read the plan knows.
+func (s *Session) checkWrites(ref resource.Ref, spec proto.Message) error {
+	if s.writesReferences || spec == nil || !binding.WritesReferences(spec) {
+		return nil
+	}
+	return fmt.Errorf("the agent on %s can't write a value into a command, and %s names one there. Update the agent on %s", s.name, ref.Name, s.name)
+}
+
+// checkAllWrites is checkWrites for all a plan asks of this agent.
+func (s *Session) checkAllWrites(desired []resource.Desired) error {
+	for _, d := range desired {
+		if err := s.checkWrites(d.Ref, d.Spec); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Session) noDeliveryKey(ref resource.Ref) error {

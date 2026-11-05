@@ -388,7 +388,19 @@ func (h *Handler) CheckCompose(ctx context.Context, req *connect.Request[dockwel
 	for _, v := range seen.Variables {
 		res.Variables = append(res.Variables, &dockwellv1.ComposeVariable{Name: v.Name, Required: v.Required})
 	}
-	res.ExposedVariables, res.MoreExposed = exposedProtos(seen.Exposed), seen.ExposedMore
+	// What a form warns of before anyone types a value, and what a value typed so far
+	// makes of it, as a command written as one string can't keep one of several words
+	// by name, and only the value says that.
+	exposed, more := seen.Exposed, seen.ExposedMore
+	if stack != nil {
+		for _, e := range stack.Exposed {
+			if !slices.Contains(exposed, e) {
+				exposed = append(exposed, e)
+			}
+		}
+		more = more || stack.ExposedMore
+	}
+	res.ExposedVariables, res.MoreExposed = exposedProtos(exposed), more
 	name, nameErr := h.fileName(ctx, seen.Name)
 	if nameErr != nil {
 		return nil, h.internal(ctx, nameErr)
@@ -495,8 +507,8 @@ func exposedNotes(env string, exposed []compose.Exposed, more bool, given map[st
 	return out
 }
 
-// exposedMessage says where a value lands. How to hide one depends on the field:
-// only what runs can read it from the environment, and then only through a shell.
+// exposedMessage says where a value lands. How to hide one depends on the field: what
+// runs keeps a value by name, as long as it is one word.
 func exposedMessage(e compose.Exposed, given map[string]string) string {
 	from := "your .env"
 	if _, ok := given[e.Variable]; ok {
@@ -508,8 +520,6 @@ func exposedMessage(e compose.Exposed, given map[string]string) string {
 	}
 	field := e.Field
 	switch e.Field {
-	case "healthcheck":
-		field = "health check"
 	case "driver_opts":
 		field = "driver options"
 	case "environment":
@@ -518,9 +528,7 @@ func exposedMessage(e compose.Exposed, given map[string]string) string {
 	fact := fmt.Sprintf("%s from %s is in %s %s, so anyone who can read this change or export this environment can read it", e.Variable, from, owner, field)
 	switch e.Field {
 	case "command", "entrypoint":
-		return fmt.Sprintf("%s. To keep it hidden, set it in environment and have the %s read it there, with sh -c, if the image has a shell", fact, e.Field)
-	case "healthcheck":
-		return fact + ". To keep it hidden, set it in environment and have the health check read it there, with CMD-SHELL, if the image has a shell"
+		return fmt.Sprintf("%s. It is more than one word there, and one name can't stand for that. To keep it hidden, write the %s as a list, with each word its own variable", fact, e.Field)
 	case "environment":
 		return fact + ", as only a variable's value is hidden. Don't write a secret in a variable's name"
 	}

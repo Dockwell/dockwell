@@ -10,10 +10,10 @@ import (
 )
 
 // What a plan says of a value in free text says where it is, in a person's words, and
-// how to keep it hidden, which depends on whether what is there can read a variable.
+// how to keep it hidden, which depends on whether what is there can name a value.
 func TestExposedMessage(t *testing.T) {
 	const anyone = ", so anyone who can read this change or export this environment can read it"
-	const shell = "To keep it hidden, set it in environment and have the "
+	const words = "It is more than one word there, and one name can't stand for that. To keep it hidden, write the "
 	const notThere = "It can't be hidden there, so if it is a secret, set it in environment for the app to read instead"
 	for _, c := range []struct {
 		e    compose.Exposed
@@ -21,15 +21,11 @@ func TestExposedMessage(t *testing.T) {
 	}{
 		{
 			compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "command"},
-			"V from your .env is in web's command" + anyone + ". " + shell + "command read it there, with sh -c, if the image has a shell",
+			"V from your .env is in web's command" + anyone + ". " + words + "command as a list, with each word its own variable",
 		},
 		{
 			compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "entrypoint"},
-			"V from your .env is in web's entrypoint" + anyone + ". " + shell + "entrypoint read it there, with sh -c, if the image has a shell",
-		},
-		{
-			compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "healthcheck"},
-			"V from your .env is in web's health check" + anyone + ". " + shell + "health check read it there, with CMD-SHELL, if the image has a shell",
+			"V from your .env is in web's entrypoint" + anyone + ". " + words + "entrypoint as a list, with each word its own variable",
 		},
 		{
 			compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "labels"},
