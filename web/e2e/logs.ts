@@ -491,18 +491,21 @@ async function main() {
   if (code !== 0 || followErr.trim() !== "") fail(`dockwell logs follow on Ctrl-C: status ${code}, said ${followErr}`);
   step(`  printed ${JSON.stringify(followed.split("\n").at(-2))}, and exited with status 0`);
 
-  step("the page at a hundred thousand lines, at 5,000 lines a second");
+  step("the page at a hundred thousand lines, at 5,000 lines a second from each replica");
   await page.goto(url);
+  const written = async () => Number((await (await fetch(`${load}/written`)).text()).trim());
+  const writtenBefore = await written();
   await post("/rate?lines=5000&size=120");
   await page.getByRole("status").getByText("Live").waitFor();
   const stopFilling = await watchFrames(page);
   await sleep(21_000);
   const filling = await stopFilling();
+  const wrote = (await written()) - writtenBefore;
   step(
-    `  filling, 21 s at 5,000 lines/s: ${filling.frames} frames, p50 ${fmt(filling.p50)} ms, p95 ${fmt(filling.p95)} ms, worst ${fmt(filling.max)} ms; ${filling.longTasks} long tasks, longest ${fmt(filling.longest)} ms; JS heap ${fmt(filling.heapMb)} MB`,
+    `  filling, 21 s, ${wrote.toLocaleString("en")} lines written: ${filling.frames} frames, p50 ${fmt(filling.p50)} ms, p95 ${fmt(filling.p95)} ms, worst ${fmt(filling.max)} ms; ${filling.longTasks} long tasks, longest ${fmt(filling.longest)} ms; JS heap ${fmt(filling.heapMb)} MB`,
   );
   // Generous, as machines vary. A line drawn too dearly shows up here, as one did.
-  if (filling.p95 > 50) fail(`at 5,000 lines a second, the p95 frame took ${fmt(filling.p95)} ms`);
+  if (filling.p95 > 50) fail(`at 5,000 lines a second from each replica, the p95 frame took ${fmt(filling.p95)} ms`);
   await post("/rate?lines=0");
   const rows = await page.locator(".dw-log-row").count();
   step(`  ${rows} rows in the DOM`);
