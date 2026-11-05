@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -634,13 +635,24 @@ func testAVolumesPasswordIsSealed(t *testing.T, backend store.Backend) {
 		t.Errorf("the export omits %v:\n%s", ex.Msg.GetOmitted(), ex.Msg.GetCompose())
 	}
 	// Docker can't change a volume, so importing the file without its
-	// options is refused, and takes nothing away.
-	_, err = cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: ex.Msg.GetCompose()}))
-	if err == nil || strings.Contains(err.Error(), password) || !strings.Contains(err.Error(), "share") {
-		t.Errorf("importing the export without the options = %v, want it refused, naming the volume and no password", err)
+	// options keeps the ones it was made with, plans nothing for it and says so.
+	back, err := cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: ex.Msg.GetCompose()}))
+	if err != nil {
+		t.Fatalf("importing the export without the options = %v, want it planned", err)
+	}
+	if strings.Contains(back.Msg.String(), password) {
+		t.Errorf("the plan of the export holds the password: %s", back.Msg)
+	}
+	if !plansNothing(back.Msg.GetChange().GetPlan()) {
+		t.Errorf("importing the export plans %v, want nothing", back.Msg.GetChange().GetPlan())
+	}
+	if !slices.ContainsFunc(back.Msg.GetChange().GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool {
+		return n.GetReason() == "kept_options" && n.GetResource().GetName() == "share"
+	}) {
+		t.Errorf("the plan doesn't say share keeps its options: %v", back.Msg.GetChange().GetPlan().GetNotes())
 	}
 	if got := e.Volume(project + "_share"); got == nil || !strings.Contains(got.Options["o"], password) {
-		t.Errorf("after refusing the import, Docker has %+v", got)
+		t.Errorf("after importing the export, Docker has %+v", got)
 	}
 	got, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: planned.GetId()}))
 	if err != nil {
@@ -650,6 +662,154 @@ func testAVolumesPasswordIsSealed(t *testing.T, backend store.Backend) {
 		t.Errorf("the change holds the password: %s", got.Msg)
 	}
 	assertNoPassword("at the end")
+}
+
+// A read-write token can import a file with a guess at a volume's CIFS password,
+// and the plan can't tell it whether the guess is right: a volume keeps the
+// password it was made with, whatever an edit says, and a plan never compares one
+// with it. The right password and a wrong one plan alike, changing nothing, and
+// each says the volume keeps its password. Anything else in the options is refused,
+// as Docker can't change it. The last check of #70 found the right one planned
+// nothing and a wrong one was refused, as the options couldn't change.
+func TestATokenCantConfirmAGuessAtAVolumesPassword(t *testing.T) {
+	storetest.Each(t, testATokenCantConfirmAGuessAtAVolumesPassword)
+}
+
+func testATokenCantConfirmAGuessAtAVolumesPassword(t *testing.T, backend store.Backend) {
+	const password = "cifs-pw-7Hq2mXv9Lr4Kd8Zs"
+	file := func(o string) string {
+		return "services:\n  app:\n    image: ghcr.io/acme/shop:1.4\n    volumes: [\"share:/x\"]\nvolumes:\n  share:\n" +
+			"    driver_opts: {type: cifs, device: //nas/share, o: \"" + o + "\"}\n"
+	}
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	applyConfirmed(t, c, importCompose(t, dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON()), file("addr=10.0.0.2,username=svc,password="+password), nil, false))
+
+	script := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}
+	tc := dockwellv1connect.NewComposeServiceClient(script, b.origin, connect.WithProtoJSON())
+	guess := func(o string) (*dockwellv1.Plan, error) {
+		t.Helper()
+		res, err := tc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Project: scope.DefaultProject, Compose: file(o)}))
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg.GetChange().GetPlan(), nil
+	}
+	right, err := guess("addr=10.0.0.2,username=svc,password=" + password)
+	if err != nil {
+		t.Fatalf("the right password = %v, want it planned", err)
+	}
+	wrong, err := guess("addr=10.0.0.2,username=svc,password=letmein")
+	if err != nil {
+		t.Fatalf("a wrong password = %v, want it planned as the right one is", err)
+	}
+	for _, p := range []*dockwellv1.Plan{right, wrong} {
+		if !plansNothing(p) {
+			t.Errorf("a guess plans %v, want nothing", p.GetSummary())
+		}
+		if !slices.ContainsFunc(p.GetNotes(), func(n *dockwellv1.PlanNote) bool {
+			return n.GetReason() == "kept_password" && n.GetResource().GetName() == "share"
+		}) {
+			t.Errorf("a guess's plan doesn't say share keeps its password: %v", p.GetNotes())
+		}
+		p.Fingerprint = ""
+		for _, r := range p.GetResources() {
+			r.Id = ""
+		}
+	}
+	if !proto.Equal(right, wrong) {
+		t.Errorf("the right password plans\n%v\nand a wrong one\n%v", right, wrong)
+	}
+	if strings.Contains(right.String(), password) {
+		t.Errorf("the plan holds the password: %v", right)
+	}
+	// The rest of o, and the other options, still can't change.
+	for what, o := range map[string]string{
+		"another address":          "addr=10.0.0.3,username=svc,password=letmein",
+		"a password added to o":    "addr=10.0.0.2,username=svc,password=letmein,pass=x",
+		"the same, in other order": "username=svc,addr=10.0.0.2,password=" + password,
+	} {
+		if _, err := guess(o); err == nil || !strings.Contains(err.Error(), "can't change") || strings.Contains(err.Error(), password) {
+			t.Errorf("%s = %v, want it refused, with no password", what, err)
+		}
+	}
+	project := docker.Project(listedEnv(t, b))
+	if got := e.Volume(project + "_share"); got == nil || !strings.Contains(got.Options["o"], password) {
+		t.Errorf("after the guesses, Docker has %+v", got)
+	}
+}
+
+// A volume's password goes only where it went. An edit that gives one and changes
+// anything else of the volume is refused, on any server, in the same words whatever
+// the password is. Planning it would take the password the volume keeps to the
+// address the edit names, as a move makes a volume anew on another server, and the
+// paths the plan says changed would say whether a guess was right. A move that
+// changes nothing else keeps the password, whatever the edit gave.
+func TestAVolumesPasswordGoesNowhereElse(t *testing.T) {
+	storetest.Each(t, testAVolumesPasswordGoesNowhereElse)
+}
+
+func testAVolumesPasswordGoesNowhereElse(t *testing.T, backend store.Backend) {
+	const password = "cifs-pw-3Ws8nBt6Yc1Jf5Rd"
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	f.addServerNamed(t, "hz-1", nil, nil)
+	one := f.lastDocker.id.ServerID
+	hz2 := f.addServerNamed(t, "hz-2", nil, nil)
+	two := f.lastDocker.id.ServerID
+	edit := func(options map[string]string, server string) *dockwellv1.ProposeChangeRequest {
+		return &dockwellv1.ProposeChangeRequest{Summary: "Share", Edits: []*dockwellv1.Edit{{
+			Resource: &dockwellv1.ResourceRef{Kind: "volume", Name: "share"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: &resourcev1.Volume{Options: options}}},
+			Servers:  []string{server},
+		}}}
+	}
+	cifs := func(device, o string) map[string]string {
+		return map[string]string{"type": "cifs", "device": device, "o": o}
+	}
+	const nas, there = "//nas/share", "addr=10.0.0.2,username=svc,password="
+	c := changeClient(b, b.origin)
+	made, err := c.ProposeChange(t.Context(), connect.NewRequest(edit(cifs(nas, there+password), one)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyConfirmed(t, c, made.Msg.GetChange())
+
+	script := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}
+	tc := dockwellv1connect.NewChangeServiceClient(script, b.origin, connect.WithProtoJSON())
+	for what, options := range map[string]func(guess string) map[string]string{
+		"another address": func(guess string) map[string]string { return cifs(nas, "addr=10.0.0.9,username=svc,password="+guess) },
+		"another device":  func(guess string) map[string]string { return cifs("//10.0.0.9/share", there+guess) },
+		"another type":    func(guess string) map[string]string { return map[string]string{"type": "tmpfs", "o": there + guess} },
+	} {
+		_, right := tc.ProposeChange(t.Context(), connect.NewRequest(edit(options(password), two)))
+		_, wrong := tc.ProposeChange(t.Context(), connect.NewRequest(edit(options("letmein"), two)))
+		if right == nil || wrong == nil || !strings.Contains(right.Error(), "can't change") {
+			t.Errorf("%s: the right password = %v, a wrong one = %v, want both refused", what, right, wrong)
+			continue
+		}
+		if right.Error() != wrong.Error() {
+			t.Errorf("%s: the right password is refused with\n%v\nand a wrong one with\n%v", what, right, wrong)
+		}
+		if strings.Contains(right.Error(), password) || strings.Contains(wrong.Error(), "letmein") {
+			t.Errorf("%s: a refusal holds the password: %v, %v", what, right, wrong)
+		}
+	}
+
+	moved, err := tc.ProposeChange(t.Context(), connect.NewRequest(edit(cifs(nas, there+"letmein"), two)))
+	if err != nil {
+		t.Fatalf("moving the volume with a wrong password = %v, want it planned", err)
+	}
+	if !slices.ContainsFunc(moved.Msg.GetChange().GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "kept_password" }) {
+		t.Errorf("the move's plan doesn't say share keeps its password: %v", moved.Msg.GetChange().GetPlan().GetNotes())
+	}
+	applyConfirmed(t, c, moved.Msg.GetChange())
+	project := docker.Project(listedEnv(t, b))
+	if got := hz2.Volume(project + "_share"); got == nil || got.Options["o"] != there+password {
+		t.Errorf("hz-2 has %+v, want the volume with the password it was made with", got)
+	}
 }
 
 // plansNothing reports a plan that changes no resource and runs no step.

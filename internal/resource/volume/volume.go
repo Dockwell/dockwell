@@ -123,26 +123,78 @@ func (*Driver) Validate(spec proto.Message) error {
 // password.
 var passwordNames = []string{"password", "pass", "password2"}
 
+// Keep keeps a volume's password, and its options when an edit gives none, as an
+// export leaves them out. A password in the edit never compares with the one there:
+// where the edit gives the volume as it is but for that, it gets the options the
+// volume has, so a guess plans the same right or wrong, on any server, and a plan
+// says the volume keeps its password.
+//
+// An edit that gives a password and differs in anything else is refused, in words
+// that hold nothing of it, wherever it places the volume. Docker can't change a
+// volume, but a move makes it anew on another server, so keeping the password there
+// would take it to the address or driver the edit names. Planning it with the
+// edit's own password wouldn't do either, as the paths a plan says changed would
+// say whether that one was right.
+func (*Driver) Keep(current, desired proto.Message) (resource.Kept, error) {
+	c, d := current.(*resourcev1.Volume), desired.(*resourcev1.Volume)
+	switch {
+	case len(d.GetOptions()) == 0 && len(c.GetOptions()) > 0 && d.GetDriver() == c.GetDriver():
+		d.Options = maps.Clone(c.GetOptions())
+		return resource.Kept{Reason: "kept_options", Words: "keeps the options it was made with, as this gives it none, which is how an export writes it. " +
+			"Docker can't change a volume, so to make it without them, make a volume of another name, move its data across, then delete this one"}, nil
+	case !HoldsPassword(d.GetOptions()):
+		return resource.Kept{}, nil
+	case d.GetDriver() != c.GetDriver() || !maps.Equal(withoutPasswords(d.GetOptions()), withoutPasswords(c.GetOptions())):
+		return resource.Kept{}, errors.New("docker can't change a volume once it is made, and a plan never compares a volume's password, so its options can't change here. " +
+			"Make a new volume as you want it, move the data across, then delete this one")
+	}
+	d.Options = maps.Clone(c.GetOptions())
+	return resource.Kept{Reason: "kept_password", Words: "keeps the password it was made with. A plan never compares a volume's password with the one there, so it doesn't say whether this one is the same. " +
+		"Docker can't change a volume, so to give it another, make a volume of another name, move its data across, then delete this one"}, nil
+}
+
+// withoutPasswords is a volume's options with what gives a password blanked, in
+// place, so what's left can be compared.
+func withoutPasswords(options map[string]string) map[string]string {
+	out := make(map[string]string, len(options))
+	for k, v := range options {
+		if passwordName(k) {
+			out[k] = ""
+			continue
+		}
+		items := strings.Split(v, ",")
+		for i, item := range items {
+			if name, _, ok := strings.Cut(item, "="); ok && passwordName(name) {
+				items[i] = name + "="
+			}
+		}
+		out[k] = strings.Join(items, ",")
+	}
+	return out
+}
+
 // HoldsPassword reports whether a volume's options give a password: an option of
 // that name, or an item of one in a list of them, such as o's
 // username=svc,password=…. A plan never shows a volume's options, but a command
 // line stays in shell history and the process list, so the CLI takes options that
 // give one from a file or the environment.
 func HoldsPassword(options map[string]string) bool {
-	named := func(name string) bool {
-		return slices.ContainsFunc(passwordNames, func(p string) bool { return strings.EqualFold(strings.TrimSpace(name), p) })
-	}
 	for k, v := range options {
-		if named(k) {
+		if passwordName(k) {
 			return true
 		}
 		for item := range strings.SplitSeq(v, ",") {
-			if name, _, ok := strings.Cut(item, "="); ok && named(name) {
+			if name, _, ok := strings.Cut(item, "="); ok && passwordName(name) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// passwordName reports an option's name that gives a password.
+func passwordName(name string) bool {
+	return slices.ContainsFunc(passwordNames, func(p string) bool { return strings.EqualFold(strings.TrimSpace(name), p) })
 }
 
 // mountTypes are what the local driver may mount besides a bind. Anything

@@ -710,6 +710,25 @@ func plain(s string) string {
 	return s
 }
 
+// Keeper is a kind whose resources keep some of what they were made with, whatever
+// an edit says of it, so a plan never compares that with the edit: a volume keeps
+// its password, which Docker can't change anyway, so no plan says whether a guess at
+// it is right (ADR 0022). Keep puts what current keeps into desired, and says what
+// it kept for a plan's note, or nothing where the edit had nothing of it. It refuses
+// an edit it can't keep from, where what it keeps would go somewhere it hasn't been.
+// What it says, and whether it refuses, depend on what the edit gave, never on
+// whether that is the same as what current keeps.
+type Keeper interface {
+	Keep(current, desired proto.Message) (Kept, error)
+}
+
+// Kept is what a Keeper kept: Reason names it, as a plan note's reason does, and
+// Words say it after the resource's name, such as "keeps the password it was made
+// with". Empty means nothing.
+type Kept struct {
+	Reason, Words string
+}
+
 // HostAccesser is a kind whose specs can reach their server beyond what
 // Docker keeps for them, as a container that mounts a server path does. A
 // change that adds to or changes what one reaches needs a person to apply

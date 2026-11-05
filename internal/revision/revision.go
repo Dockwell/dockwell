@@ -454,6 +454,10 @@ type item struct {
 	// any field does: edits carry whole specs, so applying the same thing
 	// twice must change nothing (ADR 0022).
 	rotates bool
+	// kept is what the edit's spec kept of the resource as it is, whatever the edit
+	// said of it, such as a volume's password (resource.Keeper), for the plan to say
+	// so.
+	kept resource.Kept
 	// pull says the change asks the server for its image again (Edit.Pull).
 	pull bool
 	// pulled are the servers a run of the change stopped partway had already
@@ -569,7 +573,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if p.IfNothing != nil && plan.Empty() {
 		return nil, e.nothingToDo(ctx, items, p.IfNothing)
 	}
-	p.Notes = e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))
+	p.Notes = keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -722,6 +726,30 @@ func (e *Engine) textNotes(items []item, notes []Note) []Note {
 				Message: fmt.Sprintf("%s's %s has %s as text, as references doesn't list %s, so it runs with those words and not the value of %s. To have it name the value, list %s in its references",
 					it.ref.Name, field, human.List(spelled), field, human.List(names), field),
 			})
+		}
+	}
+	return out
+}
+
+// keeper is kind's resource.Keeper, if it is one.
+func (e *Engine) keeper(kind resource.Kind) (resource.Keeper, bool) {
+	t, err := e.kinds.Type(kind)
+	if err != nil {
+		return nil, false
+	}
+	k, ok := t.(resource.Keeper)
+	return k, ok
+}
+
+// keptNotes are a plan's notes, saying what an edit's resource kept of what it
+// was made with, whatever the edit said (resource.Keeper). Each says the same
+// whatever the edit gave there, so a plan never says whether a guess at a
+// volume's password is right.
+func keptNotes(items []item, notes []Note) []Note {
+	out := slices.Clone(notes)
+	for i := range items {
+		if k := items[i].kept; k.Reason != "" {
+			out = append(out, Note{Reason: k.Reason, Ref: items[i].ref, Message: items[i].ref.Name + " " + k.Words})
 		}
 	}
 	return out
@@ -972,6 +1000,12 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 				it.spec = proto.Clone(ed.Spec)
 				if err := e.kinds.Validate(ed.Ref.Kind, it.spec); err != nil {
 					return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
+				}
+				// Before anything compares it with what is there.
+				if k, ok := e.keeper(ed.Ref.Kind); ok && it.current != nil {
+					if it.kept, err = k.Keep(it.current, it.spec); err != nil {
+						return fault.New(ErrInvalid, "%s: %w", ed.Ref, err)
+					}
 				}
 				if it.encoded, err = resource.Encode(it.spec); err != nil {
 					return err
