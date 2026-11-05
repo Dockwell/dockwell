@@ -5,6 +5,7 @@ import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   ChangeState,
+  Connection,
   type Container,
   type Domain,
   type DomainRoute,
@@ -13,6 +14,7 @@ import {
   HealthCheckKind,
   type Mount,
   Protocol,
+  RestartPolicy,
   type ServiceInfo,
   ServiceService,
 } from "@dockwell/api";
@@ -62,7 +64,7 @@ import {
 import { DomainFacts, DomainNote, useSilent } from "./DomainNote";
 import { lookOf, routeWhere, useAppDomains, visitorUrl } from "./domains";
 import { ExportSheet } from "./ExportSheet";
-import { HealthBadge, RunsOnServers, useHealthWords, useRunsNow } from "./Health";
+import { HealthBadge, RunsOnServers, useRunsNow } from "./Health";
 import { type AppHealth, runsAsFarAsAnyoneKnows, useHealth } from "./health";
 import { ImageName, WholeImage } from "./ImageName";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
@@ -101,9 +103,19 @@ export function AppOverview() {
  * What a health state comes to, as a notice, where the record has nothing worse to say:
  * the fact, what follows and what to do. What its check said is in the panel below it.
  */
-function HealthNotice({ health, name, serviceId }: { health: AppHealth; name: string; serviceId: string }) {
+function HealthNotice({
+  health,
+  name,
+  serviceId,
+  restart,
+}: {
+  health: AppHealth;
+  name: string;
+  serviceId: string;
+  restart: RestartPolicy;
+}) {
   const { t } = useLingui();
-  const { fleet } = useFleetView();
+  const { fleet, servers } = useFleetView();
   if (health.read !== "read") return null;
   const where = health.servers
     .filter((s) => s.kind === health.kind)
@@ -122,7 +134,15 @@ function HealthNotice({ health, name, serviceId }: { health: AppHealth; name: st
           title={fleet ? t`${name} isn't running on ${where}` : t`${name} isn't running`}
           actions={logs}
         >
-          <Trans>Nothing starts it on its own. Restart it, or deploy.</Trans>
+          {restart === RestartPolicy.ALWAYS || restart === RestartPolicy.UNLESS_STOPPED ? (
+            <Trans>
+              Docker restarts it only when it stops on its own, so someone stopped it. Restart it, or deploy.
+            </Trans>
+          ) : restart === RestartPolicy.ON_FAILURE ? (
+            <Trans>Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy.</Trans>
+          ) : (
+            <Trans>Nothing starts it again on its own. Restart it, or deploy.</Trans>
+          )}
         </Callout>
       );
     case "unhealthy":
@@ -145,14 +165,33 @@ function HealthNotice({ health, name, serviceId }: { health: AppHealth; name: st
           </Trans>
         </Callout>
       );
-    case "unknown":
+    case "unknown": {
+      const unknown = health.servers.filter((s) => s.kind === "unknown");
+      const blind = unknown.find((s) => s.dockerUnreadableSince);
+      const gone = unknown.find((s) =>
+        servers?.some((f) => f.id === s.serverId && f.connection !== Connection.CONNECTED),
+      );
+      const server = (blind ?? gone ?? unknown[0])?.serverName ?? "";
       return (
         <Callout tone="warning" title={t`Nobody can say how ${name} runs`}>
-          <Trans>
-            It may well be running. Check that <code>dockwell run</code> is still running on the server.
-          </Trans>
+          {blind ? (
+            <Trans>
+              The agent on {server} can't read Docker, so it can't say what runs there. Check that Docker is running on
+              the server, with <code>systemctl status docker</code>.
+            </Trans>
+          ) : gone ? (
+            <Trans>
+              It may well be running. Check that <code>dockwell run</code> is still running on {server}.
+            </Trans>
+          ) : (
+            <Trans>
+              The agent on {server} is connected, and hasn't said how it runs lately. It may well be running. If this
+              goes on, read the agent's log on the server, with <code>journalctl -u dockwell</code>.
+            </Trans>
+          )}
         </Callout>
       );
+    }
     case "healthy":
     case "running":
     case "starting":
@@ -322,7 +361,14 @@ function AppNotice() {
         </Callout>
       );
   }
-  return <HealthNotice health={health} name={name} serviceId={service.id} />;
+  return (
+    <HealthNotice
+      health={health}
+      name={name}
+      serviceId={service.id}
+      restart={appOf(service)?.restart ?? RestartPolicy.UNSPECIFIED}
+    />
+  );
 }
 
 /**
@@ -804,7 +850,6 @@ function ConfigurationPanel() {
   const { t } = useLingui();
   const { service, health } = useApp();
   const words = useAppWords();
-  const healthWords = useHealthWords();
   const [exporting, setExporting] = useState(false);
   const app = appOf(service);
   const values = valuesOf(service);
@@ -868,15 +913,15 @@ function ConfigurationPanel() {
               <Trans>A connection to port {check.tcp.port}</Trans>
             </span>
           ) : test[0] === "NONE" ? (
-            <span className="app-muted">{t`Turned off. ${healthWords.noCheck}`}</span>
+            <span className="app-muted">{t`Turned off. Without one, Running only means it started.`}</span>
           ) : test.length > 0 ? (
             <code>{test.filter((part) => part !== "CMD" && part !== "CMD-SHELL").join(" ")}</code>
           ) : health.check === HealthCheckKind.COMMAND ? (
             <span>
               <Trans>The image's own</Trans>
             </span>
-          ) : health.read === "read" ? (
-            <span className="app-muted">{t`None. ${healthWords.noCheck}`}</span>
+          ) : health.check === HealthCheckKind.NONE ? (
+            <span className="app-muted">{t`None. Without one, Running only means it started.`}</span>
           ) : (
             <span className="app-muted">{t`None set here. The image may have one.`}</span>
           )}

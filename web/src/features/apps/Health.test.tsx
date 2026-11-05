@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ChangeSchema,
@@ -17,6 +18,7 @@ import {
   type WatchEventsResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
+import { onlineManager } from "@tanstack/react-query";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -112,14 +114,209 @@ const STATES: readonly {
     on: { state: HealthState.UNKNOWN, lastSaid: HealthState.HEALTHY },
     word: "Unknown",
     tone: "dw-tone-idle",
-    says: /hz-1 hasn't said how it is lately. It last read Healthy/,
+    says: /The agent on hz-1 hasn't said how this runs since .* ago, when it read Healthy/,
     notice: /Nobody can say how web runs/,
   },
 ];
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
+  onlineManager.setOnline(true);
   localStorage.clear();
+});
+
+/** The names of the list's rows, top to bottom. */
+const rowNames = () =>
+  screen
+    .queryAllByRole("row")
+    .slice(1)
+    .map((row) => row.querySelector(".apps-name, .dw-cell-title")?.textContent ?? "");
+
+describe("the list's order", () => {
+  const quiet = anApp("quiet", "nginx:1.27", {}, { updateTime: { seconds: 2_000_000_000n, nanos: 0 } });
+  const broken = anApp("broken", "nginx:1.27", {}, { updateTime: { seconds: 1n, nanos: 0 } });
+
+  it("is what needs a look first once how each runs has come, and doesn't move as it does", async () => {
+    renderAt(
+      "/apps",
+      api([quiet, broken], {
+        listHealth: async () => {
+          await new Promise((r) => setTimeout(r, 300));
+          return {
+            services: [
+              aHealth("svc_quiet", { state: HealthState.NO_CHECK }),
+              aHealth("svc_broken", { state: HealthState.NOT_RUNNING }),
+            ],
+          };
+        },
+      }),
+    );
+    const seen = new Set<string>();
+    await waitFor(() => {
+      // The rows that hold the list's place have no names.
+      const names = rowNames().filter(Boolean);
+      if (names.length > 0) seen.add(names.join(","));
+      expect(screen.getByText(/1 needs a look/)).toBeVisible();
+    });
+    expect(rowNames()).toEqual(["broken", "quiet"]);
+    expect([...seen]).toEqual(["broken,quiet"]);
+  });
+
+  it("stays as it is when something goes wrong later, and offers to bring it up", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let down = false;
+    renderAt(
+      "/apps",
+      api([quiet, broken], {
+        listHealth: () => ({
+          services: [
+            aHealth("svc_quiet", { state: HealthState.NO_CHECK }),
+            aHealth("svc_broken", { state: down ? HealthState.NOT_RUNNING : HealthState.NO_CHECK }),
+          ],
+        }),
+      }),
+    );
+    await waitFor(() => expect(rowNames()).toEqual(["quiet", "broken"]));
+    expect(screen.queryByRole("button", { name: "Show them first" })).not.toBeInTheDocument();
+    down = true;
+    await vi.advanceTimersByTimeAsync(11_000);
+    await waitFor(() => expect(screen.getByText(/1 needs a look/)).toBeVisible());
+    // Nothing moves under the pointer: the lead says so, and offers.
+    expect(rowNames()).toEqual(["quiet", "broken"]);
+    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(screen.getByRole("button", { name: "Show them first" }));
+    await waitFor(() => expect(rowNames()).toEqual(["broken", "quiet"]));
+    expect(screen.queryByRole("button", { name: "Show them first" })).not.toBeInTheDocument();
+  });
+
+  it("counts as people do among the calm", async () => {
+    const at = { updateTime: { seconds: 1_000n, nanos: 0 } };
+    const apps = ["svc-10", "svc-2", "svc-1"].map((n) => anApp(n, "nginx:1.27", {}, at));
+    renderAt("/apps", api(apps, running(...apps)));
+    await waitFor(() => expect(rowNames()).toEqual(["svc-1", "svc-2", "svc-10"]));
+  });
+});
+
+describe("an agent that can't read Docker", () => {
+  it("says so, and how to check, and the server doesn't read as healthy", async () => {
+    const blind = aServer({ ...hz1, dockerUnreadableSince: timestampFromDate(new Date(Date.now() - 150_000)) });
+    const { container } = renderAt(
+      "/apps/svc_web",
+      api(
+        [web],
+        reading({ state: HealthState.UNKNOWN, stale: false, lastSaid: HealthState.NO_CHECK, dockerUnreadableMsAgo: 150_000 }),
+        {},
+        blind,
+      ),
+    );
+    const panel = await screen.findByRole("region", { name: "What runs" });
+    await waitFor(() => expect(panel).toHaveTextContent("Unknown"));
+    expect(panel).toHaveTextContent(
+      /The agent on hz-1 can't read Docker, since 2 min ago, so it can't say how this runs. Check that Docker is running there, with systemctl status docker./,
+    );
+    const notice = container.querySelector(".dw-callout");
+    expect(notice).toHaveTextContent("Nobody can say how web runs");
+    expect(notice).toHaveTextContent("The agent on hz-1 can't read Docker");
+    expect(notice).toHaveTextContent("systemctl status docker");
+    expect(notice).not.toHaveTextContent("dockwell run");
+    // Its server isn't healthy either, wherever the panel shows it.
+    const top = container.querySelector(".topbar") as HTMLElement;
+    await waitFor(() => expect(top).toHaveTextContent("Can't read Docker"));
+    expect(top.querySelector(".dw-tone-healthy")).toBeNull();
+  });
+
+  it("is said apart from an agent that has gone, and one that has just not said", async () => {
+    const gone = aServer({ ...hz1, connection: 2 });
+    const first = renderAt(
+      "/apps/svc_web",
+      api([web], reading({ state: HealthState.UNKNOWN, lastSaid: HealthState.NO_CHECK }), {}, gone),
+    );
+    let panel = await screen.findByRole("region", { name: "What runs" });
+    await waitFor(() =>
+      expect(panel).toHaveTextContent(/The agent on hz-1 isn't connected, so it can't say how this runs now. It last read Running, .* ago./),
+    );
+    first.unmount();
+    renderAt("/apps/svc_web", api([web], reading({ state: HealthState.UNKNOWN, stale: false })));
+    panel = await screen.findByRole("region", { name: "What runs" });
+    await waitFor(() => expect(panel).toHaveTextContent("The agent on hz-1 hasn't read how this runs yet."));
+    expect(document.querySelector(".dw-callout")).toHaveTextContent("journalctl -u dockwell");
+  });
+});
+
+describe("what was read stands by its age, however reads go", () => {
+  const healthy = (): Api["health"] => ({
+    listHealth: () => ({ services: [aHealth("svc_web", { state: HealthState.HEALTHY, passed: true, said: "200 OK" })] }),
+  });
+
+  it("doesn't leave Healthy standing on a read that never answers, and the next read goes out", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let hang = false;
+    let reads = 0;
+    renderAt(
+      "/apps",
+      api([web], {
+        listHealth: () => {
+          reads += 1;
+          if (hang) return new Promise(() => {});
+          return { services: [aHealth("svc_web", { state: HealthState.HEALTHY, passed: true, said: "200 OK" })] };
+        },
+      }),
+    );
+    const row = await screen.findByRole("row", { name: /web/ });
+    await waitFor(() => expect(row).toHaveTextContent("Healthy"));
+    hang = true;
+    const at = reads;
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(row).toHaveTextContent("Healthy");
+    await vi.advanceTimersByTimeAsync(15_000);
+    await waitFor(() => expect(row).toHaveTextContent("Unknown"));
+    expect(row.querySelector(".dw-tone-healthy")).toBeNull();
+    // Said once, above the list, with when it last heard.
+    expect(document.querySelector(".apps-unread")).toHaveTextContent(
+      /The panel can't reach the control plane, so it can't say how your apps run, and they read Unknown. It last heard .* ago, and keeps trying./,
+    );
+    // A read that hangs gives way, so reads go on going out.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(reads - at).toBeGreaterThan(3);
+  });
+
+  it("doesn't leave Healthy standing in a browser gone offline, and says so", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderAt("/apps", api([web], healthy()));
+    const row = await screen.findByRole("row", { name: /web/ });
+    await waitFor(() => expect(row).toHaveTextContent("Healthy"));
+    onlineManager.setOnline(false);
+    await vi.advanceTimersByTimeAsync(31_000);
+    await waitFor(() => expect(row).toHaveTextContent("Unknown"));
+    expect(document.querySelector(".apps-unread")).toHaveTextContent(
+      /This browser is offline, so the panel can't say how your apps run, and they read Unknown. It last heard .* ago. Check your connection./,
+    );
+    // It isn't the apps that need a look.
+    expect(screen.queryByText(/needs? a look/)).not.toBeInTheDocument();
+    onlineManager.setOnline(true);
+    await waitFor(() => expect(row).toHaveTextContent("Healthy"));
+    expect(document.querySelector(".apps-unread")).toBeNull();
+  });
+
+  it("says on an app's page and in its head that it can't say, once what it read is too old", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let hang = false;
+    const page = renderAt(
+      "/apps/svc_web",
+      api([web], {
+        listHealth: () =>
+          hang ? new Promise(() => {}) : { services: [aHealth("svc_web", { state: HealthState.HEALTHY, passed: true, said: "200 OK" })] },
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "What runs" });
+    await waitFor(() => expect(panel).toHaveTextContent("Healthy"));
+    hang = true;
+    await vi.advanceTimersByTimeAsync(35_000);
+    await waitFor(() => expect(panel).toHaveTextContent("The panel can't reach the control plane, so it can't say how this runs."));
+    const head = page.container.querySelector(".page-title-row") as HTMLElement;
+    expect(head).toHaveTextContent("Unknown");
+    expect(head.querySelector(".dw-tone-healthy")).toBeNull();
+  });
 });
 
 describe("what runs, from what the server says", () => {
@@ -268,8 +465,11 @@ describe("what runs, from what the server says", () => {
       }),
     );
     const panel = await screen.findByRole("region", { name: "What runs" });
-    await waitFor(() => expect(panel).toHaveTextContent("Dockwell can't read how this runs right now"));
-    expect(panel).toHaveTextContent("That says nothing about the app.");
+    await waitFor(() =>
+      expect(panel).toHaveTextContent(
+        "The panel can't reach the control plane, so it can't say how this runs. It keeps trying.",
+      ),
+    );
     expect(container.querySelector(".dw-callout")).toBeNull();
   });
 
@@ -434,7 +634,7 @@ describe("a health check on the overview", () => {
 
   it("is honest where there's none: Running only means it started", async () => {
     const { said } = await facts({});
-    await waitFor(() => expect(said).toHaveTextContent("None. Nothing checks it, so this only means it started."));
+    await waitFor(() => expect(said).toHaveTextContent("None. Without one, Running only means it started."));
   });
 
   it("says one turned off is off", async () => {

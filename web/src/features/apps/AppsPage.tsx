@@ -37,6 +37,7 @@ import {
   environmentOf,
   groupApps,
   groupDeployedAt,
+  groupNeedsALook,
   groupState,
   imageOf,
   keepOrder,
@@ -50,7 +51,7 @@ import {
 } from "./app";
 import { ExportSheet } from "./ExportSheet";
 import { HealthBadge, useHealthWords } from "./Health";
-import { type AppHealth, type HealthView, healthNeedsALook, useHealth, worstHealth } from "./health";
+import { type AppHealth, type HealthView, healthNeedsALook, type Unread, useHealth, worstHealth } from "./health";
 import { ImageName } from "./ImageName";
 import { usePlaces, useServices, useServicesLive } from "./useServices";
 import { useAppWords } from "./words";
@@ -65,6 +66,12 @@ export interface AppsSearch {
 
 /** A filter earns its place once there are more apps than fit on a screen at a glance. */
 const FILTER_FROM = 6;
+
+/** How long the list waits for how its apps run and where, to order them by it, before it orders them by what it has. */
+const ORDER_WAIT_MS = 3_000;
+
+/** The most rows the list holds the place of while it waits. */
+const HELD_ROWS = 12;
 
 /** A SegmentedControl holds up to five; past that, a select. */
 const SEGMENTS = 5;
@@ -183,14 +190,38 @@ export function AppsPage({
     () => sortGroups(groupApps(shown, places.place), servers, (s) => health.of(s)),
     [shown, places.place, servers, health],
   );
-  // Sorted when the page opens, then each keeps its place, so nothing moves under
-  // the cursor as a deploy starts or ends.
-  const order = useRef<string[]>([]);
+  // What needs a look comes first, which takes how each runs and where: the list is
+  // ordered once both have come, or once it has waited long enough for them, and its
+  // rows hold their place until then. After that each keeps its place, so nothing
+  // moves under the pointer as a deploy starts or ends, or as something goes wrong,
+  // which the lead offers to bring up.
+  const settled = health.settled && servers !== undefined;
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    if (settled) return;
+    const timer = setTimeout(() => setWaited(true), ORDER_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [settled]);
+  const ordered = settled || waited;
+  // Each time someone asks to see what needs a look first, the order starts over.
+  const [epoch, setEpoch] = useState(0);
+  const order = useRef<{ epoch: number; keys: string[] }>({ epoch: 0, keys: [] });
   const groups = useMemo(() => {
-    const kept = keepOrder(order.current, sorted);
-    order.current = kept.order;
+    if (!ordered) return sorted;
+    const kept = keepOrder(order.current.epoch === epoch ? order.current.keys : [], sorted);
+    order.current = { epoch, keys: kept.order };
     return kept.groups;
-  }, [sorted]);
+  }, [sorted, ordered, epoch]);
+  // Something that needs a look below something that doesn't, as it went wrong since the list was ordered.
+  const outOfPlace = useMemo(() => {
+    let calm = false;
+    for (const group of groups) {
+      if (!groupNeedsALook(group, servers, (s) => health.of(s))) calm = true;
+      else if (calm) return true;
+    }
+    return false;
+  }, [groups, servers, health]);
+  const bringUp = () => setEpoch((n) => n + 1);
   const filtering = query.trim() !== "";
   const rows = useMemo(() => {
     const out: Row[] = [];
@@ -216,7 +247,7 @@ export function AppsPage({
 
   const open = (id: string) => void navigate({ to: "/apps/$serviceId", params: { serviceId: id } });
 
-  const pending = services.isPending || places.isPending;
+  const pending = services.isPending || places.isPending || (!ordered && (all?.length ?? 0) > 0);
   const count = all?.length ?? 0;
   // The filter's row is there or not by how many apps there are: remembering
   // last time's count keeps the list from moving when they land.
@@ -226,6 +257,11 @@ export function AppsPage({
   const filters = pending ? Number(remembered(COUNT_KEY) ?? 0) >= FILTER_FROM : count >= FILTER_FROM;
   const elsewhere = count - shown.length;
   const { lead, total, going } = useLead(shown, environment ? places.label(environment) : "", health);
+  const showFirst = outOfPlace ? (
+    <Button variant="ghost" size="sm" className="apps-show-first" onClick={bringUp}>
+      <Trans>Show them first</Trans>
+    </Button>
+  ) : null;
   const newApp = (
     <RouterButtonLink to="/apps/new" variant="primary" icon="plus" className="apps-new">
       <Trans>New app</Trans>
@@ -236,7 +272,9 @@ export function AppsPage({
 
   let body: ReactNode;
   if (pending) {
-    body = <AppsSkeleton label={t`Loading apps`} fleet={fleet} />;
+    body = (
+      <AppsSkeleton label={t`Loading apps`} fleet={fleet} rows={Math.min(Math.max(all?.length ?? 3, 1), HELD_ROWS)} />
+    );
   } else if (services.error) {
     body = (
       <Callout
@@ -302,7 +340,16 @@ export function AppsPage({
     <Page
       title={t`Apps`}
       // The line is held while they load, so the list doesn't move when it lands.
-      lead={pending || count === 0 ? <span aria-hidden="true">&nbsp;</span> : lead}
+      lead={
+        pending || count === 0 ? (
+          <span aria-hidden="true">&nbsp;</span>
+        ) : (
+          <>
+            {lead}
+            {showFirst ? <> {showFirst}</> : null}
+          </>
+        )
+      }
       status={reconnecting ? <Reconnecting /> : undefined}
       className="apps-page"
       actions={
@@ -378,11 +425,15 @@ export function AppsPage({
                 <>
                   <span>{total}</span>
                   {going ? <span className="apps-phone-trouble">{going}</span> : null}
+                  {showFirst}
                 </>
               )}
             </h2>
             {pending ? null : newApp}
           </div>
+        ) : null}
+        {health.unread && !pending && count > 0 ? (
+          <UnreadNote why={health.unread.why} heard={health.unread.heard} />
         ) : null}
         {body}
         {elsewhere > 0 && all ? (
@@ -402,6 +453,17 @@ export function AppsPage({
         />
       ) : null}
     </Page>
+  );
+}
+
+/** Why nothing here says how its apps run, said once above them rather than on each row. */
+function UnreadNote({ why, heard }: { why: Unread; heard: Date | undefined }) {
+  const words = useHealthWords();
+  const now = useAgoNow(heard);
+  return (
+    <Callout tone="info" shape="dashed-ring" className="apps-unread">
+      {words.unreadAll(why, heard, now)}
+    </Callout>
   );
 }
 
@@ -433,19 +495,22 @@ function useLead(
   return { lead: going ? `${total} · ${going}` : total, total, going };
 }
 
-/** The columns' heads, which the list and its skeleton share so nothing moves when it lands. */
-function useColumnHeads(fleet: boolean, wide: boolean) {
+/** The columns' heads, which the list and its skeleton share so nothing moves when it lands. A revision alone is short; with what its record says, it needs room. */
+function useColumnHeads(fleet: boolean, wide: boolean, recordWords = false) {
   const { t } = useLingui();
   return useMemo(() => {
     const heads: { key: string; header: string; width?: number | string; align?: "right" }[] = [
       { key: "app", header: t`App` },
     ];
     if (wide) heads.push({ key: "image", header: t`Image`, width: "42%" });
-    heads.push({ key: "status", header: t`Status`, width: 128 }, { key: "revision", header: t`Revision`, width: 176 });
+    heads.push(
+      { key: "status", header: t`Status`, width: 128 },
+      { key: "revision", header: t`Revision`, width: recordWords ? 176 : 96 },
+    );
     if (fleet) heads.push({ key: "servers", header: t`Runs on`, width: 168 });
     heads.push({ key: "deployed", header: t`Deployed`, width: 104, align: "right" });
     return heads;
-  }, [t, fleet, wide]);
+  }, [t, fleet, wide, recordWords]);
 }
 
 interface TableProps {
@@ -467,7 +532,7 @@ function rowHealth(row: Row, health: HealthView): AppHealth {
 function useRowTitle() {
   const words = useHealthWords();
   return (health: AppHealth, now: number): string => {
-    if (health.read === "failed") return words.unread;
+    if (health.read === "failed") return words.unread(health, now);
     const [only] = health.servers;
     return only && health.servers.length === 1 ? `${words.word(health)}: ${words.says(only, now)}` : words.word(health);
   };
@@ -480,7 +545,12 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }
   const titleOf = useRowTitle();
   const time = useTimeWords();
   const wide = useMediaQuery(IMAGE_COLUMN_QUERY);
-  const heads = useColumnHeads(fleet, wide);
+  const recordWords = useMemo(
+    () =>
+      rows.some((row) => recordSaysMore(row.service ? appState(row.service, servers) : groupState(row.group, servers))),
+    [rows, servers],
+  );
+  const heads = useColumnHeads(fleet, wide, recordWords);
   const newest = useMemo(() => {
     let out: Date | undefined;
     for (const row of rows) {
@@ -722,7 +792,7 @@ function PhoneList({
 }
 
 /** While the list is on its way: the table with its heads, so nothing moves when it lands. */
-function AppsSkeleton({ label, fleet }: { label: string; fleet: boolean }) {
+function AppsSkeleton({ label, fleet, rows = 3 }: { label: string; fleet: boolean; rows?: number }) {
   const phone = useMediaQuery(PHONE_QUERY);
   const wide = useMediaQuery(IMAGE_COLUMN_QUERY);
   const heads = useColumnHeads(fleet, wide);
@@ -734,14 +804,14 @@ function AppsSkeleton({ label, fleet }: { label: string; fleet: boolean }) {
       })),
     [heads],
   );
-  if (phone) return <ListSkeleton label={label} />;
+  if (phone) return <ListSkeleton label={label} rows={rows} />;
   return (
     <div aria-busy="true">
       <span className="dw-sr">{label}</span>
       <Table
         className="apps-table apps-skeleton"
         columns={columns}
-        rows={[{ id: "1" }, { id: "2" }, { id: "3" }]}
+        rows={Array.from({ length: rows }, (_, i) => ({ id: String(i + 1) }))}
         rowClassName={() => "apps-skeleton-row"}
       />
     </div>
@@ -749,14 +819,15 @@ function AppsSkeleton({ label, fleet }: { label: string; fleet: boolean }) {
 }
 
 /** While a first list is on its way: the shape of its rows. */
-export function ListSkeleton({ label }: { label: string }) {
-  const widths = ["44%", "32%", "38%"];
+export function ListSkeleton({ label, rows = 3 }: { label: string; rows?: number }) {
+  // Each line is its place, which is all a key needs to say of a line that holds one.
+  const lines = Array.from({ length: rows }, (_, i) => ({ key: `line-${i + 1}`, width: ["44%", "32%", "38%"][i % 3] }));
   return (
     <Panel flush className="apps-skeleton">
       <div aria-busy="true">
         <span className="dw-sr">{label}</span>
-        {widths.map((width) => (
-          <div key={width} className="apps-skeleton-line" aria-hidden="true">
+        {lines.map(({ key, width }) => (
+          <div key={key} className="apps-skeleton-line" aria-hidden="true">
             <span className="apps-skeleton-bar" style={{ width }} />
             <span className="apps-skeleton-bar is-short" />
           </div>

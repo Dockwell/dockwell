@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { HealthCheckKind } from "@dockwell/api";
+import { Connection, HealthCheckKind } from "@dockwell/api";
 import { StatusBadge } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
 import { useTimeWords } from "../../lib/time";
 import { MachineWords } from "../changes/FailureNotice";
-import { useAgoNow } from "../servers/useFleet";
-import type { AppHealth, HealthKind, RunsOnServer } from "./health";
+import { useAgoNow, useFleetView } from "../servers/useFleet";
+import type { AppHealth, HealthKind, RunsOnServer, Unread } from "./health";
+
+/** How to see whether Docker runs on a server. */
+export const DOCKER_STATUS = "systemctl status docker";
 
 /** What a check said, as a sentence: the agent writes it to go inside one. */
 function asSentence(said: string): string {
@@ -23,8 +26,10 @@ export interface HealthWords {
   kind(kind: HealthKind): string;
   /** What is known of it on a server, for someone reading why it reads as it does. */
   says(server: RunsOnServer, now: number): string;
-  /** What is known of it where the panel couldn't read it at all. */
-  unread: string;
+  /** Why the panel can't say how it runs, and when it last could. */
+  unread(health: Pick<AppHealth, "why" | "heard">, now: number): string;
+  /** The same, of every app at once, for a list to say once above it. */
+  unreadAll(why: Unread, heard: Date | undefined, now: number): string;
   /** What nothing checking it comes to. */
   noCheck: string;
 }
@@ -32,7 +37,13 @@ export interface HealthWords {
 export function useHealthWords(): HealthWords {
   const { t } = useLingui();
   const time = useTimeWords();
+  const { servers } = useFleetView();
   return useMemo<HealthWords>(() => {
+    // An agent the fleet has gone quiet from: what it last said is all there is.
+    const gone = (id: string) => {
+      const server = servers?.find((s) => s.id === id);
+      return server !== undefined && server.connection !== Connection.CONNECTED;
+    };
     const kind = (k: HealthKind): string => {
       switch (k) {
         case "healthy":
@@ -55,7 +66,28 @@ export function useHealthWords(): HealthWords {
     return {
       kind,
       noCheck,
-      unread: t`Dockwell can't read how this runs right now, and keeps trying. That says nothing about the app.`,
+      unread(health, now) {
+        const ago = health.heard ? time.ago(health.heard, now) : "";
+        if (health.why === "offline") {
+          return ago
+            ? t`This browser is offline, so the panel can't say how this runs. It last heard ${ago}. Check your connection.`
+            : t`This browser is offline, so the panel can't say how this runs. Check your connection.`;
+        }
+        return ago
+          ? t`The panel can't reach the control plane, so it can't say how this runs. It last heard ${ago}, and keeps trying.`
+          : t`The panel can't reach the control plane, so it can't say how this runs. It keeps trying.`;
+      },
+      unreadAll(why, heard, now) {
+        const ago = heard ? time.ago(heard, now) : "";
+        if (why === "offline") {
+          return ago
+            ? t`This browser is offline, so the panel can't say how your apps run, and they read Unknown. It last heard ${ago}. Check your connection.`
+            : t`This browser is offline, so the panel can't say how your apps run, and they read Unknown. Check your connection.`;
+        }
+        return ago
+          ? t`The panel can't reach the control plane, so it can't say how your apps run, and they read Unknown. It last heard ${ago}, and keeps trying.`
+          : t`The panel can't reach the control plane, so it can't say how your apps run, and they read Unknown. It keeps trying.`;
+      },
       word: (health) => (health.read === "reading" ? t`Checking` : kind(health.kind)),
       says(server, now) {
         const said = server.last?.output ?? "";
@@ -76,17 +108,29 @@ export function useHealthWords(): HealthWords {
           }
           case "unknown": {
             const name = server.serverName;
-            if (server.lastSaid && server.lastKnown) {
-              const word = kind(server.lastSaid);
-              const ago = time.ago(server.lastKnown, now);
-              return t`${name} hasn't said how it is lately. It last read ${word}, ${ago}.`;
+            if (server.dockerUnreadableSince) {
+              const since = time.ago(server.dockerUnreadableSince, now);
+              const command = DOCKER_STATUS;
+              return t`The agent on ${name} can't read Docker, since ${since}, so it can't say how this runs. Check that Docker is running there, with ${command}.`;
             }
-            return t`${name} hasn't said how it is yet.`;
+            const word = server.lastSaid ? kind(server.lastSaid) : "";
+            const ago = server.lastKnown ? time.ago(server.lastKnown, now) : "";
+            if (gone(server.serverId)) {
+              return word && ago
+                ? t`The agent on ${name} isn't connected, so it can't say how this runs now. It last read ${word}, ${ago}.`
+                : t`The agent on ${name} isn't connected, so it can't say how this runs now.`;
+            }
+            if (server.stale) {
+              return word && ago
+                ? t`The agent on ${name} hasn't said how this runs since ${ago}, when it read ${word}.`
+                : t`The agent on ${name} hasn't said how this runs lately.`;
+            }
+            return t`The agent on ${name} hasn't read how this runs yet.`;
           }
         }
       },
     };
-  }, [t, time]);
+  }, [t, time, servers]);
 }
 
 /** How it runs now, for what the record has to say, where that's known. Nothing, where it isn't. */
@@ -139,7 +183,7 @@ export function HealthBadge({
 export function useHealthTitle(health: AppHealth): string {
   const words = useHealthWords();
   const now = useAgoNow(undefined);
-  if (health.read === "failed") return words.unread;
+  if (health.read === "failed") return words.unread(health, now);
   const [only] = health.servers;
   if (!only || health.servers.length > 1) return words.word(health);
   return `${words.word(health)}: ${words.says(only, now)}`;
@@ -159,7 +203,7 @@ export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boo
     .sort((a, b) => b.getTime() - a.getTime())[0];
   const now = useAgoNow(newest);
   if (health.read === "failed") {
-    return <p className="app-runs-unread">{words.unread}</p>;
+    return <p className="app-runs-unread">{words.unread(health, now)}</p>;
   }
   if (health.read === "reading" || health.servers.length === 0) {
     return (
@@ -184,7 +228,9 @@ export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boo
               {...(span ? { meta: t`for ${span}` } : {})}
             />
             <p className="app-runs-said">
-              <MachineWords names={[server.container, server.serverName]}>{words.says(server, now)}</MachineWords>
+              <MachineWords names={[server.container, server.serverName, DOCKER_STATUS]}>
+                {words.says(server, now)}
+              </MachineWords>
               {checked && showTime ? <span className="app-muted"> {checked}</span> : null}
             </p>
           </li>

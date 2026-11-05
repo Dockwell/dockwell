@@ -14,7 +14,9 @@ import {
 } from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
 import { type QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useEffect, useMemo, useReducer, useRef } from "react";
+
+import { useOnline } from "../../lib/online";
 
 /** The most ListHealth returns at once. */
 const PAGE_SIZE = 1000;
@@ -26,8 +28,15 @@ const READ_EVERY_MS = 10_000;
 const READ_SOON_MS = 2_000;
 const SOON_FOR_MS = 30_000;
 
-/** How long what was last read stands while reads are failing, so one failed read doesn't turn a whole list. */
-const TRUST_FOR_MS = 30_000;
+/**
+ * How old what was last read may be and still stand, however reads are going: one
+ * that fails, one that hangs, a browser gone offline. Past it, nobody here can say,
+ * and a list that was green says so rather than stay green. It is three reads' worth.
+ */
+export const TRUST_FOR_MS = 30_000;
+
+/** How long one page of a read may take, so a read nobody answers gives way to the next. */
+export const READ_TIMEOUT_MS = 8_000;
 
 /** How something runs, as far as anything checked. The record of what was deployed is AppState's. */
 export type HealthKind = "healthy" | "running" | "starting" | "unhealthy" | "not-running" | "paused" | "unknown";
@@ -90,6 +99,8 @@ export interface RunsOnServer {
   scannedAt: Date | undefined;
   /** How many containers of it are there: two while one takes over. */
   containers: number;
+  /** Since when its agent can't read Docker, on the server's clock, while it is connected and can't. */
+  dockerUnreadableSince: Date | undefined;
 }
 
 /**
@@ -103,7 +114,14 @@ export interface AppHealth {
   servers: readonly RunsOnServer[];
   /** What checks it, as far as any server says. */
   check: HealthCheckKind;
+  /** Why it couldn't be read: this browser is offline, or the control plane doesn't answer. */
+  why?: Unread;
+  /** When it was last read, where it was, for one that can't be now. */
+  heard?: Date;
 }
+
+/** Why the panel can't read how things run. */
+export type Unread = "offline" | "unreachable";
 
 const date = (at: Parameters<typeof timestampDate>[0] | undefined): Date | undefined =>
   at ? timestampDate(at) : undefined;
@@ -129,6 +147,7 @@ function onServer(server: ServerHealth): RunsOnServer {
     container: instance?.container ?? "",
     containers: server.instances.length,
     scannedAt: date(server.scannedAt),
+    dockerUnreadableSince: date(server.dockerUnreadableSince),
   };
 }
 
@@ -145,12 +164,14 @@ export function healthOf(service: ServiceHealth): AppHealth {
   };
 }
 
-const unread = (read: "reading" | "failed"): AppHealth => ({
+const unread = (read: "reading" | "failed", why?: Unread, heard?: Date): AppHealth => ({
   kind: "unknown",
   status: LOOKS.unknown,
   read,
   servers: [],
   check: HealthCheckKind.UNSPECIFIED,
+  ...(why ? { why } : {}),
+  ...(heard ? { heard } : {}),
 });
 
 /** The worst first, as a service across servers is as well as its worst, and a project as its worst app. */
@@ -240,6 +261,21 @@ export interface ServiceRef {
 export interface HealthView {
   /** How a service runs. A deploy that has just ended waits for its agent to report, from after, or its record. */
   of(service: ServiceRef, after?: Date): AppHealth;
+  /** Why nothing here can be read now, if it can't: what a screen says once, above what it shows. */
+  unread: { why: Unread; heard: Date | undefined } | undefined;
+  /** Whether a first read has come, or failed, so a screen can order what it shows by it. */
+  settled: boolean;
+}
+
+/** Renders again at when, so a reading that runs out of time says so on its own. */
+function useRenderAt(...when: number[]): void {
+  const [, tick] = useReducer((n: number) => n + 1, 0);
+  const next = Math.min(...when.filter((at) => at > Date.now()));
+  useEffect(() => {
+    if (!Number.isFinite(next)) return;
+    const timer = setTimeout(tick, next - Date.now() + 1);
+    return () => clearTimeout(timer);
+  }, [next]);
 }
 
 /**
@@ -247,13 +283,16 @@ export interface HealthView {
  * many apps makes one request, and every screen shares it. It reads on a pace of its
  * own, as the API has no stream of it, only while a screen that shows it is open and
  * in front, and soon after a change moves on (readHealthSoon). What it last read
- * stands through a failed read or two. After that it says it can't read, which is
- * never that the app doesn't run.
+ * stands for TRUST_FOR_MS, whatever the reads do, and a read that takes longer than
+ * READ_TIMEOUT_MS gives way. After that it says it can't read, and why, which is
+ * never that the app doesn't run. A screen that comes back to it, or opens on what an
+ * earlier one read, has its first read's time to bring it up to date.
  */
 export function useHealth(): HealthView {
   const transport = useTransport();
   const queryClient = useQueryClient();
-  const { data, isError, dataUpdatedAt, errorUpdatedAt, isPending } = useQuery({
+  const online = useOnline();
+  const { data, dataUpdatedAt, errorUpdatedAt, isPending, fetchStatus } = useQuery({
     queryKey: createConnectQueryKey({
       schema: HealthService.method.listHealth,
       input: {},
@@ -265,7 +304,10 @@ export function useHealth(): HealthView {
       const all = create(ListHealthResponseSchema);
       let pageToken = "";
       do {
-        const page = await client.listHealth({ pageSize: PAGE_SIZE, pageToken }, { signal });
+        const page = await client.listHealth(
+          { pageSize: PAGE_SIZE, pageToken },
+          { signal, timeoutMs: READ_TIMEOUT_MS },
+        );
         all.services.push(...page.services);
         pageToken = page.nextPageToken;
       } while (pageToken !== "");
@@ -274,18 +316,38 @@ export function useHealth(): HealthView {
     staleTime: 0,
     refetchInterval: () => ((soonUntil.get(queryClient) ?? 0) > Date.now() ? READ_SOON_MS : READ_EVERY_MS),
   });
-  // By when the last read failed, as a list that's only re-read reads nothing else that moves.
-  const doubtful = isError && (data === undefined || errorUpdatedAt - dataUpdatedAt > TRUST_FOR_MS);
+  // When the reads under way began: a reading that went stale while nobody read, as on a
+  // screen in the background, stands while the first read back is under way, and no longer.
+  const fetchingSince = useRef<number | undefined>(undefined);
+  if (fetchStatus !== "fetching") fetchingSince.current = undefined;
+  else fetchingSince.current ??= Date.now();
+  const graceUntil =
+    fetchingSince.current !== undefined && errorUpdatedAt <= dataUpdatedAt
+      ? fetchingSince.current + READ_TIMEOUT_MS
+      : 0;
+  const trustedUntil = data === undefined ? 0 : Math.max(dataUpdatedAt + TRUST_FOR_MS, graceUntil);
+  useRenderAt(trustedUntil);
+  const now = Date.now();
+  const trusted = data !== undefined && now <= trustedUntil;
+  // Nothing read yet, and nothing failed: a first read is on its way.
+  const reading = !trusted && isPending && fetchStatus === "fetching";
+  const why: Unread = online ? "unreachable" : "offline";
+  const heardAt = dataUpdatedAt > 0 ? dataUpdatedAt : undefined;
+  const lost = !trusted && !reading;
   return useMemo(() => {
-    const byId = new Map((data?.services ?? []).map((s) => [s.id, healthOf(s)]));
+    const heard = heardAt === undefined ? undefined : new Date(heardAt);
+    const byId = new Map(((trusted ? data?.services : undefined) ?? []).map((s) => [s.id, healthOf(s)]));
     return {
+      unread: lost ? { why, heard } : undefined,
+      settled: !reading,
       of(service, after) {
-        if (doubtful) return unread("failed");
+        if (reading) return unread("reading");
+        if (lost) return unread("failed", why, heard);
         // A service made since the last read says nothing yet.
         const health = byId.get(service.id);
-        if (!health) return unread(isPending || data !== undefined ? "reading" : "failed");
+        if (!health) return unread("reading");
         return waitingForReport(health, after ?? lastDeployed(service), Date.now()) ? unread("reading") : health;
       },
     };
-  }, [data, doubtful, isPending]);
+  }, [data, trusted, reading, lost, why, heardAt]);
 }

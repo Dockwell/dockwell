@@ -38,13 +38,18 @@ function Scope({ view }: { view: FleetView }) {
       <div className="topbar-scope">
         <Icon name="server" size={16} className="topbar-scope-icon" />
         <span className="topbar-server">{only.name}</span>
-        {reconnecting ?? <StatusBadge status={serverStatus(only)} />}
+        {reconnecting ??
+          (only.dockerUnreadableSince !== undefined ? (
+            <StatusBadge status="degraded" label={t`Can't read Docker`} />
+          ) : (
+            <StatusBadge status={serverStatus(only)} />
+          ))}
         {only.address ? <span className="topbar-address">{only.address}</span> : null}
       </div>
     );
   }
   if (!fleet || !servers) return null;
-  const { down, waiting, unknown } = counts;
+  const { down, waiting, unknown, docker } = counts;
   return (
     <div className="topbar-scope">
       <Icon name="server" size={16} className="topbar-scope-icon" />
@@ -54,7 +59,10 @@ function Scope({ view }: { view: FleetView }) {
           {down > 0 ? <StatusBadge status="down" label={strings.fleetGrid.count(down, "down")} /> : null}
           {waiting > 0 ? <StatusBadge status="stopped" label={t`${waiting} waiting for an agent`} /> : null}
           {unknown > 0 ? <StatusBadge status="stopped" label={t`${unknown} in an unknown state`} /> : null}
-          {counts.connected === servers.length ? <StatusBadge status="healthy" label={t`All healthy`} /> : null}
+          {docker > 0 ? <StatusBadge status="degraded" label={t`${docker} can't read Docker`} /> : null}
+          {counts.connected === servers.length && docker === 0 ? (
+            <StatusBadge status="healthy" label={t`All healthy`} />
+          ) : null}
         </>
       )}
     </div>

@@ -63,7 +63,9 @@ function ServerRow({ server, linked }: { server: Server; linked: boolean }) {
       ? t`Waiting for its agent`
       : server.connection === Connection.UNREACHABLE
         ? t`Agent not connected`
-        : undefined;
+        : server.dockerUnreadableSince
+          ? t`Can't read Docker`
+          : undefined;
   return (
     <li className="servers-row">
       <div className="servers-name">

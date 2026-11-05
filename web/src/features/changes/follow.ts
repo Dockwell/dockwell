@@ -27,8 +27,8 @@ export async function followChange(
   await keepTrying(
     signal,
     BACKOFF,
-    async (connected) => {
-      for await (const msg of client.watchChange({ id }, { signal })) {
+    async (connected, attempt) => {
+      for await (const msg of client.watchChange({ id }, { signal: attempt })) {
         if (msg.event.case === "change") {
           current = msg.event.value;
         } else if (msg.event.case === "step" && current) {

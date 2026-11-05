@@ -95,12 +95,12 @@ export function useLogStream(
     void keepTrying(
       abort.signal,
       BACKOFF,
-      async (connected) => {
+      async (connected, attempt) => {
         // Once for each connection, as React keeps every update until it next
         // renders, and one that changes nothing doesn't make it, so a long follow
         // would keep them all, with what each message's closure holds.
         let saidLive = false;
-        for await (const m of client.watchLogs({ ...req, resumeToken: token }, { signal: abort.signal })) {
+        for await (const m of client.watchLogs({ ...req, resumeToken: token }, { signal: attempt })) {
           connected();
           if (m.resumeToken) token = m.resumeToken;
           let changed = false;

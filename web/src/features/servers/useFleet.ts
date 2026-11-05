@@ -126,10 +126,10 @@ async function watch(
   await keepTrying(
     signal,
     BACKOFF,
-    async (connected) => {
+    async (connected, attempt) => {
       const servers = new Map<string, Server>();
       let synced = false;
-      for await (const msg of client.watchServers({}, { signal })) {
+      for await (const msg of client.watchServers({}, { signal: attempt })) {
         const next = msg.server;
         if (next && msg.removed) {
           servers.delete(next.id);

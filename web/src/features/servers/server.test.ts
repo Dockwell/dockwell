@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ConnectError } from "@connectrpc/connect";
 import { Connection, ServerInventorySchema } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
@@ -47,7 +48,7 @@ describe("fleetView", () => {
     );
     expect(after).not.toBe(before);
     expect(after.servers?.[0]).toBe(before.servers?.[0]);
-    expect(after.counts).toEqual({ connected: 1, down: 1, waiting: 0, unknown: 0 });
+    expect(after.counts).toEqual({ connected: 1, down: 1, waiting: 0, unknown: 0, docker: 0 });
   });
 
   it("changes when the watch starts reconnecting", () => {
@@ -68,7 +69,19 @@ describe("fleetView", () => {
         aServer({ id: "d", connection: 9 as Connection }),
       ],
     });
-    expect(view.counts).toEqual({ connected: 1, down: 1, waiting: 1, unknown: 2 });
+    expect(view.counts).toEqual({ connected: 1, down: 1, waiting: 1, unknown: 2, docker: 0 });
+  });
+
+  it("counts a connected server whose agent can't read Docker, and changes when it can again", () => {
+    const since = new Date(Date.now() - 60_000);
+    const blind = aServer({ ...hz2, dockerUnreadableSince: timestampFromDate(since) });
+    const before = fleetView({ status: "live", servers: [hz1, blind] });
+    expect(before.counts).toEqual({ connected: 2, down: 0, waiting: 0, unknown: 0, docker: 1 });
+    expect(before.servers?.[1]?.dockerUnreadableSince).toBe(since.getTime());
+    const after = fleetView({ status: "live", servers: [hz1, hz2] }, before);
+    expect(after).not.toBe(before);
+    expect(after.counts.docker).toBe(0);
+    expect(after.servers?.[1]?.dockerUnreadableSince).toBeUndefined();
   });
 });
 
@@ -76,5 +89,12 @@ describe("serverStatus", () => {
   it("draws a state it doesn't know as stopped", () => {
     expect(serverStatus({ connection: Connection.UNSPECIFIED })).toBe("stopped");
     expect(serverStatus({ connection: 9 as Connection })).toBe("stopped");
+  });
+
+  it("never draws a server whose agent can't read Docker as healthy", () => {
+    expect(serverStatus({ connection: Connection.CONNECTED, dockerUnreadableSince: 1 })).toBe("degraded");
+    expect(serverStatus({ connection: Connection.CONNECTED })).toBe("healthy");
+    // Gone is gone, whatever it last said of Docker.
+    expect(serverStatus({ connection: Connection.UNREACHABLE, dockerUnreadableSince: 1 })).toBe("down");
   });
 });

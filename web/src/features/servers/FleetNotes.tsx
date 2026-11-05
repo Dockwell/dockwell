@@ -5,6 +5,7 @@ import { cx, Glyph, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { Trans } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
+import { useOnline } from "../../lib/online";
 import { useElapsed } from "../../lib/useElapsed";
 import type { FleetState } from "./useFleet";
 import "./FleetNotes.css";
@@ -14,10 +15,12 @@ import "./FleetNotes.css";
  * Show one per screen, so it is seen and announced once.
  */
 export function Reconnecting() {
+  // A browser that is offline can't reconnect until it isn't, which is the reader's to fix.
+  const online = useOnline();
   return (
     <span className="fleet-reconnecting" role="status">
-      <Glyph shape="spinner" />
-      <Trans>Reconnecting</Trans>
+      <Glyph shape={online ? "spinner" : "dashed-ring"} />
+      {online ? <Trans>Reconnecting</Trans> : <Trans>You're offline</Trans>}
     </span>
   );
 }

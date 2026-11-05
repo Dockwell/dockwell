@@ -16,10 +16,12 @@ const STATUS: Partial<Record<Connection, Status>> = {
 
 /**
  * A server's state as the design system draws it: connected is healthy, gone
- * quiet is down, not yet heard from is stopped. A state this panel doesn't
- * know, from a newer control plane, is stopped too.
+ * quiet is down, not yet heard from is stopped. Connected with an agent that
+ * can't read Docker is degraded, as nobody can say what runs there. A state this
+ * panel doesn't know, from a newer control plane, is stopped too.
  */
-export function serverStatus(server: Pick<Server, "connection">): Status {
+export function serverStatus(server: { connection: Connection; dockerUnreadableSince?: unknown }): Status {
+  if (server.connection === Connection.CONNECTED && server.dockerUnreadableSince !== undefined) return "degraded";
   return STATUS[server.connection] ?? "stopped";
 }
 
@@ -57,6 +59,8 @@ export interface ServerSummary {
   lastSeen?: number;
   /** The address people reach it on, from its inventory. */
   address: string | undefined;
+  /** Since when its agent can't read Docker, for one that's connected and can't. */
+  dockerUnreadableSince?: number;
 }
 
 /**
@@ -74,17 +78,22 @@ export interface FleetView {
   fleet: boolean;
   /** The one server, while there is exactly one. */
   only: ServerSummary | undefined;
-  /** How many servers are in each state. Unknown counts what is in none of the others. */
-  counts: { connected: number; down: number; waiting: number; unknown: number };
+  /**
+   * How many servers are in each state. Unknown counts what is in none of the others.
+   * Docker counts the connected ones whose agent can't read Docker.
+   */
+  counts: { connected: number; down: number; waiting: number; unknown: number; docker: number };
 }
 
 /** Sums up state for the shell, reusing what it can of the view before it so equal parts keep their identity. */
 export function fleetView(state: FleetState, prev?: FleetView): FleetView {
   const servers = state.status === "connecting" ? undefined : summaries(state.servers, prev?.servers);
-  const counts = { connected: 0, down: 0, waiting: 0, unknown: 0 };
+  const counts = { connected: 0, down: 0, waiting: 0, unknown: 0, docker: 0 };
   for (const server of servers ?? []) {
-    if (server.connection === Connection.CONNECTED) counts.connected++;
-    else if (server.connection === Connection.UNREACHABLE) counts.down++;
+    if (server.connection === Connection.CONNECTED) {
+      counts.connected++;
+      if (server.dockerUnreadableSince !== undefined) counts.docker++;
+    } else if (server.connection === Connection.UNREACHABLE) counts.down++;
     else if (server.connection === Connection.PENDING) counts.waiting++;
     else counts.unknown++;
   }
@@ -108,6 +117,9 @@ function summaries(servers: readonly Server[], prev: readonly ServerSummary[] | 
       ...(server.connection !== Connection.CONNECTED && server.lastSeenTime
         ? { lastSeen: timestampMs(server.lastSeenTime) }
         : {}),
+      ...(server.connection === Connection.CONNECTED && server.dockerUnreadableSince
+        ? { dockerUnreadableSince: timestampMs(server.dockerUnreadableSince) }
+        : {}),
     };
     const old = prev?.[i];
     return old && sameSummary(old, summary) ? old : summary;
@@ -121,7 +133,8 @@ function sameSummary(a: ServerSummary, b: ServerSummary): boolean {
     a.name === b.name &&
     a.connection === b.connection &&
     a.address === b.address &&
-    a.lastSeen === b.lastSeen
+    a.lastSeen === b.lastSeen &&
+    a.dockerUnreadableSince === b.dockerUnreadableSince
   );
 }
 
@@ -132,7 +145,8 @@ function sameView(a: FleetView, b: FleetView): boolean {
     a.counts.connected === b.counts.connected &&
     a.counts.down === b.counts.down &&
     a.counts.waiting === b.counts.waiting &&
-    a.counts.unknown === b.counts.unknown
+    a.counts.unknown === b.counts.unknown &&
+    a.counts.docker === b.counts.docker
   );
 }
 

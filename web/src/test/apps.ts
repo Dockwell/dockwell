@@ -63,6 +63,8 @@ export interface HealthOn {
   scannedMsAgo?: number;
   /** How it last read, for a server that can't be read now. */
   lastSaid?: HealthState;
+  /** How long ago its agent stopped being able to read Docker, for one that can't. */
+  dockerUnreadableMsAgo?: number;
 }
 
 /** How a service runs, on each server, as ListHealth has it: on hz-1, unless it says otherwise. */
@@ -91,6 +93,9 @@ export function aHealth(id: string, ...on: HealthOn[]): ServiceHealth {
         stale: o.stale ?? o.state === HealthState.UNKNOWN,
         ...(o.state === HealthState.UNKNOWN ? {} : { since }),
         scannedAt: timestampFromDate(new Date(now - (o.scannedMsAgo ?? 1_000))),
+        ...(o.dockerUnreadableMsAgo === undefined
+          ? {}
+          : { dockerUnreadableSince: timestampFromDate(new Date(now - o.dockerUnreadableMsAgo)) }),
         instances: known
           ? []
           : [

@@ -221,7 +221,13 @@ function links(service: ServiceInfo): string[] {
   return out;
 }
 
-const byName = (a: ServiceInfo, b: ServiceInfo) => nameOf(a).localeCompare(nameOf(b));
+/** Names as people count them: svc-2 before svc-10. */
+const names = new Intl.Collator(undefined, { numeric: true });
+
+const byName = (a: ServiceInfo, b: ServiceInfo) => names.compare(nameOf(a), nameOf(b));
+
+/** A group's name, as its row shows it. */
+const groupName = (g: AppGroup) => g.name || (g.services[0] ? nameOf(g.services[0]) : "");
 
 /** Groups services by project, in the order they come. An app whose place isn't known yet stands on its own. */
 export function groupApps(
@@ -308,30 +314,46 @@ const HEALTH_CONCERN: Readonly<Record<HealthKind, number>> = {
   healthy: 6,
 };
 
+/** Whether a group needs you, by its record or by how it runs, as sortGroups puts it first. */
+export function groupNeedsALook(
+  g: AppGroup,
+  servers: readonly ServerSummary[] | undefined,
+  health: (service: ServiceInfo) => AppHealth,
+): boolean {
+  return concernOf(g, servers, health) < 4;
+}
+
+function concernOf(
+  g: AppGroup,
+  servers: readonly ServerSummary[] | undefined,
+  health: (service: ServiceInfo) => AppHealth,
+): number {
+  return Math.min(
+    CONCERN[groupState(g, servers).kind],
+    ...g.services.map((s) => {
+      const runs = health(s);
+      return runs.read === "read" ? HEALTH_CONCERN[runs.kind] : 6;
+    }),
+  );
+}
+
 /**
  * Newest first, with what needs you above it all, so a row never hides what is wrong:
- * by its record or by how it runs, whichever needs you more.
+ * by its record or by how it runs, whichever needs you more. Among the same, by name,
+ * as people count: svc-2 before svc-10.
  */
 export function sortGroups(
   groups: readonly AppGroup[],
   servers: readonly ServerSummary[] | undefined,
   health: (service: ServiceInfo) => AppHealth,
 ): AppGroup[] {
-  const concern = (g: AppGroup) =>
-    Math.min(
-      CONCERN[groupState(g, servers).kind],
-      ...g.services.map((s) => {
-        const runs = health(s);
-        return runs.read === "read" ? HEALTH_CONCERN[runs.kind] : 6;
-      }),
-    );
-  const looks = new Map(groups.map((g) => [g.key, concern(g)]));
+  const looks = new Map(groups.map((g) => [g.key, concernOf(g, servers, health)]));
   return [...groups].sort((a, b) => {
     // Whatever needs you, or is moving, comes first; the calm ones keep their order among themselves.
     const concern = Math.min(looks.get(a.key) ?? 6, 5) - Math.min(looks.get(b.key) ?? 6, 5);
     if (concern !== 0) return concern;
     const when = groupDeployedAt(b).getTime() - groupDeployedAt(a).getTime();
-    return when !== 0 ? when : a.key.localeCompare(b.key);
+    return when !== 0 ? when : names.compare(groupName(a), groupName(b)) || a.key.localeCompare(b.key);
   });
 }
 

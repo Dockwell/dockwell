@@ -118,11 +118,8 @@ export function useServicesLive(): { reconnecting: boolean } {
     void keepTrying(
       abort.signal,
       BACKOFF,
-      async (connected) => {
-        for await (const msg of client.watchEvents(
-          { kinds: [EventKind.CHANGE], pageSize: 1 },
-          { signal: abort.signal },
-        )) {
+      async (connected, attempt) => {
+        for await (const msg of client.watchEvents({ kinds: [EventKind.CHANGE], pageSize: 1 }, { signal: attempt })) {
           connected();
           setReconnecting(false);
           let moved = false;

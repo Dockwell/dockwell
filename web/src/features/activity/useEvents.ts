@@ -125,8 +125,8 @@ export function useEvents(filter: EventFilter): Events {
     void keepTrying(
       abort.signal,
       BACKOFF,
-      async (connected) => {
-        for await (const msg of client.watchEvents(request, { signal: abort.signal })) {
+      async (connected, attempt) => {
+        for await (const msg of client.watchEvents(request, { signal: attempt })) {
           if (msg.snapshot) {
             const { loaded: next, kept } = takeSnapshot(started ? loaded.current : undefined, msg);
             if (kept) {
