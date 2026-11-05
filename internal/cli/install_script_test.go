@@ -236,3 +236,121 @@ func TestTheInstallScriptFindsAControlPlaneAsRunDoes(t *testing.T) {
 		}
 	}
 }
+
+// fakeDocker puts a docker on the path that says these containers and networks
+// exist, and writes down what it's asked to do.
+func fakeDocker(t *testing.T, containers, networks, attached string) (dir, log string) {
+	t.Helper()
+	dir = t.TempDir()
+	log = filepath.Join(dir, "docker.log")
+	stub := `#!/bin/sh
+printf '%s\n' "$*" >>"` + log + `"
+case "$*" in
+"ps -aq --filter label=dev.dockwell.ingress") printf '%s\n' ` + containers + ` ;;
+"network ls --format {{.Name}} --filter label=dev.dockwell.ingress") printf '%s\n' ` + networks + ` ;;
+"ps -aq --filter network="*) printf '%s\n' ` + attached + ` ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(dir, "docker"), []byte(stub), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return dir, log
+}
+
+// uninstallWith runs the script's uninstall, with no service to stop and docker
+// found on dir.
+func uninstallWith(t *testing.T, dir, removeIngress string, withBinary bool) string {
+	t.Helper()
+	steps := installSteps(t)
+	data := layout(t, "control/state.db")
+	root := t.TempDir()
+	if withBinary {
+		if err := os.WriteFile(filepath.Join(root, "dockwell"), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmd := exec.CommandContext(t.Context(), "sh", "-c", `. "$1"; BIN=$2/dockwell; DATA=$3; UNIT=$2/unit; INITD=$2/initd; booted=; init=systemd; remove_ingress=$4; uninstall`,
+		"sh", steps, root, data, removeIngress)
+	cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("uninstall failed: %v\n%s", err, out)
+	}
+	return string(out)
+}
+
+// Uninstalling says the ingress stays, what that holds, how to free it, and to do
+// that before deleting the data, as Docker would otherwise remake its directories
+// as root. It takes nothing away that wasn't asked for.
+func TestUninstallSaysWhatTheIngressLeaves(t *testing.T) {
+	dir, log := fakeDocker(t, "c1 c2", "dockwell_ingress", "''")
+	out := uninstallWith(t, dir, "", true)
+	for _, want := range []string{"dockwell-ingress", "dockwell-ingress-keep", "dockwell_ingress", "--uninstall --remove-ingress", "before you delete", "as root", "restart for ever", "Removed Dockwell:"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("uninstall doesn't say %q:\n%s", want, out)
+		}
+	}
+	b, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "rm ") || strings.Contains(string(b), "disconnect") {
+		t.Errorf("uninstall changed something it wasn't asked to:\n%s", b)
+	}
+}
+
+func TestUninstallSaysNothingOfAnIngressThatIsntThere(t *testing.T) {
+	dir, _ := fakeDocker(t, "''", "''", "''")
+	if out := uninstallWith(t, dir, "", true); strings.Contains(out, "ingress") {
+		t.Errorf("uninstall speaks of an ingress with none there:\n%s", out)
+	}
+}
+
+// Asked to, it removes the containers, takes what's on the network off it, including
+// a stopped service, and removes the network, in that order.
+func TestUninstallRemovesTheIngressWhenAsked(t *testing.T) {
+	dir, log := fakeDocker(t, "c1 c2", "dockwell_ingress", "svc1 svc2")
+	out := uninstallWith(t, dir, "1", true)
+	if !strings.Contains(out, "the ports it held are free") || !strings.Contains(out, "docker update --restart=always") {
+		t.Errorf("it says:\n%s", out)
+	}
+	b, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var did []string
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(line, "rm ") || strings.HasPrefix(line, "network disconnect") || strings.HasPrefix(line, "network rm") {
+			did = append(did, line)
+		}
+	}
+	want := []string{
+		"rm --force c1", "rm --force c2",
+		"network disconnect --force dockwell_ingress svc1", "network disconnect --force dockwell_ingress svc2",
+		"network rm dockwell_ingress",
+	}
+	if strings.Join(did, "\n") != strings.Join(want, "\n") {
+		t.Errorf("it did:\n%s\nwant:\n%s", strings.Join(did, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// With Dockwell gone already, as after running it once without the option.
+func TestRemovingTheIngressWorksOnceDockwellHasGone(t *testing.T) {
+	dir, log := fakeDocker(t, "c1", "dockwell_ingress", "''")
+	out := uninstallWith(t, dir, "1", false)
+	if !strings.Contains(out, "isn't installed") || !strings.Contains(out, "Removed Dockwell's ingress") {
+		t.Errorf("it says:\n%s", out)
+	}
+	if b, _ := os.ReadFile(log); !strings.Contains(string(b), "network rm dockwell_ingress") {
+		t.Errorf("it did:\n%s", b)
+	}
+}
+
+func TestRemoveIngressNeedsUninstall(t *testing.T) {
+	steps := installSteps(t)
+	cmd := exec.CommandContext(t.Context(), "sh", "-c", `. "$1"; main --remove-ingress`, "sh", steps)
+	out, err := cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "--remove-ingress goes with --uninstall") {
+		t.Errorf("--remove-ingress alone = %v:\n%s", err, out)
+	}
+}

@@ -359,6 +359,33 @@ run_install good --uninstall || die "uninstalling twice failed"
 said "isn't installed on this server"
 ok "removed, and the data is still in $DATA"
 
+step "What Dockwell's ingress leaves, on a stand-in for Docker"
+# These containers have no Docker, and the Docker job runs this on a real one. What
+# this holds is the script itself, piped to sh on each system.
+stub=$(mktemp -d)
+cat >"$stub/docker" <<EOF
+#!/bin/sh
+printf '%s\n' "\$*" >>"$stub/log"
+case "\$*" in
+"ps -aq --filter label=dev.dockwell.ingress") echo caddy-id ;;
+"network ls --format {{.Name}} --filter label=dev.dockwell.ingress") echo dockwell_ingress ;;
+"ps -aq --filter network=dockwell_ingress") echo service-id ;;
+esac
+EOF
+chmod +x "$stub/docker"
+PATH="$stub:$PATH" run_install good --uninstall || die "uninstalling with an ingress there failed"
+said "dockwell-ingress"
+said "--uninstall --remove-ingress"
+said "before you delete"
+if grep -q "^rm \|^network rm " "$stub/log"; then die "uninstalling removed the ingress, which it wasn't asked to"; fi
+PATH="$stub:$PATH" run_install good --uninstall --remove-ingress || die "removing the ingress failed"
+said "the ports it held are free"
+grep -qx "rm --force caddy-id" "$stub/log" || die "the script didn't remove Caddy's container"
+grep -qx "network disconnect --force dockwell_ingress service-id" "$stub/log" || die "the script didn't take a service off the network"
+grep -qx "network rm dockwell_ingress" "$stub/log" || die "the script didn't remove the network"
+rm -rf "$stub"
+ok "it says what stays, and removes it when asked"
+
 if [ -n "$MIRROR" ]; then
 	step "Install through a mirror, with GitHub and Sigstore cut off"
 	# From here on cosign comes from the mirror.
