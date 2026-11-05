@@ -468,7 +468,21 @@ func TestAStepANewerAgentPlansFailsPlanning(t *testing.T) {
 type reporter struct {
 	mu      sync.Mutex
 	list    []*dockwellv1.DomainStatus
+	ingress *dockwellv1.IngressStatus
 	changed chan struct{}
+}
+
+func (r *reporter) Ingress() *dockwellv1.IngressStatus {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ingress
+}
+
+func (r *reporter) setIngress(st *dockwellv1.IngressStatus) {
+	r.mu.Lock()
+	r.ingress = st
+	r.mu.Unlock()
+	r.changed <- struct{}{}
 }
 
 func (r *reporter) Domains() []*dockwellv1.DomainStatus {
@@ -527,6 +541,16 @@ func TestAnAgentReportsItsDomains(t *testing.T) {
 	eventually("the change never came", func() bool {
 		got, _ := state()
 		return got == issued
+	})
+	// So does where its ingress stands, as a certificate alone doesn't say whether
+	// a domain answers.
+	r.setIngress(&dockwellv1.IngressStatus{Proxy: "Caddy", Problem: dockwellv1.IngressProblem_INGRESS_PROBLEM_PORTS_TAKEN, Holders: []string{"openresty"}})
+	eventually("the ingress's state never came", func() bool {
+		return s.agents.Ingress(id.ServerID).GetProblem() == dockwellv1.IngressProblem_INGRESS_PROBLEM_PORTS_TAKEN
+	})
+	eventually("the server never said it", func() bool {
+		got, err := s.hub.Get(id.ServerID)
+		return err == nil && got.GetIngress().GetHolders() != nil && got.GetIngress().GetHolders()[0] == "openresty"
 	})
 	cancel()
 	<-done

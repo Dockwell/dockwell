@@ -102,11 +102,11 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	// What no container may mount, as this server has it: its data
 	// directory, Docker's, and where symlinks lead.
 	paths := &container.Paths{Client: client, DataDir: dir.Root}
+	proxy := &caddy.Container{Client: client, Dir: dir.Ingress(), Mirror: stdio.Getenv(envIngressImage)}
 	routes := &ingress.Manager{
-		Client: client, Dir: dir.Ingress(), Panel: panel, Logger: logger,
+		Client: client, Dir: dir.Ingress(), Panel: panel, Logger: logger, KeeperImage: proxy.Reference(),
 		Proxy: &caddy.Caddy{
-			Dir:           dir.Ingress(),
-			Runtime:       &caddy.Container{Client: client, Dir: dir.Ingress(), Mirror: stdio.Getenv(envIngressImage)},
+			Dir: dir.Ingress(), Runtime: proxy,
 			ACMEDirectory: stdio.Getenv(envACMEDirectory), ACMERoots: stdio.Getenv(envACMERoots),
 		},
 	}

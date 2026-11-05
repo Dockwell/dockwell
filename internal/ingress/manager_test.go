@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"net/http"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -18,6 +20,7 @@ import (
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -41,6 +44,8 @@ type fakeProxy struct {
 	// recovered and recoverErr are what Recover says.
 	recovered  bool
 	recoverErr error
+	// closed is what SetClosed last said.
+	closed bool
 }
 
 func (p *fakeProxy) Name() string { return "Caddy" }
@@ -115,6 +120,16 @@ func (p *fakeProxy) DeleteRoute(_ context.Context, id string) error {
 	return nil
 }
 
+func (p *fakeProxy) SetClosed(_ context.Context, closed bool) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed != closed {
+		p.log = append(p.log, fmt.Sprintf("closed %v", closed))
+	}
+	p.closed = closed
+	return nil
+}
+
 func (p *fakeProxy) Recover(context.Context) (bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -152,6 +167,10 @@ func (p *fakeProxy) Retry(context.Context) error {
 }
 
 const envID = "env_01KAT4ZR6E3V0Y5XBKZB5D9Q6M"
+
+// movesPanel is what a plan says of a first route on the control server, which a
+// person approved.
+var movesPanel = &resource.IngressEffect{Change: resource.IngressStarts, Proxy: "Caddy", PanelDomain: "panel.example.com"}
 
 // setup is a manager on a fake engine and proxy, on a server whose ports are
 // free, with a service web running.
@@ -556,7 +575,7 @@ func TestThePanelTakesThePortsBackWhenTheProxyCantStart(t *testing.T) {
 	s.proxy.startErr = errors.New("caddy didn't start")
 	ref := routeRef("www")
 	r := spec("app.example.com", "", "web", 80)
-	err := s.Apply(t.Context(), ref, r, nil)
+	err := s.Apply(t.Context(), ref, r, movesPanel)
 	if err == nil || !strings.Contains(err.Error(), "didn't start") {
 		t.Fatalf("Apply = %v", err)
 	}
@@ -574,7 +593,7 @@ func TestThePanelKeepsItsPortsUntilTheProxyIsReadyToStart(t *testing.T) {
 	calls := &panelCalls{}
 	s.Panel = calls.panel()
 	s.proxy.prepareErr = errors.New("can't pull Caddy")
-	err := s.Apply(t.Context(), routeRef("www"), spec("app.example.com", "", "web", 80), nil)
+	err := s.Apply(t.Context(), routeRef("www"), spec("app.example.com", "", "web", 80), movesPanel)
 	if err == nil || !strings.Contains(err.Error(), "can't pull") {
 		t.Fatalf("Apply = %v", err)
 	}
@@ -711,9 +730,13 @@ func TestAHungProxyDoesntHoldUpPlans(t *testing.T) {
 			_, _, _, err := s.Endpoint(ctx, Instance{Project: "p", Service: "s", Number: 1})
 			return err
 		},
-		"AddUpstream":    func(ctx context.Context) error { return s.AddUpstream(ctx, Instance{Project: "p", Service: "s", Number: 1}) },
-		"Drain":          func(ctx context.Context) error { return s.Drain(ctx, Instance{Project: "p", Service: "s", Number: 1}) },
-		"RemoveUpstream": func(ctx context.Context) error { return s.RemoveUpstream(ctx, Instance{Project: "p", Service: "s", Number: 1}) },
+		"AddUpstream": func(ctx context.Context) error {
+			return s.AddUpstream(ctx, Instance{Project: "p", Service: "s", Number: 1})
+		},
+		"Drain": func(ctx context.Context) error { return s.Drain(ctx, Instance{Project: "p", Service: "s", Number: 1}) },
+		"RemoveUpstream": func(ctx context.Context) error {
+			return s.RemoveUpstream(ctx, Instance{Project: "p", Service: "s", Number: 1})
+		},
 	} {
 		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 		if err := call(ctx); !errors.Is(err, context.DeadlineExceeded) {
@@ -743,7 +766,7 @@ func TestAReleaseThatEndsEarlyGivesThePortsBack(t *testing.T) {
 			return nil
 		},
 	}
-	if err := s.Apply(t.Context(), routeRef("www"), spec("a.example.com", "", "web", 80), nil); err == nil {
+	if err := s.Apply(t.Context(), routeRef("www"), spec("a.example.com", "", "web", 80), movesPanel); err == nil {
 		t.Fatal("Apply worked, with a release that failed")
 	}
 	if retakes != 1 {
@@ -1269,7 +1292,7 @@ func TestAddressesAreInTheSubnetAndNeverTheGateway(t *testing.T) {
 	tb := table{Subnet: "172.30.0.0/29", Addresses: map[string]string{}, loaded: true}
 	seen := map[string]bool{}
 	for i := 1; i <= 7; i++ {
-		a, err := tb.give(dir, Instance{Project: "p", Service: "s", Number: i}, "172.30.0.1")
+		a, err := tb.give(dir, Instance{Project: "p", Service: "s", Number: i}, "172.30.0.1", nil)
 		if err != nil {
 			if i < 6 {
 				t.Fatalf("instance %d: %v", i, err)
@@ -1285,4 +1308,617 @@ func TestAddressesAreInTheSubnetAndNeverTheGateway(t *testing.T) {
 		seen[a] = true
 	}
 	t.Error("a /29 gave more addresses than it has past its gateway")
+}
+
+// stopAndPrune stops every service, and removes the ingress network as docker
+// network prune does once none of them runs. Each keeps its endpoint's settings,
+// with the old network's ID, as a stopped container does.
+func (s *setup) stopAndPrune(t *testing.T, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		s.engine.Stop(docker.Project(envID) + "-" + name + "-1")
+	}
+	if err := s.Client.RemoveNetwork(t.Context(), docker.IngressNetwork); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The review's case: docker network prune takes the network, Docker reuses the
+// first free subnet, and an empty table gives api the address web's route still
+// dials, so web's users and cookies reach api.
+func TestLosingTheNetworkNeverSendsOneAppsTrafficToAnother(t *testing.T) {
+	s := newSetup(t)
+	s.engine.PickSubnet = "172.30.0.0/16" // Docker picks the first free pool, which is the one just freed
+	s.service("api")
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	s.apply(t, "b", spec("b.example.com", "", "api", 80))
+	before := maps.Clone(s.table.Addresses)
+	s.stopAndPrune(t, "web", "api")
+
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	n := s.engine.Network(docker.IngressNetwork)
+	if n == nil || n.IPAM.Config[0].Subnet != "172.30.0.0/16" {
+		t.Fatalf("the network is %+v, want it back on its own subnet", n)
+	}
+	if !maps.Equal(s.table.Addresses, before) {
+		t.Errorf("the table is %v, want %v, as Caddy's routes still dial those", s.table.Addresses, before)
+	}
+	if !n.Internal || n.Options["com.docker.network.bridge.enable_icc"] != "false" {
+		t.Errorf("it came back without what keeps it to itself: %+v", n)
+	}
+
+	// Any later change to b's route, such as its port.
+	s.apply(t, "b", spec("b.example.com", "", "api", 8080))
+	routes, _ := s.Proxy.Routes(t.Context())
+	hosts := map[string]string{}
+	for _, r := range routes {
+		host, _, _ := splitUpstream(r.Upstreams[0])
+		hosts[r.Domain] = host
+	}
+	if hosts["a.example.com"] == hosts["b.example.com"] {
+		t.Errorf("web and api both dial %s, so web's users reach api", hosts["a.example.com"])
+	}
+	if inst, known := s.table.instanceAt(hosts["a.example.com"]); !known || inst.Service != "web" {
+		t.Errorf("a.example.com dials %s, which the table says is %+v, not web", hosts["a.example.com"], inst)
+	}
+	// A stopped container names the old network's ID, and can't start until it
+	// comes off it. Reconcile has put each back, so each starts, at its address.
+	for _, name := range []string{"web", "api"} {
+		id := docker.Project(envID) + "-" + name + "-1"
+		if err := s.Client.StartContainer(t.Context(), id); err != nil {
+			t.Errorf("%s can't start: %v", name, err)
+		}
+		c := s.engine.Container(id)
+		if ep := c.NetworkSettings.Networks[docker.IngressNetwork]; ep == nil || ep.IPAMConfig == nil || ep.IPAMConfig.IPv4Address != before[Instance{Project: docker.Project(envID), Service: name, Number: 1}.String()] {
+			t.Errorf("%s is on the network as %+v", name, ep)
+		}
+	}
+}
+
+// Even with a table that lost its record, what Caddy dials isn't given out.
+func TestAnAddressCaddyDialsIsNeverGiven(t *testing.T) {
+	s := newSetup(t)
+	s.service("api")
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	dialled, _, _ := splitUpstream(s.proxy.routes[0].Upstreams[0])
+	s.table.Addresses = map[string]string{}
+	s.apply(t, "b", spec("b.example.com", "", "api", 80))
+	if got := s.table.Addresses[Instance{Project: docker.Project(envID), Service: "api", Number: 1}.String()]; got == dialled {
+		t.Errorf("api was given %s, which a.example.com's route dials", got)
+	}
+	// And none at all if what the proxy dials can't be read.
+	hung := &hungProxy{}
+	s.Proxy = hung
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+	if a, err := s.give(ctx, Instance{Project: "p", Service: "new", Number: 1}); err == nil {
+		t.Errorf("gave %s with what the proxy dials unknown", a)
+	}
+}
+
+// Docker gives out the first free subnet, so another network can take the one
+// that was freed. Routes dial those addresses whichever network has them, so they
+// answer 503 until a person sorts it out, and no address is reused.
+func TestASubnetTakenFailsClosedAndNamesWhoHasIt(t *testing.T) {
+	s := newSetup(t)
+	s.engine.PickSubnet = "172.30.0.0/16"
+	s.service("api")
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	before := maps.Clone(s.table.Addresses)
+	s.stopAndPrune(t, "web", "api")
+	s.engine.AddNetwork(docker.Network{Name: "someones-app", Driver: "bridge", IPAM: docker.IPAM{Config: []docker.IPAMConfig{{Subnet: "172.30.0.0/16"}}}})
+
+	err := s.Reconcile(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "someones-app") || !strings.Contains(err.Error(), "172.30.0.0/16") ||
+		!strings.Contains(err.Error(), "503") || !strings.Contains(err.Error(), "docker network rm someones-app") {
+		t.Fatalf("Reconcile = %v, want it to say who has the subnet, what that costs, and the fix", err)
+	}
+	if !s.proxy.closed {
+		t.Error("the routes still dial addresses another network has")
+	}
+	if s.engine.Network(docker.IngressNetwork) != nil {
+		t.Error("the network was made anyway")
+	}
+	if !maps.Equal(s.table.Addresses, before) {
+		t.Errorf("the table is %v, want %v", s.table.Addresses, before)
+	}
+	s.publishIngress(t.Context())
+	st := s.Ingress()
+	if st.GetProblem() != dockwellv1.IngressProblem_INGRESS_PROBLEM_SUBNET_TAKEN || !strings.Contains(st.GetMessage(), "someones-app") {
+		t.Errorf("the API says %+v", st)
+	}
+	// A step fails the same way, rather than giving out an address.
+	if err := s.Apply(t.Context(), routeRef("b"), spec("b.example.com", "", "api", 80), nil); err == nil || !strings.Contains(err.Error(), "someones-app") {
+		t.Errorf("Apply = %v", err)
+	}
+	if routes, _ := s.proxy.Routes(t.Context()); len(routes) != 1 {
+		t.Errorf("routes = %+v", routes)
+	}
+	// So does a container being replaced, before anything stops.
+	if _, _, _, err := s.Endpoint(t.Context(), Instance{Project: docker.Project(envID), Service: "web", Number: 1}); err == nil || !strings.Contains(err.Error(), "someones-app") {
+		t.Errorf("Endpoint = %v", err)
+	}
+	// Removing a route must still work.
+	if err := s.Apply(t.Context(), routeRef("a"), nil, nil); err != nil {
+		t.Errorf("removing a route = %v", err)
+	}
+	s.apply(t, "a", nil) // nothing left: that goes through
+	if s.table.Subnet != "" {
+		t.Errorf("after the last route, the table says %+v", s.table)
+	}
+}
+
+func TestASubnetFreedAgainReopensTheRoutes(t *testing.T) {
+	s := newSetup(t)
+	s.engine.PickSubnet = "172.30.0.0/16"
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	before := maps.Clone(s.table.Addresses)
+	s.stopAndPrune(t, "web")
+	s.engine.AddNetwork(docker.Network{Name: "someones-app", Driver: "bridge", IPAM: docker.IPAM{Config: []docker.IPAMConfig{{Subnet: "172.30.0.0/16"}}}})
+	if err := s.Reconcile(t.Context()); err == nil {
+		t.Fatal("Reconcile worked")
+	}
+	if err := s.Client.RemoveNetwork(t.Context(), "someones-app"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if s.proxy.closed {
+		t.Error("the routes stayed closed")
+	}
+	if !maps.Equal(s.table.Addresses, before) {
+		t.Errorf("the table is %v, want %v", s.table.Addresses, before)
+	}
+	s.publishIngress(t.Context())
+	if st := s.Ingress(); st.GetProblem() != dockwellv1.IngressProblem_INGRESS_PROBLEM_UNSPECIFIED {
+		t.Errorf("the API still says %+v", st)
+	}
+}
+
+// A subnet Docker can't give back for any other reason fails closed too.
+func TestASubnetDockerRefusesFailsClosed(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	s.stopAndPrune(t, "web")
+	s.engine.Intercept(func(r *http.Request) error {
+		if strings.HasSuffix(r.URL.Path, "/networks/create") {
+			return errors.New("nothing doing")
+		}
+		return nil
+	})
+	err := s.Reconcile(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "nothing doing") || !s.proxy.closed {
+		t.Errorf("Reconcile = %v, closed %v", err, s.proxy.closed)
+	}
+}
+
+// A network that isn't on the subnet the routes dial is as bad as none.
+func TestANetworkOnAnotherSubnetFailsClosed(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	s.stopAndPrune(t, "web")
+	s.engine.AddNetwork(docker.Network{Name: docker.IngressNetwork, Driver: "bridge", Labels: networkLabels, IPAM: docker.IPAM{Config: []docker.IPAMConfig{{Subnet: "10.99.0.0/16"}}}})
+	if err := s.Reconcile(t.Context()); err == nil || !strings.Contains(err.Error(), "10.99.0.0/16") || !s.proxy.closed {
+		t.Errorf("Reconcile = %v, closed %v", err, s.proxy.closed)
+	}
+}
+
+// docker network prune leaves a network with a running container on it, which is
+// what the keeper is for: the rest is for when it's removed on purpose.
+func TestTheKeeperKeepsTheNetworkFromBeingPruned(t *testing.T) {
+	s := newSetup(t)
+	const image = "caddy@sha256:abc"
+	s.KeeperImage = image
+	s.engine.Registry[image] = dockertest.Image{}
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	keeper := s.engine.Container(KeeperName)
+	if keeper == nil || !keeper.State.Running {
+		t.Fatalf("the keeper is %+v", keeper)
+	}
+	if keeper.Config.Image != image || keeper.HostConfig.NetworkMode != docker.IngressNetwork || keeper.Config.User == "" || keeper.Config.User == "0:0" {
+		t.Errorf("the keeper runs as %+v, %+v", keeper.Config, keeper.HostConfig)
+	}
+	if !slices.Equal(keeper.HostConfig.CapDrop, []string{"ALL"}) || !keeper.HostConfig.ReadonlyRootfs || keeper.HostConfig.Memory == 0 || keeper.HostConfig.PidsLimit == 0 || len(keeper.Mounts) != 0 {
+		t.Errorf("the keeper can do more than sleep: %+v", keeper.HostConfig)
+	}
+	ep := keeper.NetworkSettings.Networks[docker.IngressNetwork]
+	want, _ := keeperAddress(s.table.Subnet)
+	if ep == nil || ep.IPAMConfig == nil || ep.IPAMConfig.IPv4Address != want {
+		t.Fatalf("the keeper is on the network as %+v, want %s", ep, want)
+	}
+	if _, taken := s.table.instanceAt(want); taken {
+		t.Errorf("an instance has the keeper's address, %s", want)
+	}
+	// With every service stopped, the network can't be removed.
+	s.engine.Stop(docker.Project(envID) + "-web-1")
+	if err := s.Client.RemoveNetwork(t.Context(), docker.IngressNetwork); err == nil {
+		t.Error("the network was removed with the keeper on it")
+	}
+	// Someone stops it, and it comes back.
+	s.engine.Stop(KeeperName)
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if k := s.engine.Container(KeeperName); k == nil || !k.State.Running {
+		t.Errorf("the keeper is %+v after a reconcile", k)
+	}
+	// Someone removes it and the network: both come back, on the subnet.
+	subnet := s.table.Subnet
+	s.engine.Stop(KeeperName)
+	if err := s.Client.RemoveNetwork(t.Context(), docker.IngressNetwork); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if k := s.engine.Container(KeeperName); k == nil || !k.State.Running {
+		t.Errorf("after losing its network, the keeper is %+v", k)
+	}
+	if n := s.engine.Network(docker.IngressNetwork); n == nil || n.IPAM.Config[0].Subnet != subnet {
+		t.Errorf("the network is %+v", n)
+	}
+	// The last route takes it all away, so the network can go.
+	s.apply(t, "a", nil)
+	if s.engine.Container(KeeperName) != nil {
+		t.Error("the keeper stayed after the last route")
+	}
+	if s.engine.Network(docker.IngressNetwork) != nil {
+		t.Error("the network stayed after the last route")
+	}
+}
+
+func TestTheKeepersAddressIsTheLastHost(t *testing.T) {
+	for subnet, want := range map[string]string{"172.30.0.0/16": "172.30.255.254", "10.1.2.0/24": "10.1.2.254", "192.168.0.0/30": "192.168.0.2"} {
+		if got, ok := keeperAddress(subnet); !ok || got != want {
+			t.Errorf("keeperAddress(%s) = %s, %v, want %s", subnet, got, ok, want)
+		}
+	}
+	for _, subnet := range []string{"", "nonsense", "fd00::/64", "10.0.0.1/32"} {
+		if got, ok := keeperAddress(subnet); ok {
+			t.Errorf("keeperAddress(%s) = %s", subnet, got)
+		}
+	}
+}
+
+// A reboot brought another proxy back, and it bound first. The agent says who
+// has the ports, each time on the API and when it changes in the log, and doesn't
+// make Caddy again until they're free, which would only churn.
+func TestAProxyThatCameBackIsNamedAndNotFoughtWith(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	s.proxy.status = Status{Exists: true}
+	s.proxy.log = nil
+	s.proc.listen("tcp", 80, "0A", "9001")
+	s.proc.listen("tcp", 443, "0A", "9002")
+	id := s.engine.AddContainer(docker.Container{Name: "/1Panel-openresty-abc12", State: docker.State{Running: true, Status: "running"}}).ID
+	s.proc.process(4242, "nginx", "0::/system.slice/docker-"+id+".scope", "9001", "9002")
+
+	err := s.Reconcile(t.Context())
+	if err == nil {
+		t.Fatal("Reconcile says nothing")
+	}
+	for _, want := range []string{"nginx", "1Panel-openresty-abc12", "docker update --restart=no 1Panel-openresty-abc12", "docker stop 1Panel-openresty-abc12", "routes don't answer", "within a minute"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the error doesn't say %q: %v", want, err)
+		}
+	}
+	if slices.Contains(s.proxy.log, "start") {
+		t.Errorf("the proxy was started with the ports taken: %v", s.proxy.log)
+	}
+	s.publishIngress(t.Context())
+	st := s.Ingress()
+	if st.GetProblem() != dockwellv1.IngressProblem_INGRESS_PROBLEM_PORTS_TAKEN || !slices.Equal(st.GetHolders(), []string{"1Panel-openresty-abc12"}) || !strings.Contains(st.GetMessage(), "docker update") {
+		t.Errorf("the API says %+v", st)
+	}
+
+	// It goes on trying, and takes the ports once they're free.
+	if err := s.Client.RemoveContainer(t.Context(), id, true); err != nil {
+		t.Fatal(err)
+	}
+	s.proc = newProc(t)
+	s.Holders = holdersOn(t, s.engine, s.proc)
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(s.proxy.log, "start") {
+		t.Errorf("the proxy wasn't started with the ports free: %v", s.proxy.log)
+	}
+	s.publishIngress(t.Context())
+	if st := s.Ingress(); st.GetProblem() != dockwellv1.IngressProblem_INGRESS_PROBLEM_UNSPECIFIED {
+		t.Errorf("the API still says %+v", st)
+	}
+}
+
+// With the panel's domain behind Caddy, that's down too, and the error says so.
+func TestAProxyThatCameBackSaysThePanelsDomainIsDown(t *testing.T) {
+	s := newSetup(t)
+	s.Panel = &Panel{Domain: "panel.example.com", Release: func(context.Context) error { return nil }, Retake: func(context.Context) error { return nil }}
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	s.proxy.status = Status{Exists: true}
+	s.proc.listen("tcp", 443, "0A", "9001")
+	s.proc.process(4242, "nginx", "0::/", "9001")
+	err := s.Reconcile(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "panel.example.com") || !strings.Contains(err.Error(), "SSH tunnel") {
+		t.Errorf("Reconcile = %v", err)
+	}
+}
+
+// A failure that doesn't change is said once, and again after a long while.
+func TestReconcilingSaysAFailureOnce(t *testing.T) {
+	s := newSetup(t)
+	var logs bytes.Buffer
+	var mu sync.Mutex
+	s.Logger = slog.New(slog.NewTextHandler(writerFunc(func(b []byte) (int, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return logs.Write(b)
+	}), nil))
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	s.proxy.status = Status{Exists: true}
+	s.proc.listen("tcp", 80, "0A", "9001")
+	s.proc.process(4242, "nginx", "0::/", "9001")
+	ctx, stop := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer stop()
+	s.KeepReconciled(ctx, 10*time.Millisecond)
+	mu.Lock()
+	defer mu.Unlock()
+	if n := strings.Count(logs.String(), "can't put the ingress as its routes need it"); n != 1 {
+		t.Errorf("it said so %d times:\n%s", n, logs.String())
+	}
+}
+
+type writerFunc func([]byte) (int, error)
+
+func (f writerFunc) Write(b []byte) (int, error) { return f(b) }
+
+// Each restart policy as Moby's restart manager reads it. A manual stop lasts
+// only until the daemon restarts for always, which is 1Panel's OpenResty.
+func TestAPlanNamesWhatComesBackAfterAReboot(t *testing.T) {
+	s := newSetup(t)
+	add := func(name string, policy string, exit int, network string, ports map[string][]docker.PortBinding) {
+		s.engine.AddContainer(docker.Container{
+			Name: "/" + name, State: docker.State{Status: "exited", ExitCode: exit},
+			HostConfig: docker.HostConfig{RestartPolicy: docker.RestartPolicy{Name: policy}, NetworkMode: network, PortBindings: ports},
+		})
+	}
+	on := func(key, port string) map[string][]docker.PortBinding {
+		return map[string][]docker.PortBinding{key: {{HostPort: port}}}
+	}
+	add("openresty", "always", 137, "host", nil)
+	add("publishes-443", "always", 0, "bridge", on("8443/tcp", "443"))
+	add("publishes-udp", "always", 0, "bridge", on("443/udp", "443"))
+	add("on-failure-killed", "on-failure", 137, "bridge", on("80/tcp", "80"))
+	add("on-failure-clean", "on-failure", 0, "bridge", on("80/tcp", "80"))
+	add("stopped-by-hand", "unless-stopped", 137, "bridge", on("80/tcp", "80"))
+	add("no-policy", "no", 0, "bridge", on("80/tcp", "80"))
+	add("another-port", "always", 0, "bridge", on("80/tcp", "8080"))
+	add("udp-80", "always", 0, "bridge", on("80/udp", "80"))
+	s.engine.AddContainer(docker.Container{
+		Name: "/" + ContainerName, State: docker.State{Status: "exited"}, Config: docker.Config{Labels: map[string]string{docker.OwnPrefix + "ingress": "caddy"}},
+		HostConfig: docker.HostConfig{RestartPolicy: docker.RestartPolicy{Name: "always"}, NetworkMode: "host"},
+	})
+
+	ref := routeRef("www")
+	route := spec("a.example.com", "", "web", 80)
+	desired := []resource.Desired{{Ref: ref, Spec: route}}
+	got := s.Returning(t.Context(), ref, route, desired)
+	want := []string{"on-failure-killed", "openresty", "publishes-443", "publishes-udp"}
+	if !slices.Equal(got, want) {
+		t.Errorf("Returning = %v, want %v", got, want)
+	}
+	// Once a plan, on its first route. A removal has nothing to warn of.
+	second := routeRef("api")
+	desired = append(desired, resource.Desired{Ref: second, Spec: route})
+	if got := s.Returning(t.Context(), second, route, desired); got != nil {
+		t.Errorf("the second route warns too: %v", got)
+	}
+	if got := s.Returning(t.Context(), ref, nil, []resource.Desired{{Ref: ref}}); got != nil {
+		t.Errorf("a removal warns: %v", got)
+	}
+}
+
+func TestADaemonThatSetsNoNewPrivilegesIsRefusedByName(t *testing.T) {
+	s := newSetup(t)
+	s.engine.NoNewPrivileges = true
+	ref := routeRef("www")
+	route := spec("a.example.com", "", "web", 80)
+	err := s.Check(t.Context(), ref, []resource.Desired{{Ref: ref, Spec: route}})
+	if err == nil || !strings.Contains(err.Error(), "no-new-privileges") || !strings.Contains(err.Error(), "/etc/docker/daemon.json") {
+		t.Errorf("Check = %v, want it refused by name, with the fix", err)
+	}
+	// Before the panel lets go of anything, whatever the plan said.
+	released := false
+	s.Panel = &Panel{Domain: "panel.example.com", Release: func(context.Context) error { released = true; return nil }, Retake: func(context.Context) error { return nil }}
+	effect := &resource.IngressEffect{Change: resource.IngressStarts, PanelDomain: "panel.example.com"}
+	if err := s.Apply(t.Context(), ref, route, effect); err == nil || !strings.Contains(err.Error(), "no-new-privileges") {
+		t.Errorf("Apply = %v", err)
+	}
+	if released {
+		t.Error("the panel let go of its ports first")
+	}
+}
+
+// Removing a route still works on a daemon hardened after the fact.
+func TestANoNewPrivilegesDaemonStillLetsARouteGo(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	s.engine.NoNewPrivileges = true
+	s.apply(t, "a", nil)
+	if routes, _ := s.proxy.Routes(t.Context()); len(routes) != 0 {
+		t.Errorf("routes %+v", routes)
+	}
+}
+
+// A plan that didn't know the panel moves can't move it: it got no person's
+// approval, as a server that wasn't reachable made none of it clear.
+func TestThePanelMovesOnlyForAPlanThatSaidSo(t *testing.T) {
+	s := newSetup(t)
+	released := false
+	s.Panel = &Panel{Domain: "panel.example.com", Release: func(context.Context) error { released = true; return nil }, Retake: func(context.Context) error { return nil }}
+	err := s.Apply(t.Context(), routeRef("www"), spec("a.example.com", "", "web", 80), nil)
+	if err == nil || !strings.Contains(err.Error(), "panel.example.com") || released {
+		t.Errorf("Apply = %v, released %v", err, released)
+	}
+	if routes, _ := s.proxy.Routes(t.Context()); len(routes) != 0 {
+		t.Errorf("routes %+v", routes)
+	}
+}
+
+// What moves behind the proxy can't go dark: the panel's certificate goes with it.
+func TestThePanelsCertificateGoesToTheProxy(t *testing.T) {
+	s := newSetup(t)
+	cert := &PanelCert{Chain: []byte("chain"), Key: []byte("key")}
+	s.Panel = &Panel{
+		Domain: "panel.example.com", Release: func(context.Context) error { return nil }, Retake: func(context.Context) error { return nil },
+		Certificate: func(context.Context) (*PanelCert, error) { return cert, nil },
+	}
+	s.apply(t, "www", spec("a.example.com", "", "web", 80))
+	if s.proxy.panel == nil || s.proxy.panel.Cert != cert {
+		t.Errorf("the proxy has %+v", s.proxy.panel)
+	}
+	// One it can't read doesn't stop the proxy.
+	s.Panel.Certificate = func(context.Context) (*PanelCert, error) { return nil, errors.New("disk") }
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if s.proxy.panel == nil || s.proxy.panel.Cert != nil {
+		t.Errorf("the proxy has %+v", s.proxy.panel)
+	}
+}
+
+// One server takes 1,000 routes. Removing or editing past that always works.
+func TestAServerTakesAtMostItsLimitOfRoutes(t *testing.T) {
+	s := newSetup(t)
+	s.proxy.status = Status{Exists: true, Running: true}
+	for i := range MaxRoutes {
+		s.proxy.routes = append(s.proxy.routes, Route{ID: RouteID(routeRef(fmt.Sprintf("r%d", i))), Domain: fmt.Sprintf("r%d.example.com", i)})
+	}
+	ref := routeRef("over")
+	err := s.Check(t.Context(), ref, []resource.Desired{{Ref: ref, Spec: spec("over.example.com", "", "web", 80)}})
+	if err == nil || !strings.Contains(err.Error(), "1001 routes") || !strings.Contains(err.Error(), "at most 1000") || !strings.Contains(err.Error(), "Delete routes") {
+		t.Errorf("Check = %v, want it refused, with what to do", err)
+	}
+	// An edit of a route it has adds nothing.
+	existing := routeRef("r1")
+	if err := s.Check(t.Context(), existing, []resource.Desired{{Ref: existing, Spec: spec("r1.example.com", "", "web", 8080)}}); err != nil {
+		t.Errorf("an edit past the limit = %v", err)
+	}
+	// A plan that makes room for what it adds passes.
+	if err := s.Check(t.Context(), ref, []resource.Desired{{Ref: ref, Spec: spec("over.example.com", "", "web", 80)}, {Ref: existing}}); err != nil {
+		t.Errorf("a plan that deletes one and adds one = %v", err)
+	}
+	// One applied on a plan made before the others came is refused too.
+	if err := s.Apply(t.Context(), ref, spec("over.example.com", "", "web", 80), nil); err == nil || !strings.Contains(err.Error(), "at most 1000") {
+		t.Errorf("Apply past the limit = %v", err)
+	}
+}
+
+// Each domain waiting for a certificate may be costing orders at the CA, and a
+// burst of names that don't resolve could use up the server's limit, the panel's
+// domain too. One that stays failed mustn't block others for ever.
+func TestPendingDomainsLimitNewOnes(t *testing.T) {
+	s := newSetup(t)
+	clock := time.Now()
+	s.Now = func() time.Time { return clock }
+	s.proxy.status = Status{Exists: true, Running: true}
+	if s.proxy.certs == nil {
+		s.proxy.certs = map[string]CertState{}
+	}
+	check := func(ref resource.Ref, domain string) error {
+		return s.Check(t.Context(), ref, []resource.Desired{{Ref: ref, Spec: spec(domain, "", "web", 80)}})
+	}
+	for i := range MaxPendingDomains {
+		s.apply(t, fmt.Sprintf("r%d", i), spec(fmt.Sprintf("r%d.example.com", i), "", "web", 80))
+	}
+	ref := routeRef("over")
+	err := check(ref, "over.example.com")
+	if err == nil || !strings.Contains(err.Error(), "50 domains") || !strings.Contains(err.Error(), "limit of 50") ||
+		!strings.Contains(err.Error(), "Point their DNS here") || !strings.Contains(err.Error(), "45 more") || !strings.Contains(err.Error(), "3 hours") {
+		t.Errorf("Check = %v, want it refused, with what to do", err)
+	}
+	if err := s.Apply(t.Context(), ref, spec("over.example.com", "", "web", 80), nil); err == nil || !strings.Contains(err.Error(), "limit of 50") {
+		t.Errorf("Apply = %v", err)
+	}
+	// A path under a domain it has asks the CA for nothing.
+	if err := check(routeRef("api"), "r1.example.com"); err != nil {
+		t.Errorf("a path under a domain it has = %v", err)
+	}
+	// One that gets its certificate makes room.
+	s.proxy.certs["r1.example.com"] = CertState{Phase: CertIssued}
+	if err := check(ref, "over.example.com"); err != nil {
+		t.Errorf("with a certificate come = %v", err)
+	}
+	s.apply(t, "over", spec("over.example.com", "", "web", 80))
+	if err := check(routeRef("over2"), "over2.example.com"); err == nil {
+		t.Error("a 51st pending domain went in")
+	}
+	// A failed one still counts, as it may still cost orders, until its window.
+	s.proxy.certs["r2.example.com"] = CertState{Phase: CertFailed, Problem: ProblemDNS}
+	if err := check(routeRef("over2"), "over2.example.com"); err == nil {
+		t.Error("a failed domain doesn't count")
+	}
+	// After which a domain that stays failed blocks nothing.
+	clock = clock.Add(PendingWindow + time.Minute)
+	if err := check(routeRef("over2"), "over2.example.com"); err != nil {
+		t.Errorf("3 hours on = %v", err)
+	}
+	// One plan can't bring more than the limit in at once.
+	var many []resource.Desired
+	for i := range MaxPendingDomains + 1 {
+		many = append(many, resource.Desired{Ref: routeRef(fmt.Sprintf("m%d", i)), Spec: spec(fmt.Sprintf("m%d.example.com", i), "", "web", 80)})
+	}
+	if err := s.Check(t.Context(), many[0].Ref, many); err == nil || !strings.Contains(err.Error(), "limit of 50") {
+		t.Errorf("a plan of 51 new domains = %v", err)
+	}
+}
+
+// When a domain was added survives the agent, so a restart can't keep a domain
+// that stays failed counting for ever.
+func TestPendingSurvivesARestart(t *testing.T) {
+	s := newSetup(t)
+	clock := time.Now()
+	s.Now = func() time.Time { return clock }
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	clock = clock.Add(PendingWindow + time.Minute)
+	again := &Manager{Client: s.Client, Proxy: s.Proxy, Dir: s.Dir, Holders: s.Holders, DNS: s.DNS, Now: s.Now}
+	routes, _ := s.proxy.Routes(t.Context())
+	pending, err := again.pendingDomains(t.Context(), routes)
+	if err != nil || len(pending) != 0 {
+		t.Errorf("after 3 hours and a restart, pending = %v, %v", pending, err)
+	}
+}
+
+// A pending security update must be visible, as nothing moves a server to it but
+// its next route change (issue #78).
+func TestAnOutdatedProxyIsLoggedOnceAndOnTheAPI(t *testing.T) {
+	s := newSetup(t)
+	var logs bytes.Buffer
+	s.Logger = slog.New(slog.NewTextHandler(&logs, nil))
+	s.apply(t, "a", spec("a.example.com", "", "web", 80))
+	s.proxy.status = Status{Exists: true, Running: true, Outdated: true, Version: "2.11.6-alpine", Pinned: "2.11.7-alpine"}
+	for range 3 {
+		if err := s.Reconcile(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := strings.Count(logs.String(), "may be missing security fixes"); n != 1 {
+		t.Errorf("it said so %d times:\n%s", n, logs.String())
+	}
+	if !strings.Contains(logs.String(), "2.11.6-alpine") || !strings.Contains(logs.String(), "2.11.7-alpine") {
+		t.Errorf("the log doesn't name the versions: %s", logs.String())
+	}
+	s.publishIngress(t.Context())
+	st := s.Ingress()
+	if !st.GetOutdated() || st.GetVersion() != "2.11.6-alpine" || st.GetPinnedVersion() != "2.11.7-alpine" || !st.GetRunning() {
+		t.Errorf("the API says %+v", st)
+	}
+	// A server with no routes has nothing to say.
+	s.apply(t, "a", nil)
+	s.publishIngress(t.Context())
+	if st := s.Ingress(); st != nil {
+		t.Errorf("with no routes, the API says %+v", st)
+	}
 }

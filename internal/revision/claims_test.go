@@ -64,6 +64,9 @@ func (m *memIngress) Apply(_ context.Context, ref resource.Ref, spec *resourcev1
 	return nil
 }
 
+func (*memIngress) Returning(context.Context, resource.Ref, *resourcev1.Route, []resource.Desired) []string {
+	return nil
+}
 func (*memIngress) Verify(context.Context, resource.Ref) error { return nil }
 func (*memIngress) Ready(context.Context) error                { return nil }
 func (m *memIngress) ReadyKey() any                            { return m }
@@ -452,6 +455,44 @@ func TestARouteUndoes(t *testing.T) {
 		apply(t, e, undo(t, e, p))
 		if ing.routes[ref] != nil {
 			t.Errorf("after the undo the server has %v", ing.routes[ref])
+		}
+	})
+}
+
+// ADR 0016 says a token can't cut off access. A first route on the control server
+// moves the panel's domain off the certificate it has, and only a person may do
+// that. A person can see it coming: the plan says so, and the fingerprint covers
+// it.
+func TestMovingThePanelNeedsAPerson(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, prod, _, ings := setupRoutes(t, b, "srv_A")
+		ings["srv_A"].effect = &resource.IngressEffect{Change: resource.IngressStarts, Proxy: "Caddy", Ports: []string{"80/tcp", "443/tcp", "443/udp"}, PanelDomain: panelDomain}
+		p := propose(t, e, "First route", routeIn(prod, "www", "app.example.com", ""))
+		if !p.HostAccess() {
+			t.Fatalf("a write token may apply a plan that moves the panel's domain behind Caddy: %+v", p.Resources)
+		}
+		access := p.Steps()[0].HostAccess
+		if len(access) != 1 || access[0].Kind != resource.AccessPanelDomain || access[0].Path != panelDomain || access[0].Detail != "Caddy" {
+			t.Errorf("the step reaches %+v", access)
+		}
+		if err := e.Discard(t.Context(), p.Change, By{Actor: "usr_test"}); err != nil {
+			t.Fatal(err)
+		}
+
+		// Nothing about the panel moves: nothing to approve.
+		ings["srv_A"].effect = &resource.IngressEffect{Change: resource.IngressStarts, Proxy: "Caddy", Ports: []string{"80/tcp", "443/tcp", "443/udp"}}
+		p = propose(t, e, "First route", routeIn(prod, "www", "app.example.com", ""))
+		if p.HostAccess() {
+			t.Errorf("a first route away from the panel asks for a person: %+v", p.Resources)
+		}
+		apply(t, e, p)
+
+		// The panel taking its ports back cuts nothing off, and removing a route
+		// is something a token can do.
+		ings["srv_A"].effect = &resource.IngressEffect{Change: resource.IngressStops, Proxy: "Caddy", Ports: []string{"80/tcp"}, PanelDomain: panelDomain}
+		p = propose(t, e, "Last route", Edit{Ref: resource.Ref{Kind: route.Kind, Scope: prod, Name: "www"}})
+		if p.HostAccess() {
+			t.Errorf("the last route's removal asks for a person: %+v", p.Resources)
 		}
 	})
 }

@@ -870,6 +870,10 @@ msgid "Docker"
 msgstr "Docker"
 
 #: src/features/changes/words.ts
+msgid "Docker starts {list} again when {server} next restarts, which may take port 80 or 443 from the proxy, and stop this route answering. Keep it stopped with docker update --restart=no {command}"
+msgstr "{server} 下次重启时，Docker 会再次启动 {list}，它可能从代理手中夺走 80 或 443 端口，使此路由无法响应。请用 docker update --restart=no {command} 让它保持停止"
+
+#: src/features/changes/words.ts
 msgid "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
 msgstr "位于 {path} 的 Docker 套接字，可控制服务器上的 Docker，等同于 root 权限"
 
@@ -2341,8 +2345,12 @@ msgid "The panel takes those ports back for its domain, {panelDomain}. Its addre
 msgstr "面板将为其域名 {panelDomain} 收回这些端口。它的地址、通行密钥和会话都保持不变"
 
 #: src/features/changes/words.ts
-msgid "The panel's domain, {panelDomain}, moves behind {proxy}. Its address, passkeys and sessions stay as they are. HTTPS on it is down for a few seconds while its certificate comes; the SSH tunnel keeps working"
-msgstr "面板的域名 {panelDomain} 将转到 {proxy} 之后。它的地址、通行密钥和会话都保持不变。获取证书期间，该域名的 HTTPS 会中断几秒；SSH 隧道仍可使用"
+msgid "The panel's domain, {panelDomain}, moves behind {proxy}. Its address, passkeys and sessions stay as they are, and it keeps its present certificate until {proxy} has its own. HTTPS on it is down for a moment as the ports change hands; the SSH tunnel keeps working"
+msgstr "面板的域名 {panelDomain} 将转到 {proxy} 之后。它的地址、通行密钥和会话都保持不变，并继续使用现有证书，直到 {proxy} 获得自己的证书。端口交接时，该域名的 HTTPS 会短暂中断；SSH 隧道仍可使用"
+
+#: src/features/changes/words.ts
+msgid "the panel's domain, {path}, which moves behind {detail}"
+msgstr "面板的域名 {path}，它将转到 {detail} 之后"
 
 #: src/features/auth/messages.ts
 msgid "The passkey prompt closed before it finished. Try again when you're ready."

@@ -72,6 +72,16 @@ func (c *Client) NetworkNamed(ctx context.Context, name string) (*Network, error
 	return n, err
 }
 
+// ListNetworks lists every network on the engine. A list leaves out the
+// containers on each, as the engine has it, so ask InspectNetwork for those.
+func (c *Client) ListNetworks(ctx context.Context) ([]Network, error) {
+	var out []Network
+	if err := c.do(ctx, http.MethodGet, "/networks", nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CreateNetwork creates a network, and returns its ID.
 func (c *Client) CreateNetwork(ctx context.Context, n *NetworkCreate) (string, error) {
 	n.CheckDuplicate = !c.AtLeast("1.44")

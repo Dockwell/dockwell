@@ -25,6 +25,65 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// IngressProblem is why a server's routes aren't being served.
+type IngressProblem int32
+
+const (
+	IngressProblem_INGRESS_PROBLEM_UNSPECIFIED IngressProblem = 0
+	// Something else holds port 80 or 443, so the proxy can't start, as after a
+	// reboot brings back another proxy that was stopped for it.
+	IngressProblem_INGRESS_PROBLEM_PORTS_TAKEN IngressProblem = 1
+	// The ingress network has gone, and another network has its subnet, so the
+	// routes could reach that network's containers. Each answers 503 until the
+	// network is back.
+	IngressProblem_INGRESS_PROBLEM_SUBNET_TAKEN IngressProblem = 2
+	// The proxy isn't running, for any other reason.
+	IngressProblem_INGRESS_PROBLEM_NOT_RUNNING IngressProblem = 3
+)
+
+// Enum value maps for IngressProblem.
+var (
+	IngressProblem_name = map[int32]string{
+		0: "INGRESS_PROBLEM_UNSPECIFIED",
+		1: "INGRESS_PROBLEM_PORTS_TAKEN",
+		2: "INGRESS_PROBLEM_SUBNET_TAKEN",
+		3: "INGRESS_PROBLEM_NOT_RUNNING",
+	}
+	IngressProblem_value = map[string]int32{
+		"INGRESS_PROBLEM_UNSPECIFIED":  0,
+		"INGRESS_PROBLEM_PORTS_TAKEN":  1,
+		"INGRESS_PROBLEM_SUBNET_TAKEN": 2,
+		"INGRESS_PROBLEM_NOT_RUNNING":  3,
+	}
+)
+
+func (x IngressProblem) Enum() *IngressProblem {
+	p := new(IngressProblem)
+	*p = x
+	return p
+}
+
+func (x IngressProblem) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (IngressProblem) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_domain_proto_enumTypes[0].Descriptor()
+}
+
+func (IngressProblem) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_domain_proto_enumTypes[0]
+}
+
+func (x IngressProblem) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use IngressProblem.Descriptor instead.
+func (IngressProblem) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{0}
+}
+
 // CertificateState is where a domain's certificate stands.
 type CertificateState int32
 
@@ -67,11 +126,11 @@ func (x CertificateState) String() string {
 }
 
 func (CertificateState) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_domain_proto_enumTypes[0].Descriptor()
+	return file_dockwell_v1_domain_proto_enumTypes[1].Descriptor()
 }
 
 func (CertificateState) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_domain_proto_enumTypes[0]
+	return &file_dockwell_v1_domain_proto_enumTypes[1]
 }
 
 func (x CertificateState) Number() protoreflect.EnumNumber {
@@ -80,7 +139,7 @@ func (x CertificateState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CertificateState.Descriptor instead.
 func (CertificateState) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{1}
 }
 
 // CertificateProblem is why a certificate failed.
@@ -146,11 +205,11 @@ func (x CertificateProblem) String() string {
 }
 
 func (CertificateProblem) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_domain_proto_enumTypes[1].Descriptor()
+	return file_dockwell_v1_domain_proto_enumTypes[2].Descriptor()
 }
 
 func (CertificateProblem) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_domain_proto_enumTypes[1]
+	return &file_dockwell_v1_domain_proto_enumTypes[2]
 }
 
 func (x CertificateProblem) Number() protoreflect.EnumNumber {
@@ -159,7 +218,7 @@ func (x CertificateProblem) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CertificateProblem.Descriptor instead.
 func (CertificateProblem) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{2}
 }
 
 // ListDomainsRequest says which domains to return.
@@ -449,7 +508,10 @@ type DomainServer struct {
 	// it has said.
 	Status *DomainStatus `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
 	// True when the server isn't connected, so status is what it last said.
-	Stale         bool `protobuf:"varint,4,opt,name=stale,proto3" json:"stale,omitempty"`
+	Stale bool `protobuf:"varint,4,opt,name=stale,proto3" json:"stale,omitempty"`
+	// Where the server's ingress stands, as it last said. A domain with an issued
+	// certificate still doesn't answer while problem is set here.
+	Ingress       *IngressStatus `protobuf:"bytes,5,opt,name=ingress,proto3" json:"ingress,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -512,6 +574,126 @@ func (x *DomainServer) GetStale() bool {
 	return false
 }
 
+func (x *DomainServer) GetIngress() *IngressStatus {
+	if x != nil {
+		return x.Ingress
+	}
+	return nil
+}
+
+// IngressStatus is where a server's ingress stands, on a server with routes.
+type IngressStatus struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The proxy, such as "Caddy".
+	Proxy string `protobuf:"bytes,1,opt,name=proxy,proto3" json:"proxy,omitempty"`
+	// True when the proxy runs.
+	Running bool `protobuf:"varint,2,opt,name=running,proto3" json:"running,omitempty"`
+	// Why its routes aren't being served. Unset while they are.
+	Problem IngressProblem `protobuf:"varint,3,opt,name=problem,proto3,enum=dockwell.v1.IngressProblem" json:"problem,omitempty"`
+	// For people: what is wrong, what follows, and how to fix it. Empty while
+	// nothing is.
+	Message string `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
+	// What holds the proxy's ports, by name, for PORTS_TAKEN: containers, where
+	// they are in one, so a client can offer what to do about each.
+	Holders []string `protobuf:"bytes,5,rep,name=holders,proto3" json:"holders,omitempty"`
+	// The version the proxy runs, such as "2.11.7-alpine". Empty when the server
+	// can't say.
+	Version string `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`
+	// The version this server's Dockwell pins.
+	PinnedVersion string `protobuf:"bytes,7,opt,name=pinned_version,json=pinnedVersion,proto3" json:"pinned_version,omitempty"`
+	// True when the proxy isn't the version this server's Dockwell pins. It may
+	// be missing security fixes, and moves on the server's next route change.
+	Outdated      bool `protobuf:"varint,8,opt,name=outdated,proto3" json:"outdated,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IngressStatus) Reset() {
+	*x = IngressStatus{}
+	mi := &file_dockwell_v1_domain_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IngressStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IngressStatus) ProtoMessage() {}
+
+func (x *IngressStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_domain_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IngressStatus.ProtoReflect.Descriptor instead.
+func (*IngressStatus) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *IngressStatus) GetProxy() string {
+	if x != nil {
+		return x.Proxy
+	}
+	return ""
+}
+
+func (x *IngressStatus) GetRunning() bool {
+	if x != nil {
+		return x.Running
+	}
+	return false
+}
+
+func (x *IngressStatus) GetProblem() IngressProblem {
+	if x != nil {
+		return x.Problem
+	}
+	return IngressProblem_INGRESS_PROBLEM_UNSPECIFIED
+}
+
+func (x *IngressStatus) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *IngressStatus) GetHolders() []string {
+	if x != nil {
+		return x.Holders
+	}
+	return nil
+}
+
+func (x *IngressStatus) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *IngressStatus) GetPinnedVersion() string {
+	if x != nil {
+		return x.PinnedVersion
+	}
+	return ""
+}
+
+func (x *IngressStatus) GetOutdated() bool {
+	if x != nil {
+		return x.Outdated
+	}
+	return false
+}
+
 // DomainStatus is where one domain's certificate and DNS stand on a server.
 type DomainStatus struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -527,7 +709,7 @@ type DomainStatus struct {
 
 func (x *DomainStatus) Reset() {
 	*x = DomainStatus{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[5]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -539,7 +721,7 @@ func (x *DomainStatus) String() string {
 func (*DomainStatus) ProtoMessage() {}
 
 func (x *DomainStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[5]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -552,7 +734,7 @@ func (x *DomainStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DomainStatus.ProtoReflect.Descriptor instead.
 func (*DomainStatus) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *DomainStatus) GetDomain() string {
@@ -595,7 +777,7 @@ type Certificate struct {
 
 func (x *Certificate) Reset() {
 	*x = Certificate{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[6]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -607,7 +789,7 @@ func (x *Certificate) String() string {
 func (*Certificate) ProtoMessage() {}
 
 func (x *Certificate) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[6]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -620,7 +802,7 @@ func (x *Certificate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Certificate.ProtoReflect.Descriptor instead.
 func (*Certificate) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Certificate) GetState() CertificateState {
@@ -673,13 +855,23 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x04path\x18\x03 \x01(\tR\x04path\x12\x18\n" +
 	"\aservice\x18\x04 \x01(\tR\aservice\x12\x12\n" +
 	"\x04port\x18\x05 \x01(\rR\x04port\x12\x10\n" +
-	"\x03url\x18\x06 \x01(\tR\x03url\"\x95\x01\n" +
+	"\x03url\x18\x06 \x01(\tR\x03url\"\xcb\x01\n" +
 	"\fDomainServer\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
 	"serverName\x121\n" +
 	"\x06status\x18\x03 \x01(\v2\x19.dockwell.v1.DomainStatusR\x06status\x12\x14\n" +
-	"\x05stale\x18\x04 \x01(\bR\x05stale\"\x8e\x01\n" +
+	"\x05stale\x18\x04 \x01(\bR\x05stale\x124\n" +
+	"\aingress\x18\x05 \x01(\v2\x1a.dockwell.v1.IngressStatusR\aingress\"\x87\x02\n" +
+	"\rIngressStatus\x12\x14\n" +
+	"\x05proxy\x18\x01 \x01(\tR\x05proxy\x12\x18\n" +
+	"\arunning\x18\x02 \x01(\bR\arunning\x125\n" +
+	"\aproblem\x18\x03 \x01(\x0e2\x1b.dockwell.v1.IngressProblemR\aproblem\x12\x18\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\x12\x18\n" +
+	"\aholders\x18\x05 \x03(\tR\aholders\x12\x18\n" +
+	"\aversion\x18\x06 \x01(\tR\aversion\x12%\n" +
+	"\x0epinned_version\x18\a \x01(\tR\rpinnedVersion\x12\x1a\n" +
+	"\boutdated\x18\b \x01(\bR\boutdated\"\x8e\x01\n" +
 	"\fDomainStatus\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12:\n" +
 	"\vcertificate\x18\x02 \x01(\v2\x18.dockwell.v1.CertificateR\vcertificate\x12*\n" +
@@ -689,7 +881,12 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\aproblem\x18\x02 \x01(\x0e2\x1f.dockwell.v1.CertificateProblemR\aproblem\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\tR\amessage\x12;\n" +
 	"\vexpire_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"expireTime*\x90\x01\n" +
+	"expireTime*\x95\x01\n" +
+	"\x0eIngressProblem\x12\x1f\n" +
+	"\x1bINGRESS_PROBLEM_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bINGRESS_PROBLEM_PORTS_TAKEN\x10\x01\x12 \n" +
+	"\x1cINGRESS_PROBLEM_SUBNET_TAKEN\x10\x02\x12\x1f\n" +
+	"\x1bINGRESS_PROBLEM_NOT_RUNNING\x10\x03*\x90\x01\n" +
 	"\x10CertificateState\x12!\n" +
 	"\x1dCERTIFICATE_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19CERTIFICATE_STATE_PENDING\x10\x01\x12\x1c\n" +
@@ -721,38 +918,42 @@ func file_dockwell_v1_domain_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_domain_proto_rawDescData
 }
 
-var file_dockwell_v1_domain_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_dockwell_v1_domain_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_dockwell_v1_domain_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_dockwell_v1_domain_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_dockwell_v1_domain_proto_goTypes = []any{
-	(CertificateState)(0),         // 0: dockwell.v1.CertificateState
-	(CertificateProblem)(0),       // 1: dockwell.v1.CertificateProblem
-	(*ListDomainsRequest)(nil),    // 2: dockwell.v1.ListDomainsRequest
-	(*ListDomainsResponse)(nil),   // 3: dockwell.v1.ListDomainsResponse
-	(*Domain)(nil),                // 4: dockwell.v1.Domain
-	(*DomainRoute)(nil),           // 5: dockwell.v1.DomainRoute
-	(*DomainServer)(nil),          // 6: dockwell.v1.DomainServer
-	(*DomainStatus)(nil),          // 7: dockwell.v1.DomainStatus
-	(*Certificate)(nil),           // 8: dockwell.v1.Certificate
-	(*DomainCheck)(nil),           // 9: dockwell.v1.DomainCheck
-	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
+	(IngressProblem)(0),           // 0: dockwell.v1.IngressProblem
+	(CertificateState)(0),         // 1: dockwell.v1.CertificateState
+	(CertificateProblem)(0),       // 2: dockwell.v1.CertificateProblem
+	(*ListDomainsRequest)(nil),    // 3: dockwell.v1.ListDomainsRequest
+	(*ListDomainsResponse)(nil),   // 4: dockwell.v1.ListDomainsResponse
+	(*Domain)(nil),                // 5: dockwell.v1.Domain
+	(*DomainRoute)(nil),           // 6: dockwell.v1.DomainRoute
+	(*DomainServer)(nil),          // 7: dockwell.v1.DomainServer
+	(*IngressStatus)(nil),         // 8: dockwell.v1.IngressStatus
+	(*DomainStatus)(nil),          // 9: dockwell.v1.DomainStatus
+	(*Certificate)(nil),           // 10: dockwell.v1.Certificate
+	(*DomainCheck)(nil),           // 11: dockwell.v1.DomainCheck
+	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
 }
 var file_dockwell_v1_domain_proto_depIdxs = []int32{
-	4,  // 0: dockwell.v1.ListDomainsResponse.domains:type_name -> dockwell.v1.Domain
-	5,  // 1: dockwell.v1.Domain.routes:type_name -> dockwell.v1.DomainRoute
-	6,  // 2: dockwell.v1.Domain.servers:type_name -> dockwell.v1.DomainServer
-	7,  // 3: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
-	8,  // 4: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
-	9,  // 5: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
-	0,  // 6: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
-	1,  // 7: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
-	10, // 8: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
-	2,  // 9: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
-	3,  // 10: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
-	10, // [10:11] is the sub-list for method output_type
-	9,  // [9:10] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	5,  // 0: dockwell.v1.ListDomainsResponse.domains:type_name -> dockwell.v1.Domain
+	6,  // 1: dockwell.v1.Domain.routes:type_name -> dockwell.v1.DomainRoute
+	7,  // 2: dockwell.v1.Domain.servers:type_name -> dockwell.v1.DomainServer
+	9,  // 3: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
+	8,  // 4: dockwell.v1.DomainServer.ingress:type_name -> dockwell.v1.IngressStatus
+	0,  // 5: dockwell.v1.IngressStatus.problem:type_name -> dockwell.v1.IngressProblem
+	10, // 6: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
+	11, // 7: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
+	1,  // 8: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
+	2,  // 9: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
+	12, // 10: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
+	3,  // 11: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
+	4,  // 12: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
+	12, // [12:13] is the sub-list for method output_type
+	11, // [11:12] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_domain_proto_init() }
@@ -767,8 +968,8 @@ func file_dockwell_v1_domain_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_domain_proto_rawDesc), len(file_dockwell_v1_domain_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   7,
+			NumEnums:      3,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

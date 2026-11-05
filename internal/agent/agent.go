@@ -65,7 +65,9 @@ type Config struct {
 type DomainReporter interface {
 	// Domains is each domain, sorted.
 	Domains() []*dockwellv1.DomainStatus
-	// DomainsChanged signals when Domains has changed.
+	// Ingress is where the server's ingress stands, or nil with no routes.
+	Ingress() *dockwellv1.IngressStatus
+	// DomainsChanged signals when Domains or Ingress has changed.
 	DomainsChanged() <-chan struct{}
 }
 
@@ -406,7 +408,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Domains != nil {
 		domainsChanged = cfg.Domains.DomainsChanged()
 		sendDomains = func() error {
-			return send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Domains{Domains: &agentv1.Domains{Domains: cfg.Domains.Domains()}}})
+			return send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Domains{Domains: &agentv1.Domains{Domains: cfg.Domains.Domains(), Ingress: cfg.Domains.Ingress()}}})
 		}
 		if err := sendDomains(); err != nil {
 			return err

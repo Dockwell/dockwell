@@ -306,6 +306,15 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		if handsOver {
 			ports := srv.PublicPorts(f.httpsListen, f.httpListen)
 			panel.Release, panel.Retake = ports.Release, ports.Retake
+			if acme, ok := public.(*https.ACME); ok {
+				panel.Certificate = func(ctx context.Context) (*ingress.PanelCert, error) {
+					chain, key, err := acme.Current(ctx)
+					if err != nil || chain == nil {
+						return nil, err
+					}
+					return &ingress.PanelCert{Chain: chain, Key: key}, nil
+				}
+			}
 		}
 	}
 	wg.Go(func() {

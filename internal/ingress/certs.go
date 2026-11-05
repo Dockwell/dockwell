@@ -236,6 +236,72 @@ type statusBoard struct {
 	signal  chan struct{}
 	// panel is what was last logged of the panel's own certificate.
 	panel string
+	// problem is why the ingress isn't serving, as Reconcile last found it.
+	problem *problem
+	// outdated is whether the proxy read as outdated when it was last looked at.
+	outdated bool
+	// ingress is what was last published of the ingress.
+	ingress *dockwellv1.IngressStatus
+}
+
+// problem is why a server's ingress isn't serving.
+type problem struct {
+	kind    dockwellv1.IngressProblem
+	message string
+	holders []string
+}
+
+// report keeps why the ingress isn't serving, or nil once it is.
+func (m *Manager) report(p *problem) {
+	m.status.mu.Lock()
+	defer m.status.mu.Unlock()
+	m.status.problem = p
+}
+
+// Ingress is where this server's ingress stands, or nil for a server with no
+// routes, whose ports nothing here wants.
+func (m *Manager) Ingress() *dockwellv1.IngressStatus {
+	m.status.mu.Lock()
+	defer m.status.mu.Unlock()
+	return m.status.ingress
+}
+
+// publishIngress reads where the ingress stands, and signals if that changed.
+func (m *Manager) publishIngress(ctx context.Context) {
+	var out *dockwellv1.IngressStatus
+	if Active(m.Dir) {
+		st, err := m.Proxy.Status(ctx)
+		if err != nil {
+			return // Docker is down, and the agent says so already
+		}
+		out = &dockwellv1.IngressStatus{
+			Proxy: m.Proxy.Name(), Running: st.Running, Outdated: st.Outdated, Version: st.Version, PinnedVersion: st.Pinned,
+		}
+		m.status.mu.Lock()
+		p := m.status.problem
+		m.status.mu.Unlock()
+		switch {
+		case p != nil:
+			out.Problem, out.Message, out.Holders = p.kind, p.message, p.holders
+		case !st.Running:
+			out.Problem = dockwellv1.IngressProblem_INGRESS_PROBLEM_NOT_RUNNING
+			out.Message = fmt.Sprintf("%s isn't running on this server, so its routes don't answer. The agent starts it within a minute. If it doesn't, see why with docker logs %s", m.Proxy.Name(), ContainerName)
+		}
+	}
+	b := &m.status
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if proto.Equal(b.ingress, out) {
+		return
+	}
+	b.ingress = out
+	if b.signal == nil {
+		b.signal = make(chan struct{}, 1)
+	}
+	select {
+	case b.signal <- struct{}{}:
+	default:
+	}
 }
 
 func (s *statusBoard) changed() chan struct{} {
@@ -303,6 +369,7 @@ func (m *Manager) Watch(ctx context.Context) {
 // it may otherwise wait hours between tries. It reports whether any domain is
 // still without a certificate.
 func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
+	m.publishIngress(ctx)
 	if !Active(m.Dir) {
 		m.status.publish(nil)
 		return false
@@ -350,7 +417,7 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 // It isn't a route, so the API has no word of it, and someone who can't reach
 // the panel by its domain reads the server's log.
 func (m *Manager) reportPanel(ctx context.Context) {
-	site := m.panelSite()
+	site := m.panelSite(ctx)
 	if site == nil {
 		return
 	}

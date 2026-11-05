@@ -1066,7 +1066,16 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			if s.Action == resource.ActionNone {
 				continue
 			}
-			s.HostAccess = gains[s.Ref]
+			gained := gains[s.Ref]
+			// The panel's domain moving behind a proxy is the agent's to know,
+			// as only it sees what holds the ports. A person approves it: a
+			// token can't cut off what it can't approve (ADR 0016).
+			if i := s.Ingress; i != nil && i.Change == resource.IngressStarts && i.PanelDomain != "" {
+				a := resource.Access{Kind: resource.AccessPanelDomain, Path: i.PanelDomain, Detail: i.Proxy}
+				gained = append(gained, a)
+				access[ids[s.Ref]] = append(access[ids[s.Ref]], resource.NewAccess(access[ids[s.Ref]], []resource.Access{a})...)
+			}
+			s.HostAccess = gained
 			sp.Steps = append(sp.Steps, *s)
 			sp.Downtime += s.Downtime
 			sp.UntilHealthy += max(s.Downtime, s.UntilHealthy)

@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/v1/domain.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/system.proto";
 import "google/api/annotations.proto";
@@ -117,6 +118,9 @@ message Server {
   // When the agent connected, if it is connected now. A connection that
   // moves to a renewed certificate keeps its time. Unset otherwise.
   google.protobuf.Timestamp connect_time = 11;
+  // Where its ingress stands, as it last said. Unset for a server with no
+  // routes, as nothing on it wants the public ports.
+  IngressStatus ingress = 12;
 }
 
 // ServerInventory is what a server is: its system and hardware.

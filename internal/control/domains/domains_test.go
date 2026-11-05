@@ -50,6 +50,13 @@ func (r reports) Domain(server, domain string) (*dockwellv1.DomainStatus, bool) 
 	return r[server+"/"+domain], server != "srv_off"
 }
 
+func (reports) Ingress(server string) *dockwellv1.IngressStatus {
+	if server != "srv_on" {
+		return nil
+	}
+	return &dockwellv1.IngressStatus{Proxy: "Caddy", Problem: dockwellv1.IngressProblem_INGRESS_PROBLEM_PORTS_TAKEN, Message: "Port 80 is held", Holders: []string{"openresty"}}
+}
+
 func TestDomainsSayWhatEachSendsWhereAndWhereItsCertificateStands(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		db, _ := storetest.Open(t, b)
@@ -158,6 +165,11 @@ func TestDomainsSayWhatEachSendsWhereAndWhereItsCertificateStands(t *testing.T) 
 		}
 		if len(app.GetServers()) != 1 || app.GetServers()[0].GetServerName() != "srv_on" || app.GetServers()[0].GetStale() {
 			t.Fatalf("its servers are %v", app.GetServers())
+		}
+		// A certificate may be issued and the domain still not answer, so the
+		// panel can say why beside it.
+		if in := app.GetServers()[0].GetIngress(); in.GetProblem() != dockwellv1.IngressProblem_INGRESS_PROBLEM_PORTS_TAKEN || in.GetHolders()[0] != "openresty" {
+			t.Errorf("its server's ingress is %v", in)
 		}
 		if app.GetServers()[0].GetStatus().GetCertificate().GetState() != dockwellv1.CertificateState_CERTIFICATE_STATE_ISSUED {
 			t.Errorf("its status is %v", app.GetServers()[0].GetStatus())

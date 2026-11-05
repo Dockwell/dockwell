@@ -2119,6 +2119,12 @@ components:
                 stale:
                     type: boolean
                     description: True when the server isn't connected, so status is what it last said.
+                ingress:
+                    allOf:
+                        - $ref: '#/components/schemas/IngressStatus'
+                    description: |-
+                        Where the server's ingress stands, as it last said. A domain with an issued
+                         certificate still doesn't answer while problem is set here.
             description: DomainServer is where a domain stands on one server.
         DomainStatus:
             type: object
@@ -2621,6 +2627,7 @@ components:
                         - HOST_ACCESS_KIND_VOLUME_MOUNT
                         - HOST_ACCESS_KIND_NETWORK_DRIVER
                         - HOST_ACCESS_KIND_DOMAIN
+                        - HOST_ACCESS_KIND_PANEL_DOMAIN
                     type: string
                     description: What it is.
                     format: enum
@@ -2743,6 +2750,50 @@ components:
             description: |-
                 IngressEffect is what a step does to the proxy that holds a server's public
                  ports.
+        IngressStatus:
+            type: object
+            properties:
+                proxy:
+                    type: string
+                    description: The proxy, such as "Caddy".
+                running:
+                    type: boolean
+                    description: True when the proxy runs.
+                problem:
+                    enum:
+                        - INGRESS_PROBLEM_UNSPECIFIED
+                        - INGRESS_PROBLEM_PORTS_TAKEN
+                        - INGRESS_PROBLEM_SUBNET_TAKEN
+                        - INGRESS_PROBLEM_NOT_RUNNING
+                    type: string
+                    description: Why its routes aren't being served. Unset while they are.
+                    format: enum
+                message:
+                    type: string
+                    description: |-
+                        For people: what is wrong, what follows, and how to fix it. Empty while
+                         nothing is.
+                holders:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What holds the proxy's ports, by name, for PORTS_TAKEN: containers, where
+                         they are in one, so a client can offer what to do about each.
+                version:
+                    type: string
+                    description: |-
+                        The version the proxy runs, such as "2.11.7-alpine". Empty when the server
+                         can't say.
+                pinnedVersion:
+                    type: string
+                    description: The version this server's Dockwell pins.
+                outdated:
+                    type: boolean
+                    description: |-
+                        True when the proxy isn't the version this server's Dockwell pins. It may
+                         be missing security fixes, and moves on the server's next route change.
+            description: IngressStatus is where a server's ingress stands, on a server with routes.
         ListChangesResponse:
             type: object
             properties:
@@ -3086,6 +3137,15 @@ components:
                     description: |-
                         What DNS said of a route's domain when this was planned. It never stops
                          a plan, and the fingerprint leaves it out, as people often set DNS after.
+                returningContainers:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Stopped containers that Docker starts again when it next restarts, as after
+                         a reboot, and that may then take the ports the server's proxy needs, so
+                         its routes stop answering. It never stops a plan, and the fingerprint leaves
+                         it out. Keep one stopped with docker update --restart=no.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -3463,6 +3523,12 @@ components:
                         When the agent connected, if it is connected now. A connection that
                          moves to a renewed certificate keeps its time. Unset otherwise.
                     format: date-time
+                ingress:
+                    allOf:
+                        - $ref: '#/components/schemas/IngressStatus'
+                    description: |-
+                        Where its ingress stands, as it last said. Unset for a server with no
+                         routes, as nothing on it wants the public ports.
             description: Server is one machine running the agent.
         ServerInventory:
             type: object

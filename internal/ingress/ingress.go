@@ -23,6 +23,7 @@ import (
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 )
@@ -58,8 +59,14 @@ type Proxy interface {
 	// damaged, and reports whether it did. It works with the proxy down, and
 	// keeps what the proxy runs now for the next time.
 	Recover(ctx context.Context) (bool, error)
+	// SetClosed has every route answer 503, ahead of what it dials, or takes
+	// that away, if it isn't so already. The routes themselves stay as they
+	// are, certificates go on renewing, and the panel's site stays up. It works
+	// with the proxy down, and a proxy that starts again stays as this left it.
+	SetClosed(ctx context.Context, closed bool) error
 	// SetPanel makes it serve the panel's site, or stop if panel is nil, if
-	// it isn't already.
+	// it isn't already. It serves panel.Cert until it has its own certificate
+	// for the domain, and drops that then.
 	SetPanel(ctx context.Context, panel *PanelSite) error
 	// InFlight says how many requests an upstream has now, across its configs
 	// old and new.
@@ -79,6 +86,12 @@ type Status struct {
 	Running bool
 	// Outdated is true when it isn't the version this build pins.
 	Outdated bool
+	// Version is the version it runs, and Pinned the one this build pins, for
+	// people. Version is empty when it isn't known.
+	Version, Pinned string
+	// Image is what it runs, by reference, as a move to a newer version needs
+	// to go back to.
+	Image string
 }
 
 // Route is what a proxy serves. It holds what the proxy has, not intent:
@@ -96,9 +109,18 @@ type Route struct {
 	Edited bool
 }
 
-// PanelSite is the panel's site on the proxy: its domain, sent to its socket.
+// PanelSite is the panel's site on the proxy: its domain, sent to its socket,
+// and the certificate the panel has for it, if it has one that hasn't expired.
 type PanelSite struct {
 	Domain string
+	// Cert is served until the proxy has its own for the domain, so that moving
+	// behind the proxy can't take a working panel dark. Nil means none.
+	Cert *PanelCert
+}
+
+// PanelCert is a certificate and its key, in PEM.
+type PanelCert struct {
+	Chain, Key []byte
 }
 
 // Panel is the panel on this server, when it has a domain. The control plane
@@ -111,6 +133,9 @@ type Panel struct {
 	// with --https-listen on another, so there is nothing to hand over: the
 	// proxy doesn't serve its site, and it stays as it is.
 	Release, Retake func(ctx context.Context) error
+	// Certificate returns the certificate the panel has, or nil if it has none
+	// that serves. Nil means it can't say.
+	Certificate func(ctx context.Context) (*PanelCert, error)
 }
 
 // Moves reports a panel that holds the ports the proxy needs.
@@ -134,8 +159,14 @@ type Manager struct {
 	// DNS reads what a domain points at, and what this server's addresses
 	// are. Nil means this server's resolver and interfaces.
 	DNS *DNS
+	// KeeperImage is the image the container that keeps the ingress network
+	// from being pruned runs, which the server has already for its proxy. Empty
+	// runs none.
+	KeeperImage string
 	// Logger hears what the manager does on its own time.
 	Logger *slog.Logger
+	// Now is the time. Nil means time.Now.
+	Now func() time.Time
 
 	mu    gate
 	table table
@@ -194,12 +225,23 @@ func (m *Manager) logger() *slog.Logger {
 	return slog.Default()
 }
 
-// panelSite is the panel's site on the proxy, if it is to serve one.
-func (m *Manager) panelSite() *PanelSite {
+// panelSite is the panel's site on the proxy, if it is to serve one, with the
+// certificate the panel has. A panel with no certificate to give is no reason to
+// hold up a proxy, which gets its own.
+func (m *Manager) panelSite(ctx context.Context) *PanelSite {
 	if !m.Panel.Moves() {
 		return nil
 	}
-	return &PanelSite{Domain: m.Panel.Domain}
+	site := &PanelSite{Domain: m.Panel.Domain}
+	if m.Panel.Certificate != nil {
+		cert, err := m.Panel.Certificate(ctx)
+		if err != nil {
+			m.logger().WarnContext(ctx, "can't read the panel's certificate to serve it through the ingress, so the panel's domain doesn't answer over HTTPS until the ingress has its own; an SSH tunnel reaches it meanwhile",
+				slog.String("domain", m.Panel.Domain), slog.String("error", err.Error()))
+		}
+		site.Cert = cert
+	}
+	return site
 }
 
 // activeFile is what says a server's ports are with its proxy, which
@@ -368,19 +410,38 @@ func (m *Manager) Judge(ctx context.Context, ref resource.Ref, spec *resourcev1.
 	return effect, check, nil
 }
 
+// Returning names what the plan should warn of on this server: stopped containers
+// that Docker starts again when it next restarts, and that may take the ports
+// from the proxy, once, on the plan's first route.
+func (m *Manager) Returning(ctx context.Context, ref resource.Ref, spec *resourcev1.Route, desired []resource.Desired) []string {
+	if spec == nil {
+		return nil
+	}
+	if _, first, _ := routesAfter(nil, desired); first != ref {
+		return nil
+	}
+	return m.holders().Returning(ctx, m.ports())
+}
+
 // Check refuses what stops a plan's routes running on this server: another
 // proxy holding its public ports, as it needs them when it starts. It runs as
 // a plan is made, and again as a step applies, as the ports can be taken in
 // between (ADR 0024).
-func (m *Manager) Check(ctx context.Context, _ resource.Ref, _ []resource.Desired) error {
+func (m *Manager) Check(ctx context.Context, _ resource.Ref, desired []resource.Desired) error {
 	if err := m.mu.lock(ctx); err != nil {
 		return err
 	}
 	defer m.mu.unlock()
-	return m.checkPorts(ctx)
+	if err := m.checkLimits(ctx, desired); err != nil {
+		return err
+	}
+	return m.checkStart(ctx)
 }
 
-func (m *Manager) checkPorts(ctx context.Context) error {
+// checkStart refuses what would stop the proxy starting, if it needs to: a daemon
+// it can't run under, or something else on its ports. Both come before the panel
+// lets go of the ports, as they're no use to anyone then.
+func (m *Manager) checkStart(ctx context.Context) error {
 	st, err := m.Proxy.Status(ctx)
 	if err != nil {
 		return err
@@ -388,18 +449,89 @@ func (m *Manager) checkPorts(ctx context.Context) error {
 	if st.Running {
 		return nil
 	}
-	held, err := m.holders().Of(ctx, m.ports())
+	info, err := m.Client.Info(ctx)
 	if err != nil {
 		return err
 	}
-	// The panel gives up what it holds as the proxy starts.
-	if m.Panel.Moves() || m.handed {
-		held = slices.DeleteFunc(held, func(h Holder) bool { return h.Self })
+	if info.NoNewPrivileges() {
+		return errors.New("docker on this server sets no-new-privileges for every container, so " + m.Proxy.Name() + " couldn't bind ports 80 and 443, as it gets that from a file capability, which that setting ignores. Nothing changed. To use routes here, remove no-new-privileges from /etc/docker/daemon.json and restart Docker")
+	}
+	held, err := m.othersOnPorts(ctx)
+	if err != nil {
+		return err
 	}
 	if len(held) == 0 {
 		return nil
 	}
 	return portsTaken(held, m.Proxy.Name())
+}
+
+// othersOnPorts says what holds the proxy's ports, but for the panel when it
+// gives them up as the proxy starts, and the proxy itself.
+func (m *Manager) othersOnPorts(ctx context.Context) ([]Holder, error) {
+	held, err := m.holders().Of(ctx, m.ports())
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(held, func(h Holder) bool {
+		return (h.Self && (m.Panel.Moves() || m.handed)) || h.Container == ContainerName
+	}), nil
+}
+
+// holderNames are the names to act on, each once: a container's, or else what the
+// process is called.
+func holderNames(held []Holder) []string {
+	var out []string
+	for _, h := range held {
+		name := h.Container
+		if name == "" {
+			name = h.Words
+		}
+		if !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// portsHeldNow says what holds the ports of a server that has routes, what that
+// costs, and how to keep it from happening again, as what comes back after a
+// reboot is the likely reason.
+func portsHeldNow(held []Holder, proxy, panelDomain string) error {
+	parts := make([]string, 0, len(held))
+	for i, h := range held {
+		switch {
+		case i > 0 && h.Words == held[i-1].Words:
+			parts = append(parts, "port "+h.Port.Words()+" by the same")
+		case i == 0:
+			parts = append(parts, "port "+h.Port.Words()+" is held by "+h.Words)
+		default:
+			parts = append(parts, "port "+h.Port.Words()+" by "+h.Words)
+		}
+	}
+	down := "this server's routes don't answer"
+	if panelDomain != "" {
+		down = "this server's routes and the panel's domain, " + panelDomain + ", don't answer. The panel still answers through an SSH tunnel"
+	}
+	var containers []string
+	how := ""
+	for _, h := range held {
+		switch {
+		case h.Container != "":
+			if !slices.Contains(containers, h.Container) {
+				containers = append(containers, h.Container)
+			}
+		case h.Unknown:
+			how = " To see what holds it, run " + h.Port.FindCommand() + "."
+		}
+	}
+	fix := "Stop it, and keep it from starting again."
+	if len(containers) > 0 {
+		list := strings.Join(containers, " ")
+		fix = "Stop it and keep it stopped, with docker update --restart=no " + list + " and docker stop " + list + "."
+	}
+	return fmt.Errorf("%s, so %s can't start, and %s.%s %s The agent starts %s within a minute of the ports being free",
+		strings.Join(parts, ", and "), proxy, down, how, fix, proxy)
 }
 
 // portsTaken says who holds what, what follows, and how to fix it.
@@ -463,9 +595,16 @@ func (m *Manager) Apply(ctx context.Context, ref resource.Ref, spec *resourcev1.
 
 // put serves one route, starting the proxy if this is the first.
 func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Route, effect *resource.IngressEffect) error {
+	// As a plan made a while ago can have seen fewer than there are now.
+	if err := m.checkLimits(ctx, []resource.Desired{{Ref: ref, Spec: spec}}); err != nil {
+		return err
+	}
 	st, err := m.Proxy.Status(ctx)
 	if err != nil {
 		return err
+	}
+	if !st.Running && m.Panel.Moves() && !m.handed && (effect == nil || effect.PanelDomain == "") {
+		return fmt.Errorf("this plan didn't say that the panel's domain, %s, moves behind %s, as its server wasn't reachable when it was made, and that step needs a person. Nothing changed. Make the plan again", m.Panel.Domain, m.Proxy.Name())
 	}
 	if err := m.ensureNetwork(ctx); err != nil {
 		return err
@@ -483,6 +622,10 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 		}
 	}
 	r := Route{ID: RouteID(ref), Domain: spec.GetDomain(), Path: spec.GetPath(), Upstreams: m.dialsOf(instances, spec.GetPort())}
+	m.logReplaced(ctx, r)
+	if err := m.noteDomain(ctx, r.Domain); err != nil {
+		return err
+	}
 	if err := m.Proxy.PutRoute(ctx, r); err != nil {
 		return fmt.Errorf("%s refused the route %s: %w", m.Proxy.Name(), ref.Name, err)
 	}
@@ -491,20 +634,43 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 		m.logger().WarnContext(ctx, "can't take a service with no route left off the ingress network, which does no harm; the agent tries again",
 			slog.String("error", err.Error()))
 	}
+	m.ensureKeeper(ctx)
 	return nil
+}
+
+// logReplaced says when a route takes a domain from one left by another control
+// plane, which the proxy replaces with it, as that route is someone's traffic.
+func (m *Manager) logReplaced(ctx context.Context, r Route) {
+	routes, err := m.Proxy.Routes(ctx)
+	if err != nil {
+		return
+	}
+	project := func(id string) string {
+		parts := strings.SplitN(id, ".", 3)
+		if len(parts) != 3 {
+			return ""
+		}
+		return parts[1]
+	}
+	for _, old := range routes {
+		if old.ID != r.ID && old.Domain == r.Domain && project(old.ID) != project(r.ID) {
+			m.logger().WarnContext(ctx, "a route replaced one for the same domain, left by another control plane or an older database, which the engine says can't stand beside it",
+				slog.String("domain", r.Domain), slog.String("old", old.ID), slog.String("new", r.ID))
+		}
+	}
 }
 
 // start takes the panel's ports, if it holds them, and starts the proxy. When
 // the proxy can't start, the panel takes them back.
 func (m *Manager) start(ctx context.Context, st Status) error {
 	if !st.Running {
-		if err := m.checkPorts(ctx); err != nil {
+		if err := m.checkStart(ctx); err != nil {
 			return err
 		}
 	}
 	// What can take minutes comes before anything stops, so the panel's
 	// domain isn't down for a pull.
-	if err := m.Proxy.Prepare(ctx, m.panelSite()); err != nil {
+	if err := m.Proxy.Prepare(ctx, m.panelSite(ctx)); err != nil {
 		return err
 	}
 	if err := m.setActive(true); err != nil {
@@ -519,7 +685,7 @@ func (m *Manager) start(ctx context.Context, st Status) error {
 		}
 		m.handed, moved = true, true
 	}
-	if err := m.Proxy.Start(ctx, m.panelSite()); err != nil {
+	if err := m.Proxy.Start(ctx, m.panelSite(ctx)); err != nil {
 		if moved {
 			// The proxy didn't start, so nothing else holds them.
 			m.retake(ctx)
@@ -531,7 +697,7 @@ func (m *Manager) start(ctx context.Context, st Status) error {
 	}
 	// A proxy resuming its last config ignores the bootstrap, so the panel's
 	// site goes in now if this start of Dockwell has one it hadn't.
-	return m.Proxy.SetPanel(ctx, m.panelSite())
+	return m.Proxy.SetPanel(ctx, m.panelSite(ctx))
 }
 
 // retake gives the panel its ports back after a step that couldn't start the
@@ -576,7 +742,7 @@ func (m *Manager) named(ctx context.Context, startErr error) error {
 	if err != nil {
 		return startErr
 	}
-	held = slices.DeleteFunc(held, func(h Holder) bool { return h.Self })
+	held = slices.DeleteFunc(held, func(h Holder) bool { return h.Self || h.Container == ContainerName })
 	if len(held) == 0 {
 		return startErr
 	}
@@ -678,6 +844,11 @@ func (m *Manager) PublicPort(_ context.Context, port uint32, udp bool) (bool, er
 // the network, the panel's site as this start of Dockwell has it, and the
 // panel's ports back when there are no routes left. It never touches a
 // route's config: a hand edit reads as drift (ADR 0024).
+//
+// A proxy that can't start because something else holds its ports isn't tried
+// until they're free: making it again each minute only churns, and Docker's own
+// restart policy has it take them back if they come free sooner. Who holds them
+// goes in the error, and on the API (Ingress).
 func (m *Manager) Reconcile(ctx context.Context) error {
 	if err := m.mu.lock(ctx); err != nil {
 		return err
@@ -687,6 +858,7 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 		return err
 	}
 	if !Active(m.Dir) {
+		m.report(nil)
 		if m.Panel.Moves() && m.handed {
 			if err := m.Panel.Retake(ctx); err != nil {
 				return fmt.Errorf("can't take ports 80 and 443 back for the panel: %w", err)
@@ -721,29 +893,100 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 		if err := m.releaseUnused(ctx); err != nil {
 			return err
 		}
+		m.report(nil)
 		return m.stop(ctx)
 	}
+	m.noteOutdated(ctx, st)
+	// The network first: a route that dials a subnet someone else has now mustn't
+	// get a request, even from a proxy that is starting.
+	networkErr := m.ensureNetwork(ctx)
 	if !st.Running {
-		m.logger().InfoContext(ctx, "starting the ingress, which wasn't running", slog.String("proxy", m.Proxy.Name()))
-		if err := m.Proxy.Start(ctx, m.panelSite()); err != nil {
-			return err
+		held, err := m.othersOnPorts(ctx)
+		if err != nil {
+			return errors.Join(err, networkErr)
 		}
-	} else if err := m.Proxy.SetPanel(ctx, m.panelSite()); err != nil {
-		return err
+		if len(held) > 0 {
+			err := portsHeldNow(held, m.Proxy.Name(), m.panelDomain())
+			m.report(&problem{kind: dockwellv1.IngressProblem_INGRESS_PROBLEM_PORTS_TAKEN, message: err.Error(), holders: holderNames(held)})
+			return errors.Join(err, networkErr)
+		}
+		m.logger().InfoContext(ctx, "starting the ingress, which wasn't running", slog.String("proxy", m.Proxy.Name()))
+		if err := m.Proxy.Start(ctx, m.panelSite(ctx)); err != nil {
+			err = m.named(ctx, err)
+			m.report(&problem{kind: dockwellv1.IngressProblem_INGRESS_PROBLEM_NOT_RUNNING, message: err.Error()})
+			return errors.Join(err, networkErr)
+		}
+	}
+	// With the proxy started or not, as one resuming its last config ignores
+	// what it was started with. Within a minute of its own certificate coming,
+	// this is what drops the panel's.
+	if err := m.Proxy.SetPanel(ctx, m.panelSite(ctx)); err != nil {
+		return errors.Join(err, networkErr)
+	}
+	if networkErr != nil {
+		m.report(&problem{kind: dockwellv1.IngressProblem_INGRESS_PROBLEM_SUBNET_TAKEN, message: networkErr.Error()})
+		return networkErr
 	}
 	if err := m.releaseUnused(ctx); err != nil {
 		return err
 	}
-	return m.attachAll(ctx)
+	if err := m.attachAll(ctx); err != nil {
+		return err
+	}
+	// Each instance is back at its own address, so a route may dial it again.
+	if err := m.Proxy.SetClosed(ctx, false); err != nil {
+		return err
+	}
+	m.ensureKeeper(ctx)
+	m.report(nil)
+	return nil
 }
 
-// KeepReconciled runs Reconcile until ctx is done, and logs what it can't do.
-// A Docker that is down gets no word each time: the agent says so already.
+// panelDomain is the panel's domain when it is behind the proxy, for what its
+// being down costs.
+func (m *Manager) panelDomain() string {
+	if !m.Panel.Moves() {
+		return ""
+	}
+	return m.Panel.Domain
+}
+
+// noteOutdated says once when the proxy isn't the version this build pins, as a
+// security release may be waiting for this server's next route change, which
+// nothing else brings about (issue #78).
+func (m *Manager) noteOutdated(ctx context.Context, st Status) {
+	b := &m.status
+	b.mu.Lock()
+	said := b.outdated
+	b.outdated = st.Outdated
+	b.mu.Unlock()
+	if st.Outdated && !said {
+		m.logger().WarnContext(ctx, "the ingress runs another version than this release of Dockwell pins, which may be missing security fixes. It moves to the pinned one on this server's next route change",
+			slog.String("proxy", m.Proxy.Name()), slog.String("version", st.Version), slog.String("pinned", st.Pinned))
+	}
+}
+
+// logAgain is how often a failure that doesn't change is logged again, for
+// someone who comes to the log late.
+const logAgain = time.Hour
+
+// KeepReconciled runs Reconcile until ctx is done, and logs what it can't do,
+// when that changes. A Docker that is down gets no word each time: the agent says
+// so already.
 func (m *Manager) KeepReconciled(ctx context.Context, every time.Duration) {
+	var last string
+	var at time.Time
 	run := func() {
-		if err := m.Reconcile(ctx); err != nil && !docker.IsUnavailable(err) && ctx.Err() == nil {
-			m.logger().WarnContext(ctx, "can't put the ingress as its routes need it; the agent tries again", slog.String("error", err.Error()))
+		err := m.Reconcile(ctx)
+		switch {
+		case err == nil:
+			last = ""
+		case docker.IsUnavailable(err) || ctx.Err() != nil:
+		case err.Error() != last || time.Since(at) >= logAgain:
+			last, at = err.Error(), time.Now()
+			m.logger().WarnContext(ctx, "can't put the ingress as its routes need it; the agent tries again", slog.String("error", last))
 		}
+		m.publishIngress(ctx)
 	}
 	run()
 	t := time.NewTicker(every)

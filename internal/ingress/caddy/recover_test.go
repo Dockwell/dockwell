@@ -635,3 +635,78 @@ func waitAdmin(t *testing.T, c *realCaddy) {
 	out, _ := os.ReadFile(filepath.Join(c.Dir, "caddy.out"))
 	t.Fatalf("caddy's admin API never answered\n%s", out)
 }
+
+// With another network on the subnet its routes dial, every route answers 503,
+// ahead of what it dials, and the panel stays up: it isn't a route. The routes
+// themselves don't change, so they don't read as drift, and come straight back.
+func TestClosedRoutesAnswer503AndThePanelDoesntOnRealCaddy(t *testing.T) {
+	bin := needCaddy(t)
+	dir := shortDir(t)
+	if err := EnsureDirs(dir); err != nil {
+		t.Fatal(err)
+	}
+	fakePanel(t, dir)
+	proc := &process{bin: bin, dir: dir}
+	caddy := &Caddy{Dir: dir, Runtime: proc, HTTPPort: freePort(t), HTTPSPort: freePort(t), issuerForTest: map[string]any{"module": "internal"}}
+	t.Cleanup(func() { proc.stop(syscall.SIGKILL) })
+	site := &ingress.PanelSite{Domain: "panel.example.net"}
+	if err := caddy.Start(t.Context(), site); err != nil {
+		t.Fatal(err)
+	}
+	c := &realCaddy{Caddy: caddy, proc: proc, http: caddy.HTTPPort, tls: caddy.HTTPSPort}
+	put(t, c, aRoute("dockwell.env.www", "app.example.net", "", backend(t, "web")))
+	_ = c.waitServing(t, "app.example.net", "/who").Body.Close()
+	_ = c.waitServing(t, "panel.example.net", "/who").Body.Close()
+
+	if err := c.SetClosed(t.Context(), true); err != nil {
+		t.Fatal(err)
+	}
+	if res := c.waitServing(t, "app.example.net", "/who"); res.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("a closed route answers %d", res.StatusCode)
+	} else {
+		b, _ := io.ReadAll(res.Body)
+		_ = res.Body.Close()
+		if strings.Contains(string(b), "web") {
+			t.Errorf("a closed route reached its service: %s", b)
+		}
+	}
+	res := c.waitServing(t, "panel.example.net", "/who")
+	if got := who(t, res); got["proto"] == "" {
+		t.Errorf("the panel's site answers %v with the routes closed", got)
+	}
+	routes, err := c.Routes(t.Context())
+	if err != nil || len(routes) != 1 || routes[0].ID != "dockwell.env.www" || routes[0].Edited {
+		t.Errorf("with the routes closed, Routes = %+v, %v", routes, err)
+	}
+	// It survives a restart with no agent, as it must: nothing else would stop
+	// Caddy dialling whatever has those addresses.
+	proc.stop(syscall.SIGKILL)
+	if err := proc.Run(t.Context(), filepath.Join(proc.Paths().Boot, bootstrapName)); err != nil {
+		t.Fatal(err)
+	}
+	if res := c.waitServing(t, "app.example.net", "/who"); res.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("after a restart, a closed route answers %d", res.StatusCode)
+	} else {
+		_ = res.Body.Close()
+	}
+	if err := c.SetClosed(t.Context(), false); err != nil {
+		t.Fatal(err)
+	}
+	if got := who(t, c.waitServing(t, "app.example.net", "/who"))["name"]; got != "web" {
+		t.Errorf("once opened, it serves %q", got)
+	}
+
+	// With Caddy down it goes in the last config, and comes up that way.
+	proc.stop(syscall.SIGKILL)
+	if err := c.SetClosed(t.Context(), true); err != nil {
+		t.Fatal(err)
+	}
+	if err := proc.Run(t.Context(), filepath.Join(proc.Paths().Boot, bootstrapName)); err != nil {
+		t.Fatal(err)
+	}
+	if res := c.waitServing(t, "app.example.net", "/who"); res.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("closed with Caddy down, a route answers %d", res.StatusCode)
+	} else {
+		_ = res.Body.Close()
+	}
+}

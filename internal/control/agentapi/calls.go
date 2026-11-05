@@ -69,6 +69,8 @@ type Agents struct {
 	// said, and it is lost with the control plane, as the agent says it again
 	// when its stream opens.
 	domains map[string][]*dockwellv1.DomainStatus
+	// ingress is what each server last said of its ingress.
+	ingress map[string]*dockwellv1.IngressStatus
 }
 
 // NewAgents returns an empty set of agents. kinds reads the specs agents
@@ -76,15 +78,23 @@ type Agents struct {
 func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
 		kinds: kinds, logger: logger, sessions: map[string]*Session{}, opened: make(chan struct{}),
-		domains: map[string][]*dockwellv1.DomainStatus{},
+		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{},
 	}
 }
 
 // Report keeps what a server says of its routes' domains.
-func (a *Agents) Report(server string, domains []*dockwellv1.DomainStatus) {
+func (a *Agents) Report(server string, domains []*dockwellv1.DomainStatus, ingress *dockwellv1.IngressStatus) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.domains[server] = domains
+	a.ingress[server] = ingress
+}
+
+// Ingress is what a server last said of its ingress, or nil.
+func (a *Agents) Ingress(server string) *dockwellv1.IngressStatus {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.ingress[server]
 }
 
 // Domain is what a server last said of a domain, and whether its agent is

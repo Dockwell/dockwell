@@ -56,6 +56,18 @@ type HostConfig struct {
 	Tmpfs          map[string]string `json:"Tmpfs,omitempty"`
 	// LogConfig says how the engine keeps what it prints.
 	LogConfig *LogConfig `json:"LogConfig,omitempty"`
+	// Memory limits its memory, in bytes, and MemorySwap its memory and swap
+	// together: the same number gives it no swap. PidsLimit limits its
+	// processes. Zero leaves each as the engine has it.
+	Memory     int64 `json:"Memory,omitempty"`
+	MemorySwap int64 `json:"MemorySwap,omitempty"`
+	PidsLimit  int64 `json:"PidsLimit,omitempty"`
+	// UsernsMode "host" keeps it in the server's user namespace on an engine
+	// with userns-remap, which refuses the host network otherwise. Elsewhere it
+	// changes nothing.
+	UsernsMode string `json:"UsernsMode,omitempty"`
+	// SecurityOpt sets options such as no-new-privileges.
+	SecurityOpt []string `json:"SecurityOpt,omitempty"`
 }
 
 // LogConfig is a container's logging driver, with its options.
@@ -88,6 +100,10 @@ type RestartPolicy struct {
 // EndpointSettings is a container's place on one network.
 type EndpointSettings struct {
 	Aliases []string `json:"Aliases,omitempty"`
+	// NetworkID is the network it is on, as the engine reports it. A stopped
+	// container keeps the ID of a network that has gone, and fails to start
+	// until something takes it off that.
+	NetworkID string `json:"NetworkID,omitempty"`
 	// IPAMConfig asks for a static address, on a network with a configured
 	// subnet. The engine gives the container that address each time it
 	// starts, or fails to start it.
@@ -219,6 +235,8 @@ type ContainerSummary struct {
 	Created int64 `json:"Created"`
 	// Ports are the ports it publishes, and those it only exposes.
 	Ports []SummaryPort `json:"Ports"`
+	// State is where it stands: created, running, restarting, exited…
+	State string `json:"State"`
 }
 
 // SummaryPort is a container's port as the engine lists it. PublicPort is

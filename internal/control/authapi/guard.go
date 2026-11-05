@@ -482,8 +482,17 @@ func (i *interceptor) authorizeToken(ctx context.Context, req request, procedure
 // from what the proxy wrote in X-Forwarded-For, which it overwrites whatever a
 // client sends. Host, Origin and Sec-Fetch-Site are as the browser sent them,
 // and the guard checks them as it does any request (ADR 0024).
+//
+// The proxy has HTTP/3's early data turned off. If a config ever turned it on, as
+// a hand edit could, a request in it says so with Early-Data, per RFC 8470, and is
+// asked to wait for the handshake: it can be replayed, and the panel acts on what
+// it is sent, which the marking below says has had a whole handshake.
 func ViaIngress(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Early-Data") != "" {
+			w.WriteHeader(http.StatusTooEarly)
+			return
+		}
 		via := *r
 		host := r.Host
 		if h, _, err := net.SplitHostPort(host); err == nil {

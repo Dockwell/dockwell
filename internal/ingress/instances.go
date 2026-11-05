@@ -4,6 +4,7 @@ package ingress
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -110,12 +111,36 @@ func (t *table) save(dir string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("can't create %s: %w", dir, err)
 	}
-	tmp := filepath.Join(dir, addressesFile+".tmp")
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+	if err := writeDurably(filepath.Join(dir, addressesFile), b); err != nil {
 		return fmt.Errorf("can't keep the ingress's addresses: %w", err)
 	}
-	if err := os.Rename(tmp, filepath.Join(dir, addressesFile)); err != nil {
-		return fmt.Errorf("can't keep the ingress's addresses: %w", err)
+	return nil
+}
+
+// writeDurably replaces a file, whole or not at all, even across a power cut: an
+// empty table would stop this server's ingress until a person mended it.
+func writeDurably(path string, b []byte) error {
+	tmp := path + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // under the ingress's own directory
+	if err != nil {
+		return err
+	}
+	if _, err = f.Write(b); err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(tmp, path)
+	}
+	if err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if d, err := os.Open(filepath.Dir(path)); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
 	}
 	return nil
 }
@@ -156,8 +181,10 @@ func (t *table) instancesOf(s Service) []Instance {
 }
 
 // give records an address for an instance, the lowest free one past the
-// gateway, and returns it.
-func (t *table) give(dir string, i Instance, gateway string) (string, error) {
+// gateway, and returns it. busy are addresses that aren't to be given, whatever
+// the table says: what the proxy still dials above all, as an address it dials
+// goes to whichever container has it.
+func (t *table) give(dir string, i Instance, gateway string, busy []string) (string, error) {
 	if a, ok := t.Addresses[i.String()]; ok {
 		return a, nil
 	}
@@ -167,6 +194,9 @@ func (t *table) give(dir string, i Instance, gateway string) (string, error) {
 	}
 	used := map[string]bool{gateway: true}
 	for _, a := range t.Addresses {
+		used[a] = true
+	}
+	for _, a := range busy {
 		used[a] = true
 	}
 	// The network's own address isn't a host's, nor is the one Docker keeps
@@ -182,6 +212,32 @@ func (t *table) give(dir string, i Instance, gateway string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("the ingress network's subnet %s has no address left, so %s can't join it. Remove some routes", t.Subnet, i)
+}
+
+// give gives an instance an address, one the proxy doesn't dial for anyone: the
+// table can lag what the proxy has, as after a table restored by hand, and a
+// proxy's dial goes to whichever container has the address. If the proxy can't
+// say what it dials, none is given.
+func (m *Manager) give(ctx context.Context, i Instance) (string, error) {
+	if a, ok := m.table.Addresses[i.String()]; ok {
+		return a, nil
+	}
+	routes, err := m.Proxy.Routes(ctx)
+	if err != nil {
+		return "", fmt.Errorf("can't give %s an address, as what the proxy dials can't be read: %w", i, err)
+	}
+	var busy []string
+	if a, ok := keeperAddress(m.table.Subnet); ok {
+		busy = append(busy, a)
+	}
+	for _, r := range routes {
+		for _, up := range r.Upstreams {
+			if host, _, err := splitUpstream(up); err == nil {
+				busy = append(busy, host)
+			}
+		}
+	}
+	return m.table.give(m.Dir, i, m.gateway(ctx), busy)
 }
 
 // free takes an instance's address off the table.
@@ -210,6 +266,10 @@ var networkLabels = map[string]string{docker.OwnPrefix + "ingress": "network"}
 // server. Docker gives a static address only on a network with a configured
 // subnet, and doesn't check a configured subnet against the server's routes,
 // though it does check one it picks. So a throwaway network asks it to pick.
+//
+// A network that has gone, as docker network prune removes one with no running
+// container on it, comes back on its recorded subnet with its table kept, as the
+// proxy's routes still dial those addresses (restoreNetwork).
 func (m *Manager) ensureNetwork(ctx context.Context) error {
 	n, err := m.Client.NetworkNamed(ctx, docker.IngressNetwork)
 	switch {
@@ -217,13 +277,26 @@ func (m *Manager) ensureNetwork(ctx context.Context) error {
 		if n.Labels[docker.OwnPrefix+"ingress"] == "" {
 			return fmt.Errorf("a network named %[1]s is on this server, and Dockwell didn't make it, so the ingress can't use it. Rename or remove it with docker network rm %[1]s", docker.IngressNetwork)
 		}
-		if len(n.IPAM.Config) > 0 && m.table.Subnet != n.IPAM.Config[0].Subnet {
-			m.table.Subnet = n.IPAM.Config[0].Subnet
-			return m.table.save(m.Dir)
+		if len(n.IPAM.Config) == 0 || m.table.Subnet == n.IPAM.Config[0].Subnet {
+			return nil
 		}
-		return nil
+		// A table with addresses on another subnet would have the proxy dial
+		// addresses this network doesn't have, and something else may.
+		if m.table.Subnet != "" {
+			return m.closeRoutes(ctx, fmt.Errorf("the network %s has the subnet %s, and this server's routes dial addresses on %s, which it may no longer reach, so every route on this server answers 503 until they agree. Remove the network with docker network rm %s, and the agent makes it again on its own subnet within a minute",
+				docker.IngressNetwork, n.IPAM.Config[0].Subnet, m.table.Subnet, docker.IngressNetwork))
+		}
+		m.table.Subnet = n.IPAM.Config[0].Subnet
+		return m.table.save(m.Dir)
 	case !docker.IsNotFound(err):
 		return err
+	}
+	dials, err := m.dialing(ctx)
+	if err != nil {
+		return err
+	}
+	if m.table.Subnet != "" && (dials || len(m.table.Addresses) > 0) {
+		return m.restoreNetwork(ctx)
 	}
 	const probe = docker.IngressNetwork + "_probe"
 	if _, err := m.Client.NetworkNamed(ctx, probe); err == nil {
@@ -243,10 +316,7 @@ func (m *Manager) ensureNetwork(ctx context.Context) error {
 		return errors.New("docker made a network with no IPv4 subnet, so the ingress can't have static addresses. Check the default-address-pools in /etc/docker/daemon.json")
 	}
 	subnet := made.IPAM.Config[0].Subnet
-	if _, err := m.Client.CreateNetwork(ctx, &docker.NetworkCreate{
-		Name: docker.IngressNetwork, Driver: "bridge", Internal: true, Options: networkOptions, Labels: networkLabels,
-		IPAM: &docker.IPAM{Config: []docker.IPAMConfig{{Subnet: subnet}}},
-	}); err != nil {
+	if err := m.createNetwork(ctx, subnet); err != nil {
 		return fmt.Errorf("docker can't make the network %s on %s: %w", docker.IngressNetwork, subnet, err)
 	}
 	m.table.Subnet = subnet
@@ -254,17 +324,207 @@ func (m *Manager) ensureNetwork(ctx context.Context) error {
 	return m.table.save(m.Dir)
 }
 
-// removeNetwork removes the ingress network, once nothing is on it.
+func (m *Manager) createNetwork(ctx context.Context, subnet string) error {
+	_, err := m.Client.CreateNetwork(ctx, &docker.NetworkCreate{
+		Name: docker.IngressNetwork, Driver: "bridge", Internal: true, Options: networkOptions, Labels: networkLabels,
+		IPAM: &docker.IPAM{Config: []docker.IPAMConfig{{Subnet: subnet}}},
+	})
+	return err
+}
+
+// dialing reports a proxy with a route that dials an address, which goes to
+// whichever container has it.
+func (m *Manager) dialing(ctx context.Context) (bool, error) {
+	routes, err := m.Proxy.Routes(ctx)
+	if err != nil {
+		return false, err
+	}
+	return slices.ContainsFunc(routes, func(r Route) bool { return len(r.Upstreams) > 0 }), nil
+}
+
+// restoreNetwork makes the ingress network again on its recorded subnet, and
+// keeps the table, as the proxy's routes still dial those addresses, and each
+// instance's container still asks for its own. If it were made anew instead,
+// another service could be given an address a route dials, and take its users.
+//
+// If another network has the subnet now, as Docker gives out the first free one,
+// it isn't made anywhere else, and no address is reused. Every route answers 503
+// until a person sorts it out, as what they dial could be that network's
+// containers. The panel's site isn't a route, and stays up.
+func (m *Manager) restoreNetwork(ctx context.Context) error {
+	subnet := m.table.Subnet
+	taker, err := m.networkOn(ctx, subnet)
+	if err != nil {
+		return err
+	}
+	if taker == "" {
+		err = m.createNetwork(ctx, subnet)
+		switch {
+		case err == nil:
+			m.logger().WarnContext(ctx, "the ingress network had gone, as docker network prune removes one with no running container on it, so the agent made it again on its own subnet, with each service's address as it was",
+				slog.String("network", docker.IngressNetwork), slog.String("subnet", subnet))
+			return nil
+		case docker.IsUnavailable(err):
+			return err
+		}
+		return m.closeRoutes(ctx, fmt.Errorf("the ingress network %s has gone, and docker can't make it again on its subnet %s: %w. The routes on this server could reach whatever now has those addresses, so each answers 503 until the network is back. Free that subnet, and the agent makes the network again within a minute; or delete this server's routes and add them again, which starts on another subnet",
+			docker.IngressNetwork, subnet, err))
+	}
+	return m.closeRoutes(ctx, fmt.Errorf("the ingress network %s has gone, and the network %s now has its subnet, %s. The routes on this server could reach that network's containers, so each answers 503 until the network is back. Remove it with docker network rm %s, and the agent makes the ingress network again within a minute; or delete this server's routes and add them again, which starts on another subnet",
+		docker.IngressNetwork, taker, subnet, taker))
+}
+
+// networkOn names a network that overlaps a subnet, or is empty.
+func (m *Manager) networkOn(ctx context.Context, subnet string) (string, error) {
+	want, err := netip.ParsePrefix(subnet)
+	if err != nil {
+		return "", fmt.Errorf("the ingress's subnet %q isn't one: %w", subnet, err)
+	}
+	list, err := m.Client.ListNetworks(ctx)
+	if err != nil {
+		return "", err
+	}
+	for i := range list {
+		for _, c := range list[i].IPAM.Config {
+			if have, err := netip.ParsePrefix(c.Subnet); err == nil && have.Overlaps(want) {
+				return list[i].Name, nil
+			}
+		}
+	}
+	return "", nil
+}
+
+// closeRoutes has every route answer 503, and returns why, for the step or the
+// log. Its failure is added, as a person then needs to know both.
+func (m *Manager) closeRoutes(ctx context.Context, why error) error {
+	if err := m.Proxy.SetClosed(context.WithoutCancel(ctx), true); err != nil {
+		return errors.Join(why, fmt.Errorf("and %s can't answer 503 for them: %w", m.Proxy.Name(), err))
+	}
+	return why
+}
+
+// KeeperName is the name of what keeps the ingress network from being pruned.
+const KeeperName = ContainerName + "-keep"
+
+// keeperLabel marks the keeper as the ingress's.
+const keeperLabel = "keeper"
+
+// Limits on the keeper, which only sleeps.
+const (
+	keeperMemory = 16 << 20
+	keeperPids   = 8
+)
+
+// keeperAddress is the keeper's address on a subnet: its last host, as
+// instances' come from its start. ok is false for what isn't an IPv4 subnet.
+func keeperAddress(subnet string) (string, bool) {
+	prefix, err := netip.ParsePrefix(subnet)
+	if err != nil || !prefix.Addr().Is4() || prefix.Bits() > 30 {
+		return "", false
+	}
+	base := prefix.Masked().Addr().As4()
+	n := binary.BigEndian.Uint32(base[:]) | ((uint32(1) << (32 - prefix.Bits())) - 1)
+	var last [4]byte
+	binary.BigEndian.PutUint32(last[:], n-1)
+	return netip.AddrFrom4(last).String(), true
+}
+
+// ensureKeeper keeps a container asleep on the ingress network. docker network
+// prune, which docker system prune runs, removes a network with no running
+// container on it, and every routed service may be stopped at once. Without the
+// network, the proxy dials addresses that anything Docker next makes could have.
+// It runs Caddy's image, which the server has already, as a user that isn't root,
+// with nothing else: no capabilities, no mounts, and no way out of a network that
+// has none. It is best effort, as the rest holds without it.
+func (m *Manager) ensureKeeper(ctx context.Context) {
+	if m.KeeperImage == "" {
+		return
+	}
+	if err := m.keepNetwork(ctx); err != nil && ctx.Err() == nil {
+		m.logger().WarnContext(ctx, "can't run the container that keeps the ingress network from being pruned, so docker network prune could remove it. If it does, the agent makes it again on its own subnet; the agent tries again within a minute",
+			slog.String("container", KeeperName), slog.String("error", err.Error()))
+	}
+}
+
+func (m *Manager) keepNetwork(ctx context.Context) error {
+	addr, ok := keeperAddress(m.table.Subnet)
+	if !ok {
+		return nil
+	}
+	got, err := m.Client.ContainerNamed(ctx, KeeperName)
+	switch {
+	case err == nil:
+		if got.Config.Labels[docker.OwnPrefix+"ingress"] == "" {
+			return fmt.Errorf("a container named %[1]s is on this server, and Dockwell didn't make it. Rename or remove it with docker rename %[1]s or docker rm %[1]s", KeeperName)
+		}
+		if got.Config.Image != m.KeeperImage {
+			if err := m.Client.RemoveContainer(ctx, got.ID, true); err != nil && !docker.IsNotFound(err) {
+				return err
+			}
+			break
+		}
+		if got.State.Running {
+			return nil
+		}
+		ep := got.NetworkSettings.Networks[docker.IngressNetwork]
+		n, err := m.Client.NetworkNamed(ctx, docker.IngressNetwork)
+		if err != nil {
+			return err
+		}
+		if ep != nil && (ep.NetworkID == "" || ep.NetworkID == n.ID) {
+			return m.Client.StartContainer(ctx, got.ID)
+		}
+		// Asleep on a network that has gone: it can't start, so it goes.
+		if err := m.Client.RemoveContainer(ctx, got.ID, true); err != nil && !docker.IsNotFound(err) {
+			return err
+		}
+	case !docker.IsNotFound(err):
+		return err
+	}
+	if _, err := m.Client.InspectImage(ctx, m.KeeperImage); docker.IsNotFound(err) {
+		if err := m.Client.PullImage(ctx, m.KeeperImage, func(string) {}); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+	id, err := m.Client.CreateContainer(ctx, KeeperName, &docker.CreateRequest{
+		Config: docker.Config{
+			Image: m.KeeperImage, Cmd: []string{"sleep", "infinity"}, User: "65532:65532",
+			Labels: map[string]string{docker.OwnPrefix + "ingress": keeperLabel},
+		},
+		HostConfig: docker.HostConfig{
+			NetworkMode: docker.IngressNetwork, RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},
+			CapDrop: []string{"ALL"}, ReadonlyRootfs: true, SecurityOpt: []string{"no-new-privileges"},
+			Memory: keeperMemory, MemorySwap: keeperMemory, PidsLimit: keeperPids,
+			LogConfig: &docker.LogConfig{Type: "json-file", Config: map[string]string{"max-size": "1m", "max-file": "1"}},
+		},
+		NetworkingConfig: docker.NetworkingConfig{EndpointsConfig: map[string]*docker.EndpointSettings{docker.IngressNetwork: {IPAMConfig: &docker.EndpointIPAM{IPv4Address: addr}}}},
+	})
+	if err != nil {
+		return err
+	}
+	return m.Client.StartContainer(ctx, id)
+}
+
+// removeNetwork removes the ingress network, and what kept it, once nothing is
+// on it. A network that has gone already is as good as removed, so what was
+// recorded of it goes either way.
 func (m *Manager) removeNetwork(ctx context.Context) error {
+	if got, err := m.Client.ContainerNamed(ctx, KeeperName); err == nil && got.Config.Labels[docker.OwnPrefix+"ingress"] != "" {
+		if err := m.Client.RemoveContainer(ctx, got.ID, true); err != nil && !docker.IsNotFound(err) {
+			return err
+		}
+	}
 	n, err := m.Client.NetworkNamed(ctx, docker.IngressNetwork)
 	switch {
 	case docker.IsNotFound(err):
-		return nil
 	case err != nil:
 		return err
-	}
-	if err := m.Client.RemoveNetwork(ctx, n.ID); err != nil && !docker.IsNotFound(err) {
-		return err
+	default:
+		if err := m.Client.RemoveNetwork(ctx, n.ID); err != nil && !docker.IsNotFound(err) {
+			return err
+		}
 	}
 	m.table.Subnet = ""
 	m.table.Addresses = map[string]string{}
@@ -279,7 +539,7 @@ func (m *Manager) reserveAll(ctx context.Context, s Service) ([]Instance, error)
 		instances = []Instance{{Project: s.Project, Service: s.Name, Number: 1}}
 	}
 	for _, i := range instances {
-		if _, err := m.table.give(m.Dir, i, m.gateway(ctx)); err != nil {
+		if _, err := m.give(ctx, i); err != nil {
 			return nil, err
 		}
 		if err := m.attach(ctx, i); err != nil {
@@ -312,7 +572,14 @@ func (m *Manager) attach(ctx context.Context, i Instance) error {
 	}
 	addr := m.table.Addresses[i.String()]
 	if ep, on := c.NetworkSettings.Networks[docker.IngressNetwork]; on {
-		if ep != nil && ep.IPAMConfig != nil && ep.IPAMConfig.IPv4Address == addr {
+		n, err := m.Client.NetworkNamed(ctx, docker.IngressNetwork)
+		if err != nil {
+			return err
+		}
+		// A stopped container keeps the ID of a network that has gone, and
+		// can't start until it comes off that one.
+		current := ep != nil && (ep.NetworkID == "" || ep.NetworkID == n.ID)
+		if current && ep.IPAMConfig != nil && ep.IPAMConfig.IPv4Address == addr {
 			return nil
 		}
 		if err := m.Client.DisconnectNetwork(ctx, docker.IngressNetwork, c.ID); err != nil && !docker.IsNotFound(err) {
@@ -451,13 +718,14 @@ func (m *Manager) Endpoint(ctx context.Context, i Instance) (string, docker.Endp
 	if err := m.table.load(m.Dir); err != nil {
 		return "", docker.EndpointSettings{}, false, err
 	}
-	if a, ok := m.table.Addresses[i.String()]; ok {
-		return docker.IngressNetwork, endpoint(a), true, nil
-	}
 	if len(m.table.instancesOf(i.service())) == 0 {
 		return "", docker.EndpointSettings{}, false, nil
 	}
-	a, err := m.table.give(m.Dir, i, m.gateway(ctx))
+	// It may have gone, and the container needs it to start.
+	if err := m.ensureNetwork(ctx); err != nil {
+		return "", docker.EndpointSettings{}, false, err
+	}
+	a, err := m.give(ctx, i)
 	if err != nil {
 		return "", docker.EndpointSettings{}, false, err
 	}
@@ -477,7 +745,7 @@ func (m *Manager) AddUpstream(ctx context.Context, i Instance) error {
 	if len(m.table.instancesOf(i.service())) == 0 {
 		return nil
 	}
-	a, err := m.table.give(m.Dir, i, m.gateway(ctx))
+	a, err := m.give(ctx, i)
 	if err != nil {
 		return err
 	}

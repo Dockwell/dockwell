@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/domain.proto.
  */
 export const file_dockwell_v1_domain: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9kb21haW4ucHJvdG8SC2RvY2t3ZWxsLnYxIjoKEkxpc3REb21haW5zUmVxdWVzdBITCgtlbnZpcm9ubWVudBgBIAEoCRIPCgdzZXJ2aWNlGAIgASgJIjsKE0xpc3REb21haW5zUmVzcG9uc2USJAoHZG9tYWlucxgBIAMoCzITLmRvY2t3ZWxsLnYxLkRvbWFpbiKRAQoGRG9tYWluEgwKBG5hbWUYASABKAkSFgoOZW52aXJvbm1lbnRfaWQYAiABKAkSCwoDdXJsGAMgASgJEigKBnJvdXRlcxgEIAMoCzIYLmRvY2t3ZWxsLnYxLkRvbWFpblJvdXRlEioKB3NlcnZlcnMYBSADKAsyGS5kb2Nrd2VsbC52MS5Eb21haW5TZXJ2ZXIiYQoLRG9tYWluUm91dGUSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIMCgRwYXRoGAMgASgJEg8KB3NlcnZpY2UYBCABKAkSDAoEcG9ydBgFIAEoDRILCgN1cmwYBiABKAkicAoMRG9tYWluU2VydmVyEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRIpCgZzdGF0dXMYAyABKAsyGS5kb2Nrd2VsbC52MS5Eb21haW5TdGF0dXMSDQoFc3RhbGUYBCABKAgidAoMRG9tYWluU3RhdHVzEg4KBmRvbWFpbhgBIAEoCRItCgtjZXJ0aWZpY2F0ZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLkNlcnRpZmljYXRlEiUKA2RucxgDIAEoCzIYLmRvY2t3ZWxsLnYxLkRvbWFpbkNoZWNrIq8BCgtDZXJ0aWZpY2F0ZRIsCgVzdGF0ZRgBIAEoDjIdLmRvY2t3ZWxsLnYxLkNlcnRpZmljYXRlU3RhdGUSMAoHcHJvYmxlbRgCIAEoDjIfLmRvY2t3ZWxsLnYxLkNlcnRpZmljYXRlUHJvYmxlbRIPCgdtZXNzYWdlGAMgASgJEi8KC2V4cGlyZV90aW1lGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCqQAQoQQ2VydGlmaWNhdGVTdGF0ZRIhCh1DRVJUSUZJQ0FURV9TVEFURV9VTlNQRUNJRklFRBAAEh0KGUNFUlRJRklDQVRFX1NUQVRFX1BFTkRJTkcQARIcChhDRVJUSUZJQ0FURV9TVEFURV9JU1NVRUQQAhIcChhDRVJUSUZJQ0FURV9TVEFURV9GQUlMRUQQAyrKAgoSQ2VydGlmaWNhdGVQcm9ibGVtEiMKH0NFUlRJRklDQVRFX1BST0JMRU1fVU5TUEVDSUZJRUQQABIbChdDRVJUSUZJQ0FURV9QUk9CTEVNX0ROUxABEiIKHkNFUlRJRklDQVRFX1BST0JMRU1fQ09OTkVDVElPThACEiQKIENFUlRJRklDQVRFX1BST0JMRU1fV1JPTkdfU0VSVkVSEAMSJAogQ0VSVElGSUNBVEVfUFJPQkxFTV9SQVRFX0xJTUlURUQQBBIbChdDRVJUSUZJQ0FURV9QUk9CTEVNX0NBQRAFEh8KG0NFUlRJRklDQVRFX1BST0JMRU1fUkVGVVNFRBAGEh0KGUNFUlRJRklDQVRFX1BST0JMRU1fT1RIRVIQBxIlCiFDRVJUSUZJQ0FURV9QUk9CTEVNX0NBTlRfUkVBQ0hfQ0EQCDJ9Cg1Eb21haW5TZXJ2aWNlEmwKC0xpc3REb21haW5zEh8uZG9ja3dlbGwudjEuTGlzdERvbWFpbnNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTGlzdERvbWFpbnNSZXNwb25zZSIakAIBoLsYAYLT5JMCDRILL3YxL2RvbWFpbnNCpAEKD2NvbS5kb2Nrd2VsbC52MUILRG9tYWluUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9kb21haW4ucHJvdG8SC2RvY2t3ZWxsLnYxIjoKEkxpc3REb21haW5zUmVxdWVzdBITCgtlbnZpcm9ubWVudBgBIAEoCRIPCgdzZXJ2aWNlGAIgASgJIjsKE0xpc3REb21haW5zUmVzcG9uc2USJAoHZG9tYWlucxgBIAMoCzITLmRvY2t3ZWxsLnYxLkRvbWFpbiKRAQoGRG9tYWluEgwKBG5hbWUYASABKAkSFgoOZW52aXJvbm1lbnRfaWQYAiABKAkSCwoDdXJsGAMgASgJEigKBnJvdXRlcxgEIAMoCzIYLmRvY2t3ZWxsLnYxLkRvbWFpblJvdXRlEioKB3NlcnZlcnMYBSADKAsyGS5kb2Nrd2VsbC52MS5Eb21haW5TZXJ2ZXIiYQoLRG9tYWluUm91dGUSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIMCgRwYXRoGAMgASgJEg8KB3NlcnZpY2UYBCABKAkSDAoEcG9ydBgFIAEoDRILCgN1cmwYBiABKAkinQEKDERvbWFpblNlcnZlchIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSKQoGc3RhdHVzGAMgASgLMhkuZG9ja3dlbGwudjEuRG9tYWluU3RhdHVzEg0KBXN0YWxlGAQgASgIEisKB2luZ3Jlc3MYBSABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzIroBCg1JbmdyZXNzU3RhdHVzEg0KBXByb3h5GAEgASgJEg8KB3J1bm5pbmcYAiABKAgSLAoHcHJvYmxlbRgDIAEoDjIbLmRvY2t3ZWxsLnYxLkluZ3Jlc3NQcm9ibGVtEg8KB21lc3NhZ2UYBCABKAkSDwoHaG9sZGVycxgFIAMoCRIPCgd2ZXJzaW9uGAYgASgJEhYKDnBpbm5lZF92ZXJzaW9uGAcgASgJEhAKCG91dGRhdGVkGAggASgIInQKDERvbWFpblN0YXR1cxIOCgZkb21haW4YASABKAkSLQoLY2VydGlmaWNhdGUYAiABKAsyGC5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZRIlCgNkbnMYAyABKAsyGC5kb2Nrd2VsbC52MS5Eb21haW5DaGVjayKvAQoLQ2VydGlmaWNhdGUSLAoFc3RhdGUYASABKA4yHS5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZVN0YXRlEjAKB3Byb2JsZW0YAiABKA4yHy5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZVByb2JsZW0SDwoHbWVzc2FnZRgDIAEoCRIvCgtleHBpcmVfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAqlQEKDkluZ3Jlc3NQcm9ibGVtEh8KG0lOR1JFU1NfUFJPQkxFTV9VTlNQRUNJRklFRBAAEh8KG0lOR1JFU1NfUFJPQkxFTV9QT1JUU19UQUtFThABEiAKHElOR1JFU1NfUFJPQkxFTV9TVUJORVRfVEFLRU4QAhIfChtJTkdSRVNTX1BST0JMRU1fTk9UX1JVTk5JTkcQAyqQAQoQQ2VydGlmaWNhdGVTdGF0ZRIhCh1DRVJUSUZJQ0FURV9TVEFURV9VTlNQRUNJRklFRBAAEh0KGUNFUlRJRklDQVRFX1NUQVRFX1BFTkRJTkcQARIcChhDRVJUSUZJQ0FURV9TVEFURV9JU1NVRUQQAhIcChhDRVJUSUZJQ0FURV9TVEFURV9GQUlMRUQQAyrKAgoSQ2VydGlmaWNhdGVQcm9ibGVtEiMKH0NFUlRJRklDQVRFX1BST0JMRU1fVU5TUEVDSUZJRUQQABIbChdDRVJUSUZJQ0FURV9QUk9CTEVNX0ROUxABEiIKHkNFUlRJRklDQVRFX1BST0JMRU1fQ09OTkVDVElPThACEiQKIENFUlRJRklDQVRFX1BST0JMRU1fV1JPTkdfU0VSVkVSEAMSJAogQ0VSVElGSUNBVEVfUFJPQkxFTV9SQVRFX0xJTUlURUQQBBIbChdDRVJUSUZJQ0FURV9QUk9CTEVNX0NBQRAFEh8KG0NFUlRJRklDQVRFX1BST0JMRU1fUkVGVVNFRBAGEh0KGUNFUlRJRklDQVRFX1BST0JMRU1fT1RIRVIQBxIlCiFDRVJUSUZJQ0FURV9QUk9CTEVNX0NBTlRfUkVBQ0hfQ0EQCDJ9Cg1Eb21haW5TZXJ2aWNlEmwKC0xpc3REb21haW5zEh8uZG9ja3dlbGwudjEuTGlzdERvbWFpbnNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTGlzdERvbWFpbnNSZXNwb25zZSIakAIBoLsYAYLT5JMCDRILL3YxL2RvbWFpbnNCpAEKD2NvbS5kb2Nrd2VsbC52MUILRG9tYWluUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListDomainsRequest says which domains to return.
@@ -210,6 +210,14 @@ export type DomainServer = Message<"dockwell.v1.DomainServer"> & {
    * @generated from field: bool stale = 4;
    */
   stale: boolean;
+
+  /**
+   * Where the server's ingress stands, as it last said. A domain with an issued
+   * certificate still doesn't answer while problem is set here.
+   *
+   * @generated from field: dockwell.v1.IngressStatus ingress = 5;
+   */
+  ingress?: IngressStatus | undefined;
 };
 
 /**
@@ -218,6 +226,80 @@ export type DomainServer = Message<"dockwell.v1.DomainServer"> & {
  */
 export const DomainServerSchema: GenMessage<DomainServer> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_domain, 4);
+
+/**
+ * IngressStatus is where a server's ingress stands, on a server with routes.
+ *
+ * @generated from message dockwell.v1.IngressStatus
+ */
+export type IngressStatus = Message<"dockwell.v1.IngressStatus"> & {
+  /**
+   * The proxy, such as "Caddy".
+   *
+   * @generated from field: string proxy = 1;
+   */
+  proxy: string;
+
+  /**
+   * True when the proxy runs.
+   *
+   * @generated from field: bool running = 2;
+   */
+  running: boolean;
+
+  /**
+   * Why its routes aren't being served. Unset while they are.
+   *
+   * @generated from field: dockwell.v1.IngressProblem problem = 3;
+   */
+  problem: IngressProblem;
+
+  /**
+   * For people: what is wrong, what follows, and how to fix it. Empty while
+   * nothing is.
+   *
+   * @generated from field: string message = 4;
+   */
+  message: string;
+
+  /**
+   * What holds the proxy's ports, by name, for PORTS_TAKEN: containers, where
+   * they are in one, so a client can offer what to do about each.
+   *
+   * @generated from field: repeated string holders = 5;
+   */
+  holders: string[];
+
+  /**
+   * The version the proxy runs, such as "2.11.7-alpine". Empty when the server
+   * can't say.
+   *
+   * @generated from field: string version = 6;
+   */
+  version: string;
+
+  /**
+   * The version this server's Dockwell pins.
+   *
+   * @generated from field: string pinned_version = 7;
+   */
+  pinnedVersion: string;
+
+  /**
+   * True when the proxy isn't the version this server's Dockwell pins. It may
+   * be missing security fixes, and moves on the server's next route change.
+   *
+   * @generated from field: bool outdated = 8;
+   */
+  outdated: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.IngressStatus.
+ * Use `create(IngressStatusSchema)` to create a new message.
+ */
+export const IngressStatusSchema: GenMessage<IngressStatus> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_domain, 5);
 
 /**
  * DomainStatus is where one domain's certificate and DNS stand on a server.
@@ -252,7 +334,7 @@ export type DomainStatus = Message<"dockwell.v1.DomainStatus"> & {
  * Use `create(DomainStatusSchema)` to create a new message.
  */
 export const DomainStatusSchema: GenMessage<DomainStatus> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 5);
+  messageDesc(file_dockwell_v1_domain, 6);
 
 /**
  * Certificate is where a domain's certificate stands on a server.
@@ -296,7 +378,49 @@ export type Certificate = Message<"dockwell.v1.Certificate"> & {
  * Use `create(CertificateSchema)` to create a new message.
  */
 export const CertificateSchema: GenMessage<Certificate> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 6);
+  messageDesc(file_dockwell_v1_domain, 7);
+
+/**
+ * IngressProblem is why a server's routes aren't being served.
+ *
+ * @generated from enum dockwell.v1.IngressProblem
+ */
+export enum IngressProblem {
+  /**
+   * @generated from enum value: INGRESS_PROBLEM_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Something else holds port 80 or 443, so the proxy can't start, as after a
+   * reboot brings back another proxy that was stopped for it.
+   *
+   * @generated from enum value: INGRESS_PROBLEM_PORTS_TAKEN = 1;
+   */
+  PORTS_TAKEN = 1,
+
+  /**
+   * The ingress network has gone, and another network has its subnet, so the
+   * routes could reach that network's containers. Each answers 503 until the
+   * network is back.
+   *
+   * @generated from enum value: INGRESS_PROBLEM_SUBNET_TAKEN = 2;
+   */
+  SUBNET_TAKEN = 2,
+
+  /**
+   * The proxy isn't running, for any other reason.
+   *
+   * @generated from enum value: INGRESS_PROBLEM_NOT_RUNNING = 3;
+   */
+  NOT_RUNNING = 3,
+}
+
+/**
+ * Describes the enum dockwell.v1.IngressProblem.
+ */
+export const IngressProblemSchema: GenEnum<IngressProblem> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_domain, 0);
 
 /**
  * CertificateState is where a domain's certificate stands.
@@ -338,7 +462,7 @@ export enum CertificateState {
  * Describes the enum dockwell.v1.CertificateState.
  */
 export const CertificateStateSchema: GenEnum<CertificateState> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_domain, 0);
+  enumDesc(file_dockwell_v1_domain, 1);
 
 /**
  * CertificateProblem is why a certificate failed.
@@ -415,7 +539,7 @@ export enum CertificateProblem {
  * Describes the enum dockwell.v1.CertificateProblem.
  */
 export const CertificateProblemSchema: GenEnum<CertificateProblem> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_domain, 1);
+  enumDesc(file_dockwell_v1_domain, 2);
 
 /**
  * DomainService says where the domains of your routes stand: what each sends

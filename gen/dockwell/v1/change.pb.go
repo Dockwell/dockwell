@@ -250,6 +250,9 @@ const (
 	// that environment's name, in detail. Claiming it takes that environment's
 	// public traffic and certificate if the name still points here.
 	HostAccessKind_HOST_ACCESS_KIND_DOMAIN HostAccessKind = 6
+	// The panel's domain, in path, moving behind the server's proxy, named in
+	// detail. A token mustn't be able to cut off the panel it can't approve.
+	HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN HostAccessKind = 7
 )
 
 // Enum value maps for HostAccessKind.
@@ -262,6 +265,7 @@ var (
 		4: "HOST_ACCESS_KIND_VOLUME_MOUNT",
 		5: "HOST_ACCESS_KIND_NETWORK_DRIVER",
 		6: "HOST_ACCESS_KIND_DOMAIN",
+		7: "HOST_ACCESS_KIND_PANEL_DOMAIN",
 	}
 	HostAccessKind_value = map[string]int32{
 		"HOST_ACCESS_KIND_UNSPECIFIED":    0,
@@ -271,6 +275,7 @@ var (
 		"HOST_ACCESS_KIND_VOLUME_MOUNT":   4,
 		"HOST_ACCESS_KIND_NETWORK_DRIVER": 5,
 		"HOST_ACCESS_KIND_DOMAIN":         6,
+		"HOST_ACCESS_KIND_PANEL_DOMAIN":   7,
 	}
 )
 
@@ -3041,9 +3046,14 @@ type PlanStep struct {
 	Ingress *IngressEffect `protobuf:"bytes,14,opt,name=ingress,proto3" json:"ingress,omitempty"`
 	// What DNS said of a route's domain when this was planned. It never stops
 	// a plan, and the fingerprint leaves it out, as people often set DNS after.
-	DomainCheck   *DomainCheck `protobuf:"bytes,15,opt,name=domain_check,json=domainCheck,proto3" json:"domain_check,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	DomainCheck *DomainCheck `protobuf:"bytes,15,opt,name=domain_check,json=domainCheck,proto3" json:"domain_check,omitempty"`
+	// Stopped containers that Docker starts again when it next restarts, as after
+	// a reboot, and that may then take the ports the server's proxy needs, so
+	// its routes stop answering. It never stops a plan, and the fingerprint leaves
+	// it out. Keep one stopped with docker update --restart=no.
+	ReturningContainers []string `protobuf:"bytes,16,rep,name=returning_containers,json=returningContainers,proto3" json:"returning_containers,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *PlanStep) Reset() {
@@ -3177,6 +3187,13 @@ func (x *PlanStep) GetIngress() *IngressEffect {
 func (x *PlanStep) GetDomainCheck() *DomainCheck {
 	if x != nil {
 		return x.DomainCheck
+	}
+	return nil
+}
+
+func (x *PlanStep) GetReturningContainers() []string {
+	if x != nil {
+		return x.ReturningContainers
 	}
 	return nil
 }
@@ -3686,7 +3703,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aremoved\x18\x04 \x01(\bR\aremoved\x125\n" +
 	"\bdowntime\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\bdowntime\x12+\n" +
 	"\x05steps\x18\x06 \x03(\v2\x15.dockwell.v1.PlanStepR\x05steps\x12>\n" +
-	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xd8\x05\n" +
+	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\x8b\x06\n" +
 	"\bPlanStep\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x124\n" +
@@ -3706,7 +3723,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"hostAccess\x12%\n" +
 	"\x0ehealth_unknown\x18\r \x01(\bR\rhealthUnknown\x124\n" +
 	"\aingress\x18\x0e \x01(\v2\x1a.dockwell.v1.IngressEffectR\aingress\x12;\n" +
-	"\fdomain_check\x18\x0f \x01(\v2\x18.dockwell.v1.DomainCheckR\vdomainCheck\"\x92\x01\n" +
+	"\fdomain_check\x18\x0f \x01(\v2\x18.dockwell.v1.DomainCheckR\vdomainCheck\x121\n" +
+	"\x14returning_containers\x18\x10 \x03(\tR\x13returningContainers\"\x92\x01\n" +
 	"\rIngressEffect\x122\n" +
 	"\x06change\x18\x01 \x01(\x0e2\x1a.dockwell.v1.IngressChangeR\x06change\x12\x14\n" +
 	"\x05proxy\x18\x02 \x01(\tR\x05proxy\x12\x14\n" +
@@ -3754,7 +3772,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\rSURFACE_PANEL\x10\x01\x12\x0f\n" +
 	"\vSURFACE_API\x10\x02\x12\x15\n" +
 	"\x11SURFACE_AUTOMATIC\x10\x03\x12\x0f\n" +
-	"\vSURFACE_CLI\x10\x04*\x80\x02\n" +
+	"\vSURFACE_CLI\x10\x04*\xa3\x02\n" +
 	"\x0eHostAccessKind\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_SERVER_PATH\x10\x01\x12\"\n" +
@@ -3762,7 +3780,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1dHOST_ACCESS_KIND_HOST_NETWORK\x10\x03\x12!\n" +
 	"\x1dHOST_ACCESS_KIND_VOLUME_MOUNT\x10\x04\x12#\n" +
 	"\x1fHOST_ACCESS_KIND_NETWORK_DRIVER\x10\x05\x12\x1b\n" +
-	"\x17HOST_ACCESS_KIND_DOMAIN\x10\x06*\x81\x01\n" +
+	"\x17HOST_ACCESS_KIND_DOMAIN\x10\x06\x12!\n" +
+	"\x1dHOST_ACCESS_KIND_PANEL_DOMAIN\x10\a*\x81\x01\n" +
 	"\rIngressChange\x12\x1e\n" +
 	"\x1aINGRESS_CHANGE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15INGRESS_CHANGE_STARTS\x10\x01\x12\x18\n" +

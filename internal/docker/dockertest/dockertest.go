@@ -58,6 +58,13 @@ type Engine struct {
 	DockerRoot string
 	// Rootless makes /info say the engine runs as an ordinary user.
 	Rootless bool
+	// NoNewPrivileges makes /info say the engine sets no-new-privileges for
+	// every container.
+	NoNewPrivileges bool
+	// UsernsRemap makes /info say the engine has userns-remap, and has it
+	// refuse a container on the host network that isn't in the server's user
+	// namespace.
+	UsernsRemap bool
 	// PickSubnet, when set, is the subnet a network with none configured gets,
 	// as the engine would pick one that is free on the server.
 	PickSubnet string
@@ -199,7 +206,13 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		var options []string
 		if e.Rootless {
-			options = []string{"name=rootless"}
+			options = append(options, "name=rootless")
+		}
+		if e.NoNewPrivileges {
+			options = append(options, "name=no-new-privileges")
+		}
+		if e.UsernsRemap {
+			options = append(options, "name=userns")
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options})
 	case parts[0] == "containers":
@@ -360,9 +373,15 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
-		for name := range c.NetworkSettings.Networks {
+		for name, ep := range c.NetworkSettings.Networks {
 			if e.networks[name] == nil {
 				fail(w, http.StatusNotFound, "network %s not found", name)
+				return
+			}
+			// A stopped container keeps the ID of its network, by which the
+			// engine looks it up, and that is gone if the network was made again.
+			if ep != nil && ep.NetworkID != "" && ep.NetworkID != e.networks[name].ID {
+				fail(w, http.StatusNotFound, "network %s not found", ep.NetworkID)
 				return
 			}
 		}
@@ -488,7 +507,7 @@ func (e *Engine) list(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if c.matches(f) {
-			out = append(out, docker.ContainerSummary{ID: c.ID, Names: []string{c.Name}, Labels: c.Config.Labels, Created: c.created, Ports: summaryPorts(c)})
+			out = append(out, docker.ContainerSummary{ID: c.ID, Names: []string{c.Name}, Labels: c.Config.Labels, Created: c.created, Ports: summaryPorts(c), State: c.State.Status})
 		}
 	}
 	slices.SortFunc(out, func(a, b docker.ContainerSummary) int { return int(b.Created - a.Created) })
@@ -630,6 +649,10 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 	c.Config = merge(req.Config, img.Config)
 	c.HostConfig = req.HostConfig
 	c.State = docker.State{Status: "created"}
+	if e.UsernsRemap && req.HostConfig.NetworkMode == "host" && req.HostConfig.UsernsMode != "host" {
+		fail(w, http.StatusBadRequest, "cannot share the host's network namespace when user namespaces are enabled")
+		return
+	}
 	mode := req.HostConfig.NetworkMode
 	if mode == "" || mode == "default" {
 		mode = "bridge"
@@ -640,12 +663,13 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 	if n == nil {
 		return
 	}
-	c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{n.Name: {}}
+	c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{n.Name: {NetworkID: n.ID}}
 	for ref, s := range req.NetworkingConfig.EndpointsConfig {
 		n := e.network(w, ref)
 		if n == nil {
 			return
 		}
+		s.NetworkID = n.ID
 		c.NetworkSettings.Networks[n.Name] = s
 	}
 	covered := map[string]bool{}
@@ -862,6 +886,22 @@ func (e *Engine) findNetwork(ref string) (*docker.Network, error) {
 	return found, nil
 }
 
+// subnetInUse reports a subnet that overlaps a network's.
+func (e *Engine) subnetInUse(subnet string) bool {
+	want, err := netip.ParsePrefix(subnet)
+	if err != nil {
+		return false
+	}
+	for _, n := range e.networks {
+		for _, c := range n.IPAM.Config {
+			if have, err := netip.ParsePrefix(c.Subnet); err == nil && have.Overlaps(want) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // network answers a request for the network ref, or fails it.
 func (e *Engine) network(w http.ResponseWriter, ref string) *docker.Network {
 	n, err := e.findNetwork(ref)
@@ -888,6 +928,13 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 		}
 		n := &docker.Network{ID: newID(), Name: req.Name, Driver: req.Driver, Internal: req.Internal, Options: maps.Clone(req.Options), Labels: maps.Clone(req.Labels)}
 		if req.IPAM != nil {
+			// As the default IPAM driver refuses it.
+			for _, c := range req.IPAM.Config {
+				if e.subnetInUse(c.Subnet) {
+					fail(w, http.StatusForbidden, "invalid pool request: Pool overlaps with other one on this address space")
+					return
+				}
+			}
 			n.IPAM = *req.IPAM
 			for i := range n.IPAM.Config {
 				if prefix, err := netip.ParsePrefix(n.IPAM.Config[i].Subnet); err == nil && n.IPAM.Config[i].Gateway == "" {
@@ -926,14 +973,22 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 		if n == nil {
 			return
 		}
+		// A stopped container has no endpoint, as moby's prune and remove count
+		// them, so it doesn't hold a network. It keeps its settings all the same.
 		for _, c := range e.containers {
-			if _, on := c.NetworkSettings.Networks[n.Name]; on {
+			if _, on := c.NetworkSettings.Networks[n.Name]; on && c.State.Running {
 				fail(w, http.StatusForbidden, "error while removing network: network %s id %s has active endpoints", n.Name, n.ID)
 				return
 			}
 		}
 		delete(e.networks, n.Name)
 		w.WriteHeader(http.StatusNoContent)
+	case len(parts) == 0 && r.Method == http.MethodGet:
+		list := make([]docker.Network, 0, len(e.networks))
+		for _, n := range e.networks {
+			list = append(list, *n)
+		}
+		writeJSON(w, http.StatusOK, list)
 	case len(parts) == 2 && parts[1] == "connect" && r.Method == http.MethodPost:
 		n := e.network(w, parts[0])
 		if n == nil {
@@ -972,6 +1027,7 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 		if c.NetworkSettings.Networks == nil {
 			c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{}
 		}
+		s.NetworkID = n.ID
 		c.NetworkSettings.Networks[n.Name] = &s
 		if c.State.Running {
 			if err := e.addressesFree(c); err != nil {

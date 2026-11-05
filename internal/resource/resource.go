@@ -156,6 +156,10 @@ type Decision struct {
 	// never stops a plan, and a fingerprint leaves it out, as people often
 	// set DNS after.
 	Domain *DomainCheck `json:",omitempty"`
+	// Returning names stopped containers Docker starts again when it next
+	// restarts, and that may then take the ports a server's proxy needs. It never
+	// stops a plan, and a fingerprint leaves it out.
+	Returning []string `json:",omitempty"`
 }
 
 // IngressChange is what happens to the proxy that holds a server's public
@@ -261,6 +265,10 @@ const (
 	// takes that environment's public traffic and certificate if the name
 	// still points here (ADR 0024).
 	AccessDomain
+	// AccessPanelDomain is the panel's domain, in Path, moving behind the
+	// server's proxy, named in Detail. Access to the panel depends on it, and a
+	// token mustn't be able to cut off what it can't approve (ADR 0016).
+	AccessPanelDomain
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -352,6 +360,8 @@ func AccessWords(a Access) string {
 		return out
 	case AccessDomain:
 		return "the domain " + a.Path + ", which the environment " + a.Detail + " held within the last 7 days"
+	case AccessPanelDomain:
+		return "the panel's domain, " + a.Path + ", which moves behind " + a.Detail
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }

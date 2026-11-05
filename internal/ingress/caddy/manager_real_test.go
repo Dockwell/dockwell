@@ -283,7 +283,8 @@ func TestAProxyThatCantBindGivesThePortsBackOnRealCaddy(t *testing.T) {
 	}
 	defer l.Close()
 	ref := resource.Ref{Kind: routekind.Kind, Scope: s.env, Name: "www"}
-	err = s.mgr.Apply(t.Context(), ref, &resourcev1.Route{Domain: "app.example.net", Service: "web", Port: 80}, nil)
+	effect := &resource.IngressEffect{Change: resource.IngressStarts, Proxy: "Caddy", PanelDomain: "panel.example.net"}
+	err = s.mgr.Apply(t.Context(), ref, &resourcev1.Route{Domain: "app.example.net", Service: "web", Port: 80}, effect)
 	if err == nil || !strings.Contains(err.Error(), "didn't start") {
 		t.Fatalf("Apply = %v, want Caddy not starting", err)
 	}

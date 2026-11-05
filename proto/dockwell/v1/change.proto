@@ -626,6 +626,9 @@ enum HostAccessKind {
   // that environment's name, in detail. Claiming it takes that environment's
   // public traffic and certificate if the name still points here.
   HOST_ACCESS_KIND_DOMAIN = 6;
+  // The panel's domain, in path, moving behind the server's proxy, named in
+  // detail. A token mustn't be able to cut off the panel it can't approve.
+  HOST_ACCESS_KIND_PANEL_DOMAIN = 7;
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -696,6 +699,11 @@ message PlanStep {
   // What DNS said of a route's domain when this was planned. It never stops
   // a plan, and the fingerprint leaves it out, as people often set DNS after.
   DomainCheck domain_check = 15;
+  // Stopped containers that Docker starts again when it next restarts, as after
+  // a reboot, and that may then take the ports the server's proxy needs, so
+  // its routes stop answering. It never stops a plan, and the fingerprint leaves
+  // it out. Keep one stopped with docker update --restart=no.
+  repeated string returning_containers = 16;
 }
 
 // IngressEffect is what a step does to the proxy that holds a server's public

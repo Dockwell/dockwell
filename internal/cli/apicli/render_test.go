@@ -85,7 +85,7 @@ func TestPlanView(t *testing.T) {
 		"\n" +
 		"1 to create · 0 to change · 1 to replace · 0 to destroy\n" +
 		"It destroys data or may cut off access, which undo may not bring back.\n" +
-		"It gives more access to a server, which a person approves:\n" +
+		"It reaches more of a server, or what isn't its own yet, which a person approves:\n" +
 		"  service web: the server path /srv/app/config (read-only)\n" +
 		"  volume media: the nfs mount 10.0.0.2:/media (read-write)\n" +
 		"  network lan: a macvlan network on eth0, which reaches past the server's firewall\n"
@@ -113,6 +113,7 @@ func TestARoutesPlanSaysWhatItDoesToTheServer(t *testing.T) {
 	for _, want := range []string{
 		"Caddy isn't running on hz-1, so this route starts it, and it takes ports 80/tcp, 443/tcp and 443/udp",
 		"panel.example.com, moves behind Caddy",
+		"it keeps its present certificate until Caddy has its own",
 		"the SSH tunnel keeps working",
 		"DNS for app.example.com points at 198.51.100.1, not this server (203.0.113.9)",
 	} {
@@ -261,5 +262,61 @@ func TestWords(t *testing.T) {
 	}
 	if got := In(now.Add(3*time.Hour), now); got != "in 3 hours" {
 		t.Errorf("In = %s", got)
+	}
+}
+
+// Each thing that needs a person is said as what it is: a domain isn't more
+// access for a container.
+func TestWhatNeedsAPersonSaysWhatItIs(t *testing.T) {
+	access := func(kinds ...dockwellv1.HostAccessKind) *dockwellv1.Plan {
+		p := &dockwellv1.Plan{HostAccess: true}
+		for _, k := range kinds {
+			p.Resources = append(p.Resources, &dockwellv1.PlannedResource{HostAccess: []*dockwellv1.HostAccess{{Kind: k, Path: "app.example.com", Detail: "Caddy"}}})
+		}
+		return p
+	}
+	for _, tc := range []struct {
+		name string
+		plan *dockwellv1.Plan
+		want string
+	}{
+		{"a takeover", access(dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN), "takes a domain another environment held"},
+		{"the panel", access(dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN), "moves the panel's domain behind Caddy"},
+		{"a server path", access(dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH), "gives a container more access to its server"},
+		{"destructive", &dockwellv1.Plan{Destructive: true}, "destroys data or may cut off access"},
+		{"both", access(dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN, dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN), "gives a container more access to its server and takes a domain another environment held"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := whyPerson(tc.plan); got != tc.want {
+				t.Errorf("whyPerson = %q, want %q", got, tc.want)
+			}
+		})
+	}
+	step := reachWords([]*dockwellv1.HostAccess{{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN, Path: "panel.example.com", Detail: "Caddy"}}, "hz-1")
+	if !strings.Contains(step, "the panel's domain, panel.example.com, which moves behind Caddy") || strings.Contains(step, "access to hz-1") {
+		t.Errorf("the step says %q", step)
+	}
+	step = reachWords([]*dockwellv1.HostAccess{{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN, Path: "app.example.com", Detail: "production"}}, "hz-1")
+	if !strings.Contains(step, "which the environment production held") || strings.Contains(step, "access to hz-1") {
+		t.Errorf("the step says %q", step)
+	}
+}
+
+// A plan says what would take the proxy's ports back at the next reboot, with what
+// to do, and doesn't refuse.
+func TestARoutesPlanSaysWhatComesBackAfterAReboot(t *testing.T) {
+	plan := &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: []*dockwellv1.PlanStep{{
+		Resource: &dockwellv1.ResourceRef{Kind: "route", Name: "www"}, Action: dockwellv1.PlanAction_PLAN_ACTION_CREATE,
+		ReturningContainers: []string{"1Panel-openresty-abc12", "old-nginx"},
+	}}}}}
+	var out bytes.Buffer
+	PlanView(&out, plan)
+	for _, want := range []string{
+		"Docker starts 1Panel-openresty-abc12 and old-nginx again when hz-1 next restarts",
+		"docker update --restart=no 1Panel-openresty-abc12 old-nginx",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("the plan doesn't say %q:\n%s", want, out.String())
+		}
 	}
 }

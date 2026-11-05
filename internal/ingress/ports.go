@@ -69,6 +69,8 @@ type Holder struct {
 	// Unknown is something the agent can't name, as one that isn't root can't
 	// read other users' processes.
 	Unknown bool
+	// Container is the container it is in, if any.
+	Container string
 }
 
 // Holders finds what holds a server's ports, from what the kernel says and
@@ -103,7 +105,7 @@ func (h *Holders) Of(ctx context.Context, ports []Port) ([]Holder, error) {
 	var owners map[string]int
 	for _, p := range ports {
 		if name, ok := published[p]; ok {
-			out = append(out, Holder{Port: p, Words: "the container " + name + ", which publishes it"})
+			out = append(out, Holder{Port: p, Words: "the container " + name + ", which publishes it", Container: name})
 			continue
 		}
 		inodes := sockets[p]
@@ -229,7 +231,7 @@ func (h *Holders) holder(ctx context.Context, p Port, inodes []string, owners ma
 		}
 		name := h.processName(pid)
 		if c := h.containerOf(ctx, pid); c != "" {
-			return Holder{Port: p, Words: name + ", in the container " + c}
+			return Holder{Port: p, Words: name + ", in the container " + c, Container: c}
 		}
 		return Holder{Port: p, Words: name}
 	}
@@ -268,4 +270,70 @@ func (h *Holders) containerOf(ctx context.Context, pid int) string {
 		return strings.TrimPrefix(c.Name, "/")
 	}
 	return ""
+}
+
+// Returning names the stopped containers that Docker starts again when it next
+// restarts, as after a reboot, and that may then take one of the ports: those
+// that publish one, and those on the server's own network, which can't be asked
+// what they bind while they're stopped. 1Panel's OpenResty is one: restart:
+// always and network_mode: host, so a manual stop lasts until the next reboot.
+//
+// Moby starts such a container if its policy says so, whatever stopped it:
+// always, and on-failure with a failing exit, which docker stop's is. It leaves
+// one with unless-stopped that was stopped by hand, and it can only have been: a
+// crash would have restarted it (daemon/internal/restartmanager).
+//
+// It only warns, so it says nothing when it can't find out.
+func (h *Holders) Returning(ctx context.Context, ports []Port) []string {
+	list, err := h.Client.ListContainers(ctx, nil)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, c := range list {
+		if c.State != "exited" || c.Labels[docker.OwnPrefix+"ingress"] != "" {
+			continue
+		}
+		got, err := h.Client.InspectContainer(ctx, c.ID)
+		if err != nil {
+			continue
+		}
+		if comesBack(got) && mayHold(got, ports) {
+			out = append(out, strings.TrimPrefix(got.Name, "/"))
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// comesBack reports a stopped container Docker starts again when it restarts.
+func comesBack(c *docker.Container) bool {
+	switch c.HostConfig.RestartPolicy.Name {
+	case "always":
+		return true
+	case "on-failure":
+		return c.State.ExitCode != 0
+	}
+	return false
+}
+
+// mayHold reports a stopped container that publishes one of the ports, or that
+// may bind any of them, on the server's own network.
+func mayHold(c *docker.Container, ports []Port) bool {
+	if c.HostConfig.NetworkMode == "host" {
+		return true
+	}
+	for key, bindings := range c.HostConfig.PortBindings {
+		_, proto, _ := strings.Cut(key, "/")
+		for _, b := range bindings {
+			n, err := strconv.Atoi(b.HostPort)
+			if err != nil {
+				continue
+			}
+			if slices.Contains(ports, Port{Number: n, UDP: proto == "udp"}) {
+				return true
+			}
+		}
+	}
+	return false
 }

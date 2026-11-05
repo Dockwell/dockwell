@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/human"
 )
 
 // options are the flags every API command shares.
@@ -314,12 +316,37 @@ func needsPerson(p *dockwellv1.Plan) bool { return p.GetDestructive() || p.GetHo
 // person can. The CLI signs in with an API token, even after dockwell
 // login, so that is the panel.
 func (r *runner) needsPerson(c *dockwellv1.Change) error {
-	why := "destroys data or may cut off access"
-	if !c.GetPlan().GetDestructive() {
-		why = "gives a container more access to its server"
-	}
 	return ExitError{ExitNeedsPerson, fmt.Errorf("%s %s, so it needs a person to approve it, which no API token can, and the CLI uses one even after dockwell login. "+
-		"It stays planned: sign in to the panel and apply it at %s", c.GetId(), why, r.client.PanelURL("/changes/"+c.GetId()))}
+		"It stays planned: sign in to the panel and apply it at %s", c.GetId(), whyPerson(c.GetPlan()), r.client.PanelURL("/changes/"+c.GetId()))}
+}
+
+// whyPerson says what about a plan needs a person, from what it does.
+func whyPerson(p *dockwellv1.Plan) string {
+	var why []string
+	if p.GetDestructive() {
+		why = append(why, "destroys data or may cut off access")
+	}
+	add := func(w string) {
+		if !slices.Contains(why, w) {
+			why = append(why, w)
+		}
+	}
+	for _, r := range p.GetResources() {
+		for _, a := range r.GetHostAccess() {
+			switch a.GetKind() {
+			case dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN:
+				add("takes a domain another environment held")
+			case dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN:
+				add("moves the panel's domain behind " + a.GetDetail())
+			default:
+				add("gives a container more access to its server")
+			}
+		}
+	}
+	if len(why) == 0 {
+		return "gives a container more access to its server"
+	}
+	return human.List(why)
 }
 
 // confirmAndApply asks before applying a planned change, then applies the

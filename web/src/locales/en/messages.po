@@ -870,6 +870,10 @@ msgid "Docker"
 msgstr "Docker"
 
 #: src/features/changes/words.ts
+msgid "Docker starts {list} again when {server} next restarts, which may take port 80 or 443 from the proxy, and stop this route answering. Keep it stopped with docker update --restart=no {command}"
+msgstr "Docker starts {list} again when {server} next restarts, which may take port 80 or 443 from the proxy, and stop this route answering. Keep it stopped with docker update --restart=no {command}"
+
+#: src/features/changes/words.ts
 msgid "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
 msgstr "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
 
@@ -2341,8 +2345,12 @@ msgid "The panel takes those ports back for its domain, {panelDomain}. Its addre
 msgstr "The panel takes those ports back for its domain, {panelDomain}. Its address, passkeys and sessions stay as they are"
 
 #: src/features/changes/words.ts
-msgid "The panel's domain, {panelDomain}, moves behind {proxy}. Its address, passkeys and sessions stay as they are. HTTPS on it is down for a few seconds while its certificate comes; the SSH tunnel keeps working"
-msgstr "The panel's domain, {panelDomain}, moves behind {proxy}. Its address, passkeys and sessions stay as they are. HTTPS on it is down for a few seconds while its certificate comes; the SSH tunnel keeps working"
+msgid "The panel's domain, {panelDomain}, moves behind {proxy}. Its address, passkeys and sessions stay as they are, and it keeps its present certificate until {proxy} has its own. HTTPS on it is down for a moment as the ports change hands; the SSH tunnel keeps working"
+msgstr "The panel's domain, {panelDomain}, moves behind {proxy}. Its address, passkeys and sessions stay as they are, and it keeps its present certificate until {proxy} has its own. HTTPS on it is down for a moment as the ports change hands; the SSH tunnel keeps working"
+
+#: src/features/changes/words.ts
+msgid "the panel's domain, {path}, which moves behind {detail}"
+msgstr "the panel's domain, {path}, which moves behind {detail}"
 
 #: src/features/auth/messages.ts
 msgid "The passkey prompt closed before it finished. Try again when you're ready."

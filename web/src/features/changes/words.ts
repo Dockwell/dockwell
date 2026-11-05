@@ -45,6 +45,8 @@ export interface ChangeWords {
   access(access: HostAccess): string;
   /** What a route's step does to its server's ingress, a sentence each. Empty for nothing. */
   ingress(effect: IngressEffect | undefined, server: string): string[];
+  /** What would take the proxy's ports back at the next reboot, and how to keep it from happening. It never stops a plan. */
+  returning(names: string[], server: string): string;
   /** What DNS said of a route's domain as this was planned, if that is worth saying. It never stops a plan. */
   domain(check: DomainCheck | undefined): string;
 }
@@ -181,6 +183,8 @@ export function useChangeWords(): ChangeWords {
           }
           case HostAccessKind.DOMAIN:
             return t`the domain ${path}, which the environment ${detail} held within the last 7 days`;
+          case HostAccessKind.PANEL_DOMAIN:
+            return t`the panel's domain, ${path}, which moves behind ${detail}`;
         }
         return t`something else on the server`;
       },
@@ -194,7 +198,7 @@ export function useChangeWords(): ChangeWords {
             out.push(t`${proxy} isn't running on ${server}, so this route starts it, and it takes ports ${ports}`);
             if (panelDomain !== "") {
               out.push(
-                t`The panel's domain, ${panelDomain}, moves behind ${proxy}. Its address, passkeys and sessions stay as they are. HTTPS on it is down for a few seconds while its certificate comes; the SSH tunnel keeps working`,
+                t`The panel's domain, ${panelDomain}, moves behind ${proxy}. Its address, passkeys and sessions stay as they are, and it keeps its present certificate until ${proxy} has its own. HTTPS on it is down for a moment as the ports change hands; the SSH tunnel keeps working`,
               );
             }
             break;
@@ -215,6 +219,12 @@ export function useChangeWords(): ChangeWords {
             break;
         }
         return out;
+      },
+      returning(names, server) {
+        if (names.length === 0) return "";
+        const list = names.join(", ");
+        const command = names.join(" ");
+        return t`Docker starts ${list} again when ${server} next restarts, which may take port 80 or 443 from the proxy, and stop this route answering. Keep it stopped with docker update --restart=no ${command}`;
       },
       domain(check) {
         if (!check) return "";

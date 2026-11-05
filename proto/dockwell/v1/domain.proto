@@ -82,6 +82,47 @@ message DomainServer {
   DomainStatus status = 3;
   // True when the server isn't connected, so status is what it last said.
   bool stale = 4;
+  // Where the server's ingress stands, as it last said. A domain with an issued
+  // certificate still doesn't answer while problem is set here.
+  IngressStatus ingress = 5;
+}
+
+// IngressStatus is where a server's ingress stands, on a server with routes.
+message IngressStatus {
+  // The proxy, such as "Caddy".
+  string proxy = 1;
+  // True when the proxy runs.
+  bool running = 2;
+  // Why its routes aren't being served. Unset while they are.
+  IngressProblem problem = 3;
+  // For people: what is wrong, what follows, and how to fix it. Empty while
+  // nothing is.
+  string message = 4;
+  // What holds the proxy's ports, by name, for PORTS_TAKEN: containers, where
+  // they are in one, so a client can offer what to do about each.
+  repeated string holders = 5;
+  // The version the proxy runs, such as "2.11.7-alpine". Empty when the server
+  // can't say.
+  string version = 6;
+  // The version this server's Dockwell pins.
+  string pinned_version = 7;
+  // True when the proxy isn't the version this server's Dockwell pins. It may
+  // be missing security fixes, and moves on the server's next route change.
+  bool outdated = 8;
+}
+
+// IngressProblem is why a server's routes aren't being served.
+enum IngressProblem {
+  INGRESS_PROBLEM_UNSPECIFIED = 0;
+  // Something else holds port 80 or 443, so the proxy can't start, as after a
+  // reboot brings back another proxy that was stopped for it.
+  INGRESS_PROBLEM_PORTS_TAKEN = 1;
+  // The ingress network has gone, and another network has its subnet, so the
+  // routes could reach that network's containers. Each answers 503 until the
+  // network is back.
+  INGRESS_PROBLEM_SUBNET_TAKEN = 2;
+  // The proxy isn't running, for any other reason.
+  INGRESS_PROBLEM_NOT_RUNNING = 3;
 }
 
 // DomainStatus is where one domain's certificate and DNS stand on a server.

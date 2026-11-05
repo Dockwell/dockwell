@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -268,6 +269,25 @@ func TestTheForwardedAddressIsTheLastEntry(t *testing.T) {
 	h.ServeHTTP(nil, req)
 	if seen != "203.0.113.9:0" {
 		t.Errorf("RemoteAddr = %q", seen)
+	}
+}
+
+// A request that says it came in early data can be replayed, and is asked to wait
+// for the handshake: this listener marks what it serves as having had one.
+func TestViaIngressRefusesEarlyData(t *testing.T) {
+	served := false
+	h := authapi.ViaIngress(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { served = true }))
+	r := httptest.NewRequest(http.MethodPost, "/dockwell.v1.ChangeService/ApplyChange", http.NoBody)
+	r.Header.Set("Early-Data", "1")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusTooEarly || served {
+		t.Errorf("a request in early data got %d, served %v, want 425", w.Code, served)
+	}
+	r = httptest.NewRequest(http.MethodPost, "/dockwell.v1.ChangeService/ApplyChange", http.NoBody)
+	h.ServeHTTP(httptest.NewRecorder(), r)
+	if !served {
+		t.Error("a request after the handshake wasn't served")
 	}
 }
 

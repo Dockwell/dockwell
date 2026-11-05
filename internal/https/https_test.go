@@ -3,7 +3,14 @@
 package https
 
 import (
+	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,6 +18,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/acme"
 )
@@ -110,5 +118,54 @@ func TestRedirectRefusesCredentials(t *testing.T) {
 			!strings.Contains(body, "revoke the token")) {
 			t.Errorf("%s with Authorization %q said %q, want it to say the token may be exposed and to use https", tt.method, tt.auth, body)
 		}
+	}
+}
+
+// autocert keeps a private key and then the chain in one file. Moving behind the
+// proxy uses them only while they serve.
+func TestWhatTheCacheHoldsIsSplitIfItServes(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	notBefore, notAfter := time.Now().Add(-time.Hour), time.Now().Add(time.Hour)
+	tpl := &x509.Certificate{SerialNumber: big.NewInt(1), DNSNames: []string{"panel.example.com"}, NotBefore: notBefore, NotAfter: notAfter}
+	der, err := x509.CreateCertificate(rand.Reader, tpl, tpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	cached := append(append([]byte{}, keyPEM...), certPEM...)
+
+	chain, gotKey, err := splitCached(cached, time.Now())
+	if err != nil || !bytes.Equal(chain, certPEM) || !bytes.Equal(gotKey, keyPEM) {
+		t.Errorf("splitCached = %q, %q, %v", chain, gotKey, err)
+	}
+	if chain, _, err := splitCached(cached, notAfter.Add(time.Minute)); err != nil || chain != nil {
+		t.Errorf("an expired certificate reads %q, %v", chain, err)
+	}
+	if chain, _, err := splitCached(certPEM, time.Now()); err != nil || chain != nil {
+		t.Errorf("a chain with no key reads %q, %v", chain, err)
+	}
+
+	// Through the cache, which reads and never asks the CA for anything.
+	dir := t.TempDir()
+	a, err := NewACME(ACMEConfig{Domain: "panel.example.com", CacheDir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chain, _, err := a.Current(t.Context()); err != nil || chain != nil {
+		t.Errorf("with nothing cached, Current = %q, %v", chain, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "panel.example.com"), cached, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if chain, _, err := a.Current(t.Context()); err != nil || !bytes.Equal(chain, certPEM) {
+		t.Errorf("Current = %q, %v", chain, err)
 	}
 }

@@ -26,6 +26,7 @@ import (
 // Reports is what each server's agent last said of its routes' domains.
 type Reports interface {
 	Domain(server, domain string) (status *dockwellv1.DomainStatus, connected bool)
+	Ingress(server string) *dockwellv1.IngressStatus
 }
 
 // Handler implements DomainService.
@@ -115,7 +116,7 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 			continue
 		}
 		status, connected := h.reports.Domain(id, name)
-		d.Servers = append(d.Servers, &dockwellv1.DomainServer{ServerId: id, ServerName: srv.Name, Status: status, Stale: !connected})
+		d.Servers = append(d.Servers, &dockwellv1.DomainServer{ServerId: id, ServerName: srv.Name, Status: status, Stale: !connected, Ingress: h.reports.Ingress(id)})
 	}
 	return nil
 }

@@ -246,6 +246,7 @@ describe("the plan sheet", () => {
       found: ["198.51.100.1"],
       here: ["203.0.113.9"],
     });
+    step.returningContainers = ["1Panel-openresty-abc12"];
     renderSheet(proposeWeb, {
       changes: {
         proposeChange: () => ({ change: routed }),
@@ -258,8 +259,11 @@ describe("the plan sheet", () => {
       "Caddy isn't running on hz-1, so this route starts it, and it takes ports 80/tcp, 443/tcp, 443/udp",
     );
     expect(sheet).toHaveTextContent("The panel's domain, panel.example.com, moves behind Caddy");
+    expect(sheet).toHaveTextContent("it keeps its present certificate until Caddy has its own");
     expect(sheet).toHaveTextContent("the SSH tunnel keeps working");
     expect(sheet).toHaveTextContent("DNS for app.example.com points at 198.51.100.1, not this server (203.0.113.9)");
+    expect(sheet).toHaveTextContent("Docker starts 1Panel-openresty-abc12 again when hz-1 next restarts");
+    expect(sheet).toHaveTextContent("docker update --restart=no 1Panel-openresty-abc12");
     // It warns, and nothing asks for more than any other plan does.
     const apply = await within(sheet).findByRole("button", { name: /Apply plan/ });
     expect(apply).toBeEnabled();
@@ -279,6 +283,7 @@ describe("the plan sheet", () => {
     plan.hostAccess = true;
     step.hostAccess = [
       create(HostAccessSchema, { kind: HostAccessKind.DOMAIN, path: "app.example.com", detail: "production" }),
+      create(HostAccessSchema, { kind: HostAccessKind.PANEL_DOMAIN, path: "panel.example.com", detail: "Caddy" }),
     ];
     renderSheet(proposeWeb, {
       changes: {
@@ -295,6 +300,7 @@ describe("the plan sheet", () => {
     expect(sheet).toHaveTextContent(
       "the domain app.example.com, which the environment production held within the last 7 days",
     );
+    expect(sheet).toHaveTextContent("the panel's domain, panel.example.com, which moves behind Caddy");
   });
 
   it("discards the plan it made when you cancel", async () => {

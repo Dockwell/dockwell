@@ -42,6 +42,9 @@ type Ingress interface {
 	// Judge says what the step does to the ingress, given every resource the
 	// plan touches on this server, and what DNS says of the domain.
 	Judge(ctx context.Context, ref resource.Ref, spec *resourcev1.Route, desired []resource.Desired) (*resource.IngressEffect, *resource.DomainCheck, error)
+	// Returning names stopped containers that Docker starts again when it next
+	// restarts, and that may then take the proxy's ports. It only warns.
+	Returning(ctx context.Context, ref resource.Ref, spec *resourcev1.Route, desired []resource.Desired) []string
 	// Apply makes the proxy serve the route, or stop serving it when spec is
 	// nil, and keeps connections up across the change.
 	Apply(ctx context.Context, ref resource.Ref, spec *resourcev1.Route, effect *resource.IngressEffect) error
@@ -297,6 +300,7 @@ func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired pr
 		return dec, err
 	}
 	dec.Ingress, dec.Domain = effect, check
+	dec.Returning = d.Ingress.Returning(ctx, ref, spec, resource.DesiredIn(ctx))
 	if effect != nil && effect.Change == resource.IngressRestarts {
 		dec.Effect = resource.EffectRestart
 		dec.Downtime = RestartDowntime

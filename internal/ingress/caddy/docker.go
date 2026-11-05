@@ -26,8 +26,18 @@ const (
 	Image      = Repository + "@" + Digest
 )
 
-// ownLabel marks Caddy's container as Dockwell's.
-const ownLabel = docker.OwnPrefix + "ingress"
+// ownLabel marks Caddy's container as Dockwell's, and versionLabel says which
+// version it runs, for people, as a digest doesn't.
+const (
+	ownLabel     = docker.OwnPrefix + "ingress"
+	versionLabel = docker.OwnPrefix + "ingress.version"
+)
+
+// memoryLimit is the most memory Caddy's container may use, with no swap. It
+// reads 140 MB at the most routes a server may have (ingress.MaxRoutes), so this
+// is far past what it needs: what it stops is a Caddy that runs away taking the
+// server with it. Docker starts it again if it goes past this.
+const memoryLimit = 1 << 30
 
 // Where Caddy's directories are in its container: the image's own, and one for
 // sockets.
@@ -62,8 +72,9 @@ func (*Container) Paths() Paths {
 	return Paths{Data: containerData, Config: containerConfig, Run: containerRun, Boot: containerBoot}
 }
 
-// reference is what to run.
-func (c *Container) reference() string {
+// Reference is what to run: Caddy's image, by its digest, from the mirror if
+// there is one.
+func (c *Container) Reference() string {
 	if c.Mirror != "" {
 		return strings.TrimSuffix(c.Mirror, "/") + "@" + Digest
 	}
@@ -95,13 +106,14 @@ func (c *Container) Status(ctx context.Context) (ingress.Status, error) {
 	return ingress.Status{
 		Exists: true, Running: got.State.Running && !got.State.Restarting,
 		Outdated: !strings.HasSuffix(got.Config.Image, "@"+Digest),
+		Version:  got.Config.Labels[versionLabel], Pinned: Tag, Image: got.Config.Image,
 	}, nil
 }
 
 // Pull gets Caddy's image, by its digest, if the server hasn't it. Docker
 // checks what it gets against the digest, whatever serves it.
 func (c *Container) Pull(ctx context.Context) error {
-	ref := c.reference()
+	ref := c.Reference()
 	_, err := c.Client.InspectImage(ctx, ref)
 	if !docker.IsNotFound(err) {
 		return err
@@ -119,7 +131,7 @@ func (c *Container) Run(ctx context.Context, config string) error {
 	if err := c.Pull(ctx); err != nil {
 		return err
 	}
-	ref := c.reference()
+	ref := c.Reference()
 	old, err := c.found(ctx)
 	if err != nil {
 		return err
@@ -161,7 +173,7 @@ func (c *Container) request(ref, config string) *docker.CreateRequest {
 		Image:  ref,
 		Cmd:    []string{"caddy", "run", "--config", config, "--resume"},
 		User:   strconv.Itoa(uid) + ":" + strconv.Itoa(gid),
-		Labels: map[string]string{ownLabel: "caddy"},
+		Labels: map[string]string{ownLabel: "caddy", versionLabel: Tag},
 		Env:    []string{"XDG_DATA_HOME=" + containerData, "XDG_CONFIG_HOME=" + containerConfig, AdminEnv(c.Paths())},
 	}}
 	req.HostConfig = docker.HostConfig{
@@ -176,6 +188,11 @@ func (c *Container) request(ref, config string) *docker.CreateRequest {
 		ReadonlyRootfs: true,
 		Tmpfs:          map[string]string{"/tmp": "rw,noexec,nosuid,size=16m"},
 		LogConfig:      &docker.LogConfig{Type: "json-file", Config: map[string]string{"max-size": "10m", "max-file": "3"}},
+		Memory:         memoryLimit,
+		MemorySwap:     memoryLimit,
+		// An engine with userns-remap refuses the host network otherwise, and
+		// nothing here is any use inside a user namespace.
+		UsernsMode: "host",
 	}
 	return req
 }

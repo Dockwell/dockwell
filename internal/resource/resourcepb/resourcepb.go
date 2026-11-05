@@ -112,6 +112,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 		p.Ingress = &dockwellv1.IngressEffect{Change: ingressChanges[i.Change], Proxy: i.Proxy, Ports: i.Ports, PanelDomain: i.PanelDomain}
 	}
 	p.DomainCheck = DomainCheck(s.Domain)
+	p.ReturningContainers = s.Returning
 	return p
 }
 
@@ -144,6 +145,7 @@ var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
 	resource.AccessMount:         dockwellv1.HostAccessKind_HOST_ACCESS_KIND_VOLUME_MOUNT,
 	resource.AccessNetworkDriver: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_NETWORK_DRIVER,
 	resource.AccessDomain:        dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN,
+	resource.AccessPanelDomain:   dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN,
 }
 
 // HostAccess converts what a resource reaches on its server.
@@ -214,6 +216,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		state, _ := from(domainStates, d.GetState())
 		s.Domain = &resource.DomainCheck{Domain: d.GetDomain(), State: state, Found: d.GetFound(), Here: d.GetHere()}
 	}
+	s.Returning = p.GetReturningContainers()
 	return s, nil
 }
 

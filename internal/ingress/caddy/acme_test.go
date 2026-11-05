@@ -3,6 +3,7 @@
 package caddy
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -284,5 +285,117 @@ func TestTheBootstrapNamesItsCA(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(filepath.Join(dir, bootDirName, acmeRootsName)); string(got) != "not a root yet" {
 		t.Errorf("the roots weren't copied where Caddy reads them: %q", got)
+	}
+}
+
+// issuerOf reads who signed the certificate a name is served with.
+func issuerOf(t *testing.T, c *realCaddy, name string) string {
+	t.Helper()
+	conn := c.rawConn(t, name)
+	defer conn.Close()
+	return conn.ConnectionState().PeerCertificates[0].Issuer.CommonName
+}
+
+// selfSignedChain is a certificate for a name, as the panel would have from its
+// own ACME client, signed by another CA than Caddy's.
+func selfSignedChain(t *testing.T, name, issuer string) *ingress.PanelCert {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tpl := &x509.Certificate{
+		SerialNumber: big.NewInt(7), Subject: pkix.Name{CommonName: issuer}, DNSNames: []string{name},
+		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(24 * time.Hour),
+		KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tpl, tpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &ingress.PanelCert{
+		Chain: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}),
+		Key:   pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}),
+	}
+}
+
+// Moving behind Caddy can't take a working panel dark: Caddy serves the panel's
+// certificate from the first request, while the CA can't reach the name, as the
+// panel's old one would be. When Caddy's own comes, the panel's goes, key and all,
+// and its own is what serves.
+func TestThePanelKeepsItsCertificateUntilCaddysOwnComesOnRealCaddy(t *testing.T) {
+	p := startPebble(t)
+	site := &ingress.PanelSite{Domain: "panel.example.net", Cert: selfSignedChain(t, "panel.example.net", "the panel's own CA")}
+	c := startCaddyWithCA(t, p, site, "")
+	if err := c.SetPanel(t.Context(), site); err != nil {
+		t.Fatal(err)
+	}
+	// DNS doesn't point here yet, so the CA can't give Caddy its own.
+	got := who(t, c.waitServing(t, "panel.example.net", "/who"))
+	if got["proto"] == "" {
+		t.Errorf("the panel's site answers %v", got)
+	}
+	if issuer := issuerOf(t, c, "panel.example.net"); issuer != "the panel's own CA" {
+		t.Errorf("Caddy serves a certificate from %q, want the panel's", issuer)
+	}
+	if st, _ := c.Certificates(t.Context(), []string{"panel.example.net"}); st["panel.example.net"].Phase == ingress.CertIssued {
+		t.Error("a loaded certificate reads as Caddy's own, so the panel's would never be dropped for it")
+	}
+	// Loading it again changes nothing, as a reconcile does each minute.
+	before, _, err := c.call(t.Context(), http.MethodGet, "/config/apps/tls", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetPanel(t.Context(), site); err != nil {
+		t.Fatal(err)
+	}
+	after, _, _ := c.call(t.Context(), http.MethodGet, "/config/apps/tls", nil, nil)
+	if !bytes.Equal(before, after) {
+		t.Errorf("loading it again changed the config:\n%s\n%s", before, after)
+	}
+
+	// DNS comes to point here, and Caddy gets its own.
+	p.addRecord(t, "panel.example.net", "127.0.0.1")
+	if err := c.Retry(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, c.Caddy, "panel.example.net", ingress.CertIssued, 60*time.Second)
+	if err := c.SetPanel(t.Context(), site); err != nil {
+		t.Fatal(err)
+	}
+	b, _, err := c.call(t.Context(), http.MethodGet, "/config/", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(b, []byte("PRIVATE KEY")) || bytes.Contains(b, []byte("load_pem")) {
+		t.Errorf("the panel's key is still in Caddy's config: %.300s", b)
+	}
+	saved, err := os.ReadFile(c.autosaveFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(saved, []byte("PRIVATE KEY")) {
+		t.Error("the panel's key is still in Caddy's last config")
+	}
+	if good := c.readGood(); bytes.Contains(good, []byte("PRIVATE KEY")) {
+		t.Error("the panel's key is still in the agent's copy")
+	}
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		issuer := issuerOf(t, c, "panel.example.net")
+		if issuer != "the panel's own CA" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("Caddy still serves a certificate from %q", issuer)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if got := who(t, c.waitServing(t, "panel.example.net", "/who")); got["proto"] == "" {
+		t.Errorf("on its own certificate, the panel's site answers %v", got)
 	}
 }

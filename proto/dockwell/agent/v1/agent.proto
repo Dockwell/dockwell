@@ -70,6 +70,8 @@ message ConnectRequest {
 message Domains {
   // Each domain, sorted.
   repeated dockwell.v1.DomainStatus domains = 1;
+  // Where the server's ingress stands. Unset for a server with no routes.
+  dockwell.v1.IngressStatus ingress = 2;
 }
 
 // CallProgress says how a call under way is going.

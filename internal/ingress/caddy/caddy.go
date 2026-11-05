@@ -37,6 +37,7 @@ const (
 	serverName     = "dockwell"
 	httpServerName = "dockwell_http"
 	panelRouteID   = "dockwell.panel"
+	closedRouteID  = "dockwell.closed"
 	routesPath     = "/config/apps/http/servers/" + serverName + "/routes"
 	// startWait bounds waiting for Caddy to answer after it starts.
 	startWait = 30 * time.Second
@@ -363,6 +364,9 @@ func (c *Caddy) bootstrap(panel *ingress.PanelSite) ([]byte, error) {
 	}
 	servers[serverName] = map[string]any{
 		"listen": []string{":" + strconv.Itoa(httpsPort)}, "strict_sni_host": true, "routes": routes,
+		// A certificate loaded for the panel's domain would otherwise stop Caddy
+		// getting its own, and nothing renews one that was loaded.
+		"automatic_https": map[string]any{"ignore_loaded_certificates": true},
 		// Early data can be replayed by anyone who captured it, and its source
 		// address isn't proven, so a request in it is neither safe to act on
 		// nor safe to attribute. A client simply waits one round trip more.
@@ -701,7 +705,7 @@ var (
 // Dockwell leaves alone.
 func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	id := routeID(raw)
-	if !strings.HasPrefix(id, "dockwell.") || strings.HasPrefix(id, panelRouteID) {
+	if !strings.HasPrefix(id, "dockwell.") || strings.HasPrefix(id, panelRouteID) || id == closedRouteID {
 		return ingress.Route{}, false
 	}
 	out := ingress.Route{ID: id}
@@ -805,8 +809,9 @@ func (c *Caddy) mutate(ctx context.Context, edit func([]json.RawMessage) ([]json
 }
 
 // sortRoutes puts what is most specific first, as Caddy takes the first route
-// that matches: the panel, routes that aren't Dockwell's, then each domain's
-// longest paths first. It is stable, so a config reads the same each time.
+// that matches: the panel, routes that aren't Dockwell's, what closes the rest,
+// then each domain's longest paths first. It is stable, so a config reads the
+// same each time.
 func sortRoutes(routes []json.RawMessage) {
 	type key struct {
 		rank         int
@@ -819,9 +824,11 @@ func sortRoutes(routes []json.RawMessage) {
 			return key{rank: 0}
 		case !strings.HasPrefix(id, "dockwell."):
 			return key{rank: 1}
+		case id == closedRouteID:
+			return key{rank: 2}
 		}
 		r, _ := readRoute(raw)
-		return key{rank: 2, domain: r.Domain, path: r.Path}
+		return key{rank: 3, domain: r.Domain, path: r.Path}
 	}
 	type keyed struct {
 		raw json.RawMessage
@@ -837,7 +844,7 @@ func sortRoutes(routes []json.RawMessage) {
 		switch {
 		case ka.rank != kb.rank:
 			return ka.rank - kb.rank
-		case ka.rank < 2:
+		case ka.rank < 3:
 			return 0
 		case ka.domain != kb.domain:
 			return strings.Compare(ka.domain, kb.domain)
@@ -917,10 +924,55 @@ func (c *Caddy) DeleteRoute(ctx context.Context, id string) error {
 	})
 }
 
+// closedRoute answers every request that reaches it with 503. It has no
+// matcher, and comes ahead of Dockwell's routes, so what they dial is never
+// dialled. Certificates come from the names in those routes, which stay.
+func closedRoute() ([]byte, error) {
+	return json.Marshal(map[string]any{
+		"@id": closedRouteID, "terminal": true,
+		"handle": []map[string]any{{
+			"handler": "static_response", "status_code": http.StatusServiceUnavailable,
+			"body":    "This site can't be reached right now. Try again in a little while.\n",
+			"headers": map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}, "Cache-Control": {"no-store"}, "Retry-After": {"60"}},
+		}},
+	})
+}
+
+// SetClosed has every route answer 503, or takes that away, if it isn't so
+// already. With Caddy down, it goes in the last config, which is what Caddy
+// serves when it starts again.
+func (c *Caddy) SetClosed(ctx context.Context, closed bool) error {
+	raw, _, up, err := c.rawRoutes(ctx)
+	if err != nil {
+		return err
+	}
+	if slices.ContainsFunc(raw, func(r json.RawMessage) bool { return routeID(r) == closedRouteID }) == closed {
+		return nil
+	}
+	body, err := closedRoute()
+	if err != nil {
+		return err
+	}
+	edit := func(routes []json.RawMessage) []json.RawMessage {
+		routes = slices.DeleteFunc(routes, func(r json.RawMessage) bool { return routeID(r) == closedRouteID })
+		if closed {
+			routes = append(routes, body)
+		}
+		return routes
+	}
+	if !up {
+		return c.editLastConfig(edit)
+	}
+	return c.mutate(ctx, func(routes []json.RawMessage) ([]json.RawMessage, error) { return edit(routes), nil })
+}
+
 // SetPanel makes Caddy serve the panel's site, or stop, if it isn't already.
 func (c *Caddy) SetPanel(ctx context.Context, panel *ingress.PanelSite) error {
 	raw, _, up, err := c.rawRoutes(ctx)
 	if err != nil || !up {
+		return err
+	}
+	if err := c.setPanelCert(ctx, panel); err != nil {
 		return err
 	}
 	i := slices.IndexFunc(raw, func(r json.RawMessage) bool { return routeID(r) == panelRouteID })
@@ -943,6 +995,81 @@ func (c *Caddy) SetPanel(ctx context.Context, panel *ingress.PanelSite) error {
 		return err
 	}
 	return c.setPlainHTTP(ctx, panel)
+}
+
+// panelCertTag marks the certificate loaded for the panel, among any others.
+const panelCertTag = "dockwell.panel"
+
+// setPanelCert loads the certificate the panel has, so that moving behind Caddy
+// can't take a working panel dark, or drops it once Caddy has its own. It lives in
+// Caddy's config, in PEM, like what is in Caddy's data directory, rather than in
+// a file whose going missing would stop Caddy starting.
+func (c *Caddy) setPanelCert(ctx context.Context, panel *ingress.PanelSite) error {
+	const path = "/config/apps/tls"
+	b, _, err := c.call(ctx, http.MethodGet, path, nil, nil)
+	var ae *adminError
+	if errors.As(err, &ae) && (ae.Status == http.StatusNotFound || strings.Contains(ae.Message, "invalid traversal path")) {
+		b, err = []byte("null"), nil
+	}
+	if err != nil {
+		return err
+	}
+	tlsApp := map[string]json.RawMessage{}
+	if !bytes.Equal(bytes.TrimSpace(b), []byte("null")) {
+		if err := json.Unmarshal(b, &tlsApp); err != nil {
+			return fmt.Errorf("can't read Caddy's TLS config: %w", err)
+		}
+	}
+	certs := map[string]json.RawMessage{}
+	if err := unmarshalIf(tlsApp["certificates"], &certs); err != nil {
+		return err
+	}
+	var loaded []map[string]any
+	if err := unmarshalIf(certs["load_pem"], &loaded); err != nil {
+		return err
+	}
+	isOurs := func(cert map[string]any) bool {
+		tags, _ := cert["tags"].([]any)
+		return slices.Contains(tags, any(panelCertTag))
+	}
+	has := slices.ContainsFunc(loaded, isOurs)
+	want := panel != nil && panel.Cert != nil
+	if want {
+		if _, own := c.issued(panel.Domain); own {
+			want = false
+		}
+	}
+	if want == has {
+		return nil
+	}
+	loaded = slices.DeleteFunc(loaded, isOurs)
+	if want {
+		loaded = append(loaded, map[string]any{"certificate": string(panel.Cert.Chain), "key": string(panel.Cert.Key), "tags": []string{panelCertTag}})
+	}
+	if len(loaded) == 0 {
+		delete(certs, "load_pem")
+	} else if certs["load_pem"], err = json.Marshal(loaded); err != nil {
+		return err
+	}
+	if len(certs) == 0 {
+		delete(tlsApp, "certificates")
+	} else if tlsApp["certificates"], err = json.Marshal(certs); err != nil {
+		return err
+	}
+	if len(tlsApp) == 0 {
+		_, _, err = c.call(ctx, http.MethodDelete, path, nil, nil)
+	} else {
+		var body []byte
+		if body, err = json.Marshal(tlsApp); err != nil {
+			return err
+		}
+		_, _, err = c.call(ctx, http.MethodPost, path, body, nil)
+	}
+	if err != nil {
+		return fmt.Errorf("can't change the panel's certificate in Caddy: %w", err)
+	}
+	c.keepRunning(ctx)
+	return nil
 }
 
 func sameJSON(a, b []byte) bool {
