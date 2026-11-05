@@ -197,7 +197,8 @@ describe("an app's overview", () => {
   it("says what runs, where it is reached, and how it is set up", async () => {
     const { container } = renderAt("/apps/svc_web", api());
     const running = await screen.findByRole("region", { name: "Running" });
-    expect(within(running).getByText("ghcr.io/acme/web:1.5")).toBeVisible();
+    // A long name wraps after a slash, rather than in the middle of a word.
+    expect(within(running).getByText("ghcr.io/acme/web:1.5").querySelectorAll("wbr")).toHaveLength(2);
     expect(await within(running).findByRole("link", { name: "Open 49.12.33.7:8080" })).toHaveAttribute(
       "href",
       "http://49.12.33.7:8080",

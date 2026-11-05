@@ -244,6 +244,20 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   if (fits.callout.wraps !== "anywhere") fail(`a callout's image wraps as ${fits.callout.wraps}`);
   if (!fits.callout.stacked) fail("at 360 px a callout's actions don't sit under its text");
   await shoot(page, "apps-phone");
+  // A long file's refusal is still on screen, above the sheet's footer.
+  await page.goto(`${origin}/apps/new?source=compose`);
+  const longFile = Array.from({ length: 40 }, (_, i) => `  svc${i}:\n    image: ${FIRST}`).join("\n");
+  await page
+    .getByRole("dialog", { name: "New app" })
+    .getByLabel("Compose file")
+    .fill(`services:\n  front:\n    build: .\n${longFile}\n`);
+  await page.locator(".dw-code-field .dw-field-error").waitFor();
+  const seen = await page.evaluate(() => {
+    const error = document.querySelector(".dw-code-field .dw-field-error")?.getBoundingClientRect();
+    const foot = document.querySelector(".dw-sheet-foot")?.getBoundingClientRect();
+    return { error: error?.bottom ?? 0, foot: foot?.top ?? 0 };
+  });
+  if (seen.error > seen.foot) fail(`at 360 px a Compose error ends at ${seen.error}, under the footer at ${seen.foot}`);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(wideAt);
 

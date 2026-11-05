@@ -155,6 +155,12 @@
   gap: var(--space-3);
 }
 
+/* The panel draws the edge; a table inside it needs none of its own. */
+.app-environment .dw-table-wrap {
+  border: 0;
+  border-radius: inherit;
+}
+
 /* The list. */
 .apps-section {
   display: flex;
@@ -983,6 +989,10 @@
 /* The field grows with its file, and leaves room for what is said under it. */
 .new-app .dw-code-input {
   max-height: 56dvh;
+}
+
+.new-app.is-phone .dw-code-input {
+  max-height: 40dvh;
 }
 
 .app-var-label {

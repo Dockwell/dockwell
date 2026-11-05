@@ -41,7 +41,7 @@ import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { useApp, useRevisions } from "./AppContext";
 import { ListSkeleton } from "./AppsPage";
 import { canRollBackTo, fieldName, imageChange, nameOf, revisionName, shortImages, tidyMessage } from "./app";
-import { ImageName } from "./ImageName";
+import { ImageName, WholeImage } from "./ImageName";
 import { type Look, useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { useAppWords } from "./words";
 
@@ -607,7 +607,7 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
           <>
             <dt>{t`Image`}</dt>
             <dd className="deploy-image">
-              <code>{rev.image}</code>
+              <WholeImage image={rev.image} />
             </dd>
           </>
         ) : null}

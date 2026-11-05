@@ -53,7 +53,7 @@ import {
   tidyMessage,
 } from "./app";
 import { ExportSheet } from "./ExportSheet";
-import { ImageName } from "./ImageName";
+import { ImageName, WholeImage } from "./ImageName";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { usePlaces } from "./useServices";
 import { useAppWords } from "./words";
@@ -274,7 +274,7 @@ function RunningPanel() {
             <span className="app-running-label">
               <Trans>Image</Trans>
             </span>
-            <code>{running}</code>
+            <WholeImage image={running} />
             <CopyButton text={running} label={t`Copy the image`} />
           </>
         ) : (

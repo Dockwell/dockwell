@@ -16,6 +16,7 @@ import { Page } from "../shell/Page";
 import { AppContext, useApp, useRevisions } from "./AppContext";
 import { appState, deployedAt, environmentOf, imageOf, isMoving, nameOf, revisionName, shortImage } from "./app";
 import { DeploySheet } from "./DeploySheet";
+import { WholeImage } from "./ImageName";
 import { useWhoWords } from "./revision";
 import { usePlaces, useServices, useServicesLive } from "./useServices";
 import { useAppWords } from "./words";
@@ -141,7 +142,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           </Trans>
         ) : (
           <>
-            <code>{image}</code>
+            <WholeImage image={image} />
             {" · "}
             {who.deployed(latest?.change, ago)}
           </>
