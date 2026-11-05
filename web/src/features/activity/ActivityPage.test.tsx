@@ -57,6 +57,10 @@ function feedOf(first: WatchEventsResponse) {
   };
 }
 
+// Midday, so that what these say about "today" and "yesterday" holds at any hour:
+// an hour ago is yesterday at 00:30, and 26 hours ago is two days back at 01:00.
+vi.setSystemTime(new Date(2026, 10, 4, 12, 0));
+
 const shop = applied(shopPlanned(), new Date(Date.now() - 2 * 60_000));
 const shopEvent = changeEvent(shop);
 const signIn = auditEvent({
