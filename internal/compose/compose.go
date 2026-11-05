@@ -462,6 +462,8 @@ type model struct {
 	notices []Notice
 	// extensions are what each service's x-dockwell says.
 	extensions map[string]*extension `yaml:"-"`
+	// references are what each service's fields keep by name.
+	references map[string]*keptReferences `yaml:"-"`
 }
 
 // MaxFile is the largest Compose file Parse reads: 256 KiB, far more than
@@ -574,7 +576,7 @@ func parse(ctx context.Context, in Input) (*Stack, error) {
 	if err != nil {
 		return nil, err
 	}
-	dict, exposed, err := interpolate(ctx, raw, variables)
+	dict, read, err := interpolate(ctx, raw, variables)
 	if err != nil {
 		return nil, err
 	}
@@ -605,7 +607,7 @@ func parse(ctx context.Context, in Input) (*Stack, error) {
 	if ctx.Err() != nil {
 		return nil, stopped(ctx)
 	}
-	m.limits, m.notices, m.extensions = limits, unkept, extensions
+	m.limits, m.notices, m.extensions, m.references = limits, unkept, extensions, read.references
 	if err := m.resolve(variables, in.Directory); err != nil {
 		return nil, err
 	}
@@ -624,7 +626,7 @@ func parse(ctx context.Context, in Input) (*Stack, error) {
 		return nil, err
 	}
 	out.Name, _ = dict["name"].(string)
-	out.Exposed, out.ExposedMore = exposed.report()
+	out.Exposed, out.ExposedMore = read.exposure.report()
 	if ctx.Err() != nil {
 		return nil, stopped(ctx)
 	}
@@ -782,7 +784,7 @@ func stack(p *model) (*Stack, error) {
 	specs := map[string]*resourcev1.Service{}
 	for _, name := range slices.Sorted(maps.Keys(p.Services)) {
 		s := p.Services[name]
-		uses, err := usesOf(name, &s)
+		uses, err := usesOf(name, &s, p.references[name])
 		if err != nil {
 			return nil, err
 		}
@@ -811,16 +813,18 @@ func stack(p *model) (*Stack, error) {
 }
 
 // usesOf reads what a service uses from the label an export writes, of
-// the names its environment still has, so taking one out of the file stops
-// using it. The revisions it records are the store's to set again.
-func usesOf(name string, s *types.ServiceConfig) ([]resource.Use, error) {
+// the names its environment still has, or its fields still name, so taking one
+// out of the file stops using it. The revisions it records are the store's to
+// set again.
+func usesOf(name string, s *types.ServiceConfig, kept *keptReferences) ([]resource.Use, error) {
 	all, err := binding.ParseLabel(s.Labels[binding.LabelKey])
 	if err != nil {
 		return nil, invalid("the service %s has a label it can't use: %v. Remove the label, or export the file again", name, err)
 	}
 	var uses []resource.Use
 	for _, u := range all {
-		if _, ok := s.Environment[u.As]; ok {
+		_, inEnvironment := s.Environment[u.As]
+		if inEnvironment || kept != nil && slices.Contains(kept.names, u.As) {
 			uses = append(uses, u)
 		}
 	}
@@ -978,7 +982,62 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 			}
 		}
 	}
+	if err := takeReferences(what, c, p.references[name]); err != nil {
+		return nil, err
+	}
 	return c, nil
+}
+
+// takeReferences says which of a container's fields name values, and gives it what
+// variables gave those names, in its environment. That is where a field reads a value
+// from, so what is true of any value there is true of it: a sealed spec, a plan that
+// says it changed and never what it is, and an export that names it. A name a service
+// uses by reference with a value given too goes in as well, so its Validate refuses
+// it as set twice, whatever it is. Nothing compares it with a secret's.
+//
+// One name has one value in a container's environment, and a file can write two: in
+// its environment, and from a variable, which is all a command reads. They differ
+// only by mistake, as a file names them alike to mean them alike.
+//
+// A field the container doesn't end up with names nothing, as with a health check that
+// is turned off, whose test goes unread.
+func takeReferences(what string, c *resourcev1.Container, kept *keptReferences) error {
+	if kept == nil {
+		return nil
+	}
+	for _, field := range slices.Sorted(slices.Values(kept.fields)) {
+		names, err := binding.NamesIn(binding.WordsOf(c, field))
+		if err != nil || len(names) == 0 {
+			continue
+		}
+		c.References = append(c.References, field)
+		for _, name := range names {
+			value, given := kept.values[name]
+			if !given {
+				continue
+			}
+			have, set := c.Env[name]
+			if set && have != value {
+				return invalidAt(place{what, "environment." + name}, "%s has %s in its environment, and a variable of that name in its %s, with another value. A container has one value for a name, so Dockwell can't keep both. Rename one of them in the file", what, name, field)
+			}
+			if !set && imageNeeds(name) {
+				return invalidAt(place{what, field}, "%s names %s in its %s, and Dockwell would give it that name in its environment to read the value from, which replaces what the image sets there and what runs needs. Rename the variable in the file", what, name, field)
+			}
+			if c.Env == nil {
+				c.Env = map[string]string{}
+			}
+			c.Env[name] = value
+		}
+	}
+	return nil
+}
+
+// imageNeeds reports a name an image and what runs in it rely on in their
+// environment, which a variable named so in a command would replace, as a typo or
+// an .env meant for a shell does. Nothing needs a command to name one, and a file
+// that sets one in environment means it, so that stands.
+func imageNeeds(name string) bool {
+	return name == "PATH" || name == "HOME" || name == "HOSTNAME" || strings.HasPrefix(name, "LD_")
 }
 
 // readRestart reads a service's restart, with the count on-failure may take, as

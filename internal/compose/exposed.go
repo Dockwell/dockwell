@@ -8,13 +8,17 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/dockwell/dockwell/internal/resource/binding"
 )
 
 // Exposed is a variable whose value a Compose file writes in free text, where a
 // secret can really land, and where anyone who can read what it makes sees it: in a
 // plan, in the store's record of that plan, and in an export. Only a spec's sensitive
-// fields are blanked (ADR 0021), so a value that is a secret belongs in a service's
-// environment.
+// fields are blanked (ADR 0021), and a command, an entrypoint and a health check's
+// test keep a value by name (ADR 0022), so a value that is a secret belongs in one of
+// those. A command written as one string, with a value of several words, is the
+// exception, as a name can't stand for more than one word.
 type Exposed struct {
 	Variable string
 	// Kind says what holds it: service, volume or network.
@@ -23,12 +27,15 @@ type Exposed struct {
 	Owner string
 	// Field is its field, such as command, labels or healthcheck.
 	Field string
+	// Whole says it is text as the rest of a command written as one string, which
+	// another value on it made text, and not for its own sake.
+	Whole bool
 }
 
 // What a plan doesn't warn of. A value shows in every field a spec keeps but its
-// sensitive ones, and a plan warns only where it is free text, as in a command or a
-// label, where a secret can really land. A name, a number or a path shows as what it
-// is. Nearly every real file has container_name: ${CONTAINER_NAME} and
+// sensitive ones and those that keep it by name, and a plan warns only where it is
+// free text, as in a label, where a secret can really land. A name, a number or a
+// path shows as what it is. Nearly every real file has container_name: ${CONTAINER_NAME} and
 // ports: ${PORT}:80, so a warning there would be on nearly every plan, people would
 // stop reading what is always there, and the one about a password in a command would
 // go unread.
@@ -91,7 +98,14 @@ type exposure struct {
 // an entry, which isn't quiet whatever the entry's field is. What it records is from
 // what the file's keys have been checked to be: a field is one Dockwell takes, and a
 // variable's name is what the reader takes as one, so neither is the file's to word.
-func (x *exposure) note(at place, name string, naming bool) {
+func (x *exposure) note(at place, name string, naming bool) { x.record(at, name, naming, false) }
+
+// noteText records that name's value lands as text in a field that would otherwise
+// keep it by name: as what one name can't stand for, or, with whole, as the rest of a
+// line another value made all text.
+func (x *exposure) noteText(at place, name string, whole bool) { x.record(at, name, false, whole) }
+
+func (x *exposure) record(at place, name string, naming, whole bool) {
 	var e Exposed
 	var quiet map[string]bool
 	for _, section := range []struct {
@@ -106,7 +120,7 @@ func (x *exposure) note(at place, name string, naming bool) {
 		return // the file's name or version, which nothing keeps
 	}
 	field, isQuiet := quietField(quiet, at.path)
-	e.Field = field
+	e.Field, e.Whole = field, whole
 	if isQuiet && !naming {
 		return
 	}
@@ -151,6 +165,11 @@ func exposedIn(ctx context.Context, raw map[string]any) (found []Exposed, more b
 			for _, field := range slices.Sorted(maps.Keys(fields)) {
 				at := Exposed{Kind: section.kind, Owner: name, Field: field}
 				value := fields[field]
+				// These keep a value by name, whatever it is. One made of several words
+				// is the exception, which only a plan can tell, once it has the value.
+				if section.kind == "service" && (field == binding.FieldCommand || field == binding.FieldEntrypoint) {
+					continue
+				}
 				// A value here is blanked, and a name isn't. A map's keys are never
 				// read for variables, so only a list can do this.
 				if section.kind == "service" && field == "environment" {
@@ -168,7 +187,7 @@ func exposedIn(ctx context.Context, raw map[string]any) (found []Exposed, more b
 					continue
 				}
 				for _, key := range slices.Sorted(maps.Keys(within)) {
-					if _, quiet := quietField(section.quiet, field+"."+key); !quiet {
+					if _, quiet := quietField(section.quiet, field+"."+key); !quiet && (section.kind != "service" || field+"."+key != binding.FieldTest) {
 						x.value(at, within[key])
 					}
 				}

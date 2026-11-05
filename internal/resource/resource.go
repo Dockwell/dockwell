@@ -974,6 +974,25 @@ type DataKeeper interface {
 	KeptData(spec proto.Message) []string
 }
 
+// TextNamer is a kind whose spec can write, as text, what reads as naming a value
+// it has: ${NAME} in a field that doesn't name values, which runs as those words.
+type TextNamer interface {
+	// NamedAsText says, by field, what a spec writes as ${NAME} in a field that holds
+	// text, for a name it has a value for.
+	NamedAsText(spec proto.Message) map[string][]string
+}
+
+// NamedAsText says what spec writes as ${NAME} as text, if its kind is a TextNamer.
+func (r *Registry) NamedAsText(kind Kind, spec proto.Message) map[string][]string {
+	if spec == nil {
+		return nil
+	}
+	if n, ok := r.types[kind].(TextNamer); ok {
+		return n.NamedAsText(spec)
+	}
+	return nil
+}
+
 // KeptData names what spec writes to, if its kind is a DataKeeper.
 func (r *Registry) KeptData(ref Ref, spec proto.Message) []string {
 	if spec == nil {
@@ -1108,6 +1127,11 @@ func (r *Registry) Type(kind Kind) (Type, error) {
 // ErrNoDriver means a server's agent has no driver for a kind, so it can't
 // plan or apply resources of that kind.
 var ErrNoDriver = errors.New("no driver for this kind")
+
+// ErrAgentTooOld is an agent from before a container's command could name a value,
+// which would read such a container's command as Docker has it, value and all
+// (ADR 0022). Nothing is read, planned or applied on it that names a value.
+var ErrAgentTooOld = errors.New("the agent is older than what this server runs")
 
 // Kinds lists the kinds the registry has drivers for, sorted.
 func (r *Registry) Kinds() []Kind {

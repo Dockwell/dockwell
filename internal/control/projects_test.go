@@ -259,8 +259,8 @@ func TestAComposeFileSaysWhereItExposesAVariable(t *testing.T) {
 		vars := map[string]string{"REDIS_PASSWORD": secret, "LABEL_SECRET": "l", "PROBE_TOKEN": "p"}
 		// A form goes by what could come, so OWNER counts though it has a default: a
 		// value lands there once it's given. A plan goes by the values it has.
-		want := []string{"LABEL_SECRET/shop/labels", "OWNER/shop/labels", "PROBE_TOKEN/shop/healthcheck", "REDIS_PASSWORD/shop/command"}
-		given := []string{"LABEL_SECRET/shop/labels", "PROBE_TOKEN/shop/healthcheck", "REDIS_PASSWORD/shop/command"}
+		want := []string{"LABEL_SECRET/shop/labels", "OWNER/shop/labels"}
+		given := []string{"LABEL_SECRET/shop/labels"}
 		names := func(list []*dockwellv1.ExposedVariable) []string {
 			out := make([]string, len(list))
 			for i, e := range list {
@@ -302,13 +302,13 @@ func TestAComposeFileSaysWhereItExposesAVariable(t *testing.T) {
 		}
 		var note *dockwellv1.PlanNote
 		for _, n := range notes {
-			if n.GetNames()[0] == "REDIS_PASSWORD" {
+			if n.GetNames()[0] == "LABEL_SECRET" {
 				note = n
 			}
 		}
 		if note == nil || note.GetReason() != "exposed_variable" ||
 			!strings.Contains(note.GetMessage(), "anyone who can read this change or export this environment can read it") ||
-			!strings.Contains(note.GetMessage(), "set it in environment and have the command read it there, with sh -c") ||
+			!strings.Contains(note.GetMessage(), "It can't be hidden there") ||
 			note.GetResource().GetName() != "shop" {
 			t.Errorf("the note says %v", note)
 		}
@@ -321,16 +321,19 @@ func TestAComposeFileSaysWhereItExposesAVariable(t *testing.T) {
 			t.Errorf("GetChange's notes = %v, %v", got.Msg.GetChange().GetPlan().GetNotes(), err)
 		}
 
-		// What the notes warn of is real: a reader sees it in the command, and
-		// not in the environment.
+		// What the notes warn of is real, and what they don't is safe: a reader sees the
+		// command's value by name, and not in the environment.
 		applied(t, c, res.Msg.GetChange())
 		list, err := s.ListServices(t.Context(), connect.NewRequest(&dockwellv1.ListServicesRequest{}))
 		if err != nil {
 			t.Fatal(err)
 		}
 		app := list.Msg.GetServices()[0].GetSpec().GetApp()
-		if !slices.Contains(app.GetCommand(), secret) {
-			t.Errorf("the command reads %v; the warning would be false", app.GetCommand())
+		if slices.Contains(app.GetCommand(), secret) || !slices.Contains(app.GetCommand(), "${REDIS_PASSWORD}") {
+			t.Errorf("the command reads %v, which should name the value", app.GetCommand())
+		}
+		if got := app.GetLabels()["password"]; got != "l" {
+			t.Errorf("the label reads %q; the warning would be false", got)
 		}
 		if v := app.GetEnv()["SAFE"]; v != "" {
 			t.Errorf("the environment shows %q", v)

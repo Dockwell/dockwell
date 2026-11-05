@@ -1260,8 +1260,12 @@ msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
 msgstr "Anyone who can read {holder}'s {where} can see the value of {names}."
 
 #: src/features/changes/notices.tsx
-msgid "Anyone who can read this app can see it. To keep it hidden, pass it in environment, and use $${variable} in the {where}."
-msgstr "Anyone who can read this app can see it. To keep it hidden, pass it in environment, and use $${variable} in the {where}."
+msgid "Anyone who can read this app can see it. It can't be hidden there, so don't pass a secret there."
+msgstr "Anyone who can read this app can see it. It can't be hidden there, so don't pass a secret there."
+
+#: src/features/changes/notices.tsx
+msgid "Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
+msgstr "Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
 
 #: src/features/changes/words.ts
 msgid "API token"
@@ -2627,7 +2631,6 @@ msgstr "Go to the last"
 msgid "Go to the overview"
 msgstr "Go to the overview"
 
-#: src/features/apps/NewAppSheet.tsx
 #: src/features/apps/words.ts
 #: src/features/changes/fields.tsx
 #: src/features/changes/notices.tsx
@@ -2993,6 +2996,10 @@ msgstr "Its rollout order says to stop first, so there are never two"
 msgid "its server"
 msgstr "its server"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
+msgstr "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
+
 #: src/features/apps/ExportSheet.tsx
 msgid "Its whole project"
 msgstr "Its whole project"
@@ -3324,6 +3331,10 @@ msgstr "Name the token after what will use it, such as GitHub Actions deploy."
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Name what connects to this server, as an address or a range."
 msgstr "Name what connects to this server, as an address or a range."
+
+#: src/features/changes/fields.tsx
+msgid "names values in"
+msgstr "names values in"
 
 #. placeholder {0}: refused.line
 #. placeholder {1}: refused.to
@@ -5602,14 +5613,6 @@ msgstr "to create"
 #: src/app/Providers.tsx
 msgid "to delete"
 msgstr "to delete"
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "To keep one hidden, pass it in <0>environment</0> for the app to read, or run the {where} through a shell, as <1>sh -c</1>, with <2>$$NAME</2> in it."
-msgstr "To keep one hidden, pass it in <0>environment</0> for the app to read, or run the {where} through a shell, as <1>sh -c</1>, with <2>$$NAME</2> in it."
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "To keep one hidden, pass it in <0>environment</0>, and write the test as <1>CMD-SHELL</1> with <2>$$NAME</2> in it."
-msgstr "To keep one hidden, pass it in <0>environment</0>, and write the test as <1>CMD-SHELL</1> with <2>$$NAME</2> in it."
 
 #: src/app/Providers.tsx
 msgid "to move"

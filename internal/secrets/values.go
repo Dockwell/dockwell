@@ -13,6 +13,7 @@ import (
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -71,6 +72,78 @@ func (k *Keeper) Values(ctx context.Context, server string, ref resource.Ref, de
 		return nil, err
 	}
 	return out, nil
+}
+
+// NamingValues says which of refs name values in what runs, rather than hold them
+// (Container.references), on server: in their latest revision, or in any revision
+// the server was given, as what it runs may be an older one than the latest, such as
+// one a change that never reached it would have replaced. An agent from before
+// references reads such a container's command as Docker has it, value and all, so the
+// agent stream reads, plans and applies none of these on one (ADR 0022).
+func (k *Keeper) NamingValues(ctx context.Context, server string, refs []resource.Ref) ([]resource.Ref, error) {
+	var out []resource.Ref
+	err := k.db.View(ctx, func(tx *store.Tx) error {
+		found := make([]store.Resource, 0, len(refs))
+		ids := make([]string, 0, len(refs))
+		for _, ref := range refs {
+			r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
+			if errors.Is(err, store.ErrNotFound) {
+				found = append(found, store.Resource{})
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			found = append(found, r)
+			ids = append(ids, r.ID)
+		}
+		given, err := tx.RevisionsGiven(ctx, server, ids)
+		if err != nil {
+			return err
+		}
+		for i, r := range found {
+			if r.ID == "" {
+				continue
+			}
+			numbers := append([]int{r.Revision}, given[r.ID]...)
+			slices.Sort(numbers)
+			for _, n := range slices.Compact(numbers) {
+				names, err := k.namesValuesAt(ctx, tx, r, n)
+				if err != nil {
+					return err
+				}
+				if names {
+					out = append(out, refs[i])
+					break
+				}
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
+// namesValuesAt reports a revision of r whose spec names values.
+func (k *Keeper) namesValuesAt(ctx context.Context, tx *store.Tx, r store.Resource, number int) (bool, error) {
+	spec := r.Spec
+	if number != r.Revision {
+		rev, err := tx.GetRevision(ctx, r.ID, number)
+		if errors.Is(err, store.ErrNotFound) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		spec = rev.Spec
+	}
+	if spec == nil {
+		return false, nil // a revision that deleted it
+	}
+	m, err := k.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, number), spec)
+	if err != nil {
+		return false, err
+	}
+	return binding.WritesReferences(m), nil
 }
 
 // valueAt reads what a use resolves to, at the revision it is pinned to.

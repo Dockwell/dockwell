@@ -91,6 +91,26 @@ func TestRefusesNewerSchema(t *testing.T) {
 	})
 }
 
+// A control plane from before a command could name a value has no check of an
+// older agent, and runs one itself, which would read its commands with their
+// values written in. So none opens a database a later one has used: its schema
+// version is past all 18 they knew, though that migration changes nothing.
+func TestNoControlPlaneFromBeforeReferencesOpensALaterDatabase(t *testing.T) {
+	const beforeReferences = 18
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, location := storetest.Open(t, b)
+		_ = db.Close()
+		older, err := store.OpenKnowing(t.Context(), location, beforeReferences)
+		if err == nil {
+			_ = older.Close()
+			t.Fatal("a dockwell from before a command could name a value opened a database a later one had used")
+		}
+		if !strings.Contains(err.Error(), "newer than this dockwell knows (18)") {
+			t.Errorf("an older dockwell's refusal = %v", err)
+		}
+	})
+}
+
 // A code setup left waiting by an older dockwell has no session that could
 // finish it, so upgrading forgets it, and keeps the secret already in use.
 func TestUpgradeForgetsACodeSetupLeftWaiting(t *testing.T) {

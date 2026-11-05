@@ -67,6 +67,9 @@ type Config struct {
 	// control plane as its stream opens, when a state changes, and every so
 	// often while checks run. Nil says nothing.
 	Health HealthReporter
+	// Hello changes what the agent says of itself as a stream opens, for a test
+	// that stands in for an agent of another version. Nil changes nothing.
+	Hello func(*agentv1.Hello)
 }
 
 // HealthReporter says how a server's services are (ADR 0027).
@@ -335,8 +338,11 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public()}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true}
 	hello.Kinds, hello.Unavailable = offered.proto()
+	if cfg.Hello != nil {
+		cfg.Hello(hello)
+	}
 	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: hello}}); err != nil {
 		if errors.Is(err, io.EOF) {
 			// The control plane ended the stream; Receive says why.

@@ -695,8 +695,9 @@ export const DeploymentStateSchema: GenEnum<DeploymentState> = /*@__PURE__*/
  *
  * It blanks a spec's sensitive values, so an environment variable shows by name
  * alone, and what it uses of its environment's variables and secrets by name.
- * What isn't marked sensitive it shows, as seeing a command is useful: a Compose
- * file that writes a variable's value there has it read back from there, which
+ * What isn't marked sensitive it shows, as seeing a command is useful, with the
+ * names of the values it uses in it (Container.references). A Compose file that
+ * writes a variable's value in a label has it read back from there, which
  * importing the file says (ExposedVariable).
  *
  * @generated from service dockwell.v1.ServiceService

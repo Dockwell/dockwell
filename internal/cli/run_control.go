@@ -255,8 +255,9 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 	// start, and the store closes only after (srv.Run).
 	kinds := controlKinds(f.domain)
 	keeper := secrets.New(db, key, kinds.With(scope.Types()...))
+	// control.New has the agents' streams send the keeper's values, and ask it what
+	// names them.
 	agents := agentapi.NewAgents(kinds, logger)
-	agents.SendValues(keeper)
 	engine := revision.New(db, kinds, agents, keeper, logger)
 	resumeCtx := context.WithoutCancel(ctx)
 	resume := func() {

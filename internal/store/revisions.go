@@ -866,6 +866,36 @@ func (t *Tx) Deployments(ctx context.Context, resourceID string, revision int) (
 	return out, rows.Err()
 }
 
+// RevisionsGiven returns, of each of resourceIDs, the revisions that were ever
+// placed on server, whatever became of them, in one query. What a server runs of a
+// resource is one of these, or its latest.
+func (t *Tx) RevisionsGiven(ctx context.Context, server string, resourceIDs []string) (map[string][]int, error) {
+	out := make(map[string][]int, len(resourceIDs))
+	if len(resourceIDs) == 0 {
+		return out, nil
+	}
+	args := make([]any, 0, len(resourceIDs)+1)
+	args = append(args, server)
+	for _, id := range resourceIDs {
+		args = append(args, id)
+	}
+	rows, err := t.query(ctx, `SELECT resource_id, revision FROM deployments
+		WHERE server_id = ? AND resource_id IN (`+marks(len(resourceIDs))+`) ORDER BY resource_id, revision`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read what %s was given: %w", server, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var revision int
+		if err := rows.Scan(&id, &revision); err != nil {
+			return nil, fmt.Errorf("can't read what %s was given: %w", server, err)
+		}
+		out[id] = append(out[id], revision)
+	}
+	return out, rows.Err()
+}
+
 // DeploymentsOf returns where each of a resource's revisions named was placed,
 // by revision and then server, in one query.
 func (t *Tx) DeploymentsOf(ctx context.Context, resourceID string, revisions []int) (map[int][]Deployment, error) {

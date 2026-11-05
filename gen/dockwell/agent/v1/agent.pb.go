@@ -675,9 +675,13 @@ type Hello struct {
 	// with HPKE (ADR 0022). The agent makes a new pair for every stream and
 	// keeps the private key in memory only. An agent that sends none can't
 	// run a service that uses a variable or a secret.
-	DeliveryKey   []byte `protobuf:"bytes,5,opt,name=delivery_key,json=deliveryKey,proto3" json:"delivery_key,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	DeliveryKey []byte `protobuf:"bytes,5,opt,name=delivery_key,json=deliveryKey,proto3" json:"delivery_key,omitempty"`
+	// Says the agent writes a container's references (Container.references) in
+	// as it makes the container. The control plane sends none to one that
+	// doesn't say so, which would run ${NAME} as the words it is.
+	WritesReferences bool `protobuf:"varint,6,opt,name=writes_references,json=writesReferences,proto3" json:"writes_references,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Hello) Reset() {
@@ -743,6 +747,13 @@ func (x *Hello) GetDeliveryKey() []byte {
 		return x.DeliveryKey
 	}
 	return nil
+}
+
+func (x *Hello) GetWritesReferences() bool {
+	if x != nil {
+		return x.WritesReferences
+	}
+	return false
 }
 
 // ConnectResponse is one message from the control plane.
@@ -3186,13 +3197,14 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\"\n" +
 	"\n" +
-	"\bDraining\"\xf0\x01\n" +
+	"\bDraining\"\x9d\x02\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
 	"\x05kinds\x18\x03 \x03(\tR\x05kinds\x12D\n" +
 	"\vunavailable\x18\x04 \x03(\v2\".dockwell.agent.v1.UnavailableKindR\vunavailable\x12!\n" +
-	"\fdelivery_key\x18\x05 \x01(\fR\vdeliveryKey\"\xf4\x01\n" +
+	"\fdelivery_key\x18\x05 \x01(\fR\vdeliveryKey\x12+\n" +
+	"\x11writes_references\x18\x06 \x01(\bR\x10writesReferences\"\xf4\x01\n" +
 	"\x0fConnectResponse\x126\n" +
 	"\awelcome\x18\x01 \x01(\v2\x1a.dockwell.agent.v1.WelcomeH\x00R\awelcome\x12-\n" +
 	"\x04call\x18\x02 \x01(\v2\x17.dockwell.agent.v1.CallH\x00R\x04call\x127\n" +

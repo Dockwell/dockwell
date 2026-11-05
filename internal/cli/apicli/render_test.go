@@ -894,3 +894,18 @@ func TestAPlanSaysWhatsSoOfItsStep(t *testing.T) {
 		t.Errorf("a stopped container's plan reads:\n%s", got)
 	}
 }
+
+// A command that writes ${NAME} as text says how to have it name the value, in the
+// flag the command line has for it, a service's or a container's.
+func TestANameWrittenAsTextSaysTheFlag(t *testing.T) {
+	for kind, flag := range map[string]string{"service": "--app-references command", "container": "--references command"} {
+		var buf bytes.Buffer
+		PlanView(&buf, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{{
+			Reason: "named_as_text", Resource: &dockwellv1.ResourceRef{Kind: kind, Name: "redis"}, Names: []string{"command", "PW"},
+			Message: "redis's command has ${PW} as text, as references doesn't list command, so it runs with those words and not the value of PW. To have it name the value, list command in its references",
+		}}})
+		if want := "list command in its references, with " + flag + " on the command line.\n"; !strings.Contains(buf.String(), want) {
+			t.Errorf("for a %s it says %q, want it to end %q", kind, buf.String(), want)
+		}
+	}
+}

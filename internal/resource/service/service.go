@@ -112,7 +112,15 @@ func (d *Driver) Validate(spec proto.Message) error {
 	if len(svc.Revisions) == 0 {
 		svc.Revisions = nil
 	}
-	return container.Validate(app)
+	if err := container.Validate(app); err != nil {
+		return err
+	}
+	return binding.CheckWords(app, func(name string) bool {
+		_, inEnv := app.GetEnv()[name]
+		_, v := svc.GetVariables()[name]
+		_, s := svc.GetSecrets()[name]
+		return inEnv || v || s
+	})
 }
 
 // References are the volumes the service mounts and the networks it
@@ -302,6 +310,18 @@ func (d *Driver) Check(ctx context.Context, ref resource.Ref, desired proto.Mess
 // engine adds what its volumes and networks reach (References).
 func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 	return container.ServiceAccess(spec.(*resourcev1.Service).GetApp())
+}
+
+// NamedAsText says what the app writes as ${NAME} as text, for what its environment
+// or the service's uses has.
+func (*Driver) NamedAsText(spec proto.Message) map[string][]string {
+	svc := spec.(*resourcev1.Service)
+	return binding.NamedAsText(svc.GetApp(), func(name string) bool {
+		_, inEnv := svc.GetApp().GetEnv()[name]
+		_, v := svc.GetVariables()[name]
+		_, s := svc.GetSecrets()[name]
+		return inEnv || v || s
+	})
 }
 
 // Normalize orders the app, as Validate would.

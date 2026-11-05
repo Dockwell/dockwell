@@ -212,6 +212,10 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 	log.InfoContext(ctx, "server connected", slog.String("agent", hello.GetBuild().GetVersion()),
 		slog.String("build", string(buildinfo.EditionOf(hello.GetBuild()))), slog.Any("kinds", hello.GetKinds()),
 		slog.Int("unavailable_kinds", len(hello.GetUnavailable())))
+	if !hello.GetWritesReferences() {
+		log.WarnContext(ctx, "the agent is from before a command could name a value, so nothing on this server that names one is read, planned or applied until you update the agent",
+			slog.String("agent", hello.GetBuild().GetVersion()))
+	}
 	// The engine reaches the agent's drivers over the stream from now on.
 	// Sends after the welcome go through the session, one at a time.
 	var session *Session

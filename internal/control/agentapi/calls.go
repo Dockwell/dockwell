@@ -24,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/secrets"
 )
@@ -61,6 +62,8 @@ type Agents struct {
 	// values finds the values of the variables and secrets a service uses,
 	// for the server it is about to run on.
 	values resource.Values
+	// naming says what names values on a server, for agents that don't write them in.
+	naming Naming
 
 	mu        sync.Mutex
 	sessions  map[string]*Session // the newest stream of each server
@@ -190,6 +193,22 @@ func (a *Agents) SendValues(values resource.Values) {
 	a.values = values
 }
 
+// Naming says which resources name values in what runs on a server, the keeper's
+// secrets.Keeper.NamingValues.
+type Naming interface {
+	NamingValues(ctx context.Context, server string, refs []resource.Ref) ([]resource.Ref, error)
+}
+
+// CheckNaming has each stream ask naming, of an agent that doesn't say it writes a
+// container's references in, which of what it reads, plans and applies names values,
+// and refuse those (Session.checkReads). Without it, such an agent is refused all of
+// them.
+func (a *Agents) CheckNaming(naming Naming) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.naming = naming
+}
+
 // OnConnect calls fn, in its own goroutine, each time a server's agent
 // connects, and each time it can run a kind it couldn't, as when Docker
 // starts after it, such as to resume what waits for it.
@@ -284,7 +303,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()),
+		agents: a, server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
@@ -325,6 +344,8 @@ type Session struct {
 	// deliveryKey is the stream's own public key, which the values of
 	// variables and secrets are sealed to.
 	deliveryKey []byte
+	// writesReferences says the agent writes a container's references in.
+	writesReferences bool
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -684,6 +705,16 @@ func (s *Session) supports(ref resource.Ref) error {
 // Plan asks the agent what moving each resource to its desired spec would
 // take. It reads the server and changes nothing there.
 func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resource.Step, error) {
+	if err := s.checkAllWrites(desired); err != nil {
+		return nil, err
+	}
+	refs := make([]resource.Ref, len(desired))
+	for i, d := range desired {
+		refs[i] = d.Ref
+	}
+	if err := s.checkReads(ctx, refs); err != nil {
+		return nil, err
+	}
 	call := &agentv1.PlanCall{}
 	for _, d := range desired {
 		if err := s.supports(d.Ref); err != nil {
@@ -708,18 +739,19 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 	}
 	steps := make([]resource.Step, len(got))
 	for i, p := range got {
+		want := desired[i].Ref //nolint:gosec // got has as many as desired, as checked above
 		if steps[i], err = resourcepb.FromStep(p); err != nil {
 			// Read as anything else, the step would be skipped or
 			// misstated, so the plan fails.
 			return nil, fmt.Errorf("%s's agent planned a step for %s that this control plane can't read: %w. "+
-				"The agent is newer than the control plane, so upgrade the control plane to the agent's version", s.name, desired[i].Ref, err)
+				"The agent is newer than the control plane, so upgrade the control plane to the agent's version", s.name, want, err)
 		}
 		// The step is about the resource asked for, whatever the agent says.
-		steps[i].Ref = desired[i].Ref
+		steps[i].Ref = want
 		// A field the schema marks sensitive never shows its value, whatever
 		// the agent says of it: plans are kept, and an agent that got it
 		// wrong mustn't put a secret in one.
-		if t, err := s.agents.kinds.Type(desired[i].Ref.Kind); err == nil {
+		if t, err := s.agents.kinds.Type(want.Kind); err == nil {
 			md := t.New().ProtoReflect().Descriptor()
 			for j := range steps[i].Changes {
 				c := &steps[i].Changes[j]
@@ -739,6 +771,12 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 // when it moves to a renewed certificate, is sealed again for that one.
 func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
 	if err := s.supports(step.Ref); err != nil {
+		return err
+	}
+	if err := s.checkWrites(step.Ref, desired); err != nil {
+		return err
+	}
+	if err := s.checkReads(ctx, []resource.Ref{step.Ref}); err != nil {
 		return err
 	}
 	dr, err := desiredProto(step.Ref, desired)
@@ -803,6 +841,56 @@ func (s *Session) seal(ref resource.Ref, values map[string]string) ([]byte, erro
 	return sealed, nil
 }
 
+// checkWrites refuses a spec whose fields name values for an agent that doesn't say
+// it writes them in, which would run ${NAME} as the words it is: a password anyone who
+// can read the plan knows.
+func (s *Session) checkWrites(ref resource.Ref, spec proto.Message) error {
+	if s.writesReferences || spec == nil || !binding.WritesReferences(spec) {
+		return nil
+	}
+	return fmt.Errorf("the agent on %s can't write a value into a command, and %s names one there. Update the agent on %s", s.name, ref.Name, s.name)
+}
+
+// checkReads refuses, for an agent that doesn't say it writes references in, any of
+// refs that names values on this server, now or in what the server was given. Such an
+// agent reads a container's command as Docker has it, so what it reports of one,
+// whatever the spec it is asked about, would carry a value into drift and plans. The
+// whole call is refused, so drift reports the server as unchecked, and says why. With
+// nothing to ask, as when CheckNaming was never called, everything counts as naming
+// values, so a control plane that forgot it reads nothing of such an agent's rather
+// than everything.
+func (s *Session) checkReads(ctx context.Context, refs []resource.Ref) error {
+	if s.writesReferences || len(refs) == 0 {
+		return nil
+	}
+	s.agents.mu.Lock()
+	naming := s.agents.naming
+	s.agents.mu.Unlock()
+	if naming == nil {
+		return fmt.Errorf("%w: the agent on %s is from before a command could name a value, and this control plane can't tell what on %s names one, so it reads, plans and applies nothing there. "+
+			"Update the agent on %s", resource.ErrAgentTooOld, s.name, s.name, s.name)
+	}
+	named, err := naming.NamingValues(ctx, s.server, refs)
+	if err != nil {
+		return fmt.Errorf("can't tell whether what %s runs names a value in its command: %w", s.name, err)
+	}
+	if len(named) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: the agent on %s is from before a command could name a value, so it reads %s's command with its values written in. "+
+		"Nothing on %s that names a value is read, planned or applied until you update the agent there", resource.ErrAgentTooOld, s.name, named[0].Name, s.name)
+}
+
+// checkAllWrites is checkWrites for all a plan asks of this agent.
+func (s *Session) checkAllWrites(desired []resource.Desired) error {
+	for _, d := range desired {
+		if err := s.checkWrites(d.Ref, d.Spec); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Session) noDeliveryKey(ref resource.Ref) error {
 	return fmt.Errorf("the agent on %s sent no delivery key, so it can't receive the variables and secrets %s uses. Update the agent on %s",
 		s.name, ref.Name, s.name)
@@ -810,6 +898,9 @@ func (s *Session) noDeliveryKey(ref resource.Ref) error {
 
 // Observe asks the agent for resources as the server has them.
 func (s *Session) Observe(ctx context.Context, refs []resource.Ref) ([]proto.Message, error) {
+	if err := s.checkReads(ctx, refs); err != nil {
+		return nil, err
+	}
 	call := &agentv1.ObserveCall{}
 	for _, ref := range refs {
 		if err := s.supports(ref); err != nil {
@@ -830,8 +921,9 @@ func (s *Session) Observe(ctx context.Context, refs []resource.Ref) ([]proto.Mes
 		if o.Spec == nil {
 			continue // the server doesn't have it
 		}
-		if out[i], err = s.agents.kinds.Decode(refs[i].Kind, o.GetSpec()); err != nil {
-			return nil, fmt.Errorf("can't read %s from %s's agent: %w", refs[i], s.name, err)
+		ref := refs[i] //nolint:gosec // got has as many as refs, as checked above
+		if out[i], err = s.agents.kinds.Decode(ref.Kind, o.GetSpec()); err != nil {
+			return nil, fmt.Errorf("can't read %s from %s's agent: %w", ref, s.name, err)
 		}
 	}
 	return out, nil

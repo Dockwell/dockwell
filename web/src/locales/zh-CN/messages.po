@@ -1260,8 +1260,12 @@ msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
 msgstr "能读取 {holder} 的{where}的任何人，都能看到 {names} 的值。"
 
 #: src/features/changes/notices.tsx
-msgid "Anyone who can read this app can see it. To keep it hidden, pass it in environment, and use $${variable} in the {where}."
-msgstr "能读取此应用的任何人都能看到它。要隐藏它，请通过 environment 传入，并在 {where} 中使用 $${variable}。"
+msgid "Anyone who can read this app can see it. It can't be hidden there, so don't pass a secret there."
+msgstr "能读取此应用的任何人都能看到它。那里无法隐藏它，所以不要在那里传入机密。"
+
+#: src/features/changes/notices.tsx
+msgid "Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
+msgstr "能读取此应用的任何人都能看到它。它的值含有空格、引号或 Compose 会当作这一行一部分来读的其他字符，所以一个名称无法代表它。要隐藏它，请把{where}写成列表，每个词使用各自的变量。"
 
 #: src/features/changes/words.ts
 msgid "API token"
@@ -2627,7 +2631,6 @@ msgstr "转到最后一处"
 msgid "Go to the overview"
 msgstr "前往概览"
 
-#: src/features/apps/NewAppSheet.tsx
 #: src/features/apps/words.ts
 #: src/features/changes/fields.tsx
 #: src/features/changes/notices.tsx
@@ -2993,6 +2996,10 @@ msgstr "其发布顺序设置为先停止，因此不会同时存在两个容器
 msgid "its server"
 msgstr "它的服务器"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
+msgstr "它的值含有空格、引号或 Compose 会当作这一行一部分来读的其他字符，所以一个名称无法代表它。要隐藏它，请把{where}写成列表，每个词使用各自的变量。"
+
 #: src/features/apps/ExportSheet.tsx
 msgid "Its whole project"
 msgstr "整个项目"
@@ -3324,6 +3331,10 @@ msgstr "用将要使用它的程序为令牌命名，例如 GitHub Actions deplo
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Name what connects to this server, as an address or a range."
 msgstr "请以地址或范围的形式，写明连接此服务器的来源。"
+
+#: src/features/changes/fields.tsx
+msgid "names values in"
+msgstr "引用值的字段"
 
 #. placeholder {0}: refused.line
 #. placeholder {1}: refused.to
@@ -5602,14 +5613,6 @@ msgstr "项待创建"
 #: src/app/Providers.tsx
 msgid "to delete"
 msgstr "项待删除"
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "To keep one hidden, pass it in <0>environment</0> for the app to read, or run the {where} through a shell, as <1>sh -c</1>, with <2>$$NAME</2> in it."
-msgstr "要隐藏某个值，请通过 <0>environment</0> 传入，由应用读取；或者通过 shell 运行{where}，如 <1>sh -c</1>，并在其中使用 <2>$$NAME</2>。"
-
-#: src/features/apps/NewAppSheet.tsx
-msgid "To keep one hidden, pass it in <0>environment</0>, and write the test as <1>CMD-SHELL</1> with <2>$$NAME</2> in it."
-msgstr "要隐藏某个值，请通过 <0>environment</0> 传入，并将检查写成 <1>CMD-SHELL</1>，在其中使用 <2>$$NAME</2>。"
 
 #: src/app/Providers.tsx
 msgid "to move"

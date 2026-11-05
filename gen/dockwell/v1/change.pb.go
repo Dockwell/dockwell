@@ -2283,8 +2283,10 @@ type UncheckedServer struct {
 	ServerName string `protobuf:"bytes,2,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
 	// Why, as a word an error's reason would be: "server_offline" for an
 	// agent that isn't connected, or dropped while it was checked, whose
-	// drift is checked once it reconnects; "agent_timeout"; "no_driver"; or
-	// "agent_failed".
+	// drift is checked once it reconnects; "agent_timeout"; "no_driver";
+	// "agent_outdated" for an agent from before a command could name a value,
+	// which would read one's command with its values written in, so it reads
+	// nothing that names one until it is updated; or "agent_failed".
 	Reason string `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
 	// Why, for people.
 	Message       string `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
@@ -3244,8 +3246,10 @@ func (x *PlanPlace) GetEnvironment() string {
 type PlanNote struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What it is about, for a surface that says it in its own words:
+	// "named_as_text" for ${NAME} written as text in a field references doesn't
+	// list, for a name the resource has a value for, which runs as those words;
 	// "exposed_variable" for a variable whose value a Compose file writes in
-	// free text, such as a command or a label, where anyone who can read the plan
+	// free text, such as a label, where anyone who can read the plan
 	// reads it, "exposed_more" for a file that writes more of them than a plan
 	// lists, "container_name" for a name a service now answers to as an alias,
 	// "no_build" for an image a Compose file builds and Dockwell doesn't,

@@ -40,6 +40,25 @@ func OpenAt(ctx context.Context, location string, version int) (*DB, error) {
 	return db, nil
 }
 
+// OpenKnowing opens the store at location as a dockwell that knows only the
+// first n migrations would.
+func OpenKnowing(ctx context.Context, location string, n int) (*DB, error) {
+	db, err := open(ctx, location)
+	if err != nil {
+		return nil, err
+	}
+	all, err := loadMigrations()
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	if err := db.migrateTo(ctx, all[:n], n); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return db, nil
+}
+
 // ChangesInPlanForTest says how the database would run ChangesIn's query,
 // as the planner would with a table too big to read whole: Postgres is told
 // to avoid reading the whole table where it can, since a test's table is

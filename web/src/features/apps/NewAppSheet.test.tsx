@@ -886,7 +886,6 @@ describe("New app, from a Compose file", () => {
               { name: "REDIS_PASSWORD", resource: { kind: "service", name: "shop" }, field: "command" },
               { name: "API_KEY", resource: { kind: "service", name: "shop" }, field: "command" },
               { name: "OWNER", resource: { kind: "service", name: "shop" }, field: "labels" },
-              { name: "PROBE", resource: { kind: "service", name: "shop" }, field: "healthcheck" },
               { name: "PREFIX", resource: { kind: "service", name: "shop" }, field: "environment" },
               { name: "MTU", resource: { kind: "network", name: "back" }, field: "driver_opts" },
             ],
@@ -904,12 +903,12 @@ describe("New app, from a Compose file", () => {
     expect(command).toHaveTextContent(
       "Anyone who can read shop's command can see the value of REDIS_PASSWORD, API_KEY.",
     );
-    expect(command).toHaveTextContent("pass it in environment for the app to read, or run the command through a shell");
-    expect(command).toHaveTextContent("sh -c, with $$NAME in it");
+    expect(command).toHaveTextContent(
+      "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it.",
+    );
+    expect(command).toHaveTextContent("write the command as a list, with each word its own variable");
     const labels = within(sheet).getByText(/shop's labels/);
     expect(labels).toHaveTextContent("It can't be hidden there, so don't pass a secret there.");
-    expect(labels).not.toHaveTextContent("$$");
-    expect(within(sheet).getByText(/shop's health check/)).toHaveTextContent("write the test as CMD-SHELL with $$NAME");
     const names = within(sheet).getByText(/shop's environment variable names/);
     expect(names).toHaveTextContent("Only a variable's value is hidden, so don't pass a secret there.");
     expect(within(sheet).getByText(/the network back's driver options/)).toHaveTextContent("MTU");

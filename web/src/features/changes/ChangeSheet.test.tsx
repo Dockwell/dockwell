@@ -760,7 +760,7 @@ describe("the plan sheet", () => {
     expect(callout).toHaveTextContent(
       "web's command holds the value of TOKEN. Anyone who can read this app can see it.",
     );
-    expect(callout).toHaveTextContent("use $$TOKEN in the command.");
+    expect(callout).toHaveTextContent("write the command as a list, with each word its own variable.");
     expect(callout).toHaveTextContent("This reason is new. The panel doesn't know it yet.");
     expect(sheet.querySelector(".plan-body")?.firstElementChild).toBe(callout);
     // It stops nobody.

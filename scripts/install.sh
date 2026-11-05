@@ -87,6 +87,8 @@ Options:
   --cosign-mirror <url>
                        download cosign from a mirror of its GitHub releases
                        (env DOCKWELL_COSIGN_MIRROR)
+  --downgrade          install a release older than the one installed, which
+                       it otherwise refuses (env DOCKWELL_DOWNGRADE=1)
   --uninstall          remove Dockwell; your workloads and data stay
   --remove-ingress     with --uninstall, also remove Dockwell's ingress, which
                        frees the ports it holds; your routes stop answering
@@ -310,6 +312,80 @@ valid_version() {
 	case $1 in
 	'' | *[!0-9A-Za-z.+-]*) return 1 ;;
 	esac
+}
+
+# release_shaped says whether $1 is a version as releases and the builds
+# between them are numbered: major, minor and patch, then perhaps a pre-release
+# after a -, and build metadata after a +. A build from source says devel.
+release_shaped() {
+	awk -v v="$1" 'BEGIN { exit !(v ~ /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/) }'
+}
+
+# older says whether version $1 comes before version $2, as semantic versions
+# are ordered: by major, minor and patch, then a pre-release before the release
+# it leads to, as a build from between releases, such as
+# 0.2.1-0.20261105181253-d7d1a767db49, is. Two pre-releases compare a dot at a
+# time, a number below a word, and build metadata doesn't count.
+older() {
+	LC_ALL=C awk -v a="$1" -v b="$2" '
+	function core(v) { sub(/\+.*/, "", v); sub(/-.*/, "", v); return v }
+	function pre(v) { sub(/\+.*/, "", v); return index(v, "-") ? substr(v, index(v, "-") + 1) : "" }
+	function number(s) { return s ~ /^[0-9]+$/ }
+	BEGIN {
+		split(core(a), ca, "."); split(core(b), cb, ".")
+		for (i = 1; i <= 3; i++) {
+			if (ca[i] + 0 < cb[i] + 0) exit 0
+			if (ca[i] + 0 > cb[i] + 0) exit 1
+		}
+		pa = pre(a); pb = pre(b)
+		if (pa == "" || pb == "") exit !(pa != "" && pb == "")
+		na = split(pa, x, "."); nb = split(pb, y, ".")
+		for (i = 1; i <= na && i <= nb; i++) {
+			if (number(x[i]) && number(y[i])) {
+				if (x[i] + 0 == y[i] + 0) continue
+				exit !(x[i] + 0 < y[i] + 0)
+			}
+			if (number(x[i]) != number(y[i])) exit !number(x[i])
+			if (x[i] "" == y[i] "") continue
+			exit !(x[i] "" < y[i] "")
+		}
+		exit !(na < nb)
+	}'
+}
+
+# going_back refuses a release older than the one installed, unless --downgrade
+# says to, and says what going back costs here. On a control server, an older
+# control plane doesn't start on a database a newer one has moved on, and on a
+# server that joined one, an older agent can lack what the control plane relies
+# on. A mirror can serve an older release as the latest, so the latest is held to
+# it too. A version it can't read, such as devel, may be newer than any release,
+# so it is refused the same way. With no binary installed there's nothing to
+# compare, and an uninstall keeps the data, so a reinstall isn't refused: there,
+# the database refuses an older control plane, and the control plane an older
+# agent, as they do after --downgrade.
+going_back() {
+	[ -n "$installed_version" ] || return 0
+	if release_shaped "$installed_version"; then
+		older "$version" "$installed_version" || return 0
+		going="Going back from v$installed_version to v$version, as --downgrade says."
+		why="v$version is older than v$installed_version, which is installed here, so nothing was installed."
+		[ -z "$latest" ] || why="$why It is the latest release at $releases, so that may be behind: check it, or pin a release with --version."
+		again="To go back on purpose, run this again with --downgrade."
+	else
+		going="Installing v$version over the dockwell installed here, whose version is $installed_version, as --downgrade says."
+		why="The dockwell installed here says its version is $installed_version, so this script can't tell whether v$version is older, and nothing was installed."
+		again="To install v$version anyway, run this again with --downgrade."
+	fi
+	if has_control_plane; then
+		cost="An older control plane doesn't start on a database a newer one has moved on: none from before a command could name a value starts on one a later control plane has used. If it doesn't start, restore its database from a backup taken before the upgrade, or install a newer release again."
+	else
+		cost="An older agent can lack what the control plane relies on: one from before a command could name a value reads such a command with its values written in, so the control plane reads, plans and applies nothing on this server that names one until it is updated again."
+	fi
+	if [ -n "$downgrade" ]; then
+		say "$going $cost"
+		return 0
+	fi
+	fail "$why $cost $again"
 }
 
 # resolve sets version to the release to install, and downloads its checksums.
@@ -738,6 +814,7 @@ install_dockwell() {
 	build_note=
 	pick_build
 	resolve
+	going_back
 	current=$installed_version
 	changed=
 	if [ "$current" = "$version" ] && [ "$installed_build" = "$build" ]; then
@@ -941,6 +1018,7 @@ options() {
 	[ -z "$version" ] || printf ' --version %s' "$(quote "$version")"
 	[ -z "$mirror" ] || printf ' --mirror %s' "$(quote "$mirror")"
 	[ -z "$cosign_mirror" ] || printf ' --cosign-mirror %s' "$(quote "$cosign_mirror")"
+	[ -z "$downgrade" ] || printf ' --downgrade'
 }
 
 # quote prints a value as sh reads it back: as it is when it holds only
@@ -957,7 +1035,9 @@ main() {
 	version=${DOCKWELL_VERSION:-}
 	mirror=${DOCKWELL_MIRROR:-}
 	cosign_mirror=${DOCKWELL_COSIGN_MIRROR:-}
-	from_env=${DOCKWELL_JOIN:-${DOCKWELL_VERSION:-${DOCKWELL_MIRROR:-${DOCKWELL_COSIGN_MIRROR:-}}}}
+	downgrade=
+	[ "${DOCKWELL_DOWNGRADE:-}" != 1 ] || downgrade=1
+	from_env=${DOCKWELL_JOIN:-${DOCKWELL_VERSION:-${DOCKWELL_MIRROR:-${DOCKWELL_COSIGN_MIRROR:-$downgrade}}}}
 	action=install
 	remove_ingress=
 	while [ $# -gt 0 ]; do
@@ -996,6 +1076,10 @@ main() {
 			;;
 		--cosign-mirror=*)
 			cosign_mirror=${1#--cosign-mirror=}
+			shift
+			;;
+		--downgrade)
+			downgrade=1
 			shift
 			;;
 		--uninstall)

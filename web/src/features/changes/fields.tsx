@@ -45,6 +45,7 @@ export function useFieldRows(): (source: FieldSource) => PlanChange[] {
       working_dir: t`working directory`,
       networks: t`networks`,
       "healthcheck.test": t`health check`,
+      references: t`names values in`,
       "healthcheck.interval": t`health check interval`,
       "healthcheck.timeout": t`health check timeout`,
       "healthcheck.start_period": t`health check start period`,

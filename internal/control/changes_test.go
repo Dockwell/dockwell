@@ -19,6 +19,7 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
@@ -70,6 +71,8 @@ type testServer struct {
 	drivers *resource.Registry
 	logs    agent.LogReader
 	stop    func()
+	// hello changes what its agent says of itself, to stand in for another version.
+	hello func(*agentv1.Hello)
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -111,6 +114,7 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	go func() {
 		_ = agent.Run(ctx, agent.Config{
 			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
+			Hello: s.hello,
 		})
 		close(done)
 	}()

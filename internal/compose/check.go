@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v4"
+
+	"github.com/dockwell/dockwell/internal/resource/binding"
 )
 
 // notYAML says a file isn't YAML, in words for people, and which lines to look
@@ -172,8 +174,8 @@ func inspect(ctx context.Context, in Input) Inspection {
 	// that has nothing else to run is refused there.
 	_, _ = takeBuilds(raw)
 	seen := map[string]bool{}
-	var walk func(v any)
-	walk = func(v any) {
+	var walk func(v any, holds map[string]bool)
+	walk = func(v any, holds map[string]bool) {
 		switch v := v.(type) {
 		case string:
 			if ctx.Err() != nil {
@@ -181,20 +183,54 @@ func inspect(ctx context.Context, in Input) Inspection {
 			}
 			scanVariables(v, 0, func(name string, op byte) bool {
 				_, inEnv := env[name]
-				seen[name] = seen[name] || !inEnv && (op == 0 || op == '?')
+				if !holds[name] {
+					seen[name] = seen[name] || !inEnv && (op == 0 || op == '?')
+				}
 				return true
 			})
 		case map[string]any:
 			for _, e := range v {
-				walk(e)
+				walk(e, holds)
 			}
 		case []any:
 			for _, e := range v {
-				walk(e)
+				walk(e, holds)
 			}
 		}
 	}
-	walk(raw)
+	// A name a service's label says the environment holds needs no value in what runs,
+	// and a form shouldn't ask for one: a file that gives one is refused as set twice.
+	listed := listedUses(raw)
+	for key, section := range raw {
+		services, ok := section.(map[string]any)
+		if key != "services" || !ok {
+			walk(section, nil)
+			continue
+		}
+		for name, service := range services {
+			fields, ok := service.(map[string]any)
+			if !ok {
+				walk(service, nil)
+				continue
+			}
+			for field, value := range fields {
+				switch hc, isMap := value.(map[string]any); {
+				case field == binding.FieldCommand || field == binding.FieldEntrypoint:
+					walk(value, listed[name])
+				case field == "healthcheck" && isMap:
+					for k, inside := range hc {
+						if field+"."+k == binding.FieldTest {
+							walk(inside, listed[name])
+						} else {
+							walk(inside, nil)
+						}
+					}
+				default:
+					walk(value, nil)
+				}
+			}
+		}
+	}
 	out := Inspection{Variables: make([]Variable, 0, len(seen)), Name: fileNamed(ctx, raw, given)}
 	for name, required := range seen {
 		out.Variables = append(out.Variables, Variable{Name: name, Required: required})

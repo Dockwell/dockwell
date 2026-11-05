@@ -354,3 +354,119 @@ func TestRemoveIngressNeedsUninstall(t *testing.T) {
 		t.Errorf("--remove-ingress alone = %v:\n%s", err, out)
 	}
 }
+
+// The install script doesn't go back a version on its own, and says what going back
+// costs on the server it runs on. On a server that joined, an older agent can lack
+// what the control plane relies on, as one from before a command could name a value
+// does. On a control server, an older control plane doesn't start on a database a
+// newer one has moved on. The latest a mirror serves can be older than what is
+// installed. Versions order as semantic versions do: a build between releases or a
+// pre-release before the release it leads to, and a version it can't read, such as a
+// build from source's devel, is refused as one that may be newer.
+func TestTheInstallScriptDoesntGoBackOnItsOwn(t *testing.T) {
+	steps := installSteps(t)
+	const agentCost = "reads, plans and applies nothing on this server that names one until it is updated again"
+	const controlCost = "An older control plane doesn't start on a database a newer one has moved on: none from before a command could name a value starts on one a later control plane has used. If it doesn't start, restore its database from a backup taken before the upgrade"
+	for _, c := range []struct {
+		installed, version string
+		latest, downgrade  bool
+		control            bool
+		refused            bool
+		says               string
+	}{
+		{installed: "0.3.0", version: "0.2.0", refused: true, says: "v0.2.0 is older than v0.3.0, which is installed here, so nothing was installed."},
+		{installed: "0.3.0", version: "0.2.0", latest: true, refused: true, says: "It is the latest release at"},
+		{installed: "0.3.0", version: "0.2.0", downgrade: true, says: "Going back from v0.3.0 to v0.2.0, as --downgrade says."},
+		{installed: "0.3.0", version: "0.2.0", control: true, refused: true, says: "v0.2.0 is older than v0.3.0"},
+		{installed: "0.3.0", version: "0.2.0", control: true, downgrade: true, says: "Going back from v0.3.0 to v0.2.0, as --downgrade says."},
+		{installed: "0.3.0", version: "0.3.0"},
+		{installed: "0.2.0", version: "0.3.0"},
+		{installed: "0.2.1-0.20261105181253-d7d1a767db49", version: "0.2.0", refused: true, says: "v0.2.0 is older than"},
+		{installed: "0.2.1-0.20261105181253-d7d1a767db49", version: "0.2.1"},
+		{installed: "0.2.1-0.20261106000000-aaaaaaaaaaaa", version: "0.2.1-0.20261105181253-d7d1a767db49", refused: true, says: "is older than"},
+		{installed: "0.2.1-0.20261105181253-d7d1a767db49", version: "0.2.1-0.20261106000000-aaaaaaaaaaaa"},
+		{installed: "0.3.0", version: "0.3.0-rc.1", refused: true, says: "v0.3.0-rc.1 is older than v0.3.0"},
+		{installed: "0.3.0-rc.2", version: "0.3.0-rc.1", refused: true, says: "v0.3.0-rc.1 is older than v0.3.0-rc.2"},
+		{installed: "0.3.0-rc.10", version: "0.3.0-rc.9", refused: true, says: "v0.3.0-rc.9 is older than"},
+		{installed: "0.3.0-rc", version: "0.3.0-1", refused: true, says: "v0.3.0-1 is older than"},
+		{installed: "0.3.0-rc.1", version: "0.3.0-rc", refused: true, says: "v0.3.0-rc is older than v0.3.0-rc.1"},
+		{installed: "0.3.0-rc", version: "0.3.0-rc.1"},
+		{installed: "0.3.0-rc.1", version: "0.3.0"},
+		{installed: "0.3.0+linux", version: "0.3.0"},
+		{installed: "0.3.0", version: "0.3.0+linux"},
+		{installed: "0.3.0-rc.1+linux", version: "0.3.0-rc.1"},
+		{installed: "0.10.0", version: "0.9.0", refused: true, says: "v0.9.0 is older than v0.10.0"},
+		{installed: "devel", version: "0.3.0", refused: true, says: "The dockwell installed here says its version is devel, so this script can't tell whether v0.3.0 is older, and nothing was installed."},
+		{installed: "devel", version: "0.3.0", control: true, refused: true, says: "To install v0.3.0 anyway, run this again with --downgrade."},
+		{installed: "devel", version: "0.3.0", downgrade: true, says: "whose version is devel, as --downgrade says."},
+		{installed: "", version: "0.1.0"},
+	} {
+		latest, downgrade := "", ""
+		if c.latest {
+			latest = "1"
+		}
+		if c.downgrade {
+			downgrade = "1"
+		}
+		data := t.TempDir()
+		if c.control {
+			if err := os.MkdirAll(filepath.Join(data, "control"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(data, "control", "state.db"), nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		cmd := exec.CommandContext(t.Context(), "sh", "-c",
+			`. "$1"; installed_version=$2; version=$3; latest=$4; downgrade=$5; DATA=$6; releases=https://releases.example; going_back; echo went on`,
+			"sh", steps, c.installed, c.version, latest, downgrade, data)
+		out, err := cmd.CombinedOutput()
+		if refused := err != nil; refused != c.refused {
+			t.Errorf("%s over %s: refused %t, want %t:\n%s", c.version, c.installed, refused, c.refused, out)
+		}
+		if !strings.Contains(string(out), c.says) {
+			t.Errorf("%s over %s says %q, want it to say %q", c.version, c.installed, out, c.says)
+		}
+		if !c.refused && !c.downgrade {
+			continue
+		}
+		cost, other := agentCost, controlCost
+		if c.control {
+			cost, other = controlCost, agentCost
+		}
+		if !strings.Contains(string(out), cost) || strings.Contains(string(out), other) {
+			t.Errorf("%s over %s on a control server (%t) doesn't say what it costs there: %s", c.version, c.installed, c.control, out)
+		}
+		if c.refused && !strings.Contains(string(out), "run this again with --downgrade") {
+			t.Errorf("%s over %s doesn't say how to go back on purpose: %s", c.version, c.installed, out)
+		}
+	}
+}
+
+// Run as someone other than root, the install script says how to run it again with
+// sudo, with the options it was given, --downgrade included, and DOCKWELL_DOWNGRADE
+// carried as that option, as sudo drops the environment.
+func TestTheInstallScriptKeepsDowngradeForSudo(t *testing.T) {
+	steps := installSteps(t)
+	for _, c := range []struct {
+		env, args string
+		says      []string
+	}{
+		{args: "--downgrade", says: []string{"| sudo sh -s -- --downgrade, or run sudo sh install.sh --downgrade."}},
+		{env: "1", says: []string{"| sudo sh -s -- --downgrade,", "sudo doesn't pass the DOCKWELL_ settings on, so the options carry them instead."}},
+		{env: "1", args: "--version 0.2.0", says: []string{"-s -- --version 0.2.0 --downgrade,"}},
+	} {
+		cmd := exec.CommandContext(t.Context(), "sh", "-c", `. "$1"; uname() { echo Linux; }; id() { echo 1000; }; shift; main "$@"`, "sh", steps)
+		cmd.Args = append(cmd.Args, strings.Fields(c.args)...)
+		cmd.Env = append(os.Environ(), "DOCKWELL_DOWNGRADE="+c.env)
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Errorf("%q with DOCKWELL_DOWNGRADE=%s went on as someone other than root:\n%s", c.args, c.env, out)
+		}
+		for _, says := range c.says {
+			if !strings.Contains(string(out), says) {
+				t.Errorf("%q with DOCKWELL_DOWNGRADE=%s says %q, want it to say %q", c.args, c.env, out, says)
+			}
+		}
+	}
+}

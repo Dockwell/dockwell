@@ -392,7 +392,10 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         return {
           key,
           title: t`${name}'s ${where} holds the value of ${variable}`,
-          detail: t`Anyone who can read this app can see it. To keep it hidden, pass it in environment, and use $$${variable} in the ${where}.`,
+          detail:
+            field === "command" || field === "entrypoint"
+              ? t`Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the ${where} as a list, with each word its own variable.`
+              : t`Anyone who can read this app can see it. It can't be hidden there, so don't pass a secret there.`,
         };
       }
     }

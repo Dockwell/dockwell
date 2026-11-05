@@ -567,7 +567,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if p.IfNothing != nil && plan.Empty() {
 		return nil, e.nothingToDo(ctx, items, p.IfNothing)
 	}
-	p.Notes = e.dataNotes(plan, items, startingNotes(plan, p.Notes))
+	p.Notes = e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -695,6 +695,32 @@ func (e *Engine) dataNotes(plan *Plan, items []item, notes []Note) []Note {
 			Message: fmt.Sprintf("%s keeps what is in %s as it is. A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check before you apply, and restore a backup if it won't",
 				it.ref.Name, human.List(names)),
 		})
+	}
+	return out
+}
+
+// textNotes are a plan's notes, saying where a spec it makes writes ${NAME} as text
+// for a name it has a value for, as in a command that doesn't list itself in
+// references. That runs as the words ${NAME}: a password anyone who reads the plan
+// knows, and not the one it has. Older specs mean what they did, so this says so
+// rather than refuse.
+func (e *Engine) textNotes(items []item, notes []Note) []Note {
+	out := slices.Clone(notes)
+	for i := range items {
+		it := &items[i]
+		named := e.kinds.NamedAsText(it.ref.Kind, it.spec)
+		for _, field := range slices.Sorted(maps.Keys(named)) {
+			names := named[field]
+			spelled := make([]string, len(names))
+			for j, n := range names {
+				spelled[j] = "${" + n + "}"
+			}
+			out = append(out, Note{
+				Reason: "named_as_text", Ref: it.ref, Names: append([]string{field}, names...),
+				Message: fmt.Sprintf("%s's %s has %s as text, as references doesn't list %s, so it runs with those words and not the value of %s. To have it name the value, list %s in its references",
+					it.ref.Name, field, human.List(spelled), field, human.List(names), field),
+			})
+		}
 	}
 	return out
 }

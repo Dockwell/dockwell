@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 )
 
 // LabelSet lists what a container's spec sets that its image could set
@@ -194,6 +195,9 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 	if r := rolloutLabel(spec.GetRollout()); r != "" {
 		out[LabelRollout] = r
 	}
+	if r := referencesLabel(spec); r != "" {
+		out[LabelReferences] = r
+	}
 	var set []string
 	add := func(name string, ok bool) {
 		if ok {
@@ -227,6 +231,169 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 		return nil
 	}
 	return out
+}
+
+// LabelReferences holds a container's fields that name values, as its spec has
+// them, with ${NAME} in them and never a value. Docker can tell only what those
+// fields came to, so reading a container back goes by this, and what they came to
+// is never passed on (ADR 0022).
+const LabelReferences = docker.OwnPrefix + "references"
+
+// referenceWords are a container's fields that name values, as LabelReferences
+// holds them. Its order is fixed, so one spec makes one label, which the config
+// hash takes in.
+type referenceWords struct {
+	Command    []string `json:"command,omitempty"`
+	Entrypoint []string `json:"entrypoint,omitempty"`
+	Test       []string `json:"healthcheck.test,omitempty"`
+}
+
+// referencesLabel is LabelReferences for a spec, or empty when it lists nothing.
+func referencesLabel(spec *resourcev1.Container) string {
+	var words referenceWords
+	for _, field := range spec.GetReferences() {
+		switch field {
+		case binding.FieldCommand:
+			words.Command = spec.GetCommand()
+		case binding.FieldEntrypoint:
+			words.Entrypoint = spec.GetEntrypoint()
+		case binding.FieldTest:
+			words.Test = spec.GetHealthcheck().GetTest()
+		}
+	}
+	if words.Command == nil && words.Entrypoint == nil && words.Test == nil {
+		return ""
+	}
+	b, _ := json.Marshal(words)
+	return string(b)
+}
+
+// rendered writes a spec's references into what Docker is asked for, once they have
+// their values, which spec's environment holds in a step's call. Nothing else ever
+// holds this text: Labels, the config hash and what a plan reads all go by the spec.
+func rendered(req *docker.CreateRequest, spec *resourcev1.Container) error {
+	for _, field := range spec.GetReferences() {
+		words, err := binding.Render(binding.WordsOf(spec, field), spec.GetEnv())
+		if err != nil {
+			return fmt.Errorf("can't write the %s: %w. Plan the change again", field, err)
+		}
+		switch field {
+		case binding.FieldCommand:
+			req.Cmd = words
+		case binding.FieldEntrypoint:
+			req.Entrypoint = noEntrypoint(words)
+		case binding.FieldTest:
+			if req.Healthcheck == nil {
+				return fmt.Errorf("can't write the %s: the container has no health check. Plan the change again", field)
+			}
+			test := *req.Healthcheck
+			test.Test = words
+			req.Healthcheck = &test
+		}
+	}
+	return nil
+}
+
+// readWords puts a container's fields that name values back as its spec had them,
+// by LabelReferences, whose words are worked out again from the container's own
+// environment. A field that doesn't come to what Docker has, as when docker compose
+// ran an export without the value in its shell, reads as binding.Unread, and so does
+// each field of a container with a label Dockwell can't read: either may hold a
+// value, so none of it goes further, and either reads as drift.
+func readWords(c *docker.Container, out *resourcev1.Container) {
+	label, ok := c.Config.Labels[LabelReferences]
+	if !ok {
+		return
+	}
+	var words referenceWords
+	unreadable := json.Unmarshal([]byte(label), &words) != nil
+	env := envOf(c)
+	read := func(field string, want, have []string) []string {
+		if !unreadable && want == nil {
+			return nil
+		}
+		out.References = append(out.References, field)
+		got, err := binding.Render(want, env)
+		if field == binding.FieldEntrypoint {
+			got = noEntrypoint(got)
+		}
+		if !unreadable && err == nil && slices.Equal(got, have) {
+			return want
+		}
+		return []string{binding.Unread}
+	}
+	if w := read(binding.FieldCommand, words.Command, c.Config.Cmd); w != nil {
+		out.Command = w
+	}
+	if w := read(binding.FieldEntrypoint, words.Entrypoint, c.Config.Entrypoint); w != nil {
+		out.Entrypoint, out.NoEntrypoint = w, false
+	}
+	var test []string
+	if c.Config.Healthcheck != nil {
+		test = c.Config.Healthcheck.Test
+	}
+	if w := read(binding.FieldTest, words.Test, test); w != nil {
+		if out.Healthcheck == nil {
+			out.Healthcheck = &resourcev1.Healthcheck{}
+		}
+		out.Healthcheck.Test = w
+	}
+}
+
+// noEntrypoint is an entrypoint that comes to "" as Docker is asked for none, empty and
+// not left out, as Validate reads a spec's entrypoint of "" and Compose's entrypoint: ""
+// is: what runs is the command alone, and not even the image's entrypoint.
+func noEntrypoint(words []string) []string {
+	if len(words) == 1 && words[0] == "" {
+		return []string{}
+	}
+	return words
+}
+
+// hideIn masks values in what Docker said, where a person may read it. Docker quotes
+// what it couldn't run, as in exec: "…": executable file not found, so a value in a
+// command's first word is in its answer. Call it where Docker answers, before
+// anything wraps the error in words of its own.
+func hideIn(err error, values []string) error {
+	var d *docker.Error
+	if len(values) > 0 && errors.As(err, &d) {
+		d.Message = binding.Hide(d.Message, values)
+	}
+	return err
+}
+
+// valuesInSpec are the values a step's spec writes in its fields.
+func valuesInSpec(spec *resourcev1.Container) []string {
+	return binding.ValuesOf(binding.ReferencedNames(spec), spec.GetEnv())
+}
+
+// valuesInContainer are the values a container's fields hold, by what its label says
+// they name and its own environment. A label Dockwell can't read names nothing.
+func valuesInContainer(c *docker.Container) []string {
+	label, ok := c.Config.Labels[LabelReferences]
+	if !ok {
+		return nil
+	}
+	var words referenceWords
+	if json.Unmarshal([]byte(label), &words) != nil {
+		return nil
+	}
+	var names []string
+	for _, w := range [][]string{words.Command, words.Entrypoint, words.Test} {
+		found, _ := binding.NamesIn(w)
+		names = append(names, found...)
+	}
+	return binding.ValuesOf(names, envOf(c))
+}
+
+// envOf is a container's environment as Docker reports it, by name.
+func envOf(c *docker.Container) map[string]string {
+	env := make(map[string]string, len(c.Config.Env))
+	for _, kv := range c.Config.Env {
+		k, v, _ := strings.Cut(kv, "=")
+		env[k] = v
+	}
+	return env
 }
 
 // rolloutSetting is a spec's rollout settings, as LabelRollout holds them.
@@ -617,7 +784,8 @@ func bind(source string, m *resourcev1.Mount) string {
 // environment is a spec's environment as Docker takes it. For a service
 // it holds the values of what the service uses, which the service driver
 // resolved in memory for this one call (binding.Environment), so nothing
-// here may log it or keep it. The config hash leaves its values out too.
+// here may log it or keep it. The config hash leaves its values out too, and a
+// field that names values goes into it as its names (rendered).
 func environment(spec *resourcev1.Container) []string {
 	keys := slices.Sorted(maps.Keys(spec.GetEnv()))
 	out := make([]string, 0, len(keys))
@@ -765,6 +933,7 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		out.Mounts = append(out.Mounts, m)
 	}
 	projectNetworks(c, t, out)
+	readWords(c, out)
 	return out
 }
 

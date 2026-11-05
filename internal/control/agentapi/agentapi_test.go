@@ -436,8 +436,8 @@ func TestAStreamMustStartWithHello(t *testing.T) {
 }
 
 // openStream connects to the agent listener as id's agent would, says
-// hello with kinds, and returns the stream once the control plane welcomes
-// it.
+// hello with kinds, as an agent that writes a command's values in, and
+// returns the stream once the control plane welcomes it.
 func openStream(t *testing.T, id *enroll.Identity, kinds ...string) *connect.BidiStreamForClient[agentv1.ConnectRequest, agentv1.ConnectResponse] {
 	t.Helper()
 	client, release, err := id.Client()
@@ -449,7 +449,7 @@ func openStream(t *testing.T, id *enroll.Identity, kinds ...string) *connect.Bid
 	t.Cleanup(cancel)
 	stream := client.Connect(ctx)
 	t.Cleanup(func() { _ = stream.CloseRequest(); _ = stream.CloseResponse() })
-	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: &agentv1.Hello{Kinds: kinds}}}); err != nil {
+	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: &agentv1.Hello{Kinds: kinds, WritesReferences: true}}}); err != nil {
 		t.Fatal(err)
 	}
 	if msg, err := stream.Receive(); err != nil || msg.GetWelcome() == nil {
@@ -479,5 +479,64 @@ func TestDrainingIsAnsweredWithoutCalls(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Draining wasn't answered; the agent would wait out its drain limit")
+	}
+}
+
+// An agent from before a command could name a value is warned of as it connects,
+// with what that holds back and how to fix it. One that writes a command's values in
+// isn't.
+func TestAnOlderAgentIsWarnedOfAsItConnects(t *testing.T) {
+	const warning = "the agent is from before a command could name a value, so nothing on this server that names one is read, planned or applied until you update the agent"
+	logs := &syncBuffer{}
+	logger, err := logging.New(logs, logging.Options{Level: "info", Format: logging.FormatJSON})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := startStackLogging(t, 5*time.Second, logger)
+	id := s.enrollLocal(t)
+	records := func(msg string) (n int) {
+		for line := range strings.Lines(logs.String()) {
+			var rec map[string]any
+			if json.Unmarshal([]byte(line), &rec) == nil && rec["msg"] == msg && rec["server"] == id.ServerID &&
+				(msg != warning || rec["level"] == "WARN" && rec["agent"] == "v0.2.0") {
+				n++
+			}
+		}
+		return n
+	}
+	// say says hello, closes the stream once it is welcome, and waits for the
+	// control plane to log the nth disconnect, which comes after whatever it logged
+	// of that stream.
+	say := func(hello *agentv1.Hello, nth int) {
+		client, release, err := id.Client()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer release()
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		stream := client.Connect(ctx)
+		if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: hello}}); err != nil {
+			t.Fatal(err)
+		}
+		if msg, err := stream.Receive(); err != nil || msg.GetWelcome() == nil {
+			t.Fatalf("the hello was answered with %v, %v, want a welcome", msg, err)
+		}
+		_ = stream.CloseRequest()
+		_ = stream.CloseResponse()
+		for deadline := time.Now().Add(5 * time.Second); records("server disconnected") < nth; time.Sleep(10 * time.Millisecond) {
+			if time.Now().After(deadline) {
+				t.Fatalf("the control plane never logged the agent as gone:\n%s", logs.String())
+			}
+		}
+	}
+	older := buildinfo.Info{Version: "v0.2.0"}.Proto()
+	say(&agentv1.Hello{Build: older}, 1)
+	if n := records(warning); n != 1 {
+		t.Errorf("an older agent connecting was warned of %d times, want once, with its version, as a warning:\n%s", n, logs.String())
+	}
+	say(&agentv1.Hello{Build: older, WritesReferences: true}, 2)
+	if n := records(warning); n != 1 || records("server connected") != 2 {
+		t.Errorf("an agent that writes references in was warned of too:\n%s", logs.String())
 	}
 }
