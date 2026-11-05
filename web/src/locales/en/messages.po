@@ -2885,8 +2885,6 @@ msgstr "Link expires"
 msgid "Listening there now: {listening}"
 msgstr "Listening there now: {listening}"
 
-#: src/app/Providers.tsx
-
 #: src/features/logs/LogsPage.tsx
 msgid "Live"
 msgstr "Live"
@@ -3293,13 +3291,13 @@ msgstr "Nothing in all the servers keep has \"{highlight}\"."
 msgid "Nothing in its spec changed. It moved, or came back as it was."
 msgstr "Nothing in its spec changed. It moved, or came back as it was."
 
-#: src/features/changes/words.ts
-msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
-msgstr "Nothing listens on port {number} yet, so this answers 502 until something does"
-
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing in the {total} lines loaded has \"{query}\"."
 msgstr "Nothing in the {total} lines loaded has \"{query}\"."
+
+#: src/features/changes/words.ts
+msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
+msgstr "Nothing listens on port {number} yet, so this answers 502 until something does"
 
 #: src/features/apps/AppsPage.tsx
 msgid "Nothing matches"
@@ -4777,13 +4775,13 @@ msgstr "That is the server itself, past its containers, at {at} over plain HTTP.
 msgid "That is the server itself, past its containers, at {at}."
 msgstr "That is the server itself, past its containers, at {at}."
 
-#: src/features/changes/words.ts
-msgid "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
-msgstr "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
-
 #: src/features/logs/LogFoot.tsx
 msgid "That is all the servers keep."
 msgstr "That is all the servers keep."
+
+#: src/features/changes/words.ts
+msgid "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
+msgstr "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
 
 #: src/features/auth/messages.ts
 msgid "That needs your passkey just now, and the confirmation was missing, used or expired. Try again, and confirm when your browser asks."

@@ -2890,7 +2890,6 @@ msgstr "链接过期"
 msgid "Listening there now: {listening}"
 msgstr "目前在此监听的是：{listening}"
 
-#: src/app/Providers.tsx
 #: src/features/logs/LogsPage.tsx
 msgid "Live"
 msgstr "实时"
@@ -3297,13 +3296,13 @@ msgstr "服务器保留的全部日志中没有“{highlight}”。"
 msgid "Nothing in its spec changed. It moved, or came back as it was."
 msgstr "规格没有变化。它只是被移动，或恢复原样。"
 
-#: src/features/changes/words.ts
-msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
-msgstr "端口 {number} 上还没有任何程序在监听，所以在有程序监听之前它会返回 502"
-
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing in the {total} lines loaded has \"{query}\"."
 msgstr "已加载的 {total} 行中没有“{query}”。"
+
+#: src/features/changes/words.ts
+msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
+msgstr "端口 {number} 上还没有任何程序在监听，所以在有程序监听之前它会返回 502"
 
 #: src/features/apps/AppsPage.tsx
 msgid "Nothing matches"
@@ -4781,13 +4780,13 @@ msgstr "这是服务器本身，绕过其容器，通过明文 HTTP 位于 {at}�
 msgid "That is the server itself, past its containers, at {at}."
 msgstr "这是服务器本身，绕过其容器，位于 {at}。"
 
-#: src/features/changes/words.ts
-msgid "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
-msgstr "这让{who}能访问端口 {number}，而那里的程序会把每个调用者都看作此服务器本身（127.0.0.1），信任 localhost 的应用会相信这一点"
-
 #: src/features/logs/LogFoot.tsx
 msgid "That is all the servers keep."
 msgstr "这是服务器保留的全部日志。"
+
+#: src/features/changes/words.ts
+msgid "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
+msgstr "这让{who}能访问端口 {number}，而那里的程序会把每个调用者都看作此服务器本身（127.0.0.1），信任 localhost 的应用会相信这一点"
 
 #: src/features/auth/messages.ts
 msgid "That needs your passkey just now, and the confirmation was missing, used or expired. Try again, and confirm when your browser asks."
