@@ -213,10 +213,6 @@ msgstr "{count, plural, one {# new line} other {# new lines}}"
 msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 msgstr "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 
-#: src/features/logs/LogsPage.tsx
-msgid "{count, plural, one {# replica} other {# replicas}}"
-msgstr "{count, plural, one {# replica} other {# replicas}}"
-
 #: src/app/Providers.tsx
 #: src/features/apps/AppsPage.tsx
 msgid "{count, plural, one {# server} other {# servers}}"
@@ -559,6 +555,10 @@ msgstr "{revision} rolled back by Dockwell {when}"
 #: src/features/apps/AppOverview.tsx
 msgid "{revision} started deploying {when}"
 msgstr "{revision} started deploying {when}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{runningNow, plural, one {# container} other {# containers}}"
+msgstr "{runningNow, plural, one {# container} other {# containers}}"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "{rx} in · {tx} out"
@@ -1118,6 +1118,10 @@ msgstr "All"
 msgid "All actors"
 msgstr "All actors"
 
+#: src/features/logs/LogsPage.tsx
+msgid "All containers"
+msgstr "All containers"
+
 #: src/features/apps/AppOverview.tsx
 msgid "All deployments"
 msgstr "All deployments"
@@ -1133,10 +1137,6 @@ msgstr "All healthy"
 #: src/features/logs/LogsPage.tsx
 msgid "All levels"
 msgstr "All levels"
-
-#: src/features/logs/LogsPage.tsx
-msgid "All replicas"
-msgstr "All replicas"
 
 #: src/features/apps/AppsPage.tsx
 msgid "All servers"
@@ -1675,6 +1675,10 @@ msgstr "Connections"
 #: src/features/changes/words.ts
 msgid "container"
 msgstr "container"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Container"
+msgstr "Container"
 
 #: src/features/servers/ServerPanels.tsx
 #: src/features/shell/MorePage.tsx
@@ -4330,10 +4334,6 @@ msgstr "Replaced"
 #: src/features/changes/words.ts
 msgid "Replacing"
 msgstr "Replacing"
-
-#: src/features/logs/LogsPage.tsx
-msgid "Replica"
-msgstr "Replica"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Required"

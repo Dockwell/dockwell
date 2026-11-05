@@ -4208,6 +4208,7 @@ components:
                         - LOG_SOURCE_STATE_RESTARTING
                         - LOG_SOURCE_STATE_STOPPED
                         - LOG_SOURCE_STATE_KEPT
+                        - LOG_SOURCE_STATE_GONE
                     type: string
                     description: Where the container is now.
                     format: enum

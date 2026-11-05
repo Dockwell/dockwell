@@ -185,6 +185,60 @@ describe("LogsPage", () => {
     expect(screen.queryByText(/stopping_/)).toBeNull();
   });
 
+  it("says how many run now, before, during and after a rolling deploy, and after several", async () => {
+    const web = (id: string, n: number, state = LogSourceState.RUNNING) =>
+      create(LogSourceSchema, { ...running, id, revision: BigInt(n), state, containerName: `env-web-${n}` });
+    const { logs, stream } = api(sourcesOf(web("aaaa00000002", 2)));
+    const { container } = renderAt(URL, { logs });
+    await screen.findByRole("log");
+    const head = () => container.querySelector(".dw-log-title")?.textContent ?? "";
+    const hear = (sources: LogSource[], text?: string) =>
+      act(() =>
+        stream.send(
+          message({
+            sources,
+            chunks: text ? [{ sourceId: sources[sources.length - 1]?.id ?? "", lines: [line(text)] }] : [],
+            caughtUp: true,
+          }),
+        ),
+      );
+    await hear([web("aaaa00000002", 2)], "before");
+    await screen.findByText("before");
+    expect(head()).toContain("web · production");
+    expect(head()).not.toMatch(/container|replica/);
+
+    // During the move, both run, and it says so.
+    await hear([web("aaaa00000002", 2), web("aaaa00000003", 3)], "during");
+    await screen.findByText("during");
+    await waitFor(() => expect(head()).toContain("2 containers"));
+    expect(head()).not.toMatch(/replica/);
+    expect(screen.getByRole("radio", { name: "All containers" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "web-3" })).toBeVisible();
+
+    // After it, one runs, though this view read two, and a filter has nothing to choose.
+    await hear([web("aaaa00000002", 2, LogSourceState.KEPT), web("aaaa00000003", 3)], "after");
+    await screen.findByText("after");
+    await waitFor(() => expect(head()).not.toMatch(/container/));
+    expect(screen.queryByRole("radio", { name: "All containers" })).toBeNull();
+    // What it read of the one that went still says which wrote it.
+    expect(container.querySelector(".dw-log-src")).not.toBeNull();
+
+    // After several, one that went with nothing kept among them, it's still only what runs.
+    await hear(
+      [
+        web("aaaa00000003", 3, LogSourceState.GONE),
+        web("aaaa00000004", 4, LogSourceState.KEPT),
+        web("aaaa00000005", 5, LogSourceState.KEPT),
+        web("aaaa00000006", 6),
+      ],
+      "several later",
+    );
+    await screen.findByText("several later");
+    await waitFor(() => expect(head()).not.toMatch(/container/));
+    expect(head()).not.toMatch(/replica/);
+    expect(screen.queryByRole("radio", { name: "All containers" })).toBeNull();
+  });
+
   it("forgets a filter on a name that has gone, as a deploy moves on from it", async () => {
     const { logs, stream } = api(sourcesOf(running));
     renderAt(`${URL}?replica=web-9`, { logs });
@@ -221,7 +275,7 @@ describe("LogsPage", () => {
     await waitFor(() => expect(container.querySelector(".dw-log-src")).not.toBeNull());
     expect(screen.getAllByText("hz-2").length).toBeGreaterThan(0);
     // Two replicas give a choice of them.
-    expect(screen.getByRole("radio", { name: "All replicas" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "All containers" })).toBeChecked();
     await userEvent.setup().click(screen.getByRole("radio", { name: "hz-2" }));
     await waitFor(() => expect(screen.queryByText("from one")).toBeNull());
     expect(container.querySelector(".dw-log-src")).toBeNull();

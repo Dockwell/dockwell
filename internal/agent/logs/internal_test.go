@@ -5,8 +5,10 @@ package logs
 import (
 	"bytes"
 	"context"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -177,5 +179,62 @@ func TestASourceSaysWhatAContainerIsKnownBy(t *testing.T) {
 		if s := keptSource(&k); s.GetContainerName() != "env_a-web-3" || s.GetReplica() != 1 {
 			t.Errorf("a kept %s reads as %q, replica %d", name, s.GetContainerName(), s.GetReplica())
 		}
+	}
+}
+
+// A follow says when a container it reads has gone with nothing kept of it, as a full
+// disk leaves it. Otherwise a reader goes on counting it as running, for as long as it
+// reads.
+func TestAFollowSaysWhatHasGoneWithNothingKept(t *testing.T) {
+	e := dockertest.New(t)
+	project := docker.Project("env_a")
+	labels := map[string]string{docker.LabelProject: project, docker.LabelService: "web", docker.LabelNumber: "1"}
+	name := docker.InstanceName(project, "web", 1)
+	e.AddContainer(docker.Container{
+		Name: "/" + name, Created: time.Now().UTC(), Config: docker.Config{Image: "app", Labels: labels},
+		State: docker.State{Status: "running", Running: true, StartedAt: time.Now().UTC()},
+	})
+	var said []dockwellv1.LogSourceState
+	var mu sync.Mutex
+	r := &Reader{Client: e.Client()}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- r.Stream(ctx, &agentv1.LogsCall{Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: "env_a", Name: "web"}, Follow: true}, func(m *agentv1.SendLogsRequest) error {
+			mu.Lock()
+			defer mu.Unlock()
+			for _, s := range m.GetSources() {
+				said = append(said, s.GetState())
+			}
+			return nil
+		})
+	}()
+	waitUntil := func(what string, ok func() bool) {
+		t.Helper()
+		deadline := time.Now().Add(10 * time.Second)
+		for !ok() {
+			if time.Now().After(deadline) {
+				t.Fatalf("timed out waiting for %s, with %v", what, said)
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	waitUntil("it to say it runs", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Contains(said, dockwellv1.LogSourceState_LOG_SOURCE_STATE_RUNNING)
+	})
+	if err := e.Client().RemoveContainer(t.Context(), e.Container(name).ID, true); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil("it to say it has gone", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Contains(said, dockwellv1.LogSourceState_LOG_SOURCE_STATE_GONE)
+	})
+	cancel()
+	if err := <-done; err != nil {
+		t.Errorf("Stream = %v after its reader left", err)
 	}
 }

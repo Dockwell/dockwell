@@ -295,6 +295,9 @@ enum LogSourceState {
   LOG_SOURCE_STATE_STOPPED = 4;
   // Removed from Docker. The server kept its log.
   LOG_SOURCE_STATE_KEPT = 5;
+  // Removed from Docker, and the server didn't keep its log. A follow says so of one
+  // it was reading, so a reader doesn't go on counting it as running.
+  LOG_SOURCE_STATE_GONE = 6;
 }
 
 // LogKept says why a server kept a removed container's log.

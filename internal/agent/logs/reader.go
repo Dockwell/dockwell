@@ -22,6 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
@@ -529,6 +530,15 @@ func (s *stream) scan(first bool) error {
 		if st.after != nil && !s.goneSaid[id] {
 			s.goneSaid[id] = true
 			s.gone(id, st.after.GetTime(), nil)
+		}
+		// And it isn't running, whatever the reader last heard of it.
+		if st.src != nil {
+			left := proto.Clone(st.src.proto).(*dockwellv1.LogSource)
+			left.State = dockwellv1.LogSourceState_LOG_SOURCE_STATE_GONE
+			if text := describe(left); text != s.said[id] {
+				s.said[id] = text
+				changed = append(changed, left)
+			}
 		}
 		// So a follow that outlives many deploys doesn't remember them all.
 		if st.src != nil && !st.reading.Load() {
