@@ -11,7 +11,8 @@
 # and reaches another project on it by name. Then the agent build joins the
 # full build's control plane, and runs a container on the same Docker. Before
 # that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
-# and serves a real container over HTTPS through Caddy. It uses throwaway data
+# and serves a real container over HTTPS through Caddy, and routes that take no
+# certificate serve over plain HTTP on port 80 alone. It uses throwaway data
 # directories and removes what it made, so it never touches a real install. It
 # needs Docker with the compose plugin, Go, curl, jq, openssl and iproute2's ss,
 # a free port (E2E_WEB_PORT, 18080 by default), and ports 80 and 443 free, for
@@ -74,7 +75,21 @@ start_dockwell() {
   pid=$!
 }
 start_dockwell
+# restore_daemon puts back Docker's settings, if this changed them, and restarts it.
+daemon_changed=""
+daemon_before=""
+restore_daemon() {
+  [[ -n "$daemon_changed" ]] || return 0
+  daemon_changed=""
+  if [[ -n "$daemon_before" ]]; then
+    printf '%s\n' "$daemon_before" | priv tee /etc/docker/daemon.json >/dev/null
+  else
+    priv rm -f /etc/docker/daemon.json
+  fi
+  priv systemctl restart docker
+}
 cleanup() {
+  restore_daemon || true
   if [[ -n "$project" ]]; then
     docker compose -p "$project" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   fi
@@ -82,7 +97,7 @@ cleanup() {
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
-  docker rm --force e2e-agent-web e2e-holds-80 e2e-returns dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker rm --force e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
   priv kill "$pid" 2>/dev/null || true
@@ -747,6 +762,215 @@ says nginx over_https || fail "with the route back, https://$domain/ doesn't ser
 after=$(priv openssl x509 -in "$certificate" -noout -serial) || fail "can't read the certificate"
 [[ "$after" == "$before" ]] || fail "a new certificate was issued, $after, where the one kept was $before"
 dw routes delete www --yes || fail "routes delete www, again, failed"
+
+step "Ingress: a route that takes no certificate serves plain HTTP, on port 80 alone"
+behind=behind.e2e-dockwell.example.net
+# Each order Pebble takes, as it logs them. Nothing here may ask it for one.
+orders() { grep -c 'Added order' "$pebble_dir/pebble.out" || true; }
+orders_before=$(orders)
+made=$(dw routes create behind --domain "$behind" --service web --port 80 --tls off --yes 2>&1) || fail "routes create behind failed: $made"
+[[ "$made" == *"unencrypted"* ]] || fail "the plan doesn't say traffic reaches this server unencrypted: $made"
+[[ "$made" == *"takes ports 80/tcp."* ]] || fail "the plan doesn't say Caddy takes port 80 alone: $made"
+listening 80 || fail "nothing listens on port 80 for a route that takes no certificate"
+if listening 443; then fail "something listens on port 443 with no route needing it"; fi
+[[ -z "$(ss -H -lun 'sport = :443')" ]] || fail "something listens on UDP 443 with no route needing it"
+plain_http() { curl -sS --max-time 10 --resolve "$behind:80:127.0.0.1" "$@" "http://$behind/"; }
+answer=$(plain_http -o /dev/null -w '%{http_code} %{redirect_url}') || fail "http://$behind/ didn't answer"
+[[ "$answer" == "200 " ]] || fail "http://$behind/ answers $answer, want it served, as a redirect would loop behind a tunnel"
+body=$(plain_http) || fail "http://$behind/ didn't answer"
+[[ "$body" == *nginx* ]] || fail "http://$behind/ doesn't serve web: $body"
+if curl -sS --max-time 3 -o /dev/null --resolve "$behind:443:127.0.0.1" "https://$behind/" 2>/dev/null; then fail "https://$behind/ answered, with nothing asked of it"; fi
+state=""
+for _ in $(seq 180); do
+  listed=$(dw domains list --json 2>/dev/null) || listed='{}'
+  state=$(jq -r --arg d "$behind" '.domains[]? | select(.name == $d) | .servers[0].status.certificate.state // empty' <<<"$listed")
+  [[ "$state" == CERTIFICATE_STATE_NONE ]] && break
+  sleep 0.5
+done
+[[ "$state" == CERTIFICATE_STATE_NONE ]] || fail "$behind's certificate reads '$state' after 90 s, want none"
+message=$(jq -r --arg d "$behind" '.domains[] | select(.name == $d) | .servers[0].status.certificate.message' <<<"$listed")
+[[ "$message" == *"TLS ends before this server"* ]] || fail "$behind's certificate says: $message"
+url=$(jq -r --arg d "$behind" '.domains[] | select(.name == $d) | .url' <<<"$listed")
+[[ "$url" == "http://$behind" ]] || fail "$behind answers at $url, as the API has it"
+[[ "$(orders)" == "$orders_before" ]] || fail "a route that takes no certificate asked Pebble for one: $(grep 'Added order' "$pebble_dir/pebble.out")"
+held=$(priv find "$data/ingress/data/caddy/certificates" -name "$behind.crt") || fail "can't look for a certificate"
+[[ -z "$held" ]] || fail "there's a certificate for a route that takes none: $held"
+
+step "Ingress: a tunnel's container reaches Caddy, on the server's own network or from a bridge"
+# Each is how docs/install.md says to run cloudflared. wget exits non-zero for
+# anything but a 2xx, so a redirect or a refused connection doesn't pass.
+through_host=$(docker run --rm --network host nginx:1.27-alpine wget -q -T 5 -O- --header "Host: $behind" http://localhost:80/) ||
+  fail "a container on the server's own network can't reach Caddy at localhost:80"
+[[ "$through_host" == *nginx* ]] || fail "from the server's own network, localhost:80 answers: $through_host"
+through_bridge=$(docker run --rm --add-host host.docker.internal:host-gateway nginx:1.27-alpine wget -q -T 5 -O- --header "Host: $behind" http://host.docker.internal:80/) ||
+  fail "a container on a bridge can't reach Caddy at host.docker.internal:80"
+[[ "$through_bridge" == *nginx* ]] || fail "from a bridge, host.docker.internal:80 answers: $through_bridge"
+
+step "Ingress: a route to a port on the server needs a person, names the port, and believes the proxy it names"
+on_server=$((web_port + 1))
+docker run -d --name e2e-on-server -p "127.0.0.1:$on_server:80" nginx:1.27-alpine >/dev/null || fail "can't run something on port $on_server"
+for _ in $(seq 100); do
+  curl -fsS --max-time 1 -o /dev/null "http://127.0.0.1:$on_server/" 2>/dev/null && break
+  sleep 0.1
+done
+curl -fsS --max-time 5 -o /dev/null "http://127.0.0.1:$on_server/" || fail "nothing answers on port $on_server, so this proves nothing"
+through=through.e2e-dockwell.example.net
+set +e
+planned=$(dw routes create through --domain "$through" --host-port "$on_server" --tls off --trusted-proxies 127.0.0.1 --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "a route to a port on the server exited $status, want 4: it waits for a person: $planned"
+[[ "$planned" == *"127.0.0.1:$on_server"* ]] || fail "the plan doesn't name the port: $planned"
+[[ "$planned" == *"127.0.0.1/32 as a proxy"* ]] || fail "the plan doesn't name the proxy: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+reach=$(jq -r '.changes[0].id' <<<"$changes")
+[[ "$reach" == chg_* ]] || fail "changes list has no change: $changes"
+# The CLI stops short of asking, so this is the server's own refusal.
+token_refused "$reach"
+person_apply "$reach"
+answer=$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' --resolve "$through:80:127.0.0.1" -H 'X-Forwarded-For: 6.6.6.6, 198.51.100.7' "http://$through/") ||
+  fail "http://$through/ didn't answer"
+[[ "$answer" == 200 ]] || fail "http://$through/ answers $answer"
+sleep 0.5
+seen=$(docker logs --tail 5 e2e-on-server 2>&1) || fail "docker logs e2e-on-server failed"
+seen=${seen##*$'\n'}
+[[ "$seen" == *'"198.51.100.7"' ]] || fail "what's on the server doesn't read the address its proxy found, in X-Forwarded-For: $seen"
+if [[ "$seen" == *6.6.6.6* ]]; then fail "what a client sent itself reached what's on the server: $seen"; fi
+# And the same request, on the route that names no proxy, believes none of it.
+answer=$(plain_http -o /dev/null -w '%{http_code}' -H 'X-Forwarded-For: 6.6.6.6') || fail "http://$behind/ didn't answer"
+[[ "$answer" == 200 ]] || fail "http://$behind/ answers $answer"
+sleep 0.5
+seen=$(docker logs --tail 5 "$web" 2>&1) || fail "docker logs $web failed"
+seen=${seen##*$'\n'}
+[[ "$seen" == *'"127.0.0.1"' ]] || fail "beside a route that trusts a proxy, one that doesn't reads: $seen"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after routes behind a tunnel: $drift"
+set +e
+own=$(dw routes create own --domain own.e2e-dockwell.example.net --host-port "$port" --tls off --yes 2>&1)
+status=$?
+set -e
+[[ "$status" != 0 ]] || fail "a route went through to the panel's own port"
+[[ "$own" == *"one Dockwell listens on itself"* ]] || fail "the refusal of the panel's own port says: $own"
+
+step "Ingress: a route with a certificate takes port 443 beside them, and frees it as it goes"
+took=$(dw routes create www --domain "$domain" --service web --port 80 --yes 2>&1) || fail "routes create www failed: $took"
+[[ "$took" == *"takes ports 443/tcp and 443/udp too"* ]] || fail "the plan doesn't say Caddy takes port 443: $took"
+for p in 80 443; do
+  listening "$p" || fail "nothing listens on port $p with routes of both kinds"
+done
+for _ in $(seq 300); do
+  over_https >/dev/null 2>&1 && break
+  sleep 0.1
+done
+body=$(over_https) || fail "https://$domain/ doesn't answer beside a plain route"
+[[ "$body" == *nginx* ]] || fail "https://$domain/ doesn't serve web: $body"
+redirect=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' --resolve "$domain:80:127.0.0.1" "http://$domain/") || fail "http://$domain/ didn't answer"
+[[ "$redirect" == 308 ]] || fail "http://$domain/ answers $redirect, want its redirect"
+answer=$(plain_http -o /dev/null -w '%{http_code}') || fail "http://$behind/ didn't answer"
+[[ "$answer" == 200 ]] || fail "beside a route with a certificate, http://$behind/ answers $answer"
+freed=$(dw routes delete www --yes 2>&1) || fail "routes delete www failed: $freed"
+[[ "$freed" == *"frees ports 443/tcp and 443/udp"* ]] || fail "the plan doesn't say Caddy frees port 443: $freed"
+if listening 443; then fail "port 443 is still held with no route needing it"; fi
+answer=$(plain_http -o /dev/null -w '%{http_code}') || fail "http://$behind/ didn't answer"
+[[ "$answer" == 200 ]] || fail "after port 443 was freed, http://$behind/ answers $answer"
+
+# The script removes what it was installed as, so it runs only where nothing is.
+if [[ -n "${E2E_ROOT:-}" && ! -e /usr/local/bin/dockwell ]]; then
+  step "Ingress: uninstalling says what stays, and frees the ports when asked"
+  install_script=$(dirname "$0")/install.sh
+  stop_dockwell
+  said=$(sudo -n sh "$install_script" --uninstall 2>&1) || fail "uninstalling failed: $said"
+  [[ "$said" == *"--uninstall --remove-ingress"* ]] || fail "uninstalling doesn't say how to free the ports: $said"
+  [[ "$said" == *"before you delete"* ]] || fail "uninstalling doesn't say to do that before deleting the data: $said"
+  [[ "$(docker inspect --format '{{.State.Running}}' dockwell-ingress)" == true ]] || fail "uninstalling stopped Caddy, which it wasn't asked to"
+  answer=$(plain_http -o /dev/null -w '%{http_code}') || fail "http://$behind/ didn't answer"
+  [[ "$answer" == 200 ]] || fail "uninstalling stopped a route answering: $answer"
+  # A stopped service comes off the network too, or it couldn't start again.
+  docker stop --time 1 "$web" >/dev/null || fail "can't stop web"
+  said=$(sudo -n sh "$install_script" --uninstall --remove-ingress 2>&1) || fail "removing the ingress failed: $said"
+  [[ "$said" == *"the ports it held are free"* ]] || fail "removing the ingress says: $said"
+  if docker inspect dockwell-ingress >/dev/null 2>&1; then fail "dockwell-ingress is there after removing the ingress"; fi
+  if docker inspect dockwell-ingress-keep >/dev/null 2>&1; then fail "dockwell-ingress-keep is there after removing the ingress"; fi
+  if docker network inspect dockwell_ingress >/dev/null 2>&1; then fail "the network dockwell_ingress is there after removing the ingress"; fi
+  if listening 80; then fail "port 80 is still held after removing the ingress"; fi
+  docker start "$web" >/dev/null || fail "a stopped service can't start after removing the ingress: it still names the network"
+  [[ "$(docker inspect --format '{{.State.Running}}' e2e-on-server)" == true ]] || fail "removing the ingress stopped what isn't its own"
+
+  step "Ingress: installing again with its data takes the ports back for the routes"
+  start_dockwell
+  wait_for_dockwell
+  answer=""
+  for _ in $(seq 300); do
+    answer=$(plain_http -o /dev/null -w '%{http_code}' 2>/dev/null) || answer=""
+    [[ "$answer" == 200 ]] && break
+    sleep 0.2
+  done
+  [[ "$answer" == 200 ]] || fail "with Dockwell back, http://$behind/ answers '$answer' after 60 s"
+else
+  echo "Uninstalling wasn't run on real Docker, as that needs E2E_ROOT, and no Dockwell installed here. CI has both"
+fi
+
+dw routes delete through --yes || fail "routes delete through failed"
+docker rm --force e2e-on-server >/dev/null || fail "can't remove e2e-on-server"
+gone=$(dw routes delete behind --yes 2>&1) || fail "routes delete behind failed: $gone"
+[[ "$gone" == *"so Caddy stops, and ports 80/tcp are free"* ]] || fail "the last plain route doesn't say what it frees: $gone"
+if docker inspect dockwell-ingress >/dev/null 2>&1; then fail "dockwell-ingress is there after the last route"; fi
+if listening 80; then fail "port 80 is still held after the last route"; fi
+
+# Moby takes a container's own no-new-privileges over the daemon's. It needs root,
+# and a Docker that systemd runs, to restart it with the setting.
+if [[ -n "${E2E_ROOT:-}" ]] && systemctl is-active --quiet docker 2>/dev/null; then
+  step "Ingress: a Docker with no-new-privileges runs Caddy, and nothing else changes"
+  daemon_before=$(priv cat /etc/docker/daemon.json 2>/dev/null) || daemon_before=""
+  daemon_changed=1
+  jq '. + {"no-new-privileges": true}' <<<"${daemon_before:-"{}"}" | priv tee /etc/docker/daemon.json >/dev/null || fail "can't change /etc/docker/daemon.json"
+  priv systemctl restart docker || fail "can't restart Docker with no-new-privileges"
+  options=$(docker info --format '{{json .SecurityOptions}}') || fail "Docker didn't come back with no-new-privileges"
+  [[ "$options" == *name=no-new-privileges* ]] || fail "Docker doesn't say it sets no-new-privileges, so this proves nothing: $options"
+  other=$(docker run --rm nginx:1.27-alpine grep NoNewPrivs /proc/self/status) || fail "can't run a container under no-new-privileges"
+  [[ "$other" =~ NoNewPrivs:[[:space:]]+1 ]] || fail "a container on this daemon has $other, so this proves nothing"
+  # The agent may not have seen Docker come back yet.
+  started=""
+  for _ in $(seq 30); do
+    if made=$(dw routes create www --domain "$domain" --service web --port 80 --yes 2>&1); then
+      started=1
+      break
+    fi
+    sleep 2
+  done
+  [[ -n "$started" ]] || fail "on a Docker with no-new-privileges, a route failed: $made"
+  [[ "$(docker inspect --format '{{json .HostConfig.SecurityOpt}}' dockwell-ingress)" == *no-new-privileges=false* ]] || fail "Caddy's container doesn't say no-new-privileges=false"
+  caddy_says=$(docker exec dockwell-ingress grep NoNewPrivs /proc/1/status) || fail "can't ask Caddy's container"
+  [[ "$caddy_says" =~ NoNewPrivs:[[:space:]]+0 ]] || fail "Caddy runs with $caddy_says, and would ignore its file capability"
+  for _ in $(seq 100); do
+    keeper=$(docker inspect --format '{{.State.Running}}' dockwell-ingress-keep 2>/dev/null) || keeper=""
+    [[ "$keeper" == true ]] && break
+    sleep 0.1
+  done
+  keeper_says=$(docker exec dockwell-ingress-keep grep NoNewPrivs /proc/1/status) || fail "can't ask the keeper"
+  [[ "$keeper_says" =~ NoNewPrivs:[[:space:]]+1 ]] || fail "the keeper runs with $keeper_says, and needs nothing that takes off"
+  for p in 80 443; do
+    listening "$p" || fail "Caddy can't bind port $p on a Docker with no-new-privileges: $(docker logs --tail 20 dockwell-ingress 2>&1)"
+  done
+  for _ in $(seq 300); do
+    over_https >/dev/null 2>&1 && break
+    sleep 0.1
+  done
+  body=$(over_https) || fail "on a Docker with no-new-privileges, https://$domain/ doesn't answer"
+  [[ "$body" == *nginx* ]] || fail "on a Docker with no-new-privileges, https://$domain/ doesn't serve web: $body"
+  restore_daemon || fail "can't put Docker's settings back"
+  removed=""
+  for _ in $(seq 30); do
+    if made=$(dw routes delete www --yes 2>&1); then
+      removed=1
+      break
+    fi
+    sleep 2
+  done
+  [[ -n "$removed" ]] || fail "routes delete www failed with Docker's settings back: $made"
+else
+  echo "Docker wasn't run with no-new-privileges, as that needs E2E_ROOT and systemd. CI has both"
+fi
 
 if [[ -n "${E2E_PANEL:-}" ]]; then
   step "Ingress: the panel's own domain, on its own ports"
