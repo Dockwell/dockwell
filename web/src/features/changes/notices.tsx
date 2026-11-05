@@ -412,6 +412,12 @@ export function useAsides(plan: Plan | undefined): Notice[] {
         out.push({ key: `answers-${key}-${line}`, title: line, notice: true });
       }
       if (step.restores) out.push({ key: `restores-${key}`, title: t`${name} gets back the data the server kept.` });
+      if (step.hidesLogs) {
+        out.push({
+          key: `hides-logs-${key}`,
+          title: t`${name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back.`,
+        });
+      }
       if (step.healthUnknown) {
         out.push({
           key: `health-${key}`,

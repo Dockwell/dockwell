@@ -280,6 +280,17 @@ func (r *runner) stream(ctx context.Context, m *Method, req proto.Message) error
 	if watch, ok := req.(*dockwellv1.WatchChangeRequest); ok {
 		return r.follow(ctx, watch.GetId(), time.Time{})
 	}
+	if watch, ok := req.(*dockwellv1.WatchLogsRequest); ok {
+		defer func() {
+			if r.logs != nil {
+				r.logs.finish()
+			}
+		}()
+		if !r.opts.json {
+			r.logPrinter()
+		}
+		return r.followLogs(ctx, m, watch)
+	}
 	err := r.do(ctx, func() error {
 		return m.Call.Invoke(ctx, r.client, req, func(msg proto.Message) error { return r.print(msg, true) })
 	})
@@ -287,6 +298,54 @@ func (r *runner) stream(ctx context.Context, m *Method, req proto.Message) error
 		return r.explain(err)
 	}
 	return nil
+}
+
+// followLogs prints a stream of logs, and carries on from where it was when the
+// stream drops, as when the control plane restarts, or gave up on a reader that
+// had stopped reading, such as a pager left open. Only what can't get better ends
+// it, or a run of failures with nothing read in between.
+func (r *runner) followLogs(ctx context.Context, m *Method, req *dockwellv1.WatchLogsRequest) error {
+	const tries = 5
+	failed := 0
+	for {
+		progress := false
+		err := r.do(ctx, func() error {
+			return m.Call.Invoke(ctx, r.client, req, func(msg proto.Message) error {
+				if res, ok := msg.(*dockwellv1.WatchLogsResponse); ok && res.GetResumeToken() != "" {
+					req.ResumeToken = res.GetResumeToken()
+					progress = true
+				}
+				return r.print(msg, true)
+			})
+		})
+		if err == nil {
+			return nil
+		}
+		if progress {
+			failed = 0
+		}
+		failed++
+		if ctx.Err() != nil || failed >= tries || !droppedStream(err) {
+			return r.explain(err)
+		}
+		fmt.Fprintln(r.env.Err, "The stream of logs dropped. Dockwell carries on from where it was, with no line twice.")
+		select {
+		case <-time.After(time.Duration(failed) * time.Second):
+		case <-ctx.Done():
+			return r.explain(err)
+		}
+	}
+}
+
+// droppedStream reports an error that says the connection went, as opposed to
+// one about what was asked for.
+func droppedStream(err error) bool {
+	switch connect.CodeOf(err) {
+	case connect.CodeUnavailable, connect.CodeInternal, connect.CodeUnknown, connect.CodeAborted, connect.CodeDeadlineExceeded:
+		return true
+	default:
+		return false
+	}
 }
 
 // planned shows a planned change and, once the person says so, applies it

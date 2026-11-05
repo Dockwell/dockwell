@@ -301,10 +301,22 @@ async function main() {
   await log.hover();
   await page.mouse.wheel(0, -600);
   await page.getByRole("status").getByText("Paused").waitFor({ timeout: 2000 });
-  const before = await log.evaluate((el) => el.scrollTop);
+  // The line being read stays where it is. Its scroll position may not: lines
+  // merging in from another source can move it, with the line kept in place.
+  const lineAtTop = () =>
+    log.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      const row = hit?.closest(".dw-log-row");
+      return row ? { text: row.textContent, y: Math.round(row.getBoundingClientRect().top) } : undefined;
+    });
+  const before = await lineAtTop();
   await sleep(600);
-  const after = await log.evaluate((el) => el.scrollTop);
-  if (Math.abs(before - after) > 2) fail(`the log moved ${after - before} px while paused`);
+  const after = await lineAtTop();
+  if (!before || !after) fail("no line shows while paused");
+  if (before.text !== after.text || Math.abs(before.y - after.y) > 2) {
+    fail(`the line being read moved while paused: ${JSON.stringify(before)} then ${JSON.stringify(after)}`);
+  }
   const jump = page.getByRole("button", { name: /new line/ });
   await jump.waitFor();
   await page.screenshot({ path: shots ? join(shots, "paused.png") : join(data, "paused.png") });

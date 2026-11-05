@@ -143,9 +143,16 @@ func (c *calls) readLogs(ctx context.Context, call *agentv1.LogsCall) *agentv1.C
 		return fail(err)
 	}
 	defer release()
-	upload := client.SendLogs(ctx)
+	// A reader that stopped taking lines leaves a send blocked, which only
+	// ending the upload's context ends. Closing it would wait on that send, so a
+	// call that failed is cancelled instead.
+	uploadCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	upload := client.SendLogs(uploadCtx)
 	err = c.cfg.Logs.Stream(ctx, call, upload.Send)
-	if _, cerr := upload.CloseAndReceive(); err == nil && cerr != nil && ctx.Err() == nil && !errors.Is(cerr, io.EOF) {
+	if err != nil {
+		cancel()
+	} else if _, cerr := upload.CloseAndReceive(); cerr != nil && ctx.Err() == nil && !errors.Is(cerr, io.EOF) {
 		err = cerr
 	}
 	switch {
@@ -317,7 +324,10 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			}}})
 		})
 		if d := call.GetApply().GetDeploy(); d != nil {
-			ctx = resource.WithDeploy(ctx, resource.Deploy{Revision: int(d.GetRevision()), Change: d.GetChangeId(), Rollback: d.GetRollback()})
+			ctx = resource.WithDeploy(ctx, resource.Deploy{
+				Revision: int(d.GetRevision()), Change: d.GetChangeId(), Rollback: d.GetRollback(),
+				Reverts: d.GetReverts(), RollsBackRevert: d.GetRollsBackRevert(),
+			})
 		}
 		// The values of what the spec uses, opened in memory for this
 		// step alone; they never reach a log, the disk or Desired, which

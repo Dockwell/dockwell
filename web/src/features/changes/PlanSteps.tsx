@@ -197,6 +197,9 @@ function StepRow({
             <span className="plan-step-warn">{t`Destroys data`}</span>
           ) : null}
           {step.restores ? <span>{t`Brings back the data the server kept`}</span> : null}
+          {step.hidesLogs ? (
+            <span>{t`Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back`}</span>
+          ) : null}
           {reach ? <span className="plan-step-warn">{t`Reaches ${reach} on ${server}`}</span> : null}
           {httpsOff.map((a) => {
             const stopping = words.access(a);

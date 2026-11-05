@@ -240,7 +240,7 @@ func TestComposeLoggingTakesRotationAlone(t *testing.T) {
 		"services: {web: {image: a, logging: {options: {max-size: 10m}}}}":                                                         "",
 		"services: {web: {image: a, logging: {driver: syslog}}}":                                                                   "the service web logs to syslog",
 		"services: {web: {image: a, logging: {driver: json-file, options: {labels: a}}}}":                                          "the service web sets the logging option labels",
-		"services: {web: {image: a, logging: {drive: json-file}}}":                                                                 "the service web's logging uses drive",
+		"services: {web: {image: a, logging: {drive: json-file}}}":                                                                 "the service web's logging uses `drive`",
 		"services: {web: {image: a, logging: nonsense}}":                                                                           "logging",
 	} {
 		_, err := Parse(t.Context(), []byte(file), nil)

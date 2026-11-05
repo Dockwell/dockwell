@@ -39,6 +39,13 @@ const (
 	// RetainFor is how long a kept log stays at most. Logs may hold secrets,
 	// so they don't stay for ever just because the budget has room.
 	RetainFor = 30 * 24 * time.Hour
+	// DeletedFor is how long what a deleted service's server kept stays, unread,
+	// for undoing the deletion to bring back: as long as a change can be undone.
+	DeletedFor = 7 * 24 * time.Hour
+	// deletedDir holds what deleted services left, apart from every service's
+	// directory, so no name reaches it. safeName refuses names that start with
+	// a dot.
+	deletedDir = ".deleted"
 	// minFreeBytes keeps the archive off a nearly full disk, which is what a
 	// failed deploy may be about.
 	minFreeBytes = 1 << 30
@@ -66,13 +73,29 @@ type Kept struct {
 	ExitCode    int       `json:"exit_code,omitempty"`
 	Failed      bool      `json:"failed,omitempty"`
 	KeptAt      time.Time `json:"kept_at"`
-	// CutShort says the server has only the container's newest lines.
-	CutShort bool  `json:"cut_short,omitempty"`
-	Lines    int64 `json:"lines"`
+	// CutShort says the server doesn't have all of what the container wrote.
+	CutShort bool `json:"cut_short,omitempty"`
+	// HoleFrom and HoleTo bound what's missing from the middle of a log, when
+	// the container wrote more while it stopped than the last copy looks back.
+	HoleFrom time.Time `json:"hole_from,omitzero"`
+	HoleTo   time.Time `json:"hole_to,omitzero"`
+	Lines    int64     `json:"lines"`
 	// Disk is what its files take, compressed.
 	Disk int64 `json:"disk"`
 	// dir is where its files are.
 	dir string
+	// hidden says a deletion took it out of reach.
+	hidden bool
+}
+
+// slot names what a kept log competes with to stay: a service keeps one for
+// each slot. Rollouts (#28) will run several replicas of a service at once, and
+// then this names the replica too, or what is kept is only one replica's.
+func (k *Kept) slot() string {
+	if k.Failed {
+		return "failed"
+	}
+	return "replaced"
 }
 
 // Archive keeps the logs of containers a change removed, in a directory only
@@ -89,7 +112,9 @@ type Archive struct {
 	// Now is the time; nil means time.Now.
 	Now func() time.Time
 
-	mu sync.Mutex // held while the directory changes
+	mu sync.Mutex // held while what is kept is pruned, hidden or brought back
+
+	pruning sync.WaitGroup
 }
 
 var _ container.LogKeeper = (*Archive)(nil)
@@ -130,7 +155,7 @@ func (a *Archive) free() (uint64, error) {
 // here come from labels Dockwell set on what it owns, but a label can be
 // written by anyone with Docker.
 func safeName(name string) bool {
-	return name != "" && name != "." && name != ".." && !strings.ContainsAny(name, `/\`) && !strings.ContainsRune(name, 0)
+	return name != "" && !strings.HasPrefix(name, ".") && !strings.ContainsAny(name, `/\`) && !strings.ContainsRune(name, 0)
 }
 
 func (a *Archive) serviceDir(project, service string) (string, bool) {
@@ -164,33 +189,55 @@ func (a *Archive) Begin(ctx context.Context, c *docker.Container, failed bool) c
 		a.logger().Warn("won't keep a container's log, as its labels don't name a directory", slog.String("container", c.Name))
 		return nil
 	}
-	if free, err := a.free(); err == nil && free < minFreeBytes {
+	k.dir = filepath.Join(dir, ".copying-"+k.meta.ContainerID)
+	if err := a.makeRoom(k.dir, dir); err != nil {
+		a.logger().Warn("can't keep a container's log", slog.String("container", c.Name), slog.String("error", err.Error()))
+		return nil
+	}
+	// Asked now that the directory exists, as a server's first kept log has
+	// nowhere to ask about until then.
+	free, err := a.free()
+	if err != nil {
+		a.logger().Warn("can't tell how full the disk is, so the server doesn't keep this container's log", slog.String("container", c.Name), slog.String("error", err.Error()))
+		_ = os.RemoveAll(k.dir)
+		return nil
+	}
+	if free < minFreeBytes {
 		a.logger().Warn("the disk is nearly full, so the server doesn't keep this container's log",
 			slog.String("container", c.Name), slog.Uint64("free_bytes", free))
-		return nil
-	}
-	k.dir = filepath.Join(dir, ".copying-"+k.meta.ContainerID)
-	if err := os.RemoveAll(k.dir); err != nil {
-		a.logger().Warn("can't keep a container's log", slog.String("container", c.Name), slog.String("error", err.Error()))
-		return nil
-	}
-	if err := os.MkdirAll(k.dir, 0o700); err != nil {
-		a.logger().Warn("can't keep a container's log", slog.String("container", c.Name), slog.String("error", err.Error()))
-		return nil
-	}
-	if err := a.chmodParents(dir); err != nil {
-		a.logger().Warn("can't keep a container's log", slog.String("container", c.Name), slog.String("error", err.Error()))
+		_ = os.RemoveAll(k.dir)
 		return nil
 	}
 	copyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), copyWait)
 	defer cancel()
-	if err := k.copy(copyCtx, c, docker.LogOptions{Tail: copyTail}); err != nil {
+	// One more than it keeps, to know whether there are more.
+	got, _, err := k.copy(copyCtx, c, docker.LogOptions{Tail: copyTail + 1})
+	if got > copyTail {
+		k.meta.CutShort = true
+	}
+	if err != nil {
 		k.meta.CutShort = true
 		if !errors.Is(err, context.DeadlineExceeded) {
 			a.logger().Warn("can't read all of a container's log to keep it", slog.String("container", c.Name), slog.String("error", err.Error()))
 		}
 	}
 	return k
+}
+
+// makeRoom makes a new copy's directory, empty and owner-only. It waits for a
+// prune under way, which could otherwise remove the service's directory, empty,
+// as this makes its way down to it. This runs while the container still runs,
+// so that takes no downtime.
+func (a *Archive) makeRoom(copying, dir string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if err := os.RemoveAll(copying); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(copying, 0o700); err != nil {
+		return err
+	}
+	return a.chmodParents(dir)
 }
 
 // chmodParents keeps the whole tree owner-only, whatever the umask made it.
@@ -228,44 +275,53 @@ func keptOf(c *docker.Container, failed bool) Kept {
 // shortID is what names a source: the first 12 digits of a container's ID.
 func shortID(id string) string { return id[:min(12, len(id))] }
 
-// copy reads the container's log into its files, from the last line copied.
-func (k *keep) copy(ctx context.Context, c *docker.Container, o docker.LogOptions) error {
+// copy reads the container's log into its files, from the last line copied. It
+// says how many lines it read, and the time of the first new one.
+func (k *keep) copy(ctx context.Context, c *docker.Container, o docker.LogOptions) (int, time.Time, error) {
 	o.Since = k.last
 	rd, err := k.a.Client.ContainerLogs(ctx, c.ID, c.Config.Tty, o)
 	if err != nil {
-		return err
+		return 0, time.Time{}, err
 	}
 	defer rd.Close()
-	sameTime := 0
+	// Docker's since takes lines of exactly that time, and the copy before this
+	// one has the first of them. Lines within one copy can come a little out of
+	// order, or share a time, and all of them count.
+	from, skip := k.last, k.lastCount
+	got := 0
+	var first time.Time
 	for {
 		e, err := rd.Next()
 		if errors.Is(err, io.EOF) {
-			return k.closeSegment()
+			return got, first, k.closeSegment()
 		}
 		if err != nil {
 			_ = k.closeSegment()
-			return err
+			return got, first, err
 		}
+		got++
 		t, ok := docker.ParseLogTime(e.Time)
 		if !ok {
 			continue
 		}
-		switch {
-		case t.Before(k.last):
+		if t.Before(from) {
 			continue
-		case t.Equal(k.last):
-			// Docker's since takes lines of exactly that time, which the
-			// last copy may already have.
-			sameTime++
-			if sameTime <= k.lastCount {
-				continue
-			}
-			k.lastCount++
-		default:
+		}
+		if t.Equal(from) && skip > 0 {
+			skip--
+			continue
+		}
+		switch {
+		case t.After(k.last):
 			k.last, k.lastCount = t, 1
+		case t.Equal(k.last):
+			k.lastCount++
+		}
+		if first.IsZero() {
+			first = t
 		}
 		if err := k.write(t, e); err != nil {
-			return err
+			return got, first, err
 		}
 	}
 }
@@ -314,10 +370,20 @@ func (k *keep) closeSegment() error {
 }
 
 // Finish takes in what the stopped container wrote since Begin, then moves its
-// log into place, and prunes what the archive no longer has room for.
+// log into place. What the archive then has no room for goes on its own time, as
+// this runs while the service is down.
 func (k *keep) Finish(ctx context.Context, c *docker.Container) {
 	a := k.a
-	if err := k.copy(ctx, c, docker.LogOptions{Tail: catchUpTail}); err != nil {
+	before := k.last
+	// One more than it looks back, to know whether it reached the last copy.
+	got, first, err := k.copy(ctx, c, docker.LogOptions{Tail: catchUpTail + 1})
+	if got > catchUpTail {
+		// It wrote more while it stopped than this looks back: the lines
+		// between the two copies are gone, and a marker says where.
+		k.meta.CutShort = true
+		k.meta.HoleFrom, k.meta.HoleTo = before, first
+	}
+	if err != nil {
 		k.meta.CutShort = true
 		if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 			a.logger().Warn("can't read a stopped container's last lines to keep them", slog.String("container", c.Name), slog.String("error", err.Error()))
@@ -335,9 +401,11 @@ func (k *keep) Finish(ctx context.Context, c *docker.Container) {
 		_ = os.RemoveAll(k.dir)
 		return
 	}
-	if err := a.Prune(); err != nil {
-		a.logger().Warn("can't prune the logs kept of removed containers", slog.String("error", err.Error()))
-	}
+	a.pruning.Go(func() {
+		if err := a.Prune(); err != nil {
+			a.logger().Warn("can't prune the logs kept of removed containers", slog.String("error", err.Error()))
+		}
+	})
 }
 
 // commit writes the record and moves the log into place.
@@ -356,8 +424,6 @@ func (k *keep) commit() error {
 	if err := os.WriteFile(filepath.Join(k.dir, "kept.json"), b, 0o600); err != nil {
 		return err
 	}
-	k.a.mu.Lock()
-	defer k.a.mu.Unlock()
 	final := filepath.Join(filepath.Dir(k.dir), k.meta.ContainerID)
 	if err := os.RemoveAll(final); err != nil {
 		return err
@@ -458,10 +524,94 @@ func readKept(dir string) (*Kept, error) {
 	return &k, nil
 }
 
+// Forget takes what a service's server kept of it out of reach, as the service
+// was deleted: no name reads it from here on, and a new service of the same name
+// starts clean. It stays for DeletedFor, for Restore to bring back, as undoing
+// the deletion does. A deletion that left nothing is noted all the same, so that
+// bringing it back can't bring back an older one's.
+func (a *Archive) Forget(project, service string) {
+	dir, ok := a.serviceDir(project, service)
+	if !ok {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	to := filepath.Join(a.Dir, deletedDir, project, service, strconv.FormatInt(a.now().UnixNano(), 10))
+	err := os.MkdirAll(filepath.Dir(to), 0o700)
+	if err == nil {
+		err = a.chmodParents(filepath.Dir(to))
+	}
+	if err == nil {
+		err = os.Rename(dir, to)
+		if errors.Is(err, fs.ErrNotExist) {
+			err = os.Mkdir(to, 0o700)
+		}
+	}
+	if err != nil {
+		// Reading it must stop whatever else went wrong.
+		a.logger().Warn("can't set aside what the server kept of a deleted service, so it removes it", slog.String("service", service), slog.String("error", err.Error()))
+		_ = os.RemoveAll(dir)
+	}
+}
+
+// Restore brings back what the newest deletion of a service set aside, when
+// undoing it makes the service again.
+func (a *Archive) Restore(project, service string) {
+	dir, ok := a.serviceDir(project, service)
+	if !ok {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	from := a.newestDeletion(project, service)
+	if from == "" {
+		return
+	}
+	defer os.RemoveAll(from)
+	entries, err := os.ReadDir(from)
+	if err != nil {
+		a.logger().Warn("can't bring back what the server kept of a service", slog.String("service", service), slog.String("error", err.Error()))
+		return
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		a.logger().Warn("can't bring back what the server kept of a service", slog.String("service", service), slog.String("error", err.Error()))
+		return
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		if err := os.Rename(filepath.Join(from, e.Name()), filepath.Join(dir, e.Name())); err != nil {
+			a.logger().Warn("can't bring back what the server kept of a container", slog.String("service", service), slog.String("error", err.Error()))
+		}
+	}
+}
+
+// newestDeletion finds what the last deletion of a service set aside, if it is
+// still within its time.
+func (a *Archive) newestDeletion(project, service string) string {
+	dir := filepath.Join(a.Dir, deletedDir, project, service)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	newest := int64(0)
+	for _, e := range entries {
+		if at, err := strconv.ParseInt(e.Name(), 10, 64); err == nil && at > newest {
+			newest = at
+		}
+	}
+	if newest == 0 || a.now().Sub(time.Unix(0, newest)) >= DeletedFor {
+		return ""
+	}
+	return filepath.Join(dir, strconv.FormatInt(newest, 10))
+}
+
 // Prune applies the archive's limits. Each service keeps its newest failed and
-// its newest replaced container on each server; nothing stays past RetainFor;
-// and the whole stays within its budget, the oldest going first, what was
-// replaced before what failed.
+// its newest replaced container on each server; nothing stays past RetainFor,
+// and what a deletion set aside no longer than DeletedFor; and the whole stays
+// within its budget, the oldest going first, what a deletion set aside before
+// what was replaced, and that before what failed.
 func (a *Archive) Prune() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -475,10 +625,13 @@ func (a *Archive) Prune() error {
 	}
 	cutoff := a.now().Add(-RetainFor)
 	for _, p := range projects {
-		if !p.IsDir() {
+		if !p.IsDir() || !safeName(p.Name()) {
 			continue
 		}
 		services, err := os.ReadDir(filepath.Join(a.Dir, p.Name()))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
 		if err != nil {
 			return err
 		}
@@ -487,19 +640,15 @@ func (a *Archive) Prune() error {
 				continue
 			}
 			dir := filepath.Join(a.Dir, p.Name(), s.Name())
-			seenFailed, seenReplaced := false, false
+			seen := map[string]bool{}
 			for _, k := range a.listIn(dir) {
-				seen := &seenReplaced
-				if k.Failed {
-					seen = &seenFailed
-				}
-				if *seen || k.KeptAt.Before(cutoff) {
+				if seen[k.slot()] || k.KeptAt.Before(cutoff) {
 					if err := os.RemoveAll(k.dir); err != nil {
 						return err
 					}
 					continue
 				}
-				*seen = true
+				seen[k.slot()] = true
 				all = append(all, k)
 			}
 			a.removeAbandoned(dir)
@@ -507,18 +656,30 @@ func (a *Archive) Prune() error {
 		}
 		_ = os.Remove(filepath.Join(a.Dir, p.Name()))
 	}
+	hidden, err := a.pruneDeleted(cutoff)
+	if err != nil {
+		return err
+	}
+	all = append(all, hidden...)
 	total := int64(0)
 	for _, k := range all {
 		total += k.Disk
 	}
-	// What goes first sorts first: replaced before failed, then oldest. The
-	// newest of all stays, whatever it takes, as what was just kept.
-	slices.SortFunc(all, func(x, y *Kept) int {
-		if x.Failed != y.Failed {
-			if y.Failed {
-				return -1
-			}
+	// What goes first sorts first: what a deletion set aside, then replaced,
+	// then failed, then oldest. The newest of all stays, whatever it takes, as
+	// what was just kept.
+	rank := func(k *Kept) int {
+		switch {
+		case k.hidden:
+			return 0
+		case !k.Failed:
 			return 1
+		}
+		return 2
+	}
+	slices.SortFunc(all, func(x, y *Kept) int {
+		if r := rank(x) - rank(y); r != 0 {
+			return r
 		}
 		return x.KeptAt.Compare(y.KeptAt)
 	})
@@ -541,6 +702,40 @@ func (a *Archive) Prune() error {
 		total -= k.Disk
 	}
 	return nil
+}
+
+// pruneDeleted removes what deletions set aside once its time is up, and returns
+// what is left of it, for the budget.
+func (a *Archive) pruneDeleted(cutoff time.Time) ([]*Kept, error) {
+	root := filepath.Join(a.Dir, deletedDir)
+	sets, err := filepath.Glob(filepath.Join(root, "*", "*", "*"))
+	if err != nil {
+		return nil, err
+	}
+	var out []*Kept
+	for _, set := range sets {
+		at, err := strconv.ParseInt(filepath.Base(set), 10, 64)
+		if err != nil || a.now().Sub(time.Unix(0, at)) >= DeletedFor {
+			if err := os.RemoveAll(set); err != nil {
+				return nil, err
+			}
+			service := filepath.Dir(set)
+			_ = os.Remove(service) // only if nothing is left
+			_ = os.Remove(filepath.Dir(service))
+			continue
+		}
+		for _, k := range a.listIn(set) {
+			if k.KeptAt.Before(cutoff) {
+				if err := os.RemoveAll(k.dir); err != nil {
+					return nil, err
+				}
+				continue
+			}
+			k.hidden = true
+			out = append(out, k)
+		}
+	}
+	return out, nil
 }
 
 // removeAbandoned clears copies a crash left behind, once they are old.

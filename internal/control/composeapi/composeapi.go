@@ -150,7 +150,7 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, Notes: slices.Concat(place.updates(running, deleted), planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()))})
+	}, changes.Also{Edits: place.made, Notes: slices.Concat(place.updates(running, deleted), planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 	if err != nil {
 		return nil, err
 	}
@@ -348,6 +348,25 @@ func exposedProtos(exposed []compose.Exposed) []*dockwellv1.ExposedVariable {
 	return out
 }
 
+// rotationNotes are what a plan says of a log rotation a file asked for: what it
+// asked, what Dockwell does instead, and what that means for reading its logs.
+func rotationNotes(env string, rotations []compose.Rotation) []revision.Note {
+	out := make([]revision.Note, len(rotations))
+	for i, r := range rotations {
+		out[i] = revision.Note{
+			Reason:  "log_rotation",
+			Message: rotationWords(r),
+			Ref:     resource.Ref{Kind: service.Kind, Scope: env, Name: r.Service},
+			Names:   []string{r.Asked},
+		}
+	}
+	return out
+}
+
+func rotationWords(r compose.Rotation) string {
+	return fmt.Sprintf("%s asks for %s in its logging, and Dockwell keeps each container's log in 5 files of 10 MiB instead, so a log can't fill the disk. Older lines go sooner than the file says", r.Service, r.Asked)
+}
+
 // CheckCompose reads a Compose file as ImportCompose would, and says what
 // it would make or why it can't, with nothing planned or recorded.
 func (h *Handler) CheckCompose(ctx context.Context, req *connect.Request[dockwellv1.CheckComposeRequest]) (*connect.Response[dockwellv1.CheckComposeResponse], error) {
@@ -388,6 +407,9 @@ func (h *Handler) CheckCompose(ctx context.Context, req *connect.Request[dockwel
 	}
 	if err != nil {
 		return refuse(err)
+	}
+	for _, r := range stack.Rotations {
+		res.Notes = append(res.Notes, rotationWords(r))
 	}
 	// What a change's edits go through when they are proposed: the rules on
 	// images, ports and server paths are the drivers', not the file's.
@@ -531,6 +553,9 @@ func (h *Handler) ExportCompose(ctx context.Context, req *connect.Request[dockwe
 				switch s := spec.(type) {
 				case *resourcev1.Service:
 					stack.Services = append(stack.Services, compose.Item[*resourcev1.Service]{Name: r.Name, Spec: s})
+					if err := logDriverOf(ctx, tx, r, stack); err != nil {
+						return err
+					}
 				case *resourcev1.Volume:
 					stack.Volumes = append(stack.Volumes, compose.Item[*resourcev1.Volume]{Name: r.Name, Spec: s})
 				case *resourcev1.Network:
@@ -602,6 +627,32 @@ func (h *Handler) useVariables(ctx context.Context, envID string, stack *compose
 		}
 		if len(app.GetEnv()) == 0 {
 			app.Env = nil
+		}
+	}
+	return nil
+}
+
+// logDriverOf notes a service on a server whose Docker logs elsewhere than
+// json-file by default, which stays that server's operator's choice.
+func logDriverOf(ctx context.Context, tx *store.Tx, r store.Resource, stack *compose.Stack) error {
+	on, err := tx.Placement(ctx, r.ID, r.Revision)
+	if err != nil {
+		return err
+	}
+	reports, err := tx.ServerReports(ctx)
+	if err != nil {
+		return err
+	}
+	for _, server := range on {
+		var inv dockwellv1.ServerInventory
+		if proto.Unmarshal(reports[server].Inventory, &inv) != nil {
+			continue
+		}
+		if d := inv.GetDockerLogDriver(); d != "" && d != docker.LogDriverJSONFile {
+			if stack.LogDrivers == nil {
+				stack.LogDrivers = map[string]string{}
+			}
+			stack.LogDrivers[r.Name] = d
 		}
 	}
 	return nil

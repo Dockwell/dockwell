@@ -53,8 +53,9 @@ type (
 		GroupAdd    []string          `yaml:"group_add,omitempty"`
 		Privileged  bool              `yaml:"privileged,omitempty"`
 		// Logging keeps the rotation Dockwell sets on what docker compose makes
-		// from the file, which it would otherwise leave without a limit.
-		Logging loggingEntry `yaml:"logging"`
+		// from the file, which it would otherwise leave without a limit, except on
+		// a server whose Docker logs elsewhere by default, which keeps its choice.
+		Logging *loggingEntry `yaml:"logging,omitempty"`
 	}
 	joinEntry struct {
 		Aliases []string `yaml:"aliases,omitempty"`
@@ -133,7 +134,9 @@ func Export(project string, stack *Stack) (*Exported, error) {
 			User: escape(c.GetUser()), WorkingDir: escape(c.GetWorkingDir()),
 			CapAdd: c.GetCapAdd(), CapDrop: c.GetCapDrop(), GroupAdd: c.GetGroupAdd(), Privileged: c.GetPrivileged(),
 			Networks: exportNetworks(c), Deploy: exportResources(c.GetResources()),
-			Logging: loggingEntry{Driver: rotation.Type, Options: rotation.Config},
+		}
+		if stack.LogDrivers[s.Name] == "" {
+			entry.Logging = &loggingEntry{Driver: rotation.Type, Options: rotation.Config}
 		}
 		// A network the server has is listed as external, by its name in Docker, so
 		// docker compose joins it and never makes it.

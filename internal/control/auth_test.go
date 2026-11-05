@@ -39,6 +39,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -93,12 +94,13 @@ func startFull(t *testing.T, backend store.Backend, public https.Source) *fullSe
 // startFullLogging is startFull with the control plane logging to logger.
 func startFullLogging(t *testing.T, backend store.Backend, public https.Source, logger *slog.Logger) *fullServer {
 	t.Helper()
-	return startFullWith(t, backend, public, logger, nil)
+	return startFullWith(t, backend, public, logger, nil, logapi.Options{})
 }
 
-// startFullWith is startFull with the control plane logging to logger, and
-// serving the panel's proxied listener on ingress if it isn't nil.
-func startFullWith(t *testing.T, backend store.Backend, public https.Source, logger *slog.Logger, ingress net.Listener) *fullServer {
+// startFullWith is startFull with the control plane logging to logger, serving
+// the panel's proxied listener on ingress if it isn't nil, and with the limits
+// of reading logs changed.
+func startFullWith(t *testing.T, backend store.Backend, public https.Source, logger *slog.Logger, ingress net.Listener, logs logapi.Options) *fullServer {
 	t.Helper()
 	dir := t.TempDir()
 	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
@@ -135,7 +137,7 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	srv, err := New(Config{
 		Logger: logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
 		Changes: engine, Agents: agents, Store: db, Secrets: keeper, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
-		EventPoll: 200 * time.Millisecond,
+		EventPoll: 200 * time.Millisecond, Logs: logs,
 	})
 	if err != nil {
 		t.Fatal(err)

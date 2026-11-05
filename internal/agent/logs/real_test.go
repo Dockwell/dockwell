@@ -4,6 +4,7 @@ package logs_test
 
 import (
 	"context"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -41,9 +42,60 @@ func runReal(t *testing.T, client *docker.Client, rt *container.Docker, project,
 	return c
 }
 
+// logFilesOf lists a container's log files on a real engine, by name and size.
+// Only root can read where Docker keeps them, so a container reads them.
+func logFilesOf(t *testing.T, client *docker.Client, project string, c *docker.Container) map[string]int64 {
+	t.Helper()
+	if c.LogPath == "" {
+		t.Fatalf("Docker doesn't say where %s keeps its log", c.Name)
+	}
+	name := "log-files-" + c.ID[:12]
+	id, err := client.CreateContainer(t.Context(), name, &docker.CreateRequest{
+		Config: docker.Config{
+			Image:  realImage,
+			Cmd:    []string{"sh", "-c", `cd /logs && for f in *; do echo "$f $(wc -c <"$f")"; done`},
+			Labels: map[string]string{docker.LabelProject: project, docker.LabelService: "log-files"},
+		},
+		HostConfig: docker.HostConfig{Binds: []string{filepath.Dir(c.LogPath) + ":/logs:ro"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = client.RemoveContainer(context.WithoutCancel(t.Context()), id, true) }()
+	if err := client.StartContainer(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	waitForLong(t, "it to list them", func() bool {
+		c, err := client.InspectContainer(t.Context(), id)
+		return err == nil && !c.State.Running
+	})
+	rd, err := client.ContainerLogs(t.Context(), id, false, docker.LogOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rd.Close()
+	files := map[string]int64{}
+	for {
+		e, err := rd.Next()
+		if err != nil {
+			return files
+		}
+		file, size, ok := strings.Cut(string(e.Text), " ")
+		if !ok || !strings.Contains(file, "-json.log") {
+			continue
+		}
+		n, err := strconv.ParseInt(strings.TrimSpace(size), 10, 64)
+		if err != nil {
+			t.Fatalf("a log file's size reads %q", size)
+		}
+		files[file] = n
+	}
+}
+
 // On a real engine: Docker's framing, its times, its since and its follow are as
-// the reader takes them, a long line comes joined, a replace keeps the log, and
-// the log rotates within its bound, and reads back whole across its files.
+// the reader takes them, a long line comes joined, a replace keeps the log, with
+// what the container writes as it stops, and the log rotates within its 50 MiB,
+// its older files compressed, and reads back whole across them.
 func TestLogsOnRealDocker(t *testing.T) {
 	client := dockertest.Real(t)
 	scope := dockertest.Scope(t)
@@ -55,7 +107,7 @@ func TestLogsOnRealDocker(t *testing.T) {
 	rt := &container.Docker{Client: client, Logs: archive}
 	ref := &dockwellv1.ResourceRef{Kind: "service", Scope: scope, Name: "web"}
 
-	ctr := runReal(t, client, rt, project, "web", `echo out; echo err >&2; head -c 40000 /dev/zero | tr '\0' x; echo; printf '\033[31mERROR\033[0m red\n'; while sleep 0.1; do echo tick; done`, 1)
+	ctr := runReal(t, client, rt, project, "web", `trap 'echo last-words; exit 0' TERM; echo out; echo err >&2; head -c 40000 /dev/zero | tr '\0' x; echo; printf '\033[31mERROR\033[0m red\n'; while sleep 0.1; do echo tick; done`, 1)
 	if lc := ctr.HostConfig.LogConfig; lc == nil || lc.Type != docker.LogDriverJSONFile || lc.Config["max-size"] != "10m" {
 		t.Errorf("Docker has the log config as %+v", lc)
 	}
@@ -135,6 +187,11 @@ func TestLogsOnRealDocker(t *testing.T) {
 	if back.byLine["out"] == nil || back.byLine["tick"] == nil {
 		t.Errorf("the kept log has %d lines, without those it printed", back.count())
 	}
+	// Printed once the first copy was done, as Docker stopped it: only the second
+	// copy has this.
+	if back.byLine["last-words"] == nil {
+		t.Errorf("the kept log has %d lines, without what it printed as it stopped", back.count())
+	}
 
 	// Rotation: it writes past what five files of 10 MiB hold, as json-file counts
 	// a line with its JSON around it. It pauses before its last line, which a live
@@ -188,6 +245,44 @@ func TestLogsOnRealDocker(t *testing.T) {
 		t.Error("the first line it wrote is still there, so it never rotated away")
 	}
 	t.Logf("read back %d of %d lines of %s across its rotated files, oldest %v", read, written, rot, all.scans[0].GetOldestTime().AsTime())
+
+	// What Docker keeps of it stays within the bound, which what it wrote is past,
+	// with its older files compressed. Compressing comes a moment after rotating.
+	rotating, err := client.ContainerNamed(t.Context(), docker.ContainerName(project, rot))
+	if err != nil {
+		t.Fatal(err)
+	}
+	compressed := func(files map[string]int64) int {
+		n := 0
+		for name := range files {
+			if strings.HasSuffix(name, ".gz") {
+				n++
+			}
+		}
+		return n
+	}
+	var files map[string]int64
+	waitForLong(t, "Docker to compress its older files", func() bool {
+		files = logFilesOf(t, client, project, rotating)
+		return compressed(files) >= 2
+	})
+	total, plain := int64(0), int64(0)
+	for name, size := range files {
+		total += size
+		if !strings.HasSuffix(name, ".gz") {
+			plain += size
+		}
+	}
+	t.Logf("Docker keeps %v, %d bytes in all", files, total)
+	if len(files) > 5 {
+		t.Errorf("Docker keeps %d files of its log, want at most 5: %v", len(files), files)
+	}
+	if total > 50<<20 {
+		t.Errorf("Docker keeps %d bytes of its log, past 50 MiB: %v", total, files)
+	}
+	if plain > 10<<20+1<<20 {
+		t.Errorf("Docker keeps %d bytes uncompressed, more than one file of 10 MiB: %v", plain, files)
+	}
 }
 
 func waitForLong(t *testing.T, what string, ok func() bool) {

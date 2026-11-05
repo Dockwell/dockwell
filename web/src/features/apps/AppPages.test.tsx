@@ -126,16 +126,14 @@ describe("an app's frame", () => {
     expect(alert).toHaveTextContent("Your role can't read services. Ask an owner.");
   });
 
-  it("gives every tab a place, including the logs task's", async () => {
+  it("gives every tab a place", async () => {
     const user = userEvent.setup();
     const { router } = renderAt("/apps/svc_web", api());
     const tabs = await screen.findByRole("navigation", { name: "App sections" });
     await user.click(within(tabs).getByRole("link", { name: "Logs" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_web/logs"));
     expect(screen.getByRole("heading", { level: 1, name: "web" })).toBeVisible();
-    // Until they are here, the command that reads them, with the app's own name, to copy.
-    expect(await screen.findByText("docker logs env_prod-web-1")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Copy the command" })).toBeVisible();
+    expect(await screen.findByRole("region", { name: "Logs" })).toBeVisible();
     await user.click(within(tabs).getByRole("link", { name: "Environment" }));
     expect(await screen.findByRole("cell", { name: "API_KEY" })).toBeVisible();
     expect(screen.getAllByRole("cell", { name: "Hidden" })).toHaveLength(2);

@@ -5609,3 +5609,39 @@ msgstr "What it writes elsewhere goes when its container is replaced."
 #: src/features/logs/LogsPage.tsx
 msgid "You can't read these logs"
 msgstr "You can't read these logs"
+
+#: src/features/apps/AppOverview.tsx
+msgid "{count, plural, one {# variable} other {# variables}}"
+msgstr "{count, plural, one {# variable} other {# variables}}"
+
+#: src/features/apps/AppDeployments.tsx
+msgid "{shown} already matches what runs"
+msgstr "{shown} already matches what runs"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "<0>{variable}</0> is written in {service}'s {where}, so anyone who can read this app can see its value. To keep it hidden, pass it in <1>environment</1>, and use <2>{dollar}</2> there."
+msgstr "<0>{variable}</0> is written in {service}'s {where}, so anyone who can read this app can see its value. To keep it hidden, pass it in <1>environment</1>, and use <2>{dollar}</2> there."
+
+#: src/features/auth/messages.ts
+msgid "API tokens can't remove data, cut off access, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API tokens can't remove data, cut off access, or change how you sign in and your tokens. Sign in and do it in the panel."
+
+#: src/features/apps/AppEnvironment.tsx
+msgid "Dockwell hands these to the app, and never shows their values again, as they may hold secrets."
+msgstr "Dockwell hands these to the app, and never shows their values again, as they may hold secrets."
+
+#: src/features/apps/AppOverview.tsx
+msgid "Each server it ran on has left the fleet. Deploy it to run it again."
+msgstr "Each server it ran on has left the fleet. Deploy it to run it again."
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
+msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
+
+#: src/features/apps/AppOverview.tsx
+msgid "No server runs {name}"
+msgstr "No server runs {name}"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code."
+msgstr "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code."

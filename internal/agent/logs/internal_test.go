@@ -3,10 +3,16 @@
 package logs
 
 import (
+	"bytes"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 )
 
-func TestContainsFold(t *testing.T) {
+func TestSearchingALineFindsItInAnyCase(t *testing.T) {
 	for _, tc := range []struct {
 		text, query string
 		want        bool
@@ -21,9 +27,90 @@ func TestContainsFold(t *testing.T) {
 		{"cartxx", "cart", true},
 		{"cCart", "cart", true},
 		{"1234", "23", true},
+		// What it falls back on when a start doesn't pan out.
+		{"aaab", "aab", true},
+		{"abababc", "ababc", true},
+		{"ababab", "ababc", false},
+		// A letter past ASCII matches as written, in the query as in the text.
+		{"Été à Paris", "Été", true},
+		{"ÉTÉ", "été", false},
+		// A search written in capitals finds what any case holds.
+		{"connection refused", "REFUSED", true},
 	} {
-		if got := containsFold([]byte(tc.text), []byte(tc.query)); got != tc.want {
-			t.Errorf("containsFold(%q, %q) = %v, want %v", tc.text, tc.query, got, tc.want)
+		if got := newFoldSearch(tc.query).in([]byte(tc.text)); got != tc.want {
+			t.Errorf("searching %q for %q = %v, want %v", tc.text, tc.query, got, tc.want)
+		}
+	}
+}
+
+// A query against the worst line for one takes about as long as one that fails at
+// once: the time grows with the line, and not with how far each start gets. Compared,
+// rather than timed, so a loaded machine or the race detector doesn't change the answer.
+func TestSearchingALineIsLinear(t *testing.T) {
+	took := func(search *foldSearch, text []byte) time.Duration {
+		start := time.Now()
+		for range 20 {
+			if search.in(text) {
+				t.Fatal("it found what isn't there")
+			}
+		}
+		return time.Since(start)
+	}
+	text := bytes.Repeat([]byte{'a'}, 16<<10)
+	easy := took(newFoldSearch("b"), text)
+	if hard := took(newFoldSearch(strings.Repeat("a", 1<<10)+"b"), text); hard > 10*easy {
+		t.Errorf("a query of 1 KiB took %s on a line of 16 KiB, and one of a letter %s", hard, easy)
+	}
+	// A query's first letter in the other case throughout, which looking for each
+	// case apart reads over and over.
+	mixed := bytes.Repeat([]byte("Ax"), 8<<10)
+	if hard := took(newFoldSearch("ab"), mixed); hard > 10*took(newFoldSearch("z"), mixed) {
+		t.Errorf("a query whose first letter is in the other case took %s", hard)
+	}
+}
+
+func TestSearchingALineDoesntAllocate(t *testing.T) {
+	search := newFoldSearch("needle")
+	text := []byte("a haystack with a NEEDLE in it")
+	if n := testing.AllocsPerRun(100, func() { search.in(text) }); n != 0 {
+		t.Errorf("a search allocates %v times a line", n)
+	}
+}
+
+// Pruning goes on its own time, so a stop's downtime doesn't wait for it.
+func TestFinishingAKeptLogDoesntWaitForAPrune(t *testing.T) {
+	e := dockertest.New(t)
+	e.AddContainer(docker.Container{
+		Name:    "/app-1",
+		Config:  docker.Config{Image: "app:1", Labels: map[string]string{docker.LabelProject: "env_01test", docker.LabelService: "web", docker.LabelNumber: "1"}},
+		Created: time.Now().UTC(),
+		State:   docker.State{Status: "running", Running: true, StartedAt: time.Now().UTC()},
+	})
+	a := &Archive{Dir: t.TempDir(), Client: e.Client(), Free: func(string) (uint64, error) { return 1 << 40, nil }}
+	k := a.Begin(t.Context(), e.Container("app-1"), false)
+	e.Stop("app-1")
+	a.mu.Lock() // as a prune holds it
+	done := make(chan struct{})
+	go func() {
+		k.Finish(t.Context(), e.Container("app-1"))
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Error("Finish waited for a prune")
+	}
+	a.mu.Unlock()
+	a.WaitPruned()
+}
+
+// The names a label can give can't reach what a deletion set aside.
+func TestSafeNames(t *testing.T) {
+	for name, want := range map[string]bool{
+		"web": true, "env_01abc": true, "": false, ".": false, "..": false, ".deleted": false, ".copying-abc": false, "a/b": false, `a\b`: false, "a\x00b": false,
+	} {
+		if got := safeName(name); got != want {
+			t.Errorf("safeName(%q) = %v", name, got)
 		}
 	}
 }

@@ -332,6 +332,13 @@ const (
 	// The server no longer has them, as Docker rotated them away while the
 	// stream was away.
 	LogGapReason_LOG_GAP_REASON_GONE LogGapReason = 3
+	// The container wrote faster than this reader's share of what the server
+	// carries live, which it divides fairly between the services being read
+	// and each service's readers.
+	LogGapReason_LOG_GAP_REASON_SHARED LogGapReason = 4
+	// A read to the end found more matches than it holds of one container, and
+	// these older ones left. Page through ReadLogs to read them.
+	LogGapReason_LOG_GAP_REASON_MATCH_LIMIT LogGapReason = 5
 )
 
 // Enum value maps for LogGapReason.
@@ -341,12 +348,16 @@ var (
 		1: "LOG_GAP_REASON_TOO_FAST",
 		2: "LOG_GAP_REASON_READER_BEHIND",
 		3: "LOG_GAP_REASON_GONE",
+		4: "LOG_GAP_REASON_SHARED",
+		5: "LOG_GAP_REASON_MATCH_LIMIT",
 	}
 	LogGapReason_value = map[string]int32{
 		"LOG_GAP_REASON_UNSPECIFIED":   0,
 		"LOG_GAP_REASON_TOO_FAST":      1,
 		"LOG_GAP_REASON_READER_BEHIND": 2,
 		"LOG_GAP_REASON_GONE":          3,
+		"LOG_GAP_REASON_SHARED":        4,
+		"LOG_GAP_REASON_MATCH_LIMIT":   5,
 	}
 )
 
@@ -515,8 +526,9 @@ type LoggedService struct {
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// The name of its environment, such as "production".
 	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
-	// True when the service is gone, as when its first deploy failed and was
-	// rolled back. What its servers kept can still be read.
+	// True when the service isn't there now. When its first deploy failed and
+	// was rolled back, what its servers kept can still be read. When it was
+	// deleted, nothing can, unless undoing the deletion brings it back.
 	Deleted       bool `protobuf:"varint,4,opt,name=deleted,proto3" json:"deleted,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -595,8 +607,9 @@ type ReadLogsRequest struct {
 	Since *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=since,proto3" json:"since,omitempty"`
 	// Only lines written at or before this time.
 	Until *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=until,proto3" json:"until,omitempty"`
-	// Only lines from this long ago until now, by the control plane's clock,
-	// such as "900s". Set it in place of since.
+	// Only lines from this long ago until now, by each server's clock, which
+	// is the clock its lines' times are on, such as "900s". Set it in place of
+	// since.
 	Last *durationpb.Duration `protobuf:"bytes,6,opt,name=last,proto3" json:"last,omitempty"`
 	// How many lines to return: 1000 when unset, and at most 5000.
 	PageSize int32 `protobuf:"varint,7,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -612,9 +625,10 @@ type ReadLogsRequest struct {
 	// Only lines of these levels. A line with no level counts as info, and
 	// the indented lines after one, such as a stack trace, take its level.
 	Levels []LogLevel `protobuf:"varint,12,rep,packed,name=levels,proto3,enum=dockwell.v1.LogLevel" json:"levels,omitempty"`
-	// Only lines that hold this text, in any case. It is plain text, not a
-	// pattern. Each server scans what it still has for it: at most 256 MiB of
-	// each container's log, and for at most 30 seconds.
+	// Only lines that hold this text, in any case, of at most 1 KiB. It is
+	// plain text, not a pattern. Each server scans what it still has for it: at
+	// most the newest 1,000,000 lines of each container, and for at most 30
+	// seconds.
 	Query         string `protobuf:"bytes,13,opt,name=query,proto3" json:"query,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -763,6 +777,9 @@ type ReadLogsResponse struct {
 	// True when a search stopped at its limit, of size or of time, before it
 	// reached the oldest line a server has.
 	SearchCutShort bool `protobuf:"varint,7,opt,name=search_cut_short,json=searchCutShort,proto3" json:"search_cut_short,omitempty"`
+	// True when what stopped it was its limit of time, 30 seconds, rather than
+	// the most lines it reads.
+	SearchTimedOut bool `protobuf:"varint,8,opt,name=search_timed_out,json=searchTimedOut,proto3" json:"search_timed_out,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -846,6 +863,13 @@ func (x *ReadLogsResponse) GetSearchCutShort() bool {
 	return false
 }
 
+func (x *ReadLogsResponse) GetSearchTimedOut() bool {
+	if x != nil {
+		return x.SearchTimedOut
+	}
+	return false
+}
+
 // WatchLogsRequest says which of a service's log lines to send. The filters
 // combine: a line must pass each one that is set.
 type WatchLogsRequest struct {
@@ -861,8 +885,9 @@ type WatchLogsRequest struct {
 	Since *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=since,proto3" json:"since,omitempty"`
 	// Only lines written at or before this time.
 	Until *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=until,proto3" json:"until,omitempty"`
-	// Only lines from this long ago until now, by the control plane's clock,
-	// such as "900s". Set it in place of since.
+	// Only lines from this long ago until now, by each server's clock, which
+	// is the clock its lines' times are on, such as "900s". Set it in place of
+	// since.
 	Last *durationpb.Duration `protobuf:"bytes,6,opt,name=last,proto3" json:"last,omitempty"`
 	// How many of each container's newest lines to start with: 200 when
 	// unset, -1 for none, and at most 100000.
@@ -879,8 +904,8 @@ type WatchLogsRequest struct {
 	// Only lines of these levels. A line with no level counts as info, and
 	// the indented lines after one, such as a stack trace, take its level.
 	Levels []LogLevel `protobuf:"varint,12,rep,packed,name=levels,proto3,enum=dockwell.v1.LogLevel" json:"levels,omitempty"`
-	// Only lines that hold this text, in any case. It is plain text, not a
-	// pattern.
+	// Only lines that hold this text, in any case, of at most 1 KiB. It is
+	// plain text, not a pattern.
 	Query string `protobuf:"bytes,13,opt,name=query,proto3" json:"query,omitempty"`
 	// Carry on after the lines a stream sent before: the resume_token of the
 	// last message it sent. Pass the same filters with it. Lines a server
@@ -1646,7 +1671,7 @@ const file_dockwell_v1_log_proto_rawDesc = "" +
 	" \x01(\x03R\brevision\x12\x1b\n" +
 	"\tchange_id\x18\v \x01(\tR\bchangeId\x12-\n" +
 	"\x06levels\x18\f \x03(\x0e2\x15.dockwell.v1.LogLevelR\x06levels\x12\x14\n" +
-	"\x05query\x18\r \x01(\tR\x05query\"\xea\x02\n" +
+	"\x05query\x18\r \x01(\tR\x05query\"\x94\x03\n" +
 	"\x10ReadLogsResponse\x12-\n" +
 	"\x06chunks\x18\x01 \x03(\v2\x15.dockwell.v1.LogChunkR\x06chunks\x120\n" +
 	"\asources\x18\x02 \x03(\v2\x16.dockwell.v1.LogSourceR\asources\x126\n" +
@@ -1654,7 +1679,8 @@ const file_dockwell_v1_log_proto_rawDesc = "" +
 	"\x0fnext_page_token\x18\x04 \x01(\tR\rnextPageToken\x12D\n" +
 	"\x10searched_back_to\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x0esearchedBackTo\x12%\n" +
 	"\x0esearched_lines\x18\x06 \x01(\x04R\rsearchedLines\x12(\n" +
-	"\x10search_cut_short\x18\a \x01(\bR\x0esearchCutShort\"\xd9\x03\n" +
+	"\x10search_cut_short\x18\a \x01(\bR\x0esearchCutShort\x12(\n" +
+	"\x10search_timed_out\x18\b \x01(\bR\x0esearchTimedOut\"\xd9\x03\n" +
 	"\x10WatchLogsRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
@@ -1750,12 +1776,14 @@ const file_dockwell_v1_log_proto_rawDesc = "" +
 	"\x0fLOG_LEVEL_DEBUG\x10\x01\x12\x12\n" +
 	"\x0eLOG_LEVEL_INFO\x10\x02\x12\x12\n" +
 	"\x0eLOG_LEVEL_WARN\x10\x03\x12\x13\n" +
-	"\x0fLOG_LEVEL_ERROR\x10\x04*\x86\x01\n" +
+	"\x0fLOG_LEVEL_ERROR\x10\x04*\xc1\x01\n" +
 	"\fLogGapReason\x12\x1e\n" +
 	"\x1aLOG_GAP_REASON_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17LOG_GAP_REASON_TOO_FAST\x10\x01\x12 \n" +
 	"\x1cLOG_GAP_REASON_READER_BEHIND\x10\x02\x12\x17\n" +
-	"\x13LOG_GAP_REASON_GONE\x10\x032\x9b\x03\n" +
+	"\x13LOG_GAP_REASON_GONE\x10\x03\x12\x19\n" +
+	"\x15LOG_GAP_REASON_SHARED\x10\x04\x12\x1e\n" +
+	"\x1aLOG_GAP_REASON_MATCH_LIMIT\x10\x052\x9b\x03\n" +
 	"\n" +
 	"LogService\x12\x9d\x01\n" +
 	"\x0eListLogSources\x12\".dockwell.v1.ListLogSourcesRequest\x1a#.dockwell.v1.ListLogSourcesResponse\"B\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\n" +

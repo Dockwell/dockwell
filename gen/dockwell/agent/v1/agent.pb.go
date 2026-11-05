@@ -1445,7 +1445,14 @@ type LogsCall struct {
 	// Read the containers the server kept the logs of, too, within since and
 	// until. Without it only what Docker has now is read, unless the filters
 	// name a kept one.
-	IncludeKept   bool `protobuf:"varint,15,opt,name=include_kept,json=includeKept,proto3" json:"include_kept,omitempty"`
+	IncludeKept bool `protobuf:"varint,15,opt,name=include_kept,json=includeKept,proto3" json:"include_kept,omitempty"`
+	// Who is reading, as an opaque name, so that one reader can't take every
+	// place this server has for reading logs. Empty counts only towards the
+	// server's own limit.
+	Reader string `protobuf:"bytes,16,opt,name=reader,proto3" json:"reader,omitempty"`
+	// Only lines from this long ago until now, by this server's clock, which is
+	// the clock its lines' times are on. Set in place of since.
+	Last          *durationpb.Duration `protobuf:"bytes,17,opt,name=last,proto3" json:"last,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1585,6 +1592,20 @@ func (x *LogsCall) GetIncludeKept() bool {
 	return false
 }
 
+func (x *LogsCall) GetReader() string {
+	if x != nil {
+		return x.Reader
+	}
+	return ""
+}
+
+func (x *LogsCall) GetLast() *durationpb.Duration {
+	if x != nil {
+		return x.Last
+	}
+	return nil
+}
+
 // LogCursor is a place in one source's lines.
 type LogCursor struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1593,7 +1614,8 @@ type LogCursor struct {
 	// The time of the line.
 	Time *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=time,proto3" json:"time,omitempty"`
 	// How many lines of the source have exactly that time, up to and including
-	// the line, as two lines can share one.
+	// the line, as two lines can share one. In before, how many of those the
+	// pages so far hold, which are the newest of them.
 	Count         uint32 `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1663,7 +1685,10 @@ type LogScan struct {
 	CutShort bool `protobuf:"varint,4,opt,name=cut_short,json=cutShort,proto3" json:"cut_short,omitempty"`
 	// True when older lines passed the filters and weren't sent, for lack of
 	// room, so another page has more.
-	Older         bool `protobuf:"varint,5,opt,name=older,proto3" json:"older,omitempty"`
+	Older bool `protobuf:"varint,5,opt,name=older,proto3" json:"older,omitempty"`
+	// True when it stopped because its time ran out, rather than at the most
+	// lines it reads.
+	TimedOut      bool `protobuf:"varint,6,opt,name=timed_out,json=timedOut,proto3" json:"timed_out,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1729,6 +1754,13 @@ func (x *LogScan) GetCutShort() bool {
 func (x *LogScan) GetOlder() bool {
 	if x != nil {
 		return x.Older
+	}
+	return false
+}
+
+func (x *LogScan) GetTimedOut() bool {
+	if x != nil {
+		return x.TimedOut
 	}
 	return false
 }
@@ -1997,9 +2029,15 @@ type Deploy struct {
 	ChangeId string `protobuf:"bytes,2,opt,name=change_id,json=changeId,proto3" json:"change_id,omitempty"`
 	// True when the change rolls a failed one back, so what the step replaces
 	// or removes failed.
-	Rollback      bool `protobuf:"varint,3,opt,name=rollback,proto3" json:"rollback,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Rollback bool `protobuf:"varint,3,opt,name=rollback,proto3" json:"rollback,omitempty"`
+	// True when the change undoes or rolls back another, so a container the step
+	// makes where there was none brings back a deleted service.
+	Reverts bool `protobuf:"varint,4,opt,name=reverts,proto3" json:"reverts,omitempty"`
+	// True when the change rolls back one that itself undid another, so a
+	// container the step removes takes a deleted service away again.
+	RollsBackRevert bool `protobuf:"varint,5,opt,name=rolls_back_revert,json=rollsBackRevert,proto3" json:"rolls_back_revert,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Deploy) Reset() {
@@ -2049,6 +2087,20 @@ func (x *Deploy) GetChangeId() string {
 func (x *Deploy) GetRollback() bool {
 	if x != nil {
 		return x.Rollback
+	}
+	return false
+}
+
+func (x *Deploy) GetReverts() bool {
+	if x != nil {
+		return x.Reverts
+	}
+	return false
+}
+
+func (x *Deploy) GetRollsBackRevert() bool {
+	if x != nil {
+		return x.RollsBackRevert
 	}
 	return false
 }
@@ -2868,7 +2920,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04logs\x18\a \x01(\v2\x1b.dockwell.agent.v1.LogsCallH\x00R\x04logsB\x06\n" +
 	"\x04call\"F\n" +
 	"\x0eLogSourcesCall\x124\n" +
-	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\"\xcf\x04\n" +
+	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\"\x96\x05\n" +
 	"\bLogsCall\x12\x16\n" +
 	"\x06stream\x18\x01 \x01(\x04R\x06stream\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x120\n" +
@@ -2887,18 +2939,21 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x06before\x18\r \x03(\v2\x1c.dockwell.agent.v1.LogCursorR\x06before\x12;\n" +
 	"\vresume_from\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"resumeFrom\x12!\n" +
-	"\finclude_kept\x18\x0f \x01(\bR\vincludeKept\"n\n" +
+	"\finclude_kept\x18\x0f \x01(\bR\vincludeKept\x12\x16\n" +
+	"\x06reader\x18\x10 \x01(\tR\x06reader\x12-\n" +
+	"\x04last\x18\x11 \x01(\v2\x19.google.protobuf.DurationR\x04last\"n\n" +
 	"\tLogCursor\x12\x1b\n" +
 	"\tsource_id\x18\x01 \x01(\tR\bsourceId\x12.\n" +
 	"\x04time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12\x14\n" +
-	"\x05count\x18\x03 \x01(\rR\x05count\"\xac\x01\n" +
+	"\x05count\x18\x03 \x01(\rR\x05count\"\xc9\x01\n" +
 	"\aLogScan\x12\x1b\n" +
 	"\tsource_id\x18\x01 \x01(\tR\bsourceId\x12;\n" +
 	"\voldest_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"oldestTime\x12\x14\n" +
 	"\x05lines\x18\x03 \x01(\x04R\x05lines\x12\x1b\n" +
 	"\tcut_short\x18\x04 \x01(\bR\bcutShort\x12\x14\n" +
-	"\x05older\x18\x05 \x01(\bR\x05older\"\xd9\x01\n" +
+	"\x05older\x18\x05 \x01(\bR\x05older\x12\x1b\n" +
+	"\ttimed_out\x18\x06 \x01(\bR\btimedOut\"\xd9\x01\n" +
 	"\x0fSendLogsRequest\x12\x16\n" +
 	"\x06stream\x18\x01 \x01(\x04R\x06stream\x120\n" +
 	"\asources\x18\x02 \x03(\v2\x16.dockwell.v1.LogSourceR\asources\x12-\n" +
@@ -2913,11 +2968,13 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\adesired\x18\x02 \x01(\v2\".dockwell.agent.v1.DesiredResourceR\adesired\x12\x16\n" +
 	"\x06values\x18\x03 \x01(\fR\x06values\x12\x16\n" +
 	"\x06pulled\x18\x04 \x01(\bR\x06pulled\x121\n" +
-	"\x06deploy\x18\x05 \x01(\v2\x19.dockwell.agent.v1.DeployR\x06deploy\"]\n" +
+	"\x06deploy\x18\x05 \x01(\v2\x19.dockwell.agent.v1.DeployR\x06deploy\"\xa3\x01\n" +
 	"\x06Deploy\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x03R\brevision\x12\x1b\n" +
 	"\tchange_id\x18\x02 \x01(\tR\bchangeId\x12\x1a\n" +
-	"\brollback\x18\x03 \x01(\bR\brollback\"\x82\x01\n" +
+	"\brollback\x18\x03 \x01(\bR\brollback\x12\x18\n" +
+	"\areverts\x18\x04 \x01(\bR\areverts\x12*\n" +
+	"\x11rolls_back_revert\x18\x05 \x01(\bR\x0frollsBackRevert\"\x82\x01\n" +
 	"\x06Values\x12=\n" +
 	"\x06values\x18\x01 \x03(\v2%.dockwell.agent.v1.Values.ValuesEntryR\x06values\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
@@ -3075,40 +3132,41 @@ var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	19, // 32: dockwell.agent.v1.LogsCall.after:type_name -> dockwell.agent.v1.LogCursor
 	19, // 33: dockwell.agent.v1.LogsCall.before:type_name -> dockwell.agent.v1.LogCursor
 	47, // 34: dockwell.agent.v1.LogsCall.resume_from:type_name -> google.protobuf.Timestamp
-	47, // 35: dockwell.agent.v1.LogCursor.time:type_name -> google.protobuf.Timestamp
-	47, // 36: dockwell.agent.v1.LogScan.oldest_time:type_name -> google.protobuf.Timestamp
-	49, // 37: dockwell.agent.v1.SendLogsRequest.sources:type_name -> dockwell.v1.LogSource
-	50, // 38: dockwell.agent.v1.SendLogsRequest.chunks:type_name -> dockwell.v1.LogChunk
-	20, // 39: dockwell.agent.v1.SendLogsRequest.scans:type_name -> dockwell.agent.v1.LogScan
-	28, // 40: dockwell.agent.v1.PlanCall.desired:type_name -> dockwell.agent.v1.DesiredResource
-	51, // 41: dockwell.agent.v1.ApplyCall.step:type_name -> dockwell.v1.PlanStep
-	28, // 42: dockwell.agent.v1.ApplyCall.desired:type_name -> dockwell.agent.v1.DesiredResource
-	25, // 43: dockwell.agent.v1.ApplyCall.deploy:type_name -> dockwell.agent.v1.Deploy
-	38, // 44: dockwell.agent.v1.Values.values:type_name -> dockwell.agent.v1.Values.ValuesEntry
-	46, // 45: dockwell.agent.v1.ObserveCall.resources:type_name -> dockwell.v1.ResourceRef
-	46, // 46: dockwell.agent.v1.DesiredResource.resource:type_name -> dockwell.v1.ResourceRef
-	33, // 47: dockwell.agent.v1.CallResult.error:type_name -> dockwell.agent.v1.CallError
-	34, // 48: dockwell.agent.v1.CallResult.plan:type_name -> dockwell.agent.v1.PlanResult
-	35, // 49: dockwell.agent.v1.CallResult.apply:type_name -> dockwell.agent.v1.ApplyResult
-	36, // 50: dockwell.agent.v1.CallResult.observe:type_name -> dockwell.agent.v1.ObserveResult
-	31, // 51: dockwell.agent.v1.CallResult.log_sources:type_name -> dockwell.agent.v1.LogSourcesResult
-	32, // 52: dockwell.agent.v1.CallResult.logs:type_name -> dockwell.agent.v1.LogsResult
-	49, // 53: dockwell.agent.v1.LogSourcesResult.sources:type_name -> dockwell.v1.LogSource
-	51, // 54: dockwell.agent.v1.PlanResult.steps:type_name -> dockwell.v1.PlanStep
-	37, // 55: dockwell.agent.v1.ObserveResult.resources:type_name -> dockwell.agent.v1.ObservedResource
-	12, // 56: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
-	14, // 57: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
-	0,  // 58: dockwell.agent.v1.AgentService.Connect:input_type -> dockwell.agent.v1.ConnectRequest
-	21, // 59: dockwell.agent.v1.AgentService.SendLogs:input_type -> dockwell.agent.v1.SendLogsRequest
-	13, // 60: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
-	15, // 61: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
-	8,  // 62: dockwell.agent.v1.AgentService.Connect:output_type -> dockwell.agent.v1.ConnectResponse
-	22, // 63: dockwell.agent.v1.AgentService.SendLogs:output_type -> dockwell.agent.v1.SendLogsResponse
-	60, // [60:64] is the sub-list for method output_type
-	56, // [56:60] is the sub-list for method input_type
-	56, // [56:56] is the sub-list for extension type_name
-	56, // [56:56] is the sub-list for extension extendee
-	0,  // [0:56] is the sub-list for field type_name
+	45, // 35: dockwell.agent.v1.LogsCall.last:type_name -> google.protobuf.Duration
+	47, // 36: dockwell.agent.v1.LogCursor.time:type_name -> google.protobuf.Timestamp
+	47, // 37: dockwell.agent.v1.LogScan.oldest_time:type_name -> google.protobuf.Timestamp
+	49, // 38: dockwell.agent.v1.SendLogsRequest.sources:type_name -> dockwell.v1.LogSource
+	50, // 39: dockwell.agent.v1.SendLogsRequest.chunks:type_name -> dockwell.v1.LogChunk
+	20, // 40: dockwell.agent.v1.SendLogsRequest.scans:type_name -> dockwell.agent.v1.LogScan
+	28, // 41: dockwell.agent.v1.PlanCall.desired:type_name -> dockwell.agent.v1.DesiredResource
+	51, // 42: dockwell.agent.v1.ApplyCall.step:type_name -> dockwell.v1.PlanStep
+	28, // 43: dockwell.agent.v1.ApplyCall.desired:type_name -> dockwell.agent.v1.DesiredResource
+	25, // 44: dockwell.agent.v1.ApplyCall.deploy:type_name -> dockwell.agent.v1.Deploy
+	38, // 45: dockwell.agent.v1.Values.values:type_name -> dockwell.agent.v1.Values.ValuesEntry
+	46, // 46: dockwell.agent.v1.ObserveCall.resources:type_name -> dockwell.v1.ResourceRef
+	46, // 47: dockwell.agent.v1.DesiredResource.resource:type_name -> dockwell.v1.ResourceRef
+	33, // 48: dockwell.agent.v1.CallResult.error:type_name -> dockwell.agent.v1.CallError
+	34, // 49: dockwell.agent.v1.CallResult.plan:type_name -> dockwell.agent.v1.PlanResult
+	35, // 50: dockwell.agent.v1.CallResult.apply:type_name -> dockwell.agent.v1.ApplyResult
+	36, // 51: dockwell.agent.v1.CallResult.observe:type_name -> dockwell.agent.v1.ObserveResult
+	31, // 52: dockwell.agent.v1.CallResult.log_sources:type_name -> dockwell.agent.v1.LogSourcesResult
+	32, // 53: dockwell.agent.v1.CallResult.logs:type_name -> dockwell.agent.v1.LogsResult
+	49, // 54: dockwell.agent.v1.LogSourcesResult.sources:type_name -> dockwell.v1.LogSource
+	51, // 55: dockwell.agent.v1.PlanResult.steps:type_name -> dockwell.v1.PlanStep
+	37, // 56: dockwell.agent.v1.ObserveResult.resources:type_name -> dockwell.agent.v1.ObservedResource
+	12, // 57: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
+	14, // 58: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
+	0,  // 59: dockwell.agent.v1.AgentService.Connect:input_type -> dockwell.agent.v1.ConnectRequest
+	21, // 60: dockwell.agent.v1.AgentService.SendLogs:input_type -> dockwell.agent.v1.SendLogsRequest
+	13, // 61: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
+	15, // 62: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
+	8,  // 63: dockwell.agent.v1.AgentService.Connect:output_type -> dockwell.agent.v1.ConnectResponse
+	22, // 64: dockwell.agent.v1.AgentService.SendLogs:output_type -> dockwell.agent.v1.SendLogsResponse
+	61, // [61:65] is the sub-list for method output_type
+	57, // [57:61] is the sub-list for method input_type
+	57, // [57:57] is the sub-list for extension type_name
+	57, // [57:57] is the sub-list for extension extendee
+	0,  // [0:57] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_agent_v1_agent_proto_init() }

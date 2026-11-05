@@ -26,19 +26,24 @@ Log lines never go in the control plane's store.
 | Threat | Mitigation |
 | --- | --- |
 | A read-only token made for a dashboard leaks, and is used to read secrets out of logs | Reading logs needs `TOKEN_GRANT_LOGS`, which a token has only if its maker asked for it. Tokens made before there were grants have none. A refusal says why, and is audited as `token.refuse`. |
-| Someone reads logs and nobody can tell | `logs.read` goes in the audit log, with the actor and the surface, at most once an hour for each reader and service. A reading that can't be recorded isn't served. |
+| Someone reads logs and nobody can tell | `logs.read` goes in the audit log, with the actor and the surface, at most once an hour for each reader and service: again each hour a follow stays open, and when one ends. A reading that can't be recorded isn't served, and a follow that can't go on record again ends. |
 | The audit log itself leaks what someone was looking for | It names the service and never what was searched for. |
 | A revoked token or an ended session keeps reading | A stream closes at once through the same registry as every other stream, and checks its token again every 30 s. |
 | A cross-site page reads a reader's logs | REST's `GET` paths pass the guard's origin checks. A page can't read the answer to a request from another origin, and the API answers no CORS preflight. |
 | A request names some other container on the server | A request names a service. The agent reads only containers with that service's Compose labels, so no request can read a container by name or ID. A source ID only narrows what those labels found. |
 | One server's agent sends lines into a reader of another's | The upload names a random token, and the control plane checks that the certificate it came with is the server's that was asked. |
 | A log line carries markup or script into the panel | Text only ever reaches text nodes. A test prints an `<img onerror>` and a `<script>`, and checks neither ran. |
-| A log line carries terminal escapes into a reader's terminal, moving the cursor or setting the title | The CLI drops every escape but colour, and on anything but a terminal drops colour too. The C1 controls go as well, as some terminals read them as escapes. The panel draws no escape at all. |
-| A line uses direction overrides to read as something else | The panel shows them as a replacement character. |
+| A log line carries terminal escapes into a reader's terminal, moving the cursor, setting the title, changing what the keyboard sends, or hiding what comes next | The CLI drops every escape but plain colour codes, of digits and semicolons alone, and of those keeps only bold, faint, italic, underline, six hues and grey: nothing that can match the ground, such as concealed text, backgrounds, reverse, black, white or the wider palettes. It closes them at each line's end and on leaving. On anything but a terminal it drops colour too. All C1 controls go as well, as some terminals read them as escapes, and bytes that aren't UTF-8. The panel draws no escape at all. |
+| A line uses direction overrides to read as something else | The panel and the CLI show them as a replacement character. |
 | A kept log outlives its usefulness on the disk | It stays 30 days at most, and each service keeps its last failed and last replaced container alone. It goes with the data directory. |
+| A deleted service's logs come back under a new service of its name, for someone who shouldn't see them | A deletion moves what the server kept out of every service's directory, so no name reads it, and a name that starts with a dot is refused. It goes after 7 days, unless undoing the deletion brings it back, and the plan says so. A new service of the name starts clean. |
 | A flood of logs takes down the server, the control plane or a browser | Every stage has a bound, listed in ADR 0025, and only the agent drops, and says how many. |
+| A container nobody trusts writes so much that nobody can read other services | The budget is divided by service, then by reader, up front, so no service's lines can use up another's. |
+| A container writes so fast that being looked at takes the server's CPU | A server's follows read lines they don't send at 64 MiB/s between them, whether dropped or filtered out. |
+| One token holds every place for reading logs on a server, so nobody can read them during an incident | One reader holds at most 8 of a server's 16 places, searches can't take the last 4, and a reader that stops taking lines loses its place within a minute. Several tokens can still fill them, each of which is on record. |
+| A reader asks for pages of logs and never reads them, to pin the control plane's memory | A page holds one of 4 places for its reader, and 8 in all, until it has been written, and a write with no progress for 30 s gives up. |
 | A log fills the disk | Docker rotates each container's at 50 MiB, and what is kept stays within 256 MiB, and not on a disk with under 1 GiB free. |
-| Someone with a token runs searches to spend a server's CPU | A query is plain text, never a pattern. A search reads at most 1,000,000 lines of each container and stops at 30 s. An agent serves 16 readers at once. |
+| Someone with a token runs searches to spend a server's CPU or memory | A query is plain text of at most 1 KiB, never a pattern, and finding it takes time linear in the line. A search reads at most 1,000,000 lines of each container and stops at 30 s, a server searches 4 containers at a time, and it holds 2 MiB of matches for a container and 8 MiB for a reader, whatever their length. |
 
 ## Known gaps
 

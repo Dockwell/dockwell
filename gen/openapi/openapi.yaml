@@ -1012,8 +1012,9 @@ paths:
                 - name: last
                   in: query
                   description: |-
-                    Only lines from this long ago until now, by the control plane's clock,
-                     such as "900s". Set it in place of since.
+                    Only lines from this long ago until now, by each server's clock, which
+                     is the clock its lines' times are on, such as "900s". Set it in place of
+                     since.
                   schema:
                     pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
                     type: string
@@ -1067,9 +1068,10 @@ paths:
                 - name: query
                   in: query
                   description: |-
-                    Only lines that hold this text, in any case. It is plain text, not a
-                     pattern. Each server scans what it still has for it: at most 256 MiB of
-                     each container's log, and for at most 30 seconds.
+                    Only lines that hold this text, in any case, of at most 1 KiB. It is
+                     plain text, not a pattern. Each server scans what it still has for it: at
+                     most the newest 1,000,000 lines of each container, and for at most 30
+                     seconds.
                   schema:
                     type: string
             responses:
@@ -2376,6 +2378,14 @@ components:
                 moreExposed:
                     type: boolean
                     description: True when the file writes more than exposed_variables lists.
+                notes:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What Dockwell would take differently from how the file has it, for
+                         people, such as a log rotation of its own in place of the file's. A plan's
+                         notes say the same.
             description: CheckComposeResponse says what a Compose file would make, or why it can't.
         ComposeRefusal:
             type: object
@@ -3775,6 +3785,8 @@ components:
                         - LOG_GAP_REASON_TOO_FAST
                         - LOG_GAP_REASON_READER_BEHIND
                         - LOG_GAP_REASON_GONE
+                        - LOG_GAP_REASON_SHARED
+                        - LOG_GAP_REASON_MATCH_LIMIT
                     type: string
                     description: Why.
                     format: enum
@@ -3934,8 +3946,9 @@ components:
                 deleted:
                     type: boolean
                     description: |-
-                        True when the service is gone, as when its first deploy failed and was
-                         rolled back. What its servers kept can still be read.
+                        True when the service isn't there now. When its first deploy failed and
+                         was rolled back, what its servers kept can still be read. When it was
+                         deleted, nothing can, unless undoing the deletion brings it back.
             description: LoggedService says which service logs are from.
         Mount:
             type: object
@@ -4280,6 +4293,12 @@ components:
                     description: |-
                         The port on the server a route sends to, and what listens there as this was
                          planned. It never stops a plan, and the fingerprint leaves what listens out.
+                hidesLogs:
+                    type: boolean
+                    description: |-
+                        True when the step deletes a service whose server keeps logs of it: from
+                         then on they can't be read, and they go in 7 days, unless undoing the
+                         step brings them back. Numbered apart, as open work adds to this message.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -4458,6 +4477,11 @@ components:
                     description: |-
                         True when a search stopped at its limit, of size or of time, before it
                          reached the oldest line a server has.
+                searchTimedOut:
+                    type: boolean
+                    description: |-
+                        True when what stopped it was its limit of time, 30 seconds, rather than
+                         the most lines it reads.
             description: ReadLogsResponse is a page of log lines.
         RegenerateRecoveryCodesRequest:
             type: object
@@ -4920,6 +4944,11 @@ components:
                     items:
                         type: string
                     description: The server's non-loopback IP addresses.
+                dockerLogDriver:
+                    type: string
+                    description: |-
+                        The logging driver Docker uses by default, such as "json-file". Empty
+                         when Docker isn't running.
             description: 'ServerInventory is what a server is: its system and hardware.'
         ServerLogStatus:
             type: object

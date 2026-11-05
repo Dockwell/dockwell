@@ -145,6 +145,8 @@ type Container struct {
 	} `json:"NetworkSettings"`
 	// Mounts are what is mounted now, the image's anonymous volumes too.
 	Mounts []MountPoint `json:"Mounts"`
+	// LogPath is where json-file keeps its log, on the server.
+	LogPath string `json:"LogPath"`
 }
 
 // MountPoint is something mounted in a container now.

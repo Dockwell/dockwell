@@ -26,6 +26,7 @@ import (
 const (
 	readHeaderTimeout = 10 * time.Second
 	idleTimeout       = 2 * time.Minute
+	writeByteTimeout  = time.Minute
 	maxHeaderBytes    = 64 << 10
 	compressMinBytes  = 1 << 10
 )
@@ -87,9 +88,13 @@ func Serve(ctx context.Context, ln net.Listener, h http.Handler, opts Options) e
 		TLSConfig:         opts.TLS,
 		ReadHeaderTimeout: readHeaderTimeout,
 		IdleTimeout:       idleTimeout,
-		MaxHeaderBytes:    maxHeaderBytes,
-		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelWarn),
-		BaseContext:       func(net.Listener) context.Context { return baseCtx },
+		// Only for a connection nothing can be written to, as a long stream's
+		// quiet doesn't count: there is nothing to write. Without it, a peer that
+		// stops reading TCP holds whatever waits to be written for good.
+		HTTP2:          &http.HTTP2Config{WriteByteTimeout: writeByteTimeout},
+		MaxHeaderBytes: maxHeaderBytes,
+		ErrorLog:       slog.NewLogLogger(logger.Handler(), slog.LevelWarn),
+		BaseContext:    func(net.Listener) context.Context { return baseCtx },
 	}
 
 	errc := make(chan error, 1)

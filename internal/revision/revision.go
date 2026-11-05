@@ -1403,8 +1403,8 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			sp.Downtime += s.Downtime
 			sp.UntilHealthy += max(s.Downtime, s.UntilHealthy)
 			actions[ids[s.Ref]] = append(actions[ids[s.Ref]], s.Action)
-			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings,
-				s.UntilHealthy, s.Kept, s.Restores, s.HealthUnknown)
+			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings,
+				s.UntilHealthy, s.Kept, s.Restores, s.HealthUnknown, s.HidesLogs)
 			for _, c := range s.Changes {
 				fmt.Fprintf(fp, "  %s|%d|%s|%s|%t\n", c.Path, c.Op, c.From, c.To, c.Sensitive)
 			}
@@ -1703,6 +1703,22 @@ func notPlanned(changeID, state string) error {
 // rollback isn't refused for an offline server, and isn't rolled back in
 // turn when it fails: that would re-apply what failed in the first place.
 func IsRollback(c store.Change) bool { return c.Actor == SystemActor && c.Reverts != "" }
+
+// rollsBackRevert reports a rollback of a change that itself undid another, so
+// what it removes goes back to being deleted. Not being able to tell says no:
+// what it removes then stays readable, as what a failed deploy left does.
+func (e *Engine) rollsBackRevert(ctx context.Context, c store.Change) bool {
+	if !IsRollback(c) {
+		return false
+	}
+	found := false
+	err := e.db.View(ctx, func(tx *store.Tx) error {
+		was, err := tx.GetChange(ctx, c.Reverts)
+		found = err == nil && was.Reverts != ""
+		return err
+	})
+	return err == nil && found
+}
 
 // Apply carries out a planned change on behalf of whoever proposed it: it
 // checks that nothing moved since the plan, commits the revisions and
@@ -2255,6 +2271,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		waits = append(waits, u)
 	}
 	done := map[at]bool{}
+	rollsBackRevert := e.rollsBackRevert(ctx, c)
 	for qi, q := range queue {
 		if e.isStopping() {
 			return interrupt(qi)
@@ -2289,7 +2306,9 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 				e.pulledNewer(ctx, c.ID, items, it, q.server, o)
 			}
 		})
-		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c)})
+		callCtx = resource.WithDeploy(callCtx, resource.Deploy{
+			Revision: it.rev, Change: c.ID, Rollback: IsRollback(c), Reverts: c.Reverts != "", RollsBackRevert: rollsBackRevert,
+		})
 		err := agent.Apply(callCtx, *q.step, it.desiredOn(q.server))
 		called()
 		switch {

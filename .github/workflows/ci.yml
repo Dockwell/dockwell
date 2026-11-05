@@ -138,6 +138,23 @@ jobs:
           CHROMIUM_PATH: /usr/bin/google-chrome
         run: make docker-panel-e2e
 
+  logs-load:
+    name: Log load
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      # The agent build under a flood, a stuck reader and searches of a million
+      # lines, on a fake Docker, held to limits of memory and CPU (ADR 0025).
+      - name: An agent's memory and CPU under load
+        run: make logs-load
+
   e2e:
     name: Panel end to end
     runs-on: ubuntu-24.04

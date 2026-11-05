@@ -98,6 +98,7 @@ func (c *Collector) Inventory(ctx context.Context) *dockwellv1.ServerInventory {
 		return 0
 	})
 	inv.DockerVersion = c.dockerVersion(ctx)
+	inv.DockerLogDriver = c.dockerLogDriver(ctx)
 	if addrs, err := c.Addresses(); err == nil {
 		for _, a := range addrs {
 			if ipn, ok := a.(*net.IPNet); ok && !ipn.IP.IsLoopback() && !ipn.IP.IsLinkLocalUnicast() {
@@ -352,11 +353,27 @@ func parseKeyValues(b []byte) map[string]string {
 // dockerVersion asks the Docker Engine for its version over its socket. It
 // returns "" when Docker isn't installed or doesn't answer within 2 s.
 func (c *Collector) dockerVersion(ctx context.Context) string {
+	var v struct{ Version string }
+	c.askDocker(ctx, "/version", &v)
+	return v.Version
+}
+
+// dockerLogDriver asks the Docker Engine which logging driver it uses by default,
+// and returns "" as dockerVersion does.
+func (c *Collector) dockerLogDriver(ctx context.Context) string {
+	var v struct{ LoggingDriver string }
+	c.askDocker(ctx, "/info", &v)
+	return v.LoggingDriver
+}
+
+// askDocker reads a path of the Docker Engine's API into out, leaving it as it was
+// when it can't.
+func (c *Collector) askDocker(ctx context.Context, path string, out any) {
 	if c.DockerSocket == "" {
-		return ""
+		return
 	}
 	if _, err := os.Stat(c.DockerSocket); err != nil {
-		return ""
+		return
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -367,20 +384,18 @@ func (c *Collector) dockerVersion(ctx context.Context) string {
 		},
 	}}
 	defer client.CloseIdleConnections()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://docker/version", http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://docker"+path, http.NoBody)
 	if err != nil {
-		return ""
+		return
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		return ""
+		return
 	}
 	defer res.Body.Close()
-	var v struct{ Version string }
-	if res.StatusCode != http.StatusOK || json.NewDecoder(res.Body).Decode(&v) != nil {
-		return ""
+	if res.StatusCode == http.StatusOK {
+		_ = json.NewDecoder(res.Body).Decode(out)
 	}
-	return v.Version
 }
 
 func statfs(path string) (size, used uint64, err error) {

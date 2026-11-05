@@ -153,6 +153,10 @@ message CheckComposeResponse {
   repeated ExposedVariable exposed_variables = 7;
   // True when the file writes more than exposed_variables lists.
   bool more_exposed = 8;
+  // What Dockwell would take differently from how the file has it, for
+  // people, such as a log rotation of its own in place of the file's. A plan's
+  // notes say the same.
+  repeated string notes = 9;
 }
 
 // ExposedVariable is a variable whose value a Compose file writes in free text,

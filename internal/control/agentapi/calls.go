@@ -635,7 +635,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	defer clear(values)
 	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled}
 	if d := resource.DeployOf(ctx); d != (resource.Deploy{}) {
-		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback}
+		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback, Reverts: d.Reverts, RollsBackRevert: d.RollsBackRevert}
 	}
 	var seal func(*Session) error
 	if uses {

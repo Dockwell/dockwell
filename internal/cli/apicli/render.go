@@ -671,6 +671,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			if st.GetRestores() {
 				fmt.Fprintln(tw, "      Brings back the data the server kept. If the server no longer has it, applying fails, and nothing is made empty.")
 			}
+			if st.GetHidesLogs() {
+				fmt.Fprintln(tw, "      Its kept logs can't be read from then on, by any name, and go in 7 days. Undoing this brings them back.")
+			}
 			if access := st.GetHostAccess(); len(access) > 0 {
 				fmt.Fprintln(tw, "      "+reachWords(access, s.GetServerName()))
 			}

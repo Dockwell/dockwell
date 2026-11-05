@@ -5609,3 +5609,39 @@ msgstr "写入其他位置的内容会在容器被替换时丢失。"
 #: src/features/logs/LogsPage.tsx
 msgid "You can't read these logs"
 msgstr "你无法读取这些日志"
+
+#: src/features/apps/AppOverview.tsx
+msgid "{count, plural, one {# variable} other {# variables}}"
+msgstr "{count, plural, other {# 个变量}}"
+
+#: src/features/apps/AppDeployments.tsx
+msgid "{shown} already matches what runs"
+msgstr "{shown} 与当前运行的内容相同"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "<0>{variable}</0> is written in {service}'s {where}, so anyone who can read this app can see its value. To keep it hidden, pass it in <1>environment</1>, and use <2>{dollar}</2> there."
+msgstr "<0>{variable}</0> 的值会写入 {service} 的{where}，能查看这个应用的人都能看到。要隐藏它，请通过 <1>environment</1> 传入，并在那里使用 <2>{dollar}</2>。"
+
+#: src/features/auth/messages.ts
+msgid "API tokens can't remove data, cut off access, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API 令牌不能删除数据、切断访问，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
+
+#: src/features/apps/AppEnvironment.tsx
+msgid "Dockwell hands these to the app, and never shows their values again, as they may hold secrets."
+msgstr "Dockwell 会把它们交给应用，且不再显示其值，因为其中可能包含机密。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Each server it ran on has left the fleet. Deploy it to run it again."
+msgstr "它运行过的每台服务器都已离开集群。请部署以重新运行。"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
+msgstr ""
+
+#: src/features/apps/AppOverview.tsx
+msgid "No server runs {name}"
+msgstr "没有服务器运行 {name}"
+
+#: src/features/auth/ProfilePage.tsx
+msgid "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code."
+msgstr "通行密钥属于创建它的地址。请为 {rpId} 添加一个，这样在这里登录就不需要验证码。"

@@ -261,7 +261,9 @@ grep -q 'nginx\|start' <<<"$logs" || fail "logs read printed no line of nginx's:
 listing=$(dw logs sources web) || fail "logs sources failed"
 grep -q "Running" <<<"$listing" || fail "logs sources doesn't list web's container as running: $listing"
 follow_log=$(mktemp)
-dw logs follow web --tail 1 >"$follow_log" 2>&1 &
+# The binary itself, not the shell function dw: a function in the background is a
+# subshell, which an interrupt doesn't reach the binary through.
+"$bin" logs follow web --tail 1 >"$follow_log" 2>&1 &
 follower=$!
 # A request nginx logs, which reaches a follower within a second or two.
 for _ in $(seq 50); do
@@ -276,6 +278,14 @@ for _ in $(seq 50); do
 done
 grep -q 'e2e-follows-this' "$follow_log" || fail "dockwell logs follow didn't print a line within 5 s: $(cat "$follow_log")"
 kill -INT "$follower"
+for _ in $(seq 100); do
+  kill -0 "$follower" 2>/dev/null || break
+  sleep 0.1
+done
+if kill -0 "$follower" 2>/dev/null; then
+  kill -KILL "$follower"
+  fail "dockwell logs follow didn't stop within 10 s of an interrupt: $(cat "$follow_log")"
+fi
 code=0
 wait "$follower" || code=$?
 ((code == 0)) || fail "dockwell logs follow exited $code on an interrupt: $(cat "$follow_log")"

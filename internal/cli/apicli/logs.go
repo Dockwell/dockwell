@@ -24,7 +24,9 @@ import (
 type logPrinter struct {
 	out, err io.Writer
 	// color keeps a line's own colours, on a terminal.
-	color   bool
+	color bool
+	// printed says a line went out, which finish resets after.
+	printed bool
 	sources map[string]*dockwellv1.LogSource
 	servers map[string]dockwellv1.ServerLogState
 }
@@ -57,8 +59,11 @@ func (p *logPrinter) read(m *dockwellv1.ReadLogsResponse) {
 	p.chunks(m.GetChunks())
 	if t := m.GetSearchedBackTo(); t != nil {
 		reach := "as far back as the server has"
-		if m.GetSearchCutShort() {
-			reach = "where the search stopped, at its limit"
+		switch {
+		case m.GetSearchTimedOut():
+			reach = "where the search stopped, after 30 s"
+		case m.GetSearchCutShort():
+			reach = "where the search stopped, at 1,000,000 lines of a container"
 		}
 		fmt.Fprintf(p.err, "Searched %s lines, back to %s, %s.\n", count(m.GetSearchedLines()), t.AsTime().Local().Format("2 Jan 15:04:05"), reach)
 	}
@@ -96,8 +101,10 @@ func (p *logPrinter) chunks(chunks []*dockwellv1.LogChunk) {
 	var all []shownLine
 	for _, c := range chunks {
 		if g := c.GetGap(); g != nil {
+			// Where the lines it stands for were, which a chunk's first line
+			// may be well after.
 			at := g.GetEndTime().AsTime()
-			if len(c.GetLines()) > 0 {
+			if g.GetEndTime() == nil && len(c.GetLines()) > 0 {
 				at = c.GetLines()[0].GetTime().AsTime()
 			}
 			all = append(all, shownLine{at: at, source: c.GetSourceId(), gap: g})
@@ -109,10 +116,18 @@ func (p *logPrinter) chunks(chunks []*dockwellv1.LogChunk) {
 	slices.SortStableFunc(all, func(a, b shownLine) int { return a.at.Compare(b.at) })
 	for _, s := range all {
 		if s.gap != nil {
-			fmt.Fprintln(p.out, gapWords(s.gap))
+			// Standard output stays what the container wrote.
+			fmt.Fprintln(p.err, gapWords(s.gap))
 			continue
 		}
 		p.line(s.source, s.line)
+	}
+}
+
+// finish leaves the terminal as it found it, whatever was printed last.
+func (p *logPrinter) finish() {
+	if p.color && p.printed {
+		_, _ = io.WriteString(p.out, resetLine)
 	}
 }
 
@@ -130,6 +145,7 @@ func (p *logPrinter) line(source string, l *dockwellv1.LogLine) {
 	}
 	b.WriteByte('\n')
 	_, _ = io.WriteString(p.out, b.String())
+	p.printed = true
 }
 
 // label names a source: its server, and which of the server's it is when
@@ -160,8 +176,12 @@ func gapWords(g *dockwellv1.LogGap) string {
 	switch g.GetReason() {
 	case dockwellv1.LogGapReason_LOG_GAP_REASON_TOO_FAST:
 		return fmt.Sprintf("-- %s lines not shown: this service wrote faster than a live stream carries. Read them with dockwell logs read --", count(g.GetLines()))
+	case dockwellv1.LogGapReason_LOG_GAP_REASON_SHARED:
+		return fmt.Sprintf("-- %s lines not shown: this server shares what it carries live between everyone reading, and this service wrote faster than this reader's share. Read them with dockwell logs read --", count(g.GetLines()))
 	case dockwellv1.LogGapReason_LOG_GAP_REASON_READER_BEHIND:
 		return fmt.Sprintf("-- %s lines not shown: this reader fell behind. Read them with dockwell logs read --", count(g.GetLines()))
+	case dockwellv1.LogGapReason_LOG_GAP_REASON_MATCH_LIMIT:
+		return fmt.Sprintf("-- %s older matches not shown: a read to the end holds the newest 2 MB of each container. Read them with dockwell logs read --", count(g.GetLines()))
 	case dockwellv1.LogGapReason_LOG_GAP_REASON_GONE:
 		if g.GetEndTime() != nil {
 			return fmt.Sprintf("-- Lines from %s to %s are gone: the server no longer has them --",
@@ -193,19 +213,25 @@ func humanBytes(n uint64) string {
 }
 
 // terminalSafe makes a line safe to print: what a container prints could
-// otherwise move the cursor, set the title, or rewrite what is on the screen.
-// Only colour codes survive, and only on a terminal. Other control characters
-// go, a tab stays.
+// otherwise move the cursor, set the title, change what the keyboard sends,
+// hide what is printed next, or rewrite what is on the screen. Only plain colour
+// and weight survive, and only on a terminal, each from a short list, and closed
+// at the line's end. Other control characters go, a tab stays, and so do those
+// that read text backwards, which would make it say something else.
 func terminalSafe(text string, color bool) string {
 	var b strings.Builder
 	b.Grow(len(text))
+	styled := false
 	for i := 0; i < len(text); {
 		c := text[i]
 		switch {
 		case c == 0x1b:
-			end, keep := escapeEnd(text, i)
-			if keep && color {
-				b.WriteString(text[i:end])
+			end, params := escapeEnd(text, i)
+			if params != "" && color {
+				b.WriteString("\x1b[")
+				b.WriteString(params)
+				b.WriteByte('m')
+				styled = params != resetSGR
 			}
 			i = end
 		case c == '\t':
@@ -218,46 +244,124 @@ func terminalSafe(text string, color bool) string {
 			i++
 		default:
 			r, size := utf8.DecodeRuneInString(text[i:])
-			// The C1 controls, which some terminals read as escapes too.
-			if r < 0x80 || r > 0x9f {
+			switch {
+			case r == utf8.RuneError && size == 1:
+				// Not UTF-8, so not text: a lone byte could read as a control.
+			case r >= 0x80 && r <= 0x9f:
+				// The C1 controls, which some terminals read as escapes too.
+			case isDirectional(r):
+				b.WriteRune(utf8.RuneError)
+			default:
 				b.WriteString(text[i : i+size])
 			}
 			i += size
 		}
 	}
+	if styled {
+		b.WriteString(resetLine)
+	}
 	return b.String()
 }
 
-// escapeEnd finds the end of the escape sequence at i, and whether it only
-// sets colours: CSI parameters ending in m.
-func escapeEnd(text string, i int) (int, bool) {
+const (
+	resetSGR  = "0"
+	resetLine = "\x1b[0m"
+)
+
+// isDirectional reports a character that reorders the text around it.
+func isDirectional(r rune) bool {
+	return (r >= 0x202a && r <= 0x202e) || (r >= 0x2066 && r <= 0x2069) || r == 0x200e || r == 0x200f || r == 0x061c
+}
+
+// escapeEnd finds the end of the escape sequence at i, and what of it may reach a
+// terminal, as parameters for a colour code. It says nothing for what isn't one.
+func escapeEnd(text string, i int) (int, string) {
 	j := i + 1
 	if j >= len(text) {
-		return j, false
+		return j, ""
 	}
 	switch text[j] {
 	case '[':
-		j++
+		start := j + 1
+		j = start
 		for j < len(text) && text[j] >= 0x20 && text[j] < 0x40 {
 			j++
 		}
 		if j >= len(text) {
-			return j, false
+			return j, ""
 		}
-		return j + 1, text[j] == 'm'
+		if text[j] != 'm' {
+			return j + 1, ""
+		}
+		return j + 1, safeSGR(text[start:j])
 	case ']', 'P', 'X', '^', '_':
 		// A string, up to BEL or ST. Without one, the rest of the line is it.
 		for j++; j < len(text); j++ {
 			if text[j] == 0x07 {
-				return j + 1, false
+				return j + 1, ""
 			}
 			if text[j] == 0x1b && j+1 < len(text) && text[j+1] == '\\' {
-				return j + 2, false
+				return j + 2, ""
 			}
 		}
-		return j, false
+		return j, ""
 	}
-	return j + 1, false
+	// Two characters in all, whatever the second takes up: half of one would be
+	// left behind as a raw byte.
+	_, size := utf8.DecodeRuneInString(text[j:])
+	return j + size, ""
+}
+
+// safeSGR keeps what a terminal can only show as colour or weight, from a colour
+// code's parameters. Anything but digits and semicolons isn't a plain colour code:
+// ESC[>4;2m changes what the keyboard sends, and ESC[?1m asks the terminal to
+// answer on standard input. What can hide text goes: concealed, and backgrounds,
+// reverse and black, white and the wider palettes, which can match the ground.
+func safeSGR(params string) string {
+	for _, c := range params {
+		if c != ';' && (c < '0' || c > '9') {
+			return ""
+		}
+	}
+	if params == "" {
+		return resetSGR
+	}
+	var kept []string
+	fields := strings.Split(params, ";")
+	for n := 0; n < len(fields); n++ {
+		field := fields[n]
+		if field == "" {
+			field = resetSGR
+		}
+		code, err := strconv.Atoi(field)
+		if err != nil || len(field) > 3 {
+			return ""
+		}
+		switch {
+		case code == 38 || code == 48 || code == 58:
+			// These take arguments, which aren't codes of their own.
+			if n+1 < len(fields) {
+				switch fields[n+1] {
+				case "5":
+					n += 2
+				case "2":
+					n += 4
+				}
+			}
+		case safeCodes[code]:
+			kept = append(kept, strconv.Itoa(code))
+		}
+	}
+	return strings.Join(kept, ";")
+}
+
+// safeCodes are the colour code parameters that reach a terminal: reset, bold,
+// faint, italic, underline and their ends, the default colour, and the six hues
+// and grey, plain and bright.
+var safeCodes = map[int]bool{
+	0: true, 1: true, 2: true, 3: true, 4: true, 22: true, 23: true, 24: true, 39: true,
+	31: true, 32: true, 33: true, 34: true, 35: true, 36: true,
+	90: true, 91: true, 92: true, 93: true, 94: true, 95: true, 96: true,
 }
 
 // sourcesTable lists where a service's logs come from.

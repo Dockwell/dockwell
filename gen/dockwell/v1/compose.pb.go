@@ -332,7 +332,11 @@ type CheckComposeResponse struct {
 	// at most.
 	ExposedVariables []*ExposedVariable `protobuf:"bytes,7,rep,name=exposed_variables,json=exposedVariables,proto3" json:"exposed_variables,omitempty"`
 	// True when the file writes more than exposed_variables lists.
-	MoreExposed   bool `protobuf:"varint,8,opt,name=more_exposed,json=moreExposed,proto3" json:"more_exposed,omitempty"`
+	MoreExposed bool `protobuf:"varint,8,opt,name=more_exposed,json=moreExposed,proto3" json:"more_exposed,omitempty"`
+	// What Dockwell would take differently from how the file has it, for
+	// people, such as a log rotation of its own in place of the file's. A plan's
+	// notes say the same.
+	Notes         []string `protobuf:"bytes,9,rep,name=notes,proto3" json:"notes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -421,6 +425,13 @@ func (x *CheckComposeResponse) GetMoreExposed() bool {
 		return x.MoreExposed
 	}
 	return false
+}
+
+func (x *CheckComposeResponse) GetNotes() []string {
+	if x != nil {
+		return x.Notes
+	}
+	return nil
 }
 
 // ExposedVariable is a variable whose value a Compose file writes in free text,
@@ -772,7 +783,7 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\tdirectory\x18\x04 \x01(\tR\tdirectory\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf7\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8d\x03\n" +
 	"\x14CheckComposeResponse\x125\n" +
 	"\arefusal\x18\x01 \x01(\v2\x1b.dockwell.v1.ComposeRefusalR\arefusal\x12:\n" +
 	"\tvariables\x18\x02 \x03(\v2\x1c.dockwell.v1.ComposeVariableR\tvariables\x124\n" +
@@ -781,7 +792,8 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\bnetworks\x18\x05 \x03(\tR\bnetworks\x12\x12\n" +
 	"\x04name\x18\x06 \x01(\tR\x04name\x12I\n" +
 	"\x11exposed_variables\x18\a \x03(\v2\x1c.dockwell.v1.ExposedVariableR\x10exposedVariables\x12!\n" +
-	"\fmore_exposed\x18\b \x01(\bR\vmoreExposed\"q\n" +
+	"\fmore_exposed\x18\b \x01(\bR\vmoreExposed\x12\x14\n" +
+	"\x05notes\x18\t \x03(\tR\x05notes\"q\n" +
 	"\x0fExposedVariable\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x14\n" +

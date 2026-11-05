@@ -24,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -50,7 +51,7 @@ func startProxied(t *testing.T, backend store.Backend) *proxiedPanel {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := startFullWith(t, backend, &https.Static{Name: "panel.acme.dev", Cert: cert}, slog.New(slog.DiscardHandler), ln)
+	f := startFullWith(t, backend, &https.Static{Name: "panel.acme.dev", Cert: cert}, slog.New(slog.DiscardHandler), ln, logapi.Options{})
 	return &proxiedPanel{fullServer: f, socket: socket}
 }
 

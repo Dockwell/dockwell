@@ -103,6 +103,8 @@ type Config struct {
 	// a person who confirms it with a passkey. With Changes and Auth, it
 	// serves VariableService.
 	Secrets *secrets.Keeper
+	// Logs changes the limits of reading logs, as tests do.
+	Logs logapi.Options
 	// EventPoll is how often a watch of the timeline reads the store again,
 	// for events another process recorded; events.DefaultPoll when zero.
 	EventPoll time.Duration
@@ -177,6 +179,7 @@ func apiRoutes(cfg Config, ui http.Handler) (http.Handler, error) {
 	mux := http.NewServeMux()
 	var services []string
 	var rest []*vanguard.Service
+	guardREST := func(h http.Handler) http.Handler { return h }
 	// handle serves a service's procedures, and its REST paths through
 	// Vanguard, which calls the same handler, interceptors and all.
 	handle := func(path string, h http.Handler) {
@@ -209,13 +212,18 @@ func apiRoutes(cfg Config, ui http.Handler) (http.Handler, error) {
 		}
 		handle(dockwellv1connect.NewDomainServiceHandler(domains.New(cfg.Changes.Kinds(), cfg.Store, cfg.Agents, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewServiceServiceHandler(serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
-		handle(dockwellv1connect.NewLogServiceHandler(logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger), opts...))
+		logs := logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger, cfg.Logs)
+		path, h := dockwellv1connect.NewLogServiceHandler(logs, opts...)
+		mux.Handle(path, logs.Guard(h))
+		rest = append(rest, vanguard.NewService(path, h))
+		services = append(services, strings.Trim(path, "/"))
+		guardREST = logs.GuardREST
 	}
 	restPaths, err := restHandler(rest)
 	if err != nil {
 		return nil, err
 	}
-	mux.Handle(authapi.RESTPrefix, restPaths)
+	mux.Handle(authapi.RESTPrefix, guardREST(restPaths))
 	mux.Handle("GET "+apidoc.Path, apidoc.Handler())
 
 	mux.Handle(grpchealth.NewHandler(grpchealth.NewStaticChecker(services...), opts...))

@@ -150,6 +150,9 @@ message ServerInventory {
   string docker_version = 11;
   // The server's non-loopback IP addresses.
   repeated string addresses = 12;
+  // The logging driver Docker uses by default, such as "json-file". Empty
+  // when Docker isn't running.
+  string docker_log_driver = 13;
 }
 
 // Disk is one mounted filesystem.

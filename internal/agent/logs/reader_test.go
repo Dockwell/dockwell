@@ -506,7 +506,7 @@ func TestPagesBackward(t *testing.T) {
 	}
 	c := once(t, newReader(t, e), &agentv1.LogsCall{
 		Tail:   2,
-		Before: []*agentv1.LogCursor{{SourceId: ctr.ID[:12], Time: timestamppb.New(base.Add(4 * time.Second))}},
+		Before: []*agentv1.LogCursor{{SourceId: ctr.ID[:12], Time: timestamppb.New(base.Add(4 * time.Second)), Count: 1}},
 	})
 	// A tail reads Docker's newest, then the page's end cuts them: a reader
 	// that pages reads a full tail again, which the control plane asks for.
@@ -617,6 +617,7 @@ func keep(t *testing.T, r *logs.Reader, e *dockertest.Engine, name string, faile
 	k := r.Archive.Begin(ctx, ctr, failed)
 	e.Stop(name)
 	k.Finish(ctx, e.Container(name))
+	r.Archive.WaitPruned()
 	if err := r.Client.RemoveContainer(ctx, ctr.ID, true); err != nil {
 		t.Fatal(err)
 	}

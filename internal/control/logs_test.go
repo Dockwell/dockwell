@@ -559,8 +559,6 @@ func testANoisyLogDoesntStallTheAgent(t *testing.T, backend store.Backend) {
 	}
 }
 
-// A limit on how often a reader's reading goes in the audit log has an end: a
-// reader who comes back the next day is on record again.
 func TestLogsREST(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)

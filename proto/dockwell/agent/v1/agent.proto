@@ -315,6 +315,13 @@ message LogsCall {
   // until. Without it only what Docker has now is read, unless the filters
   // name a kept one.
   bool include_kept = 15;
+  // Who is reading, as an opaque name, so that one reader can't take every
+  // place this server has for reading logs. Empty counts only towards the
+  // server's own limit.
+  string reader = 16;
+  // Only lines from this long ago until now, by this server's clock, which is
+  // the clock its lines' times are on. Set in place of since.
+  google.protobuf.Duration last = 17;
 }
 
 // LogCursor is a place in one source's lines.
@@ -324,7 +331,8 @@ message LogCursor {
   // The time of the line.
   google.protobuf.Timestamp time = 2;
   // How many lines of the source have exactly that time, up to and including
-  // the line, as two lines can share one.
+  // the line, as two lines can share one. In before, how many of those the
+  // pages so far hold, which are the newest of them.
   uint32 count = 3;
 }
 
@@ -341,6 +349,9 @@ message LogScan {
   // True when older lines passed the filters and weren't sent, for lack of
   // room, so another page has more.
   bool older = 5;
+  // True when it stopped because its time ran out, rather than at the most
+  // lines it reads.
+  bool timed_out = 6;
 }
 
 // SendLogsRequest is one message of a LogsCall's lines.
@@ -397,6 +408,12 @@ message Deploy {
   // True when the change rolls a failed one back, so what the step replaces
   // or removes failed.
   bool rollback = 3;
+  // True when the change undoes or rolls back another, so a container the step
+  // makes where there was none brings back a deleted service.
+  bool reverts = 4;
+  // True when the change rolls back one that itself undid another, so a
+  // container the step removes takes a deleted service away again.
+  bool rolls_back_revert = 5;
 }
 
 // Values are what a service's variables and secrets resolve to on the

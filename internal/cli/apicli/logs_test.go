@@ -46,6 +46,73 @@ func TestTerminalSafe(t *testing.T) {
 	}
 }
 
+// What a container prints is untrusted, and these are the ways it could reach a
+// terminal: changing what the keyboard sends, making the terminal answer on
+// standard input, hiding what comes next, or reading backwards.
+func TestOnlyPlainColourReachesATerminal(t *testing.T) {
+	const r = "\x1b[0m"
+	for _, tc := range []struct{ name, in, color string }{
+		{"a plain colour, closed at the line's end", "\x1b[31mred", "\x1b[31mred" + r},
+		{"a colour closed by the line", "\x1b[1;32mok\x1b[0m", "\x1b[1;32mok\x1b[0m"},
+		{"a reset with no parameters", "\x1b[mtext", "\x1b[0mtext"},
+		{"modifyOtherKeys, which changes what keys send and outlasts the CLI", "\x1b[>4;2mtext", "text"},
+		{"the key-modifier query, which answers on standard input", "\x1b[?1mtext", "text"},
+		{"an intermediate byte", "\x1b[ 1mtext", "text"},
+		{"conceal, which hides what follows", "\x1b[8mhidden", "hidden"},
+		{"conceal among colours, which go on", "\x1b[8;31mhidden", "\x1b[31mhidden" + r},
+		{"reverse, whose text can match the ground", "\x1b[7mtext", "text"},
+		{"blink", "\x1b[5mtext", "text"},
+		{"a background, on which text can vanish", "\x1b[41;30mtext", "text"},
+		{"black, on a dark terminal", "\x1b[30mtext", "text"},
+		{"white, on a light one", "\x1b[97mtext", "text"},
+		{"a palette colour, whose arguments aren't codes", "\x1b[38;5;8mtext", "text"},
+		{"a palette colour beside a safe one", "\x1b[1;38;5;196;31mtext", "\x1b[1;31mtext" + r},
+		{"a 24-bit colour", "\x1b[38;2;0;0;0mtext", "text"},
+		{"a background palette colour", "\x1b[48;5;0mtext", "text"},
+		{"colons, which aren't the plain form", "\x1b[38:5:1mtext", "text"},
+		{"a number too long to mean anything", "\x1b[00000000031mtext", "text"},
+		{"ESC before a C1 control, whose second byte must not be left", "\x1b\u009b2Jcleared", "2Jcleared"},
+		{"a C1 CSI by itself", "\u009b8mtext", "8mtext"},
+		{"a C1 string terminator", "\u009ctext", "text"},
+		{"a lone C1 byte", "a\x9b2Jb", "a2Jb"},
+		{"direction overrides", "safe\u202egnp.exe", "safe\ufffdgnp.exe"},
+		{"direction isolates", "a\u2066b\u2069c", "a\ufffdb\ufffdc"},
+	} {
+		if got := terminalSafe(tc.in, true); got != tc.color {
+			t.Errorf("%s: terminalSafe(%q) = %q, want %q", tc.name, tc.in, got, tc.color)
+		}
+		if plain := terminalSafe(tc.in, false); strings.IndexByte(plain, 0x1b) >= 0 || strings.IndexByte(plain, 0x9b) >= 0 {
+			t.Errorf("%s: off a terminal, %q came through as %q", tc.name, tc.in, plain)
+		}
+	}
+}
+
+// One line can't hide what is printed after it, Dockwell's own markers included,
+// or leave the terminal changed once the CLI has gone.
+func TestALineCantHideWhatFollows(t *testing.T) {
+	var out, errs bytes.Buffer
+	p := &logPrinter{out: &out, err: &errs, color: true, sources: map[string]*dockwellv1.LogSource{}, servers: map[string]dockwellv1.ServerLogState{}}
+	p.watch(&dockwellv1.WatchLogsResponse{Chunks: []*dockwellv1.LogChunk{{
+		SourceId: "a",
+		Lines: []*dockwellv1.LogLine{
+			{Time: timestamppb.Now(), Text: "\x1b[8mconcealed\x1b[31m red with no end"},
+			{Time: timestamppb.Now(), Text: "the next line"},
+		},
+	}}})
+	first, rest, _ := strings.Cut(out.String(), "\n")
+	if strings.Contains(first, "\x1b[8m") || !strings.HasSuffix(first, "\x1b[0m") {
+		t.Errorf("a line left its colour on: %q", first)
+	}
+	if strings.Contains(rest, "\x1b[") {
+		t.Errorf("the next line carries codes: %q", rest)
+	}
+	out.Reset()
+	p.finish()
+	if out.String() != "\x1b[0m" {
+		t.Errorf("leaving wrote %q, want a reset", out.String())
+	}
+}
+
 func TestPrintsLogsForPeople(t *testing.T) {
 	var out, errs bytes.Buffer
 	p := newLogPrinter(&out, &errs)
@@ -78,11 +145,16 @@ func TestPrintsLogsForPeople(t *testing.T) {
 			Lines:    []*dockwellv1.LogLine{line("\x1b[2Jlong line", 2048)},
 		}},
 	})
-	if got := out.String(); !strings.Contains(got, "-- 1,234,567 lines not shown: this service wrote faster") ||
-		!strings.Contains(got, clock+"  hz-1 r4  long line … (2 KB more)\n") {
+	if got := out.String(); got != clock+"  hz-1 r4  long line … (2 KB more)\n" {
 		t.Errorf("printed %q", got)
 	}
+	// What is missing is said apart from the lines, so standard output stays what
+	// the container wrote.
+	if got := errs.String(); !strings.Contains(got, "-- 1,234,567 lines not shown: this service wrote faster") {
+		t.Errorf("said %q", got)
+	}
 	out.Reset()
+	errs.Reset()
 
 	// A server going away and coming back is said apart from the lines.
 	p.watch(&dockwellv1.WatchLogsResponse{Servers: []*dockwellv1.ServerLogStatus{{

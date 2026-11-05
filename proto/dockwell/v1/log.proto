@@ -97,8 +97,9 @@ message LoggedService {
   string name = 2;
   // The name of its environment, such as "production".
   string environment = 3;
-  // True when the service is gone, as when its first deploy failed and was
-  // rolled back. What its servers kept can still be read.
+  // True when the service isn't there now. When its first deploy failed and
+  // was rolled back, what its servers kept can still be read. When it was
+  // deleted, nothing can, unless undoing the deletion brings it back.
   bool deleted = 4;
 }
 
@@ -116,8 +117,9 @@ message ReadLogsRequest {
   google.protobuf.Timestamp since = 4;
   // Only lines written at or before this time.
   google.protobuf.Timestamp until = 5;
-  // Only lines from this long ago until now, by the control plane's clock,
-  // such as "900s". Set it in place of since.
+  // Only lines from this long ago until now, by each server's clock, which
+  // is the clock its lines' times are on, such as "900s". Set it in place of
+  // since.
   google.protobuf.Duration last = 6;
   // How many lines to return: 1000 when unset, and at most 5000.
   int32 page_size = 7;
@@ -133,9 +135,10 @@ message ReadLogsRequest {
   // Only lines of these levels. A line with no level counts as info, and
   // the indented lines after one, such as a stack trace, take its level.
   repeated LogLevel levels = 12;
-  // Only lines that hold this text, in any case. It is plain text, not a
-  // pattern. Each server scans what it still has for it: at most 256 MiB of
-  // each container's log, and for at most 30 seconds.
+  // Only lines that hold this text, in any case, of at most 1 KiB. It is
+  // plain text, not a pattern. Each server scans what it still has for it: at
+  // most the newest 1,000,000 lines of each container, and for at most 30
+  // seconds.
   string query = 13;
 }
 
@@ -160,6 +163,9 @@ message ReadLogsResponse {
   // True when a search stopped at its limit, of size or of time, before it
   // reached the oldest line a server has.
   bool search_cut_short = 7;
+  // True when what stopped it was its limit of time, 30 seconds, rather than
+  // the most lines it reads.
+  bool search_timed_out = 8;
 }
 
 // WatchLogsRequest says which of a service's log lines to send. The filters
@@ -176,8 +182,9 @@ message WatchLogsRequest {
   google.protobuf.Timestamp since = 4;
   // Only lines written at or before this time.
   google.protobuf.Timestamp until = 5;
-  // Only lines from this long ago until now, by the control plane's clock,
-  // such as "900s". Set it in place of since.
+  // Only lines from this long ago until now, by each server's clock, which
+  // is the clock its lines' times are on, such as "900s". Set it in place of
+  // since.
   google.protobuf.Duration last = 6;
   // How many of each container's newest lines to start with: 200 when
   // unset, -1 for none, and at most 100000.
@@ -194,8 +201,8 @@ message WatchLogsRequest {
   // Only lines of these levels. A line with no level counts as info, and
   // the indented lines after one, such as a stack trace, take its level.
   repeated LogLevel levels = 12;
-  // Only lines that hold this text, in any case. It is plain text, not a
-  // pattern.
+  // Only lines that hold this text, in any case, of at most 1 KiB. It is
+  // plain text, not a pattern.
   string query = 13;
   // Carry on after the lines a stream sent before: the resume_token of the
   // last message it sent. Pass the same filters with it. Lines a server
@@ -401,4 +408,11 @@ enum LogGapReason {
   // The server no longer has them, as Docker rotated them away while the
   // stream was away.
   LOG_GAP_REASON_GONE = 3;
+  // The container wrote faster than this reader's share of what the server
+  // carries live, which it divides fairly between the services being read
+  // and each service's readers.
+  LOG_GAP_REASON_SHARED = 4;
+  // A read to the end found more matches than it holds of one container, and
+  // these older ones left. Page through ReadLogs to read them.
+  LOG_GAP_REASON_MATCH_LIMIT = 5;
 }
