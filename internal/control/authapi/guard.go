@@ -347,6 +347,9 @@ var tokenAccess = func() map[string]auth.Access {
 				switch effect {
 				case dockwellv1.Effect_EFFECT_READ:
 					m[procedure] = auth.AccessRead
+					if proto.GetExtension(md.Options(), dockwellv1.E_NeedsGrant) == dockwellv1.TokenGrant_TOKEN_GRANT_LOGS {
+						m[procedure] = auth.AccessLogs
+					}
 				case dockwellv1.Effect_EFFECT_PLAN, dockwellv1.Effect_EFFECT_APPLY:
 					m[procedure] = auth.AccessWrite
 				default:
@@ -465,6 +468,8 @@ func (i *interceptor) authorizeToken(ctx context.Context, req request, procedure
 		return ctx, ReasonError(connect.CodeUnauthenticated, auth.ErrTokenRejected, ReasonTokenRejected)
 	case errors.Is(err, auth.ErrTokenScope):
 		return ctx, ReasonError(connect.CodePermissionDenied, auth.ErrTokenScope, ReasonTokenScope)
+	case errors.Is(err, auth.ErrTokenLogs):
+		return ctx, ReasonError(connect.CodePermissionDenied, auth.ErrTokenLogs, ReasonTokenLogs)
 	case errors.Is(err, auth.ErrNeedsSession):
 		return ctx, ReasonError(connect.CodePermissionDenied, auth.ErrNeedsSession, ReasonNeedsSession)
 	case errors.Is(err, context.Canceled):

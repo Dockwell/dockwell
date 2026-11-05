@@ -47,6 +47,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/events"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/control/resources"
 	"github.com/dockwell/dockwell/internal/control/servers"
 	serviceapi "github.com/dockwell/dockwell/internal/control/services"
@@ -102,6 +103,8 @@ type Config struct {
 	// a person who confirms it with a passkey. With Changes and Auth, it
 	// serves VariableService.
 	Secrets *secrets.Keeper
+	// Logs changes the limits of reading logs, as tests do.
+	Logs logapi.Options
 	// EventPoll is how often a watch of the timeline reads the store again,
 	// for events another process recorded; events.DefaultPoll when zero.
 	EventPoll time.Duration
@@ -118,10 +121,12 @@ const DefaultStepGrace = 30 * time.Second
 
 // Server is a configured control plane, ready to serve.
 type Server struct {
-	logger    *slog.Logger
-	api       http.Handler
-	agents    http.Handler
-	agentTLS  *tls.Config
+	logger   *slog.Logger
+	api      http.Handler
+	agents   http.Handler
+	agentTLS *tls.Config
+	// logs reads service logs, and tells servers what deletions put out of reach.
+	logs      *logapi.Handler
 	public    https.Source
 	changes   *revision.Engine
 	stepGrace time.Duration
@@ -146,11 +151,12 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Public != nil && (cfg.Auth == nil || cfg.Auth.Sites().Domain != cfg.Public.Domain()) {
 		return nil, errors.New("control: Config.Public needs Config.Auth for the same domain")
 	}
-	api, err := apiRoutes(cfg, ui)
+	var logs *logapi.Handler
+	api, err := apiRoutes(cfg, ui, &logs)
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{logger: cfg.Logger, api: api, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
 	s.ports = &PublicPorts{server: s, ready: make(chan struct{})}
 	if s.stepGrace <= 0 {
 		s.stepGrace = DefaultStepGrace
@@ -171,11 +177,12 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
 	var rest []*vanguard.Service
+	guardREST := func(h http.Handler) http.Handler { return h }
 	// handle serves a service's procedures, and its REST paths through
 	// Vanguard, which calls the same handler, interceptors and all.
 	handle := func(path string, h http.Handler) {
@@ -208,12 +215,19 @@ func apiRoutes(cfg Config, ui http.Handler) (http.Handler, error) {
 		}
 		handle(dockwellv1connect.NewDomainServiceHandler(domains.New(cfg.Changes.Kinds(), cfg.Store, cfg.Agents, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewServiceServiceHandler(serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
+		logs := logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger, cfg.Logs)
+		*logsOut = logs
+		path, h := dockwellv1connect.NewLogServiceHandler(logs, opts...)
+		mux.Handle(path, logs.Guard(h))
+		rest = append(rest, vanguard.NewService(path, h))
+		services = append(services, strings.Trim(path, "/"))
+		guardREST = logs.GuardREST
 	}
 	restPaths, err := restHandler(rest)
 	if err != nil {
 		return nil, err
 	}
-	mux.Handle(authapi.RESTPrefix, restPaths)
+	mux.Handle(authapi.RESTPrefix, guardREST(restPaths))
 	mux.Handle("GET "+apidoc.Path, apidoc.Handler())
 
 	mux.Handle(grpchealth.NewHandler(grpchealth.NewStaticChecker(services...), opts...))
@@ -441,6 +455,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 		})
 	}
 	run(func() error { return s.Serve(apiCtx, ls.API) })
+	if s.logs != nil {
+		api.Go(func() { s.logs.KeepTelling(apiCtx) })
+	}
 	if ls.Ingress != nil {
 		run(func() error {
 			return serve.Serve(apiCtx, ls.Ingress, authapi.ViaIngress(s.api), serve.Options{Name: "panel behind the ingress", Logger: s.logger})

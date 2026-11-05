@@ -250,6 +250,7 @@ describe("the plan sheet", () => {
       ];
     }
     step.healthUnknown = true;
+    step.hidesLogs = true;
     step.hostAccess = [
       create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/app/config", readOnly: true }),
       create(HostAccessSchema, { kind: HostAccessKind.DOCKER_SOCKET, path: "/var/run/docker.sock" }),
@@ -304,6 +305,7 @@ describe("the plan sheet", () => {
       risk.compareDocumentPosition(sheet.querySelector(".dw-plan") as Element) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(sheet).not.toHaveTextContent("about 2 s down, no downtime");
+    expect(sheet).toHaveTextContent("web's kept logs can't be read from then on, and go in 7 days.");
     expect(sheet).toHaveTextContent("web may take longer to be healthy, as its image isn't on the server yet.");
     expect(sheet).toHaveTextContent("about 2 s down, and up to 1 min 50 s until healthy");
     // The confirmation sits in the footer beside Apply, with the reason Apply waits.
@@ -536,6 +538,32 @@ describe("the plan sheet", () => {
     expect(sheet.querySelector(".plan-body")?.firstElementChild).toBe(callout);
     // It stops nobody.
     expect(within(sheet).getByRole("button", { name: /Apply plan/ })).toBeEnabled();
+    await expectAccessible(document.body);
+  });
+
+  it("says what an offline server keeps of a deleted service, and until when", async () => {
+    const noted = webPlanned();
+    if (noted.plan) {
+      noted.plan.notes = [
+        create(PlanNoteSchema, {
+          reason: "kept_logs_offline",
+          message: "b is offline, so what it kept of web stays on its disk until it's back.",
+          resource: { kind: "service", name: "web" },
+          names: ["b"],
+        }),
+      ];
+    }
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: noted }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const callout = (await within(sheet).findByText(/stays on its disk/)).closest(".dw-callout") as HTMLElement;
+    expect(callout.querySelector(".dw-callout-title")).toHaveTextContent(
+      "b is offline, so what it kept of web stays on its disk until it's back",
+    );
+    expect(callout).toHaveTextContent(
+      "It can't be read meanwhile, and it goes once the server is back and the 7 days are up.",
+    );
     await expectAccessible(document.body);
   });
 

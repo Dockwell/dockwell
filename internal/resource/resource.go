@@ -140,6 +140,10 @@ type Decision struct {
 	// undoing a deletion does. Applying it fails if the data is gone by
 	// then, rather than making the resource anew, empty.
 	Restores bool `json:",omitempty"`
+	// HidesLogs is true when the step deletes a service whose server keeps logs
+	// of it: from then on they can't be read, and they go in 7 days, unless
+	// undoing the step brings them back.
+	HidesLogs bool `json:",omitempty"`
 	// HostAccess is what the step lets the resource reach on its server
 	// that it couldn't before. The control plane sets it from the specs,
 	// whatever an agent says: a step with any needs a person to apply it. All

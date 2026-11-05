@@ -27,3 +27,26 @@ func Progress(ctx context.Context, message string) {
 		fn(message)
 	}
 }
+
+// Deploy says which revision and change a step carries out, for what the step
+// makes to carry, such as a container's labels, and whether the change rolls
+// a failed one back.
+type Deploy struct {
+	Revision int
+	Change   string
+	Rollback bool
+}
+
+type deployKey struct{}
+
+// WithDeploy tells the driver of a step, through ctx, which deploy it is part
+// of. Over the agent stream it travels with the call.
+func WithDeploy(ctx context.Context, d Deploy) context.Context {
+	return context.WithValue(ctx, deployKey{}, d)
+}
+
+// DeployOf is the deploy a step is part of, and zero outside one.
+func DeployOf(ctx context.Context) Deploy {
+	d, _ := ctx.Value(deployKey{}).(Deploy)
+	return d
+}

@@ -436,6 +436,68 @@ func (t *Tx) GetResourceByID(ctx context.Context, id string) (Resource, error) {
 	return t.getResource(ctx, id, `r.id = ?`, id)
 }
 
+// Deletion is a revision that deleted a resource.
+type Deletion struct {
+	Number    int
+	ChangeID  string
+	CreatedAt time.Time
+}
+
+// DeletionsOf returns the revisions that deleted a resource, oldest first.
+func (t *Tx) DeletionsOf(ctx context.Context, resourceID string) ([]Deletion, error) {
+	rows, err := t.query(ctx, `SELECT number, change_id, created_at FROM revisions WHERE resource_id = ? AND spec IS NULL ORDER BY number`, resourceID)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the deletions of %s: %w", resourceID, err)
+	}
+	defer rows.Close()
+	var out []Deletion
+	for rows.Next() {
+		var d Deletion
+		var at int64
+		if err := rows.Scan(&d.Number, &d.ChangeID, &at); err != nil {
+			return nil, fmt.Errorf("can't read the deletions of %s: %w", resourceID, err)
+		}
+		d.CreatedAt = fromMillis(at)
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+// RevisionChange returns the change that made a revision of a resource, or
+// ErrNotFound.
+func (t *Tx) RevisionChange(ctx context.Context, resourceID string, number int) (string, error) {
+	var change string
+	err := t.queryRow(ctx, `SELECT change_id FROM revisions WHERE resource_id = ? AND number = ?`, resourceID, number).Scan(&change)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("can't read revision %d of %s: %w", number, resourceID, err)
+	}
+	return change, nil
+}
+
+// DeletedSince returns resources of a kind with a revision that deleted them since a
+// time, at most limit, the most recently deleted first.
+func (t *Tx) DeletedSince(ctx context.Context, kind string, since time.Time, limit int) ([]string, error) {
+	rows, err := t.query(ctx, `SELECT r.id FROM resources r JOIN revisions v ON v.resource_id = r.id
+		WHERE r.kind = ? AND v.spec IS NULL AND v.created_at >= ?
+		GROUP BY r.id ORDER BY MAX(v.created_at) DESC, r.id LIMIT ?`, kind, millis(since), limit)
+	if err != nil {
+		return nil, fmt.Errorf("can't list what was deleted: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("can't list what was deleted: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
 func (t *Tx) listResources(ctx context.Context, query string, args ...any) ([]Resource, error) {
 	rows, err := t.query(ctx, query, args...)
 	if err != nil {

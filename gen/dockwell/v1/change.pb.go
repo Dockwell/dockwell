@@ -3708,7 +3708,11 @@ type PlanStep struct {
 	Answers *RouteAnswers `protobuf:"bytes,21,opt,name=answers,proto3" json:"answers,omitempty"`
 	// The port on the server a route sends to, and what listens there as this was
 	// planned. It never stops a plan, and the fingerprint leaves what listens out.
-	ServerPort    *ServerPortCheck `protobuf:"bytes,22,opt,name=server_port,json=serverPort,proto3" json:"server_port,omitempty"`
+	ServerPort *ServerPortCheck `protobuf:"bytes,22,opt,name=server_port,json=serverPort,proto3" json:"server_port,omitempty"`
+	// True when the step deletes a service whose server keeps logs of it: from
+	// then on they can't be read, and they go in 7 days, unless undoing the
+	// step brings them back. Numbered apart, as open work adds to this message.
+	HidesLogs     bool `protobuf:"varint,30,opt,name=hides_logs,json=hidesLogs,proto3" json:"hides_logs,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3888,6 +3892,13 @@ func (x *PlanStep) GetServerPort() *ServerPortCheck {
 		return x.ServerPort
 	}
 	return nil
+}
+
+func (x *PlanStep) GetHidesLogs() bool {
+	if x != nil {
+		return x.HidesLogs
+	}
+	return false
 }
 
 // RouteAnswers is who a route answers, as its plan says.
@@ -4614,7 +4625,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aremoved\x18\x04 \x01(\bR\aremoved\x125\n" +
 	"\bdowntime\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\bdowntime\x12+\n" +
 	"\x05steps\x18\x06 \x03(\v2\x15.dockwell.v1.PlanStepR\x05steps\x12>\n" +
-	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xd4\a\n" +
+	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xf3\a\n" +
 	"\bPlanStep\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x124\n" +
@@ -4642,7 +4653,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\vunencrypted\x18\x14 \x01(\bR\vunencrypted\x123\n" +
 	"\aanswers\x18\x15 \x01(\v2\x19.dockwell.v1.RouteAnswersR\aanswers\x12=\n" +
 	"\vserver_port\x18\x16 \x01(\v2\x1c.dockwell.v1.ServerPortCheckR\n" +
-	"serverPort\"m\n" +
+	"serverPort\x12\x1d\n" +
+	"\n" +
+	"hides_logs\x18\x1e \x01(\bR\thidesLogs\"m\n" +
 	"\fRouteAnswers\x12-\n" +
 	"\x05reach\x18\x01 \x01(\x0e2\x17.dockwell.v1.RouteReachR\x05reach\x12\x18\n" +
 	"\aproxies\x18\x02 \x03(\tR\aproxies\x12\x14\n" +

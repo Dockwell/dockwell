@@ -14,6 +14,7 @@ import (
 	"go.yaml.in/yaml/v4"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -51,6 +52,10 @@ type (
 		CapDrop     []string          `yaml:"cap_drop,omitempty"`
 		GroupAdd    []string          `yaml:"group_add,omitempty"`
 		Privileged  bool              `yaml:"privileged,omitempty"`
+		// Logging keeps the rotation Dockwell sets on what docker compose makes
+		// from the file, which it would otherwise leave without a limit, except on
+		// a server whose Docker logs elsewhere by default, which keeps its choice.
+		Logging *loggingEntry `yaml:"logging,omitempty"`
 	}
 	joinEntry struct {
 		Aliases []string `yaml:"aliases,omitempty"`
@@ -65,6 +70,10 @@ type (
 	amountEntry struct {
 		CPUs   string `yaml:"cpus,omitempty"`
 		Memory string `yaml:"memory,omitempty"`
+	}
+	loggingEntry struct {
+		Driver  string            `yaml:"driver"`
+		Options map[string]string `yaml:"options"`
 	}
 	healthEntry struct {
 		Test        []string `yaml:"test,omitempty"`
@@ -119,11 +128,15 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		if c == nil {
 			continue
 		}
+		rotation := docker.Rotation()
 		entry := serviceEntry{
 			Image: escape(c.GetImage()), Command: escapeAll(c.GetCommand()),
 			User: escape(c.GetUser()), WorkingDir: escape(c.GetWorkingDir()),
 			CapAdd: c.GetCapAdd(), CapDrop: c.GetCapDrop(), GroupAdd: c.GetGroupAdd(), Privileged: c.GetPrivileged(),
 			Networks: exportNetworks(c), Deploy: exportResources(c.GetResources()),
+		}
+		if stack.LogDrivers[s.Name] == "" {
+			entry.Logging = &loggingEntry{Driver: rotation.Type, Options: rotation.Config}
 		}
 		// A network the server has is listed as external, by its name in Docker, so
 		// docker compose joins it and never makes it.

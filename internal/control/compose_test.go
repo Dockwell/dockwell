@@ -17,6 +17,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
+	agentlogs "github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -42,11 +43,18 @@ func (f *fullServer) addDockerServer(t *testing.T) *dockertest.Engine {
 // addServerWith is addDockerServer with more drivers on the server's agent.
 func (f *fullServer) addServerWith(t *testing.T, more func() []resource.Type) *dockertest.Engine {
 	t.Helper()
+	return f.addServerNamed(t, "hz-1", more, nil)
+}
+
+// addServerNamed adds a server by name. prepare runs before its agent connects, for
+// what is on its disk before it joins.
+func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []resource.Type, prepare func(*dockertest.Engine, *agentlogs.Archive)) *dockertest.Engine {
+	t.Helper()
 	key, csr, err := pki.NewServerKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	joined, err := f.ident.EnrollLocal(t.Context(), csr, "hz-1")
+	joined, err := f.ident.EnrollLocal(t.Context(), csr, name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,16 +65,22 @@ func (f *fullServer) addServerWith(t *testing.T, more func() []resource.Type) *d
 	e.Registry["ghcr.io/acme/worker:1.0"] = dockertest.Image{Config: docker.Config{Cmd: []string{"work"}}}
 	e.Registry["alpine:latest"] = dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}}
 	client := e.Client()
-	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Paths: &container.Paths{Client: client, DataDir: t.TempDir()}}}
+	archive := &agentlogs.Archive{Dir: t.TempDir(), Client: client, Logger: slog.New(slog.DiscardHandler), Free: func(string) (uint64, error) { return 1 << 40, nil }}
+	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Logs: archive, Paths: &container.Paths{Client: client, DataDir: t.TempDir()}}}
 	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}}, &network.Driver{Client: client}}
 	if more != nil {
 		drivers = append(drivers, more()...)
 	}
+	if prepare != nil {
+		prepare(e, archive)
+	}
 	s := &testServer{
 		id:      enroll.New(joined.Server.ID, joined.Server.Name, "https://"+f.agentAddr, key, joined.Cert, f.ident.CA().Certificate()),
 		drivers: resource.NewRegistry(drivers...),
+		logs:    &agentlogs.Reader{Client: client, Archive: archive, Logger: slog.New(slog.DiscardHandler)},
 	}
 	s.connect(t, f)
+	f.lastDocker = s
 	return e
 }
 

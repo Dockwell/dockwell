@@ -15,10 +15,45 @@ msgstr ", secret"
 msgid "(modified)"
 msgstr "(modified)"
 
+#. placeholder {0}: e.left
+#: src/features/logs/draw.ts
+msgid "{0, plural, one {{count} line came while this view was paused, and left it unseen.} other {{count} lines came while this view was paused, and left it unseen.}}"
+msgstr "{0, plural, one {{count} line came while this view was paused, and left it unseen.} other {{count} lines came while this view was paused, and left it unseen.}}"
+
+#. placeholder {0}: now.store.matches
+#: src/features/logs/LogsPage.tsx
+msgid "{0, plural, one {{count} line matches.} other {{count} lines match.}}"
+msgstr "{0, plural, one {{count} line matches.} other {{count} lines match.}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} line from {source} not shown: it wrote faster than a live view can carry. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: it wrote faster than a live view can carry. Read them with dockwell logs read.}}"
+msgstr "{0, plural, one {{lines} line from {source} not shown: it wrote faster than a live view can carry. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: it wrote faster than a live view can carry. Read them with dockwell logs read.}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} line from {source} not shown: this page or the network to it fell behind.} other {{lines} lines from {source} not shown: this page or the network to it fell behind.}}"
+msgstr "{0, plural, one {{lines} line from {source} not shown: this page or the network to it fell behind.} other {{lines} lines from {source} not shown: this page or the network to it fell behind.}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} line from {source} not shown: this server shares what it carries live between everyone reading it, and this was past this view's share. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: this server shares what it carries live between everyone reading it, and these were past this view's share. Read them with dockwell logs read.}}"
+msgstr "{0, plural, one {{lines} line from {source} not shown: this server shares what it carries live between everyone reading it, and this was past this view's share. Read it with dockwell logs read.} other {{lines} lines from {source} not shown: this server shares what it carries live between everyone reading it, and these were past this view's share. Read them with dockwell logs read.}}"
+
+#. placeholder {0}: Number(gap.lines)
+#: src/features/logs/words.ts
+msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
+msgstr "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
+
 #. placeholder {0}: state.servers.length
 #: src/features/apps/AppOverview.tsx
 msgid "{0, plural, one {{servers} isn't connected} other {{servers} aren't connected}}"
 msgstr "{0, plural, one {{servers} isn't connected} other {{servers} aren't connected}}"
+
+#. placeholder {0}: store.matches
+#: src/features/logs/LogFoot.tsx
+msgid "{0, plural, one {{shown} of the {total} lines loaded matches.} other {{shown} of the {total} lines loaded match.}}"
+msgstr "{0, plural, one {{shown} of the {total} lines loaded matches.} other {{shown} of the {total} lines loaded match.}}"
 
 #. placeholder {0}: live.length
 #: src/features/changes/ChangeSheet.tsx
@@ -70,6 +105,11 @@ msgstr "{0, plural, one {Delete # resource} other {Delete # resources}}"
 msgid "{0, plural, one {Network} other {Networks}}"
 msgstr "{0, plural, one {Network} other {Networks}}"
 
+#. placeholder {0}: store.arrived
+#: src/features/logs/LogFoot.tsx
+msgid "{0, plural, one {Paused at {at}. {count} line since.} other {Paused at {at}. {count} lines since.}}"
+msgstr "{0, plural, one {Paused at {at}. {count} line since.} other {Paused at {at}. {count} lines since.}}"
+
 #. placeholder {0}: services.length
 #: src/features/apps/NewAppSheet.tsx
 msgid "{0, plural, one {This makes # app} other {This makes # apps}}"
@@ -79,6 +119,16 @@ msgstr "{0, plural, one {This makes # app} other {This makes # apps}}"
 #: src/features/apps/NewAppSheet.tsx
 msgid "{0, plural, one {Volume} other {Volumes}}"
 msgstr "{0, plural, one {Volume} other {Volumes}}"
+
+#. placeholder {0}: failing.serverName
+#: src/features/logs/LogNote.tsx
+msgid "{0} can't read a container's log"
+msgstr "{0} can't read a container's log"
+
+#. placeholder {0}: first.serverName
+#: src/features/logs/LogNote.tsx
+msgid "{0} can't read logs"
+msgstr "{0} can't read logs"
 
 #. placeholder {0}: offline.join(", ")
 #: src/features/changes/ChangeSheet.tsx
@@ -94,6 +144,17 @@ msgstr "{0} disk"
 #: src/features/changes/ChangeSheet.tsx
 msgid "{0} has to reconnect first"
 msgstr "{0} has to reconnect first"
+
+#. placeholder {0}: first.serverName
+#: src/features/logs/LogNote.tsx
+msgid "{0} is offline"
+msgstr "{0} is offline"
+
+#. placeholder {0}: step.toLocaleString(i18n.locale)
+#. placeholder {1}: active.matches.toLocaleString(i18n.locale)
+#: src/features/logs/LogsPage.tsx
+msgid "{0} of {1}"
+msgstr "{0} of {1}"
 
 #. placeholder {0}: s.create
 #: src/features/activity/describe.ts
@@ -144,9 +205,17 @@ msgstr "{count, plural, one {# day} other {# days}}"
 msgid "{count, plural, one {# hour} other {# hours}}"
 msgstr "{count, plural, one {# hour} other {# hours}}"
 
+#: src/app/Providers.tsx
+msgid "{count, plural, one {# new line} other {# new lines}}"
+msgstr "{count, plural, one {# new line} other {# new lines}}"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 msgstr "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{count, plural, one {# replica} other {# replicas}}"
+msgstr "{count, plural, one {# replica} other {# replicas}}"
 
 #: src/app/Providers.tsx
 #: src/features/apps/AppsPage.tsx
@@ -210,9 +279,21 @@ msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an 
 msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
 msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
 
+#: src/features/logs/LogFoot.tsx
+msgid "{down} couldn't be searched, so its lines aren't in this."
+msgstr "{down} couldn't be searched, so its lines aren't in this."
+
 #: src/features/apps/AppsPage.tsx
 msgid "{elsewhere, plural, one {# more app lives outside this view} other {# more apps live outside this view}}"
 msgstr "{elsewhere, plural, one {# more app lives outside this view} other {# more apps live outside this view}}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{errors, plural, one {{count} error} other {{count} errors}}"
+msgstr "{errors, plural, one {{count} error} other {{count} errors}}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{first} couldn't be searched"
+msgstr "{first} couldn't be searched"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "{free} free"
@@ -225,6 +306,10 @@ msgstr "{left} of 10 are left, and each works once. If you lost your authenticat
 #: src/features/changes/ChangeSheet.tsx
 msgid "{made} is live"
 msgstr "{made} is live"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
+msgstr "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "{memShare} in use"
@@ -266,6 +351,14 @@ msgstr "{name} gets back the data the server kept."
 msgid "{name} gets root on {server}"
 msgstr "{name} gets root on {server}"
 
+#: src/features/logs/LogNote.tsx
+msgid "{name} has no container now, so these are the logs of its last deploy."
+msgstr "{name} has no container now, so these are the logs of its last deploy."
+
+#: src/features/logs/LogsPage.tsx
+msgid "{name} has no containers yet"
+msgstr "{name} has no containers yet"
+
 #: src/features/auth/Unclaimed.tsx
 msgid "{name} has no owner yet"
 msgstr "{name} has no owner yet"
@@ -277,6 +370,10 @@ msgstr "{name} has no server in the fleet"
 #: src/features/changes/notices.tsx
 msgid "{name} has the Linux capability {path} on {server}"
 msgstr "{name} has the Linux capability {path} on {server}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{name} hasn't written anything. Its first lines show here as it writes them."
+msgstr "{name} hasn't written anything. Its first lines show here as it writes them."
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "{name} is live"
@@ -298,6 +395,11 @@ msgstr "{name} is waiting for its agent"
 msgid "{name} isn't reporting"
 msgstr "{name} isn't reporting"
 
+#. placeholder {0}: off.serverName
+#: src/features/logs/LogNote.tsx
+msgid "{name} isn't running on {0}"
+msgstr "{name} isn't running on {0}"
+
 #: src/features/changes/notices.tsx
 msgid "{name} joins the group {path} on {server}"
 msgstr "{name} joins the group {path} on {server}"
@@ -313,6 +415,10 @@ msgstr "{name} keeps running there, but Dockwell can't see it or change it until
 #: src/features/changes/notices.tsx
 msgid "{name} keeps what is in {names} as it is"
 msgstr "{name} keeps what is in {names} as it is"
+
+#: src/features/apps/AppLayout.tsx
+msgid "{name} logs"
+msgstr "{name} logs"
 
 #. placeholder {0}: server.serverName
 #: src/features/changes/notices.tsx
@@ -367,6 +473,10 @@ msgstr "{name}, {status}, CPU {cpu}%"
 msgid "{name}'s {where} holds the value of {variable}"
 msgstr "{name}'s {where} holds the value of {variable}"
 
+#: src/features/changes/notices.tsx
+msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
+msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
+
 #: src/features/changes/words.ts
 msgid "{networks, plural, one {a network} other {# networks}}"
 msgstr "{networks, plural, one {a network} other {# networks}}"
@@ -374,6 +484,10 @@ msgstr "{networks, plural, one {a network} other {# networks}}"
 #: src/features/servers/ServerPanels.tsx
 msgid "{now} now"
 msgstr "{now} now"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{number} of {count}"
+msgstr "{number} of {count}"
 
 #: src/features/changes/words.ts
 msgid "{out}, which reaches past the server's firewall"
@@ -399,6 +513,10 @@ msgstr "{proxy} isn't running on {server}, so this route starts it, and it takes
 #: src/features/changes/words.ts
 msgid "{proxy} restarts on {server}, for a newer version, so everything it serves is down for that long"
 msgstr "{proxy} restarts on {server}, for a newer version, so everything it serves is down for that long"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{rangeLabel}, to {to}. Refresh for newer lines."
+msgstr "{rangeLabel}, to {to}. Refresh for newer lines."
 
 #: src/features/changes/words.ts
 msgid "{reads}, relabelled for SELinux as private"
@@ -453,6 +571,10 @@ msgstr "{secrets, plural, one {# secret} other {# secrets}}"
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, one {# variable} other {# variables}}"
 
+#: src/features/changes/notices.tsx
+msgid "{server} is offline, so what it kept of {name} stays on its disk until it's back"
+msgstr "{server} is offline, so what it kept of {name} stays on its disk until it's back"
+
 #: src/features/activity/describe.ts
 msgid "{server} joined as the control server"
 msgstr "{server} joined as the control server"
@@ -488,6 +610,18 @@ msgstr "{share} of {size} used"
 #: src/features/apps/AppDeployments.tsx
 msgid "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
 msgstr "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
+
+#: src/app/Providers.tsx
+msgid "{size} more not kept"
+msgstr "{size} more not kept"
+
+#: src/features/logs/draw.ts
+msgid "{source} started {revision}, in container {container}"
+msgstr "{source} started {revision}, in container {container}"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{speed} lines/s"
+msgstr "{speed} lines/s"
 
 #. placeholder {0}: steps.length
 #: src/features/changes/ChangeSheet.tsx
@@ -526,6 +660,14 @@ msgstr "{unknown} in an unknown state"
 msgid "{used} of {total}"
 msgstr "{used} of {total}"
 
+#: src/features/logs/LogFoot.tsx
+msgid "{value, plural, one {{count} line not shown} other {{count} lines not shown}}"
+msgstr "{value, plural, one {{count} line not shown} other {{count} lines not shown}}"
+
+#: src/features/logs/LogFoot.tsx
+msgid "{value, plural, one {About {count} line not shown} other {About {count} lines not shown}}"
+msgstr "{value, plural, one {About {count} line not shown} other {About {count} lines not shown}}"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "{verb} {name}"
 msgstr "{verb} {name}"
@@ -550,6 +692,14 @@ msgstr "<0>{current}</0> is still deploying. You can review this plan once that 
 #: src/features/servers/ServerOverview.tsx
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> may have been removed, or the link may be wrong."
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{image}</0> exited with code {code}."
+msgstr "<0>{image}</0> exited with code {code}."
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{image}</0> exited with no error."
+msgstr "<0>{image}</0> exited with no error."
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "<0>{name}</0> has stopped on <1>{names}</1>"
@@ -615,6 +765,18 @@ msgstr "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives i
 msgid "<0>{project}</0> is here already, so the plan updates what's in it."
 msgstr "<0>{project}</0> is here already, so the plan updates what's in it."
 
+#: src/features/logs/LogNote.tsx
+msgid "<0>{revision}</0> failed at {finished} and was rolled back to <1>{rolledBackTo}</1>."
+msgstr "<0>{revision}</0> failed at {finished} and was rolled back to <1>{rolledBackTo}</1>."
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{revision}</0> failed at {finished} and was rolled back."
+msgstr "<0>{revision}</0> failed at {finished} and was rolled back."
+
+#: src/features/logs/LogNote.tsx
+msgid "<0>{revision}</0> was replaced at {finished}."
+msgstr "<0>{revision}</0> was replaced at {finished}."
+
 #: src/features/apps/AppLayout.tsx
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 msgstr "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
@@ -635,6 +797,10 @@ msgstr "<0>{source}</0> gives this app control of Docker on the server, the same
 msgid "<0>{source}</0>, read-only"
 msgstr "<0>{source}</0>, read-only"
 
+#: src/features/logs/LogsPage.tsx
+msgid "1 h"
+msgstr "1 h"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "1, 5 and 15 min"
 msgstr "1, 5 and 15 min"
@@ -642,6 +808,18 @@ msgstr "1, 5 and 15 min"
 #: src/features/servers/ServerMetrics.tsx
 msgid "1, 5 and 15 min, on {cpus} vCPU"
 msgstr "1, 5 and 15 min, on {cpus} vCPU"
+
+#: src/app/Providers.tsx
+msgid "10k+ new lines"
+msgstr "10k+ new lines"
+
+#: src/features/logs/LogsPage.tsx
+msgid "15 min"
+msgstr "15 min"
+
+#: src/features/logs/LogsPage.tsx
+msgid "24 h"
+msgstr "24 h"
 
 #: src/features/auth/SignInPage.tsx
 msgid "6 digits from your authenticator app, or one of your recovery codes."
@@ -662,6 +840,10 @@ msgstr "a {type} mount ({reads})"
 #: src/features/auth/ClaimPage.tsx
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "A claim link works only until someone claims the install. Sign in instead."
+
+#: src/features/logs/LogsPage.tsx
+msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
+msgstr "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
 
 #: src/features/apps/ExportSheet.tsx
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
@@ -882,9 +1064,21 @@ msgstr "All environments"
 msgid "All healthy"
 msgstr "All healthy"
 
+#: src/features/logs/LogsPage.tsx
+msgid "All levels"
+msgstr "All levels"
+
+#: src/features/logs/LogsPage.tsx
+msgid "All replicas"
+msgstr "All replicas"
+
 #: src/features/apps/AppsPage.tsx
 msgid "All servers"
 msgstr "All servers"
+
+#: src/features/logs/LogsPage.tsx
+msgid "All the servers keep"
+msgstr "All the servers keep"
 
 #: src/features/changes/fields.tsx
 msgid "allow <0>{port}</0>, {proto}, from <1>{from}</1>"
@@ -1024,6 +1218,7 @@ msgstr "Authenticator app"
 msgid "Automatic"
 msgstr "Automatic"
 
+#: src/features/apps/AppLayout.tsx
 #: src/features/shell/Page.tsx
 msgid "Back"
 msgstr "Back"
@@ -1056,6 +1251,10 @@ msgstr "Brings back the data the server kept"
 #: src/features/apps/AppDeployments.tsx
 msgid "By"
 msgstr "By"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Can read logs"
+msgstr "Can read logs"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Can't check your session"
@@ -1094,6 +1293,14 @@ msgstr "Can't reach the control plane"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Can't read the file yet"
 msgstr "Can't read the file yet"
+
+#: src/features/logs/LogContext.tsx
+msgid "Can't read the lines around it"
+msgstr "Can't read the lines around it"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Can't read these logs now"
+msgstr "Can't read these logs now"
 
 #. placeholder {0}: groupSecret(setup.secret)
 #: src/features/auth/TotpPanel.tsx
@@ -1220,6 +1427,10 @@ msgstr "Checking your session"
 msgid "Choose a file"
 msgstr "Choose a file"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Choose a longer range, or follow what it writes next."
+msgstr "Choose a longer range, or follow what it writes next."
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Choose where it runs."
 msgstr "Choose where it runs."
@@ -1244,6 +1455,14 @@ msgstr "Claim this server"
 msgid "Claimed this install"
 msgstr "Claimed this install"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Clear filters"
+msgstr "Clear filters"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Clear the search"
+msgstr "Clear the search"
+
 #: src/features/changes/RollbackLine.tsx
 msgid "Clearing this away failed too"
 msgstr "Clearing this away failed too"
@@ -1256,6 +1475,10 @@ msgstr "Close"
 #: src/features/activity/ActivityPage.tsx
 msgid "Close details"
 msgstr "Close details"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Close the search"
+msgstr "Close the search"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Close, and lose what you typed here?"
@@ -1364,6 +1587,7 @@ msgid "Control server"
 msgstr "Control server"
 
 #: src/features/apps/ExportSheet.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Copied"
 msgstr "Copied"
 
@@ -1379,7 +1603,16 @@ msgstr "Copied {text}"
 msgid "Copied the Compose file"
 msgstr "Copied the Compose file"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Copied the lines shown"
+msgstr "Copied the lines shown"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Copied this line"
+msgstr "Copied this line"
+
 #: src/features/apps/ExportSheet.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Copy"
 msgstr "Copy"
 
@@ -1403,13 +1636,17 @@ msgstr "Copy codes"
 msgid "Copy command"
 msgstr "Copy command"
 
-#: src/routes/_shell/apps.$serviceId.logs.tsx
-msgid "Copy the command"
-msgstr "Copy the command"
-
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
 msgstr "Copy the image"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Copy these lines"
+msgstr "Copy these lines"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Copy this line"
+msgstr "Copy this line"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Copy this token now. It won't be shown again."
@@ -1568,6 +1805,7 @@ msgid "Creating passkey"
 msgstr "Creating passkey"
 
 #: src/features/auth/SessionsPanel.tsx
+#: src/features/logs/LogsPage.tsx
 #: src/features/shell/CommandMenu.tsx
 msgid "Current"
 msgstr "Current"
@@ -1649,6 +1887,10 @@ msgstr "Deploy {name}"
 msgid "Deploy {wanted} to {name}"
 msgstr "Deploy {wanted} to {name}"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Deploy it, and its logs show here as it starts."
+msgstr "Deploy it, and its logs show here as it starts."
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Deploy your first app"
 msgstr "Deploy your first app"
@@ -1702,6 +1944,10 @@ msgstr "Deploying {revision} of {name}"
 #: src/features/apps/AppLayout.tsx
 msgid "Deploying <0>{image}</0>, started {ago}"
 msgstr "Deploying <0>{image}</0>, started {ago}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Deployment"
+msgstr "Deployment"
 
 #: src/features/apps/AppLayout.tsx
 msgid "Deployments"
@@ -1815,6 +2061,7 @@ msgid "Dockwell is putting things back as they were"
 msgstr "Dockwell is putting things back as they were"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Dockwell keeps trying."
 msgstr "Dockwell keeps trying."
 
@@ -1891,8 +2138,13 @@ msgid "Down"
 msgstr "Down"
 
 #: src/features/auth/TotpPanel.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Download"
 msgstr "Download"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Download these lines"
+msgstr "Download these lines"
 
 #: src/features/changes/fields.tsx
 msgid "driver"
@@ -1932,6 +2184,10 @@ msgstr "Ended an authenticator app's setup after 5 wrong codes"
 #: src/features/auth/ClaimPage.tsx
 msgid "Enter an email address, such as mira@acme.dev."
 msgstr "Enter an email address, such as mira@acme.dev."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Enter goes to the next match up the log, and Shift+Enter down it. Escape clears the search."
+msgstr "Enter goes to the next match up the log, and Shift+Enter down it. Escape clears the search."
 
 #: src/features/auth/SignInPage.tsx
 msgid "Enter the 6-digit code from your authenticator app, or a recovery code."
@@ -1998,6 +2254,14 @@ msgstr "Environments"
 msgid "Error"
 msgstr "Error"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Errors"
+msgstr "Errors"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Errors in this log"
+msgstr "Errors in this log"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Event"
 msgstr "Event"
@@ -2055,6 +2319,10 @@ msgstr "Export"
 msgid "Export as Compose"
 msgstr "Export as Compose"
 
+#: src/features/logs/LogsPage.tsx
+msgid "failed"
+msgstr "failed"
+
 #: src/features/apps/revision.ts
 #: src/features/apps/words.ts
 #: src/features/changes/words.ts
@@ -2068,6 +2336,10 @@ msgstr "Filter apps"
 #: src/features/apps/AppsPage.tsx
 msgid "Filter by name or image"
 msgstr "Filter by name or image"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Filter log lines"
+msgstr "Filter log lines"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Finding your projects"
@@ -2112,6 +2384,10 @@ msgstr "Follow"
 #: src/features/apps/AppOverview.tsx
 msgid "Follow it"
 msgstr "Follow it"
+
+#: src/app/Providers.tsx
+msgid "Following"
+msgstr "Following"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "For {connected}"
@@ -2174,6 +2450,10 @@ msgstr "Go"
 #: src/features/apps/AppLayout.tsx
 msgid "Go to the apps"
 msgstr "Go to the apps"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Go to the last"
+msgstr "Go to the last"
 
 #: src/features/auth/ClaimPage.tsx
 #: src/features/servers/ServerOverview.tsx
@@ -2327,6 +2607,10 @@ msgstr "In the app"
 msgid "in under a minute"
 msgstr "in under a minute"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Info"
+msgstr "Info"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Installed"
 msgstr "Installed"
@@ -2358,6 +2642,10 @@ msgstr "It can read that path on the server."
 #: src/features/apps/NewAppSheet.tsx
 msgid "It can't be hidden there, so don't pass a secret there."
 msgstr "It can't be hidden there, so don't pass a secret there."
+
+#: src/features/changes/notices.tsx
+msgid "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
+msgstr "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
 
 #: src/features/changes/RollbackLine.tsx
 msgid "It can't tell what is running there until then. Check that the server and its agent are up."
@@ -2395,9 +2683,17 @@ msgstr "It leads to <0>{leadsTo}</0> through a symlink, and it can read what is 
 msgid "It leads to <0>{leadsTo}</0> through a symlink, and the server's security rests on what is there, so reaching it is as good as root."
 msgstr "It leads to <0>{leadsTo}</0> through a symlink, and the server's security rests on what is there, so reaching it is as good as root."
 
+#: src/features/logs/LogsPage.tsx
+msgid "It may have been deleted. Dockwell has no logs under this address."
+msgstr "It may have been deleted. Dockwell has no logs under this address."
+
 #: src/features/changes/notices.tsx
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
 msgstr "It reaches what the server reaches, past Docker's network and the firewall."
+
+#: src/features/logs/LogsPage.tsx
+msgid "It reads each container's log, at most for 30 s."
+msgstr "It reads each container's log, at most for 30 s."
 
 #: src/features/apps/DeploySheet.tsx
 msgid "It runs <0>{current}</0> now."
@@ -2419,6 +2715,14 @@ msgstr "It takes that proxy's word for where a request came from."
 msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
 msgstr "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
 
+#: src/features/logs/LogNote.tsx
+msgid "It was made without rotation, so its log can fill the disk. Dockwell sets rotation on the containers it makes, so the next deploy of this app fixes it."
+msgstr "It was made without rotation, so its log can fill the disk. Dockwell sets rotation on the containers it makes, so the next deploy of this app fixes it."
+
+#: src/features/logs/LogNote.tsx
+msgid "It wrote more than the server keeps of one container, so not all of its lines are here."
+msgstr "It wrote more than the server keeps of one container, so not all of its lines are here."
+
 #: src/features/auth/ClaimPage.tsx
 msgid "It's live with HTTPS"
 msgstr "It's live with HTTPS"
@@ -2427,6 +2731,14 @@ msgstr "It's live with HTTPS"
 msgid "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
 msgstr "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
 
+#: src/features/logs/LogsPage.tsx
+msgid "Its agent isn't connected, so its lines weren't read. Check the server, then search again."
+msgstr "Its agent isn't connected, so its lines weren't read. Check the server, then search again."
+
+#: src/features/logs/LogNote.tsx
+msgid "Its agent isn't connected, so its logs can't be read now. Its containers keep running and logging. Check the server. Lines written meanwhile arrive when it reconnects, as far as Docker kept them."
+msgstr "Its agent isn't connected, so its logs can't be read now. Its containers keep running and logging. Check the server. Lines written meanwhile arrive when it reconnects, as far as Docker kept them."
+
 #: src/features/servers/ServerCallout.tsx
 msgid "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
 msgstr "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
@@ -2434,6 +2746,18 @@ msgstr "Its agent last reported {seen}, and the numbers here are from then. Chec
 #: src/features/apps/NewAppSheet.tsx
 msgid "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
 msgstr "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
+
+#: src/features/logs/LogNote.tsx
+msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
+msgstr "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
+
+#: src/features/changes/PlanSteps.tsx
+msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
+msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Its logs show here once they can be read."
+msgstr "Its logs show here once they can be read."
 
 #: src/features/changes/notices.tsx
 msgid "its server"
@@ -2493,6 +2817,18 @@ msgstr "labels"
 msgid "last {span}"
 msgstr "last {span}"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Last 1 h"
+msgstr "Last 1 h"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Last 15 min"
+msgstr "Last 15 min"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Last 24 h"
+msgstr "Last 24 h"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Last heartbeat"
 msgstr "Last heartbeat"
@@ -2500,6 +2836,19 @@ msgstr "Last heartbeat"
 #: src/features/apps/ExportSheet.tsx
 msgid "Left out as they may hold secrets"
 msgstr "Left out as they may hold secrets"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Levels"
+msgstr "Levels"
+
+#: src/features/logs/LogFoot.tsx
+#: src/features/logs/LogsPage.tsx
+msgid "Levels are read from each line's text. A line that names none counts as info."
+msgstr "Levels are read from each line's text. A line that names none counts as info."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
+msgstr "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
 
 #: src/features/shell/MorePage.tsx
 msgid "Light"
@@ -2511,6 +2860,22 @@ msgstr "Light"
 msgid "Line {0}: {1}"
 msgstr "Line {0}: {1}"
 
+#: src/features/logs/LogContext.tsx
+msgid "Lines around this one"
+msgstr "Lines around this one"
+
+#: src/features/logs/words.ts
+msgid "Lines from {source} after {from} are gone: the server no longer has this container's log."
+msgstr "Lines from {source} after {from} are gone: the server no longer has this container's log."
+
+#: src/features/logs/words.ts
+msgid "Lines from {source} between {from} and {to} are gone: the server no longer has them."
+msgstr "Lines from {source} between {from} and {to} are gone: the server no longer has them."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Lines loaded"
+msgstr "Lines loaded"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Link expires"
 msgstr "Link expires"
@@ -2519,7 +2884,7 @@ msgstr "Link expires"
 msgid "Listening there now: {listening}"
 msgstr "Listening there now: {listening}"
 
-#: src/app/Providers.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Live"
 msgstr "Live"
 
@@ -2528,10 +2893,6 @@ msgstr "Live"
 msgctxt "An app whose latest revision is deployed"
 msgid "Live"
 msgstr "Live"
-
-#: src/routes/_shell/apps.$serviceId.logs.tsx
-msgid "Live logs arrive in this tab with a later change. Until then, read them on the server:"
-msgstr "Live logs arrive in this tab with a later change. Until then, read them on the server:"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "Load average"
@@ -2581,13 +2942,22 @@ msgstr "Loading tokens"
 msgid "Loading variables and secrets"
 msgstr "Loading variables and secrets"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Log filters"
+msgstr "Log filters"
+
 #: src/features/apps/AppLayout.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Logs"
 msgstr "Logs"
 
-#: src/routes/_shell/apps.$serviceId.logs.tsx
-msgid "Logs aren't in this build yet"
-msgstr "Logs aren't in this build yet"
+#: src/features/auth/TokensPanel.tsx
+msgid "Logs often hold secrets that apps print, so a token reads them only if you say so here."
+msgstr "Logs often hold secrets that apps print, so a token reads them only if you say so here."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Logs often hold secrets that apps print, so reading them takes permission. Ask the owner of this install for it."
+msgstr "Logs often hold secrets that apps print, so reading them takes permission. Ask the owner of this install for it."
 
 #: src/features/auth/SignInPage.tsx
 msgid "Lost your passkey?"
@@ -2768,6 +3138,10 @@ msgstr "New recovery codes"
 msgid "New value"
 msgstr "New value"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Next error"
+msgstr "Next error"
+
 #: src/features/changes/fields.tsx
 msgid "no"
 msgstr "no"
@@ -2795,6 +3169,10 @@ msgstr "no downtime expected"
 #: src/features/apps/AppEnvironment.tsx
 msgid "No environment variables"
 msgstr "No environment variables"
+
+#: src/features/logs/LogsPage.tsx
+msgid "No logs yet"
+msgstr "No logs yet"
 
 #: src/features/auth/Unclaimed.tsx
 msgid "No owner yet"
@@ -2888,6 +3266,14 @@ msgstr "Nothing changed on the server. Reload the page to try again."
 msgid "Nothing changes until you apply the plan"
 msgstr "Nothing changes until you apply the plan"
 
+#: src/features/logs/LogContext.tsx
+msgid "Nothing else was written around this line."
+msgstr "Nothing else was written around this line."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing here matches these filters."
+msgstr "Nothing here matches these filters."
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Nothing here yet"
 msgstr "Nothing here yet"
@@ -2896,9 +3282,17 @@ msgstr "Nothing here yet"
 msgid "Nothing here yet."
 msgstr "Nothing here yet."
 
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing in all the servers keep has \"{highlight}\"."
+msgstr "Nothing in all the servers keep has \"{highlight}\"."
+
 #: src/features/apps/AppDeployments.tsx
 msgid "Nothing in its spec changed. It moved, or came back as it was."
 msgstr "Nothing in its spec changed. It moved, or came back as it was."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing in the {total} lines loaded has \"{query}\"."
+msgstr "Nothing in the {total} lines loaded has \"{query}\"."
 
 #: src/features/changes/words.ts
 msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
@@ -2944,6 +3338,14 @@ msgstr "Nothing runs until you apply the plan"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Nothing to change"
 msgstr "Nothing to change"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing to show until {servers} is back"
+msgstr "Nothing to show until {servers} is back"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Nothing was written in this time"
+msgstr "Nothing was written in this time"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Nothing yet. It runs once the deploy finishes."
@@ -3187,6 +3589,10 @@ msgstr "Path in the app"
 msgid "Pause"
 msgstr "Pause"
 
+#: src/features/logs/LogFoot.tsx
+msgid "Pause to read"
+msgstr "Pause to read"
+
 #: src/app/Providers.tsx
 msgid "Paused"
 msgstr "Paused"
@@ -3257,6 +3663,14 @@ msgstr "ports"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Ports"
 msgstr "Ports"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Press Enter to search all the servers keep."
+msgstr "Press Enter to search all the servers keep."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Previous error"
+msgstr "Previous error"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Private addresses"
@@ -3402,6 +3816,10 @@ msgstr "Pulls {image} again, and replaces {name} with what that names now, in pl
 msgid "Pulls <0>{current}</0> again, and replaces {name} only if that's a newer image."
 msgstr "Pulls <0>{current}</0> again, and replaces {name} only if that's a newer image."
 
+#: src/app/Providers.tsx
+msgid "Put back"
+msgstr "Put back"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Putting {name} back failed too"
 msgstr "Putting {name} back failed too"
@@ -3434,6 +3852,10 @@ msgstr "Reaches {path}"
 msgid "Reaches {reach} on {server}"
 msgstr "Reaches {reach} on {server}"
 
+#: src/features/logs/DeployLogLinks.tsx
+msgid "Read {name}'s logs from this deploy"
+msgstr "Read {name}'s logs from this deploy"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Read and write"
 msgstr "Read and write"
@@ -3445,6 +3867,22 @@ msgstr "Read it for the rest before you pass one a secret."
 #: src/features/auth/TokensPanel.tsx
 msgid "Read only"
 msgstr "Read only"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Read the failed deploy's logs"
+msgstr "Read the failed deploy's logs"
+
+#: src/features/logs/LogFoot.tsx
+msgid "Read them with <0>dockwell logs read</0>."
+msgstr "Read them with <0>dockwell logs read</0>."
+
+#: src/features/logs/DeployLogLinks.tsx
+msgid "Read this deploy's logs"
+msgstr "Read this deploy's logs"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Read this range again"
+msgstr "Read this range again"
 
 #: src/features/changes/fields.tsx
 #: src/features/changes/words.ts
@@ -3460,9 +3898,21 @@ msgstr "Read-only"
 msgid "read-write"
 msgstr "read-write"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Reading logs"
+msgstr "Reading logs"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Reading the file"
 msgstr "Reading the file"
+
+#: src/features/logs/LogContext.tsx
+msgid "Reading the lines around it"
+msgstr "Reading the lines around it"
+
+#: src/features/auth/TokensPanel.tsx
+msgid "Reads logs"
+msgstr "Reads logs"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads servers and their state. Changes nothing."
@@ -3483,6 +3933,10 @@ msgstr "Recent deployments"
 #: src/features/servers/FleetNotes.tsx
 msgid "Reconnecting"
 msgstr "Reconnecting"
+
+#: src/features/logs/LogNote.tsx
+msgid "Reconnecting to the control server"
+msgstr "Reconnecting to the control server"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Recorded and applied. Nothing had to run on a server."
@@ -3563,6 +4017,7 @@ msgid "Replace codes"
 msgstr "Replace codes"
 
 #: src/app/Providers.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "replaced"
 msgstr "replaced"
 
@@ -3576,6 +4031,10 @@ msgstr "Replaced"
 #: src/features/changes/words.ts
 msgid "Replacing"
 msgstr "Replacing"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Replica"
+msgstr "Replica"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Required"
@@ -3823,10 +4282,15 @@ msgstr "Run this on the server over SSH for a new link. It works once, for 15 mi
 msgid "Run this on the server over SSH. It prints a sign-in link that works once."
 msgstr "Run this on the server over SSH. It prints a sign-in link that works once."
 
+#: src/features/apps/AppLayout.tsx
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/words.ts
 msgid "Running"
 msgstr "Running"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Running now"
+msgstr "Running now"
 
 #: src/features/changes/fields.tsx
 msgid "runs no entrypoint"
@@ -3882,11 +4346,28 @@ msgstr "Scheduled tasks"
 msgid "Scope"
 msgstr "Scope"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Search all the servers keep"
+msgstr "Search all the servers keep"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Search lines"
+msgstr "Search lines"
+
+#: src/features/apps/AppLayout.tsx
+#: src/features/logs/LogsPage.tsx
+msgid "Search logs"
+msgstr "Search logs"
+
 #: src/app/Providers.tsx
 #: src/features/shell/Page.tsx
 #: src/features/shell/Topbar.tsx
 msgid "Search or run a command"
 msgstr "Search or run a command"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Searching all the servers keep"
+msgstr "Searching all the servers keep"
 
 #: src/app/Providers.tsx
 #: src/features/changes/words.ts
@@ -3966,6 +4447,10 @@ msgstr "Set each variable in the shell, or in an <0>.env</0> file beside the Com
 msgid "Set on this app"
 msgstr "Set on this app"
 
+#: src/app/Providers.tsx
+msgid "Set out"
+msgstr "Set out"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Set up"
 msgstr "Set up"
@@ -3982,9 +4467,33 @@ msgstr "Settings"
 msgid "Settings, status and account"
 msgstr "Settings, status and account"
 
+#: src/app/Providers.tsx
+msgid "Show all of this line"
+msgstr "Show all of this line"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Show earlier events"
 msgstr "Show earlier events"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Show earlier lines"
+msgstr "Show earlier lines"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Show in context"
+msgstr "Show in context"
+
+#: src/features/logs/LogNote.tsx
+msgid "Show less"
+msgstr "Show less"
+
+#: src/features/logs/LogNote.tsx
+msgid "Show more"
+msgstr "Show more"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Show older matches"
+msgstr "Show older matches"
 
 #: src/features/apps/AppDeployments.tsx
 msgid "Show older revisions"
@@ -3997,6 +4506,10 @@ msgstr "Show the activity of {name}"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show the apps"
 msgstr "Show the apps"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Show the current logs"
+msgstr "Show the current logs"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show the value"
@@ -4107,6 +4620,10 @@ msgstr "Skip to content"
 msgid "Skipped"
 msgstr "Skipped"
 
+#: src/features/logs/words.ts
+msgid "Some lines from {source} are missing here."
+msgstr "Some lines from {source} are missing here."
+
 #: src/features/changes/RollbackLine.tsx
 msgid "Some of this may be down until that finishes."
 msgstr "Some of this may be down until that finishes."
@@ -4135,6 +4652,10 @@ msgstr "Source"
 #: src/features/changes/fields.tsx
 msgid "sources"
 msgstr "sources"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Start of the log"
+msgstr "Start of the log"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Start with read only, and allow writes only when the job needs them."
@@ -4235,6 +4756,10 @@ msgstr "That goes beyond what Docker gives a container by default."
 #: src/features/changes/notices.tsx
 msgid "That goes beyond what Docker keeps for it."
 msgstr "That goes beyond what Docker keeps for it."
+
+#: src/features/logs/LogFoot.tsx
+msgid "That is all the servers keep."
+msgstr "That is all the servers keep."
 
 #: src/features/changes/notices.tsx
 msgid "That is the same as root if it is the group that owns Docker's socket on the server."
@@ -4372,6 +4897,10 @@ msgstr "The last deploy failed, so Dockwell rolled it back"
 msgid "The last deploy of {name} failed"
 msgstr "The last deploy of {name} failed"
 
+#: src/features/logs/LogNote.tsx
+msgid "The lines written meanwhile arrive once it answers, with none twice."
+msgstr "The lines written meanwhile arrive once it answers, with none twice."
+
 #: src/features/changes/words.ts
 msgid "the Linux capability {path}"
 msgstr "the Linux capability {path}"
@@ -4444,6 +4973,18 @@ msgstr "the port {path} on the server itself, past its containers, at {detail} o
 msgid "the resource filter"
 msgstr "the resource filter"
 
+#: src/features/logs/LogsPage.tsx
+msgid "The search failed"
+msgstr "The search failed"
+
+#: src/features/logs/LogFoot.tsx
+msgid "The search stopped after 30 s, at {at}. Read older lines with <0>dockwell logs read</0>."
+msgstr "The search stopped after 30 s, at {at}. Read older lines with <0>dockwell logs read</0>."
+
+#: src/features/logs/LogFoot.tsx
+msgid "The search stopped at the newest 1,000,000 lines of a container, at {at}. Read older lines with <0>dockwell logs read</0>."
+msgstr "The search stopped at the newest 1,000,000 lines of a container, at {at}. Read older lines with <0>dockwell logs read</0>."
+
 #: src/features/activity/ActivityPage.tsx
 msgid "the server filter"
 msgstr "the server filter"
@@ -4484,6 +5025,10 @@ msgstr "The server's security rests on what is there, so reaching it is as good 
 msgid "The server's security rests on what that reaches, so it is as good as root."
 msgstr "The server's security rests on what that reaches, so it is as good as root."
 
+#: src/features/logs/LogsPage.tsx
+msgid "The servers have no lines of this app."
+msgstr "The servers have no lines of this app."
+
 #: src/features/auth/TokensPanel.tsx
 msgid "The token wasn't created"
 msgstr "The token wasn't created"
@@ -4509,6 +5054,14 @@ msgstr "Theme"
 msgid "There are no apps here yet. Choose another environment, or make one with New app."
 msgstr "There are no apps here yet. Choose another environment, or make one with New app."
 
+#: src/features/logs/LogsPage.tsx
+msgid "There are no lines to copy"
+msgstr "There are no lines to copy"
+
+#: src/features/logs/LogsPage.tsx
+msgid "There are no lines to download"
+msgstr "There are no lines to download"
+
 #: src/features/system/NotFound.tsx
 msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 msgstr "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
@@ -4517,9 +5070,17 @@ msgstr "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 msgid "This app"
 msgstr "This app"
 
+#: src/features/logs/LogsPage.tsx
+msgid "This app isn't here"
+msgstr "This app isn't here"
+
 #: src/features/apps/AppEnvironment.tsx
 msgid "This app runs with only what its image sets."
 msgstr "This app runs with only what its image sets."
+
+#: src/features/logs/LogFoot.tsx
+msgid "this app wrote faster than a live view can carry."
+msgstr "this app wrote faster than a live view can carry."
 
 #: src/features/auth/SessionsPanel.tsx
 msgid "This browser"
@@ -4533,9 +5094,18 @@ msgstr "This browser can't use passkeys at this address. Open the panel through 
 msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
 msgstr "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
 
+#. placeholder {0}: wild.serverName
+#: src/features/logs/LogNote.tsx
+msgid "This container's log has no limit on {0}"
+msgstr "This container's log has no limit on {0}"
+
 #: src/features/system/StatusPage.tsx
 msgid "This control plane"
 msgstr "This control plane"
+
+#: src/features/logs/LogsPage.tsx
+msgid "This deploy's logs are gone"
+msgstr "This deploy's logs are gone"
 
 #: src/features/auth/messages.ts
 msgid "This device already has a passkey for your account here. Use it, or pick another device or security key."
@@ -4578,6 +5148,10 @@ msgstr "This may cut off access to {0}"
 msgid "This page needs the whole link that dockwell recover printed, including the part after “#”."
 msgstr "This page needs the whole link that dockwell recover printed, including the part after “#”."
 
+#: src/features/logs/LogFoot.tsx
+msgid "this page or the network to it fell behind."
+msgstr "this page or the network to it fell behind."
+
 #: src/features/auth/ClaimPage.tsx
 msgid "This panel controls {name}. Create the owner account with a passkey."
 msgstr "This panel controls {name}. Create the owner account with a passkey."
@@ -4598,6 +5172,10 @@ msgstr "This reaches <0>{source}</0> on the server. You approve this in the plan
 msgid "This server"
 msgstr "This server"
 
+#: src/features/logs/LogFoot.tsx
+msgid "this server shares what it carries live between everyone reading it."
+msgstr "this server shares what it carries live between everyone reading it."
+
 #: src/features/auth/messages.ts
 msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
 msgstr "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
@@ -4617,6 +5195,18 @@ msgstr "This stopped before it changed anything on the server."
 #: src/features/changes/RollbackLine.tsx
 msgid "This stopped before it reached that, and Dockwell put back the rest."
 msgstr "This stopped before it reached that, and Dockwell put back the rest."
+
+#: src/features/logs/LogsPage.tsx
+msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
+msgstr "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
+
+#: src/features/logs/LogsPage.tsx
+msgid "Time"
+msgstr "Time"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Time range"
+msgstr "Time range"
 
 #: src/app/Providers.tsx
 msgid "to"
@@ -4707,6 +5297,7 @@ msgstr "trend"
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/logs/LogsPage.tsx
 msgid "Try again"
 msgstr "Try again"
 
@@ -4733,6 +5324,10 @@ msgstr "Turned on codes from an authenticator app"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Type <0>{confirmWith}</0> to apply it"
 msgstr "Type <0>{confirmWith}</0> to apply it"
+
+#: src/features/logs/LogsPage.tsx
+msgid "Type what to find, and press Enter. It reads each container's log, at most for 30 s."
+msgstr "Type what to find, and press Enter. It reads each container's log, at most for 30 s."
 
 #: src/app/Providers.tsx
 #: src/features/activity/ActivityPage.tsx
@@ -5022,6 +5617,10 @@ msgstr "Waiting for server"
 msgid "Warning"
 msgstr "Warning"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Warnings"
+msgstr "Warnings"
+
 #: src/features/shell/sections.ts
 msgid "Websites"
 msgstr "Websites"
@@ -5071,6 +5670,10 @@ msgstr "What runs on your servers isn't affected."
 msgid "What the app listens on, such as 80."
 msgstr "What the app listens on, such as 80."
 
+#: src/features/logs/LogsPage.tsx
+msgid "What the servers keep goes back further than what is loaded here."
+msgstr "What the servers keep goes back further than what is loaded here."
+
 #: src/features/variables/VariablesPage.tsx
 msgid "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
 msgstr "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
@@ -5082,6 +5685,14 @@ msgstr "What this file makes"
 #: src/features/apps/ExportSheet.tsx
 msgid "What to export"
 msgstr "What to export"
+
+#: src/features/logs/LogsPage.tsx
+msgid "What to search"
+msgstr "What to search"
+
+#: src/features/logs/LogsPage.tsx
+msgid "What to show"
+msgstr "What to show"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "What will use this token?"
@@ -5139,6 +5750,10 @@ msgstr "Works here"
 msgid "Works on {where}"
 msgstr "Works on {where}"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Wrap long lines"
+msgstr "Wrap long lines"
+
 #: src/features/changes/fields.tsx
 msgid "yes"
 msgstr "yes"
@@ -5154,6 +5769,10 @@ msgstr "You approve what it reaches in the plan"
 #: src/features/auth/ClaimPage.tsx
 msgid "You become the owner. Nobody else can sign in."
 msgstr "You become the owner. Nobody else can sign in."
+
+#: src/features/logs/LogsPage.tsx
+msgid "You can't read these logs"
+msgstr "You can't read these logs"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "You see the token once, right after you create it."

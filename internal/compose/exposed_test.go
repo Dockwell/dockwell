@@ -74,6 +74,8 @@ func fieldRows() []fieldRow {
 		serviceRow("mem_reservation", "    mem_reservation: ${V}\n", "32M", "32M"),
 		serviceRow("deploy", "    deploy: {resources: {limits: {memory: \"${V}\"}}}\n", "64M", "64M"),
 		serviceRow("privileged", "    privileged: ${V}\n", "true", "true"),
+		// A size or a count, which goes in no spec, as Dockwell sets a log's rotation itself.
+		serviceRow("logging", "    logging: {driver: json-file, options: {max-size: \"${V}\"}}\n", "64m", ""),
 		serviceRow("healthcheck.interval", "    healthcheck: {test: [CMD, run], interval: \"${V}\"}\n", "45s", "45s"),
 		serviceRow("healthcheck.timeout", "    healthcheck: {test: [CMD, run], timeout: \"${V}\"}\n", "45s", "45s"),
 		serviceRow("healthcheck.start_period", "    healthcheck: {test: [CMD, run], start_period: \"${V}\"}\n", "45s", "45s"),

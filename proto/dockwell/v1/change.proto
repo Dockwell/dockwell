@@ -886,6 +886,10 @@ message PlanStep {
   // The port on the server a route sends to, and what listens there as this was
   // planned. It never stops a plan, and the fingerprint leaves what listens out.
   ServerPortCheck server_port = 22;
+  // True when the step deletes a service whose server keeps logs of it: from
+  // then on they can't be read, and they go in 7 days, unless undoing the
+  // step brings them back. Numbered apart, as open work adds to this message.
+  bool hides_logs = 30;
 }
 
 // RouteAnswers is who a route answers, as its plan says.

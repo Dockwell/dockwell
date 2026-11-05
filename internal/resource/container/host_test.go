@@ -65,7 +65,7 @@ func TestAMountOverAnImagesDataKeepsIt(t *testing.T) {
 	}
 }
 
-// A recreated container is down for about 12 s, and may take as long as
+// A recreated container is down for about 13 s, and may take as long as
 // its health check allows to be healthy again: its start period, then its
 // retries, an interval apart, the image's check included.
 func TestDowntimeCountsTheHealthCheck(t *testing.T) {
@@ -78,13 +78,13 @@ func TestDowntimeCountsTheHealthCheck(t *testing.T) {
 	spec := postgres()
 	spec.GetApp().Env = map[string]string{"A": "1"}
 	step := apply(t, l, ref, spec)
-	if step.Downtime != 12*time.Second || step.UntilHealthy != 12*time.Second+5*(10+30)*time.Second || step.HealthUnknown {
-		t.Errorf("recreating postgres = down %s, healthy within %s, unknown %v; want 12s, and 3m32s with the image's check", step.Downtime, step.UntilHealthy, step.HealthUnknown)
+	if step.Downtime != 13*time.Second || step.UntilHealthy != 13*time.Second+5*(10+30)*time.Second || step.HealthUnknown {
+		t.Errorf("recreating postgres = down %s, healthy within %s, unknown %v; want 13s, and 3m33s with the image's check", step.Downtime, step.UntilHealthy, step.HealthUnknown)
 	}
 	spec.GetApp().Healthcheck = &resourcev1.Healthcheck{Test: []string{"CMD", "pg_isready"}, StartPeriod: "20s", Interval: "15s", Retries: 4}
 	spec.GetApp().Env["A"] = "2"
-	if step := apply(t, l, ref, spec); step.UntilHealthy != 12*time.Second+20*time.Second+4*(15+30)*time.Second {
-		t.Errorf("recreating it with its own check = healthy within %s, want 3m32s", step.UntilHealthy)
+	if step := apply(t, l, ref, spec); step.UntilHealthy != 13*time.Second+20*time.Second+4*(15+30)*time.Second {
+		t.Errorf("recreating it with its own check = healthy within %s, want 3m33s", step.UntilHealthy)
 	}
 	spec.GetApp().Healthcheck = &resourcev1.Healthcheck{Test: []string{"NONE"}}
 	spec.GetApp().Env["A"] = "3"
@@ -96,8 +96,8 @@ func TestDowntimeCountsTheHealthCheck(t *testing.T) {
 	dec, err := (&container.Driver{}).Plan(&resourcev1.Container{Image: "nginx:1.27"}, &resourcev1.Container{
 		Image: "nginx:1.28", Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD", "true"}},
 	}, []resource.Change{{Path: "image"}})
-	if err != nil || dec.UntilHealthy != 12*time.Second+3*time.Minute {
-		t.Errorf("planning on the control plane = %s, %v; want 3m12s with Docker's defaults", dec.UntilHealthy, err)
+	if err != nil || dec.UntilHealthy != 13*time.Second+3*time.Minute {
+		t.Errorf("planning on the control plane = %s, %v; want 3m13s with Docker's defaults", dec.UntilHealthy, err)
 	}
 	// An image the server hasn't yet: its own check isn't known, so the
 	// plan says the bound may be missing.

@@ -539,9 +539,12 @@ type ServerInventory struct {
 	// installed or isn't running.
 	DockerVersion string `protobuf:"bytes,11,opt,name=docker_version,json=dockerVersion,proto3" json:"docker_version,omitempty"`
 	// The server's non-loopback IP addresses.
-	Addresses     []string `protobuf:"bytes,12,rep,name=addresses,proto3" json:"addresses,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Addresses []string `protobuf:"bytes,12,rep,name=addresses,proto3" json:"addresses,omitempty"`
+	// The logging driver Docker uses by default, such as "json-file". Empty
+	// when Docker isn't running.
+	DockerLogDriver string `protobuf:"bytes,13,opt,name=docker_log_driver,json=dockerLogDriver,proto3" json:"docker_log_driver,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ServerInventory) Reset() {
@@ -656,6 +659,13 @@ func (x *ServerInventory) GetAddresses() []string {
 		return x.Addresses
 	}
 	return nil
+}
+
+func (x *ServerInventory) GetDockerLogDriver() string {
+	if x != nil {
+		return x.DockerLogDriver
+	}
+	return ""
 }
 
 // Disk is one mounted filesystem.
@@ -965,7 +975,7 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x0econtrol_server\x18\n" +
 	" \x01(\bR\rcontrolServer\x12=\n" +
 	"\fconnect_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\vconnectTime\x124\n" +
-	"\aingress\x18\f \x01(\v2\x1a.dockwell.v1.IngressStatusR\aingress\"\x81\x03\n" +
+	"\aingress\x18\f \x01(\v2\x1a.dockwell.v1.IngressStatusR\aingress\"\xad\x03\n" +
 	"\x0fServerInventory\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x17\n" +
 	"\aos_name\x18\x02 \x01(\tR\x06osName\x12\x13\n" +
@@ -980,7 +990,8 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x05disks\x18\n" +
 	" \x03(\v2\x11.dockwell.v1.DiskR\x05disks\x12%\n" +
 	"\x0edocker_version\x18\v \x01(\tR\rdockerVersion\x12\x1c\n" +
-	"\taddresses\x18\f \x03(\tR\taddresses\"~\n" +
+	"\taddresses\x18\f \x03(\tR\taddresses\x12*\n" +
+	"\x11docker_log_driver\x18\r \x01(\tR\x0fdockerLogDriver\"~\n" +
 	"\x04Disk\x12\x1f\n" +
 	"\vmount_point\x18\x01 \x01(\tR\n" +
 	"mountPoint\x12\x16\n" +

@@ -332,6 +332,14 @@ export function useWarnings(plan: Plan | undefined, applied = false): Notice[] {
           detail: t`A rollback puts back which variables and secrets it uses, not what they held then. To go back on a value, change it in Variables and secrets.`,
         };
       }
+      case "kept_logs_offline": {
+        const [server = ""] = note.names;
+        return {
+          key,
+          title: t`${server} is offline, so what it kept of ${name} stays on its disk until it's back`,
+          detail: t`It can't be read meanwhile, and it goes once the server is back and the 7 days are up.`,
+        };
+      }
       case "exposed_more":
         return {
           key,
@@ -412,6 +420,12 @@ export function useAsides(plan: Plan | undefined): Notice[] {
         out.push({ key: `answers-${key}-${line}`, title: line, notice: true });
       }
       if (step.restores) out.push({ key: `restores-${key}`, title: t`${name} gets back the data the server kept.` });
+      if (step.hidesLogs) {
+        out.push({
+          key: `hides-logs-${key}`,
+          title: t`${name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back.`,
+        });
+      }
       if (step.healthUnknown) {
         out.push({
           key: `health-${key}`,

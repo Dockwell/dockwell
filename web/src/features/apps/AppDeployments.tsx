@@ -42,6 +42,7 @@ import { useFieldRows } from "../changes/fields";
 import { failedStep, wentOffline } from "../changes/plan";
 import { RollbackLine, rollbackSubject } from "../changes/RollbackLine";
 import { useChangeWords } from "../changes/words";
+import { DeployLogLink } from "../logs/DeployLogLinks";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { useApp, useRevisions } from "./AppContext";
 import { ListSkeleton } from "./AppsPage";
@@ -585,7 +586,8 @@ function RevisionDiff({ rev }: { rev: ServiceRevision }) {
 /** What a revision did and how it went. */
 function RevisionBody({ rev }: { rev: ServiceRevision }) {
   const { t, i18n } = useLingui();
-  const appName = nameOf(useApp().service);
+  const { service } = useApp();
+  const appName = nameOf(service);
   const appWords = useAppWords();
   // What a moving tag really was, so it can be told apart from the same tag later.
   const digest = rev.deployments.find((d) => d.digest !== "")?.digest ?? "";
@@ -610,6 +612,9 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
       {(change?.state === ChangeState.FAILED || failed) && !wentOffline(change) ? (
         <FailureNotice message={failed?.error || change?.error || ""} detail={failedStep(change)?.detail} />
       ) : null}
+      {rev.deleted || wentOffline(change) ? null : (
+        <DeployLogLink serviceId={service.id} change={change?.id} revision={rev.number} />
+      )}
       {rev.deleted ? null : (
         <div className="deploy-part">
           <h3 className="dw-text-label">

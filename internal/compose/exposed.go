@@ -51,6 +51,8 @@ var (
 		// Container.env is sensitive, so a plan masks it and an export leaves it
 		// out. An entry's name isn't, so a list's names still warn (walk).
 		"environment",
+		// A size or a count, and Dockwell's own rotation takes its place.
+		"logging",
 	)
 	// A driver is a name. Volume.options is sensitive, as a CIFS password has to go
 	// there.

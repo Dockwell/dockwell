@@ -84,6 +84,8 @@ message Token {
   // The address it was last used from, such as "203.0.113.9". Empty if
   // never.
   string last_address = 8;
+  // What it may do beyond its scope.
+  repeated TokenGrant grants = 9;
 }
 
 // CreateTokenRequest describes the new token.
@@ -103,6 +105,9 @@ message CreateTokenRequest {
   }
   // The proof from AuthService.FinishStepUp, for creating a token.
   string proof = 5;
+  // What it may do beyond its scope, such as TOKEN_GRANT_LOGS to read logs.
+  // Either scope can have it.
+  repeated TokenGrant grants = 6;
 }
 
 // CreateTokenResponse carries the new token and its secret.

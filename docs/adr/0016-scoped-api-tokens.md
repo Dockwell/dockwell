@@ -42,7 +42,7 @@ Every method already declares its effect in the schema (`(dockwell.v1.effect)`: 
 - A procedure the interceptor can't find an effect for needs a session, so a new service is closed to tokens until its methods say what they do.
 - Reflection is open to any token, as it only shows the schema, which is public.
 - Calls that need no session, such as `GetVersion` and the sign-in calls, go ahead as signed out whatever token comes with them.
-- Finer scopes, such as per project or the PRD's `connections:read`, will come as new `TokenScope` values or a list of scopes, without changing these two.
+- Finer scopes, such as per project or the PRD's `connections:read`, will come as new `TokenScope` values or a list of scopes, without changing these two. The first is `TOKEN_GRANT_LOGS`, a grant on top of either scope, as logs often hold what apps shouldn't print ([ADR 0025](0025-logs-per-deploy.md)).
 - Until revisions land, no method outside the two session-only services plans or applies, so read-write allows nothing more than read-only yet. The scope exists now so that tokens made today keep their meaning.
 
 ### How a token fits the guard

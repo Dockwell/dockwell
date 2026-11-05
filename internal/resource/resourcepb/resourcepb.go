@@ -146,6 +146,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	if c := s.ServerPort; c != nil {
 		p.ServerPort = &dockwellv1.ServerPortCheck{Port: c.Port, Listening: c.Listening, NothingListening: c.Nothing}
 	}
+	p.HidesLogs = s.HidesLogs
 	return p
 }
 
@@ -256,7 +257,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 			s.Leads[a.GetPath()] = a.GetLeadsTo()
 		}
 	}
-	s.Kept, s.Restores, s.HealthUnknown = p.GetKeptPaths(), p.GetRestores(), p.GetHealthUnknown()
+	s.Kept, s.Restores, s.HealthUnknown, s.HidesLogs = p.GetKeptPaths(), p.GetRestores(), p.GetHealthUnknown(), p.GetHidesLogs()
 	s.Pull, s.ImageGone = p.GetPull(), p.GetImageGone()
 	for _, w := range p.GetWarnings() {
 		k, ok := from(warnings, w)

@@ -101,7 +101,9 @@ type Token struct {
 	LastUsedTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=last_used_time,json=lastUsedTime,proto3" json:"last_used_time,omitempty"`
 	// The address it was last used from, such as "203.0.113.9". Empty if
 	// never.
-	LastAddress   string `protobuf:"bytes,8,opt,name=last_address,json=lastAddress,proto3" json:"last_address,omitempty"`
+	LastAddress string `protobuf:"bytes,8,opt,name=last_address,json=lastAddress,proto3" json:"last_address,omitempty"`
+	// What it may do beyond its scope.
+	Grants        []TokenGrant `protobuf:"varint,9,rep,packed,name=grants,proto3,enum=dockwell.v1.TokenGrant" json:"grants,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -192,6 +194,13 @@ func (x *Token) GetLastAddress() string {
 	return ""
 }
 
+func (x *Token) GetGrants() []TokenGrant {
+	if x != nil {
+		return x.Grants
+	}
+	return nil
+}
+
 // CreateTokenRequest describes the new token.
 type CreateTokenRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -207,7 +216,10 @@ type CreateTokenRequest struct {
 	//	*CreateTokenRequest_Ttl
 	Expiration isCreateTokenRequest_Expiration `protobuf_oneof:"expiration"`
 	// The proof from AuthService.FinishStepUp, for creating a token.
-	Proof         string `protobuf:"bytes,5,opt,name=proof,proto3" json:"proof,omitempty"`
+	Proof string `protobuf:"bytes,5,opt,name=proof,proto3" json:"proof,omitempty"`
+	// What it may do beyond its scope, such as TOKEN_GRANT_LOGS to read logs.
+	// Either scope can have it.
+	Grants        []TokenGrant `protobuf:"varint,6,rep,packed,name=grants,proto3,enum=dockwell.v1.TokenGrant" json:"grants,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -286,6 +298,13 @@ func (x *CreateTokenRequest) GetProof() string {
 		return x.Proof
 	}
 	return ""
+}
+
+func (x *CreateTokenRequest) GetGrants() []TokenGrant {
+	if x != nil {
+		return x.Grants
+	}
+	return nil
 }
 
 type isCreateTokenRequest_Expiration interface {
@@ -534,7 +553,7 @@ var File_dockwell_v1_token_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/token.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcd\x02\n" +
+	"\x17dockwell/v1/token.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfe\x02\n" +
 	"\x05Token\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -545,14 +564,16 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\vexpire_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"expireTime\x12@\n" +
 	"\x0elast_used_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\flastUsedTime\x12!\n" +
-	"\flast_address\x18\b \x01(\tR\vlastAddress\"\xe9\x01\n" +
+	"\flast_address\x18\b \x01(\tR\vlastAddress\x12/\n" +
+	"\x06grants\x18\t \x03(\x0e2\x17.dockwell.v1.TokenGrantR\x06grants\"\x9a\x02\n" +
 	"\x12CreateTokenRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12-\n" +
 	"\x05scope\x18\x02 \x01(\x0e2\x17.dockwell.v1.TokenScopeR\x05scope\x12=\n" +
 	"\vexpire_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\n" +
 	"expireTime\x12-\n" +
 	"\x03ttl\x18\x04 \x01(\v2\x19.google.protobuf.DurationH\x00R\x03ttl\x12\x14\n" +
-	"\x05proof\x18\x05 \x01(\tR\x05proofB\f\n" +
+	"\x05proof\x18\x05 \x01(\tR\x05proof\x12/\n" +
+	"\x06grants\x18\x06 \x03(\x0e2\x17.dockwell.v1.TokenGrantR\x06grantsB\f\n" +
 	"\n" +
 	"expiration\"W\n" +
 	"\x13CreateTokenResponse\x12(\n" +
@@ -609,29 +630,32 @@ var file_dockwell_v1_token_proto_goTypes = []any{
 	(*RevokeTokenRequest)(nil),    // 6: dockwell.v1.RevokeTokenRequest
 	(*RevokeTokenResponse)(nil),   // 7: dockwell.v1.RevokeTokenResponse
 	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),   // 9: google.protobuf.Duration
+	(TokenGrant)(0),               // 9: dockwell.v1.TokenGrant
+	(*durationpb.Duration)(nil),   // 10: google.protobuf.Duration
 }
 var file_dockwell_v1_token_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.Token.scope:type_name -> dockwell.v1.TokenScope
 	8,  // 1: dockwell.v1.Token.create_time:type_name -> google.protobuf.Timestamp
 	8,  // 2: dockwell.v1.Token.expire_time:type_name -> google.protobuf.Timestamp
 	8,  // 3: dockwell.v1.Token.last_used_time:type_name -> google.protobuf.Timestamp
-	0,  // 4: dockwell.v1.CreateTokenRequest.scope:type_name -> dockwell.v1.TokenScope
-	8,  // 5: dockwell.v1.CreateTokenRequest.expire_time:type_name -> google.protobuf.Timestamp
-	9,  // 6: dockwell.v1.CreateTokenRequest.ttl:type_name -> google.protobuf.Duration
-	1,  // 7: dockwell.v1.CreateTokenResponse.token:type_name -> dockwell.v1.Token
-	1,  // 8: dockwell.v1.ListTokensResponse.tokens:type_name -> dockwell.v1.Token
-	2,  // 9: dockwell.v1.TokenService.CreateToken:input_type -> dockwell.v1.CreateTokenRequest
-	4,  // 10: dockwell.v1.TokenService.ListTokens:input_type -> dockwell.v1.ListTokensRequest
-	6,  // 11: dockwell.v1.TokenService.RevokeToken:input_type -> dockwell.v1.RevokeTokenRequest
-	3,  // 12: dockwell.v1.TokenService.CreateToken:output_type -> dockwell.v1.CreateTokenResponse
-	5,  // 13: dockwell.v1.TokenService.ListTokens:output_type -> dockwell.v1.ListTokensResponse
-	7,  // 14: dockwell.v1.TokenService.RevokeToken:output_type -> dockwell.v1.RevokeTokenResponse
-	12, // [12:15] is the sub-list for method output_type
-	9,  // [9:12] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	9,  // 4: dockwell.v1.Token.grants:type_name -> dockwell.v1.TokenGrant
+	0,  // 5: dockwell.v1.CreateTokenRequest.scope:type_name -> dockwell.v1.TokenScope
+	8,  // 6: dockwell.v1.CreateTokenRequest.expire_time:type_name -> google.protobuf.Timestamp
+	10, // 7: dockwell.v1.CreateTokenRequest.ttl:type_name -> google.protobuf.Duration
+	9,  // 8: dockwell.v1.CreateTokenRequest.grants:type_name -> dockwell.v1.TokenGrant
+	1,  // 9: dockwell.v1.CreateTokenResponse.token:type_name -> dockwell.v1.Token
+	1,  // 10: dockwell.v1.ListTokensResponse.tokens:type_name -> dockwell.v1.Token
+	2,  // 11: dockwell.v1.TokenService.CreateToken:input_type -> dockwell.v1.CreateTokenRequest
+	4,  // 12: dockwell.v1.TokenService.ListTokens:input_type -> dockwell.v1.ListTokensRequest
+	6,  // 13: dockwell.v1.TokenService.RevokeToken:input_type -> dockwell.v1.RevokeTokenRequest
+	3,  // 14: dockwell.v1.TokenService.CreateToken:output_type -> dockwell.v1.CreateTokenResponse
+	5,  // 15: dockwell.v1.TokenService.ListTokens:output_type -> dockwell.v1.ListTokensResponse
+	7,  // 16: dockwell.v1.TokenService.RevokeToken:output_type -> dockwell.v1.RevokeTokenResponse
+	14, // [14:17] is the sub-list for method output_type
+	11, // [11:14] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_token_proto_init() }

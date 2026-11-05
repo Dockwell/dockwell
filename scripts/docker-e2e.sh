@@ -254,10 +254,65 @@ says nginx curl -fsS "http://127.0.0.1:$web_port/" || fail "web doesn't serve on
 env_of() { docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container"; }
 says '^GREETING=hello$' env_of || fail "web's environment is $(env_of)"
 
+step "Its logs read through the CLI, and follow, and stop on an interrupt"
+logs=$(dw logs read web --page-size 50) || fail "logs read failed"
+grep -q 'nginx\|start' <<<"$logs" || fail "logs read printed no line of nginx's: $logs"
+# Into a variable first: under pipefail, grep -q leaving early can fail what writes to it.
+listing=$(dw logs sources web) || fail "logs sources failed"
+grep -q "Running" <<<"$listing" || fail "logs sources doesn't list web's container as running: $listing"
+follow_log=$(mktemp)
+# Not through the shell function dw: a function in the background is a subshell,
+# which an interrupt doesn't reach the binary through. Nor by interrupting sudo,
+# which doesn't pass on a signal from its own process group, as a script's is. So
+# it says its own process ID as its first line, and keeps that ID as it becomes
+# the binary, and the interrupt goes straight to that.
+"${as_dockwell[@]}" env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text bash -c 'echo "$$"; exec "$@"' follow \
+  "$bin" logs follow web --tail 1 >"$follow_log" 2>&1 &
+follower=$!
+# A request nginx logs, which reaches a follower within a second or two.
+for _ in $(seq 50); do
+  (($(wc -l <"$follow_log") >= 2)) && break
+  sleep 0.1
+done
+follower_pid=$(head -n 1 "$follow_log" | tr -d '\r')
+[[ "$follower_pid" =~ ^[0-9]+$ ]] || fail "dockwell logs follow didn't start: $(cat "$follow_log")"
+curl -fsS "http://127.0.0.1:$web_port/e2e-follows-this" >/dev/null 2>&1 || true
+curl -fsS "http://127.0.0.1:$web_port/" >/dev/null
+for _ in $(seq 50); do
+  grep -q 'e2e-follows-this' "$follow_log" && break
+  sleep 0.1
+done
+grep -q 'e2e-follows-this' "$follow_log" || fail "dockwell logs follow didn't print a line within 5 s: $(cat "$follow_log")"
+priv kill -INT "$follower_pid" || fail "can't interrupt dockwell logs follow: $(cat "$follow_log")"
+# By /proc rather than kill -0, which can't tell a process that has gone from one
+# this user may not signal, and would read sudo's as having stopped.
+for _ in $(seq 100); do
+  [[ -d "/proc/$follower" ]] || break
+  sleep 0.1
+done
+if [[ -d "/proc/$follower" ]]; then
+  priv kill -KILL "$follower_pid" || true
+  fail "dockwell logs follow didn't stop within 10 s of an interrupt: $(cat "$follow_log")"
+fi
+code=0
+wait "$follower" || code=$?
+((code == 0)) || fail "dockwell logs follow exited $code on an interrupt: $(cat "$follow_log")"
+rm -f "$follow_log"
+docker inspect --format '{{.HostConfig.LogConfig.Type}} {{index .HostConfig.LogConfig.Config "max-size"}}' "$container" | grep -qx 'json-file 10m' ||
+  fail "web's log isn't rotated: $(docker inspect --format '{{json .HostConfig.LogConfig}}' "$container")"
+docker inspect --format '{{index .Config.Labels "dev.dockwell.revision"}}' "$container" | grep -qx '[0-9][0-9]*' ||
+  fail "web's container doesn't say which revision made it"
+
 step "It changes, and the change undoes"
 dw services update web --app-image nginx:1.27-alpine --app-ports "$ports" --app-env GREETING=hi --yes ||
   fail "services update failed"
 says '^GREETING=hi$' env_of || fail "after the update, web's environment is $(env_of)"
+# What the update replaced is gone from Docker, and its log still reads.
+sources=$(dw logs sources web --json) || fail "logs sources failed"
+kept=$(jq -r '[.sources[] | select(.state == "LOG_SOURCE_STATE_KEPT")] | first | .revision // empty' <<<"$sources")
+[[ -n "$kept" ]] || fail "the replaced container's log wasn't kept: $sources"
+kept_log=$(dw logs read web --revision "$kept") || fail "logs read --revision $kept failed"
+grep -q 'e2e-follows-this' <<<"$kept_log" || fail "the replaced container's kept log doesn't read back: $kept_log"
 # Changes are listed newest first.
 changes=$(dw changes list --json) || fail "changes list failed"
 change=$(jq -r '.changes[0].id // empty' <<<"$changes") || fail "changes list printed what isn't JSON: $changes"

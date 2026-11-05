@@ -5,6 +5,7 @@ package store_test
 import (
 	"cmp"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -165,6 +166,82 @@ func TestTheObjectModel(t *testing.T) {
 		})
 		if !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("a deployment that was never placed: %v, want ErrNotFound", err)
+		}
+	})
+}
+
+// What a deletion left is worked out from the revisions that deleted a resource, and
+// the one after each.
+func TestDeletionsAreFoundFromRevisions(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		ctx := t.Context()
+		servers(t, db, "srv_A")
+		at := time.UnixMilli(1_800_000_000_000).UTC()
+		revise(t, db, func(tx *store.RevisionTx) error {
+			for i, c := range []string{"chg_1", "chg_2", "chg_3", "chg_4"} {
+				if err := tx.CreateChange(ctx, store.Change{
+					ID: c, Summary: "s", Actor: "a", State: store.ChangeApplying, Fingerprint: "f", Plan: []byte("{}"), CreatedAt: at,
+					Items: []store.ChangeItem{{Kind: "service", Scope: "env_1", Name: "web", Spec: []byte("x")}}, Servers: []string{"srv_A"},
+				}); err != nil {
+					return fmt.Errorf("change %d: %w", i, err)
+				}
+			}
+			for i, n := range []store.NewRevision{
+				{Kind: "service", Scope: "env_1", Name: "web", ID: "svc_1", Spec: []byte("x"), Change: "chg_1", At: at},
+				{Kind: "service", Scope: "env_1", Name: "web", Change: "chg_2", At: at.Add(time.Hour)},
+				{Kind: "service", Scope: "env_1", Name: "web", Spec: []byte("y"), Change: "chg_3", At: at.Add(2 * time.Hour)},
+				{Kind: "service", Scope: "env_1", Name: "other", ID: "svc_2", Spec: []byte("x"), Change: "chg_3", Position: 1, At: at},
+				{Kind: "service", Scope: "env_1", Name: "other", Change: "chg_4", At: at.Add(3 * time.Hour)},
+				{Kind: "volume", Scope: "env_1", Name: "data", ID: "vol_1", Spec: []byte("x"), Change: "chg_3", Position: 2, At: at},
+				{Kind: "volume", Scope: "env_1", Name: "data", Change: "chg_4", Position: 1, At: at.Add(3 * time.Hour)},
+			} {
+				if _, err := tx.AddRevision(ctx, n); err != nil {
+					return fmt.Errorf("revision %d: %w", i, err)
+				}
+			}
+			return nil
+		})
+		err := db.View(ctx, func(tx *store.Tx) error {
+			got, err := tx.DeletionsOf(ctx, "svc_1")
+			if err != nil {
+				return err
+			}
+			if len(got) != 1 || got[0].Number != 2 || got[0].ChangeID != "chg_2" || !got[0].CreatedAt.Equal(at.Add(time.Hour)) {
+				t.Errorf("deletions of svc_1 = %+v", got)
+			}
+			if got, err := tx.DeletionsOf(ctx, "svc_none"); err != nil || len(got) != 0 {
+				t.Errorf("deletions of nothing = %+v, %v", got, err)
+			}
+			if c, err := tx.RevisionChange(ctx, "svc_1", 3); err != nil || c != "chg_3" {
+				t.Errorf("revision 3's change = %q, %v", c, err)
+			}
+			if _, err := tx.RevisionChange(ctx, "svc_1", 9); !errors.Is(err, store.ErrNotFound) {
+				t.Errorf("a revision that isn't there: %v", err)
+			}
+			ids, err := tx.DeletedSince(ctx, "service", at, 10)
+			if err != nil {
+				return err
+			}
+			if !slices.Equal(ids, []string{"svc_2", "svc_1"}) {
+				t.Errorf("deleted, newest first = %v", ids)
+			}
+			if ids, err = tx.DeletedSince(ctx, "service", at.Add(2*time.Hour), 10); err != nil {
+				return err
+			}
+			if !slices.Equal(ids, []string{"svc_2"}) {
+				t.Errorf("deleted since a later time = %v", ids)
+			}
+			if ids, err = tx.DeletedSince(ctx, "service", at, 1); err != nil {
+				return err
+			}
+			if !slices.Equal(ids, []string{"svc_2"}) {
+				t.Errorf("the newest one = %v", ids)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
 	})
 }

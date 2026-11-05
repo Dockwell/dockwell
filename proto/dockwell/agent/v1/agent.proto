@@ -6,10 +6,12 @@ package dockwell.agent.v1;
 
 import "dockwell/v1/change.proto";
 import "dockwell/v1/domain.proto";
+import "dockwell/v1/log.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/server.proto";
 import "dockwell/v1/system.proto";
 import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
 
 // AgentService is how a server's agent talks to the control plane, over
 // mTLS on the control plane's agent listener (ADR 0007). It is an internal
@@ -36,6 +38,16 @@ service AgentService {
   // observe resources, and the agent answers each call with its result.
   rpc Connect(stream ConnectRequest) returns (stream ConnectResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+
+  // SendLogs carries the log lines of one LogsCall, which the agent opens on
+  // a connection of its own for each one, so log lines share nothing with
+  // Connect, which must never stall behind them. When the control plane
+  // stops reading, as when its reader is slow, flow control stops the agent
+  // sending, and the agent drops what it can't send, and says how many. See
+  // docs/adr/0025-logs-per-deploy.md.
+  rpc SendLogs(stream SendLogsRequest) returns (SendLogsResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
   }
 }
 
@@ -253,8 +265,144 @@ message Call {
     ApplyCall apply = 4;
     // Read resources as the server has them.
     ObserveCall observe = 5;
+    // List the containers a service has logs from.
+    LogSourcesCall log_sources = 6;
+    // Read a service's logs, over SendLogs. It has no timeout, as following
+    // lasts until the reader leaves, and it ends when the stream does.
+    LogsCall logs = 7;
+    // Says which services' kept logs are out of reach.
+    ForgottenCall forgotten = 8;
   }
 }
+
+// LogSourcesCall asks which containers a service has logs from.
+message LogSourcesCall {
+  // The service.
+  dockwell.v1.ResourceRef resource = 1;
+  // What the server kept of revisions up to this isn't listed, as a deletion put it
+  // out of reach.
+  int64 forgotten_up_to = 2;
+}
+
+// ForgottenCall says which services' kept logs a deletion put out of reach, for what
+// to remove from the disk: each read says for itself what it can't read. It is all of
+// them, and replaces what it last said. A server hears it when it connects and from
+// time to time after that, so one that was away or joins later catches up.
+message ForgottenCall {
+  // The services.
+  repeated ForgottenService services = 1;
+}
+
+// ForgottenService is what one deleted service left.
+message ForgottenService {
+  // The service.
+  dockwell.v1.ResourceRef resource = 1;
+  // What the server kept of revisions up to this is out of reach.
+  int64 up_to_revision = 2;
+  // True once it can't be undone, so it goes from the disk.
+  bool expired = 3;
+}
+
+// ForgottenResult answers a ForgottenCall.
+message ForgottenResult {}
+
+// LogsCall asks the agent to read a service's logs.
+message LogsCall {
+  // Names the call's SendLogs stream.
+  uint64 stream = 1;
+  // The service.
+  dockwell.v1.ResourceRef resource = 2;
+  // Only lines written at or after this time.
+  google.protobuf.Timestamp since = 3;
+  // Only lines written at or before this time.
+  google.protobuf.Timestamp until = 4;
+  // How many of each container's newest lines to read, -1 for none and 0
+  // for all.
+  int32 tail = 5;
+  // Go on with what is written next, and with containers that start later.
+  bool follow = 6;
+  // Only these sources.
+  repeated string source_ids = 7;
+  // Only containers this revision made.
+  int64 revision = 8;
+  // Only containers this change made.
+  string change_id = 9;
+  // Only lines of these levels.
+  repeated dockwell.v1.LogLevel levels = 10;
+  // Only lines that hold this text, in any case.
+  string query = 11;
+  // Carry on after these lines: what a stream already sent of each source.
+  repeated LogCursor after = 12;
+  // Read only what comes before these lines: what a page already holds.
+  repeated LogCursor before = 13;
+  // When the stream these cursors came from was last heard from. A
+  // container made since, which has no cursor, is read from its start.
+  google.protobuf.Timestamp resume_from = 14;
+  // Read the containers the server kept the logs of, too, within since and
+  // until. Without it only what Docker has now is read, unless the filters
+  // name a kept one.
+  bool include_kept = 15;
+  // Who is reading, as an opaque name, so that one reader can't take every
+  // place this server has for reading logs. Empty counts only towards the
+  // server's own limit.
+  string reader = 16;
+  // Only lines from this long ago until now, by this server's clock, which is
+  // the clock its lines' times are on. Set in place of since.
+  google.protobuf.Duration last = 17;
+  // What the server kept of revisions up to this isn't read, as a deletion put it
+  // out of reach.
+  int64 forgotten_up_to = 18;
+}
+
+// LogCursor is a place in one source's lines.
+message LogCursor {
+  // The source's id.
+  string source_id = 1;
+  // The time of the line.
+  google.protobuf.Timestamp time = 2;
+  // How many lines of the source have exactly that time, up to and including
+  // the line, as two lines can share one. In before, how many of those the
+  // pages so far hold, which are the newest of them.
+  uint32 count = 3;
+}
+
+// LogScan says what a read that had to look at every line read of one source.
+message LogScan {
+  // The source's id.
+  string source_id = 1;
+  // The oldest line it read.
+  google.protobuf.Timestamp oldest_time = 2;
+  // How many lines it read.
+  uint64 lines = 3;
+  // True when it stopped at a limit, before the oldest line.
+  bool cut_short = 4;
+  // True when older lines passed the filters and weren't sent, for lack of
+  // room, so another page has more.
+  bool older = 5;
+  // True when it stopped because its time ran out, rather than at the most
+  // lines it reads.
+  bool timed_out = 6;
+}
+
+// SendLogsRequest is one message of a LogsCall's lines.
+message SendLogsRequest {
+  // The call's stream, on the first message and every other.
+  uint64 stream = 1;
+  // Sources that are new or changed.
+  repeated dockwell.v1.LogSource sources = 2;
+  // Lines, by source.
+  repeated dockwell.v1.LogChunk chunks = 3;
+  // True once the agent has read what each source had when the call came.
+  bool caught_up = 4;
+  // What a search read, once it is done.
+  repeated LogScan scans = 5;
+  // When this stream began, by this server's clock, on its first message: since
+  // when a source with no place is read, if the stream has to carry on.
+  google.protobuf.Timestamp started = 6;
+}
+
+// SendLogsResponse is empty.
+message SendLogsResponse {}
 
 // PlanCall asks what moving each resource to its desired spec would take.
 // It reads the server and changes nothing.
@@ -279,6 +427,20 @@ message ApplyCall {
   // True when a run stopped partway had already pulled the step's image on this
   // server, so it compares what the server has, and needs no registry.
   bool pulled = 4;
+  // Which deploy the step is part of, if any, which what it makes is labelled
+  // with.
+  Deploy deploy = 5;
+}
+
+// Deploy says which revision and change a step carries out.
+message Deploy {
+  // The revision applying runs toward.
+  int64 revision = 1;
+  // The change.
+  string change_id = 2;
+  // True when the change rolls a failed one back, so what the step replaces
+  // or removes failed.
+  bool rollback = 3;
 }
 
 // Values are what a service's variables and secrets resolve to on the
@@ -328,8 +490,23 @@ message CallResult {
     ApplyResult apply = 4;
     // The resources an observe call read.
     ObserveResult observe = 5;
+    // The containers a log sources call found.
+    LogSourcesResult log_sources = 6;
+    // A logs call read all it was asked for, or its reader left.
+    LogsResult logs = 7;
+    // Answers forgotten.
+    ForgottenResult forgotten = 8;
   }
 }
+
+// LogSourcesResult lists the containers a service has logs from.
+message LogSourcesResult {
+  // The containers, newest first.
+  repeated dockwell.v1.LogSource sources = 1;
+}
+
+// LogsResult ends a logs call.
+message LogsResult {}
 
 // CallError says why a call failed.
 message CallError {

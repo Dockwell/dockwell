@@ -276,6 +276,45 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 	}
 }
 
+// SendLogs receives the log lines of one logs call. It hands each message to
+// whoever waits for the call, and reads no more until they take it, so a reader
+// that is slow holds up this stream, and flow control the agent that sends it.
+// That is how a reader's pace reaches the agent, which alone drops lines, and
+// counts them. See docs/adr/0025-logs-per-deploy.md.
+func (h *Handler) SendLogs(ctx context.Context, stream *connect.ClientStream[agentv1.SendLogsRequest]) (*connect.Response[agentv1.SendLogsResponse], error) {
+	peer, err := requireServer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := h.auth.CheckConnection(ctx, peer.ServerID, peer.Serial); err != nil {
+		return nil, h.refuse(ctx, peer, err)
+	}
+	if h.agents == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("this control plane reads no logs"))
+	}
+	var up *upload
+	for stream.Receive() {
+		msg := stream.Msg()
+		if up == nil {
+			if up = h.agents.uploadFor(peer.ServerID, msg.GetStream()); up == nil {
+				// Whoever read it has gone, or it was never asked for.
+				return nil, connect.NewError(connect.CodeNotFound, errors.New("nobody is waiting for these log lines"))
+			}
+		}
+		select {
+		case up.messages <- msg:
+		case <-up.done:
+			return connect.NewResponse(&agentv1.SendLogsResponse{}), nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	if err := stream.Err(); err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&agentv1.SendLogsResponse{}), nil
+}
+
 // refuse answers a stream the server may not hold. A server that was
 // removed leaves the fleet too, so watchers drop it rather than show it as
 // unreachable.

@@ -16,6 +16,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
+	"github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -76,9 +77,9 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 // plane beside it listens on, which no route may send to; a server that joined
 // has none, as its agent opens no ports.
 func runAgent(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
-	drivers, collector, routes := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
+	drivers, collector, routes, reader := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
 	return agent.Run(ctx, agent.Config{
-		Logger: logger, Dir: dir.Agent(), Identity: id, Build: build, Drivers: drivers, Collector: collector, Domains: routes,
+		Logger: logger, Dir: dir.Agent(), Identity: id, Build: build, Drivers: drivers, Collector: collector, Domains: routes, Logs: reader,
 	})
 }
 
@@ -91,8 +92,9 @@ const ingressEvery = time.Minute
 // DOCKER_HOST names, as the docker CLI finds it. The agent offers them
 // while Docker answers, and keeps pruning the volumes deleted 7 days ago,
 // and its ingress as its routes need it, until ctx is done. The collector
-// reads the same Docker's version.
-func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel, ownPorts []int) (*resource.Registry, *collect.Collector, *ingress.Manager) {
+// reads the same Docker's version, and the log reader the same Docker's logs,
+// with what the server kept of the containers a change removed.
+func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel, ownPorts []int) (*resource.Registry, *collect.Collector, *ingress.Manager, *logs.Reader) {
 	collector := collect.New()
 	socket, err := docker.SocketFrom(stdio.Getenv)
 	client := docker.Unusable(err)
@@ -112,9 +114,11 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 			ACMEDirectory: stdio.Getenv(envACMEDirectory), ACMERoots: stdio.Getenv(envACMERoots),
 		},
 	}
-	containers := container.Driver{Runtime: &container.Docker{Client: client, Deleted: kept, Logger: logger, Paths: paths, Ingress: routes}}
+	archive := &logs.Archive{Dir: filepath.Join(dir.Agent(), "kept-logs"), Client: client, Logger: logger}
+	containers := container.Driver{Runtime: &container.Docker{Client: client, Deleted: kept, Logger: logger, Paths: paths, Ingress: routes, Logs: archive}}
 	volumes := &volume.Docker{Client: client, Kept: kept, Paths: paths}
 	go volumes.KeepPruned(ctx, logger)
+	go archive.KeepPruned(ctx)
 	go routes.KeepReconciled(ctx, ingressEvery)
 	go routes.Watch(ctx)
 	var reserved string
@@ -122,7 +126,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		reserved = panel.Domain
 	}
 	return resource.NewRegistry(&containers, &service.Driver{Containers: containers},
-		&volume.Driver{Runtime: volumes}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved}), collector, routes
+		&volume.Driver{Runtime: volumes}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved}), collector, routes, &logs.Reader{Client: client, Archive: archive, Logger: logger}
 }
 
 func exists(path string) bool {

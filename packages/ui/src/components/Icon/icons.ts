@@ -34,6 +34,8 @@ export const icons = {
   minus: [["path", { d: "M5 12h14" }]],
   "chevron-right": [["path", { d: "M9.5 6l6 6-6 6" }]],
   "chevron-down": [["path", { d: "M6 9.5l6 6 6-6" }]],
+  "chevron-up": [["path", { d: "M6 14.5l6-6 6 6" }]],
+  "wrap-text": [["path", { d: "M4 6h16M4 12h13a3 3 0 0 1 0 6h-5m2-2l-2 2 2 2M4 18h4" }]],
   "chevron-up-down": [["path", { d: "M8 9.5l4-4 4 4M8 14.5l4 4 4-4" }]],
   "arrow-right": [["path", { d: "M5 12h14M13 6l6 6-6 6" }]],
   server: [

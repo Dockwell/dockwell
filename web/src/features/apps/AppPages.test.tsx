@@ -5,6 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ActorKind,
   type AddServicePortRequest,
+  ChangeSchema,
   ChangeState,
   Connection,
   DeploymentState,
@@ -19,7 +20,7 @@ import {
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -126,16 +127,14 @@ describe("an app's frame", () => {
     expect(alert).toHaveTextContent("Your role can't read services. Ask an owner.");
   });
 
-  it("gives every tab a place, including the logs task's", async () => {
+  it("gives every tab a place", async () => {
     const user = userEvent.setup();
     const { router } = renderAt("/apps/svc_web", api());
     const tabs = await screen.findByRole("navigation", { name: "App sections" });
     await user.click(within(tabs).getByRole("link", { name: "Logs" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_web/logs"));
     expect(screen.getByRole("heading", { level: 1, name: "web" })).toBeVisible();
-    // Until they are here, the command that reads them, with the app's own name, to copy.
-    expect(await screen.findByText("docker logs env_prod-web-1")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Copy the command" })).toBeVisible();
+    expect(await screen.findByRole("region", { name: "Logs" })).toBeVisible();
     await user.click(within(tabs).getByRole("link", { name: "Environment" }));
     expect(await screen.findByRole("cell", { name: "API_KEY" })).toBeVisible();
     expect(screen.getAllByRole("cell", { name: "Hidden" })).toHaveLength(2);
@@ -262,6 +261,52 @@ describe("an app's frame", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Roll back to r1" }));
     await waitFor(() => expect(asked).toEqual([1n]));
+  });
+
+  it("reaches the logs of a revision that has them, and offers none of one that hasn't", async () => {
+    const logs = {
+      listLogSources: () => ({
+        service: { id: "svc_web", name: "web" },
+        sources: [{ id: "aaaaaaaaaaaa", revision: 3n, serverName: "hz-1" }],
+      }),
+      watchLogs: async function* () {
+        yield* [];
+      },
+    };
+    const first = renderAt("/apps/svc_web/deployments?revision=3", { ...api(), logs });
+    const link = await screen.findByRole("link", { name: "Read this deploy's logs" });
+    expect(link.getAttribute("href")).toContain("/apps/svc_web/logs");
+    first.unmount();
+    renderAt("/apps/svc_web/deployments?revision=2", { ...api(), logs });
+    await screen.findByRole("table", { name: "Revisions of web" });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
+  });
+
+  it("offers no logs of a revision whose server went away", async () => {
+    const lost = aRevision(3n, "ghcr.io/acme/web:1.5", {
+      change: create(ChangeSchema, {
+        id: "chg_lost",
+        state: ChangeState.FAILED,
+        steps: [create(StepProgressSchema, { state: StepState.FAILED, lost: true })],
+      }),
+    });
+    renderAt("/apps/svc_web/deployments?revision=3", {
+      ...api(),
+      services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: [lost] }) },
+      logs: {
+        listLogSources: () => ({
+          service: { id: "svc_web", name: "web" },
+          sources: [{ id: "aaaaaaaaaaaa", revision: 3n }],
+        }),
+        watchLogs: async function* () {
+          yield* [];
+        },
+      },
+    });
+    await screen.findByRole("table", { name: "Revisions of web" });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
   });
 
   it("keeps Deploy in reach on a phone, and tells the app's state in the header", async () => {

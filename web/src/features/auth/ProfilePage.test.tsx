@@ -13,6 +13,7 @@ import {
   SessionSchema,
   SignInMethod,
   StepUpAction,
+  TokenGrant,
   TokenSchema,
   TokenScope,
   TotpSchema,
@@ -726,6 +727,34 @@ describe("ProfilePage", () => {
     expect(sent).toMatchObject({ name: "Grafana", scope: TokenScope.READ_ONLY });
     expect(sent?.expiration.case).toBeUndefined();
     expect(await screen.findByText(/It doesn't expire\./)).toBeVisible();
+  });
+
+  it("makes a token that reads logs only when asked, and says which do", async () => {
+    const createToken = vi.fn((req: CreateTokenRequest) => ({
+      token: { id: "tok_new", name: req.name, hint: "dwt_abcd…wxyz", scope: req.scope, grants: req.grants },
+      secret: "dwt_secret",
+    }));
+    const listTokens = vi.fn(() => ({
+      tokens: [
+        {
+          id: "tok_logs",
+          name: "Log shipper",
+          hint: "dwt_abcd…wxyz",
+          scope: TokenScope.READ_ONLY,
+          grants: [TokenGrant.LOGS],
+        },
+      ],
+    }));
+    renderAt("/profile", api({}, { createToken, listTokens }));
+    await screen.findByText("Reads logs", { exact: false });
+    await userEvent.click(await screen.findByRole("button", { name: "Create token" }));
+    const sheet = within(await screen.findByRole("dialog", { name: "Create an API token" }));
+    await userEvent.type(sheet.getByLabelText("Name"), "CI");
+    const reads = sheet.getByRole("switch", { name: /Can read logs/ });
+    expect(reads).not.toBeChecked();
+    await userEvent.click(sheet.getByRole("button", { name: "Create token" }));
+    await waitFor(() => expect(createToken).toHaveBeenCalledOnce());
+    expect(createToken.mock.calls[0]?.[0].grants).toEqual([]);
   });
 
   it("asks for a name before making a token, and says why one wasn't made", async () => {

@@ -1,22 +1,34 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 .dw-log {
+  /* Soft in light, where more would take text under AA, and a tint in dark, where it reads. */
+  --log-error-ground: var(--critical-soft);
+  --log-error-carried: color-mix(in srgb, var(--critical-soft) 45%, transparent);
+  --log-hit-ground: color-mix(in srgb, var(--cobalt) 18%, transparent);
+  --log-hit-current: color-mix(in srgb, var(--cobalt) 34%, transparent);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
+  container-type: inline-size;
+}
+.dw-log.is-fill {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .dw-log-head {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  height: 44px;
+  min-height: 44px;
   padding: 0 var(--space-2) 0 var(--space-4);
   border-bottom: 1px solid var(--line);
 }
 .dw-log-title {
+  flex: 1 1 0;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -24,12 +36,40 @@
   font-size: 13.5px;
   font-weight: 550;
 }
+.dw-log-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .dw-log-tools {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--space-1);
 }
+.dw-log-meta {
+  flex: none;
+  color: var(--ink-muted);
+  font: var(--text-caption);
+}
+/* Holds its place while nothing live is there to pause, so what sits beside it stays put. */
+.dw-log-tools .is-held {
+  visibility: hidden;
+}
+/* Words that change in a place as wide as the widest of them. */
+.dw-held {
+  display: inline-grid;
+}
+.dw-held > * {
+  grid-area: 1 / 1;
+}
+.dw-held-other {
+  visibility: hidden;
+}
 .dw-live {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -60,8 +100,19 @@
   animation: none;
   opacity: 0;
 }
+.dw-log-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .dw-log-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: var(--space-2) 0;
   background: var(--surface-sunken);
   font: 400 12px / 19px var(--font-mono);
@@ -70,15 +121,51 @@
 .dw-log-body:focus-visible {
   box-shadow: inset 0 0 0 2px var(--cobalt);
 }
+/* Only the rows that show exist, each placed by how tall those before it are. */
+.dw-log-rows {
+  position: relative;
+  contain: layout style;
+}
+.dw-log-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+.dw-log-top {
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--space-4) var(--space-2);
+}
+.dw-log-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+.dw-log-jump {
+  position: absolute;
+  bottom: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: var(--shadow-float);
+}
 .dw-log-line {
+  position: relative;
   display: grid;
   grid-template-columns: 96px 120px 10px minmax(0, 1fr);
   gap: var(--space-3);
   padding: 0 var(--space-4);
   color: var(--ink);
 }
-.dw-log-line:hover {
-  background: color-mix(in srgb, var(--ink) 5%, transparent);
+.dw-log.no-source .dw-log-line {
+  grid-template-columns: 96px 10px minmax(0, 1fr);
 }
 .dw-log-time,
 .dw-log-src {
@@ -93,16 +180,273 @@
   align-items: center;
   height: 19px;
 }
+/* Beside the glyph on a phone; elsewhere, for screen readers. */
+.dw-log-lvl-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .dw-log-text {
+  min-width: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  tab-size: 4;
+}
+/* Long lines cut at the edge, for a reader who asked. */
+.dw-log.no-wrap .dw-log-text {
+  overflow: hidden;
+  white-space: pre;
+  text-overflow: ellipsis;
+}
+.dw-log-pretty {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* What a line says of the day, where that changes. */
+.dw-log-day {
+  padding: var(--space-2) var(--space-4) var(--space-1);
+  color: var(--ink-muted);
+  font: var(--text-caption);
+}
+/* A time the line above has too: there for a reader who points at it, and for copying. */
+.dw-log-time.is-repeat,
+.dw-log-src.is-repeat {
+  opacity: 0;
+}
+.dw-log-line:hover .is-repeat,
+.dw-log-line.is-active .is-repeat {
+  opacity: 1;
+}
+/* What can be done with one line, on the right of it as it is pointed at. */
+.dw-log-actions {
+  position: absolute;
+  top: 0;
+  right: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-sunken) 88%, transparent);
+  font-family: var(--font-sans);
+}
+/* On an error's ground, its own carries through, with no gap in the band. */
+.dw-log-line.is-error .dw-log-actions {
+  background: none;
+}
+/* The line a reader is on: a search's current match, or the current error. */
+.dw-log-line.is-current {
+  box-shadow: inset 2px 0 0 var(--cobalt);
 }
 .dw-log-line.is-warn .dw-log-lvl {
   color: var(--warning);
 }
+.dw-log-line:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+/* The first line of an error stands out. What carries it on, as a stack trace's
+   frames do, is quieter, so a long one doesn't shout. Text holds AA on either. */
 .dw-log-line.is-error {
-  background: color-mix(in srgb, var(--critical) 9%, transparent);
+  background: var(--log-error-ground);
+}
+.dw-log-line.is-error.is-carried {
+  background: var(--log-error-carried);
 }
 .dw-log-line.is-error .dw-log-lvl {
   color: var(--critical);
+}
+/* What a search found, and what the reader is on, stronger. Text holds AA on both. */
+.dw-log-hit {
+  border-radius: var(--radius-xs);
+  background: var(--log-hit-ground);
+  color: inherit;
+  box-shadow: inset 0 -1px 0 var(--cobalt);
+}
+.dw-log-hit.is-current {
+  background: var(--log-hit-current);
+  box-shadow: inset 0 0 0 1px var(--cobalt);
+}
+.dw-log-cut {
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+}
+.dw-log-more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: var(--space-2);
+  min-height: 19px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  cursor: pointer;
+}
+.dw-log-more:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
+}
+/* A note in the stream, such as lines left out. It stands apart from what the app wrote. */
+.dw-log-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) 0;
+  padding: var(--space-1) var(--space-4);
+  border-block: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 18px;
+}
+.dw-log-notice > svg {
+  flex: none;
+  color: var(--warning);
+}
+/* A line under the log, which holds its place with or without words in it. */
+.dw-log-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 28px;
+  padding: var(--space-1) var(--space-4);
+  border-top: 1px solid var(--line);
+  color: var(--ink-muted);
+  font: var(--text-caption);
+}
+.dw-log-probe {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+}
+/* A terminal's colours, each as the token of that hue that reads on this ground. */
+.dw-ansi-red {
+  color: var(--critical);
+}
+.dw-ansi-green {
+  color: var(--healthy);
+}
+.dw-ansi-yellow {
+  color: var(--warning);
+}
+.dw-ansi-blue {
+  color: var(--cobalt);
+}
+.dw-ansi-muted,
+.dw-ansi-dim {
+  color: var(--ink-muted);
+}
+.dw-ansi-ink {
+  color: var(--ink);
+}
+.dw-ansi-bold {
+  font-weight: 600;
+}
+.dw-ansi-underline {
+  text-decoration: underline;
+}
+
+/* Too narrow for columns, as on a phone: the time and source above the text. */
+@container (max-width: 559.98px) {
+  .dw-log-head {
+    padding-inline-start: var(--space-3);
+  }
+  .dw-log-line,
+  .dw-log.no-source .dw-log-line {
+    grid-template-columns: auto minmax(0, auto) minmax(0, 1fr);
+    grid-template-areas:
+      "time src lvl"
+      "text text text";
+    gap: 2px var(--space-3);
+    padding: 6px var(--space-3) 8px;
+  }
+  .dw-log-time {
+    grid-area: time;
+  }
+  .dw-log-src {
+    grid-area: src;
+  }
+  .dw-log-lvl {
+    grid-area: lvl;
+    justify-self: end;
+    gap: 6px;
+  }
+  .dw-log-text {
+    grid-area: text;
+  }
+  .dw-log-lvl-word {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+  }
+  .dw-log-notice {
+    padding-inline: var(--space-3);
+  }
+  .dw-log-more {
+    min-height: 44px;
+  }
+  /* A trace's frames: only their text, as what is above them says the rest. */
+  .dw-log-line.is-carried {
+    grid-template-areas: "text text text";
+    padding-block: 0 2px;
+  }
+  .dw-log-line.is-carried .dw-log-time,
+  .dw-log-line.is-carried .dw-log-src,
+  .dw-log-line.is-carried .dw-log-lvl {
+    display: none;
+  }
+  .dw-log-line.is-carried.is-active .dw-log-time {
+    display: inline;
+  }
+  /* The day's row says the zone here, as the head has no room for it. */
+  .dw-log-meta {
+    display: none;
+  }
+  /* Only when it has something to say: a phone has little room to hold. */
+  .dw-log-foot {
+    padding: var(--space-1) var(--space-3);
+  }
+  .dw-log-foot:empty {
+    display: none;
+  }
+  .dw-log-day {
+    padding-inline: var(--space-3);
+  }
+  /* A finger shows what can be done with a line by tapping it, under the line, as
+     it may not fit beside its time and level. */
+  .dw-log-time.is-repeat,
+  .dw-log-src.is-repeat,
+  .dw-log-lvl:empty {
+    display: none;
+  }
+  .dw-log-line.is-current:not(.is-active) .dw-log-actions {
+    display: none;
+  }
+  .dw-log-line.is-active .dw-log-actions {
+    position: static;
+    grid-column: 1 / -1;
+    justify-self: end;
+    background: none;
+  }
+  /* A pointer in a window this narrow: over the row of time and level, on a ground
+     of its own, as moving the row under the pointer would be worse. */
+  .dw-log-line:not(.is-active) .dw-log-actions {
+    top: 0;
+    right: var(--space-1);
+    background: var(--surface-sunken);
+  }
 }

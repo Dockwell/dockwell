@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -54,6 +55,8 @@ type Image struct {
 	PullError string
 	// PullTime is how long a pull of it takes, reporting along the way.
 	PullTime time.Duration
+	// Prints is what a container of it writes to stdout as it starts.
+	Prints []string
 }
 
 // Engine is a fake Docker Engine.
@@ -79,6 +82,9 @@ type Engine struct {
 	PickSubnet string
 	// nextSubnet is the next subnet a network with none configured gets.
 	nextSubnet int
+	// LoggingDriver is what /info says keeps containers' logs: json-file
+	// unless set.
+	LoggingDriver string
 
 	srv *httptest.Server
 
@@ -108,6 +114,8 @@ type Engine struct {
 	clock          int64 // orders what is made
 	// Requests logs each request, as "METHOD /path".
 	Requests []string
+	// followers counts the requests following a log now.
+	followers atomic.Int64
 }
 
 type image struct {
@@ -124,6 +132,7 @@ type container struct {
 	// memorySwap is the swap Docker holds for it: twice a memory limit it was
 	// made with, and none without one.
 	memorySwap int64
+	log        containerLog
 }
 
 // New starts a fake engine on a socket in a test's temporary directory,
@@ -214,6 +223,9 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if e.serveLogs(w, r) {
+		return // it may follow for as long as its client reads, so it holds no lock
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	path := r.URL.Path
@@ -242,7 +254,11 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		if e.UsernsRemap {
 			options = append(options, "name=userns")
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu()})
+		driver := e.LoggingDriver
+		if driver == "" {
+			driver = docker.LogDriverJSONFile
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver})
 	case parts[0] == "containers":
 		e.serveContainers(w, r, parts[1:])
 	case parts[0] == "images":
@@ -546,9 +562,13 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 				}
 			}
 		}
-		c.State = docker.State{Status: "running", Running: true}
+		now := time.Now().UTC()
+		c.State = docker.State{Status: "running", Running: true, StartedAt: now}
+		c.log.start()
+		c.log.write(docker.Stdout, c.img.Prints...)
 		if c.img.Exits {
-			c.State = docker.State{Status: "exited", ExitCode: 1}
+			c.State = docker.State{Status: "exited", ExitCode: 1, StartedAt: now, FinishedAt: now}
+			c.log.end()
 		}
 		if hc := c.Config.Healthcheck; hc != nil && len(hc.Test) > 0 && hc.Test[0] != "NONE" && c.State.Running {
 			c.State.Health = &docker.Health{Status: "healthy"}
@@ -566,7 +586,8 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
-		c.State = docker.State{Status: "exited"}
+		c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+		c.log.end()
 		e.detach(c)
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && action == "rename":
@@ -613,6 +634,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			return
 		}
 		e.detach(c)
+		c.log.end()
 		delete(e.containers, c.ID)
 		w.WriteHeader(http.StatusNoContent)
 	default:
@@ -836,6 +858,8 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 	}
 	c := &container{img: img}
 	c.ID = newID()
+	c.Created = time.Now().UTC()
+	c.log.ended = true // a follow ends at once until it starts
 	c.Name = "/" + name
 	c.Image = img.id
 	c.Config = merge(req.Config, img.Config)
@@ -1363,7 +1387,8 @@ func (e *Engine) Stop(name string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if c := e.byNameOrID(name); c != nil {
-		c.State = docker.State{Status: "exited"}
+		c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+		c.log.end()
 		e.detach(c)
 	}
 }
@@ -1412,6 +1437,7 @@ func (e *Engine) AddContainer(c docker.Container) *docker.Container {
 	}
 	e.clock++
 	ctr := &container{Container: c, img: img, created: e.clock}
+	ctr.log.ended = !c.State.Running
 	e.containers[c.ID] = ctr
 	e.attach(ctr)
 	out := c

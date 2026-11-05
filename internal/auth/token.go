@@ -10,6 +10,7 @@ import (
 	"hash/crc32"
 	"log/slog"
 	"math/big"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -53,6 +54,11 @@ const (
 	// undone (EFFECT_PLAN and EFFECT_APPLY). A read-write token may make
 	// them.
 	AccessWrite
+	// AccessLogs is for calls that read logs, which often hold secrets and
+	// personal data that apps print, so reading them counts as more than any
+	// other read: a token of either scope needs the logs grant. Only the
+	// token's maker can ask for it.
+	AccessLogs
 	// AccessSession is for calls that remove data or cut off access
 	// (EFFECT_DESTRUCTIVE), and for managing sign-in and tokens. Only a
 	// signed-in session may make them, never a token.
@@ -68,6 +74,9 @@ var (
 		"Check that you copied all of it, or create a new one under Profile and security")
 	ErrTokenScope = errors.New("this API token is read-only, so it can't make changes. " +
 		"Create a read-write token under Profile and security")
+	// ErrTokenLogs is a token without the logs grant reading logs.
+	ErrTokenLogs = errors.New("this API token can't read logs, which often hold secrets that apps print. " +
+		"Create a token that can read logs under Profile and security")
 	ErrNeedsSession = errors.New("API tokens can't remove data, cut off access, reveal a secret, or change how you sign in and your tokens. " +
 		"Sign in and do it in the panel")
 )
@@ -140,11 +149,11 @@ func liveToken(tok *store.APIToken, now time.Time) bool {
 // one that doesn't expire. A request it refuses for anything else, such as
 // an invalid name or the most tokens, leaves the proof unspent, and is
 // refused before the proof is asked for.
-func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope string, expires *time.Time, proof string) (NewToken, error) {
+func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope string, grants []string, expires *time.Time, proof string) (NewToken, error) {
 	if p.Token != nil || p.Session.ID == "" {
 		return NewToken{}, ErrNeedsSession
 	}
-	return s.createToken(ctx, func(*store.Tx) (store.User, error) { return p.User, nil }, p.Actor(), name, scope, expires,
+	return s.createToken(ctx, func(*store.Tx) (store.User, error) { return p.User, nil }, p.Actor(), name, scope, grants, expires,
 		func() error { return s.confirmed(p, proof, StepUpCreateToken) })
 }
 
@@ -155,7 +164,8 @@ const LocalTokenTTL = 12 * time.Hour
 // install's owner, for the CLI on the control server. Only someone who can
 // read the control plane's data directory can call it, as with
 // CreateSignInLink, and they control the install already; actor names
-// them in the audit log, as "cli:root@hz-1". See
+// them in the audit log, as "cli:root@hz-1". Those who can read that directory
+// can read logs anyway, with Docker, so the token can too. See
 // docs/adr/0019-a-cli-generated-from-the-schema.md.
 func (s *Service) CreateLocalToken(ctx context.Context, actor, name, scope string) (NewToken, error) {
 	expires := s.now().Add(LocalTokenTTL)
@@ -165,7 +175,7 @@ func (s *Service) CreateLocalToken(ctx context.Context, actor, name, scope strin
 			return u, errors.New("this install has no owner yet, so local access has nobody to act for. Claim it with the link from dockwell claim")
 		}
 		return u, err
-	}, actor, name, scope, &expires, nil)
+	}, actor, name, scope, []string{store.GrantLogs}, &expires, nil)
 }
 
 // RevokeLocalToken revokes a token CreateLocalToken made, for whoever can
@@ -204,7 +214,7 @@ func (s *Service) RevokeLocalToken(ctx context.Context, actor, tokenID string) (
 // that stores it. confirm, when set, is called once nothing else refuses
 // it, the most tokens included, and before anything is stored, to check it
 // may be made: it may spend a step-up's proof.
-func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, name, scope string, expires *time.Time,
+func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, name, scope string, grants []string, expires *time.Time,
 	confirm func() error,
 ) (NewToken, error) {
 	name = strings.Join(strings.Fields(cleanText(name)), " ")
@@ -214,6 +224,11 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 	}
 	if scope != store.ScopeReadOnly && scope != store.ScopeReadWrite {
 		return NewToken{}, fmt.Errorf("%w: choose the token's scope, read-only or read-write", ErrInvalid)
+	}
+	for _, g := range grants {
+		if g != store.GrantLogs {
+			return NewToken{}, fmt.Errorf("%w: a token can't be granted %q. It can be granted %s", ErrInvalid, g, store.GrantLogs)
+		}
 	}
 	now := s.now()
 	if expires != nil {
@@ -230,6 +245,7 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 		Name:      name,
 		Hint:      TokenHint(secret),
 		Scope:     scope,
+		Grants:    slices.Compact(slices.Sorted(slices.Values(grants))),
 		CreatedAt: now,
 		ExpiresAt: expires,
 	}
@@ -355,7 +371,9 @@ func (s *Service) AuthenticateToken(ctx context.Context, client Client, secret s
 		return Principal{}, s.refuseToken(ctx, client, p, client.anonymous(), "expired", call, ErrTokenRejected)
 	case need == AccessWrite && tok.Scope != store.ScopeReadWrite:
 		return Principal{}, s.refuseToken(ctx, client, p, p.Actor(), "read-only, and the call makes changes", call, ErrTokenScope)
-	case need != AccessRead && need != AccessWrite:
+	case need == AccessLogs && !tok.HasGrant(store.GrantLogs):
+		return Principal{}, s.refuseToken(ctx, client, p, p.Actor(), "without the logs grant, and the call reads logs", call, ErrTokenLogs)
+	case need != AccessRead && need != AccessWrite && need != AccessLogs:
 		return Principal{}, s.refuseToken(ctx, client, p, p.Actor(), "a token, and the call needs a session", call, ErrNeedsSession)
 	}
 	s.touchToken(ctx, &p, client, now)

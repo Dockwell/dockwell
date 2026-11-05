@@ -545,6 +545,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		return nil, e.nothingToDo(ctx, items, p.IfNothing)
 	}
 	p.Notes = startingNotes(plan, p.Notes)
+	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
+		return nil, err
+	}
 	if plan.Places, err = e.places(ctx, items); err != nil {
 		return nil, err
 	}
@@ -562,6 +565,77 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		return nil, err
 	}
 	return plan, nil
+}
+
+// keptLogsNotes are a plan's notes, saying which servers that hold what a deleted
+// service left can't be told now. No request reads it from the moment of the deletion,
+// but it stays on such a server's disk until the server is back. A revoked server isn't
+// coming back, so nothing is said of it: what it holds is outside what Dockwell reaches.
+func (e *Engine) keptLogsNotes(ctx context.Context, plan *Plan, items []item, notes []Note) ([]Note, error) {
+	hides := map[resource.Ref]bool{}
+	for i := range plan.Servers {
+		steps := plan.Servers[i].Steps
+		for j := range steps {
+			if steps[j].HidesLogs {
+				hides[steps[j].Ref] = true
+			}
+		}
+	}
+	out := slices.Clone(notes)
+	for i := range items {
+		it := &items[i]
+		if !hides[it.ref] {
+			continue
+		}
+		var away []string
+		err := e.db.View(ctx, func(tx *store.Tx) error {
+			var err error
+			away, err = e.awayServers(ctx, tx, it.id)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, name := range away {
+			out = append(out, Note{
+				Reason: "kept_logs_offline", Ref: it.ref, Names: []string{name},
+				Message: fmt.Sprintf("%s is offline, so what it kept of %s stays on its disk until it's back, and goes then if its 7 days are up. It can't be read meanwhile.", name, it.ref.Name),
+			})
+		}
+	}
+	return out, nil
+}
+
+// awayServers names each server a resource was ever placed on that isn't connected and
+// can still come back.
+func (e *Engine) awayServers(ctx context.Context, tx *store.Tx, resourceID string) ([]string, error) {
+	deps, err := tx.Deployments(ctx, resourceID, 0)
+	if err != nil {
+		return nil, err
+	}
+	var away []string
+	seen := map[string]bool{}
+	for i := range deps {
+		server := deps[i].Server
+		if seen[server] {
+			continue
+		}
+		seen[server] = true
+		if _, online := e.agents.Agent(server); online {
+			continue
+		}
+		s, err := tx.GetServer(ctx, server)
+		if errors.Is(err, store.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if s.RevokedAt == nil {
+			away = append(away, s.Name)
+		}
+	}
+	return away, nil
 }
 
 // startingNotes are a plan's notes, saying what it starts that isn't running. That
@@ -1403,8 +1477,8 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			sp.Downtime += s.Downtime
 			sp.UntilHealthy += max(s.Downtime, s.UntilHealthy)
 			actions[ids[s.Ref]] = append(actions[ids[s.Ref]], s.Action)
-			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings,
-				s.UntilHealthy, s.Kept, s.Restores, s.HealthUnknown)
+			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings,
+				s.UntilHealthy, s.Kept, s.Restores, s.HealthUnknown, s.HidesLogs)
 			for _, c := range s.Changes {
 				fmt.Fprintf(fp, "  %s|%d|%s|%s|%t\n", c.Path, c.Op, c.From, c.To, c.Sensitive)
 			}
@@ -2289,6 +2363,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 				e.pulledNewer(ctx, c.ID, items, it, q.server, o)
 			}
 		})
+		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c)})
 		err := agent.Apply(callCtx, *q.step, it.desiredOn(q.server))
 		called()
 		switch {

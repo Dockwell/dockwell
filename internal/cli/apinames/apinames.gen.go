@@ -25,6 +25,7 @@ func Commands() []string {
 		"environments",
 		"events",
 		"firewall-rules",
+		"logs",
 		"networks",
 		"passkeys",
 		"projects",
