@@ -32,7 +32,6 @@ import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import {
   type AppGroup,
-  type AppState,
   appState,
   deployedAt,
   environmentOf,
@@ -44,11 +43,14 @@ import {
   matches,
   nameOf,
   needsALook,
+  recordSaysMore,
   revisionName,
   shortImage,
   sortGroups,
 } from "./app";
 import { ExportSheet } from "./ExportSheet";
+import { HealthBadge, useHealthWords } from "./Health";
+import { type AppHealth, healthNeedsALook, type HealthView, useHealth, worstHealth } from "./health";
 import { ImageName } from "./ImageName";
 import { usePlaces, useServices, useServicesLive } from "./useServices";
 import { useAppWords } from "./words";
@@ -122,12 +124,11 @@ interface Row {
 }
 
 /**
- * Every app: what it runs, how its latest deploy went, its revision and when
- * it deployed, live (Apps-List, M-Apps). Columns follow what the API has and
- * how many servers there are: no server column with one server. A project's
- * services show as one row with its name that folds, and an app in the default
- * project as a row of its own (ADR 0026). What needs you comes first; the rest
- * are newest first.
+ * Every app: how it runs now, from what its server says; what was deployed and how
+ * that went, kept apart; and when (Apps-List, M-Apps). Columns follow what the API has
+ * and how many servers there are: no server column with one server. A project's
+ * services show as one row with its name that folds, and an app in the default project
+ * as a row of its own (ADR 0026). What needs you comes first; the rest are newest first.
  */
 export function AppsPage({
   search = {},
@@ -145,6 +146,7 @@ export function AppsPage({
   const { reconnecting } = useServicesLive();
   const { servers, fleet } = useFleetView();
   const places = usePlaces();
+  const health = useHealth();
   const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
   const [collapsed, toggle] = useFolded();
@@ -177,7 +179,10 @@ export function AppsPage({
       ),
     [all, environment, search.server],
   );
-  const sorted = useMemo(() => sortGroups(groupApps(shown, places.place), servers), [shown, places.place, servers]);
+  const sorted = useMemo(
+    () => sortGroups(groupApps(shown, places.place), servers, (s) => health.of(s)),
+    [shown, places.place, servers, health],
+  );
   // Sorted when the page opens, then each keeps its place, so nothing moves under
   // the cursor as a deploy starts or ends.
   const order = useRef<string[]>([]);
@@ -220,7 +225,7 @@ export function AppsPage({
   }, [all]);
   const filters = pending ? Number(remembered(COUNT_KEY) ?? 0) >= FILTER_FROM : count >= FILTER_FROM;
   const elsewhere = count - shown.length;
-  const { lead, total, going } = useLead(shown, environment ? places.label(environment) : "");
+  const { lead, total, going } = useLead(shown, environment ? places.label(environment) : "", health);
   const newApp = (
     <RouterButtonLink to="/apps/new" variant="primary" icon="plus" className="apps-new">
       <Trans>New app</Trans>
@@ -277,10 +282,18 @@ export function AppsPage({
       </EmptyState>
     );
   } else if (phone) {
-    body = <PhoneList rows={rows} collapsed={collapsed} onToggle={toggle} />;
+    body = <PhoneList rows={rows} collapsed={collapsed} onToggle={toggle} health={health} />;
   } else {
     body = (
-      <AppsTable rows={rows} fleet={fleet} caption={t`Apps`} collapsed={collapsed} onToggle={toggle} onOpen={open} />
+      <AppsTable
+        rows={rows}
+        fleet={fleet}
+        caption={t`Apps`}
+        collapsed={collapsed}
+        onToggle={toggle}
+        onOpen={open}
+        health={health}
+      />
     );
   }
 
@@ -393,7 +406,11 @@ export function AppsPage({
 }
 
 /** The line under the title: how many, and what is going on with them. */
-function useLead(services: readonly ServiceInfo[], where: string): { lead: string; total: string; going: string } {
+function useLead(
+  services: readonly ServiceInfo[],
+  where: string,
+  health: HealthView,
+): { lead: string; total: string; going: string } {
   const { servers } = useFleetView();
   const { t } = useLingui();
   const count = services.length;
@@ -405,7 +422,7 @@ function useLead(services: readonly ServiceInfo[], where: string): { lead: strin
   for (const s of services) {
     const state = appState(s, servers);
     if (state.kind === "deploying") moving++;
-    else if (needsALook(state)) trouble++;
+    else if (needsALook(state) || healthNeedsALook(health.of(s))) trouble++;
   }
   const going = [
     trouble > 0 ? plural(trouble, { one: "# needs a look", other: "# need a look" }) : "",
@@ -424,7 +441,7 @@ function useColumnHeads(fleet: boolean, wide: boolean) {
       { key: "app", header: t`App` },
     ];
     if (wide) heads.push({ key: "image", header: t`Image`, width: "42%" });
-    heads.push({ key: "status", header: t`Status`, width: 152 }, { key: "revision", header: t`Revision`, width: 88 });
+    heads.push({ key: "status", header: t`Status`, width: 128 }, { key: "revision", header: t`Revision`, width: 176 });
     if (fleet) heads.push({ key: "servers", header: t`Runs on`, width: 168 });
     heads.push({ key: "deployed", header: t`Deployed`, width: 104, align: "right" });
     return heads;
@@ -438,12 +455,29 @@ interface TableProps {
   collapsed: ReadonlySet<string>;
   onToggle: (key: string) => void;
   onOpen: (id: string) => void;
+  health: HealthView;
 }
 
-function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen }: TableProps) {
+/** How a row runs: an app's, or the worst of a project's. */
+function rowHealth(row: Row, health: HealthView): AppHealth {
+  return row.service ? health.of(row.service) : worstHealth(row.group.services.map((s) => health.of(s)));
+}
+
+/** A word for the tooltip of a row: how it runs and, where it says one thing, why. */
+function useRowTitle() {
+  const words = useHealthWords();
+  return (health: AppHealth, now: number): string => {
+    if (health.read === "failed") return words.unread;
+    const [only] = health.servers;
+    return only && health.servers.length === 1 ? `${words.word(health)}: ${words.says(only, now)}` : words.word(health);
+  };
+}
+
+function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }: TableProps) {
   const { t, i18n } = useLingui();
   const { servers } = useFleetView();
   const words = useAppWords();
+  const titleOf = useRowTitle();
   const time = useTimeWords();
   const wide = useMediaQuery(IMAGE_COLUMN_QUERY);
   const heads = useColumnHeads(fleet, wide);
@@ -517,12 +551,21 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen }: TableP
         );
       },
       status: (row) => {
-        const state: AppState =
-          row.kind === "stack" ? groupState(row.group, servers) : appState(row.service as ServiceInfo, servers);
-        const word = words.state(state);
-        return <StatusBadge status={state.status} label={word} labelIsState className="apps-status" title={word} />;
+        const runs = rowHealth(row, health);
+        return <HealthBadge health={runs} className="apps-status" title={titleOf(runs, now)} />;
       },
-      revision: (row) => (row.service ? revisionName(row.service.revision) : <span aria-hidden="true">—</span>),
+      revision: (row) => {
+        const state = row.service ? appState(row.service, servers) : groupState(row.group, servers);
+        const word = words.state(state);
+        return (
+          <span className="apps-record">
+            {row.service ? revisionName(row.service.revision) : <span aria-hidden="true">—</span>}
+            {recordSaysMore(state) ? (
+              <StatusBadge status={state.status} label={word} labelIsState className="apps-record-state" title={word} />
+            ) : null}
+          </span>
+        );
+      },
       servers: (row) => (row.service ? <RunsOn service={row.service} /> : <StackServers group={row.group} />),
       deployed: (row) => {
         const when = row.service ? deployedAt(row.service) : groupDeployedAt(row.group);
@@ -539,7 +582,7 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen }: TableP
       ...(head.key === "servers" || head.key === "deployed" ? { muted: true } : {}),
       render: render[head.key] as (row: Row) => ReactNode,
     }));
-  }, [t, i18n, words, servers, time, now, collapsed, onToggle, wide, heads]);
+  }, [t, i18n, words, servers, time, now, collapsed, onToggle, wide, heads, health, titleOf]);
 
   return (
     <Table<Row>
@@ -584,18 +627,22 @@ function PhoneList({
   rows,
   collapsed,
   onToggle,
+  health,
 }: {
   rows: readonly Row[];
   collapsed: ReadonlySet<string>;
   onToggle: (key: string) => void;
+  health: HealthView;
 }) {
   const { servers, fleet } = useFleetView();
   const words = useAppWords();
+  const healthWords = useHealthWords();
   return (
     <Panel flush className="apps-phone">
       {rows.map((row) => {
         if (row.kind === "stack") {
           const state = groupState(row.group, servers);
+          const runs = rowHealth(row, health);
           const count = row.group.services.length;
           const expanded = !collapsed.has(row.group.key);
           return (
@@ -606,15 +653,19 @@ function PhoneList({
               aria-expanded={expanded}
               onClick={() => onToggle(row.group.key)}
             >
-              <span className={cx("apps-phone-glyph", `dw-tone-${STATUS[state.status].tone}`)}>
-                <Glyph shape={STATUS[state.status].shape} size={10} />
+              <span className={cx("apps-phone-glyph", `dw-tone-${STATUS[runs.status].tone}`)}>
+                <Glyph shape={STATUS[runs.status].shape} size={10} />
               </span>
               <span className="apps-phone-text">
                 <span className="apps-phone-name">{row.group.name}</span>
                 <span className="apps-phone-sub">
-                  <span className={cx(state.kind !== "live" && `apps-phone-word dw-tone-${STATUS[state.status].tone}`)}>
-                    {words.state(state)}
-                  </span>
+                  <span className={`apps-phone-word dw-tone-${STATUS[runs.status].tone}`}>{healthWords.word(runs)}</span>
+                  {recordSaysMore(state) ? (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span className={`apps-phone-word dw-tone-${STATUS[state.status].tone}`}>{words.state(state)}</span>
+                    </>
+                  ) : null}
                   <span aria-hidden="true">·</span>
                   <span>{plural(count, { one: "# app", other: "# apps" })}</span>
                 </span>
@@ -625,6 +676,7 @@ function PhoneList({
         }
         const service = row.service as ServiceInfo;
         const state = appState(service, servers);
+        const runs = health.of(service);
         const image = imageOf(service);
         const where = service.deployments.map((d) => d.serverName).join(", ");
         return (
@@ -634,17 +686,21 @@ function PhoneList({
             params={{ serviceId: service.id }}
             className={cx("apps-phone-row", row.kind === "member" && "is-member")}
           >
-            <span className={cx("apps-phone-glyph", `dw-tone-${STATUS[state.status].tone}`)}>
-              <Glyph shape={STATUS[state.status].shape} size={10} />
+            <span className={cx("apps-phone-glyph", `dw-tone-${STATUS[runs.status].tone}`)}>
+              <Glyph shape={STATUS[runs.status].shape} size={10} />
             </span>
             <span className="apps-phone-text">
               <span className="apps-phone-name">
                 {row.kind === "app" && row.group.name ? row.group.name : nameOf(service)}
               </span>
               <span className="apps-phone-sub">
-                <span className={cx(state.kind !== "live" && `apps-phone-word dw-tone-${STATUS[state.status].tone}`)}>
-                  {words.state(state)}
-                </span>
+                <span className={`apps-phone-word dw-tone-${STATUS[runs.status].tone}`}>{healthWords.word(runs)}</span>
+                {recordSaysMore(state) ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className={`apps-phone-word dw-tone-${STATUS[state.status].tone}`}>{words.state(state)}</span>
+                  </>
+                ) : null}
                 <span aria-hidden="true">·</span>
                 <code className="apps-phone-rev">{revisionName(service.revision)}</code>
                 <span aria-hidden="true">·</span>

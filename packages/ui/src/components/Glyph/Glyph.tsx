@@ -39,6 +39,17 @@ function GlyphShapeElement({ shape }: { shape: GlyphShape }) {
       return <rect x={1.2} y={1.2} width={7.6} height={7.6} rx={1.6} fill="currentColor" />;
     case "ring":
       return <circle cx={5} cy={5} r={3.6} fill="none" stroke="currentColor" strokeWidth={1.6} />;
+    case "dotted-ring":
+      return (
+        <>
+          <circle cx={5} cy={5} r={3.6} fill="none" stroke="currentColor" strokeWidth={1.6} />
+          <circle cx={5} cy={5} r={1.5} fill="currentColor" />
+        </>
+      );
+    case "dashed-ring":
+      return (
+        <circle cx={5} cy={5} r={3.6} fill="none" stroke="currentColor" strokeWidth={1.6} strokeDasharray="2.1 1.67" />
+      );
     case "spinner":
       return (
         <>

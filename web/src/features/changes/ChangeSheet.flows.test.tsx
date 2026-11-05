@@ -168,7 +168,7 @@ describe("a plan reads as what it is for", () => {
     expect(applying).not.toHaveTextContent(/replac/i);
 
     act(() => watch.push(watched(applied(running))));
-    const done = await screen.findByRole("dialog", { name: "web is live" });
+    const done = await screen.findByRole("dialog", { name: "web is deployed" });
     expect(done).toHaveTextContent("1 updated");
     expect(done.querySelector(".dw-plan-act")).toHaveTextContent("Deployed");
     expect(done).not.toHaveTextContent(/replac/i);
@@ -183,7 +183,7 @@ describe("a plan reads as what it is for", () => {
     expect(sheet).not.toHaveTextContent(/replace/i);
   });
 
-  it("says a port it published and a revision it went back to, rather than that it is live", async () => {
+  it("says a port it published and a revision it went back to, rather than that it is deployed", async () => {
     show(applied(forIntent(IntentKind.PUBLISH_PORT, { port: 9411 })), { doneLabel: "Done" });
     const port = await screen.findByRole("dialog", { name: "Published port 9411" });
     expect(port.querySelector(".dw-plan-act")).toHaveTextContent("Published port");
@@ -193,12 +193,12 @@ describe("a plan reads as what it is for", () => {
     show(applied(forIntent(IntentKind.ROLL_BACK, { revision: 127n })));
     const back = await screen.findByRole("dialog", { name: "Rolled back to r127" });
     expect(back.querySelector(".dw-plan-act")).toHaveTextContent("Rolled back");
-    expect(back).not.toHaveTextContent(/is live|replaced/i);
+    expect(back).not.toHaveTextContent(/is deployed|replaced/i);
   });
 
   it("reads what it was for on a change's record too, once it is over", async () => {
     show(applied(aDeploy()), {});
-    await screen.findByRole("dialog", { name: "web is live" });
+    await screen.findByRole("dialog", { name: "web is deployed" });
   });
 
   it("leaves a plain replace as a replace, as nothing says what it is for", async () => {
@@ -308,7 +308,7 @@ describe("a pull of the same tag", () => {
     show(stayed);
     const sheet = await screen.findByRole("dialog", { name: "web stays as it is" });
     expect(sheet.querySelector(".plan-lead")).toHaveTextContent(note);
-    expect(sheet).not.toHaveTextContent("is live");
+    expect(sheet).not.toHaveTextContent("is deployed");
     expect(sheet).not.toHaveTextContent("1 updated");
     // There is nothing to take back.
     expect(within(sheet).queryByRole("button", { name: /Undo until/ })).toBeNull();
@@ -599,13 +599,13 @@ describe("a plan from a Compose file", () => {
 
   it("arrives under the name you gave it, with the apps closed and the rest folded", async () => {
     show(applied(aCompose()));
-    const done = await screen.findByRole("dialog", { name: "blog is live" });
+    const done = await screen.findByRole("dialog", { name: "blog is deployed" });
     expect(within(done).getByRole("button", { name: /Also created project blog/ })).toHaveAttribute(
       "aria-expanded",
       "false",
     );
     expect(within(done).getByRole("button", { name: /web app/ })).toHaveAttribute("aria-expanded", "false");
-    expect(done).not.toHaveTextContent("2 apps are live");
+    expect(done).not.toHaveTextContent("2 apps are deployed");
   });
 
   it("never folds what is at risk, or anything that isn't new", async () => {
@@ -919,7 +919,7 @@ describe("what a plan asks of whoever applies it", () => {
   it("keeps saying what it reaches while it runs and once it has, in the right tense", async () => {
     const planned = reaching({ kind: HostAccessKind.DOCKER_SOCKET, path: "/var/run/docker.sock" });
     show(applied(planned));
-    const done = await screen.findByRole("dialog", { name: /is replaced|Applied|web is live/ });
+    const done = await screen.findByRole("dialog", { name: /is replaced|Applied|web is deployed/ });
     const risk = within(done).getByRole("alert");
     expect(risk).toHaveTextContent("web gets root on hz-1");
     expect(risk).toHaveTextContent("Keep this only if you trust what it runs.");
@@ -1049,7 +1049,7 @@ describe("a change that failed", () => {
     const sheet = await screen.findByRole("dialog", { name: "Couldn't deploy nginx:1.28" });
     const line = sheet.querySelector(".plan-rollback") as HTMLElement;
     const why = sheet.querySelector(".plan-failure") as HTMLElement;
-    expect(line).toHaveTextContent("web runs nginx:1.27 again");
+    expect(line).toHaveTextContent("Dockwell put nginx:1.27 back on web");
     expect(line.compareDocumentPosition(why) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -1126,7 +1126,7 @@ describe("a server lost during a step", () => {
     show(lost({ state: RollbackState.APPLIED, steps: 1, restored: ["web"] }));
     const sheet = await screen.findByRole("dialog", { name: "hz-1 went offline during this deploy" });
     const line = sheet.querySelector(".plan-rollback") as HTMLElement;
-    expect(line).toHaveTextContent("web runs nginx:1.27 again");
+    expect(line).toHaveTextContent("Dockwell put nginx:1.27 back on web");
     expect(line).toHaveTextContent("Dockwell put it back once it could reach the server.");
     expect(line).not.toHaveTextContent("was down");
   });
@@ -1275,7 +1275,7 @@ describe("the sheet holds still", () => {
     const steps = within(applying).getByRole("region", { name: "Steps" });
     expect((row as Element).compareDocumentPosition(steps) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     act(() => watch.push(watched(applied(running))));
-    const done = await screen.findByRole("dialog", { name: "web is live" });
+    const done = await screen.findByRole("dialog", { name: "web is deployed" });
     expect(done.querySelector(".plan-body")).toBe(body);
     expect(done.querySelector(".dw-plan-res")).toBe(row);
   });

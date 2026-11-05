@@ -3183,6 +3183,7 @@ components:
                         - HEALTH_STATE_HEALTHY
                         - HEALTH_STATE_UNHEALTHY
                         - HEALTH_STATE_NOT_RUNNING
+                        - HEALTH_STATE_PAUSED
                     type: string
                     description: How it is now.
                     format: enum
@@ -3195,6 +3196,7 @@ components:
                         - HEALTH_STATE_HEALTHY
                         - HEALTH_STATE_UNHEALTHY
                         - HEALTH_STATE_NOT_RUNNING
+                        - HEALTH_STATE_PAUSED
                     type: string
                     description: How it was as the timeline last told of it.
                     format: enum
@@ -3856,6 +3858,7 @@ components:
                         - HEALTH_STATE_HEALTHY
                         - HEALTH_STATE_UNHEALTHY
                         - HEALTH_STATE_NOT_RUNNING
+                        - HEALTH_STATE_PAUSED
                     type: string
                     description: How it is.
                     format: enum
@@ -5484,6 +5487,7 @@ components:
                         - HEALTH_STATE_HEALTHY
                         - HEALTH_STATE_UNHEALTHY
                         - HEALTH_STATE_NOT_RUNNING
+                        - HEALTH_STATE_PAUSED
                     type: string
                     description: |-
                         How it is there. While a container takes over from another, it is how the
@@ -5783,6 +5787,7 @@ components:
                         - HEALTH_STATE_HEALTHY
                         - HEALTH_STATE_UNHEALTHY
                         - HEALTH_STATE_NOT_RUNNING
+                        - HEALTH_STATE_PAUSED
                     type: string
                     description: |-
                         How it is as a whole: the worst of its servers. Show "Healthy" only for

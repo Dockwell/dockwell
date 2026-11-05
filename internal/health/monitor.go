@@ -477,7 +477,7 @@ func (m *Monitor) read(ctx context.Context, id string, w *watched) {
 		m.setState(w, dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY)
 	case s.Paused:
 		w.last, w.failing = &Result{Output: pausedWords, At: time.Now()}, 0
-		m.setState(w, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING)
+		m.setState(w, dockwellv1.HealthState_HEALTH_STATE_PAUSED)
 	case !s.Running:
 		w.last = &Result{Output: "the container isn't running: it is " + cmp.Or(s.Status, "stopped") + ", with exit code " + strconv.Itoa(s.ExitCode), At: time.Now()}
 		w.failing = 0
@@ -518,15 +518,19 @@ const pausedWords = "the container is paused, so it serves nothing and no check 
 // whether or not a read gets through, which only says more about it. What runs, or
 // is restarting, takes a read to say what it comes to.
 func (m *Monitor) listed(w *watched, state string) {
-	if state == dockerRunning || state == "restarting" || state == "" || w.state == dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING {
-		return
+	switch state {
+	case dockerRunning, "restarting", "":
+	case "paused":
+		if w.state != dockwellv1.HealthState_HEALTH_STATE_PAUSED {
+			w.last, w.failing = &Result{Output: pausedWords, At: time.Now()}, 0
+			m.setState(w, dockwellv1.HealthState_HEALTH_STATE_PAUSED)
+		}
+	default:
+		if w.state != dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING {
+			w.last, w.failing = &Result{Output: "the container isn't running: it is " + state, At: time.Now()}, 0
+			m.setState(w, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING)
+		}
 	}
-	said := "the container isn't running: it is " + state
-	if state == "paused" {
-		said = pausedWords
-	}
-	w.last, w.failing = &Result{Output: said, At: time.Now()}, 0
-	m.setState(w, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING)
 }
 
 // setState moves a container's state on, and says so at once.

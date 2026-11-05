@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { ActorKind, type Change, ChangeState, type Event, EventKind, StepState } from "@dockwell/api";
-import type { IconName } from "@dockwell/ui";
+import { ActorKind, type Change, ChangeState, type Event, EventKind, HealthState, StepState } from "@dockwell/api";
+import type { IconName, Status } from "@dockwell/ui";
 import type { I18n } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
@@ -27,6 +27,7 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       const change = event.change;
       if (event.kind === EventKind.CHANGE && change) return describeChange(change, summaries, i18n);
       const name = event.subject?.name ?? "";
+      if (event.kind === EventKind.HEALTH) return describeHealth(event, i18n);
       const server = name || event.subject?.id || t`a server`;
       switch (event.action) {
         case "server.join":
@@ -102,6 +103,76 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
     },
     [t, i18n],
   );
+}
+
+/**
+ * How a service's health changed. The server tells of a state that lasted, and of a
+ * service on a server at most once in 5 minutes, so a flapping app is one line every
+ * few minutes that says how often it changed (useHealthEventWords), and what it keeps
+ * falling to is what it says.
+ */
+function describeHealth(event: Event, i18n: I18n): Described {
+  const name = event.subject?.name || event.subject?.id || i18n._(msg`A service`);
+  const server = event.health?.serverName || i18n._(msg`its server`);
+  switch (event.health?.state) {
+    case HealthState.UNHEALTHY:
+      return { title: i18n._(msg`${name} turned unhealthy on ${server}`), icon: "activity", tone: "warning" };
+    case HealthState.NOT_RUNNING:
+      return { title: i18n._(msg`${name} stopped running on ${server}`), icon: "activity", tone: "critical" };
+    case HealthState.PAUSED:
+      return { title: i18n._(msg`${name} was paused on ${server}`), icon: "activity", tone: "warning" };
+    case HealthState.HEALTHY:
+      return { title: i18n._(msg`${name} is healthy again on ${server}`), icon: "activity" };
+    case HealthState.NO_CHECK:
+      return { title: i18n._(msg`${name} is running again on ${server}`), icon: "activity" };
+  }
+  return { title: i18n._(msg`The health of ${name} changed on ${server}`), icon: "activity" };
+}
+
+/** What a health event says beyond its title. */
+export interface HealthEventWords {
+  /** Its state, as a shape, a word and a colour. */
+  look(event: Event): { status: Status; word: string } | undefined;
+  /** What its check last said, and how many other times it changed, so a flapping app is one line. */
+  detail(event: Event): string;
+  /** How many other times it changed, or nothing. */
+  flips(event: Event): string;
+}
+
+export function useHealthEventWords(): HealthEventWords {
+  const { t } = useLingui();
+  return useMemo<HealthEventWords>(() => {
+    const flips = (event: Event): string => {
+      const count = event.health?.flips ?? 0;
+      return count > 0
+        ? plural(count, {
+            one: "It changed # more time since the last time this said.",
+            other: "It changed # more times since the last time this said.",
+          })
+        : "";
+    };
+    return {
+      flips,
+      look(event) {
+        switch (event.health?.state) {
+          case HealthState.UNHEALTHY:
+            return { status: "degraded", word: t`Unhealthy` };
+          case HealthState.NOT_RUNNING:
+            return { status: "down", word: t`Not running` };
+          case HealthState.PAUSED:
+            return { status: "stopped", word: t`Paused` };
+          case HealthState.HEALTHY:
+            return { status: "healthy", word: t`Healthy` };
+          case HealthState.NO_CHECK:
+            return { status: "running", word: t`Running` };
+        }
+        return undefined;
+      },
+      detail(event) {
+        return [event.health?.output ?? "", flips(event)].filter(Boolean).join(" · ");
+      },
+    };
+  }, [t]);
 }
 
 function describeChange(change: Change, summaries: ReadonlyMap<string, string>, i18n: I18n): Described {

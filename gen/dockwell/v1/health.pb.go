@@ -43,9 +43,11 @@ const (
 	// Its check failed as many times in a row as it allows, or it keeps
 	// restarting.
 	HealthState_HEALTH_STATE_UNHEALTHY HealthState = 5
-	// It isn't running: stopped, exited, paused, or not on the server at all. A
-	// paused container counts as running to Docker, which stops its checks.
+	// It isn't running: stopped, exited, or not on the server at all.
 	HealthState_HEALTH_STATE_NOT_RUNNING HealthState = 6
+	// Someone paused it. It serves nothing until it is unpaused, and nothing checks
+	// it, though Docker counts it as running.
+	HealthState_HEALTH_STATE_PAUSED HealthState = 7
 )
 
 // Enum value maps for HealthState.
@@ -58,6 +60,7 @@ var (
 		4: "HEALTH_STATE_HEALTHY",
 		5: "HEALTH_STATE_UNHEALTHY",
 		6: "HEALTH_STATE_NOT_RUNNING",
+		7: "HEALTH_STATE_PAUSED",
 	}
 	HealthState_value = map[string]int32{
 		"HEALTH_STATE_UNSPECIFIED": 0,
@@ -67,6 +70,7 @@ var (
 		"HEALTH_STATE_HEALTHY":     4,
 		"HEALTH_STATE_UNHEALTHY":   5,
 		"HEALTH_STATE_NOT_RUNNING": 6,
+		"HEALTH_STATE_PAUSED":      7,
 	}
 )
 
@@ -733,7 +737,7 @@ const file_dockwell_v1_health_proto_rawDesc = "" +
 	"\x06passed\x18\x01 \x01(\bR\x06passed\x12\x16\n" +
 	"\x06output\x18\x02 \x01(\tR\x06output\x12.\n" +
 	"\x04time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12-\n" +
-	"\x04took\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\x04took*\xcf\x01\n" +
+	"\x04took\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\x04took*\xe8\x01\n" +
 	"\vHealthState\x12\x1c\n" +
 	"\x18HEALTH_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14HEALTH_STATE_UNKNOWN\x10\x01\x12\x19\n" +
@@ -741,7 +745,8 @@ const file_dockwell_v1_health_proto_rawDesc = "" +
 	"\x15HEALTH_STATE_STARTING\x10\x03\x12\x18\n" +
 	"\x14HEALTH_STATE_HEALTHY\x10\x04\x12\x1a\n" +
 	"\x16HEALTH_STATE_UNHEALTHY\x10\x05\x12\x1c\n" +
-	"\x18HEALTH_STATE_NOT_RUNNING\x10\x06*\xa6\x01\n" +
+	"\x18HEALTH_STATE_NOT_RUNNING\x10\x06\x12\x17\n" +
+	"\x13HEALTH_STATE_PAUSED\x10\a*\xa6\x01\n" +
 	"\x0fHealthCheckKind\x12!\n" +
 	"\x1dHEALTH_CHECK_KIND_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16HEALTH_CHECK_KIND_NONE\x10\x01\x12\x1d\n" +

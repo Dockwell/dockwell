@@ -38,7 +38,8 @@ An HTTP or TCP check goes only to the container, at the address Docker reports f
 | `NO_CHECK` | It runs, and nothing checks it. The panel says "Running", and never "Healthy" |
 | `STARTING` | A check is set, and none has finished, or it is within its start period |
 | `UNHEALTHY` | The check failed as often as it may |
-| `NOT_RUNNING` | The server said, and the service has no running container there. A paused one doesn't count as running |
+| `NOT_RUNNING` | The server said, and the service has no running container there |
+| `PAUSED` | Someone paused it. It serves nothing until it is unpaused, and nothing checks it, though Docker counts it as running |
 | `UNKNOWN` | Nobody can say: the agent hasn't read Docker yet, isn't connected, can't read Docker now, or what it said is too old to stand. What it last said comes with `stale` |
 
 A service on a server is as well as its best container, as two exist while one takes over, and what serves is the one that passed. A service across servers is as well as its worst server.
@@ -50,7 +51,7 @@ Checks go on after a deploy, and a claim only stands for as long as someone is l
 - **A list says where each container is,** so a check goes where the container is now, and never to an address another container has since taken. Each scan also reads 8 containers in full, those read longest ago, so it gets round them all.
 - **Hung checks can't hold every worker.** At most 16 checks run at once, and what took a second or more last time gets at most half of them, so a check that would say a service has died gets its turn. Otherwise 160 checks hanging for 60 s would hold one up for about 10 min.
 - **Each state says when it was last known, and how long that may stand** (`confirmed_at`, `good_for`). That is the last check the agent made, or the last list it read, and at least 90 s. Past that, or when a list fails, what only Docker can say reads `UNKNOWN`. The control plane works out a state's age from the server's own clock and its own, so they needn't agree, and a report older than 90 s reads `UNKNOWN` whatever it says, as stats keep a stream open whatever the monitor is doing. A report comes at least every 30 s, whether or not anything changed.
-- **A paused container isn't running.** Docker counts it as running and stops its checks, so what they last said stands with nobody asking, and each list renews that. It serves nothing, so it reads as `NOT_RUNNING`, whatever checks it, and goes back as it was once it is unpaused. A check under way as it paused says nothing of it.
+- **A paused container isn't running.** Docker counts it as running and stops its checks, so what they last said stands with nobody asking, and each list renews that. It serves nothing, so it reads as `PAUSED`, whatever checks it, and goes back as it was once it is unpaused. A check under way as it paused says nothing of it.
 - **What a list says of a container that doesn't run stands on its own.** An inspect only adds to it, so one that doesn't get through doesn't leave it reading as healthy.
 - **Having read nothing isn't that nothing runs.** An agent sends no report until it has read Docker, so the API says `UNKNOWN`, not `NOT_RUNNING`. Reading and finding nothing does say that.
 

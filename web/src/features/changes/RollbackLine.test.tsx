@@ -7,6 +7,7 @@ import {
   type Change,
   ChangeState,
   type GetChangeRequest,
+  HealthState,
   IntentKind,
   IntentSchema,
   RollbackState,
@@ -24,8 +25,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { aHealth } from "../../test/apps";
 import { moved, shopPlanned, watched, webPlanned } from "../../test/changes";
-import { feed, renderWithApi } from "../../test/render";
+import { type Api, feed, renderWithApi } from "../../test/render";
 import { ChangeSheetProvider, type Opening, useChangeSheet } from "./ChangeSheet";
 import { RollbackLine, type RollbackSubject, rollbackSubject, useRollbackWord } from "./RollbackLine";
 
@@ -72,14 +74,19 @@ function Opener({ opening }: { opening: Opening }) {
   return null;
 }
 
+/** web, as webPlanned names it, as its server says: running, with nothing checking it. */
+const runningWeb: Api["health"] = {
+  listHealth: () => ({ services: [aHealth("res_web", { state: HealthState.NO_CHECK })] }),
+};
+
 /** The failed change in the plan sheet, as a person sees it once it has failed. */
-async function inTheSheet(change: Change, name = "Couldn't deploy nginx:1.28") {
+async function inTheSheet(change: Change, name = "Couldn't deploy nginx:1.28", health: Api["health"] = runningWeb) {
   const opening: Opening = { kind: "plan", make: () => Promise.resolve({ change }) };
   renderWithApi(
     <ChangeSheetProvider>
       <Opener opening={opening} />
     </ChangeSheetProvider>,
-    { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+    { changes: { watchChange: feed<WatchChangeResponse>().stream }, health },
   );
   return screen.findByRole("dialog", { name });
 }
@@ -91,7 +98,7 @@ afterEach(async () => {
 describe("what a failed change says of its rollback", () => {
   it("says what ran never stopped, where the deploy rolled and only what it made had to go", async () => {
     const sheet = await inTheSheet(aFailedDeploy({ state: RollbackState.APPLIED, steps: 1, restored: [] }));
-    expect(sheet).toHaveTextContent("web stays on nginx:1.27");
+    await waitFor(() => expect(sheet).toHaveTextContent("web stays on nginx:1.27"));
     expect(sheet).toHaveTextContent("It never stopped. Dockwell removed what this made after it failed.");
     expect(sheet).not.toHaveTextContent("was down");
     expect(sheet).not.toHaveTextContent("runs nginx:1.27 again");
@@ -110,7 +117,7 @@ describe("what a failed change says of its rollback", () => {
 
   it("says the old version runs again, and that it was down, once a deploy that broke it is put back", async () => {
     const sheet = await inTheSheet(aFailedDeploy({ state: RollbackState.APPLIED, steps: 1, restored: ["web"] }));
-    expect(sheet).toHaveTextContent("web runs nginx:1.27 again");
+    await waitFor(() => expect(sheet).toHaveTextContent("web runs nginx:1.27 again"));
     expect(sheet).toHaveTextContent("Dockwell put it back after this failed, so it was down while that happened.");
     // What it set out to do is on the record, and nothing says it never happened.
     expect(within(sheet).getByText("What it set out to do")).toBeVisible();
@@ -120,20 +127,77 @@ describe("what a failed change says of its rollback", () => {
 
   it("says only that nothing moved when a deploy failed before it changed anything, not that it runs", async () => {
     const sheet = await inTheSheet(aFailedDeploy({ state: RollbackState.APPLIED }));
-    expect(sheet).toHaveTextContent("web stays on nginx:1.27");
+    await waitFor(() => expect(sheet).toHaveTextContent("web stays on nginx:1.27"));
     expect(sheet).toHaveTextContent("This stopped before it changed anything on the server.");
     expect(sheet).not.toHaveTextContent("was down");
     // It may have stopped, or crashed, long before, and nothing here has read that.
     expect(sheet).not.toHaveTextContent("runs");
-    // Green is for what is known to be well.
+    // Green is for what a check passed.
     const line = sheet.querySelector(".plan-rollback");
-    expect(line).toHaveClass("dw-tone-idle");
     expect(line).not.toHaveClass("dw-tone-healthy");
+  });
+
+  it("goes by what the server says of what runs now, and says nothing of it until it has", async () => {
+    const said = (state: HealthState, output?: string): Api["health"] => ({
+      listHealth: () => ({
+        services: [aHealth("res_web", { state, ...(output ? { said: output } : {}) })],
+      }),
+    });
+    const putBack = aFailedDeploy({ state: RollbackState.APPLIED, steps: 1, restored: ["web"] });
+    const name = "Couldn't deploy nginx:1.28";
+
+    let sheet = await inTheSheet(putBack, name, said(HealthState.HEALTHY, "GET / on port 80 answered 200 OK"));
+    await waitFor(() => expect(sheet).toHaveTextContent("web runs nginx:1.27 again"));
+    expect(sheet.querySelector(".plan-rollback")).toHaveClass("dw-tone-healthy");
+    cleanup();
+
+    // Put back, and stopped since: what it did stands, and it doesn't say that it runs.
+    sheet = await inTheSheet(putBack, name, said(HealthState.NOT_RUNNING));
+    await waitFor(() => expect(sheet).toHaveTextContent("web isn't running now."));
+    expect(sheet).toHaveTextContent("Dockwell put nginx:1.27 back on web");
+    expect(sheet).not.toHaveTextContent("runs nginx:1.27 again");
+    expect(sheet.querySelector(".plan-rollback")).not.toHaveClass("dw-tone-healthy");
+    cleanup();
+
+    sheet = await inTheSheet(aFailedDeploy({ state: RollbackState.APPLIED, steps: 1, restored: [] }), name, said(HealthState.PAUSED));
+    await waitFor(() => expect(sheet).toHaveTextContent("web is paused now, so it serves nothing."));
+    expect(sheet).toHaveTextContent("web stayed on nginx:1.27");
+    expect(sheet).not.toHaveTextContent("web stays on");
+    cleanup();
+
+    // A read that fails says nothing of the app, so it says what Dockwell did and no more.
+    sheet = await inTheSheet(putBack, name, {
+      listHealth: () => {
+        throw new ConnectError("no", Code.Unavailable);
+      },
+    });
+    await waitFor(() => expect(sheet).toHaveTextContent("Dockwell put nginx:1.27 back on web"));
+    expect(sheet).not.toHaveTextContent("runs nginx:1.27 again");
+    expect(sheet).not.toHaveTextContent("isn't running");
+  });
+
+  it("says what runs when putting it back failed, as far as the server can say", async () => {
+    const failed = aFailedDeploy({ state: RollbackState.FAILED, error: "hz-1: no such image" });
+    const name = "Couldn't deploy nginx:1.28";
+    let sheet = await inTheSheet(failed, name, {
+      listHealth: () => ({ services: [aHealth("res_web", { state: HealthState.NOT_RUNNING })] }),
+    });
+    await waitFor(() => expect(sheet).toHaveTextContent("web isn't running now."));
+    expect(sheet).not.toHaveTextContent("may not be running");
+    cleanup();
+
+    sheet = await inTheSheet(failed, name, runningWeb);
+    await waitFor(() => expect(sheet).toHaveTextContent("Something of web runs, and Dockwell can't say which version."));
+    cleanup();
+
+    // Until it has read, what it can't say stays that.
+    sheet = await inTheSheet(failed, name, { listHealth: () => new Promise(() => {}) });
+    expect(sheet).toHaveTextContent("web may not be running, or may be running the new version.");
   });
 
   it("says no outage for an app the rollback didn't have to touch, when it put back what else changed", async () => {
     const sheet = await inTheSheet(aFailedDeploy({ state: RollbackState.APPLIED, steps: 1, restored: ["web-data"] }));
-    expect(sheet).toHaveTextContent("web stays on nginx:1.27");
+    await waitFor(() => expect(sheet).toHaveTextContent("web stays on nginx:1.27"));
     expect(sheet).toHaveTextContent("This stopped before it reached that, and Dockwell put back the rest.");
     expect(sheet).not.toHaveTextContent("was down");
     expect(sheet).not.toHaveTextContent("runs");
@@ -179,6 +243,8 @@ describe("what a failed change says of its rollback", () => {
         error: "Port 8080 is already in use on this server. Choose another port, or stop what uses it, then try again.",
         detail: "hz-1: can't run web: raw chain",
       }),
+      "Couldn't deploy nginx:1.28",
+      { listHealth: () => new Promise(() => {}) },
     );
     const line = sheet.querySelector(".plan-rollback") as HTMLElement;
     expect(line).toHaveAttribute("role", "alert");
@@ -238,10 +304,11 @@ describe("what a failed change says of its rollback", () => {
     expect(seen(asRule, applied(["http"]))).toContain("http is back as it was");
     expect(seen(asRule, applied(["http"]))).not.toContain("was down");
     expect(seen(asRule, applied([]))).toContain("http stays as it was");
-    expect(seen(many, applied(["a", "b"]))).toContain("What ran before runs again");
+    // Nothing here has read how many things run, so it says what Dockwell did.
+    expect(seen(many, applied(["a", "b"]))).toContain("Dockwell put things back as they were");
     expect(seen(many, applied(["a", "b"]))).toContain("some of it was down");
     expect(seen({ ...many, serves: false }, applied(["a", "b"]))).toContain("Everything is back as it was");
-    expect(seen(many, applied([]))).toContain("Everything stays as it was");
+    expect(seen(many, applied([]))).toContain("Everything stayed as it was");
     const going = aFailedDeploy({ state: RollbackState.APPLYING });
     expect(seen(many, going)).toContain("Dockwell is putting things back as they were");
     expect(seen(many, going)).toContain("Some of this may be down until that finishes.");
@@ -331,7 +398,7 @@ describe("what a failed change says of its rollback", () => {
     // It comes back, and the rollback finishes.
     now = status({ state: RollbackState.APPLIED, ...parts });
     act(() => rollback.push(rollbackAt(ChangeState.APPLIED, StepState.DONE)));
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("web runs nginx:1.27 again"));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Dockwell put nginx:1.27 back on web"));
     await waitFor(() => expect(over).toHaveBeenCalledOnce());
   });
 
@@ -351,7 +418,7 @@ describe("what a failed change says of its rollback", () => {
       },
     });
     act(() => rollback.push(rollbackAt(ChangeState.APPLIED, StepState.DONE)));
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("web runs nginx:1.27 again"), {
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Dockwell put nginx:1.27 back on web"), {
       timeout: 4_000,
     });
   });
@@ -375,7 +442,7 @@ describe("what a failed change says of its rollback", () => {
     await waitFor(() => expect(reads).toBeGreaterThan(0));
     await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
     rerender(<RollbackLine change={applied} subject={rollbackSubject(applied.plan)} />);
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("web runs nginx:1.27 again"));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Dockwell put nginx:1.27 back on web"));
     cleanup();
     let watches = 0;
     renderWithApi(<RollbackLine change={applied} subject={rollbackSubject(applied.plan)} />, {
@@ -422,7 +489,7 @@ describe("what a failed change says of its rollback", () => {
     const before = lists;
     now = status({ state: RollbackState.APPLIED, ...parts });
     act(() => rollback.push(rollbackAt(ChangeState.APPLIED, StepState.DONE)));
-    await waitFor(() => expect(sheet).toHaveTextContent("web runs nginx:1.27 again"));
+    await waitFor(() => expect(sheet).toHaveTextContent("Dockwell put nginx:1.27 back on web"));
     await waitFor(() => expect(lists).toBeGreaterThan(before));
   });
 

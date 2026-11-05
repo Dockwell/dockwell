@@ -53,7 +53,7 @@ A check is the one thing a spec can make the agent do on the network, and what i
 - **An agent that's gone isn't called anything.** It reads `UNKNOWN`, and what it last said comes marked stale.
 - **A claim only stands for as long as someone is looking.** Each state says when it was last known and how long that may stand, at least 90 s. Past that, or when Docker stops answering, what only Docker can say reads `UNKNOWN`, and so does a report older than 90 s, whatever it says. The age comes from each clock's own counting, so a server's wrong clock can't make an old state look new. An agent is trusted with its own server, so it could still claim anything of it.
 - **An agent that hasn't read Docker yet says nothing,** so that doesn't read as nothing running.
-- **A paused container reads as not running,** as it serves nothing and Docker stops its checks, so nothing it last said stands for it.
+- **A paused container reads as paused, never as healthy or running,** as it serves nothing and Docker stops its checks, so nothing it last said stands for it.
 - **A step cut short has its check all the same.** The control plane stopping, or an agent going away, leaves a deploy or a restart to finish, and it isn't applied until what runs passes.
 - **A check passing means what it checks.** A TCP check says a port takes a connection, and an HTTP check that the path answered below 400. A command check says nothing of the port a route sends to, so a rollout also asks each route's port to take a connection before it moves anything. Once it has moved traffic, only checks go on.
 

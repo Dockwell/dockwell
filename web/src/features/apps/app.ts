@@ -15,6 +15,7 @@ import type { Status } from "@dockwell/ui";
 
 import { withoutIds } from "../changes/plan";
 import type { ServerSummary } from "../servers/server";
+import type { AppHealth, HealthKind } from "./health";
 
 /** What a service runs, as the first screens know it: an app from an image. */
 export function appOf(service: ServiceInfo): Container | undefined {
@@ -51,7 +52,10 @@ export function deployedAt(service: ServiceInfo): Date {
   return service.updateTime ? timestampDate(service.updateTime) : new Date(0);
 }
 
-/** Where an app stands, from its latest revision's deployments and whether their servers answer. */
+/**
+ * Where an app's record stands, from its latest revision's deployments and whether
+ * their servers answer. It says what was deployed. How that runs now is AppHealth's.
+ */
 export type AppStateKind =
   /** Every server has the latest revision, and it passed the check its step made. */
   | "live"
@@ -95,9 +99,9 @@ const LOOKS: Readonly<Record<AppStateKind, Status>> = {
 };
 
 /**
- * Where an app stands. It says what Dockwell knows and no more: live means the
- * revision deployed and passed the check its step made, and that its servers
- * are there, not that the app is healthy now, which comes with rollouts (#28).
+ * Where an app's record stands. It says what was deployed and no more: live means the
+ * revision deployed and passed the check its step made, and that its servers are
+ * there, not that the app is running now, which is what health says (useHealth).
  * Until the fleet answers, it can't say that much. The fleet lists every server
  * still in it, so one it doesn't list has left.
  */
@@ -168,6 +172,11 @@ const CONCERN: Readonly<Record<AppStateKind, number>> = {
 /** Which of two states is the more concerning. */
 export function worse(a: AppState, b: AppState): AppState {
   return CONCERN[b.kind] < CONCERN[a.kind] ? b : a;
+}
+
+/** Whether a record says anything beyond what was deployed, so it needs saying beside how it runs. */
+export function recordSaysMore(state: AppState): boolean {
+  return state.kind !== "live" && state.kind !== "unknown";
 }
 
 /** Whether a state is one a person should look at. Going as it should, and not knowing yet, aren't. */
@@ -288,9 +297,35 @@ export function keepOrder(
   };
 }
 
-/** Newest first, with what needs you above it all, so a row never hides what is wrong. */
-export function sortGroups(groups: readonly AppGroup[], servers: readonly ServerSummary[] | undefined): AppGroup[] {
-  const looks = new Map(groups.map((g) => [g.key, CONCERN[groupState(g, servers).kind]]));
+/** How much what runs needs you, on the same scale as the record's. */
+const HEALTH_CONCERN: Readonly<Record<HealthKind, number>> = {
+  unhealthy: 0,
+  "not-running": 0,
+  paused: 1,
+  unknown: 2,
+  starting: 4,
+  running: 6,
+  healthy: 6,
+};
+
+/**
+ * Newest first, with what needs you above it all, so a row never hides what is wrong:
+ * by its record or by how it runs, whichever needs you more.
+ */
+export function sortGroups(
+  groups: readonly AppGroup[],
+  servers: readonly ServerSummary[] | undefined,
+  health: (service: ServiceInfo) => AppHealth,
+): AppGroup[] {
+  const concern = (g: AppGroup) =>
+    Math.min(
+      CONCERN[groupState(g, servers).kind],
+      ...g.services.map((s) => {
+        const runs = health(s);
+        return runs.read === "read" ? HEALTH_CONCERN[runs.kind] : 6;
+      }),
+    );
+  const looks = new Map(groups.map((g) => [g.key, concern(g)]));
   return [...groups].sort((a, b) => {
     // Whatever needs you, or is moving, comes first; the calm ones keep their order among themselves.
     const concern = Math.min(looks.get(a.key) ?? 6, 5) - Math.min(looks.get(b.key) ?? 6, 5);

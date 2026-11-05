@@ -5,11 +5,15 @@ import { type ServiceInfo, type ServiceRevision, ServiceService } from "@dockwel
 import { createContext, useContext, useMemo } from "react";
 
 import type { AppState } from "./app";
+import type { AppHealth } from "./health";
 
 /** The app a tab of /apps/<id> shows, which its frame has read. */
 export interface AppValue {
   service: ServiceInfo;
+  /** What was deployed, and how that went. */
   state: AppState;
+  /** How it runs now. */
+  health: AppHealth;
   /** Every service, for what it runs with. */
   services: readonly ServiceInfo[];
 }

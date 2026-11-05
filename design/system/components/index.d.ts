@@ -1,6 +1,6 @@
 import type * as React from 'react';
 
-export type Status = 'healthy' | 'degraded' | 'down' | 'deploying' | 'stopped';
+export type Status = 'healthy' | 'running' | 'degraded' | 'down' | 'deploying' | 'stopped' | 'unknown';
 export type Tone = 'healthy' | 'warning' | 'critical' | 'info';
 export type IconName =
   | 'search' | 'check' | 'x' | 'plus' | 'minus' | 'chevron-right' | 'chevron-down' | 'chevron-up-down' | 'arrow-right'
@@ -41,7 +41,7 @@ export declare function StatusBadge(props: StatusBadgeProps): React.ReactElement
 
 export interface GlyphProps {
   /** The status shape. Shape carries meaning with colour, so state never depends on colour alone. */
-  shape?: 'circle' | 'triangle' | 'square' | 'spinner' | 'ring' | 'info';
+  shape?: 'circle' | 'triangle' | 'square' | 'spinner' | 'ring' | 'dotted-ring' | 'dashed-ring' | 'info';
   /** Pixel size of the square glyph. Default 10. Colour comes from `currentColor`. */
   size?: number;
   className?: string;

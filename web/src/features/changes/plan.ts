@@ -38,6 +38,11 @@ const ACTIONS: Readonly<Record<Exclude<PlanAction, PlanAction.NONE>, DiffAction>
   [PlanAction.DELETE]: "destroy",
 };
 
+/** A plan that restarts what it's about, which changes no spec, so it has nothing to undo or go back to. */
+export function restarts(plan: Plan | undefined): boolean {
+  return (plan?.servers ?? []).some((s) => s.steps.some((step) => step.restart !== ""));
+}
+
 /** A step that starts what's there and isn't running, so nothing serves while it does. */
 export function startsStopped(step: PlanStep): boolean {
   return step.changes.some((c) => c.path === "state" && c.to === "running");

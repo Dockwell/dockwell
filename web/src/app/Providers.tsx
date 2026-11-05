@@ -22,6 +22,8 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
         down: t`Down`,
         deploying: t`Deploying`,
         stopped: t`Stopped`,
+        running: t`Running`,
+        unknown: t`Unknown`,
       },
       remove: (what) => t`Remove ${what}`,
       optional: t`Optional`,
@@ -68,6 +70,10 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
               return t`${count} deploying`;
             case "stopped":
               return t`${count} stopped`;
+            case "running":
+              return t`${count} running`;
+            case "unknown":
+              return t`${count} unknown`;
           }
         },
         tile: (name, status, cpu) => (cpu == null ? t`${name}, ${status}` : t`${name}, ${status}, CPU ${cpu}%`),

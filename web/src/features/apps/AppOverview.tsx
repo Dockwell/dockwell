@@ -2,13 +2,17 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
-import { useTransport } from "@connectrpc/connect-query";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   ChangeState,
   Connection,
   type Container,
   type Domain,
   type DomainRoute,
+  DeploymentState,
+  EventKind,
+  EventService,
+  HealthCheckKind,
   type Mount,
   Protocol,
   type ServiceInfo,
@@ -35,8 +39,10 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { type CSSProperties, useEffect, useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { useDescribe, useHealthEventWords } from "../activity/describe";
 import { MachineWords } from "../changes/FailureNotice";
 import { withoutIds } from "../changes/plan";
 import { CopyButton } from "../servers/CopyButton";
@@ -62,6 +68,8 @@ import {
 import { DomainFacts, DomainNote, useSilent } from "./DomainNote";
 import { lookOf, routeWhere, useAppDomains, visitorUrl } from "./domains";
 import { ExportSheet } from "./ExportSheet";
+import { HealthBadge, RunsOnServers, useHealthWords, useRunsNow } from "./Health";
+import { type AppHealth, runsAsFarAsAnyoneKnows, useHealth } from "./health";
 import { ImageName, WholeImage } from "./ImageName";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { usePlaces } from "./useServices";
@@ -70,11 +78,10 @@ import { useAppWords } from "./words";
 const RECENT = 5;
 
 /**
- * One app at a glance (App-Overview, M-App): what runs and where it is
- * reached, its recent deployments, how it is configured, and what it runs
- * with. It says what is wrong first, with the way out. There are no metrics
- * or replica counts until the API has them (#28), and restarting isn't here
- * as nothing plans one yet.
+ * One app at a glance (App-Overview, M-App): how it runs now and where it is reached,
+ * how that has gone, its recent deployments, how it is configured, and what it runs
+ * with. It says what is wrong first, with the way out. There are no metrics or replica
+ * counts until the API has them.
  */
 export function AppOverview() {
   const { service } = useApp();
@@ -83,6 +90,7 @@ export function AppOverview() {
       <div className="app-main">
         <AppNotice />
         <RunningPanel />
+        <RecentHealth />
         <RecentDeployments />
       </div>
       <div className="app-aside">
@@ -95,15 +103,81 @@ export function AppOverview() {
   );
 }
 
+/** What a health state comes to, as a notice, where the record has nothing worse to say. */
+function HealthNotice({ health, name, serviceId }: { health: AppHealth; name: string; serviceId: string }) {
+  const { t } = useLingui();
+  const { fleet } = useFleetView();
+  const words = useHealthWords();
+  const now = useAgoNow(undefined);
+  if (health.read !== "read") return null;
+  const those = health.servers.filter((s) => s.kind === health.kind);
+  const where = those.map((s) => s.serverName).join(", ");
+  const logs = (
+    <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }}>
+      <Trans>See its logs</Trans>
+    </RouterButtonLink>
+  );
+  const said = those.map((s) => (
+    <p key={s.serverId} className="app-notice-said">
+      {fleet ? <code>{s.serverName}: </code> : null}
+      <MachineWords names={[s.container]}>{words.says(s, now)}</MachineWords>
+    </p>
+  ));
+  switch (health.kind) {
+    case "not-running":
+      return (
+        <Callout
+          tone="critical"
+          title={fleet ? t`${name} isn't running on ${where}` : t`${name} isn't running`}
+          actions={logs}
+        >
+          {said}
+          <Trans>Nothing starts it on its own. Restart it, or deploy.</Trans>
+        </Callout>
+      );
+    case "unhealthy":
+      return (
+        <Callout
+          tone="warning"
+          title={fleet ? t`${name} fails its health check on ${where}` : t`${name} fails its health check`}
+          actions={logs}
+        >
+          {said}
+          <Trans>It stays up until someone changes something. Fix what its check reports, or the check, then deploy.</Trans>
+        </Callout>
+      );
+    case "paused":
+      return (
+        <Callout tone="warning" title={fleet ? t`${name} is paused on ${where}` : t`${name} is paused`}>
+          {said}
+        </Callout>
+      );
+    case "unknown":
+      return (
+        <Callout tone="warning" title={t`Nobody can say how ${name} runs`}>
+          {said}
+          <Trans>
+            It may well be running. Check that <code>dockwell run</code> is still running on the server.
+          </Trans>
+        </Callout>
+      );
+    case "healthy":
+    case "running":
+    case "starting":
+      return null;
+  }
+}
+
 /** The fact, then what it means, then what to do, when anything needs saying. */
 function AppNotice() {
   const { t } = useLingui();
-  const { service, state } = useApp();
+  const { service, state, health } = useApp();
   const sheet = useChangeSheet();
   const name = nameOf(service);
   const servers = state.servers.join(", ");
   const image = imageOf(service);
   const revision = revisionName(service.revision);
+  const runsNow = useRunsNow(health, name);
   const openChange = (id: string) => sheet.open({ kind: "change", id });
   switch (state.kind) {
     case "deploying":
@@ -170,10 +244,21 @@ function AppNotice() {
               <MachineWords>{withoutIds(state.error)}</MachineWords>{" "}
             </span>
           ) : null}
-          <Trans>
-            {name} may not be running, or may be running the new version. Check it, then deploy what should run, or fix
-            it on the server.
-          </Trans>
+          {health.read !== "read" ? (
+            <Trans>
+              {name} may not be running, or may be running the new version. Check it, then deploy what should run, or
+              fix it on the server.
+            </Trans>
+          ) : runsNow ? (
+            <>
+              {runsNow} <Trans>Deploy what should run, or fix it on the server.</Trans>
+            </>
+          ) : (
+            <Trans>
+              Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or
+              fix it on the server.
+            </Trans>
+          )}
         </Callout>
       );
     case "failed":
@@ -205,10 +290,20 @@ function AppNotice() {
             </Button>
           }
         >
-          <Trans>
-            {name} is on <code>{image}</code>, as it was before that deploy. Fix what stopped the deploy, then deploy
-            again.
-          </Trans>
+          {runsAsFarAsAnyoneKnows(health) ? (
+            <Trans>
+              {name} is on <code>{image}</code>, as it was before that deploy. Fix what stopped the deploy, then deploy
+              again.
+            </Trans>
+          ) : (
+            <>
+              <Trans>
+                Dockwell put <code>{image}</code> back, as it was before that deploy.
+              </Trans>{" "}
+              {runsNow}{" "}
+              <Trans>Fix what stopped the deploy, then deploy again.</Trans>
+            </>
+          )}
         </Callout>
       );
     case "offline":
@@ -221,7 +316,7 @@ function AppNotice() {
           })}
         >
           <Trans>
-            {name} keeps running there, but Dockwell can't see it or change it until its agent reconnects. Check that{" "}
+            Dockwell can't see {name} there or change it until its agent reconnects. It may well be running. Check that{" "}
             <code>dockwell run</code> is still running on the server.
           </Trans>
         </Callout>
@@ -236,21 +331,20 @@ function AppNotice() {
         </Callout>
       );
   }
-  return null;
+  return <HealthNotice health={health} name={name} serviceId={service.id} />;
 }
 
 /**
- * What runs now, and where it is reached. Who deployed it and when is the
- * page's lead and the timeline's first line, so wide screens lead here with
- * the address; a phone has no lead, so it says it here. During a deploy the
- * image that runs is the one before it, until it is replaced.
+ * How it runs now, by what its servers say, and where it is reached. Who deployed it
+ * and when is the page's lead and the timeline's first line, so wide screens lead here
+ * with the address; a phone has no lead, so it says it here. During a deploy the image
+ * that runs is the one before it, until it is replaced.
  */
 function RunningPanel() {
   const { t } = useLingui();
-  const { service, state } = useApp();
+  const { service, state, health } = useApp();
   const phone = useMediaQuery(PHONE_QUERY);
-  const { fleet, servers } = useFleetView();
-  const words = useAppWords();
+  const { fleet } = useFleetView();
   const who = useWhoWords();
   const time = useTimeWords();
   const now = useAgoNow(deployedAt(service));
@@ -259,7 +353,6 @@ function RunningPanel() {
   const image = imageOf(service);
   const revision = revisionName(service.revision);
   const when = service.updateTime ? time.ago(timestampDate(service.updateTime), now) : "";
-  const stateWord = words.state(state);
   const moving = isMoving(state);
   const [addingPort, setAddingPort] = useState(false);
   const [addingDomain, setAddingDomain] = useState(false);
@@ -285,36 +378,13 @@ function RunningPanel() {
   const rollingBack = (moving && service.rolledBackChangeId !== "") || state.kind === "rollback-failed";
   const running = rollingBack ? "" : moving ? bareImage(before?.image ?? "") : image;
   const away = state.servers.join(", ");
-  const columns: TableColumn<ServiceInfo["deployments"][number] & { id: string }>[] = [
-    {
-      key: "server",
-      header: t`Server`,
-      render: (row) => <code className="app-server">{row.serverName}</code>,
-    },
-    {
-      key: "status",
-      header: t`Status`,
-      width: 160,
-      render: (row) => {
-        const online = servers?.find((s) => s.id === row.serverId)?.connection ?? Connection.CONNECTED;
-        const one = appState({ deployments: [row], rolledBackChangeId: "", changeState: service.changeState }, servers);
-        return (
-          <StatusBadge
-            status={online === Connection.CONNECTED ? one.status : "degraded"}
-            label={online === Connection.CONNECTED ? words.state(one) : t`Offline`}
-            labelIsState
-          />
-        );
-      },
-    },
-  ];
   return (
     <Panel
-      title={rollingBack ? t`What runs` : t`Running`}
+      title={t`What runs`}
       actions={
         // The title carries the state on wide screens; the phone's header has only the word.
         <span className="app-running-actions">
-          {phone ? <StatusBadge status={state.status} label={stateWord} labelIsState variant="pill" /> : null}
+          {phone ? <HealthBadge health={health} variant="pill" /> : null}
           {reached ? (
             <>
               <button type="button" className="app-panel-link" onClick={() => setAddingDomain(true)}>
@@ -330,6 +400,7 @@ function RunningPanel() {
       flush
       className="app-running"
     >
+      <RunsOnServers health={health} fleet={fleet} />
       {phone ? (
         <p className="app-running-now">
           {state.kind === "rollback-failed" ? (
@@ -384,15 +455,6 @@ function RunningPanel() {
           </span>
         )}
       </div>
-      {fleet ? (
-        <Table
-          className="app-running-servers"
-          density="compact"
-          columns={columns}
-          rows={service.deployments.map((d) => ({ ...d, id: d.serverId }))}
-          caption={t`Where it runs`}
-        />
-      ) : null}
       {addingPort ? <AddPortSheet service={service} onClose={() => setAddingPort(false)} /> : null}
       {addingDomain ? <AddDomainSheet service={service} onClose={() => setAddingDomain(false)} /> : null}
       {movingBehind ? (
@@ -600,6 +662,58 @@ function ReachedAt({
   );
 }
 
+/** How many of a service's health events its page shows. The server has told of each at most once in 5 minutes. */
+const RECENT_HEALTH = 5;
+
+/**
+ * How it has run lately, as the timeline tells of it. A flapping app is one line every
+ * few minutes that says how many times it changed. It says nothing while nothing has
+ * gone wrong, and a page reads the same in that case as in one whose read failed, as
+ * what runs now is said above.
+ */
+function RecentHealth() {
+  const { t } = useLingui();
+  const { service } = useApp();
+  const words = useHealthEventWords();
+  const describe = useDescribe();
+  const time = useTimeWords();
+  const events = useQuery(
+    EventService.method.listEvents,
+    { kinds: [EventKind.HEALTH], resourceId: service.id, pageSize: RECENT_HEALTH },
+    { refetchInterval: 30_000 },
+  );
+  const list = events.data?.events ?? [];
+  const newest = list[0]?.time;
+  const now = useAgoNow(newest ? timestampDate(newest) : undefined);
+  if (list.length === 0) return null;
+  const items: TimelineEvent[] = list.map((event) => {
+    const when = event.time ? timestampDate(event.time) : new Date(0);
+    const look = words.look(event);
+    return {
+      id: event.id,
+      kind: "config",
+      icon: "activity",
+      ...(look ? { status: look.status, statusLabel: look.word } : {}),
+      title: describe(event, new Map()).title,
+      meta: words.detail(event),
+      time: time.ago(when, now),
+      datetime: when.toISOString(),
+    };
+  });
+  return (
+    <Panel
+      title={t`Recent health`}
+      actions={
+        <Link to="/activity" search={{ kind: "health", resource: service.id }} className="app-panel-link">
+          <Trans>All of it</Trans>
+        </Link>
+      }
+    >
+      <Timeline className="app-timeline" events={items} />
+    </Panel>
+  );
+}
+
 /** The latest deployments, each with who did it, and a way back from the one that is live. */
 function RecentDeployments() {
   const { t } = useLingui();
@@ -630,7 +744,7 @@ function RecentDeployments() {
       kind: change?.reverts || rev.rolledBackTo > 0n ? "rollback" : "deploy",
       ...(failed ? { tone: "critical" as const } : {}),
       // The state shows where it says something: on the one that is live, and on what didn't work.
-      ...(i === 0 || failed ? { status: look.status, statusLabel: look.word } : {}),
+      ...((i === 0 || failed) && look.status ? { status: look.status, statusLabel: look.word } : {}),
       title: revisionTitle(rev).node,
       revision: revisionName(rev.number),
       actor: who.name(change),
@@ -698,15 +812,17 @@ function RecentDeployments() {
 /** How it is set up, as far as that isn't the image's own. */
 function ConfigurationPanel() {
   const { t } = useLingui();
-  const { service } = useApp();
+  const { service, health } = useApp();
   const words = useAppWords();
+  const healthWords = useHealthWords();
   const [exporting, setExporting] = useState(false);
   const app = appOf(service);
   const values = valuesOf(service);
   const secrets = values.filter((v) => v.kind === "secret").length;
   const plain = values.length - secrets;
   const networks = app?.networks ?? [];
-  const health = app?.healthcheck?.test ?? [];
+  const check = app?.healthcheck;
+  const test = check?.test ?? [];
   return (
     <Panel
       title={t`Configuration`}
@@ -751,14 +867,30 @@ function ConfigurationPanel() {
         ) : null}
         <dt>{t`Restarts`}</dt>
         <dd>{words.restart(app?.restart ?? 0)}</dd>
-        {health.length > 0 ? (
-          <>
-            <dt>{t`Health check`}</dt>
-            <dd>
-              <code>{health.filter((part) => part !== "CMD" && part !== "CMD-SHELL").join(" ")}</code>
-            </dd>
-          </>
-        ) : null}
+        <dt>{t`Health check`}</dt>
+        <dd className="app-check">
+          {check?.http ? (
+            <span>
+              <code>GET {check.http.path || "/"}</code> <Trans>on port {check.http.port}</Trans>
+            </span>
+          ) : check?.tcp ? (
+            <span>
+              <Trans>A connection to port {check.tcp.port}</Trans>
+            </span>
+          ) : test[0] === "NONE" ? (
+            <span className="app-muted">{t`Turned off. ${healthWords.noCheck}`}</span>
+          ) : test.length > 0 ? (
+            <code>{test.filter((part) => part !== "CMD" && part !== "CMD-SHELL").join(" ")}</code>
+          ) : health.check === HealthCheckKind.COMMAND ? (
+            <span>
+              <Trans>The image's own</Trans>
+            </span>
+          ) : health.read === "read" ? (
+            <span className="app-muted">{t`None. ${healthWords.noCheck}`}</span>
+          ) : (
+            <span className="app-muted">{t`None set here. The image may have one.`}</span>
+          )}
+        </dd>
         <dt>{t`Environment`}</dt>
         <dd>
           {values.length > 0 ? (
@@ -839,16 +971,14 @@ function MountRow({ mount }: { mount: Mount }) {
 function RunsWithPanel() {
   const { t } = useLingui();
   const { service, services } = useApp();
-  const { servers } = useFleetView();
   const places = usePlaces();
-  const words = useAppWords();
+  const health = useHealth();
   const others = companions(service, services, places.place);
   if (others.length === 0) return null;
   return (
     <Panel title={t`Runs with`} flush>
       <ul className="app-companions">
         {others.map((other) => {
-          const state = appState(other, servers);
           return (
             <li key={other.id}>
               <Link to="/apps/$serviceId" params={{ serviceId: other.id }} className="app-companion">
@@ -856,7 +986,7 @@ function RunsWithPanel() {
                   <span className="app-companion-name">{nameOf(other)}</span>
                   <ImageName image={imageOf(other)} className="app-companion-image" />
                 </span>
-                <StatusBadge status={state.status} label={words.state(state)} labelIsState />
+                <HealthBadge health={health.of(other)} />
               </Link>
             </li>
           );

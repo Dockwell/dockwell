@@ -15,6 +15,7 @@ import {
   Connection,
   DeploymentState,
   FieldOp,
+  HealthState,
   IntentKind,
   Protocol,
   type RollBackServiceRequest,
@@ -31,7 +32,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { anApp, aProject, aRevision, places, projectPlaces, SERVER } from "../../test/apps";
+import { aHealth, anApp, aProject, aRevision, places, projectPlaces, running, SERVER } from "../../test/apps";
 import { applied, moved, watched, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -319,8 +320,8 @@ describe("an app's frame", () => {
     onPhone();
     const { container } = renderAt("/apps/svc_web", api());
     expect(await screen.findByRole("heading", { level: 1, name: "web" })).toBeVisible();
-    expect(screen.getByText("r3 · Live · web:1.5")).toBeVisible();
-    expect(container.querySelector(".app-actionbar")).toHaveTextContent(/^Deploy$/);
+    expect(screen.getByText("r3 · Checking · web:1.5")).toBeVisible();
+    expect(container.querySelector(".app-actionbar")).toHaveTextContent(/^RestartDeploy$/);
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/apps");
     await expectAccessible(container);
   });
@@ -375,7 +376,7 @@ describe("an app's frame", () => {
 describe("an app's overview", () => {
   it("says what runs, where it is reached, and how it is set up", async () => {
     const { container } = renderAt("/apps/svc_web", api());
-    const running = await screen.findByRole("region", { name: "Running" });
+    const running = await screen.findByRole("region", { name: "What runs" });
     // A long name wraps after a slash, rather than in the middle of a word.
     expect(within(running).getByText("ghcr.io/acme/web:1.5").querySelectorAll("wbr")).toHaveLength(2);
     expect(await within(running).findByRole("link", { name: "Open 49.12.33.7:8080" })).toHaveAttribute(
@@ -403,7 +404,7 @@ describe("an app's overview", () => {
   it("says who deployed it inside the panel on a phone, which has no lead", async () => {
     onPhone();
     renderAt("/apps/svc_web", api());
-    const running = await screen.findByRole("region", { name: "Running" });
+    const running = await screen.findByRole("region", { name: "What runs" });
     await waitFor(() => expect(running).toHaveTextContent("r3 deployed 1 h ago by Mira Chen"));
   });
 
@@ -427,7 +428,7 @@ describe("an app's overview", () => {
         services: { listServices: () => ({ services: [moving] }), listServiceRevisions: () => ({ revisions: list }) },
       }),
     );
-    const running = await screen.findByRole("region", { name: "Running" });
+    const running = await screen.findByRole("region", { name: "What runs" });
     expect(await within(running).findByText("nginx:1.5")).toBeVisible();
     expect(running).not.toHaveTextContent("nginx:1.6");
     expect(container.querySelector(".page-lead")).toHaveTextContent("Deploying nginx:1.6");
@@ -450,7 +451,7 @@ describe("an app's overview", () => {
         services: { listServices: () => ({ services: [moving] }), listServiceRevisions: () => ({ revisions: [] }) },
       }),
     );
-    const running = await screen.findByRole("region", { name: "Running" });
+    const running = await screen.findByRole("region", { name: "What runs" });
     expect(running).toHaveTextContent("Nothing yet");
     expect(running).not.toHaveTextContent("nginx:1.6");
   });
@@ -478,13 +479,12 @@ describe("an app's overview", () => {
     expect(await within(panel).findByText("r2")).toBeVisible();
   });
 
-  it("shows no metric or restart it has no API for", async () => {
+  it("shows no metric it has no API for", async () => {
     renderAt("/apps/svc_web", api());
-    await screen.findByRole("region", { name: "Running" });
-    for (const name of ["Metrics", "Replicas", "Health check"]) {
+    await screen.findByRole("region", { name: "What runs" });
+    for (const name of ["Metrics", "Replicas"]) {
       expect(screen.queryByRole("region", { name })).not.toBeInTheDocument();
     }
-    expect(screen.queryByRole("button", { name: "Restart" })).not.toBeInTheDocument();
   });
 
   it("says when nothing outside reaches it, and how to change that, as a plan", async () => {
@@ -520,7 +520,7 @@ describe("an app's overview", () => {
         },
       }),
     );
-    const running = await screen.findByRole("region", { name: "Running" });
+    const running = await screen.findByRole("region", { name: "What runs" });
     expect(await within(running).findByText(/Nothing outside the server reaches it yet/)).toBeVisible();
     await expectAccessible(container);
     await user.click(within(running).getByRole("button", { name: "Add a port" }));
@@ -758,7 +758,7 @@ describe("an app's overview", () => {
         },
       }),
     );
-    const running = await screen.findByRole("region", { name: "Running" });
+    const running = await screen.findByRole("region", { name: "What runs" });
     expect(await within(running).findByText("app.example.com")).toBeVisible();
     expect(within(running).getByText("Waiting for the certificate authority to answer")).toBeVisible();
     // Nothing to open until it answers.
@@ -796,7 +796,7 @@ describe("an app's overview", () => {
     expect(words.closest("li")).toHaveClass("is-failed");
     expect(screen.queryByRole("link", { name: "Open app.example.com" })).not.toBeInTheDocument();
     // A domain with no port still has the way to add either.
-    const running = screen.getByRole("region", { name: "Running" });
+    const running = screen.getByRole("region", { name: "What runs" });
     expect(within(running).getByRole("button", { name: "Add a domain" })).toBeVisible();
     expect(within(running).getByRole("button", { name: "Add a port" })).toBeVisible();
   });
@@ -1323,7 +1323,7 @@ describe("an app's overview", () => {
           ...more,
         }),
       );
-      return screen.findByRole("region", { name: "Running" });
+      return screen.findByRole("region", { name: "What runs" });
     };
 
     it("gives each state a shape and a word, the port, and how long a certificate has", async () => {
@@ -1613,7 +1613,7 @@ describe("an app's overview", () => {
           },
         }),
       );
-      const running = await screen.findByRole("region", { name: "Running" });
+      const running = await screen.findByRole("region", { name: "What runs" });
       expect(await within(running).findByText("Couldn't read this app's domains")).toBeVisible();
       expect(within(running).getByRole("link", { name: /:8081/ })).toBeVisible();
     });
@@ -1646,7 +1646,7 @@ describe("an app's overview", () => {
           },
         }),
       );
-      const running = await screen.findByRole("region", { name: "Running" });
+      const running = await screen.findByRole("region", { name: "What runs" });
       const row = (await within(running).findByText("app.example.com")).closest("li");
       expect(row).toHaveTextContent("Port 18080");
       expect(running).not.toHaveTextContent("Nothing outside the server reaches it yet");
@@ -1696,7 +1696,7 @@ describe("an app's overview", () => {
       await user.click(within(review).getByRole("button", { name: /Apply plan/ }));
       await screen.findByRole("dialog", { name: "Applying" });
       watch.push(watched(applied(planned)));
-      return await screen.findByRole("dialog", { name: "alone is live" });
+      return await screen.findByRole("dialog", { name: "alone is deployed" });
     };
 
     it.each([
@@ -1707,7 +1707,7 @@ describe("an app's overview", () => {
       const done = await toArrival(user);
       await user.click(await within(done).findByRole("button", { name: button }));
       const sheet = await screen.findByRole("dialog", { name: form });
-      expect(screen.queryByRole("dialog", { name: "alone is live" })).toBeNull();
+      expect(screen.queryByRole("dialog", { name: "alone is deployed" })).toBeNull();
       await waitFor(() => expect(router.state.location.search).not.toHaveProperty("add"));
       await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
       await waitFor(() => expect(screen.queryByRole("dialog", { name: form })).toBeNull());
@@ -1863,7 +1863,7 @@ describe("an app's overview", () => {
         domains: { listDomains: () => ({ domains: [] }) },
       }),
     );
-    await screen.findByRole("region", { name: "Running" });
+    await screen.findByRole("region", { name: "What runs" });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -2097,7 +2097,7 @@ describe("an app's overview", () => {
           reads += 1;
           return { domains: [silent()] };
         });
-        const running = await screen.findByRole("region", { name: "Running" });
+        const running = await screen.findByRole("region", { name: "What runs" });
         expect(await within(running).findByText("Waiting for the server")).toBeVisible();
         await passes(50_000);
         expect(within(running).getByText("Waiting for the server")).toBeVisible();
@@ -2124,7 +2124,7 @@ describe("an app's overview", () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       try {
         atPage(() => ({ domains: [silent("")] }));
-        const running = await screen.findByRole("region", { name: "Running" });
+        const running = await screen.findByRole("region", { name: "What runs" });
         expect(await within(running).findByText("Issuing")).toBeVisible();
         await passes(61_000);
         expect(running).toHaveTextContent("hz-1 hasn't reported yet.");
@@ -2142,7 +2142,7 @@ describe("an app's overview", () => {
           reads += 1;
           return { domains };
         });
-        const running = await screen.findByRole("region", { name: "Running" });
+        const running = await screen.findByRole("region", { name: "What runs" });
         await within(running).findByText("Issuing");
         await passes(95_000);
         expect(running).toHaveTextContent("hz-1 hasn't reported yet.");
@@ -2193,7 +2193,7 @@ describe("an app's overview", () => {
         },
       }),
     );
-    const running = await screen.findByRole("region", { name: "Running" });
+    const running = await screen.findByRole("region", { name: "What runs" });
     expect(await within(running).findByText("Waiting for the server")).toBeVisible();
     expect(within(running).queryByText("Issuing")).toBeNull();
     expect(within(running).queryByRole("link", { name: "Open app.example.com" })).toBeNull();
@@ -2223,7 +2223,7 @@ describe("an app's overview", () => {
         domains: { listDomains },
       }),
     );
-    const running = await screen.findByRole("region", { name: "Running" });
+    const running = await screen.findByRole("region", { name: "What runs" });
     expect(await within(running).findByText("TLS ends in front")).toBeVisible();
     expect(within(running).queryByText("Issuing")).toBeNull();
     expect(within(running).getByRole("link", { name: "Open app.example.com" })).toHaveAttribute(
@@ -2234,7 +2234,7 @@ describe("an app's overview", () => {
 
   it("offers another port once it has one", async () => {
     renderAt("/apps/svc_web", api());
-    const running = await screen.findByRole("region", { name: "Running" });
+    const running = await screen.findByRole("region", { name: "What runs" });
     expect(within(running).getByRole("button", { name: "Add a port" })).toBeVisible();
   });
 
@@ -2247,7 +2247,7 @@ describe("an app's overview", () => {
       ],
     });
     renderAt("/apps/svc_dns", api([both]));
-    const running = await screen.findByRole("region", { name: "Running" });
+    const running = await screen.findByRole("region", { name: "What runs" });
     await waitFor(() => expect(within(running).getAllByRole("listitem")).toHaveLength(2));
     expect(spy.mock.calls.flat().join(" ")).not.toContain("same key");
     spy.mockRestore();
@@ -2274,10 +2274,30 @@ describe("an app's overview", () => {
         ],
       },
     );
-    const { container } = renderAt("/apps/svc_web", api([both], {}, hz1, hz2));
-    const table = await screen.findByRole("table", { name: "Where it runs" });
-    expect(within(table).getByRole("row", { name: /hz-1/ })).toHaveTextContent("Live");
-    expect(await within(table).findByRole("row", { name: /hz-2 .*Offline/ })).toBeVisible();
+    const { container } = renderAt(
+      "/apps/svc_web",
+      api(
+        [both],
+        {
+          health: {
+            listHealth: () => ({
+              services: [
+                aHealth(
+                  "svc_web",
+                  { state: HealthState.NO_CHECK },
+                  { state: HealthState.UNKNOWN, server: "srv_2", serverName: "hz-2" },
+                ),
+              ],
+            }),
+          },
+        },
+        hz1,
+        hz2,
+      ),
+    );
+    const panel = await screen.findByRole("region", { name: "What runs" });
+    await waitFor(() => expect(panel).toHaveTextContent("hz-1"));
+    expect(panel).toHaveTextContent("hz-2");
     expect(await screen.findByRole("status")).toHaveTextContent("hz-2 isn't connected");
     await expectAccessible(container);
   });
@@ -2381,7 +2401,6 @@ describe("an app's overview", () => {
     const panel = await screen.findByRole("region", { name: "What runs" });
     expect(panel).toHaveTextContent("Unknown, as putting it back failed");
     expect(panel).not.toHaveTextContent("nginx:slow");
-    expect(screen.queryByRole("region", { name: "Running" })).toBeNull();
     const lead = container.querySelector(".page-lead");
     expect(lead).toHaveTextContent("Putting nginx:slow back failed");
     expect(lead).not.toHaveTextContent("deployed");
@@ -2405,7 +2424,7 @@ describe("an app's overview", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("The last deploy of web failed");
     expect(alert).not.toHaveTextContent("Putting web back");
-    expect(await screen.findByRole("region", { name: "Running" })).toBeVisible();
+    expect(await screen.findByRole("region", { name: "What runs" })).toBeVisible();
     expect(screen.queryByText("Rollback failed")).toBeNull();
   });
 
@@ -2654,11 +2673,10 @@ describe("an app's overview", () => {
     second.unmount();
 
     const back = anApp("web", "nginx:1.4", {}, { rolledBackChangeId: "chg_failed" });
-    renderAt("/apps/svc_web", api([back]));
+    renderAt("/apps/svc_web", api([back], { health: running(back) }));
     const said = await screen.findByRole("status");
     expect(said).toHaveTextContent("The last deploy failed, so Dockwell rolled it back");
-    expect(said).toHaveTextContent("web is on nginx:1.4, as it was before that deploy.");
-    // Nothing read what runs, which may have stopped or crashed long before.
+    await waitFor(() => expect(said).toHaveTextContent("web is on nginx:1.4, as it was before that deploy."));
     expect(said).not.toHaveTextContent("runs");
     expect(said).not.toHaveTextContent("again, as");
     expect(within(said).getByRole("button", { name: "See why" })).toBeVisible();
@@ -2844,7 +2862,7 @@ describe("an app's deployments", () => {
     const { container } = renderAt("/apps/svc_web/deployments", api());
     const table = await screen.findByRole("table", { name: "Revisions of web" });
     const r3 = await within(table).findByRole("row", { name: /r3/ });
-    expect(r3).toHaveTextContent("Live");
+    expect(r3).not.toHaveTextContent("Live");
     expect(r3).toHaveTextContent("Deployed web:1.5");
     expect(r3).not.toHaveTextContent("to web");
     expect(r3).toHaveTextContent("Mira Chen");

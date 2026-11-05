@@ -13,12 +13,13 @@ import { useAppWords } from "./words";
 
 /** A revision's place in an app's history, as a status and a word. */
 export interface Look {
-  status: Status;
+  /** Nothing, for a revision that deployed: a record says nothing of how that runs now, so it has no state to show. */
+  status?: Status;
   word: string;
 }
 
 /**
- * Where a revision stands: failed, deploying, live, rolled back or replaced.
+ * Where a revision stands: failed, deploying, deployed, rolled back or replaced.
  * The one that runs says what the app's header says when that is more than
  * "it deployed", as when its server is offline. What failed stays failed,
  * whatever is still marked as on its way.
@@ -44,7 +45,7 @@ export function useRevisionLook() {
         if (state && (state.kind === "offline" || state.kind === "unknown" || state.kind === "unplaced")) {
           return { status: state.status, word: words.state(state) };
         }
-        return { status: "healthy", word: t({ message: "Live", context: "An app whose latest revision is deployed" }) };
+        return { word: t({ message: "Deployed", context: "An app whose latest revision is deployed" }) };
       }
       if (change?.undoneBy) return { status: "stopped", word: t`Rolled back` };
       return { status: "stopped", word: t`Replaced` };

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { useQuery } from "@connectrpc/connect-query";
-import { LogService } from "@dockwell/api";
+import { createClient } from "@connectrpc/connect";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
+import { ChangeService, LogService } from "@dockwell/api";
 import { Button, Callout, Icon, PHONE_QUERY, StatusBadge, TabNav, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useMatch } from "@tanstack/react-router";
@@ -11,14 +12,27 @@ import { type ReactNode, type RefObject, useMemo, useRef, useState } from "react
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink, RouterTabLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { LogsSearchButton } from "../logs/phoneSearch";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { AppContext, useApp, useRevisions } from "./AppContext";
-import { appState, deployedAt, environmentOf, imageOf, isMoving, nameOf, revisionName, shortImage } from "./app";
+import {
+  appState,
+  deployedAt,
+  environmentOf,
+  imageOf,
+  isMoving,
+  nameOf,
+  recordSaysMore,
+  revisionName,
+  shortImage,
+} from "./app";
 import { DeploySheet } from "./DeploySheet";
+import { HealthBadge, useHealthTitle, useHealthWords } from "./Health";
+import { useHealth } from "./health";
 import { WholeImage } from "./ImageName";
 import { useWhoWords } from "./revision";
 import { usePlaces, useServices, useServicesLive } from "./useServices";
@@ -36,11 +50,13 @@ export function AppLayout({ serviceId, children }: { serviceId: string; children
   const query = useServices();
   const { reconnecting } = useServicesLive();
   const { servers } = useFleetView();
+  const healthView = useHealth();
   const service = query.data?.find((s) => s.id === serviceId);
   const state = useMemo(() => (service ? appState(service, servers) : undefined), [service, servers]);
+  const health = healthView.of(service ?? { id: serviceId });
   const value = useMemo(
-    () => (service && state ? { service, state, services: query.data ?? [] } : undefined),
-    [service, state, query.data],
+    () => (service && state ? { service, state, health, services: query.data ?? [] } : undefined),
+    [service, state, health, query.data],
   );
 
   // A service that is gone can still have logs its servers kept, as when its
@@ -151,8 +167,12 @@ function LogsSearchAction({ opens }: { opens: RefObject<(() => void) | null> }) 
 
 function AppFrame({ reconnecting, children }: { reconnecting: boolean; children: ReactNode }) {
   const { t } = useLingui();
-  const { service, state } = useApp();
+  const { service, state, health } = useApp();
   const words = useAppWords();
+  const healthWords = useHealthWords();
+  const healthTitle = useHealthTitle(health);
+  const sheet = useChangeSheet();
+  const transport = useTransport();
   const time = useTimeWords();
   const who = useWhoWords();
   const places = usePlaces();
@@ -167,10 +187,16 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const revision = revisionName(service.revision);
   const latest = useRevisions(serviceId).revisions?.[0];
   const ago = service.updateTime ? time.ago(timestampDate(service.updateTime), now) : "";
-  // On the logs, "Live" would mean a third thing beside a view that follows and a
-  // time range: here it says what the container does.
-  const stateWord = onLogs && state.kind === "live" ? t`Running` : words.state(state);
+  const runsWord = healthWords.word(health);
+  const recordWord = recordSaysMore(state) ? words.state(state) : "";
   const moving = isMoving(state);
+  // Nothing restarts while it is moving, or where it has no server to do it on.
+  const restartable = !moving && state.kind !== "unplaced";
+  const restart = () =>
+    sheet.open({
+      kind: "plan",
+      make: () => createClient(ChangeService, transport).restartService({ id: service.id }),
+    });
   const place = places.place(environmentOf(service));
   return (
     <Page
@@ -179,8 +205,9 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       breadcrumb={<Crumbs name={name} project={place && !place.isDefault ? place.label : undefined} />}
       badge={
         <>
-          <StatusBadge status={state.status} label={stateWord} labelIsState />
+          <HealthBadge health={health} title={healthTitle} />
           <code className="app-revision">{revision}</code>
+          {recordWord ? <StatusBadge status={state.status} label={recordWord} labelIsState /> : null}
         </>
       }
       lead={
@@ -215,9 +242,16 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
         )
       }
       actions={
-        <Button variant="primary" icon="deploy" onClick={() => setDeploying(true)}>
-          <Trans>Deploy</Trans>
-        </Button>
+        <>
+          {restartable ? (
+            <Button icon="refresh" onClick={restart}>
+              <Trans>Restart</Trans>
+            </Button>
+          ) : null}
+          <Button variant="primary" icon="deploy" onClick={() => setDeploying(true)}>
+            <Trans>Deploy</Trans>
+          </Button>
+        </>
       }
       {...(phone && onLogs
         ? {
@@ -230,7 +264,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             phoneAction: <LogsSearchAction opens={searchButton} />,
           }
         : {})}
-      phoneSub={`${revision} · ${stateWord}${phone && !onLogs ? ` · ${shortImage(image)}` : ""}`}
+      phoneSub={[revision, runsWord, recordWord, phone && !onLogs ? shortImage(image) : ""].filter(Boolean).join(" · ")}
       status={reconnecting ? <Reconnecting /> : undefined}
       className="app-page"
     >
@@ -255,6 +289,11 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       {/* The logs tab has a bar of its own on a phone: Download and Copy. */}
       {phone && !onLogs ? (
         <div className="app-actionbar">
+          {restartable ? (
+            <Button icon="refresh" size="lg" onClick={restart}>
+              <Trans>Restart</Trans>
+            </Button>
+          ) : null}
           <Button variant="primary" icon="deploy" size="lg" onClick={() => setDeploying(true)}>
             <Trans>Deploy</Trans>
           </Button>

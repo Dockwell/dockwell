@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { isSessionEnded } from "../../lib/errors";
 import { keepTrying } from "../../lib/retry";
+import { readHealthSoon } from "./health";
 
 /** The most ListServices returns at once. */
 const PAGE_SIZE = 1000;
@@ -105,7 +106,11 @@ export function useServicesLive(): { reconnecting: boolean } {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const read = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => void queryClient.invalidateQueries({ queryKey: key }), SETTLE_MS);
+      timer = setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: key });
+        // What runs is what a change changes.
+        readHealthSoon(queryClient);
+      }, SETTLE_MS);
     };
     // Where each change stood when last seen: its state, and each step's.
     const seen = new Map<string, string>();

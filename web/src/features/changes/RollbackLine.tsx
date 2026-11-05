@@ -11,11 +11,13 @@ import {
   RollbackState,
   type RollbackStatus,
 } from "@dockwell/api";
-import { cx, Glyph, type GlyphShape } from "@dockwell/ui";
+import { cx, Glyph, type GlyphShape, STATUS } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { keepTrying } from "../../lib/retry";
+import { useRunsNow } from "../apps/Health";
+import { type AppHealth, runsAsFarAsAnyoneKnows, useHealth } from "../apps/health";
 import { MachineWords } from "./FailureNotice";
 import { followChange } from "./follow";
 import { changing, failedStep, onlyCreates, runs, startsStopped, wentOffline } from "./plan";
@@ -79,6 +81,8 @@ export function useRollbackStatus(change: Change | undefined, onSettled?: () => 
 export interface RollbackSubject {
   /** The one resource it comes down to, when it does. */
   name?: string | undefined;
+  /** Its ID, which how it runs goes by. */
+  id?: string | undefined;
   /** The image that resource ran before, when the failed change was to move it. */
   previous?: string | undefined;
   /** The image the failed change was to run in its place. */
@@ -103,23 +107,31 @@ function imageChange(changes: readonly FieldChange[] | undefined): { previous?: 
  */
 export function rollbackSubject(
   plan: Plan | undefined,
-  known?: { name: string; changes: readonly FieldChange[] },
+  known?: { id?: string; name: string; changes: readonly FieldChange[] },
 ): RollbackSubject {
   const first = onlyCreates(plan);
   const steps = (plan?.servers ?? [])
     .flatMap((server) => server.steps)
     .filter((step) => step.resource?.kind === "service" || step.resource?.kind === "container");
   const rolled = steps.length > 0 && steps.every((step) => step.rollout?.rolling && !startsStopped(step));
-  if (known) return { name: known.name, ...imageChange(known.changes), serves: true, first, rolled };
+  if (known) return { name: known.name, id: known.id, ...imageChange(known.changes), serves: true, first, rolled };
   const all = changing(plan);
   const serving = all.filter(runs);
   const only = serving.length === 1 ? serving[0] : all.length === 1 ? all[0] : undefined;
-  return { name: only?.resource?.name, ...imageChange(only?.changes), serves: serving.length > 0, first, rolled };
+  return { name: only?.resource?.name, id: only?.id, ...imageChange(only?.changes), serves: serving.length > 0, first, rolled };
+}
+
+/** How a rollback that has ended looks: as what runs now, where that's been read, and otherwise as nothing at all. */
+function lookOf(subject: RollbackSubject, health: AppHealth | undefined): Pick<Line, "tone" | "shape"> {
+  if (subject.serves && health && runsAsFarAsAnyoneKnows(health)) {
+    return { tone: STATUS[health.status].tone, shape: STATUS[health.status].shape };
+  }
+  return { tone: "idle", shape: "ring" };
 }
 
 /** How a rollback reads: a fact that says what runs now, then what follows from it. */
 interface Line {
-  tone: "healthy" | "cobalt" | "warning" | "critical" | "idle";
+  tone: "healthy" | "cobalt" | "warning" | "critical" | "idle" | "ink";
   shape: GlyphShape;
   title: ReactNode;
   text?: ReactNode;
@@ -132,6 +144,9 @@ function useLine() {
       subject: RollbackSubject,
       offline: boolean,
       record: boolean,
+      /** How it runs now, where that's been read, which is all that can say it runs. */
+      health: AppHealth | undefined,
+      runsNow: string,
     ): Line | undefined => {
       const { name, previous, next, serves, first, rolled } = subject;
       const servers = status?.waitingFor.join(", ") ?? "";
@@ -173,18 +188,24 @@ function useLine() {
                 <code>{name}</code> runs as it did before
               </Trans>
             );
+            const did = offline ? (
+              <Trans>Dockwell put it back once it could reach the server.</Trans>
+            ) : !serves || rolled ? (
+              <Trans>Dockwell put it back after this failed.</Trans>
+            ) : name ? (
+              <Trans>Dockwell put it back after this failed, so it was down while that happened.</Trans>
+            ) : (
+              <Trans>Dockwell put it back after this failed, so some of it was down while that happened.</Trans>
+            );
             return {
-              tone: "healthy",
-              shape: "circle",
+              ...lookOf(subject, health),
               title,
-              text: offline ? (
-                <Trans>Dockwell put it back once it could reach the server.</Trans>
-              ) : !serves || rolled ? (
-                <Trans>Dockwell put it back after this failed.</Trans>
-              ) : name ? (
-                <Trans>Dockwell put it back after this failed, so it was down while that happened.</Trans>
+              text: runsNow ? (
+                <>
+                  {did} {runsNow}
+                </>
               ) : (
-                <Trans>Dockwell put it back after this failed, so some of it was down while that happened.</Trans>
+                did
               ),
             };
           }
@@ -215,18 +236,24 @@ function useLine() {
               <code>{name}</code> stays as it was
             </Trans>
           );
+          const did =
+            status.steps > 0 && status.restored.length === 0 ? (
+              <Trans>It never stopped. Dockwell removed what this made after it failed.</Trans>
+            ) : status.steps > 0 ? (
+              <Trans>This stopped before it reached that, and Dockwell put back the rest.</Trans>
+            ) : (
+              <Trans>This stopped before it changed anything on the server.</Trans>
+            );
           return {
-            tone: "idle",
-            shape: "ring",
+            ...lookOf(subject, health),
             title,
-            text:
-              status.steps > 0 && status.restored.length === 0 ? (
-                <Trans>It never stopped. Dockwell removed what this made after it failed.</Trans>
-              ) : status.steps > 0 ? (
-                <Trans>This stopped before it reached that, and Dockwell put back the rest.</Trans>
-              ) : (
-                <Trans>This stopped before it changed anything on the server.</Trans>
-              ),
+            text: runsNow ? (
+              <>
+                {did} {runsNow}
+              </>
+            ) : (
+              did
+            ),
           };
         }
         case RollbackState.APPLYING:
@@ -323,6 +350,17 @@ function useLine() {
               <Trans>
                 Parts of it may still be on the server. Check what is there, then try again, or remove them by hand.
               </Trans>
+            ) : name && serves && health?.read === "read" ? (
+              runsNow ? (
+                <>
+                  {runsNow} <Trans>Deploy what should run, or fix it on the server.</Trans>
+                </>
+              ) : (
+                <Trans>
+                  Something of <code>{name}</code> runs, and Dockwell can't say which version. Check it, then deploy
+                  what should run, or fix it on the server.
+                </Trans>
+              )
             ) : name && serves ? (
               <Trans>
                 <code>{name}</code> may not be running, or may be running the new version. Check it, then deploy what
@@ -364,12 +402,17 @@ export function RollbackLine({
   const line = useLine();
   const status = useRollbackStatus(change, onSettled);
   const offline = wentOffline(change);
+  const view = useHealth();
+  const health = subject.id ? view.of({ id: subject.id }) : undefined;
+  const runsNow = useRunsNow(health, subject.name ?? "");
+  // A rollback ended with what it put back in place. Only the server says that it runs, and it's what anyone reads this for.
+  const runs = health !== undefined && runsAsFarAsAnyoneKnows(health);
   // Whoever saw it move watched it end, so what it says of what runs is so as they read it.
   const watched = useRef(false);
   if (status && !settled(status)) watched.current = true;
   // Made, and no word of how it went, it says only that. A first deploy that came back has nothing to say.
   const reads: Line | undefined =
-    line(status, subject, offline, record && !watched.current) ??
+    line(status, subject, offline, (record && !watched.current) || (subject.serves && !runs), health, runsNow) ??
     (change.rolledBackBy && status === undefined
       ? {
           tone: "idle",

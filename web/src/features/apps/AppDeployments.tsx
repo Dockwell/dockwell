@@ -90,6 +90,20 @@ function took(rev: ServiceRevision): number | undefined {
   return start !== undefined && finish !== undefined ? finish - start : undefined;
 }
 
+/** Where a revision stands: with a state where its record has one, and otherwise only that it deployed. */
+function RevisionLook({ look, className }: { look: Look; className?: string }) {
+  if (!look.status) return <span className="app-muted">{look.word}</span>;
+  return (
+    <StatusBadge
+      status={look.status}
+      label={look.word}
+      labelIsState
+      title={look.word}
+      {...(className ? { className } : {})}
+    />
+  );
+}
+
 /**
  * Each revision, newest first: what changed, who did it, from where, and how
  * it went (App-Deployments). The chosen one opens beside the list, on phones
@@ -149,8 +163,7 @@ export function AppDeployments() {
         header: t`Status`,
         width: 112,
         render: (rev) => {
-          const { status, word } = look(rev, latest, state);
-          return <StatusBadge status={status} label={word} labelIsState title={word} className="apps-status" />;
+          return <RevisionLook look={look(rev, latest, state)} className="apps-status" />;
         },
       },
       {
@@ -260,14 +273,13 @@ export function AppDeployments() {
         <Panel flush>
           <ul className="deploy-phone">
             {revisions.map((rev) => {
-              const { status, word } = look(rev, latest, state);
               const when = rev.createTime ? timestampDate(rev.createTime) : new Date(0);
               return (
                 <li key={rev.number.toString()}>
                   <button type="button" className="deploy-phone-row" onClick={() => select(rev)}>
                     <span className="deploy-phone-top">
                       <code className="deploy-number">{revisionName(rev.number)}</code>
-                      <StatusBadge status={status} label={word} labelIsState />
+                      <RevisionLook look={look(rev, latest, state)} />
                       <span className="deploy-phone-time">{time.ago(when, now)}</span>
                     </span>
                     <span className="deploy-phone-summary">{revisionTitle(rev).node}</span>
@@ -505,7 +517,7 @@ function RevisionPanel({
         title={
           <span className="deploy-panel-title">
             <span className="deploy-number">{name}</span>
-            <StatusBadge status={look.status} label={look.word} labelIsState />
+            <RevisionLook look={look} />
           </span>
         }
         actions={
@@ -607,7 +619,7 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
   return (
     <div className="deploy-body">
       {change?.state === ChangeState.FAILED ? (
-        <RollbackLine change={change} subject={rollbackSubject(change.plan, { name: appName, changes: rev.changes })} />
+        <RollbackLine change={change} subject={rollbackSubject(change.plan, { id: service.id, name: appName, changes: rev.changes })} />
       ) : null}
       {(change?.state === ChangeState.FAILED || failed) && !wentOffline(change) ? (
         <FailureNotice message={failed?.error || change?.error || ""} detail={failedStep(change)?.detail} />

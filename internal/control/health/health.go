@@ -280,7 +280,8 @@ var bestFirst = map[dockwellv1.HealthState]int{
 	dockwellv1.HealthState_HEALTH_STATE_STARTING:    4,
 	dockwellv1.HealthState_HEALTH_STATE_UNKNOWN:     3,
 	dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY:   2,
-	dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING: 1,
+	dockwellv1.HealthState_HEALTH_STATE_PAUSED:      1,
+	dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING: 0,
 }
 
 // Worst is how a service is as a whole, from its servers: a service is only as
@@ -299,8 +300,9 @@ func Worst(states []dockwellv1.HealthState) dockwellv1.HealthState {
 }
 
 var worstFirst = map[dockwellv1.HealthState]int{
-	dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY:   6,
-	dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING: 5,
+	dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY:   7,
+	dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING: 6,
+	dockwellv1.HealthState_HEALTH_STATE_PAUSED:      5,
 	dockwellv1.HealthState_HEALTH_STATE_UNKNOWN:     4,
 	dockwellv1.HealthState_HEALTH_STATE_STARTING:    3,
 	dockwellv1.HealthState_HEALTH_STATE_NO_CHECK:    2,

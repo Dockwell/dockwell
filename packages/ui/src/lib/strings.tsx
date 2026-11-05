@@ -122,6 +122,8 @@ export const englishStrings: UIStrings = {
     down: "Down",
     deploying: "Deploying",
     stopped: "Stopped",
+    running: "Running",
+    unknown: "Unknown",
   },
   remove: (what) => `Remove ${what}`,
   optional: "Optional",

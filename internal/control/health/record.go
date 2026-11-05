@@ -153,7 +153,8 @@ func good(s dockwellv1.HealthState) bool {
 }
 
 func bad(s dockwellv1.HealthState) bool {
-	return s == dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY || s == dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING
+	return s == dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY || s == dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING ||
+		s == dockwellv1.HealthState_HEALTH_STATE_PAUSED
 }
 
 func lastOutput(list []*dockwellv1.InstanceHealth) string {

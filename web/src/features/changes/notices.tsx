@@ -388,14 +388,27 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         };
       case "exposed_variable": {
         const [variable = "", field = ""] = note.names;
-        const where = field === "healthcheck" ? t`health check` : field;
+        const where =
+          field === "healthcheck"
+            ? t`health check`
+            : field === "driver_opts"
+              ? t`driver options`
+              : field === "environment"
+                ? t`environment variable names`
+                : field;
+        // The API says where the value came from, and an .env is where someone may not have looked.
+        const fromEnv = note.message.includes("from your .env");
         return {
           key,
-          title: t`${name}'s ${where} holds the value of ${variable}`,
+          title: fromEnv
+            ? t`${name}'s ${where} holds the value of ${variable} from your .env`
+            : t`${name}'s ${where} holds the value of ${variable}`,
           detail:
             field === "command" || field === "entrypoint"
               ? t`Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the ${where} as a list, with each word its own variable.`
-              : t`Anyone who can read this app can see it. It can't be hidden there, so don't pass a secret there.`,
+              : field === "environment"
+                ? t`Anyone who can read this app can see it. Only a variable's value is hidden, so don't write a secret in its name.`
+                : t`Anyone who can read this app can see it. It can't be hidden there, so if it's a secret, set it in environment for the app to read instead.`,
         };
       }
     }

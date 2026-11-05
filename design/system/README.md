@@ -3,7 +3,7 @@ Dockwell is a control plane for servers: one VPS or a fleet of thousands, websit
 ## Principles
 
 1. **Ink for action, colour for state.** The primary action is `action` (ink). The four hues (`healthy`, `warning`, `critical`, `cobalt`) mean state and nothing else. Never use them to decorate, to brand a section, or to make something look important.
-2. **Every state is a shape, a word and a colour.** Healthy is a filled circle, degraded a triangle, down a square, deploying a spinning arc, stopped a hollow ring. Use `StatusBadge`; never show a coloured dot alone.
+2. **Every state is a shape, a word and a colour.** Healthy is a filled circle, degraded a triangle, down a square, deploying a spinning arc, stopped a hollow ring, running a ring with a dot in it, unknown a dashed ring. Healthy means a check passed: what runs with nothing checking it reads as running, and what nobody can say anything of as unknown, and neither is ever green. Use `StatusBadge`; never show a coloured dot alone.
 3. **Every change shows its plan.** Deploys, config edits, firewall rules and fleet actions open a `Sheet` with a `PlanDiff` before they run, and leave an undoable entry in the `Timeline`.
 4. **Calm by default, deep on demand.** The first screen answers "is everything OK?" Healthy things stay quiet; raw config, terminals and logs are one keystroke away (`CommandBar`), never in the way.
 5. **Machine values in mono, human words in sans.** IPs, hashes, image tags, paths, commands and selectors are `code` or `code-sm`; everything a person reads as language is Host Grotesk.
@@ -79,7 +79,7 @@ Write like a senior operator explaining something to a colleague: plain, specifi
 
 - Use the `Icon` component: line icons on a 24-unit grid, 1.5 stroke, round caps and joins, drawn in `currentColor`. 16px in controls and lists, 14px in small buttons and tags, 20px in empty states.
 - The bundled set covers the product's core nouns and verbs (server, service, globe, database, terminal, deploy, undo, lock and more). For anything missing, draw on the same grid and stroke; Lucide matches this construction closely and is the suggested source. The bundled icons are new drawings, not copies of any library.
-- Status is never an icon. The five status glyphs belong to `StatusBadge`, `FleetGrid`, `LogStream`, `Callout` and `Toast` and keep their meaning everywhere.
+- Status is never an icon. The status glyphs belong to `StatusBadge`, `FleetGrid`, `LogStream`, `Callout` and `Toast` and keep their meaning everywhere.
 - No emoji in the interface.
 
 ## Identity

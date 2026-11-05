@@ -10,9 +10,9 @@ import type { AppState } from "./app";
 export interface AppWords {
   /** A field of a service, as a change names it, in words. */
   field(name: string): string;
-  /** Where an app stands, in a word or two: "Live", "Waiting for server", or "Deployed" where that's all it knows. */
+  /** Where an app's record stands, in a word or two: "Deployed", "Waiting for server". How it runs is useHealthWords'. */
   state(state: AppState): string;
-  /** How a deployment went: "Live", "Failed". */
+  /** How a deployment went: "Deployed", "Failed". */
   deployment(state: DeploymentState): string;
   restart(policy: RestartPolicy): string;
   protocol(protocol: Protocol): string;
@@ -26,7 +26,7 @@ export function useAppWords(): AppWords {
         const servers = state.servers.join(", ");
         switch (state.kind) {
           case "live":
-            return t({ message: "Live", context: "An app whose latest revision is deployed" });
+            return t({ message: "Deployed", context: "An app whose latest revision is deployed" });
           case "deploying":
             return t`Deploying`;
           case "waiting":
@@ -42,7 +42,7 @@ export function useAppWords(): AppWords {
           case "unplaced":
             return t`Not placed`;
           case "unknown":
-            return t({ message: "Deployed", context: "An app whose servers the fleet hasn't said anything about yet" });
+            return t({ message: "Deployed", context: "An app whose latest revision is deployed" });
         }
       },
       /** A field of a service, as a change names it, in words. */
@@ -71,7 +71,7 @@ export function useAppWords(): AppWords {
           case DeploymentState.PENDING:
             return t`Deploying`;
           case DeploymentState.LIVE:
-            return t({ message: "Live", context: "An app whose latest revision is deployed" });
+            return t({ message: "Deployed", context: "An app whose latest revision is deployed" });
           case DeploymentState.FAILED:
             return t`Failed`;
           case DeploymentState.SUPERSEDED:

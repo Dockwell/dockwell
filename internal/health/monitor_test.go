@@ -578,9 +578,9 @@ func TestOnlyWhatTheSpecSetIsMasked(t *testing.T) {
 }
 
 // A paused container counts as running to Docker, which stops its checks, and each list
-// goes on saying what they last said. It serves nothing, so it reads as not running,
-// whatever checks it, for as long as it stays paused, and goes back as it was after.
-func TestAPausedContainerReadsAsNotRunning(t *testing.T) {
+// goes on saying what they last said. It serves nothing, so it reads as paused, whatever
+// checks it, for as long as it stays so, and goes back as it was after.
+func TestAPausedContainerReadsAsPaused(t *testing.T) {
 	pause := func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" }
 	unpause := func(c *docker.Container) { c.State.Paused, c.State.Status = false, "running" }
 	for _, way := range []struct {
@@ -611,14 +611,14 @@ func TestAPausedContainerReadsAsNotRunning(t *testing.T) {
 			})
 			eventually(t, "it reads as it does", m, stateOf(name, way.before))
 			e.Edit(name, pause)
-			got := eventually(t, "it reads as not running", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING))
+			got := eventually(t, "it reads as paused", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_PAUSED))
 			if said := got[name].GetLast().GetOutput(); !strings.Contains(said, "paused") || got[name].GetLast().GetPassed() {
 				t.Errorf("it says %q, passed %t", said, got[name].GetLast().GetPassed())
 			}
 			// Each list goes on confirming that, and no check changes it.
 			settled := checks.Load()
 			time.Sleep(100 * time.Millisecond)
-			if got := m.Report()[0].GetState(); got != dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING {
+			if got := m.Report()[0].GetState(); got != dockwellv1.HealthState_HEALTH_STATE_PAUSED {
 				t.Errorf("paused for a while, it reads %s", got)
 			}
 			if got := checks.Load(); got > settled+1 {
@@ -653,11 +653,11 @@ func TestACheckUnderWayWhenAContainerPausesSaysNothing(t *testing.T) {
 	hold.Store(true)
 	<-asked
 	e.Edit(name, func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" })
-	eventually(t, "it reads as not running", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING))
+	eventually(t, "it reads as paused", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_PAUSED))
 	time.Sleep(30 * time.Millisecond) // for the read that list started, which would put it right too
 	close(release)
 	for end := time.Now().Add(100 * time.Millisecond); time.Now().Before(end); time.Sleep(time.Millisecond) {
-		if got := m.Report()[0].GetState(); got != dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING {
+		if got := m.Report()[0].GetState(); got != dockwellv1.HealthState_HEALTH_STATE_PAUSED {
 			t.Fatalf("a check that passed before it paused made it read %s", got)
 		}
 	}
@@ -717,12 +717,13 @@ func TestWhatNoCheckLooksAtHoldsAsLongAsTheListSaysIt(t *testing.T) {
 // doesn't get through. That is enough to stop reading it as healthy.
 func TestWhatTheListSaysReachesTheStateWhenAReadFails(t *testing.T) {
 	for _, way := range []struct {
-		name string
-		says string
-		to   func(e *dockertest.Engine, name string)
+		name  string
+		state dockwellv1.HealthState
+		says  string
+		to    func(e *dockertest.Engine, name string)
 	}{
-		{"exited", "it is exited", func(e *dockertest.Engine, name string) { e.Stop(name) }},
-		{"paused", "it serves nothing and no check runs", func(e *dockertest.Engine, name string) {
+		{"exited", dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING, "it is exited", func(e *dockertest.Engine, name string) { e.Stop(name) }},
+		{"paused", dockwellv1.HealthState_HEALTH_STATE_PAUSED, "it serves nothing and no check runs", func(e *dockertest.Engine, name string) {
 			e.Edit(name, func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" })
 		}},
 	} {
@@ -744,7 +745,7 @@ func TestWhatTheListSaysReachesTheStateWhenAReadFails(t *testing.T) {
 			})
 			defer refuse.Store(false)
 			way.to(e, name)
-			got := eventually(t, "it reads as not running", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING))
+			got := eventually(t, "it stops reading as healthy", m, stateOf(name, way.state))
 			if said := got[name].GetLast().GetOutput(); !strings.Contains(said, way.says) {
 				t.Errorf("it says %q, want %q", said, way.says)
 			}
