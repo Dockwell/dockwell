@@ -940,6 +940,14 @@ msgstr "Actor"
 msgid "Add"
 msgstr "Add"
 
+#: src/features/apps/AppOverview.tsx
+msgid "Add a domain"
+msgstr "Add a domain"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Add a domain to {name}"
+msgstr "Add a domain to {name}"
+
 #: src/features/auth/ProfilePage.tsx
 msgid "Add a passkey for {rpId} now, so you can sign in here next time without another link."
 msgstr "Add a passkey for {rpId} now, so you can sign in here next time without another link."
@@ -1308,6 +1316,7 @@ msgid "Can't scan it? Enter this key instead: <0>{0}</0>"
 msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 
 #: src/app/Providers.tsx
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -2123,6 +2132,10 @@ msgstr "doesn't expire"
 msgid "domain"
 msgstr "domain"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Domain"
+msgstr "Domain"
+
 #: src/features/shell/sections.ts
 msgid "Domains"
 msgstr "Domains"
@@ -2435,6 +2448,10 @@ msgstr "From the panel"
 msgid "Full access to {name}"
 msgstr "Full access to {name}"
 
+#: src/features/apps/AppOverview.tsx
+msgid "Getting its certificate"
+msgstr "Getting its certificate"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Give {first} a value to review the plan"
 msgstr "Give {first} a value to review the plan"
@@ -2517,6 +2534,10 @@ msgstr "Hostname"
 msgid "Hover or focus a server to inspect it."
 msgstr "Hover or focus a server to inspect it."
 
+#: src/features/apps/AppOverview.tsx
+msgid "HTTPS"
+msgstr "HTTPS"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "HTTPS is automatic. Your passkey works at this address."
 msgstr "HTTPS is automatic. Your passkey works at this address."
@@ -2598,6 +2619,7 @@ msgstr "In project <0>{project}</0>"
 msgid "In project <0>{project}</0>, environment <1>{environment}</1>"
 msgstr "In project <0>{project}</0>, environment <1>{environment}</1>"
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "In the app"
@@ -3063,6 +3085,10 @@ msgstr "Name it to review the plan"
 msgid "Name it, such as DATABASE_URL."
 msgstr "Name it, such as DATABASE_URL."
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Name the domain, such as app.example.com."
+msgstr "Name the domain, such as app.example.com."
+
 #: src/features/apps/DeploySheet.tsx
 msgid "Name the image to run, such as {current}."
 msgstr "Name the image to run, such as {current}."
@@ -3262,6 +3288,7 @@ msgstr "Not used yet"
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "Nothing changed on the server. Reload the page to try again."
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 msgid "Nothing changes until you apply the plan"
 msgstr "Nothing changes until you apply the plan"
@@ -3427,6 +3454,7 @@ msgstr "Open {at}"
 msgid "Open {label}"
 msgstr "Open {label}"
 
+#: src/features/apps/AppOverview.tsx
 #: src/features/shell/CommandMenu.tsx
 msgid "Open {name}"
 msgstr "Open {name}"
@@ -3601,6 +3629,10 @@ msgstr "Paused"
 msgid "People outside the server reach the app through this port"
 msgstr "People outside the server reach the app through this port"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "People reach the app at this name, over HTTPS"
+msgstr "People reach the app at this name, over HTTPS"
+
 #: src/features/changes/words.ts
 msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
 msgstr "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
@@ -3630,6 +3662,10 @@ msgstr "Plans say a value changed, and never show it."
 #: src/features/system/StatusPage.tsx
 msgid "Platform"
 msgstr "Platform"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
+msgstr "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
 
 #: src/features/changes/fields.tsx
 msgid "port"
@@ -4093,6 +4129,7 @@ msgid "Revealed the secret {name}"
 msgstr "Revealed the secret {name}"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -4394,6 +4431,10 @@ msgstr "See why"
 #: src/features/changes/fields.tsx
 msgid "SELinux label"
 msgstr "SELinux label"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Send {wanted} to {name}"
+msgstr "Send {wanted} to {name}"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Sending"
@@ -5470,6 +5511,7 @@ msgstr "Use a code from your authenticator app"
 msgid "Use a passkey instead"
 msgstr "Use a passkey instead"
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "Use a port from 1 to 65535."
@@ -5666,6 +5708,7 @@ msgstr "what runs on {server} itself"
 msgid "What runs on your servers isn't affected."
 msgstr "What runs on your servers isn't affected."
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 msgid "What the app listens on, such as 80."
 msgstr "What the app listens on, such as 80."

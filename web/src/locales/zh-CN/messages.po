@@ -940,6 +940,14 @@ msgstr "执行者"
 msgid "Add"
 msgstr "添加"
 
+#: src/features/apps/AppOverview.tsx
+msgid "Add a domain"
+msgstr "添加域名"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Add a domain to {name}"
+msgstr "为 {name} 添加域名"
+
 #: src/features/auth/ProfilePage.tsx
 msgid "Add a passkey for {rpId} now, so you can sign in here next time without another link."
 msgstr "现在为 {rpId} 添加一个通行密钥，下次在这里登录就不再需要链接。"
@@ -1308,6 +1316,7 @@ msgid "Can't scan it? Enter this key instead: <0>{0}</0>"
 msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
 
 #: src/app/Providers.tsx
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -2123,6 +2132,10 @@ msgstr "不会过期"
 msgid "domain"
 msgstr "域名"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Domain"
+msgstr "域名"
+
 #: src/features/shell/sections.ts
 msgid "Domains"
 msgstr "域名"
@@ -2435,6 +2448,10 @@ msgstr "来自面板"
 msgid "Full access to {name}"
 msgstr "完全访问 {name}"
 
+#: src/features/apps/AppOverview.tsx
+msgid "Getting its certificate"
+msgstr "正在获取证书"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Give {first} a value to review the plan"
 msgstr "为 {first} 填写值后即可查看计划"
@@ -2517,6 +2534,10 @@ msgstr "主机名"
 msgid "Hover or focus a server to inspect it."
 msgstr "悬停或聚焦一台服务器以查看详情。"
 
+#: src/features/apps/AppOverview.tsx
+msgid "HTTPS"
+msgstr "HTTPS"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "HTTPS is automatic. Your passkey works at this address."
 msgstr "HTTPS 自动配置。你的通行密钥在这个地址可用。"
@@ -2598,6 +2619,7 @@ msgstr "位于项目 <0>{project}</0>"
 msgid "In project <0>{project}</0>, environment <1>{environment}</1>"
 msgstr "位于项目 <0>{project}</0>，环境 <1>{environment}</1>"
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "In the app"
@@ -3063,6 +3085,10 @@ msgstr "填写名称后即可查看计划"
 msgid "Name it, such as DATABASE_URL."
 msgstr "请为它命名，例如 DATABASE_URL。"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Name the domain, such as app.example.com."
+msgstr "请填写域名，例如 app.example.com。"
+
 #: src/features/apps/DeploySheet.tsx
 msgid "Name the image to run, such as {current}."
 msgstr "请填写要运行的镜像，例如 {current}。"
@@ -3262,6 +3288,7 @@ msgstr "尚未使用"
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "服务器上没有任何变化。请重新加载页面再试。"
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 msgid "Nothing changes until you apply the plan"
 msgstr "应用计划之前不会有任何更改"
@@ -3427,6 +3454,7 @@ msgstr "打开 {at}"
 msgid "Open {label}"
 msgstr "打开 {label}"
 
+#: src/features/apps/AppOverview.tsx
 #: src/features/shell/CommandMenu.tsx
 msgid "Open {name}"
 msgstr "打开 {name}"
@@ -3601,6 +3629,10 @@ msgstr "已暂停"
 msgid "People outside the server reach the app through this port"
 msgstr "服务器外部的用户通过这个端口访问应用"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "People reach the app at this name, over HTTPS"
+msgstr "用户通过这个域名以 HTTPS 访问应用"
+
 #: src/features/changes/words.ts
 msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
 msgstr "{path} 上面向任何能访问此服务器的人的纯 HTTP，绕过它前面的任何东西"
@@ -3630,6 +3662,10 @@ msgstr "计划只说明值已更改，绝不显示内容。"
 #: src/features/system/StatusPage.tsx
 msgid "Platform"
 msgstr "平台"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
+msgstr "将它的 DNS 指向这台服务器，之前或之后都可以。指向后证书会自动获取。"
 
 #: src/features/changes/fields.tsx
 msgid "port"
@@ -4093,6 +4129,7 @@ msgid "Revealed the secret {name}"
 msgstr "显示了密钥 {name}"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -4394,6 +4431,10 @@ msgstr "查看原因"
 #: src/features/changes/fields.tsx
 msgid "SELinux label"
 msgstr "SELinux 标签"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Send {wanted} to {name}"
+msgstr "将 {wanted} 发送到 {name}"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Sending"
@@ -5470,6 +5511,7 @@ msgstr "使用身份验证器应用中的验证码"
 msgid "Use a passkey instead"
 msgstr "改用通行密钥"
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "Use a port from 1 to 65535."
@@ -5666,6 +5708,7 @@ msgstr "在 {server} 本机上运行的程序"
 msgid "What runs on your servers isn't affected."
 msgstr "服务器上运行的内容不受影响。"
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 msgid "What the app listens on, such as 80."
 msgstr "应用监听的端口，例如 80。"

@@ -2,7 +2,16 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
-import { ChangeSchema, ChangeState, Connection, DeploymentState, FieldOp, ServiceInfoSchema } from "@dockwell/api";
+import {
+  CertificateState,
+  ChangeSchema,
+  ChangeState,
+  Connection,
+  DeploymentState,
+  DomainSchema,
+  FieldOp,
+  ServiceInfoSchema,
+} from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 import { anApp, aProject, aRevision, SERVER } from "../../test/apps";
 import type { ServerSummary } from "../servers/server";
@@ -32,6 +41,7 @@ import {
   unreached,
   valuesOf,
 } from "./app";
+import { lookOf, routeName } from "./domains";
 
 const online: ServerSummary = { id: SERVER, name: "hz-1", connection: Connection.CONNECTED, address: "49.12.33.7" };
 const offline: ServerSummary = { ...online, connection: Connection.UNREACHABLE };
@@ -314,5 +324,67 @@ describe("the words an app goes by", () => {
     expect(bareImage("nginx:1.27")).toBe("nginx:1.27");
     expect(imageOf(anApp("web", `nginx:1.27@${digest}`))).toBe("nginx:1.27");
     expect(shortDigest(digest)).toBe("sha256:abababababab");
+  });
+});
+
+describe("a route's name", () => {
+  const domain = (name: string, ...routes: string[]) =>
+    create(DomainSchema, { name, routes: routes.map((route) => ({ name: route })) });
+
+  it("is the domain as a DNS label", () => {
+    expect(routeName("app.example.com")).toBe("app-example-com");
+    expect(routeName("1.example.com")).toBe("example-com");
+    const long = `${"a".repeat(60)}.example.com`;
+    expect(routeName(long)).toBe("a".repeat(60) + "-ex");
+    expect(routeName(long).length).toBeLessThanOrEqual(63);
+  });
+
+  it("doesn't take another domain's, which would move that route", () => {
+    expect(routeName("a.b.com", [domain("a-b.com", "a-b-com")])).toBe("a-b-com-2");
+    expect(routeName("a.b.com", [domain("a-b.com", "a-b-com", "a-b-com-2")])).toBe("a-b-com-3");
+    // Its own is its own: proposing it again changes where it sends.
+    expect(routeName("a.b.com", [domain("a.b.com", "a-b-com")])).toBe("a-b-com");
+  });
+});
+
+describe("where a domain stands", () => {
+  const on = (...certificates: { state: CertificateState; message?: string }[]) =>
+    create(DomainSchema, {
+      name: "a.com",
+      servers: certificates.map((certificate) => ({ status: { domain: "a.com", certificate } })),
+    });
+
+  it("is the worst of its servers", () => {
+    expect(lookOf(on({ state: CertificateState.ISSUED })).state).toBe("serving");
+    expect(
+      lookOf(on({ state: CertificateState.ISSUED }, { state: CertificateState.PENDING, message: "soon" })),
+    ).toEqual({
+      state: "pending",
+      message: "soon",
+    });
+    expect(
+      lookOf(on({ state: CertificateState.PENDING }, { state: CertificateState.FAILED, message: "no DNS" })),
+    ).toEqual({
+      state: "failed",
+      message: "no DNS",
+    });
+  });
+
+  it("isn't serving before a server has said so", () => {
+    expect(lookOf(create(DomainSchema, { name: "a.com" })).state).toBe("pending");
+    expect(lookOf(create(DomainSchema, { name: "a.com", servers: [{ serverName: "hz-1" }] })).state).toBe("pending");
+  });
+
+  it("says what stops its proxy, even with a certificate", () => {
+    const blocked = create(DomainSchema, {
+      name: "a.com",
+      servers: [
+        {
+          status: { domain: "a.com", certificate: { state: CertificateState.ISSUED } },
+          ingress: { message: "1Panel-openresty holds port 80" },
+        },
+      ],
+    });
+    expect(lookOf(blocked)).toEqual({ state: "failed", message: "1Panel-openresty holds port 80" });
   });
 });

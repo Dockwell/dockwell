@@ -7,6 +7,7 @@ import {
   ChangeState,
   Connection,
   type Container,
+  type Domain,
   type Mount,
   Protocol,
   type ServiceInfo,
@@ -15,6 +16,7 @@ import {
 import {
   Button,
   Callout,
+  cx,
   Icon,
   Panel,
   PHONE_QUERY,
@@ -38,6 +40,7 @@ import { MachineWords } from "../changes/FailureNotice";
 import { withoutIds } from "../changes/plan";
 import { CopyButton } from "../servers/CopyButton";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
+import { AddDomainSheet } from "./AddDomainSheet";
 import { AddPortSheet } from "./AddPortSheet";
 import { useApp, useRevisions } from "./AppContext";
 import {
@@ -55,6 +58,7 @@ import {
   revisionName,
   valuesOf,
 } from "./app";
+import { lookOf, useAppDomains } from "./domains";
 import { ExportSheet } from "./ExportSheet";
 import { ImageName, WholeImage } from "./ImageName";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
@@ -256,6 +260,10 @@ function RunningPanel() {
   const stateWord = words.state(state);
   const moving = isMoving(state);
   const [addingPort, setAddingPort] = useState(false);
+  const [addingDomain, setAddingDomain] = useState(false);
+  // Once something reaches it, the ways to add another sit up here.
+  const { domains } = useAppDomains(service);
+  const reached = (app?.ports.length ?? 0) > 0 || domains.length > 0;
   // While it deploys, what runs is the revision before it, if there is one.
   const before = moving
     ? revisions?.find((r) => r.number < service.revision && !r.deleted && r.image !== "")
@@ -294,10 +302,15 @@ function RunningPanel() {
         // The title carries the state on wide screens; the phone's header has only the word.
         <span className="app-running-actions">
           {phone ? <StatusBadge status={state.status} label={stateWord} labelIsState variant="pill" /> : null}
-          {(app?.ports.length ?? 0) > 0 ? (
-            <button type="button" className="app-panel-link" onClick={() => setAddingPort(true)}>
-              <Trans>Add a port</Trans>
-            </button>
+          {reached ? (
+            <>
+              <button type="button" className="app-panel-link" onClick={() => setAddingDomain(true)}>
+                <Trans>Add a domain</Trans>
+              </button>
+              <button type="button" className="app-panel-link" onClick={() => setAddingPort(true)}>
+                <Trans>Add a port</Trans>
+              </button>
+            </>
           ) : null}
         </span>
       }
@@ -321,7 +334,12 @@ function RunningPanel() {
           )}
         </p>
       ) : null}
-      <ReachedAt app={app} service={service} onAddPort={() => setAddingPort(true)} />
+      <ReachedAt
+        app={app}
+        service={service}
+        onAddPort={() => setAddingPort(true)}
+        onAddDomain={() => setAddingDomain(true)}
+      />
       <div className="app-running-image">
         {running ? (
           <>
@@ -362,6 +380,7 @@ function RunningPanel() {
         />
       ) : null}
       {addingPort ? <AddPortSheet service={service} onClose={() => setAddingPort(false)} /> : null}
+      {addingDomain ? <AddDomainSheet service={service} onClose={() => setAddingDomain(false)} /> : null}
     </Panel>
   );
 }
@@ -371,31 +390,61 @@ function RunningPanel() {
  * Domains belong here too, first, when routes land (#27), and the way to add
  * one sits beside the way to add a port.
  */
+/**
+ * A domain the app is reached at: open once it serves; until then, what the server
+ * says of its certificate, which it keeps trying by itself.
+ */
+function DomainRow({ domain }: { domain: Domain }) {
+  const { t } = useLingui();
+  const look = lookOf(domain);
+  const name = domain.name;
+  return (
+    <li className={cx("app-reach-row", "app-reach-domain", look.state === "failed" && "is-failed")}>
+      <Icon name="globe" size={16} />
+      <code className="app-reach-at">{name}</code>
+      <span className="app-reach-to">
+        {look.state === "serving" ? <Trans>HTTPS</Trans> : look.message || <Trans>Getting its certificate</Trans>}
+      </span>
+      {look.state === "serving" ? (
+        <a className="app-reach-open" href={domain.url} target="_blank" rel="noreferrer" aria-label={t`Open ${name}`}>
+          <Icon name="external" size={16} />
+        </a>
+      ) : null}
+    </li>
+  );
+}
+
 function ReachedAt({
   app,
   service,
   onAddPort,
+  onAddDomain,
 }: {
   app: Container | undefined;
   service: ServiceInfo;
   onAddPort: () => void;
+  onAddDomain: () => void;
 }) {
   const { t } = useLingui();
   const { servers } = useFleetView();
+  const { domains, isPending } = useAppDomains(service);
   const ports = app?.ports ?? [];
-  if (ports.length === 0) {
+  if (ports.length === 0 && domains.length === 0) {
     return (
       <div className="app-reach-none">
         <Icon name="globe" size={16} />
         <div className="app-reach-none-text">
           <p>
-            {(app?.networks.length ?? 0) > 0 ? (
+            {isPending ? null : (app?.networks.length ?? 0) > 0 ? (
               <Trans>Nothing outside the server reaches it yet. Other apps on its network do.</Trans>
             ) : (
               <Trans>Nothing outside the server reaches it yet.</Trans>
             )}
           </p>
           <div className="app-reach-actions">
+            <Button icon="plus" onClick={onAddDomain}>
+              <Trans>Add a domain</Trans>
+            </Button>
             <Button icon="plus" onClick={onAddPort}>
               <Trans>Add a port</Trans>
             </Button>
@@ -417,6 +466,9 @@ function ReachedAt({
   );
   return (
     <ul className="app-reach">
+      {domains.map((domain) => (
+        <DomainRow key={domain.name} domain={domain} />
+      ))}
       {rows.map((row) => {
         const { target, at } = row;
         return (

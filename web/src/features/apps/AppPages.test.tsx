@@ -5,6 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ActorKind,
   type AddServicePortRequest,
+  CertificateState,
   ChangeSchema,
   ChangeState,
   Connection,
@@ -724,6 +725,151 @@ describe("an app's overview", () => {
     );
     expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
     expect(sheet).not.toHaveTextContent("It runs nginx:1.32 now");
+  });
+
+  it("says an app's address is its domain, and what its certificate is doing until it's there", async () => {
+    const domain = (state: CertificateState, message = "") => ({
+      name: "app.example.com",
+      url: "https://app.example.com",
+      routes: [{ id: "res_1", name: "app-example-com", service: "web", port: 80 }],
+      servers: [
+        {
+          serverId: SERVER,
+          serverName: "hz-1",
+          status: { domain: "app.example.com", certificate: { state, message } },
+        },
+      ],
+    });
+    let domains = [domain(CertificateState.PENDING, "Waiting for the certificate authority to answer")];
+    const asked: { environment: string; service: string }[] = [];
+    const { container } = renderAt(
+      "/apps/svc_web",
+      api([web], {
+        domains: {
+          listDomains: (req) => {
+            asked.push({ environment: req.environment, service: req.service });
+            return { domains };
+          },
+        },
+      }),
+    );
+    const running = await screen.findByRole("region", { name: "Running" });
+    expect(await within(running).findByText("app.example.com")).toBeVisible();
+    expect(within(running).getByText("Waiting for the certificate authority to answer")).toBeVisible();
+    // Nothing to open until it answers.
+    expect(within(running).queryByRole("link", { name: "Open app.example.com" })).not.toBeInTheDocument();
+    expect(asked[0]).toEqual({ environment: web.resource?.scope, service: "web" });
+    await expectAccessible(container);
+
+    // It follows the certificate, and stops once there's nothing to wait for.
+    domains = [domain(CertificateState.ISSUED)];
+    expect(
+      await within(running).findByRole("link", { name: "Open app.example.com" }, { timeout: 7000 }),
+    ).toHaveAttribute("href", "https://app.example.com");
+    expect(within(running).getByText("HTTPS")).toBeVisible();
+  }, 10_000);
+
+  it("says what's wrong with a certificate or the proxy in the server's own words", async () => {
+    const failed = {
+      name: "app.example.com",
+      url: "https://app.example.com",
+      servers: [
+        {
+          serverId: SERVER,
+          serverName: "hz-1",
+          status: {
+            domain: "app.example.com",
+            certificate: { state: CertificateState.FAILED, message: "DNS has no record for app.example.com. Add one" },
+          },
+        },
+      ],
+    };
+    const noPorts = anApp("web", "nginx:1.5");
+    renderAt("/apps/svc_web", api([noPorts], { domains: { listDomains: () => ({ domains: [failed] }) } }));
+    const words = await screen.findByText("DNS has no record for app.example.com. Add one");
+    expect(words.closest("li")).toHaveClass("is-failed");
+    expect(screen.queryByRole("link", { name: "Open app.example.com" })).not.toBeInTheDocument();
+    // A domain with no port still has the way to add either.
+    const running = screen.getByRole("region", { name: "Running" });
+    expect(within(running).getByRole("button", { name: "Add a domain" })).toBeVisible();
+    expect(within(running).getByRole("button", { name: "Add a port" })).toBeVisible();
+  });
+
+  it("adds a domain as a plan, with a route named for it, and says what's in its way", async () => {
+    const user = userEvent.setup();
+    const alone = anApp("alone", "nginx:1.5", {}, {});
+    const edits: unknown[] = [];
+    renderAt(
+      "/apps/svc_alone",
+      api([alone], {
+        services: { listServices: () => ({ services: [alone] }), listServiceRevisions: () => ({ revisions }) },
+        domains: {
+          // Another app's domain, in its environment, has the name this one would.
+          listDomains: (req) => ({
+            domains:
+              req.service === ""
+                ? [
+                    {
+                      name: "app-example.com",
+                      routes: [{ id: "res_1", name: "app-example-com", service: "other", port: 80 }],
+                    },
+                  ]
+                : [],
+          }),
+        },
+        changes: {
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+          proposeChange: (req) => {
+            const route = req.edits[0]?.spec?.kind.value as { domain: string } | undefined;
+            if (route?.domain === "bad.example") {
+              const err = new ConnectError(
+                "example is a name no public certificate authority issues for. Use a domain you own",
+                Code.InvalidArgument,
+              );
+              err.metadata.set("Dockwell-Error", "invalid");
+              throw err;
+            }
+            if (route?.domain === "taken.example.com") {
+              const err = new ConnectError(
+                "hz-1: 1Panel-openresty holds port 80, so Caddy can't start. Stop it first",
+                Code.FailedPrecondition,
+              );
+              err.metadata.set("Dockwell-Error", "agent_failed");
+              throw err;
+            }
+            edits.push(req.edits[0]);
+            return { change: webPlanned() };
+          },
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain to alone" });
+    await expectAccessible(document.body);
+    const field = within(sheet).getByLabelText("Domain");
+
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    expect(field).toHaveAccessibleDescription("Name the domain, such as app.example.com.");
+
+    await user.type(field, "bad.example");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(field).toHaveAccessibleDescription(/no public certificate authority/));
+
+    // What holds the proxy's ports is the server's to say, by name.
+    await user.clear(field);
+    await user.type(field, "taken.example.com");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    expect(await within(sheet).findByText(/1Panel-openresty holds port 80, so Caddy can't start/)).toBeVisible();
+
+    await user.clear(field);
+    await user.type(field, "App.Example.COM");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    expect(await screen.findByRole("dialog", { name: "Review plan" })).toBeVisible();
+    expect(edits[0]).toMatchObject({
+      resource: { kind: "route", scope: alone.resource?.scope, name: "app-example-com-2" },
+      spec: { kind: { case: "route", value: { domain: "app.example.com", service: "alone", port: 80 } } },
+    });
   });
 
   it("offers another port once it has one", async () => {
