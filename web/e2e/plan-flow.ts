@@ -449,6 +449,8 @@ export async function planFlow(
     }
     if (name === "tagged") {
       await page.setViewportSize({ width: 390, height: 844 });
+      // The sheet changes for a phone once the browser says the width changed.
+      await page.locator(".plan-view.is-phone").waitFor();
       const summary = await details.locator("summary").boundingBox();
       if (!summary || summary.height < 44 || summary.width < 44) {
         fail(`Details is ${summary?.width} by ${summary?.height} px on a phone, too small for a thumb`);
